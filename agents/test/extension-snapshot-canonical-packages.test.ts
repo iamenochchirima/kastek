@@ -166,6 +166,20 @@ describe("ExtensionSnapshotRepository canonical package reconciliation", () => {
     expect(pool.query).toHaveBeenCalledTimes(3);
   });
 
+  it("fails closed when a catalog package is published but not ready", async () => {
+    const blockedPackage = packageRow({ kind: "plugin", id: "support.plugin", version: "2.0.0", checksum: pluginChecksum });
+    blockedPackage.declaration = { ...blockedPackage.declaration, configured: false };
+    const pool = { query: vi.fn()
+      .mockResolvedValueOnce({ rows: [version({ extensions: { packages: [{ kind: "plugin", id: "support.plugin", version: "2.0.0", checksum: pluginChecksum }] } }, { extensions: { grants: [{ kind: "plugin", id: "support.plugin", permissions: ["tickets.write"] }] } })] })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [blockedPackage] }) };
+    const repository = new ExtensionSnapshotRepository(pool as never);
+
+    await expect(repository.ensureSnapshotForVersion(pool as never, organizationId, actorId, versionId))
+      .rejects.toThrow("EXTENSION_SNAPSHOT_EXTENSION_NOT_READY:plugin:support.plugin:not_configured");
+    expect(pool.query).toHaveBeenCalledTimes(3);
+  });
+
   it("rejects canonical mcp_adapter selections instead of coercing or ignoring them", async () => {
     const pool = { query: vi.fn()
       .mockResolvedValueOnce({ rows: [version({ extensions: { packages: [{ kind: "mcp_adapter", id: "calendar.adapter", version: "1.0.0", checksum: "e".repeat(64) }] } }, { extensions: { grants: [{ kind: "mcp_adapter", id: "calendar.adapter", permissions: ["calendar.read"] }] } })] })

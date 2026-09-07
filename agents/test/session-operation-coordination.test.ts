@@ -107,4 +107,33 @@ describe("durable session operation coordinator", () => {
     expect((await coordinator.heartbeat(mutation)).outcome).toBe("renewed");
     expect((await coordinator.release(mutation)).outcome).toBe("released");
   });
+
+  it("reports durable lease contention and stale-owner observations without changing lease results", async () => {
+    const observations: Array<{ event: string; outcome: string; reasonCode?: string; metrics: { queueDepth?: number; queueAgeMs?: number; staleOwnerCount?: number } }> = [];
+    const activeLease = {
+      status: "active",
+      fencing_token: "4",
+      expires_at: new Date(Date.now() + 60_000).toISOString(),
+    } as SessionLeaseRecord;
+    const leases = fakeLeases({
+      current: [activeLease],
+      acquire: [{ outcome: "busy", lease: activeLease } as SessionLeaseAcquireResult],
+    });
+    const coordinator = new DurableSessionOperationCoordinator(
+      new DurableOperationCoordinator(new InMemoryDurableOperationStore()),
+      leases,
+      (event) => observations.push({ event: event.event, outcome: event.outcome, reasonCode: event.reasonCode, metrics: event.metrics }),
+    );
+
+    await expect(coordinator.acquire(input)).resolves.toMatchObject({ outcome: "busy" });
+
+    expect(observations).toContainEqual(expect.objectContaining({
+      event: "admission",
+      outcome: "queued",
+      reasonCode: "SESSION_BUSY",
+      metrics: expect.objectContaining({ staleOwnerCount: 0 }),
+    }));
+    expect(observations[0]?.metrics.queueDepth).toBeUndefined();
+    expect(observations[0]?.metrics.queueAgeMs).toBeUndefined();
+  });
 });

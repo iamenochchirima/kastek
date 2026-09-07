@@ -24,6 +24,7 @@ import {
   normalizeChildRetryPolicy,
   type ChildActivationRequest,
   type ChildAdmissionActivities,
+  type ChildActivityOutcome,
   type ChildProgressEvidence,
   type ChildWorkflowActivities,
   type TemporalChildWorkflowInput,
@@ -184,6 +185,61 @@ async function executeChildActivityWithTimeout(input: TemporalChildWorkflowInput
   }
 }
 
+/**
+ * A platform child is a normal durable agent run, nested under the parent's
+ * workflow. The old activity adapter remains available for direct extension
+ * tests and non-platform hosts, but the worker path never executes a child
+ * agent through an unconfigured placeholder.
+ */
+async function executeNestedAgentRunWithTimeout(input: TemporalChildWorkflowInput): Promise<{
+  outcome?: ChildActivityOutcome;
+  error?: { code: string; message: string };
+  timedOut: boolean;
+  cancelled: boolean;
+}> {
+  if (!input.childRunId) {
+    return {
+      outcome: { status: "failed", error: { code: "CHILD_RUN_NOT_CONFIGURED", message: "The child activation did not create a durable child run" }, retryable: false },
+      timedOut: false,
+      cancelled: false,
+    };
+  }
+  const getChildRunOutcome = (childActivities as unknown as {
+    getChildRunOutcome: (input: { scope: TemporalChildWorkflowInput["scope"]; childRunId: string }) => Promise<ChildActivityOutcome>;
+  }).getChildRunOutcome;
+  const childScope = new CancellationScope();
+  const timeoutScope = new CancellationScope();
+  let timedOut = false;
+  const timer = timeoutScope.run(async () => {
+    await sleep(input.timeoutMs);
+    timedOut = true;
+    childScope.cancel();
+  }).catch(() => undefined);
+  try {
+    await childScope.run(() => executeChild(agentRunWorkflow, {
+      workflowId: `agent-run-${input.childRunId}`,
+      args: [{
+        runId: input.childRunId!,
+        organizationId: input.scope.organizationId,
+        actorId: `child:${input.scope.parentRunId}`,
+      }],
+      cancellationType: ChildWorkflowCancellationType.WAIT_CANCELLATION_COMPLETED,
+      parentClosePolicy: ParentClosePolicy.REQUEST_CANCEL,
+    }));
+    const outcome = await getChildRunOutcome({ scope: input.scope, childRunId: input.childRunId });
+    return { outcome, timedOut: false, cancelled: false };
+  } catch (error) {
+    return {
+      error: childErrorFrom(error, timedOut ? "CHILD_TIMEOUT" : "CHILD_RUN_FAILED"),
+      timedOut,
+      cancelled: !timedOut && isCancellation(error),
+    };
+  } finally {
+    timeoutScope.cancel();
+    await timer;
+  }
+}
+
 /** Durable child execution. It never calls a provider directly from workflow code. */
 export async function agentChildWorkflow(input: TemporalChildWorkflowInput): Promise<TemporalChildWorkflowOutcome> {
   const retryPolicy = normalizeChildRetryPolicy(input.retryPolicy);
@@ -201,7 +257,9 @@ export async function agentChildWorkflow(input: TemporalChildWorkflowInput): Pro
   while (attempts < retryPolicy.maximumAttempts) {
     attempts += 1;
     await appendProgress(childEvidence(input, 0, "started", `Child attempt ${attempts} started`));
-    const execution = await executeChildActivityWithTimeout(input, attempts);
+    const execution = input.childRunId
+      ? await executeNestedAgentRunWithTimeout(input)
+      : await executeChildActivityWithTimeout(input, attempts);
     const activityOutcome = execution.outcome;
     if (activityOutcome?.progress) {
       for (const evidence of activityOutcome.progress.slice(0, childProgressLimit - progress.length)) {

@@ -576,7 +576,7 @@ export class ExtensionSnapshotRepository {
     const requestedSkills = isRecord(policy) && Array.isArray(policy.allowedSkillIds)
       ? policy.allowedSkillIds.filter((entry): entry is string => typeof entry === "string")
       : [];
-    const snapshot = new ExtensionResolver().resolve({
+    const snapshot = new ExtensionResolver().resolveForPublication({
       agentVersionId,
       skills: skillDeclarations,
       plugins,

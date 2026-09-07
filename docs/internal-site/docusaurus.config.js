@@ -49,6 +49,8 @@ const config = {
           "agents/AGENT_PLATFORM_IMPLEMENTATION_PLAN.md",
           "active/AGENT_PLATFORM_HOST_BOUNDARY_RESTRUCTURE_PLAN.md",
           "active/AGENT_PLATFORM_HERMES_ALIGNED_RUNTIME_RELIABILITY_PLAN.md",
+          "active/AGENT_PLATFORM_EXECUTION_OBSERVATORY_AND_CONTROL_PLANE_PLAN.md",
+          "agents/AGENT_PLATFORM_EXECUTION_VISUALIZATION_RESEARCH.md",
         ],
         showLastUpdateAuthor: false,
         showLastUpdateTime: true,

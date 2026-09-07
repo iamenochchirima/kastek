@@ -78,6 +78,33 @@ describe("ExtensionResolver", () => {
     expect(snapshot.skills[0]?.readiness.blockers).toEqual([{ code: "dependency_not_found", dependency: { kind: "connector", id: "missing-connector" } }]);
   });
 
+  it("fails closed for publication when an extension is not ready", () => {
+    expect(() => new ExtensionResolver().resolveForPublication(input({
+      skills: [],
+      mcpCapabilities: [],
+      plugins: [],
+      grants: { connectorIds: ["calendar"], capabilityIds: [], skillIds: [], pluginIds: [] },
+      connectors: [{ kind: "connector", id: "calendar", version: "1.0.0", checksum, available: true, installed: true, configured: false }],
+    }))).toThrow("EXTENSION_SNAPSHOT_EXTENSION_NOT_READY:connector:calendar:not_configured");
+  });
+
+  it("fails closed when a selected package has no resolved declaration", () => {
+    expect(() => new ExtensionResolver().resolveForPublication(input({
+      selectedPackages: [{
+        organizationId: "org-1",
+        packageVersionId: "package-1",
+        kind: "plugin",
+        id: "missing-plugin",
+        version: "1.0.0",
+        checksum,
+        status: "published",
+        configuration: {},
+        grantedPermissions: [],
+      }],
+      plugins: [],
+    }))).toThrow("EXTENSION_SNAPSHOT_PACKAGE_UNRESOLVED:plugin:missing-plugin");
+  });
+
   it("rejects duplicate declarations before compiling a snapshot", () => {
     expect(() => new ExtensionResolver().resolve(input({
       connectors: [

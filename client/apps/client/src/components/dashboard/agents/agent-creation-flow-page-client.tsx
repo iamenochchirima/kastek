@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import type { AgentDefinition, AgentTemplate, AgentVersion } from "@/lib/agent-platform";
-import { CreateAgentPageClient } from "./create-agent-page-client";
+import { AgentProfileCreationPageClient } from "./agent-profile-creation-page-client";
 import { CreateGeneralAgentPageClient } from "./create-general-agent-page-client";
 
 export type AgentCreationAudience = "personal" | "customer_service";
@@ -128,7 +128,7 @@ export function AgentCreationFlowPageClient({ userId, initialAudience, initialMo
     return <CreateGeneralAgentPageClient audience={audience} userId={userId} onBackToStart={returnToKind} />;
   }
   if (audience && kind === "custom") {
-    return <CreateAgentPageClient audience={audience} userId={userId} initialTemplate={initialTemplate} initialDraft={initialDraft} onBackToStart={returnToKind} />;
+    return <AgentProfileCreationPageClient audience={audience} userId={userId} initialTemplate={initialTemplate} initialDraft={initialDraft} onBackToStart={returnToKind} />;
   }
 
   return <StartScreen step={step} audience={selectedAudience} kind={selectedKind} onAudienceChange={setSelectedAudience} onKindChange={setSelectedKind} onBack={() => router.push("/agents")} onBackToAudience={() => { setSelectedKind(null); setKind(null); setStep("audience"); }} onContinue={() => {

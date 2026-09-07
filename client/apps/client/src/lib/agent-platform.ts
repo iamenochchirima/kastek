@@ -766,8 +766,61 @@ export function archiveExternalAgent(installationId: string): Promise<{ archived
   return request(`/api/agents/external-agents/${encodeURIComponent(installationId)}`, { method: "DELETE" });
 }
 
-export function createAgentVersion(agentId: string, input: { instructions: string; configuration?: Record<string, unknown>; policy?: Record<string, unknown> }): Promise<AgentVersion> {
-  return request(`/api/agents/${encodeURIComponent(agentId)}/versions`, { method: "POST", body: JSON.stringify({ configuration: {}, policy: {}, ...input }) });
+export type AgentSpecInput = {
+  specVersion: 1;
+  identity?: { displayName?: string; purpose?: string; audience?: AgentAudience };
+  behavior: { instructions: string };
+  model: {
+    version: string;
+    primary: { provider: AgentModelProvider; model: string };
+    credentialReference?: string;
+    fallback?: Array<{ provider: AgentModelProvider; model: string }>;
+    allowUserFundedFallbackToKasiTek?: boolean;
+    maxTokensPerRun?: number;
+    maxEstimatedCostUsd?: number;
+  };
+  runtime?: {
+    maxContextMessages?: number;
+    maxContextTokens?: number;
+    maxIterations?: number;
+    maxModelCalls?: number;
+    maxToolCalls?: number;
+    maxTotalTokens?: number;
+    maxWallTimeMs?: number;
+    maxEstimatedCostUsd?: number;
+    temperature?: number;
+  };
+  capabilities?: { allowedTools?: string[]; requiredCapabilities?: string[] };
+  knowledge?: { sourceIds?: string[]; requiredConnections?: string[] };
+  memory?: {
+    mode?: "disabled" | "explicit" | "reviewed" | "automatic";
+    readableNamespaces?: string[];
+    writableNamespaces?: string[];
+    writableTypes?: string[];
+    maxRetrieved?: number;
+    maxRetrievedTokens?: number;
+    maxWritesPerRun?: number;
+    retentionDays?: number;
+    allowSensitive?: boolean;
+  };
+  skills?: { allowedSkillIds?: string[] };
+  extensions?: { packages?: unknown[]; grants?: unknown[] };
+  workflow?: { graph?: Record<string, unknown> };
+  channels?: { allowed?: string[] };
+  release?: { mode?: "pinned" | "follow_published" | "staged" };
+};
+
+export type AgentVersionCreateInput = {
+  instructions: string;
+  configuration?: Record<string, unknown>;
+  policy?: Record<string, unknown>;
+} | { spec: AgentSpecInput };
+
+export function createAgentVersion(agentId: string, input: AgentVersionCreateInput): Promise<AgentVersion> {
+  return request(`/api/agents/${encodeURIComponent(agentId)}/versions`, {
+    method: "POST",
+    body: JSON.stringify("spec" in input ? input : { configuration: {}, policy: {}, ...input }),
+  });
 }
 
 export function createAgentInstallation(agentVersionId: string, settings: Record<string, unknown> = {}, releaseMode?: "pinned" | "follow_published" | "staged"): Promise<AgentInstallation> {
@@ -876,6 +929,10 @@ export type AgentCapability = {
   audit?: { classification: string; description: string; redaction: string[] };
   documentation?: { title: string; summary: string };
 };
+
+export function listAgentCapabilities(): Promise<{ capabilities: AgentCapability[] }> {
+  return request("/api/agents/capabilities");
+}
 
 export type AgentReadiness = {
   installationId: string;

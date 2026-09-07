@@ -77,7 +77,42 @@ export interface SettleSessionTurnInput extends SessionLeaseRef {
   readonly outcome: "completed" | "failed";
 }
 
-export const sessionAdmissionOutcomes = ["accepted", "queued", "busy", "rejected"] as const;
+/**
+ * Queue limits are deliberately optional. Existing adapters that do not pass
+ * a policy retain their current FIFO behaviour, while hosts can opt into a
+ * bounded queue without changing the ownership contract.
+ */
+export interface SessionQueuePolicy {
+  /** Maximum number of waiting turns. The active turn is not counted. */
+  readonly maxDepth?: number;
+  /** Stop accepting new work when the oldest waiting turn has reached this age. */
+  readonly maxAgeMs?: number;
+}
+
+export interface SessionQueueMetrics {
+  readonly queueDepth?: number;
+  readonly oldestQueuedAt?: number;
+  readonly queueAgeMs?: number;
+  /** Number of expired owners reaped for this session by this adapter. */
+  readonly staleOwnerCount: number;
+  readonly activeOwner?: string;
+  readonly activeExpiresAt?: number;
+}
+
+export type SessionQueueObservationEvent = "admission" | "claim" | "lease_expired" | "heartbeat" | "release" | "settle";
+export type SessionQueueObservationOutcome = "accepted" | "queued" | "limited" | "busy" | "rejected";
+
+export interface SessionQueueObservation {
+  readonly event: SessionQueueObservationEvent;
+  readonly sessionKey: string;
+  readonly outcome: SessionQueueObservationOutcome;
+  readonly reasonCode?: string;
+  readonly metrics: SessionQueueMetrics;
+}
+
+export type SessionQueueObserver = (observation: SessionQueueObservation) => void;
+
+export const sessionAdmissionOutcomes = ["accepted", "queued", "limited", "busy", "rejected"] as const;
 export type SessionAdmissionOutcome = (typeof sessionAdmissionOutcomes)[number];
 
 export type SessionAdmissionRejectionCode =
@@ -87,18 +122,31 @@ export type SessionAdmissionRejectionCode =
   | "INVALID_TURN_ID"
   | "TURN_ID_REUSED";
 
+export type SessionAdmissionLimitCode = "QUEUE_DEPTH_LIMIT" | "QUEUE_AGE_LIMIT";
+
 export type SessionAdmission<TPayload> =
   | {
       readonly outcome: "accepted";
       readonly turn: SessionTurn<TPayload>;
       readonly lease: SessionLease;
       readonly queueLength: number;
+      readonly queueMetrics?: SessionQueueMetrics;
     }
   | {
       readonly outcome: "queued";
       readonly turn: SessionTurn<TPayload>;
       readonly position: number;
       readonly activeOwner?: SessionOwnerId;
+      readonly retryAt?: number;
+      readonly queueLength?: number;
+      readonly queueMetrics?: SessionQueueMetrics;
+    }
+  | {
+      readonly outcome: "limited";
+      readonly reasonCode: SessionAdmissionLimitCode;
+      readonly message: string;
+      readonly queueLength: number;
+      readonly queueMetrics?: SessionQueueMetrics;
       readonly retryAt?: number;
     }
   | {
@@ -161,6 +209,7 @@ export interface SessionSnapshot<TPayload> {
   };
   readonly queued: readonly SessionTurn<TPayload>[];
   readonly nextSequence: number;
+  readonly queueMetrics?: SessionQueueMetrics;
 }
 
 export interface SessionOwnership<TPayload> {

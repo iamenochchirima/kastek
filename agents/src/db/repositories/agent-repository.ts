@@ -185,8 +185,15 @@ export class AgentRepository {
 
   public constructor(
     private readonly pool: Pool,
-    private readonly extensionSnapshots?: ExtensionSnapshotRepository,
-  ) {}
+    extensionSnapshots?: ExtensionSnapshotRepository,
+  ) {
+    // Publication and run admission must never silently proceed without the
+    // immutable extension-snapshot boundary. Keep the constructor convenient
+    // for existing callers while making the reconciler mandatory in practice.
+    this.extensionSnapshots = extensionSnapshots ?? new ExtensionSnapshotRepository(pool);
+  }
+
+  private readonly extensionSnapshots: ExtensionSnapshotRepository;
 
   private async ensureVersionExtensionSnapshot(
     client: PoolClient,
@@ -195,7 +202,6 @@ export class AgentRepository {
     agentDefinitionId: string,
     versionId: string,
   ): Promise<AgentVersionRecord | undefined> {
-    if (!this.extensionSnapshots) return undefined;
     const snapshot = await this.extensionSnapshots.ensureSnapshotForVersion(client, organizationId, actorId, versionId);
     const pinned = await client.query<AgentVersionRecord>(
       `UPDATE agent_versions
@@ -1311,7 +1317,10 @@ export class AgentRepository {
         );
         if (pinned.rowCount !== requestedSkillIds.length) throw new Error("SKILL_VERSION_UNAVAILABLE");
       }
-      return (await this.ensureVersionExtensionSnapshot(client, organizationId, actorId, agentId, created.rows[0]!.id)) ?? created.rows[0]!;
+      // Draft versions are reconciled at publication time. This prevents a
+      // package being revoked or becoming unready after draft creation from
+      // being hidden behind an already-pinned draft snapshot.
+      return created.rows[0]!;
     });
   }
 
@@ -1331,6 +1340,17 @@ export class AgentRepository {
       if (agent.rows[0].protected && agent.rows[0].owner_type !== "system") {
         throw new Error("Protected agent ownership is invalid");
       }
+      const draft = await client.query<AgentVersionRecord>(
+        `SELECT * FROM agent_versions
+         WHERE id = $1 AND agent_definition_id = $2 AND status = 'draft'
+         FOR UPDATE`,
+        [versionId, agentId],
+      );
+      if (!draft.rows[0]) throw new Error("Draft version not found");
+      // Resolve against the current persisted package catalog while the
+      // version is still draft. The transaction cannot publish if any
+      // selected package is missing, revoked, or not ready.
+      await this.ensureVersionExtensionSnapshot(client, organizationId, actorId, agentId, draft.rows[0].id);
       const lifecycleAt = new Date().toISOString();
       const retired = await client.query<AgentVersionRecord>(
         `UPDATE agent_versions
@@ -1347,7 +1367,7 @@ export class AgentRepository {
         [versionId, agentId],
       );
       if (!published.rows[0]) throw new Error("Draft version not found");
-      const publishedVersion = (await this.ensureVersionExtensionSnapshot(client, organizationId, actorId, agentId, published.rows[0].id)) ?? published.rows[0];
+      const publishedVersion = published.rows[0];
       for (const version of retired.rows) {
         await this.enqueueVersionLifecycle(client, organizationId, version, "retired", "human", lifecycleAt);
       }

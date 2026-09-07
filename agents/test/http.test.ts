@@ -10,6 +10,7 @@ import { issueInstallationToken } from "../src/auth/installation-token";
 import { StaticCapabilityAccessSource } from "../src/domain/capability-access";
 import type { DraftEvaluationOutput } from "../src/evaluations/draft";
 import { InMemoryDeliveryObligationCoordinator } from "../src/delivery";
+import { ToolRegistry } from "../src/tools/registry";
 
 const installationTokenKeyPair = generateKeyPairSync("ec", { namedCurve: "prime256v1" });
 const clientAssertionKeyPair = generateKeyPairSync("ec", { namedCurve: "prime256v1" });
@@ -103,6 +104,101 @@ const hostedInstallationIdentity = {
 };
 
 describe("Agent Platform HTTP foundation", () => {
+  it("serves an authenticated organization-aware capability catalog without an installation", async () => {
+    const registry = new ToolRegistry();
+    registry.register({
+      name: "calendar.read",
+      version: "1.2.3",
+      description: "Read calendar availability.",
+      riskClass: "read",
+      requiresApproval: false,
+      timeoutMs: 5_000,
+      inputSchema: { type: "object", additionalProperties: false },
+      outputSchema: { type: "object", additionalProperties: false },
+      manifest: {
+        ownerService: "calendar",
+        requiredScope: "calendar.read",
+        execution: "immediate",
+        idempotency: "not_applicable",
+        approval: "none",
+        auditClassification: "access",
+        redaction: [],
+      },
+      handler: async () => ({}),
+    });
+    registry.register({
+      name: "billing.write",
+      version: "2.0.0",
+      description: "Create a billing adjustment.",
+      riskClass: "controlled-write",
+      requiresApproval: true,
+      timeoutMs: 8_000,
+      inputSchema: { type: "object", additionalProperties: false },
+      outputSchema: { type: "object", additionalProperties: false },
+      manifest: {
+        ownerService: "billing",
+        requiredScope: "billing.write",
+        execution: "durable",
+        idempotency: "required",
+        approval: "always",
+        auditClassification: "restricted",
+        redaction: ["accountNumber"],
+      },
+      handler: async () => ({}),
+    });
+    const getForCapabilities = vi.fn(async ({ organizationId, capabilityNames }: { organizationId: string; capabilityNames: readonly string[] }) => {
+      expect(organizationId).toBe("org-1");
+      expect(capabilityNames).toEqual(["calendar.read", "billing.write"]);
+      return new Map([
+        ["calendar.read", { entitled: true, providerAvailability: "available" as const, featureEnabled: true }],
+        ["billing.write", { entitled: false, providerAvailability: "available" as const, featureEnabled: true }],
+      ]);
+    });
+    const app = buildApp({
+      config,
+      pool: fakePool,
+      toolRegistry: registry,
+      capabilityAccess: { getForCapabilities },
+    });
+
+    const unauthenticated = await app.inject({ method: "GET", url: "/v1/capabilities" });
+    expect(unauthenticated.statusCode).toBe(401);
+
+    const response = await app.inject({
+      method: "GET",
+      url: "/v1/capabilities",
+      headers: { "x-organization-id": "org-1", "x-actor-id": "creator-1" },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      capabilities: [
+        {
+          name: "calendar.read",
+          version: "1.2.3",
+          description: "Read calendar availability.",
+          riskClass: "read",
+          requiresApproval: false,
+          permission: { scope: "calendar.read", label: "Calendar Read permission" },
+          availability: "available",
+          effectiveAccess: expect.objectContaining({ available: true, subscription: "entitled", providerReadiness: "ready" }),
+        },
+        {
+          name: "billing.write",
+          version: "2.0.0",
+          description: "Create a billing adjustment.",
+          riskClass: "controlled-write",
+          requiresApproval: true,
+          permission: { scope: "billing.write", label: "Billing Write permission" },
+          availability: "not_entitled",
+          effectiveAccess: expect.objectContaining({ available: false, subscription: "not_entitled", approvalRequired: true }),
+        },
+      ],
+    });
+    expect(getForCapabilities).toHaveBeenCalledOnce();
+    await app.close();
+  });
+
   it("serves the MCP initialize contract without requiring tenant credentials", async () => {
     const app = buildApp({
       config: mcpConfig,

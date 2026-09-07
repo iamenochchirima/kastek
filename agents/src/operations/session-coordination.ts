@@ -10,6 +10,10 @@ import type {
   SessionLeaseMutationResult,
   SessionLeaseRepository,
 } from "../db/repositories/session-lease-repository";
+import type {
+  SessionQueueMetrics,
+  SessionQueueObserver,
+} from "../runtime/session-ownership";
 
 type SessionOperationResult = SessionLeaseAcquireResult | SessionLeaseMutationResult;
 
@@ -31,12 +35,14 @@ export class DurableSessionOperationCoordinator {
   public constructor(
     private readonly operations: DurableOperationCoordinator,
     private readonly leases: SessionLeaseRepository,
+    private readonly queueObserver?: SessionQueueObserver,
   ) {}
 
   public async acquire(input: SessionLeaseAcquireInput): Promise<SessionLeaseAcquireResult> {
     const existingLease = await this.leases.current(input);
     const leaseIsCurrent = existingLease?.status === "active"
       && Date.parse(existingLease.expires_at) > Date.now();
+    const staleOwnerCount = existingLease?.status === "active" && !leaseIsCurrent ? 1 : 0;
     const leaseEpoch = existingLease?.fencing_token ?? "0";
     const operationKey = `session:${input.sessionKey}:admit:${input.runId}:${leaseEpoch}:${leaseIsCurrent ? "active" : "reacquire"}`;
     const prepared = await this.operations.prepare({
@@ -48,7 +54,11 @@ export class DurableSessionOperationCoordinator {
       requestFingerprint: fingerprintOperationRequest(input),
       metadata: { action: "admit", ownerId: input.ownerId, leaseEpoch, leaseIsCurrent },
     });
-    if (prepared.outcome === "completed") return receipt<SessionLeaseAcquireResult>(prepared.operation);
+    if (prepared.outcome === "completed") {
+      const result = receipt<SessionLeaseAcquireResult>(prepared.operation);
+      this.observe("admission", input.sessionKey, result.outcome === "acquired" ? "accepted" : "queued", this.metrics(staleOwnerCount));
+      return result;
+    }
     if (prepared.outcome === "unknown") {
       // The lease table is authoritative and can safely reconcile an
       // interrupted admission after the previous worker has disappeared.
@@ -61,11 +71,15 @@ export class DurableSessionOperationCoordinator {
       } else {
         await this.operations.reconcile({ operationId: prepared.operation.id, outcome: "completed", responseReceipt: { result } });
       }
+      this.observe("admission", input.sessionKey, result.outcome === "acquired" ? "accepted" : "queued", this.metrics(staleOwnerCount), result.outcome === "busy" ? "SESSION_BUSY" : undefined);
       return result;
     }
     if (prepared.outcome === "in_progress") {
       const result = await this.leases.acquire(input);
-      if (result.outcome === "busy") return result;
+      if (result.outcome === "busy") {
+        this.observe("admission", input.sessionKey, "queued", this.metrics(staleOwnerCount), "SESSION_BUSY");
+        return result;
+      }
       const current = await this.operations.get(prepared.operation.id);
       if (current?.status === "running") {
         await this.operations.complete({ operationId: prepared.operation.id, responseReceipt: { result } });
@@ -73,6 +87,7 @@ export class DurableSessionOperationCoordinator {
         await this.operations.markRunning({ operationId: prepared.operation.id });
         await this.operations.complete({ operationId: prepared.operation.id, responseReceipt: { result } });
       }
+      this.observe("admission", input.sessionKey, "accepted", this.metrics(staleOwnerCount));
       return result;
     }
 
@@ -85,9 +100,11 @@ export class DurableSessionOperationCoordinator {
           operationId: prepared.operation.id,
           error: { code: "SESSION_BUSY", message: "Session is owned by another run", retryable: true },
         });
+        this.observe("admission", input.sessionKey, "queued", this.metrics(staleOwnerCount), "SESSION_BUSY");
         return result;
       }
       await this.operations.complete({ operationId: prepared.operation.id, responseReceipt: { result } });
+      this.observe("admission", input.sessionKey, "accepted", this.metrics(staleOwnerCount));
       return result;
     } catch (error) {
       await this.operations.markUnknown({
@@ -122,10 +139,15 @@ export class DurableSessionOperationCoordinator {
       requestFingerprint: fingerprintOperationRequest({ ...input, action, timeBucket }),
       metadata: { action, ownerId: input.ownerId },
     });
-    if (prepared.outcome === "completed") return receipt<SessionLeaseMutationResult>(prepared.operation);
+    if (prepared.outcome === "completed") {
+      const result = receipt<SessionLeaseMutationResult>(prepared.operation);
+      this.observe(action, input.sessionKey, result.outcome === "renewed" || result.outcome === "released" || result.outcome === "already_released" ? "accepted" : "rejected", this.metrics(), result.outcome === "rejected" ? result.reason : undefined);
+      return result;
+    }
     if (prepared.outcome === "unknown") {
       const result = await operation();
       await this.operations.reconcile({ operationId: prepared.operation.id, outcome: "completed", responseReceipt: { result } });
+      this.observe(action, input.sessionKey, result.outcome === "rejected" ? "rejected" : "accepted", this.metrics(), result.outcome === "rejected" ? result.reason : undefined);
       return result;
     }
     if (prepared.outcome === "in_progress") {
@@ -134,6 +156,7 @@ export class DurableSessionOperationCoordinator {
       if (current?.status === "running") {
         await this.operations.complete({ operationId: prepared.operation.id, responseReceipt: { result } });
       }
+      this.observe(action, input.sessionKey, result.outcome === "rejected" ? "rejected" : "accepted", this.metrics(), result.outcome === "rejected" ? result.reason : undefined);
       return result;
     }
 
@@ -141,6 +164,7 @@ export class DurableSessionOperationCoordinator {
     try {
       const result = await operation();
       await this.operations.complete({ operationId: prepared.operation.id, responseReceipt: { result } });
+      this.observe(action, input.sessionKey, result.outcome === "rejected" ? "rejected" : "accepted", this.metrics(), result.outcome === "rejected" ? result.reason : undefined);
       return result;
     } catch (error) {
       await this.operations.markUnknown({
@@ -148,6 +172,29 @@ export class DurableSessionOperationCoordinator {
         error: { code: `SESSION_${action.toUpperCase()}_OUTCOME_UNKNOWN`, message: error instanceof Error ? error.message : "Session mutation outcome is unknown" },
       });
       throw error;
+    }
+  }
+
+  private metrics(staleOwnerCount = 0): SessionQueueMetrics {
+    // The durable queue is owned by the run/session persistence layer. This
+    // coordinator must not invent an in-memory depth, but it can still expose
+    // lease-staleness and leave queue fields absent until that layer supplies
+    // them.
+    return { staleOwnerCount };
+  }
+
+  private observe(event: "admission" | "heartbeat" | "release", sessionKey: string, outcome: "accepted" | "queued" | "rejected", metrics: SessionQueueMetrics, reasonCode?: string): void {
+    if (!this.queueObserver) return;
+    try {
+      this.queueObserver({
+        event,
+        sessionKey,
+        outcome,
+        ...(reasonCode ? { reasonCode } : {}),
+        metrics,
+      });
+    } catch {
+      // Observability must never alter durable lease semantics.
     }
   }
 }

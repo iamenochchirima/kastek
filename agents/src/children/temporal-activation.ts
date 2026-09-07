@@ -83,6 +83,8 @@ export interface TemporalChildWorkflowInput {
   scope: ChildInvocationScope;
   input: unknown;
   operationId: string;
+  /** The normal durable run created for a platform child activation. */
+  childRunId?: string;
   budget: ChildExecutionBudget;
   timeoutMs: number;
   retryPolicy: ChildRetryPolicy;
@@ -125,6 +127,11 @@ export type TemporalChildWorkflowOutcome<TOutput = unknown> = ChildActivityOutco
 
 export interface ChildWorkflowActivities {
   executeChild(input: ChildActivityExecutionInput): Promise<ChildActivityOutcome>;
+  /** Read the terminal result after a nested agentRunWorkflow completes. */
+  getChildRunOutcome?(input: {
+    scope: ChildInvocationScope;
+    childRunId: string;
+  }): Promise<ChildActivityOutcome>;
   recordChildProgress(input: {
     scope: ChildInvocationScope;
     operationId: string;

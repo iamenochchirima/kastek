@@ -661,6 +661,46 @@ export class RunRepository {
     return result.rows[0] ?? null;
   }
 
+  /**
+   * Resolve the active hosted installation for a child version without allowing
+   * a child invocation to cross organizations or accidentally enter an external
+   * MCP-only installation. Prefer the parent's environment (for example,
+   * playground stays playground), then fall back to the oldest active hosted
+   * installation for that exact definition/version.
+   */
+  public async findActiveChildInstallation(input: {
+    organizationId: string;
+    parentInstallationId: string;
+    agentDefinitionId: string;
+    agentVersionId: string;
+  }): Promise<{ id: string; agent_definition_id: string; agent_version_id: string; execution_mode: string } | null> {
+    const result = await query<{
+      id: string;
+      agent_definition_id: string;
+      agent_version_id: string;
+      execution_mode: string;
+    }>(
+      this.pool,
+      `SELECT child.id, child.agent_definition_id, child.agent_version_id, child.execution_mode
+       FROM agent_installations child
+       JOIN agent_installations parent ON parent.id = $2 AND parent.organization_id = $1
+       WHERE child.organization_id = $1
+         AND child.agent_definition_id = $3
+         AND child.agent_version_id = $4
+         AND child.status = 'active'
+         AND child.execution_mode <> 'external_connected'
+       ORDER BY
+         CASE WHEN COALESCE(child.settings ->> 'environment', 'live')
+                    = COALESCE(parent.settings ->> 'environment', 'live')
+              THEN 0 ELSE 1 END,
+         child.created_at ASC,
+         child.id ASC
+       LIMIT 1`,
+      [input.organizationId, input.parentInstallationId, input.agentDefinitionId, input.agentVersionId],
+    );
+    return result.rows[0] ?? null;
+  }
+
   public async getRunById(runId: string): Promise<RunRecord | null> {
     const result = await query<RunRecord>(
       this.pool,

@@ -181,7 +181,7 @@ describe("durable context compaction", () => {
       journal: (event) => events.push(event),
       compactionPolicy: { maxRetainedMessageUnits: 1, maxSummaryTokens: 20 },
     });
-    const started = engine.startTurn({
+    const started = await engine.startTurn({
       turnId: "engine-turn-1",
       request: {
         profile: { provider: "openai", model: "test", contextWindowTokens: 1_000, maxOutputTokens: 100 },
@@ -191,7 +191,7 @@ describe("durable context compaction", () => {
     });
 
     const compacted = await engine.compactContext(started.handle);
-    const planned = engine.requestPlan(started.handle);
+    const planned = await engine.requestPlan(started.handle);
 
     expect(compacted.messages).toContainEqual(expect.objectContaining({ content: expect.stringContaining("durable-context-summary") }));
     expect(planned.diagnostics.compactionStatus).toBe("completed");

@@ -3,7 +3,7 @@ id: agent-host-boundary
 title: Agent runtime host boundary
 sidebar_position: 9
 owner: agent-platform
-last_reviewed: 2026-09-06
+last_reviewed: 2026-09-07
 ---
 
 # Agent runtime host boundary
@@ -30,6 +30,12 @@ The first runtime rewrite is implemented in the `agents` package:
   snapshot reference on versions and admitted runs and prevents immutable run identity changes.
 - [`execution-evidence.ts`](../../../agents/src/runtime/execution-evidence.ts) adds the canonical
   scoped identity to durable execution events.
+- [`AgentSpec`](../../../agents/src/domain/agent-spec.ts) is the typed authoring boundary for a
+  profile-first agent. Workflow graphs are optional; the normal hosted path is an agent profile,
+  capability grants, and a pinned version.
+- Temporal child activation creates an idempotent child run for the requested hosted version and
+  nests the normal `agentRunWorkflow`. Child capability and resource grants are attenuated before
+  admission and are applied again when the child loop builds its execution scope.
 
 HTTP and Temporal composition roots construct the same host-capability seam. The selected workspace
 status tool no longer calls the broad Core client directly when it runs through the production
@@ -48,12 +54,17 @@ Host adapters may return only bounded typed results. The router handles missing 
 assignment mismatch, unavailable hosts, invalid arguments, and host errors without exposing raw
 provider errors or credentials to the model.
 
-## Admission policy in this chunk
+## Admission policy and Playground boundary
 
-Same-session queueing is not implemented here. The declared first policy is
-`same-session-v1`: an active conversation run is rejected with a retryable typed admission result.
-The later session-coordination chunk will replace that policy with durable queueing; it will not
-silently reinterpret the current rejection as successful serialization.
+Same-session admission uses a durable lease with bounded queue policy, fencing tokens, and explicit
+`queued`, `limited`, and stale-owner outcomes. The in-memory adapter remains the fast conformance
+implementation; PostgreSQL and Temporal failure matrices are still release-gated.
+
+The creation flow writes `settings.environment = "playground"` on a pinned installation. The
+Playground UI only starts runs against that installation and consumes the same durable run/event
+APIs as other hosts. Full environment binding isolation—separate credentials, data namespaces,
+allowlisted destinations, and promotion to live—is still an open implementation item; the setting
+must not be treated as proof of resource isolation by a provider or channel adapter.
 
 ## Verification
 
@@ -67,4 +78,3 @@ The boundary is covered by:
 
 No remote deployment was created for this rewrite. Local build, test, and manual harness runs are
 the release gate while the platform is being rebuilt.
-

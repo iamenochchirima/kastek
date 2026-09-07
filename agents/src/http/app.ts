@@ -911,6 +911,30 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     return { installation, grants, capabilities, integrationAvailability: Object.fromEntries(integrationAvailability) };
   };
 
+  const projectCapabilityCatalog = async (organizationId: string) => {
+    const surfaces = toolRegistry.surfaces();
+    const dependencyMap = await capabilityAccess.getForCapabilities({
+      organizationId,
+      capabilityNames: surfaces.map((surface) => surface.name),
+    });
+    const capabilities = surfaces.map((surface) => {
+      const effectiveAccess = dependencyProjection(dependencyMap.get(surface.name), {
+        // The generic catalog describes organization-level availability. Agent
+        // and installation grants are applied later when a version is bound.
+        granted: true,
+        requiresApproval: surface.requiresApproval,
+        resourceScoped: surface.manifest.resourceSelector !== undefined,
+      }, surface.manifest.availability);
+      return {
+        ...surface,
+        ...effectiveAccess,
+        effectiveAccess,
+        availability: effectiveAccess.available ? "available" : effectiveAccess.reasonCode,
+      };
+    });
+    return { capabilities };
+  };
+
   const projectAgentVersionConfig = async (input: {
     organizationId: string;
     version: AgentVersionRecord;
@@ -2594,16 +2618,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
   app.get("/v1/external-agents/catalog", async (request) => {
     const auth = requireAuth(request, dependencies.config);
     requireScope(auth, dependencies.config, "agents:read");
-    const surfaces = toolRegistry.surfaces();
-    const dependencyMap = await capabilityAccess.getForCapabilities({ organizationId: auth.organizationId, capabilityNames: surfaces.map((surface) => surface.name) });
-    const capabilities = surfaces.map((surface) => {
-      const effectiveAccess = dependencyProjection(dependencyMap.get(surface.name), {
-        granted: true,
-        requiresApproval: surface.requiresApproval,
-        resourceScoped: surface.manifest.resourceSelector !== undefined,
-      }, surface.manifest.availability);
-      return { ...surface, ...effectiveAccess, effectiveAccess, availability: effectiveAccess.available ? "available" : effectiveAccess.reasonCode };
-    });
+    const { capabilities } = await projectCapabilityCatalog(auth.organizationId);
     return {
       capabilities,
       connectors: connectorRegistry.list().map((connector) => ({
@@ -2617,6 +2632,12 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
         supportsReconciliation: connector.supportsReconciliation,
       })),
     };
+  });
+
+  app.get("/v1/capabilities", async (request) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:read");
+    return projectCapabilityCatalog(auth.organizationId);
   });
 
   app.get("/v1/models/catalog", async (request) => {

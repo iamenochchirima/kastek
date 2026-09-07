@@ -105,4 +105,80 @@ describe("session ownership", () => {
     expect(duplicate).toMatchObject({ outcome: "accepted", turn: { id: first.turn.id }, lease: { fencingToken: first.lease.fencingToken } });
     expect(reused).toMatchObject({ outcome: "rejected", reasonCode: "TURN_ID_REUSED" });
   });
+
+  it("limits new admissions at the configured queue depth without breaking idempotent retries", async () => {
+    const coordinator = new InMemorySessionOwnership<string>({
+      leaseTtlMs: 100,
+      now: () => 1_000,
+      queuePolicy: { maxDepth: 1 },
+    });
+    const session = createSessionKey("conversation:depth-limit");
+    const owner = createSessionOwnerId("gateway");
+    const first = accepted(await coordinator.admitTurn({ sessionKey: session, requestedBy: owner, payload: "first" }));
+    const queued = await coordinator.admitTurn({ sessionKey: session, requestedBy: owner, payload: "second" });
+    const limited = await coordinator.admitTurn({ sessionKey: session, requestedBy: owner, payload: "third" });
+    const retry = await coordinator.admitTurn({ sessionKey: session, requestedBy: owner, payload: "second-retry", turnId: queued.outcome === "queued" ? queued.turn.id : undefined });
+
+    expect(first.outcome).toBe("accepted");
+    expect(queued).toMatchObject({ outcome: "queued", queueLength: 1, queueMetrics: { queueDepth: 1 } });
+    expect(limited).toMatchObject({
+      outcome: "limited",
+      reasonCode: "QUEUE_DEPTH_LIMIT",
+      queueLength: 1,
+      queueMetrics: { queueDepth: 1 },
+    });
+    expect(retry).toMatchObject({ outcome: "queued", turn: { id: queued.outcome === "queued" ? queued.turn.id : "" } });
+  });
+
+  it("limits new admissions when the oldest queued turn exceeds the age policy", async () => {
+    let now = 1_000;
+    const observations: Array<{ outcome: string; metrics: { queueDepth?: number; queueAgeMs?: number } }> = [];
+    const coordinator = new InMemorySessionOwnership<string>({
+      leaseTtlMs: 100,
+      now: () => now,
+      queuePolicy: { maxAgeMs: 50 },
+      onQueueObservation: (event) => observations.push({ outcome: event.outcome, metrics: event.metrics }),
+    });
+    const session = createSessionKey("conversation:age-limit");
+    const owner = createSessionOwnerId("gateway");
+
+    await coordinator.admitTurn({ sessionKey: session, requestedBy: owner, payload: "first" });
+    await coordinator.admitTurn({ sessionKey: session, requestedBy: owner, payload: "waiting" });
+    now = 1_050;
+    const limited = await coordinator.admitTurn({ sessionKey: session, requestedBy: owner, payload: "too-late" });
+    const snapshot = await coordinator.inspect(session);
+
+    expect(limited).toMatchObject({ outcome: "limited", reasonCode: "QUEUE_AGE_LIMIT", queueMetrics: { queueDepth: 1, queueAgeMs: 50 } });
+    expect(snapshot?.queueMetrics).toMatchObject({ queueDepth: 1, queueAgeMs: 50, staleOwnerCount: 0 });
+    expect(observations.at(-1)).toMatchObject({ outcome: "limited", metrics: { queueDepth: 1, queueAgeMs: 50 } });
+  });
+
+  it("records stale-owner reaping in queue metrics and observations", async () => {
+    let now = 1_000;
+    const observations: Array<{ event: string; reasonCode?: string; metrics: { queueDepth?: number; staleOwnerCount: number } }> = [];
+    const coordinator = new InMemorySessionOwnership<string>({
+      leaseTtlMs: 100,
+      now: () => now,
+      onQueueObservation: (event) => observations.push({ event: event.event, reasonCode: event.reasonCode, metrics: event.metrics }),
+    });
+    const session = createSessionKey("conversation:stale-owner");
+    const owner = createSessionOwnerId("worker-a");
+    const first = accepted(await coordinator.admitTurn({ sessionKey: session, requestedBy: owner, payload: "in-flight" }));
+    await coordinator.admitTurn({ sessionKey: session, requestedBy: owner, payload: "waiting" });
+
+    now = 1_101;
+    const snapshot = await coordinator.inspect(session);
+
+    expect(snapshot?.queueMetrics).toMatchObject({ queueDepth: 2, queueAgeMs: 101, staleOwnerCount: 1 });
+    expect(observations).toContainEqual(expect.objectContaining({
+      event: "lease_expired",
+      reasonCode: "STALE_OWNER_REAPED",
+      metrics: expect.objectContaining({ queueDepth: 2, staleOwnerCount: 1 }),
+    }));
+    expect((await coordinator.claimNext({ sessionKey: session, ownerId: createSessionOwnerId("worker-b") }))).toMatchObject({
+      outcome: "accepted",
+      turn: { id: first.turn.id },
+      queueMetrics: { queueDepth: 1, staleOwnerCount: 1 },
+    });
+  });
 });

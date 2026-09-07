@@ -193,6 +193,36 @@ function normalizeSelectedPackages(packages: readonly SelectedExtensionPackage[]
 }
 
 /**
+ * Publication is stricter than diagnostic resolution. A resolver may produce
+ * a blocked snapshot so callers can explain what is missing, but a published
+ * version must never carry an extension that cannot run under its declared
+ * gates or that was selected without a resolved catalog-backed declaration.
+ */
+export function assertExtensionSnapshotReady(snapshot: ExtensionSnapshot): void {
+  const resolved = [
+    ...snapshot.skills,
+    ...snapshot.plugins,
+    ...snapshot.connectors,
+    ...snapshot.mcpCapabilities,
+  ];
+  const resolvedByKey = new Set(resolved.map((entry) => `${entry.kind}:${entry.declaration.id}`));
+  for (const selected of snapshot.selectedPackages ?? []) {
+    if (selected.kind === "mcp_adapter") {
+      throw new Error(`EXTENSION_SNAPSHOT_PACKAGE_UNSUPPORTED:${selected.kind}:${selected.id}`);
+    }
+    const key = `${selected.kind}:${selected.id}`;
+    if (!resolvedByKey.has(key)) {
+      throw new Error(`EXTENSION_SNAPSHOT_PACKAGE_UNRESOLVED:${key}`);
+    }
+  }
+  for (const entry of resolved) {
+    if (entry.readiness.ready) continue;
+    const blocker = entry.readiness.blockers[0]?.code ?? "unknown";
+    throw new Error(`EXTENSION_SNAPSHOT_EXTENSION_NOT_READY:${entry.kind}:${entry.declaration.id}:${blocker}`);
+  }
+}
+
+/**
  * Compiles a pinned declarative agent extension set. It performs no I/O and
  * never invokes a plugin, MCP provider, connector, or capability handler.
  */
@@ -267,5 +297,17 @@ export class ExtensionResolver {
       checksum: snapshotChecksum,
       ...snapshotBody,
     });
+  }
+
+  /**
+   * Resolve the immutable publication candidate and fail closed when any
+   * selected or declared extension is not ready. The plain resolve() method
+   * remains diagnostic and can still return readiness blockers to authoring
+   * and tooling surfaces.
+   */
+  public resolveForPublication(input: ExtensionResolverInput): ExtensionSnapshot {
+    const snapshot = this.resolve(input);
+    assertExtensionSnapshotReady(snapshot);
+    return snapshot;
   }
 }

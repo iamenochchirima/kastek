@@ -17,10 +17,15 @@ import {
   type ContextSummaryProvider,
   type DurableContextAdapter,
 } from "./context-compaction";
+import {
+  InMemoryContextEngineStateAdapter,
+  type ContextEngineStateAdapter,
+} from "./context-engine-state";
 
 /**
  * The lifecycle owned by ContextEngine. The engine plans one provider request
- * at a time; it does not run the model, persist state, or retry a turn.
+ * at a time; it does not run the model or retry a turn. Lifecycle snapshots
+ * are persisted through the state adapter.
  */
 export type ContextEngineLifecycle =
   | "turn_start"
@@ -34,7 +39,7 @@ export type ContextTurnPhase = "started" | "compacted" | "planned" | "usage_acco
 export type ContextTurnOutcome = "completed" | "rejected" | "failed" | "aborted";
 
 export interface ContextTurnStartInput {
-  /** The caller-owned stable identity for this in-memory lifecycle. */
+  /** The caller-owned stable identity for this durable lifecycle. */
   readonly turnId: string;
   readonly request: ContextPlanInput;
 }
@@ -135,6 +140,23 @@ export interface ContextTurnCompleted {
   readonly diagnostics: ContextTurnDiagnostics;
 }
 
+/**
+ * Serializable lifecycle state. Diagnostics and event results are rebuilt by
+ * the engine after a reload so event sequence numbers remain process-local.
+ */
+export interface ContextEngineState {
+  readonly schemaVersion: "v1";
+  readonly turnId: string;
+  readonly request: ContextPlanInput;
+  readonly compactedRequest?: ContextPlanInput;
+  readonly compaction?: ContextCompactionResult;
+  readonly plan?: ContextPlan;
+  readonly accounting?: ContextUsageAccounting;
+  readonly providerUsage?: ProviderReportedUsage;
+  readonly outcome?: ContextTurnOutcome;
+  readonly completionErrorCode?: string;
+}
+
 export type ContextEngineJournalEvent =
   | ContextTurnStarted
   | ContextCompactionEvent
@@ -150,6 +172,8 @@ export interface ContextEngineOptions {
   readonly journal?: (event: ContextEngineJournalEvent) => void;
   /** Optional durable decision/revision store for compaction operations. */
   readonly durableContext?: DurableContextAdapter;
+  /** Durable lifecycle state. The default is a fast in-memory adapter. */
+  readonly state?: ContextEngineStateAdapter<ContextEngineState>;
   /** Optional advisory summarizer; deterministic fallback remains authoritative. */
   readonly summaryProvider?: ContextSummaryProvider;
   readonly compactionPolicy?: ContextCompactionPolicy;
@@ -161,7 +185,8 @@ export type ContextEngineErrorCode =
   | "turn_not_found"
   | "invalid_lifecycle_transition"
   | "provider_usage_already_accounted"
-  | "provider_usage_not_allowed";
+  | "provider_usage_not_allowed"
+  | "state_persistence_failed";
 
 export class ContextEngineError extends Error {
   public constructor(
@@ -191,13 +216,14 @@ interface ActiveContextTurn {
 
 /**
  * Lifecycle wrapper around provider planning and optional durable compaction.
- * Turn state remains in memory; durable context decisions are delegated to the
- * supplied adapter rather than being hidden inside this engine.
+ * The active-turn map is a cache. Lifecycle snapshots are written through the
+ * supplied state adapter so another worker can reload and continue a turn.
  */
 export class ContextEngine {
   private readonly activeTurns = new Map<string, ActiveContextTurn>();
   private readonly journal?: (event: ContextEngineJournalEvent) => void;
   private readonly durableContext?: DurableContextAdapter;
+  private readonly stateAdapter: ContextEngineStateAdapter<ContextEngineState>;
   private readonly summaryProvider?: ContextSummaryProvider;
   private readonly compactionPolicy?: ContextCompactionPolicy;
   private nextEventSequence = 1;
@@ -205,12 +231,13 @@ export class ContextEngine {
   public constructor(options: ContextEngineOptions = {}) {
     this.journal = options.journal;
     this.durableContext = options.durableContext;
+    this.stateAdapter = options.state ?? new InMemoryContextEngineStateAdapter<ContextEngineState>();
     this.summaryProvider = options.summaryProvider;
     this.compactionPolicy = options.compactionPolicy;
   }
 
   public async compactContext(handle: ContextTurnHandle, input: ContextCompactionRequest = {}): Promise<ContextCompactionResult> {
-    const state = this.requireTurn(handle);
+    const state = await this.requireTurn(handle);
     if (state.compaction) return state.compaction;
     if (state.plan || state.outcome) {
       throw new ContextEngineError("Context compaction must happen before request planning or completion.", "invalid_lifecycle_transition", handle.turnId);
@@ -225,31 +252,36 @@ export class ContextEngine {
       adapter: this.durableContext,
       summaryProvider: this.summaryProvider,
     });
-    state.compaction = result;
-    state.compactedRequest = snapshotPlanInput({ ...state.request, messages: result.messages });
-    state.diagnostics = this.createDiagnostics({
-      turnId: state.handle.turnId,
-      provider: state.request.profile.provider,
-      model: state.request.profile.model,
-      phase: "compacted",
-      revision: 1,
-      plan: undefined,
-      accounting: undefined,
+    const nextState: ActiveContextTurn = {
+      ...state,
       compaction: result,
-      outcome: undefined,
-      completionErrorCode: undefined,
-    });
+      compactedRequest: snapshotPlanInput({ ...state.request, messages: result.messages }),
+      diagnostics: this.createDiagnostics({
+        turnId: state.handle.turnId,
+        provider: state.request.profile.provider,
+        model: state.request.profile.model,
+        phase: "compacted",
+        revision: 1,
+        plan: undefined,
+        accounting: undefined,
+        compaction: result,
+        outcome: undefined,
+        completionErrorCode: undefined,
+      }),
+    };
+    await this.persistState(nextState);
+    this.activeTurns.set(handle.turnId, nextState);
     const event: ContextCompactionEvent = Object.freeze({
       lifecycle: "context_compaction",
-      handle: state.handle,
+      handle: nextState.handle,
       compaction: result.diagnostics,
-      diagnostics: state.diagnostics,
+      diagnostics: nextState.diagnostics,
     });
     this.emit(event);
     return result;
   }
 
-  public startTurn(input: ContextTurnStartInput): ContextTurnStarted {
+  public async startTurn(input: ContextTurnStartInput): Promise<ContextTurnStarted> {
     const turnId = input.turnId.trim();
     if (!turnId) throw new ContextEngineError("A non-empty turn id is required.", "invalid_turn_id");
     if (this.activeTurns.has(turnId)) {
@@ -274,6 +306,15 @@ export class ContextEngine {
       request: snapshotPlanInput(input.request),
       diagnostics,
     };
+    let createStatus: "created" | "exists";
+    try {
+      createStatus = await this.stateAdapter.create(snapshotState(state));
+    } catch {
+      throw new ContextEngineError("Context turn state could not be persisted.", "state_persistence_failed", turnId);
+    }
+    if (createStatus === "exists") {
+      throw new ContextEngineError(`Turn ${turnId} is already active.`, "turn_already_started", turnId);
+    }
     this.activeTurns.set(turnId, state);
 
     const result: ContextTurnStarted = Object.freeze({ lifecycle: "turn_start", handle, diagnostics });
@@ -281,35 +322,42 @@ export class ContextEngine {
     return result;
   }
 
-  public requestPlan(handle: ContextTurnHandle): ContextRequestPlan {
-    const state = this.requireTurn(handle);
+  public async requestPlan(handle: ContextTurnHandle): Promise<ContextRequestPlan> {
+    const state = await this.requireTurn(handle);
     if (state.planResult) return state.planResult;
     if (state.outcome) {
       throw new ContextEngineError("A completed turn cannot be planned again.", "invalid_lifecycle_transition", handle.turnId);
     }
 
-    const plan = planProviderRequest(state.compactedRequest ?? state.request);
-    state.plan = plan;
-    state.diagnostics = this.createDiagnostics({
-      turnId: state.handle.turnId,
-      provider: state.request.profile.provider,
-      model: state.request.profile.model,
-      phase: "planned",
-      revision: state.compaction ? 2 : 1,
-      plan,
-      accounting: undefined,
-      compaction: state.compaction,
-      outcome: undefined,
-      completionErrorCode: undefined,
-    });
-    const result: ContextRequestPlan = Object.freeze({ lifecycle: "request_plan", handle: state.handle, plan, diagnostics: state.diagnostics });
-    state.planResult = result;
-    this.emit(result);
+    const wasAlreadyPlanned = Boolean(state.plan);
+    const plan = state.plan ?? planProviderRequest(state.compactedRequest ?? state.request);
+    const diagnostics = wasAlreadyPlanned
+      ? state.diagnostics
+      : this.createDiagnostics({
+        turnId: state.handle.turnId,
+        provider: state.request.profile.provider,
+        model: state.request.profile.model,
+        phase: "planned",
+        revision: state.compaction ? 2 : 1,
+        plan,
+        accounting: undefined,
+        compaction: state.compaction,
+        outcome: undefined,
+        completionErrorCode: undefined,
+      });
+    const nextState: ActiveContextTurn = { ...state, plan, diagnostics };
+    if (!wasAlreadyPlanned) {
+      await this.persistState(nextState);
+    }
+    const result: ContextRequestPlan = Object.freeze({ lifecycle: "request_plan", handle: nextState.handle, plan, diagnostics });
+    nextState.planResult = result;
+    this.activeTurns.set(handle.turnId, nextState);
+    if (!wasAlreadyPlanned) this.emit(result);
     return result;
   }
 
-  public accountProviderUsage(handle: ContextTurnHandle, usage: ProviderReportedUsage): ContextProviderUsageAccounting {
-    const state = this.requireTurn(handle);
+  public async accountProviderUsage(handle: ContextTurnHandle, usage: ProviderReportedUsage): Promise<ContextProviderUsageAccounting> {
+    const state = await this.requireTurn(handle);
     if (!state.plan) {
       throw new ContextEngineError("Provider usage can only be accounted after request planning.", "invalid_lifecycle_transition", handle.turnId);
     }
@@ -322,37 +370,54 @@ export class ContextEngine {
       }
       throw new ContextEngineError("Provider usage was already accounted for this turn.", "provider_usage_already_accounted", handle.turnId);
     }
+    if (state.providerUsage) {
+      if (state.accounting && sameProviderUsage(state.providerUsage, usage)) {
+        const result: ContextProviderUsageAccounting = Object.freeze({
+          lifecycle: "provider_usage_accounting",
+          handle: state.handle,
+          accounting: state.accounting,
+          diagnostics: state.diagnostics,
+        });
+        state.usageResult = result;
+        this.activeTurns.set(handle.turnId, state);
+        return result;
+      }
+      throw new ContextEngineError("Provider usage was already accounted for this turn.", "provider_usage_already_accounted", handle.turnId);
+    }
     if (state.outcome) {
       throw new ContextEngineError("A completed turn cannot receive provider usage.", "invalid_lifecycle_transition", handle.turnId);
     }
 
-    state.providerUsage = { ...usage };
-    state.accounting = accountProviderUsage(state.plan, usage);
-    state.diagnostics = this.createDiagnostics({
+    const providerUsage = { ...usage };
+    const accounting = accountProviderUsage(state.plan, providerUsage);
+    const diagnostics = this.createDiagnostics({
       turnId: state.handle.turnId,
       provider: state.request.profile.provider,
       model: state.request.profile.model,
       phase: "usage_accounted",
       revision: state.compaction ? 3 : 2,
       plan: state.plan,
-      accounting: state.accounting,
+      accounting,
       compaction: state.compaction,
       outcome: undefined,
       completionErrorCode: undefined,
     });
+    const nextState: ActiveContextTurn = { ...state, providerUsage, accounting, diagnostics };
     const result: ContextProviderUsageAccounting = Object.freeze({
       lifecycle: "provider_usage_accounting",
-      handle: state.handle,
-      accounting: state.accounting,
-      diagnostics: state.diagnostics,
+      handle: nextState.handle,
+      accounting,
+      diagnostics,
     });
-    state.usageResult = result;
+    await this.persistState(nextState);
+    nextState.usageResult = result;
+    this.activeTurns.set(handle.turnId, nextState);
     this.emit(result);
     return result;
   }
 
-  public completeTurn(handle: ContextTurnHandle, input: ContextTurnCompletionInput): ContextTurnCompleted {
-    const state = this.requireTurn(handle);
+  public async completeTurn(handle: ContextTurnHandle, input: ContextTurnCompletionInput): Promise<ContextTurnCompleted> {
+    const state = await this.requireTurn(handle);
     if (!state.plan) {
       throw new ContextEngineError("A turn must have a request plan before it can complete.", "invalid_lifecycle_transition", handle.turnId);
     }
@@ -363,46 +428,127 @@ export class ContextEngine {
       throw new ContextEngineError("A completion error code cannot be empty.", "invalid_lifecycle_transition", handle.turnId);
     }
 
-    state.outcome = input.outcome;
-    state.completionErrorCode = input.errorCode?.trim();
-    state.diagnostics = this.createDiagnostics({
+    const plan = state.plan;
+    const completionErrorCode = input.errorCode?.trim();
+    const diagnostics = this.createDiagnostics({
       turnId: state.handle.turnId,
       provider: state.request.profile.provider,
       model: state.request.profile.model,
       phase: "completed",
       revision: state.compaction ? (state.accounting ? 4 : 3) : (state.accounting ? 3 : 2),
-      plan: state.plan,
+      plan,
       accounting: state.accounting,
       compaction: state.compaction,
-      outcome: state.outcome,
-      completionErrorCode: state.completionErrorCode,
+      outcome: input.outcome,
+      completionErrorCode,
     });
+    const completedState: ActiveContextTurn = {
+      ...state,
+      outcome: input.outcome,
+      completionErrorCode,
+      diagnostics,
+    };
+    await this.persistState(completedState);
+    this.activeTurns.set(handle.turnId, completedState);
     const result: ContextTurnCompleted = Object.freeze({
       lifecycle: "turn_complete",
-      handle: state.handle,
-      plan: state.plan,
-      accounting: state.accounting,
-      diagnostics: state.diagnostics,
+      handle: completedState.handle,
+      plan,
+      accounting: completedState.accounting,
+      diagnostics: completedState.diagnostics,
     });
     this.emit(result);
-    // Completion releases the in-memory lifecycle state. The caller owns any
-    // durable record or later replay of the returned result.
+    await this.removePersistedState(handle.turnId);
+    // Completion releases the cache and durable active-lifecycle record. The
+    // journal and surrounding run record own the terminal result.
     this.activeTurns.delete(handle.turnId);
     return result;
   }
 
-  public diagnostics(handle: ContextTurnHandle): ContextTurnDiagnostics {
-    return this.requireTurn(handle).diagnostics;
+  public async diagnostics(handle: ContextTurnHandle): Promise<ContextTurnDiagnostics> {
+    return (await this.requireTurn(handle)).diagnostics;
   }
 
-  private requireTurn(handle: ContextTurnHandle): ActiveContextTurn {
+  private async requireTurn(handle: ContextTurnHandle): Promise<ActiveContextTurn> {
     const turnId = handle?.turnId;
     if (typeof turnId !== "string" || !turnId.trim()) {
       throw new ContextEngineError("A valid context turn handle is required.", "turn_not_found", turnId);
     }
     const state = this.activeTurns.get(turnId);
-    if (!state) throw new ContextEngineError(`Turn ${turnId} is not active.`, "turn_not_found", turnId);
-    return state;
+    if (state) return state;
+
+    let persisted: ContextEngineState | undefined;
+    try {
+      persisted = await this.stateAdapter.load(turnId);
+    } catch {
+      throw new ContextEngineError("Context turn state could not be loaded.", "state_persistence_failed", turnId);
+    }
+    if (!persisted) throw new ContextEngineError(`Turn ${turnId} is not active.`, "turn_not_found", turnId);
+    if (persisted.schemaVersion !== "v1" || persisted.turnId !== turnId) {
+      throw new ContextEngineError("Context turn state is invalid.", "state_persistence_failed", turnId);
+    }
+    const reloaded = this.hydrateState(persisted);
+    this.activeTurns.set(turnId, reloaded);
+    return reloaded;
+  }
+
+  private async persistState(state: ActiveContextTurn): Promise<void> {
+    try {
+      await this.stateAdapter.save(snapshotState(state));
+    } catch {
+      throw new ContextEngineError("Context turn state could not be persisted.", "state_persistence_failed", state.handle.turnId);
+    }
+  }
+
+  private async removePersistedState(turnId: string): Promise<void> {
+    try {
+      await this.stateAdapter.remove(turnId);
+    } catch {
+      throw new ContextEngineError("Completed context turn state could not be removed.", "state_persistence_failed", turnId);
+    }
+  }
+
+  private hydrateState(snapshot: ContextEngineState): ActiveContextTurn {
+    const handle: ContextTurnHandle = Object.freeze({ turnId: snapshot.turnId });
+    const phase: ContextTurnPhase = snapshot.outcome
+      ? "completed"
+      : snapshot.accounting
+        ? "usage_accounted"
+        : snapshot.plan
+          ? "planned"
+          : snapshot.compaction
+            ? "compacted"
+            : "started";
+    const diagnostics = this.createDiagnostics({
+      turnId: snapshot.turnId,
+      provider: snapshot.request.profile.provider,
+      model: snapshot.request.profile.model,
+      phase,
+      revision: snapshot.outcome
+        ? snapshot.compaction ? (snapshot.accounting ? 4 : 3) : (snapshot.accounting ? 3 : 2)
+        : snapshot.accounting
+          ? (snapshot.compaction ? 3 : 2)
+          : snapshot.plan
+            ? (snapshot.compaction ? 2 : 1)
+            : snapshot.compaction ? 1 : 0,
+      plan: snapshot.plan,
+      accounting: snapshot.accounting,
+      compaction: snapshot.compaction,
+      outcome: snapshot.outcome,
+      completionErrorCode: snapshot.completionErrorCode,
+    });
+    return {
+      handle,
+      request: snapshotPlanInput(snapshot.request),
+      compactedRequest: snapshot.compactedRequest ? snapshotPlanInput(snapshot.compactedRequest) : undefined,
+      compaction: snapshot.compaction,
+      plan: snapshot.plan,
+      accounting: snapshot.accounting,
+      providerUsage: snapshot.providerUsage,
+      outcome: snapshot.outcome,
+      completionErrorCode: snapshot.completionErrorCode,
+      diagnostics,
+    };
   }
 
   private createDiagnostics(input: {
@@ -471,6 +617,21 @@ function sameProviderUsage(left: ProviderReportedUsage | undefined, right: Provi
   return left?.inputTokens === right.inputTokens
     && left.outputTokens === right.outputTokens
     && left.totalTokens === right.totalTokens;
+}
+
+function snapshotState(state: ActiveContextTurn): ContextEngineState {
+  return {
+    schemaVersion: "v1",
+    turnId: state.handle.turnId,
+    request: snapshotPlanInput(state.request),
+    ...(state.compactedRequest ? { compactedRequest: snapshotPlanInput(state.compactedRequest) } : {}),
+    ...(state.compaction ? { compaction: state.compaction } : {}),
+    ...(state.plan ? { plan: state.plan } : {}),
+    ...(state.accounting ? { accounting: state.accounting } : {}),
+    ...(state.providerUsage ? { providerUsage: { ...state.providerUsage } } : {}),
+    ...(state.outcome ? { outcome: state.outcome } : {}),
+    ...(state.completionErrorCode ? { completionErrorCode: state.completionErrorCode } : {}),
+  };
 }
 
 function snapshotPlanInput(input: ContextPlanInput): ContextPlanInput {

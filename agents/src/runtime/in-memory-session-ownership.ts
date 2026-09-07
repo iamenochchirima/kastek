@@ -10,6 +10,10 @@ import {
   type SessionLeaseRef,
   type SessionOwnership,
   type SessionOwnerId,
+  type SessionAdmissionLimitCode,
+  type SessionQueueMetrics,
+  type SessionQueueObserver,
+  type SessionQueuePolicy,
   type SessionReleaseResult,
   type SessionSettleResult,
   type SessionSnapshot,
@@ -22,6 +26,8 @@ export interface InMemorySessionOwnershipOptions {
   readonly leaseTtlMs?: number;
   readonly now?: () => number;
   readonly idFactory?: () => string;
+  readonly queuePolicy?: SessionQueuePolicy;
+  readonly onQueueObservation?: SessionQueueObserver;
 }
 
 interface MutableTurn<TPayload> extends SessionTurn<TPayload> {
@@ -30,6 +36,7 @@ interface MutableTurn<TPayload> extends SessionTurn<TPayload> {
 }
 
 interface MutableSession<TPayload> {
+  sessionKey: SessionKey;
   nextSequence: number;
   nextGeneration: number;
   active?: {
@@ -38,6 +45,7 @@ interface MutableSession<TPayload> {
   };
   queue: MutableTurn<TPayload>[];
   completedTurnIds: Set<string>;
+  staleOwnerCount: number;
 }
 
 interface MutableLease extends SessionLease {
@@ -57,6 +65,8 @@ export class InMemorySessionOwnership<TPayload> implements SessionOwnership<TPay
   private readonly leaseTtlMs: number;
   private readonly now: () => number;
   private readonly idFactory: () => string;
+  private readonly queuePolicy: SessionQueuePolicy;
+  private readonly onQueueObservation?: SessionQueueObserver;
 
   public constructor(options: InMemorySessionOwnershipOptions = {}) {
     const leaseTtlMs = options.leaseTtlMs ?? 30_000;
@@ -66,6 +76,8 @@ export class InMemorySessionOwnership<TPayload> implements SessionOwnership<TPay
     this.leaseTtlMs = leaseTtlMs;
     this.now = options.now ?? Date.now;
     this.idFactory = options.idFactory ?? randomUUID;
+    this.queuePolicy = normalizeQueuePolicy(options.queuePolicy);
+    this.onQueueObservation = options.onQueueObservation;
   }
 
   public async admitTurn(input: AdmitSessionTurnInput<TPayload>): Promise<SessionAdmission<TPayload>> {
@@ -92,12 +104,26 @@ export class InMemorySessionOwnership<TPayload> implements SessionOwnership<TPay
         return { outcome: "rejected", reasonCode: "TURN_ID_REUSED", message: `Turn ${requestedTurnId} belongs to another requester` };
       }
       if (state.active?.turn.id === requestedTurnId && state.active) {
-        return this.accepted(state.active.turn, state.active.lease, state.queue.length);
+        const result = this.accepted(state.active.turn, state.active.lease, state.queue.length, now, state);
+        this.observe(state, "admission", result.outcome, now);
+        return result;
       }
-      return this.queued(existing, state);
+      const result = this.queued(existing, state, now);
+      this.observe(state, "admission", result.outcome, now);
+      return result;
     }
     if (state.completedTurnIds.has(requestedTurnId)) {
+      this.observe(state, "admission", "rejected", now, "TURN_ID_REUSED");
       return { outcome: "rejected", reasonCode: "TURN_ID_REUSED", message: `Turn ${requestedTurnId} has already settled` };
+    }
+
+    if (state.active || state.queue.length > 0) {
+      const limit = this.queueLimit(state, now);
+      if (limit) {
+        const result = this.limited(state, now, limit);
+        this.observe(state, "admission", result.outcome, now, result.reasonCode);
+        return result;
+      }
     }
 
     const turn: MutableTurn<TPayload> = {
@@ -112,11 +138,15 @@ export class InMemorySessionOwnership<TPayload> implements SessionOwnership<TPay
     };
     if (state.active || state.queue.length > 0) {
       state.queue.push(turn);
-      return this.queued(turn, state);
+      const result = this.queued(turn, state, now);
+      this.observe(state, "admission", result.outcome, now);
+      return result;
     }
 
     const lease = this.activate(state, turn, requester as SessionOwnerId, now);
-    return this.accepted(turn, lease, state.queue.length);
+    const result = this.accepted(turn, lease, state.queue.length, now, state);
+    this.observe(state, "admission", result.outcome, now);
+    return result;
   }
 
   public async claimNext(input: ClaimSessionTurnInput): Promise<SessionAdmission<TPayload>> {
@@ -136,17 +166,25 @@ export class InMemorySessionOwnership<TPayload> implements SessionOwnership<TPay
     }
     this.reapExpired(state, now);
     if (state.active) {
-      return {
-        outcome: "busy",
-        reasonCode: "SESSION_BUSY",
+      const result = {
+        outcome: "busy" as const,
+        reasonCode: "SESSION_BUSY" as const,
         activeOwner: state.active.lease.ownerId,
         retryAt: state.active.lease.expiresAt,
       };
+      this.observe(state, "claim", result.outcome, now, result.reasonCode);
+      return result;
     }
     const turn = state.queue.shift();
-    if (!turn) return { outcome: "busy", reasonCode: "SESSION_QUEUE_EMPTY" };
+    if (!turn) {
+      const result = { outcome: "busy" as const, reasonCode: "SESSION_QUEUE_EMPTY" as const };
+      this.observe(state, "claim", result.outcome, now, result.reasonCode);
+      return result;
+    }
     const lease = this.activate(state, turn, ownerId as SessionOwnerId, now);
-    return this.accepted(turn, lease, state.queue.length);
+    const result = this.accepted(turn, lease, state.queue.length, now, state);
+    this.observe(state, "claim", result.outcome, now);
+    return result;
   }
 
   public async heartbeat(lease: SessionLeaseRef): Promise<SessionHeartbeatResult> {
@@ -162,7 +200,9 @@ export class InMemorySessionOwnership<TPayload> implements SessionOwnership<TPay
     }
     state.active.lease.heartbeatAt = now;
     state.active.lease.expiresAt = now + this.leaseTtlMs;
-    return { outcome: "renewed", lease: snapshotLease(state.active.lease) };
+    const result = { outcome: "renewed" as const, lease: snapshotLease(state.active.lease) };
+    this.observe(state, "heartbeat", "accepted", now);
+    return result;
   }
 
   public async settleTurn(input: SettleSessionTurnInput): Promise<SessionSettleResult<TPayload>> {
@@ -184,6 +224,7 @@ export class InMemorySessionOwnership<TPayload> implements SessionOwnership<TPay
     turn.status = input.outcome;
     state.completedTurnIds.add(turn.id);
     state.active = undefined;
+    this.observe(state, "settle", "accepted", now);
     return { outcome: input.outcome, turn: snapshotTurn(turn), queueLength: state.queue.length };
   }
 
@@ -203,26 +244,37 @@ export class InMemorySessionOwnership<TPayload> implements SessionOwnership<TPay
     turn.status = "queued";
     state.queue.unshift(turn);
     state.active = undefined;
-    return { outcome: "released", requeuedTurn: snapshotTurn(turn), queueLength: state.queue.length };
+    const result = { outcome: "released" as const, requeuedTurn: snapshotTurn(turn), queueLength: state.queue.length };
+    this.observe(state, "release", "queued", now);
+    return result;
   }
 
   public async inspect(sessionKey: SessionKey): Promise<SessionSnapshot<TPayload> | undefined> {
     const normalized = normalizeIdentity(sessionKey);
     const state = this.sessions.get(normalized);
     if (!state) return undefined;
-    this.reapExpired(state, this.readNow());
+    const now = this.readNow();
+    this.reapExpired(state, now);
     return {
       sessionKey: normalized as SessionKey,
       ...(state.active ? { active: { lease: snapshotLease(state.active.lease), turn: snapshotTurn(state.active.turn) } } : {}),
       queued: state.queue.map(snapshotTurn),
       nextSequence: state.nextSequence,
+      queueMetrics: this.metrics(state, now),
     };
   }
 
   private stateFor(sessionKey: string): MutableSession<TPayload> {
     const existing = this.sessions.get(sessionKey);
     if (existing) return existing;
-    const created: MutableSession<TPayload> = { nextSequence: 1, nextGeneration: 0, queue: [], completedTurnIds: new Set() };
+    const created: MutableSession<TPayload> = {
+      sessionKey: sessionKey as SessionKey,
+      nextSequence: 1,
+      nextGeneration: 0,
+      queue: [],
+      completedTurnIds: new Set(),
+      staleOwnerCount: 0,
+    };
     this.sessions.set(sessionKey, created);
     return created;
   }
@@ -250,6 +302,8 @@ export class InMemorySessionOwnership<TPayload> implements SessionOwnership<TPay
     turn.status = "queued";
     state.queue.unshift(turn);
     state.active = undefined;
+    state.staleOwnerCount += 1;
+    this.observe(state, "lease_expired", "queued", now, "STALE_OWNER_REAPED");
   }
 
   private findOpenTurn(state: MutableSession<TPayload>, turnId: string): MutableTurn<TPayload> | undefined {
@@ -257,18 +311,77 @@ export class InMemorySessionOwnership<TPayload> implements SessionOwnership<TPay
     return state.queue.find((turn) => turn.id === turnId);
   }
 
-  private accepted(turn: MutableTurn<TPayload>, lease: MutableLease, queueLength: number): SessionAdmission<TPayload> {
-    return { outcome: "accepted", turn: snapshotTurn(turn), lease: snapshotLease(lease), queueLength };
+  private accepted(turn: MutableTurn<TPayload>, lease: MutableLease, queueLength: number, now: number, state: MutableSession<TPayload>): SessionAdmission<TPayload> {
+    return { outcome: "accepted", turn: snapshotTurn(turn), lease: snapshotLease(lease), queueLength, queueMetrics: this.metrics(state, now) };
   }
 
-  private queued(turn: MutableTurn<TPayload>, state: MutableSession<TPayload>): SessionAdmission<TPayload> {
+  private queued(turn: MutableTurn<TPayload>, state: MutableSession<TPayload>, now: number): SessionAdmission<TPayload> {
     const position = state.queue.findIndex((queued) => queued.id === turn.id) + 1;
     return {
       outcome: "queued",
       turn: snapshotTurn(turn),
       position: Math.max(position, 1),
       ...(state.active ? { activeOwner: state.active.lease.ownerId, retryAt: state.active.lease.expiresAt } : {}),
+      queueLength: state.queue.length,
+      queueMetrics: this.metrics(state, now),
     };
+  }
+
+  private limited(state: MutableSession<TPayload>, now: number, reasonCode: SessionAdmissionLimitCode): Extract<SessionAdmission<TPayload>, { outcome: "limited" }> {
+    const metrics = this.metrics(state, now);
+    return {
+      outcome: "limited",
+      reasonCode,
+      message: reasonCode === "QUEUE_DEPTH_LIMIT"
+        ? "Session queue depth limit reached"
+        : "Session queue age limit reached",
+      queueLength: state.queue.length,
+      queueMetrics: metrics,
+      ...(state.active ? { retryAt: state.active.lease.expiresAt } : {}),
+    };
+  }
+
+  private queueLimit(state: MutableSession<TPayload>, now: number): SessionAdmissionLimitCode | undefined {
+    if (this.queuePolicy.maxDepth !== undefined && state.queue.length >= this.queuePolicy.maxDepth) return "QUEUE_DEPTH_LIMIT";
+    if (this.queuePolicy.maxAgeMs !== undefined && state.queue.length > 0 && (this.metrics(state, now).queueAgeMs ?? 0) >= this.queuePolicy.maxAgeMs) {
+      return "QUEUE_AGE_LIMIT";
+    }
+    return undefined;
+  }
+
+  private metrics(state: MutableSession<TPayload>, now: number): SessionQueueMetrics {
+    const oldest = state.queue.reduce<number | undefined>(
+      (current, turn) => current === undefined ? turn.enqueuedAt : Math.min(current, turn.enqueuedAt),
+      undefined,
+    );
+    return {
+      queueDepth: state.queue.length,
+      ...(oldest === undefined ? {} : { oldestQueuedAt: oldest }),
+      queueAgeMs: oldest === undefined ? 0 : Math.max(0, now - oldest),
+      staleOwnerCount: state.staleOwnerCount,
+      ...(state.active ? { activeOwner: state.active.lease.ownerId, activeExpiresAt: state.active.lease.expiresAt } : {}),
+    };
+  }
+
+  private observe(
+    state: MutableSession<TPayload>,
+    event: Parameters<NonNullable<SessionQueueObserver>>[0]["event"],
+    outcome: Parameters<NonNullable<SessionQueueObserver>>[0]["outcome"],
+    now: number,
+    reasonCode?: string,
+  ): void {
+    if (!this.onQueueObservation) return;
+    try {
+      this.onQueueObservation({
+        event,
+        sessionKey: state.sessionKey,
+        outcome,
+        ...(reasonCode ? { reasonCode } : {}),
+        metrics: this.metrics(state, now),
+      });
+    } catch {
+      // Telemetry must never change session ownership or admission behaviour.
+    }
   }
 
   private fenced(lease: SessionLeaseRef): Extract<SessionHeartbeatResult, { outcome: "fenced" }> {
@@ -301,6 +414,17 @@ export class InMemorySessionOwnership<TPayload> implements SessionOwnership<TPay
     if (!Number.isFinite(now)) throw new Error("Session ownership clock returned a non-finite value");
     return now;
   }
+}
+
+function normalizeQueuePolicy(policy: SessionQueuePolicy | undefined): SessionQueuePolicy {
+  if (!policy) return {};
+  if (policy.maxDepth !== undefined && (!Number.isSafeInteger(policy.maxDepth) || policy.maxDepth < 0)) {
+    throw new TypeError("queuePolicy.maxDepth must be a non-negative safe integer");
+  }
+  if (policy.maxAgeMs !== undefined && (!Number.isSafeInteger(policy.maxAgeMs) || policy.maxAgeMs <= 0)) {
+    throw new TypeError("queuePolicy.maxAgeMs must be a positive safe integer");
+  }
+  return { ...policy };
 }
 
 function normalizeIdentity(value: string): string {

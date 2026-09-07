@@ -3197,18 +3197,35 @@ async function executeLoopForRun(
   const policyTools = new Set(
     Array.isArray(run.policy.allowedTools) ? run.policy.allowedTools.filter((value): value is string => typeof value === "string") : [],
   );
+  const childInvocation = run.input.childInvocation && typeof run.input.childInvocation === "object" && !Array.isArray(run.input.childInvocation)
+    ? run.input.childInvocation as Record<string, unknown>
+    : undefined;
+  const childCapabilityGrants = childInvocation && Array.isArray(childInvocation.capabilityGrants)
+    ? new Set(childInvocation.capabilityGrants.filter((value): value is string => typeof value === "string"))
+    : undefined;
+  const childResourceGrants = childInvocation && Array.isArray(childInvocation.resourceGrants)
+    ? childInvocation.resourceGrants.filter((value): value is string => typeof value === "string")
+    : undefined;
   const grantedTools = await toolGrants.effectiveTools(run.organization_id, run.agent_version_id, run.installation_id);
-  const allowedTools = new Set([...policyTools].filter((toolName) => grantedTools.has(toolName)));
-  for (const toolName of await remoteMcpProviders.registerPinnedTools(run.organization_id, run.agent_version_id, tools)) allowedTools.add(toolName);
+  const allowedTools = new Set([...policyTools].filter((toolName) => grantedTools.has(toolName) && (!childCapabilityGrants || childCapabilityGrants.has(toolName))));
+  for (const toolName of await remoteMcpProviders.registerPinnedTools(run.organization_id, run.agent_version_id, tools)) {
+    if (!childCapabilityGrants || childCapabilityGrants.has(toolName)) allowedTools.add(toolName);
+  }
   if (await killSwitches.isBlocked({ organizationId: run.organization_id, agentId: run.agent_definition_id, installationId: run.installation_id, toolNames: [...allowedTools] })) {
     throw new Error("AGENT_KILL_SWITCH_ACTIVE");
   }
   // Harness controls are available to every hosted run. They are not an
   // installation grant and are never exposed as external business actions.
   addAgentMediaHarnessTools(allowedTools);
+  if (childCapabilityGrants) {
+    for (const toolName of [...allowedTools]) {
+      if (!childCapabilityGrants.has(toolName)) allowedTools.delete(toolName);
+    }
+  }
   const executionScope = {
     ...executionScopeFromRun(run, sessionLease),
     capabilityGrants: [...allowedTools],
+    ...(childResourceGrants ? { resourceGrants: childResourceGrants } : {}),
   };
   if (!(await controls.isFeatureEnabled(run.organization_id, "agent_execution_enabled", run.installation_id))) throw new Error("AGENT_EXECUTION_FLAG_DISABLED");
   if (await controls.isHeld({ organizationId: run.organization_id, installationId: run.installation_id, runId: run.id, holdType: "execution" })) throw new Error("AGENT_EXECUTION_HOLD_ACTIVE");

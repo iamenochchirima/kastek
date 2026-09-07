@@ -8,7 +8,7 @@ description: Implementation plan for reworking the Agent Platform around the mat
 
 # Agent Platform Hermes gap closure and runtime rework
 
-**Status:** Active; immediate runtime durability block implemented with integration gaps explicitly tracked
+**Status:** Active; runtime hardening and real Playground entry path in progress
 
 **Owner:** Agent Platform
 
@@ -83,8 +83,9 @@ seam; bounded queues and infrastructure failure matrices remain open.
 - [x] Route session admission, heartbeat, and release through the same coordinator interface without
   making PostgreSQL or Temporal details visible to callers. Queued-turn promotion still belongs to
   the session queue work below.
-- [ ] Add explicit bounded backpressure and queue outcomes (`queued`, `limited`, `rejected`) with
-  age, depth, and stale-owner metrics.
+- [x] Add explicit bounded backpressure and queue outcomes (`queued`, `limited`, `rejected`) with
+  age, depth, and stale-owner metrics. Evidence: `SessionOwnershipPolicy`, the in-memory
+  conformance adapter, session coordinator metrics, and `agents/test/session-ownership.test.ts`.
 - [ ] Add restart and worker-loss tests at before-call, during-call, after-call-before-receipt, and
   after-receipt points for MCP and session-owned operations.
 
@@ -122,8 +123,10 @@ This section makes context reduction replayable and safe when a summary model is
   an unavailable summary provider must not block the turn indefinitely.
 - [x] Persist and replay compaction results by turn/context revision so a Temporal retry sends the
   same model-facing projection instead of compacting differently on each attempt.
-- [ ] Replace the remaining in-memory ContextEngine lifecycle state with a durable adapter while
-  retaining a fast in-memory implementation for unit tests.
+- [x] Replace the remaining in-memory ContextEngine lifecycle state with a durable adapter while
+  retaining a fast in-memory implementation for unit tests. Evidence:
+  `agents/src/runtime/context-engine-state.ts`, the lifecycle wiring, and
+  `agents/test/context-engine.test.ts`.
 - [ ] Add context-pressure, summary-provider failure, worker-loss, replay, protected-pair, and
   provider-usage reconciliation tests with journal assertions.
 
@@ -322,9 +325,9 @@ Hermes references: `tui_gateway/session_lifecycle.py`, `session_reaper.py`, `ses
 - [x] Add typed extension package selection to the agent authoring contract, including checksums,
   configuration, and explicit permission grants. Evidence: `agents/src/domain/agent-spec.ts` and
   `agents/test/agent-spec-extensions.test.ts`.
-- [ ] Make publication resolve those selected packages through the persisted package catalog and
-  fail closed when a package is unavailable, revoked, or not ready. The current typed selection is
-  intentionally not treated as a runtime grant until this reconciliation is complete.
+- [x] Make publication resolve those selected packages through the persisted package catalog and
+  fail closed when a package is unavailable, revoked, or not ready. Evidence:
+  `agents/src/extensions/resolver.ts`, `AgentRepository`, and the extension snapshot tests.
 - [ ] Separate declarative skills from executable plugins. Skills may provide instructions, examples,
   and procedural memory. Plugins must run through an approved adapter or isolated service and may
   not import the worker's internal modules.
@@ -391,9 +394,9 @@ Hermes references: `tools/mcp_tool_lifecycle.py`, `mcp_tool_config.py`, `mcp_sch
 - [x] Make child invocation a first-class capability with a pinned child version, attenuated grants,
   separate budgets, and a parent operation identity. Fresh child context/session execution is owned
   by the host executor contract, not copied into the parent prompt.
-- [x] Activate the Temporal child workflow path from an agent turn. The parent waits durably through
-  the workflow adapter without holding a worker; the production worker fails closed until its host
-  child executor is configured.
+- [x] Activate the Temporal child workflow path from an agent turn. The parent admits an idempotent
+  child run, then waits durably on a normal nested `agentRunWorkflow`; the activity adapter remains
+  available for non-platform hosts and direct contract tests.
 - [x] Define typed child results, progress events, failure, cancellation, timeout, and partial-result
   behaviour. The complete child transcript is not copied into the parent prompt.
 - [x] Bound depth, fan-out, total child budget, and tool permissions. A child cannot create an
@@ -406,16 +409,19 @@ Hermes references: `tools/delegate_tool.py`, `delegate_tool_child_run.py`,
 
 ### 7. Agent creation and configuration rewrite
 
-- [ ] Rebuild agent creation around a small agent profile: purpose, instructions, model policy,
-  context policy, extension packages, grants, channels, memory/knowledge policy, and limits.
-- [ ] Keep graph configuration optional. A normal support, sales, or research agent should not
+- [x] Rebuild agent creation around a small agent profile: purpose, instructions, model policy,
+  context policy, extension packages, grants, channels, memory/knowledge policy, and limits. The
+  profile-first client writes the typed `AgentSpec` contract.
+- [x] Keep graph configuration optional. A normal support, sales, or research agent should not
   require nodes and edges to be useful.
 - [ ] Validate the complete profile before publication. Surface missing credentials, unavailable
   tools, incompatible extensions, unsafe permissions, and impossible budgets before a run exists.
-- [ ] Publish an immutable agent version and extension snapshot. Draft changes never mutate a live
-  version or running session.
-- [ ] Make the creation flow produce a testable Playground candidate later, without coupling runtime
-  correctness to the current UI implementation.
+- [x] Publish an immutable agent version and extension snapshot. Draft changes never mutate a live
+  version or running session. The creation flow publishes the typed version and admits runs through
+  the existing immutable snapshot boundary.
+- [x] Make the creation flow produce a testable Playground candidate later, without coupling runtime
+  correctness to the current UI implementation. It creates a pinned installation with explicit
+  `settings.environment = "playground"` and optional approved manual knowledge.
 
 ### 8. Execution visualization and Playground handoff
 
@@ -459,6 +465,26 @@ Each workstream is complete only when code, tests, and evidence exist.
 3. Move remaining native model, Core-effect, approval, and channel delivery paths behind the
    operation coordinator.
 4. Connect the execution journal to the Playground and promotion flow.
+
+## Current implementation wave
+
+This wave moves beyond runtime seams and makes the system testable through the product surface.
+The client changes already present in the worktree are treated as an in-progress UI workstream;
+runtime contracts and API responses remain the source of truth.
+
+- [ ] Finish the remaining runtime implementation gaps: native effect coordination and the
+  environment/resource binding boundary. Bounded queue policy, durable `ContextEngine` lifecycle
+  state, and Temporal child host composition are implemented in this wave.
+- [ ] Complete the restart, worker-loss, duplicate-execution, fencing, plugin, MCP, and context
+  failure matrices against the local PostgreSQL and Temporal stack.
+- [x] Make agent creation produce a typed profile, an immutable version, and a pinned extension
+  snapshot that can be tested without mutating a live installation.
+- [x] Make Studio use real agent/version/run APIs instead of demo traces or client-owned execution
+  state. The UI now consumes the agent, version, run, and event-stream APIs; fake agents and traces
+  were removed.
+- [ ] Build the Playground as a real local execution environment with isolated resources,
+  observable run events, reconnectable timelines, and explicit promotion to live.
+- [ ] Verify the creation-to-Playground-to-promotion path manually and record release evidence.
 
 ## Release record
 
