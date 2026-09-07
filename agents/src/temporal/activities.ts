@@ -3764,6 +3764,10 @@ async function executeLoopForRun(
     resumeApprovedToolCall,
     onEvent: async (event) => {
       activityHeartbeat({ phase: event.type, iteration: event.iteration });
+      await journal.append({
+        scope: executionScopeFromRun(run),
+        event: journalHarnessEvent(event),
+      });
       await runs.appendEvent({
         organizationId: run.organization_id,
         runId: run.id,
@@ -4051,6 +4055,8 @@ async function executeConfiguredWorkflow(input: {
   const graphStepActivitiesEnabled = input.graphStepActivitiesEnabled && supportsLinearStepContinuation;
   const toolSequence = { value: 0 };
   const usedTools = new Set<string>();
+  const workflowJournal = new PostgresExecutionJournal(new RunRepositoryExecutionJournalStore(input.runRepository));
+  const workflowJournalScope = executionScopeFromRun(input.run);
   let authorizationRequired: ReturnType<typeof findAuthorizationRequirement>;
   let lastModelResponse: ModelResponse | undefined;
 
@@ -4253,11 +4259,13 @@ async function executeConfiguredWorkflow(input: {
       if (manifest.riskClass === "external-effect") await input.effectReceipts.reserve({ organizationId: input.run.organization_id, installationId: input.run.installation_id, runId: input.run.id, providerToolCallId: pending.id, capability: pending.name, capabilityVersion: manifest.version, argumentsHash: pending.argumentsHash, idempotencyKey: `${input.run.id}:${pending.name}:${pending.argumentsHash}` });
     }
     await input.workflowState.put({ organizationId: input.run.organization_id, runId: input.run.id, expectedRevision: persisted?.revision, state: { __workflowNodeId: result.pausedAt, __workflowState: result.state } });
+    await workflowJournal.append({ scope: workflowJournalScope, event: { kind: "operation.waiting", data: { reason: "approval", resumeKey: pending.id } } });
     await input.runRepository.appendEvent({ organizationId: input.run.organization_id, runId: input.run.id, installationId: input.run.installation_id, eventType: "agent.workflow.approval.pending", payload: { nodeId: result.pausedAt, capability: pending.name, providerToolCallId: pending.id } });
     return { status: "awaiting_approval", messages: [], pendingToolCalls: [pending], usage: workflowUsage(result.usage), iterations: result.trace.length, toolCalls: result.usage.toolCalls, provenance: buildGroundingProvenance({ authorizedTools: input.allowedTools, usedTools, retrievalRequested: input.context.retrievalRequested, knowledgeMatchCount: 0 }) };
   }
   if (result.status === "awaiting_external_event") {
     await input.workflowState.put({ organizationId: input.run.organization_id, runId: input.run.id, expectedRevision: persisted?.revision, state: { __workflowNodeId: result.pausedAt, __workflowState: result.state } });
+    await workflowJournal.append({ scope: workflowJournalScope, event: { kind: "operation.waiting", data: { reason: "external_event", resumeKey: result.waitingFor } } });
     await input.runRepository.appendEvent({ organizationId: input.run.organization_id, runId: input.run.id, installationId: input.run.installation_id, eventType: "agent.workflow.external_event.pending", payload: { nodeId: result.pausedAt, waitingFor: result.waitingFor } });
     return { status: "awaiting_external_event", messages: [], usage: workflowUsage(result.usage), iterations: result.trace.length, toolCalls: result.usage.toolCalls, waitingFor: result.waitingFor, provenance: buildGroundingProvenance({ authorizedTools: input.allowedTools, usedTools, retrievalRequested: input.context.retrievalRequested, knowledgeMatchCount: 0 }) };
   }
@@ -4271,6 +4279,7 @@ async function executeConfiguredWorkflow(input: {
       })
       : null;
     await input.workflowState.put({ organizationId: input.run.organization_id, runId: input.run.id, expectedRevision: persisted?.revision, state: { __workflowNodeId: null, __workflowState: result.state } });
+    await workflowJournal.append({ scope: workflowJournalScope, event: { kind: "operation.waiting", data: { reason: "operator", resumeKey: offer?.handoffOfferId ?? result.waitingFor } } });
     await input.runRepository.appendEvent({ organizationId: input.run.organization_id, runId: input.run.id, installationId: input.run.installation_id, eventType: "agent.workflow.handoff.offer", payload: { nodeId: result.pausedAt, waitingFor: result.waitingFor, handoffOfferId: offer?.handoffOfferId } });
     const response = lastModelResponse ?? {
       provider: input.modelProvider,
