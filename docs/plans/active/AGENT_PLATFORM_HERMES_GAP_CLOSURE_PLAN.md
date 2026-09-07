@@ -8,7 +8,7 @@ description: Implementation plan for reworking the Agent Platform around the mat
 
 # Agent Platform Hermes gap closure and runtime rework
 
-**Status:** Active; runtime kernel foundations landed, durable integration in progress
+**Status:** Active; runtime kernel and capability-boundary foundations landed, live wiring in progress
 
 **Owner:** Agent Platform
 
@@ -109,9 +109,10 @@ model request boundary.
   planner that reserves output capacity, bounds schemas/results, protects tool pairs, and reconciles
   provider-reported usage. Evidence: `agents/src/runtime/context-planning.ts`,
   `agents/src/runtime/loop.ts`, and `agents/test/context-planning-loop.test.ts`.
-- [ ] Replace the remaining fixed `estimateTokens` decisions in context assembly with the same
-  planner contract. It must account for system instructions, history, summaries, retrieved evidence,
-  tool schemas, tool results, requested output, reasoning allowance, and safety margin.
+- [x] Replace the remaining fixed `estimateTokens` decisions in context assembly with the same
+  planner contract. It now accounts for system instructions, history, summaries, retrieved evidence,
+  tool schemas, tool results, requested output, and provider overhead through the shared planner.
+  Evidence: `agents/src/runtime/context.ts` and `agents/test/context.test.ts`.
 - [ ] Make the planner return a typed decision: `ready`, `compact`, `prune`, `limited`, or
   `cannot_fit`, with exact accounting and omitted-content reasons.
 - [x] Add deterministic tool-result limits before model dispatch. Full results remain durable only
@@ -121,14 +122,19 @@ model request boundary.
   by the new model-boundary planner. Evidence: `agents/test/context-planning.test.ts`.
 - [ ] Add one compaction implementation with a deterministic fallback when the summary provider is
   unavailable. Compaction must never silently delete durable history.
-- [ ] Add empty-response recovery, interrupted-stream recovery, retry budgets, and terminal typed
-  outcomes so a provider cannot produce a hang or zero-response loop.
+- [x] Add bounded same-model empty-response recovery and a terminal typed outcome so a provider
+  cannot produce an unbounded zero-response loop. Evidence: `agents/src/runtime/loop.ts`,
+  `agents/test/empty-response-recovery.test.ts`, and the runtime terminal-outcome test.
+- [ ] Complete the Hermes-style recovery ladder with interrupted-stream recovery, reasoning
+  prefill where supported, fallback-provider policy, and per-attempt retry budgets.
 - [ ] Persist context decisions, token usage, compaction count, and limited reasons in the journal.
 - [x] Add provider contract tests for exact-fit, oversized history, oversized tool schema, large
   tool output, and provider-usage reconciliation. Evidence: `agents/test/context-planning.test.ts`,
   `agents/test/context-overflow-recovery.test.ts`, and `agents/test/context-planning-loop.test.ts`.
-- [ ] Add provider contract tests for overflow response, empty response, retry exhaustion, and
-  interruption.
+- [x] Add provider contract tests for overflow response, empty response, and retry exhaustion.
+  Evidence: `agents/test/context-overflow-recovery.test.ts`,
+  `agents/test/empty-response-recovery.test.ts`, and `agents/test/runtime.test.ts`.
+- [ ] Add interrupted-stream recovery tests and provider-specific recovery behaviour.
 
 Hermes references: `agent/context_engine.py`, `agent/context_compressor.py`,
 `agent/turn_preflight_gate.py`, `agent/turn_empty_response.py`, and `tools/tool_output_limits.py`.
@@ -165,8 +171,12 @@ Hermes references: `tui_gateway/session_lifecycle.py`, `session_reaper.py`, `ses
   ranges, permissions, configuration schema, checksums, and typed readiness failures. Evidence:
   `agents/src/extensions/package-manifest.ts`, `agents/src/extensions/index.ts`, and
   `agents/test/extension-package-manifest.test.ts`.
-- [ ] Reconcile the new package manifest with the persisted extension-package repository and the
-  immutable agent-version snapshot; the runtime must consume one canonical package shape.
+- [x] Reconcile the new package manifest with the persisted extension-package repository and the
+  immutable agent-version snapshot; the runtime now requires exact package identity, version,
+  checksum, lifecycle state, and grant selection, while preserving legacy declarations. Evidence:
+  `agents/src/db/repositories/extension-snapshot-repository.ts`,
+  `agents/src/extensions/resolver.ts`, and
+  `agents/test/extension-snapshot-canonical-packages.test.ts`.
 - [x] Add typed extension package selection to the agent authoring contract, including checksums,
   configuration, and explicit permission grants. Evidence: `agents/src/domain/agent-spec.ts` and
   `agents/test/agent-spec-extensions.test.ts`.
@@ -196,6 +206,10 @@ Hermes references: `skills/`, `agent/skill_bundles.py`, `tools/skills_tool.py`,
 
 - [ ] Make MCP server configuration a versioned extension with scoped credential references,
   allowed tools, transport, timeout, and lifecycle policy.
+- [x] Add a host-neutral MCP operation boundary for scoped snapshots, schema/result bounds,
+  redaction, cancellation, timeout, and typed retryable/terminal/unknown outcomes. Evidence:
+  `agents/src/mcp/operation-boundary.ts`, the signal-aware `agents/src/mcp/remote.ts`, and
+  `agents/test/mcp-operation-boundary.test.ts`.
 - [ ] Add one MCP adapter for discovery, schema caching, call execution, timeout, cancellation,
   reconnect, and structured error classification.
 - [ ] Supervise stdio MCP processes and clean up orphaned children. A dead or hung server must
@@ -226,6 +240,10 @@ Hermes references: `tools/mcp_tool_lifecycle.py`, `mcp_tool_config.py`, `mcp_sch
 
 ### 6. Multi-agent execution
 
+- [x] Add a host-neutral bounded child execution kernel with attenuated grants, depth/fan-out/
+  concurrency limits, separate budgets, cancellation, timeout, partial results, and progress
+  evidence. Evidence: `agents/src/children/execution-kernel.ts` and
+  `agents/test/child-execution-kernel.test.ts`.
 - [ ] Make child invocation a first-class capability with a fresh session, fresh context engine,
   pinned child version, attenuated grants, separate budgets, and a parent operation identity.
 - [ ] Activate the Temporal child workflow path from an agent turn. The parent must wait durably or

@@ -672,6 +672,7 @@ describe("Tool Gateway and bounded runtime", () => {
       tools: new ToolRegistry(),
       grantedTools: new Set(),
       toolContext: { organizationId: "org", agentId: "agent", agentVersionId: "version", installationId: "install", runId: "run", correlationId: "corr" },
+      limits: { maxEmptyResponseRetries: 0 },
     });
     expect(result.status).toBe("failed");
     expect(result.error).toMatchObject({ code: "EMPTY_ASSISTANT_RESPONSE" });

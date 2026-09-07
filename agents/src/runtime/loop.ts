@@ -26,6 +26,8 @@ export interface AgentLoopLimits {
   maxTotalTokens: number;
   maxEstimatedCostUsd?: number;
   maxWallTimeMs: number;
+  /** Number of same-model retries allowed after an empty final response. */
+  maxEmptyResponseRetries: number;
 }
 
 export interface AgentLoopEvent {
@@ -207,6 +209,7 @@ const defaultLimits: AgentLoopLimits = {
   maxToolCalls: 16,
   maxTotalTokens: 32_000,
   maxWallTimeMs: 60_000,
+  maxEmptyResponseRetries: 2,
 };
 
 async function emit(input: AgentLoopInput, event: AgentLoopEvent): Promise<void> {
@@ -223,6 +226,7 @@ export async function runBoundedAgentLoop(input: AgentLoopInput): Promise<AgentL
   let lastToolUi: AgentResponse["ui"] | undefined = input.dynamicUiEnabled === false ? undefined : input.resumeUi;
   let lastModelAttempt: { model: AgentLoopInput["model"]; credentials: ModelCredentials } = { model: input.model, credentials: input.credentials };
   let lastModelOperationKey: string | undefined;
+  let emptyResponseRetries = 0;
   const startedAt = Date.now();
   await emit(input, { type: "loop.started", iteration: 0, payload: {} });
 
@@ -557,14 +561,32 @@ export async function runBoundedAgentLoop(input: AgentLoopInput): Promise<AgentL
       });
       if (response.toolCalls.length === 0) {
         if (!response.message.content.trim()) {
+          if (emptyResponseRetries < limits.maxEmptyResponseRetries) {
+            emptyResponseRetries += 1;
+            messages.push({
+              role: "user",
+              content: "The previous response was empty. Continue the same task and provide a concise visible answer.",
+            });
+            await emit(input, {
+              type: "loop.started",
+              iteration,
+              payload: {
+                reason: "empty_response_retry",
+                retry: emptyResponseRetries,
+                maxRetries: limits.maxEmptyResponseRetries,
+              },
+            });
+            continue;
+          }
           const error = {
             code: "EMPTY_ASSISTANT_RESPONSE",
-            message: "The model returned no assistant text, so the run could not produce a reply",
+            message: `The model returned no assistant text after ${emptyResponseRetries} recovery attempt${emptyResponseRetries === 1 ? "" : "s"}`,
             failureClass: "terminal" as const,
           };
           await emit(input, { type: "loop.failed", iteration, payload: error });
           return { status: "failed", messages, response, usage, iterations: iteration, toolCalls, error };
         }
+        emptyResponseRetries = 0;
         await emit(input, { type: "loop.completed", iteration, payload: { toolCalls, totalTokens: usage.totalTokens } });
         const completionResponse = authorizationRequired || lastToolUi
           ? agentResponseSchema.parse({
