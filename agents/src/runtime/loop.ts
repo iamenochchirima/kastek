@@ -342,10 +342,6 @@ export async function runBoundedAgentLoop(input: AgentLoopInput): Promise<AgentL
             messages,
             signal: input.signal,
             tools,
-            // The harness owns recovery decisions. Retrying an identical
-            // oversized request inside a provider adapter is never useful and
-            // can consume budget without changing the outcome.
-            maxAttempts: 1,
             maxTokens: attempt.model.maxTokens === undefined ? availableOutputTokens : Math.min(attempt.model.maxTokens, availableOutputTokens),
           };
           const prepared = await input.prepareModelCall?.({ operationKey, model: attempt.model, credentials: attempt.credentials });

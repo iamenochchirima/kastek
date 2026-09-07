@@ -14,7 +14,6 @@ describe("provider context overflow recovery", () => {
       capabilities: { toolCalling: true, structuredOutput: true, streaming: false, vision: false },
       complete: async (request: ModelRequest) => {
         calls += 1;
-        expect(request.maxAttempts).toBe(1);
         throw new ModelProviderError("context length exceeded", "CONTEXT_LENGTH_EXCEEDED", false, "openai", 400);
       },
     };
