@@ -34,7 +34,11 @@ export class DurableSessionOperationCoordinator {
   ) {}
 
   public async acquire(input: SessionLeaseAcquireInput): Promise<SessionLeaseAcquireResult> {
-    const operationKey = `session:${input.sessionKey}:admit:${input.runId}`;
+    const existingLease = await this.leases.current(input);
+    const leaseIsCurrent = existingLease?.status === "active"
+      && Date.parse(existingLease.expires_at) > Date.now();
+    const leaseEpoch = existingLease?.fencing_token ?? "0";
+    const operationKey = `session:${input.sessionKey}:admit:${input.runId}:${leaseEpoch}:${leaseIsCurrent ? "active" : "reacquire"}`;
     const prepared = await this.operations.prepare({
       organizationId: input.organizationId,
       runId: input.runId,
@@ -42,7 +46,7 @@ export class DurableSessionOperationCoordinator {
       kind: "session",
       operationKey,
       requestFingerprint: fingerprintOperationRequest(input),
-      metadata: { action: "admit", ownerId: input.ownerId },
+      metadata: { action: "admit", ownerId: input.ownerId, leaseEpoch, leaseIsCurrent },
     });
     if (prepared.outcome === "completed") return receipt<SessionLeaseAcquireResult>(prepared.operation);
     if (prepared.outcome === "unknown") {

@@ -140,6 +140,18 @@ async function selectLease(client: PoolClient, organizationId: string, sessionKe
 export class SessionLeaseRepository {
   public constructor(private readonly pool: Pool) {}
 
+  public async current(input: { organizationId: string; sessionKey: string }): Promise<SessionLeaseRecord | undefined> {
+    const organizationId = requiredText(input.organizationId, "ORGANIZATION_ID");
+    const sessionKey = requiredText(input.sessionKey, "SESSION_KEY");
+    const result = await this.pool.query<SessionLeaseRow>(
+      `SELECT *
+       FROM agent_session_leases
+       WHERE organization_id = $1 AND session_key = $2`,
+      [organizationId, sessionKey],
+    );
+    return result.rows[0] ? mapLease(result.rows[0]) : undefined;
+  }
+
   /**
    * Acquire the one lease for an organization/session pair. A live lease held
    * by another owner is returned as busy. Reacquisition after expiry or release
