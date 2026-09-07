@@ -48,9 +48,14 @@ export type ContextCapabilityProviderMetadataResolver = (
   route: ModelCapabilityRoute,
 ) => ModelCapabilityCatalogEntry | ModelCapabilityRecord | undefined | Promise<ModelCapabilityCatalogEntry | ModelCapabilityRecord | undefined>;
 
+/** A catalog lookup may hydrate the exact route without owning runtime policy. */
+export type ContextCapabilityCatalogResolver = ContextCapabilityProviderMetadataResolver;
+
 export interface ContextCapabilitySourceOptions {
   /** Exact route-bound static entries. */
   readonly catalog?: ModelCapabilityCatalog;
+  /** Lazy catalog loading for production catalogs that are refreshed asynchronously. */
+  readonly catalogResolver?: ContextCapabilityCatalogResolver;
   /** Optional provider metadata lookup. It is never consulted for an explicit override. */
   readonly providerMetadata?: ContextCapabilityProviderMetadataResolver;
 }
@@ -133,6 +138,7 @@ export class DurableContextCapabilityResolver {
     configuredOverride?: ExplicitContextCapabilityOverride;
     /** Per-resolution sources are useful when metadata is scoped to a run. */
     catalog?: ModelCapabilityCatalog;
+    catalogResolver?: ContextCapabilityCatalogResolver;
     providerMetadata?: ContextCapabilityProviderMetadataResolver;
   }): Promise<ResolvedContextCapabilityProfile> {
     const fallback = resolveContextCapability(input);
@@ -159,7 +165,7 @@ export class DurableContextCapabilityResolver {
 
     const catalogRecord = catalog
       ? resolveModelCapabilityFromCatalog(catalog, route, new Date(now).toISOString())
-      : undefined;
+      : await resolveCatalogMetadata(input.catalogResolver ?? this.sources.catalogResolver, route, now);
     if (catalogRecord) return applyCapabilityRecord(fallback, catalogRecord);
 
     const cached = this.cache.get(key);
@@ -391,6 +397,39 @@ async function resolveProviderMetadata(
   } catch {
     // Metadata is an optional optimization. A malformed or unavailable
     // provider source must fall through to the durable evidence/unknown path.
+    return undefined;
+  }
+}
+
+async function resolveCatalogMetadata(
+  resolver: ContextCapabilityCatalogResolver | undefined,
+  route: ModelCapabilityRoute,
+  now: number,
+): Promise<ModelCapabilityRecord | undefined> {
+  if (!resolver) return undefined;
+  try {
+    const candidate = await resolver(route);
+    if (!candidate) return undefined;
+    const normalized = normalizeModelCapabilityEntry({
+      provider: candidate.provider,
+      endpointId: candidate.endpointId,
+      credentialRouteId: candidate.credentialRouteId,
+      model: candidate.model,
+      runtimeEnvironment: candidate.runtimeEnvironment,
+      contextWindowTokens: candidate.contextWindowTokens,
+      maxOutputTokens: candidate.maxOutputTokens,
+      // The catalog adapter owns this provenance classification. A caller
+      // cannot turn an arbitrary candidate into a stronger provider source.
+      source: "catalog",
+      resolvedAt: candidate.resolvedAt,
+      ...(candidate.expiresAt === undefined ? {} : { expiresAt: candidate.expiresAt }),
+    });
+    if (!normalized || modelCapabilityKey(normalized) !== modelCapabilityKey(route)) return undefined;
+    if (normalized.expiresAt && Date.parse(normalized.expiresAt) <= now) return undefined;
+    return normalized;
+  } catch {
+    // A stale/unavailable catalog must fall through to durable evidence or
+    // the explicit unknown-capability outcome; it must never invent capacity.
     return undefined;
   }
 }

@@ -375,6 +375,36 @@ describe("context capability resolution", () => {
     expect(providerMetadata).toHaveBeenCalledTimes(2);
   });
 
+  it("hydrates a lazy catalog for the exact route without inheriting another endpoint", async () => {
+    const { store } = createCapabilityStore(new Map());
+    const catalogResolver = vi.fn().mockImplementation(async (route: { provider: string; model: string; endpointId: string; credentialRouteId: string; runtimeEnvironment: string }) => ({
+      ...route,
+      contextWindowTokens: 128_000,
+      source: "catalog",
+      resolvedAt: "2026-09-07T00:00:00.000Z",
+      expiresAt: "2026-09-08T00:00:00.000Z",
+    }));
+    const resolver = new DurableContextCapabilityResolver(store, 60_000, { catalogResolver });
+
+    const resolved = await resolver.resolve({
+      organizationId: "org-1",
+      profile: { provider: "openai", model: "primary", contextWindowTokens: 0, capabilitySource: "unknown" },
+      provider: "openai",
+      model: "primary",
+      endpointId: "openai:default",
+      credentialRouteId: "workspace-key",
+      runtimeEnvironment: "playground",
+    });
+
+    expect(resolved).toMatchObject({
+      contextWindowTokens: 128_000,
+      capabilitySource: "catalog",
+      endpointId: "openai:default",
+      capabilityExpiresAt: "2026-09-08T00:00:00.000Z",
+    });
+    expect(catalogResolver).toHaveBeenCalledWith(expect.objectContaining({ credentialRouteId: "workspace-key", runtimeEnvironment: "playground" }));
+  });
+
   it("uses an exact unexpired catalog entry before durable correction, then falls back after expiry", async () => {
     vi.useFakeTimers();
     try {
