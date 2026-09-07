@@ -61,8 +61,11 @@ export function createAgentHarness(input: {
     invoke: (request) => capabilities.invoke(request),
     context: (scope, extras) => toolInvocationContextFromScope(scope, extras),
     buildContext: (contextInput) => contextPolicy.build(contextInput),
-    runTurn: (turnInput) => runBoundedAgentLoop({ ...turnInput, tools: input.tools }),
-    resumeTurn: (turnInput) => runBoundedAgentLoop({ ...turnInput, tools: input.tools }),
+    // The loop only sees the capability runtime. This keeps readiness,
+    // installation admission, and future operation-kernel hooks on the one
+    // invocation path instead of allowing a caller to reach the raw registry.
+    runTurn: (turnInput) => runBoundedAgentLoop({ ...turnInput, tools: capabilities }),
+    resumeTurn: (turnInput) => runBoundedAgentLoop({ ...turnInput, tools: capabilities }),
     continuation: continuationFromLoopResult,
   };
 }
