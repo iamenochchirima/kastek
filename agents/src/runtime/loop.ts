@@ -2,7 +2,7 @@ import { ModelGateway } from "../model/gateway";
 import type { ModelCredentials, ModelMessage, ModelRequest, ModelResponse } from "../model/types";
 import { ModelProviderError } from "../model/types";
 import { estimatePromptTokens } from "../model/credit-pricing";
-import { approvalSnapshotHashFromResource, ToolPolicyError, type CapabilityPresentationMetadata, type ToolApproval, type ToolDefinition, type ToolInvocationContext, type ToolInvocationResult } from "../tools/types";
+import { approvalSnapshotHashFromResource, ToolPolicyError, type CapabilityPresentationMetadata, type ToolApproval, type ToolDefinition, type ToolInvocationContext, type ToolInvocationLifecycle, type ToolInvocationResult } from "../tools/types";
 import { hashToolArguments } from "../tools/registry";
 import type { AgentHarnessRunStatus, AgentToolSurface } from "./harness";
 import { classifyFailureCode } from "./failures";
@@ -40,6 +40,8 @@ export interface AgentLoopInput {
   tools: AgentToolSurface;
   toolContext: ToolInvocationContext;
   grantedTools: ReadonlySet<string>;
+  /** Required by production capability runtimes for durable proposal/replay/evidence. */
+  toolLifecycle?: ToolInvocationLifecycle;
   /** Model-facing capability projection selected by ContextPolicy for this turn. */
   modelTools?: Array<Omit<ToolDefinition, "handler">>;
   /** Effective context window used for every model request, including later tool rounds. */
@@ -252,6 +254,9 @@ export async function runBoundedAgentLoop(input: AgentLoopInput): Promise<AgentL
           },
           signal: input.signal,
           grantedTools: input.grantedTools,
+          operationId: resumed.id,
+          sequenceNumber: 1,
+          lifecycle: input.toolLifecycle,
           approval: resumed.approval,
           beforeEffect: resumedManifest?.riskClass === "external-effect" ? async () => {
             await input.onToolExecuting?.({
@@ -545,6 +550,9 @@ export async function runBoundedAgentLoop(input: AgentLoopInput): Promise<AgentL
             context: input.signal ? { ...input.toolContext, signal: input.signal } : input.toolContext,
             signal: input.signal,
             grantedTools: input.grantedTools,
+            operationId: toolCall.id,
+            sequenceNumber: toolCalls,
+            lifecycle: input.toolLifecycle,
             beforeEffect: manifest?.riskClass === "external-effect" ? async () => {
               await input.onToolExecuting?.({
                 toolCallId: toolCall.id,

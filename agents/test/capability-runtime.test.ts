@@ -62,9 +62,21 @@ describe("CapabilityRuntime", () => {
     })).rejects.toMatchObject<ToolPolicyError>({ code: "CAPABILITY_UNHEALTHY" });
   });
 
+  it("rejects production invocations that bypass the durable lifecycle", async () => {
+    const runtime = createCapabilityRuntime({ registry: registry(), requireLifecycle: true });
+
+    await expect(runtime.invoke({
+      name: "example.read",
+      arguments: {},
+      grantedTools: new Set(["example.read"]),
+      context: { scope, organizationId: "org", agentId: "agent", agentVersionId: "version", installationId: "installation", runId: "run", correlationId: "correlation" },
+    })).rejects.toMatchObject<ToolPolicyError>({ code: "CAPABILITY_LIFECYCLE_REQUIRED" });
+  });
+
   it("keeps durable prepare, redacted completion, and failure evidence on the capability seam", async () => {
     const runtime = createCapabilityRuntime({ registry: registry() });
     const lifecycle = {
+      propose: vi.fn(async () => undefined),
       prepare: async () => ({ status: "new" as const }),
       complete: vi.fn(async () => undefined),
       fail: vi.fn(async () => undefined),
@@ -83,6 +95,7 @@ describe("CapabilityRuntime", () => {
 
     const replay = { name: "example.read", version: "1.0.0", argumentsHash: "hash", output: { ok: true }, latencyMs: 0 };
     await expect(runtime.invoke({ ...request, lifecycle: {
+      propose: vi.fn(async () => undefined),
       prepare: async () => ({ status: "completed" as const, result: replay }),
       complete: vi.fn(async () => undefined),
       fail: vi.fn(async () => undefined),

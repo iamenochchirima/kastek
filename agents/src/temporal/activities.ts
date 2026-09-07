@@ -39,6 +39,7 @@ import { ApprovalRepository } from "../db/repositories/approval-repository";
 import { InstallationGrantRepository } from "../db/repositories/installation-grant-repository";
 import { authorizeInstallationCapability } from "../capabilities/authorization";
 import { createCapabilityRuntime, type CapabilityRuntime } from "../capabilities/runtime";
+import { createToolInvocationLifecycle } from "../capabilities/lifecycle";
 import { validateWorkflowGraph, type WorkflowGraph } from "../workflows/graph";
 import { executeWorkflowGraph, type GraphAgentLoopRequest, type GraphAgentLoopResult, type GraphExecutionLimits, type GraphExecutionUsage } from "../workflows/executor";
 import { WorkflowStateRepository } from "../db/repositories/workflow-state-repository";
@@ -2149,6 +2150,7 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
   const knowledge = new KnowledgeRepository(pool);
   const skills = options.skills ?? new SkillRepository(pool);
   const toolInvocations = new ToolInvocationRepository(pool);
+  const toolInvocationLifecycle = createToolInvocationLifecycle({ toolInvocations });
   const runSteps = new RunStepRepository(pool);
   const toolGrants = new ToolGrantRepository(pool);
   const summaries = new SummaryRepository(pool);
@@ -2188,6 +2190,7 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
     host: hostCapabilities,
     capabilities: createCapabilityRuntime({
       registry: tools,
+      requireLifecycle: true,
       admission: {
         admit: async ({ request }) => {
           await authorizeInstallationCapability({
@@ -2232,9 +2235,10 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
           controls,
           harness.capabilities,
           coreClient,
+          toolInvocationLifecycle,
         );
       }
-      return executeLoopForRun(run, input.resumeApprovedToolCall, input.resumeExternalEvent, input.loopStep, runs, modelCalls, runBudgets, conversations, memory, knowledge, skills, remoteMcpProviders, toolInvocations, approvals, effectReceipts, runSteps, toolGrants, installationGrants, summaries, killSwitches, controls, kasiaiPreferences, gateway, credentials, tools, harness, workflowState, workflowCheckpoints, modelPricing, creditPricing, creditBillingMode, coreClient, conversationActions, options.config?.TEMPORAL_STEP_ACTIVITIES_ENABLED === true);
+      return executeLoopForRun(run, input.resumeApprovedToolCall, input.resumeExternalEvent, input.loopStep, runs, modelCalls, runBudgets, conversations, memory, knowledge, skills, remoteMcpProviders, toolInvocations, approvals, effectReceipts, runSteps, toolGrants, installationGrants, summaries, killSwitches, controls, kasiaiPreferences, gateway, credentials, tools, harness, workflowState, workflowCheckpoints, modelPricing, creditPricing, creditBillingMode, coreClient, conversationActions, options.config?.TEMPORAL_STEP_ACTIVITIES_ENABLED === true, toolInvocationLifecycle);
     },
     async getContentPublishBatchStatus(input) {
       const run = await runs.getRuntimeRunById(input.runId);
@@ -2735,6 +2739,7 @@ async function executeMcpToolRun(
   controls: OperatorControlRepository,
   capabilities: CapabilityRuntime,
   coreClient: KasitekCoreReadClient | undefined,
+  toolInvocationLifecycle: ReturnType<typeof createToolInvocationLifecycle>,
 ) {
   if (!isMcpToolRun(run.input)) throw new Error("Invalid MCP run input");
   const invocation = resumeApprovedToolCall ?? {
@@ -2882,16 +2887,12 @@ async function executeMcpToolRun(
       context: toolInvocationContextFromScope(executionScopeFromRun(run), {
         approvalSnapshotHash: approvalSnapshotHashFromResource(resourceSnapshot),
       }),
+      operationId: invocation.id,
+      sequenceNumber: 1,
+      lifecycle: toolInvocationLifecycle,
     });
     policyApplied = true;
     const durableOutput = redactToolOutput(result.output, manifest.manifest?.redaction ?? []);
-    await toolInvocations.recordCompleted({
-      runId: run.id,
-      providerToolCallId: invocation.id,
-      output: durableOutput,
-      latencyMs: result.latencyMs,
-      effectId: result.effectId,
-    });
     if (result.effectId) await effectReceipts.markSucceededByKey(run.organization_id, `${run.id}:${invocation.name}:${argumentsHash}`, durableOutput);
     if (stepId) await runSteps.finishStep({ stepId, status: "completed", output: { latencyMs: result.latencyMs } });
     await runs.appendEvent({
@@ -2911,7 +2912,6 @@ async function executeMcpToolRun(
     };
   } catch (error) {
     const normalized = { code: "MCP_TOOL_FAILED", message: error instanceof Error ? error.message : "MCP tool failed" };
-    await toolInvocations.recordFailed({ runId: run.id, providerToolCallId: invocation.id, error: normalized });
     if (manifest.riskClass === "external-effect") {
       const effectKey = `${run.id}:${invocation.name}:${argumentsHash}`;
       if (effectTransitioned) {
@@ -2968,6 +2968,7 @@ async function executeLoopForRun(
   coreClient: KasitekCoreReadClient | undefined,
   conversationActions: ConversationActionService,
   stepActivitiesEnabled: boolean,
+  toolInvocationLifecycle: ReturnType<typeof createToolInvocationLifecycle>,
 ) {
   if (run.installation_status !== "active") throw new Error("INSTALLATION_NOT_ACTIVE");
   const journal = new PostgresExecutionJournal(new RunRepositoryExecutionJournalStore(runs));
@@ -3405,6 +3406,7 @@ async function executeLoopForRun(
       messages: options.messages,
       uiChannel: run.reply_channel_type === "website" ? "website" : "platform",
       dynamicUiEnabled,
+      toolLifecycle: toolInvocationLifecycle,
       signal: activitySignal,
       operationKeyPrefix: options.operationKeyPrefix,
       parallelLeaseId: options.parallelLeaseId,
@@ -3489,18 +3491,6 @@ async function executeLoopForRun(
         const resourceSnapshot = proposal.requiresApproval && approvedResourceSnapshot
           ? approvedResourceSnapshot
           : await buildApprovalResourceSnapshotFromCore(coreClient, toolInvocationContextFromScope(executionScopeFromRun(run)), proposal.name, proposal.arguments);
-        await toolInvocations.recordProposal({
-          organizationId: run.organization_id,
-          runId: run.id,
-          providerToolCallId: proposal.toolCallId,
-          sequenceNumber: proposal.sequenceNumber,
-          toolName: proposal.name,
-          toolVersion: proposal.version,
-          riskClass: proposal.riskClass,
-          argumentsHash: proposal.argumentsHash,
-          arguments: proposal.arguments,
-          requiresApproval: proposal.requiresApproval,
-        });
         if (proposal.requiresApproval) {
           await approvals.createPending({
             organizationId: run.organization_id,
@@ -3564,13 +3554,6 @@ async function executeLoopForRun(
       },
       onToolCompleted: async (result) => {
         const completedManifest = tools.get(result.name);
-        await toolInvocations.recordCompleted({
-          runId: run.id,
-          providerToolCallId: result.toolCallId,
-          output: result.output,
-          latencyMs: result.latencyMs,
-          effectId: result.effectId,
-        });
         await runs.appendEvent({
           organizationId: run.organization_id,
           runId: run.id,
@@ -3590,11 +3573,6 @@ async function executeLoopForRun(
       },
       onToolFailed: async (failure) => {
         if (["TOOL_NOT_FOUND", "TOOL_NOT_GRANTED", "CAPABILITY_NOT_GRANTED", "UNAVAILABLE", "NOT_CONFIGURED"].some((code) => failure.error.code.includes(code))) unavailableTools.add(failure.name);
-        await toolInvocations.recordFailed({
-          runId: run.id,
-          providerToolCallId: failure.toolCallId,
-          error: failure.error,
-        });
         await runs.appendEvent({
           organizationId: run.organization_id,
           runId: run.id,
@@ -3681,6 +3659,7 @@ async function executeLoopForRun(
       modelToolContext,
       conversationActions,
       harness,
+      toolInvocationLifecycle,
       budgetLedger,
       runAgentLoop: async ({ nodeId, config, state, maxIterations, usage, limits, parallelLeaseId }) => {
         const instruction = typeof config.instruction === "string" && config.instruction.trim()
@@ -3747,6 +3726,7 @@ async function executeLoopForRun(
       : loopCheckpoint?.messages ?? context.messages,
     uiChannel: run.reply_channel_type === "website" ? "website" : "platform",
     dynamicUiEnabled,
+    toolLifecycle: toolInvocationLifecycle,
     resumeUi: loopCheckpoint?.ui,
     signal: activitySignal,
     operationKeyPrefix: agentLoopOperationKeyPrefix(run.id, stepExecutionEnabled ? (loopCheckpoint?.iterations ?? 0) : undefined),
@@ -4040,6 +4020,7 @@ async function executeConfiguredWorkflow(input: {
   modelToolContext: ToolInvocationContext;
   conversationActions: ConversationActionService;
   harness: AgentHarness;
+  toolInvocationLifecycle: ReturnType<typeof createToolInvocationLifecycle>;
   budgetLedger: AgentBudgetLedger;
   runAgentLoop: (input: GraphAgentLoopRequest) => Promise<GraphAgentLoopResult>;
   limits: GraphExecutionLimits;
@@ -4166,6 +4147,9 @@ async function executeConfiguredWorkflow(input: {
         }),
         signal: currentActivitySignal(),
         grantedTools: input.allowedTools,
+        operationId: providerToolCallId,
+        sequenceNumber: toolSequence.value,
+        lifecycle: input.toolInvocationLifecycle,
         approval: request.approved as Parameters<ToolRegistry["invoke"]>[0]["approval"],
         beforeEffect: manifest.riskClass === "external-effect" ? async () => {
           if (!(await input.controls.isFeatureEnabled(input.run.organization_id, "effect_execution_enabled", input.run.installation_id))) throw new Error("AGENT_EFFECT_FLAG_DISABLED");
@@ -4190,7 +4174,6 @@ async function executeConfiguredWorkflow(input: {
       const safeOutput = redactSensitiveValue(result.output);
       const durableOutput = redactToolOutput(result.output, manifest.manifest?.redaction ?? []);
       if (toolAuthorization) authorizationRequired = toolAuthorization;
-      await input.toolInvocations.recordCompleted({ runId: input.run.id, providerToolCallId, output: durableOutput, latencyMs: result.latencyMs, effectId: result.effectId });
       await workflowJournal.append({
         scope: { ...workflowJournalScope, operationId: providerToolCallId },
         event: { kind: "tool.invoked", data: { toolCallId: providerToolCallId, capability: request.name, outcome: "completed", ...(result.effectId ? { effectId: result.effectId } : {}) } },
@@ -4201,7 +4184,6 @@ async function executeConfiguredWorkflow(input: {
       return safeOutput;
     } catch (error) {
       const normalized = { code: error instanceof Error && "code" in error ? String((error as { code?: unknown }).code) : "WORKFLOW_TOOL_FAILED", message: error instanceof Error ? error.message : "Workflow tool failed" };
-      await input.toolInvocations.recordFailed({ runId: input.run.id, providerToolCallId, error: normalized });
       await workflowJournal.append({
         scope: { ...workflowJournalScope, operationId: providerToolCallId },
         event: { kind: "tool.invoked", data: { toolCallId: providerToolCallId, capability: request.name, outcome: "failed", errorCode: normalized.code } },

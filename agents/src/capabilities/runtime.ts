@@ -72,6 +72,8 @@ function policyError(resolution: CapabilityResolution, name: string): ToolPolicy
 export function createCapabilityRuntime(input: {
   registry: ToolRegistry;
   admission?: CapabilityAdmission;
+  /** Production hosts set this so no capability can bypass durable evidence. */
+  requireLifecycle?: boolean;
 }): CapabilityRuntime {
   return {
     registry: input.registry,
@@ -99,8 +101,16 @@ export function createCapabilityRuntime(input: {
         if (admitted.status !== "ready") throw policyError(admitted, request.name);
       }
       const lifecycle = request.lifecycle;
+      if (input.requireLifecycle && !lifecycle) {
+        throw new ToolPolicyError("CAPABILITY_LIFECYCLE_REQUIRED", `Capability operation lifecycle is required: ${request.name}`);
+      }
       const manifest = rawManifest as Omit<CapabilityManifest, "handler">;
+      let proposed = false;
       try {
+        if (lifecycle) {
+          await lifecycle.propose({ request, manifest });
+          proposed = true;
+        }
         const prepared = await lifecycle?.prepare({ request, manifest });
         if (prepared?.status === "completed") {
           if (!prepared.result) throw new ToolPolicyError("CAPABILITY_REPLAY_RESULT_MISSING", `Durable result is missing: ${request.name}`);
@@ -118,7 +128,8 @@ export function createCapabilityRuntime(input: {
         });
         return result;
       } catch (error) {
-        if (lifecycle) {
+        const errorCode = error instanceof ToolPolicyError ? error.code : undefined;
+        if (lifecycle && proposed && errorCode !== "APPROVAL_REQUIRED") {
           await lifecycle.fail({
             request,
             manifest,

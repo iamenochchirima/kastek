@@ -663,6 +663,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     host: hostCapabilities,
     capabilities: createCapabilityRuntime({
       registry: configuredTools,
+      requireLifecycle: true,
       admission: {
         admit: async ({ request }) => {
           await authorizeInstallationCapability({
@@ -735,7 +736,11 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     dependencies.config.APPROVAL_DECISION_RATE_LIMIT_WINDOW_MS,
     dependencies.config.APPROVAL_DECISION_RATE_LIMIT_MAX_KEYS,
   );
-  const immediateReads = new InstallationImmediateReadService({ runs, toolInvocations, capabilities: harness.capabilities ?? createCapabilityRuntime({ registry: toolRegistry }) });
+  const immediateReads = new InstallationImmediateReadService({
+    runs,
+    toolInvocations,
+    capabilities: harness.capabilities ?? createCapabilityRuntime({ registry: toolRegistry, requireLifecycle: true }),
+  });
   const installationInvocations = dependencies.installationInvocations ?? new InstallationCapabilityInvocationService({
     agents,
     runs,

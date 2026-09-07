@@ -218,6 +218,18 @@ describe.skipIf(!runIntegration)("durable run invariants (integration)", () => {
       arguments: { private: "arguments must stay operational-only" },
       requiresApproval: false,
     });
+    await toolInvocations.recordProposal({
+      organizationId,
+      runId: completedAnalyticsRun.id,
+      providerToolCallId: toolCallId,
+      sequenceNumber: 1,
+      toolName: "analytics.read",
+      toolVersion: "1.0.0",
+      riskClass: "read",
+      argumentsHash: "a".repeat(64),
+      arguments: { private: "arguments must stay operational-only" },
+      requiresApproval: false,
+    });
     await toolInvocations.recordCompleted({
       runId: completedAnalyticsRun.id,
       providerToolCallId: toolCallId,
@@ -259,7 +271,7 @@ describe.skipIf(!runIntegration)("durable run invariants (integration)", () => {
       providerToolCallId: toolCallId,
       toolName: "analytics.read",
       argumentsHash: "b".repeat(64),
-    })).rejects.toThrow("TOOL_REPLAY_SCOPE_CONFLICT");
+    })).rejects.toMatchObject({ code: "TOOL_REPLAY_SCOPE_CONFLICT" });
     await pool.query("INSERT INTO model_calls (organization_id, run_id, provider, model, funding_source, total_tokens, estimated_cost_usd, status) VALUES ($1, $2, 'openai', 'test', 'kasitek', 10, 0.25, 'completed')", [organizationId, runId]);
     await expect(modelCalls.assertRunBudget({ organizationId, runId, maxRequests: 1 })).rejects.toThrow("REQUEST_BUDGET");
     const decisionCallId = "idempotent-decision-call";

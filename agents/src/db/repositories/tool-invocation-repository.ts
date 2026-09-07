@@ -32,6 +32,7 @@ interface PersistedToolInvocation {
   tool_name: string;
   tool_version: string;
   risk_class: ToolInvocationAnalyticsInput["riskClass"];
+  arguments_hash: string;
   status: ToolInvocationStatus;
   latency_ms: number | null;
   effect_id: string | null;
@@ -49,19 +50,14 @@ export class ToolInvocationRepository {
 
   public async recordProposal(input: ToolProposalRecord): Promise<void> {
     await withTransaction(this.pool, async (client) => {
-      await client.query(
+      const inserted = await client.query<{ provider_tool_call_id: string }>(
         `INSERT INTO tool_invocations
           (organization_id, run_id, provider_tool_call_id, sequence_number, tool_name,
            tool_version, risk_class, arguments_hash, arguments, status)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb,
            CASE WHEN $10::boolean THEN 'awaiting_approval' ELSE 'proposed' END)
-         ON CONFLICT (run_id, provider_tool_call_id) DO UPDATE SET
-           arguments_hash = EXCLUDED.arguments_hash,
-           arguments = EXCLUDED.arguments,
-           status = CASE
-             WHEN tool_invocations.status IN ('completed', 'failed') THEN tool_invocations.status
-             ELSE EXCLUDED.status
-           END`,
+         ON CONFLICT (run_id, provider_tool_call_id) DO NOTHING
+         RETURNING provider_tool_call_id`,
         [
           input.organizationId,
           input.runId,
@@ -75,6 +71,23 @@ export class ToolInvocationRepository {
           input.requiresApproval,
         ],
       );
+      if (!inserted.rows[0]) {
+        const existing = await this.getPersisted(client, input.organizationId, input.runId, input.providerToolCallId);
+        if (
+          existing.tool_name !== input.toolName
+          || existing.tool_version !== input.toolVersion
+          || existing.risk_class !== input.riskClass
+          || existing.arguments_hash !== input.argumentsHash
+        ) {
+          throw new ToolPolicyError(
+            "TOOL_INVOCATION_IDENTITY_CONFLICT",
+            "A durable tool operation was reused with different invocation metadata",
+          );
+        }
+        // Proposal evidence is immutable. Re-entry after an approval wait or a
+        // worker retry must not emit a second proposal event.
+        return;
+      }
       const row = await this.getPersisted(client, input.organizationId, input.runId, input.providerToolCallId);
       await enqueueOutbox(client, buildToolInvocationLifecycleEvent(this.analyticsInput(row, "proposed", null, input.requiresApproval)));
     });
@@ -165,7 +178,7 @@ export class ToolInvocationRepository {
   private async getPersisted(client: PoolClient, organizationId: string | undefined, runId: string, providerToolCallId: string): Promise<PersistedToolInvocation> {
     const result = await client.query<PersistedToolInvocation>(
       `SELECT ti.id, ti.organization_id, ti.run_id, ti.provider_tool_call_id, ti.sequence_number,
-              ti.tool_name, ti.tool_version, ti.risk_class, ti.status, ti.latency_ms, ti.effect_id,
+              ti.tool_name, ti.tool_version, ti.risk_class, ti.arguments_hash, ti.status, ti.latency_ms, ti.effect_id,
               EXISTS (SELECT 1 FROM agent_approval_records aar
                       WHERE aar.run_id = ti.run_id AND aar.provider_tool_call_id = ti.provider_tool_call_id) AS requires_approval,
               ti.created_at, ti.finished_at, ar.agent_definition_id, ar.agent_version_id,

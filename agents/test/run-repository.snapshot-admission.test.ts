@@ -32,7 +32,7 @@ function poolWithInstallation(extensionSnapshotId: string | null, admissionRows:
 }
 
 describe("RunRepository extension snapshot admission", () => {
-  it("rejects a version with no immutable snapshot pin", async () => {
+  it("starts immutable snapshot initialization for an unpinned version", async () => {
     const { pool, clientQuery } = poolWithInstallation(null);
     const repository = new RunRepository(pool as never);
 
@@ -40,9 +40,9 @@ describe("RunRepository extension snapshot admission", () => {
       installationId,
       triggerType: "manual",
       input: { message: "hello" },
-    })).rejects.toThrow("EXTENSION_SNAPSHOT_RUN_ADMISSION_REQUIRED");
+    })).rejects.toThrow("EXTENSION_SNAPSHOT_VERSION_NOT_FOUND");
 
-    expect(clientQuery.mock.calls.some(([sql]) => sql.includes("FROM agent_versions version"))).toBe(false);
+    expect(clientQuery.mock.calls.some(([sql]) => sql.includes("SELECT version.id, version.configuration"))).toBe(true);
   });
 
   it("rejects a snapshot that is not the version's immutable pin", async () => {

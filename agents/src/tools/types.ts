@@ -57,6 +57,10 @@ export interface ToolInvocationContext {
  * failure evidence. Hosts supply persistence and receipt implementations.
  */
 export interface ToolInvocationLifecycle {
+  propose(input: {
+    request: ToolInvocationRequest;
+    manifest: Omit<ToolDefinition, "handler">;
+  }): Promise<void>;
   prepare(input: {
     request: ToolInvocationRequest;
     manifest: Omit<ToolDefinition, "handler">;
@@ -131,6 +135,10 @@ export interface ToolInvocationRequest {
   arguments: Record<string, unknown>;
   context: ToolInvocationContext;
   grantedTools: ReadonlySet<string>;
+  /** Durable identity for this capability operation. */
+  operationId?: string;
+  /** Stable ordering within the current agent turn. */
+  sequenceNumber?: number;
   approval?: ToolApproval;
   signal?: AbortSignal;
   /** Runs after all validation/approval checks and immediately before a real effect handler. */

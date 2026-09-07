@@ -30,6 +30,22 @@ describe("ExtensionResolver", () => {
     expect(Object.isFrozen(snapshot.plugins[0]?.declaration)).toBe(true);
   });
 
+  it.each([
+    ["kasiai", "kasiai-version"],
+    ["core", "core-version"],
+    ["tenant", "tenant-version"],
+    ["customer", "customer-version"],
+  ])("uses the same extension contract for %s agents", (_audience, agentVersionId) => {
+    const snapshot = new ExtensionResolver().resolve(input({ agentVersionId }));
+
+    expect(snapshot.agentVersionId).toBe(agentVersionId);
+    expect(snapshot.plugins[0]?.readiness.ready).toBe(true);
+    expect(snapshot.skills[0]?.readiness.ready).toBe(true);
+    expect(snapshot.mcpCapabilities[0]?.readiness.ready).toBe(true);
+    expect(snapshot.connectors[0]?.readiness.ready).toBe(true);
+    expect(snapshot.plugins[0]?.declaration.kind).toBe("plugin");
+  });
+
   it("reports the first unsatisfied gate with typed blockers", () => {
     const snapshot = new ExtensionResolver().resolve(input({
       grants: { connectorIds: ["calendar"], capabilityIds: [], skillIds: ["booking"], pluginIds: ["booking-plugin"] },

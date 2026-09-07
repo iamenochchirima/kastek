@@ -30,6 +30,7 @@ describe.skipIf(!runIntegration)("Temporal workflow recovery (integration)", () 
     let resumed = false;
     const activities: AgentRunActivities = {
       transitionRun: async ({ nextStatus }) => { calls.push(`transition:${nextStatus}`); },
+      waitForConversationTurn: async () => true,
       getContentPublishBatchStatus: async () => ({ status: "UNAVAILABLE" }),
       executeLoop: async ({ resumeApprovedToolCall }) => {
         calls.push(resumeApprovedToolCall ? "execute:resumed" : "execute:initial");
@@ -114,6 +115,7 @@ describe.skipIf(!runIntegration)("Temporal workflow recovery (integration)", () 
     let executionCount = 0;
     const activities: AgentRunActivities = {
       transitionRun: async ({ nextStatus }) => { calls.push(`transition:${nextStatus}`); },
+      waitForConversationTurn: async () => true,
       getContentPublishBatchStatus: async ({ batchId }) => {
         calls.push(`batch-status:${batchId}`);
         return {
@@ -205,6 +207,7 @@ describe.skipIf(!runIntegration)("Temporal workflow recovery (integration)", () 
     let firstWorker: Worker | undefined;
     const activities: AgentRunActivities = {
       transitionRun: async ({ nextStatus }) => { calls.push(`transition:${nextStatus}`); },
+      waitForConversationTurn: async () => true,
       getContentPublishBatchStatus: async () => ({ status: "UNAVAILABLE" }),
       executeLoop: async () => {
         executions += 1;
@@ -281,6 +284,7 @@ describe.skipIf(!runIntegration)("Temporal workflow recovery (integration)", () 
     const calls: string[] = [];
     const activities: AgentRunActivities = {
       transitionRun: async ({ nextStatus }) => { calls.push(`transition:${nextStatus}`); },
+      waitForConversationTurn: async () => true,
       getContentPublishBatchStatus: async () => ({ status: "UNAVAILABLE" }),
       executeLoop: async () => ({
         status: "awaiting_human",

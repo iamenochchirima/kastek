@@ -115,14 +115,31 @@ export class RunRepository {
       );
       const target = installation.rows[0];
       if (!target || target.status !== "active") throw new Error("Active installation not found");
-      if (!target.extension_snapshot_id) {
-        throw new Error("EXTENSION_SNAPSHOT_RUN_ADMISSION_REQUIRED");
+      let extensionSnapshotId = target.extension_snapshot_id;
+      if (!extensionSnapshotId) {
+        // Versions created before extension snapshots were introduced are
+        // initialized once, inside the same admission transaction. After this
+        // point every run still admits only the immutable pinned snapshot.
+        const snapshot = await this.extensionSnapshots.ensureSnapshotForVersion(client, organizationId, actorId, target.agent_version_id);
+        const pinned = await client.query<{ extension_snapshot_id: string }>(
+          `UPDATE agent_versions
+           SET extension_snapshot_id = $2
+           WHERE id = $1 AND extension_snapshot_id IS NULL
+           RETURNING extension_snapshot_id`,
+          [target.agent_version_id, snapshot.id],
+        );
+        extensionSnapshotId = pinned.rows[0]?.extension_snapshot_id
+          ?? (await client.query<{ extension_snapshot_id: string | null }>(
+            "SELECT extension_snapshot_id FROM agent_versions WHERE id = $1 FOR SHARE",
+            [target.agent_version_id],
+          )).rows[0]?.extension_snapshot_id
+          ?? snapshot.id;
       }
       const admissionSnapshot = await this.extensionSnapshots.getVersionAdmissionSnapshot(
         client,
         organizationId,
         target.agent_version_id,
-        target.extension_snapshot_id,
+        extensionSnapshotId,
       );
       if (!admissionSnapshot) {
         throw new Error("EXTENSION_SNAPSHOT_RUN_ADMISSION_INVALID");
@@ -225,7 +242,7 @@ export class RunRepository {
           JSON.stringify(input.input),
           actorId,
           input.idempotencyKey ?? null,
-          target.extension_snapshot_id,
+          extensionSnapshotId,
         ],
       );
       const run = created.rows[0] ?? (input.idempotencyKey

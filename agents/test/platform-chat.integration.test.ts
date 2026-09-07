@@ -31,7 +31,7 @@ describe.skipIf(!runIntegration)("platform chat durability (integration)", () =>
   let customerVersionId = "";
 
   beforeAll(async () => {
-    const agent = await agents.createAgent(organizationId, "test-user", { name: "Platform chat test" });
+    const agent = await agents.createAgent(organizationId, "test-user", { name: "Platform chat test", agentAudience: "customer_service" });
     agentId = agent.id;
     const version = await agents.createVersion(organizationId, "test-user", agent.id, {
       instructions: "Answer briefly.",
@@ -701,6 +701,7 @@ describe.skipIf(!runIntegration)("platform chat durability (integration)", () =>
     await pool.query("DELETE FROM run_steps WHERE organization_id = $1", [organizationId]);
     await pool.query("DELETE FROM run_attempts WHERE organization_id = $1", [organizationId]);
     await pool.query("DELETE FROM agent_events WHERE organization_id = $1", [organizationId]);
+    await pool.query("DELETE FROM agent_delivery_obligations WHERE organization_id = $1", [organizationId]);
     await pool.query("DELETE FROM agent_runs WHERE organization_id = $1", [organizationId]);
     await pool.query("DELETE FROM memory_records WHERE organization_id = $1", [organizationId]);
     await pool.query("DELETE FROM conversations WHERE organization_id = $1", [organizationId]);
@@ -708,7 +709,7 @@ describe.skipIf(!runIntegration)("platform chat durability (integration)", () =>
     await pool.query("DELETE FROM channel_connections WHERE organization_id = $1", [organizationId]);
     await pool.query("DELETE FROM agent_principals WHERE organization_id = $1", [organizationId]);
     await pool.query("DELETE FROM agent_installations WHERE organization_id = $1", [organizationId]);
-    if (customerVersionId) await pool.query("DELETE FROM agent_tool_grants WHERE agent_version_id = $1", [customerVersionId]);
+    await pool.query("DELETE FROM agent_tool_grants WHERE organization_id = $1", [organizationId]);
     if (versionId) await pool.query("DELETE FROM agent_versions WHERE id = $1", [versionId]);
     if (agentId) await pool.query("DELETE FROM agent_definitions WHERE id = $1", [agentId]);
     if (customerVersionId) await pool.query("DELETE FROM agent_versions WHERE id = $1", [customerVersionId]);

@@ -1595,6 +1595,13 @@ export class AgentRepository {
          VALUES ($1, 'human', $2, 'agent.deleted', 'agent_definition', $3, $4::jsonb)`,
         [organizationId, actorId, agentId, JSON.stringify({ name: agent.name })],
       );
+      await client.query(
+        `DELETE FROM agent_delivery_obligations
+         WHERE organization_id = $1
+           AND (run_id IN (SELECT id FROM _agent_delete_runs)
+             OR conversation_id IN (SELECT id FROM _agent_delete_conversations))`,
+        [organizationId],
+      );
       await client.query("DELETE FROM agent_client_assertion_replays WHERE credential_id IN (SELECT id FROM agent_installation_credentials WHERE installation_id IN (SELECT id FROM _agent_delete_installations))");
       await client.query("DELETE FROM agent_usage_records WHERE installation_id IN (SELECT id FROM _agent_delete_installations)");
       await client.query("DELETE FROM agent_installation_resource_grants WHERE installation_id IN (SELECT id FROM _agent_delete_installations)");

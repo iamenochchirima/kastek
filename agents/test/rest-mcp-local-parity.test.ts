@@ -108,6 +108,7 @@ function createLocalParityApp() {
   };
   const toolInvocations = {
     recordProposal: vi.fn(async () => undefined),
+    getCompleted: vi.fn(async () => null),
     recordCompleted: vi.fn(async () => undefined),
     recordFailed: vi.fn(async () => undefined),
   };

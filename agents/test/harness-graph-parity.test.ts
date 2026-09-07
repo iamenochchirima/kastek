@@ -22,6 +22,13 @@ const scope = createExecutionScope({
 
 const credentials: ModelCredentials = { apiKey: "test-key", fundingSource: "kasitek" };
 
+const testLifecycle = {
+  propose: async () => undefined,
+  prepare: async () => ({ status: "new" as const }),
+  complete: async () => undefined,
+  fail: async () => undefined,
+};
+
 function response(input: Partial<ModelResponse>): ModelResponse {
   return {
     provider: "openai",
@@ -77,6 +84,7 @@ async function runTurn(harness: ReturnType<typeof createHarness>["harness"], gat
       toolContext: toolInvocationContextFromScope(scope),
     } satisfies AgentExecutionPlan,
     messages: [{ role: "user", content: "Find the value" }],
+    toolLifecycle: testLifecycle,
     limits: { maxIterations: 3, maxToolCalls: 2, maxTotalTokens: 2_000, maxWallTimeMs: 5_000 },
     onEvent: (event) => onEvent(event.type),
   });

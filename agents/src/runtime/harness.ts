@@ -53,7 +53,7 @@ export function createAgentHarness(input: {
   capabilities?: CapabilityRuntime;
 }): AgentHarness {
   const contextPolicy = input.contextPolicy ?? new DefaultContextPolicy();
-  const capabilities = input.capabilities ?? createCapabilityRuntime({ registry: input.tools });
+  const capabilities = input.capabilities ?? createCapabilityRuntime({ registry: input.tools, requireLifecycle: true });
   return {
     tools: input.tools,
     capabilities,

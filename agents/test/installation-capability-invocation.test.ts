@@ -130,10 +130,11 @@ describe("InstallationCapabilityInvocationService", () => {
     const transitionRun = vi.fn(async () => undefined);
     const completeRun = vi.fn(async () => ({ id: "read-run", status: "completed", output: { iso: "2026-08-13T00:00:00.000Z" } }));
     const recordProposal = vi.fn(async () => undefined);
+    const getCompleted = vi.fn(async () => null);
     const recordCompleted = vi.fn(async () => undefined);
     const service = new InstallationImmediateReadService({
       runs: { createRun, transitionRun, completeRun } as never,
-      toolInvocations: { recordProposal, recordCompleted, recordFailed: vi.fn() } as never,
+      toolInvocations: { recordProposal, getCompleted, recordCompleted, recordFailed: vi.fn() } as never,
       capabilities: createCapabilityRuntime({ registry: readRegistry() }),
     });
     const result = await service.execute({

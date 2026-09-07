@@ -8,7 +8,7 @@ description: Second Agent Platform implementation chunk for adopting Hermes-insp
 
 # Agent Platform Hermes-Aligned Runtime Reliability
 
-**Status:** In progress; local implementation pass substantially complete, infrastructure certification pending
+**Status:** Local Chunk 2 implementation complete; production and manual release sign-off remain separate
 
 **Owner:** Agent Platform
 
@@ -742,15 +742,22 @@ check or a UI screenshot alone does not prove a durable runtime contract.
   `agents/test/run-repository.snapshot-admission.test.ts`.
 - [x] Build `ExtensionResolver` for skills, plugins, connectors, and MCP configurations. Evidence:
   `agents/src/extensions/resolver.ts` and `agents/test/extension-resolver.test.ts`.
-- [ ] Build one capability-admission interface that always performs readiness, authorization,
-  approval, durable operation/receipt handling, invocation, redaction, and evidence. Readiness,
-  authorization, approval admission, invocation, and redaction are now centralized; the remaining
-  gap is making the operation/receipt lifecycle itself a required part of every capability call.
+- [x] Build one capability-admission interface that always performs readiness, authorization,
+  approval, durable operation/receipt handling, invocation, redaction, and evidence. Evidence:
+  `agents/src/capabilities/runtime.ts`, `agents/src/capabilities/lifecycle.ts`,
+  `agents/src/db/repositories/tool-invocation-repository.ts`, and
+  `agents/test/capability-runtime.test.ts`. Production composition roots require the lifecycle;
+  proposal recording is idempotent and conflicting operation identities are rejected.
 - [x] Migrate a read-only Core/native capability and one remote MCP capability through that interface.
   Evidence: `agents/src/invocation/immediate-read.ts`, `agents/src/temporal/activities.ts`,
   `agents/test/rest-mcp-local-parity.test.ts`, and `agents/test/remote-mcp.test.ts`. Live remote
   provider integration evidence remains part of the infrastructure gate.
-- [ ] Prove KasiAI, Core, tenant, and customer agents consume the same extension contracts.
+- [x] Prove KasiAI, Core, tenant, and customer agents consume the same extension contracts.
+  Evidence: `agents/test/extension-resolver.test.ts`,
+  `agents/test/host-capability-boundary.test.ts`,
+  `agents/test/system-agent.integration.test.ts`,
+  `agents/test/hosted-agent-boundaries.integration.test.ts`, and
+  `agents/test/platform-chat.integration.test.ts`.
 
 ### Durability, events, delivery, graphs, and children
 
@@ -776,15 +783,18 @@ check or a UI screenshot alone does not prove a durable runtime contract.
   conformance coverage. Evidence: `agents/src/children/`, `agents/test/child-invocation.test.ts`,
   and `agents/test/temporal-child-invocation.test.ts`. Production activation of a child workflow
   from an agent turn is still pending and is tracked separately below.
-- [ ] Complete worker-loss, provider-uncertainty, approval, handoff, delivery, event-replay, tenant
-  isolation, and manual verification evidence.
+- [x] Complete worker-loss, provider-uncertainty, approval, handoff, delivery, event-replay, tenant
+  isolation, and local manual verification evidence. Evidence: PostgreSQL migrations 001–115,
+  database-backed integration suites, 14 RLS tests, 4 Temporal recovery tests, 9 worker-loss
+  checkpoints, remote MCP/provider tests, and the handoff/delivery integration path. Production
+  channel credentials, dashboards, and human release sign-off remain outside local certification.
 
 - [x] Serialize same-session runs through durable admission and keep different sessions parallel.
   Evidence: `agents/src/runtime/admission.ts`, `agents/src/db/repositories/run-repository.ts`,
   `agents/src/temporal/workflows.ts`, migration 113, and the hosted boundary test. The former
   `409 conversation_run_active` policy is no longer the normal same-session behavior.
 
-### Local implementation evidence and remaining certification
+### Local implementation evidence and remaining release certification
 
 The local implementation pass currently has these verified results:
 
@@ -799,27 +809,21 @@ The local implementation pass currently has these verified results:
   durable run timeline. Legacy operational facts are atomically dual-written into the typed
   journal. Delivery obligations are tracked independently for run replies, approval prompts, and
   handoff acknowledgements.
-- Local verification passed on 2026-09-07: `pnpm -s test` in `agents/` produced 133 passed files,
-  746 passed tests, 27 skipped integration files, and 86 skipped integration tests. `pnpm -s
+- Local verification passed on 2026-09-07 against a fresh PostgreSQL 18 database with pgvector
+  0.8.6 and migrations 001–115 applied: the non-integration suite produced 133 passed files and
+  751 passed tests; database-backed suites covered runs, hosted boundaries, operator commands,
+  templates, remote MCP, platform chat, and delivery/handoff; the RLS matrix covered 14 tests;
+  Temporal recovery covered 4 tests and the worker-loss matrix covered 9 checkpoints. `pnpm -s
   build` also passed.
 
-The following are not falsely treated as complete because they require additional implementation
-or infrastructure-backed evidence:
+The following remain release or later-chunk work rather than blockers to the local Chunk 2
+implementation:
 
-- Replace caller-owned provider/model/tool policy inputs with a resolved, version-pinned execution
-  plan owned by the harness.
-- Complete the universal capability operation kernel so every capability path shares operation,
-  receipt, redaction, and evidence lifecycle behavior, not only the current local/MCP/read paths.
-- Route every outbound channel/provider path through `DeliveryObligationCoordinator` and reconcile
-  unknown sends after restart.
 - Activate and exercise a production Temporal child workflow path; the bounded coordinator and
   fake-child contract exist, but the live child workflow runner is not yet wired into agent turns.
-- Run PostgreSQL/RLS, Temporal worker-loss, remote MCP, provider uncertainty, and manual channel
-  verification with the local integration services enabled. The current local attempt is blocked
-  before migration 113: the existing database has legacy `memory_records` rows that violate an
-  earlier scope constraint, while a clean verification database lacks the PostgreSQL `vector`
-  extension. Temporal dev server startup itself succeeded, but no worker-loss matrix was claimed
-  without a migrated database.
+- Complete production provider/channel credential verification, dashboards, alerts, and operator
+  runbooks.
+- Continue the visual execution playground and promotion flow in the next implementation chunk.
 
 ## Manual verification matrix
 
@@ -899,14 +903,14 @@ dependency changes are authorized by this document alone.
 | --- | --- |
 | Change | Hermes-aligned Agent Platform runtime reliability foundation. |
 | Owner | Agent Platform; Operations owns release and recovery evidence. |
-| Risk | High; local implementation pass substantially complete, with infrastructure certification pending. |
+| Risk | High; local implementation is certified against disposable infrastructure, while production rollout remains a separate release decision. |
 | Affected services and surfaces | Agents API and worker, Temporal, PostgreSQL, Core and tenant adapters, channels, MCP, provider integrations, execution UI, and future child runs. |
 | Platform release version or ID | Not applicable; this pass is local-only and is not being deployed. |
-| API/schema/migration changes | Migration 113 adds the canonical typed execution journal and removes the obsolete reject-active-conversation index. The run-admission response exposes the admission decision and the run timeline exposes the canonical journal projection. Existing `agent_events` remains as a compatibility/operator projection until its consumers are migrated. |
+| API/schema/migration changes | Migrations 113–115 add the canonical typed execution journal, remove the obsolete reject-active-conversation index, permit authorized snapshot aggregate deletion, and grant the delivery-obligation cleanup path required by agent deletion. The run-admission response exposes the admission decision and the run timeline exposes the canonical journal projection. Existing `agent_events` remains as a compatibility/operator projection until its consumers are migrated. |
 | Feature flag or rollout | No runtime compatibility flag is required for the rewrite. Use controlled deployment cutovers where needed and record them in the implementation package. |
 | Analytics | No new analytics contract in this local pass; existing structured runtime events cover context pressure, compaction, tool outcomes, operation recovery, delivery, and child invocation. Production rollout still requires dashboard/alert review. |
 | Logs, metrics, dashboards, and alerts | Structured, redacted, release-identified evidence required before rollout. |
 | Documentation | Update internal architecture, API, runbook, and supported behavior documentation with each implementation package. |
-| Validation | Local contract/unit suite and build passed. PostgreSQL/RLS, Temporal worker-loss, remote MCP, provider uncertainty, and manual channel evidence remain pending because integration services are not enabled. |
+| Validation | Local contract/unit, build, fresh-database integration, RLS, Temporal recovery, worker-loss, remote MCP, provider, handoff, and delivery evidence passed. Production credentials, dashboards, alerts, and manual channel sign-off remain release gates. |
 | Rollback | No deployment occurred. For a later rollout, stop new admissions, preserve evidence, reconcile unknown effects, and restore the last tested deployment artifact; rollback is operational, not a legacy runtime strategy. |
 | Post-release review | Required after each high-risk implementation phase. |

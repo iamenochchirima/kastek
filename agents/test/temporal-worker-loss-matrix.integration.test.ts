@@ -82,6 +82,7 @@ describe.skipIf(!runIntegration)("Temporal activity worker-loss matrix (integrat
 
     const activities: AgentRunActivities = {
       transitionRun: async ({ nextStatus }) => { calls.push(`transition:${nextStatus}`); },
+      waitForConversationTurn: async () => true,
       getContentPublishBatchStatus: async () => ({ status: "UNAVAILABLE" }),
       executeLoop: async () => {
         executions += 1;
