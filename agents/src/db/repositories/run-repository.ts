@@ -19,6 +19,9 @@ import { admissionDecision, sameSessionSerializationPolicy } from "../../runtime
 import type { ExecutionJournalRead, PendingExecutionJournalEvent, PersistedExecutionJournalEvent } from "../../journal";
 import { ExtensionSnapshotRepository } from "./extension-snapshot-repository";
 import { SessionLeaseRepository } from "./session-lease-repository";
+import { DurableOperationCoordinator } from "../../operations/durable-operation";
+import { DurableSessionOperationCoordinator } from "../../operations/session-coordination";
+import { DurableOperationRepository } from "./durable-operation-repository";
 
 export interface ConversationTurnAdmission {
   acquired: boolean;
@@ -85,10 +88,15 @@ export interface InstallationOperationRecord extends RunRecord {
 export class RunRepository {
   private readonly extensionSnapshots: ExtensionSnapshotRepository;
   private readonly sessionLeases: SessionLeaseRepository;
+  private readonly sessionOperations: DurableSessionOperationCoordinator;
 
   public constructor(private readonly pool: Pool) {
     this.extensionSnapshots = new ExtensionSnapshotRepository(pool);
     this.sessionLeases = new SessionLeaseRepository(pool);
+    this.sessionOperations = new DurableSessionOperationCoordinator(
+      new DurableOperationCoordinator(new DurableOperationRepository(pool)),
+      this.sessionLeases,
+    );
   }
 
   public async createRun(
@@ -326,7 +334,7 @@ export class RunRepository {
     if (!turn.canAcquire || !turn.conversationId || !turn.installationId) return { acquired: turn.canAcquire };
     const sessionKey = `conversation:${turn.installationId}:${turn.conversationId}`;
     const ownerId = `agent-run:${runId}`;
-    const lease = await this.sessionLeases.acquire({
+    const lease = await this.sessionOperations.acquire({
       organizationId,
       sessionKey,
       ownerId,
@@ -351,6 +359,32 @@ export class RunRepository {
   }): Promise<boolean> {
     const result = await this.sessionLeases.assertCurrent({ ...input });
     return result.outcome === "current";
+  }
+
+  public async heartbeatConversationLease(input: {
+    organizationId: string;
+    sessionKey: string;
+    ownerId: string;
+    runId: string;
+    fencingToken: string;
+    leaseDurationMs?: number;
+  }): Promise<boolean> {
+    const result = await this.sessionOperations.heartbeat({
+      ...input,
+      leaseDurationMs: input.leaseDurationMs ?? 10 * 60 * 1_000,
+    });
+    return result.outcome === "renewed";
+  }
+
+  public async releaseConversationLease(input: {
+    organizationId: string;
+    sessionKey: string;
+    ownerId: string;
+    runId: string;
+    fencingToken: string;
+  }): Promise<boolean> {
+    const result = await this.sessionOperations.release(input);
+    return result.outcome === "released" || result.outcome === "already_released";
   }
 
   public async finishOpenAttempt(

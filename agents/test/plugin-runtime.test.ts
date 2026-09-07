@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   decodePluginWorkerRequest,
   decodePluginWorkerResponse,
+  createPluginToolDefinition,
   DeterministicPluginSubprocessFactory,
   encodePluginWorkerRequest,
   IsolatedPluginAdapter,
@@ -171,6 +172,34 @@ describe("isolated plugin execution", () => {
     expect(result).toMatchObject({ ok: false, error: { code: "PLUGIN_PROCESS_CRASHED", message: "The plugin process exited unexpectedly." }, evidence: { failureCode: "PLUGIN_PROCESS_CRASHED" } });
     expect(JSON.stringify(result)).not.toContain("private customer prompt");
     expect(factory.processes[0]).toMatchObject({ terminated: true, disposed: true });
+  });
+
+  it("composes the isolated runtime as a normal durable capability", async () => {
+    const { adapter } = makeAdapter({ execute: async (workerRequest) => success(workerRequest, { connected: true }) });
+    const tool = createPluginToolDefinition({
+      name: "plugin.demo",
+      description: "Demo plugin",
+      version: "1.0.0",
+      inputSchema: { type: "object" },
+      outputSchema: { type: "object" },
+      package: request().package,
+      runtime: runtime(),
+      adapter,
+    });
+
+    const output = await tool.handler({
+      organizationId: "org-a",
+      installationId: "installation-1",
+      agentVersionId: "agent-version-1",
+      runId: "run-1",
+      conversationId: "conversation-1",
+      operationId: "plugin-operation-1",
+      grantedTools: ["plugin.demo"],
+      scope: { capabilityGrants: ["calendar.read"] },
+    }, { value: 1 });
+
+    expect(output).toEqual({ connected: true });
+    expect(tool.manifest).toMatchObject({ execution: "durable", idempotency: "required", requiredScope: "plugin:demo-plugin" });
   });
 
   it.each([

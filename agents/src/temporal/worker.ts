@@ -24,6 +24,7 @@ import { AgentRepository } from "../db/repositories/agent-repository";
 import { ExtensionSnapshotRepository } from "../db/repositories/extension-snapshot-repository";
 import { assertKasiAiReleaseCurrent } from "../system/kasiai";
 import { createChildWorkflowActivities } from "../children/temporal-activities";
+import { createTemporalChildWorkflowAdapter, TemporalChildInvocationCoordinator } from "../children/temporal-coordinator";
 
 async function main(): Promise<void> {
   const config = loadConfig();
@@ -67,6 +68,13 @@ async function main(): Promise<void> {
     namespace: config.TEMPORAL_NAMESPACE,
     interceptors: { workflow: [temporalClientInterceptor] },
   });
+  const childInvocationCoordinator = new TemporalChildInvocationCoordinator(
+    createTemporalChildWorkflowAdapter(client),
+    {
+      workflowType: "agentChildWorkflow",
+      taskQueue: config.TEMPORAL_TASK_QUEUE,
+    },
+  );
   let reconciling = false;
   const reconcileStaleEffects = async (): Promise<void> => {
     if (reconciling) return;
@@ -143,7 +151,7 @@ async function main(): Promise<void> {
       workflowModules: [require.resolve("./workflow-interceptors")],
     },
     activities: {
-      ...createActivities(pool, { config }),
+      ...createActivities(pool, { config, childInvocationCoordinator }),
       ...createChildWorkflowActivities(pool),
     },
     maxConcurrentActivityTaskExecutions: 20,

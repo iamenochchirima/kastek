@@ -25,6 +25,7 @@ import {
   type ChildInvocationScope,
 } from "./contracts";
 import type { ChildExecutionBudget } from "./execution-kernel";
+import type { ToolDefinition } from "../tools/types";
 
 export { childWorkflowId } from "./temporal-activation";
 export type { TemporalChildWorkflowInput } from "./temporal-activation";
@@ -211,6 +212,54 @@ export class TemporalChildInvocationCoordinator<TOutput = unknown> {
       };
     }
   }
+}
+
+/**
+ * The harness sees delegation as one capability. Agent identity, tenant scope,
+ * grants, and the durable workflow boundary remain runtime-owned rather than
+ * being assembled by the model or by a graph node.
+ */
+export function createTemporalChildInvocationTool(
+  coordinator: TemporalChildInvocationCoordinator,
+): ToolDefinition {
+  return {
+    name: "kasitek.agent.delegate",
+    version: "1.0.0",
+    description: "Delegate a bounded task to an explicitly selected child agent.",
+    riskClass: "controlled-write",
+    requiresApproval: true,
+    timeoutMs: 120_000,
+    inputSchema: {
+      type: "object",
+      properties: {
+        childAgentDefinitionId: { type: "string", minLength: 1, maxLength: 240 },
+        childAgentVersionId: { type: "string", minLength: 1, maxLength: 240 },
+        idempotencyKey: { type: "string", minLength: 1, maxLength: 240 },
+        input: {},
+        capabilityGrants: { type: "array", items: { type: "string" }, maxItems: 500 },
+        resourceGrants: { type: "array", items: { type: "string" }, maxItems: 500 },
+      },
+      required: ["childAgentDefinitionId", "childAgentVersionId", "idempotencyKey", "input"],
+      additionalProperties: false,
+    },
+    outputSchema: { type: "object" },
+    manifest: {
+      ownerService: "agent-runtime",
+      requiredScope: "agent.children.invoke",
+      execution: "durable",
+      idempotency: "required",
+      approval: "always",
+      auditClassification: "restricted",
+      redaction: ["input", "output", "capabilityGrants", "resourceGrants"],
+    },
+    handler: async (context, argumentsValue) => {
+      const result = await coordinator.invoke(context.scope, argumentsValue);
+      if (result.status !== "succeeded" && result.status !== "partial") {
+        throw new Error(result.error?.code ?? "CHILD_EXECUTION_FAILED");
+      }
+      return result;
+    },
+  };
 }
 
 function isTemporalChildWorkflowOutcome<TOutput>(value: unknown): value is TemporalChildWorkflowOutcome<TOutput> {

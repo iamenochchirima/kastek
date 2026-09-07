@@ -18,7 +18,7 @@ describe("execution scope", () => {
       id: "run",
       created_by: "actor",
       correlation_id: "correlation",
-    });
+    }, { sessionKey: "conversation:installation:conversation", fencingToken: "9" });
 
     expect(scope).toMatchObject({
       organizationId: "org",
@@ -30,11 +30,14 @@ describe("execution scope", () => {
       runId: "run",
       actorType: "service",
       extensionSnapshotId: "extension-snapshot",
+      sessionKey: "conversation:installation:conversation",
+      sessionFencingToken: "9",
     });
     expect(toolInvocationContextFromScope(scope)).toMatchObject({
       scope,
       agentId: "agent",
       runId: "run",
+      operationId: undefined,
     });
   });
 

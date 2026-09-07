@@ -77,6 +77,7 @@ import { PostgresExecutionJournal, RunRepositoryExecutionJournalStore } from "..
 import { PostgresDeliveryObligationCoordinator } from "../delivery";
 import { compactDurableContext } from "../runtime/context-compaction";
 import { ContextCompactionRepository } from "../db/repositories/context-compaction-repository";
+import { createTemporalChildInvocationTool, type TemporalChildInvocationCoordinator } from "../children/temporal-coordinator";
 
 export interface ActivityOptions {
   gateway?: ModelGateway;
@@ -92,6 +93,7 @@ export interface ActivityOptions {
   remoteMcpProviders?: RemoteMcpProviderRepository;
   hostCapabilities?: HostCapabilityRouter;
   harness?: AgentHarness;
+  childInvocationCoordinator?: TemporalChildInvocationCoordinator;
 }
 
 export function normalizeConnectionFilter(value: unknown): string | undefined {
@@ -2143,6 +2145,69 @@ async function withActivityHeartbeat<T>(details: Record<string, unknown>, operat
   }
 }
 
+type SessionLeaseHandle = { sessionKey: string; fencingToken: string };
+
+/**
+ * Keeps a session lease alive for the duration of a long activity and gives
+ * every durable callback a single fencing assertion. Temporal heartbeat only
+ * tells Temporal that the activity is alive; it does not protect PostgreSQL
+ * writes after the lease has expired or been reacquired by another worker.
+ */
+class SessionLeaseGuard {
+  private fenced = false;
+  private timer: ReturnType<typeof setInterval> | undefined;
+
+  public constructor(
+    private readonly runs: RunRepository,
+    private readonly organizationId: string,
+    private readonly runId: string,
+    private readonly lease: SessionLeaseHandle,
+  ) {}
+
+  public start(): void {
+    this.timer = setInterval(() => {
+      void this.renew();
+    }, 30_000);
+    this.timer.unref?.();
+  }
+
+  public async assertCurrent(): Promise<void> {
+    if (this.fenced) throw new Error("SESSION_LEASE_FENCED");
+    const current = await this.runs.assertConversationLease({
+      organizationId: this.organizationId,
+      sessionKey: this.lease.sessionKey,
+      ownerId: `agent-run:${this.runId}`,
+      runId: this.runId,
+      fencingToken: this.lease.fencingToken,
+    });
+    if (!current) {
+      this.fenced = true;
+      throw new Error("SESSION_LEASE_FENCED");
+    }
+  }
+
+  public stop(): void {
+    if (this.timer) clearInterval(this.timer);
+    this.timer = undefined;
+  }
+
+  private async renew(): Promise<void> {
+    if (this.fenced) return;
+    try {
+      const renewed = await this.runs.heartbeatConversationLease({
+        organizationId: this.organizationId,
+        sessionKey: this.lease.sessionKey,
+        ownerId: `agent-run:${this.runId}`,
+        runId: this.runId,
+        fencingToken: this.lease.fencingToken,
+      });
+      if (!renewed) this.fenced = true;
+    } catch {
+      this.fenced = true;
+    }
+  }
+}
+
 export function createActivities(pool: Pool, options: ActivityOptions = {}): AgentRunActivities {
   const runs = new RunRepository(pool);
   const modelCalls = new ModelCallRepository(pool);
@@ -2187,6 +2252,9 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
   const remoteMcpProviders = options.remoteMcpProviders ?? new RemoteMcpProviderRepository(pool, integrationRepository ? (organizationId, credentialReference) => integrationRepository.resolveCredential(organizationId, credentialReference) : undefined);
   const integrationTools = options.integrationTools ?? (integrationRepository ? new IntegrationToolService(integrationRepository, options.config) : undefined);
   const tools = options.harness?.tools ?? options.tools ?? createDefaultTools(coreClient, conversationActions, integrationTools, memory, hostCapabilities);
+  if (options.childInvocationCoordinator && !tools.get("kasitek.agent.delegate")) {
+    tools.register(createTemporalChildInvocationTool(options.childInvocationCoordinator));
+  }
   const harness = options.harness ?? createAgentHarness({
     tools,
     host: hostCapabilities,
@@ -2244,26 +2312,35 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
       const sessionLease = admission.sessionKey && admission.fencingToken
         ? { sessionKey: admission.sessionKey, fencingToken: admission.fencingToken }
         : undefined;
-      if (isMcpToolRun(run.input)) {
-        return executeMcpToolRun(
-          run,
-          input.resumeApprovedToolCall,
-          runs,
-          runBudgets,
-          toolInvocations,
-          approvals,
-          effectReceipts,
-          runSteps,
-          toolGrants,
-          killSwitches,
-          controls,
-          harness.capabilities,
-          coreClient,
-          toolInvocationLifecycle,
-          sessionLease,
-        );
+      const sessionGuard = sessionLease
+        ? new SessionLeaseGuard(runs, run.organization_id, run.id, sessionLease)
+        : undefined;
+      sessionGuard?.start();
+      try {
+        if (isMcpToolRun(run.input)) {
+          return await executeMcpToolRun(
+            run,
+            input.resumeApprovedToolCall,
+            runs,
+            runBudgets,
+            toolInvocations,
+            approvals,
+            effectReceipts,
+            runSteps,
+            toolGrants,
+            killSwitches,
+            controls,
+            harness.capabilities,
+            coreClient,
+            toolInvocationLifecycle,
+            sessionLease,
+            sessionGuard,
+          );
+        }
+        return await executeLoopForRun(run, input.resumeApprovedToolCall, input.resumeExternalEvent, input.loopStep, runs, modelCalls, runBudgets, conversations, memory, knowledge, skills, remoteMcpProviders, toolInvocations, approvals, effectReceipts, runSteps, toolGrants, installationGrants, summaries, killSwitches, controls, kasiaiPreferences, gateway, credentials, tools, harness, workflowState, workflowCheckpoints, modelPricing, creditPricing, creditBillingMode, coreClient, conversationActions, options.config?.TEMPORAL_STEP_ACTIVITIES_ENABLED === true, toolInvocationLifecycle, sessionLease, new ContextCompactionRepository(pool, run.organization_id), sessionGuard);
+      } finally {
+        sessionGuard?.stop();
       }
-      return executeLoopForRun(run, input.resumeApprovedToolCall, input.resumeExternalEvent, input.loopStep, runs, modelCalls, runBudgets, conversations, memory, knowledge, skills, remoteMcpProviders, toolInvocations, approvals, effectReceipts, runSteps, toolGrants, installationGrants, summaries, killSwitches, controls, kasiaiPreferences, gateway, credentials, tools, harness, workflowState, workflowCheckpoints, modelPricing, creditPricing, creditBillingMode, coreClient, conversationActions, options.config?.TEMPORAL_STEP_ACTIVITIES_ENABLED === true, toolInvocationLifecycle, sessionLease, new ContextCompactionRepository(pool, run.organization_id));
     },
     async getContentPublishBatchStatus(input) {
       const run = await runs.getRuntimeRunById(input.runId);
@@ -2796,9 +2873,13 @@ async function executeMcpToolRun(
   coreClient: KasitekCoreReadClient | undefined,
   toolInvocationLifecycle: ReturnType<typeof createToolInvocationLifecycle>,
   sessionLease?: { sessionKey: string; fencingToken: string },
+  sessionGuard?: SessionLeaseGuard,
 ) {
   if (!isMcpToolRun(run.input)) throw new Error("Invalid MCP run input");
   const executionScope = executionScopeFromRun(run, sessionLease);
+  const assertSessionLease = async (): Promise<void> => {
+    await sessionGuard?.assertCurrent();
+  };
   const invocation = resumeApprovedToolCall ?? {
     id: run.input.mcpTool.toolCallId,
     name: run.input.mcpTool.name,
@@ -2826,6 +2907,7 @@ async function executeMcpToolRun(
 
   let stepId: string | undefined;
   if (!resumeApprovedToolCall) {
+    await assertSessionLease();
     await toolInvocations.recordProposal({
       organizationId: run.organization_id,
       runId: run.id,
@@ -2887,6 +2969,7 @@ async function executeMcpToolRun(
   let policyApplied = false;
   let effectTransitioned = false;
   try {
+    await assertSessionLease();
     if (run.installation_status !== "active") throw new Error("INSTALLATION_NOT_ACTIVE");
     if (await killSwitches.isBlocked({
       organizationId: run.organization_id,
@@ -2915,6 +2998,7 @@ async function executeMcpToolRun(
       });
     }
     await consumeRunToolBudget(runBudgets, { organizationId: run.organization_id, runId: run.id });
+    await assertSessionLease();
     const result = await capabilities.invoke({
       name: invocation.name,
       arguments: invocation.arguments,
@@ -2949,6 +3033,7 @@ async function executeMcpToolRun(
       lifecycle: toolInvocationLifecycle,
     });
     policyApplied = true;
+    await assertSessionLease();
     const durableOutput = redactToolOutput(result.output, manifest.manifest?.redaction ?? []);
     if (result.effectId) await effectReceipts.markSucceededByKey(run.organization_id, `${run.id}:${invocation.name}:${argumentsHash}`, durableOutput);
     if (stepId) await runSteps.finishStep({ stepId, status: "completed", output: { latencyMs: result.latencyMs } });
@@ -2968,6 +3053,7 @@ async function executeMcpToolRun(
       provenance: buildGroundingProvenance({ authorizedTools: grantedTools, usedTools: [invocation.name], retrievalRequested: false, knowledgeMatchCount: 0 }),
     };
   } catch (error) {
+    if (error instanceof Error && error.message === "SESSION_LEASE_FENCED") throw error;
     const normalized = { code: "MCP_TOOL_FAILED", message: error instanceof Error ? error.message : "MCP tool failed" };
     if (manifest.riskClass === "external-effect") {
       const effectKey = `${run.id}:${invocation.name}:${argumentsHash}`;
@@ -3028,9 +3114,13 @@ async function executeLoopForRun(
   toolInvocationLifecycle: ReturnType<typeof createToolInvocationLifecycle>,
   sessionLease?: { sessionKey: string; fencingToken: string },
   contextCompaction?: ContextCompactionRepository,
+  sessionGuard?: SessionLeaseGuard,
 ) {
   if (run.installation_status !== "active") throw new Error("INSTALLATION_NOT_ACTIVE");
   const journal = new PostgresExecutionJournal(new RunRepositoryExecutionJournalStore(runs));
+  const assertSessionLease = async (): Promise<void> => {
+    await sessionGuard?.assertCurrent();
+  };
   const configuration = run.configuration;
   const installationSettings = run.installation_settings ?? {};
   const storedWorkflowState = await workflowState.get(run.organization_id, run.id);
@@ -3475,7 +3565,9 @@ async function executeLoopForRun(
     parallelLeaseId?: string;
     model?: { temperature?: number; maxTokens?: number };
     limits?: Partial<AgentLoopLimits>;
-  }): Promise<AgentLoopResult> => withActivityHeartbeat(
+  }): Promise<AgentLoopResult> => {
+    await assertSessionLease();
+    return withActivityHeartbeat(
     { phase: options.operationKeyPrefix ? "workflow.agent_loop" : "agent.loop" },
     () => harness.runTurn({
       plan: {
@@ -3510,7 +3602,9 @@ async function executeLoopForRun(
         toolName: name,
         argumentsHash,
       })) ?? undefined,
-      prepareModelCall: async ({ operationKey, model: attemptModel, credentials: attemptCredentials }) => modelCalls.prepare({
+      prepareModelCall: async ({ operationKey, model: attemptModel, credentials: attemptCredentials }) => {
+        await assertSessionLease();
+        return modelCalls.prepare({
         organizationId: run.organization_id,
         runId: run.id,
         operationKey,
@@ -3518,8 +3612,11 @@ async function executeLoopForRun(
         model: attemptModel.model,
         fundingSource: attemptCredentials.fundingSource,
         credentialReference: attemptCredentials.credentialReference,
-      }),
-      persistModelResponse: async ({ operationKey, response, attempt }) => modelCalls.recordCompleted({
+        });
+      },
+      persistModelResponse: async ({ operationKey, response, attempt }) => {
+        await assertSessionLease();
+        return modelCalls.recordCompleted({
         organizationId: run.organization_id,
         runId: run.id,
         operationKey,
@@ -3529,8 +3626,11 @@ async function executeLoopForRun(
         credentialReference: attempt.credentials.credentialReference,
         response,
         correlationId: run.correlation_id,
-      }),
-      persistModelError: async ({ operationKey, model: attemptModel, credentials: attemptCredentials, error }) => modelCalls.recordFailed({
+        });
+      },
+      persistModelError: async ({ operationKey, model: attemptModel, credentials: attemptCredentials, error }) => {
+        await assertSessionLease();
+        return modelCalls.recordFailed({
         organizationId: run.organization_id,
         runId: run.id,
         operationKey,
@@ -3539,7 +3639,8 @@ async function executeLoopForRun(
         fundingSource: attemptCredentials.fundingSource,
         error,
         correlationId: run.correlation_id,
-      }),
+        });
+      },
       reserveModelCall: async ({ request, credentials: attemptCredentials, operationKey }) => reserveModelCredits({
         billingMode: creditBillingMode,
         gateway,
@@ -3558,6 +3659,7 @@ async function executeLoopForRun(
       },
       resumeApprovedToolCall,
       onEvent: async (event) => {
+        await assertSessionLease();
         activityHeartbeat({ phase: event.type, iteration: event.iteration });
         await journal.append({
           scope: {
@@ -3570,6 +3672,7 @@ async function executeLoopForRun(
         });
       },
       onToolProposed: async (proposal) => {
+        await assertSessionLease();
         usedTools.add(proposal.name);
         const resourceSnapshot = proposal.requiresApproval && approvedResourceSnapshot
           ? approvedResourceSnapshot
@@ -3606,6 +3709,7 @@ async function executeLoopForRun(
         toolSteps.set(proposal.toolCallId, step.id);
       },
       onToolExecuting: async (execution) => {
+        await assertSessionLease();
         if (run.installation_status !== "active") throw new Error("INSTALLATION_NOT_ACTIVE");
         const manifest = tools.get(execution.name);
         const resourceSnapshot = execution.requiresApproval && approvedResourceSnapshot
@@ -3636,6 +3740,7 @@ async function executeLoopForRun(
         startedExternalEffects.add(execution.toolCallId);
       },
       onToolCompleted: async (result) => {
+        await assertSessionLease();
         const completedManifest = tools.get(result.name);
         await runs.appendEvent({
           organizationId: run.organization_id,
@@ -3655,6 +3760,7 @@ async function executeLoopForRun(
         if (stepId) await runSteps.finishStep({ stepId, status: "completed", output: { latencyMs: result.latencyMs } });
       },
       onToolFailed: async (failure) => {
+        await assertSessionLease();
         if (["TOOL_NOT_FOUND", "TOOL_NOT_GRANTED", "CAPABILITY_NOT_GRANTED", "UNAVAILABLE", "NOT_CONFIGURED"].some((code) => failure.error.code.includes(code))) unavailableTools.add(failure.name);
         await runs.appendEvent({
           organizationId: run.organization_id,
@@ -3677,6 +3783,7 @@ async function executeLoopForRun(
         if (stepId) await runSteps.finishStep({ stepId, status: "failed", error: failure.error });
       },
       onModelResponse: async (response, attempt, operationKey) => {
+        await assertSessionLease();
         const attemptCredentials = attempt?.credentials ?? modelCredentials;
         await modelCalls.recordCompleted({
           organizationId: run.organization_id,
@@ -3693,6 +3800,7 @@ async function executeLoopForRun(
         await runSteps.finishStep({ stepId: step.id, status: "completed", output: { totalTokens: response.usage.totalTokens, finishReason: response.finishReason, latencyMs: response.latencyMs } });
       },
       onModelError: async (error, attempt, operationKey) => {
+        await assertSessionLease();
         const attemptModel = attempt?.model ?? { provider, model };
         const attemptCredentials = attempt?.credentials ?? modelCredentials;
         await modelCalls.recordFailed({
@@ -3709,7 +3817,8 @@ async function executeLoopForRun(
         await runSteps.finishStep({ stepId: step.id, status: "failed", error });
       },
     }),
-  );
+    );
+  };
   if (configuration.workflow && typeof configuration.workflow === "object" && !Array.isArray(configuration.workflow)) {
     const workflowResult = await executeConfiguredWorkflow({
       run,
@@ -3802,7 +3911,9 @@ async function executeLoopForRun(
   const startedExternalEffects = new Set<string>();
   const usedTools = new Set<string>();
   const unavailableTools = new Set<string>();
-  const loopResult = await withActivityHeartbeat({ phase: "agent.loop" }, () => harness.runTurn({
+  const loopResult = await withActivityHeartbeat({ phase: "agent.loop" }, async () => {
+    await assertSessionLease();
+    return harness.runTurn({
     plan: executionPlan,
     messages: resumeExternalEvent
       ? [...(loopCheckpoint?.messages ?? context.messages), { role: "user" as const, content: JSON.stringify({ externalEvent: resumeExternalEvent }) }]
@@ -3824,7 +3935,9 @@ async function executeLoopForRun(
     },
     reserveRunBudget: async ({ request, reservationKey, parallelLeaseId }) => reserveRunModelBudget({ repository: runBudgets, organizationId: run.organization_id, runId: run.id, reservationKey, parallelLeaseId, gateway, request }),
     consumeRunToolCall: ({ parallelLeaseId } = {}) => consumeRunToolBudget(runBudgets, { organizationId: run.organization_id, runId: run.id, parallelLeaseId }),
-    prepareModelCall: async ({ operationKey, model: attemptModel, credentials: attemptCredentials }) => modelCalls.prepare({
+    prepareModelCall: async ({ operationKey, model: attemptModel, credentials: attemptCredentials }) => {
+      await assertSessionLease();
+      return modelCalls.prepare({
       organizationId: run.organization_id,
       runId: run.id,
       operationKey,
@@ -3832,8 +3945,11 @@ async function executeLoopForRun(
       model: attemptModel.model,
       fundingSource: attemptCredentials.fundingSource,
       credentialReference: attemptCredentials.credentialReference,
-    }),
-    persistModelResponse: async ({ operationKey, response, attempt }) => modelCalls.recordCompleted({
+      });
+    },
+    persistModelResponse: async ({ operationKey, response, attempt }) => {
+      await assertSessionLease();
+      return modelCalls.recordCompleted({
       organizationId: run.organization_id,
       runId: run.id,
       operationKey,
@@ -3843,8 +3959,11 @@ async function executeLoopForRun(
       credentialReference: attempt.credentials.credentialReference,
       response,
       correlationId: run.correlation_id,
-    }),
-    persistModelError: async ({ operationKey, model: attemptModel, credentials: attemptCredentials, error }) => modelCalls.recordFailed({
+      });
+    },
+    persistModelError: async ({ operationKey, model: attemptModel, credentials: attemptCredentials, error }) => {
+      await assertSessionLease();
+      return modelCalls.recordFailed({
       organizationId: run.organization_id,
       runId: run.id,
       operationKey,
@@ -3853,7 +3972,8 @@ async function executeLoopForRun(
       fundingSource: attemptCredentials.fundingSource,
       error,
       correlationId: run.correlation_id,
-    }),
+      });
+    },
     reserveModelCall: async ({ request, credentials: attemptCredentials, operationKey }) => {
       return reserveModelCredits({
         billingMode: creditBillingMode,
@@ -3874,6 +3994,7 @@ async function executeLoopForRun(
     },
     resumeApprovedToolCall,
     onEvent: async (event) => {
+      await assertSessionLease();
       activityHeartbeat({ phase: event.type, iteration: event.iteration });
       await journal.append({
         scope: executionScope,
@@ -3888,6 +4009,7 @@ async function executeLoopForRun(
       });
     },
     onToolProposed: async (proposal) => {
+      await assertSessionLease();
       usedTools.add(proposal.name);
       const resourceSnapshot = proposal.requiresApproval && approvedResourceSnapshot
         ? approvedResourceSnapshot
@@ -3936,6 +4058,7 @@ async function executeLoopForRun(
       toolSteps.set(proposal.toolCallId, step.id);
     },
     onToolExecuting: async (execution) => {
+      await assertSessionLease();
       if (run.installation_status !== "active") throw new Error("INSTALLATION_NOT_ACTIVE");
       const manifest = tools.get(execution.name);
       const resourceSnapshot = execution.requiresApproval && approvedResourceSnapshot
@@ -3966,6 +4089,7 @@ async function executeLoopForRun(
       startedExternalEffects.add(execution.toolCallId);
     },
     onToolCompleted: async (result) => {
+      await assertSessionLease();
       await toolInvocations.recordCompleted({
         runId: run.id,
         providerToolCallId: result.toolCallId,
@@ -3978,6 +4102,7 @@ async function executeLoopForRun(
       if (stepId) await runSteps.finishStep({ stepId, status: "completed", output: { latencyMs: result.latencyMs } });
     },
     onToolFailed: async (failure) => {
+      await assertSessionLease();
       if (["TOOL_NOT_FOUND", "TOOL_NOT_GRANTED", "CAPABILITY_NOT_GRANTED", "UNAVAILABLE", "NOT_CONFIGURED"].some((code) => failure.error.code.includes(code))) unavailableTools.add(failure.name);
       await toolInvocations.recordFailed({
         runId: run.id,
@@ -3997,6 +4122,7 @@ async function executeLoopForRun(
       if (stepId) await runSteps.finishStep({ stepId, status: "failed", error: failure.error });
     },
     onModelResponse: async (response, attempt, operationKey) => {
+      await assertSessionLease();
       const attemptCredentials = attempt?.credentials ?? modelCredentials;
       await modelCalls.recordCompleted({
         organizationId: run.organization_id,
@@ -4013,6 +4139,7 @@ async function executeLoopForRun(
       await runSteps.finishStep({ stepId: step.id, status: "completed", output: { totalTokens: response.usage.totalTokens, finishReason: response.finishReason, latencyMs: response.latencyMs } });
     },
     onModelError: async (error, attempt, operationKey) => {
+      await assertSessionLease();
       const attemptModel = attempt?.model ?? { provider, model };
       const attemptCredentials = attempt?.credentials ?? modelCredentials;
       await modelCalls.recordFailed({
@@ -4028,7 +4155,8 @@ async function executeLoopForRun(
       const step = await runSteps.startStep({ runId: run.id, organizationId: run.organization_id, stepType: "model", input: { provider: attemptModel.provider, model: attemptModel.model } });
       await runSteps.finishStep({ stepId: step.id, status: "failed", error });
     },
-  }));
+    });
+  });
   loopResult.provenance = buildGroundingProvenance({
     authorizedTools: allowedTools,
     usedTools,
