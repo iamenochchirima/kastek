@@ -161,7 +161,25 @@ export class DurableContextCapabilityResolver {
     const providerMetadata = input.providerMetadata ?? this.sources.providerMetadata;
     const catalog = input.catalog ?? this.sources.catalog;
     const metadataRecord = await resolveProviderMetadata(providerMetadata, route, now);
-    if (metadataRecord) return applyCapabilityRecord(fallback, metadataRecord);
+    if (metadataRecord) {
+      const durableRecord: ContextCapabilityRecord = {
+        ...metadataRecord,
+        organizationId: input.organizationId,
+        provider: metadataRecord.provider as ModelProvider,
+      };
+      this.cache.set(key, { record: durableRecord, expiresAt: expiresAtForRecord(durableRecord, now, this.cacheTtlMs) });
+      // Provider metadata is stronger than a catalog and should survive a
+      // worker replacement when the tenant-scoped store is available. A
+      // transient cache-write failure must not discard an otherwise valid
+      // provider response; the in-memory route cache remains authoritative
+      // for this attempt.
+      try {
+        await this.store.upsert(durableRecord);
+      } catch {
+        // The request can still use the validated metadata record.
+      }
+      return applyCapabilityRecord(fallback, durableRecord);
+    }
 
     let catalogRecord = catalog
       ? resolveModelCapabilityFromCatalog(catalog, route, new Date(now).toISOString())
@@ -485,4 +503,9 @@ function isCapabilityRecordFresh(record: ContextCapabilityRecord, now = Date.now
   if (!record.expiresAt) return true;
   const expiresAt = Date.parse(record.expiresAt);
   return Number.isFinite(expiresAt) && expiresAt > now;
+}
+
+function expiresAtForRecord(record: ContextCapabilityRecord, now: number, cacheTtlMs: number): number {
+  const recordExpiry = record.expiresAt ? Date.parse(record.expiresAt) : Number.NaN;
+  return Number.isFinite(recordExpiry) ? Math.min(recordExpiry, now + cacheTtlMs) : now + cacheTtlMs;
 }
