@@ -2220,6 +2220,9 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
     async executeLoop(input) {
       const run = await runs.getRuntimeRunById(input.runId);
       if (!run) throw new Error("Run not found");
+      if (!(await runs.canAcquireConversationTurn(run.organization_id, run.id))) {
+        throw new Error("SESSION_LEASE_LOST");
+      }
       if (isMcpToolRun(run.input)) {
         return executeMcpToolRun(
           run,

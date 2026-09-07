@@ -100,8 +100,11 @@ version.
 This is the first implementation target because every other runtime feature depends on a reliable
 model request boundary.
 
-- [ ] Define one `ContextEngine` interface with lifecycle methods for turn start, request planning,
-  response accounting, pruning, compaction, and turn completion.
+- [x] Define the `ContextEngine` lifecycle seam for turn start, request planning, provider usage
+  accounting, and turn completion, with content-free diagnostics and a journal observer seam.
+  Evidence: `agents/src/runtime/context-engine.ts` and `agents/test/context-engine.test.ts`.
+- [ ] Extend the engine with durable compaction/pruning state and a provider-independent summary
+  fallback; the current engine is deliberately in-memory and does not claim persistence.
 - [x] Replace fixed `estimateTokens` decisions at the final model boundary with a provider-aware
   planner that reserves output capacity, bounds schemas/results, protects tool pairs, and reconciles
   provider-reported usage. Evidence: `agents/src/runtime/context-planning.ts`,
@@ -138,8 +141,12 @@ Hermes references: `agent/context_engine.py`, `agent/context_compressor.py`,
   and `agents/test/session-ownership.test.ts`.
 - [ ] Introduce a durable session key separate from the conversation display record. A session key
   identifies the ordered interaction stream; a conversation remains a product record.
-- [ ] Add a database-backed session lease with owner, heartbeat, expiry, fencing token, and
-  fail-closed acquisition. A second writer must queue or receive a typed busy result, never race.
+- [x] Add the first database-backed session lease with owner, heartbeat, expiry, monotonic fencing
+  token, RLS, fail-closed acquisition, and terminal release. It is integrated with conversation
+  admission and bounded Temporal slices. Evidence: migration `116_agent_session_leases.sql`,
+  `SessionLeaseRepository`, `RunRepository.canAcquireConversationTurn`, and Temporal activities.
+- [ ] Propagate the acquired fencing token through every session-owned write so a stale worker is
+  rejected at the activity boundary, not only at lease acquisition.
 - [ ] Move same-session ordering, queue age, cancellation, and backpressure into one session
   coordinator instead of spreading them across route handlers and run admission.
 - [ ] Make reconnects resume from a journal cursor and preserve one active writer per session.
@@ -160,6 +167,12 @@ Hermes references: `tui_gateway/session_lifecycle.py`, `session_reaper.py`, `ses
   `agents/test/extension-package-manifest.test.ts`.
 - [ ] Reconcile the new package manifest with the persisted extension-package repository and the
   immutable agent-version snapshot; the runtime must consume one canonical package shape.
+- [x] Add typed extension package selection to the agent authoring contract, including checksums,
+  configuration, and explicit permission grants. Evidence: `agents/src/domain/agent-spec.ts` and
+  `agents/test/agent-spec-extensions.test.ts`.
+- [ ] Make publication resolve those selected packages through the persisted package catalog and
+  fail closed when a package is unavailable, revoked, or not ready. The current typed selection is
+  intentionally not treated as a runtime grant until this reconciliation is complete.
 - [ ] Separate declarative skills from executable plugins. Skills may provide instructions, examples,
   and procedural memory. Plugins must run through an approved adapter or isolated service and may
   not import the worker's internal modules.

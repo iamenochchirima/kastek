@@ -18,6 +18,7 @@ import { recordConversationAdmission } from "../../telemetry/spans";
 import { admissionDecision, sameSessionSerializationPolicy } from "../../runtime/admission";
 import type { ExecutionJournalRead, PendingExecutionJournalEvent, PersistedExecutionJournalEvent } from "../../journal";
 import { ExtensionSnapshotRepository } from "./extension-snapshot-repository";
+import { SessionLeaseRepository } from "./session-lease-repository";
 
 export interface RunRecord {
   id: string;
@@ -76,9 +77,11 @@ export interface InstallationOperationRecord extends RunRecord {
 
 export class RunRepository {
   private readonly extensionSnapshots: ExtensionSnapshotRepository;
+  private readonly sessionLeases: SessionLeaseRepository;
 
   public constructor(private readonly pool: Pool) {
     this.extensionSnapshots = new ExtensionSnapshotRepository(pool);
+    this.sessionLeases = new SessionLeaseRepository(pool);
   }
 
   public async createRun(
@@ -285,16 +288,18 @@ export class RunRepository {
    * no process-local mutex is involved.
    */
   public async canAcquireConversationTurn(organizationId: string, runId: string): Promise<boolean> {
-    return withTransaction(this.pool, async (client) => {
-      const current = await client.query<{ conversation_id: string | null }>(
+    const turn = await withTransaction(this.pool, async (client) => {
+      const current = await client.query<{ conversation_id: string | null; installation_id: string }>(
         `SELECT conversation_id
+                , installation_id
          FROM agent_runs
          WHERE organization_id = $1 AND id = $2
          FOR UPDATE`,
         [organizationId, runId],
       );
-      const conversationId = current.rows[0]?.conversation_id;
-      if (!conversationId) return true;
+      const run = current.rows[0];
+      const conversationId = run?.conversation_id;
+      if (!run || !conversationId) return { canAcquire: true, conversationId: null, installationId: undefined };
       const oldest = await client.query<{ id: string }>(
         `SELECT id
          FROM agent_runs
@@ -305,8 +310,21 @@ export class RunRepository {
          LIMIT 1`,
         [organizationId, conversationId],
       );
-      return oldest.rows[0]?.id === runId;
+      return {
+        canAcquire: oldest.rows[0]?.id === runId,
+        conversationId,
+        installationId: run.installation_id,
+      };
     });
+    if (!turn.canAcquire || !turn.conversationId || !turn.installationId) return turn.canAcquire;
+    const lease = await this.sessionLeases.acquire({
+      organizationId,
+      sessionKey: `conversation:${turn.installationId}:${turn.conversationId}`,
+      ownerId: `agent-run:${runId}`,
+      runId,
+      leaseDurationMs: 10 * 60 * 1_000,
+    });
+    return lease.outcome === "acquired";
   }
 
   public async finishOpenAttempt(
@@ -362,6 +380,7 @@ export class RunRepository {
            WHERE run_id = $1 AND status = 'started'`,
           [runId, attemptStatus],
         );
+        await this.sessionLeases.releaseForRun(client, run.organization_id, runId);
       }
       return updated.rows[0]!;
     });
