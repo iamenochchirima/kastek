@@ -30,7 +30,7 @@ export async function startDurableRun(
     await client.workflow.start(agentRunWorkflow, {
       workflowId: `agent-run-${input.runId}`,
       taskQueue: config.TEMPORAL_TASK_QUEUE,
-      args: [{ ...input, decomposed: input.decomposed ?? config.TEMPORAL_DECOMPOSED_ACTIVITIES_ENABLED }],
+      args: [input],
     });
   } catch (error) {
     if (error instanceof WorkflowExecutionAlreadyStartedError) return;

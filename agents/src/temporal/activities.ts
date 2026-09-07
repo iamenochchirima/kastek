@@ -65,8 +65,6 @@ import { channelMediaProfile } from "../media/profiles";
 import { runWithRequiredDatabaseContext, type DatabaseContext } from "../db/context";
 import { durableAgentLoopCheckpoint, readDurableAgentLoopCheckpoint } from "../runtime/loop-checkpoint";
 import { agentLoopOperationKeyPrefix, workflowAgentLoopOperationKeyPrefix, workflowModelOperationKey } from "../runtime/operation-keys";
-import { createDecomposedActivities } from "./decomposed-activities";
-import type { DecomposedAgentRunActivities } from "./decomposed-contracts";
 import { SkillRepository } from "../db/repositories/skill-repository";
 import { matchSkills, renderSkillInstructions } from "../skills/contracts";
 import { RemoteMcpProviderRepository } from "../db/repositories/remote-mcp-provider-repository";
@@ -2217,61 +2215,7 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
       },
     }),
   });
-  const decomposedActivities = createDecomposedActivities({
-    runs,
-    modelCalls,
-      runBudgets,
-    conversations,
-    memory,
-    knowledge,
-    skills,
-    remoteMcpProviders,
-    toolInvocations,
-    runSteps,
-    toolGrants,
-    summaries,
-    killSwitches,
-    controls,
-    kasiaiPreferences,
-    effectReceipts,
-    approvals,
-    installationGrants,
-    workflowState,
-    gateway,
-    credentials,
-    tools,
-    coreClient,
-    config: options.config,
-    modelPricing,
-    creditPricing,
-    creditBillingMode,
-    heartbeat: activityHeartbeat,
-    signal: currentActivitySignal,
-    reserveModelCredits: ({ context, runId, operationKey, request, credentials: modelCredentials }) => reserveModelCredits({
-      billingMode: creditBillingMode,
-      gateway,
-      modelPricing,
-      creditPricing,
-      coreClient,
-      context,
-      runId,
-      operationKey,
-      request,
-      credentials: modelCredentials,
-    }),
-    reserveRunBudget: ({ organizationId, runId, reservationKey, request }) => reserveRunModelBudget({
-      repository: runBudgets,
-      organizationId,
-      runId,
-      reservationKey,
-      gateway,
-      request,
-    }),
-    consumeRunToolBudget: ({ organizationId, runId }) => consumeRunToolBudget(runBudgets, { organizationId, runId }),
-    buildApprovalResourceSnapshot: (run, capability, argumentsValue) => buildApprovalResourceSnapshotFromCore(coreClient, toolInvocationContextFromScope(executionScopeFromRun(run)), capability, argumentsValue),
-  });
-  const activities: AgentRunActivities & DecomposedAgentRunActivities = {
-    ...decomposedActivities,
+  const activities: AgentRunActivities = {
     async transitionRun(input) {
       await runs.transitionRun(input.runId, input.expectedStatus, input.nextStatus);
     },

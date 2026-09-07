@@ -24,7 +24,6 @@ const envSchema = z.object({
   // Splits hosted loop progress at a durable activity boundary. Keep opt-in until production
   // evidence covers continuation, approval, cancellation, and provider reconciliation.
   TEMPORAL_STEP_ACTIVITIES_ENABLED: z.string().default("false").transform((value) => value.toLowerCase() === "true"),
-  TEMPORAL_DECOMPOSED_ACTIVITIES_ENABLED: z.string().default("false").transform((value) => value.toLowerCase() === "true"),
   // The 2026 stateless path is enabled by default in development/test so it is
   // exercised locally, but remains opt-in in production until staging/client
   // evidence has been recorded. The pre-2026 compatibility path is always

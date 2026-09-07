@@ -20,8 +20,6 @@ import type {
   ExternalEventSignal,
   ResumeApprovedToolCall,
 } from "./contracts";
-import { runDecomposedCoordinator } from "./decomposed-coordinator";
-import type { DecomposedAgentRunActivities } from "./decomposed-contracts";
 
 const activities = proxyActivities<AgentRunActivities>({
   scheduleToCloseTimeout: "15 minutes",
@@ -116,80 +114,6 @@ export async function agentRunWorkflow(input: DurableRunInput): Promise<void> {
   try {
     await transition("received", "queued");
     await transition("queued", "running");
-    if (input.decomposed) {
-      const decomposed = activities as unknown as DecomposedAgentRunActivities;
-      let decomposedResult;
-      try {
-        decomposedResult = await runDecomposedCoordinator({
-          ...activityScope(),
-          runId: input.runId,
-          activities: decomposed,
-          maxSteps: 100,
-          shouldStop: () => cancellation ? "cancelled" : expiration ? "expired" : undefined,
-          waitForApproval: async (providerToolCallId) => {
-            await activities.pauseRun({ ...activityScope(), runId: input.runId, status: "awaiting_approval", output: { status: "awaiting_approval", providerToolCallId } });
-            await activities.deliverApprovalPrompt({ ...activityScope(), runId: input.runId });
-            status = "awaiting_approval";
-            await condition(() => approval !== undefined || cancellation !== undefined || expiration !== undefined);
-            if (cancellation) {
-              await activities.cancelPendingApproval({ ...activityScope(), runId: input.runId, providerToolCallId, reason: cancellation.reason });
-              await transition("awaiting_approval", "cancelled");
-              throw new Error("DECOMPOSED_CANCELLED");
-            }
-            if (expiration) {
-              await activities.cancelPendingApproval({ ...activityScope(), runId: input.runId, providerToolCallId, reason: expiration.reason ?? "The approval expired before execution", outcome: "expired" });
-              await transition("awaiting_approval", "expired");
-              throw new Error("DECOMPOSED_EXPIRED");
-            }
-            const decision = approval;
-            approval = undefined;
-            if (!decision || decision.providerToolCallId !== providerToolCallId || decision.decision !== "approved") throw new Error("DECOMPOSED_APPROVAL_REJECTED");
-            await transition("awaiting_approval", "running");
-            return { providerToolCallId, decision };
-          },
-          waitForExternalEvent: async (waitingFor, waitStatus = "awaiting_external_event") => {
-            await activities.pauseRun({ ...activityScope(), runId: input.runId, status: waitStatus, output: { status: waitStatus, waitingFor } });
-            status = waitStatus;
-            await condition(() => externalEvent !== undefined || cancellation !== undefined || expiration !== undefined);
-            if (cancellation) {
-              if (waitStatus === "awaiting_human") await activities.cancelHandoff({ ...activityScope(), runId: input.runId, reason: cancellation.reason });
-              await transition(waitStatus, "cancelled");
-              throw new Error("DECOMPOSED_CANCELLED");
-            }
-            if (expiration) {
-              await transition(waitStatus, "expired");
-              throw new Error("DECOMPOSED_EXPIRED");
-            }
-            const event = externalEvent;
-            externalEvent = undefined;
-            if (!event) throw new Error("DECOMPOSED_EXTERNAL_EVENT_MISSING");
-            await transition(waitStatus, "running");
-            return { event };
-          },
-        });
-      } catch (error) {
-        if (cancellation || expiration) return;
-        throw error;
-      }
-      if (decomposedResult.status !== "unsupported") {
-        if (decomposedResult.status === "cancelled") {
-          await transition("running", "cancelled");
-          return;
-        }
-        if (decomposedResult.status === "expired") {
-          await transition("running", "expired");
-          return;
-        }
-        if (decomposedResult.status === "failed" || decomposedResult.status === "limited") {
-          await failAndDeliver({ code: decomposedResult.errorCode ?? "DECOMPOSED_RUN_FAILED", message: "The decomposed agent execution did not complete" });
-          return;
-        }
-        await activities.generateConversationTitle({ ...activityScope(), runId: input.runId });
-        await activities.deliverRunReply({ ...activityScope(), runId: input.runId });
-        status = "completed";
-        return;
-      }
-    }
     let resumeApprovedToolCall: ResumeApprovedToolCall | undefined = input.resumeApprovedToolCall;
     let resumeExternalEvent: ExternalEventSignal | undefined = input.resumeExternalEvent;
     let loopStep = input.loopStep ?? 0;

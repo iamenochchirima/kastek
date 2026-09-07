@@ -690,7 +690,9 @@ check or a UI screenshot alone does not prove a durable runtime contract.
   rather than calling the loop implementation directly. Evidence: `agents/src/temporal/activities.ts`.
 - [x] Record context budget, omission, tool-schema selection, and typed context decisions in the
   existing run-step and event evidence. Evidence: `agent.context.built` and `agent.context.limited`.
-- [ ] Make decomposed execution consume the same harness turn and context contracts.
+- [x] Make decomposed execution consume the same harness turn and context contracts.
+  Evidence: the independent decomposed executor was removed; every durable run now schedules the
+  one `AgentRunActivities.executeLoop` path, which composes `AgentHarness`.
 - [ ] Define typed harness continuations for completed, waiting, limited, failed, cancelled, and
   reconciliation-required states.
 - [ ] Remove remaining caller-owned model/tool policy construction after migration tests pass.
@@ -731,7 +733,9 @@ check or a UI screenshot alone does not prove a durable runtime contract.
   `agents/src/journal/` and `agents/test/journal-conformance.test.ts`.
 - [ ] Add the PostgreSQL journal adapter and migrate harness/operation event writes to it.
 - [ ] Separate delivery obligations from run completion behind one reusable delivery interface.
-- [ ] Complete decomposed waiting/external-event continuation and remove the dual-loop rollout path.
+- [x] Complete decomposed waiting/external-event continuation and remove the dual-loop rollout path.
+  Evidence: wait continuation remains in the one Temporal workflow/harness path; the feature flag,
+  decomposed coordinator, activities, protocol, state, and alternate tests were removed.
 - [ ] Make graph nodes use harness turn and capability interfaces exclusively.
 - [ ] Add bounded, attenuated Temporal child invocation with parent/child evidence and fake-child
   conformance coverage.
