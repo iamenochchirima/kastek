@@ -815,7 +815,11 @@ or infrastructure-backed evidence:
 - Activate and exercise a production Temporal child workflow path; the bounded coordinator and
   fake-child contract exist, but the live child workflow runner is not yet wired into agent turns.
 - Run PostgreSQL/RLS, Temporal worker-loss, remote MCP, provider uncertainty, and manual channel
-  verification with the local integration services enabled.
+  verification with the local integration services enabled. The current local attempt is blocked
+  before migration 113: the existing database has legacy `memory_records` rows that violate an
+  earlier scope constraint, while a clean verification database lacks the PostgreSQL `vector`
+  extension. Temporal dev server startup itself succeeded, but no worker-loss matrix was claimed
+  without a migrated database.
 
 ## Manual verification matrix
 
