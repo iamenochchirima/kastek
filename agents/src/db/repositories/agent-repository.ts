@@ -25,10 +25,21 @@ import { createInstallationCredentialInTransaction, type CreatedInstallationCred
 import { buildDefinitionLifecycleEvent, buildInstallationLifecycleEvent, buildVersionLifecycleEvent, enqueueOutbox, type DefinitionLifecycleAnalyticsInput, type InstallationLifecycleAnalyticsInput, type VersionLifecycleAnalyticsInput } from "../../analytics";
 import { AgentDeploymentModule, type StagedDeploymentResult } from "./agent-deployment-repository";
 import { ExtensionSnapshotRepository } from "./extension-snapshot-repository";
+import { parseAgentEnvironment, type AgentEnvironment } from "../../runtime/execution-environment";
 
 type DbExecutor = Pool | PoolClient;
 
 export const SYSTEM_ORGANIZATION_ID = "kasitek-system";
+
+function normalizeInstallationSettings(
+  settings: Record<string, unknown> | undefined,
+  defaultEnvironment: AgentEnvironment = "live",
+): Record<string, unknown> {
+  return {
+    ...(settings ?? {}),
+    environment: parseAgentEnvironment(settings?.environment ?? defaultEnvironment),
+  };
+}
 
 export interface AgentRecord {
   id: string;
@@ -344,6 +355,7 @@ export class AgentRepository {
     const requestedSlug = input.slug ?? `${slugify(input.name) || "external-agent"}-external`.slice(0, 80);
     const settings = {
       externalConnectionKey: input.idempotencyKey,
+      environment: "live",
       runtime: input.runtime,
       protocols: input.protocols,
       capabilities,
@@ -495,6 +507,7 @@ export class AgentRepository {
     const actorId = `developer-api-key:${developerApiKeyId}`;
     const settings = {
       developerApiKeyId,
+      environment: "live",
       runtime: "developer_api_key",
       protocols: ["mcp"],
       capabilities: [...input.toolNames],
@@ -623,7 +636,7 @@ export class AgentRepository {
   }): Promise<TemplateInstallationRecord> {
     const template = getAgentTemplate(input.templateKey);
     if (!template) throw new Error("Agent template not found");
-    const settings = input.settings ?? {};
+    const settings = normalizeInstallationSettings(input.settings);
     const versionInput = templateVersionInput(template, settings);
     const allowedTools = resolveHostedAgentAllowedTools(template.profile, versionInput.policy.allowedTools, template.audience);
     const effectiveVersionInput = { ...versionInput, policy: { ...versionInput.policy, allowedTools } };
@@ -1068,7 +1081,7 @@ export class AgentRepository {
     return result.rows[0] ?? null;
   }
 
-  public async listAgents(organizationId: string): Promise<AgentRecord[]> {
+  public async listAgents(organizationId: string, options: { environment?: "playground" | "live" } = {}): Promise<AgentRecord[]> {
     const result = await query<AgentRecord>(
       this.pool,
       `SELECT ad.*, ai.id AS installation_id, ai.execution_mode, ai.status AS installation_status,
@@ -1081,6 +1094,7 @@ export class AgentRepository {
        LEFT JOIN LATERAL (
          SELECT ai.* FROM agent_installations ai
          WHERE ai.agent_definition_id = ad.id AND ai.organization_id = $1
+           AND ($2::text IS NULL OR COALESCE(ai.settings ->> 'environment', 'live') = $2)
          ORDER BY ai.updated_at DESC LIMIT 1
        ) ai ON TRUE
        LEFT JOIN agent_versions av ON av.id = ai.agent_version_id
@@ -1100,8 +1114,9 @@ export class AgentRepository {
            AND hidden_ai.organization_id = $1
            AND hidden_ai.settings ->> 'developerApiKeyId' IS NOT NULL
        )
+       AND ($2::text IS NULL OR ai.id IS NOT NULL)
        ORDER BY ad.protected DESC, ad.created_at DESC`,
-      [organizationId],
+      [organizationId, options.environment ?? null],
     );
     return result.rows;
   }
@@ -1694,6 +1709,7 @@ export class AgentRepository {
     actorId: string,
     input: CreateInstallationInput,
   ): Promise<InstallationRecord> {
+    const installationSettings = normalizeInstallationSettings(input.settings);
     return withTransaction(this.pool, async (client) => {
       const version = await client.query<AgentVersionRecord & { owner_type: string; protected: boolean; agent_audience: AgentAudience }>(
         `SELECT av.*, ad.owner_type, ad.protected, ad.agent_audience FROM agent_versions av
@@ -1731,7 +1747,7 @@ export class AgentRepository {
           input.scopeId ?? organizationId,
           executionMode,
           releaseMode,
-          JSON.stringify(input.settings),
+          JSON.stringify(installationSettings),
           actorId,
         ],
       );
@@ -1804,7 +1820,7 @@ export class AgentRepository {
           input.organizationId,
           scopeType,
           scopeId,
-          JSON.stringify(input.settings ?? {}),
+          JSON.stringify(normalizeInstallationSettings(input.settings)),
           input.actorId,
         ],
       );

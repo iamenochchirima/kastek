@@ -14,7 +14,7 @@ export default async function PlaygroundRoute({
   const session = await getRustSession();
   if (!session?.user?.id) redirect("/login");
   const { agent } = await searchParams;
-  const result = await fetchRustJson<{ agents: AgentDefinition[] }>("/api/agents")
+  const result = await fetchRustJson<{ agents: AgentDefinition[] }>("/api/agents?environment=playground")
     .then((value) => ({ agents: value.agents, unavailable: false }))
     .catch(() => ({ agents: [] as AgentDefinition[], unavailable: true }));
   return <StudioPage initialAgents={result.agents} initialAgentId={agent} agentsUnavailable={result.unavailable} surface="playground" />;

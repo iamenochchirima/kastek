@@ -2733,11 +2733,14 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     return reply.send(updated);
   });
 
-  app.get("/v1/agents", async (request) => {
+  app.get<{ Querystring: { environment?: string } }>("/v1/agents", async (request) => {
     const auth = requireAuth(request, dependencies.config);
     requireScope(auth, dependencies.config, "agents:read");
-    const listedAgents = await agents.listAgents(auth.organizationId);
-    const counts = typeof agents.countAgentsByAudience === "function"
+    const environment = request.query.environment
+      ? z.enum(["playground", "live"]).parse(request.query.environment)
+      : undefined;
+    const listedAgents = await agents.listAgents(auth.organizationId, { environment });
+    const counts = !environment && typeof agents.countAgentsByAudience === "function"
       ? await agents.countAgentsByAudience(auth.organizationId)
       : listedAgents.reduce(
         (summary, agent) => {

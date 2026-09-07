@@ -179,7 +179,7 @@ function StudioAgentList({
           <div>
             <div className="flex items-center gap-2 text-primary"><FlaskConical className="size-4" /><SectionEyebrow>{surface === "playground" ? "Agent testing" : "Automation"}</SectionEyebrow></div>
             <h1 className="mt-3 text-3xl font-semibold tracking-[-0.04em] text-foreground sm:text-4xl">{surface === "playground" ? "Playground" : "Studio"}</h1>
-            <p className="mt-2 text-sm text-muted-foreground">{surface === "playground" ? "Run agents against live workspace resources." : "Create, test, and deploy agents."}</p>
+            <p className="mt-2 text-sm text-muted-foreground">{surface === "playground" ? "Run agents against live Playground resources." : "Configure and publish agents."}</p>
           </div>
           <Button type="button" onClick={onCreate}><Plus className="mr-1.5 size-4" />Create agent</Button>
         </header>
@@ -189,7 +189,7 @@ function StudioAgentList({
             <h2 id="studio-agents-heading" className="text-sm font-semibold text-foreground">Agents</h2>
             <span className="text-xs text-muted-foreground">{agents.length} {agents.length === 1 ? "agent" : "agents"}</span>
           </div>
-          {agentsUnavailable ? <p className="mt-4 rounded-lg border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">Workspace agents are unavailable. Demo agents are shown.</p> : null}
+          {agentsUnavailable ? <p className="mt-4 rounded-lg border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">Workspace agents are unavailable.</p> : null}
           {agents.length ? (
             <div className="mt-3 divide-y divide-border overflow-hidden rounded-xl border border-border bg-card">
               {agents.map((agent) => (
@@ -207,7 +207,7 @@ function StudioAgentList({
           ) : (
             <div className="mt-3 rounded-xl border border-dashed border-border bg-card px-6 py-16 text-center">
               <Bot className="mx-auto size-6 text-muted-foreground" />
-              <h3 className="mt-3 text-sm font-semibold text-foreground">No agents yet</h3>
+              <h3 className="mt-3 text-sm font-semibold text-foreground">{surface === "playground" ? "No Playground agents yet" : "No agents yet"}</h3>
               <Button type="button" variant="outline" size="sm" className="mt-5" onClick={onCreate}><Plus className="mr-1.5 size-3.5" />Create agent</Button>
             </div>
           )}
@@ -219,6 +219,7 @@ function StudioAgentList({
 }
 
 function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; onBack: () => void; surface: "studio" | "playground" }) {
+  const router = useRouter();
   const [versions, setVersions] = useState<AgentVersion[]>([]);
   const [selectedVersionId, setSelectedVersionId] = useState<string | null>(agent.installation_version_id ?? agent.published_version_id ?? null);
   const [instructions, setInstructions] = useState("");
@@ -346,7 +347,7 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
       const published = selectedVersion.status === "published" ? selectedVersion : await publishAgentVersion(agent.id, selectedVersion.id);
       if (agent.installation_id) await deployAgentInstallation(agent.installation_id, published.id, agent.installation_version_id ?? undefined);
       setVersions((current) => current.map((version) => version.id === published.id ? published : version));
-      setNotice("Deployed");
+      setNotice(surface === "playground" ? "Playground updated" : "Installation updated");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Unable to deploy version");
     } finally {
@@ -360,13 +361,15 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
     <div className="flex min-h-[calc(100dvh-4rem)] flex-col bg-canvas">
       <header className="border-b border-border bg-card/80 px-4 py-3 backdrop-blur sm:px-6">
         <div className="mx-auto flex max-w-[1760px] flex-wrap items-center gap-3">
-          <Button type="button" variant="ghost" size="sm" className="-ml-2 gap-1.5 text-muted-foreground" onClick={onBack}><ArrowLeft className="size-4" />Studio</Button>
+          <Button type="button" variant="ghost" size="sm" className="-ml-2 gap-1.5 text-muted-foreground" onClick={onBack}><ArrowLeft className="size-4" />{surface === "playground" ? "Playground" : "Studio"}</Button>
           <span className="hidden h-5 w-px bg-border sm:block" />
           <div className="min-w-0 flex-1"><div className="flex min-w-0 items-center gap-2"><Bot className="size-4 shrink-0 text-primary" /><span className="truncate text-sm font-semibold text-foreground">{agent.name}</span><span className={cn("rounded-full px-2 py-0.5 text-[10px] font-medium", statusClass(agent.status))}>{statusLabel(agent.status)}</span></div><p className="mt-0.5 text-[11px] text-muted-foreground">{selectedVersion ? `Version ${selectedVersion.version_number}` : "No version"} · {surface === "playground" ? "Playground" : "Configuration"}</p></div>
           <label className="flex items-center gap-2 text-xs text-muted-foreground"><span className="hidden sm:inline">Version</span><select value={selectedVersionId ?? ""} onChange={(event) => selectVersion(event.target.value)} disabled={loadingVersions || !versions.length} className="h-8 max-w-36 rounded-md border border-border bg-background px-2 text-xs font-medium text-foreground outline-none focus:border-primary"><option value="">{loadingVersions ? "Loading…" : "No versions"}</option>{versions.map((version) => <option key={version.id} value={version.id}>v{version.version_number} · {version.status}</option>)}</select></label>
-          <span className="hidden items-center gap-1.5 rounded-md border border-border bg-background px-2.5 py-1.5 text-xs text-muted-foreground lg:inline-flex"><FlaskConical className="size-3.5 text-primary" />Playground</span>
-          <Button type="button" size="sm" onClick={() => void runAgent()} disabled={running || !agent.installation_id || !playgroundReady || !input.trim()}><Play className="mr-1.5 size-3.5" />{running ? "Running…" : "Run"}</Button>
-          <Button type="button" variant="outline" size="sm" onClick={() => void deploy()} disabled={deploying || !selectedVersion}><Rocket className="mr-1.5 size-3.5" />{deploying ? "Deploying…" : "Deploy"}</Button>
+          <span className="hidden items-center gap-1.5 rounded-md border border-border bg-background px-2.5 py-1.5 text-xs text-muted-foreground lg:inline-flex"><FlaskConical className="size-3.5 text-primary" />{surface === "playground" ? "Playground" : "Configuration"}</span>
+          {surface === "playground"
+            ? <Button type="button" size="sm" onClick={() => void runAgent()} disabled={running || !agent.installation_id || !playgroundReady || !input.trim()}><Play className="mr-1.5 size-3.5" />{running ? "Running…" : "Run"}</Button>
+            : <Button type="button" size="sm" onClick={() => router.push(`/playground?agent=${encodeURIComponent(agent.id)}`)}><FlaskConical className="mr-1.5 size-3.5" />Open Playground</Button>}
+          <Button type="button" variant="outline" size="sm" onClick={() => void deploy()} disabled={deploying || !selectedVersion}><Rocket className="mr-1.5 size-3.5" />{deploying ? "Updating…" : surface === "playground" ? "Update Playground" : "Update installation"}</Button>
         </div>
       </header>
 
