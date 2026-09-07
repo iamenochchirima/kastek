@@ -256,6 +256,8 @@ must supply the ports and tests; it must not move context policy or prompt assem
 - [ ] Real memory adapter handoff: prove tenant/scope authorization, idempotent checkpoint replay,
   evidence-pack provenance/lifecycle/redaction, blocked retrieval semantics, and journal replay in
   the memory implementation's own integration tests before enabling it as the production port.
+  The adapter must persist the runtime-provided evidence digest, source boundary, compaction
+  generation, and lifecycle identifiers; it must not recompute them at the memory seam.
 
 ## Implementation checklist
 
