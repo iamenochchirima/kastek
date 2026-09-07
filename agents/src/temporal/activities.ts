@@ -45,7 +45,7 @@ import { executeWorkflowGraph, type GraphAgentLoopRequest, type GraphAgentLoopRe
 import { WorkflowStateRepository } from "../db/repositories/workflow-state-repository";
 import { WorkflowCheckpointRepository } from "../db/repositories/workflow-checkpoint-repository";
 import { redactSensitiveValue, redactToolOutput } from "../tools/redaction";
-import { ModelProviderError, type ModelCredentials, type ModelMessage, type ModelRequest, type ModelResponse } from "../model/types";
+import { ModelProviderError, type ModelCredentials, type ModelMessage, type ModelRequest, type ModelResponse, type ModelToolCall } from "../model/types";
 import { activityInfo, cancellationSignal, heartbeat } from "@temporalio/activity";
 import { buildGroundingProvenance } from "../runtime/provenance";
 import { approvalSnapshotHashFromResource, toolInvocationContextFromScope, type ToolInvocationContext } from "../tools/types";
@@ -75,6 +75,8 @@ import { createAgentHarness, type AgentHarness } from "../runtime/harness";
 import { resourceAccessFromExecutionScope } from "../runtime/scope-projections";
 import { PostgresExecutionJournal, RunRepositoryExecutionJournalStore } from "../journal";
 import { PostgresDeliveryObligationCoordinator } from "../delivery";
+import { compactDurableContext } from "../runtime/context-compaction";
+import { ContextCompactionRepository } from "../db/repositories/context-compaction-repository";
 
 export interface ActivityOptions {
   gateway?: ModelGateway;
@@ -2259,7 +2261,7 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
           sessionLease,
         );
       }
-      return executeLoopForRun(run, input.resumeApprovedToolCall, input.resumeExternalEvent, input.loopStep, runs, modelCalls, runBudgets, conversations, memory, knowledge, skills, remoteMcpProviders, toolInvocations, approvals, effectReceipts, runSteps, toolGrants, installationGrants, summaries, killSwitches, controls, kasiaiPreferences, gateway, credentials, tools, harness, workflowState, workflowCheckpoints, modelPricing, creditPricing, creditBillingMode, coreClient, conversationActions, options.config?.TEMPORAL_STEP_ACTIVITIES_ENABLED === true, toolInvocationLifecycle, sessionLease);
+      return executeLoopForRun(run, input.resumeApprovedToolCall, input.resumeExternalEvent, input.loopStep, runs, modelCalls, runBudgets, conversations, memory, knowledge, skills, remoteMcpProviders, toolInvocations, approvals, effectReceipts, runSteps, toolGrants, installationGrants, summaries, killSwitches, controls, kasiaiPreferences, gateway, credentials, tools, harness, workflowState, workflowCheckpoints, modelPricing, creditPricing, creditBillingMode, coreClient, conversationActions, options.config?.TEMPORAL_STEP_ACTIVITIES_ENABLED === true, toolInvocationLifecycle, sessionLease, new ContextCompactionRepository(pool, run.organization_id));
     },
     async getContentPublishBatchStatus(input) {
       const run = await runs.getRuntimeRunById(input.runId);
@@ -2746,6 +2748,28 @@ function isMcpToolRun(input: Record<string, unknown>): input is Record<string, u
   );
 }
 
+function durableConversationMessageToModelMessage(message: {
+  direction: string;
+  message_type: string;
+  content: Record<string, unknown>;
+}): ModelMessage {
+  const content = message.content;
+  const role: ModelMessage["role"] = message.message_type === "tool" || typeof content.toolCallId === "string"
+    ? "tool"
+    : message.direction === "inbound" ? "user" : message.direction === "system" ? "system" : "assistant";
+  const text = typeof content.text === "string" ? content.text : JSON.stringify(content);
+  const toolCalls = Array.isArray(content.toolCalls)
+    ? content.toolCalls.filter((value): value is ModelToolCall => Boolean(value && typeof value === "object" && typeof (value as Record<string, unknown>).id === "string" && typeof (value as Record<string, unknown>).name === "string" && (value as Record<string, unknown>).arguments && typeof (value as Record<string, unknown>).arguments === "object"))
+    : undefined;
+  return {
+    role,
+    content: text,
+    ...(typeof content.toolCallId === "string" ? { toolCallId: content.toolCallId } : {}),
+    ...(typeof content.name === "string" ? { name: content.name } : {}),
+    ...(toolCalls?.length ? { toolCalls } : {}),
+  };
+}
+
 async function executeMcpToolRun(
   run: Awaited<ReturnType<RunRepository["getRuntimeRun"]>> & object,
   resumeApprovedToolCall: Parameters<AgentRunActivities["executeLoop"]>[0]["resumeApprovedToolCall"],
@@ -2993,6 +3017,7 @@ async function executeLoopForRun(
   stepActivitiesEnabled: boolean,
   toolInvocationLifecycle: ReturnType<typeof createToolInvocationLifecycle>,
   sessionLease?: { sessionKey: string; fencingToken: string },
+  contextCompaction?: ContextCompactionRepository,
 ) {
   if (run.installation_status !== "active") throw new Error("INSTALLATION_NOT_ACTIVE");
   const journal = new PostgresExecutionJournal(new RunRepositoryExecutionJournalStore(runs));
@@ -3180,6 +3205,18 @@ async function executeLoopForRun(
       })
     : [];
   const conversationSummary = run.conversation_id ? await summaries.getSummary(run.organization_id, run.conversation_id) : null;
+  const compacted = await compactDurableContext({
+    operationId: `context:${run.id}:${activeLoopStep}`,
+    contextId: run.conversation_id ?? run.id,
+    revision: activeLoopStep + 1,
+    messages: durableMessages.map(durableConversationMessageToModelMessage),
+    policy: {
+      maxRetainedMessageUnits: Math.max(1, restrictiveLimit(configuration.maxContextMessages, installationSettings.maxContextMessages) ?? 20),
+      maxSummaryTokens: 512,
+    },
+    adapter: contextCompaction,
+  });
+  const compactedSummary = [conversationSummary?.summary, compacted.summary].filter((value): value is string => Boolean(value?.trim())).join("\n\n");
   const memoryLifecycle = new MemoryLifecycle(memory);
   const retrievalResult = await new RetrievalService(memoryLifecycle, knowledge).retrieve(resourceAccessFromExecutionScope(executionScope), currentMessage, run.policy, {
     always: run.installation_settings?.profile === "general",
@@ -3236,13 +3273,13 @@ async function executeLoopForRun(
     currentMessage,
     alwaysRetrieveKnowledge: run.installation_settings?.profile === "general",
     retrievalDecision,
-    summary: conversationSummary?.summary,
+    summary: compactedSummary || undefined,
     longTermMemory: longTermMemory || undefined,
-    recentMessages: durableMessages.map((message) => ({
-      direction: message.direction as "inbound" | "outbound" | "system",
-      messageType: message.message_type,
-      content: message.content,
-      createdAt: message.created_at,
+    recentMessages: compacted.messages.filter((message) => message.role !== "system").map((message, index) => ({
+      direction: message.role === "user" ? "inbound" : message.role === "tool" ? "system" : "outbound",
+      messageType: message.role,
+      content: { text: message.content, ...(message.toolCallId ? { toolCallId: message.toolCallId } : {}), ...(message.name ? { name: message.name } : {}), ...(message.toolCalls ? { toolCalls: message.toolCalls } : {}) },
+      createdAt: durableMessages[index]?.created_at ?? new Date().toISOString(),
     })),
     authorizedTools: tools.list(allowedTools),
     dynamicContext,
@@ -3273,6 +3310,7 @@ async function executeLoopForRun(
       omittedToolCount: context.omittedToolCount,
       budget: context.budget,
       decision: context.decision,
+      compaction: compacted.diagnostics,
     },
   });
   await runs.appendEvent({
