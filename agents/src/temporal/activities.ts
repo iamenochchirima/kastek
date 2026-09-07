@@ -3332,6 +3332,7 @@ async function executeLoopForRun(
     knowledgeCount: knowledgeMatches.length,
     evidenceCount: retrievalResult.evidence.length,
   });
+  await assertSessionLease();
   const retrievalStep = await runSteps.startStep({
     runId: run.id,
     organizationId: run.organization_id,
@@ -3394,6 +3395,7 @@ async function executeLoopForRun(
   const modelToolContext = toolInvocationContextFromScope(executionScope, {
     memoryPolicy: run.policy && typeof run.policy.memory === "object" && !Array.isArray(run.policy.memory) ? run.policy.memory as Record<string, unknown> : undefined,
   });
+  await assertSessionLease();
   const contextStep = await runSteps.startStep({
     runId: run.id,
     organizationId: run.organization_id,
@@ -3512,6 +3514,7 @@ async function executeLoopForRun(
     isSystemAgent: isKasiAiInstallation,
     evidenceCount: retrievalResult.evidence.length,
   })) {
+    await assertSessionLease();
     const response = createGroundingFallbackResponse(provider, model);
     const usage = {
       inputTokens: response.usage.inputTokens,
