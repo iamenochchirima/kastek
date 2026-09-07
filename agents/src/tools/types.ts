@@ -51,6 +51,29 @@ export interface ToolInvocationContext {
   approvalSnapshotHash?: string;
 }
 
+/**
+ * Durable operation hooks at the capability boundary. The runtime owns the
+ * ordering: admission, prepare/replay, handler invocation, then completion or
+ * failure evidence. Hosts supply persistence and receipt implementations.
+ */
+export interface ToolInvocationLifecycle {
+  prepare(input: {
+    request: ToolInvocationRequest;
+    manifest: Omit<ToolDefinition, "handler">;
+  }): Promise<{ status: "new" | "completed" | "unknown"; result?: ToolInvocationResult }>;
+  complete(input: {
+    request: ToolInvocationRequest;
+    manifest: Omit<ToolDefinition, "handler">;
+    result: ToolInvocationResult;
+    redactedOutput: unknown;
+  }): Promise<void>;
+  fail(input: {
+    request: ToolInvocationRequest;
+    manifest: Omit<ToolDefinition, "handler">;
+    error: { code: string; message: string };
+  }): Promise<void>;
+}
+
 export function toolInvocationContextFromScope(
   scope: ExecutionScope,
   extras: Pick<ToolInvocationContext, "memoryPolicy" | "approvalSnapshotHash" | "signal"> = {},
@@ -112,6 +135,8 @@ export interface ToolInvocationRequest {
   signal?: AbortSignal;
   /** Runs after all validation/approval checks and immediately before a real effect handler. */
   beforeEffect?: () => Promise<void> | void;
+  /** Optional durable operation kernel supplied by the host composition root. */
+  lifecycle?: ToolInvocationLifecycle;
 }
 
 export interface ToolInvocationResult {

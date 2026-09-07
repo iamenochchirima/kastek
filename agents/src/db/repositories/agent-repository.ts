@@ -678,6 +678,7 @@ export class AgentRepository {
         created = true;
         await this.enqueueVersionLifecycle(client, input.organizationId, version, "created", "human", version.created_at);
       }
+      version = (await this.ensureVersionExtensionSnapshot(client, input.organizationId, input.actorId, agent.id, version.id)) ?? version;
       for (const toolName of allowedTools) {
         await client.query(
           `INSERT INTO agent_tool_grants
@@ -824,7 +825,7 @@ export class AgentRepository {
         if (!published.rows[0].content_matches) {
           throw new Error("Published system agent version differs; use an explicit release operation");
         }
-        return published.rows[0];
+        return (await this.ensureVersionExtensionSnapshot(client, agent.organization_id, actorId, agentId, published.rows[0].id)) ?? published.rows[0];
       }
       const versionResult = await client.query<{ version_number: number }>(
         "SELECT COALESCE(MAX(version_number), 0) + 1 AS version_number FROM agent_versions WHERE agent_definition_id = $1",
@@ -847,7 +848,8 @@ export class AgentRepository {
           actorId,
         ],
       );
-      const version = created.rows[0]!;
+      let version = created.rows[0]!;
+      version = (await this.ensureVersionExtensionSnapshot(client, agent.organization_id, actorId, agentId, version.id)) ?? version;
       await this.enqueueVersionLifecycle(client, agent.organization_id, version, "created", "system", version.created_at);
       const allowedTools = Array.isArray(input.policy.allowedTools)
         ? input.policy.allowedTools.filter(
@@ -893,7 +895,9 @@ export class AgentRepository {
         `SELECT * FROM agent_versions WHERE agent_definition_id = $1 AND status = 'published' LIMIT 1 FOR UPDATE`,
         [agentId],
       );
-      if (current.rows[0] && agentVersionContentMatches(current.rows[0], input)) return current.rows[0];
+      if (current.rows[0] && agentVersionContentMatches(current.rows[0], input)) {
+        return (await this.ensureVersionExtensionSnapshot(client, agent.rows[0].organization_id, actorId, agentId, current.rows[0].id)) ?? current.rows[0];
+      }
       const next = await client.query<{ version_number: number }>(
         `SELECT COALESCE(MAX(version_number), 0) + 1 AS version_number
          FROM agent_versions WHERE agent_definition_id = $1`,
@@ -917,7 +921,8 @@ export class AgentRepository {
          RETURNING *`,
         [agentId, versionNumber, input.instructions, JSON.stringify(input.configuration), JSON.stringify(input.policy), checksumVersion(input, versionNumber), actorId],
       );
-      const version = created.rows[0]!;
+      let version = created.rows[0]!;
+      version = (await this.ensureVersionExtensionSnapshot(client, agent.rows[0].organization_id, actorId, agentId, version.id)) ?? version;
       await this.enqueueVersionLifecycle(client, agent.rows[0].organization_id, version, "created", "system", version.created_at);
       const allowedTools = Array.isArray(input.policy.allowedTools)
         ? input.policy.allowedTools.filter((tool): tool is string => typeof tool === "string" && tool.trim().length > 0)

@@ -1,10 +1,12 @@
 import { ToolRegistry } from "../tools/registry";
 import {
   ToolPolicyError,
+  type ToolInvocationLifecycle,
   type CapabilityManifest,
   type ToolInvocationRequest,
   type ToolInvocationResult,
 } from "../tools/types";
+import { redactToolOutput } from "../tools/redaction";
 
 export type CapabilityReadiness = "ready" | "not_configured" | "unhealthy" | "not_granted";
 
@@ -33,6 +35,8 @@ export interface CapabilityRuntime {
   get(name: string): ReturnType<ToolRegistry["get"]>;
   invoke(request: ToolInvocationRequest): Promise<ToolInvocationResult>;
 }
+
+export type { ToolInvocationLifecycle };
 
 function readinessFor(
   registry: ToolRegistry,
@@ -94,7 +98,38 @@ export function createCapabilityRuntime(input: {
         });
         if (admitted.status !== "ready") throw policyError(admitted, request.name);
       }
-      return input.registry.invoke(request);
+      const lifecycle = request.lifecycle;
+      const manifest = rawManifest as Omit<CapabilityManifest, "handler">;
+      try {
+        const prepared = await lifecycle?.prepare({ request, manifest });
+        if (prepared?.status === "completed") {
+          if (!prepared.result) throw new ToolPolicyError("CAPABILITY_REPLAY_RESULT_MISSING", `Durable result is missing: ${request.name}`);
+          return prepared.result;
+        }
+        if (prepared?.status === "unknown") {
+          throw new ToolPolicyError("CAPABILITY_OUTCOME_UNKNOWN", `Capability outcome is unknown: ${request.name}`);
+        }
+        const result = await input.registry.invoke(request);
+        await lifecycle?.complete({
+          request,
+          manifest,
+          result,
+          redactedOutput: redactToolOutput(result.output, rawManifest.manifest?.redaction ?? []),
+        });
+        return result;
+      } catch (error) {
+        if (lifecycle) {
+          await lifecycle.fail({
+            request,
+            manifest,
+            error: {
+              code: error instanceof ToolPolicyError ? error.code : "CAPABILITY_INVOCATION_FAILED",
+              message: error instanceof Error ? error.message : "Capability invocation failed",
+            },
+          }).catch(() => undefined);
+        }
+        throw error;
+      }
     },
   };
 }

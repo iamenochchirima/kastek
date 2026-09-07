@@ -3250,6 +3250,18 @@ async function executeLoopForRun(
       decision: context.decision,
     },
   });
+  await journal.append({
+    scope: executionScopeFromRun(run),
+    event: {
+      kind: "context.assembled",
+      data: {
+        messageCount: context.messages.length,
+        tokenCount: context.estimatedTokens,
+        knowledgeMatchCount: knowledgeMatches.length,
+        compacted: context.omittedMessageCount > 0 || context.omittedToolCount > 0,
+      },
+    },
+  });
   if (context.decision.status === "limited") {
     const error = {
       code: "CONTEXT_MINIMUM_EXCEEDS_BUDGET",
@@ -3262,6 +3274,13 @@ async function executeLoopForRun(
       installationId: run.installation_id,
       eventType: "agent.context.limited",
       payload: { error, decision: context.decision, budget: context.budget },
+    });
+    await journal.append({
+      scope: executionScopeFromRun(run),
+      event: {
+        kind: "harness.turn",
+        data: { type: "loop.limited", iteration: 0, payload: { reason: "context_minimum_exceeds_budget", decision: context.decision } },
+      },
     });
     return {
       status: "limited" as const,
@@ -4128,6 +4147,10 @@ async function executeConfiguredWorkflow(input: {
     if (replayed) {
       const safeOutput = redactSensitiveValue(replayed.output);
       activityHeartbeat({ phase: "workflow.tool.replayed", nodeId: request.nodeId, tool: request.name });
+      await workflowJournal.append({
+        scope: { ...workflowJournalScope, operationId: providerToolCallId },
+        event: { kind: "tool.invoked", data: { toolCallId: providerToolCallId, capability: request.name, outcome: "replayed", ...(replayed.effectId ? { effectId: replayed.effectId } : {}) } },
+      });
       return safeOutput;
     }
     const persistedApproval = manifest.requiresApproval ? await input.approvals.getForRun(input.run.organization_id, input.run.id) : null;
@@ -4199,6 +4222,10 @@ async function executeConfiguredWorkflow(input: {
       const durableOutput = redactToolOutput(result.output, manifest.manifest?.redaction ?? []);
       if (toolAuthorization) authorizationRequired = toolAuthorization;
       await input.toolInvocations.recordCompleted({ runId: input.run.id, providerToolCallId, output: durableOutput, latencyMs: result.latencyMs, effectId: result.effectId });
+      await workflowJournal.append({
+        scope: { ...workflowJournalScope, operationId: providerToolCallId },
+        event: { kind: "tool.invoked", data: { toolCallId: providerToolCallId, capability: request.name, outcome: "completed", ...(result.effectId ? { effectId: result.effectId } : {}) } },
+      });
       await input.runSteps.finishStep({ stepId: step.id, status: "completed", output: { latencyMs: result.latencyMs } });
       activityHeartbeat({ phase: "workflow.tool.completed", nodeId: request.nodeId, tool: request.name });
       if (result.effectId) await input.effectReceipts.markSucceededByKey(input.run.organization_id, `${input.run.id}:${request.name}:${argumentsHash}`, durableOutput);
@@ -4206,6 +4233,10 @@ async function executeConfiguredWorkflow(input: {
     } catch (error) {
       const normalized = { code: error instanceof Error && "code" in error ? String((error as { code?: unknown }).code) : "WORKFLOW_TOOL_FAILED", message: error instanceof Error ? error.message : "Workflow tool failed" };
       await input.toolInvocations.recordFailed({ runId: input.run.id, providerToolCallId, error: normalized });
+      await workflowJournal.append({
+        scope: { ...workflowJournalScope, operationId: providerToolCallId },
+        event: { kind: "tool.invoked", data: { toolCallId: providerToolCallId, capability: request.name, outcome: "failed", errorCode: normalized.code } },
+      });
       await input.runSteps.finishStep({ stepId: step.id, status: "failed", error: normalized });
       throw error;
     }
