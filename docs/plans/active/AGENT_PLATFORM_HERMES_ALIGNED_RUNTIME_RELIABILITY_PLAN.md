@@ -8,11 +8,11 @@ description: Second Agent Platform implementation chunk for adopting Hermes-insp
 
 # Agent Platform Hermes-Aligned Runtime Reliability
 
-**Status:** In progress; second implementation chunk
+**Status:** In progress; local implementation pass substantially complete, infrastructure certification pending
 
 **Owner:** Agent Platform
 
-**Last updated:** 2026-09-06
+**Last updated:** 2026-09-07
 
 **Depends on:** [`Agent Platform Host Boundary and Runtime Restructure`](./AGENT_PLATFORM_HOST_BOUNDARY_RESTRUCTURE_PLAN.md)
 
@@ -92,6 +92,10 @@ For every Hermes-aligned change:
 
 This discipline applies to the harness, skills, plugins, tools, MCP, context loading, loops,
 delegation, durability, observability, and multi-agent workstreams.
+
+**Implementation reference:** Hermes revision `9a84bee265daad14340a80d7585928cd8ea1f9eb`, reviewed
+2026-09-07. The current pass specifically used its context lifecycle, single conversation loop,
+narrow capability boundary, fresh child scope, and durable evidence patterns as comparison points.
 
 ## Target harness shape
 
@@ -697,6 +701,8 @@ check or a UI screenshot alone does not prove a durable runtime contract.
   reconciliation-required states. Evidence: `agents/src/runtime/continuation.ts` and
   `agents/test/harness-continuation.test.ts`; Temporal remains the owner of cancellation signals.
 - [ ] Remove remaining caller-owned model/tool policy construction after migration tests pass.
+  The loop still receives provider/model policy from the activity boundary; a resolved execution
+  plan is still required before this item can be checked.
 
 ### Context and loop reliability
 
@@ -713,7 +719,9 @@ check or a UI screenshot alone does not prove a durable runtime contract.
   and child work. Evidence: `agents/src/runtime/budget.ts` and `agents/test/budget.test.ts`; the
   ledger is the shared typed admission seam, while durable credit settlement remains in the
   existing run-budget repository.
-- [ ] Prove ordinary and decomposed/graph turns have identical model/tool event and outcome semantics.
+- [x] Prove ordinary and decomposed/graph turns have identical model/tool event and outcome semantics.
+  Evidence: `agents/test/harness-graph-parity.test.ts`; both paths use the same harness turn and
+  capability runtime. Live Temporal replay evidence remains part of the infrastructure gate.
 
 ### Extensions and capabilities
 
@@ -723,8 +731,12 @@ check or a UI screenshot alone does not prove a durable runtime contract.
 - [x] Add a capability-runtime seam that consistently applies manifest lookup, readiness, grants,
   and injected installation admission before handler invocation. Evidence:
   `agents/src/capabilities/runtime.ts` and `agents/test/capability-runtime.test.ts`.
-- [ ] Persist declarative plugin lifecycle records, dependency/compatibility rules, and immutable
-  extension snapshots at agent-version publication and run admission.
+- [x] Persist declarative plugin lifecycle records, dependency/compatibility rules, and immutable
+  extension snapshots at agent-version publication and run admission. Evidence: migration 111,
+  `agents/src/db/repositories/agent-repository.ts`,
+  `agents/src/db/repositories/extension-snapshot-repository.ts`,
+  `agents/test/extension-snapshot-repository.test.ts`, and
+  `agents/test/run-repository.snapshot-admission.test.ts`.
 - [x] Build `ExtensionResolver` for skills, plugins, connectors, and MCP configurations. Evidence:
   `agents/src/extensions/resolver.ts` and `agents/test/extension-resolver.test.ts`.
 - [ ] Build one capability-admission interface that always performs readiness, authorization,
@@ -737,16 +749,65 @@ check or a UI screenshot alone does not prove a durable runtime contract.
 - [x] Define a typed execution-journal interface and in-memory conformance adapter covering run,
   context, model, tool, wait, uncertain-effect, and delivery events. Evidence:
   `agents/src/journal/` and `agents/test/journal-conformance.test.ts`.
-- [ ] Add the PostgreSQL journal adapter and migrate harness/operation event writes to it.
-- [ ] Separate delivery obligations from run completion behind one reusable delivery interface.
+- [x] Add the PostgreSQL journal adapter and migrate harness/operation event writes to it. Evidence:
+  migration 113, `agents/src/journal/postgres.ts`, `RunRepository.appendJournalEvent`, and the
+  run timeline's canonical `journal` projection. Legacy `appendEvent` callers now dual-write the
+  typed journal and `agent_events` in one transaction; `agent_events` remains as a compatibility/
+  operator projection until its consumers are migrated.
+- [x] Separate delivery obligations from run completion behind one reusable delivery interface.
+  Evidence: migration 112, `agents/src/delivery/`, run reply delivery, approval prompts, and
+  handoff acknowledgements. Provider/channel paths not yet routed through the shared obligation
+  coordinator remain an explicit follow-up.
 - [x] Complete decomposed waiting/external-event continuation and remove the dual-loop rollout path.
   Evidence: wait continuation remains in the one Temporal workflow/harness path; the feature flag,
   decomposed coordinator, activities, protocol, state, and alternate tests were removed.
-- [ ] Make graph nodes use harness turn and capability interfaces exclusively.
-- [ ] Add bounded, attenuated Temporal child invocation with parent/child evidence and fake-child
-  conformance coverage.
+- [x] Make graph nodes use harness turn and capability interfaces exclusively. Evidence:
+  `agents/src/temporal/activities.ts`, `agents/test/workflow-graph-agent-loop.test.ts`, and
+  `agents/test/harness-graph-parity.test.ts`.
+- [x] Add bounded, attenuated Temporal child invocation with parent/child evidence and fake-child
+  conformance coverage. Evidence: `agents/src/children/`, `agents/test/child-invocation.test.ts`,
+  and `agents/test/temporal-child-invocation.test.ts`. Production activation of a child workflow
+  from an agent turn is still pending and is tracked separately below.
 - [ ] Complete worker-loss, provider-uncertainty, approval, handoff, delivery, event-replay, tenant
   isolation, and manual verification evidence.
+
+- [x] Serialize same-session runs through durable admission and keep different sessions parallel.
+  Evidence: `agents/src/runtime/admission.ts`, `agents/src/db/repositories/run-repository.ts`,
+  `agents/src/temporal/workflows.ts`, migration 113, and the hosted boundary test. The former
+  `409 conversation_run_active` policy is no longer the normal same-session behavior.
+
+### Local implementation evidence and remaining certification
+
+The local implementation pass currently has these verified results:
+
+- Same-session runs are admitted as durable queued runs and acquire turns in created order; the old
+  database reject-active-run index is removed by migration 113. Different sessions retain
+  independent admission and can run in parallel.
+- Agent-version extension snapshots are validated at run admission, including developer-API
+  installation creation and reuse. A run cannot execute without a valid immutable snapshot pin.
+- REST/immediate reads, ordinary harness turns, graph turns, and the direct MCP path share the
+  capability runtime for manifest lookup, readiness, authorization, and invocation.
+- Typed journal events are persisted through the PostgreSQL repository path and exposed in the
+  durable run timeline. Legacy operational facts are atomically dual-written into the typed
+  journal. Delivery obligations are tracked independently for run replies, approval prompts, and
+  handoff acknowledgements.
+- Local verification passed on 2026-09-07: `pnpm -s test` in `agents/` produced 133 passed files,
+  746 passed tests, 27 skipped integration files, and 86 skipped integration tests. `pnpm -s
+  build` also passed.
+
+The following are not falsely treated as complete because they require additional implementation
+or infrastructure-backed evidence:
+
+- Replace caller-owned provider/model/tool policy inputs with a resolved, version-pinned execution
+  plan owned by the harness.
+- Complete the universal capability operation kernel so every capability path shares operation,
+  receipt, redaction, and evidence lifecycle behavior, not only the current local/MCP/read paths.
+- Route every outbound channel/provider path through `DeliveryObligationCoordinator` and reconcile
+  unknown sends after restart.
+- Activate and exercise a production Temporal child workflow path; the bounded coordinator and
+  fake-child contract exist, but the live child workflow runner is not yet wired into agent turns.
+- Run PostgreSQL/RLS, Temporal worker-loss, remote MCP, provider uncertainty, and manual channel
+  verification with the local integration services enabled.
 
 ## Manual verification matrix
 
@@ -826,14 +887,14 @@ dependency changes are authorized by this document alone.
 | --- | --- |
 | Change | Hermes-aligned Agent Platform runtime reliability foundation. |
 | Owner | Agent Platform; Operations owns release and recovery evidence. |
-| Risk | High; local implementation in progress. |
+| Risk | High; local implementation pass substantially complete, with infrastructure certification pending. |
 | Affected services and surfaces | Agents API and worker, Temporal, PostgreSQL, Core and tenant adapters, channels, MCP, provider integrations, execution UI, and future child runs. |
-| Platform release version or ID | Not applicable until an implementation package is released. |
-| API/schema/migration changes | Expected; new contracts may replace obsolete contracts. Dual-read or additive compatibility layers are not required unless a specific data-safety migration proves they are necessary. Exact revisions belong to implementation packages. |
+| Platform release version or ID | Not applicable; this pass is local-only and is not being deployed. |
+| API/schema/migration changes | Migration 113 adds the canonical typed execution journal and removes the obsolete reject-active-conversation index. The run-admission response exposes the admission decision and the run timeline exposes the canonical journal projection. Existing `agent_events` remains as a compatibility/operator projection until its consumers are migrated. |
 | Feature flag or rollout | No runtime compatibility flag is required for the rewrite. Use controlled deployment cutovers where needed and record them in the implementation package. |
-| Analytics | Required for context pressure, compaction, tool outcomes, operation recovery, event lag, delivery, and child invocation outcomes. |
+| Analytics | No new analytics contract in this local pass; existing structured runtime events cover context pressure, compaction, tool outcomes, operation recovery, delivery, and child invocation. Production rollout still requires dashboard/alert review. |
 | Logs, metrics, dashboards, and alerts | Structured, redacted, release-identified evidence required before rollout. |
 | Documentation | Update internal architecture, API, runbook, and supported behavior documentation with each implementation package. |
-| Validation | Contract, integration, failure-injection, tenant-isolation, manual, staged, and rollback evidence. |
-| Rollback | Stop new admissions, preserve evidence, reconcile unknown effects, and restore the last tested deployment artifact when required; rollback is operational, not a legacy runtime strategy. |
+| Validation | Local contract/unit suite and build passed. PostgreSQL/RLS, Temporal worker-loss, remote MCP, provider uncertainty, and manual channel evidence remain pending because integration services are not enabled. |
+| Rollback | No deployment occurred. For a later rollout, stop new admissions, preserve evidence, reconcile unknown effects, and restore the last tested deployment artifact; rollback is operational, not a legacy runtime strategy. |
 | Post-release review | Required after each high-risk implementation phase. |
