@@ -48,6 +48,10 @@ export type SessionLeaseMutationResult =
   | { outcome: "already_released"; lease: SessionLeaseRecord }
   | { outcome: "rejected"; reason: "not_found" | "fenced" | "expired" | "released" };
 
+export type SessionLeaseCurrentResult =
+  | { outcome: "current"; lease: SessionLeaseRecord }
+  | { outcome: "rejected"; reason: "not_found" | "fenced" | "expired" | "released" };
+
 type SessionLeaseRow = {
   id: string;
   organization_id: string;
@@ -213,6 +217,32 @@ export class SessionLeaseRepository {
       );
       if (renewed.rows[0]) return { outcome: "renewed", lease: mapLease(renewed.rows[0]) };
       return { outcome: "rejected", reason: await this.mutationRejection(client, organizationId, sessionKey, ownerId, runId, fencingToken) };
+    });
+  }
+
+  /**
+   * Check the lease immediately before a session-owned write. This is the
+   * fencing assertion that prevents a worker which resumed after expiry from
+   * publishing a stale result.
+   */
+  public async assertCurrent(input: SessionLeaseMutationInput): Promise<SessionLeaseCurrentResult> {
+    const [organizationId, sessionKey, ownerId, runId] = scope(input);
+    const fencingToken = normalizeFencingToken(input.fencingToken);
+    return withTransaction(this.pool, async (client) => {
+      const result = await client.query<SessionLeaseRow>(
+        `SELECT * FROM agent_session_leases
+         WHERE organization_id = $1 AND session_key = $2
+         FOR UPDATE`,
+        [organizationId, sessionKey],
+      );
+      const row = result.rows[0];
+      if (!row) return { outcome: "rejected", reason: "not_found" };
+      if (row.owner_id !== ownerId || row.run_id !== runId || String(row.fencing_token) !== fencingToken) {
+        return { outcome: "rejected", reason: "fenced" };
+      }
+      if (row.status === "released") return { outcome: "rejected", reason: "released" };
+      if (new Date(row.expires_at).getTime() <= Date.now()) return { outcome: "rejected", reason: "expired" };
+      return { outcome: "current", lease: mapLease(row) };
     });
   }
 

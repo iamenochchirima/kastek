@@ -2,16 +2,18 @@ import { createHash } from "node:crypto";
 import type { Pool } from "pg";
 import { query, withTransaction } from "../pool";
 import {
-  callRemoteMcpTool,
   discoverRemoteMcpTools,
   remoteMcpToolsSchema,
   validateRemoteMcpEndpoint,
   type RemoteMcpTool,
 } from "../../mcp/remote";
+import { createMcpServerSnapshot, McpOperationCoordinator } from "../../mcp/operation-boundary";
 import { z } from "zod";
 import type { ToolInvocationContext } from "../../tools/types";
 import type { ToolRegistry } from "../../tools/registry";
 import { recordRemoteMcpOperation } from "../../telemetry/spans";
+import { DurableOperationCoordinator } from "../../operations/durable-operation";
+import { DurableOperationRepository } from "./durable-operation-repository";
 
 export const createRemoteMcpProviderInputSchema = z.object({
   name: z.string().trim().min(1).max(160),
@@ -71,10 +73,15 @@ export function remoteMcpToolName(providerVersionId: string, toolName: string): 
 }
 
 export class RemoteMcpProviderRepository {
+  private readonly operations: DurableOperationCoordinator;
+
   public constructor(
     private readonly pool: Pool,
     private readonly resolveCredential?: (organizationId: string, credentialReference: string) => Promise<string>,
-  ) {}
+    operationCoordinator?: DurableOperationCoordinator,
+  ) {
+    this.operations = operationCoordinator ?? new DurableOperationCoordinator(new DurableOperationRepository(pool));
+  }
 
   public async create(organizationId: string, actorId: string, input: CreateRemoteMcpProviderInput): Promise<RemoteMcpProviderRecord> {
     const parsed = createRemoteMcpProviderInputSchema.parse(input);
@@ -202,7 +209,7 @@ export class RemoteMcpProviderRepository {
             redaction: ["result"],
           },
           handler: async (context: ToolInvocationContext, argumentsValue: Record<string, unknown>) => ({
-            result: await this.callPinnedTool({ organizationId: context.organizationId, agentVersionId: context.agentVersionId, providerVersionId: provider.id, toolName: tool.name, argumentsValue }),
+            result: await this.callPinnedTool({ organizationId: context.organizationId, agentVersionId: context.agentVersionId, providerVersionId: provider.id, toolName: tool.name, argumentsValue, operationId: context.operationId, runId: context.runId }),
           }),
         });
       }
@@ -210,7 +217,7 @@ export class RemoteMcpProviderRepository {
     return names;
   }
 
-  public async callPinnedTool(input: { organizationId: string; agentVersionId: string; providerVersionId: string; toolName: string; argumentsValue: Record<string, unknown> }): Promise<unknown> {
+  public async callPinnedTool(input: { organizationId: string; agentVersionId: string; providerVersionId: string; toolName: string; argumentsValue: Record<string, unknown>; operationId?: string; runId?: string }): Promise<unknown> {
     const result = await query<RemoteMcpProviderVersionRecord>(this.pool, `SELECT provider_version.*, provider.endpoint_url, provider.credential_reference, provider.timeout_ms, provider.max_response_bytes, provider.rate_limit_per_minute FROM agent_version_mcp_providers pin JOIN agent_mcp_provider_versions provider_version ON provider_version.id = pin.provider_version_id JOIN agent_mcp_providers provider ON provider.id = provider_version.provider_id WHERE pin.organization_id = $1 AND pin.agent_version_id = $2 AND pin.provider_version_id = $3 AND provider.status = 'approved' AND provider.health_status = 'healthy' AND provider_version.status = 'published'`, [input.organizationId, input.agentVersionId, input.providerVersionId]);
     const provider = result.rows[0];
     if (!provider || !provider.endpoint_url || !provider.timeout_ms || !provider.max_response_bytes) throw new Error("REMOTE_MCP_PROVIDER_NOT_PINNED");
@@ -241,7 +248,37 @@ export class RemoteMcpProviderRepository {
     const authorizationToken = provider.credential_reference && this.resolveCredential ? await this.resolveCredential(input.organizationId, provider.credential_reference) : undefined;
     const startedAt = performance.now();
     try {
-      const result = await callRemoteMcpTool({ endpointUrl: provider.endpoint_url, toolName: tool.name, argumentsValue: input.argumentsValue, authorizationToken, timeoutMs: provider.timeout_ms, maxResponseBytes: provider.max_response_bytes, environment: process.env.NODE_ENV === "production" ? "production" : "development" });
+      const snapshot = createMcpServerSnapshot({
+        scope: { organizationId: input.organizationId, agentVersionId: input.agentVersionId },
+        serverId: provider.provider_id,
+        revision: provider.revision,
+        endpointUrl: provider.endpoint_url,
+        protocolVersion: provider.protocol_version,
+        state: "published",
+        tools: hydrateVersion(provider).tools,
+        limits: {
+          timeoutMs: provider.timeout_ms,
+          maxResponseBytes: provider.max_response_bytes,
+          maxSchemaBytes: 1_000_000,
+          maxResultBytes: Math.min(provider.max_response_bytes, 256_000),
+          maxTools: 100,
+        },
+      });
+      const operation = new McpOperationCoordinator({
+        environment: process.env.NODE_ENV === "production" ? "production" : "development",
+        durableOperations: this.operations,
+      });
+      const response = await operation.call({
+        scope: snapshot.scope,
+        snapshot,
+        toolName: tool.name,
+        argumentsValue: input.argumentsValue,
+        authorizationToken,
+        operationId: input.operationId ?? `${input.runId ?? "mcp"}:${input.providerVersionId}:${tool.name}`,
+        environment: process.env.NODE_ENV === "production" ? "production" : "development",
+      });
+      if (!response.ok) throw new Error(response.error.code);
+      const result = response.value.result;
       recordRemoteMcpOperation({ operation: "invocation", outcome: "success", durationMs: performance.now() - startedAt });
       return result;
     } catch (error) {

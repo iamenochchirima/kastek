@@ -40,6 +40,8 @@ export interface ToolInvocationContext {
   agentVersionId: string;
   installationId: string;
   runId: string;
+  /** Operation identity propagated from the capability runtime to adapters. */
+  operationId?: string;
   conversationId?: string;
   actorId?: string;
   correlationId: string;
@@ -80,7 +82,7 @@ export interface ToolInvocationLifecycle {
 
 export function toolInvocationContextFromScope(
   scope: ExecutionScope,
-  extras: Pick<ToolInvocationContext, "memoryPolicy" | "approvalSnapshotHash" | "signal"> = {},
+  extras: Pick<ToolInvocationContext, "memoryPolicy" | "approvalSnapshotHash" | "signal" | "operationId"> = {},
 ): ToolInvocationContext {
   return {
     scope,
@@ -89,6 +91,7 @@ export function toolInvocationContextFromScope(
     agentVersionId: scope.agentVersionId,
     installationId: scope.installationId,
     runId: scope.runId,
+    operationId: extras.operationId,
     conversationId: scope.conversationId,
     actorId: scope.actorId,
     correlationId: scope.correlationId,

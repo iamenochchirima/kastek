@@ -110,7 +110,11 @@ export class ToolRegistry {
     }
     const startedAt = Date.now();
     if (tool.riskClass === "external-effect") await request.beforeEffect?.();
-    const context = request.signal ? { ...request.context, signal: request.signal } : request.context;
+    const context = {
+      ...request.context,
+      ...(request.operationId ? { operationId: request.operationId } : {}),
+      ...(request.signal ? { signal: request.signal } : {}),
+    };
     const output = await Promise.race([
       tool.handler(context, request.arguments),
       new Promise<never>((_, reject) => setTimeout(() => reject(new ToolPolicyError("TOOL_TIMEOUT", `Tool timed out: ${request.name}`)), tool.timeoutMs)),

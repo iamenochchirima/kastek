@@ -16,6 +16,9 @@ export const executionScopeSchema = z.object({
   agentVersionId: identifier,
   sessionId: identifier.optional(),
   conversationId: identifier.optional(),
+  /** Durable session identity and lease epoch, never selected by the model. */
+  sessionKey: identifier.optional(),
+  sessionFencingToken: identifier.optional(),
   runId: identifier,
   actorId: identifier.optional(),
   actorType: z.enum(["user", "system", "service", "external"]).optional(),
@@ -43,15 +46,19 @@ export interface ExecutionScopeRunRecord {
   correlation_id: string;
   causation_id?: string | null;
   extension_snapshot_id?: string | null;
+  session_key?: string | null;
+  session_fencing_token?: string | null;
 }
 
-export function executionScopeFromRun(input: ExecutionScopeRunRecord): ExecutionScope {
+export function executionScopeFromRun(input: ExecutionScopeRunRecord, lease?: { sessionKey?: string; fencingToken?: string }): ExecutionScope {
   return createExecutionScope({
     organizationId: input.organization_id,
     installationId: input.installation_id,
     agentDefinitionId: input.agent_definition_id,
     agentVersionId: input.agent_version_id,
     ...(input.conversation_id ? { sessionId: input.conversation_id, conversationId: input.conversation_id } : {}),
+    ...((lease?.sessionKey ?? input.session_key) ? { sessionKey: lease?.sessionKey ?? input.session_key } : {}),
+    ...((lease?.fencingToken ?? input.session_fencing_token) ? { sessionFencingToken: lease?.fencingToken ?? input.session_fencing_token } : {}),
     runId: input.id,
     ...(input.created_by ? { actorId: input.created_by } : {}),
     actorType: "service",
@@ -74,7 +81,7 @@ export function assertExecutionScopeContained(parent: ExecutionScope, child: Exe
   for (const key of requiredKeys) {
     if (parent[key] !== child[key]) throw new Error(`EXECUTION_SCOPE_ESCAPED:${String(key)}`);
   }
-  for (const key of ["sessionId", "conversationId", "extensionSnapshotId"] as const) {
+  for (const key of ["sessionId", "conversationId", "sessionKey", "sessionFencingToken", "extensionSnapshotId"] as const) {
     if (parent[key] !== undefined && child[key] !== undefined && parent[key] !== child[key]) {
       throw new Error(`EXECUTION_SCOPE_ESCAPED:${key}`);
     }

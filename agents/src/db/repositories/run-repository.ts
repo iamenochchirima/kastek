@@ -20,6 +20,13 @@ import type { ExecutionJournalRead, PendingExecutionJournalEvent, PersistedExecu
 import { ExtensionSnapshotRepository } from "./extension-snapshot-repository";
 import { SessionLeaseRepository } from "./session-lease-repository";
 
+export interface ConversationTurnAdmission {
+  acquired: boolean;
+  sessionKey?: string;
+  ownerId?: string;
+  fencingToken?: string;
+}
+
 export interface RunRecord {
   id: string;
   organization_id: string;
@@ -287,7 +294,7 @@ export class RunRepository {
    * makes competing Temporal workflows re-check the same ordering atomically;
    * no process-local mutex is involved.
    */
-  public async canAcquireConversationTurn(organizationId: string, runId: string): Promise<boolean> {
+  public async acquireConversationTurn(organizationId: string, runId: string): Promise<ConversationTurnAdmission> {
     const turn = await withTransaction(this.pool, async (client) => {
       const current = await client.query<{ conversation_id: string | null; installation_id: string }>(
         `SELECT conversation_id
@@ -316,15 +323,34 @@ export class RunRepository {
         installationId: run.installation_id,
       };
     });
-    if (!turn.canAcquire || !turn.conversationId || !turn.installationId) return turn.canAcquire;
+    if (!turn.canAcquire || !turn.conversationId || !turn.installationId) return { acquired: turn.canAcquire };
+    const sessionKey = `conversation:${turn.installationId}:${turn.conversationId}`;
+    const ownerId = `agent-run:${runId}`;
     const lease = await this.sessionLeases.acquire({
       organizationId,
-      sessionKey: `conversation:${turn.installationId}:${turn.conversationId}`,
-      ownerId: `agent-run:${runId}`,
+      sessionKey,
+      ownerId,
       runId,
       leaseDurationMs: 10 * 60 * 1_000,
     });
-    return lease.outcome === "acquired";
+    return lease.outcome === "acquired"
+      ? { acquired: true, sessionKey, ownerId, fencingToken: lease.lease.fencing_token }
+      : { acquired: false, sessionKey, ownerId, fencingToken: lease.lease.fencing_token };
+  }
+
+  public async canAcquireConversationTurn(organizationId: string, runId: string): Promise<boolean> {
+    return (await this.acquireConversationTurn(organizationId, runId)).acquired;
+  }
+
+  public async assertConversationLease(input: {
+    organizationId: string;
+    sessionKey: string;
+    ownerId: string;
+    runId: string;
+    fencingToken: string;
+  }): Promise<boolean> {
+    const result = await this.sessionLeases.assertCurrent({ ...input });
+    return result.outcome === "current";
   }
 
   public async finishOpenAttempt(

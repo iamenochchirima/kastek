@@ -6,6 +6,7 @@ import {
   type ExtensionPackageManifest,
   type ExtensionPackageRuntime,
 } from "./package-manifest";
+import type { ToolDefinition, ToolInvocationContext } from "../tools/types";
 
 export const PLUGIN_PROTOCOL_VERSION = 1 as const;
 
@@ -794,4 +795,57 @@ export class DeterministicPluginSubprocessFactory implements PluginSubprocessFac
     this.processes.push(process);
     return process;
   }
+}
+
+/**
+ * Compose an isolated plugin as an ordinary harness capability. The registry
+ * still owns schema validation, approval, lifecycle, redaction, and grants;
+ * this adapter owns only the process boundary.
+ */
+export function createPluginToolDefinition(input: {
+  name: string;
+  description: string;
+  version: string;
+  inputSchema: Record<string, unknown>;
+  outputSchema: Record<string, unknown>;
+  package: PluginExecutionPackage;
+  runtime: ExtensionPackageRuntime;
+  adapter: IsolatedPluginAdapter;
+  riskClass?: ToolDefinition["riskClass"];
+  requiresApproval?: boolean;
+}): ToolDefinition {
+  return {
+    name: input.name,
+    description: input.description,
+    version: input.version,
+    inputSchema: input.inputSchema,
+    outputSchema: input.outputSchema,
+    riskClass: input.riskClass ?? "controlled-write",
+    requiresApproval: input.requiresApproval ?? true,
+    timeoutMs: DEFAULT_PLUGIN_EXECUTION_LIMITS.timeoutMs,
+    manifest: {
+      ownerService: "plugin-runtime",
+      requiredScope: `plugin:${input.package.manifest.id}`,
+      execution: "durable",
+      idempotency: "required",
+      approval: input.requiresApproval === false ? "policy" : "always",
+      auditClassification: "restricted",
+      redaction: ["output", "configuration"],
+    },
+    handler: async (context: ToolInvocationContext, argumentsValue: Record<string, unknown>) => {
+      const result = await input.adapter.execute({
+        operationId: context.operationId,
+        package: input.package,
+        runtime: input.runtime,
+        scope: {
+          organizationId: context.organizationId,
+          capabilityGrants: context.scope.capabilityGrants ?? [],
+        },
+        input: argumentsValue,
+        signal: context.signal,
+      });
+      if (!result.ok) throw new Error(result.error.code);
+      return result.output;
+    },
+  };
 }

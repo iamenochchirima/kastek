@@ -9,6 +9,11 @@ import {
 } from "./remote";
 import { MCP_SUPPORTED_PROTOCOL_VERSIONS } from "./protocol";
 import { redactSensitiveValue } from "../tools/redaction";
+import {
+  DurableOperationCoordinator,
+  fingerprintOperationRequest,
+  type DurableOperationRecord,
+} from "../operations/durable-operation";
 
 const MAX_TIMEOUT_MS = 120_000;
 const MAX_RESPONSE_BYTES = 1_048_576;
@@ -161,6 +166,8 @@ export interface McpOperationCoordinatorOptions {
   limits?: Partial<McpOperationLimits>;
   environment?: "development" | "test" | "production";
   onEvidence?: (evidence: McpOperationEvidence) => void | Promise<void>;
+  /** Optional durable store. Without it the boundary remains host-neutral for unit tests. */
+  durableOperations?: DurableOperationCoordinator;
 }
 
 class McpBoundaryFault extends Error {
@@ -183,12 +190,14 @@ export class McpOperationCoordinator {
   private readonly defaults: McpOperationLimits;
   private readonly environment: "development" | "test" | "production";
   private readonly onEvidence?: (evidence: McpOperationEvidence) => void | Promise<void>;
+  private readonly durableOperations?: DurableOperationCoordinator;
 
   public constructor(options: McpOperationCoordinatorOptions = {}) {
     this.adapter = options.adapter ?? new RemoteMcpAdapter();
     this.defaults = resolveLimits(options.limits);
     this.environment = options.environment ?? "production";
     this.onEvidence = options.onEvidence;
+    this.durableOperations = options.durableOperations;
   }
 
   public async discover(input: McpDiscoveryInput): Promise<McpOperationResult<McpDiscoveryValue>> {
@@ -196,6 +205,7 @@ export class McpOperationCoordinator {
     const scope = scopeForEvidence(input.scope);
     const serverId = safeIdentifier(input.serverId, "unknown-server");
     const startedAt = performance.now();
+    let durableOperationId: string | undefined;
     const evidenceBase = { evidenceVersion: "mcp.operation.v1" as const, operationId, operation: "discover" as const, scope, serverId };
 
     try {
@@ -209,6 +219,15 @@ export class McpOperationCoordinator {
         environment: input.environment ?? this.environment,
       });
       const endpoint = validateRemoteMcpEndpoint(parsedInput.endpointUrl, parsedInput.environment);
+      const durable = await this.prepareDurableOperation({
+        operationId,
+        scope: parsedInput.scope,
+        operationKey: `${operationId}:discover`,
+        request: { serverId: parsedInput.serverId, revision: parsedInput.revision, endpointUrl: endpoint.toString(), limits },
+      });
+      if (durable.outcome === "new") durableOperationId = durable.operationId;
+      if (durable.outcome === "replay") return durable.result as McpOperationResult<McpDiscoveryValue>;
+      if (durable.outcome === "blocked") return this.durableBlockedResult(evidenceBase, startedAt, durable.operation);
       const remote = await this.runWithCancellation(
         (signal) => this.adapter.discover({
           endpointUrl: endpoint.toString(),
@@ -239,8 +258,11 @@ export class McpOperationCoordinator {
         schemaBytes: toolSchemaBytes(tools),
         toolCount: tools.length,
       });
-      return { ok: true, outcome: "success", value: { snapshot, protocolVersion, tools }, evidence };
+      const value = { snapshot, protocolVersion, tools };
+      await this.completeDurableOperation(durable.operationId, { value, evidence });
+      return { ok: true, outcome: "success", value, evidence };
     } catch (error) {
+      await this.failDurableOperation(durableOperationId, error);
       return this.failureResult(evidenceBase, startedAt, error);
     }
   }
@@ -263,6 +285,7 @@ export class McpOperationCoordinator {
       argumentsHash,
     };
     const startedAt = performance.now();
+    let durableOperationId: string | undefined;
 
     try {
       const parsedScope = parseScope(input.scope);
@@ -271,6 +294,15 @@ export class McpOperationCoordinator {
       const toolName = toolNameSchema.parse(input.toolName);
       const tool = snapshot.tools.find((candidate) => candidate.name === toolName);
       if (!tool) throw new McpBoundaryFault("MCP_TOOL_NOT_IN_SNAPSHOT", "terminal");
+      const durable = await this.prepareDurableOperation({
+        operationId,
+        scope: parsedScope,
+        operationKey: `${operationId}:call`,
+        request: { serverId: snapshot.serverId, snapshotChecksum: snapshot.checksum, toolName, arguments: input.argumentsValue },
+      });
+      if (durable.outcome === "new") durableOperationId = durable.operationId;
+      if (durable.outcome === "replay") return durable.result as McpOperationResult<McpCallValue>;
+      if (durable.outcome === "blocked") return this.durableBlockedResult(evidenceBase, startedAt, durable.operation);
       const result = await this.runWithCancellation(
         (signal) => this.adapter.call({
           endpointUrl: snapshot.endpointUrl,
@@ -294,10 +326,69 @@ export class McpOperationCoordinator {
         responseBytes: bounded.resultBytes,
         resultTruncated: bounded.resultTruncated,
       });
+      await this.completeDurableOperation(durable.operationId, { value: bounded, evidence });
       return { ok: true, outcome: "success", value: bounded, evidence };
     } catch (error) {
+      await this.failDurableOperation(durableOperationId, error);
       return this.failureResult(evidenceBase, startedAt, error);
     }
+  }
+
+  private async prepareDurableOperation(input: {
+    operationId: string;
+    scope: McpOperationScope;
+    operationKey: string;
+    request: unknown;
+  }): Promise<
+    | { outcome: "new"; operationId: string }
+    | { outcome: "replay"; result: McpOperationResult<unknown> }
+    | { outcome: "blocked"; operation: DurableOperationRecord }
+  > {
+    if (!this.durableOperations) return { outcome: "new", operationId: input.operationKey };
+    const prepared = await this.durableOperations.prepare({
+      organizationId: input.scope.organizationId,
+      kind: "mcp",
+      operationKey: input.operationKey,
+      requestFingerprint: fingerprintOperationRequest(input.request),
+      metadata: { operation: "mcp", operationId: input.operationId },
+    });
+    if (prepared.outcome === "completed") {
+      const receipt = prepared.operation.responseReceipt as { value?: unknown; evidence?: McpOperationEvidence } | undefined;
+      if (receipt?.evidence && "value" in receipt) return { outcome: "replay", result: { ok: true, outcome: "success", value: receipt.value, evidence: receipt.evidence } };
+      return { outcome: "blocked", operation: prepared.operation };
+    }
+    if (prepared.outcome === "unknown" || prepared.outcome === "in_progress") return { outcome: "blocked", operation: prepared.operation };
+    await this.durableOperations.markRunning({ operationId: prepared.operation.id });
+    return { outcome: "new", operationId: prepared.operation.id };
+  }
+
+  private async completeDurableOperation(operationId: string, receipt: { value: unknown; evidence: McpOperationEvidence }): Promise<void> {
+    if (!this.durableOperations) return;
+    await this.durableOperations.complete({ operationId, responseReceipt: receipt });
+  }
+
+  private async failDurableOperation(operationId: string | undefined, error: unknown): Promise<void> {
+    if (!this.durableOperations || !operationId) return;
+    const failure = classifyFailure(error);
+    try {
+      if (failure.outcome === "unknown") {
+        await this.durableOperations.markUnknown({ operationId, error: { code: failure.code, message: failure.message } });
+      } else {
+        await this.durableOperations.fail({ operationId, error: { code: failure.code, message: failure.message, retryable: failure.outcome === "retryable" } });
+      }
+    } catch {
+      // A provider result must never be replaced with a persistence exception.
+    }
+  }
+
+  private durableBlockedResult<T>(
+    evidenceBase: Omit<McpOperationEvidence, "outcome" | "durationMs">,
+    startedAt: number,
+    operation: DurableOperationRecord,
+  ): McpOperationResult<T> {
+    const code = operation.status === "unknown" ? "MCP_OPERATION_OUTCOME_UNKNOWN" : "MCP_OPERATION_IN_PROGRESS";
+    const evidence = this.finishEvidence({ ...evidenceBase, outcome: "unknown", errorCode: code, durationMs: elapsedMs(startedAt) });
+    return { ok: false, outcome: "unknown", error: { code, outcome: "unknown", message: operation.status === "unknown" ? "The MCP operation needs reconciliation." : "The MCP operation is already being processed." }, evidence };
   }
 
   private async runWithCancellation<T>(
