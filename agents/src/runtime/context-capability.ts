@@ -163,9 +163,12 @@ export class DurableContextCapabilityResolver {
     const metadataRecord = await resolveProviderMetadata(providerMetadata, route, now);
     if (metadataRecord) return applyCapabilityRecord(fallback, metadataRecord);
 
-    const catalogRecord = catalog
+    let catalogRecord = catalog
       ? resolveModelCapabilityFromCatalog(catalog, route, new Date(now).toISOString())
-      : await resolveCatalogMetadata(input.catalogResolver ?? this.sources.catalogResolver, route, now);
+      : undefined;
+    if (!catalogRecord) {
+      catalogRecord = await resolveCatalogMetadata(input.catalogResolver ?? this.sources.catalogResolver, route, now);
+    }
     if (catalogRecord) return applyCapabilityRecord(fallback, catalogRecord);
 
     const cached = this.cache.get(key);
