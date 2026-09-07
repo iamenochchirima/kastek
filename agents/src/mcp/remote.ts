@@ -57,6 +57,7 @@ export async function discoverRemoteMcpTools(input: {
   timeoutMs: number;
   maxResponseBytes: number;
   environment?: "development" | "test" | "production";
+  signal?: AbortSignal;
 }): Promise<{ protocolVersion: string; tools: RemoteMcpTool[] }> {
   const endpoint = await resolveRemoteMcpEndpoint(input.endpointUrl, input.environment ?? "production");
   const headers = remoteHeaders(input.authorizationToken);
@@ -71,7 +72,7 @@ export async function discoverRemoteMcpTools(input: {
         capabilities: {},
         clientInfo: { name: "kasitek-agent-platform", version: "1" },
       },
-    }, headers, input.timeoutMs, input.maxResponseBytes);
+    }, headers, input.timeoutMs, input.maxResponseBytes, input.signal);
     sessionId = initialized.sessionId;
   } catch (error) {
     // Some stateless MCP providers do not implement initialize. Their tools
@@ -83,7 +84,7 @@ export async function discoverRemoteMcpTools(input: {
     id: "kasitek-tools-list",
     method: "tools/list",
     params: {},
-  }, { ...headers, ...(sessionId ? { "Mcp-Session-Id": sessionId } : {}) }, input.timeoutMs, input.maxResponseBytes);
+  }, { ...headers, ...(sessionId ? { "Mcp-Session-Id": sessionId } : {}) }, input.timeoutMs, input.maxResponseBytes, input.signal);
   const result = listed.result && typeof listed.result === "object" && !Array.isArray(listed.result) ? listed.result as Record<string, unknown> : {};
   const tools = remoteMcpToolsSchema.parse(result.tools ?? []);
   for (const tool of tools) {
@@ -100,6 +101,7 @@ export async function callRemoteMcpTool(input: {
   timeoutMs: number;
   maxResponseBytes: number;
   environment?: "development" | "test" | "production";
+  signal?: AbortSignal;
 }): Promise<unknown> {
   const endpoint = await resolveRemoteMcpEndpoint(input.endpointUrl, input.environment ?? "production");
   const response = await remoteJsonRpc(endpoint, {
@@ -107,18 +109,18 @@ export async function callRemoteMcpTool(input: {
     id: "kasitek-tools-call",
     method: "tools/call",
     params: { name: input.toolName, arguments: input.argumentsValue },
-  }, remoteHeaders(input.authorizationToken), input.timeoutMs, input.maxResponseBytes);
+  }, remoteHeaders(input.authorizationToken), input.timeoutMs, input.maxResponseBytes, input.signal);
   if (response.error) throw new Error("REMOTE_MCP_TOOL_FAILED");
   return redactSensitiveValue(response.result ?? {});
 }
 
-async function remoteJsonRpc(endpoint: URL, body: Record<string, unknown>, headers: Record<string, string>, timeoutMs: number, maxResponseBytes: number): Promise<{ result?: unknown; error?: unknown; protocolVersion?: string; sessionId?: string }> {
+async function remoteJsonRpc(endpoint: URL, body: Record<string, unknown>, headers: Record<string, string>, timeoutMs: number, maxResponseBytes: number, signal?: AbortSignal): Promise<{ result?: unknown; error?: unknown; protocolVersion?: string; sessionId?: string }> {
   const response = await fetch(endpoint, {
     method: "POST",
     redirect: "error",
     headers: { ...headers, accept: "application/json, text/event-stream" },
     body: JSON.stringify(body),
-    signal: AbortSignal.timeout(timeoutMs),
+    signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(timeoutMs)]) : AbortSignal.timeout(timeoutMs),
   });
   const raw = await readBoundedResponse(response, maxResponseBytes);
   if (!response.ok) {
