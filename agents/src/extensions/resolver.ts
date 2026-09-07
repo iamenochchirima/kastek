@@ -10,6 +10,7 @@ import type {
   McpCapabilityDeclaration,
   PluginExtensionDeclaration,
   ResolvedExtension,
+  SelectedExtensionPackage,
   SkillExtensionDeclaration,
 } from "./contracts";
 
@@ -157,6 +158,40 @@ function dependency(kind: ExtensionKind, ids: readonly string[] | undefined): De
   return sortedUnique(ids).map((id) => ({ kind, id }));
 }
 
+function normalizeSelectedPackages(packages: readonly SelectedExtensionPackage[] | undefined): SelectedExtensionPackage[] {
+  const seen = new Set<string>();
+  return (packages ?? [])
+    .map((selected) => {
+      const key = `${selected.kind}:${selected.id}:${selected.version}`;
+      if (seen.has(key)) throw new Error(`EXTENSION_SELECTED_PACKAGE_DUPLICATE:${key}`);
+      seen.add(key);
+      if (!selected.organizationId.trim()) throw new Error("EXTENSION_SELECTED_PACKAGE_ORGANIZATION_REQUIRED");
+      if (!selected.packageVersionId.trim()) throw new Error(`EXTENSION_SELECTED_PACKAGE_VERSION_ID_REQUIRED:${key}`);
+      if (!selected.id.trim()) throw new Error("EXTENSION_SELECTED_PACKAGE_ID_REQUIRED");
+      if (!selected.version.trim()) throw new Error(`EXTENSION_SELECTED_PACKAGE_VERSION_REQUIRED:${key}`);
+      if (!/^[a-f0-9]{64}$/i.test(selected.checksum)) throw new Error(`EXTENSION_SELECTED_PACKAGE_CHECKSUM_INVALID:${key}`);
+      if (selected.status !== "published" && selected.status !== "deprecated") {
+        throw new Error(`EXTENSION_SELECTED_PACKAGE_STATUS_INVALID:${key}`);
+      }
+      const configuration = selected.configuration && typeof selected.configuration === "object" && !Array.isArray(selected.configuration)
+        ? selected.configuration
+        : {};
+      const grantedPermissions = sortedUnique(selected.grantedPermissions);
+      return immutable({
+        organizationId: selected.organizationId.trim(),
+        packageVersionId: selected.packageVersionId.trim(),
+        kind: selected.kind,
+        id: selected.id.trim(),
+        version: selected.version.trim(),
+        checksum: selected.checksum.toLowerCase(),
+        status: selected.status,
+        configuration: immutable({ ...configuration }),
+        grantedPermissions,
+      });
+    })
+    .sort((left, right) => `${left.kind}:${left.id}:${left.version}`.localeCompare(`${right.kind}:${right.id}:${right.version}`));
+}
+
 /**
  * Compiles a pinned declarative agent extension set. It performs no I/O and
  * never invokes a plugin, MCP provider, connector, or capability handler.
@@ -216,12 +251,15 @@ export class ExtensionResolver {
       resolved,
     });
 
+    const selectedPackages = normalizeSelectedPackages(input.selectedPackages);
+
     const snapshotBody = {
       agentVersionId: input.agentVersionId.trim(),
       skills: resolvedSkills,
       plugins: resolvedPlugins,
       connectors: resolvedConnectors,
       mcpCapabilities: resolvedMcpCapabilities,
+      selectedPackages,
     };
     const snapshotChecksum = checksum(snapshotBody);
     return immutable({

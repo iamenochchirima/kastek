@@ -5,6 +5,13 @@
  */
 export type ExtensionKind = "skill" | "plugin" | "connector" | "mcp_capability";
 
+/**
+ * Kinds accepted by an AgentSpec package selection. `mcp_adapter` is kept in
+ * this type so the storage boundary can reject it explicitly until the
+ * persisted extension model has a first-class representation for adapters.
+ */
+export type ExtensionPackageSelectionKind = ExtensionKind | "mcp_adapter";
+
 /** The next admission gate that is not satisfied; `ready` means all gates passed. */
 export type ExtensionReadinessState = "available" | "installed" | "configured" | "granted" | "ready";
 
@@ -85,6 +92,23 @@ export interface ExtensionGrantSnapshot {
   capabilityIds: readonly string[];
 }
 
+/**
+ * Immutable provenance for a package selected by the canonical AgentSpec.
+ * The package row is the authority for identity and lifecycle; configuration
+ * and permissions are the exact values selected by the version.
+ */
+export interface SelectedExtensionPackage {
+  organizationId: string;
+  packageVersionId: string;
+  kind: ExtensionPackageSelectionKind;
+  id: string;
+  version: string;
+  checksum: string;
+  status: "published" | "deprecated";
+  configuration: Readonly<Record<string, unknown>>;
+  grantedPermissions: readonly string[];
+}
+
 export interface ExtensionResolverInput {
   agentVersionId: string;
   skills?: readonly SkillExtensionDeclaration[];
@@ -92,6 +116,7 @@ export interface ExtensionResolverInput {
   connectors?: readonly ConnectorExtensionDeclaration[];
   mcpCapabilities?: readonly McpCapabilityDeclaration[];
   grants: ExtensionGrantSnapshot;
+  selectedPackages?: readonly SelectedExtensionPackage[];
 }
 
 export interface ResolvedExtension<TDeclaration extends ExtensionDeclarationBase = ExtensionDeclarationBase> {
@@ -108,4 +133,5 @@ export interface ExtensionSnapshot {
   plugins: readonly ResolvedExtension<PluginExtensionDeclaration>[];
   connectors: readonly ResolvedExtension<ConnectorExtensionDeclaration>[];
   mcpCapabilities: readonly ResolvedExtension<McpCapabilityDeclaration>[];
+  selectedPackages?: readonly SelectedExtensionPackage[];
 }

@@ -1,5 +1,5 @@
 import type { Pool } from "pg";
-import { ExtensionResolver, type ConnectorExtensionDeclaration, type ExtensionDeclarationBase, type ExtensionKind, type ExtensionSnapshot, type McpCapabilityDeclaration, type PluginExtensionDeclaration, type SkillExtensionDeclaration } from "../../extensions";
+import { ExtensionResolver, type ConnectorExtensionDeclaration, type ExtensionDeclarationBase, type ExtensionKind, type ExtensionPackageSelectionKind, type ExtensionSnapshot, type McpCapabilityDeclaration, type PluginExtensionDeclaration, type SelectedExtensionPackage, type SkillExtensionDeclaration } from "../../extensions";
 import { query, withTransaction } from "../pool";
 
 export type ExtensionDeclaration =
@@ -94,6 +94,20 @@ type VersionExtensionSource = {
   policy: Record<string, unknown> | string;
 };
 
+type CanonicalPackageReference = {
+  kind: ExtensionPackageSelectionKind;
+  id: string;
+  version: string;
+  checksum: string;
+  configuration: Record<string, unknown>;
+};
+
+type CanonicalPackageGrant = {
+  kind: ExtensionPackageSelectionKind;
+  id: string;
+  permissions: string[];
+};
+
 const extensionKinds = new Set<ExtensionKind>(["skill", "plugin", "connector", "mcp_capability"]);
 
 function normalizeList(values: readonly string[] | undefined): string[] {
@@ -180,24 +194,77 @@ function extensionConfig(source: VersionExtensionSource): {
   connectors: ConnectorExtensionDeclaration[];
   mcpCapabilities: McpCapabilityDeclaration[];
   grants: { skillIds: string[]; pluginIds: string[]; connectorIds: string[]; capabilityIds: string[] };
+  packages: CanonicalPackageReference[];
+  packageGrants: CanonicalPackageGrant[];
 } {
   const configuration = parseJson(source.configuration);
   const policy = parseJson(source.policy);
-  const raw = isRecord(configuration.extensions) ? configuration.extensions : isRecord(policy.extensions) ? policy.extensions : {};
-  const rawGrants = isRecord(raw.grants) ? raw.grants : {};
+  const configurationExtensions = isRecord(configuration.extensions) ? configuration.extensions : {};
+  const policyExtensions = isRecord(policy.extensions) ? policy.extensions : {};
+  const rawGrantValue = policyExtensions.grants;
+  const rawGrants = isRecord(rawGrantValue) ? rawGrantValue : {};
   const list = (value: unknown): string[] => Array.isArray(value)
     ? [...new Set(value.filter((entry): entry is string => typeof entry === "string" && Boolean(entry.trim())).map((entry) => entry.trim()))]
     : [];
+  const parseCanonicalPackages = (value: unknown): CanonicalPackageReference[] => {
+    if (value === undefined) return [];
+    if (!Array.isArray(value)) throw new Error("EXTENSION_SNAPSHOT_CANONICAL_PACKAGES_INVALID");
+    return value.map((entry) => {
+      if (!isRecord(entry)
+        || (entry.kind !== "skill" && entry.kind !== "plugin" && entry.kind !== "mcp_adapter")
+        || typeof entry.id !== "string"
+        || typeof entry.version !== "string"
+        || typeof entry.checksum !== "string") {
+        throw new Error("EXTENSION_SNAPSHOT_CANONICAL_PACKAGE_INVALID");
+      }
+      if (entry.configuration !== undefined && !isRecord(entry.configuration)) {
+        throw new Error(`EXTENSION_SNAPSHOT_CANONICAL_PACKAGE_CONFIGURATION_INVALID:${entry.id}`);
+      }
+      return {
+        kind: entry.kind,
+        id: entry.id.trim(),
+        version: entry.version.trim(),
+        checksum: entry.checksum.trim().toLowerCase(),
+        configuration: isRecord(entry.configuration) ? { ...entry.configuration } : {},
+      };
+    });
+  };
+  const parseCanonicalGrants = (value: unknown): CanonicalPackageGrant[] => {
+    if (value === undefined) return [];
+    if (!Array.isArray(value)) throw new Error("EXTENSION_SNAPSHOT_CANONICAL_GRANTS_INVALID");
+    return value.map((entry) => {
+      if (!isRecord(entry)
+        || (entry.kind !== "skill" && entry.kind !== "plugin" && entry.kind !== "mcp_adapter")
+        || typeof entry.id !== "string"
+        || (entry.permissions !== undefined && !Array.isArray(entry.permissions))) {
+        throw new Error("EXTENSION_SNAPSHOT_CANONICAL_GRANT_INVALID");
+      }
+      return {
+        kind: entry.kind,
+        id: entry.id.trim(),
+        permissions: list(entry.permissions),
+      };
+    });
+  };
+  const packages = parseCanonicalPackages(configurationExtensions.packages);
+  const packageGrants = Array.isArray(rawGrantValue)
+    ? parseCanonicalGrants(rawGrantValue)
+    : rawGrantValue === undefined || isRecord(rawGrantValue)
+      ? []
+      : (() => { throw new Error("EXTENSION_SNAPSHOT_CANONICAL_GRANTS_INVALID"); })();
+  const legacyExtensions = [configurationExtensions, policyExtensions];
   return {
-    plugins: extensionList<PluginExtensionDeclaration>(raw.plugins, "plugin"),
-    connectors: extensionList<ConnectorExtensionDeclaration>(raw.connectors, "connector"),
-    mcpCapabilities: extensionList<McpCapabilityDeclaration>(raw.mcpCapabilities, "mcp_capability"),
+    plugins: legacyExtensions.flatMap((extensions) => extensionList<PluginExtensionDeclaration>(extensions.plugins, "plugin")),
+    connectors: legacyExtensions.flatMap((extensions) => extensionList<ConnectorExtensionDeclaration>(extensions.connectors, "connector")),
+    mcpCapabilities: legacyExtensions.flatMap((extensions) => extensionList<McpCapabilityDeclaration>(extensions.mcpCapabilities, "mcp_capability")),
     grants: {
-      skillIds: list(rawGrants.skillIds),
-      pluginIds: list(rawGrants.pluginIds),
-      connectorIds: list(rawGrants.connectorIds),
-      capabilityIds: list(rawGrants.capabilityIds),
+      skillIds: [...new Set(legacyExtensions.flatMap((extensions) => list(isRecord(extensions.grants) ? extensions.grants.skillIds : undefined)))],
+      pluginIds: [...new Set(legacyExtensions.flatMap((extensions) => list(isRecord(extensions.grants) ? extensions.grants.pluginIds : undefined)))],
+      connectorIds: [...new Set(legacyExtensions.flatMap((extensions) => list(isRecord(extensions.grants) ? extensions.grants.connectorIds : undefined)))],
+      capabilityIds: [...new Set(legacyExtensions.flatMap((extensions) => list(isRecord(extensions.grants) ? extensions.grants.capabilityIds : undefined)))],
     },
+    packages,
+    packageGrants,
   };
 }
 
@@ -211,6 +278,30 @@ function hydratePackage(
   compatibility: ExtensionPackageCompatibilityRecord | null = null,
 ): ExtensionPackageRecord {
   return { ...row, declaration: parseJson(row.declaration), dependencies, compatibility };
+}
+
+function packageIdentity(kind: ExtensionPackageSelectionKind, id: string): string {
+  return `${kind}:${id}`;
+}
+
+function mergeExtensionDeclarations<T extends ExtensionDeclarationBase>(
+  kind: ExtensionKind,
+  ...declarationLists: readonly (readonly T[])[]
+): T[] {
+  const merged = new Map<string, T>();
+  for (const declarations of declarationLists) {
+    for (const declaration of declarations) {
+      const existing = merged.get(declaration.id);
+      if (existing) {
+        if (existing.version !== declaration.version || existing.checksum.toLowerCase() !== declaration.checksum.toLowerCase()) {
+          throw new Error(`EXTENSION_SNAPSHOT_DECLARATION_CONFLICT:${kind}:${declaration.id}`);
+        }
+        continue;
+      }
+      merged.set(declaration.id, declaration);
+    }
+  }
+  return [...merged.values()];
 }
 
 export class ExtensionSnapshotRepository {
@@ -317,6 +408,113 @@ export class ExtensionSnapshotRepository {
     return withTransaction(this.pool, async (client) => this.insertSnapshot(client, organizationId, actorId, snapshot));
   }
 
+  private async resolveCanonicalPackages(
+    executor: Pick<Pool, "query">,
+    organizationId: string,
+    references: readonly CanonicalPackageReference[],
+    grants: readonly CanonicalPackageGrant[],
+  ): Promise<{
+    skills: SkillExtensionDeclaration[];
+    plugins: PluginExtensionDeclaration[];
+    selectedPackages: SelectedExtensionPackage[];
+    grantedSkillIds: string[];
+    grantedPluginIds: string[];
+  }> {
+    if (references.length === 0 && grants.length === 0) {
+      return { skills: [], plugins: [], selectedPackages: [], grantedSkillIds: [], grantedPluginIds: [] };
+    }
+
+    const selected = new Map<string, CanonicalPackageReference>();
+    for (const reference of references) {
+      if (reference.kind === "mcp_adapter") {
+        // The current database and immutable snapshot contracts use
+        // `mcp_capability`; coercing a canonical adapter would change its
+        // identity and make the AgentSpec selection unverifiable.
+        throw new Error("EXTENSION_SNAPSHOT_MCP_ADAPTER_UNSUPPORTED");
+      }
+      const key = packageIdentity(reference.kind, reference.id);
+      if (selected.has(key)) throw new Error(`EXTENSION_SNAPSHOT_CANONICAL_PACKAGE_DUPLICATE:${key}`);
+      selected.set(key, reference);
+    }
+    const grantByKey = new Map<string, CanonicalPackageGrant>();
+    for (const grant of grants) {
+      if (grant.kind === "mcp_adapter") throw new Error("EXTENSION_SNAPSHOT_MCP_ADAPTER_UNSUPPORTED");
+      const key = packageIdentity(grant.kind, grant.id);
+      if (!selected.has(key)) throw new Error(`EXTENSION_SNAPSHOT_GRANT_NOT_SELECTED:${key}`);
+      if (grantByKey.has(key)) throw new Error(`EXTENSION_SNAPSHOT_CANONICAL_GRANT_DUPLICATE:${key}`);
+      grantByKey.set(key, grant);
+    }
+
+    if (references.length === 0) {
+      return { skills: [], plugins: [], selectedPackages: [], grantedSkillIds: [], grantedPluginIds: [] };
+    }
+
+    const predicates = references.map((_, index) => {
+      const offset = 2 + index * 3;
+      return `(kind = $${offset} AND package_id = $${offset + 1} AND version = $${offset + 2})`;
+    });
+    const values: unknown[] = [organizationId];
+    for (const reference of references) values.push(reference.kind, reference.id, reference.version);
+    const packageResult = await executor.query<ExtensionPackageRow>(
+      `SELECT * FROM agent_extension_packages
+       WHERE organization_id = $1 AND (${predicates.join(" OR ")})
+       ORDER BY package_id, version`,
+      values,
+    );
+    const rowsByKey = new Map<string, ExtensionPackageRow>();
+    for (const row of packageResult.rows) {
+      if (row.organization_id !== organizationId) throw new Error("EXTENSION_SNAPSHOT_PACKAGE_ORGANIZATION_MISMATCH");
+      const key = packageIdentity(row.kind, row.package_id);
+      if (rowsByKey.has(key)) throw new Error(`EXTENSION_SNAPSHOT_PACKAGE_VERSION_AMBIGUOUS:${key}`);
+      rowsByKey.set(key, row);
+    }
+
+    const skills: SkillExtensionDeclaration[] = [];
+    const plugins: PluginExtensionDeclaration[] = [];
+    const selectedPackages: SelectedExtensionPackage[] = [];
+    const grantedSkillIds: string[] = [];
+    const grantedPluginIds: string[] = [];
+    for (const reference of references) {
+      const key = packageIdentity(reference.kind, reference.id);
+      const row = rowsByKey.get(key);
+      if (!row) throw new Error(`EXTENSION_SNAPSHOT_PACKAGE_NOT_FOUND:${key}:${reference.version}`);
+      if (row.version !== reference.version) throw new Error(`EXTENSION_SNAPSHOT_PACKAGE_VERSION_MISMATCH:${key}`);
+      if (row.checksum.toLowerCase() !== reference.checksum.toLowerCase()) {
+        throw new Error(`EXTENSION_SNAPSHOT_PACKAGE_CHECKSUM_MISMATCH:${key}`);
+      }
+      if (row.status === "revoked") throw new Error(`EXTENSION_SNAPSHOT_PACKAGE_REVOKED:${key}`);
+      if (row.status !== "published" && row.status !== "deprecated") {
+        throw new Error(`EXTENSION_SNAPSHOT_PACKAGE_NOT_PUBLISHED:${key}`);
+      }
+      const declaration = parseJson(row.declaration);
+      if (!isRecord(declaration)
+        || declaration.kind !== reference.kind
+        || declaration.id !== reference.id
+        || declaration.version !== reference.version
+        || typeof declaration.checksum !== "string"
+        || declaration.checksum.toLowerCase() !== reference.checksum.toLowerCase()) {
+        throw new Error(`EXTENSION_SNAPSHOT_PACKAGE_DECLARATION_MISMATCH:${key}`);
+      }
+      if (reference.kind === "skill") skills.push(declaration as SkillExtensionDeclaration);
+      if (reference.kind === "plugin") plugins.push(declaration as PluginExtensionDeclaration);
+      const grant = grantByKey.get(key);
+      selectedPackages.push({
+        organizationId,
+        packageVersionId: row.id,
+        kind: reference.kind,
+        id: reference.id,
+        version: reference.version,
+        checksum: reference.checksum.toLowerCase(),
+        status: row.status,
+        configuration: { ...reference.configuration },
+        grantedPermissions: grant?.permissions ?? [],
+      });
+      if (grant?.kind === "skill") grantedSkillIds.push(grant.id);
+      if (grant?.kind === "plugin") grantedPluginIds.push(grant.id);
+    }
+    return { skills, plugins, selectedPackages, grantedSkillIds, grantedPluginIds };
+  }
+
   /**
    * Resolve a version's currently pinned declarative extensions and persist
    * the result in the caller's transaction. Publication and run admission
@@ -357,7 +555,8 @@ export class ExtensionSnapshotRepository {
       [organizationId, agentVersionId],
     );
     const extension = extensionConfig(version);
-    const skillDeclarations: SkillExtensionDeclaration[] = skillResult.rows.map((skill) => ({
+    const canonical = await this.resolveCanonicalPackages(executor, organizationId, extension.packages, extension.packageGrants);
+    const pinnedSkillDeclarations: SkillExtensionDeclaration[] = skillResult.rows.map((skill) => ({
       kind: "skill",
       id: skill.skill_definition_id,
       version: `${skill.version_number}.0.0`,
@@ -369,6 +568,10 @@ export class ExtensionSnapshotRepository {
       requiredCapabilityIds: skill.required_capabilities ?? [],
       requiredConnectorIds: skill.required_connectors ?? [],
     }));
+    const skillDeclarations = mergeExtensionDeclarations("skill", pinnedSkillDeclarations, canonical.skills);
+    const plugins = mergeExtensionDeclarations("plugin", extension.plugins, canonical.plugins);
+    const connectors = mergeExtensionDeclarations("connector", extension.connectors);
+    const mcpCapabilities = mergeExtensionDeclarations("mcp_capability", extension.mcpCapabilities);
     const policy = parseJson(version.policy);
     const requestedSkills = isRecord(policy) && Array.isArray(policy.allowedSkillIds)
       ? policy.allowedSkillIds.filter((entry): entry is string => typeof entry === "string")
@@ -376,15 +579,16 @@ export class ExtensionSnapshotRepository {
     const snapshot = new ExtensionResolver().resolve({
       agentVersionId,
       skills: skillDeclarations,
-      plugins: extension.plugins,
-      connectors: extension.connectors,
-      mcpCapabilities: extension.mcpCapabilities,
+      plugins,
+      connectors,
+      mcpCapabilities,
       grants: {
-        skillIds: [...new Set([...skillDeclarations.map((skill) => skill.id), ...requestedSkills, ...extension.grants.skillIds])],
-        pluginIds: extension.grants.pluginIds,
+        skillIds: [...new Set([...pinnedSkillDeclarations.map((skill) => skill.id), ...requestedSkills, ...extension.grants.skillIds, ...canonical.grantedSkillIds])],
+        pluginIds: [...new Set([...extension.grants.pluginIds, ...canonical.grantedPluginIds])],
         connectorIds: extension.grants.connectorIds,
         capabilityIds: extension.grants.capabilityIds,
       },
+      selectedPackages: canonical.selectedPackages,
     });
     return this.insertSnapshot(executor, organizationId, actorId, snapshot);
   }
