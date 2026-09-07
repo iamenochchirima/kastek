@@ -2210,18 +2210,20 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
       },
     }),
   });
+  const assertCurrentSessionLease = async (input: { organizationId?: string; runId: string; sessionLease?: { sessionKey?: string; ownerId?: string; fencingToken?: string } }): Promise<void> => {
+    if (!input.sessionLease?.sessionKey || !input.sessionLease.ownerId || !input.sessionLease.fencingToken) return;
+    const current = await runs.assertConversationLease({
+      organizationId: input.organizationId ?? "",
+      sessionKey: input.sessionLease.sessionKey,
+      ownerId: input.sessionLease.ownerId,
+      runId: input.runId,
+      fencingToken: input.sessionLease.fencingToken,
+    });
+    if (!current) throw new Error("SESSION_LEASE_FENCED");
+  };
   const activities: AgentRunActivities = {
     async transitionRun(input) {
-      if (input.sessionLease?.sessionKey && input.sessionLease.ownerId && input.sessionLease.fencingToken) {
-        const current = await runs.assertConversationLease({
-          organizationId: input.organizationId ?? "",
-          sessionKey: input.sessionLease.sessionKey,
-          ownerId: input.sessionLease.ownerId,
-          runId: input.runId,
-          fencingToken: input.sessionLease.fencingToken,
-        });
-        if (!current) throw new Error("SESSION_LEASE_FENCED");
-      }
+      await assertCurrentSessionLease(input);
       await runs.transitionRun(input.runId, input.expectedStatus, input.nextStatus);
     },
     async waitForConversationTurn(input) {
@@ -2291,9 +2293,11 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
       }
     },
     async pauseRun(input) {
+      await assertCurrentSessionLease(input);
       await runs.pauseRun(input.runId, input.status, input.output);
     },
     async deliverApprovalPrompt(input) {
+      await assertCurrentSessionLease(input);
       const run = await runs.getRuntimeRunById(input.runId);
       if (!run) throw new Error("Run not found");
       const target = await channels.getApprovalPromptTarget(run.id);
@@ -2429,6 +2433,7 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
       }
     },
     async cancelPendingApproval(input) {
+      await assertCurrentSessionLease(input);
       const run = await runs.getRuntimeRunById(input.runId);
       if (!run) throw new Error("Run not found");
       await approvals.cancel(run.organization_id, run.id, input.providerToolCallId);
@@ -2445,6 +2450,7 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
       });
     },
     async cancelHandoff(input) {
+      await assertCurrentSessionLease(input);
       const run = await runs.getRunById(input.runId);
       if (!run) throw new Error("Run not found");
       await handoffs.cancelForRun({
@@ -2455,6 +2461,7 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
       });
     },
     async completeRun(input) {
+      await assertCurrentSessionLease(input);
       const completed = await runs.completeRun(input.runId, input.output);
       if (completed.conversation_id) {
         try {
@@ -2476,6 +2483,7 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
       }
     },
     async generateConversationTitle(input) {
+      await assertCurrentSessionLease(input);
       try {
         const run = await runs.getRuntimeRunById(input.runId);
         if (!run?.conversation_id) return;
@@ -2537,6 +2545,7 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
       }
     },
     async deliverRunReply(input) {
+      await assertCurrentSessionLease(input);
       const pending = await channels.getRunReplyDelivery(input.runId);
       if (!pending) return;
       if (await controls.isHeld({ organizationId: pending.organization_id, installationId: pending.installation_id, runId: pending.run_id, holdType: "delivery" })) {
@@ -2698,6 +2707,7 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
       }
     },
     async failRun(input) {
+      await assertCurrentSessionLease(input);
       await runs.failRun(input.runId, input.error);
     },
   };
