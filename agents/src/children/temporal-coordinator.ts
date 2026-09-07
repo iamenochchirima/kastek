@@ -9,17 +9,25 @@ import {
 import type { ExecutionScope } from "../runtime/execution-scope";
 import type { AgentBudgetLedger } from "../runtime/budget";
 import {
+  childErrorFrom,
+  childOperationId,
+  childWorkflowId,
+  normalizeChildBudget,
+  normalizeChildRetryPolicy,
+  type ChildRetryPolicy,
+  type TemporalChildWorkflowInput,
+  type TemporalChildWorkflowOutcome,
+} from "./temporal-activation";
+import {
   createChildInvocationScope,
   type ChildInvocationRequest,
   type ChildInvocationResult,
   type ChildInvocationScope,
 } from "./contracts";
+import type { ChildExecutionBudget } from "./execution-kernel";
 
-/** Input envelope sent to the child workflow. The parent scope is never forwarded wholesale. */
-export interface TemporalChildWorkflowInput {
-  scope: ChildInvocationScope;
-  input: unknown;
-}
+export { childWorkflowId } from "./temporal-activation";
+export type { TemporalChildWorkflowInput } from "./temporal-activation";
 
 /** Durable evidence linking the parent admission to the child Temporal execution. */
 export interface ChildInvocationEvidence {
@@ -88,10 +96,9 @@ export interface TemporalChildInvocationCoordinatorOptions {
   workflowType: string;
   taskQueue: string;
   budgetLedger?: AgentBudgetLedger;
-}
-
-export function childWorkflowId(invocationId: string): string {
-  return `agent-child-${invocationId}`;
+  budget?: Partial<ChildExecutionBudget>;
+  timeoutMs?: number;
+  retryPolicy?: Partial<ChildRetryPolicy>;
 }
 
 function errorMessage(error: unknown): string {
@@ -99,7 +106,7 @@ function errorMessage(error: unknown): string {
 }
 
 function errorCode(error: unknown): string {
-  return error instanceof Error && error.name ? error.name : "CHILD_WORKFLOW_FAILED";
+  return childErrorFrom(error).code;
 }
 
 function evidenceFor(
@@ -147,6 +154,14 @@ export class TemporalChildInvocationCoordinator<TOutput = unknown> {
     const { scope, request } = createChildInvocationScope(parent, input);
     this.options.budgetLedger?.consume("child");
     const workflowId = childWorkflowId(scope.invocationId);
+    const workflowInput: TemporalChildWorkflowInput = {
+      scope,
+      input: request.input,
+      operationId: childOperationId(scope),
+      budget: normalizeChildBudget(this.options.budget),
+      timeoutMs: Math.min(Math.max(Math.trunc(this.options.timeoutMs ?? 60_000), 1_000), 3_600_000),
+      retryPolicy: normalizeChildRetryPolicy(this.options.retryPolicy),
+    };
     let handle: TemporalChildWorkflowHandle<TOutput> | undefined;
     let startDisposition: ChildInvocationEvidence["startDisposition"] = "started";
 
@@ -162,7 +177,7 @@ export class TemporalChildInvocationCoordinator<TOutput = unknown> {
             "kasitek.parent_run_id": scope.parentRunId,
             "kasitek.child_agent_version_id": scope.childAgentVersionId,
           },
-          args: [{ scope, input: request.input }],
+          args: [workflowInput],
         });
       } catch (error) {
         if (!(error instanceof WorkflowExecutionAlreadyStartedError)) throw error;
@@ -171,6 +186,13 @@ export class TemporalChildInvocationCoordinator<TOutput = unknown> {
       }
 
       const output = await handle.result();
+      if (isTemporalChildWorkflowOutcome<TOutput>(output)) {
+        return {
+          ...output,
+          invocationId: scope.invocationId,
+          evidence: evidenceFor(scope, request, workflowId, handle, startDisposition),
+        };
+      }
       return {
         invocationId: scope.invocationId,
         status: "succeeded",
@@ -178,12 +200,29 @@ export class TemporalChildInvocationCoordinator<TOutput = unknown> {
         evidence: evidenceFor(scope, request, workflowId, handle, startDisposition),
       };
     } catch (error) {
+      const typed = childErrorFrom(error);
       return {
         invocationId: scope.invocationId,
-        status: "failed",
+        status: childStatusFromError(typed.code),
+        ...(childStatusFromError(typed.code) === "timed_out" ? { termination: "timed_out" as const } : {}),
+        ...(childStatusFromError(typed.code) === "cancelled" ? { termination: "cancelled" as const } : {}),
         error: { code: errorCode(error), message: errorMessage(error) },
         evidence: evidenceFor(scope, request, workflowId, handle, startDisposition),
       };
     }
   }
+}
+
+function isTemporalChildWorkflowOutcome<TOutput>(value: unknown): value is TemporalChildWorkflowOutcome<TOutput> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const candidate = value as Partial<TemporalChildWorkflowOutcome<TOutput>>;
+  return ["succeeded", "failed", "cancelled", "timed_out", "partial"].includes(String(candidate.status))
+    && Boolean(candidate.lineage && typeof candidate.lineage === "object");
+}
+
+function childStatusFromError(code: string): ChildInvocationResult["status"] {
+  const normalized = code.toUpperCase();
+  if (normalized.includes("CANCEL")) return "cancelled";
+  if (normalized.includes("TIMEOUT") || normalized.includes("TIMED_OUT")) return "timed_out";
+  return "failed";
 }

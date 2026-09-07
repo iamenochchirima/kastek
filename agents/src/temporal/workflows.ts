@@ -1,15 +1,34 @@
 import {
+  CancellationScope,
+  ChildWorkflowCancellationType,
   condition,
   defineQuery,
   defineSignal,
+  executeChild,
+  isCancellation,
+  ParentClosePolicy,
   proxyActivities,
   setHandler,
   sleep,
+  workflowInfo,
 } from "@temporalio/workflow";
 import type { RunStatus } from "../domain/types";
 import { sanitizeAssistantResponse } from "../runtime/sanitize";
 import { parseAgentResponse } from "../media/contracts";
 import { buildApprovedToolCompletionMessage } from "../runtime/approved-tool-completion";
+import {
+  childErrorFrom,
+  childFailureIsRetryable,
+  childRetryDelayMs,
+  childWorkflowId,
+  normalizeChildRetryPolicy,
+  type ChildActivationRequest,
+  type ChildAdmissionActivities,
+  type ChildProgressEvidence,
+  type ChildWorkflowActivities,
+  type TemporalChildWorkflowInput,
+  type TemporalChildWorkflowOutcome,
+} from "../children/temporal-activation";
 import type {
   AgentRunActivities,
   ApprovalSignal,
@@ -29,6 +48,23 @@ const activities = proxyActivities<AgentRunActivities>({
     initialInterval: "1 second",
     maximumInterval: "30 seconds",
     maximumAttempts: 5,
+  },
+});
+
+const childActivities = proxyActivities<ChildWorkflowActivities>({
+  scheduleToCloseTimeout: "15 minutes",
+  startToCloseTimeout: "5 minutes",
+  heartbeatTimeout: "20 seconds",
+  retry: { maximumAttempts: 1 },
+});
+
+const childAdmissionActivities = proxyActivities<ChildAdmissionActivities>({
+  scheduleToCloseTimeout: "2 minutes",
+  startToCloseTimeout: "30 seconds",
+  retry: {
+    initialInterval: "1 second",
+    maximumInterval: "10 seconds",
+    maximumAttempts: 3,
   },
 });
 
@@ -61,7 +97,167 @@ export const approvalSignal = defineSignal<[ApprovalSignal]>("agent.approval");
 export const cancellationSignal = defineSignal<[CancellationSignal]>("agent.cancel");
 export const expirationSignal = defineSignal<[ExpirationSignal]>("agent.expire");
 export const externalEventSignal = defineSignal<[ExternalEventSignal]>("agent.external-event");
+export const childInvocationSignal = defineSignal<[ChildActivationRequest]>("agent.child.invoke");
 export const runStatusQuery = defineQuery<RunStatus>("agent.status");
+
+const childProgressLimit = 256;
+const childActivationBatchSize = 4;
+const childActivationQueueLimit = 32;
+
+function childEvidence(
+  input: TemporalChildWorkflowInput,
+  sequence: number,
+  phase: ChildProgressEvidence["phase"],
+  message?: string,
+): ChildProgressEvidence {
+  return {
+    sequence,
+    phase,
+    invocationId: input.scope.invocationId,
+    parentRunId: input.scope.parentRunId,
+    childAgentDefinitionId: input.scope.childAgentDefinitionId,
+    childAgentVersionId: input.scope.childAgentVersionId,
+    depth: 1,
+    occurredAt: new Date().toISOString(),
+    ...(message ? { message: message.slice(0, 500) } : {}),
+    hasPartialResult: false,
+  };
+}
+
+function childLineage(input: TemporalChildWorkflowInput, attempts: number): TemporalChildWorkflowOutcome["lineage"] {
+  const info = workflowInfo();
+  return {
+    operationId: input.operationId,
+    invocationId: input.scope.invocationId,
+    parentRunId: input.scope.parentRunId,
+    parentCorrelationId: input.scope.correlationId,
+    childAgentDefinitionId: input.scope.childAgentDefinitionId,
+    childAgentVersionId: input.scope.childAgentVersionId,
+    childWorkflowId: info.workflowId,
+    childWorkflowRunId: info.runId,
+    attempts,
+  };
+}
+
+async function recordChildProgressBestEffort(input: TemporalChildWorkflowInput, evidence: ChildProgressEvidence): Promise<void> {
+  try {
+    await childActivities.recordChildProgress({ scope: input.scope, operationId: input.operationId, evidence });
+  } catch {
+    // Progress subscribers and journal availability must not alter execution outcome.
+  }
+}
+
+async function executeChildActivityWithTimeout(input: TemporalChildWorkflowInput, attempt: number): Promise<{
+  outcome?: Awaited<ReturnType<ChildWorkflowActivities["executeChild"]>>;
+  error?: { code: string; message: string };
+  timedOut: boolean;
+  cancelled: boolean;
+}> {
+  const activityScope = new CancellationScope();
+  const timeoutScope = new CancellationScope();
+  let timedOut = false;
+  const timer = timeoutScope.run(async () => {
+    await sleep(input.timeoutMs);
+    timedOut = true;
+    activityScope.cancel();
+  }).catch(() => undefined);
+  try {
+    const outcome = await activityScope.run(() => childActivities.executeChild({
+      scope: input.scope,
+      input: input.input,
+      operationId: input.operationId,
+      budget: input.budget,
+      attempt,
+      timeoutMs: input.timeoutMs,
+    }));
+    return { outcome, timedOut: false, cancelled: false };
+  } catch (error) {
+    return {
+      error: childErrorFrom(error, timedOut ? "CHILD_TIMEOUT" : "CHILD_ACTIVITY_FAILED"),
+      timedOut,
+      cancelled: !timedOut && isCancellation(error),
+    };
+  } finally {
+    timeoutScope.cancel();
+    await timer;
+  }
+}
+
+/** Durable child execution. It never calls a provider directly from workflow code. */
+export async function agentChildWorkflow(input: TemporalChildWorkflowInput): Promise<TemporalChildWorkflowOutcome> {
+  const retryPolicy = normalizeChildRetryPolicy(input.retryPolicy);
+  const progress: ChildProgressEvidence[] = [];
+  const appendProgress = async (evidence: ChildProgressEvidence): Promise<void> => {
+    if (progress.length >= childProgressLimit) return;
+    const normalized = { ...evidence, sequence: progress.length + 1 };
+    progress.push(normalized);
+    await recordChildProgressBestEffort(input, normalized);
+  };
+  let attempts = 0;
+  let finalOutcome: TemporalChildWorkflowOutcome | undefined;
+
+  await appendProgress(childEvidence(input, 0, "admitted"));
+  while (attempts < retryPolicy.maximumAttempts) {
+    attempts += 1;
+    await appendProgress(childEvidence(input, 0, "started", `Child attempt ${attempts} started`));
+    const execution = await executeChildActivityWithTimeout(input, attempts);
+    const activityOutcome = execution.outcome;
+    if (activityOutcome?.progress) {
+      for (const evidence of activityOutcome.progress.slice(0, childProgressLimit - progress.length)) {
+        await appendProgress(evidence);
+      }
+    }
+
+    const outcome: TemporalChildWorkflowOutcome = {
+      ...(activityOutcome ?? {
+        status: execution.timedOut ? "timed_out" : execution.cancelled ? "cancelled" : "failed",
+        error: execution.error,
+      }),
+      ...(execution.error && !activityOutcome?.error ? { error: execution.error } : {}),
+      progress,
+      lineage: childLineage(input, attempts),
+    };
+    if (outcome.status === "succeeded" || outcome.status === "partial" || outcome.status === "cancelled" || outcome.status === "timed_out") {
+      finalOutcome = outcome;
+      break;
+    }
+    if (!childFailureIsRetryable(outcome, retryPolicy) || attempts >= retryPolicy.maximumAttempts) {
+      finalOutcome = outcome;
+      break;
+    }
+    await appendProgress(childEvidence(input, 0, "progress", `Retrying child after attempt ${attempts}`));
+    await sleep(childRetryDelayMs(retryPolicy, attempts));
+  }
+
+  finalOutcome ??= {
+    status: "failed",
+    error: { code: "CHILD_RETRY_EXHAUSTED", message: "Child execution retry budget was exhausted" },
+    progress,
+    lineage: childLineage(input, attempts),
+  };
+  const terminalPhase: ChildProgressEvidence["phase"] = finalOutcome.status === "succeeded"
+    ? "completed"
+    : finalOutcome.status === "cancelled"
+      ? "cancelled"
+      : finalOutcome.status === "timed_out"
+        ? "timed_out"
+        : "failed";
+  await appendProgress({
+    ...childEvidence(input, 0, terminalPhase, finalOutcome.error?.message),
+    hasPartialResult: finalOutcome.partialOutput !== undefined,
+  });
+  const completed: TemporalChildWorkflowOutcome = {
+    ...finalOutcome,
+    progress,
+    lineage: childLineage(input, attempts),
+  };
+  try {
+    await childActivities.recordChildOutcome({ scope: input.scope, operationId: input.operationId, outcome: completed });
+  } catch {
+    // The workflow result remains authoritative if journaling is unavailable.
+  }
+  return completed;
+}
 
 /**
  * One workflow owns one run. Approval and cancellation are signals so the worker can
@@ -73,23 +269,88 @@ export async function agentRunWorkflow(input: DurableRunInput): Promise<void> {
   let cancellation: CancellationSignal | undefined;
   let expiration: ExpirationSignal | undefined;
   let externalEvent: ExternalEventSignal | undefined;
+  const pendingChildActivations: ChildActivationRequest[] = [];
+  let cancelActiveChildren: (() => void) | undefined;
   setHandler(runStatusQuery, () => status);
   setHandler(approvalSignal, (value) => {
     approval = value;
   });
   setHandler(cancellationSignal, (value) => {
     cancellation = value;
+    cancelActiveChildren?.();
   });
   setHandler(expirationSignal, (value) => {
     expiration = value;
+    cancelActiveChildren?.();
   });
   setHandler(externalEventSignal, (value) => {
     externalEvent = value;
+  });
+  setHandler(childInvocationSignal, (value) => {
+    if (pendingChildActivations.length < childActivationQueueLimit) pendingChildActivations.push(value);
   });
   const activityScope = () => ({
     ...(input.organizationId ? { organizationId: input.organizationId } : {}),
     ...(input.actorId ? { actorId: input.actorId } : {}),
   });
+
+  const drainChildActivations = async (): Promise<void> => {
+    while (pendingChildActivations.length > 0 && !cancellation && !expiration) {
+      const batch = pendingChildActivations.splice(0, childActivationBatchSize);
+      const admitted = await Promise.all(batch.map((activation) => childAdmissionActivities.admitChildInvocation({
+        parentRunId: input.runId,
+        activation,
+      })));
+      const runnable = admitted.filter((entry): entry is Extract<typeof entry, { status: "admitted" }> => entry.status === "admitted");
+      if (runnable.length === 0) continue;
+
+      const cancellationScope = new CancellationScope();
+      cancelActiveChildren = () => cancellationScope.cancel();
+      try {
+        await cancellationScope.run(async () => {
+          await Promise.all(runnable.map(async ({ workflowInput }) => {
+            try {
+              await executeChild(agentChildWorkflow, {
+                workflowId: childWorkflowId(workflowInput.scope.invocationId),
+                args: [workflowInput],
+                cancellationType: ChildWorkflowCancellationType.WAIT_CANCELLATION_COMPLETED,
+                parentClosePolicy: ParentClosePolicy.REQUEST_CANCEL,
+              });
+            } catch (error) {
+              const cancelled = isCancellation(error) || cancellation !== undefined;
+              const outcome: TemporalChildWorkflowOutcome = {
+                status: cancelled ? "cancelled" : "failed",
+                ...(cancelled ? { termination: "cancelled" as const } : {}),
+                error: childErrorFrom(error, cancelled ? "CHILD_PARENT_CANCELLED" : "CHILD_WORKFLOW_FAILED"),
+                progress: [],
+                lineage: {
+                  operationId: workflowInput.operationId,
+                  invocationId: workflowInput.scope.invocationId,
+                  parentRunId: workflowInput.scope.parentRunId,
+                  parentCorrelationId: workflowInput.scope.correlationId,
+                  childAgentDefinitionId: workflowInput.scope.childAgentDefinitionId,
+                  childAgentVersionId: workflowInput.scope.childAgentVersionId,
+                  childWorkflowId: childWorkflowId(workflowInput.scope.invocationId),
+                  attempts: 0,
+                },
+              };
+              try {
+                await childAdmissionActivities.recordChildOutcome({
+                  scope: workflowInput.scope,
+                  operationId: workflowInput.operationId,
+                  outcome,
+                });
+              } catch {
+                // Parent cancellation/failure must not be replaced by an evidence-write failure.
+              }
+            }
+          }));
+        });
+      } finally {
+        cancelActiveChildren = undefined;
+      }
+    }
+  };
 
   const transition = async (from: RunStatus, to: RunStatus): Promise<void> => {
     await activities.transitionRun({ ...activityScope(), runId: input.runId, expectedStatus: from, nextStatus: to });
@@ -129,6 +390,7 @@ export async function agentRunWorkflow(input: DurableRunInput): Promise<void> {
     let loopStep = input.loopStep ?? 0;
 
     while (true) {
+      await drainChildActivations();
       if (cancellation) {
         await transition("running", "cancelled");
         return;
@@ -147,6 +409,15 @@ export async function agentRunWorkflow(input: DurableRunInput): Promise<void> {
         if (result.status === "awaiting_human") {
           await activities.cancelHandoff({ ...activityScope(), runId: input.runId, reason: (cancellation as CancellationSignal).reason });
         }
+        await transition("running", "cancelled");
+        return;
+      }
+      if (expiration) {
+        await transition("running", "expired");
+        return;
+      }
+      await drainChildActivations();
+      if (cancellation) {
         await transition("running", "cancelled");
         return;
       }

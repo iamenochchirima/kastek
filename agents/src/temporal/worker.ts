@@ -23,6 +23,7 @@ import { runWithRequiredDatabaseContext } from "../db/context";
 import { AgentRepository } from "../db/repositories/agent-repository";
 import { ExtensionSnapshotRepository } from "../db/repositories/extension-snapshot-repository";
 import { assertKasiAiReleaseCurrent } from "../system/kasiai";
+import { createChildWorkflowActivities } from "../children/temporal-activities";
 
 async function main(): Promise<void> {
   const config = loadConfig();
@@ -141,7 +142,10 @@ async function main(): Promise<void> {
       activity: [temporalActivityInterceptors],
       workflowModules: [require.resolve("./workflow-interceptors")],
     },
-    activities: createActivities(pool, { config }),
+    activities: {
+      ...createActivities(pool, { config }),
+      ...createChildWorkflowActivities(pool),
+    },
     maxConcurrentActivityTaskExecutions: 20,
     maxConcurrentWorkflowTaskExecutions: 100,
   });

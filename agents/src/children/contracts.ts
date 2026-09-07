@@ -43,12 +43,14 @@ export interface ChildInvocationScope {
   resourceGrants: string[];
 }
 
-export type ChildInvocationStatus = "succeeded" | "failed";
+export type ChildInvocationStatus = "succeeded" | "failed" | "cancelled" | "timed_out" | "partial";
 
 export interface ChildInvocationResult<TOutput = unknown> {
   invocationId: string;
   status: ChildInvocationStatus;
   output?: TOutput;
+  partialOutput?: unknown;
+  termination?: "cancelled" | "timed_out";
   error?: {
     code: string;
     message: string;
