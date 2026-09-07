@@ -98,6 +98,46 @@ describe("runtime telemetry accumulator", () => {
     expect(snapshot.context.tokens).toBeUndefined();
   });
 
+  it("keeps queue and prompt-to-first-token timing on the durable attempt", () => {
+    const telemetry = new RuntimeTelemetryAccumulator();
+    telemetry.apply({
+      type: "model.started",
+      payload: {
+        operationKey: "model:timing",
+        provider: "openai",
+        model: "test",
+        queuedAt: "2026-09-07T00:00:00.000Z",
+        startedAt: "2026-09-07T00:00:00.250Z",
+      },
+      observedAt: "2026-09-07T00:00:00.250Z",
+    });
+    telemetry.apply({
+      type: "model.first_token",
+      payload: {
+        operationKey: "model:timing",
+        firstTokenAt: "2026-09-07T00:00:01.750Z",
+      },
+      observedAt: "2026-09-07T00:00:01.750Z",
+    });
+    const snapshot = telemetry.apply({
+      type: "model.completed",
+      payload: {
+        operationKey: "model:timing",
+        provider: "openai",
+        model: "test",
+        outputTokens: 8,
+        latencyMs: 2_000,
+      },
+      observedAt: "2026-09-07T00:00:02.250Z",
+    });
+
+    expect(snapshot.modelAttempt).toMatchObject({
+      queueMs: 250,
+      timeToFirstTokenMs: 1_500,
+      latencyMs: 2_000,
+    });
+  });
+
   it("keeps the original turn clock while recording waits and retries", () => {
     const telemetry = new RuntimeTelemetryAccumulator();
     telemetry.apply({

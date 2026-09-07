@@ -51,6 +51,10 @@ export interface RuntimeModelAttemptSnapshot {
   readonly startedAt?: string;
   readonly firstTokenAt?: string;
   readonly completedAt?: string;
+  /** Time spent admitted/queued before the provider call began. */
+  readonly queueMs?: number;
+  /** Time from provider call start until the first streamed token. */
+  readonly timeToFirstTokenMs?: number;
   readonly latencyMs?: number;
   readonly outputTokens?: number;
   readonly throughputTokensPerSecond?: number;
@@ -200,13 +204,16 @@ export class RuntimeTelemetryAccumulator {
         };
       }
     } else if (input.type === "model.started") {
+      const queuedAt = stringValue(payload.queuedAt);
+      const startedAt = stringValue(payload.startedAt) ?? observedAt;
       const modelAttempt: RuntimeModelAttemptSnapshot = {
         status: "running",
         provider: stringValue(payload.provider),
         model: stringValue(payload.model),
         operationKey: stringValue(payload.operationKey),
-        queuedAt: stringValue(payload.queuedAt),
-        startedAt: stringValue(payload.startedAt) ?? observedAt,
+        ...(queuedAt ? { queuedAt } : {}),
+        startedAt,
+        ...(queuedAt ? { queueMs: elapsedBetween(queuedAt, startedAt) } : {}),
       };
       this.snapshotState = {
         ...this.snapshotState,
@@ -222,12 +229,19 @@ export class RuntimeTelemetryAccumulator {
       const reportedBasis = stringValue(payload.contextMeasurementBasis);
       const providerReported = reportedBasis === "provider_reported";
       const usageAnchor = recordValue(payload.contextUsageAnchor);
+      const firstTokenAt = stringValue(payload.firstTokenAt) ?? this.snapshotState.modelAttempt?.firstTokenAt;
+      const timeToFirstTokenMs = nonNegativeNumber(payload.timeToFirstTokenMs)
+        ?? (firstTokenAt && this.snapshotState.modelAttempt?.startedAt
+          ? elapsedBetween(this.snapshotState.modelAttempt.startedAt, firstTokenAt)
+          : undefined);
       const modelAttempt: RuntimeModelAttemptSnapshot = {
         ...this.snapshotState.modelAttempt,
         status: "completed" as const,
         provider: stringValue(payload.provider) ?? this.snapshotState.modelAttempt?.provider,
         model: stringValue(payload.model) ?? this.snapshotState.modelAttempt?.model,
         completedAt: stringValue(payload.completedAt) ?? observedAt,
+        ...(firstTokenAt ? { firstTokenAt } : {}),
+        ...(timeToFirstTokenMs === undefined ? {} : { timeToFirstTokenMs }),
         ...(latencyMs !== undefined ? { latencyMs } : {}),
         ...(outputTokens !== undefined ? { outputTokens } : {}),
         ...(latencyMs && outputTokens !== undefined ? { throughputTokensPerSecond: (outputTokens / latencyMs) * 1_000 } : {}),
@@ -265,10 +279,16 @@ export class RuntimeTelemetryAccumulator {
         rolling: rollingStats(this.samples),
       };
     } else if (input.type === "model.first_token") {
+      const firstTokenAt = stringValue(payload.firstTokenAt) ?? observedAt;
+      const timeToFirstTokenMs = nonNegativeNumber(payload.timeToFirstTokenMs)
+        ?? (this.snapshotState.modelAttempt?.startedAt
+          ? elapsedBetween(this.snapshotState.modelAttempt.startedAt, firstTokenAt)
+          : undefined);
       const modelAttempt: RuntimeModelAttemptSnapshot = {
         ...this.snapshotState.modelAttempt,
         status: "streaming",
-        firstTokenAt: stringValue(payload.firstTokenAt) ?? observedAt,
+        firstTokenAt,
+        ...(timeToFirstTokenMs === undefined ? {} : { timeToFirstTokenMs }),
       };
       this.snapshotState = {
         ...this.snapshotState,
@@ -377,6 +397,13 @@ function integerValue(value: unknown): number | undefined {
 
 function nonNegativeNumber(value: unknown): number | undefined {
   return typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : undefined;
+}
+
+function elapsedBetween(start: string, end: string): number | undefined {
+  const startMs = Date.parse(start);
+  const endMs = Date.parse(end);
+  if (!Number.isFinite(startMs) || !Number.isFinite(endMs)) return undefined;
+  return Math.max(0, endMs - startMs);
 }
 
 function contextDecision(value: unknown): ContextPlanDecision | undefined {

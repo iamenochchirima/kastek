@@ -249,6 +249,8 @@ function RuntimeTelemetryDetail({ telemetry }: { telemetry: AgentRuntimeTelemetr
         <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-muted-foreground">
           <dt>Attempt</dt><dd className="text-right text-foreground">{telemetry.modelAttempt?.status ?? "—"}</dd>
           <dt>Model</dt><dd className="truncate text-right text-foreground">{telemetry.modelAttempt?.model ?? "—"}</dd>
+          <dt>Queue</dt><dd className="text-right text-foreground">{displayDuration(telemetry.modelAttempt?.queueMs)}</dd>
+          <dt>First token</dt><dd className="text-right text-foreground">{displayDuration(telemetry.modelAttempt?.timeToFirstTokenMs)}</dd>
           <dt>Latency</dt><dd className="text-right text-foreground">{displayDuration(telemetry.modelAttempt?.latencyMs)}</dd>
           <dt>Output</dt><dd className="text-right text-foreground">{displayNumber(telemetry.modelAttempt?.outputTokens)} tokens</dd>
           <dt>Attempts</dt><dd className="text-right text-foreground">{telemetry.attempts.length}</dd>

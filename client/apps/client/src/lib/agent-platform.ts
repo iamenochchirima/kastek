@@ -480,8 +480,12 @@ export type AgentRuntimeTelemetry = {
     provider?: string;
     model?: string;
     operationKey?: string;
+    queuedAt?: string;
     startedAt?: string;
+    firstTokenAt?: string;
     completedAt?: string;
+    queueMs?: number;
+    timeToFirstTokenMs?: number;
     latencyMs?: number;
     outputTokens?: number;
     throughputTokensPerSecond?: number;
@@ -496,6 +500,8 @@ export type AgentRuntimeTelemetry = {
     startedAt?: string;
     firstTokenAt?: string;
     completedAt?: string;
+    queueMs?: number;
+    timeToFirstTokenMs?: number;
     latencyMs?: number;
     outputTokens?: number;
     throughputTokensPerSecond?: number;
