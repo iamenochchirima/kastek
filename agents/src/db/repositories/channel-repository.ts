@@ -582,6 +582,27 @@ export class ChannelRepository {
     });
   }
 
+  public async markDeliveryUnknown(input: { organizationId: string; attemptId: string; error: Record<string, unknown> }): Promise<DeliveryAttemptRecord> {
+    return withTransaction(this.pool, async (client) => {
+      const result = await client.query<DeliveryAttemptRecord>(
+        `UPDATE delivery_attempts SET status = 'unknown', error = $3::jsonb
+         WHERE id = $1 AND organization_id = $2 AND status IN ('queued', 'sending')
+         RETURNING *`,
+        [input.attemptId, input.organizationId, JSON.stringify(input.error)],
+      );
+      if (!result.rows[0]) throw new Error("Delivery attempt is terminal or missing");
+      const message = await client.query<ConversationMessageAnalyticsRecord>(
+        "UPDATE messages SET delivery_status = 'unknown' WHERE id = $1 AND delivery_status IS DISTINCT FROM 'unknown' RETURNING *",
+        [result.rows[0].message_id],
+      );
+      if (message.rows[0]) {
+        const context = await loadAgentConversationAnalyticsContext(client, input.organizationId, message.rows[0].conversation_id);
+        await enqueueAgentConversationMessage(client, context, message.rows[0], "delivery_updated");
+      }
+      return result.rows[0];
+    });
+  }
+
   public async updateProviderDeliveryStatus(input: {
     organizationId: string;
     providerMessageId: string;

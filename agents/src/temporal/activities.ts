@@ -2606,17 +2606,30 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
         });
       } catch (error) {
         const reason = error instanceof Error ? error.message : "Channel delivery failed";
-        if (reason === "CHANNEL_DELIVERY_UNKNOWN" || reason.includes("UNKNOWN")) {
+        const deliveryOutcomeUnknown = reason === "CHANNEL_DELIVERY_UNKNOWN" || reason.includes("UNKNOWN");
+        if (deliveryOutcomeUnknown) {
           await deliveryObligations.unknown({ obligationId: obligation.id, claimId: claimed ? obligationClaimId : undefined, reason }).catch(() => undefined);
         } else {
           await deliveryObligations.fail({ obligationId: obligation.id, claimId: claimed ? obligationClaimId : undefined, reason }).catch(() => undefined);
         }
         if (claimed) {
-          await channels.markDeliveryFailed({
-            organizationId: pending.organization_id,
-            attemptId: pending.attempt_id,
-            error: { code: "CHANNEL_DELIVERY_FAILED", message: reason },
-          });
+          const deliveryError = {
+            code: deliveryOutcomeUnknown ? "CHANNEL_DELIVERY_UNKNOWN" : "CHANNEL_DELIVERY_FAILED",
+            message: reason,
+          };
+          if (deliveryOutcomeUnknown) {
+            await channels.markDeliveryUnknown({
+              organizationId: pending.organization_id,
+              attemptId: pending.attempt_id,
+              error: deliveryError,
+            });
+          } else {
+            await channels.markDeliveryFailed({
+              organizationId: pending.organization_id,
+              attemptId: pending.attempt_id,
+              error: deliveryError,
+            });
+          }
         }
         await runSteps.finishStep({ stepId: deliveryStep.id, status: "failed", error: { code: "CHANNEL_DELIVERY_FAILED", message: error instanceof Error ? error.message : "Channel delivery failed" } });
         await runs.appendEvent({
