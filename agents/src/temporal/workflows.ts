@@ -38,6 +38,7 @@ import type {
   ExpirationSignal,
   ExternalEventSignal,
   ResumeApprovedToolCall,
+  SessionLeaseAdmission,
 } from "./contracts";
 
 const activities = proxyActivities<AgentRunActivities>({
@@ -269,6 +270,7 @@ export async function agentRunWorkflow(input: DurableRunInput): Promise<void> {
   let cancellation: CancellationSignal | undefined;
   let expiration: ExpirationSignal | undefined;
   let externalEvent: ExternalEventSignal | undefined;
+  let sessionLease: SessionLeaseAdmission | undefined;
   const pendingChildActivations: ChildActivationRequest[] = [];
   let cancelActiveChildren: (() => void) | undefined;
   setHandler(runStatusQuery, () => status);
@@ -292,6 +294,7 @@ export async function agentRunWorkflow(input: DurableRunInput): Promise<void> {
   const activityScope = () => ({
     ...(input.organizationId ? { organizationId: input.organizationId } : {}),
     ...(input.actorId ? { actorId: input.actorId } : {}),
+    ...(sessionLease ? { sessionLease } : {}),
   });
 
   const drainChildActivations = async (): Promise<void> => {
@@ -375,10 +378,16 @@ export async function agentRunWorkflow(input: DurableRunInput): Promise<void> {
   try {
     await transition("received", "queued");
     const waitForConversationTurn = (activities as unknown as {
-      waitForConversationTurn?: (input: { runId: string; organizationId?: string; actorId?: string }) => Promise<boolean>;
+      waitForConversationTurn?: (input: { runId: string; organizationId?: string; actorId?: string }) => Promise<boolean | SessionLeaseAdmission>;
     }).waitForConversationTurn;
     if (waitForConversationTurn) {
-      while (!(await waitForConversationTurn({ ...activityScope(), runId: input.runId }))) {
+      while (true) {
+        const admission = await waitForConversationTurn({ ...activityScope(), runId: input.runId });
+        const acquired = typeof admission === "boolean" ? admission : admission.acquired;
+        if (acquired) {
+          sessionLease = typeof admission === "boolean" ? undefined : admission;
+          break;
+        }
         // The workflow remains durable and does not hold an activity worker
         // while an earlier message in this session is still active.
         await sleep("1 second");
@@ -399,7 +408,7 @@ export async function agentRunWorkflow(input: DurableRunInput): Promise<void> {
         await transition("running", "expired");
         return;
       }
-      const result = await activities.executeLoop({ ...activityScope(), runId: input.runId, loopStep, resumeApprovedToolCall, resumeExternalEvent });
+      const result = await activities.executeLoop({ ...activityScope(), runId: input.runId, loopStep, resumeApprovedToolCall, resumeExternalEvent, sessionLease });
       resumeApprovedToolCall = undefined;
       resumeExternalEvent = undefined;
       // Temporal delivers signals between activity completions. This check makes a

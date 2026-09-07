@@ -57,6 +57,7 @@ export interface ActivityScope {
   organizationId?: string;
   /** Originating actor used for audit context; it is not an authorization grant. */
   actorId?: string;
+  sessionLease?: SessionLeaseAdmission;
 }
 
 export interface DurableRunInput extends ActivityScope {
@@ -65,6 +66,15 @@ export interface DurableRunInput extends ActivityScope {
   loopStep?: number;
   resumeApprovedToolCall?: ResumeApprovedToolCall;
   resumeExternalEvent?: ExternalEventSignal;
+  /** Lease epoch admitted by the session coordinator; stale epochs fail closed. */
+  sessionLease?: SessionLeaseAdmission;
+}
+
+export interface SessionLeaseAdmission {
+  acquired: boolean;
+  sessionKey?: string;
+  ownerId?: string;
+  fencingToken?: string;
 }
 
 export interface TransitionRunActivityInput extends ActivityScope {
@@ -76,7 +86,7 @@ export interface TransitionRunActivityInput extends ActivityScope {
 export interface AgentRunActivities {
   transitionRun(input: TransitionRunActivityInput): Promise<void>;
   /** Durable session serializer; omitted by legacy test-only activity fakes. */
-  waitForConversationTurn?(input: ActivityScope & { runId: string }): Promise<boolean>;
+  waitForConversationTurn?(input: ActivityScope & { runId: string }): Promise<boolean | SessionLeaseAdmission>;
   executeLoop(input: DurableRunInput): Promise<DurableAgentLoopResult>;
   /** Read the Core-owned batch state without creating another approval or effect. */
   getContentPublishBatchStatus(input: ActivityScope & { runId: string; batchId: string }): Promise<ContentPublishBatchStatusActivityResult>;

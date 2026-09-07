@@ -2210,19 +2210,36 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
   });
   const activities: AgentRunActivities = {
     async transitionRun(input) {
+      if (input.sessionLease?.sessionKey && input.sessionLease.ownerId && input.sessionLease.fencingToken) {
+        const current = await runs.assertConversationLease({
+          organizationId: input.organizationId ?? "",
+          sessionKey: input.sessionLease.sessionKey,
+          ownerId: input.sessionLease.ownerId,
+          runId: input.runId,
+          fencingToken: input.sessionLease.fencingToken,
+        });
+        if (!current) throw new Error("SESSION_LEASE_FENCED");
+      }
       await runs.transitionRun(input.runId, input.expectedStatus, input.nextStatus);
     },
     async waitForConversationTurn(input) {
       const run = await runs.getRunById(input.runId);
       if (!run) throw new Error("Run not found");
-      return runs.canAcquireConversationTurn(run.organization_id, run.id);
+      return runs.acquireConversationTurn(run.organization_id, run.id);
     },
     async executeLoop(input) {
       const run = await runs.getRuntimeRunById(input.runId);
       if (!run) throw new Error("Run not found");
-      if (!(await runs.canAcquireConversationTurn(run.organization_id, run.id))) {
+      const admission = await runs.acquireConversationTurn(run.organization_id, run.id);
+      if (!admission.acquired) {
         throw new Error("SESSION_LEASE_LOST");
       }
+      if (input.sessionLease?.fencingToken !== undefined && input.sessionLease.fencingToken !== admission.fencingToken) {
+        throw new Error("SESSION_LEASE_FENCED");
+      }
+      const sessionLease = admission.sessionKey && admission.fencingToken
+        ? { sessionKey: admission.sessionKey, fencingToken: admission.fencingToken }
+        : undefined;
       if (isMcpToolRun(run.input)) {
         return executeMcpToolRun(
           run,
@@ -2239,9 +2256,10 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
           harness.capabilities,
           coreClient,
           toolInvocationLifecycle,
+          sessionLease,
         );
       }
-      return executeLoopForRun(run, input.resumeApprovedToolCall, input.resumeExternalEvent, input.loopStep, runs, modelCalls, runBudgets, conversations, memory, knowledge, skills, remoteMcpProviders, toolInvocations, approvals, effectReceipts, runSteps, toolGrants, installationGrants, summaries, killSwitches, controls, kasiaiPreferences, gateway, credentials, tools, harness, workflowState, workflowCheckpoints, modelPricing, creditPricing, creditBillingMode, coreClient, conversationActions, options.config?.TEMPORAL_STEP_ACTIVITIES_ENABLED === true, toolInvocationLifecycle);
+      return executeLoopForRun(run, input.resumeApprovedToolCall, input.resumeExternalEvent, input.loopStep, runs, modelCalls, runBudgets, conversations, memory, knowledge, skills, remoteMcpProviders, toolInvocations, approvals, effectReceipts, runSteps, toolGrants, installationGrants, summaries, killSwitches, controls, kasiaiPreferences, gateway, credentials, tools, harness, workflowState, workflowCheckpoints, modelPricing, creditPricing, creditBillingMode, coreClient, conversationActions, options.config?.TEMPORAL_STEP_ACTIVITIES_ENABLED === true, toolInvocationLifecycle, sessionLease);
     },
     async getContentPublishBatchStatus(input) {
       const run = await runs.getRuntimeRunById(input.runId);
@@ -2743,8 +2761,10 @@ async function executeMcpToolRun(
   capabilities: CapabilityRuntime,
   coreClient: KasitekCoreReadClient | undefined,
   toolInvocationLifecycle: ReturnType<typeof createToolInvocationLifecycle>,
+  sessionLease?: { sessionKey: string; fencingToken: string },
 ) {
   if (!isMcpToolRun(run.input)) throw new Error("Invalid MCP run input");
+  const executionScope = executionScopeFromRun(run, sessionLease);
   const invocation = resumeApprovedToolCall ?? {
     id: run.input.mcpTool.toolCallId,
     name: run.input.mcpTool.name,
@@ -2762,7 +2782,7 @@ async function executeMcpToolRun(
   const approvalRecord = resumeApprovedToolCall ? await approvals.getForRun(run.organization_id, run.id) : null;
   const resourceSnapshot = resumeApprovedToolCall?.approval.resourceSnapshot
     ?? approvalRecord?.resource_snapshot
-    ?? await buildApprovalResourceSnapshotFromCore(coreClient, toolInvocationContextFromScope(executionScopeFromRun(run)), invocation.name, invocation.arguments);
+    ?? await buildApprovalResourceSnapshotFromCore(coreClient, toolInvocationContextFromScope(executionScope), invocation.name, invocation.arguments);
   const grantedTools = await toolGrants.effectiveTools(run.organization_id, run.agent_version_id, run.installation_id);
   // New direct calls must be granted before a proposal is created. Resumed
   // approvals are re-authorized in the guarded path below so revocation closes
@@ -2887,7 +2907,7 @@ async function executeMcpToolRun(
         }
         effectTransitioned = true;
       } : undefined,
-      context: toolInvocationContextFromScope(executionScopeFromRun(run), {
+      context: toolInvocationContextFromScope(executionScope, {
         approvalSnapshotHash: approvalSnapshotHashFromResource(resourceSnapshot),
       }),
       operationId: invocation.id,
@@ -2972,6 +2992,7 @@ async function executeLoopForRun(
   conversationActions: ConversationActionService,
   stepActivitiesEnabled: boolean,
   toolInvocationLifecycle: ReturnType<typeof createToolInvocationLifecycle>,
+  sessionLease?: { sessionKey: string; fencingToken: string },
 ) {
   if (run.installation_status !== "active") throw new Error("INSTALLATION_NOT_ACTIVE");
   const journal = new PostgresExecutionJournal(new RunRepositoryExecutionJournalStore(runs));
@@ -3061,7 +3082,7 @@ async function executeLoopForRun(
   // installation grant and are never exposed as external business actions.
   addAgentMediaHarnessTools(allowedTools);
   const executionScope = {
-    ...executionScopeFromRun(run),
+    ...executionScopeFromRun(run, sessionLease),
     capabilityGrants: [...allowedTools],
   };
   if (!(await controls.isFeatureEnabled(run.organization_id, "agent_execution_enabled", run.installation_id))) throw new Error("AGENT_EXECUTION_FLAG_DISABLED");
@@ -3273,7 +3294,7 @@ async function executeLoopForRun(
     },
   });
   await journal.append({
-    scope: executionScopeFromRun(run),
+    scope: executionScope,
     event: {
       kind: "context.assembled",
       data: {
@@ -3298,7 +3319,7 @@ async function executeLoopForRun(
       payload: { error, decision: context.decision, budget: context.budget },
     });
     await journal.append({
-      scope: executionScopeFromRun(run),
+      scope: executionScope,
       event: {
         kind: "harness.turn",
         data: { type: "loop.limited", iteration: 0, payload: { reason: "context_minimum_exceeds_budget", decision: context.decision } },
@@ -3504,7 +3525,7 @@ async function executeLoopForRun(
         usedTools.add(proposal.name);
         const resourceSnapshot = proposal.requiresApproval && approvedResourceSnapshot
           ? approvedResourceSnapshot
-          : await buildApprovalResourceSnapshotFromCore(coreClient, toolInvocationContextFromScope(executionScopeFromRun(run)), proposal.name, proposal.arguments);
+          : await buildApprovalResourceSnapshotFromCore(coreClient, toolInvocationContextFromScope(executionScope), proposal.name, proposal.arguments);
         if (proposal.requiresApproval) {
           await approvals.createPending({
             organizationId: run.organization_id,
@@ -3541,7 +3562,7 @@ async function executeLoopForRun(
         const manifest = tools.get(execution.name);
         const resourceSnapshot = execution.requiresApproval && approvedResourceSnapshot
           ? approvedResourceSnapshot
-          : await buildApprovalResourceSnapshotFromCore(coreClient, toolInvocationContextFromScope(executionScopeFromRun(run)), execution.name, execution.arguments);
+          : await buildApprovalResourceSnapshotFromCore(coreClient, toolInvocationContextFromScope(executionScope), execution.name, execution.arguments);
         if (manifest?.riskClass === "external-effect") {
           if (!(await controls.isFeatureEnabled(run.organization_id, "effect_execution_enabled", run.installation_id))) throw new Error("AGENT_EFFECT_FLAG_DISABLED");
           if (await controls.isHeld({ organizationId: run.organization_id, installationId: run.installation_id, runId: run.id, holdType: "effects" })) throw new Error("AGENT_EFFECT_HOLD_ACTIVE");
@@ -3807,7 +3828,7 @@ async function executeLoopForRun(
     onEvent: async (event) => {
       activityHeartbeat({ phase: event.type, iteration: event.iteration });
       await journal.append({
-        scope: executionScopeFromRun(run),
+        scope: executionScope,
         event: journalHarnessEvent(event),
       });
       await runs.appendEvent({
@@ -3822,7 +3843,7 @@ async function executeLoopForRun(
       usedTools.add(proposal.name);
       const resourceSnapshot = proposal.requiresApproval && approvedResourceSnapshot
         ? approvedResourceSnapshot
-        : await buildApprovalResourceSnapshotFromCore(coreClient, toolInvocationContextFromScope(executionScopeFromRun(run)), proposal.name, proposal.arguments);
+        : await buildApprovalResourceSnapshotFromCore(coreClient, toolInvocationContextFromScope(executionScope), proposal.name, proposal.arguments);
       await toolInvocations.recordProposal({
         organizationId: run.organization_id,
         runId: run.id,
@@ -3871,7 +3892,7 @@ async function executeLoopForRun(
       const manifest = tools.get(execution.name);
       const resourceSnapshot = execution.requiresApproval && approvedResourceSnapshot
         ? approvedResourceSnapshot
-        : await buildApprovalResourceSnapshotFromCore(coreClient, toolInvocationContextFromScope(executionScopeFromRun(run)), execution.name, execution.arguments);
+        : await buildApprovalResourceSnapshotFromCore(coreClient, toolInvocationContextFromScope(executionScope), execution.name, execution.arguments);
       if (manifest?.riskClass === "external-effect") {
         if (!(await controls.isFeatureEnabled(run.organization_id, "effect_execution_enabled", run.installation_id))) throw new Error("AGENT_EFFECT_FLAG_DISABLED");
         if (await controls.isHeld({ organizationId: run.organization_id, installationId: run.installation_id, runId: run.id, holdType: "effects" })) throw new Error("AGENT_EFFECT_HOLD_ACTIVE");
@@ -4088,7 +4109,7 @@ async function executeConfiguredWorkflow(input: {
   const toolSequence = { value: 0 };
   const usedTools = new Set<string>();
   const workflowJournal = new PostgresExecutionJournal(new RunRepositoryExecutionJournalStore(input.runRepository));
-  const workflowJournalScope = executionScopeFromRun(input.run);
+  const workflowJournalScope = input.modelToolContext.scope;
   let authorizationRequired: ReturnType<typeof findAuthorizationRequirement>;
   let lastModelResponse: ModelResponse | undefined;
 
@@ -4120,7 +4141,7 @@ async function executeConfiguredWorkflow(input: {
     const persistedApproval = manifest.requiresApproval ? await input.approvals.getForRun(input.run.organization_id, input.run.id) : null;
     const resourceSnapshot = request.approved && persistedApproval?.provider_tool_call_id === providerToolCallId
       ? persistedApproval.resource_snapshot
-      : await buildApprovalResourceSnapshotFromCore(input.coreClient, toolInvocationContextFromScope(executionScopeFromRun(input.run)), request.name, request.arguments);
+      : await buildApprovalResourceSnapshotFromCore(input.coreClient, input.modelToolContext, request.name, request.arguments);
     const step = await input.runSteps.startStep({ runId: input.run.id, organizationId: input.run.organization_id, stepType: "tool", input: { toolCallId: providerToolCallId, name: request.name, argumentsHash } });
     await input.toolInvocations.recordProposal({
       organizationId: input.run.organization_id,
@@ -4154,7 +4175,7 @@ async function executeConfiguredWorkflow(input: {
       const result = await withActivityHeartbeat({ phase: "workflow.tool.running", nodeId: request.nodeId, tool: request.name }, () => input.harness.capabilities.invoke({
         name: request.name,
         arguments: request.arguments,
-        context: toolInvocationContextFromScope(executionScopeFromRun(input.run), {
+        context: toolInvocationContextFromScope(input.modelToolContext.scope, {
           memoryPolicy: input.run.policy && typeof input.run.policy.memory === "object" && !Array.isArray(input.run.policy.memory) ? input.run.policy.memory as Record<string, unknown> : undefined,
           approvalSnapshotHash: approvalSnapshotHashFromResource(resourceSnapshot),
           signal: currentActivitySignal(),
@@ -4290,7 +4311,7 @@ async function executeConfiguredWorkflow(input: {
     const approvalAlreadyRecorded = executionGraph.nodes.find((node) => node.id === result.pausedAt)?.type === "agent_loop";
     if (!approvalAlreadyRecorded) {
       await input.toolInvocations.recordProposal({ organizationId: input.run.organization_id, runId: input.run.id, providerToolCallId: pending.id, sequenceNumber: toolSequence.value + 1, toolName: pending.name, toolVersion: manifest.version, riskClass: manifest.riskClass, argumentsHash: pending.argumentsHash, arguments: pending.arguments, requiresApproval: true });
-      await input.approvals.createPending({ organizationId: input.run.organization_id, installationId: input.run.installation_id, runId: input.run.id, providerToolCallId: pending.id, capability: pending.name, capabilityVersion: manifest.version, argumentsHash: pending.argumentsHash, resourceSnapshot: await buildApprovalResourceSnapshotFromCore(input.coreClient, toolInvocationContextFromScope(executionScopeFromRun(input.run)), pending.name, pending.arguments), previewRevision: pending.argumentsHash, policyRevision: "v1", permittedEffectKey: `${input.run.id}:${pending.id}`, expiresAt: new Date(Date.now() + 30 * 60 * 1000).toISOString() });
+      await input.approvals.createPending({ organizationId: input.run.organization_id, installationId: input.run.installation_id, runId: input.run.id, providerToolCallId: pending.id, capability: pending.name, capabilityVersion: manifest.version, argumentsHash: pending.argumentsHash, resourceSnapshot: await buildApprovalResourceSnapshotFromCore(input.coreClient, input.modelToolContext, pending.name, pending.arguments), previewRevision: pending.argumentsHash, policyRevision: "v1", permittedEffectKey: `${input.run.id}:${pending.id}`, expiresAt: new Date(Date.now() + 30 * 60 * 1000).toISOString() });
       if (manifest.riskClass === "external-effect") await input.effectReceipts.reserve({ organizationId: input.run.organization_id, installationId: input.run.installation_id, runId: input.run.id, providerToolCallId: pending.id, capability: pending.name, capabilityVersion: manifest.version, argumentsHash: pending.argumentsHash, idempotencyKey: `${input.run.id}:${pending.name}:${pending.argumentsHash}` });
     }
     await input.workflowState.put({ organizationId: input.run.organization_id, runId: input.run.id, expectedRevision: persisted?.revision, state: { __workflowNodeId: result.pausedAt, __workflowState: result.state } });
@@ -4306,7 +4327,7 @@ async function executeConfiguredWorkflow(input: {
   }
   if (result.status === "awaiting_human") {
     const offer = input.run.conversation_id
-      ? await input.conversationActions.offerHandoff(toolInvocationContextFromScope(executionScopeFromRun(input.run)), {
+      ? await input.conversationActions.offerHandoff(input.modelToolContext, {
         reason: "configured_workflow",
         summary: `Configured workflow requested human handoff${result.waitingFor ? ` (${result.waitingFor})` : ""}.`,
         metadata: { handoffKey: result.waitingFor ?? result.pausedAt ?? "handoff", nodeId: result.pausedAt ?? null },
