@@ -9,6 +9,14 @@ import {
   type ContextUsageAccounting,
   type ProviderReportedUsage,
 } from "./context-planning";
+import {
+  compactDurableContext,
+  type ContextCompactionDiagnostics,
+  type ContextCompactionPolicy,
+  type ContextCompactionResult,
+  type ContextSummaryProvider,
+  type DurableContextAdapter,
+} from "./context-compaction";
 
 /**
  * The lifecycle owned by ContextEngine. The engine plans one provider request
@@ -16,11 +24,12 @@ import {
  */
 export type ContextEngineLifecycle =
   | "turn_start"
+  | "context_compaction"
   | "request_plan"
   | "provider_usage_accounting"
   | "turn_complete";
 
-export type ContextTurnPhase = "started" | "planned" | "usage_accounted" | "completed";
+export type ContextTurnPhase = "started" | "compacted" | "planned" | "usage_accounted" | "completed";
 
 export type ContextTurnOutcome = "completed" | "rejected" | "failed" | "aborted";
 
@@ -28,6 +37,15 @@ export interface ContextTurnStartInput {
   /** The caller-owned stable identity for this in-memory lifecycle. */
   readonly turnId: string;
   readonly request: ContextPlanInput;
+}
+
+export interface ContextCompactionRequest {
+  /** Defaults to a turn-scoped operation id when omitted. */
+  readonly operationId?: string;
+  /** Defaults to the turn id when omitted. */
+  readonly contextId?: string;
+  readonly revision?: number;
+  readonly policy?: ContextCompactionPolicy;
 }
 
 export interface ContextTurnHandle {
@@ -66,6 +84,12 @@ export interface ContextTurnDiagnostics {
   readonly outputOverrunTokens: number;
   readonly totalOverrunTokens: number;
   readonly usageIssues: readonly string[];
+  readonly compactionStatus: "not_requested" | "completed" | "replayed";
+  readonly compactionSource: ContextCompactionDiagnostics["source"] | undefined;
+  readonly compactionFailureCode: ContextCompactionDiagnostics["providerFailureCode"];
+  readonly compactionOmittedMessageCount: number;
+  readonly compactionProtectedPairCount: number;
+  readonly compactionSummaryTokens: number;
   readonly outcome: ContextTurnOutcome | undefined;
   readonly completionErrorCode: string | undefined;
 }
@@ -80,6 +104,13 @@ export interface ContextRequestPlan {
   readonly lifecycle: "request_plan";
   readonly handle: ContextTurnHandle;
   readonly plan: ContextPlan;
+  readonly diagnostics: ContextTurnDiagnostics;
+}
+
+export interface ContextCompactionEvent {
+  readonly lifecycle: "context_compaction";
+  readonly handle: ContextTurnHandle;
+  readonly compaction: ContextCompactionDiagnostics;
   readonly diagnostics: ContextTurnDiagnostics;
 }
 
@@ -106,6 +137,7 @@ export interface ContextTurnCompleted {
 
 export type ContextEngineJournalEvent =
   | ContextTurnStarted
+  | ContextCompactionEvent
   | ContextRequestPlan
   | ContextProviderUsageAccounting
   | ContextTurnCompleted;
@@ -116,6 +148,11 @@ export interface ContextEngineOptions {
    * callback failures do not change planning or lifecycle state.
    */
   readonly journal?: (event: ContextEngineJournalEvent) => void;
+  /** Optional durable decision/revision store for compaction operations. */
+  readonly durableContext?: DurableContextAdapter;
+  /** Optional advisory summarizer; deterministic fallback remains authoritative. */
+  readonly summaryProvider?: ContextSummaryProvider;
+  readonly compactionPolicy?: ContextCompactionPolicy;
 }
 
 export type ContextEngineErrorCode =
@@ -140,6 +177,8 @@ export class ContextEngineError extends Error {
 interface ActiveContextTurn {
   readonly handle: ContextTurnHandle;
   readonly request: ContextPlanInput;
+  compactedRequest?: ContextPlanInput;
+  compaction?: ContextCompactionResult;
   plan?: ContextPlan;
   planResult?: ContextRequestPlan;
   accounting?: ContextUsageAccounting;
@@ -151,19 +190,63 @@ interface ActiveContextTurn {
 }
 
 /**
- * Lifecycle wrapper around the provider request planner.
- *
- * This class intentionally keeps only active turns in memory. The supplied
- * turn id and journal callback let a durable caller correlate these events,
- * but neither is a persistence mechanism provided by ContextEngine.
+ * Lifecycle wrapper around provider planning and optional durable compaction.
+ * Turn state remains in memory; durable context decisions are delegated to the
+ * supplied adapter rather than being hidden inside this engine.
  */
 export class ContextEngine {
   private readonly activeTurns = new Map<string, ActiveContextTurn>();
   private readonly journal?: (event: ContextEngineJournalEvent) => void;
+  private readonly durableContext?: DurableContextAdapter;
+  private readonly summaryProvider?: ContextSummaryProvider;
+  private readonly compactionPolicy?: ContextCompactionPolicy;
   private nextEventSequence = 1;
 
   public constructor(options: ContextEngineOptions = {}) {
     this.journal = options.journal;
+    this.durableContext = options.durableContext;
+    this.summaryProvider = options.summaryProvider;
+    this.compactionPolicy = options.compactionPolicy;
+  }
+
+  public async compactContext(handle: ContextTurnHandle, input: ContextCompactionRequest = {}): Promise<ContextCompactionResult> {
+    const state = this.requireTurn(handle);
+    if (state.compaction) return state.compaction;
+    if (state.plan || state.outcome) {
+      throw new ContextEngineError("Context compaction must happen before request planning or completion.", "invalid_lifecycle_transition", handle.turnId);
+    }
+
+    const result = await compactDurableContext({
+      operationId: input.operationId ?? `${state.handle.turnId}:context-compaction`,
+      contextId: input.contextId ?? state.handle.turnId,
+      revision: input.revision ?? 1,
+      messages: state.request.messages,
+      policy: { ...this.compactionPolicy, ...input.policy },
+      adapter: this.durableContext,
+      summaryProvider: this.summaryProvider,
+    });
+    state.compaction = result;
+    state.compactedRequest = snapshotPlanInput({ ...state.request, messages: result.messages });
+    state.diagnostics = this.createDiagnostics({
+      turnId: state.handle.turnId,
+      provider: state.request.profile.provider,
+      model: state.request.profile.model,
+      phase: "compacted",
+      revision: 1,
+      plan: undefined,
+      accounting: undefined,
+      compaction: result,
+      outcome: undefined,
+      completionErrorCode: undefined,
+    });
+    const event: ContextCompactionEvent = Object.freeze({
+      lifecycle: "context_compaction",
+      handle: state.handle,
+      compaction: result.diagnostics,
+      diagnostics: state.diagnostics,
+    });
+    this.emit(event);
+    return result;
   }
 
   public startTurn(input: ContextTurnStartInput): ContextTurnStarted {
@@ -182,6 +265,7 @@ export class ContextEngine {
       revision: 0,
       plan: undefined,
       accounting: undefined,
+      compaction: undefined,
       outcome: undefined,
       completionErrorCode: undefined,
     });
@@ -204,16 +288,17 @@ export class ContextEngine {
       throw new ContextEngineError("A completed turn cannot be planned again.", "invalid_lifecycle_transition", handle.turnId);
     }
 
-    const plan = planProviderRequest(state.request);
+    const plan = planProviderRequest(state.compactedRequest ?? state.request);
     state.plan = plan;
     state.diagnostics = this.createDiagnostics({
       turnId: state.handle.turnId,
       provider: state.request.profile.provider,
       model: state.request.profile.model,
       phase: "planned",
-      revision: 1,
+      revision: state.compaction ? 2 : 1,
       plan,
       accounting: undefined,
+      compaction: state.compaction,
       outcome: undefined,
       completionErrorCode: undefined,
     });
@@ -248,9 +333,10 @@ export class ContextEngine {
       provider: state.request.profile.provider,
       model: state.request.profile.model,
       phase: "usage_accounted",
-      revision: 2,
+      revision: state.compaction ? 3 : 2,
       plan: state.plan,
       accounting: state.accounting,
+      compaction: state.compaction,
       outcome: undefined,
       completionErrorCode: undefined,
     });
@@ -284,9 +370,10 @@ export class ContextEngine {
       provider: state.request.profile.provider,
       model: state.request.profile.model,
       phase: "completed",
-      revision: state.accounting ? 3 : 2,
+      revision: state.compaction ? (state.accounting ? 4 : 3) : (state.accounting ? 3 : 2),
       plan: state.plan,
       accounting: state.accounting,
+      compaction: state.compaction,
       outcome: state.outcome,
       completionErrorCode: state.completionErrorCode,
     });
@@ -326,6 +413,7 @@ export class ContextEngine {
     readonly revision: number;
     readonly plan: ContextPlan | undefined;
     readonly accounting: ContextUsageAccounting | undefined;
+    readonly compaction: ContextCompactionResult | undefined;
     readonly outcome: ContextTurnOutcome | undefined;
     readonly completionErrorCode: string | undefined;
   }): ContextTurnDiagnostics {
@@ -357,6 +445,12 @@ export class ContextEngine {
       outputOverrunTokens: accounting?.outputOverrunTokens ?? 0,
       totalOverrunTokens: accounting?.totalOverrunTokens ?? 0,
       usageIssues: Object.freeze([...(accounting?.issues ?? [])]),
+      compactionStatus: input.compaction ? (input.compaction.diagnostics.replayed ? "replayed" : "completed") : "not_requested",
+      compactionSource: input.compaction?.diagnostics.source,
+      compactionFailureCode: input.compaction?.diagnostics.providerFailureCode,
+      compactionOmittedMessageCount: input.compaction?.diagnostics.omittedMessageCount ?? 0,
+      compactionProtectedPairCount: input.compaction?.diagnostics.protectedPairCount ?? 0,
+      compactionSummaryTokens: input.compaction?.diagnostics.summaryTokens ?? 0,
       outcome: input.outcome,
       completionErrorCode: input.completionErrorCode,
     });
