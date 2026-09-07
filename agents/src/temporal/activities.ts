@@ -3342,6 +3342,21 @@ async function executeLoopForRun(
     childInvocations: 16,
     wallTimeMs: typeof configuration.maxWallTimeMs === "number" ? configuration.maxWallTimeMs : 60_000,
   });
+  const executionPlan = {
+    model: {
+      provider,
+      model,
+      temperature: typeof configuration.temperature === "number" ? configuration.temperature : undefined,
+    },
+    credentials: modelCredentials,
+    fallbackModels,
+    gateway,
+    grantedTools: allowedTools,
+    modelTools: context.tools,
+    modelContextTokens: context.budget.maxContextTokens,
+    toolContext: modelToolContext,
+    budgetLedger,
+  };
   if (shouldFailClosedWithoutEvidence({
     message: currentMessage,
     agentAudience: run.agent_audience,
@@ -3404,21 +3419,15 @@ async function executeLoopForRun(
   }): Promise<AgentLoopResult> => withActivityHeartbeat(
     { phase: options.operationKeyPrefix ? "workflow.agent_loop" : "agent.loop" },
     () => harness.runTurn({
-      model: {
-        provider,
-        model,
-        temperature: options.model?.temperature ?? (typeof configuration.temperature === "number" ? configuration.temperature : undefined),
-        maxTokens: options.model?.maxTokens,
+      plan: {
+        ...executionPlan,
+        model: {
+          ...executionPlan.model,
+          temperature: options.model?.temperature ?? executionPlan.model.temperature,
+          maxTokens: options.model?.maxTokens,
+        },
       },
       messages: options.messages,
-      credentials: modelCredentials,
-      fallbackModels,
-      gateway,
-      grantedTools: allowedTools,
-      modelTools: context.tools,
-      modelContextTokens: context.budget.maxContextTokens,
-      budgetLedger,
-      toolContext: modelToolContext,
       uiChannel: run.reply_channel_type === "website" ? "website" : "platform",
       dynamicUiEnabled,
       signal: activitySignal,
@@ -3778,16 +3787,10 @@ async function executeLoopForRun(
   const usedTools = new Set<string>();
   const unavailableTools = new Set<string>();
   const loopResult = await withActivityHeartbeat({ phase: "agent.loop" }, () => harness.runTurn({
-    model: { provider, model, temperature: typeof configuration.temperature === "number" ? configuration.temperature : undefined },
+    plan: executionPlan,
     messages: resumeExternalEvent
       ? [...(loopCheckpoint?.messages ?? context.messages), { role: "user" as const, content: JSON.stringify({ externalEvent: resumeExternalEvent }) }]
       : loopCheckpoint?.messages ?? context.messages,
-    credentials: modelCredentials,
-    fallbackModels,
-    gateway,
-    grantedTools: allowedTools,
-    modelTools: context.tools,
-    toolContext: modelToolContext,
     uiChannel: run.reply_channel_type === "website" ? "website" : "platform",
     dynamicUiEnabled,
     resumeUi: loopCheckpoint?.ui,

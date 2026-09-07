@@ -10,8 +10,11 @@ import {
   type ContextBuildInput,
   type ContextPolicy,
 } from "./context";
-import { runBoundedAgentLoop, type AgentLoopInput, type AgentLoopResult } from "./loop";
+import { runBoundedAgentLoop, type AgentLoopResult } from "./loop";
 import { continuationFromLoopResult, type AgentHarnessContinuation } from "./continuation";
+import type { AgentExecutionPlan, AgentHarnessTurnInput } from "./execution-plan";
+
+export type { AgentExecutionPlan, AgentHarnessTurnInput } from "./execution-plan";
 
 export type AgentHarnessRunStatus = "completed" | "awaiting_approval" | "awaiting_human" | "awaiting_external_event" | "limited" | "failed";
 
@@ -36,9 +39,9 @@ export interface AgentHarness extends AgentToolSurface {
   /** Build the one bounded model-facing projection for a turn. */
   buildContext(input: ContextBuildInput): BuiltAgentContext;
   /** Execute one bounded reasoning/tool turn through the shared runtime loop. */
-  runTurn(input: Omit<AgentLoopInput, "tools">): Promise<AgentLoopResult>;
+  runTurn(input: AgentHarnessTurnInput): Promise<AgentLoopResult>;
   /** Resume a persisted turn using the same loop contract and pinned dependencies. */
-  resumeTurn(input: Omit<AgentLoopInput, "tools">): Promise<AgentLoopResult>;
+  resumeTurn(input: AgentHarnessTurnInput): Promise<AgentLoopResult>;
   /** Translate a loop result into an explicit durable continuation decision. */
   continuation(result: AgentLoopResult): AgentHarnessContinuation;
 }
@@ -64,8 +67,8 @@ export function createAgentHarness(input: {
     // The loop only sees the capability runtime. This keeps readiness,
     // installation admission, and future operation-kernel hooks on the one
     // invocation path instead of allowing a caller to reach the raw registry.
-    runTurn: (turnInput) => runBoundedAgentLoop({ ...turnInput, tools: capabilities }),
-    resumeTurn: (turnInput) => runBoundedAgentLoop({ ...turnInput, tools: capabilities }),
+    runTurn: ({ plan, ...turnInput }) => runBoundedAgentLoop({ ...plan, ...turnInput, tools: capabilities }),
+    resumeTurn: ({ plan, ...turnInput }) => runBoundedAgentLoop({ ...plan, ...turnInput, tools: capabilities }),
     continuation: continuationFromLoopResult,
   };
 }

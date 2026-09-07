@@ -7,6 +7,7 @@ import { HostCapabilityRouter } from "../src/hosts/router";
 import { ToolRegistry } from "../src/tools/registry";
 import { ModelGateway } from "../src/model/gateway";
 import type { ModelAdapter, ModelCredentials, ModelRequest, ModelResponse } from "../src/model/types";
+import type { AgentExecutionPlan } from "../src/runtime/execution-plan";
 
 const scope = createExecutionScope({
   organizationId: "org-1",
@@ -68,12 +69,14 @@ function createHarness() {
 
 async function runTurn(harness: ReturnType<typeof createHarness>["harness"], gateway: ModelGateway, onEvent: (type: string) => void) {
   return harness.runTurn({
-    model: { provider: "openai", model: "test-model", maxTokens: 200 },
+    plan: {
+      model: { provider: "openai", model: "test-model", maxTokens: 200 },
+      credentials,
+      gateway,
+      grantedTools: new Set(["lookup"]),
+      toolContext: toolInvocationContextFromScope(scope),
+    } satisfies AgentExecutionPlan,
     messages: [{ role: "user", content: "Find the value" }],
-    credentials,
-    gateway,
-    grantedTools: new Set(["lookup"]),
-    toolContext: toolInvocationContextFromScope(scope),
     limits: { maxIterations: 3, maxToolCalls: 2, maxTotalTokens: 2_000, maxWallTimeMs: 5_000 },
     onEvent: (event) => onEvent(event.type),
   });

@@ -700,9 +700,11 @@ check or a UI screenshot alone does not prove a durable runtime contract.
 - [x] Define typed harness continuations for completed, waiting, limited, failed, cancelled, and
   reconciliation-required states. Evidence: `agents/src/runtime/continuation.ts` and
   `agents/test/harness-continuation.test.ts`; Temporal remains the owner of cancellation signals.
-- [ ] Remove remaining caller-owned model/tool policy construction after migration tests pass.
-  The loop still receives provider/model policy from the activity boundary; a resolved execution
-  plan is still required before this item can be checked.
+- [x] Remove raw caller-owned model/tool policy construction from harness turns. Evidence:
+  `agents/src/runtime/execution-plan.ts` and `agents/src/runtime/harness.ts` now require one
+  resolved, run-pinned `AgentExecutionPlan`; ordinary and graph turns layer only turn-specific
+  hooks and continuation input on that plan. Provider/model policy resolution remains at the
+  durable activity composition boundary by design.
 
 ### Context and loop reliability
 
