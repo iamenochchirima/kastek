@@ -8,7 +8,7 @@ description: Implementation plan for reworking the Agent Platform around the mat
 
 # Agent Platform Hermes gap closure and runtime rework
 
-**Status:** Active; runtime kernel and capability-boundary foundations landed, live wiring in progress
+**Status:** Active; immediate runtime durability block implemented with integration gaps explicitly tracked
 
 **Owner:** Agent Platform
 
@@ -35,6 +35,144 @@ approvals, provider reconciliation, and KasiTek's channel model.
 The existing agent UI is not the control point for this work. The runtime contracts come first.
 The visual Playground consumes those contracts later, while the separate UI work can continue
 without being treated as the source of truth for execution.
+
+## Immediate runtime completion block
+
+This block must be completed before the Agent Platform moves to the agent-creation interface or
+the Playground interface. It covers the five remaining runtime gaps that can otherwise produce
+duplicate child work, unsafe plugin execution, lost context decisions, or stale workers writing
+after they have lost ownership.
+
+Agent creation and visualization are deliberately out of scope here. They will consume these
+runtime seams after this block is certified. Existing local data may be discarded during the
+rewrite; the invariants and verification evidence are what must survive.
+
+### A. Temporal child activation
+
+The bounded child kernel is currently host-neutral. This section activates it through Temporal
+without copying child transcripts into the parent or holding a worker while a child waits.
+
+- [x] Define the durable child workflow input/output contract: parent scope, child version,
+  attenuated grants, child session key, idempotency key, budgets, timeout, and operation identity.
+- [x] Register a child workflow and activities in the Temporal worker with explicit task-queue and
+  retry policies. The workflow must be deterministic and must not call providers directly.
+- [x] Add a Temporal adapter behind the child kernel that starts or reuses a child workflow by
+  deterministic identity, waits durably, and returns typed success, failure, cancellation, timeout,
+  or partial-result outcomes.
+- [x] Expose child invocation to the harness as one capability. The parent model cannot choose
+  organization, installation, credentials, or grants outside the admitted parent scope; the child
+  host executor remains an explicit adapter and fails closed when not configured.
+- [x] Persist parent/child lineage, progress, and terminal evidence through the execution journal;
+  progress delivery must not change the child outcome when a subscriber is disconnected.
+- [ ] Add worker-loss, duplicate-start, parent-cancel, child-timeout, partial-result, depth, fan-out,
+  and budget-reconciliation tests against the Temporal adapter. Unit coverage is present; the
+  Temporal/PostgreSQL failure-injection matrix remains environment-dependent.
+
+### B. Durable MCP and session operation coordination
+
+The MCP boundary and session lease repository now share a durable operation coordinator. This
+section makes provider uncertainty, retry semantics, and session ownership explicit at the same
+seam; bounded queues and infrastructure failure matrices remain open.
+
+- [x] Define one operation identity and lifecycle contract for model calls, native tools, MCP calls,
+  approvals, and channel delivery: proposed, running, completed, failed, interrupted, or unknown.
+- [x] Add a durable operation repository/adapter with idempotency conflict detection, attempt number,
+  provider request identity, response receipt, retry decision, and reconciliation metadata.
+- [x] Route MCP calls through the durable operation coordinator, including snapshot checksum,
+  operation identity, retry classification, timeout, cancellation, and unknown-outcome handling.
+- [x] Route session admission, heartbeat, and release through the same coordinator interface without
+  making PostgreSQL or Temporal details visible to callers. Queued-turn promotion still belongs to
+  the session queue work below.
+- [ ] Add explicit bounded backpressure and queue outcomes (`queued`, `limited`, `rejected`) with
+  age, depth, and stale-owner metrics.
+- [ ] Add restart and worker-loss tests at before-call, during-call, after-call-before-receipt, and
+  after-receipt points for MCP and session-owned operations.
+
+### C. Plugin execution isolation
+
+Plugin manifests and package snapshots define what may be selected, but executable plugin code must
+not run inside the Temporal worker or import the Agent Platform's internal modules.
+
+- [x] Define an approved plugin runtime descriptor: package digest, entrypoint, protocol version,
+  declared capabilities, resource limits, timeout, cancellation, and allowed environment references.
+- [x] Add an isolated plugin adapter with a narrow request/response protocol. The adapter supports
+  subprocess or worker isolation, bounded input/output, crash detection, cancellation, and no secret
+  or prompt logging.
+- [x] Enforce package checksum, runtime compatibility, granted permissions, and tenant scope again at
+  execution time; publication readiness is not execution authorization.
+- [x] Add plugin process supervision and cleanup for startup failure, crash, timeout, cancellation,
+  worker loss, and orphaned child processes.
+- [x] Expose plugins through the capability registry as ordinary tools with the same approval,
+  idempotency, redaction, and durable-operation rules as native tools.
+- [ ] Add the full adversarial matrix for import escape, undeclared capability use, oversized output,
+  secret leakage, duplicate execution, and stale snapshot use. Boundary tests cover protocol,
+  digest/grant/scope rejection, output limits, crash, timeout, cancellation, and redacted evidence;
+  duplicate-execution and published-snapshot integration tests remain.
+
+### D. Durable context compaction
+
+The provider-aware planner now bounds requests, and compaction decisions have a durable adapter.
+This section makes context reduction replayable and safe when a summary model is unavailable.
+
+- [x] Define a durable context-decision record containing turn identity, planner revision, input
+  accounting, selected/omitted ranges, protected pairs, tool/result truncations, and outcome.
+- [x] Add a deterministic compaction fallback that produces a bounded, clearly marked summary from
+  durable messages without claiming facts that were not present. Durable history must remain intact.
+- [x] Add an optional summary-provider adapter with its own operation identity and fallback path;
+  an unavailable summary provider must not block the turn indefinitely.
+- [x] Persist and replay compaction results by turn/context revision so a Temporal retry sends the
+  same model-facing projection instead of compacting differently on each attempt.
+- [ ] Replace the remaining in-memory ContextEngine lifecycle state with a durable adapter while
+  retaining a fast in-memory implementation for unit tests.
+- [ ] Add context-pressure, summary-provider failure, worker-loss, replay, protected-pair, and
+  provider-usage reconciliation tests with journal assertions.
+
+### E. Fencing-token propagation
+
+Database-backed session leases issue monotonic fencing tokens, and the token now flows through the
+session-owned Temporal write paths. This section closes the remaining stale-worker test and matrix
+gaps.
+
+- [x] Add the acquired session key and fencing token to the admitted execution scope and durable
+  operation context; they remain runtime metadata and never enter model messages or tool arguments.
+- [x] Add one repository/helper assertion for current, unexpired owner and fencing token, with a
+  typed `SESSION_LEASE_FENCED` result instead of a generic database error.
+- [x] Require the token on session-owned run transitions, message writes, tool/model evidence,
+  delivery obligations, approvals, workflow checkpoints, and journal appends. Long-running model,
+  tool, MCP, and graph paths renew and assert the lease before durable callbacks.
+- [x] Make lease heartbeat/release and terminal transitions idempotent while rejecting stale owners;
+  a stale worker must stop before starting another model/tool/effect operation.
+- [ ] Add concurrent-owner, expiry/reacquisition, stale-write, retry, reconnect, and terminal-release
+  tests across PostgreSQL and the in-memory conformance adapter. Unit coverage is present; the
+  clean PostgreSQL/Temporal matrix remains to be run.
+
+### Completion gate for this block
+
+- [ ] Every item above has code, focused tests, and a link to verification evidence. The completed
+  runtime seams have commit evidence below; the remaining matrix items are not being marked done.
+- [ ] Temporal worker-loss and PostgreSQL integration matrices pass in a clean local environment.
+- [ ] No plugin, MCP, child, context, or session path can hang indefinitely without a typed terminal
+  or waiting state.
+- [ ] The runtime exposes enough redacted journal evidence for the later Playground, but no UI work
+  is required to close this block.
+
+### Current implementation evidence
+
+The runtime work completed so far is split into reviewable commits rather than one unbounded change:
+
+| Area | Evidence | Verification |
+| --- | --- | --- |
+| Temporal child activation | `a270980f` and `202579f2` | child contract, deterministic workflow adapter, lineage/progress path, and harness capability tests |
+| Durable operations and MCP | `3894f4a6` and `202579f2` | durable lifecycle tests, MCP boundary tests, and full agent suite |
+| Session coordination and fencing | `f2f2bead`, `03ccb569`, `202579f2`, `42a976ed` | scope, lease, session coordinator, and workflow fencing tests |
+| Plugin isolation | `698e6f4f` and `202579f2` | 12 plugin protocol/isolation/capability tests |
+| Durable context compaction | `07132fed`, `6e6d97df`, and `202579f2` | context compaction, context planning, replay, and build verification |
+
+The current local verification baseline is `pnpm --dir agents test`: **149 test files passed,
+28 skipped; 839 tests passed, 88 skipped**. The skips are database/Temporal integration suites that
+require the local infrastructure matrix. `pnpm --dir agents run build` and `git diff --check` also
+pass. The full Temporal child executor host adapter and the clean PostgreSQL/Temporal failure matrix
+remain open; the worker fails closed rather than silently running a child without an execution host.
 
 ## What changes in this pass
 
@@ -103,8 +241,10 @@ model request boundary.
 - [x] Define the `ContextEngine` lifecycle seam for turn start, request planning, provider usage
   accounting, and turn completion, with content-free diagnostics and a journal observer seam.
   Evidence: `agents/src/runtime/context-engine.ts` and `agents/test/context-engine.test.ts`.
-- [ ] Extend the engine with durable compaction/pruning state and a provider-independent summary
-  fallback; the current engine is deliberately in-memory and does not claim persistence.
+- [x] Extend the engine with durable compaction/pruning state and a provider-independent summary
+  fallback. Evidence: `agents/src/runtime/context-compaction.ts`,
+  `agents/src/db/repositories/context-compaction-repository.ts`, migration `118_agent_context_compaction_revisions.sql`,
+  and the Temporal turn wiring.
 - [x] Replace fixed `estimateTokens` decisions at the final model boundary with a provider-aware
   planner that reserves output capacity, bounds schemas/results, protects tool pairs, and reconciles
   provider-reported usage. Evidence: `agents/src/runtime/context-planning.ts`,
@@ -120,14 +260,15 @@ model request boundary.
   tests and the model-boundary integration test.
 - [x] Add protected message-pair handling so assistant tool calls and tool results cannot be split
   by the new model-boundary planner. Evidence: `agents/test/context-planning.test.ts`.
-- [ ] Add one compaction implementation with a deterministic fallback when the summary provider is
-  unavailable. Compaction must never silently delete durable history.
+- [x] Add one compaction implementation with a deterministic fallback when the summary provider is
+  unavailable. Compaction never deletes durable history; the projection is persisted separately.
 - [x] Add bounded same-model empty-response recovery and a terminal typed outcome so a provider
   cannot produce an unbounded zero-response loop. Evidence: `agents/src/runtime/loop.ts`,
   `agents/test/empty-response-recovery.test.ts`, and the runtime terminal-outcome test.
 - [ ] Complete the Hermes-style recovery ladder with interrupted-stream recovery, reasoning
   prefill where supported, fallback-provider policy, and per-attempt retry budgets.
-- [ ] Persist context decisions, token usage, compaction count, and limited reasons in the journal.
+- [x] Persist context decisions, token usage, compaction count, and limited reasons in the journal
+  projection. Evidence: `executeLoopForRun` context-step output and `agent.context.built` event.
 - [x] Add provider contract tests for exact-fit, oversized history, oversized tool schema, large
   tool output, and provider-usage reconciliation. Evidence: `agents/test/context-planning.test.ts`,
   `agents/test/context-overflow-recovery.test.ts`, and `agents/test/context-planning-loop.test.ts`.
@@ -151,8 +292,9 @@ Hermes references: `agent/context_engine.py`, `agent/context_compressor.py`,
   token, RLS, fail-closed acquisition, and terminal release. It is integrated with conversation
   admission and bounded Temporal slices. Evidence: migration `116_agent_session_leases.sql`,
   `SessionLeaseRepository`, `RunRepository.canAcquireConversationTurn`, and Temporal activities.
-- [ ] Propagate the acquired fencing token through every session-owned write so a stale worker is
-  rejected at the activity boundary, not only at lease acquisition.
+- [x] Propagate the acquired fencing token through session-owned writes so a stale worker is rejected
+  at the activity boundary and at long-running model/tool/graph callback boundaries. Evidence:
+  `SessionLeaseGuard`, `RunRepository.assertConversationLease`, and the Temporal activity callbacks.
 - [ ] Move same-session ordering, queue age, cancellation, and backpressure into one session
   coordinator instead of spreading them across route handlers and run admission.
 - [ ] Make reconnects resume from a journal cursor and preserve one active writer per session.
@@ -215,8 +357,9 @@ Hermes references: `skills/`, `agent/skill_bundles.py`, `tools/skills_tool.py`,
 - [ ] Supervise stdio MCP processes and clean up orphaned children. A dead or hung server must
   produce a visible typed capability state, not an indefinite agent wait.
 - [ ] Bound schemas and results before they enter the context engine.
-- [ ] Persist MCP operation identity and provider uncertainty through the same operation coordinator
-  used by native capabilities.
+- [x] Persist MCP operation identity and provider uncertainty through the same operation coordinator
+  used by native capabilities. Evidence: `agents/src/mcp/operation-boundary.ts`,
+  `RemoteMcpProviderRepository`, and migration `117_durable_operations.sql`.
 - [ ] Add credential revocation and server reload tests that prove active runs retain their snapshot
   while new runs see the change.
 
@@ -225,11 +368,12 @@ Hermes references: `tools/mcp_tool_lifecycle.py`, `mcp_tool_config.py`, `mcp_sch
 
 ### 5. Durable execution and external effects
 
-- [ ] Make the operation coordinator the owner of model calls, native tools, MCP calls, approvals,
-  channel sends, and Core effects. Callers should not write lifecycle rows directly.
-- [ ] Add explicit operation states for proposed, running, completed, failed, interrupted, and
+- [x] Define the operation coordinator contract for model calls, native tools, MCP calls, approvals,
+  channel sends, and Core effects. The current pass has durable repository ownership for MCP and
+  session operations; native model/effect/delivery migration remains a subsequent work item.
+- [x] Add explicit operation states for proposed, running, completed, failed, interrupted, and
   unknown. Unknown means a provider may have performed an effect and requires reconciliation.
-- [ ] Persist provider request identity, attempt number, response receipt, and retry decision before
+- [x] Persist provider request identity, attempt number, response receipt, and retry decision before
   retrying an uncertain operation.
 - [ ] Add bounded retry and timeout policies by operation class. No retry may repeat a confirmed
   external effect.
@@ -244,13 +388,15 @@ Hermes references: `tools/mcp_tool_lifecycle.py`, `mcp_tool_config.py`, `mcp_sch
   concurrency limits, separate budgets, cancellation, timeout, partial results, and progress
   evidence. Evidence: `agents/src/children/execution-kernel.ts` and
   `agents/test/child-execution-kernel.test.ts`.
-- [ ] Make child invocation a first-class capability with a fresh session, fresh context engine,
-  pinned child version, attenuated grants, separate budgets, and a parent operation identity.
-- [ ] Activate the Temporal child workflow path from an agent turn. The parent must wait durably or
-  continue asynchronously without holding a worker.
-- [ ] Define typed child results, progress events, failure, cancellation, timeout, and partial-result
-  behaviour. Never copy the complete child transcript into the parent prompt.
-- [ ] Bound depth, fan-out, total child budget, and tool permissions. A child cannot create an
+- [x] Make child invocation a first-class capability with a pinned child version, attenuated grants,
+  separate budgets, and a parent operation identity. Fresh child context/session execution is owned
+  by the host executor contract, not copied into the parent prompt.
+- [x] Activate the Temporal child workflow path from an agent turn. The parent waits durably through
+  the workflow adapter without holding a worker; the production worker fails closed until its host
+  child executor is configured.
+- [x] Define typed child results, progress events, failure, cancellation, timeout, and partial-result
+  behaviour. The complete child transcript is not copied into the parent prompt.
+- [x] Bound depth, fan-out, total child budget, and tool permissions. A child cannot create an
   unrestricted swarm.
 - [ ] Add parent/child replay and worker-loss tests, plus a customer-facing creation model for
   role-based teams later.
@@ -307,12 +453,12 @@ Each workstream is complete only when code, tests, and evidence exist.
 
 ## Immediate implementation order
 
-1. Build the context and token execution kernel. This is the current implementation slice.
-2. Move session admission and flow control behind a durable session coordinator.
-3. Rework extension packages and agent creation around immutable profiles and snapshots.
-4. Make MCP and all external effects use the operation coordinator.
-5. Activate bounded Temporal child workflows.
-6. Connect the execution journal to the Playground and promotion flow.
+1. Finish the remaining runtime matrix: child host executor, bounded queues, MCP/provider restart
+   cases, duplicate plugin execution, and clean PostgreSQL/Temporal failure injection.
+2. Rework extension packages and agent creation around immutable profiles and snapshots.
+3. Move remaining native model, Core-effect, approval, and channel delivery paths behind the
+   operation coordinator.
+4. Connect the execution journal to the Playground and promotion flow.
 
 ## Release record
 
@@ -323,11 +469,11 @@ Each workstream is complete only when code, tests, and evidence exist.
 | Risk | High. This is a runtime and data-contract rewrite. |
 | Affected services and surfaces | Agents API, Temporal worker, PostgreSQL, Core adapters, MCP, skills/plugins, channels, customer agent creation, and later Playground. |
 | Platform release version or ID | Not applicable during local implementation. |
-| API/schema/migration changes | Expected. Each workstream must add repeatable migrations and update API contracts before release. |
+| API/schema/migration changes | Added repeatable migrations `117_durable_operations.sql` and `118_agent_context_compaction_revisions.sql`; the session lease migration `116_agent_session_leases.sql` is part of the same local rewrite. API contracts remain runtime-first and the interface is deferred. |
 | Feature flag or rollout | Local rewrite first. Production rollout requires an explicit cutover or fresh-environment decision. |
-| Analytics | Add lifecycle events for context pressure, limited outcomes, extension readiness, session queueing, MCP failures, child runs, and unknown effects. |
-| Logs, metrics, dashboards, and alerts | Required for queue age, context limits, provider retries, unknown effects, MCP health, worker loss, and stuck sessions. |
+| Analytics | Runtime facts now include context compaction, MCP operation outcomes, child progress/outcomes, plugin evidence, session fencing, and durable-operation state. Queue-age and provider-level analytics remain open. |
+| Logs, metrics, dashboards, and alerts | Structured evidence is present for the runtime paths; queue age, provider retries, unknown effects, MCP health, worker loss, and stuck-session dashboards remain required before rollout. |
 | Documentation | Update architecture, agent creation, extension, MCP, runtime, and operator documentation per workstream. |
-| Validation | Workstream-specific unit, integration, failure-injection, migration, and manual evidence. |
+| Validation | Unit and full agent-suite validation pass locally. PostgreSQL migration, Temporal worker-loss, and provider failure-injection validation require the local infrastructure matrix and remain open. |
 | Rollback | During local rewrite, reset the disposable database. A production cutover requires a tested artifact and explicit data/operation rollback decision. |
 | Post-release review | Required after each high-risk workstream. |
