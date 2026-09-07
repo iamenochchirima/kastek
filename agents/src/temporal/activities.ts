@@ -73,6 +73,7 @@ import { CoreHostAdapter, HostCapabilityRouter, NativeHostAdapter } from "../hos
 import { createAgentHarness, type AgentHarness } from "../runtime/harness";
 import { resourceAccessFromExecutionScope } from "../runtime/scope-projections";
 import { PostgresExecutionJournal, RunRepositoryExecutionJournalStore } from "../journal";
+import { PostgresDeliveryObligationCoordinator } from "../delivery";
 
 export interface ActivityOptions {
   gateway?: ModelGateway;
@@ -2167,6 +2168,7 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
   const killSwitches = new KillSwitchRepository(pool);
   const controls = new OperatorControlRepository(pool);
   const channels = new ChannelRepository(pool);
+  const deliveryObligations = new PostgresDeliveryObligationCoordinator(pool);
   const channelCredentials = options.config ? new ChannelCredentialRepository(pool, options.config.AGENTS_CREDENTIAL_ENCRYPTION_KEY) : undefined;
   const kasiaiPreferences = new KasiAiPreferenceRepository(pool);
   const effectReceipts = new EffectReceiptRepository(pool);
@@ -2536,8 +2538,24 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
         input: { preview: buildDomainApprovalSnapshot("kasitek.core.channel_deliver", { channelType, externalConversationId: pending.external_conversation_id, text: durableDeliveryTextPreview(response.text || (response.media.length ? "[media attachment]" : "")), media: response.media.map((item) => ({ assetId: item.assetId, kind: item.kind })) }) },
       });
       let claimed = false;
+      const obligation = await deliveryObligations.create({
+        id: pending.attempt_id,
+        idempotencyKey: `channel:${pending.attempt_id}`,
+        scope: {
+          organizationId: pending.organization_id,
+          installationId: pending.installation_id,
+          runId: pending.run_id,
+          conversationId: pending.conversation_id,
+          correlationId: pending.correlation_id,
+        },
+        channel: channelType,
+        payloadRef: pending.message_id,
+      });
+      const obligationClaimId = `channel-delivery:${pending.attempt_id}`;
       try {
         await channels.claimDelivery(pending.organization_id, pending.attempt_id);
+        const claim = await deliveryObligations.claim({ obligationId: obligation.id, claimId: obligationClaimId, workerId: "temporal:agent-delivery" });
+        if (claim.status !== "applied" && claim.status !== "idempotent") throw new Error(`DELIVERY_OBLIGATION_${claim.status.toUpperCase()}`);
         claimed = true;
         const result = channelType === "telegram"
           ? await (async () => {
@@ -2576,6 +2594,8 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
           attemptId: pending.attempt_id,
           providerMessageId: result.providerMessageId,
         });
+        const completion = await deliveryObligations.complete({ obligationId: obligation.id, claimId: obligationClaimId, receiptRef: result.providerMessageId ?? pending.attempt_id });
+        if (completion.status !== "applied" && completion.status !== "idempotent") throw new Error(`DELIVERY_OBLIGATION_${completion.status.toUpperCase()}`);
         await runSteps.finishStep({ stepId: deliveryStep.id, status: "completed", output: { status: result.status } });
         await runs.appendEvent({
           organizationId: pending.organization_id,
@@ -2585,11 +2605,17 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
           payload: { channelType, status: result.status, mediaCount: response.media.length, resolvedMediaCount: resolvedMedia.length, mediaResolutionFailures, mediaKinds: [...new Set(response.media.map((item) => item.kind))], ...(response.authorizationRequired ? { authorizationRequired: response.authorizationRequired } : {}) },
         });
       } catch (error) {
+        const reason = error instanceof Error ? error.message : "Channel delivery failed";
+        if (reason === "CHANNEL_DELIVERY_UNKNOWN" || reason.includes("UNKNOWN")) {
+          await deliveryObligations.unknown({ obligationId: obligation.id, claimId: claimed ? obligationClaimId : undefined, reason }).catch(() => undefined);
+        } else {
+          await deliveryObligations.fail({ obligationId: obligation.id, claimId: claimed ? obligationClaimId : undefined, reason }).catch(() => undefined);
+        }
         if (claimed) {
           await channels.markDeliveryFailed({
             organizationId: pending.organization_id,
             attemptId: pending.attempt_id,
-            error: { code: "CHANNEL_DELIVERY_FAILED", message: error instanceof Error ? error.message : "Channel delivery failed" },
+            error: { code: "CHANNEL_DELIVERY_FAILED", message: reason },
           });
         }
         await runSteps.finishStep({ stepId: deliveryStep.id, status: "failed", error: { code: "CHANNEL_DELIVERY_FAILED", message: error instanceof Error ? error.message : "Channel delivery failed" } });
@@ -2598,7 +2624,7 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
           runId: pending.run_id,
           installationId: pending.installation_id,
           eventType: "agent.reply.delivery_failed",
-          payload: { channelType, mediaCount: response.media.length, resolvedMediaCount: resolvedMedia.length, mediaResolutionFailures, mediaKinds: [...new Set(response.media.map((item) => item.kind))], ...(response.authorizationRequired ? { authorizationRequired: response.authorizationRequired } : {}), message: error instanceof Error ? error.message : "Channel delivery failed" },
+          payload: { channelType, mediaCount: response.media.length, resolvedMediaCount: resolvedMedia.length, mediaResolutionFailures, mediaKinds: [...new Set(response.media.map((item) => item.kind))], ...(response.authorizationRequired ? { authorizationRequired: response.authorizationRequired } : {}), message: reason },
         });
       }
     },

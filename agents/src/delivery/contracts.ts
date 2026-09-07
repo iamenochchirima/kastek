@@ -75,6 +75,7 @@ export interface DeliveryObligationCoordinator {
   get(id: string): Promise<DeliveryObligation | undefined>;
   claim(input: { obligationId: string; claimId: string; workerId: string }): Promise<DeliveryObligationActionResult>;
   complete(input: { obligationId: string; claimId: string; receiptRef: string }): Promise<DeliveryObligationActionResult>;
+  fail(input: { obligationId: string; claimId?: string; reason: string }): Promise<DeliveryObligationActionResult>;
   unknown(input: { obligationId: string; claimId?: string; reason: string }): Promise<DeliveryObligationActionResult>;
   reconcile(input: { obligationId: string; reconciliationId: string; outcome: "delivered" | "failed"; receiptRef?: string; reason?: string }): Promise<DeliveryObligationActionResult>;
 }

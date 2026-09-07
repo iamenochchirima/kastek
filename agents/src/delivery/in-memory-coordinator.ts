@@ -63,6 +63,15 @@ export class InMemoryDeliveryObligationCoordinator implements DeliveryObligation
     return this.applied(this.replace(obligation, { state: "delivered", outcome }));
   }
 
+  async fail(input: { obligationId: string; claimId?: string; reason: string }): Promise<DeliveryObligationActionResult> {
+    const obligation = this.require(input.obligationId);
+    if (obligation.state === "failed" && obligation.outcome?.reason === input.reason) return this.idempotent(obligation);
+    if (obligation.state !== "queued" && obligation.state !== "claimed") return this.result("not_completable", obligation);
+    if (obligation.state === "claimed" && obligation.claim?.claimId !== input.claimId) return this.result("not_completable", obligation);
+    const outcome: DeliveryOutcome = { kind: "failed", reason: input.reason, recordedAt: new Date().toISOString() };
+    return this.applied(this.replace(obligation, { state: "failed", outcome }));
+  }
+
   async unknown(input: { obligationId: string; claimId?: string; reason: string }): Promise<DeliveryObligationActionResult> {
     const obligation = this.require(input.obligationId);
     if (obligation.state === "unknown" && obligation.outcome?.reason === input.reason) return this.idempotent(obligation);
