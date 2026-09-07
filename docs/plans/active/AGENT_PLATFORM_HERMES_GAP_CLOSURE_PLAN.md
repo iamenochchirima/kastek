@@ -8,7 +8,7 @@ description: Implementation plan for reworking the Agent Platform around the mat
 
 # Agent Platform Hermes gap closure and runtime rework
 
-**Status:** Active; runtime hardening and real Playground entry path in progress
+**Status:** Active; runtime hardening, agent creation, and the first real Playground surface are in progress
 
 **Owner:** Agent Platform
 
@@ -170,9 +170,11 @@ The runtime work completed so far is split into reviewable commits rather than o
 | Session coordination and fencing | `f2f2bead`, `03ccb569`, `202579f2`, `42a976ed`, `cda575ff` | scope, lease, fencing-epoch, session coordinator, and workflow fencing tests |
 | Plugin isolation | `698e6f4f` and `202579f2` | 12 plugin protocol/isolation/capability tests |
 | Durable context compaction | `07132fed`, `6e6d97df`, and `202579f2` | context compaction, context planning, replay, and build verification |
+| Explicit execution environments | `48bdb4c1` and `ba3b467d` | typed `playground`/`live` scope, migration backfill, same-environment child guard, and focused tests |
+| Profile-first creation and Playground entry | `50226b3b` and `ba3b467d` | typed profile publication, pinned Playground installation, real run/event APIs, environment-filtered listing, and client build |
 
-The current local verification baseline is `pnpm --dir agents test`: **149 test files passed,
-28 skipped; 839 tests passed, 88 skipped**. The skips are database/Temporal integration suites that
+The current local verification baseline is `pnpm --dir agents test`: **150 test files passed,
+28 skipped; 853 tests passed, 88 skipped**. The skips are database/Temporal integration suites that
 require the local infrastructure matrix. `pnpm --dir agents run build` and `git diff --check` also
 pass. The full Temporal child executor host adapter and the clean PostgreSQL/Temporal failure matrix
 remain open; the worker fails closed rather than silently running a child without an execution host.
@@ -341,8 +343,9 @@ Hermes references: `tui_gateway/session_lifecycle.py`, `session_reaper.py`, `ses
   prompt. Record why a skill was selected or omitted.
 - [ ] Add safe reload rules. A running session keeps its snapshot; new sessions use the new
   published version.
-- [ ] Expose a customer agent creation flow based on agent profile plus extension registry. Do not
-  make ordinary agents into n8n-style block graphs.
+- [x] Expose a customer agent creation flow based on an agent profile plus the capability registry.
+  Ordinary agents are not forced into n8n-style block graphs. The first profile-first flow is
+  available at `/agents/new?audience=personal&mode=custom`; extension-registry authoring remains open.
 
 Hermes references: `skills/`, `agent/skill_bundles.py`, `tools/skills_tool.py`,
 `hermes_cli/plugins_loader.py`, and plugin manifest tests.
@@ -438,6 +441,11 @@ must consume the event contracts below rather than inventing its own execution s
 - [ ] Add graph/timeline views, operation inspector, live reconnect, pause/cancel/retry controls,
   and evidence-backed promotion after the runtime work is complete.
 
+The first executable Playground surface now runs the real platform installation through the existing
+message, Temporal, journal, and event-stream APIs. It is intentionally not marked complete here:
+resource/credential binding, promotion, reconnect controls, and the full observatory contract still
+need implementation.
+
 ## Verification gates
 
 Each workstream is complete only when code, tests, and evidence exist.
@@ -482,6 +490,9 @@ runtime contracts and API responses remain the source of truth.
 - [x] Make Studio use real agent/version/run APIs instead of demo traces or client-owned execution
   state. The UI now consumes the agent, version, run, and event-stream APIs; fake agents and traces
   were removed.
+- [x] Make custom creation and Playground entry explicit. `/agents/new?mode=custom` opens the
+  profile flow, creation produces a typed published version and a Playground installation, and
+  `/playground` lists only Playground installations.
 - [ ] Build the Playground as a real local execution environment with isolated resources,
   observable run events, reconnectable timelines, and explicit promotion to live.
 - [ ] Verify the creation-to-Playground-to-promotion path manually and record release evidence.
@@ -495,7 +506,7 @@ runtime contracts and API responses remain the source of truth.
 | Risk | High. This is a runtime and data-contract rewrite. |
 | Affected services and surfaces | Agents API, Temporal worker, PostgreSQL, Core adapters, MCP, skills/plugins, channels, customer agent creation, and later Playground. |
 | Platform release version or ID | Not applicable during local implementation. |
-| API/schema/migration changes | Added repeatable migrations `117_durable_operations.sql` and `118_agent_context_compaction_revisions.sql`; the session lease migration `116_agent_session_leases.sql` is part of the same local rewrite. API contracts remain runtime-first and the interface is deferred. |
+| API/schema/migration changes | Added repeatable migrations `117_durable_operations.sql`, `118_agent_context_compaction_revisions.sql`, and `119_agent_installation_environments.sql`; the session lease migration `116_agent_session_leases.sql` is part of the same local rewrite. API contracts remain runtime-first and the interface is deferred. |
 | Feature flag or rollout | Local rewrite first. Production rollout requires an explicit cutover or fresh-environment decision. |
 | Analytics | Runtime facts now include context compaction, MCP operation outcomes, child progress/outcomes, plugin evidence, session fencing, and durable-operation state. Queue-age and provider-level analytics remain open. |
 | Logs, metrics, dashboards, and alerts | Structured evidence is present for the runtime paths; queue age, provider retries, unknown effects, MCP health, worker loss, and stuck-session dashboards remain required before rollout. |

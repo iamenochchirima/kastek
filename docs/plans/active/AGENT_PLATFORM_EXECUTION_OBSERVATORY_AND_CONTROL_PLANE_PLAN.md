@@ -8,11 +8,11 @@ description: Third Agent Platform implementation chunk for real Playground execu
 
 # Agent Playground and Execution Observatory
 
-**Status:** Planned; third implementation chunk
+**Status:** In progress; first Playground and creation slice implemented
 
 **Owner:** Agent Platform
 
-**Last updated:** 2026-09-06
+**Last updated:** 2026-09-07
 
 **Risk:** High
 
@@ -46,6 +46,22 @@ This chunk is where the platform becomes manually testable as a complete system.
 operator, or customer agent builder should be able to configure a draft, run it against real
 Playground resources, open the execution trace, understand what is waiting or failing, correct the
 draft, and promote a validated version without editing the live version in place.
+
+## Current implementation slice
+
+The first implementation slice is now available for local testing:
+
+- custom creation uses a typed profile rather than a required workflow graph;
+- publication creates an immutable version and a pinned Playground installation;
+- the Playground starts real runs through the platform message and Temporal paths and renders
+  durable run events as an execution graph;
+- `/playground` filters to installations explicitly marked `environment=playground`; and
+- the runtime scope carries an explicit `playground` or `live` environment and rejects cross-environment
+  child activation.
+
+This is a usable entry point, not completion of this chunk. Separate resource and credential
+bindings, promotion manifests, live activation, reconnectable observatory projections, and stateful
+controls remain unchecked until their backend contracts and evidence exist.
 
 ## Why this is the third chunk
 
