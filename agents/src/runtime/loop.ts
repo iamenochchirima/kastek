@@ -1,5 +1,5 @@
 import { ModelGateway } from "../model/gateway";
-import type { ModelCredentials, ModelMessage, ModelRequest, ModelResponse } from "../model/types";
+import type { ModelCredentials, ModelMessage, ModelRequest, ModelResponse, ModelToolDefinition } from "../model/types";
 import { ModelProviderError } from "../model/types";
 import { estimatePromptTokens } from "../model/credit-pricing";
 import { approvalSnapshotHashFromResource, ToolPolicyError, type CapabilityPresentationMetadata, type ToolApproval, type ToolDefinition, type ToolInvocationContext, type ToolInvocationLifecycle, type ToolInvocationResult } from "../tools/types";
@@ -13,6 +13,12 @@ import { agentResponseSchema, findAuthorizationRequirement, type AgentAuthorizat
 import { projectCapabilityResultUi } from "../media/dynamic-ui";
 import { prepareModelMessages } from "./message-context";
 import { createAgentBudgetLedger, type AgentBudgetLedger } from "./budget";
+import {
+  accountProviderUsage,
+  planProviderRequest,
+  type ContextPlanningPolicy,
+  type ProviderContextProfile,
+} from "./context-planning";
 
 export interface AgentLoopLimits {
   maxIterations: number;
@@ -46,6 +52,10 @@ export interface AgentLoopInput {
   modelTools?: Array<Omit<ToolDefinition, "handler">>;
   /** Effective context window used for every model request, including later tool rounds. */
   modelContextTokens?: number;
+  /** Provider-aware model-boundary contract. When present, this replaces rough prompt-only admission. */
+  contextProfile?: ProviderContextProfile;
+  /** Per-agent limits for tool schemas/results and response reservation. */
+  contextPlanningPolicy?: Partial<ContextPlanningPolicy>;
   budgetLedger?: AgentBudgetLedger;
   signal?: AbortSignal;
   /** Prefix used to keep durable operation keys unique across hosted loop contexts. */
@@ -337,6 +347,7 @@ export async function runBoundedAgentLoop(input: AgentLoopInput): Promise<AgentL
       let contextBudgetConsumed = false;
       let response: ModelResponse | undefined;
       let lastError: unknown;
+      let contextPlanForResponse: ReturnType<typeof planProviderRequest> | undefined;
       for (const [attemptIndex, attempt] of attempts.entries()) {
         lastModelAttempt = attempt;
         let creditReservation: ModelCreditReservation | undefined;
@@ -361,7 +372,68 @@ export async function runBoundedAgentLoop(input: AgentLoopInput): Promise<AgentL
               },
             });
           }
-          const estimatedInputTokens = estimatePromptTokens({ messages, tools });
+          const contextPlan = input.contextProfile
+            ? planProviderRequest({
+              profile: {
+                ...input.contextProfile,
+                provider: attempt.model.provider,
+                model: attempt.model.model,
+                ...(attempt.model.maxTokens !== undefined ? { maxOutputTokens: attempt.model.maxTokens } : {}),
+              },
+              policy: {
+                requestedOutputTokens: attempt.model.maxTokens ?? Math.min(2_048, Math.max(1, remainingTokens)),
+                maxToolSchemaTokens: input.contextPlanningPolicy?.maxToolSchemaTokens ?? 2_000,
+                maxToolResultTokens: input.contextPlanningPolicy?.maxToolResultTokens ?? 1_500,
+                ...(input.contextPlanningPolicy?.maxMessageUnits !== undefined ? { maxMessageUnits: input.contextPlanningPolicy.maxMessageUnits } : {}),
+              },
+              messages,
+              tools,
+            })
+            : undefined;
+          if (contextPlan?.status === "rejected") {
+            await emit(input, {
+              type: "loop.limited",
+              iteration,
+              payload: {
+                reason: "context_plan_rejected",
+                code: contextPlan.rejection.code,
+                message: contextPlan.rejection.message,
+                accounting: contextPlan.accounting,
+                diagnostics: contextPlan.diagnostics,
+              },
+            });
+            return {
+              status: "limited",
+              messages: [...contextPlan.messages],
+              usage,
+              iterations: iteration - 1,
+              toolCalls,
+              error: {
+                code: "CONTEXT_PLAN_REJECTED",
+                message: contextPlan.rejection.message,
+                failureClass: "terminal",
+              },
+              ...(lastToolUi ? { ui: lastToolUi } : {}),
+            };
+          }
+          if (contextPlan) {
+            contextPlanForResponse = contextPlan;
+            if (contextPlan.status === "compacted" || contextPlan.diagnostics.truncatedToolResultCount > 0 || contextPlan.diagnostics.omittedToolCount > 0) {
+              messages.splice(0, messages.length, ...contextPlan.messages);
+              await emit(input, {
+                type: "loop.started",
+                iteration,
+                payload: {
+                  contextCompacted: contextPlan.status === "compacted",
+                  contextPlan: contextPlan.diagnostics,
+                  contextAccounting: contextPlan.accounting,
+                },
+              });
+            }
+          }
+          const modelMessages: ModelMessage[] = contextPlan ? [...contextPlan.messages] : messages;
+          const modelTools: ModelToolDefinition[] = contextPlan ? [...contextPlan.tools] : tools;
+          const estimatedInputTokens = contextPlan?.accounting.estimatedInputTokens ?? estimatePromptTokens({ messages: modelMessages, tools: modelTools });
           if (!contextBudgetConsumed && !budget.admit("context", estimatedInputTokens)) {
             await emit(input, { type: "loop.limited", iteration, payload: { reason: "context_budget", estimatedInputTokens, budget: budget.snapshot() } });
             return { status: "limited", messages, usage, iterations: iteration - 1, toolCalls, ...(lastToolUi ? { ui: lastToolUi } : {}) };
@@ -375,9 +447,9 @@ export async function runBoundedAgentLoop(input: AgentLoopInput): Promise<AgentL
           lastModelOperationKey = operationKey;
           const request: ModelRequest = {
             ...attempt.model,
-            messages: preparedMessages.messages,
+            messages: modelMessages,
             signal: input.signal,
-            tools,
+            tools: modelTools,
             maxTokens: attempt.model.maxTokens === undefined ? availableOutputTokens : Math.min(attempt.model.maxTokens, availableOutputTokens),
           };
           const prepared = await input.prepareModelCall?.({ operationKey, model: attempt.model, credentials: attempt.credentials });
@@ -460,6 +532,7 @@ export async function runBoundedAgentLoop(input: AgentLoopInput): Promise<AgentL
       usage.outputTokens += response.usage.outputTokens;
       usage.totalTokens += response.usage.totalTokens;
       usage.estimatedCostUsd += response.usage.estimatedCostUsd ?? 0;
+      const contextUsage = contextPlanForResponse ? accountProviderUsage(contextPlanForResponse, response.usage) : undefined;
       await emit(input, {
         type: "model.completed",
         iteration,
@@ -470,6 +543,16 @@ export async function runBoundedAgentLoop(input: AgentLoopInput): Promise<AgentL
           outputTokens: response.usage.outputTokens,
           finishReason: response.finishReason,
           toolCallCount: response.toolCalls.length,
+          ...(contextUsage ? {
+            contextUsage: {
+              status: contextUsage.status,
+              plannedInputTokens: contextUsage.plannedInputTokens,
+              inputOverrunTokens: contextUsage.inputOverrunTokens,
+              outputOverrunTokens: contextUsage.outputOverrunTokens,
+              totalOverrunTokens: contextUsage.totalOverrunTokens,
+              issues: contextUsage.issues,
+            },
+          } : {}),
         },
       });
       if (response.toolCalls.length === 0) {

@@ -3330,6 +3330,17 @@ async function executeLoopForRun(
     grantedTools: allowedTools,
     modelTools: context.tools,
     modelContextTokens: context.budget.maxContextTokens,
+    contextProfile: {
+      provider,
+      model,
+      contextWindowTokens: context.budget.maxContextTokens,
+      maxOutputTokens: Math.max(1, Math.min(2_048, runBudgetLimits.maxTotalTokens)),
+      safetyMarginTokens: 256,
+    },
+    contextPlanningPolicy: {
+      maxToolSchemaTokens: context.budget.toolSchemaTokens > 0 ? context.budget.toolSchemaTokens : 2_000,
+      maxToolResultTokens: 1_500,
+    },
     toolContext: modelToolContext,
     budgetLedger,
   };

@@ -3,6 +3,7 @@ import type { ModelGateway } from "../model/gateway";
 import type { ToolInvocationContext, ToolDefinition } from "../tools/types";
 import type { AgentBudgetLedger } from "./budget";
 import type { AgentLoopInput } from "./loop";
+import type { ContextPlanningPolicy, ProviderContextProfile } from "./context-planning";
 
 /**
  * The resolved, run-pinned dependencies for one harness turn.
@@ -19,6 +20,8 @@ export interface AgentExecutionPlan {
   readonly grantedTools: ReadonlySet<string>;
   readonly modelTools?: Array<Omit<ToolDefinition, "handler">>;
   readonly modelContextTokens?: number;
+  readonly contextProfile?: ProviderContextProfile;
+  readonly contextPlanningPolicy?: Partial<ContextPlanningPolicy>;
   readonly toolContext: ToolInvocationContext;
   readonly budgetLedger?: AgentBudgetLedger;
 }

@@ -8,7 +8,7 @@ description: Canonical implementation map for the KasiTek Agent Platform archite
 
 # Agent Platform implementation plan
 
-**Status:** Active planning; implementation has not started
+**Status:** Active planning; first chunk complete locally, later chunks planned
 
 **Owner:** Agent Platform
 
@@ -369,8 +369,25 @@ approvals, provider reconciliation, and KasiTek's execution journal. It does not
 dependency or enable unrestricted multi-agent execution.
 
 The second chunk is a cross-cutting implementation slice over P01, P03, P05, P08, P09, P09B, P10,
-and P14. It must be revised and scoped into smaller active checklists before code implementation
-starts.
+and P14. The local implementation is complete. The remaining Hermes gap work is tracked in the
+active [`Agent Platform Hermes Gap Closure and Runtime Rework`](../active/AGENT_PLATFORM_HERMES_GAP_CLOSURE_PLAN.md)
+plan, beginning with the context and token execution kernel.
+
+### Third chunk — Agent Playground and execution observatory
+
+[`Agent Platform Execution Observatory and Visual Control Plane`](../active/AGENT_PLATFORM_EXECUTION_OBSERVATORY_AND_CONTROL_PLANE_PLAN.md)
+
+Consumes the second chunk's durable journal, projections, and cursor contracts to build the Agent
+Playground as a real execution environment: draft configuration, immutable candidates, separately
+bound Playground resources, production-equivalent execution, generated timeline and graph, live
+subscription, operation inspector, safe controls, evidence-backed promotion, atomic activation,
+and rollback. Promotion activates the exact tested candidate and extension digests against
+validated live bindings; it does not rebuild configuration or copy Playground secrets, data,
+conversations, memories, or effects. It also provides the manual end-to-end test surface for web,
+messaging, REST/MCP,
+Core-hosted, native, and tenant-hosted runs. It is a profile-and-tools experience with generated
+execution visuals, not an n8n-style requirement that ordinary agents be authored from blocks; the
+full workflow designer and multi-agent canvas remain later scope.
 
 ## Current baseline
 
@@ -1288,15 +1305,25 @@ behavior.
   regressions.
 - Enforce one lifecycle for draft, validation, evaluation, approval, publication, deployment,
   canary, pause, abort, rollback, and terminal retirement.
+- Make Playground a real environment on the same runtime and adapters as live. Isolate authority
+  through separately managed credentials, provider resources, data namespaces, channel identities,
+  destinations, quotas, budgets, concurrency, and approvers.
+- Define portable immutable candidates, required resource declarations, environment binding
+  snapshots, promotion manifests, atomic activation, active-run pinning, and rollback records.
+- Require real Playground execution and per-channel evidence for promotion; a mock or dry-run result
+  cannot certify a release.
+- Promote the exact candidate and extension digests proven in Playground, resolve compatible live
+  bindings separately, and never copy test secrets, conversations, memories, data, or effects.
 - Classify risk from the specification diff rather than a user-selected label.
 - Capture an immutable deployment manifest for agent, graph, tool catalog, host adapters, workers,
   migrations, configuration, flags, and safety policy.
 - Add progressive rollout by test conversation, installation, organization, and percentage with
   declared halt and rollback thresholds.
 
-**Verification:** Stale writes, duplicate transitions, failed suites, missing evidence, rollout
-races, worker restart, metric outage, partial rollout, and rollback are covered. Draft runs cannot
-create production effects.
+**Verification:** Stale writes, duplicate transitions, failed suites, missing evidence, artifact or
+binding drift, cross-environment access, rollout races, worker restart, metric outage, partial
+rollout, active-run pinning, and rollback are covered. Playground runs perform real effects but
+cannot use live authority or escape their destination and resource constraints.
 
 **Exit:** Publication and deployment are distinct, gated, auditable operations.
 
@@ -1312,7 +1339,8 @@ for explicit deterministic workflows.
 
 **Deliverables:**
 
-- Provide a design graph, version diff, validation state, and test-run playback for builders.
+- Provide candidate configuration, environment binding health, version/promotion diff, validation
+  state, and real Playground-run inspection for builders.
 - Provide synchronized execution graph and timeline views with active path, nested invocations,
   waits, retries, handoffs, approvals, deliveries, compensation, and per-target batch lanes.
 - Make the generated execution graph the default view for ordinary custom agents. Show the harness
