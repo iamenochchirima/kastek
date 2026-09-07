@@ -25,4 +25,19 @@ describe("model message context preparation", () => {
     expect(prepared.messages.at(-1)).toMatchObject({ role: "user", content: "latest" });
     expect(prepared.messages.some((message) => message.role === "tool" && message.toolCallId === "call-2")).toBe(true);
   });
+
+  it("can repair pairs without applying the legacy fixed-token compactor", () => {
+    const prepared = prepareModelMessages({
+      messages: [
+        { role: "system", content: "policy" },
+        ...Array.from({ length: 40 }, (_, index) => ({ role: "user" as const, content: `history-${index}` })),
+        { role: "assistant", content: "", toolCalls: [{ id: "call-3", name: "lookup", arguments: {} }] },
+      ],
+      maxContextTokens: 16,
+      compact: false,
+    });
+    expect(prepared.compacted).toBe(false);
+    expect(prepared.messages).toHaveLength(43);
+    expect(prepared.repairedPairCount).toBe(1);
+  });
 });

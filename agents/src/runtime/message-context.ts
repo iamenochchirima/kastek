@@ -19,8 +19,11 @@ export interface PreparedModelMessages {
 export function prepareModelMessages(input: {
   messages: readonly ModelMessage[];
   maxContextTokens: number;
+  /** The provider-aware planner owns compaction when this is false. */
+  compact?: boolean;
 }): PreparedModelMessages {
   const repaired = repairToolPairs(input.messages);
+  if (input.compact === false) return repaired;
   const budget = Math.max(256, Math.trunc(input.maxContextTokens));
   if (estimatePromptTokens({ messages: repaired.messages }) <= budget) {
     return { ...repaired, compacted: false };

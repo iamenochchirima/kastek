@@ -363,6 +363,10 @@ export async function runBoundedAgentLoop(input: AgentLoopInput): Promise<AgentL
           const preparedMessages = prepareModelMessages({
             messages,
             maxContextTokens: input.modelContextTokens ?? 8_000,
+            // Once a provider profile is available, the shared context
+            // planner is the only component allowed to compact history. The
+            // repair pass still protects interrupted tool pairs.
+            compact: input.contextProfile === undefined,
           });
           if (preparedMessages.compacted || preparedMessages.repairedPairCount > 0) {
             messages.splice(0, messages.length, ...preparedMessages.messages);
