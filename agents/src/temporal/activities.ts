@@ -17,6 +17,7 @@ import { actualModelCallCredits, estimateModelCallCredits, estimatePromptTokens,
 import { buildAgentContext } from "../runtime/context";
 import { executionScopeFromRun } from "../runtime/execution-scope";
 import { createGroundingFallbackResponse, shouldFailClosedWithoutEvidence } from "../runtime/grounding";
+import { createAgentBudgetLedger, type AgentBudgetLedger } from "../runtime/budget";
 import { hashToolArguments, ToolRegistry } from "../tools/registry";
 import { KasitekCoreReadClient } from "../core/client";
 import type { AppConfig } from "../config";
@@ -3232,6 +3233,14 @@ async function executeLoopForRun(
       error,
     };
   }
+  const budgetLedger: AgentBudgetLedger = createAgentBudgetLedger({
+    contextTokens: runBudgetLimits.maxTotalTokens,
+    modelTokens: runBudgetLimits.maxTotalTokens,
+    toolCalls: runBudgetLimits.maxToolCalls,
+    graphSteps: 2_000,
+    childInvocations: 16,
+    wallTimeMs: typeof configuration.maxWallTimeMs === "number" ? configuration.maxWallTimeMs : 60_000,
+  });
   if (shouldFailClosedWithoutEvidence({
     message: currentMessage,
     agentAudience: run.agent_audience,
@@ -3307,6 +3316,7 @@ async function executeLoopForRun(
       grantedTools: allowedTools,
       modelTools: context.tools,
       modelContextTokens: context.budget.maxContextTokens,
+      budgetLedger,
       toolContext: modelToolContext,
       uiChannel: run.reply_channel_type === "website" ? "website" : "platform",
       dynamicUiEnabled,
@@ -3607,6 +3617,7 @@ async function executeLoopForRun(
       modelToolContext,
       conversationActions,
       harness,
+      budgetLedger,
       runAgentLoop: async ({ nodeId, config, state, maxIterations, usage, limits, parallelLeaseId }) => {
         const instruction = typeof config.instruction === "string" && config.instruction.trim()
           ? config.instruction
@@ -3988,6 +3999,7 @@ async function executeConfiguredWorkflow(input: {
   modelToolContext: ToolInvocationContext;
   conversationActions: ConversationActionService;
   harness: AgentHarness;
+  budgetLedger: AgentBudgetLedger;
   runAgentLoop: (input: GraphAgentLoopRequest) => Promise<GraphAgentLoopResult>;
   limits: GraphExecutionLimits;
   /** Enables one-node Temporal continuation for linear graphs during controlled rollout. */
@@ -4170,6 +4182,7 @@ async function executeConfiguredWorkflow(input: {
       runId: input.run.id,
       branches,
     }),
+    budgetLedger: input.budgetLedger,
     model: async ({ nodeId, config, state, parallelLeaseId }) => {
       const result = await input.runAgentLoop({
         nodeId,

@@ -1,6 +1,7 @@
 import { compileWorkflowStateSchema, type WorkflowGraph, type WorkflowStateValidator } from "./graph";
 import { hashToolArguments } from "../tools/registry";
 import type { ModelResponse } from "../model/types";
+import type { AgentBudgetLedger } from "../runtime/budget";
 
 interface GraphAuthorizationRequirement {
   code: string;
@@ -68,6 +69,8 @@ export interface GraphAgentLoopResult {
 }
 
 export interface GraphExecutorDependencies {
+  /** Shared per-run admission ledger used by graph work and nested harness turns. */
+  budgetLedger?: AgentBudgetLedger;
   model?: (input: { nodeId: string; config: Record<string, unknown>; state: Record<string, unknown>; parallelLeaseId?: string }) => Promise<unknown>;
   agentLoop?: (input: GraphAgentLoopRequest) => Promise<GraphAgentLoopResult>;
   tool?: (input: GraphToolRequest) => Promise<unknown>;
@@ -215,6 +218,11 @@ export async function executeWorkflowGraph(
   }
   while (execution.steps < execution.maxSteps) {
     execution.steps += 1;
+    try {
+      dependencies.budgetLedger?.consume("graph");
+    } catch (error) {
+      return { status: "failed", state, trace, usage, error: error instanceof Error ? error.message : "Graph budget exceeded" };
+    }
     if (dependencies.signal?.aborted) return { status: "failed", state, trace, usage, error: "Workflow execution cancelled" };
     const limitError = executionLimitError(usage, dependencies.limits, execution.startedAt);
     if (limitError) return { status: "failed", state, trace, usage, error: limitError };
@@ -252,6 +260,7 @@ export async function executeWorkflowGraph(
         }
       } else if (node.type === "tool") {
         if (!dependencies.tool || typeof node.config.toolName !== "string") throw new Error(`Tool node is not configured: ${node.id}`);
+        dependencies.budgetLedger?.consume("tool");
         consumeToolCall(usage, dependencies.limits);
         result = await dependencies.tool({ name: node.config.toolName, arguments: (node.config.arguments ?? {}) as Record<string, unknown>, nodeId: node.id, ...(dependencies.parallelBranchLease ? { parallelLeaseId: dependencies.parallelBranchLease.id } : {}) });
         throwIfGraphCancelled(dependencies.signal);

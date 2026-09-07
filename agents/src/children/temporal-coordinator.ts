@@ -7,6 +7,7 @@ import {
   type WorkflowStartOptions,
 } from "@temporalio/client";
 import type { ExecutionScope } from "../runtime/execution-scope";
+import type { AgentBudgetLedger } from "../runtime/budget";
 import {
   createChildInvocationScope,
   type ChildInvocationRequest,
@@ -86,6 +87,7 @@ export function createTemporalChildWorkflowAdapter(client: Client): TemporalChil
 export interface TemporalChildInvocationCoordinatorOptions {
   workflowType: string;
   taskQueue: string;
+  budgetLedger?: AgentBudgetLedger;
 }
 
 export function childWorkflowId(invocationId: string): string {
@@ -143,6 +145,7 @@ export class TemporalChildInvocationCoordinator<TOutput = unknown> {
 
   async invoke(parent: ExecutionScope, input: unknown): Promise<TemporalChildInvocationResult<TOutput>> {
     const { scope, request } = createChildInvocationScope(parent, input);
+    this.options.budgetLedger?.consume("child");
     const workflowId = childWorkflowId(scope.invocationId);
     let handle: TemporalChildWorkflowHandle<TOutput> | undefined;
     let startDisposition: ChildInvocationEvidence["startDisposition"] = "started";

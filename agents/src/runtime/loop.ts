@@ -203,7 +203,7 @@ async function emit(input: AgentLoopInput, event: AgentLoopEvent): Promise<void>
 
 export async function runBoundedAgentLoop(input: AgentLoopInput): Promise<AgentLoopResult> {
   const limits = { ...defaultLimits, ...input.limits };
-  const budget = input.budgetLedger ?? createAgentBudgetLedger({ contextTokens: input.modelContextTokens ?? 8_000, modelTokens: limits.maxTotalTokens, toolCalls: limits.maxToolCalls, wallTimeMs: limits.maxWallTimeMs });
+  const budget = input.budgetLedger ?? createAgentBudgetLedger({ contextTokens: limits.maxTotalTokens, modelTokens: limits.maxTotalTokens, toolCalls: limits.maxToolCalls, wallTimeMs: limits.maxWallTimeMs });
   const messages = [...input.messages];
   const usage = { inputTokens: 0, outputTokens: 0, totalTokens: 0, estimatedCostUsd: 0 };
   let toolCalls = 0;
@@ -329,6 +329,7 @@ export async function runBoundedAgentLoop(input: AgentLoopInput): Promise<AgentL
         { model: input.model, credentials: input.credentials },
         ...(input.fallbackModels ?? []),
       ];
+      let contextBudgetConsumed = false;
       let response: ModelResponse | undefined;
       let lastError: unknown;
       for (const [attemptIndex, attempt] of attempts.entries()) {
@@ -356,6 +357,14 @@ export async function runBoundedAgentLoop(input: AgentLoopInput): Promise<AgentL
             });
           }
           const estimatedInputTokens = estimatePromptTokens({ messages, tools });
+          if (!contextBudgetConsumed && !budget.admit("context", estimatedInputTokens)) {
+            await emit(input, { type: "loop.limited", iteration, payload: { reason: "context_budget", estimatedInputTokens, budget: budget.snapshot() } });
+            return { status: "limited", messages, usage, iterations: iteration - 1, toolCalls, ...(lastToolUi ? { ui: lastToolUi } : {}) };
+          }
+          if (!contextBudgetConsumed) {
+            budget.consume("context", estimatedInputTokens);
+            contextBudgetConsumed = true;
+          }
           const availableOutputTokens = Math.max(1, remainingTokens - estimatedInputTokens);
           operationKey = `${input.operationKeyPrefix ?? "model"}:${iteration}:${attemptIndex}`;
           lastModelOperationKey = operationKey;
