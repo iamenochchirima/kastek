@@ -164,7 +164,7 @@ The runtime work completed so far is split into reviewable commits rather than o
 | --- | --- | --- |
 | Temporal child activation | `a270980f` and `202579f2` | child contract, deterministic workflow adapter, lineage/progress path, and harness capability tests |
 | Durable operations and MCP | `3894f4a6` and `202579f2` | durable lifecycle tests, MCP boundary tests, and full agent suite |
-| Session coordination and fencing | `f2f2bead`, `03ccb569`, `202579f2`, `42a976ed` | scope, lease, session coordinator, and workflow fencing tests |
+| Session coordination and fencing | `f2f2bead`, `03ccb569`, `202579f2`, `42a976ed`, `cda575ff` | scope, lease, fencing-epoch, session coordinator, and workflow fencing tests |
 | Plugin isolation | `698e6f4f` and `202579f2` | 12 plugin protocol/isolation/capability tests |
 | Durable context compaction | `07132fed`, `6e6d97df`, and `202579f2` | context compaction, context planning, replay, and build verification |
 
