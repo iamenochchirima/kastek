@@ -693,21 +693,26 @@ check or a UI screenshot alone does not prove a durable runtime contract.
 - [x] Make decomposed execution consume the same harness turn and context contracts.
   Evidence: the independent decomposed executor was removed; every durable run now schedules the
   one `AgentRunActivities.executeLoop` path, which composes `AgentHarness`.
-- [ ] Define typed harness continuations for completed, waiting, limited, failed, cancelled, and
-  reconciliation-required states.
+- [x] Define typed harness continuations for completed, waiting, limited, failed, cancelled, and
+  reconciliation-required states. Evidence: `agents/src/runtime/continuation.ts` and
+  `agents/test/harness-continuation.test.ts`; Temporal remains the owner of cancellation signals.
 - [ ] Remove remaining caller-owned model/tool policy construction after migration tests pass.
 
 ### Context and loop reliability
 
 - [x] Bound historical messages and model-visible tool schemas while retaining durable evidence
   outside model context. Evidence: `DefaultContextPolicy` contract tests.
-- [ ] Add protected assistant/tool-call pairing and durable compaction summaries.
+- [x] Add protected assistant/tool-call pairing and durable compaction summaries. Evidence:
+  `agents/src/runtime/message-context.ts` and `agents/test/message-context.test.ts`; full durable
+  run evidence remains outside the bounded model projection.
 - [x] Add provider overflow recovery that compacts or limits once without retrying a doomed request.
   Evidence: context is bounded before dispatch and `runBoundedAgentLoop` turns a provider
   context-overflow response into one typed limited result with no adapter retry or fallback;
   `agents/test/context-overflow-recovery.test.ts` verifies the behavior.
-- [ ] Unify the budget ledger across context, model calls, tools, credits, wall time, graph work,
-  and child work.
+- [x] Unify the budget ledger across context, model calls, tools, credits, wall time, graph work,
+  and child work. Evidence: `agents/src/runtime/budget.ts` and `agents/test/budget.test.ts`; the
+  ledger is the shared typed admission seam, while durable credit settlement remains in the
+  existing run-budget repository.
 - [ ] Prove ordinary and decomposed/graph turns have identical model/tool event and outcome semantics.
 
 ### Extensions and capabilities
@@ -720,7 +725,8 @@ check or a UI screenshot alone does not prove a durable runtime contract.
   `agents/src/capabilities/runtime.ts` and `agents/test/capability-runtime.test.ts`.
 - [ ] Persist declarative plugin lifecycle records, dependency/compatibility rules, and immutable
   extension snapshots at agent-version publication and run admission.
-- [ ] Build `ExtensionResolver` for skills, plugins, connectors, and MCP configurations.
+- [x] Build `ExtensionResolver` for skills, plugins, connectors, and MCP configurations. Evidence:
+  `agents/src/extensions/resolver.ts` and `agents/test/extension-resolver.test.ts`.
 - [ ] Build one capability-admission interface that always performs readiness, authorization,
   approval, durable operation/receipt handling, invocation, redaction, and evidence.
 - [ ] Migrate a read-only Core/native capability and one remote MCP capability through that interface.

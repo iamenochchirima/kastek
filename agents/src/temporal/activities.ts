@@ -3306,6 +3306,7 @@ async function executeLoopForRun(
       gateway,
       grantedTools: allowedTools,
       modelTools: context.tools,
+      modelContextTokens: context.budget.maxContextTokens,
       toolContext: modelToolContext,
       uiChannel: run.reply_channel_type === "website" ? "website" : "platform",
       dynamicUiEnabled,

@@ -11,6 +11,8 @@ import type { GroundingProvenance } from "./provenance";
 import { buildApprovedToolCompletionMessage, buildApprovedToolFailureMessage } from "./approved-tool-completion";
 import { agentResponseSchema, findAuthorizationRequirement, type AgentAuthorizationRequirement, type AgentResponse } from "../media/contracts";
 import { projectCapabilityResultUi } from "../media/dynamic-ui";
+import { prepareModelMessages } from "./message-context";
+import { createAgentBudgetLedger, type AgentBudgetLedger } from "./budget";
 
 export interface AgentLoopLimits {
   maxIterations: number;
@@ -40,6 +42,9 @@ export interface AgentLoopInput {
   grantedTools: ReadonlySet<string>;
   /** Model-facing capability projection selected by ContextPolicy for this turn. */
   modelTools?: Array<Omit<ToolDefinition, "handler">>;
+  /** Effective context window used for every model request, including later tool rounds. */
+  modelContextTokens?: number;
+  budgetLedger?: AgentBudgetLedger;
   signal?: AbortSignal;
   /** Prefix used to keep durable operation keys unique across hosted loop contexts. */
   operationKeyPrefix?: string;
@@ -198,6 +203,7 @@ async function emit(input: AgentLoopInput, event: AgentLoopEvent): Promise<void>
 
 export async function runBoundedAgentLoop(input: AgentLoopInput): Promise<AgentLoopResult> {
   const limits = { ...defaultLimits, ...input.limits };
+  const budget = input.budgetLedger ?? createAgentBudgetLedger({ contextTokens: input.modelContextTokens ?? 8_000, modelTokens: limits.maxTotalTokens, toolCalls: limits.maxToolCalls, wallTimeMs: limits.maxWallTimeMs });
   const messages = [...input.messages];
   const usage = { inputTokens: 0, outputTokens: 0, totalTokens: 0, estimatedCostUsd: 0 };
   let toolCalls = 0;
@@ -209,7 +215,7 @@ export async function runBoundedAgentLoop(input: AgentLoopInput): Promise<AgentL
   await emit(input, { type: "loop.started", iteration: 0, payload: {} });
 
   if (input.resumeApprovedToolCall) {
-    try {
+  try {
       const resumed = input.resumeApprovedToolCall;
       const resumedManifest = input.tools.get(resumed.name);
       await input.beforeToolInvoke?.({
@@ -333,13 +339,29 @@ export async function runBoundedAgentLoop(input: AgentLoopInput): Promise<AgentL
         try {
           await input.beforeModelCall?.();
           const tools = input.modelTools ?? input.tools.list(input.grantedTools);
+          const preparedMessages = prepareModelMessages({
+            messages,
+            maxContextTokens: input.modelContextTokens ?? 8_000,
+          });
+          if (preparedMessages.compacted || preparedMessages.repairedPairCount > 0) {
+            messages.splice(0, messages.length, ...preparedMessages.messages);
+            await emit(input, {
+              type: "loop.started",
+              iteration,
+              payload: {
+                contextCompacted: preparedMessages.compacted,
+                omittedMessageCount: preparedMessages.omittedMessageCount,
+                repairedPairCount: preparedMessages.repairedPairCount,
+              },
+            });
+          }
           const estimatedInputTokens = estimatePromptTokens({ messages, tools });
           const availableOutputTokens = Math.max(1, remainingTokens - estimatedInputTokens);
           operationKey = `${input.operationKeyPrefix ?? "model"}:${iteration}:${attemptIndex}`;
           lastModelOperationKey = operationKey;
           const request: ModelRequest = {
             ...attempt.model,
-            messages,
+            messages: preparedMessages.messages,
             signal: input.signal,
             tools,
             maxTokens: attempt.model.maxTokens === undefined ? availableOutputTokens : Math.min(attempt.model.maxTokens, availableOutputTokens),
@@ -368,7 +390,7 @@ export async function runBoundedAgentLoop(input: AgentLoopInput): Promise<AgentL
             creditReservation = await input.reserveModelCall?.({ request, credentials: attempt.credentials, operationKey });
           } else {
             creditReservation = await input.reserveModelCall?.({ request, credentials: attempt.credentials, operationKey });
-            response = await input.gateway.complete(request, attempt.credentials);
+          response = await input.gateway.complete(request, attempt.credentials);
             await input.persistModelResponse?.({ operationKey, response, attempt });
           }
           if (runBudgetReservation) {
@@ -418,7 +440,8 @@ export async function runBoundedAgentLoop(input: AgentLoopInput): Promise<AgentL
       }
       if (!response) throw lastError ?? new Error("Model gateway returned no response");
       await input.onModelResponse?.(response, lastModelAttempt, lastModelOperationKey);
-      messages.push(response.message);
+          messages.push(response.message);
+          budget.consume("model", response.usage.totalTokens);
       usage.inputTokens += response.usage.inputTokens;
       usage.outputTokens += response.usage.outputTokens;
       usage.totalTokens += response.usage.totalTokens;
@@ -506,6 +529,7 @@ export async function runBoundedAgentLoop(input: AgentLoopInput): Promise<AgentL
             });
           }
           if (!replayed) await input.consumeRunToolCall?.({ parallelLeaseId: input.parallelLeaseId });
+          budget.consume("tool");
           const result = replayed ?? await input.tools.invoke({
             name: toolCall.name,
             arguments: toolCall.arguments,
