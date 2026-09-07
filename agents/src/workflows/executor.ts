@@ -1,5 +1,6 @@
 import { compileWorkflowStateSchema, type WorkflowGraph, type WorkflowStateValidator } from "./graph";
 import { hashToolArguments } from "../tools/registry";
+import type { ModelResponse } from "../model/types";
 
 interface GraphAuthorizationRequirement {
   code: string;
@@ -57,6 +58,7 @@ export interface GraphAgentLoopRequest {
 
 export interface GraphAgentLoopResult {
   status: "completed" | "awaiting_approval" | "awaiting_human" | "awaiting_external_event" | "limited" | "failed";
+  response?: ModelResponse;
   output?: unknown;
   pendingToolCalls?: Array<{ id: string; name: string; arguments: Record<string, unknown>; argumentsHash: string }>;
   waitingFor?: string;

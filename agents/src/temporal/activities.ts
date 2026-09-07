@@ -3606,6 +3606,7 @@ async function executeLoopForRun(
       coreClient,
       modelToolContext,
       conversationActions,
+      harness,
       runAgentLoop: async ({ nodeId, config, state, maxIterations, usage, limits, parallelLeaseId }) => {
         const instruction = typeof config.instruction === "string" && config.instruction.trim()
           ? config.instruction
@@ -3637,6 +3638,7 @@ async function executeLoopForRun(
           ?? loopResult.response?.message.content;
         return {
           status: loopResult.status,
+          ...(loopResult.response ? { response: loopResult.response } : {}),
           ...(output === undefined ? {} : { output }),
           ...(loopResult.pendingToolCalls ? { pendingToolCalls: loopResult.pendingToolCalls } : {}),
           ...(loopResult.waitingFor ? { waitingFor: loopResult.waitingFor } : {}),
@@ -3985,6 +3987,7 @@ async function executeConfiguredWorkflow(input: {
   coreClient?: KasitekCoreReadClient;
   modelToolContext: ToolInvocationContext;
   conversationActions: ConversationActionService;
+  harness: AgentHarness;
   runAgentLoop: (input: GraphAgentLoopRequest) => Promise<GraphAgentLoopResult>;
   limits: GraphExecutionLimits;
   /** Enables one-node Temporal continuation for linear graphs during controlled rollout. */
@@ -4042,7 +4045,7 @@ async function executeConfiguredWorkflow(input: {
   const executeTool = async (request: { name: string; arguments: Record<string, unknown>; nodeId: string; approved?: unknown }): Promise<unknown> => {
     activityHeartbeat({ phase: "workflow.tool.started", nodeId: request.nodeId, tool: request.name });
     usedTools.add(request.name);
-    const manifest = input.tools.get(request.name);
+    const manifest = input.harness.get(request.name);
     if (!manifest) throw new Error(`WORKFLOW_TOOL_NOT_FOUND:${request.name}`);
     if (manifest.requiresApproval && !request.approved) throw new Error(`WORKFLOW_APPROVAL_REQUIRED:${request.name}`);
     if (manifest.riskClass === "external-effect" && !request.approved) throw new Error(`WORKFLOW_APPROVAL_REQUIRED:${request.name}`);
@@ -4104,7 +4107,7 @@ async function executeConfiguredWorkflow(input: {
         });
       }
       await consumeRunToolBudget(input.runBudget, { organizationId: input.run.organization_id, runId: input.run.id });
-      const result = await withActivityHeartbeat({ phase: "workflow.tool.running", nodeId: request.nodeId, tool: request.name }, () => input.tools.invoke({
+      const result = await withActivityHeartbeat({ phase: "workflow.tool.running", nodeId: request.nodeId, tool: request.name }, () => input.harness.capabilities.invoke({
         name: request.name,
         arguments: request.arguments,
         context: toolInvocationContextFromScope(executionScopeFromRun(input.run), {
@@ -4168,95 +4171,27 @@ async function executeConfiguredWorkflow(input: {
       branches,
     }),
     model: async ({ nodeId, config, state, parallelLeaseId }) => {
-      const instruction = typeof config.instruction === "string" ? config.instruction : "Continue the workflow.";
-      const request: ModelRequest = {
-        provider: input.modelProvider,
-        model: input.model,
-        messages: [...input.context.messages, { role: "user", content: JSON.stringify({ nodeId, instruction, state }) }],
-        maxTokens: typeof config.maxTokens === "number" ? Math.max(1, Math.min(8_000, config.maxTokens)) : 2_000,
-        temperature: typeof config.temperature === "number" ? config.temperature : undefined,
-        signal: currentActivitySignal(),
-      };
-      activityHeartbeat({ phase: "workflow.model.started", nodeId });
-      const operationKey = workflowModelOperationKey(input.run.id, nodeId);
-      const prepared = await input.modelCalls.prepare({
-        organizationId: input.run.organization_id,
-        runId: input.run.id,
-        operationKey,
-        provider: input.modelProvider,
-        model: input.model,
-        fundingSource: input.modelCredentials.fundingSource,
-        credentialReference: input.modelCredentials.credentialReference,
+      const result = await input.runAgentLoop({
+        nodeId,
+        config,
+        state,
+        maxIterations: 1,
+        usage: { modelCalls: 0, toolCalls: 0, inputTokens: 0, outputTokens: 0, totalTokens: 0, estimatedCostUsd: 0 },
+        limits: input.limits,
+        ...(parallelLeaseId ? { parallelLeaseId } : {}),
       });
-      let runBudgetReservation: ModelCreditReservation | undefined;
-      let creditReservation: ModelCreditReservation | undefined;
-      let response: ModelResponse;
-      let providerResponsePersisted = false;
-      try {
-        try {
-          runBudgetReservation = await reserveRunModelBudget({ repository: input.runBudget, organizationId: input.run.organization_id, runId: input.run.id, reservationKey: operationKey, parallelLeaseId, gateway: input.gateway, request });
-        } catch (error) {
-          if (!(prepared.status === "completed" && error instanceof Error && error.message === "MODEL_CALL_ALREADY_SETTLED")) throw error;
-        }
-        if (prepared.status === "unknown") {
-          await runBudgetReservation?.markUnknown?.("The worker lost the workflow model operation before its provider outcome was recorded");
-          runBudgetReservation = undefined;
-          throw new Error("MODEL_CALL_OUTCOME_UNKNOWN");
-        }
-        if (prepared.status === "completed") {
-          response = prepared.response;
-        } else {
-          creditReservation = await reserveModelCredits({
-            billingMode: input.creditBillingMode,
-            gateway: input.gateway,
-            modelPricing: input.modelPricing,
-            creditPricing: input.creditPricing,
-            coreClient: input.coreClient,
-            context: input.modelToolContext,
-            runId: input.run.id,
-            operationKey,
-            request,
-            credentials: input.modelCredentials,
-          });
-          response = await withActivityHeartbeat({ phase: "workflow.model.running", nodeId }, () => input.gateway.complete(request, input.modelCredentials));
-          await input.modelCalls.recordCompleted({ organizationId: input.run.organization_id, runId: input.run.id, operationKey, provider: response.provider, model: response.model, fundingSource: input.modelCredentials.fundingSource, credentialReference: input.modelCredentials.credentialReference, response, correlationId: input.run.correlation_id });
-          providerResponsePersisted = true;
-        }
-        if (prepared.status === "completed") {
-          creditReservation = await reserveModelCredits({
-            billingMode: input.creditBillingMode,
-            gateway: input.gateway,
-            modelPricing: input.modelPricing,
-            creditPricing: input.creditPricing,
-            coreClient: input.coreClient,
-            context: input.modelToolContext,
-            runId: input.run.id,
-            operationKey,
-            request,
-            credentials: input.modelCredentials,
-          });
-        }
-        if (runBudgetReservation) {
-          try {
-            await runBudgetReservation.capture(response);
-          } catch (error) {
-            if (!(prepared.status === "completed" && error instanceof Error && error.message === "MODEL_CALL_ALREADY_SETTLED")) throw error;
-          }
-        }
-        await creditReservation?.capture(response);
-      } catch (error) {
-        if (!providerResponsePersisted && prepared.status === "new" && error instanceof ModelProviderError) {
-          await input.modelCalls.recordFailed({ organizationId: input.run.organization_id, runId: input.run.id, operationKey, provider: input.modelProvider, model: input.model, fundingSource: input.modelCredentials.fundingSource, error: { code: error.code, message: error.message }, correlationId: input.run.correlation_id }).catch(() => undefined);
-        }
-        await runBudgetReservation?.release(error instanceof Error ? error.message : "workflow model failure").catch(() => undefined);
-        if (creditReservation) await creditReservation.release(error instanceof Error ? error.message : "workflow model failure").catch(() => undefined);
-        throw error;
+      if (result.response) lastModelResponse = result.response;
+      if (result.status !== "completed") {
+        throw new Error(`WORKFLOW_MODEL_${result.status.toUpperCase()}`);
       }
-      lastModelResponse = response;
-      const step = await input.runSteps.startStep({ runId: input.run.id, organizationId: input.run.organization_id, stepType: "model", input: { provider: response.provider, model: response.model, nodeId } });
-      await input.runSteps.finishStep({ stepId: step.id, status: "completed", output: { totalTokens: response.usage.totalTokens, latencyMs: response.latencyMs } });
-      activityHeartbeat({ phase: "workflow.model.completed", nodeId });
-      return { output: response.message.content, text: response.message.content, usage: { ...response.usage, estimatedCostUsd: response.usage.estimatedCostUsd ?? 0 } };
+      return {
+        output: result.output ?? result.response?.message.content,
+        text: result.output ?? result.response?.message.content,
+        usage: {
+          ...(result.usage ?? {}),
+          estimatedCostUsd: result.usage?.estimatedCostUsd ?? 0,
+        },
+      };
     },
     agentLoop: input.runAgentLoop,
     tool: executeTool,
@@ -4296,7 +4231,7 @@ async function executeConfiguredWorkflow(input: {
   if (result.status === "awaiting_approval") {
     const pending = result.pendingToolCalls?.[0];
     if (!pending) return { status: "failed", messages: [], usage: workflowUsage(result.usage), iterations: result.trace.length, toolCalls: result.usage.toolCalls, error: { code: "WORKFLOW_APPROVAL_UNCONFIGURED", message: "Approval node must identify a capability and arguments" } };
-    const manifest = input.tools.get(pending.name);
+    const manifest = input.harness.get(pending.name);
     if (!manifest) return { status: "failed", messages: [], usage: workflowUsage(result.usage), iterations: result.trace.length, toolCalls: result.usage.toolCalls, error: { code: "WORKFLOW_TOOL_NOT_FOUND", message: `Workflow tool is not registered: ${pending.name}` } };
     const approvalAlreadyRecorded = executionGraph.nodes.find((node) => node.id === result.pausedAt)?.type === "agent_loop";
     if (!approvalAlreadyRecorded) {
