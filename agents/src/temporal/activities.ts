@@ -15,7 +15,8 @@ import { type AgentLoopEvent, type AgentLoopLimits, type AgentLoopResult, type M
 import type { ModelCreditPricing } from "../model/credit-pricing";
 import { actualModelCallCredits, estimateModelCallCredits, estimatePromptTokens, shouldChargeModelCredits } from "../model/credit-pricing";
 import { buildAgentContext } from "../runtime/context";
-import { executionScopeFromRun } from "../runtime/execution-scope";
+import { assertSameAgentEnvironment } from "../runtime/execution-environment";
+import { runtimeExecutionScopeFromRun } from "../runtime/execution-scope";
 import { createGroundingFallbackResponse, shouldFailClosedWithoutEvidence } from "../runtime/grounding";
 import { createAgentBudgetLedger, type AgentBudgetLedger } from "../runtime/budget";
 import { hashToolArguments, ToolRegistry } from "../tools/registry";
@@ -2302,6 +2303,10 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
     async executeLoop(input) {
       const run = await runs.getRuntimeRunById(input.runId);
       if (!run) throw new Error("Run not found");
+      // Runtime execution must never infer a missing environment as live.
+      // The installation settings are the authoritative product boundary.
+      runtimeExecutionScopeFromRun(run);
+      await assertRunEnvironmentBoundary(run, runs);
       const admission = await runs.acquireConversationTurn(run.organization_id, run.id);
       if (!admission.acquired) {
         throw new Error("SESSION_LEASE_LOST");
@@ -2345,8 +2350,9 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
     async getContentPublishBatchStatus(input) {
       const run = await runs.getRuntimeRunById(input.runId);
       if (!run || !coreClient) return { status: "UNAVAILABLE" };
+      const executionScope = runtimeExecutionScopeFromRun(run);
       try {
-        const batch = await coreClient.getContentPublishBatch(toolInvocationContextFromScope(executionScopeFromRun(run)), input.batchId);
+        const batch = await coreClient.getContentPublishBatch(toolInvocationContextFromScope(executionScope), input.batchId);
         await runs.appendEvent({
           organizationId: run.organization_id,
           runId: run.id,
@@ -2857,6 +2863,21 @@ function durableConversationMessageToModelMessage(message: {
   };
 }
 
+async function assertRunEnvironmentBoundary(
+  run: Awaited<ReturnType<RunRepository["getRuntimeRunById"]>> & object,
+  runs: RunRepository,
+): Promise<void> {
+  const childInvocation = run.input.childInvocation;
+  if (!childInvocation || typeof childInvocation !== "object" || Array.isArray(childInvocation)) return;
+  const parentRunId = (childInvocation as Record<string, unknown>).parentRunId;
+  if (typeof parentRunId !== "string" || parentRunId.length === 0) throw new Error("CHILD_PARENT_RUN_INVALID");
+  const parent = await runs.getRuntimeRunById(parentRunId);
+  if (!parent || parent.organization_id !== run.organization_id) throw new Error("CHILD_PARENT_NOT_FOUND");
+  const childEnvironment = runtimeExecutionScopeFromRun(run).environment;
+  const parentEnvironment = runtimeExecutionScopeFromRun(parent).environment;
+  assertSameAgentEnvironment(parentEnvironment, childEnvironment);
+}
+
 async function executeMcpToolRun(
   run: Awaited<ReturnType<RunRepository["getRuntimeRun"]>> & object,
   resumeApprovedToolCall: Parameters<AgentRunActivities["executeLoop"]>[0]["resumeApprovedToolCall"],
@@ -2876,7 +2897,7 @@ async function executeMcpToolRun(
   sessionGuard?: SessionLeaseGuard,
 ) {
   if (!isMcpToolRun(run.input)) throw new Error("Invalid MCP run input");
-  const executionScope = executionScopeFromRun(run, sessionLease);
+  const executionScope = runtimeExecutionScopeFromRun(run, sessionLease);
   const assertSessionLease = async (): Promise<void> => {
     await sessionGuard?.assertCurrent();
   };
@@ -3223,7 +3244,7 @@ async function executeLoopForRun(
     }
   }
   const executionScope = {
-    ...executionScopeFromRun(run, sessionLease),
+    ...runtimeExecutionScopeFromRun(run, sessionLease),
     capabilityGrants: [...allowedTools],
     ...(childResourceGrants ? { resourceGrants: childResourceGrants } : {}),
   };
