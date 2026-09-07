@@ -657,9 +657,28 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     dependencies.pool,
     (organizationId, credentialReference) => integrationRepository.resolveCredential(organizationId, credentialReference),
   );
+  const configuredTools = dependencies.toolRegistry ?? createDefaultTools(coreClient, conversationActions, integrationTools, undefined, hostCapabilities);
   const harness = dependencies.harness ?? createAgentHarness({
-    tools: dependencies.toolRegistry ?? createDefaultTools(coreClient, conversationActions, integrationTools, undefined, hostCapabilities),
+    tools: configuredTools,
     host: hostCapabilities,
+    capabilities: createCapabilityRuntime({
+      registry: configuredTools,
+      admission: {
+        admit: async ({ request }) => {
+          await authorizeInstallationCapability({
+            organizationId: request.context.organizationId,
+            installationId: request.context.installationId,
+            name: request.name,
+            argumentsValue: request.arguments,
+            grantedTools: request.grantedTools,
+            tools: configuredTools,
+            installationGrants,
+            approved: Boolean(request.approval),
+          });
+          return { status: "ready" };
+        },
+      },
+    }),
   });
   const toolRegistry = harness.tools;
   const capabilityAccess = dependencies.capabilityAccess ?? new UnknownCapabilityAccessSource();

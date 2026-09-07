@@ -732,7 +732,8 @@ check or a UI screenshot alone does not prove a durable runtime contract.
   `agents/test/extension-resolver.test.ts`.
 - [x] Add a capability-runtime seam that consistently applies manifest lookup, readiness, grants,
   and injected installation admission before handler invocation. Evidence:
-  `agents/src/capabilities/runtime.ts` and `agents/test/capability-runtime.test.ts`.
+  `agents/src/capabilities/runtime.ts`, the API composition root, and
+  `agents/test/capability-runtime.test.ts`.
 - [x] Persist declarative plugin lifecycle records, dependency/compatibility rules, and immutable
   extension snapshots at agent-version publication and run admission. Evidence: migration 111,
   `agents/src/db/repositories/agent-repository.ts`,
@@ -742,8 +743,13 @@ check or a UI screenshot alone does not prove a durable runtime contract.
 - [x] Build `ExtensionResolver` for skills, plugins, connectors, and MCP configurations. Evidence:
   `agents/src/extensions/resolver.ts` and `agents/test/extension-resolver.test.ts`.
 - [ ] Build one capability-admission interface that always performs readiness, authorization,
-  approval, durable operation/receipt handling, invocation, redaction, and evidence.
-- [ ] Migrate a read-only Core/native capability and one remote MCP capability through that interface.
+  approval, durable operation/receipt handling, invocation, redaction, and evidence. Readiness,
+  authorization, approval admission, invocation, and redaction are now centralized; the remaining
+  gap is making the operation/receipt lifecycle itself a required part of every capability call.
+- [x] Migrate a read-only Core/native capability and one remote MCP capability through that interface.
+  Evidence: `agents/src/invocation/immediate-read.ts`, `agents/src/temporal/activities.ts`,
+  `agents/test/rest-mcp-local-parity.test.ts`, and `agents/test/remote-mcp.test.ts`. Live remote
+  provider integration evidence remains part of the infrastructure gate.
 - [ ] Prove KasiAI, Core, tenant, and customer agents consume the same extension contracts.
 
 ### Durability, events, delivery, graphs, and children

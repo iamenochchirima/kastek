@@ -2140,19 +2140,6 @@ async function withActivityHeartbeat<T>(details: Record<string, unknown>, operat
   }
 }
 
-async function assertCurrentCapabilityPolicy(input: {
-  organizationId: string;
-  installationId: string;
-  name: string;
-  argumentsValue: Record<string, unknown>;
-  grantedTools: ReadonlySet<string>;
-  tools: ToolRegistry;
-  installationGrants: InstallationGrantRepository;
-  approved: boolean;
-}): Promise<void> {
-  await authorizeInstallationCapability(input);
-}
-
 export function createActivities(pool: Pool, options: ActivityOptions = {}): AgentRunActivities {
   const runs = new RunRepository(pool);
   const modelCalls = new ModelCallRepository(pool);
@@ -2241,7 +2228,6 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
           effectReceipts,
           runSteps,
           toolGrants,
-          installationGrants,
           killSwitches,
           controls,
           harness.capabilities,
@@ -2745,7 +2731,6 @@ async function executeMcpToolRun(
   effectReceipts: EffectReceiptRepository,
   runSteps: RunStepRepository,
   toolGrants: ToolGrantRepository,
-  installationGrants: InstallationGrantRepository,
   killSwitches: KillSwitchRepository,
   controls: OperatorControlRepository,
   capabilities: CapabilityRuntime,
@@ -2851,17 +2836,6 @@ async function executeMcpToolRun(
       if (!(await controls.isFeatureEnabled(run.organization_id, "effect_execution_enabled", run.installation_id))) throw new Error("AGENT_EFFECT_FLAG_DISABLED");
       if (await controls.isHeld({ organizationId: run.organization_id, installationId: run.installation_id, runId: run.id, holdType: "effects" })) throw new Error("AGENT_EFFECT_HOLD_ACTIVE");
     }
-    await assertCurrentCapabilityPolicy({
-      organizationId: run.organization_id,
-      installationId: run.installation_id,
-      name: invocation.name,
-      argumentsValue: invocation.arguments,
-      grantedTools,
-      tools: capabilities.registry,
-      installationGrants,
-      approved: !manifest.requiresApproval || Boolean(resumeApprovedToolCall?.approval),
-    });
-    policyApplied = true;
     const effectIdempotencyKey = `${run.id}:${invocation.name}:${argumentsHash}`;
     if (manifest.requiresApproval && manifest.riskClass !== "external-effect") {
       await approvals.consume({
@@ -2909,6 +2883,7 @@ async function executeMcpToolRun(
         approvalSnapshotHash: approvalSnapshotHashFromResource(resourceSnapshot),
       }),
     });
+    policyApplied = true;
     const durableOutput = redactToolOutput(result.output, manifest.manifest?.redaction ?? []);
     await toolInvocations.recordCompleted({
       runId: run.id,
@@ -3495,16 +3470,6 @@ async function executeLoopForRun(
       beforeToolInvoke: async (invocation) => {
         const manifest = tools.get(invocation.name);
         if (manifest?.requiresApproval && !invocation.approved) return;
-        await assertCurrentCapabilityPolicy({
-          organizationId: run.organization_id,
-          installationId: run.installation_id,
-          name: invocation.name,
-          argumentsValue: invocation.arguments,
-          grantedTools: allowedTools,
-          tools,
-          installationGrants,
-          approved: invocation.approved,
-        });
       },
       resumeApprovedToolCall,
       onEvent: async (event) => {
@@ -3573,16 +3538,6 @@ async function executeLoopForRun(
         const resourceSnapshot = execution.requiresApproval && approvedResourceSnapshot
           ? approvedResourceSnapshot
           : await buildApprovalResourceSnapshotFromCore(coreClient, toolInvocationContextFromScope(executionScopeFromRun(run)), execution.name, execution.arguments);
-        await assertCurrentCapabilityPolicy({
-          organizationId: run.organization_id,
-          installationId: run.installation_id,
-          name: execution.name,
-          argumentsValue: execution.arguments,
-          grantedTools: allowedTools,
-          tools,
-          installationGrants,
-          approved: execution.requiresApproval,
-        });
         if (manifest?.riskClass === "external-effect") {
           if (!(await controls.isFeatureEnabled(run.organization_id, "effect_execution_enabled", run.installation_id))) throw new Error("AGENT_EFFECT_FLAG_DISABLED");
           if (await controls.isHeld({ organizationId: run.organization_id, installationId: run.installation_id, runId: run.id, holdType: "effects" })) throw new Error("AGENT_EFFECT_HOLD_ACTIVE");
@@ -3715,7 +3670,6 @@ async function executeLoopForRun(
       approvals,
       effectReceipts,
       runSteps,
-      installationGrants,
       killSwitches,
       controls,
       workflowState,
@@ -3854,16 +3808,6 @@ async function executeLoopForRun(
     beforeToolInvoke: async (invocation) => {
       const manifest = tools.get(invocation.name);
       if (manifest?.requiresApproval && !invocation.approved) return;
-      await assertCurrentCapabilityPolicy({
-        organizationId: run.organization_id,
-        installationId: run.installation_id,
-        name: invocation.name,
-        argumentsValue: invocation.arguments,
-        grantedTools: allowedTools,
-        tools,
-        installationGrants,
-        approved: invocation.approved,
-      });
     },
     resumeApprovedToolCall,
     onEvent: async (event) => {
@@ -3934,16 +3878,6 @@ async function executeLoopForRun(
       const resourceSnapshot = execution.requiresApproval && approvedResourceSnapshot
         ? approvedResourceSnapshot
         : await buildApprovalResourceSnapshotFromCore(coreClient, toolInvocationContextFromScope(executionScopeFromRun(run)), execution.name, execution.arguments);
-      await assertCurrentCapabilityPolicy({
-        organizationId: run.organization_id,
-        installationId: run.installation_id,
-        name: execution.name,
-        argumentsValue: execution.arguments,
-        grantedTools: allowedTools,
-        tools,
-        installationGrants,
-        approved: execution.requiresApproval,
-      });
       if (manifest?.riskClass === "external-effect") {
         if (!(await controls.isFeatureEnabled(run.organization_id, "effect_execution_enabled", run.installation_id))) throw new Error("AGENT_EFFECT_FLAG_DISABLED");
         if (await controls.isHeld({ organizationId: run.organization_id, installationId: run.installation_id, runId: run.id, holdType: "effects" })) throw new Error("AGENT_EFFECT_HOLD_ACTIVE");
@@ -4097,7 +4031,6 @@ async function executeConfiguredWorkflow(input: {
   approvals: ApprovalRepository;
   effectReceipts: EffectReceiptRepository;
   runSteps: RunStepRepository;
-  installationGrants: InstallationGrantRepository;
   killSwitches: KillSwitchRepository;
   controls: OperatorControlRepository;
   workflowState: WorkflowStateRepository;
@@ -4171,16 +4104,6 @@ async function executeConfiguredWorkflow(input: {
     if (!manifest) throw new Error(`WORKFLOW_TOOL_NOT_FOUND:${request.name}`);
     if (manifest.requiresApproval && !request.approved) throw new Error(`WORKFLOW_APPROVAL_REQUIRED:${request.name}`);
     if (manifest.riskClass === "external-effect" && !request.approved) throw new Error(`WORKFLOW_APPROVAL_REQUIRED:${request.name}`);
-    await assertCurrentCapabilityPolicy({
-      organizationId: input.run.organization_id,
-      installationId: input.run.installation_id,
-      name: request.name,
-      argumentsValue: request.arguments,
-      grantedTools: input.allowedTools,
-      tools: input.tools,
-      installationGrants: input.installationGrants,
-      approved: Boolean(request.approved),
-    });
     const argumentsHash = hashToolArguments(request.arguments);
     const providerToolCallId = `workflow:${request.nodeId}`;
     const replayed = await input.toolInvocations.getCompleted({
