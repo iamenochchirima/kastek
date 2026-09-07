@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { InstallationCapabilityError, InstallationCapabilityInvocationService } from "../src/invocation/installation-capability";
 import { InstallationImmediateReadService } from "../src/invocation/immediate-read";
 import { ToolRegistry } from "../src/tools/registry";
+import { createCapabilityRuntime } from "../src/capabilities/runtime";
 
 function registry() {
   const tools = new ToolRegistry();
@@ -91,7 +92,7 @@ describe("InstallationCapabilityInvocationService", () => {
   it("permits only an explicitly immediate read through the non-Temporal path", async () => {
     const immediateRead = vi.fn(async () => ({ accepted: { id: "read-run", status: "completed" }, output: { iso: "2026-08-13T00:00:00.000Z" } }));
     const { service, startWorkflow } = createService({
-      tools: readRegistry(),
+      capabilities: createCapabilityRuntime({ registry: readRegistry() }),
       toolGrants: { effectiveTools: vi.fn(async () => new Set(["platform.current_time"])) },
       temporalEnabled: false,
       startWorkflow: undefined,
@@ -133,7 +134,7 @@ describe("InstallationCapabilityInvocationService", () => {
     const service = new InstallationImmediateReadService({
       runs: { createRun, transitionRun, completeRun } as never,
       toolInvocations: { recordProposal, recordCompleted, recordFailed: vi.fn() } as never,
-      tools: readRegistry(),
+      capabilities: createCapabilityRuntime({ registry: readRegistry() }),
     });
     const result = await service.execute({
       organizationId: "org-1",

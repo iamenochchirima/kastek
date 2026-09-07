@@ -2,8 +2,9 @@ import { InstallationCapabilityError } from "./installation-capability";
 import { RunRepository, type RunRecord } from "../db/repositories/run-repository";
 import { ToolInvocationRepository } from "../db/repositories/tool-invocation-repository";
 import { executionScopeFromRun } from "../runtime/execution-scope";
-import { hashToolArguments, ToolRegistry } from "../tools/registry";
+import { hashToolArguments } from "../tools/registry";
 import { toolInvocationContextFromScope } from "../tools/types";
+import type { CapabilityRuntime } from "../capabilities/runtime";
 
 export interface ImmediateReadInput {
   organizationId: string;
@@ -33,7 +34,7 @@ export class InstallationImmediateReadService {
   public constructor(private readonly dependencies: {
     runs: RunRepository;
     toolInvocations: ToolInvocationRepository;
-    tools: ToolRegistry;
+    capabilities: CapabilityRuntime;
   }) {}
 
   public async execute(input: ImmediateReadInput): Promise<ImmediateReadResult> {
@@ -56,14 +57,14 @@ export class InstallationImmediateReadService {
       providerToolCallId: input.toolCallId,
       sequenceNumber: 1,
       toolName: input.name,
-      toolVersion: this.dependencies.tools.get(input.name)?.version ?? "0.0.0",
+        toolVersion: this.dependencies.capabilities.get(input.name)?.version ?? "0.0.0",
       riskClass: "read",
       argumentsHash,
       arguments: input.argumentsValue,
       requiresApproval: false,
     });
     try {
-      const result = await this.dependencies.tools.invoke({
+      const result = await this.dependencies.capabilities.invoke({
         name: input.name,
         arguments: input.argumentsValue,
         context: toolInvocationContextFromScope({

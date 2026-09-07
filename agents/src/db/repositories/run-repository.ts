@@ -1,4 +1,5 @@
-import type { Pool } from "pg";
+import { randomUUID } from "node:crypto";
+import type { Pool, PoolClient } from "pg";
 import { query, withTransaction } from "../pool";
 import { assertRunTransition, type RunStatus, type StartRunInput } from "../../domain/types";
 import { createScopedAgentEvent } from "../../runtime/execution-evidence";
@@ -16,6 +17,7 @@ import type { ConversationRecord } from "./conversation-repository";
 import { recordConversationAdmission } from "../../telemetry/spans";
 import { admissionDecision, sameSessionSerializationPolicy } from "../../runtime/admission";
 import type { ExecutionJournalRead, PendingExecutionJournalEvent, PersistedExecutionJournalEvent } from "../../journal";
+import { ExtensionSnapshotRepository } from "./extension-snapshot-repository";
 
 export interface RunRecord {
   id: string;
@@ -51,6 +53,7 @@ export interface RunRecord {
   creation_profile?: "general" | "custom" | "system";
   agent_audience?: "personal" | "customer_service";
   created?: boolean;
+  admission?: ReturnType<typeof admissionDecision>;
 }
 
 export interface RuntimeRunRecord extends RunRecord {
@@ -72,7 +75,11 @@ export interface InstallationOperationRecord extends RunRecord {
 }
 
 export class RunRepository {
-  public constructor(private readonly pool: Pool) {}
+  private readonly extensionSnapshots: ExtensionSnapshotRepository;
+
+  public constructor(private readonly pool: Pool) {
+    this.extensionSnapshots = new ExtensionSnapshotRepository(pool);
+  }
 
   public async createRun(
     organizationId: string,
@@ -108,6 +115,18 @@ export class RunRepository {
       );
       const target = installation.rows[0];
       if (!target || target.status !== "active") throw new Error("Active installation not found");
+      if (!target.extension_snapshot_id) {
+        throw new Error("EXTENSION_SNAPSHOT_RUN_ADMISSION_REQUIRED");
+      }
+      const admissionSnapshot = await this.extensionSnapshots.getVersionAdmissionSnapshot(
+        client,
+        organizationId,
+        target.agent_version_id,
+        target.extension_snapshot_id,
+      );
+      if (!admissionSnapshot) {
+        throw new Error("EXTENSION_SNAPSHOT_RUN_ADMISSION_INVALID");
+      }
       const capabilityInvocation = Boolean(
         input.input
         && typeof input.input === "object"
@@ -117,6 +136,7 @@ export class RunRepository {
       if (target.execution_mode === "external_connected" && !capabilityInvocation) {
         throw new Error("External-connected installations are invoked through MCP or REST capabilities");
       }
+      let conversationHasActiveRun = false;
       if (input.conversationId) {
         const conversation = await client.query<{
           conversation_kind: ConversationRecord["conversation_kind"];
@@ -148,15 +168,7 @@ export class RunRepository {
            LIMIT 1`,
           [organizationId, input.conversationId],
         );
-        if (activeConversationRun.rows[0]) {
-          recordConversationAdmission({ outcome: "rejected", channel: "run" });
-          throw Object.assign(new Error("This conversation already has an active agent run; retry after it reaches a terminal state"), {
-            statusCode: 409,
-            code: "conversation_run_active",
-            runId: activeConversationRun.rows[0].id,
-            admission: admissionDecision({ outcome: "rejected", reasonCode: "conversation_run_active", retryable: true, policy: sameSessionSerializationPolicy }),
-          });
-        }
+        conversationHasActiveRun = Boolean(activeConversationRun.rows[0]);
       }
       const maxConcurrentRuns = typeof target.policy.maxConcurrentRuns === "number"
         ? Math.trunc(target.policy.maxConcurrentRuns)
@@ -169,7 +181,7 @@ export class RunRepository {
              AND status IN ('received', 'queued', 'running', 'awaiting_approval', 'awaiting_human', 'awaiting_external_event')`,
           [organizationId, input.installationId],
         );
-        if (Number(active.rows[0]?.count ?? 0) >= maxConcurrentRuns) {
+        if (Number(active.rows[0]?.count ?? 0) >= maxConcurrentRuns && !conversationHasActiveRun) {
           recordConversationAdmission({ outcome: "limited", channel: "run" });
           throw new Error("AGENT_CONCURRENCY_LIMIT");
         }
@@ -223,28 +235,13 @@ export class RunRepository {
         )).rows[0]
         : undefined);
       if (!run) {
-        if (input.conversationId) {
-          const active = await client.query<{ id: string }>(
-            `SELECT id FROM agent_runs
-             WHERE organization_id = $1 AND conversation_id = $2
-               AND status IN ('received', 'queued', 'running', 'awaiting_approval', 'awaiting_human', 'awaiting_external_event')
-             ORDER BY created_at ASC LIMIT 1`,
-            [organizationId, input.conversationId],
-          );
-          if (active.rows[0]) {
-            recordConversationAdmission({ outcome: "rejected", channel: "run" });
-            throw Object.assign(new Error("This conversation already has an active agent run; retry after it reaches a terminal state"), {
-              statusCode: 409,
-              code: "conversation_run_active",
-              runId: active.rows[0].id,
-              admission: admissionDecision({ outcome: "rejected", reasonCode: "conversation_run_active", retryable: true, policy: sameSessionSerializationPolicy }),
-            });
-          }
-        }
         throw new Error("Run could not be created");
       }
       if (created.rows.length === 0) return { ...run, created: false };
-      recordConversationAdmission({ outcome: "accepted", channel: "run" });
+      const admission = conversationHasActiveRun
+        ? admissionDecision({ outcome: "queued", reasonCode: "conversation_run_active", policy: sameSessionSerializationPolicy })
+        : admissionDecision({ outcome: "accepted" });
+      recordConversationAdmission({ outcome: admission.outcome, channel: "run" });
       await client.query(
         `INSERT INTO run_attempts (run_id, organization_id, attempt_number, status, trigger)
          VALUES ($1, $2, 1, 'started', 'workflow')`,
@@ -261,7 +258,37 @@ export class RunRepository {
          VALUES ($1, $2, $3, 'run.received', $4::jsonb, $5, $6)`,
         [organizationId, run.id, input.installationId, JSON.stringify({ triggerType: input.triggerType }), actorId, run.correlation_id],
       );
-      return { ...run, created: true };
+      return { ...run, created: true, admission };
+    });
+  }
+
+  /**
+   * Return true only for the oldest active run in a conversation. The row lock
+   * makes competing Temporal workflows re-check the same ordering atomically;
+   * no process-local mutex is involved.
+   */
+  public async canAcquireConversationTurn(organizationId: string, runId: string): Promise<boolean> {
+    return withTransaction(this.pool, async (client) => {
+      const current = await client.query<{ conversation_id: string | null }>(
+        `SELECT conversation_id
+         FROM agent_runs
+         WHERE organization_id = $1 AND id = $2
+         FOR UPDATE`,
+        [organizationId, runId],
+      );
+      const conversationId = current.rows[0]?.conversation_id;
+      if (!conversationId) return true;
+      const oldest = await client.query<{ id: string }>(
+        `SELECT id
+         FROM agent_runs
+         WHERE organization_id = $1
+           AND conversation_id = $2
+           AND status IN ('received', 'queued', 'running', 'awaiting_approval', 'awaiting_human', 'awaiting_external_event')
+         ORDER BY created_at ASC, id ASC
+         LIMIT 1`,
+        [organizationId, conversationId],
+      );
+      return oldest.rows[0]?.id === runId;
     });
   }
 
@@ -807,63 +834,97 @@ export class RunRepository {
     operationId?: string;
     payload: Record<string, unknown>;
   }): Promise<void> {
-    const runResult = await query<Pick<RunRecord, "id" | "organization_id" | "agent_definition_id" | "agent_version_id" | "installation_id" | "conversation_id" | "created_by" | "correlation_id" | "causation_id">>(
-      this.pool,
-      `SELECT id, organization_id, agent_definition_id, agent_version_id, installation_id,
-              conversation_id, created_by, correlation_id, causation_id
-       FROM agent_runs
-       WHERE organization_id = $1 AND id = $2 AND installation_id = $3`,
-      [input.organizationId, input.runId, input.installationId],
-    );
-    const run = runResult.rows[0];
-    if (!run) return;
-    const event = createScopedAgentEvent({
-      scope: executionScopeFromRun(run),
-      type: input.eventType,
-      ...(input.operationId ? { operationId: input.operationId } : {}),
-      data: input.payload,
+    await withTransaction(this.pool, async (client) => {
+      const runResult = await client.query<Pick<RunRecord, "id" | "organization_id" | "agent_definition_id" | "agent_version_id" | "installation_id" | "conversation_id" | "created_by" | "correlation_id" | "causation_id">>(
+        `SELECT id, organization_id, agent_definition_id, agent_version_id, installation_id,
+                conversation_id, created_by, correlation_id, causation_id
+         FROM agent_runs
+         WHERE organization_id = $1 AND id = $2 AND installation_id = $3
+         FOR UPDATE`,
+        [input.organizationId, input.runId, input.installationId],
+      );
+      const run = runResult.rows[0];
+      if (!run) return;
+      const scope = executionScopeFromRun(run);
+      const event = createScopedAgentEvent({
+        scope,
+        type: input.eventType,
+        ...(input.operationId ? { operationId: input.operationId } : {}),
+        data: input.payload,
+      });
+      await client.query(
+        `INSERT INTO agent_events
+          (organization_id, run_id, installation_id, event_type, payload, spec_version, source, subject, data_content_type, correlation_id)
+         SELECT $1, $2, $3, $4, $5::jsonb, $6, $7, $8, $9, agent_runs.correlation_id
+         FROM agent_runs
+         WHERE agent_runs.id = $2 AND agent_runs.organization_id = $1 AND agent_runs.installation_id = $3`,
+        [input.organizationId, input.runId, input.installationId, input.eventType, JSON.stringify(event.data), event.specversion, event.source, event.subject, event.datacontenttype],
+      );
+      await this.appendJournalEventWithClient(client, {
+        id: randomUUID(),
+        scope: {
+          ...scope,
+          ...(input.operationId ? { operationId: input.operationId } : {}),
+        },
+        event: {
+          kind: "runtime.fact",
+          data: { type: input.eventType, payload: input.payload },
+        },
+        occurredAt: new Date().toISOString(),
+      });
     });
-    await query(
-      this.pool,
-      `INSERT INTO agent_events
-        (organization_id, run_id, installation_id, event_type, payload, spec_version, source, subject, data_content_type, correlation_id)
-       SELECT $1, $2, $3, $4, $5::jsonb, $6, $7, $8, $9, agent_runs.correlation_id
-       FROM agent_runs
-       WHERE agent_runs.id = $2 AND agent_runs.organization_id = $1 AND agent_runs.installation_id = $3`,
-      [input.organizationId, input.runId, input.installationId, input.eventType, JSON.stringify(event.data), event.specversion, event.source, event.subject, event.datacontenttype],
-    );
   }
 
-  /**
-   * Persist the canonical typed journal payload in the existing append-only
-   * agent event stream. The journal adapter owns its event vocabulary; this
-   * repository owns tenant-scoped SQL and durable sequence allocation.
-   */
+  /** Persist one canonical typed execution fact with a run-scoped cursor. */
   public async appendJournalEvent(input: PendingExecutionJournalEvent): Promise<PersistedExecutionJournalEvent> {
-    const result = await query<{ sequence_number: string | number; created_at: string }>(
-      this.pool,
-      `INSERT INTO agent_events
-        (id, organization_id, run_id, installation_id, event_type, payload, created_at)
-       SELECT $1::uuid, $2, $3::uuid, $4::uuid, $5, $6::jsonb, $7::timestamptz
-       FROM agent_runs
-       WHERE id = $3::uuid AND organization_id = $2 AND installation_id = $4::uuid
-       RETURNING sequence_number, created_at`,
-      [
-        input.id,
-        input.scope.organizationId,
-        input.scope.runId,
-        input.scope.installationId,
-        `agent.journal.${input.event.kind}`,
-        JSON.stringify({ journal: { scope: input.scope, event: input.event, occurredAt: input.occurredAt } }),
-        input.occurredAt,
-      ],
+    return withTransaction(this.pool, (client) => this.appendJournalEventWithClient(client, input));
+  }
+
+  private async appendJournalEventWithClient(
+    client: PoolClient,
+    input: PendingExecutionJournalEvent,
+  ): Promise<PersistedExecutionJournalEvent> {
+    const run = await client.query<{ id: string }>(
+        `SELECT id
+         FROM agent_runs
+         WHERE id = $1::uuid AND organization_id = $2 AND installation_id = $3::uuid
+         FOR UPDATE`,
+        [input.scope.runId, input.scope.organizationId, input.scope.installationId],
     );
-    const persisted = result.rows[0];
-    if (!persisted) throw new Error("EXECUTION_JOURNAL_SCOPE_CONFLICT");
+    if (!run.rows[0]) throw new Error("EXECUTION_JOURNAL_SCOPE_CONFLICT");
+    const next = await client.query<{ sequence_number: string }>(
+        `SELECT COALESCE(MAX(sequence_number), 0) + 1 AS sequence_number
+         FROM agent_execution_journal_events
+         WHERE organization_id = $1 AND run_id = $2::uuid`,
+        [input.scope.organizationId, input.scope.runId],
+    );
+    const sequence = Number(next.rows[0]?.sequence_number ?? 1);
+    const inserted = await client.query<{ sequence_number: string; occurred_at: string }>(
+        `INSERT INTO agent_execution_journal_events
+          (id, organization_id, installation_id, run_id, operation_id, correlation_id,
+           causation_id, sequence_number, event_kind, event, occurred_at)
+         VALUES ($1::uuid, $2, $3::uuid, $4::uuid, $5, $6, $7, $8, $9, $10::jsonb, $11::timestamptz)
+         RETURNING sequence_number, occurred_at`,
+        [
+          input.id,
+          input.scope.organizationId,
+          input.scope.installationId,
+          input.scope.runId,
+          input.scope.operationId ?? null,
+          input.scope.correlationId ?? null,
+          input.scope.causationId ?? null,
+          sequence,
+          input.event.kind,
+          JSON.stringify(input.event),
+          input.occurredAt,
+        ],
+    );
+    const persisted = inserted.rows[0];
+    if (!persisted) throw new Error("EXECUTION_JOURNAL_INSERT_FAILED");
     return {
       ...input,
       sequence: Number(persisted.sequence_number),
-      occurredAt: new Date(persisted.created_at).toISOString(),
+      occurredAt: new Date(persisted.occurred_at).toISOString(),
     };
   }
 
@@ -875,28 +936,39 @@ export class RunRepository {
   ): Promise<ReadonlyArray<PersistedExecutionJournalEvent>> {
     const result = await query<{
       id: string;
+      organization_id: string;
+      installation_id: string;
+      run_id: string;
+      operation_id: string | null;
+      correlation_id: string | null;
+      causation_id: string | null;
       sequence_number: string | number;
-      payload: { journal?: { scope?: PersistedExecutionJournalEvent["scope"]; event?: PersistedExecutionJournalEvent["event"]; occurredAt?: string } };
+      event: PersistedExecutionJournalEvent["event"];
+      occurred_at: string;
     }>(
       this.pool,
-      `SELECT id, sequence_number, payload
-       FROM agent_events
-       WHERE organization_id = $1 AND run_id = $2::uuid AND event_type LIKE 'agent.journal.%'
+      `SELECT id, organization_id, installation_id, run_id, operation_id,
+              correlation_id, causation_id, sequence_number, event, occurred_at
+       FROM agent_execution_journal_events
+       WHERE organization_id = $1 AND run_id = $2::uuid
          AND sequence_number > $3
        ORDER BY sequence_number ASC LIMIT $4`,
       [organizationId, runId, afterSequence, Math.min(Math.max(Math.trunc(limit), 1), 200)],
     );
-    return result.rows.flatMap((row) => {
-      const journal = row.payload?.journal;
-      if (!journal?.scope || !journal.event || !journal.occurredAt) return [];
-      return [{
-        id: row.id,
-        sequence: Number(row.sequence_number),
-        occurredAt: journal.occurredAt,
-        scope: journal.scope,
-        event: journal.event,
-      }];
-    });
+    return result.rows.map((row) => ({
+      id: row.id,
+      sequence: Number(row.sequence_number),
+      occurredAt: new Date(row.occurred_at).toISOString(),
+      scope: {
+        organizationId: row.organization_id,
+        installationId: row.installation_id,
+        runId: row.run_id,
+        ...(row.operation_id ? { operationId: row.operation_id } : {}),
+        ...(row.correlation_id ? { correlationId: row.correlation_id } : {}),
+        ...(row.causation_id ? { causationId: row.causation_id } : {}),
+      },
+      event: row.event,
+    }));
   }
 
   public async operationalSummary(organizationId: string): Promise<{

@@ -132,6 +132,23 @@ describe("ExtensionSnapshotRepository", () => {
     expect(pool.query.mock.calls[0][1]).toEqual([organizationId, "44444444-4444-4444-8444-444444444444"]);
   });
 
+  it("validates a version pin for run admission without resolving current configuration", async () => {
+    const row = snapshotRow();
+    const pool = { query: vi.fn().mockResolvedValue({ rows: [row] }) };
+    const repository = new ExtensionSnapshotRepository(pool as never);
+
+    const result = await repository.getVersionAdmissionSnapshot(pool as never, organizationId, versionId, snapshotId);
+
+    expect(result?.id).toBe(snapshotId);
+    const [sql, values] = pool.query.mock.calls[0];
+    expect(sql).toContain("version.extension_snapshot_id = $3");
+    expect(sql).toContain("snapshot.agent_version_id = version.id");
+    expect(sql).toContain("FOR SHARE OF version, snapshot");
+    expect(sql).not.toContain("version.configuration");
+    expect(sql).not.toContain("version.policy");
+    expect(values).toEqual([organizationId, versionId, snapshotId]);
+  });
+
   it("resolves a version's pinned declarations and persists one deterministic snapshot", async () => {
     const row = snapshotRow();
     const pool = { query: vi.fn()

@@ -7,6 +7,7 @@ import { createDefaultTools } from "../src/temporal/activities";
 import { InstallationCapabilityInvocationService } from "../src/invocation/installation-capability";
 import { InstallationImmediateReadService } from "../src/invocation/immediate-read";
 import type { KasitekCoreReadClient } from "../src/core/client";
+import { createCapabilityRuntime } from "../src/capabilities/runtime";
 
 const keyPair = generateKeyPairSync("ec", { namedCurve: "prime256v1" });
 const privateKey = keyPair.privateKey.export({ type: "pkcs8", format: "pem" }).toString();
@@ -110,7 +111,7 @@ function createLocalParityApp() {
     recordCompleted: vi.fn(async () => undefined),
     recordFailed: vi.fn(async () => undefined),
   };
-  const immediateRead = new InstallationImmediateReadService({ runs: runs as never, toolInvocations: toolInvocations as never, tools: toolRegistry });
+  const immediateRead = new InstallationImmediateReadService({ runs: runs as never, toolInvocations: toolInvocations as never, capabilities: createCapabilityRuntime({ registry: toolRegistry }) });
   const installationInvocations = new InstallationCapabilityInvocationService({
     agents: { getInstallation: vi.fn(async () => ({ id: context.installationId, organization_id: context.organizationId, agent_definition_id: context.agentDefinitionId, agent_version_id: "version-local-parity", status: "active", execution_mode: "external_connected" as const, agent_owner_type: "organization", agent_protected: false, agent_slug: "local-parity" })) } as never,
     runs: runs as never,

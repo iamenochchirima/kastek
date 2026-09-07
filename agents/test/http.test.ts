@@ -9,6 +9,7 @@ import { generateKeyPairSync, sign } from "node:crypto";
 import { issueInstallationToken } from "../src/auth/installation-token";
 import { StaticCapabilityAccessSource } from "../src/domain/capability-access";
 import type { DraftEvaluationOutput } from "../src/evaluations/draft";
+import { InMemoryDeliveryObligationCoordinator } from "../src/delivery";
 
 const installationTokenKeyPair = generateKeyPairSync("ec", { namedCurve: "prime256v1" });
 const clientAssertionKeyPair = generateKeyPairSync("ec", { namedCurve: "prime256v1" });
@@ -1773,6 +1774,7 @@ describe("Agent Platform HTTP foundation", () => {
       pool: fakePool,
       platformChat: { acceptExternalMessage: vi.fn(async () => accepted) } as unknown as PlatformChatRepository,
       channels: channels as never,
+      deliveryObligations: new InMemoryDeliveryObligationCoordinator(),
       channelCredentials: { resolve: vi.fn(async () => "telegram-token") } as never,
       telegramClient: { sendMessage: vi.fn(async (token: string, chatId: string, text: string) => { sent.push({ token, chatId, text }); return { providerMessageId: "telegram-ack-1", status: "sent" as const }; }) } as never,
     });

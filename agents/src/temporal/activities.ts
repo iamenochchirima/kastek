@@ -38,7 +38,7 @@ import { EffectReceiptRepository } from "../db/repositories/effect-receipt-repos
 import { ApprovalRepository } from "../db/repositories/approval-repository";
 import { InstallationGrantRepository } from "../db/repositories/installation-grant-repository";
 import { authorizeInstallationCapability } from "../capabilities/authorization";
-import { createCapabilityRuntime } from "../capabilities/runtime";
+import { createCapabilityRuntime, type CapabilityRuntime } from "../capabilities/runtime";
 import { validateWorkflowGraph, type WorkflowGraph } from "../workflows/graph";
 import { executeWorkflowGraph, type GraphAgentLoopRequest, type GraphAgentLoopResult, type GraphExecutionLimits, type GraphExecutionUsage } from "../workflows/executor";
 import { WorkflowStateRepository } from "../db/repositories/workflow-state-repository";
@@ -2222,6 +2222,11 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
     async transitionRun(input) {
       await runs.transitionRun(input.runId, input.expectedStatus, input.nextStatus);
     },
+    async waitForConversationTurn(input) {
+      const run = await runs.getRunById(input.runId);
+      if (!run) throw new Error("Run not found");
+      return runs.canAcquireConversationTurn(run.organization_id, run.id);
+    },
     async executeLoop(input) {
       const run = await runs.getRuntimeRunById(input.runId);
       if (!run) throw new Error("Run not found");
@@ -2239,7 +2244,7 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
           installationGrants,
           killSwitches,
           controls,
-          tools,
+          harness.capabilities,
           coreClient,
         );
       }
@@ -2330,7 +2335,34 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
         expiresAt: approval.expires_at,
       }, secret);
       const prompt = buildChannelApprovalPrompt(approval.capability, approval.resource_snapshot);
+      const obligation = await deliveryObligations.create({
+        id: approval.id,
+        idempotencyKey: `approval-prompt:${approval.id}`,
+        scope: {
+          organizationId: run.organization_id,
+          installationId: run.installation_id,
+          runId: run.id,
+          ...(run.conversation_id ? { conversationId: run.conversation_id } : {}),
+          correlationId: run.correlation_id,
+        },
+        channel: `approval:${target.channel_type}`,
+        payloadRef: approval.id,
+      });
+      const obligationClaimId = `approval-prompt:${approval.id}`;
+      let claimed = false;
       try {
+        const claim = await deliveryObligations.claim({ obligationId: obligation.id, claimId: obligationClaimId, workerId: "temporal:agent-approval" });
+        if (claim.status !== "applied" && claim.status !== "idempotent") {
+          await runs.appendEvent({
+            organizationId: run.organization_id,
+            runId: run.id,
+            installationId: run.installation_id,
+            eventType: "agent.approval.prompt_skipped",
+            payload: { reason: `delivery_obligation_${claim.status}`, channelType: target.channel_type },
+          });
+          return;
+        }
+        claimed = true;
         if (target.channel_type === "telegram") {
           if (!channelCredentials || !telegramClient || !target.credential_reference) throw new Error("Telegram approval prompt is not configured");
           const token = await channelCredentials.resolve(target.organization_id, target.credential_reference, "telegram");
@@ -2355,6 +2387,8 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
         } else {
           throw new Error(`Unsupported approval prompt channel: ${target.channel_type}`);
         }
+        const completion = await deliveryObligations.complete({ obligationId: obligation.id, claimId: obligationClaimId, receiptRef: approval.id });
+        if (completion.status !== "applied" && completion.status !== "idempotent") throw new Error(`DELIVERY_OBLIGATION_${completion.status.toUpperCase()}`);
         await runs.appendEvent({
           organizationId: run.organization_id,
           runId: run.id,
@@ -2363,12 +2397,21 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
           payload: { channelType: target.channel_type, bindingId: target.binding_id },
         });
       } catch (error) {
+        const reason = error instanceof Error ? error.message : "approval_prompt_failed";
+        if (claimed) {
+          const unknown = reason === "CHANNEL_DELIVERY_UNKNOWN" || reason.includes("UNKNOWN");
+          if (unknown) {
+            await deliveryObligations.unknown({ obligationId: obligation.id, claimId: obligationClaimId, reason }).catch(() => undefined);
+          } else {
+            await deliveryObligations.fail({ obligationId: obligation.id, claimId: obligationClaimId, reason }).catch(() => undefined);
+          }
+        }
         await runs.appendEvent({
           organizationId: run.organization_id,
           runId: run.id,
           installationId: run.installation_id,
           eventType: "agent.approval.prompt_failed",
-          payload: { channelType: target.channel_type, error: error instanceof Error ? error.message : "approval_prompt_failed" },
+          payload: { channelType: target.channel_type, error: reason, deliveryState: claimed ? (reason.includes("UNKNOWN") ? "unknown" : "failed") : "queued" },
         });
       }
     },
@@ -2705,7 +2748,7 @@ async function executeMcpToolRun(
   installationGrants: InstallationGrantRepository,
   killSwitches: KillSwitchRepository,
   controls: OperatorControlRepository,
-  tools: ToolRegistry,
+  capabilities: CapabilityRuntime,
   coreClient: KasitekCoreReadClient | undefined,
 ) {
   if (!isMcpToolRun(run.input)) throw new Error("Invalid MCP run input");
@@ -2720,7 +2763,7 @@ async function executeMcpToolRun(
     { organizationId: run.organization_id, runId: run.id },
     { maxToolCalls: restrictiveLimit(configuration.maxToolCalls, installationSettings.maxToolCalls) ?? 16 },
   );
-  const manifest = tools.get(invocation.name);
+  const manifest = capabilities.get(invocation.name);
   if (!manifest) throw new Error(`Tool is not registered: ${invocation.name}`);
   const argumentsHash = hashToolArguments(invocation.arguments);
   const approvalRecord = resumeApprovedToolCall ? await approvals.getForRun(run.organization_id, run.id) : null;
@@ -2814,7 +2857,7 @@ async function executeMcpToolRun(
       name: invocation.name,
       argumentsValue: invocation.arguments,
       grantedTools,
-      tools,
+      tools: capabilities.registry,
       installationGrants,
       approved: !manifest.requiresApproval || Boolean(resumeApprovedToolCall?.approval),
     });
@@ -2836,7 +2879,7 @@ async function executeMcpToolRun(
       });
     }
     await consumeRunToolBudget(runBudgets, { organizationId: run.organization_id, runId: run.id });
-    const result = await tools.invoke({
+    const result = await capabilities.invoke({
       name: invocation.name,
       arguments: invocation.arguments,
       grantedTools,

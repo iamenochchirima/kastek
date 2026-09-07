@@ -421,6 +421,37 @@ export class ExtensionSnapshotRepository {
     return result.rows[0] ? hydrateSnapshot(result.rows[0]) : null;
   }
 
+  /**
+   * Validate the immutable snapshot pin used to admit a run.
+   *
+   * This is intentionally a read of the already-pinned version and snapshot
+   * only. It must not call ensureSnapshotForVersion(), because that method
+   * resolves the current mutable version configuration and is appropriate for
+   * publication, not for admitting a run against an existing version.
+   */
+  public async getVersionAdmissionSnapshot(
+    executor: Pick<Pool, "query">,
+    organizationId: string,
+    agentVersionId: string,
+    snapshotId: string,
+  ): Promise<ExtensionSnapshotRecord | null> {
+    const result = await executor.query<ExtensionSnapshotRow>(
+      `SELECT snapshot.*
+       FROM agent_versions version
+       JOIN agent_definitions definition ON definition.id = version.agent_definition_id
+       JOIN agent_extension_snapshots snapshot
+         ON snapshot.id = version.extension_snapshot_id
+        AND snapshot.agent_version_id = version.id
+        AND snapshot.organization_id = definition.organization_id
+       WHERE definition.organization_id = $1
+         AND version.id = $2
+         AND version.extension_snapshot_id = $3
+       FOR SHARE OF version, snapshot`,
+      [organizationId, agentVersionId, snapshotId],
+    );
+    return result.rows[0] ? hydrateSnapshot(result.rows[0]) : null;
+  }
+
   public async pinVersion(organizationId: string, actorId: string, agentVersionId: string, snapshotId: string): Promise<ExtensionSnapshotRecord> {
     const result = await query<{ extension_snapshot_id: string }>(
       this.pool,

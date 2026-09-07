@@ -104,6 +104,15 @@ export interface HarnessTurnEvent {
   };
 }
 
+/** Compatibility envelope for operational facts still emitted by legacy callers. */
+export interface RuntimeFactEvent {
+  readonly kind: "runtime.fact";
+  readonly data: {
+    readonly type: string;
+    readonly payload: Record<string, unknown>;
+  };
+}
+
 export type ExecutionJournalEvent =
   | RunTransitionEvent
   | ContextEvent
@@ -112,7 +121,8 @@ export type ExecutionJournalEvent =
   | WaitingEvent
   | EffectUncertainEvent
   | DeliveryObligationEvent
-  | HarnessTurnEvent;
+  | HarnessTurnEvent
+  | RuntimeFactEvent;
 
 export interface ExecutionJournalEventInput {
   readonly scope: ExecutionJournalScope;

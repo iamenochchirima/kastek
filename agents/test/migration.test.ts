@@ -534,6 +534,34 @@ describe("foundation migration", () => {
     expect(sql).toContain("Agent run identity is immutable");
   });
 
+  it("persists extension lifecycle records and immutable snapshots", async () => {
+    const sql = await readFile(new URL("../migrations/111_agent_extension_snapshots.sql", import.meta.url), "utf8");
+    expect(sql).toContain("CREATE TABLE IF NOT EXISTS agent_extension_packages");
+    expect(sql).toContain("agent_extension_package_dependencies");
+    expect(sql).toContain("agent_extension_package_compatibility");
+    expect(sql).toContain("CREATE TABLE IF NOT EXISTS agent_extension_snapshots");
+    expect(sql).toContain("prevent_agent_extension_package_content_mutation");
+    expect(sql).toContain("prevent_agent_version_extension_snapshot_repin");
+    expect(sql).toContain("prevent_agent_extension_snapshot_mutation");
+  });
+
+  it("separates delivery obligations from run completion", async () => {
+    const sql = await readFile(new URL("../migrations/112_agent_delivery_obligations.sql", import.meta.url), "utf8");
+    expect(sql).toContain("CREATE TABLE IF NOT EXISTS agent_delivery_obligations");
+    expect(sql).toContain("UNIQUE (organization_id, installation_id, idempotency_key)");
+    expect(sql).toContain("'unknown'");
+    expect(sql).toContain("FORCE ROW LEVEL SECURITY");
+  });
+
+  it("stores canonical typed journal events and removes the reject-active-run index", async () => {
+    const sql = await readFile(new URL("../migrations/113_execution_journal_events.sql", import.meta.url), "utf8");
+    expect(sql).toContain("CREATE TABLE IF NOT EXISTS agent_execution_journal_events");
+    expect(sql).toContain("UNIQUE (organization_id, run_id, sequence_number)");
+    expect(sql).toContain("agent_execution_journal_scope_idx");
+    expect(sql).toContain("DROP INDEX IF EXISTS agent_runs_one_active_conversation_uidx");
+    expect(sql).toContain("FORCE ROW LEVEL SECURITY");
+  });
+
   it("defines the scoped customer handoff rollout flag", async () => {
     const rolloutSql = await readFile(new URL("../migrations/069_customer_handoff_feature_flag.sql", import.meta.url), "utf8");
     expect(rolloutSql).toContain("customer_handoff_enabled");

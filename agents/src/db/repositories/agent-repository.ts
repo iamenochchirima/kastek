@@ -511,7 +511,14 @@ export class AgentRepository {
             client.query<AgentVersionRecord>("SELECT * FROM agent_versions WHERE id = $1", [installation.agent_version_id]),
           ]);
           if (!agentResult.rows[0] || !versionResult.rows[0]) throw new Error("Developer API installation aggregate is incomplete");
-          return { agent: agentResult.rows[0], version: versionResult.rows[0], installation, created: false };
+          const version = (await this.ensureVersionExtensionSnapshot(
+            client,
+            input.organizationId,
+            actorId,
+            agentResult.rows[0].id,
+            versionResult.rows[0].id,
+          )) ?? versionResult.rows[0];
+          return { agent: agentResult.rows[0], version, installation, created: false };
         }
 
         const agentResult = await client.query<AgentRecord>(
@@ -540,7 +547,13 @@ export class AgentRepository {
             actorId,
           ],
         );
-        const version = versionResult.rows[0]!;
+        const version = (await this.ensureVersionExtensionSnapshot(
+          client,
+          input.organizationId,
+          actorId,
+          agent.id,
+          versionResult.rows[0]!.id,
+        )) ?? versionResult.rows[0]!;
         await this.enqueueVersionLifecycle(client, input.organizationId, version, "created", "system", version.created_at);
         for (const toolName of input.toolNames) {
           await client.query(

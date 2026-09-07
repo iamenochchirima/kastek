@@ -4,15 +4,16 @@ export const agentAdmissionOutcomeSchema = z.enum(["accepted", "queued", "limite
 export type AgentAdmissionOutcome = z.infer<typeof agentAdmissionOutcomeSchema>;
 
 /**
- * The first-chunk policy is explicit: an active conversation is rejected and
- * retried by the caller. Durable queueing is intentionally a later session
- * coordination chunk, so it cannot be mistaken for an accidental 409.
+ * One session is serialized by the durable run coordinator. A second message
+ * is accepted into the run queue while different sessions continue in
+ * parallel. The queue is not an in-memory worker queue: Temporal keeps the
+ * waiting workflow durable and PostgreSQL decides which run owns the turn.
  */
 export const sameSessionSerializationPolicy = Object.freeze({
-  version: "same-session-v1",
-  mode: "reject-active-run" as const,
-  queueing: "deferred" as const,
-  retryable: true as const,
+  version: "same-session-v2",
+  mode: "queue-by-conversation" as const,
+  queueing: "durable" as const,
+  retryable: false as const,
 });
 
 export interface AgentAdmissionDecision {
@@ -30,9 +31,8 @@ export function admissionDecision(input: {
 }): AgentAdmissionDecision {
   return {
     outcome: input.outcome,
-    retryable: input.retryable ?? input.outcome === "queued",
+    retryable: input.retryable ?? input.policy?.retryable ?? input.outcome === "queued",
     ...(input.reasonCode ? { reasonCode: input.reasonCode } : {}),
     ...(input.policy ? { policy: input.policy } : {}),
   };
 }
-

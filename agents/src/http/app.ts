@@ -140,6 +140,8 @@ import { VaultCredentialResolver } from "../model/credentials";
 import { CoreHostAdapter, HostCapabilityRouter, NativeHostAdapter } from "../hosts/capabilities";
 import { createAgentHarness, type AgentHarness } from "../runtime/harness";
 import { ExtensionSnapshotRepository } from "../db/repositories/extension-snapshot-repository";
+import { createCapabilityRuntime } from "../capabilities/runtime";
+import { PostgresDeliveryObligationCoordinator, type DeliveryObligationCoordinator } from "../delivery";
 
 export interface AppDependencies {
   config: AppConfig;
@@ -155,6 +157,7 @@ export interface AppDependencies {
   modelCalls?: ModelCallRepository;
   runBudgets?: RunBudgetRepository;
   channels?: ChannelRepository;
+  deliveryObligations?: DeliveryObligationCoordinator;
   channelCredentials?: ChannelCredentialRepository;
   telegramClient?: TelegramBotClient;
   discordClient?: DiscordBotClient;
@@ -493,6 +496,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
   const modelCalls = dependencies.modelCalls ?? new ModelCallRepository(dependencies.pool);
   const runBudgets = dependencies.runBudgets ?? new RunBudgetRepository(dependencies.pool);
   const channels = dependencies.channels ?? new ChannelRepository(dependencies.pool);
+  const deliveryObligations = dependencies.deliveryObligations ?? new PostgresDeliveryObligationCoordinator(dependencies.pool);
   const channelCredentials = dependencies.channelCredentials ?? new ChannelCredentialRepository(dependencies.pool, dependencies.config.AGENTS_CREDENTIAL_ENCRYPTION_KEY);
   const telegramClient = dependencies.telegramClient ?? new TelegramBotClient({ apiBaseUrl: dependencies.config.TELEGRAM_API_BASE_URL, timeoutMs: dependencies.config.TELEGRAM_API_TIMEOUT_MS });
   const discordClient = dependencies.discordClient ?? new DiscordBotClient({ apiBaseUrl: dependencies.config.DISCORD_API_BASE_URL, timeoutMs: dependencies.config.DISCORD_API_TIMEOUT_MS });
@@ -539,7 +543,33 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     if (!acknowledgement) return;
     const organizationId = input.organizationId;
     let claimed = false;
+    const obligation = await deliveryObligations.create({
+      id: acknowledgement.deliveryAttemptId,
+      idempotencyKey: `handoff-ack:${acknowledgement.deliveryAttemptId}`,
+      scope: {
+        organizationId,
+        installationId: input.accepted.conversation.installation_id,
+        conversationId: input.accepted.conversation.id,
+      },
+      channel: `handoff:${input.channelType}`,
+      payloadRef: acknowledgement.message.id,
+    });
+    const obligationClaimId = `handoff-ack:${acknowledgement.deliveryAttemptId}`;
     try {
+      const obligationClaim = await deliveryObligations.claim({
+        obligationId: obligation.id,
+        claimId: obligationClaimId,
+        workerId: "http:handoff-acknowledgement",
+      });
+      if (obligationClaim.status !== "applied" && obligationClaim.status !== "idempotent") {
+        app.log.info({
+          event: "conversation.handoff.acknowledgement_delivery_skipped",
+          handoffRequestId: input.accepted.handoffRequestId,
+          deliveryAttemptId: acknowledgement.deliveryAttemptId,
+          obligationState: obligationClaim.obligation.state,
+        }, "Handoff acknowledgement delivery already has a terminal or competing obligation");
+        return;
+      }
       await channels.claimDelivery(organizationId, acknowledgement.deliveryAttemptId);
       claimed = true;
       const channelType = input.channelType.trim().toLowerCase();
@@ -578,6 +608,14 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
         attemptId: acknowledgement.deliveryAttemptId,
         providerMessageId: delivery.providerMessageId,
       });
+      const completed = await deliveryObligations.complete({
+        obligationId: obligation.id,
+        claimId: obligationClaimId,
+        receiptRef: delivery.providerMessageId ?? acknowledgement.deliveryAttemptId,
+      });
+      if (completed.status !== "applied" && completed.status !== "idempotent") {
+        throw new Error(`DELIVERY_OBLIGATION_${completed.status.toUpperCase()}`);
+      }
       app.log.info({
         event: "conversation.handoff.acknowledgement_delivered",
         channelType,
@@ -585,12 +623,19 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
         deliveryAttemptId: acknowledgement.deliveryAttemptId,
       }, "Handoff acknowledgement delivered");
     } catch (error) {
+      const unknown = error instanceof Error && error.message.includes("UNKNOWN");
+      await (unknown
+        ? deliveryObligations.unknown({ obligationId: obligation.id, claimId: claimed ? obligationClaimId : undefined, reason: error instanceof Error ? error.message : "Handoff acknowledgement delivery unknown" })
+        : deliveryObligations.fail({ obligationId: obligation.id, claimId: claimed ? obligationClaimId : undefined, reason: error instanceof Error ? error.message : "Handoff acknowledgement delivery failed" })
+      ).catch((obligationError) => {
+        app.log.error({ err: obligationError, event: "conversation.handoff.acknowledgement_obligation_update_failed", deliveryAttemptId: acknowledgement.deliveryAttemptId }, "Handoff acknowledgement obligation update failed");
+      });
       if (claimed) {
         await channels.markDeliveryFailed({
           organizationId,
           attemptId: acknowledgement.deliveryAttemptId,
           error: {
-            code: "HANDOFF_ACKNOWLEDGEMENT_DELIVERY_FAILED",
+            code: unknown ? "HANDOFF_ACKNOWLEDGEMENT_DELIVERY_UNKNOWN" : "HANDOFF_ACKNOWLEDGEMENT_DELIVERY_FAILED",
             message: error instanceof Error ? error.message : "Handoff acknowledgement delivery failed",
           },
         }).catch((markError) => {
@@ -612,10 +657,11 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     dependencies.pool,
     (organizationId, credentialReference) => integrationRepository.resolveCredential(organizationId, credentialReference),
   );
-  const toolRegistry = (dependencies.harness ?? createAgentHarness({
+  const harness = dependencies.harness ?? createAgentHarness({
     tools: dependencies.toolRegistry ?? createDefaultTools(coreClient, conversationActions, integrationTools, undefined, hostCapabilities),
     host: hostCapabilities,
-  })).tools;
+  });
+  const toolRegistry = harness.tools;
   const capabilityAccess = dependencies.capabilityAccess ?? new UnknownCapabilityAccessSource();
   const connectorRegistry = dependencies.connectorRegistry ?? new ConnectorRegistry();
   if (connectorRegistry.list().length === 0) {
@@ -670,7 +716,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     dependencies.config.APPROVAL_DECISION_RATE_LIMIT_WINDOW_MS,
     dependencies.config.APPROVAL_DECISION_RATE_LIMIT_MAX_KEYS,
   );
-  const immediateReads = new InstallationImmediateReadService({ runs, toolInvocations, tools: toolRegistry });
+  const immediateReads = new InstallationImmediateReadService({ runs, toolInvocations, capabilities: harness.capabilities ?? createCapabilityRuntime({ registry: toolRegistry }) });
   const installationInvocations = dependencies.installationInvocations ?? new InstallationCapabilityInvocationService({
     agents,
     runs,
@@ -678,6 +724,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     installationGrants,
     killSwitches,
     tools: toolRegistry,
+    capabilities: harness.capabilities,
     temporalEnabled: dependencies.config.TEMPORAL_ENABLED,
     startWorkflow: dependencies.startWorkflow,
     immediateRead: (input) => immediateReads.execute({
@@ -4748,7 +4795,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
         throw error;
       }
     }
-    return reply.code(202).send({ runId: run.id, status: run.status, durable: Boolean(dependencies.startWorkflow) });
+    return reply.code(202).send({ runId: run.id, status: run.status, admission: run.admission, durable: Boolean(dependencies.startWorkflow) });
   });
 
   app.get<{ Params: { runId: string } }>("/v1/runs/:runId", async (request, reply) => {
@@ -4768,8 +4815,11 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     requireScope(auth, dependencies.config, "runs:read");
     const run = await runs.getRun(auth.organizationId, request.params.runId);
     if (!run) return reply.code(404).send({ error: "run_not_found" });
-    const [events, steps, toolCalls, effects] = await Promise.all([
+    const [events, journal, steps, toolCalls, effects] = await Promise.all([
       runs.listEvents(auth.organizationId, run.id),
+      typeof runs.listJournalEvents === "function"
+        ? runs.listJournalEvents(auth.organizationId, run.id)
+        : Promise.resolve([]),
       runSteps.listSteps(auth.organizationId, run.id),
       toolInvocations.list(auth.organizationId, run.id),
       effectReceipts.listForRun(auth.organizationId, run.id),
@@ -4777,6 +4827,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     return {
       run,
       events,
+      journal,
       steps: steps.map((step) => ({ ...step, input: redactSensitiveValue(step.input), output: redactSensitiveValue(step.output), error: redactSensitiveValue(step.error) })),
       toolCalls: toolCalls.map((toolCall) => redactSensitiveValue(toolCall)),
       effects: effects.map((effect) => ({ ...effect, provider_receipt: redactSensitiveValue(effect.provider_receipt), error: redactSensitiveValue(effect.error) })),

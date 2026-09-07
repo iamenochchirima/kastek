@@ -113,6 +113,16 @@ export async function agentRunWorkflow(input: DurableRunInput): Promise<void> {
 
   try {
     await transition("received", "queued");
+    const waitForConversationTurn = (activities as unknown as {
+      waitForConversationTurn?: (input: { runId: string; organizationId?: string; actorId?: string }) => Promise<boolean>;
+    }).waitForConversationTurn;
+    if (waitForConversationTurn) {
+      while (!(await waitForConversationTurn({ ...activityScope(), runId: input.runId }))) {
+        // The workflow remains durable and does not hold an activity worker
+        // while an earlier message in this session is still active.
+        await sleep("1 second");
+      }
+    }
     await transition("queued", "running");
     let resumeApprovedToolCall: ResumeApprovedToolCall | undefined = input.resumeApprovedToolCall;
     let resumeExternalEvent: ExternalEventSignal | undefined = input.resumeExternalEvent;

@@ -75,6 +75,8 @@ export interface TransitionRunActivityInput extends ActivityScope {
 
 export interface AgentRunActivities {
   transitionRun(input: TransitionRunActivityInput): Promise<void>;
+  /** Durable session serializer; omitted by legacy test-only activity fakes. */
+  waitForConversationTurn?(input: ActivityScope & { runId: string }): Promise<boolean>;
   executeLoop(input: DurableRunInput): Promise<DurableAgentLoopResult>;
   /** Read the Core-owned batch state without creating another approval or effect. */
   getContentPublishBatchStatus(input: ActivityScope & { runId: string; batchId: string }): Promise<ContentPublishBatchStatusActivityResult>;

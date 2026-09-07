@@ -128,16 +128,23 @@ describe.skipIf(!runIntegration)("hosted agent lifecycle and isolation (integrat
       input: { message: "first" },
       triggerType: "message",
     });
-    await expect(runs.createRun(organizationA, "owner-a", {
+    const queuedConversationRun = await runs.createRun(organizationA, "owner-a", {
       installationId,
       conversationId: conversation.id,
       idempotencyKey: `conversation-admission-${randomUUID()}`,
       input: { message: "second" },
       triggerType: "message",
-    })).rejects.toMatchObject({ code: "conversation_run_active", statusCode: 409, runId: activeConversationRun.id });
+    });
+    expect(queuedConversationRun).toMatchObject({ created: true, conversation_id: conversation.id, admission: { outcome: "queued" } });
+    expect(await runs.canAcquireConversationTurn(organizationA, activeConversationRun.id)).toBe(true);
+    expect(await runs.canAcquireConversationTurn(organizationA, queuedConversationRun.id)).toBe(false);
     await runs.transitionRun(activeConversationRun.id, "received", "queued");
     await runs.transitionRun(activeConversationRun.id, "queued", "running");
     await runs.transitionRun(activeConversationRun.id, "running", "completed");
+    expect(await runs.canAcquireConversationTurn(organizationA, queuedConversationRun.id)).toBe(true);
+    await runs.transitionRun(queuedConversationRun.id, "received", "queued");
+    await runs.transitionRun(queuedConversationRun.id, "queued", "running");
+    await runs.transitionRun(queuedConversationRun.id, "running", "completed");
     const afterCompletionRun = await runs.createRun(organizationA, "owner-a", {
       installationId,
       conversationId: conversation.id,
