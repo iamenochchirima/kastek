@@ -3,6 +3,7 @@ import { shutdownTelemetry } from "../telemetry";
 import { loadConfig } from "../config";
 import { createPool } from "../db/pool";
 import { AgentRepository } from "../db/repositories/agent-repository";
+import { ExtensionSnapshotRepository } from "../db/repositories/extension-snapshot-repository";
 import { synchronizeKasiAi } from "./kasiai";
 import { operationalLogger } from "../telemetry/logger";
 import { runWithRequiredDatabaseContext } from "../db/context";
@@ -15,7 +16,7 @@ async function main(): Promise<void> {
     const synced = await runWithRequiredDatabaseContext(
       "kasiai-release",
       { organizationId: "platform", actorId: "system:kasiai-release", operator: true },
-      () => synchronizeKasiAi(new AgentRepository(pool), config, { rollout }),
+      () => synchronizeKasiAi(new AgentRepository(pool, new ExtensionSnapshotRepository(pool)), config, { rollout }),
     );
     operationalLogger.info({
       event: "kasiai.release.completed",

@@ -24,6 +24,7 @@ import { KASIAI_EVALUATION_SCENARIOS, KASIAI_EVALUATION_VERSION } from "../../sy
 import { createInstallationCredentialInTransaction, type CreatedInstallationCredential } from "./installation-credential-repository";
 import { buildDefinitionLifecycleEvent, buildInstallationLifecycleEvent, buildVersionLifecycleEvent, enqueueOutbox, type DefinitionLifecycleAnalyticsInput, type InstallationLifecycleAnalyticsInput, type VersionLifecycleAnalyticsInput } from "../../analytics";
 import { AgentDeploymentModule, type StagedDeploymentResult } from "./agent-deployment-repository";
+import { ExtensionSnapshotRepository } from "./extension-snapshot-repository";
 
 type DbExecutor = Pool | PoolClient;
 
@@ -182,7 +183,32 @@ function checksumVersion(input: CreateVersionInput, versionNumber: number): stri
 export class AgentRepository {
   private readonly deploymentModule = new AgentDeploymentModule();
 
-  public constructor(private readonly pool: Pool) {}
+  public constructor(
+    private readonly pool: Pool,
+    private readonly extensionSnapshots?: ExtensionSnapshotRepository,
+  ) {}
+
+  private async ensureVersionExtensionSnapshot(
+    client: PoolClient,
+    organizationId: string,
+    actorId: string,
+    agentDefinitionId: string,
+    versionId: string,
+  ): Promise<AgentVersionRecord | undefined> {
+    if (!this.extensionSnapshots) return undefined;
+    const snapshot = await this.extensionSnapshots.ensureSnapshotForVersion(client, organizationId, actorId, versionId);
+    const pinned = await client.query<AgentVersionRecord>(
+      `UPDATE agent_versions
+       SET extension_snapshot_id = $4
+       WHERE id = $2
+         AND agent_definition_id = $3
+         AND (extension_snapshot_id IS NULL OR extension_snapshot_id = $4)
+       RETURNING *`,
+      [organizationId, versionId, agentDefinitionId, snapshot.id],
+    );
+    if (!pinned.rows[0]) throw new Error("EXTENSION_SNAPSHOT_VERSION_PIN_FAILED");
+    return pinned.rows[0];
+  }
 
   private async assertHostedDefinition(client: PoolClient, organizationId: string, agentId: string): Promise<void> {
     const result = await client.query<{ execution_mode: AgentExecutionMode }>(
@@ -359,7 +385,7 @@ export class AgentRepository {
           actorId,
         ],
       );
-      const version = versionResult.rows[0]!;
+      const version = (await this.ensureVersionExtensionSnapshot(client, organizationId, actorId, agent.id, versionResult.rows[0]!.id)) ?? versionResult.rows[0]!;
       await this.enqueueVersionLifecycle(client, organizationId, version, "created", "human", version.created_at);
       for (const toolName of capabilities) {
         await client.query(
@@ -1267,7 +1293,7 @@ export class AgentRepository {
         );
         if (pinned.rowCount !== requestedSkillIds.length) throw new Error("SKILL_VERSION_UNAVAILABLE");
       }
-      return created.rows[0]!;
+      return (await this.ensureVersionExtensionSnapshot(client, organizationId, actorId, agentId, created.rows[0]!.id)) ?? created.rows[0]!;
     });
   }
 
@@ -1303,10 +1329,11 @@ export class AgentRepository {
         [versionId, agentId],
       );
       if (!published.rows[0]) throw new Error("Draft version not found");
+      const publishedVersion = (await this.ensureVersionExtensionSnapshot(client, organizationId, actorId, agentId, published.rows[0].id)) ?? published.rows[0];
       for (const version of retired.rows) {
         await this.enqueueVersionLifecycle(client, organizationId, version, "retired", "human", lifecycleAt);
       }
-      await this.enqueueVersionLifecycle(client, organizationId, published.rows[0], "published", "human", lifecycleAt);
+      await this.enqueueVersionLifecycle(client, organizationId, publishedVersion, "published", "human", lifecycleAt);
       await this.deploymentModule.deployFollowPublishedInstallations(client, {
         organizationId,
         agentId,
@@ -1320,7 +1347,7 @@ export class AgentRepository {
          VALUES ($1, 'human', $2, 'agent_version.published', 'agent_version', $3, $4::jsonb)`,
         [organizationId, actorId, versionId, JSON.stringify({ agentId })],
       );
-      return published.rows[0]!;
+      return publishedVersion;
     });
   }
 

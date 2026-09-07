@@ -88,6 +88,12 @@ type ExtensionSnapshotRow = Omit<ExtensionSnapshotRecord, "snapshot"> & {
   snapshot: ExtensionSnapshot | string;
 };
 
+type VersionExtensionSource = {
+  id: string;
+  configuration: Record<string, unknown> | string;
+  policy: Record<string, unknown> | string;
+};
+
 const extensionKinds = new Set<ExtensionKind>(["skill", "plugin", "connector", "mcp_capability"]);
 
 function normalizeList(values: readonly string[] | undefined): string[] {
@@ -154,6 +160,45 @@ function normalizeCompatibility(input: ExtensionPackageCompatibilityInput | unde
 
 function parseJson<T>(value: T | string): T {
   return typeof value === "string" ? JSON.parse(value) as T : value;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value && typeof value === "object" && !Array.isArray(value));
+}
+
+function extensionList<T extends ExtensionDeclaration>(value: unknown, kind: ExtensionKind): T[] {
+  if (value === undefined) return [];
+  if (!Array.isArray(value)) throw new Error(`EXTENSION_SNAPSHOT_${kind.toUpperCase()}_INVALID`);
+  return value.map((entry) => {
+    if (!isRecord(entry) || entry.kind !== kind) throw new Error(`EXTENSION_SNAPSHOT_${kind.toUpperCase()}_INVALID`);
+    return entry as T;
+  });
+}
+
+function extensionConfig(source: VersionExtensionSource): {
+  plugins: PluginExtensionDeclaration[];
+  connectors: ConnectorExtensionDeclaration[];
+  mcpCapabilities: McpCapabilityDeclaration[];
+  grants: { skillIds: string[]; pluginIds: string[]; connectorIds: string[]; capabilityIds: string[] };
+} {
+  const configuration = parseJson(source.configuration);
+  const policy = parseJson(source.policy);
+  const raw = isRecord(configuration.extensions) ? configuration.extensions : isRecord(policy.extensions) ? policy.extensions : {};
+  const rawGrants = isRecord(raw.grants) ? raw.grants : {};
+  const list = (value: unknown): string[] => Array.isArray(value)
+    ? [...new Set(value.filter((entry): entry is string => typeof entry === "string" && Boolean(entry.trim())).map((entry) => entry.trim()))]
+    : [];
+  return {
+    plugins: extensionList<PluginExtensionDeclaration>(raw.plugins, "plugin"),
+    connectors: extensionList<ConnectorExtensionDeclaration>(raw.connectors, "connector"),
+    mcpCapabilities: extensionList<McpCapabilityDeclaration>(raw.mcpCapabilities, "mcp_capability"),
+    grants: {
+      skillIds: list(rawGrants.skillIds),
+      pluginIds: list(rawGrants.pluginIds),
+      connectorIds: list(rawGrants.connectorIds),
+      capabilityIds: list(rawGrants.capabilityIds),
+    },
+  };
 }
 
 function hydrateSnapshot(row: ExtensionSnapshotRow): ExtensionSnapshotRecord {
@@ -269,8 +314,88 @@ export class ExtensionSnapshotRepository {
     if (!snapshot.agentVersionId.trim() || !snapshot.id.trim() || !/^[a-f0-9]{64}$/i.test(snapshot.checksum)) {
       throw new Error("EXTENSION_SNAPSHOT_INVALID");
     }
-    return withTransaction(this.pool, async (client) => {
-      const inserted = await client.query<ExtensionSnapshotRow>(
+    return withTransaction(this.pool, async (client) => this.insertSnapshot(client, organizationId, actorId, snapshot));
+  }
+
+  /**
+   * Resolve a version's currently pinned declarative extensions and persist
+   * the result in the caller's transaction. Publication and run admission
+   * use this method so the version pin and snapshot cannot drift apart.
+   */
+  public async ensureSnapshotForVersion(
+    executor: Pick<Pool, "query">,
+    organizationId: string,
+    actorId: string,
+    agentVersionId: string,
+  ): Promise<ExtensionSnapshotRecord> {
+    const versionResult = await executor.query<VersionExtensionSource>(
+      `SELECT version.id, version.configuration, version.policy
+       FROM agent_versions version
+       JOIN agent_definitions definition ON definition.id = version.agent_definition_id
+       WHERE version.id = $2 AND definition.organization_id = $1`,
+      [organizationId, agentVersionId],
+    );
+    const version = versionResult.rows[0];
+    if (!version) throw new Error("EXTENSION_SNAPSHOT_VERSION_NOT_FOUND");
+    const skillResult = await executor.query<{
+      skill_definition_id: string;
+      version_number: number;
+      checksum: string;
+      skill_name: string | null;
+      required_capabilities: string[] | null;
+      required_connectors: string[] | null;
+    }>(
+      `SELECT skill_version.skill_definition_id, skill_version.version_number,
+              skill_version.checksum, skill.name AS skill_name,
+              skill_version.required_capabilities, skill_version.required_connectors
+       FROM agent_version_skills pin
+       JOIN agent_skill_versions skill_version ON skill_version.id = pin.skill_version_id
+       JOIN agent_skill_definitions skill ON skill.id = skill_version.skill_definition_id
+       WHERE pin.organization_id = $1 AND pin.agent_version_id = $2
+         AND skill_version.status = 'published' AND skill.status = 'published'
+       ORDER BY skill_version.skill_definition_id`,
+      [organizationId, agentVersionId],
+    );
+    const extension = extensionConfig(version);
+    const skillDeclarations: SkillExtensionDeclaration[] = skillResult.rows.map((skill) => ({
+      kind: "skill",
+      id: skill.skill_definition_id,
+      version: `${skill.version_number}.0.0`,
+      checksum: skill.checksum,
+      ...(skill.skill_name ? { name: skill.skill_name } : {}),
+      available: true,
+      installed: true,
+      configured: true,
+      requiredCapabilityIds: skill.required_capabilities ?? [],
+      requiredConnectorIds: skill.required_connectors ?? [],
+    }));
+    const policy = parseJson(version.policy);
+    const requestedSkills = isRecord(policy) && Array.isArray(policy.allowedSkillIds)
+      ? policy.allowedSkillIds.filter((entry): entry is string => typeof entry === "string")
+      : [];
+    const snapshot = new ExtensionResolver().resolve({
+      agentVersionId,
+      skills: skillDeclarations,
+      plugins: extension.plugins,
+      connectors: extension.connectors,
+      mcpCapabilities: extension.mcpCapabilities,
+      grants: {
+        skillIds: [...new Set([...skillDeclarations.map((skill) => skill.id), ...requestedSkills, ...extension.grants.skillIds])],
+        pluginIds: extension.grants.pluginIds,
+        connectorIds: extension.grants.connectorIds,
+        capabilityIds: extension.grants.capabilityIds,
+      },
+    });
+    return this.insertSnapshot(executor, organizationId, actorId, snapshot);
+  }
+
+  private async insertSnapshot(
+    executor: Pick<Pool, "query">,
+    organizationId: string,
+    actorId: string,
+    snapshot: ExtensionSnapshot,
+  ): Promise<ExtensionSnapshotRecord> {
+      const inserted = await executor.query<ExtensionSnapshotRow>(
         `INSERT INTO agent_extension_snapshots
           (organization_id, agent_version_id, snapshot_key, checksum, snapshot, created_by)
          SELECT $1, version.id, $3, $4, $5::jsonb, $6
@@ -282,14 +407,13 @@ export class ExtensionSnapshotRepository {
         [organizationId, snapshot.agentVersionId, snapshot.id, snapshot.checksum, JSON.stringify(snapshot), actorId],
       );
       if (inserted.rows[0]) return hydrateSnapshot(inserted.rows[0]);
-      const existing = await client.query<ExtensionSnapshotRow>(
+      const existing = await executor.query<ExtensionSnapshotRow>(
         `SELECT * FROM agent_extension_snapshots
          WHERE organization_id = $1 AND agent_version_id = $2 AND checksum = $3`,
         [organizationId, snapshot.agentVersionId, snapshot.checksum],
       );
       if (!existing.rows[0]) throw new Error("EXTENSION_SNAPSHOT_CREATE_FAILED");
       return hydrateSnapshot(existing.rows[0]);
-    });
   }
 
   public async getSnapshot(organizationId: string, snapshotId: string): Promise<ExtensionSnapshotRecord | null> {

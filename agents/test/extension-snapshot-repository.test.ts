@@ -132,6 +132,23 @@ describe("ExtensionSnapshotRepository", () => {
     expect(pool.query.mock.calls[0][1]).toEqual([organizationId, "44444444-4444-4444-8444-444444444444"]);
   });
 
+  it("resolves a version's pinned declarations and persists one deterministic snapshot", async () => {
+    const row = snapshotRow();
+    const pool = { query: vi.fn()
+      .mockResolvedValueOnce({ rows: [{ id: versionId, configuration: {}, policy: {} }] })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [row] }) };
+    const repository = new ExtensionSnapshotRepository(pool as never);
+
+    const result = await repository.ensureSnapshotForVersion(pool as never, organizationId, actorId, versionId);
+
+    expect(result).toEqual(row);
+    expect(pool.query).toHaveBeenCalledTimes(3);
+    expect(pool.query.mock.calls[2][0]).toContain("INSERT INTO agent_extension_snapshots");
+    expect(pool.query.mock.calls[2][1]?.[0]).toBe(organizationId);
+    expect(pool.query.mock.calls[2][1]?.[1]).toBe(versionId);
+  });
+
   it("rejects executable package declarations before storage", async () => {
     const pool = { query: vi.fn() };
     const repository = new ExtensionSnapshotRepository(pool as never);

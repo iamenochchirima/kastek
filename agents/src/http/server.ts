@@ -3,6 +3,7 @@ import { shutdownTelemetry } from "../telemetry";
 import { loadConfig } from "../config";
 import { createPool } from "../db/pool";
 import { AgentRepository } from "../db/repositories/agent-repository";
+import { ExtensionSnapshotRepository } from "../db/repositories/extension-snapshot-repository";
 import { RunRepository } from "../db/repositories/run-repository";
 import { buildApp } from "./app";
 import { synchronizeKasiAi } from "../system/kasiai";
@@ -21,7 +22,7 @@ async function main(): Promise<void> {
     const synced = await runWithRequiredDatabaseContext(
       releaseContext.operation,
       { organizationId: "platform", actorId: releaseContext.actorId, operator: true },
-      () => synchronizeKasiAi(new AgentRepository(pool), config),
+      () => synchronizeKasiAi(new AgentRepository(pool, new ExtensionSnapshotRepository(pool)), config),
     );
     operationalLogger.info({
       event: config.NODE_ENV === "production" ? "kasiai.production.release.completed" : "kasiai.synchronized",

@@ -3,6 +3,7 @@ import { shutdownTelemetry } from "../telemetry";
 import { loadConfig } from "../config";
 import { createPool } from "../db/pool";
 import { AgentRepository } from "../db/repositories/agent-repository";
+import { ExtensionSnapshotRepository } from "../db/repositories/extension-snapshot-repository";
 import { bootstrapKasiAi } from "./kasiai";
 import { operationalLogger } from "../telemetry/logger";
 import { runWithRequiredDatabaseContext } from "../db/context";
@@ -14,7 +15,7 @@ async function main(): Promise<void> {
     const result = await runWithRequiredDatabaseContext(
       "kasiai-bootstrap",
       { organizationId: "platform", actorId: "system:kasiai-bootstrap", operator: true },
-      () => bootstrapKasiAi(new AgentRepository(pool), config),
+      () => bootstrapKasiAi(new AgentRepository(pool, new ExtensionSnapshotRepository(pool)), config),
     );
     operationalLogger.info({
         event: "kasiai.bootstrap.completed",

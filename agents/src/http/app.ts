@@ -139,11 +139,13 @@ import { ModelGateway } from "../model/gateway";
 import { VaultCredentialResolver } from "../model/credentials";
 import { CoreHostAdapter, HostCapabilityRouter, NativeHostAdapter } from "../hosts/capabilities";
 import { createAgentHarness, type AgentHarness } from "../runtime/harness";
+import { ExtensionSnapshotRepository } from "../db/repositories/extension-snapshot-repository";
 
 export interface AppDependencies {
   config: AppConfig;
   pool: Pool;
   agents?: AgentRepository;
+  extensionSnapshots?: ExtensionSnapshotRepository;
   runs?: RunRepository;
   conversations?: ConversationRepository;
   platformChat?: PlatformChatRepository;
@@ -481,7 +483,8 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       fileSize: Math.max(MAX_KNOWLEDGE_FILE_BYTES, MAX_AUDIO_FILE_BYTES),
     },
   });
-  const agents = dependencies.agents ?? new AgentRepository(dependencies.pool);
+  const extensionSnapshots = dependencies.extensionSnapshots ?? new ExtensionSnapshotRepository(dependencies.pool);
+  const agents = dependencies.agents ?? new AgentRepository(dependencies.pool, extensionSnapshots);
   const runs = dependencies.runs ?? new RunRepository(dependencies.pool);
   const conversations = dependencies.conversations ?? new ConversationRepository(dependencies.pool);
   const runSteps = dependencies.runSteps ?? new RunStepRepository(dependencies.pool);

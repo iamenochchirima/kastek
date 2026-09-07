@@ -21,6 +21,7 @@ import { recordBudgetReconciliationRequired } from "../telemetry/spans";
 import { MemoryConsolidationWorker } from "../memory/consolidation-worker";
 import { runWithRequiredDatabaseContext } from "../db/context";
 import { AgentRepository } from "../db/repositories/agent-repository";
+import { ExtensionSnapshotRepository } from "../db/repositories/extension-snapshot-repository";
 import { assertKasiAiReleaseCurrent } from "../system/kasiai";
 
 async function main(): Promise<void> {
@@ -34,7 +35,7 @@ async function main(): Promise<void> {
       const releaseStatus = await runWithRequiredDatabaseContext(
         "kasiai-worker-release-check",
         { organizationId: "platform", actorId: "system:kasiai-worker-release-check", operator: true },
-        () => assertKasiAiReleaseCurrent(new AgentRepository(pool), config),
+        () => assertKasiAiReleaseCurrent(new AgentRepository(pool, new ExtensionSnapshotRepository(pool)), config),
       );
       operationalLogger.info({
         event: "kasiai.worker.release.check.completed",
