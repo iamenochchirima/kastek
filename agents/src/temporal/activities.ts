@@ -3853,6 +3853,7 @@ async function executeLoopForRun(
       harness,
       toolInvocationLifecycle,
       budgetLedger,
+      assertSessionLease,
       runAgentLoop: async ({ nodeId, config, state, maxIterations, usage, limits, parallelLeaseId }) => {
         const instruction = typeof config.instruction === "string" && config.instruction.trim()
           ? config.instruction
@@ -4239,6 +4240,7 @@ async function executeConfiguredWorkflow(input: {
   graphStepActivitiesEnabled: boolean;
   resumeApprovedToolCall?: Parameters<AgentRunActivities["executeLoop"]>[0]["resumeApprovedToolCall"];
   resumeExternalEvent?: Parameters<AgentRunActivities["executeLoop"]>[0]["resumeExternalEvent"];
+  assertSessionLease?: () => Promise<void>;
 }): Promise<AgentLoopResult & { checkpointed?: boolean }> {
   let graph: WorkflowGraph;
   try {
@@ -4290,6 +4292,7 @@ async function executeConfiguredWorkflow(input: {
   let lastModelResponse: ModelResponse | undefined;
 
   const executeTool = async (request: { name: string; arguments: Record<string, unknown>; nodeId: string; approved?: unknown }): Promise<unknown> => {
+    await input.assertSessionLease?.();
     activityHeartbeat({ phase: "workflow.tool.started", nodeId: request.nodeId, tool: request.name });
     usedTools.add(request.name);
     const manifest = input.harness.get(request.name);
@@ -4348,6 +4351,7 @@ async function executeConfiguredWorkflow(input: {
         });
       }
       await consumeRunToolBudget(input.runBudget, { organizationId: input.run.organization_id, runId: input.run.id });
+      await input.assertSessionLease?.();
       const result = await withActivityHeartbeat({ phase: "workflow.tool.running", nodeId: request.nodeId, tool: request.name }, () => input.harness.capabilities.invoke({
         name: request.name,
         arguments: request.arguments,
@@ -4381,6 +4385,7 @@ async function executeConfiguredWorkflow(input: {
           });
         } : undefined,
       }));
+      await input.assertSessionLease?.();
       const toolAuthorization = findAuthorizationRequirement(result.output);
       const safeOutput = redactSensitiveValue(result.output);
       const durableOutput = redactToolOutput(result.output, manifest.manifest?.redaction ?? []);
@@ -4449,6 +4454,7 @@ async function executeConfiguredWorkflow(input: {
     resumeApprovedToolCall: input.resumeApprovedToolCall,
     resumeExternalEvent: input.resumeExternalEvent,
     checkpoint: async (checkpoint) => {
+      await input.assertSessionLease?.();
       await input.workflowCheckpoints.put({
         organizationId: input.run.organization_id,
         runId: input.run.id,
@@ -4480,6 +4486,7 @@ async function executeConfiguredWorkflow(input: {
   }
 
   if (result.status === "awaiting_approval") {
+    await input.assertSessionLease?.();
     const pending = result.pendingToolCalls?.[0];
     if (!pending) return { status: "failed", messages: [], usage: workflowUsage(result.usage), iterations: result.trace.length, toolCalls: result.usage.toolCalls, error: { code: "WORKFLOW_APPROVAL_UNCONFIGURED", message: "Approval node must identify a capability and arguments" } };
     const manifest = input.harness.get(pending.name);
@@ -4496,12 +4503,14 @@ async function executeConfiguredWorkflow(input: {
     return { status: "awaiting_approval", messages: [], pendingToolCalls: [pending], usage: workflowUsage(result.usage), iterations: result.trace.length, toolCalls: result.usage.toolCalls, provenance: buildGroundingProvenance({ authorizedTools: input.allowedTools, usedTools, retrievalRequested: input.context.retrievalRequested, knowledgeMatchCount: 0 }) };
   }
   if (result.status === "awaiting_external_event") {
+    await input.assertSessionLease?.();
     await input.workflowState.put({ organizationId: input.run.organization_id, runId: input.run.id, expectedRevision: persisted?.revision, state: { __workflowNodeId: result.pausedAt, __workflowState: result.state } });
     await workflowJournal.append({ scope: workflowJournalScope, event: { kind: "operation.waiting", data: { reason: "external_event", resumeKey: result.waitingFor } } });
     await input.runRepository.appendEvent({ organizationId: input.run.organization_id, runId: input.run.id, installationId: input.run.installation_id, eventType: "agent.workflow.external_event.pending", payload: { nodeId: result.pausedAt, waitingFor: result.waitingFor } });
     return { status: "awaiting_external_event", messages: [], usage: workflowUsage(result.usage), iterations: result.trace.length, toolCalls: result.usage.toolCalls, waitingFor: result.waitingFor, provenance: buildGroundingProvenance({ authorizedTools: input.allowedTools, usedTools, retrievalRequested: input.context.retrievalRequested, knowledgeMatchCount: 0 }) };
   }
   if (result.status === "awaiting_human") {
+    await input.assertSessionLease?.();
     const offer = input.run.conversation_id
       ? await input.conversationActions.offerHandoff(input.modelToolContext, {
         reason: "configured_workflow",
@@ -4525,6 +4534,7 @@ async function executeConfiguredWorkflow(input: {
     return { status: "completed", messages: [response.message], response, usage: workflowUsage(result.usage), iterations: result.trace.length, toolCalls: result.usage.toolCalls, provenance: buildGroundingProvenance({ authorizedTools: input.allowedTools, usedTools, retrievalRequested: input.context.retrievalRequested, knowledgeMatchCount: 0 }) };
   }
   if (result.status === "failed") return { status: "failed", messages: [], usage: workflowUsage(result.usage), iterations: result.trace.length, toolCalls: result.usage.toolCalls, error: { code: "WORKFLOW_FAILED", message: result.error ?? "Workflow execution failed" }, provenance: buildGroundingProvenance({ authorizedTools: input.allowedTools, usedTools, retrievalRequested: input.context.retrievalRequested, knowledgeMatchCount: 0 }) };
+  await input.assertSessionLease?.();
   await input.workflowState.put({ organizationId: input.run.organization_id, runId: input.run.id, expectedRevision: persisted?.revision, state: { __workflowNodeId: null, __workflowState: result.state } });
   const workflowResponse = (() => {
     const candidate = result.state.response ?? result.state.output;
