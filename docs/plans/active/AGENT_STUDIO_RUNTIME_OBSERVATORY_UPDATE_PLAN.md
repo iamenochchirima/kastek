@@ -210,6 +210,45 @@ This gives users two answers at once: "what will this agent use?" and "what did 
 this run?" The node inspector must make the difference explicit and show the first failing durable
 fact, its non-secret reason, and the available recovery action.
 
+### UI implementation slice: configured system map
+
+The first UI slice is intentionally visual and local to Studio. It establishes the observatory
+surface before the runtime projection is wired in:
+
+- [x] Render a persistent configured topology before a run starts.
+- [x] Show ingress, session, context, memory, retrieval, model, capability routing, tools, MCP,
+      skills, approvals, handoff, persistence, response, and delivery as connected nodes.
+- [x] Keep the topology fixed while runtime events overlay `running`, `complete`, `waiting`, and
+      `error` states on the matching node.
+- [x] Make each node selectable with scope, provider, event contract, and bounded configuration
+      details; open the existing settings surface for configurable nodes.
+- [x] Use temporary representative configuration data until the effective candidate projection is
+      available. This data is clearly marked as configured/demo state and is not a runtime claim.
+- [ ] Replace the representative graph with the effective candidate and extension snapshot.
+- [ ] Attach timeline items, memory lineage, and operation evidence from durable journal records.
+- [ ] Add readiness states and authorized recovery actions from backend contracts.
+
+This slice is a preview surface, not a second execution engine. It does not create runs, infer
+events from chat text, or persist configuration from node selection.
+
+## Release record for the UI slice
+
+```text
+Change: Persistent configured execution-observatory map in Studio
+Owner: Agent Platform and Studio
+Risk: standard
+Affected services and user surfaces: client Studio/Playground observatory only
+Platform release version or release ID: not applicable (preview UI slice)
+API/schema/migration changes: not applicable
+Feature flag or rollout method: existing Studio route; temporary representative data is preview-only
+Analytics events and success metrics: not applicable; no new user outcome is persisted
+Logs, metrics, dashboards, and alerts: not applicable; no backend lifecycle is added
+User, API, internal, and operational documentation: this plan updated
+Validation evidence: client ESLint, TypeScript check, and production Next.js build
+Rollback or disable plan: revert the Studio UI commit; existing run/configuration APIs are unchanged
+Post-release review date: when effective candidate projection work begins
+```
+
 ### Core execution nodes
 
 The default run view may contain these nodes when their events occur:
