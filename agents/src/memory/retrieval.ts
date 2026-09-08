@@ -1,6 +1,6 @@
 import type { KnowledgeChunkRecord, KnowledgeRepository } from "../db/repositories/knowledge-repository";
 import type { MemoryNamespace, MemoryRecord, MemoryScope } from "./legacy-contracts";
-import { MemoryLifecycle } from "./lifecycle";
+import type { MemoryLifecycle } from "./lifecycle";
 import { memoryPolicyFromAgentPolicy, type MemoryPolicy } from "./policy";
 import { recordRetrievalDuration } from "../telemetry/spans";
 import { operationalLogger } from "../telemetry/logger";
@@ -262,32 +262,43 @@ export class RetrievalService {
    * embedding repair path without querying the legacy memory_records table.
    */
   public async retrieveKnowledge(scope: MemoryScope, message: string, policyValue: MemoryPolicy | unknown, options: { always?: boolean; gate?: RetrievalGateClassifier; gateTimeoutMs?: number; gateMinConfidence?: number } = {}): Promise<RetrievalResult> {
-    const gate = await decideMemoryRetrievalWithGate(message, { always: options.always, policy: policyValue, classifier: options.gate, timeoutMs: options.gateTimeoutMs, minConfidence: options.gateMinConfidence });
-    const decision = { ...gate.decision, gate: gate.metadata };
-    if (!decision.requested) return { decision, evidence: [], memoryMatches: [], knowledgeMatches: [] };
-    const started = performance.now();
+    return retrieveKnowledge(this.knowledge, scope, message, policyValue, options, this.embeddingProvider);
+  }
+}
+
+export async function retrieveKnowledge(
+  knowledge: KnowledgeRepository,
+  scope: MemoryScope,
+  message: string,
+  policyValue: MemoryPolicy | unknown,
+  options: { always?: boolean; gate?: RetrievalGateClassifier; gateTimeoutMs?: number; gateMinConfidence?: number } = {},
+  embeddingProvider: EmbeddingProvider | undefined = createEnvironmentEmbeddingProvider(),
+): Promise<RetrievalResult> {
+  const gate = await decideMemoryRetrievalWithGate(message, { always: options.always, policy: policyValue, classifier: options.gate, timeoutMs: options.gateTimeoutMs, minConfidence: options.gateMinConfidence });
+  const decision = { ...gate.decision, gate: gate.metadata };
+  if (!decision.requested) return { decision, evidence: [], memoryMatches: [], knowledgeMatches: [] };
+  const started = performance.now();
+  try {
+    const candidateLimit = Math.min(50, Math.max(decision.maxResults, decision.maxResults * 2));
     try {
-      const candidateLimit = Math.min(50, Math.max(decision.maxResults, decision.maxResults * 2));
-      try {
-        await this.knowledge.ensureEmbeddings?.(scope, 50);
-      } catch (error) {
-        operationalLogger.warn({
-          event: "knowledge.embedding.repair.failed",
-          error_code: error instanceof Error ? error.name.slice(0, 80) : "unknown",
-          fallback: "lexical",
-        }, "Knowledge embedding repair failed; continuing with retrieval fallback");
-      }
-      const queryEmbedding = (await embedSafely(this.embeddingProvider, [decision.query]))?.[0];
-      const knowledgeMatches = await this.knowledge.search(scope, decision.query, candidateLimit, queryEmbedding);
-      return {
-        decision,
-        evidence: rankEvidence([], knowledgeMatches, decision.maxResults, decision.maxTokens),
-        memoryMatches: [],
-        knowledgeMatches,
-      };
-    } finally {
-      recordRetrievalDuration(performance.now() - started);
+      await knowledge.ensureEmbeddings?.(scope, 50);
+    } catch (error) {
+      operationalLogger.warn({
+        event: "knowledge.embedding.repair.failed",
+        error_code: error instanceof Error ? error.name.slice(0, 80) : "unknown",
+        fallback: "lexical",
+      }, "Knowledge embedding repair failed; continuing with retrieval fallback");
     }
+    const queryEmbedding = (await embedSafely(embeddingProvider, [decision.query]))?.[0];
+    const knowledgeMatches = await knowledge.search(scope, decision.query, candidateLimit, queryEmbedding);
+    return {
+      decision,
+      evidence: rankEvidence([], knowledgeMatches, decision.maxResults, decision.maxTokens),
+      memoryMatches: [],
+      knowledgeMatches,
+    };
+  } finally {
+    recordRetrievalDuration(performance.now() - started);
   }
 }
 

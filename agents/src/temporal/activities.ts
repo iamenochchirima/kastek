@@ -3,7 +3,7 @@ import { RunRepository } from "../db/repositories/run-repository";
 import { ModelCallRepository } from "../db/repositories/model-call-repository";
 import { RunBudgetRepository } from "../db/repositories/run-budget-repository";
 import { ConversationRepository } from "../db/repositories/conversation-repository";
-import { RetrievalService } from "../memory/retrieval";
+import { retrieveKnowledge } from "../memory/retrieval";
 import { memoryPolicyFromAgentPolicy } from "../memory/policy";
 import { KnowledgeRepository } from "../db/repositories/knowledge-repository";
 import type { AgentRunActivities } from "./contracts";
@@ -3756,7 +3756,7 @@ async function executeLoopForRun(
       timeoutMs: appConfig.MEMORY_RETRIEVAL_GATE_TIMEOUT_MS,
     })
     : undefined;
-  const retrievalResult = await new RetrievalService(undefined, knowledge).retrieveKnowledge(resourceAccessFromExecutionScope(executionScope), currentMessage, run.policy, {
+  const retrievalResult = await retrieveKnowledge(knowledge, resourceAccessFromExecutionScope(executionScope), currentMessage, run.policy, {
     always: run.installation_settings?.profile === "general",
     gate: retrievalGate,
     gateTimeoutMs: appConfig?.MEMORY_RETRIEVAL_GATE_TIMEOUT_MS,
