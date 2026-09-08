@@ -290,7 +290,9 @@ selection, pruning, compaction, and final fit decisions.
 Temporal's durable compaction artifact is also no longer used as an independent fixed-count
 model-input projection: the activity keeps the complete durable transcript available to the shared
 provider-aware planner, while the durable compaction path remains responsible for fenced artifacts
-and the pre-loss memory checkpoint. Output reservation is resolved with the same bounded value used
+and the pre-loss memory checkpoint. The compatibility `harness.buildContext` projection is
+diagnostic-only; it cannot terminate a run before the provider-aware capability and manifest gate.
+Output reservation is resolved with the same bounded value used
 by the dispatched request, so the manifest and provider envelope cannot report different output
 budgets. Durable run-budget reservation now receives the planner's exact input estimate and output
 reservation instead of independently re-estimating the model request; the legacy estimator remains
@@ -393,6 +395,8 @@ recorded capability, threshold, and gate change before its next call.
   provider-aware planner selects the request projection, while `compactDurableContext` remains the
   fenced persistence/checkpoint path. Evidence: `agents/src/runtime/context.ts`,
   `agents/src/temporal/activities.ts`, `agents/test/context.test.ts`, and the context planner/loop tests.
+  The activity does not return on the compatibility preflight's limited status; only the final loop
+  planner can produce the authoritative fit outcome.
 - [x] Resolve the final output reservation once for both the request manifest and provider dispatch.
   When the durable run budget clamps output, the loop re-plans against the reduced reservation and
   dispatches `manifest.accounting.categories.output_reservation`; evidence:
