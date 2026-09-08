@@ -142,10 +142,9 @@ export function AgentToolIntegrations({ installationId, embedded = false, refres
           const connected = isConnected(integration);
           const pending = busyIntegration === integration.id;
           const canConfigure = integration.kind !== "channel" && integration.configurable && integration.auth !== "observability";
-          return <Card key={integration.id} className="border-border bg-card">
-            <CardContent className="flex h-full flex-col gap-4 p-4">
-              <div className="flex items-start gap-3"><IntegrationLogo integration={integration} /><div className="min-w-0"><h4 className="font-semibold text-foreground">{integration.name}</h4><p className="mt-1 text-sm leading-5 text-muted-foreground">{integration.description}</p></div></div>
-              <div className="mt-auto flex items-center justify-between gap-3"><span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground"><span className={`h-1.5 w-1.5 rounded-full ${connected ? "bg-status-success" : "bg-muted-foreground/50"}`} />{statusLabel(integration)}</span><div className="flex gap-2">
+          return <Card key={integration.id} className="border-border bg-card transition-colors hover:border-primary/30">
+            <CardContent className="flex min-h-[104px] items-center gap-3 p-3">
+              <IntegrationLogo integration={integration} /><div className="min-w-0 flex-1"><h4 className="truncate text-sm font-semibold text-foreground">{integration.name}</h4><p className="mt-1 line-clamp-2 text-xs leading-4 text-muted-foreground">{integration.description}</p><span className="mt-2 inline-flex items-center gap-1.5 text-[11px] text-muted-foreground"><span className={`h-1.5 w-1.5 rounded-full ${connected ? "bg-status-success" : "bg-muted-foreground/50"}`} />{statusLabel(integration)}</span></div><div className="flex shrink-0 items-center gap-2">
                 {integration.kind === "channel" ? <Button type="button" size="sm" onClick={() => onChannelAction?.(integration)} disabled={pending || !onChannelAction}>{pending ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : null}{connected ? "Manage" : "Connect"}</Button> : null}
                 {integration.kind !== "channel" && connected && integration.auth !== "internal" ? <Button type="button" size="sm" variant="ghost" onClick={() => setDisconnecting(integration)} disabled={pending}><Unplug className="h-3.5 w-3.5" />Disconnect</Button> : null}
                 {integration.id === "google.calendar" && !connected ? <Button type="button" size="sm" onClick={() => void connectGoogle()} disabled={pending}>{pending ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : null}Connect</Button> : null}
@@ -153,7 +152,7 @@ export function AgentToolIntegrations({ installationId, embedded = false, refres
                 {connected && integration.auth === "local_connector" ? <Button type="button" size="sm" variant="outline" onClick={() => openConfiguration(integration)}>Update</Button> : null}
                 {integration.auth === "internal" ? <Badge className="border-status-success/30 bg-status-success-soft text-status-success"><Check className="mr-1 h-3 w-3" />Ready</Badge> : null}
                 {integration.auth === "observability" ? <Badge variant="outline">Server</Badge> : null}
-              </div></div>
+              </div>
             </CardContent>
           </Card>;
         })}
