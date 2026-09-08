@@ -4,7 +4,9 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-TEMPORAL_MODE="${TEMPORAL_MODE:-cloud}"
+# The local stack is intentionally self-contained. Cloud Temporal remains an
+# explicit opt-in for environments that set TEMPORAL_MODE=cloud.
+TEMPORAL_MODE="${TEMPORAL_MODE:-local}"
 if [[ "$TEMPORAL_MODE" != "cloud" && "$TEMPORAL_MODE" != "local" ]]; then
   echo "Error: TEMPORAL_MODE must be cloud or local" >&2
   exit 1
