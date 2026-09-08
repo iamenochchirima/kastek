@@ -1,4 +1,5 @@
 import type { ExecutionScope } from "../runtime/execution-scope";
+import type { CapabilityRegistrationMetadata } from "../capabilities/catalog";
 
 export type ToolRiskClass = "read" | "draft" | "controlled-write" | "external-effect" | "privileged";
 
@@ -127,6 +128,8 @@ export interface ToolDefinition {
   outputSchema: Record<string, unknown>;
   handler: (context: ToolInvocationContext, argumentsValue: Record<string, unknown>) => Promise<unknown>;
   manifest?: CapabilityManifestMetadata;
+  /** Discovery metadata is projected into the canonical capability catalog. */
+  catalog?: CapabilityRegistrationMetadata;
 }
 
 export interface CapabilityManifest extends Omit<ToolDefinition, "handler" | "manifest"> {

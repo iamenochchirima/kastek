@@ -7,6 +7,7 @@ import {
   type ToolInvocationResult,
 } from "../tools/types";
 import { redactToolOutput } from "../tools/redaction";
+import type { CapabilityCatalog } from "./catalog";
 
 export type CapabilityReadiness = "ready" | "not_configured" | "unhealthy" | "not_granted";
 
@@ -30,6 +31,7 @@ export interface CapabilityAdmission {
 
 export interface CapabilityRuntime {
   readonly registry: ToolRegistry;
+  readonly catalog: CapabilityCatalog;
   resolve(name: string, grantedTools: ReadonlySet<string>): CapabilityResolution;
   list(grantedTools?: ReadonlySet<string>): ReturnType<ToolRegistry["list"]>;
   get(name: string): ReturnType<ToolRegistry["get"]>;
@@ -77,6 +79,7 @@ export function createCapabilityRuntime(input: {
 }): CapabilityRuntime {
   return {
     registry: input.registry,
+    catalog: input.registry.catalog,
     resolve: (name, grantedTools) => readinessFor(input.registry, name, grantedTools),
     list: (grantedTools) => input.registry.list(grantedTools),
     get: (name) => input.registry.get(name),

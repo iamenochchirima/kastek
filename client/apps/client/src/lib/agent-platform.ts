@@ -1068,6 +1068,16 @@ export type AgentCapability = {
   permission?: { scope: string; label: string; resourceType?: string };
   audit?: { classification: string; description: string; redaction: string[] };
   documentation?: { title: string; summary: string };
+  catalog?: {
+    kind: "builtin_tool" | "connector_tool" | "skill" | "plugin_tool" | "mcp_tool" | "user_tool" | string;
+    category: string;
+    logo?: string;
+    tags: string[];
+    source: { kind: string; id: string; version: string; checksum?: string; trust: string };
+    provider?: { id: string; name: string; version?: string };
+    toolsetIds: string[];
+    runtime: { execution: string; riskClass?: string; requiresApproval?: boolean; timeoutMs?: number; requiredScopes: string[]; credentialRequirements: string[] };
+  };
 };
 
 export function listAgentCapabilities(): Promise<{ capabilities: AgentCapability[] }> {

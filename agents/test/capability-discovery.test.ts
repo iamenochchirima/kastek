@@ -65,4 +65,18 @@ describe("capability discovery", () => {
     expect(manifests[30]?.manifest).toMatchObject({ ownerService: "kasitek-core", requiredScope: "content.publish", approval: "always", execution: "durable" });
     expect(manifests[31]?.manifest).toMatchObject({ ownerService: "kasitek-core", requiredScope: "content.publish", approval: "always", execution: "durable" });
   });
+
+  it("projects registered executable tools into the canonical capability catalog", () => {
+    const registry = createDefaultTools();
+    const descriptor = registry.catalog.get("platform.current_time");
+
+    expect(registry.catalog.list({ kinds: ["builtin_tool"] }).length).toBeGreaterThan(30);
+    expect(descriptor).toMatchObject({
+      id: "platform.current_time",
+      kind: "builtin_tool",
+      source: { kind: "builtin", id: "agents", trust: "platform" },
+      runtime: { execution: "native", riskClass: "read", requiredScopes: ["platform.time.read"] },
+    });
+    expect(registry.surfaces()[0]?.catalog).toMatchObject({ kind: "builtin_tool", source: { kind: "builtin" } });
+  });
 });
