@@ -338,6 +338,7 @@ export class MemoryRevisionCommandService {
     const current = await this.revisions.getRevision(organizationId, input.revisionId);
     if (!current) throw Object.assign(new Error("MEMORY_REVISION_NOT_FOUND"), { code: "MEMORY_REVISION_NOT_FOUND" });
     const now = new Date().toISOString();
+    const validTo = input.validTo === undefined ? current.validTo : input.validTo;
     return this.revisions.appendRevision(current.factId, {
       memoryType: current.memoryType,
       transitionType: "revalidation",
@@ -346,12 +347,12 @@ export class MemoryRevisionCommandService {
       typedValue: current.typedValue,
       ...(current.memoryType === "episodic" ? { eventTime: current.eventTime ?? current.validFrom, eventSummary: current.eventSummary ?? current.canonicalText } : {}),
       validFrom: now,
-      ...(input.validTo ? { validTo: input.validTo } : {}),
+      ...(validTo ? { validTo } : {}),
       observedAt: now,
       sourceTrust: current.sourceTrust,
       sensitivity: current.sensitivity,
       provenance: { ...current.provenance, source: `memory.operator.${input.command}`, predecessorRevisionId: current.id, operatorId: actorId },
-      evidenceDigest: digest({ operationId, command: input.command, revisionId: current.id }),
+      evidenceDigest: digest({ operationId, command: input.command, revisionId: current.id, validTo: validTo ?? null }),
       extractionVersion: "operator-v2",
       sourceEventIds: [`memory-operator:${input.command}:${operationId}:${current.id}`],
       sourceEventType: `memory.operator.${input.command}`,

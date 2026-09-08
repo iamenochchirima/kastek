@@ -5,7 +5,7 @@ import { MemoryRevisionCommandService } from "./revision-command-service";
 
 type LegacyNamespace = "conversation" | "user_private" | "organization_shared" | "agent_private";
 type LegacySourceType = "explicit" | "imported" | "inferred";
-type CanonicalLifecycle = "active" | "review_pending" | "quarantined";
+type CanonicalLifecycle = "observed" | "candidate" | "active" | "review_pending" | "quarantined" | "superseded" | "expired" | "rejected" | "deleted";
 
 export interface MemoryHttpRecord {
   id: string;
@@ -178,13 +178,13 @@ export class CanonicalMemoryHttpAdmin implements MemoryHttpAdmin {
          SELECT revision.*
          FROM agent_memory_revisions revision
          WHERE revision.fact_id = fact.id
-           AND revision.lifecycle_state = ANY($4::text[])
          ORDER BY revision.revision_number DESC
          LIMIT 1
        ) revision ON TRUE
        WHERE fact.organization_id = $1
          AND fact.agent_definition_id = $2
          AND ($3::uuid IS NULL OR fact.installation_id = $3::uuid)
+         AND revision.lifecycle_state = ANY($4::text[])
        ORDER BY revision.created_at DESC, revision.id DESC
        LIMIT $5`,
       [input.organizationId, input.agentId, input.installationId ?? null, lifecycle, limit],
