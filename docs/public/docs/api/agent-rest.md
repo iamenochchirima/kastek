@@ -33,6 +33,21 @@ and connection health; `/health` is a smaller health-only projection. `DELETE
 credentials atomically. These management routes use the browser/internal organization session, not
 the external bearer token.
 
+## Discover the capability directory
+
+```http
+GET /v1/capabilities/directory
+Authorization: Bearer <organization-session>
+```
+
+The response contains the organization-scoped capability descriptors and named toolsets for
+built-in tools, connectors, published skills and plugins, and published MCP revisions. Discovery
+does not grant a capability, load skill instructions, or make an unconfigured provider executable.
+Each descriptor carries its source, version/checksum, provider, runtime mode, required scopes, and
+credential requirements. The directory is separate from the installation-scoped grant projection
+below; agent-version publication and installation admission remain the points where capabilities
+become executable.
+
 ## Discover granted tools
 
 ```http
@@ -134,6 +149,20 @@ Authorization: Bearer <installation-token>
 The response contains the organization-scoped run record and its ordered event timeline. A run from
 another installation is intentionally indistinguishable from a missing operation (`404`).
 
+For a direct REST or MCP capability invocation, the terminal run output contains the redacted tool
+result under `tool` rather than an assistant message. The result is available only after the run is
+`completed`; it is not copied into a conversation response.
+
+```json
+{
+  "status": "completed",
+  "tool": {
+    "name": "platform.current_time",
+    "output": { "iso": "2026-09-08T12:00:00.000Z" }
+  }
+}
+```
+
 For polling clients, use `GET /v1/installations/{installationId}/operations/{runId}/events?after=42`.
 The response includes `nextAfter`, the current status, a terminal flag, and only redacted public
 event fields. Persist the cursor and resume from it after reconnecting.
@@ -189,6 +218,21 @@ agent or installation. When the candidate provenance contains a contradiction, a
 requires `supersedesMemoryId` for the active conflicting fact. This explicit action marks the old
 record `superseded` and preserves the lineage; it does not delete the old record. Review actions
 are audited.
+
+## Memory lifecycle semantics
+
+The versioned memory path keeps source evidence, immutable revisions, and search projections
+separate. A retrieved item is returned only when its revision is `active`, its projection is
+`visible`, and its organization, workspace, agent version, installation, conversation, and end-user
+scope match the request. Inferred and imported candidates remain `review_pending` until an
+authorized review activates them. Corrections append a new revision and preserve the predecessor's
+validity interval; they do not overwrite history.
+
+Compaction checkpoints persist a redacted evidence envelope before a lossy context projection.
+Deletion is asynchronous and may report `held`, `provider_pending`, or `completed`; completion is
+not reported until canonical rows, local projections, and configured provider copies have been
+purged or confirmed. A legal hold prevents physical purge. These transitions are rollout-controlled
+and may be disabled independently by an operator during migration.
 
 MCP clients use the equivalent `/mcp` JSON-RPC methods. Both transports intentionally converge on the
 same `agent_runs`, approval, tool invocation, receipt, and event records.
