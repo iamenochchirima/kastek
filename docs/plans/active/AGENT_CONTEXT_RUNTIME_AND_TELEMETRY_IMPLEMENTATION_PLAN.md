@@ -284,6 +284,9 @@ durable capability resolver for route-safe entries that include explicit context
 provider metadata now has a credential-safe, exact-route adapter with fail-closed parsing and
 tenant-scoped durable persistence; provider APIs that expose only model IDs still resolve as
 unknown. Attempt telemetry also preserves queue delay and prompt/prefill time-to-first-token.
+The legacy fixed-token compactor has now been removed from `message-context.ts`; that helper only
+repairs transcript structure, while `context-planning.ts` remains the sole owner of history
+selection, pruning, compaction, and final fit decisions.
 This is not yet the complete runtime rewrite: PostgreSQL/Temporal replay certification, real
 memory adapter handoff, and real Playground certification remain open.
 
@@ -371,6 +374,11 @@ recorded capability, threshold, and gate change before its next call.
   assistant tool-call/result pairs, active child contracts, and recent tail cannot be silently
   split or dropped. Context planning protects system/current units and tool pairs; transcript repair
   removes orphan results; durable approvals/child contracts remain outside the model projection.
+- [x] Remove the legacy fixed-token compactor from the transcript helper. `message-context.ts` now
+  performs structural tool-pair repair only; all history selection, wire pruning, lossy compaction,
+  token accounting, and fit decisions flow through the provider-aware context planner. Evidence:
+  `agents/src/runtime/message-context.ts`, `agents/src/runtime/context-planning.ts`,
+  `agents/test/message-context.test.ts`, and the full agents suite.
 - [x] Compute hard fit from `input + reserved output + safety margin <= context window`; keep run
   budgets and cumulative billing separate.
 - [x] Make payload-byte pressure independently actionable for media/request-size limits. Evidence:
@@ -569,7 +577,7 @@ has conformance coverage and the real-run proof above.
 
 | Checklist area | Code/migration | Tests or manual proof | Commit / run evidence | Status |
 | --- | --- | --- | --- | --- |
-| 0. Baseline and contracts | `context-planning.ts`, `context-capability.ts`, `journal/contracts.ts`, `context-memory-boundary.ts` | Context planner, capability, loop, anchor, streaming, memory-boundary, manifest, transcript-repair, and telemetry tests; agents build | Latest full agents suite: 179 files / 1,050 tests passed, 37 files / 108 tests skipped; `pnpm --dir agents run build` passes; client TypeScript and focused Studio lint pass; `git diff --check` passes | In progress |
+| 0. Baseline and contracts | `context-planning.ts`, `context-capability.ts`, `journal/contracts.ts`, `context-memory-boundary.ts` | Context planner, capability, loop, anchor, streaming, memory-boundary, manifest, transcript-repair, and telemetry tests; agents build | Latest full agents suite: 179 files / 1,052 tests passed, 37 files / 108 tests skipped; `pnpm --dir agents run build` passes; client TypeScript and focused Studio lint pass; `git diff --check` passes | In progress |
 | 1. Capability resolution | `context-capability.ts`, `model-capability-catalog.ts`, `model-capability-repository.ts`, `model/provider-metadata.ts`, `system/kasiai-models.ts`, `temporal/activities.ts`, `loop.ts`, migrations 121-122 | fallback route/model resolution, source precedence, lazy catalog hydration, direct-provider response parsing/auth/cache, fail-closed autonomous boundary, correction, expiry, and cold-resolver tests | 64 focused context/capability/metadata/loop/telemetry/compaction/memory-boundary tests passed; PostgreSQL capability reload and expiry integration passed; direct metadata is exact-route and credential-scoped, malformed/no-capacity responses remain unknown, custom endpoints are excluded | In progress |
 | 2. Request assembly | `context-planning.ts`, `loop.ts`, `context-manifest-repository.ts`, migration 145, `model/{types,gateway,anthropic,gemini,openai-compatible}.ts` | planner, loop-boundary, manifest repository, transcript-repair, and provider-envelope tests | planner owns history selection and final fit; memory evidence is injected before final planning; content-free identity, source digest, component token/byte accounting, reservations, provider envelope measurement, and pre-dispatch manifest persistence are implemented; repository, PostgreSQL integration (16 tests across manifest/budget/capability/memory capture), and full-suite evidence are green | In progress |
 | 3. Pressure and compaction | `context-compaction.ts`, `context-planning.ts`, `context-memory-boundary.ts`, `context-attempt-budget.ts`, `context-attempt-budget-repository.ts`, migration 146 | compaction, checkpoint-block, lifecycle telemetry, attempt-budget, transcript-structure, and planner tests | Hermes-adapted wire-only prune pass, protected active task/pairs, candidate validation, summary fallback, pre-loss memory checkpoint, typed outcomes with user remediation, durable PostgreSQL attempt budget, and content-free lifecycle events are covered; full pressure matrix remains | In progress |
