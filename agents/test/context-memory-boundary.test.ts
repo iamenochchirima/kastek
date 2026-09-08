@@ -45,12 +45,20 @@ describe("context and memory integration boundary", () => {
       memoryTurnId: "turn-1",
       memoryScope: { organizationId: "org-1", agentDefinitionId: "agent-1", agentVersionId: "version-1", installationId: "installation-1", namespace: "conversation" },
       sourceEventBoundary: { eventIds: ["event-1", "event-2"], digest: "source-boundary-1" },
+      evidenceDigest: "runtime-evidence-digest",
       directEvidence: directEvidenceEnvelopeFromMessages(messages, ["event-1", "event-2", "event-3"]),
     });
 
     expect(first.messages).toHaveLength(3);
     expect(requests).toHaveLength(1);
-    expect(requests[0]).toMatchObject({ runId: "run-1", turnId: "turn-1", compactionGeneration: 1, evidenceDigest: expect.any(String), directEvidence: { schemaVersion: "v1", redacted: true } });
+    expect(requests[0]).toMatchObject({
+      runId: "run-1",
+      turnId: "turn-1",
+      compactionGeneration: 1,
+      sourceEventBoundary: { eventIds: ["event-1", "event-2"], digest: "source-boundary-1" },
+      evidenceDigest: "runtime-evidence-digest",
+      directEvidence: { schemaVersion: "v1", redacted: true },
+    });
     expect(requests[0]?.directEvidence.items[0]).not.toHaveProperty("redactedContent");
   });
 
