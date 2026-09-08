@@ -1268,3 +1268,13 @@ Critical local Temporal recovery refresh (2026-09-08):
 - The configured cloud Temporal endpoint reset the transport before test execution in a separate
   attempt. That is recorded as an external environment limitation, not a local implementation
   failure; cloud/staging recovery evidence remains a release gate.
+
+Manual-test handoff verification (2026-09-08):
+
+- Re-ran the focused canonical memory suites with the development database enabled: four files and
+  15 tests passed, covering integrity guards, deletion/provider confirmation, canonical HTTP admin,
+  and revision transitions.
+- Agents and MCP TypeScript builds passed after the parallel context-runtime changes landed.
+- The focused run left the local canonical facts, revisions, source events, checkpoints,
+  consolidation jobs, and legacy memory records tables empty; manual testing can start from a clean
+  database state.
