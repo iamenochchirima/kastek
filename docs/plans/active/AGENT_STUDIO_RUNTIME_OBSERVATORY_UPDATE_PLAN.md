@@ -220,6 +220,8 @@ surface before the runtime projection is wired in:
       skills, approvals, handoff, persistence, response, and delivery as connected nodes.
 - [x] Keep the topology fixed while runtime events overlay `running`, `complete`, `waiting`, and
       `error` states on the matching node.
+- [x] Allow operators to drag nodes into a useful arrangement, persist the local layout per agent
+      version, and reset it without changing the configured topology.
 - [x] Make each node selectable with scope, provider, event contract, and bounded configuration
       details; open the existing settings surface for configurable nodes.
 - [x] Use temporary representative configuration data until the effective candidate projection is

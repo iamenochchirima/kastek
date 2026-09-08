@@ -1,8 +1,14 @@
 "use client";
 
 import {
+  useCallback,
+  useEffect,
+  useState,
+} from "react";
+import {
   Background,
   BackgroundVariant,
+  applyNodeChanges,
   Controls,
   Handle,
   MarkerType,
@@ -12,7 +18,9 @@ import {
   ReactFlow,
   type Edge,
   type Node,
+  type NodeChange,
   type NodeProps,
+  type XYPosition,
 } from "@xyflow/react";
 import {
   BookOpen,
@@ -26,6 +34,7 @@ import {
   Network,
   PlugZap,
   Route,
+  RotateCcw,
   Send,
   Settings2,
   ShieldCheck,
@@ -58,6 +67,7 @@ type StudioCanvasProps = {
   onSelect: (id: string) => void;
   running: boolean;
   traceCount: number;
+  storageKey?: string;
 };
 
 type CanvasNodeData = StudioGraphNode & Record<string, unknown>;
@@ -167,10 +177,10 @@ function ObservatoryNode({ data, selected }: NodeProps<CanvasNode>) {
   </div>;
 }
 
-function createCanvasNodes(nodes: StudioGraphNode[], selectedNodeId: string | null): CanvasNode[] {
+function createCanvasNodes(nodes: StudioGraphNode[], selectedNodeId: string | null, positions: Record<string, XYPosition>): CanvasNode[] {
   return [
     ...groupNodes as CanvasNode[],
-    ...nodes.map((node) => ({ id: node.id, type: "observatory" as const, position: nodePositions[node.id] ?? { x: 0, y: 0 }, data: node, selected: node.id === selectedNodeId, style: { width: NODE_WIDTH, height: NODE_HEIGHT }, draggable: false })),
+    ...nodes.map((node) => ({ id: node.id, type: "observatory" as const, position: positions[node.id] ?? nodePositions[node.id] ?? { x: 0, y: 0 }, data: node, selected: node.id === selectedNodeId, style: { width: NODE_WIDTH, height: NODE_HEIGHT }, draggable: true })),
   ];
 }
 
@@ -200,8 +210,61 @@ function createCanvasEdges(nodes: StudioGraphNode[]): Edge[] {
 
 const observatoryNodeTypes = { observatory: ObservatoryNode, group: ObservatoryGroupNode };
 
-export function StudioSystemCanvas({ nodes, selectedNodeId, onSelect, running, traceCount }: StudioCanvasProps) {
-  const canvasNodes = createCanvasNodes(nodes, selectedNodeId);
+export function StudioSystemCanvas({ nodes, selectedNodeId, onSelect, running, traceCount, storageKey }: StudioCanvasProps) {
+  const [positions, setPositions] = useState<Record<string, XYPosition>>(() => Object.fromEntries(nodes.map((node) => [node.id, nodePositions[node.id] ?? { x: 0, y: 0 }])));
+  const [positionsLoaded, setPositionsLoaded] = useState(!storageKey);
+
+  useEffect(() => {
+    if (!storageKey) return;
+    try {
+      const stored = window.localStorage.getItem(storageKey);
+      if (stored) {
+        const parsed = JSON.parse(stored) as Record<string, XYPosition>;
+        setPositions((current) => ({ ...current, ...Object.fromEntries(Object.entries(parsed).filter(([, value]) => value && typeof value.x === "number" && typeof value.y === "number")) }));
+      }
+    } catch {
+      // A stale layout should never prevent the observatory from opening.
+    } finally {
+      setPositionsLoaded(true);
+    }
+  }, [storageKey]);
+
+  useEffect(() => {
+    setPositions((current) => {
+      const next = { ...current };
+      for (const node of nodes) {
+        if (!next[node.id]) next[node.id] = nodePositions[node.id] ?? { x: 0, y: 0 };
+      }
+      return next;
+    });
+  }, [nodes]);
+
+  useEffect(() => {
+    if (!storageKey || !positionsLoaded) return;
+    try {
+      window.localStorage.setItem(storageKey, JSON.stringify(positions));
+    } catch {
+      // Layout persistence is best effort.
+    }
+  }, [positions, positionsLoaded, storageKey]);
+
+  const handleNodesChange = useCallback((changes: NodeChange<CanvasNode>[]) => {
+    setPositions((current) => {
+      const currentNodes = createCanvasNodes(nodes, selectedNodeId, current);
+      const changedNodes = applyNodeChanges(changes, currentNodes);
+      const next = { ...current };
+      for (const changedNode of changedNodes) {
+        if (changedNode.type !== "group") next[changedNode.id] = changedNode.position;
+      }
+      return next;
+    });
+  }, [nodes, selectedNodeId]);
+
+  const resetLayout = useCallback(() => {
+    setPositions(Object.fromEntries(nodes.map((node) => [node.id, nodePositions[node.id] ?? { x: 0, y: 0 }])));
+  }, [nodes]);
+
+  const canvasNodes = createCanvasNodes(nodes, selectedNodeId, positions);
   const canvasEdges = createCanvasEdges(nodes);
   const nodeColor = (node: Node) => {
     const data = node.data as Partial<StudioGraphNode>;
@@ -211,7 +274,7 @@ export function StudioSystemCanvas({ nodes, selectedNodeId, onSelect, running, t
     return "var(--muted-foreground)";
   };
   return <div className="relative h-full min-h-[560px] w-full overflow-hidden bg-[#0b0d15] [&_.react-flow__attribution]:bg-transparent [&_.react-flow__attribution]:text-muted-foreground/50 [&_.react-flow__controls]:overflow-hidden [&_.react-flow__controls]:rounded-lg [&_.react-flow__controls]:border-border/70 [&_.react-flow__controls_button]:border-border/70 [&_.react-flow__controls_button]:bg-card/90 [&_.react-flow__controls_button]:fill-muted-foreground [&_.react-flow__minimap]:overflow-hidden [&_.react-flow__minimap]:rounded-lg [&_.react-flow__minimap]:border [&_.react-flow__minimap]:border-border/70 [&_.react-flow__minimap]:bg-card/90">
-    <ReactFlow nodes={canvasNodes} edges={canvasEdges} nodeTypes={observatoryNodeTypes} onNodeClick={(_, node) => { if (node.type !== "group") onSelect(node.id); }} fitView fitViewOptions={{ padding: 0.16, minZoom: 0.48, maxZoom: 1.1 }} minZoom={0.32} maxZoom={1.6} nodesDraggable={false} nodesConnectable={false} elementsSelectable panOnScroll zoomOnScroll zoomOnPinch selectionOnDrag={false} proOptions={{ hideAttribution: true }}>
+    <ReactFlow nodes={canvasNodes} edges={canvasEdges} nodeTypes={observatoryNodeTypes} onNodesChange={handleNodesChange} onNodeClick={(_, node) => { if (node.type !== "group") onSelect(node.id); }} fitView fitViewOptions={{ padding: 0.16, minZoom: 0.48, maxZoom: 1.1 }} minZoom={0.32} maxZoom={1.6} nodesDraggable nodesConnectable={false} elementsSelectable panOnScroll zoomOnScroll zoomOnPinch selectionOnDrag={false} proOptions={{ hideAttribution: true }}>
       <Background variant={BackgroundVariant.Dots} gap={22} size={1} color="rgba(148,163,184,.18)" />
       <Controls showInteractive={false} position="bottom-left" />
       <MiniMap nodeColor={nodeColor} nodeStrokeWidth={2} pannable zoomable position="bottom-right" />
@@ -221,6 +284,7 @@ export function StudioSystemCanvas({ nodes, selectedNodeId, onSelect, running, t
         <span className="text-border">•</span>
         <span>{traceCount ? `${traceCount} events` : "Ready"}</span>
         {running ? <span className="inline-flex items-center gap-1 text-primary"><CircleDot className="size-3 animate-pulse" />Live</span> : null}
+        <button type="button" onClick={resetLayout} className="ml-1 inline-flex items-center gap-1 rounded-md border border-border/70 px-2 py-1 text-[9px] text-muted-foreground transition-colors hover:border-primary/50 hover:text-foreground" title="Reset node positions"><RotateCcw className="size-3" />Reset layout</button>
       </Panel>
       <Panel position="top-right" className="!m-4 flex items-center gap-3 rounded-lg border border-border/70 bg-card/90 px-3 py-2 text-[9px] text-muted-foreground shadow-lg backdrop-blur">
         <span className="inline-flex items-center gap-1.5"><span className="size-1.5 rounded-full bg-slate-400" />Configured</span>
