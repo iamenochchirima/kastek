@@ -48,6 +48,33 @@ describe("runtime telemetry accumulator", () => {
     expect(snapshot.context).toMatchObject({ basis: "full_estimate", tokens: 240, utilizationPercent: 24 });
   });
 
+  it("does not let the compatibility assembled event overwrite final context measurements", () => {
+    const telemetry = new RuntimeTelemetryAccumulator();
+    telemetry.apply({
+      type: "context.planned",
+      payload: {
+        decision: "ready",
+        accounting: { estimatedInputTokens: 180, contextWindowTokens: 1_000, capabilitySource: "provider_metadata" },
+        manifest: { schemaVersion: "v1", digest: "final-manifest", sourceMessageCount: 8, selectedMessageCount: 5, sourceToolCount: 2, selectedToolCount: 2, components: [] },
+      },
+      observedAt: "2026-09-07T00:00:00.000Z",
+    });
+
+    const snapshot = telemetry.apply({
+      type: "context.assembled",
+      payload: { messageCount: 2, tokenCount: 20, compacted: true },
+      observedAt: "2026-09-07T00:00:01.000Z",
+    });
+
+    expect(snapshot.context).toMatchObject({
+      basis: "full_estimate",
+      tokens: 180,
+      contextWindowTokens: 1_000,
+      manifestDigest: "final-manifest",
+      utilizationPercent: 18,
+    });
+  });
+
   it("keeps current occupancy, cumulative usage, and run budget distinct", () => {
     const telemetry = new RuntimeTelemetryAccumulator();
     telemetry.apply({
