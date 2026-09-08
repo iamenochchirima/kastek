@@ -11,16 +11,15 @@ import {
   applyNodeChanges,
   Controls,
   Handle,
-  MarkerType,
   MiniMap,
   Panel,
   Position,
   ReactFlow,
-  type Edge,
   type Node,
   type NodeChange,
   type NodeProps,
   type XYPosition,
+  ViewportPortal,
 } from "@xyflow/react";
 import {
   BookOpen,
@@ -157,46 +156,46 @@ function statusClasses(status: StudioGraphStatus) {
 function ObservatoryNode({ data, selected }: NodeProps<CanvasNode>) {
   const status = statusClasses(data.status);
   return <div className={cn("relative h-full w-full rounded-xl border bg-card/95 px-3.5 py-3 shadow-[0_10px_30px_-20px_rgba(0,0,0,.8)] transition-all", status.border, selected && "ring-2 ring-primary/35", data.status === "running" && "shadow-[0_0_26px_-8px_color-mix(in_srgb,var(--primary)_80%,transparent)]")}>
-    <Handle id="left-target" type="target" position={Position.Left} className="!h-2 !w-2 !border-0 !bg-muted-foreground/70" />
-    <Handle id="left-source" type="source" position={Position.Left} className="!h-2 !w-2 !border-0 !bg-muted-foreground/70" />
-    <Handle id="right-target" type="target" position={Position.Right} className="!h-2 !w-2 !border-0 !bg-muted-foreground/70" />
-    <Handle id="right-source" type="source" position={Position.Right} className="!h-2 !w-2 !border-0 !bg-muted-foreground/70" />
-    <Handle id="top-target" type="target" position={Position.Top} className="!h-2 !w-2 !border-0 !bg-muted-foreground/70" />
-    <Handle id="top-source" type="source" position={Position.Top} className="!h-2 !w-2 !border-0 !bg-muted-foreground/70" />
-    <Handle id="bottom-target" type="target" position={Position.Bottom} className="!h-2 !w-2 !border-0 !bg-muted-foreground/70" />
-    <Handle id="bottom-source" type="source" position={Position.Bottom} className="!h-2 !w-2 !border-0 !bg-muted-foreground/70" />
+    <Handle id="target" type="target" position={Position.Left} className="!h-2 !w-2 !border-0 !bg-muted-foreground/70" />
+    <Handle id="source" type="source" position={Position.Right} className="!h-2 !w-2 !border-0 !bg-muted-foreground/70" />
     <div className="flex items-start gap-2.5"><span className={cn("flex size-8 shrink-0 items-center justify-center rounded-lg", status.icon)}>{nodeIcon(data.kind)}</span><div className="min-w-0 flex-1"><div className="flex items-center gap-1.5"><p className="truncate text-xs font-semibold text-foreground">{data.label}</p><span className="size-1.5 shrink-0 rounded-full bg-emerald-500" title="Configured" /></div><p className="mt-1 truncate text-[10px] leading-4 text-muted-foreground">{data.detail}</p><p className={cn("mt-2 inline-flex items-center gap-1 text-[9px] font-medium", status.text)}>{data.status === "running" ? <CircleDot className="size-2.5 animate-pulse" /> : data.status === "complete" ? <Check className="size-2.5" /> : data.status === "error" ? <X className="size-2.5" /> : <span className="size-1.5 rounded-full bg-current" />}{graphStatusLabel(data.status)}</p></div></div>
   </div>;
 }
 
 function createCanvasNodes(nodes: StudioGraphNode[], selectedNodeId: string | null, positions: Record<string, XYPosition>): CanvasNode[] {
   return [
-    ...nodes.map((node) => ({ id: node.id, type: "observatory" as const, position: positions[node.id] ?? nodePositions[node.id] ?? { x: 0, y: 0 }, data: node, selected: node.id === selectedNodeId, style: { width: NODE_WIDTH, height: NODE_HEIGHT, zIndex: 10 }, draggable: true })),
+    ...nodes.map((node) => ({ id: node.id, type: "observatory" as const, position: positions[node.id] ?? nodePositions[node.id] ?? { x: 0, y: 0 }, data: node, selected: node.id === selectedNodeId, width: NODE_WIDTH, height: NODE_HEIGHT, style: { zIndex: 10 }, draggable: true })),
   ];
 }
 
-function createCanvasEdges(nodes: StudioGraphNode[]): Edge[] {
-  const byId = new Map(nodes.map((node) => [node.id, node]));
-  return edgeDefinitions.map((definition) => {
-    const source = byId.get(definition.source);
-    const target = byId.get(definition.target);
-    const live = source?.status === "running" || target?.status === "running";
-    const completed = source?.status === "complete" && target?.status === "complete";
-    const failed = source?.status === "error" || target?.status === "error";
-    return {
-      ...definition,
-      type: "smoothstep",
-      animated: live,
-      className: cn(definition.dashed && "observatory-edge-dashed", live && "observatory-edge-live", failed && "observatory-edge-error"),
-      style: { stroke: failed ? "var(--destructive)" : live ? "var(--primary)" : completed ? "var(--status-success)" : "color-mix(in srgb, var(--muted-foreground) 52%, transparent)", strokeWidth: live ? 2.4 : 1.35 },
-      markerEnd: { type: MarkerType.ArrowClosed, width: 13, height: 13, color: failed ? "var(--destructive)" : live ? "var(--primary)" : "color-mix(in srgb, var(--muted-foreground) 68%, transparent)" },
-      label: definition.label,
-      labelStyle: { fill: "var(--muted-foreground)", fontSize: 9, fontWeight: 500 },
-      labelBgStyle: { fill: "var(--card)", fillOpacity: 0.92 },
-      sourceHandle: definition.sourceHandle,
-      targetHandle: definition.targetHandle,
-    } satisfies Edge;
-  });
+function ObservatoryLinks({ nodes, positions }: { nodes: StudioGraphNode[]; positions: Record<string, XYPosition> }) {
+  const nodeById = new Map(nodes.map((node) => [node.id, node]));
+  return <ViewportPortal>
+    <svg aria-hidden="true" className="pointer-events-none absolute left-0 top-0 z-[1] overflow-visible" width="2600" height="700" viewBox="0 0 2600 700">
+      <defs>
+        <marker id="observatory-arrow" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto" markerUnits="strokeWidth">
+          <path d="M0,0 L9,4.5 L0,9 z" fill="#8490a8" />
+        </marker>
+      </defs>
+      {edgeDefinitions.map((definition) => {
+        const sourcePosition = positions[definition.source] ?? nodePositions[definition.source];
+        const targetPosition = positions[definition.target] ?? nodePositions[definition.target];
+        if (!sourcePosition || !targetPosition || !nodeById.has(definition.source) || !nodeById.has(definition.target)) return null;
+        const source = nodeById.get(definition.source);
+        const target = nodeById.get(definition.target);
+        const live = source?.status === "running" || target?.status === "running";
+        const failed = source?.status === "error" || target?.status === "error";
+        const completed = source?.status === "complete" && target?.status === "complete";
+        const startX = sourcePosition.x + NODE_WIDTH;
+        const startY = sourcePosition.y + NODE_HEIGHT / 2;
+        const endX = targetPosition.x;
+        const endY = targetPosition.y + NODE_HEIGHT / 2;
+        const bend = Math.max(38, Math.abs(endX - startX) * 0.42);
+        const color = failed ? "#f87171" : live ? "#a78bfa" : completed ? "#34d399" : "#71809b";
+        return <path key={definition.id} d={`M ${startX} ${startY} C ${startX + bend} ${startY}, ${endX - bend} ${endY}, ${endX} ${endY}`} fill="none" stroke={color} strokeWidth={live ? 3 : 1.8} strokeOpacity={live ? 0.95 : 0.78} strokeDasharray={definition.dashed ? "8 6" : undefined} markerEnd="url(#observatory-arrow)" />;
+      })}
+    </svg>
+  </ViewportPortal>;
 }
 
 const observatoryNodeTypes = { observatory: ObservatoryNode };
@@ -204,6 +203,11 @@ const observatoryNodeTypes = { observatory: ObservatoryNode };
 export function StudioSystemCanvas({ nodes, selectedNodeId, onSelect, running, traceCount, storageKey }: StudioCanvasProps) {
   const [positions, setPositions] = useState<Record<string, XYPosition>>(() => Object.fromEntries(nodes.map((node) => [node.id, nodePositions[node.id] ?? { x: 0, y: 0 }])));
   const [positionsLoaded, setPositionsLoaded] = useState(!storageKey);
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   useEffect(() => {
     if (!storageKey) return;
@@ -256,7 +260,6 @@ export function StudioSystemCanvas({ nodes, selectedNodeId, onSelect, running, t
   }, [nodes]);
 
   const canvasNodes = createCanvasNodes(nodes, selectedNodeId, positions);
-  const canvasEdges = createCanvasEdges(nodes);
   const nodeColor = (node: Node) => {
     const data = node.data as Partial<StudioGraphNode>;
     if (data.status === "running") return "var(--primary)";
@@ -264,8 +267,12 @@ export function StudioSystemCanvas({ nodes, selectedNodeId, onSelect, running, t
     if (data.status === "complete") return "var(--status-success)";
     return "var(--muted-foreground)";
   };
+  if (!isMounted) {
+    return <div className="h-full min-h-[560px] w-full bg-[#0b0d15]" aria-busy="true" />;
+  }
   return <div className="relative h-full min-h-[560px] w-full overflow-hidden bg-[#0b0d15] [&_.react-flow__attribution]:bg-transparent [&_.react-flow__attribution]:text-muted-foreground/50 [&_.react-flow__controls]:overflow-hidden [&_.react-flow__controls]:rounded-lg [&_.react-flow__controls]:border-border/70 [&_.react-flow__controls_button]:border-border/70 [&_.react-flow__controls_button]:bg-card/90 [&_.react-flow__controls_button]:fill-muted-foreground [&_.react-flow__minimap]:overflow-hidden [&_.react-flow__minimap]:rounded-lg [&_.react-flow__minimap]:border [&_.react-flow__minimap]:border-border/70 [&_.react-flow__minimap]:bg-card/90">
-    <ReactFlow nodes={canvasNodes} edges={canvasEdges} nodeTypes={observatoryNodeTypes} onNodesChange={handleNodesChange} onNodeClick={(_, node) => onSelect(node.id)} fitView fitViewOptions={{ padding: 0.16, minZoom: 0.48, maxZoom: 1.1 }} minZoom={0.32} maxZoom={1.6} nodesDraggable nodesConnectable={false} elementsSelectable panOnScroll zoomOnScroll zoomOnPinch selectionOnDrag={false}>
+    <ReactFlow nodes={canvasNodes} edges={[]} nodeTypes={observatoryNodeTypes} onNodesChange={handleNodesChange} onNodeClick={(_, node) => onSelect(node.id)} fitView fitViewOptions={{ padding: 0.14, minZoom: 0.18, maxZoom: 0.8 }} minZoom={0.18} maxZoom={1.6} nodesDraggable nodesConnectable={false} elementsSelectable panOnScroll zoomOnScroll zoomOnPinch selectionOnDrag={false}>
+      <ObservatoryLinks nodes={nodes} positions={positions} />
       <Background variant={BackgroundVariant.Dots} gap={22} size={1} color="rgba(148,163,184,.18)" />
       <Controls showInteractive={false} position="bottom-left" />
       <MiniMap nodeColor={nodeColor} nodeStrokeWidth={2} pannable zoomable position="bottom-right" />
