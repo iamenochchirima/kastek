@@ -12,7 +12,6 @@ import {
   Bot,
   Check,
   ChevronDown,
-  ChevronRight,
   CircleHelp,
   Clock3,
   Database,
@@ -22,10 +21,8 @@ import {
   Layers3,
   LockKeyhole,
   MemoryStick,
-  Plus,
   Puzzle,
   Save,
-  Server,
   ShieldCheck,
   SlidersHorizontal,
   Sparkles,
@@ -33,6 +30,7 @@ import {
   X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { AgentModelPicker } from "@/components/dashboard/agents/agent-model-picker";
 import {
@@ -336,7 +334,14 @@ function OverviewSection({ agent, version, instructions, setInstructions, select
   return <div className="space-y-5"><div className="grid gap-4 sm:grid-cols-2"><InfoTile label="Agent" value={agent.name} icon={<Bot className="size-4" />} /><InfoTile label="Version" value={version ? `v${version.version_number} · ${version.status}` : "No version"} icon={<Layers3 className="size-4" />} /></div><section className="rounded-2xl border border-border bg-card p-4 sm:p-5"><div className="flex items-center gap-2"><Bot className="size-4 text-primary" /><h4 className="text-sm font-semibold text-foreground">Instructions</h4></div><Textarea value={instructions} onChange={(event) => setInstructions(event.target.value)} placeholder="Define what this agent should do…" className="mt-4 min-h-44 resize-y text-sm" /></section><section className="rounded-2xl border border-border bg-card p-4 sm:p-5"><div className="flex items-start justify-between gap-4"><div><div className="flex items-center gap-2"><Sparkles className="size-4 text-primary" /><h4 className="text-sm font-semibold text-foreground">Model</h4></div><p className="mt-1 text-xs text-muted-foreground">The model used for the next Playground run.</p></div>{selectedModel ? <span className="text-[11px] text-muted-foreground">{formatTokens(selectedModel.contextWindow)} context</span> : null}</div>{modelCatalogLoading ? <p className="mt-4 text-xs text-muted-foreground">Loading models…</p> : modelCatalog ? <div className="mt-4"><AgentModelPicker model={selectedModel} models={pickerModels} disabled={!pickerModels.length} ariaLabel="Select agent model" pickerTitle="Choose a model" onSelect={(model, provider) => setModelSelection({ model, provider })} />{effectiveSelection ? <p className="mt-2 text-[11px] text-muted-foreground">{effectiveSelection.provider}:{effectiveSelection.model}</p> : null}</div> : <p className="mt-4 text-xs text-muted-foreground">Model catalog unavailable.</p>}</section></div>;
 }
 
-type CapabilityPanel = "tools" | "services" | "skills" | "extensions" | null;
+const capabilityTabs = [
+  { id: "tools", label: "Tools" },
+  { id: "services", label: "Services" },
+  { id: "skills", label: "Skills" },
+  { id: "extensions", label: "Extensions" },
+] as const;
+
+type CapabilityTab = (typeof capabilityTabs)[number]["id"];
 
 type CapabilityData = {
   catalog: AgentCapability[];
@@ -395,8 +400,7 @@ async function loadCapabilityData(installationId: string | null, versionId: stri
 }
 
 function CapabilitiesSection({ installationId, versionId, draft, onDraftChange }: { installationId: string | null; versionId: string | null; draft: StudioCapabilityDraft; onDraftChange: (value: StudioCapabilityDraft | ((current: StudioCapabilityDraft) => StudioCapabilityDraft)) => void }) {
-  const [addOpen, setAddOpen] = useState(false);
-  const [activePanel, setActivePanel] = useState<CapabilityPanel>(null);
+  const [activeTab, setActiveTab] = useState<CapabilityTab>("tools");
   const [data, setData] = useState<CapabilityData>(emptyCapabilityData);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -433,27 +437,30 @@ function CapabilitiesSection({ installationId, versionId, draft, onDraftChange }
   const connectedServices = data.integrations.filter((integration) => integration.status === "connected").length;
   const enabledSkillIds = new Set(draft.allowedSkillIds);
   const enabledMcpIds = new Set(draft.mcpProviderVersionIds);
-  const toolStatus = data.readiness?.checks.capabilities.missing.length ? "attention" : "included";
-  const setPanel = (panel: Exclude<CapabilityPanel, null>) => {
-    setAddOpen(false);
-    setActivePanel((current) => current === panel ? null : panel);
+  const extensionCount = enabledMcpIds.size + draft.extensionPackages.length;
+  const tabCount = (tab: CapabilityTab) => {
+    if (loading) return "…";
+    if (tab === "tools") return String(tools.length);
+    if (tab === "services") return String(connectedServices);
+    if (tab === "skills") return String(enabledSkillIds.size);
+    return String(extensionCount);
   };
+  const activeTabLabel = capabilityTabs.find((tab) => tab.id === activeTab)?.label ?? "Tools";
 
   return <div className="space-y-4">
-    <div className="flex items-center justify-between gap-3"><p className="max-w-lg text-xs leading-5 text-muted-foreground">Select what this Playground version can use. Built-in tools, skills, services, and external servers stay separate and are pinned when the draft is saved.</p><Button type="button" size="sm" onClick={() => setAddOpen((value) => !value)}><Plus className="mr-1.5 size-3.5" />Add capability</Button></div>
-    {addOpen ? <div className="grid gap-2 rounded-2xl border border-primary/20 bg-primary/5 p-3 sm:grid-cols-2"><CapabilityAddOption icon={<Server className="size-4" />} label="Connect a service" detail="Calendar and other accounts" onClick={() => setPanel("services")} /><CapabilityAddOption icon={<Sparkles className="size-4" />} label="Add a skill" detail="Reusable agent behavior" onClick={() => setPanel("skills")} /><CapabilityAddOption icon={<Puzzle className="size-4" />} label="Add an extension" detail="Plugin or MCP source" onClick={() => setPanel("extensions")} /><CapabilityAddOption icon={<Wrench className="size-4" />} label="Choose workspace tools" detail="Platform-managed actions" onClick={() => setPanel("tools")} /></div> : null}
+    <p className="max-w-2xl text-xs leading-5 text-muted-foreground">Choose what this Playground version can use. Changes are pinned when the draft is saved.</p>
     {error ? <div className="flex items-center justify-between rounded-xl border border-destructive/20 bg-destructive/5 px-3 py-2 text-xs text-destructive"><span>{error}</span><Button type="button" variant="outline" size="sm" className="h-7" onClick={refresh}>Retry</Button></div> : null}
-    <CapabilityRow icon={<Bot className="size-4" />} title="KasiTek workspace tools" detail={`${tools.length} platform-managed tools available`} status={toolStatus} statusText={loading ? "Loading" : data.readiness?.checks.capabilities.missing.length ? `${data.readiness.checks.capabilities.missing.length} need access` : `${tools.length} available`} action="View tools" onAction={() => setPanel("tools")} />
-    <CapabilityRow icon={<Server className="size-4" />} title="Connected services" detail="External accounts and resource bindings" status={connectedServices ? "ready" : "not_configured"} statusText={loading ? "Loading" : connectedServices ? `${connectedServices} connected` : "None connected"} action="Manage" onAction={() => setPanel("services")} />
-    <CapabilityRow icon={<Sparkles className="size-4" />} title="Skills" detail="Versioned instructions and behaviors" status={enabledSkillIds.size ? "ready" : "not_configured"} statusText={loading ? "Loading" : enabledSkillIds.size ? `${enabledSkillIds.size} enabled` : "None enabled"} action="Manage" onAction={() => setPanel("skills")} />
-    <CapabilityRow icon={<Puzzle className="size-4" />} title="Extensions" detail="Plugins and MCP servers with explicit grants" status={enabledMcpIds.size || draft.extensionPackages.length ? "ready" : "not_configured"} statusText={loading ? "Loading" : enabledMcpIds.size || draft.extensionPackages.length ? `${enabledMcpIds.size + draft.extensionPackages.length} enabled` : "None enabled"} action="Manage" onAction={() => setPanel("extensions")} />
-    {activePanel ? <div className="rounded-2xl border border-primary/20 bg-card p-4 shadow-sm sm:p-5"><div className="mb-4 flex items-start justify-between gap-3"><div><p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Capability setup</p><h4 className="mt-1 text-sm font-semibold text-foreground">{activePanel === "tools" ? "Workspace tools" : activePanel === "services" ? "Connected services" : activePanel === "skills" ? "Skills" : "Extensions"}</h4></div><button type="button" aria-label="Close capability setup" onClick={() => setActivePanel(null)} className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"><X className="size-4" /></button></div>{activePanel === "tools" ? <ToolsPanel tools={tools} draft={draft} onDraftChange={onDraftChange} /> : null}{activePanel === "services" ? <ServicesPanel installationId={installationId} integrations={data.integrations} onRefresh={refresh} /> : null}{activePanel === "skills" ? <SkillsPanel skills={data.skills} pinnedSkills={data.pinnedSkills} draft={draft} onDraftChange={onDraftChange} /> : null}{activePanel === "extensions" ? <ExtensionsPanel packages={data.extensionPackages} providers={data.mcpProviders} pinnedProviders={data.pinnedMcpProviders} versions={data.mcpVersions} draft={draft} onDraftChange={onDraftChange} onRefresh={refresh} /> : null}</div> : null}
+    <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as CapabilityTab)} className="gap-4">
+      <TabsList aria-label="Capabilities" className="h-auto w-full justify-start overflow-x-auto rounded-xl border border-border bg-muted/30 p-1">
+        {capabilityTabs.map((tab) => <TabsTrigger key={tab.id} value={tab.id} className="min-w-[7rem] flex-1 gap-2 px-3 py-2 text-xs"><span>{tab.label}</span><span className="min-w-5 rounded-full bg-muted px-1.5 py-0.5 text-center text-[10px] text-muted-foreground data-[state=active]:bg-primary/10 data-[state=active]:text-primary">{tabCount(tab.id)}</span></TabsTrigger>)}
+      </TabsList>
+      <TabsContent value={activeTab} className="rounded-2xl border border-border bg-card p-4 shadow-sm sm:p-5">
+        <div className="mb-4 flex items-center justify-between gap-3"><div><p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Capabilities</p><h4 className="mt-1 text-sm font-semibold text-foreground">{activeTabLabel}</h4></div>{loading ? <span className="text-[11px] text-muted-foreground">Loading…</span> : null}</div>
+        {activeTab === "tools" ? <ToolsPanel tools={tools} draft={draft} onDraftChange={onDraftChange} /> : null}{activeTab === "services" ? <ServicesPanel installationId={installationId} integrations={data.integrations} onRefresh={refresh} /> : null}{activeTab === "skills" ? <SkillsPanel skills={data.skills} pinnedSkills={data.pinnedSkills} draft={draft} onDraftChange={onDraftChange} /> : null}{activeTab === "extensions" ? <ExtensionsPanel packages={data.extensionPackages} providers={data.mcpProviders} pinnedProviders={data.pinnedMcpProviders} versions={data.mcpVersions} draft={draft} onDraftChange={onDraftChange} onRefresh={refresh} /> : null}
+      </TabsContent>
+    </Tabs>
     <details className="rounded-2xl border border-border bg-card p-4"><summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-sm font-medium text-foreground"><span className="flex items-center gap-2"><Eye className="size-4 text-muted-foreground" />Advanced source details</span><ChevronDown className="size-4 text-muted-foreground" /></summary><p className="mt-3 max-w-2xl text-xs leading-5 text-muted-foreground">Technical package versions, MCP endpoints, discovered tool schemas, checksums, and provider health stay available here when debugging.</p></details>
   </div>;
-}
-
-function CapabilityAddOption({ icon, label, detail, onClick }: { icon: ReactNode; label: string; detail: string; onClick: () => void }) {
-  return <button type="button" onClick={onClick} className="flex items-center gap-3 rounded-xl border border-border bg-card p-3 text-left hover:border-primary/40"><span className="text-primary">{icon}</span><span><span className="block text-xs font-medium text-foreground">{label}</span><span className="mt-0.5 block text-[11px] text-muted-foreground">{detail}</span></span><ChevronRight className="ml-auto size-3.5 text-muted-foreground" /></button>;
 }
 
 function ToolsPanel({ tools, draft, onDraftChange }: { tools: AgentCapability[]; draft: StudioCapabilityDraft; onDraftChange: (value: StudioCapabilityDraft | ((current: StudioCapabilityDraft) => StudioCapabilityDraft)) => void }) {
