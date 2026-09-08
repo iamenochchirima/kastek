@@ -521,7 +521,7 @@ function StudioAgentList({
                   <span className="flex flex-wrap items-center gap-2"><span className="truncate text-sm font-semibold text-foreground">{agent.name}</span><span className={cn("rounded-full px-2 py-0.5 text-[10px] font-medium", statusClass(agent.status))}>{statusLabel(agent.status)}</span>{agent.protected ? <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary">Default</span> : null}</span>
                     <span className="mt-1 block truncate text-xs text-muted-foreground">{agent.description || "No description"}</span>
                   </span>
-                  <span className="hidden shrink-0 text-right text-xs text-muted-foreground sm:block"><span className="block">{agent.version_number ? `v${agent.version_number}` : "No version"}</span><span className="mt-1 block">{agent.installation_id ? "Playground ready" : "Preparing Playground"}</span></span>
+                  <span className="hidden shrink-0 text-right text-xs text-muted-foreground sm:block"><span className="block">{agent.version_number ? `v${agent.version_number}` : "No version"}</span>{agent.installation_id ? <span className="mt-1 block">Ready</span> : null}</span>
                   <ArrowRight className="size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-foreground" />
                 </button>
               ))}
