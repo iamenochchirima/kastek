@@ -1193,8 +1193,9 @@ Latest local verification refresh (2026-09-08):
   31 tests remain intentionally skipped because they require provider or staging resources.
 - The focused deletion, agent-deletion, integrity, and retention repository run passed 8/8.
   Agents and MCP builds, release-manifest verification, and `git diff --check` also pass.
-- The local worker remains quiesced after the matrix so the database is ready for manual testing;
-  the Temporal and gateway health services remain available.
+- The worker was restarted after the matrix for manual testing and both Temporal and gateway
+  health services report ready. The local memory tables remain empty apart from one append-only
+  deletion audit row.
 
 Organization-partitioned worker scheduling (2026-09-08):
 
