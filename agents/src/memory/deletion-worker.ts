@@ -513,6 +513,11 @@ export async function purgeMemoryDeletionJob(pool: Pool, job: MemoryDeletionJobR
       conversationIds,
     });
     await client.query("DELETE FROM agent_memory_migration_receipts WHERE organization_id = $1", [job.organization_id]);
+    // Source events are immutable during normal operation, but an approved
+    // organization deletion is the system-owned purge boundary. Remove the
+    // captured evidence here so queued extraction cannot resurrect deleted
+    // memory after the canonical facts have been purged.
+    await client.query("DELETE FROM memory_source_events WHERE organization_id = $1", [job.organization_id]);
     const chunks = await client.query(
       `DELETE FROM knowledge_chunks
        WHERE organization_id = $1

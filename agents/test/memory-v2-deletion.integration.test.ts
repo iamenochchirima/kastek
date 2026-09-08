@@ -18,6 +18,7 @@ describe.skipIf(!runIntegration)("memory v2 deletion and provider confirmation (
   const factIds: string[] = [];
   const deletionJobIds: string[] = [];
   const holdIds: string[] = [];
+  const organizationSourceEventId = randomUUID();
 
   async function createFact(input: { provider?: boolean; text: string }): Promise<{ factId: string; revisionId: string }> {
     const factId = randomUUID();
@@ -102,6 +103,15 @@ describe.skipIf(!runIntegration)("memory v2 deletion and provider confirmation (
       `INSERT INTO agent_installations (id, agent_definition_id, agent_version_id, organization_id, scope_type, scope_id, execution_mode, created_by)
        VALUES ($1, $2, $3, $4, 'business', $5, 'kasitek_hosted', $6)`,
       [installationId, agentId, versionId, organizationId, workspaceId, actorId],
+    );
+    await pool.query(
+      `INSERT INTO memory_source_events (
+         id, organization_id, workspace_id, agent_definition_id, agent_version_id,
+         installation_id, source_boundary, evidence, evidence_digest, redaction,
+         occurred_at, idempotency_key, extraction_version
+       ) VALUES ($1, $2, $3, $4, $5, $6, 'organization-delete-source', '{}'::jsonb,
+                 $7, 'content_redacted', now(), $8, 'test')`,
+      [organizationSourceEventId, organizationId, workspaceId, agentId, versionId, installationId, "e".repeat(64), `organization-delete:${organizationSourceEventId}`],
     );
   });
 
@@ -191,6 +201,23 @@ describe.skipIf(!runIntegration)("memory v2 deletion and provider confirmation (
     expect((await pool.query<{ status: string }>("SELECT status FROM memory_deletion_jobs WHERE id = $1", [deletionJobId])).rows[0]?.status).toBe("completed");
     expect((await pool.query("SELECT id FROM agent_memory_facts WHERE id = $1", [target.factId])).rows).toHaveLength(0);
     expect((await pool.query("SELECT id FROM agent_memory_facts WHERE id = $1", [unrelated.factId])).rows).toHaveLength(1);
+  });
+
+  it("purges source evidence for an organization deletion", async () => {
+    const deletionJobId = await createDeletionJob(organizationId);
+    await pool.query("UPDATE memory_deletion_jobs SET target_type = 'organization', target_id = $2 WHERE id = $1", [deletionJobId, organizationId]);
+    const worker = new MemoryDeletionWorker(pool, {
+      batchSize: 10,
+      leaseMs: 120_000,
+      pollIntervalMs: 5_000,
+      maxAttempts: 3,
+      retryBaseDelayMs: 1_000,
+      retryMaxDelayMs: 10_000,
+      holdRetryMs: 60_000,
+    }, { workerId: "memory-v2-organization-deletion" });
+    await expect(worker.runOnce(organizationId)).resolves.toBe(1);
+    expect((await pool.query<{ status: string }>("SELECT status FROM memory_deletion_jobs WHERE id = $1", [deletionJobId])).rows[0]?.status).toBe("completed");
+    expect((await pool.query("SELECT id FROM memory_source_events WHERE id = $1", [organizationSourceEventId])).rows).toHaveLength(0);
   });
 
   afterAll(async () => {
