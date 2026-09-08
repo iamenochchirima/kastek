@@ -8,6 +8,8 @@ describe("integration catalog", () => {
     const catalog = listIntegrations();
     expect(catalog.map((entry) => entry.id)).toEqual([
       "whatsapp.messaging",
+      "facebook.messaging",
+      "instagram.messaging",
       "telegram.messaging",
       "discord.messaging",
       "internal.calendar",

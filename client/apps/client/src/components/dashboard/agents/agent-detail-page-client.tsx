@@ -2112,6 +2112,11 @@ export function InstallationIntegrations({ agentId, installationId, personal, ag
       const workspaceConnection = linkedConnections.find((connection) => connection.status === "CONNECTED");
       if (personal && workspaceConnection) openWhatsAppSetup(workspaceConnection);
       else window.location.assign("/connections");
+    } else if (integration.channelType === "facebook" || integration.channelType === "instagram") {
+      const provider = integration.channelType.toUpperCase();
+      const workspaceConnection = linkedConnections.find((connection) => connection.provider.toUpperCase() === provider);
+      if (workspaceConnection) openSocialSetup(workspaceConnection);
+      else window.location.assign("/connections");
     }
   };
 
