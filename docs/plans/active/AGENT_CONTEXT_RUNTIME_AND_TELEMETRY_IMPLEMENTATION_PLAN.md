@@ -259,6 +259,10 @@ must supply the ports and tests; it must not move context policy or prompt assem
   The adapter must persist the runtime-provided evidence digest, source boundary, compaction
   generation, and lifecycle identifiers; it must not recompute them at the memory seam.
 
+Current handoff note: the parallel `agents/src/memory/runtime-adapter.ts` still derives its
+canonical evidence digest from converted items instead of forwarding the runtime-provided digest.
+That remains a memory-owner change and is intentionally not changed by the context-runtime work.
+
 ## Implementation checklist
 
 An item is complete only with implementation, focused automated coverage, and an evidence link in
@@ -325,10 +329,10 @@ there must be no second caller inventing a different token limit.
 - [x] Add the first attempt-scoped resolver that rekeys provider/model fallbacks and records an
   explicit configured-capability source. Evidence: `agents/src/runtime/context-capability.ts` and
   `agents/test/context-capability.test.ts`.
-- [~] Add a durable resolver/cache keyed by provider, endpoint/credential route, model, and runtime
+- [x] Add a durable resolver/cache keyed by provider, endpoint/credential route, model, and runtime
   environment. The route-isolated store, cache, migration, resolver, lazy KasiAI catalog adapter,
-  and credential-safe direct-provider metadata adapter now exist. Full PostgreSQL expiry/restart
-  certification remains.
+  and credential-safe direct-provider metadata adapter exist. PostgreSQL expiry/restart and fresh-
+  resolver reload are certified by `context-runtime-postgres.integration.test.ts` (2 tests passed).
 - [x] Resolve capacity in ordered sources: explicit safe override, provider metadata, static catalog,
   cached confirmed capability, then `unknown`; retain source and expiry with the result. Evidence:
   `DurableContextCapabilityResolver`, `model-capability-catalog.ts`, and source-precedence tests.
@@ -342,8 +346,8 @@ there must be no second caller inventing a different token limit.
   boundary. Do not label a guessed value authoritative. Evidence: `requireContextCapability`, the
   `CONTEXT_CAPABILITY_UNKNOWN` outcome, and `context-planning-loop.test.ts`.
 - [x] Add provider/route/model-switch and cache-expiry tests. Route/model isolation, expired-cache
-  refresh, and cold-resolver durable correction loading are covered in
-  `agents/test/context-capability.test.ts`; PostgreSQL-backed expiry certification remains.
+  refresh, cold-resolver durable correction loading, and PostgreSQL-backed expiry/reload are covered
+  in `agents/test/context-capability.test.ts` and `agents/test/context-runtime-postgres.integration.test.ts`.
 
 **Manual check:** switch a test agent between two models with different windows and confirm the
 recorded capability, threshold, and gate change before its next call.
@@ -408,7 +412,10 @@ manifest to see each component and the one gate decision that allowed or blocked
   typed terminal outcome. Evidence: `context-attempt-budget.ts`, migration 146,
   `ContextAttemptBudgetRepository`, loop/compaction wiring, and port/repository tests.
 - [x] Return a typed limited/cannot-fit outcome with redacted diagnostics when no safe request can
-  be produced. Never burn the generic execution limit on repeated context failures.
+  be produced. Never burn the generic execution limit on repeated context failures. Temporal
+  preserves context-specific errors, the run repository persists the safe `userMessage`, and Studio
+  prefers that remediation over the internal error message. Evidence: `loop.ts`, `workflows.ts`,
+  `run-repository.ts`, `context-planning-loop.test.ts`, and the agents build.
 
 **Manual check:** run a long tool-heavy conversation until compaction occurs, then confirm the active
 task and tool pairing survive and the next provider call fits without a provider overflow.
@@ -423,7 +430,8 @@ task and tool pairing survive and the next provider call fits without a provider
 - [~] Preserve the same projection on Temporal replay when inputs and generation match; retries may
   not create a differently compacted request silently. Operation replay, source/fingerprint
   conflict, cancellation, generation fencing, and the worker-loss-after-durable-commit fault
-  window are covered; the PostgreSQL/Temporal worker-loss replay matrix remains.
+  window are covered by unit and PostgreSQL tests. The opt-in Temporal fixture covers worker loss
+  before and after durable persistence; execution against a local Temporal server remains.
 - [x] Reject late worker, stale session owner, timed-out summarizer, and cancelled activity commits.
   Evidence: live fence check before checkpoint/commit, abort checks, bounded summary timeout, and
   focused compaction tests.
@@ -510,8 +518,10 @@ reservation, safety margin, and byte-pressure classification.
 double-counting under retries.
 - [x] Unit-test compaction candidate selection, structural validation, no-progress protection,
 deterministic fallback, and typed terminal outcomes.
-- [ ] Run PostgreSQL/Temporal tests for replay, worker loss at every compaction stage, fencing,
-duplicate operation identity, cancellation, timeout, late completion, and recovery after restart.
+- [~] Run PostgreSQL/Temporal tests for replay, worker loss at every compaction stage, fencing,
+  duplicate operation identity, cancellation, timeout, late completion, and recovery after restart.
+  PostgreSQL replay/expiry/fencing passed locally; the opt-in Temporal matrix is implemented in
+  `agents/test/temporal-context-compaction.integration.test.ts` but requires a local Temporal server.
 - [x] Run provider contract tests for usage-present, usage-absent, streaming first token, context
   overflow, output-cap rejection, generic overflow, and HTTP 413/media pressure. Evidence:
   `agents/test/model-adapters.test.ts` and `agents/test/context-overflow-recovery.test.ts` — 20
@@ -556,14 +566,14 @@ has conformance coverage and the real-run proof above.
 
 | Checklist area | Code/migration | Tests or manual proof | Commit / run evidence | Status |
 | --- | --- | --- | --- | --- |
-| 0. Baseline and contracts | `context-planning.ts`, `context-capability.ts`, `journal/contracts.ts`, `context-memory-boundary.ts` | Context planner, capability, loop, anchor, streaming, memory-boundary, manifest, transcript-repair, and telemetry tests; agents build | Latest full agents suite: 178 files / 1,038 tests passed, 33 files / 99 tests skipped; `pnpm --dir agents run build` passes; client TypeScript and focused Studio lint pass; `git diff --check` passes | In progress |
-| 1. Capability resolution | `context-capability.ts`, `model-capability-catalog.ts`, `model-capability-repository.ts`, `model/provider-metadata.ts`, `system/kasiai-models.ts`, `temporal/activities.ts`, `loop.ts`, migrations 121-122 | fallback route/model resolution, source precedence, lazy catalog hydration, direct-provider response parsing/auth/cache, fail-closed autonomous boundary, correction, expiry, and cold-resolver tests | 62 focused context/capability/metadata/loop/telemetry/compaction/memory-boundary tests passed in the latest run; direct metadata is exact-route and credential-scoped, malformed/no-capacity responses remain unknown, custom endpoints are excluded; PostgreSQL expiry/restart certification remains | In progress |
+| 0. Baseline and contracts | `context-planning.ts`, `context-capability.ts`, `journal/contracts.ts`, `context-memory-boundary.ts` | Context planner, capability, loop, anchor, streaming, memory-boundary, manifest, transcript-repair, and telemetry tests; agents build | Latest full agents suite: 179 files / 1,048 tests passed, 36 files / 106 tests skipped; `pnpm --dir agents run build` passes; client TypeScript and focused Studio lint pass; `git diff --check` passes | In progress |
+| 1. Capability resolution | `context-capability.ts`, `model-capability-catalog.ts`, `model-capability-repository.ts`, `model/provider-metadata.ts`, `system/kasiai-models.ts`, `temporal/activities.ts`, `loop.ts`, migrations 121-122 | fallback route/model resolution, source precedence, lazy catalog hydration, direct-provider response parsing/auth/cache, fail-closed autonomous boundary, correction, expiry, and cold-resolver tests | 62 focused context/capability/metadata/loop/telemetry/compaction/memory-boundary tests passed; PostgreSQL capability reload and expiry integration passed; direct metadata is exact-route and credential-scoped, malformed/no-capacity responses remain unknown, custom endpoints are excluded | In progress |
 | 2. Request assembly | `context-planning.ts`, `loop.ts`, `context-manifest-repository.ts`, migration 145, `model/{types,gateway,anthropic,gemini,openai-compatible}.ts` | planner, loop-boundary, manifest repository, transcript-repair, and provider-envelope tests | planner owns history selection and final fit; memory evidence is injected before final planning; content-free identity, source digest, component token/byte accounting, reservations, provider envelope measurement, and pre-dispatch manifest persistence are implemented; repository and full-suite evidence are green | In progress |
-| 3. Pressure and compaction | `context-compaction.ts`, `context-planning.ts`, `context-memory-boundary.ts`, `context-attempt-budget.ts`, `context-attempt-budget-repository.ts`, migration 146 | compaction, checkpoint-block, lifecycle telemetry, attempt-budget, transcript-structure, and planner tests | Hermes-adapted wire-only prune pass, protected active task/pairs, candidate validation, summary fallback, pre-loss memory checkpoint, typed outcomes, durable PostgreSQL attempt budget, and content-free lifecycle events are covered; full pressure matrix remains | In progress |
-| 4. Durability and recovery | `context-compaction-repository.ts`, `context-compaction.ts` | generation CAS/fence, cancellation, timeout, lifecycle telemetry, worker-loss-after-commit fault injection, and replay tests | durable generation/fence path, shared-journal lifecycle events, typed late-commit rejection, and replay after a commit-observation failure are covered; PostgreSQL/Temporal worker-loss matrix remains | In progress |
+| 3. Pressure and compaction | `context-compaction.ts`, `context-planning.ts`, `context-memory-boundary.ts`, `context-attempt-budget.ts`, `context-attempt-budget-repository.ts`, migration 146 | compaction, checkpoint-block, lifecycle telemetry, attempt-budget, transcript-structure, and planner tests | Hermes-adapted wire-only prune pass, protected active task/pairs, candidate validation, summary fallback, pre-loss memory checkpoint, typed outcomes with user remediation, durable PostgreSQL attempt budget, and content-free lifecycle events are covered; full pressure matrix remains | In progress |
+| 4. Durability and recovery | `context-compaction-repository.ts`, `context-compaction.ts` | generation CAS/fence, cancellation, timeout, lifecycle telemetry, worker-loss-after-commit fault injection, and replay tests | durable generation/fence path, shared-journal lifecycle events, typed late-commit rejection, replay after a commit-observation failure, and PostgreSQL replay/fencing are covered; Temporal worker-loss fixture is present but awaits local server execution | In progress |
 | 5. Usage and timings | model adapters, `context-usage-anchor.ts`, `runtime-telemetry.ts`, `loop.ts` | adapter, anchor, loop, streaming, compaction telemetry, and turn-clock tests | provider/estimate basis, queue/start/failure timing, first-token event, queue delay, prompt/prefill time-to-first-token, rolling timings, turn admission/waits, replay-safe attempt history, latest compaction lifecycle projection, and monotonic snapshot revision implemented; real provider usage and Playground proof remain | In progress |
 | 6. Projection and Playground | `http/app.ts`, `runtime-telemetry.ts`, client contract, Studio | timeline API and telemetry reducer tests; client lint/build | durable timeline projection/API contract, live timeline polling, compact status row, detail panel, unknown-value rendering, journal-linked graph nodes, snapshot revision display, and responsive Studio layout implemented; real reconnect/manual run proof remains | In progress |
-| Memory coordination seam | `context-memory-boundary.ts`, `context-compaction.ts`, `context-engine.ts`, `loop.ts`, `journal/contracts.ts` | `context-memory-boundary.test.ts`, `context-engine.test.ts`; focused tests, full agents suite, and build | fake/no-op adapter, enforced checkpoint block, explicit failed-plus-blocked events, public-engine boundary forwarding, retrieval-before-manifest, redacted request fields, injected-evidence boundary isolation, and shared journal envelope are green; real memory repositories remain outside context ownership and the handoff is pending parallel memory certification | In progress |
+| Memory coordination seam | `context-memory-boundary.ts`, `context-compaction.ts`, `context-engine.ts`, `loop.ts`, `journal/contracts.ts` | `context-memory-boundary.test.ts`, `context-engine.test.ts`; focused tests, full agents suite, and build | fake/no-op adapter, enforced checkpoint block, explicit failed-plus-blocked events, public-engine boundary forwarding, retrieval-before-manifest, redacted request fields, injected-evidence boundary isolation, and shared journal envelope are green; the production adapter handoff remains pending because the parallel adapter must persist the runtime-provided digest and boundary without recomputing them | In progress |
 | 7. End-to-end certification |  |  |  | Pending |
 
 ## Definition of done
