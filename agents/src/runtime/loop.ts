@@ -851,7 +851,39 @@ export async function runBoundedAgentLoop(input: AgentLoopInput): Promise<AgentL
             // was lost after run-budget settlement. Replay the remaining
             // settlement path instead of failing the run or calling the
             // provider again.
-            if (!(prepared?.status === "completed" && error instanceof Error && error.message === "MODEL_CALL_ALREADY_SETTLED")) throw error;
+            if (prepared?.status === "completed" && error instanceof Error && error.message === "MODEL_CALL_ALREADY_SETTLED") {
+              // Continue through the durable response replay path.
+            } else if (error instanceof Error && error.message === "MODEL_TOKEN_BUDGET_EXCEEDED") {
+              // A concurrent durable reservation can exhaust the run budget
+              // after local context admission succeeds. Keep this a typed
+              // context/run-budget outcome instead of leaking the old model
+              // error or converting it into a generic loop failure.
+              if (contextAttemptReceipt && input.contextAttemptBudget) {
+                await input.contextAttemptBudget.consume(contextAttemptReceipt).catch(() => undefined);
+                contextAttemptReceipt = undefined;
+              }
+              const budgetError = {
+                code: "CONTEXT_RUN_BUDGET_EXCEEDED",
+                message: "The durable run token budget was exhausted before the model request could be admitted",
+                failureClass: "terminal" as const,
+                userMessage: "I couldn't safely start this request because the remaining run token budget is too small.",
+                remediation: "Retry after the current work settles or increase the run token budget before retrying.",
+              };
+              await emit(input, {
+                type: "loop.limited",
+                iteration,
+                payload: {
+                  reason: "durable_run_budget",
+                  code: budgetError.code,
+                  estimatedInputTokens,
+                  reservedOutputTokens: plannedOutputTokens,
+                  contextManifestDigest: contextPlan?.manifest.digest,
+                },
+              });
+              return { status: "limited", messages, usage, iterations: iteration - 1, toolCalls, error: budgetError, ...(lastToolUi ? { ui: lastToolUi } : {}) };
+            } else {
+              throw error;
+            }
           }
           if (prepared?.status === "unknown") {
             await runBudgetReservation?.markUnknown?.("The worker lost the model operation before its provider outcome was recorded");

@@ -277,6 +277,34 @@ describe("Tool Gateway and bounded runtime", () => {
     expect(reservedManifestInputTokens! + reservedManifestOutputTokens!).toBeLessThanOrEqual(100);
   });
 
+  it("returns a typed limited outcome when durable run-token admission loses a race", async () => {
+    const registry = new ToolRegistry();
+    const adapter: ModelAdapter = {
+      provider: "openai",
+      capabilities: { toolCalling: true, structuredOutput: true, streaming: false, vision: false },
+      complete: async () => response([], "should not be called"),
+    };
+    const result = await runBoundedAgentLoop({
+      model: { provider: "openai", model: "test-model" },
+      messages: [{ role: "user", content: "hello" }],
+      credentials,
+      gateway: new ModelGateway([adapter]),
+      tools: registry,
+      grantedTools: new Set(),
+      toolContext: { organizationId: "org", agentId: "agent", agentVersionId: "version", installationId: "install", runId: "run", correlationId: "corr" },
+      limits: { maxIterations: 1, maxTotalTokens: 100, maxWallTimeMs: 10_000 },
+      reserveRunBudget: async () => {
+        throw new Error("MODEL_TOKEN_BUDGET_EXCEEDED");
+      },
+    });
+
+    expect(result.status).toBe("limited");
+    expect(result.error).toMatchObject({
+      code: "CONTEXT_RUN_BUDGET_EXCEEDED",
+      failureClass: "terminal",
+    });
+  });
+
   it("marks a model operation unknown instead of replaying an unproven provider call", async () => {
     const registry = new ToolRegistry();
     let markedUnknown = 0;
