@@ -16,6 +16,16 @@
 **Hermes reference:** `/home/enoch/aworkspace/agents/hermes-agent`, revision
 `9a84bee265daad14340a80d7585928cd8ea1f9eb`, reviewed 2026-09-08.
 
+## Current implementation slice
+
+- [completed] Restore Studio Gateways as the agent's communication surfaces: Website Chat,
+  WhatsApp, Telegram, Discord, Facebook, and Instagram, using the existing channel and Website
+  deployment flows.
+- [pending] Add Slack and other gateway adapters only when their inbound, outbound, credential,
+  and health contracts exist; do not present unsupported channels as configurable.
+- [completed] Keep Playground/Live environments out of the Gateway directory and keep service,
+  MCP, skill, plugin, and user-tool configuration under Capabilities.
+
 ## Objective
 
 Replace the current split and limited capability presentation with one canonical, versioned

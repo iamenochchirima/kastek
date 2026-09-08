@@ -38,6 +38,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { AgentModelPicker } from "@/components/dashboard/agents/agent-model-picker";
 import { AgentToolIntegrations } from "@/components/dashboard/agents/agent-tool-integrations";
+import { InstallationIntegrations } from "@/components/dashboard/agents/agent-detail-page-client";
 import {
   createAgentMcpProvider,
   discoverAgentMcpProvider,
@@ -109,7 +110,7 @@ const sections: Array<{ id: SettingsSection; label: string; description: string 
   { id: "overview", label: "Overview", description: "Identity, instructions, and model" },
   { id: "capabilities", label: "Capabilities", description: "Tools, skills, and extensions" },
   { id: "memory", label: "Memory", description: "Scope and retrieval" },
-  { id: "gateways", label: "Gateways", description: "Agent execution endpoints" },
+  { id: "gateways", label: "Gateways", description: "Channels and surfaces" },
   { id: "safety", label: "Safety", description: "Approvals and permissions" },
   { id: "runtime", label: "Runtime", description: "Context, budgets, and limits" },
 ];
@@ -330,7 +331,7 @@ function SettingsContent({
 }) {
   const title = sections.find((item) => item.id === section)?.label ?? "Settings";
   const description = sections.find((item) => item.id === section)?.description ?? "";
-  return <div className="mx-auto max-w-4xl px-5 py-6 pb-24 sm:px-8 sm:py-8"><div className="mb-7 flex items-start justify-between gap-4"><div><p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Agent settings</p><h3 className="mt-2 text-2xl font-semibold tracking-[-0.03em] text-foreground">{title}</h3><p className="mt-1 text-sm text-muted-foreground">{description}</p></div><span className="hidden items-center gap-1.5 rounded-full border border-border px-2.5 py-1 text-[10px] text-muted-foreground sm:inline-flex"><span className="size-1.5 rounded-full bg-amber-500" />Draft</span></div>{capabilitySaveError ? <div className="mb-4 rounded-xl border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">{capabilitySaveError}</div> : null}{section === "overview" ? <OverviewSection agent={agent} version={version} instructions={instructions} setInstructions={setInstructions} selectedModel={selectedModel} pickerModels={pickerModels} modelCatalog={modelCatalog} modelCatalogLoading={modelCatalogLoading} effectiveSelection={effectiveSelection} setModelSelection={setModelSelection} /> : null}{section === "capabilities" ? <CapabilitiesSection installationId={installationId} versionId={version?.id ?? null} draft={capabilityDraft} onDraftChange={setCapabilityDraft} /> : null}{section === "memory" ? <MemorySection /> : null}{section === "gateways" ? <GatewaysSection /> : null}{section === "safety" ? <SafetySection /> : null}{section === "runtime" ? <RuntimeSection selectedModel={selectedModel} /> : null}<div className="mt-8 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-5"><p className="text-[11px] text-muted-foreground">Changes apply to the next Playground version.</p><div className="flex items-center gap-2"><Button type="button" variant="outline" size="sm" onClick={() => setSection("overview")}><ArrowLeft className="mr-1.5 size-3.5" />Overview</Button><Button type="button" size="sm" onClick={onSave} disabled={saving}>{saving ? <Clock3 className="mr-1.5 size-3.5 animate-pulse" /> : <Save className="mr-1.5 size-3.5" />}{saving ? "Saving…" : "Save draft"}</Button></div></div></div>;
+  return <div className="mx-auto max-w-4xl px-5 py-6 pb-24 sm:px-8 sm:py-8"><div className="mb-7 flex items-start justify-between gap-4"><div><p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Agent settings</p><h3 className="mt-2 text-2xl font-semibold tracking-[-0.03em] text-foreground">{title}</h3><p className="mt-1 text-sm text-muted-foreground">{description}</p></div><span className="hidden items-center gap-1.5 rounded-full border border-border px-2.5 py-1 text-[10px] text-muted-foreground sm:inline-flex"><span className="size-1.5 rounded-full bg-amber-500" />Draft</span></div>{capabilitySaveError ? <div className="mb-4 rounded-xl border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">{capabilitySaveError}</div> : null}{section === "overview" ? <OverviewSection agent={agent} version={version} instructions={instructions} setInstructions={setInstructions} selectedModel={selectedModel} pickerModels={pickerModels} modelCatalog={modelCatalog} modelCatalogLoading={modelCatalogLoading} effectiveSelection={effectiveSelection} setModelSelection={setModelSelection} /> : null}{section === "capabilities" ? <CapabilitiesSection installationId={installationId} versionId={version?.id ?? null} draft={capabilityDraft} onDraftChange={setCapabilityDraft} /> : null}{section === "memory" ? <MemorySection /> : null}{section === "gateways" ? <GatewaysSection agent={agent} installationId={installationId} /> : null}{section === "safety" ? <SafetySection /> : null}{section === "runtime" ? <RuntimeSection selectedModel={selectedModel} /> : null}<div className="mt-8 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-5"><p className="text-[11px] text-muted-foreground">Changes apply to the next Playground version.</p><div className="flex items-center gap-2"><Button type="button" variant="outline" size="sm" onClick={() => setSection("overview")}><ArrowLeft className="mr-1.5 size-3.5" />Overview</Button><Button type="button" size="sm" onClick={onSave} disabled={saving}>{saving ? <Clock3 className="mr-1.5 size-3.5 animate-pulse" /> : <Save className="mr-1.5 size-3.5" />}{saving ? "Saving…" : "Save draft"}</Button></div></div></div>;
 }
 
 function OverviewSection({ agent, version, instructions, setInstructions, selectedModel, pickerModels, modelCatalog, modelCatalogLoading, effectiveSelection, setModelSelection }: { agent: AgentDefinition; version: AgentVersion | null; instructions: string; setInstructions: (value: string) => void; selectedModel?: AgentModel; pickerModels: AgentModel[]; modelCatalog: AgentModelCatalog | null; modelCatalogLoading: boolean; effectiveSelection: ModelSelection | null; setModelSelection: (value: ModelSelection | null) => void }) {
@@ -644,8 +645,9 @@ function MemorySection() {
   return <div className="space-y-4"><CapabilityRow icon={<MemoryStick className="size-4" />} title="Agent memory" detail="Control what this agent can retrieve and write" status="not_configured" statusText="Review policy" action="Configure" /><div className="grid gap-4 sm:grid-cols-2"><InfoTile label="Scope" value="Workspace" icon={<Database className="size-4" />} /><InfoTile label="Retrieval" value="Not configured" icon={<Eye className="size-4" />} /></div><SettingNote title="Memory stays scoped" detail="The agent only receives evidence allowed by its workspace, environment, and candidate policy." /></div>;
 }
 
-function GatewaysSection() {
-  return <div className="space-y-5"><div className="grid gap-4 sm:grid-cols-2"><ConnectionCard title="Playground" detail="Isolated test bindings" status="Ready" statusKind="ready" /><ConnectionCard title="Live" detail="Production bindings" status="Not connected" statusKind="not_configured" /></div></div>;
+function GatewaysSection({ agent, installationId }: { agent: AgentDefinition; installationId: string | null }) {
+  if (!installationId) return <p className="rounded-xl border border-dashed border-border px-4 py-6 text-center text-xs text-muted-foreground">No agent installation.</p>;
+  return <InstallationIntegrations agentId={agent.id} installationId={installationId} personal={agent.execution_mode === "system_hosted"} agentName={agent.name} gatewaysOnly />;
 }
 
 function SafetySection() {
@@ -658,10 +660,6 @@ function RuntimeSection({ selectedModel }: { selectedModel?: AgentModel }) {
 
 function InfoTile({ label, value, icon }: { label: string; value: string; icon: ReactNode }) {
   return <div className="rounded-2xl border border-border bg-card p-4"><div className="flex items-center gap-2 text-muted-foreground">{icon}<span className="text-[11px]">{label}</span></div><p className="mt-3 text-sm font-medium text-foreground">{value}</p></div>;
-}
-
-function ConnectionCard({ title, detail, status, statusKind }: { title: string; detail: string; status: string; statusKind: "ready" | "not_configured" }) {
-  return <div className="rounded-2xl border border-border bg-card p-4"><div className="flex items-start justify-between gap-3"><div><p className="text-sm font-medium text-foreground">{title}</p><p className="mt-1 text-xs text-muted-foreground">{detail}</p></div><StatusDot status={statusKind} /></div><p className={cn("mt-5 text-xs", statusClass(statusKind))}>{status}</p></div>;
 }
 
 function SettingNote({ title, detail }: { title: string; detail: string }) {

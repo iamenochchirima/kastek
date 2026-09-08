@@ -3,7 +3,7 @@
 import Image from "next/image";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Activity, CalendarDays, Check, Link2, LoaderCircle, Search, Unplug } from "lucide-react";
-import { SiDiscord, SiTelegram, SiWhatsapp } from "react-icons/si";
+import { SiDiscord, SiInstagram, SiMessenger, SiTelegram, SiWhatsapp } from "react-icons/si";
 import type { IconType } from "react-icons";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -23,6 +23,8 @@ import {
 function IntegrationLogo({ integration }: { integration: AgentIntegration }) {
   const channelIcons: Record<string, IconType> = {
     discord: SiDiscord,
+    facebook: SiMessenger,
+    instagram: SiInstagram,
     telegram: SiTelegram,
     whatsapp: SiWhatsapp,
   };
@@ -48,7 +50,7 @@ function isConnected(integration: AgentIntegration): boolean {
   return integration.status === "connected" && integration.available;
 }
 
-export function AgentToolIntegrations({ installationId, embedded = false, refreshKey, onChannelAction, directory }: { installationId: string; embedded?: boolean; refreshKey?: string; onChannelAction?: (integration: AgentIntegration) => void; directory?: AgentCapabilityDirectoryEntry[] }) {
+export function AgentToolIntegrations({ installationId, embedded = false, refreshKey, onChannelAction, directory, channelsOnly = false }: { installationId: string; embedded?: boolean; refreshKey?: string; onChannelAction?: (integration: AgentIntegration) => void; directory?: AgentCapabilityDirectoryEntry[]; channelsOnly?: boolean }) {
   const [integrations, setIntegrations] = useState<AgentIntegration[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -77,7 +79,9 @@ export function AgentToolIntegrations({ installationId, embedded = false, refres
   useEffect(() => { void refresh(); }, [refresh, refreshKey]);
 
   const visibleIntegrations = useMemo(() => {
-    const available = onChannelAction ? integrations : integrations.filter((integration) => integration.kind !== "channel");
+    const available = channelsOnly
+      ? integrations.filter((integration) => integration.kind === "channel")
+      : onChannelAction ? integrations : integrations.filter((integration) => integration.kind !== "channel");
     const normalizedQuery = query.trim().toLowerCase();
     const filtered = normalizedQuery ? available.filter((integration) => `${integration.name} ${integration.description} ${integration.category}`.toLowerCase().includes(normalizedQuery)) : available;
     if (!directory?.length) return filtered;
@@ -106,7 +110,7 @@ export function AgentToolIntegrations({ installationId, embedded = false, refres
         healthMessage: null,
         lastCheckedAt: null,
       });
-  }, [directory, integrations, onChannelAction, query]);
+  }, [channelsOnly, directory, integrations, onChannelAction, query]);
   const openConfiguration = (integration: AgentIntegration) => {
     setSelected(integration);
     setApiKey("");
@@ -161,7 +165,7 @@ export function AgentToolIntegrations({ installationId, embedded = false, refres
   };
 
   const content = <>
-    <div className="relative max-w-sm"><Search className="pointer-events-none absolute left-3 top-1/2 z-10 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" /><Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search connectors" className="h-9 pl-9 text-xs" /></div>
+    <div className="relative max-w-sm"><Search className="pointer-events-none absolute left-3 top-1/2 z-10 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" /><Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={channelsOnly ? "Search gateways" : "Search connectors"} className="h-9 pl-9 text-xs" /></div>
     {error ? <p className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive" role="alert">{error}</p> : null}
     {loading ? <div className="grid gap-2 sm:grid-cols-2"><div className="h-24 animate-pulse rounded-xl border border-border bg-secondary/30" /><div className="h-24 animate-pulse rounded-xl border border-border bg-secondary/30" /></div> : null}
     {!loading && visibleIntegrations.length ? <div className="grid gap-2 md:grid-cols-2">
