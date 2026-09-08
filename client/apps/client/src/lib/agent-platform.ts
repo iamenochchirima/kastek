@@ -1043,6 +1043,21 @@ export function rotateAgentInstallationCredential(installationId: string, creden
   return request(`/api/agents/installations/${encodeURIComponent(installationId)}/credentials/${encodeURIComponent(credentialId)}/rotate`, { method: "POST", body: JSON.stringify({}) });
 }
 
+export type AgentCapabilityDirectoryEntry = {
+  id: string;
+  version: string;
+  kind: "builtin_tool" | "connector" | "connector_tool" | "skill" | "plugin" | "plugin_tool" | "mcp_server" | "mcp_tool" | "user_tool" | string;
+  name: string;
+  description: string;
+  category: string;
+  logo?: string;
+  tags: string[];
+  source: { kind: string; id: string; version: string; checksum?: string; trust: string };
+  provider?: { id: string; name: string; version?: string };
+  toolsetIds: string[];
+  runtime: { execution: string; riskClass?: string; requiresApproval?: boolean; timeoutMs?: number; requiredScopes: string[]; credentialRequirements: string[] };
+};
+
 export type AgentCapability = {
   name: string;
   version: string;
@@ -1069,7 +1084,7 @@ export type AgentCapability = {
   audit?: { classification: string; description: string; redaction: string[] };
   documentation?: { title: string; summary: string };
   catalog?: {
-    kind: "builtin_tool" | "connector_tool" | "skill" | "plugin_tool" | "mcp_tool" | "user_tool" | string;
+    kind: AgentCapabilityDirectoryEntry["kind"];
     category: string;
     logo?: string;
     tags: string[];
@@ -1080,8 +1095,12 @@ export type AgentCapability = {
   };
 };
 
-export function listAgentCapabilities(): Promise<{ capabilities: AgentCapability[] }> {
+export function listAgentCapabilities(): Promise<{ capabilities: AgentCapability[]; directory?: AgentCapabilityDirectoryEntry[]; toolsets?: unknown[] }> {
   return request("/api/agents/capabilities");
+}
+
+export function listAgentCapabilityDirectory(): Promise<{ directory: AgentCapabilityDirectoryEntry[]; toolsets: unknown[] }> {
+  return request("/api/agents/capabilities/directory");
 }
 
 export type AgentSkill = {

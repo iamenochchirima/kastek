@@ -46,7 +46,27 @@ function register(
   registry: ToolRegistry,
   definition: Parameters<ToolRegistry["register"]>[0],
 ): void {
-  registry.register(definition);
+  const connectorId = definition.name.startsWith("kasitek.apple.")
+    ? "apple.tools"
+    : definition.name.startsWith("kasitek.web.")
+    ? "tavily.search"
+    : definition.name.startsWith("kasitek.calendar.")
+    ? "calendar"
+    : "integrations";
+  const toolsetIds = connectorId === "calendar"
+    ? ["connector.internal.calendar", "connector.google.calendar", "connector.apple.tools"]
+    : [`connector.${connectorId}`];
+  registry.register({
+    ...definition,
+    catalog: definition.catalog ?? {
+      kind: "connector_tool",
+      category: connectorId === "tavily.search" ? "search" : connectorId === "apple.tools" ? "apple" : "productivity",
+      tags: ["connector", connectorId],
+      source: { kind: "connector", id: connectorId },
+      toolsetIds,
+      runtime: { execution: "native" },
+    },
+  });
 }
 
 export function registerIntegrationTools(registry: ToolRegistry, service: IntegrationToolService): void {

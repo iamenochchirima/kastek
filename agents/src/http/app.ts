@@ -164,6 +164,7 @@ import { createAgentHarness, type AgentHarness } from "../runtime/harness";
 import { ExtensionSnapshotRepository } from "../db/repositories/extension-snapshot-repository";
 import type { ExtensionKind } from "../extensions";
 import { createCapabilityRuntime } from "../capabilities/runtime";
+import { registerIntegrationSources, registerMcpSources, registerPluginSources, registerSkillSources } from "../capabilities/source-adapters";
 import { PostgresDeliveryObligationCoordinator, type DeliveryObligationCoordinator } from "../delivery";
 import { RuntimeTelemetryAccumulator } from "../runtime/runtime-telemetry";
 import type { PersistedExecutionJournalEvent } from "../journal/contracts";
@@ -967,7 +968,63 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
         availability: effectiveAccess.available ? "available" : effectiveAccess.reasonCode,
       };
     });
-    return { capabilities };
+    return {
+      capabilities,
+      directory: toolRegistry.catalog.list(),
+      toolsets: toolRegistry.catalog.listToolsets(),
+    };
+  };
+
+  /**
+   * The Studio directory is a discovery projection, not an activation grant.
+   * It forks the immutable platform registry so organization-owned skills,
+   * packages, and MCP revisions cannot leak into another tenant's catalog or
+   * mutate the execution registry used by active runs.
+   */
+  const projectCapabilityDirectory = async (organizationId: string) => {
+    const catalog = toolRegistry.catalog.fork();
+    const skillDefinitions = await skills.listSkills(organizationId);
+    const skillVersions = (await Promise.all(skillDefinitions.map((definition) => skills.listVersions(organizationId, definition.id))))
+      .flat()
+      .filter((version) => version.status === "published" && version.skill_status !== "revoked");
+    registerSkillSources(catalog, skillVersions.map((version) => ({
+      id: version.id,
+      version: version.version_number,
+      name: version.skill_name ?? version.skill_slug ?? version.id,
+      description: version.skill_name ?? version.skill_slug,
+      checksum: version.checksum,
+      requiredCapabilities: version.required_capabilities,
+      requiredConnectors: version.required_connectors,
+    })));
+
+    const packages = (await extensionSnapshots.listPackages(organizationId)).filter((entry) => entry.status === "published" && entry.kind === "plugin");
+    registerPluginSources(catalog, packages.map((entry) => ({
+      id: entry.package_id,
+      version: entry.version,
+      checksum: entry.checksum,
+      name: entry.name,
+      description: entry.name,
+      permissions: [],
+      capabilityIds: entry.declaration.kind === "plugin" ? entry.declaration.capabilityIds : [],
+    })));
+
+    const providers = await remoteMcpProviders.list(organizationId);
+    const providerVersions = (await Promise.all(providers.map((provider) => remoteMcpProviders.listVersions(organizationId, provider.id))))
+      .flat()
+      .filter((version) => version.status === "published");
+    registerMcpSources(catalog, providerVersions.map((version) => ({
+      id: version.id,
+      providerId: version.provider_id,
+      providerName: version.provider_name ?? version.provider_id,
+      version: version.revision,
+      checksum: version.checksum,
+      protocolVersion: version.protocol_version,
+      tools: version.tools,
+      timeoutMs: version.timeout_ms,
+      credentialConfigured: Boolean(version.credential_reference),
+    })));
+
+    return { directory: catalog.list(), toolsets: catalog.listToolsets() };
   };
 
   const projectAgentVersionConfig = async (input: {
@@ -2716,6 +2773,12 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     const auth = requireAuth(request, dependencies.config);
     requireScope(auth, dependencies.config, "agents:read");
     return projectCapabilityCatalog(auth.organizationId);
+  });
+
+  app.get("/v1/capabilities/directory", async (request) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:read");
+    return projectCapabilityDirectory(auth.organizationId);
   });
 
   app.get("/v1/models/catalog", async (request) => {

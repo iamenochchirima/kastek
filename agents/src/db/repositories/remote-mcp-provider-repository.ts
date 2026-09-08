@@ -186,6 +186,36 @@ export class RemoteMcpProviderRepository {
     const providers = await this.listPinned(organizationId, agentVersionId);
     const names: string[] = [];
     for (const provider of providers) {
+      const catalogVersion = `${provider.revision}.0.0`;
+      const catalogSource = {
+        kind: "mcp" as const,
+        id: provider.id,
+        version: catalogVersion,
+        checksum: provider.checksum,
+        trust: "organization" as const,
+      };
+      const serverCatalogId = `mcp.${provider.id}`;
+      if (!registry.catalog.get(serverCatalogId, catalogVersion)) {
+        registry.catalog.register({
+          id: serverCatalogId,
+          version: catalogVersion,
+          kind: "mcp_server",
+          name: provider.provider_name ?? provider.provider_id,
+          description: `MCP server ${provider.provider_name ?? provider.provider_id}`,
+          category: "mcp",
+          logo: "mcp",
+          tags: ["mcp", "remote", provider.protocol_version],
+          source: catalogSource,
+          provider: { id: provider.provider_id, name: provider.provider_name ?? provider.provider_id, version: catalogVersion },
+          toolsetIds: [`mcp.${provider.id}`],
+          runtime: {
+            execution: "mcp",
+            timeoutMs: provider.timeout_ms ?? 15_000,
+            requiredScopes: ["mcp:remote"],
+            credentialRequirements: provider.credential_reference ? ["mcp.remote"] : [],
+          },
+        });
+      }
       for (const tool of provider.tools) {
         const name = remoteMcpToolName(provider.id, tool.name);
         names.push(name);
@@ -199,6 +229,15 @@ export class RemoteMcpProviderRepository {
           timeoutMs: provider.timeout_ms ?? 15_000,
           inputSchema: tool.inputSchema,
           outputSchema: { type: "object", properties: { result: {} }, required: ["result"], additionalProperties: false },
+          catalog: {
+            kind: "mcp_tool",
+            category: "mcp",
+            tags: ["mcp", "remote", "tool"],
+            source: catalogSource,
+            provider: { id: provider.provider_id, name: provider.provider_name ?? provider.provider_id, version: catalogVersion },
+            toolsetIds: [`mcp.${provider.id}`],
+            runtime: { execution: "mcp" },
+          },
           manifest: {
             ownerService: "remote-mcp",
             requiredScope: "mcp:remote",
@@ -211,6 +250,18 @@ export class RemoteMcpProviderRepository {
           handler: async (context: ToolInvocationContext, argumentsValue: Record<string, unknown>) => ({
             result: await this.callPinnedTool({ organizationId: context.organizationId, agentVersionId: context.agentVersionId, providerVersionId: provider.id, toolName: tool.name, argumentsValue, operationId: context.operationId, runId: context.runId }),
           }),
+        });
+      }
+      const toolsetId = `mcp.${provider.id}`;
+      if (!registry.catalog.listToolsets().some((toolset) => toolset.id === toolsetId && toolset.version === catalogVersion)) {
+        registry.catalog.registerToolset({
+          id: toolsetId,
+          version: catalogVersion,
+          name: provider.provider_name ?? provider.provider_id,
+          description: `${provider.provider_name ?? provider.provider_id} MCP tools`,
+          source: catalogSource,
+          capabilityIds: provider.tools.map((tool) => remoteMcpToolName(provider.id, tool.name)),
+          includes: [],
         });
       }
     }

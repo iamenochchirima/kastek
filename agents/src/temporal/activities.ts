@@ -60,6 +60,8 @@ import { buildChannelApprovalPrompt } from "../approval/channel-prompt";
 import { IntegrationRepository } from "../integrations/repository";
 import { IntegrationToolService } from "../integrations/service";
 import { registerIntegrationTools } from "../integrations/tools";
+import { listIntegrations } from "../integrations/catalog";
+import { registerIntegrationSources } from "../capabilities/source-adapters";
 import { recordBudgetExhaustion, recordRetrievalResult, recordTemporalActivityAttempt, withSpan } from "../telemetry/spans";
 import { operationalLogger } from "../telemetry/logger";
 import { AGENT_MEDIA_HARNESS_TOOLS, agentResponseSchema, agentResponseToolInputSchema, findAuthorizationRequirement, parseAgentResponse } from "../media/contracts";
@@ -1816,6 +1818,8 @@ export function createDefaultTools(coreClient?: KasitekCoreReadClient, conversat
     registerHandoffOfferTool("conversation.request_human");
   }
   if (integrationTools) registerIntegrationTools(tools, integrationTools);
+  registerIntegrationSources(tools.catalog, listIntegrations(), new Set(tools.list().map((tool) => tool.name)));
+  tools.catalog.ensureToolsets();
   return tools;
 }
 

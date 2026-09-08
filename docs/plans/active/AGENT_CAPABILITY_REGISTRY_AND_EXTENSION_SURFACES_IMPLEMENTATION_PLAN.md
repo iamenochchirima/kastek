@@ -137,10 +137,10 @@ The resolver must support:
   consumers.
 - [x] Define the versioned capability descriptor, source, provider, toolset, readiness, and
   snapshot contracts in the existing Agent Platform contract area.
-- [ ] Extend `ToolRegistry` to register and list descriptors without exposing handlers, while
+- [x] Extend `ToolRegistry` to register and list descriptors without exposing handlers, while
   preserving `invoke`, schema validation, approval, timeout, cancellation, and effect identity.
 - [ ] Replace direct ad hoc metadata with manifest-backed registration helpers.
-- [ ] Keep the current capability discovery and MCP/API projections backward compatible while
+- [x] Keep the current capability discovery and MCP/API projections backward compatible while
   adding source/provider/toolset fields.
 - [x] Add registry conformance tests for duplicate IDs, versions, schema completeness, toolset
   cycles, deterministic ordering, source provenance, and snapshot checksums.
@@ -300,8 +300,9 @@ Post-release review date: to be assigned
 
 ## Current status
 
-The architecture mapping and Hermes comparison are complete. The first contract batch is complete
-in `agents/src/capabilities/catalog.ts` with conformance coverage in
-`agents/test/capability-catalog.test.ts`. The next work batch adapts the existing `ToolRegistry`
-and capability discovery projections to this catalog; provider expansion and Studio directory work
-will follow that seam rather than adding more entries to the current small integration catalog.
+The architecture mapping and Hermes comparison are complete. The canonical descriptor catalog,
+toolset resolver, source adapters, registry projection, connector projection, MCP registration
+metadata, and organization-scoped directory route are now implemented. Focused registry,
+source-adapter, integration, and build checks pass. The next work batch is the full Studio
+directory UI plus lifecycle/grant wiring for skills, plugins, MCP servers, and user-created tools;
+the existing execution and context ownership boundaries remain unchanged.

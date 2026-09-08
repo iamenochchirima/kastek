@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import type { ToolDefinition, ToolRiskClass } from "../tools/types";
 
-export type CapabilityKind = "builtin_tool" | "connector_tool" | "skill" | "plugin_tool" | "mcp_tool" | "user_tool";
+export type CapabilityKind = "builtin_tool" | "connector" | "connector_tool" | "skill" | "plugin" | "plugin_tool" | "mcp_server" | "mcp_tool" | "user_tool";
 export type CapabilitySourceKind = "builtin" | "connector" | "skill" | "plugin" | "mcp" | "user";
 export type CapabilityTrust = "platform" | "verified" | "organization" | "user";
 export type CapabilityExecutionMode = "native" | "plugin" | "mcp" | "declarative";
@@ -116,8 +116,11 @@ function titleCase(value: string): string {
 function sourceKindFor(kind: CapabilityKind): CapabilitySourceKind {
   switch (kind) {
     case "builtin_tool": return "builtin";
+    case "connector": return "connector";
     case "connector_tool": return "connector";
+    case "plugin": return "plugin";
     case "plugin_tool": return "plugin";
+    case "mcp_server": return "mcp";
     case "mcp_tool": return "mcp";
     case "user_tool": return "user";
     case "skill": return "skill";
@@ -126,6 +129,9 @@ function sourceKindFor(kind: CapabilityKind): CapabilitySourceKind {
 
 function executionModeFor(kind: CapabilityKind): CapabilityExecutionMode {
   if (kind === "skill") return "declarative";
+  if (kind === "connector") return "declarative";
+  if (kind === "plugin") return "plugin";
+  if (kind === "mcp_server") return "mcp";
   if (kind === "plugin_tool") return "plugin";
   if (kind === "mcp_tool") return "mcp";
   return "native";
@@ -221,13 +227,14 @@ export class CapabilityCatalog {
       requiredScopes: sortedUnique([...(metadata.runtime?.requiredScopes ?? []), ...(requiredScope && requiredScope !== "legacy" ? [requiredScope] : [])]),
       credentialRequirements: sortedUnique(metadata.runtime?.credentialRequirements),
     } satisfies CapabilityRuntimeMetadata;
+    const category = metadata.category ?? requiredScope?.split(".")[0] ?? "platform";
     const descriptor: CapabilityDescriptor = {
       id: tool.name,
       version: tool.version,
       kind,
       name: metadata.name ?? titleCase(tool.name),
       description: tool.description,
-      category: metadata.category ?? requiredScope?.split(".")[0] ?? "platform",
+      category,
       ...(metadata.logo ? { logo: metadata.logo } : {}),
       tags: metadata.tags ?? [],
       source: {
@@ -238,7 +245,7 @@ export class CapabilityCatalog {
         trust: metadata.source?.trust ?? (kind === "builtin_tool" ? "platform" : "organization"),
       },
       ...(metadata.provider ? { provider: metadata.provider } : {}),
-      toolsetIds: metadata.toolsetIds ?? [],
+      toolsetIds: metadata.toolsetIds ?? (kind === "builtin_tool" ? [`builtin.${category}`] : []),
       runtime,
     };
     this.register(descriptor);
@@ -250,6 +257,32 @@ export class CapabilityCatalog {
     const key = descriptorKey(normalized.id, normalized.version);
     if (this.toolsets.has(key)) throw new Error(`CAPABILITY_TOOLSET_DUPLICATE:${key}`);
     this.toolsets.set(key, normalized);
+  }
+
+  /** Materialize the implicit groups assigned to executable descriptors. */
+  public ensureToolsets(): void {
+    const grouped = new Map<string, CapabilityDescriptor[]>();
+    for (const descriptor of this.descriptors.values()) {
+      for (const toolsetId of descriptor.toolsetIds) {
+        const entries = grouped.get(toolsetId) ?? [];
+        entries.push(descriptor);
+        grouped.set(toolsetId, entries);
+      }
+    }
+    for (const [toolsetId, descriptors] of grouped) {
+      if (this.listToolsets().some((toolset) => toolset.id === toolsetId)) continue;
+      const first = descriptors[0];
+      if (!first) continue;
+      this.registerToolset({
+        id: toolsetId,
+        version: "1.0.0",
+        name: titleCase(toolsetId),
+        description: `${titleCase(toolsetId)} capabilities`,
+        source: first.source,
+        capabilityIds: descriptors.map((descriptor) => descriptor.id),
+        includes: [],
+      });
+    }
   }
 
   public get(id: string, version?: string): CapabilityDescriptor | undefined {
@@ -275,6 +308,14 @@ export class CapabilityCatalog {
 
   public listToolsets(): readonly CapabilityToolsetDescriptor[] {
     return [...this.toolsets.values()].sort((left, right) => `${left.name}:${left.id}`.localeCompare(`${right.name}:${right.id}`));
+  }
+
+  /** Create an isolated projection that preserves the platform registry but can add tenant sources. */
+  public fork(): CapabilityCatalog {
+    const copy = new CapabilityCatalog();
+    for (const descriptor of this.descriptors.values()) copy.register(descriptor);
+    for (const toolset of this.toolsets.values()) copy.registerToolset(toolset);
+    return copy;
   }
 
   public resolveToolsets(ids: readonly string[]): readonly string[] {
