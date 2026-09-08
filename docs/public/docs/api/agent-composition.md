@@ -38,8 +38,10 @@ pinning require a successful health check, and known-unhealthy providers are exc
 tool registration. Probe an existing provider without creating a new revision with
 `POST /v1/mcp/providers/{providerId}/health`.
 
-Inbound MCP OAuth is not part of this release; existing API-key and installation-credential flows
-remain the supported provider authentication paths.
+Studio can also start browser MCP OAuth for reviewed HTTP providers. The flow uses protected-resource
+metadata, authorization-server discovery, PKCE, dynamic client registration when available, and
+encrypted one-use state. Providers without dynamic registration use the manual OAuth client fields
+in Studio.
 
 ## Effective configuration and version diff
 

@@ -128,19 +128,20 @@ There must be one source of truth for each concern:
 6. **Execution journal** — remains the only event source for discovery, readiness, activation,
    invocation, MCP, plugin, and tool progress evidence.
 
-### Connections versus MCP
+### Connections and MCP
 
-Connections and MCP are separate views over one activation model:
+Connections is one catalogue with one activation model:
 
-- **Connections** manages native service bindings: OAuth accounts, API keys, local connectors,
-  resource bindings, credential references, and environment-specific health.
-- **MCP** manages a server and its discovered, versioned tools: endpoint/transport, discovery,
-  tool filters, server health, revision pins, and MCP-specific permissions.
-- A native Google Calendar adapter appears under Connections. A Google Calendar MCP server
-  appears under Capabilities → MCP. They do not duplicate credentials or tool registries.
-- Both surfaces resolve into the same immutable agent-version extension snapshot. A connection
-  supplies access; it does not grant an MCP server, and browsing either directory does not grant
-  runtime access.
+- **Connections** lists native service bindings and reviewed remote MCP servers together. Native
+  entries manage OAuth accounts, API keys, local connectors, resource bindings, and health. MCP
+  entries manage endpoint transport, discovery, tool filters, server health, revision pins, and
+  MCP-specific permissions.
+- A native Google Calendar adapter and a Google Calendar MCP server can both appear in the
+  catalogue without sharing credentials or execution registrations.
+- Both entry types resolve into the same immutable agent-version extension snapshot. Browsing the
+  directory does not grant runtime access. Connecting an entry establishes access; the agent
+  version still controls its granted tools.
+- Custom HTTPS MCP servers use the same Connections area through its explicit Add server action.
 - Agent creation provisions the Playground installation as part of the creation flow. Live is a
   later deployment target; users do not perform a manual Playground installation step.
 
@@ -277,14 +278,15 @@ The resolver must support:
 ### 8. Studio directory and configuration
 
 - [x] Build one capability directory backed by the canonical catalog, with first-class views for
-  Tools, Skills, Plugins, MCP, and User-created tools; keep native Connections as a separate
-  binding surface.
+  Tools, Skills, Plugins, Connections, and User-created tools. Connections combines native
+  bindings with the reviewed MCP catalogue; custom MCP remains an explicit add action there.
 - [x] Provide search, category/source filters, branded logos, versions, trust/provenance,
   readiness, permissions, configured state, and concise configure/enable actions.
 - [x] Keep discovery separate from activation: browsing a capability does not grant or load it.
 - [x] Show toolsets as useful bundles while exposing individual tools and permissions before
   activation.
-- [x] Reuse the shared compact directory row/card pattern and model-picker/configuration shell.
+- [x] Reuse the shared compact directory row/card pattern and model-picker/configuration shell,
+  including branded service logos, search, connected state, API-key forms, and browser OAuth.
 - [x] Forward the catalog and directory through the authenticated Core API façade consumed by
   Studio.
 - [x] Forward the reviewed Connections, Skills, Plugins, and catalogue MCP install/auth actions
@@ -366,13 +368,14 @@ Post-release review date: to be assigned
 The reviewed Hermes MCP (65), skill (137), and plugin (104) catalogues now flow through authenticated
 directory routes and searchable Studio panels. The browser reaches those routes through the
 authenticated KasiTek Core façade, including catalogue installation, MCP API-key connection, and
-browser OAuth start actions. Native connections retain their existing provider flows; reviewed HTTP
-MCP entries support API-key or browser OAuth activation, including manual client credentials for
-providers without dynamic registration; skill entries install and pin into the organization skill
-store, and plugin entries use the existing declarative extension package lifecycle. The plugin
-catalogue deliberately marks entries without a registered KasiTek adapter unavailable; foreign Hermes
-code is not executed. Agents/client builds, targeted lint, façade forwarding tests, route conformance,
-and catalogue tests pass. Remaining work is broader real-provider coverage, managed stdio MCP
-transport, native adapters for more plugin entries, complete user-tool lifecycle wiring, and
-responsive/browser end-to-end verification. Existing execution and context ownership boundaries
-remain unchanged.
+browser OAuth start actions. Connections now presents native service bindings and reviewed HTTP MCP
+entries in one searchable catalogue with branded cards and direct connect actions. OAuth entries use
+the provider's protected-resource discovery, PKCE, and dynamic registration when available, with a
+manual client-credential path for providers that require it. Skill entries install and pin into the
+organization skill store, and plugin entries use the existing declarative extension package
+lifecycle. The plugin catalogue deliberately marks entries without a registered KasiTek adapter
+unavailable; foreign Hermes code is not executed. Agents/client builds, targeted lint, façade
+forwarding tests, route conformance, and catalogue tests pass. Remaining work is broader real-provider
+coverage, managed stdio MCP transport, native adapters for more plugin entries, complete user-tool
+lifecycle wiring, and responsive/browser end-to-end verification. Existing execution and context
+ownership boundaries remain unchanged.

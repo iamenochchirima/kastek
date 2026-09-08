@@ -3,7 +3,7 @@
 // Prototype question: which settings workspace best exposes an agent's useful
 // capabilities without making users learn plugin or MCP terminology?
 
-import { createElement, useEffect, useState, type FormEvent, type ReactNode } from "react";
+import { createElement, useCallback, useEffect, useState, type FormEvent, type ReactNode } from "react";
 import Image from "next/image";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
@@ -36,12 +36,12 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { AgentModelPicker } from "@/components/dashboard/agents/agent-model-picker";
-import { AgentToolIntegrations } from "@/components/dashboard/agents/agent-tool-integrations";
 import { InstallationIntegrations } from "@/components/dashboard/agents/agent-detail-page-client";
 import {
   createAgentMcpProvider,
   discoverAgentMcpProvider,
   getAgentInstallationReadiness,
+  listAgentInstallationIntegrations,
   healthCheckAgentMcpProvider,
   listAgentCapabilities,
   listAgentCapabilityDirectory,
@@ -63,11 +63,15 @@ import {
   unpinAgentMcpProviderVersion,
   unpinAgentSkillVersion,
   publishAgentMcpProviderVersion,
+  saveAgentIntegrationApiKey,
+  saveAgentIntegrationLocalConnector,
+  startAgentGoogleCalendarOAuth,
   type AgentCapability,
   type AgentCapabilityDirectoryEntry,
   type AgentCapabilityToolset,
   type AgentConnectionDirectoryEntry,
   type AgentDefinition,
+  type AgentIntegration,
   type AgentExtensionPackage,
   type AgentModel,
   type AgentModelCatalog,
@@ -604,40 +608,83 @@ function PluginsPanel({ directory, packages, installationId, draft, onDraftChang
     }
   };
   const filtered = directory.filter((entry) => `${entry.name} ${entry.slug} ${entry.description} ${entry.kind} ${entry.providedTools.join(" ")}`.toLowerCase().includes(query.trim().toLowerCase()));
-  return <div className="space-y-4"><div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><span className="text-xs text-muted-foreground">{directory.length} plugins</span><DirectorySearch value={query} onChange={setQuery} placeholder="Search plugins" /></div>{filtered.length ? <div className="grid gap-2 sm:grid-cols-2">{filtered.map((entry) => { const enabled = isPluginSelected(draft, entry); const unavailable = entry.adapterStatus !== "supported"; const meta = entry.providedTools.length ? `${entry.providedTools.length} tools` : entry.kind; return <div key={entry.id} className={cn("flex items-center gap-3 rounded-xl border border-border p-3", unavailable ? "opacity-70" : "transition-colors hover:border-primary/40")}><DirectoryIcon label={entry.name} icon={<Puzzle className="size-5" />} /><div className="min-w-0 flex-1"><p className="truncate text-xs font-medium text-foreground">{entry.name}</p><p className="mt-1 line-clamp-2 text-[11px] leading-4 text-muted-foreground">{entry.description}</p><p className="mt-1 text-[10px] text-muted-foreground">{meta} · v{entry.version}</p></div><Button type="button" variant={enabled ? "default" : "outline"} size="icon" className="size-8 shrink-0" aria-label={unavailable ? `${entry.name} unavailable` : enabled ? `Disable ${entry.name}` : `Add ${entry.name}`} onClick={() => void toggle(entry)} disabled={busyId === entry.id || unavailable || !installationId}>{busyId === entry.id ? <Clock3 className="size-3.5 animate-pulse" /> : unavailable ? <LockKeyhole className="size-3.5" /> : enabled ? <Check className="size-4" /> : <Plus className="size-4" />}</Button></div>; })}</div> : <p className="rounded-xl border border-dashed border-border px-3 py-5 text-center text-xs text-muted-foreground">No plugins match.</p>}</div>;
+  return <div className="space-y-4"><div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><span className="text-xs text-muted-foreground">{directory.length} plugins</span><DirectorySearch value={query} onChange={setQuery} placeholder="Search plugins" /></div>{filtered.length ? <div className="grid gap-2 sm:grid-cols-2">{filtered.map((entry) => { const enabled = isPluginSelected(draft, entry); const unavailable = entry.adapterStatus !== "supported"; const meta = entry.providedTools.length ? `${entry.providedTools.length} tools` : entry.kind; const logo = entry.slug.split("/").filter(Boolean).at(-1); return <div key={entry.id} className={cn("flex items-center gap-3 rounded-xl border border-border p-3", unavailable ? "opacity-70" : "transition-colors hover:border-primary/40")}><DirectoryIcon label={entry.name} logo={logo} icon={<Puzzle className="size-5" />} /><div className="min-w-0 flex-1"><p className="truncate text-xs font-medium text-foreground">{entry.name}</p><p className="mt-1 line-clamp-2 text-[11px] leading-4 text-muted-foreground">{entry.description}</p><p className="mt-1 text-[10px] text-muted-foreground">{meta} · v{entry.version}</p></div><Button type="button" variant={enabled ? "default" : "outline"} size="icon" className="size-8 shrink-0" aria-label={unavailable ? `${entry.name} unavailable` : enabled ? `Disable ${entry.name}` : `Add ${entry.name}`} onClick={() => void toggle(entry)} disabled={busyId === entry.id || unavailable || !installationId}>{busyId === entry.id ? <Clock3 className="size-3.5 animate-pulse" /> : unavailable ? <LockKeyhole className="size-3.5" /> : enabled ? <Check className="size-4" /> : <Plus className="size-4" />}</Button></div>; })}</div> : <p className="rounded-xl border border-dashed border-border px-3 py-5 text-center text-xs text-muted-foreground">No plugins match.</p>}</div>;
 }
 
-function ConnectionDirectoryPanel({ installationId, versionId, directory, onRefresh }: { installationId: string; versionId: string | null; directory: AgentConnectionDirectoryEntry[]; onRefresh: () => void }) {
+function ConnectionCataloguePanel({ installationId, versionId, directory, onRefresh }: { installationId: string; versionId: string | null; directory: AgentConnectionDirectoryEntry[]; onRefresh: () => void }) {
+  const [integrations, setIntegrations] = useState<AgentIntegration[]>([]);
   const [query, setQuery] = useState("");
+  const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [apiKeyId, setApiKeyId] = useState<string | null>(null);
   const [apiKey, setApiKey] = useState("");
+  const [localConnectorId, setLocalConnectorId] = useState<string | null>(null);
+  const [endpoint, setEndpoint] = useState("");
+  const [secret, setSecret] = useState("");
   const [oauthConfigId, setOauthConfigId] = useState<string | null>(null);
   const [oauthClientId, setOauthClientId] = useState("");
   const [oauthClientSecret, setOauthClientSecret] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const mcpEntries = directory.filter((entry) => entry.kind === "mcp");
-  const filtered = mcpEntries.filter((entry) => `${entry.name} ${entry.description} ${entry.category} ${(entry.keywords ?? []).join(" ")}`.toLowerCase().includes(query.trim().toLowerCase()));
-  const connect = async (entry: AgentConnectionDirectoryEntry) => {
+
+  const refresh = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const result = await listAgentInstallationIntegrations(installationId);
+      setIntegrations(result.integrations);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Unable to load connections");
+    } finally {
+      setLoading(false);
+    }
+  }, [installationId]);
+
+  useEffect(() => { void refresh(); }, [refresh]);
+
+  const liveById = new Map(integrations.map((integration) => [integration.id, integration]));
+  const normalizedQuery = query.trim().toLowerCase();
+  const filtered = directory
+    .filter((entry) => entry.kind === "native" || entry.kind === "mcp")
+    .filter((entry) => !normalizedQuery || `${entry.name} ${entry.description} ${entry.category} ${(entry.keywords ?? []).join(" ")}`.toLowerCase().includes(normalizedQuery));
+
+  const isConnected = (entry: AgentConnectionDirectoryEntry, integration?: AgentIntegration) => entry.kind === "native"
+    ? integration?.status === "connected" && integration.available || entry.status === "ready"
+    : entry.status === "connected" || entry.status === "ready";
+
+  const connect = async (entry: AgentConnectionDirectoryEntry, integration?: AgentIntegration) => {
     setBusyId(entry.id);
     setError(null);
     try {
-      if (entry.auth === "oauth") {
-        const result = await startAgentMcpCatalogOAuth(installationId, entry.id, {
-          agentVersionId: versionId ?? undefined,
-          ...(oauthConfigId === entry.id && oauthClientId.trim()
-            ? { clientId: oauthClientId.trim(), ...(oauthClientSecret.trim() ? { clientSecret: oauthClientSecret.trim() } : {}) }
-            : {}),
-        });
+      if (entry.kind === "mcp") {
+        if (entry.auth === "oauth") {
+          const result = await startAgentMcpCatalogOAuth(installationId, entry.id, {
+            agentVersionId: versionId ?? undefined,
+            ...(oauthConfigId === entry.id && oauthClientId.trim()
+              ? { clientId: oauthClientId.trim(), ...(oauthClientSecret.trim() ? { clientSecret: oauthClientSecret.trim() } : {}) }
+              : {}),
+          });
+          window.location.assign(result.authorizationUrl);
+          return;
+        }
+        await connectAgentMcpCatalog(installationId, entry.id, { apiKey: apiKey.trim() || undefined, agentVersionId: versionId ?? undefined });
+      } else if (entry.id === "google.calendar") {
+        const result = await startAgentGoogleCalendarOAuth(installationId);
         window.location.assign(result.authorizationUrl);
         return;
+      } else if (integration?.auth === "api_key") {
+        await saveAgentIntegrationApiKey(installationId, entry.id, { apiKey: apiKey.trim() });
+      } else if (integration?.auth === "local_connector") {
+        await saveAgentIntegrationLocalConnector(installationId, entry.id, { endpoint: endpoint.trim(), secret: secret.trim() });
       }
-      await connectAgentMcpCatalog(installationId, entry.id, { apiKey: apiKey.trim() || undefined, agentVersionId: versionId ?? undefined });
       setApiKey("");
       setApiKeyId(null);
+      setEndpoint("");
+      setSecret("");
+      setLocalConnectorId(null);
+      await refresh();
       onRefresh();
     } catch (cause) {
-      if (entry.auth === "oauth" && oauthConfigId !== entry.id) {
+      if (entry.kind === "mcp" && entry.auth === "oauth" && oauthConfigId !== entry.id) {
         setOauthConfigId(entry.id);
         setError("OAuth client registration unavailable");
       } else {
@@ -647,13 +694,43 @@ function ConnectionDirectoryPanel({ installationId, versionId, directory, onRefr
       setBusyId(null);
     }
   };
-  return <div className="space-y-4"><div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><span className="text-xs text-muted-foreground">{mcpEntries.length} MCP servers</span><DirectorySearch value={query} onChange={setQuery} placeholder="Search connections" /></div>{error ? <p className="rounded-lg bg-destructive/5 px-3 py-2 text-xs text-destructive">{error}</p> : null}{filtered.length ? <div className="grid gap-2 sm:grid-cols-2">{filtered.map((entry) => { const unsupported = entry.status === "unsupported" || entry.transport === "stdio" || !entry.managed; const needsKey = entry.auth === "api_key"; const connected = entry.status === "connected" || entry.status === "ready"; return <div key={entry.id} className={cn("rounded-xl border border-border p-3", unsupported ? "opacity-65" : "transition-colors hover:border-primary/40")}><div className="flex items-center gap-3"><DirectoryIcon label={entry.name} logo={entry.logo} icon={<PlugZap className="size-5" />} /><div className="min-w-0 flex-1"><p className="truncate text-xs font-medium text-foreground">{entry.name}</p><p className="mt-1 line-clamp-2 text-[11px] leading-4 text-muted-foreground">{entry.description}</p><p className="mt-1 text-[10px] text-muted-foreground">{entry.auth === "oauth" ? "OAuth" : entry.auth === "api_key" ? "API key" : "No key"}</p></div><span className={cn("size-1.5 shrink-0 rounded-full", connected ? "bg-emerald-500" : unsupported ? "bg-muted-foreground/40" : "bg-amber-500")} /></div>{oauthConfigId === entry.id ? <div className="mt-3 space-y-2"><input value={oauthClientId} onChange={(event) => setOauthClientId(event.target.value)} placeholder="OAuth client ID" className="h-8 w-full rounded-md border border-border bg-background px-2 text-xs text-foreground outline-none focus:border-primary" autoComplete="off" /><input type="password" value={oauthClientSecret} onChange={(event) => setOauthClientSecret(event.target.value)} placeholder="OAuth client secret (optional)" className="h-8 w-full rounded-md border border-border bg-background px-2 text-xs text-foreground outline-none focus:border-primary" autoComplete="off" /><div className="flex justify-end gap-2"><Button type="button" variant="ghost" size="sm" className="h-8" onClick={() => { setOauthConfigId(null); setOauthClientId(""); setOauthClientSecret(""); }}>Cancel</Button><Button type="button" size="sm" className="h-8" disabled={!oauthClientId.trim() || busyId === entry.id} onClick={() => void connect(entry)}>{busyId === entry.id ? "…" : "Continue"}</Button></div></div> : needsKey && apiKeyId === entry.id ? <div className="mt-3 flex gap-2"><input type="password" value={apiKey} onChange={(event) => setApiKey(event.target.value)} placeholder="API key" className="h-8 min-w-0 flex-1 rounded-md border border-border bg-background px-2 text-xs text-foreground outline-none focus:border-primary" /><Button type="button" size="sm" className="h-8" disabled={!apiKey.trim() || busyId === entry.id} onClick={() => void connect(entry)}>{busyId === entry.id ? "…" : "Connect"}</Button></div> : <div className="mt-3 flex justify-end"><Button type="button" variant={connected ? "outline" : "default"} size="sm" className="h-8" disabled={unsupported || busyId === entry.id} onClick={() => needsKey ? setApiKeyId(entry.id) : void connect(entry)}>{busyId === entry.id ? "…" : connected ? "Connected" : "Connect"}</Button></div>}</div>; })}</div> : <p className="rounded-xl border border-dashed border-border px-3 py-5 text-center text-xs text-muted-foreground">No connections match.</p>}</div>;
+
+  const authLabel = (entry: AgentConnectionDirectoryEntry, integration?: AgentIntegration) => {
+    if (entry.kind === "mcp") return entry.auth === "oauth" ? "OAuth" : entry.auth === "api_key" ? "API key" : "No key";
+    if (integration?.auth === "oauth2") return "OAuth";
+    if (integration?.auth === "api_key") return "API key";
+    if (integration?.auth === "local_connector") return "Connector";
+    return integration?.auth === "internal" ? "Included" : "Server";
+  };
+
+  return <div className="space-y-4">
+    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><span className="text-xs text-muted-foreground">{directory.filter((entry) => entry.kind === "native" || entry.kind === "mcp").length} connections</span><DirectorySearch value={query} onChange={setQuery} placeholder="Search connections" /></div>
+    {error ? <div className="flex items-center justify-between gap-3 rounded-lg bg-destructive/5 px-3 py-2 text-xs text-destructive"><span>{error}</span><Button type="button" variant="outline" size="sm" className="h-7" onClick={() => void refresh()}>Retry</Button></div> : null}
+    {loading ? <div className="grid gap-2 sm:grid-cols-2"><div className="h-24 animate-pulse rounded-xl border border-border bg-muted/20" /><div className="h-24 animate-pulse rounded-xl border border-border bg-muted/20" /></div> : null}
+    {!loading && filtered.length ? <div className="grid gap-2 sm:grid-cols-2">{filtered.map((entry) => {
+      const integration = entry.kind === "native" ? liveById.get(entry.id) : undefined;
+      const connected = isConnected(entry, integration);
+      const unsupported = entry.kind === "mcp" && (entry.status === "unsupported" || entry.transport === "stdio" || !entry.managed);
+      const needsApiKey = entry.auth === "api_key";
+      const needsLocalConnector = entry.kind === "native" && integration?.auth === "local_connector";
+      const manualOAuth = oauthConfigId === entry.id;
+      const editingApiKey = apiKeyId === entry.id;
+      const editingLocal = localConnectorId === entry.id;
+      return <div key={entry.id} className={cn("rounded-xl border border-border p-3 transition-colors", unsupported ? "opacity-60" : "hover:border-primary/40")}>
+        <div className="flex items-center gap-3"><DirectoryIcon label={entry.name} logo={entry.logo} icon={entry.kind === "mcp" ? <PlugZap className="size-5" /> : <Wrench className="size-5" />} /><div className="min-w-0 flex-1"><p className="truncate text-xs font-medium text-foreground">{entry.name}</p><p className="mt-1 line-clamp-2 text-[11px] leading-4 text-muted-foreground">{entry.description}</p><p className="mt-1 text-[10px] text-muted-foreground">{authLabel(entry, integration)}</p></div><span className={cn("size-1.5 shrink-0 rounded-full", connected ? "bg-emerald-500" : unsupported ? "bg-muted-foreground/40" : "bg-amber-500")} /></div>
+        {manualOAuth ? <div className="mt-3 space-y-2"><input value={oauthClientId} onChange={(event) => setOauthClientId(event.target.value)} placeholder="OAuth client ID" className="h-8 w-full rounded-md border border-border bg-background px-2 text-xs text-foreground outline-none focus:border-primary" autoComplete="off" /><input type="password" value={oauthClientSecret} onChange={(event) => setOauthClientSecret(event.target.value)} placeholder="OAuth client secret (optional)" className="h-8 w-full rounded-md border border-border bg-background px-2 text-xs text-foreground outline-none focus:border-primary" autoComplete="off" /><div className="flex justify-end gap-2"><Button type="button" variant="ghost" size="sm" className="h-8" onClick={() => { setOauthConfigId(null); setOauthClientId(""); setOauthClientSecret(""); }}>Cancel</Button><Button type="button" size="sm" className="h-8" disabled={!oauthClientId.trim() || busyId === entry.id} onClick={() => void connect(entry, integration)}>{busyId === entry.id ? "…" : "Continue"}</Button></div></div> : null}
+        {editingApiKey ? <div className="mt-3 flex gap-2"><input type="password" value={apiKey} onChange={(event) => setApiKey(event.target.value)} placeholder="API key" className="h-8 min-w-0 flex-1 rounded-md border border-border bg-background px-2 text-xs text-foreground outline-none focus:border-primary" autoComplete="off" /><Button type="button" size="sm" className="h-8" disabled={!apiKey.trim() || busyId === entry.id} onClick={() => void connect(entry, integration)}>{busyId === entry.id ? "…" : "Connect"}</Button></div> : null}
+        {editingLocal ? <div className="mt-3 space-y-2"><input value={endpoint} onChange={(event) => setEndpoint(event.target.value)} placeholder="Connector URL" className="h-8 w-full rounded-md border border-border bg-background px-2 text-xs text-foreground outline-none focus:border-primary" /><div className="flex gap-2"><input type="password" value={secret} onChange={(event) => setSecret(event.target.value)} placeholder="Connector secret" className="h-8 min-w-0 flex-1 rounded-md border border-border bg-background px-2 text-xs text-foreground outline-none focus:border-primary" autoComplete="off" /><Button type="button" size="sm" className="h-8" disabled={!endpoint.trim() || !secret.trim() || busyId === entry.id} onClick={() => void connect(entry, integration)}>{busyId === entry.id ? "…" : "Connect"}</Button></div></div> : null}
+        {!manualOAuth && !editingApiKey && !editingLocal ? <div className="mt-3 flex justify-end"><Button type="button" variant={connected ? "outline" : "default"} size="sm" className="h-8" disabled={unsupported || busyId === entry.id || integration?.auth === "observability" || integration?.auth === "internal"} onClick={() => { if (connected) return; if (entry.kind === "mcp" && entry.auth === "oauth") void connect(entry, integration); else if (needsApiKey) setApiKeyId(entry.id); else if (needsLocalConnector) { setLocalConnectorId(entry.id); setEndpoint(typeof integration?.configuration.endpoint === "string" ? integration.configuration.endpoint : ""); } else void connect(entry, integration); }}>{busyId === entry.id ? "…" : connected ? "Connected" : integration?.auth === "observability" ? "Server" : integration?.auth === "internal" ? "Included" : "Connect"}</Button></div> : null}
+      </div>;
+    })}</div> : null}
+    {!loading && !filtered.length ? <p className="rounded-xl border border-dashed border-border px-3 py-5 text-center text-xs text-muted-foreground">No connections match.</p> : null}
+  </div>;
 }
 
 function ConnectionCapabilitiesPanel({ installationId, connectionDirectory, mcpDirectory, providers, pinnedProviders, versions, versionId, draft, onDraftChange, onRefresh }: { installationId: string | null; connectionDirectory: AgentConnectionDirectoryEntry[]; mcpDirectory: AgentCapabilityDirectoryEntry[]; providers: AgentMcpProvider[]; pinnedProviders: AgentMcpProviderVersion[]; versions: Record<string, AgentMcpProviderVersion[]>; versionId: string | null; draft: StudioCapabilityDraft; onDraftChange: (value: StudioCapabilityDraft | ((current: StudioCapabilityDraft) => StudioCapabilityDraft)) => void; onRefresh: () => void }) {
   return <div className="space-y-6">
-    {installationId ? <section className="space-y-3"><h5 className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Services</h5><AgentToolIntegrations installationId={installationId} embedded /></section> : null}
-    {installationId ? <section className="space-y-3"><h5 className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">MCP servers</h5><ConnectionDirectoryPanel installationId={installationId} versionId={versionId} directory={connectionDirectory} onRefresh={onRefresh} /></section> : null}
+    {installationId ? <section className="space-y-3"><ConnectionCataloguePanel installationId={installationId} versionId={versionId} directory={connectionDirectory} onRefresh={onRefresh} /></section> : null}
     <section className="space-y-3"><h5 className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Custom MCP</h5><McpPanel directory={mcpDirectory} providers={providers} pinnedProviders={pinnedProviders} versions={versions} versionId={versionId} draft={draft} onDraftChange={onDraftChange} onRefresh={onRefresh} /></section>
   </div>;
 }
