@@ -304,7 +304,17 @@ export function StudioSystemCanvas({ nodes, selectedNodeId, onSelect, running, t
       <ObservatoryLinks nodes={nodes} positions={positions} />
       <Background variant={BackgroundVariant.Dots} gap={22} size={1} color="rgba(148,163,184,.18)" />
       <Controls showInteractive={false} position="bottom-left" />
-      <MiniMap nodeColor={nodeColor} nodeStrokeWidth={2} pannable zoomable position="bottom-right" />
+      <MiniMap
+        nodeColor={nodeColor}
+        nodeStrokeColor="#8ea0c2"
+        nodeStrokeWidth={2}
+        bgColor="#1b2538"
+        maskColor="rgba(9, 11, 17, 0.68)"
+        maskStrokeColor="#60708d"
+        pannable
+        zoomable
+        position="bottom-right"
+      />
       <Panel position="top-left" className="!m-4 flex items-center gap-3 rounded-lg border border-border/70 bg-card/90 px-3 py-2 text-[10px] text-muted-foreground shadow-lg backdrop-blur">
         <span className="inline-flex items-center gap-1.5 font-semibold text-foreground"><Workflow className="size-3.5 text-primary" />System topology</span>
         <span>{nodes.length} nodes</span>
