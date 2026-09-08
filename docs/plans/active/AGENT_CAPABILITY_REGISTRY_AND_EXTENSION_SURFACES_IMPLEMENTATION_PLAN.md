@@ -253,6 +253,8 @@ The resolver must support:
 - [x] Reuse the shared compact directory row/card pattern and model-picker/configuration shell.
 - [x] Forward the catalog and directory through the authenticated Core API façade consumed by
   Studio.
+- [x] Consolidate external service and MCP management under Capabilities → Connections, with
+  Gateways reserved for agent execution endpoints.
 - [ ] Add responsive desktop/tablet/mobile behavior and accessible loading, empty, error, and
   confirmation states.
 
@@ -326,7 +328,7 @@ The canonical descriptor catalog, toolset resolver, source adapters, registry pr
 projection, MCP registration metadata, organization-scoped directory route, first-class Studio
 capability tabs, separate Connections surface, automatic Playground provisioning path, and pinned
 MCP-to-extension-snapshot projection are implemented, including Core API façade forwarding for
-the catalog and directory. Focused registry, source-adapter,
+the catalog and directory, and the Studio Connections/Gateways split. Focused registry, source-adapter,
 integration, snapshot, and client lint checks pass. Remaining work is the broader provider
 directory, stdio/managed MCP transport, complete plugin and user-tool lifecycle persistence,
 full activation/grant snapshot wiring for every source, and responsive/browser end-to-end

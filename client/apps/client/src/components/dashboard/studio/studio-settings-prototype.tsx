@@ -47,7 +47,6 @@ import {
   listAgentCapabilityDirectory,
   listAgentExtensionPackages,
   listAgentInstallationCapabilities,
-  listAgentInstallationIntegrations,
   listAgentMcpProviders,
   listAgentMcpProviderVersions,
   listAgentSkillVersions,
@@ -62,7 +61,6 @@ import {
   type AgentCapabilityToolset,
   type AgentDefinition,
   type AgentExtensionPackage,
-  type AgentIntegration,
   type AgentModel,
   type AgentModelCatalog,
   type AgentMcpProvider,
@@ -74,7 +72,7 @@ import {
 } from "@/lib/agent-platform";
 import { cn } from "@/lib/utils";
 
-type SettingsSection = "overview" | "capabilities" | "memory" | "connections" | "safety" | "runtime";
+type SettingsSection = "overview" | "capabilities" | "memory" | "gateways" | "safety" | "runtime";
 type PrototypeVariant = "a" | "b" | "c";
 type ModelSelection = Pick<AgentModel, "provider" | "model">;
 
@@ -111,7 +109,7 @@ const sections: Array<{ id: SettingsSection; label: string; description: string 
   { id: "overview", label: "Overview", description: "Identity, instructions, and model" },
   { id: "capabilities", label: "Capabilities", description: "Tools, skills, and extensions" },
   { id: "memory", label: "Memory", description: "Scope and retrieval" },
-  { id: "connections", label: "Connections", description: "Services and resource bindings" },
+  { id: "gateways", label: "Gateways", description: "Agent execution endpoints" },
   { id: "safety", label: "Safety", description: "Approvals and permissions" },
   { id: "runtime", label: "Runtime", description: "Context, budgets, and limits" },
 ];
@@ -285,7 +283,7 @@ function SettingsNavigation({ section, setSection }: { section: SettingsSection;
 function SettingsIcon({ section }: { section: SettingsSection }) {
   if (section === "capabilities") return <Wrench className="size-3.5" />;
   if (section === "memory") return <MemoryStick className="size-3.5" />;
-  if (section === "connections") return <KeyRound className="size-3.5" />;
+  if (section === "gateways") return <KeyRound className="size-3.5" />;
   if (section === "safety") return <ShieldCheck className="size-3.5" />;
   if (section === "runtime") return <Activity className="size-3.5" />;
   return <Bot className="size-3.5" />;
@@ -332,7 +330,7 @@ function SettingsContent({
 }) {
   const title = sections.find((item) => item.id === section)?.label ?? "Settings";
   const description = sections.find((item) => item.id === section)?.description ?? "";
-  return <div className="mx-auto max-w-4xl px-5 py-6 pb-24 sm:px-8 sm:py-8"><div className="mb-7 flex items-start justify-between gap-4"><div><p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Agent settings</p><h3 className="mt-2 text-2xl font-semibold tracking-[-0.03em] text-foreground">{title}</h3><p className="mt-1 text-sm text-muted-foreground">{description}</p></div><span className="hidden items-center gap-1.5 rounded-full border border-border px-2.5 py-1 text-[10px] text-muted-foreground sm:inline-flex"><span className="size-1.5 rounded-full bg-amber-500" />Draft</span></div>{capabilitySaveError ? <div className="mb-4 rounded-xl border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">{capabilitySaveError}</div> : null}{section === "overview" ? <OverviewSection agent={agent} version={version} instructions={instructions} setInstructions={setInstructions} selectedModel={selectedModel} pickerModels={pickerModels} modelCatalog={modelCatalog} modelCatalogLoading={modelCatalogLoading} effectiveSelection={effectiveSelection} setModelSelection={setModelSelection} /> : null}{section === "capabilities" ? <CapabilitiesSection installationId={installationId} versionId={version?.id ?? null} draft={capabilityDraft} onDraftChange={setCapabilityDraft} /> : null}{section === "memory" ? <MemorySection /> : null}{section === "connections" ? <ConnectionsSection installationId={installationId} /> : null}{section === "safety" ? <SafetySection /> : null}{section === "runtime" ? <RuntimeSection selectedModel={selectedModel} /> : null}<div className="mt-8 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-5"><p className="text-[11px] text-muted-foreground">Changes apply to the next Playground version.</p><div className="flex items-center gap-2"><Button type="button" variant="outline" size="sm" onClick={() => setSection("overview")}><ArrowLeft className="mr-1.5 size-3.5" />Overview</Button><Button type="button" size="sm" onClick={onSave} disabled={saving}>{saving ? <Clock3 className="mr-1.5 size-3.5 animate-pulse" /> : <Save className="mr-1.5 size-3.5" />}{saving ? "Saving…" : "Save draft"}</Button></div></div></div>;
+  return <div className="mx-auto max-w-4xl px-5 py-6 pb-24 sm:px-8 sm:py-8"><div className="mb-7 flex items-start justify-between gap-4"><div><p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Agent settings</p><h3 className="mt-2 text-2xl font-semibold tracking-[-0.03em] text-foreground">{title}</h3><p className="mt-1 text-sm text-muted-foreground">{description}</p></div><span className="hidden items-center gap-1.5 rounded-full border border-border px-2.5 py-1 text-[10px] text-muted-foreground sm:inline-flex"><span className="size-1.5 rounded-full bg-amber-500" />Draft</span></div>{capabilitySaveError ? <div className="mb-4 rounded-xl border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">{capabilitySaveError}</div> : null}{section === "overview" ? <OverviewSection agent={agent} version={version} instructions={instructions} setInstructions={setInstructions} selectedModel={selectedModel} pickerModels={pickerModels} modelCatalog={modelCatalog} modelCatalogLoading={modelCatalogLoading} effectiveSelection={effectiveSelection} setModelSelection={setModelSelection} /> : null}{section === "capabilities" ? <CapabilitiesSection installationId={installationId} versionId={version?.id ?? null} draft={capabilityDraft} onDraftChange={setCapabilityDraft} /> : null}{section === "memory" ? <MemorySection /> : null}{section === "gateways" ? <GatewaysSection /> : null}{section === "safety" ? <SafetySection /> : null}{section === "runtime" ? <RuntimeSection selectedModel={selectedModel} /> : null}<div className="mt-8 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-5"><p className="text-[11px] text-muted-foreground">Changes apply to the next Playground version.</p><div className="flex items-center gap-2"><Button type="button" variant="outline" size="sm" onClick={() => setSection("overview")}><ArrowLeft className="mr-1.5 size-3.5" />Overview</Button><Button type="button" size="sm" onClick={onSave} disabled={saving}>{saving ? <Clock3 className="mr-1.5 size-3.5 animate-pulse" /> : <Save className="mr-1.5 size-3.5" />}{saving ? "Saving…" : "Save draft"}</Button></div></div></div>;
 }
 
 function OverviewSection({ agent, version, instructions, setInstructions, selectedModel, pickerModels, modelCatalog, modelCatalogLoading, effectiveSelection, setModelSelection }: { agent: AgentDefinition; version: AgentVersion | null; instructions: string; setInstructions: (value: string) => void; selectedModel?: AgentModel; pickerModels: AgentModel[]; modelCatalog: AgentModelCatalog | null; modelCatalogLoading: boolean; effectiveSelection: ModelSelection | null; setModelSelection: (value: ModelSelection | null) => void }) {
@@ -343,7 +341,7 @@ const capabilityTabs = [
   { id: "tools", label: "Tools" },
   { id: "skills", label: "Skills" },
   { id: "plugins", label: "Plugins" },
-  { id: "mcp", label: "MCP" },
+  { id: "connections", label: "Connections" },
   { id: "user_tools", label: "User tools" },
 ] as const;
 
@@ -355,7 +353,6 @@ type CapabilityData = {
   catalog: AgentCapability[];
   installation: AgentCapability[];
   readiness: AgentReadiness | null;
-  integrations: AgentIntegration[];
   skills: AgentSkill[];
   pinnedSkills: AgentSkillVersion[];
   mcpProviders: AgentMcpProvider[];
@@ -370,7 +367,6 @@ const emptyCapabilityData: CapabilityData = {
   catalog: [],
   installation: [],
   readiness: null,
-  integrations: [],
   skills: [],
   pinnedSkills: [],
   mcpProviders: [],
@@ -380,7 +376,7 @@ const emptyCapabilityData: CapabilityData = {
 };
 
 async function loadCapabilityData(installationId: string | null, versionId: string | null): Promise<CapabilityData> {
-  const [directoryResult, catalogResult, packagesResult, skillsResult, providersResult, installationResult, readinessResult, integrationsResult, pinnedSkillsResult, pinnedMcpResult] = await Promise.all([
+  const [directoryResult, catalogResult, packagesResult, skillsResult, providersResult, installationResult, readinessResult, pinnedSkillsResult, pinnedMcpResult] = await Promise.all([
     listAgentCapabilityDirectory(),
     listAgentCapabilities().catch(() => ({ capabilities: [] })),
     listAgentExtensionPackages().catch(() => ({ packages: [] })),
@@ -388,7 +384,6 @@ async function loadCapabilityData(installationId: string | null, versionId: stri
     listAgentMcpProviders().catch(() => ({ providers: [] })),
     installationId ? listAgentInstallationCapabilities(installationId).catch(() => ({ capabilities: [] })) : Promise.resolve({ capabilities: [] }),
     installationId ? getAgentInstallationReadiness(installationId).catch(() => null) : Promise.resolve(null),
-    installationId ? listAgentInstallationIntegrations(installationId).catch(() => ({ integrations: [] })) : Promise.resolve({ integrations: [] }),
     versionId ? listAgentVersionSkills(versionId).catch(() => ({ skills: [] })) : Promise.resolve({ skills: [] }),
     versionId ? listAgentVersionMcpProviders(versionId).catch(() => ({ providers: [] })) : Promise.resolve({ providers: [] }),
   ]);
@@ -403,7 +398,6 @@ async function loadCapabilityData(installationId: string | null, versionId: stri
     extensionPackages: packagesResult.packages,
     installation: installationResult.capabilities,
     readiness: readinessResult,
-    integrations: integrationsResult.integrations,
     skills: skillsResult.skills,
     pinnedSkills: pinnedSkillsResult.skills,
     mcpProviders: providersResult.providers,
@@ -451,13 +445,14 @@ function CapabilitiesSection({ installationId, versionId, draft, onDraftChange }
   const directorySkills = data.directory.filter((entry) => entry.kind === "skill");
   const directoryPlugins = data.directory.filter((entry) => entry.kind === "plugin");
   const directoryMcpServers = data.directory.filter((entry) => entry.kind === "mcp_server");
+  const directoryConnections = data.directory.filter((entry) => entry.kind === "connector" || entry.kind === "mcp_server");
   const directoryUserTools = data.directory.filter((entry) => entry.kind === "user_tool");
   const tabCount = (tab: CapabilityTab) => {
     if (loading) return "…";
     if (tab === "tools") return String(directoryTools.length);
     if (tab === "skills") return String(directorySkills.length);
     if (tab === "plugins") return String(directoryPlugins.length);
-    if (tab === "mcp") return String(directoryMcpServers.length);
+    if (tab === "connections") return String(directoryConnections.length);
     return String(directoryUserTools.length);
   };
   const activeTabLabel = capabilityTabs.find((tab) => tab.id === activeTab)?.label ?? "Tools";
@@ -471,7 +466,7 @@ function CapabilitiesSection({ installationId, versionId, draft, onDraftChange }
       </TabsList>
       <TabsContent value={activeTab} className="rounded-2xl border border-border bg-card p-4 shadow-sm sm:p-5">
         <div className="mb-4 flex items-center justify-between gap-3"><div><p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Capabilities</p><h4 className="mt-1 text-sm font-semibold text-foreground">{activeTabLabel}</h4></div>{loading ? <span className="text-[11px] text-muted-foreground">Loading…</span> : null}</div>
-        {activeTab === "tools" ? <ToolsPanel tools={directoryTools} toolsets={data.toolsets} draft={draft} onDraftChange={onDraftChange} /> : null}{activeTab === "skills" ? <SkillsPanel directory={directorySkills} skills={data.skills} pinnedSkills={data.pinnedSkills} draft={draft} onDraftChange={onDraftChange} /> : null}{activeTab === "plugins" ? <PluginsPanel directory={directoryPlugins} packages={plugins} draft={draft} onDraftChange={onDraftChange} /> : null}{activeTab === "mcp" ? <McpPanel directory={directoryMcpServers} providers={data.mcpProviders} pinnedProviders={data.pinnedMcpProviders} versions={data.mcpVersions} draft={draft} onDraftChange={onDraftChange} onRefresh={refresh} /> : null}{activeTab === "user_tools" ? <UserToolsPanel tools={directoryUserTools} draft={draft} onDraftChange={onDraftChange} /> : null}
+        {activeTab === "tools" ? <ToolsPanel tools={directoryTools} toolsets={data.toolsets} draft={draft} onDraftChange={onDraftChange} /> : null}{activeTab === "skills" ? <SkillsPanel directory={directorySkills} skills={data.skills} pinnedSkills={data.pinnedSkills} draft={draft} onDraftChange={onDraftChange} /> : null}{activeTab === "plugins" ? <PluginsPanel directory={directoryPlugins} packages={plugins} draft={draft} onDraftChange={onDraftChange} /> : null}{activeTab === "connections" ? <ConnectionCapabilitiesPanel installationId={installationId} directory={directoryConnections} mcpDirectory={directoryMcpServers} providers={data.mcpProviders} pinnedProviders={data.pinnedMcpProviders} versions={data.mcpVersions} draft={draft} onDraftChange={onDraftChange} onRefresh={refresh} /> : null}{activeTab === "user_tools" ? <UserToolsPanel tools={directoryUserTools} draft={draft} onDraftChange={onDraftChange} /> : null}
       </TabsContent>
     </Tabs>
     <details className="rounded-2xl border border-border bg-card p-4"><summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-sm font-medium text-foreground"><span className="flex items-center gap-2"><Eye className="size-4 text-muted-foreground" />Advanced source details</span><ChevronDown className="size-4 text-muted-foreground" /></summary><p className="mt-3 max-w-2xl text-xs leading-5 text-muted-foreground">Technical package versions, MCP endpoints, discovered tool schemas, checksums, and provider health stay available here when debugging.</p></details>
@@ -580,6 +575,13 @@ function PluginsPanel({ directory, packages, draft, onDraftChange }: { directory
   return <div className="space-y-4"><div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><p className="text-xs text-muted-foreground">{directory.length} published plugin package{directory.length === 1 ? "" : "s"} discovered from the registry.</p><DirectorySearch value={query} onChange={setQuery} placeholder="Search plugins" /></div>{filteredPackages.length ? <div className="grid gap-3 sm:grid-cols-2">{filteredPackages.map((pkg) => { const enabled = isPackageSelected(draft, pkg); const title = pkg.name || pkg.package_id; const directoryEntry = directory.find((entry) => entry.source.id === pkg.package_id && entry.version === pkg.version); return <div key={pkg.id} className="flex items-center gap-3 rounded-xl border border-border p-3 transition-colors hover:border-primary/40"><DirectoryIcon label={title} logo={directoryEntry?.logo} icon={<Puzzle className="size-5" />} /><div className="min-w-0 flex-1"><p className="truncate text-xs font-medium text-foreground">{title}</p><p className="mt-1 line-clamp-2 text-[11px] leading-4 text-muted-foreground">{packageDescription(pkg)}</p><p className="mt-1 text-[10px] text-muted-foreground">v{pkg.version}</p></div><Button type="button" variant={enabled ? "default" : "outline"} size="icon" className="size-8 shrink-0" aria-label={enabled ? `Disable ${title}` : `Enable ${title}`} onClick={() => togglePackage(pkg)}>{enabled ? <Check className="size-4" /> : <Plus className="size-4" />}</Button></div>; })}</div> : <p className="rounded-xl border border-dashed border-border px-3 py-5 text-center text-xs text-muted-foreground">{visiblePackages.length ? "No plugins match this search." : "No published plugins are available."}</p>}</div>;
 }
 
+function ConnectionCapabilitiesPanel({ installationId, directory, mcpDirectory, providers, pinnedProviders, versions, draft, onDraftChange, onRefresh }: { installationId: string | null; directory: AgentCapabilityDirectoryEntry[]; mcpDirectory: AgentCapabilityDirectoryEntry[]; providers: AgentMcpProvider[]; pinnedProviders: AgentMcpProviderVersion[]; versions: Record<string, AgentMcpProviderVersion[]>; draft: StudioCapabilityDraft; onDraftChange: (value: StudioCapabilityDraft | ((current: StudioCapabilityDraft) => StudioCapabilityDraft)) => void; onRefresh: () => void }) {
+  return <div className="space-y-6">
+    {installationId ? <section className="space-y-3"><h5 className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Services</h5><AgentToolIntegrations installationId={installationId} embedded directory={directory} /></section> : null}
+    <section className="space-y-3"><h5 className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">MCP servers</h5><McpPanel directory={mcpDirectory} providers={providers} pinnedProviders={pinnedProviders} versions={versions} draft={draft} onDraftChange={onDraftChange} onRefresh={onRefresh} /></section>
+  </div>;
+}
+
 function McpPanel({ directory, providers, pinnedProviders, versions, draft, onDraftChange, onRefresh }: { directory: AgentCapabilityDirectoryEntry[]; providers: AgentMcpProvider[]; pinnedProviders: AgentMcpProviderVersion[]; versions: Record<string, AgentMcpProviderVersion[]>; draft: StudioCapabilityDraft; onDraftChange: (value: StudioCapabilityDraft | ((current: StudioCapabilityDraft) => StudioCapabilityDraft)) => void; onRefresh: () => void }) {
   const [name, setName] = useState("");
   const [endpoint, setEndpoint] = useState("");
@@ -642,28 +644,8 @@ function MemorySection() {
   return <div className="space-y-4"><CapabilityRow icon={<MemoryStick className="size-4" />} title="Agent memory" detail="Control what this agent can retrieve and write" status="not_configured" statusText="Review policy" action="Configure" /><div className="grid gap-4 sm:grid-cols-2"><InfoTile label="Scope" value="Workspace" icon={<Database className="size-4" />} /><InfoTile label="Retrieval" value="Not configured" icon={<Eye className="size-4" />} /></div><SettingNote title="Memory stays scoped" detail="The agent only receives evidence allowed by its workspace, environment, and candidate policy." /></div>;
 }
 
-function ConnectionsSection({ installationId }: { installationId: string | null }) {
-  const [directory, setDirectory] = useState<AgentCapabilityDirectoryEntry[]>([]);
-  const [loading, setLoading] = useState(Boolean(installationId));
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!installationId) return;
-    let mounted = true;
-    void listAgentCapabilityDirectory()
-      .then((result) => {
-        if (mounted) setDirectory(result.directory.filter((entry) => entry.kind === "connector"));
-      })
-      .catch(() => {
-        if (mounted) setError("Connections could not be loaded");
-      })
-      .finally(() => {
-        if (mounted) setLoading(false);
-      });
-    return () => { mounted = false; };
-  }, [installationId]);
-
-  return <div className="space-y-5"><div className="grid gap-4 sm:grid-cols-2"><ConnectionCard title="Playground" detail="Isolated test bindings" status="Ready" statusKind="ready" /><ConnectionCard title="Live" detail="Production bindings" status="Not connected" statusKind="not_configured" /></div><div className="rounded-2xl border border-border bg-card p-4 sm:p-5"><div className="flex items-center justify-between gap-3"><h4 className="text-sm font-semibold text-foreground">Connectors</h4>{loading ? <Clock3 className="size-4 animate-pulse text-muted-foreground" /> : null}</div>{error ? <p className="mt-4 rounded-lg bg-destructive/5 px-3 py-2 text-xs text-destructive">{error}</p> : null}{installationId ? <div className="mt-4"><AgentToolIntegrations installationId={installationId} embedded directory={directory} /></div> : null}</div></div>;
+function GatewaysSection() {
+  return <div className="space-y-5"><div className="grid gap-4 sm:grid-cols-2"><ConnectionCard title="Playground" detail="Isolated test bindings" status="Ready" statusKind="ready" /><ConnectionCard title="Live" detail="Production bindings" status="Not connected" statusKind="not_configured" /></div></div>;
 }
 
 function SafetySection() {
