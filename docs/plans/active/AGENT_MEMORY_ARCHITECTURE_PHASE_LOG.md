@@ -1197,6 +1197,20 @@ Latest local verification refresh (2026-09-08):
   health services report ready. The local memory tables remain empty apart from one append-only
   deletion audit row.
 
+Canonical HTTP memory cutover (2026-09-08):
+
+- `/v1/memory` no longer constructs the legacy `MemoryRepository`. Its list response is a scoped
+  projection of the current canonical revision for each fact, review/revalidation append immutable
+  v2 transitions, and delete queues the canonical fact through the leased deletion workflow.
+- Revalidation preserves the compatibility route's expiry input as `valid_to` on the new revision;
+  review rejects unsupported legacy supersession input instead of silently discarding it.
+- The old repository remains isolated to migration-era tests and legacy cleanup transactions.
+  Conversation, platform-chat, knowledge, and deletion cleanup now import the explicit
+  `legacy-memory-cleanup` boundary, making the remaining schema dependency visible for the final
+  cutover removal.
+- Canonical HTTP adapter coverage passes 4/4 unit tests; the existing HTTP contract suite passes
+  99/99, and the Agents TypeScript build passes.
+
 Organization-partitioned worker scheduling (2026-09-08):
 
 - The global consolidation worker now discovers due organizations and fans claims out through

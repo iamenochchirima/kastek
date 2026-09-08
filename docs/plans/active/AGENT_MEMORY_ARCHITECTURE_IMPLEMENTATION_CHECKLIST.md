@@ -607,12 +607,16 @@ external release approval remain open.
 - [x] Keep controlled autonomous promotion disabled for inferred and imported memory until review
       and quality gates exist. `automatic` mode changes proposal timing only; consolidation and
       lifecycle tests prove it never silently activates an inferred or imported revision.
-- [ ] Freeze all legacy writers before production cutover.
+- [~] Freeze all legacy writers before production cutover. The default HTTP memory surface no
+      longer constructs `MemoryRepository`: list, review, revalidation, and deletion now use the
+      canonical revision/deletion services. The old repository remains only for migration-era
+      tests and compatibility cleanup until the cutover owner removes the legacy schema.
 - [~] Route all runtime, tool, retention, and deletion paths to the new domain. Runtime tools,
-      automatic retrieval, operator review/delete, retention workers, and canonical deletion use
-      v2; the operator retention writer now only requests a v2 maintenance scan. The public
-      `/v1/memory` compatibility surface, retention policy/legal-hold administration, and
-      migration/backfill inputs remain explicit cleanup/cutover surfaces.
+      automatic retrieval, operator review/delete, retention workers, canonical deletion, and the
+      public `/v1/memory` surface now use v2 services; the operator retention writer only requests
+      a v2 maintenance scan. The legacy repository is isolated to migration-era tests and
+      compatibility cleanup, while retention policy/legal-hold administration and migration/
+      backfill inputs remain explicit cleanup/cutover surfaces.
 - [~] Verify rollback can disable the new paths without destructive schema rollback. The runtime
       now has `MEMORY_V2_ENABLED=false`, which removes v2 checkpoint/source-capture/retrieval/tool
       wiring and prevents v2 consolidation, projection, deletion, provider-deletion, and
