@@ -522,6 +522,8 @@ deterministic fallback, and typed terminal outcomes.
   duplicate operation identity, cancellation, timeout, late completion, and recovery after restart.
   PostgreSQL replay/expiry/fencing passed locally; the opt-in Temporal matrix is implemented in
   `agents/test/temporal-context-compaction.integration.test.ts` but requires a local Temporal server.
+  Once the server is running, load `agents/.env`, then execute:
+  `RUN_TEMPORAL_INTEGRATION_TESTS=true TEMPORAL_TEST_ADDRESS=127.0.0.1:7233 RUN_AGENTS_DB_INTEGRATION_TESTS=true pnpm --dir agents exec vitest run test/temporal-context-compaction.integration.test.ts`.
 - [x] Run provider contract tests for usage-present, usage-absent, streaming first token, context
   overflow, output-cap rejection, generic overflow, and HTTP 413/media pressure. Evidence:
   `agents/test/model-adapters.test.ts` and `agents/test/context-overflow-recovery.test.ts` — 20
