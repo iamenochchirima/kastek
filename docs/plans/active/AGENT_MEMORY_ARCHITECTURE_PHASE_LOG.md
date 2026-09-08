@@ -1278,3 +1278,10 @@ Manual-test handoff verification (2026-09-08):
 - The focused run left the local canonical facts, revisions, source events, checkpoints,
   consolidation jobs, and legacy memory records tables empty; manual testing can start from a clean
   database state.
+
+Local observability smoke refresh (2026-09-08):
+
+- The Agents OpenTelemetry smoke completed successfully after the final build. It exercised HTTP,
+  database, provider, worker, metric, handled-error, and structured-log paths; the expected failure
+  was bounded and handled. This proves the local telemetry contract only; durable exporter routing,
+  dashboard installation, alert notification, and staging delivery remain operational gates.
