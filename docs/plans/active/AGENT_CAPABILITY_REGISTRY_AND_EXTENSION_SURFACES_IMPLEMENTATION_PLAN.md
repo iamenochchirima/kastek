@@ -4,7 +4,7 @@
 
 **Owner:** Agent Platform and Studio
 
-**Last updated:** 2026-09-08
+**Last updated:** 2026-09-09
 
 **Depends on:**
 
@@ -25,6 +25,28 @@
   and health contracts exist; do not present unsupported channels as configurable.
 - [completed] Keep Playground/Live environments out of the Gateway directory and keep service,
   MCP, skill, plugin, and user-tool configuration under Capabilities.
+
+## Current workstream: reviewed Hermes directories
+
+- [completed] Import the reviewed Hermes optional MCP manifests, optional skill metadata, and plugin
+  manifests as checked-in discovery records pinned to the reviewed Hermes revision. Catalogue
+  records remain inert until a user connects or enables them.
+- [completed] Add a single Connections directory projection that merges native adapters with
+  reviewed remote MCP providers, preserving connection status separately from catalogue state.
+- [completed] Add browser-started MCP OAuth using protected-resource metadata, authorization-server
+  discovery, PKCE, dynamic client registration where offered, encrypted token storage, and the
+  existing remote-provider discovery/version/pin lifecycle.
+- [completed] Add catalogue skill installation that materializes the reviewed Hermes skill into the
+  existing organization skill/version store before it can be pinned to an agent version.
+- [completed] Import the reviewed Hermes plugin/extension catalogue as first-class plugin entries,
+  with declarative manifest validation, declared provenance, lifecycle state, and a safe enable path.
+  Entries without a registered KasiTek runtime adapter remain visible but unavailable; foreign
+  Hermes code is never imported or executed by the worker.
+- [completed] Replace the Studio Connections, Skills, and Plugins panels' provider-only lists with
+  searchable catalogue cards and direct Connect/Add actions, while keeping configured items visible
+  as state rather than treating them as the catalogue.
+- [in_progress] Verify the directory and OAuth/skill activation paths with focused API, repository,
+  client build, and browser-flow checks; record release evidence below.
 
 ## Objective
 
@@ -286,15 +308,15 @@ The resolver must support:
 
 ### 10. Verification and release evidence
 
-- [ ] Registry unit and conformance tests.
-- [ ] Provider/credential/readiness integration tests.
-- [ ] Skill, plugin, MCP, and user-tool lifecycle tests.
+- [x] Registry unit and conformance tests for the reviewed directories and mounted route guards.
+- [ ] Provider/credential/readiness integration tests for live external providers.
+- [x] Focused reviewed-directory coverage; full plugin and user-tool lifecycle tests remain.
 - [ ] Authorization, approval, scope, redaction, output-limit, and snapshot tests.
 - [ ] Context-budget tests proving catalog size does not become prompt size.
 - [ ] Journal and Observatory projection tests for successful, blocked, failed, and revoked paths.
 - [ ] Studio component, accessibility, responsive, and browser-flow tests.
-- [ ] Agent Platform and client production builds plus targeted lint/type checks.
-- [ ] Release record: standard/high risk classification, affected services, migration/compatibility
+- [x] Agent Platform and client production builds plus targeted lint/type checks.
+- [x] Release record: high-risk classification, affected services, additive migration/compatibility
   decision, analytics/logging/metrics, documentation, rollout flag, validation, and rollback.
 
 ## Explicit non-goals
@@ -317,29 +339,32 @@ Owner: Agent Platform and Studio
 Risk: high
 Affected services and user surfaces: Agent API, Temporal worker, PostgreSQL extension/grant data,
   credential/integration adapters, Studio, Playground, Live deployment, Observatory, MCP/API discovery
-Platform release version or release ID: to be assigned at release
-API/schema/migration changes: expected; additive migrations and compatibility projections required
-Feature flag or rollout method: staged behind capability-directory and extension-runtime flags
-Analytics events and success metrics: catalog browse, activation, readiness, discovery failure,
-  tool invocation success/failure, and publish/rollback outcomes; registry owner to define schemas
-Logs, metrics, dashboards, and alerts: structured lifecycle logs, provider/MCP/plugin readiness and
-  failure metrics, discovery latency, activation errors, and snapshot mismatch alerts
-User, API, internal, and operational documentation: required
-Validation evidence: registry, security, lifecycle, context-budget, journal, Studio, build, and
-  end-to-end evidence required before completion
-Rollback or disable plan: disable new directory/runtime adapters, preserve existing grants and
-  compatibility projections, and pin new runs to the last known-good snapshot
+Platform release version or release ID: to be assigned at release; no release tag created in this change
+API/schema/migration changes: migration 159 is additive; existing native OAuth, MCP, skill, and
+  extension projections remain compatible
+Feature flag or rollout method: route access is authenticated and reviewed entries are inert until
+  activation; unsupported plugin manifests are blocked by adapter status
+Analytics events and success metrics: not added in this slice; existing request/audit telemetry
+  remains the source for activation outcomes and is a follow-up before production rollout
+Logs, metrics, dashboards, and alerts: structured failure logs were added for catalogue MCP, OAuth,
+  skill, and plugin activation; new dashboards/alerts are not applicable to this preview slice
+User, API, internal, and operational documentation: updated MCP, connection, and remote-provider docs
+Validation evidence: Agents build; client production build; targeted client lint; reviewed-directory
+  tests; REST/MCP route-conformance tests
+Rollback or disable plan: disable the new directory routes or revert the additive migration/code;
+  existing native integrations, grants, and pinned snapshots remain intact
 Post-release review date: to be assigned
 ```
 
 ## Current status
 
-The canonical descriptor catalog, toolset resolver, source adapters, registry projection, connector
-projection, MCP registration metadata, organization-scoped directory route, first-class Studio
-capability tabs, separate Connections surface, automatic Playground provisioning path, and pinned
-MCP-to-extension-snapshot projection are implemented, including Core API façade forwarding for
-the catalog and directory, and the Studio Connections/Gateways split. Focused registry, source-adapter,
-integration, snapshot, and client lint checks pass. Remaining work is the broader provider
-directory, stdio/managed MCP transport, complete plugin and user-tool lifecycle persistence,
-full activation/grant snapshot wiring for every source, and responsive/browser end-to-end
-verification. The existing execution and context ownership boundaries remain unchanged.
+The reviewed Hermes MCP (65), skill (137), and plugin (104) catalogues now flow through authenticated
+directory routes and searchable Studio panels. Native connections retain their existing provider
+flows; reviewed HTTP MCP entries support API-key or browser OAuth activation, skill entries install
+and pin into the organization skill store, and plugin entries use the existing declarative extension
+package lifecycle. The plugin catalogue deliberately marks entries without a registered KasiTek
+adapter unavailable; foreign Hermes code is not executed. Agents/client builds, targeted lint, route
+conformance, and catalogue tests pass. Remaining work is broader real-provider coverage, managed
+stdio MCP transport, native adapters for more plugin entries, complete user-tool lifecycle wiring,
+and responsive/browser end-to-end verification. Existing execution and context ownership boundaries
+remain unchanged.

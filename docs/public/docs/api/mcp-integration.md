@@ -59,6 +59,20 @@ For clients that support it, `/.well-known/oauth-protected-resource` and
 The local stdio bridge should forward the same JSON-RPC messages to the hosted endpoint rather than
 implementing a second capability registry.
 
+## Agent Studio MCP directory
+
+Hosted agent configuration exposes a reviewed MCP directory under **Capabilities → Connections**.
+The directory is metadata only until the user selects an entry. HTTP servers can be connected from
+the directory; entries that require OAuth use protected-resource metadata, authorization-server
+discovery, PKCE, and the provider's dynamic client registration when available. API-key servers
+store the key in the encrypted credential vault. After connection, KasiTek discovers and publishes
+an immutable provider revision before it can be pinned to an agent version.
+
+The directory also accepts a custom HTTPS MCP endpoint for providers that are not in the reviewed
+catalogue. Stdio manifests are shown for discovery but are unavailable until a managed stdio
+execution adapter is registered. Browsing or connecting a server does not grant every discovered
+tool; the agent version still selects the pinned revision and its grants.
+
 The standalone `@kasitek/mcp` package follows the same boundary for MCP clients that require a
 local command-launched server. It accepts `KASITEK_MCP_URL` and `KASITEK_API_KEY`, forwards bounded
 JSON-RPC traffic, and does not contain KasiTek tools, policy, product data, or REST client logic.

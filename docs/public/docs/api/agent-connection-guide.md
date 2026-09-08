@@ -170,3 +170,16 @@ The client does not choose provider OAuth routes for an existing connection. Wha
 the Connections setup surface because Embedded Signup uses a fixed provider configuration rather
 than arbitrary scope checkboxes. A callback updates the existing logical connection and preserves
 its local content and agent assignments.
+
+## Agent capability directories
+
+Hosted agent settings provide separate directory tabs for built-in tools, Connections, Skills,
+Plugins, MCP, and user-created tools. Connections contains native service bindings and reviewed
+remote MCP servers in one searchable surface; Gateways remains reserved for agent communication
+endpoints such as Website Chat and messaging channels.
+
+Skills are installed into the organization skill/version store and can then be enabled on the next
+agent version. Plugins use reviewed declarative manifests and the extension-package lifecycle. A
+plugin is selectable only when KasiTek has a registered runtime adapter for it; Hermes plugin code
+is not imported into the worker. Unavailable manifests remain visible as catalogue metadata so an
+operator can distinguish a missing adapter from a missing credential.

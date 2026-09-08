@@ -24,6 +24,18 @@ version. The provider must also have a healthy reachability projection.
    revision.
 6. Re-run the health check after provider incidents or before enabling a new installation.
 
+## Reviewed catalogue and OAuth
+
+The Studio reviewed directory is imported from a pinned Hermes revision as metadata. A catalogue
+entry is not an active provider until a user connects it. HTTP OAuth entries use the browser
+callback flow with protected-resource metadata, authorization-server discovery, PKCE, dynamic
+client registration, one-use state, and encrypted token storage. The callback then runs the same
+discover, publish, health, and version-pin lifecycle described above.
+
+API-key entries write only an encrypted credential reference to the provider record. Stdio entries
+remain unavailable until a managed execution adapter exists; do not enable them by copying a
+Hermes command into the worker.
+
 ## Failure behavior
 
 An unsuccessful discovery or health check records only a bounded error code, latency, timestamp,
