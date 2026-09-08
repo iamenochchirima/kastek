@@ -16,7 +16,6 @@ import {
   Panel,
   Position,
   ReactFlow,
-  ViewportPortal,
   type Edge,
   type Node,
   type NodeChange,
@@ -76,12 +75,6 @@ type CanvasNode = Node<CanvasNodeData>;
 
 const NODE_WIDTH = 210;
 const NODE_HEIGHT = 104;
-
-const groupFrames = [
-  { id: "runtime", x: -30, y: 120, width: 1400, height: 500, label: "RUNTIME · durable execution", subtitle: "input, session, context, and model" },
-  { id: "capabilities", x: 1380, y: 30, width: 570, height: 590, label: "CAPABILITIES · configured actions", subtitle: "tools, skills, MCP, approvals, handoff" },
-  { id: "delivery", x: 1940, y: 120, width: 560, height: 500, label: "OUTCOME · persistence and delivery", subtitle: "response, memory, and channels" },
-];
 
 const nodePositions: Record<string, { x: number; y: number }> = {
   input: { x: 30, y: 285 },
@@ -166,6 +159,7 @@ function ObservatoryNode({ data, selected }: NodeProps<CanvasNode>) {
   return <div className={cn("relative h-full w-full rounded-xl border bg-card/95 px-3.5 py-3 shadow-[0_10px_30px_-20px_rgba(0,0,0,.8)] transition-all", status.border, selected && "ring-2 ring-primary/35", data.status === "running" && "shadow-[0_0_26px_-8px_color-mix(in_srgb,var(--primary)_80%,transparent)]")}>
     <Handle id="left-target" type="target" position={Position.Left} className="!h-2 !w-2 !border-0 !bg-muted-foreground/70" />
     <Handle id="left-source" type="source" position={Position.Left} className="!h-2 !w-2 !border-0 !bg-muted-foreground/70" />
+    <Handle id="right-target" type="target" position={Position.Right} className="!h-2 !w-2 !border-0 !bg-muted-foreground/70" />
     <Handle id="right-source" type="source" position={Position.Right} className="!h-2 !w-2 !border-0 !bg-muted-foreground/70" />
     <Handle id="top-target" type="target" position={Position.Top} className="!h-2 !w-2 !border-0 !bg-muted-foreground/70" />
     <Handle id="top-source" type="source" position={Position.Top} className="!h-2 !w-2 !border-0 !bg-muted-foreground/70" />
@@ -203,10 +197,6 @@ function createCanvasEdges(nodes: StudioGraphNode[]): Edge[] {
       targetHandle: definition.targetHandle,
     } satisfies Edge;
   });
-}
-
-function ObservatoryGroupFrames() {
-  return <ViewportPortal>{groupFrames.map((frame) => <div key={frame.id} className="pointer-events-none absolute rounded-2xl border border-border/55 bg-background/20" style={{ left: frame.x, top: frame.y, width: frame.width, height: frame.height, zIndex: 0 }}><div className="border-b border-border/45 px-4 py-3"><p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">{frame.label}</p><p className="mt-1 text-[10px] text-muted-foreground/70">{frame.subtitle}</p></div></div>)}</ViewportPortal>;
 }
 
 const observatoryNodeTypes = { observatory: ObservatoryNode };
@@ -275,8 +265,7 @@ export function StudioSystemCanvas({ nodes, selectedNodeId, onSelect, running, t
     return "var(--muted-foreground)";
   };
   return <div className="relative h-full min-h-[560px] w-full overflow-hidden bg-[#0b0d15] [&_.react-flow__attribution]:bg-transparent [&_.react-flow__attribution]:text-muted-foreground/50 [&_.react-flow__controls]:overflow-hidden [&_.react-flow__controls]:rounded-lg [&_.react-flow__controls]:border-border/70 [&_.react-flow__controls_button]:border-border/70 [&_.react-flow__controls_button]:bg-card/90 [&_.react-flow__controls_button]:fill-muted-foreground [&_.react-flow__minimap]:overflow-hidden [&_.react-flow__minimap]:rounded-lg [&_.react-flow__minimap]:border [&_.react-flow__minimap]:border-border/70 [&_.react-flow__minimap]:bg-card/90">
-    <ReactFlow nodes={canvasNodes} edges={canvasEdges} nodeTypes={observatoryNodeTypes} onNodesChange={handleNodesChange} onNodeClick={(_, node) => { if (node.type !== "group") onSelect(node.id); }} fitView fitViewOptions={{ padding: 0.16, minZoom: 0.48, maxZoom: 1.1 }} minZoom={0.32} maxZoom={1.6} nodesDraggable nodesConnectable={false} elementsSelectable panOnScroll zoomOnScroll zoomOnPinch selectionOnDrag={false} proOptions={{ hideAttribution: true }}>
-      <ObservatoryGroupFrames />
+    <ReactFlow nodes={canvasNodes} edges={canvasEdges} nodeTypes={observatoryNodeTypes} onNodesChange={handleNodesChange} onNodeClick={(_, node) => onSelect(node.id)} fitView fitViewOptions={{ padding: 0.16, minZoom: 0.48, maxZoom: 1.1 }} minZoom={0.32} maxZoom={1.6} nodesDraggable nodesConnectable={false} elementsSelectable panOnScroll zoomOnScroll zoomOnPinch selectionOnDrag={false} proOptions={{ hideAttribution: true }}>
       <Background variant={BackgroundVariant.Dots} gap={22} size={1} color="rgba(148,163,184,.18)" />
       <Controls showInteractive={false} position="bottom-left" />
       <MiniMap nodeColor={nodeColor} nodeStrokeWidth={2} pannable zoomable position="bottom-right" />
