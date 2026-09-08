@@ -203,6 +203,37 @@ async function purgeRevisionFacts(
   return factIds.length;
 }
 
+/**
+ * Remove captured source evidence that belongs to a broad deletion target.
+ * Source events are immutable for normal callers, but this function only runs
+ * inside the system-owned deletion transaction. Checkpoints must be removed
+ * first because they hold the foreign key that protects the evidence row;
+ * queued extraction with no derived fact is therefore forgotten as well.
+ */
+async function purgeSourceEventsBySelector(
+  client: PoolClient,
+  input: { organizationId: string; predicate: string; values?: readonly unknown[] },
+): Promise<void> {
+  const eventIds = await selectIds(
+    client,
+    `SELECT id::text AS id
+     FROM memory_source_events
+     WHERE organization_id = $1 AND (${input.predicate})`,
+    [input.organizationId, ...(input.values ?? [])],
+  );
+  if (!eventIds.length) return;
+  await client.query(
+    `DELETE FROM memory_checkpoints
+     WHERE organization_id = $1 AND source_event_id::text = ANY($2::text[])`,
+    [input.organizationId, eventIds],
+  );
+  await client.query(
+    `DELETE FROM memory_source_events
+     WHERE organization_id = $1 AND id::text = ANY($2::text[])`,
+    [input.organizationId, eventIds],
+  );
+}
+
 async function enqueueProviderDeletionJobs(
   client: PoolClient,
   input: { organizationId: string; deletionJobId: string; factIds: readonly string[] },
@@ -439,11 +470,17 @@ export async function purgeMemoryDeletionJob(pool: Pool, job: MemoryDeletionJobR
       // queued extraction). Remove them by the same ownership selector so a
       // later consolidation worker cannot resurrect forgotten content.
       if (job.target_type === "user") {
-        await client.query(`DELETE FROM memory_source_events
-          WHERE organization_id = $1 AND end_user_id = $2`, [job.organization_id, job.target_id]);
+        await purgeSourceEventsBySelector(client, {
+          organizationId: job.organization_id,
+          predicate: "end_user_id = $2",
+          values: [job.target_id],
+        });
       } else if (installationIds.length) {
-        await client.query(`DELETE FROM memory_source_events
-          WHERE organization_id = $1 AND installation_id::text = ANY($2::text[])`, [job.organization_id, [...installationIds]]);
+        await purgeSourceEventsBySelector(client, {
+          organizationId: job.organization_id,
+          predicate: "installation_id::text = ANY($2::text[])",
+          values: [[...installationIds]],
+        });
       }
 
       let knowledgeChunkCount = 0;
@@ -517,7 +554,10 @@ export async function purgeMemoryDeletionJob(pool: Pool, job: MemoryDeletionJobR
     // organization deletion is the system-owned purge boundary. Remove the
     // captured evidence here so queued extraction cannot resurrect deleted
     // memory after the canonical facts have been purged.
-    await client.query("DELETE FROM memory_source_events WHERE organization_id = $1", [job.organization_id]);
+    await purgeSourceEventsBySelector(client, {
+      organizationId: job.organization_id,
+      predicate: "TRUE",
+    });
     const chunks = await client.query(
       `DELETE FROM knowledge_chunks
        WHERE organization_id = $1

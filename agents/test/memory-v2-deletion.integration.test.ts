@@ -1,8 +1,11 @@
 import { randomUUID } from "node:crypto";
 import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { MemoryCheckpointRepository } from "../src/db/repositories/memory-checkpoint-repository";
+import { MemorySourceEventRepository } from "../src/db/repositories/memory-source-event-repository";
 import { MemoryDeletionWorker } from "../src/memory/deletion-worker";
 import { MemoryProviderDeletionWorker } from "../src/memory/provider-deletion-worker";
+import { createEvidenceItem, evidenceDigest } from "../src/memory/contracts";
 
 const databaseUrl = process.env.AGENTS_DATABASE_URL;
 const runIntegration = Boolean(databaseUrl && process.env.RUN_AGENTS_DB_INTEGRATION_TESTS === "true");
@@ -19,6 +22,8 @@ describe.skipIf(!runIntegration)("memory v2 deletion and provider confirmation (
   const deletionJobIds: string[] = [];
   const holdIds: string[] = [];
   const organizationSourceEventId = randomUUID();
+  const organizationRunId = randomUUID();
+  let organizationCheckpointId = "";
 
   async function createFact(input: { provider?: boolean; text: string }): Promise<{ factId: string; revisionId: string }> {
     const factId = randomUUID();
@@ -105,6 +110,12 @@ describe.skipIf(!runIntegration)("memory v2 deletion and provider confirmation (
       [installationId, agentId, versionId, organizationId, workspaceId, actorId],
     );
     await pool.query(
+      `INSERT INTO agent_runs (id, organization_id, agent_definition_id, agent_version_id, installation_id,
+         trigger_type, status, correlation_id, created_by)
+       VALUES ($1, $2, $3, $4, $5, 'manual', 'completed', $6, $7)`,
+      [organizationRunId, organizationId, agentId, versionId, installationId, randomUUID(), actorId],
+    );
+    await pool.query(
       `INSERT INTO memory_source_events (
          id, organization_id, workspace_id, agent_definition_id, agent_version_id,
          installation_id, source_boundary, evidence, evidence_digest, redaction,
@@ -113,6 +124,35 @@ describe.skipIf(!runIntegration)("memory v2 deletion and provider confirmation (
                  $7, 'content_redacted', now(), $8, 'test')`,
       [organizationSourceEventId, organizationId, workspaceId, agentId, versionId, installationId, "e".repeat(64), `organization-delete:${organizationSourceEventId}`],
     );
+    const sourceEvents = new MemorySourceEventRepository(pool);
+    const checkpoints = new MemoryCheckpointRepository(pool);
+    const item = createEvidenceItem({ id: "organization-delete-checkpoint-message", actor: "end_user", occurredAt: "2026-09-08T00:00:00.000Z", sourceType: "message", rawContent: "Organization deletion should remove this evidence", includeContent: false });
+    const evidence = {
+      contractVersion: "memory-v2" as const,
+      scope: { organizationId, workspaceId, agentDefinitionId: agentId, agentVersionId: versionId, installationId },
+      sourceEventIds: [item.id],
+      items: [item],
+      evidenceDigest: evidenceDigest([item]),
+      redaction: "content_redacted" as const,
+      capturedAt: item.occurredAt,
+    };
+    await sourceEvents.record({
+      scope: { organizationId, workspaceId, agentDefinitionId: agentId, agentVersionId: versionId, installationId, runId: organizationRunId, turnId: "organization-delete-checkpoint-turn" },
+      eventType: "organization.delete.test",
+      sourceBoundary: "organization-delete-checkpoint",
+      evidence,
+      idempotencyKey: "organization-delete-checkpoint",
+    });
+    const checkpoint = await checkpoints.commit({
+      scope: { organizationId, workspaceId, agentDefinitionId: agentId, agentVersionId: versionId, installationId },
+      runId: organizationRunId,
+      turnId: "organization-delete-checkpoint-turn",
+      compactionGeneration: 1,
+      sourceBoundary: "organization-delete-checkpoint",
+      evidence,
+      idempotencyKey: "organization-delete-checkpoint",
+    });
+    organizationCheckpointId = checkpoint.checkpointId;
   });
 
   it("purges local projections, then confirms remote deletion through a retry-safe adapter", async () => {
@@ -218,6 +258,7 @@ describe.skipIf(!runIntegration)("memory v2 deletion and provider confirmation (
     await expect(worker.runOnce(organizationId)).resolves.toBe(1);
     expect((await pool.query<{ status: string }>("SELECT status FROM memory_deletion_jobs WHERE id = $1", [deletionJobId])).rows[0]?.status).toBe("completed");
     expect((await pool.query("SELECT id FROM memory_source_events WHERE id = $1", [organizationSourceEventId])).rows).toHaveLength(0);
+    expect((await pool.query("SELECT id FROM memory_checkpoints WHERE id = $1", [organizationCheckpointId])).rows).toHaveLength(0);
   });
 
   afterAll(async () => {
@@ -225,6 +266,7 @@ describe.skipIf(!runIntegration)("memory v2 deletion and provider confirmation (
     await pool.query("DELETE FROM memory_deletion_jobs WHERE organization_id = $1", [organizationId]);
     await pool.query("DELETE FROM agent_legal_holds WHERE organization_id = $1", [organizationId]);
     await pool.query("DELETE FROM agent_memory_facts WHERE organization_id = $1", [organizationId]);
+    await pool.query("DELETE FROM agent_runs WHERE organization_id = $1", [organizationId]);
     await pool.query("DELETE FROM agent_installations WHERE organization_id = $1", [organizationId]);
     await pool.query("DELETE FROM agent_versions WHERE agent_definition_id = $1", [agentId]);
     await pool.query("DELETE FROM agent_definitions WHERE id = $1", [agentId]);
