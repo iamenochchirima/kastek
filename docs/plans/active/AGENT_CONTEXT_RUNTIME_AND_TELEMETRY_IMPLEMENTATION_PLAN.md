@@ -624,8 +624,10 @@ has conformance coverage and the real-run proof above.
   the Studio detail panel renders them independently; reducer coverage proves the values cannot be
   confused by matching token counts.
 - [ ] A long real autonomous Playground run compacts safely and reports its actual measurement basis.
-- [ ] Context overflow recovery is bounded, durable, fenced, and explainable; an unresolvable fit
-  produces a typed terminal outcome.
+- [x] Context overflow recovery is bounded, durable, fenced, and explainable; an unresolvable fit
+  produces a typed terminal outcome. Evidence: `context-overflow-recovery.test.ts`,
+  `context-planning-loop.test.ts`, `context-attempt-budget.test.ts`, and the fenced lifecycle
+  coverage in `context-compaction.test.ts`.
 - [ ] PostgreSQL/Temporal worker-loss and replay tests pass on the local stack.
 - [x] The plan's release record, migrations, documentation, observability, validation, and rollback
   decisions are completed or explicitly recorded as not applicable for the local-only certification
