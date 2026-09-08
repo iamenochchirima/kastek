@@ -279,8 +279,8 @@ export function recordMemoryConsolidation(outcome: string, candidateCount = 0): 
 }
 
 export function recordMemoryDeletion(input: {
-  outcome: "completed" | "scope_rejected" | "failed";
-  target: "memory" | "knowledge_source" | "conversation" | "organization";
+  outcome: "completed" | "scope_rejected" | "held" | "failed";
+  target: "memory" | "knowledge_source" | "conversation" | "user" | "agent" | "workspace" | "organization";
   count?: number;
 }): void {
   memoryDeletionCounter.add(1, {

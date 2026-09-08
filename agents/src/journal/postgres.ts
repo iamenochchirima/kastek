@@ -45,7 +45,10 @@ interface Subscription {
 export class PostgresExecutionJournal implements ExecutionJournal {
   private readonly subscriptions = new Set<Subscription>();
 
-  public constructor(private readonly store: PostgresExecutionJournalStore) {}
+  public constructor(
+    private readonly store: PostgresExecutionJournalStore,
+    private readonly durableObservers: readonly ExecutionJournalListener[] = [],
+  ) {}
 
   public async append(input: ExecutionJournalEventInput): Promise<PersistedExecutionJournalEvent> {
     const pending: PendingExecutionJournalEvent = {
@@ -56,11 +59,12 @@ export class PostgresExecutionJournal implements ExecutionJournal {
     const persisted = await this.store.persist(pending);
     assertPersistedEventMatches(pending, persisted);
 
-    await Promise.allSettled(
-      [...this.subscriptions]
+    await Promise.allSettled([
+      ...this.durableObservers.map((listener) => Promise.resolve().then(() => listener(persisted))),
+      ...[...this.subscriptions]
         .filter((subscription) => matches(subscription.query, persisted))
         .map((subscription) => Promise.resolve().then(() => subscription.listener(persisted))),
-    );
+    ]);
     return persisted;
   }
 

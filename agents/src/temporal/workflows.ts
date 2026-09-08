@@ -602,15 +602,44 @@ export async function agentRunWorkflow(input: DurableRunInput): Promise<void> {
         return;
       }
       if (result.status === "limited") {
-        const error = {
-          code: "AGENT_LOOP_LIMITED",
-          message: "The agent reached an execution limit before producing a final response",
-          userMessage: "I couldn't finish that request within the current execution limit. Please try again.",
-          iterations: result.iterations,
-          toolCalls: result.toolCalls,
-          usage: result.usage,
-        };
+        const contextError = result.error && /^(CONTEXT_|PROVIDER_CONTEXT_OVERFLOW|PROVIDER_PAYLOAD_TOO_LARGE)/u.test(result.error.code)
+          ? result.error
+          : undefined;
+        const error = contextError
+          ? {
+              ...contextError,
+              iterations: result.iterations,
+              toolCalls: result.toolCalls,
+              usage: result.usage,
+            }
+          : {
+              code: "AGENT_LOOP_LIMITED",
+              message: "The agent reached an execution limit before producing a final response",
+              userMessage: "I couldn't finish that request within the current execution limit. Please try again.",
+              iterations: result.iterations,
+              toolCalls: result.toolCalls,
+              usage: result.usage,
+            };
         await failAndDeliver(error);
+        return;
+      }
+      // Direct MCP/REST capability runs have no model response to deliver.
+      // Persist their redacted tool result as the durable operation output and
+      // complete without invoking conversation delivery or title generation.
+      if (result.directToolResult) {
+        await activities.completeRun({
+          ...activityScope(),
+          runId: input.runId,
+          output: {
+            status: result.status,
+            tool: result.directToolResult,
+            usage: result.usage,
+            iterations: result.iterations,
+            toolCalls: result.toolCalls,
+            provenance: result.provenance ?? {},
+          },
+        });
+        status = "completed";
         return;
       }
       let completionOverride: string | undefined;

@@ -11,6 +11,7 @@ import {
   deployInstallationInputSchema,
   deployStagedVersionInputSchema,
   createVersionInputSchema,
+  studioAgentCreationInputSchema,
   updateAgentInputSchema,
   startRunInputSchema,
 } from "../domain/types";
@@ -31,6 +32,10 @@ import { InstallationCredentialRepository } from "../db/repositories/installatio
 import { InstallationGrantRepository } from "../db/repositories/installation-grant-repository";
 import { KnowledgeRepository } from "../db/repositories/knowledge-repository";
 import { MemoryRepository } from "../db/repositories/memory-repository";
+import { MemoryDeletionJobRepository } from "../db/repositories/memory-deletion-job-repository";
+import { MemoryRetentionRepository } from "../db/repositories/memory-retention-repository";
+import { MemoryRevisionRepository } from "../db/repositories/memory-revision-repository";
+import { MemoryRevisionCommandService } from "../memory/revision-command-service";
 import { chunkKnowledgeText, fetchBoundedKnowledgeDocument } from "../knowledge/ingestion";
 import { FirecrawlClient } from "../knowledge/firecrawl";
 import { extractKnowledgeFile, MAX_KNOWLEDGE_FILE_BYTES } from "../knowledge/file-ingestion";
@@ -60,7 +65,7 @@ import { installationTokenJwks, issueInstallationToken, readClientAssertionSubje
 import { createHash, createPublicKey } from "node:crypto";
 import { createDefaultTools } from "../temporal/activities";
 import { validateVersionWorkflow } from "../workflows/graph";
-import { agentSpecSchema } from "../domain/agent-spec";
+import { agentSpecSchema, compileAgentSpec } from "../domain/agent-spec";
 import { resolveModelTarget } from "../model/policy";
 import { diffEffectiveAgentConfig, projectEffectiveAgentConfig } from "../domain/effective-agent-config";
 import { buildAgentReadiness } from "../domain/agent-readiness";
@@ -106,6 +111,23 @@ const MCP_TASK_TTL_MS = 86_400_000;
 const MCP_TASK_POLL_INTERVAL_MS = 2_000;
 const MCP_MAX_RESPONSE_BYTES = 1024 * 1024;
 const MAX_DISCORD_MEDIA_BYTES = 25 * 1024 * 1024;
+
+function projectRuntimeTelemetry(
+  events: ReadonlyArray<PersistedExecutionJournalEvent>,
+  identity: { readonly runId?: string; readonly turnId?: string } = {},
+  now = new Date().toISOString(),
+) {
+  const accumulator = new RuntimeTelemetryAccumulator(identity);
+  for (const event of events) {
+    if (event.event.kind !== "harness.turn") continue;
+    accumulator.apply({
+      type: event.event.data.type,
+      payload: event.event.data.payload,
+      observedAt: event.occurredAt,
+    });
+  }
+  return accumulator.snapshot(now);
+}
 import { ConnectorRegistry } from "../connectors";
 import { EffectReceiptRepository } from "../db/repositories/effect-receipt-repository";
 import { ApprovalRepository } from "../db/repositories/approval-repository";
@@ -142,6 +164,8 @@ import { createAgentHarness, type AgentHarness } from "../runtime/harness";
 import { ExtensionSnapshotRepository } from "../db/repositories/extension-snapshot-repository";
 import { createCapabilityRuntime } from "../capabilities/runtime";
 import { PostgresDeliveryObligationCoordinator, type DeliveryObligationCoordinator } from "../delivery";
+import { RuntimeTelemetryAccumulator } from "../runtime/runtime-telemetry";
+import type { PersistedExecutionJournalEvent } from "../journal/contracts";
 
 export interface AppDependencies {
   config: AppConfig;
@@ -192,6 +216,9 @@ export interface AppDependencies {
   knowledge?: KnowledgeRepository;
   websiteCrawler?: FirecrawlClient;
   memory?: MemoryRepository;
+  memoryDeletionJobs?: MemoryDeletionJobRepository;
+  memoryRetention?: MemoryRetentionRepository;
+  memoryRevisionCommands?: MemoryRevisionCommandService;
   evaluations?: EvaluationRepository;
   audits?: AuditRepository;
   schedules?: ScheduleRepository;
@@ -657,7 +684,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     dependencies.pool,
     (organizationId, credentialReference) => integrationRepository.resolveCredential(organizationId, credentialReference),
   );
-  const configuredTools = dependencies.toolRegistry ?? createDefaultTools(coreClient, conversationActions, integrationTools, undefined, hostCapabilities);
+  const configuredTools = dependencies.toolRegistry ?? createDefaultTools(coreClient, conversationActions, integrationTools, hostCapabilities);
   const harness = dependencies.harness ?? createAgentHarness({
     tools: configuredTools,
     host: hostCapabilities,
@@ -714,6 +741,13 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
   const approvals = dependencies.approvals ?? new ApprovalRepository(dependencies.pool);
   const knowledge = dependencies.knowledge ?? new KnowledgeRepository(dependencies.pool);
   const memory = dependencies.memory ?? new MemoryRepository(dependencies.pool);
+  const memoryDeletionJobs = dependencies.memoryDeletionJobs ?? new MemoryDeletionJobRepository(dependencies.pool);
+  const memoryRetention = dependencies.memoryRetention ?? new MemoryRetentionRepository(dependencies.pool);
+  const memoryRevisionCommands = dependencies.memoryRevisionCommands ?? new MemoryRevisionCommandService(
+    dependencies.pool,
+    new MemoryRevisionRepository(dependencies.pool, { analyticsEnabled: true }),
+    { analyticsPool: dependencies.pool },
+  );
   const evaluations = dependencies.evaluations ?? new EvaluationRepository(dependencies.pool);
   const draftEvaluator = dependencies.draftEvaluator ?? ((input) => executeDraftEvaluation(
     input,
@@ -2042,7 +2076,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       actorId: auth.actorId,
       idempotencyKey: headerValue(request, "idempotency-key"),
       command,
-      dependencies: { pool: dependencies.pool, runs, effectReceipts, runBudgets, killSwitches, controls, retention, audioTranscriptionJobs, coreClient, agents, installationCredentials, schedules, channels, memory, startWorkflow: dependencies.startWorkflow, signalCancellation: dependencies.signalCancellation },
+      dependencies: { pool: dependencies.pool, runs, effectReceipts, runBudgets, killSwitches, controls, retention, memoryRetention, audioTranscriptionJobs, coreClient, agents, installationCredentials, schedules, channels, memoryDeletionJobs, memoryRevisionCommands, startWorkflow: dependencies.startWorkflow, signalCancellation: dependencies.signalCancellation },
     });
     return reply.code(result.replayed ? 200 : result.command.status === "awaiting_approval" ? 202 : 201).send(result.command);
   });
@@ -2056,7 +2090,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
   app.post<{ Params: { commandId: string } }>("/v1/operator/commands/:commandId/approve", async (request) => {
     const auth = requireAuth(request, dependencies.config);
     requireOperatorScope(auth, dependencies.config, "operator:write");
-    return approveOperatorCommand({ actorId: auth.actorId, commandId: request.params.commandId, dependencies: { pool: dependencies.pool, runs, effectReceipts, runBudgets, killSwitches, controls, retention, audioTranscriptionJobs, coreClient, agents, installationCredentials, schedules, channels, memory, startWorkflow: dependencies.startWorkflow, signalCancellation: dependencies.signalCancellation } });
+    return approveOperatorCommand({ actorId: auth.actorId, commandId: request.params.commandId, dependencies: { pool: dependencies.pool, runs, effectReceipts, runBudgets, killSwitches, controls, retention, memoryRetention, audioTranscriptionJobs, coreClient, agents, installationCredentials, schedules, channels, memoryDeletionJobs, memoryRevisionCommands, startWorkflow: dependencies.startWorkflow, signalCancellation: dependencies.signalCancellation } });
   });
 
   app.get<{ Params: { projectionKey: string } }>("/v1/operator/projections/:projectionKey", async (request) => {
@@ -2568,6 +2602,49 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     const input = createAgentInputSchema.parse(request.body);
     const agent = await agents.createAgent(auth.organizationId, auth.actorId, input);
     return reply.code(201).send(agent);
+  });
+
+  app.post("/v1/studio/agents", async (request, reply) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:write");
+    const input = studioAgentCreationInputSchema.parse(request.body);
+    const spec = agentSpecSchema.parse({
+      specVersion: 1,
+      execution: { mode: "autonomous", role: "standalone" },
+      identity: {
+        displayName: input.name,
+        purpose: input.description,
+        audience: "personal",
+      },
+      behavior: { instructions: input.instructions },
+      model: {
+        version: "studio-autonomous-v1",
+        primary: {
+          provider: dependencies.config.KASIAI_MODEL_PROVIDER,
+          model: dependencies.config.KASIAI_MODEL,
+        },
+        fallback: [],
+        allowUserFundedFallbackToKasiTek: false,
+      },
+      runtime: {
+        maxContextMessages: 24,
+        maxIterations: 8,
+        maxModelCalls: 8,
+        maxToolCalls: 12,
+        maxTotalTokens: 24_000,
+        maxWallTimeMs: 120_000,
+      },
+      capabilities: { allowedTools: [], requiredCapabilities: [] },
+      knowledge: { sourceIds: [], requiredConnections: [] },
+      memory: { mode: "explicit" },
+      skills: { allowedSkillIds: [] },
+      extensions: { packages: [], grants: [] },
+      workflow: {},
+      channels: { allowed: ["platform"] },
+      release: { mode: "pinned" },
+    });
+    const created = await agents.createStudioAgent(auth.organizationId, auth.actorId, input, compileAgentSpec(spec));
+    return reply.code(201).send(created);
   });
 
   app.patch<{ Params: { agentId: string } }>("/v1/agents/:agentId", async (request, reply) => {
@@ -3364,6 +3441,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
         language: z.string().trim().min(2).max(35).optional(),
         tone: z.enum(["concise", "balanced", "detailed"]).optional(),
         responseDetail: z.enum(["short", "standard", "expanded"]).optional(),
+        environment: z.enum(["playground", "live"]).optional(),
       })
       .parse(request.body ?? {});
     const installation = await agents.ensureSystemInstallation({
@@ -4876,6 +4954,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       run,
       events,
       journal,
+      telemetry: projectRuntimeTelemetry(journal, { runId: run.id }),
       steps: steps.map((step) => ({ ...step, input: redactSensitiveValue(step.input), output: redactSensitiveValue(step.output), error: redactSensitiveValue(step.error) })),
       toolCalls: toolCalls.map((toolCall) => redactSensitiveValue(toolCall)),
       effects: effects.map((effect) => ({ ...effect, provider_receipt: redactSensitiveValue(effect.provider_receipt), error: redactSensitiveValue(effect.error) })),

@@ -30,6 +30,27 @@ describe("structured retrieval", () => {
     expect(knowledge.ensureEmbeddings).toHaveBeenCalledWith(expect.objectContaining({ organizationId: "org-1", agentId: "agent-1" }), 50);
   });
 
+  it("keeps the knowledge-only runtime seam off the legacy memory table", async () => {
+    const memory = { search: vi.fn().mockRejectedValue(new Error("legacy memory_records path must not run")) };
+    const knowledge = {
+      ensureEmbeddings: vi.fn().mockResolvedValue({ attempted: 0, embedded: 0 }),
+      search: vi.fn().mockResolvedValue([
+        { id: "knowledge-runtime", source_id: "source-runtime", chunk_index: 0, canonical_text: "Runtime knowledge", relevance_score: 0.8, provenance: {} },
+      ]),
+    };
+
+    const result = await new RetrievalService(memory as never, knowledge as never).retrieveKnowledge(
+      { organizationId: "org-1", agentId: "agent-1", installationId: "installation-1" },
+      "What are your support hours?",
+      { memory: { mode: "disabled" } },
+    );
+
+    expect(result.memoryMatches).toEqual([]);
+    expect(result.knowledgeMatches).toHaveLength(1);
+    expect(memory.search).not.toHaveBeenCalled();
+    expect(knowledge.search).toHaveBeenCalled();
+  });
+
   it("keeps retrieval available when embedding repair is temporarily unavailable", async () => {
     const memory = { search: vi.fn().mockResolvedValue([]) };
     const knowledge = {

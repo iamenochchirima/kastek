@@ -100,6 +100,16 @@ describe("operator command contract", () => {
     })).toMatchObject({ commandType: "set_feature_flag", targetId: "org-1" });
   });
 
+  it("accepts independently staged memory rollout flags", () => {
+    for (const flagKey of ["memory_v2_retrieval_enabled", "memory_v2_writes_enabled", "memory_consolidation_enabled", "memory_projection_enabled"] as const) {
+      expect(operatorCommandInputSchema.parse({
+        commandType: "set_feature_flag",
+        targetId: "org-1",
+        payload: { flagKey, scopeType: "organization", scopeId: "org-1", organizationId: "org-1", enabled: false, reason: "stage memory rollout", expiresAt: "2026-09-12T00:00:00.000Z" },
+      })).toMatchObject({ commandType: "set_feature_flag", targetId: "org-1" });
+    }
+  });
+
   it("projects command status without payload or provider receipt material", () => {
     const command: OperatorCommandRecord = {
       id: "command-1",

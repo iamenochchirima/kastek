@@ -18,7 +18,12 @@ import { ChannelRepository } from "../db/repositories/channel-repository";
 import { TelegramBotClient } from "../channels/telegram-client";
 import { DiscordBotClient } from "../channels/discord-client";
 import { recordBudgetReconciliationRequired } from "../telemetry/spans";
-import { MemoryConsolidationWorker } from "../memory/consolidation-worker";
+import { MemoryRevisionConsolidationWorker } from "../memory/revision-consolidation-worker";
+import { MemoryDeletionWorker } from "../memory/deletion-worker";
+import { MemoryRetentionWorker } from "../memory/retention-worker";
+import { MemoryProjectionWorker } from "../memory/projection-worker";
+import { MemoryProviderDeletionWorker } from "../memory/provider-deletion-worker";
+import { OperatorControlRepository } from "../db/repositories/operator-control-repository";
 import { runWithRequiredDatabaseContext } from "../db/context";
 import { AgentRepository } from "../db/repositories/agent-repository";
 import { ExtensionSnapshotRepository } from "../db/repositories/extension-snapshot-repository";
@@ -56,6 +61,7 @@ async function main(): Promise<void> {
   }
   const effectReceipts = new EffectReceiptRepository(pool);
   const runs = new RunRepository(pool);
+  const operatorControls = new OperatorControlRepository(pool);
   const runBudgets = new RunBudgetRepository(pool);
   const approvals = new ApprovalRepository(pool);
   const connection = await NativeConnection.connect({
@@ -175,22 +181,127 @@ async function main(): Promise<void> {
     },
   });
   const audioTranscriptionLoop = audioTranscriptionWorker.run();
-  const memoryConsolidationWorker = config.MEMORY_CONSOLIDATION_ENABLED
-    ? new MemoryConsolidationWorker(pool, {
+  const memoryConsolidationWorker = config.MEMORY_V2_ENABLED && config.MEMORY_CONSOLIDATION_ENABLED
+    ? new MemoryRevisionConsolidationWorker(pool, {
       batchSize: config.MEMORY_CONSOLIDATION_WORKER_BATCH_SIZE,
       leaseMs: config.MEMORY_CONSOLIDATION_WORKER_LEASE_MS,
       pollIntervalMs: config.MEMORY_CONSOLIDATION_WORKER_POLL_INTERVAL_MS,
       maxAttempts: config.MEMORY_CONSOLIDATION_MAX_ATTEMPTS,
       minInboundMessages: config.MEMORY_CONSOLIDATION_MIN_INBOUND_MESSAGES,
+      extractionTimeoutMs: config.MEMORY_CONSOLIDATION_EXTRACTOR_TIMEOUT_MS,
+    }, {
+      controls: operatorControls,
     })
     : undefined;
   const memoryConsolidationLoop = memoryConsolidationWorker?.run();
+  const memoryProjectionWorker = config.MEMORY_V2_ENABLED && config.MEMORY_PROJECTION_ENABLED
+    ? new MemoryProjectionWorker(pool, {
+      batchSize: config.MEMORY_PROJECTION_WORKER_BATCH_SIZE,
+      leaseMs: config.MEMORY_PROJECTION_WORKER_LEASE_MS,
+      pollIntervalMs: config.MEMORY_PROJECTION_WORKER_POLL_INTERVAL_MS,
+      retryBaseDelayMs: config.MEMORY_PROJECTION_RETRY_BASE_DELAY_MS,
+      retryMaxDelayMs: config.MEMORY_PROJECTION_RETRY_MAX_DELAY_MS,
+    }, {
+      analyticsPool: pool,
+      controls: operatorControls,
+    })
+    : undefined;
+  const memoryProjectionLoop = memoryProjectionWorker?.run();
+  const memoryProviderDeletionWorker = config.MEMORY_V2_ENABLED && config.MEMORY_PROVIDER_DELETION_ENABLED
+    ? new MemoryProviderDeletionWorker(pool, {
+      batchSize: config.MEMORY_PROVIDER_DELETION_WORKER_BATCH_SIZE,
+      leaseMs: config.MEMORY_PROVIDER_DELETION_WORKER_LEASE_MS,
+      pollIntervalMs: config.MEMORY_PROVIDER_DELETION_WORKER_POLL_INTERVAL_MS,
+      maxAttempts: config.MEMORY_PROVIDER_DELETION_MAX_ATTEMPTS,
+      retryBaseDelayMs: config.MEMORY_PROVIDER_DELETION_RETRY_BASE_DELAY_MS,
+      retryMaxDelayMs: config.MEMORY_PROVIDER_DELETION_RETRY_MAX_DELAY_MS,
+    }, {
+      analyticsPool: pool,
+    })
+    : undefined;
+  const memoryProviderDeletionLoop = memoryProviderDeletionWorker?.run();
+  const memoryDeletionWorker = config.MEMORY_V2_ENABLED && config.MEMORY_DELETION_ENABLED
+    ? new MemoryDeletionWorker(pool, {
+      batchSize: config.MEMORY_DELETION_WORKER_BATCH_SIZE,
+      leaseMs: config.MEMORY_DELETION_WORKER_LEASE_MS,
+      pollIntervalMs: config.MEMORY_DELETION_WORKER_POLL_INTERVAL_MS,
+      maxAttempts: config.MEMORY_DELETION_MAX_ATTEMPTS,
+      retryBaseDelayMs: config.MEMORY_DELETION_RETRY_BASE_DELAY_MS,
+      retryMaxDelayMs: config.MEMORY_DELETION_RETRY_MAX_DELAY_MS,
+      holdRetryMs: config.MEMORY_DELETION_HOLD_RETRY_MS,
+    }, {
+      analyticsPool: pool,
+    })
+    : undefined;
+  const memoryDeletionLoop = memoryDeletionWorker?.run();
+  const memoryRetentionWorker = config.MEMORY_V2_ENABLED && config.MEMORY_RETENTION_ENABLED
+    ? new MemoryRetentionWorker(pool, {
+      batchSize: config.MEMORY_RETENTION_WORKER_BATCH_SIZE,
+      leaseMs: config.MEMORY_RETENTION_WORKER_LEASE_MS,
+      pollIntervalMs: config.MEMORY_RETENTION_WORKER_POLL_INTERVAL_MS,
+      maxAttempts: config.MEMORY_RETENTION_MAX_ATTEMPTS,
+      retryBaseDelayMs: config.MEMORY_RETENTION_RETRY_BASE_DELAY_MS,
+      retryMaxDelayMs: config.MEMORY_RETENTION_RETRY_MAX_DELAY_MS,
+      retentionIntervalMs: config.MEMORY_RETENTION_INTERVAL_MS,
+      revalidationIntervalMs: config.MEMORY_REVALIDATION_INTERVAL_MS,
+      conflictIntervalMs: config.MEMORY_CONFLICT_INTERVAL_MS,
+      candidateBatchSize: config.MEMORY_RETENTION_CANDIDATE_BATCH_SIZE,
+    })
+    : undefined;
+  const memoryRetentionLoop = memoryRetentionWorker?.run();
   const close = async (): Promise<void> => {
     clearInterval(reconciliationTimer);
     audioTranscriptionWorker.stop();
-    memoryConsolidationWorker?.stop();
+    // Every memory worker owns leased work. Stop polling and wait for each
+    // worker through its bounded shutdown contract before closing the shared
+    // database connection. A timeout leaves the lease for successor recovery;
+    // awaiting the loop itself here would make SIGTERM hang behind a provider
+    // that never returns.
+    const shutdownTimeoutMs = config.MEMORY_CONSOLIDATION_SHUTDOWN_TIMEOUT_MS;
+    const memoryShutdowns = Promise.all([
+      memoryConsolidationWorker
+        ? memoryConsolidationWorker.shutdown(shutdownTimeoutMs)
+        : Promise.resolve({ drained: true, abandoned: 0 }),
+      memoryProjectionWorker
+        ? memoryProjectionWorker.shutdown(shutdownTimeoutMs)
+        : Promise.resolve({ drained: true }),
+      memoryProviderDeletionWorker
+        ? memoryProviderDeletionWorker.shutdown(shutdownTimeoutMs)
+        : Promise.resolve({ drained: true }),
+      memoryDeletionWorker
+        ? memoryDeletionWorker.shutdown(shutdownTimeoutMs)
+        : Promise.resolve({ drained: true }),
+      memoryRetentionWorker
+        ? memoryRetentionWorker.shutdown(shutdownTimeoutMs)
+        : Promise.resolve({ drained: true }),
+    ]);
     await audioTranscriptionLoop;
-    if (memoryConsolidationLoop) await memoryConsolidationLoop;
+    const [consolidationShutdown, projectionShutdown, providerDeletionShutdown, deletionShutdown, retentionShutdown] = await memoryShutdowns;
+    if (!consolidationShutdown.drained) {
+      operationalLogger.warn({
+        event: "memory.revision.consolidation.shutdown.abandoned",
+        abandoned: consolidationShutdown.abandoned,
+      }, "Memory consolidation shutdown deadline reached; leases were requeued");
+    }
+    const boundedShutdowns = [
+      ["memory.projection", projectionShutdown.drained],
+      ["memory.provider-deletion", providerDeletionShutdown.drained],
+      ["memory.deletion", deletionShutdown.drained],
+      ["memory.retention", retentionShutdown.drained],
+    ] as const;
+    for (const [workerName, drained] of boundedShutdowns) {
+      if (!drained) {
+        operationalLogger.warn({
+          event: `${workerName}.shutdown.abandoned`,
+          worker: workerName,
+        }, "Memory worker shutdown deadline reached; leased work remains recoverable");
+      }
+    }
+    if (memoryConsolidationLoop && consolidationShutdown.drained) await memoryConsolidationLoop;
+    if (memoryProjectionLoop && projectionShutdown.drained) await memoryProjectionLoop;
+    if (memoryProviderDeletionLoop && providerDeletionShutdown.drained) await memoryProviderDeletionLoop;
+    if (memoryDeletionLoop && deletionShutdown.drained) await memoryDeletionLoop;
+    if (memoryRetentionLoop && retentionShutdown.drained) await memoryRetentionLoop;
     await worker.shutdown();
     await connection.close();
     await pool.end();

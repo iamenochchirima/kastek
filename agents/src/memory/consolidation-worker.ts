@@ -136,8 +136,8 @@ export class MemoryConsolidationWorker {
         maxAttempts: this.settings.maxAttempts,
         error: { code: "MEMORY_CONSOLIDATION_FAILED", message: error instanceof Error ? error.message : "Memory consolidation failed" },
       });
-      recordMemoryConsolidation(status === "failed" ? "failed" : "retryable_error");
-      if (status === "failed") {
+      recordMemoryConsolidation(status === "dead_letter" ? "failed" : "retryable_error");
+      if (status === "dead_letter") {
         operationalLogger.error({ err: error, event: "memory.consolidation.failed", job_id: job.id }, "Memory consolidation job failed permanently");
       }
     }

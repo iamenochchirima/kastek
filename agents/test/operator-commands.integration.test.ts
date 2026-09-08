@@ -8,7 +8,9 @@ import { ScheduleRepository } from "../src/db/repositories/schedule-repository";
 import { RunRepository } from "../src/db/repositories/run-repository";
 import { ChannelRepository } from "../src/db/repositories/channel-repository";
 import { ConversationRepository } from "../src/db/repositories/conversation-repository";
-import { MemoryRepository } from "../src/db/repositories/memory-repository";
+import { MemoryDeletionJobRepository } from "../src/db/repositories/memory-deletion-job-repository";
+import { MemoryRevisionRepository } from "../src/db/repositories/memory-revision-repository";
+import { MemoryRevisionCommandService } from "../src/memory/revision-command-service";
 import { OperatorControlRepository } from "../src/db/repositories/operator-control-repository";
 import { createOperatorCommand, approveOperatorCommand } from "../src/http/operator-commands";
 
@@ -24,7 +26,9 @@ describe.skipIf(!runIntegration)("operator command lifecycle (integration)", () 
   const runs = new RunRepository(pool);
   const channels = new ChannelRepository(pool);
   const conversations = new ConversationRepository(pool);
-  const memory = new MemoryRepository(pool);
+  const memoryDeletionJobs = new MemoryDeletionJobRepository(pool);
+  const memoryRevisions = new MemoryRevisionRepository(pool, { analyticsEnabled: true });
+  const memoryRevisionCommands = new MemoryRevisionCommandService(pool, memoryRevisions, { analyticsPool: pool });
   const controls = new OperatorControlRepository(pool);
   const actorId = `operator-${randomUUID()}`;
   const secondActorId = `operator-${randomUUID()}`;
@@ -41,7 +45,8 @@ describe.skipIf(!runIntegration)("operator command lifecycle (integration)", () 
     installationCredentials,
     schedules,
     channels,
-    memory,
+    memoryDeletionJobs,
+    memoryRevisionCommands,
     controls,
   };
 
@@ -309,47 +314,55 @@ describe.skipIf(!runIntegration)("operator command lifecycle (integration)", () 
     ]));
     expect(JSON.stringify(recoveryAudit)).not.toContain("replay me");
 
-    const reviewMemoryRecord = await memory.createMemory({
+    const canonicalFact = await memoryRevisions.createFact({
       organizationId,
-      agentId: definitionId,
+      workspaceId: organizationId,
+      agentDefinitionId: definitionId,
+      agentVersionId: versionId,
       installationId,
       namespace: "agent_private",
       memoryType: "semantic",
-      canonicalText: "Imported operator review candidate",
-      sourceType: "imported",
-      actorId: "system",
+      subjectKey: "agent:operator-review",
+      predicateKey: "review_candidate",
+      factKey: `operator-review:${definitionId}`,
     });
-    expect(reviewMemoryRecord.status).toBe("review_pending");
+    const reviewMemoryRevision = await memoryRevisions.appendRevision(canonicalFact.id, {
+      memoryType: "semantic",
+      lifecycleState: "review_pending",
+      canonicalText: "Imported operator review candidate",
+      typedValue: { value: "review candidate" },
+      validFrom: new Date().toISOString(),
+      sourceTrust: "imported",
+      evidenceDigest: `operator-review:${canonicalFact.id}`,
+      extractionVersion: "operator-test-v2",
+      sourceEventIds: [`operator-review:${canonicalFact.id}`],
+      idempotencyKey: `operator-review:${canonicalFact.id}`,
+      createdBy: "system",
+    });
+    expect(reviewMemoryRevision.revision.lifecycleState).toBe("review_pending");
     const reviewMemoryCommand = await createOperatorCommand({
       actorId,
       idempotencyKey: `review-memory-${randomUUID()}`,
-      command: { commandType: "review_memory", targetId: reviewMemoryRecord.id, payload: { decision: "approve", expectedStatus: "review_pending", expectedOrganizationId: organizationId, expectedAgentId: definitionId, expectedInstallationId: installationId } },
+      command: { commandType: "review_memory", targetId: reviewMemoryRevision.revision.id, payload: { decision: "approve", expectedStatus: "review_pending", expectedOrganizationId: organizationId, expectedAgentId: definitionId, expectedInstallationId: installationId } },
       dependencies,
     });
     runCommandIds.push(String(reviewMemoryCommand.command.id));
-    expect(await approveOperatorCommand({ actorId: secondActorId, commandId: String(reviewMemoryCommand.command.id), dependencies })).toMatchObject({ status: "completed", result: { status: "approved", memoryId: reviewMemoryRecord.id } });
-    expect((await pool.query<{ status: string }>("SELECT status FROM memory_records WHERE id = $1", [reviewMemoryRecord.id])).rows[0]?.status).toBe("active");
+    const reviewedMemory = await approveOperatorCommand({ actorId: secondActorId, commandId: String(reviewMemoryCommand.command.id), dependencies });
+    const reviewedRevisionId = String((reviewedMemory.result as { revisionId: string }).revisionId);
+    expect(reviewedMemory).toMatchObject({ status: "completed", result: { status: "approved", memoryId: reviewMemoryRevision.revision.id, factId: canonicalFact.id, revisionId: reviewedRevisionId } });
+    expect((await pool.query<{ lifecycle_state: string }>("SELECT lifecycle_state FROM agent_memory_revisions WHERE id = $1", [reviewedRevisionId])).rows[0]?.lifecycle_state).toBe("active");
 
-    const memoryRecord = await memory.createMemory({
-      organizationId,
-      agentId: definitionId,
-      installationId,
-      namespace: "agent_private",
-      memoryType: "semantic",
-      canonicalText: "operator deletion test secret-like content",
-      sourceType: "explicit",
-      actorId,
-    });
     const deleteMemoryCommand = await createOperatorCommand({
       actorId,
       idempotencyKey: `delete-memory-${randomUUID()}`,
-      command: { commandType: "delete_memory", targetId: memoryRecord.id, payload: { expectedStatus: "active" } },
+      command: { commandType: "delete_memory", targetId: canonicalFact.id, payload: { expectedStatus: "active", expectedOrganizationId: organizationId, expectedAgentId: definitionId, expectedInstallationId: installationId } },
       dependencies,
     });
     runCommandIds.push(String(deleteMemoryCommand.command.id));
-    expect(await approveOperatorCommand({ actorId: secondActorId, commandId: String(deleteMemoryCommand.command.id), dependencies })).toMatchObject({ status: "completed", result: { status: "deleted", memoryId: memoryRecord.id } });
-    expect((await pool.query<{ status: string }>("SELECT status FROM memory_records WHERE id = $1", [memoryRecord.id])).rows).toHaveLength(0);
-    expect((await pool.query<{ status: string }>("SELECT status FROM memory_deletion_jobs WHERE target_type = 'memory' AND target_id = $1 ORDER BY created_at DESC LIMIT 1", [memoryRecord.id])).rows[0]?.status).toBe("completed");
+    const deletionResult = await approveOperatorCommand({ actorId: secondActorId, commandId: String(deleteMemoryCommand.command.id), dependencies });
+    const deletionJobId = String((deletionResult.result as { deletionJobId: string }).deletionJobId);
+    expect(deletionResult).toMatchObject({ status: "completed", result: { status: "queued", memoryId: canonicalFact.id, factId: canonicalFact.id, revisionId: reviewedRevisionId, deletionJobId } });
+    expect((await pool.query<{ status: string; target_id: string }>("SELECT status, target_id FROM memory_deletion_jobs WHERE id = $1", [deletionJobId])).rows[0]).toMatchObject({ status: "queued", target_id: canonicalFact.id });
 
     const exportCommand = await createOperatorCommand({
       actorId,
@@ -381,7 +394,8 @@ describe.skipIf(!runIntegration)("operator command lifecycle (integration)", () 
     await pool.query("DELETE FROM agent_runs WHERE organization_id = $1", [organizationId]);
     await pool.query("DELETE FROM agent_operator_run_assignments WHERE organization_id = $1", [organizationId]);
     await pool.query("DELETE FROM memory_deletion_jobs WHERE organization_id = $1", [organizationId]);
-    await pool.query("DELETE FROM memory_records WHERE organization_id = $1", [organizationId]);
+    await pool.query("DELETE FROM agent_memory_relations WHERE organization_id = $1", [organizationId]);
+    await pool.query("DELETE FROM agent_memory_facts WHERE organization_id = $1", [organizationId]);
     await pool.query("DELETE FROM agent_installations WHERE id = $1", [installationId]);
     await pool.query("DELETE FROM agent_versions WHERE id = $1", [versionId]);
     await pool.query("DELETE FROM agent_definitions WHERE id = $1", [definitionId]);

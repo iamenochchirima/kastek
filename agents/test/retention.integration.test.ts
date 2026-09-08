@@ -1,8 +1,9 @@
 import { randomUUID } from "node:crypto";
 import { Pool } from "pg";
-import { afterAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { RetentionRepository } from "../src/db/repositories/retention-repository";
-import { MemoryRepository } from "../src/db/repositories/memory-repository";
+import { MemoryRetentionRepository } from "../src/db/repositories/memory-retention-repository";
+import { MemoryRetentionWorker } from "../src/memory/retention-worker";
 import { createOperatorCommand, approveOperatorCommand } from "../src/http/operator-commands";
 import { KillSwitchRepository } from "../src/db/repositories/kill-switch-repository";
 
@@ -12,32 +13,82 @@ const runIntegration = Boolean(databaseUrl && process.env.RUN_AGENTS_DB_INTEGRAT
 describe.skipIf(!runIntegration)("retention and legal-hold controls (integration)", () => {
   const pool = new Pool({ connectionString: databaseUrl });
   const retention = new RetentionRepository(pool);
-  const memory = new MemoryRepository(pool);
+  const memoryRetention = new MemoryRetentionRepository(pool);
   const killSwitches = new KillSwitchRepository(pool);
   const organizationId = `retention-${randomUUID()}`;
   const actorId = `retention-operator-${randomUUID()}`;
   const secondActorId = `retention-operator-${randomUUID()}`;
-  const commandDependencies = { pool, retention, killSwitches, runs: undefined as never, effectReceipts: undefined as never };
+  const commandDependencies = {
+    pool,
+    retention,
+    memoryRetention,
+    killSwitches,
+    runs: undefined as never,
+    effectReceipts: undefined as never,
+  };
   const agentId = randomUUID();
-  let memoryId = "";
-  let holdId = "";
+  const versionId = randomUUID();
+  const installationId = randomUUID();
+  const workspaceId = `workspace-${randomUUID()}`;
+  const factId = randomUUID();
+  const revisionId = randomUUID();
   const commandIds: string[] = [];
+  let holdId = "";
 
-  it("keeps held data out of retention, then expires and queues it after release", async () => {
-    const policy = await retention.setPolicy({ organizationId, memoryDays: 30, conversationDays: 30, eventDays: 30, auditDays: 365, attachmentDays: 7, actorId });
-    expect(policy).toMatchObject({ organization_id: organizationId, memory_days: 30, revision: 1 });
+  const workerSettings = {
+    batchSize: 10,
+    leaseMs: 120_000,
+    pollIntervalMs: 5_000,
+    maxAttempts: 3,
+    retryBaseDelayMs: 1_000,
+    retryMaxDelayMs: 10_000,
+    retentionIntervalMs: 3_600_000,
+    revalidationIntervalMs: 900_000,
+    conflictIntervalMs: 300_000,
+    candidateBatchSize: 100,
+  };
+
+  beforeAll(async () => {
     await pool.query(
       `INSERT INTO agent_definitions (id, organization_id, name, slug, created_by)
        VALUES ($1, $2, 'Retention test agent', $3, $4)`,
       [agentId, organizationId, `retention-${agentId}`, actorId],
     );
-    const memoryRow = await pool.query<{ id: string }>(
-      `INSERT INTO memory_records (organization_id, agent_definition_id, namespace, memory_type, canonical_text, source_type, created_by, status)
-       VALUES ($1, $2, 'organization_shared', 'semantic', 'old retention record', 'explicit', $3, 'active') RETURNING id`,
-      [organizationId, agentId, actorId],
+    await pool.query(
+      `INSERT INTO agent_versions (id, agent_definition_id, version_number, instructions, checksum, created_by, status)
+       VALUES ($1, $2, 1, 'retention test', $3, $4, 'published')`,
+      [versionId, agentId, `retention-${versionId}`, actorId],
     );
-    memoryId = memoryRow.rows[0]!.id;
-    await pool.query("UPDATE memory_records SET created_at = now() - interval '60 days' WHERE id = $1", [memoryId]);
+    await pool.query(
+      `INSERT INTO agent_installations (id, agent_definition_id, agent_version_id, organization_id, scope_type, scope_id, execution_mode, created_by)
+       VALUES ($1, $2, $3, $4, 'business', $5, 'kasitek_hosted', $6)`,
+      [installationId, agentId, versionId, organizationId, workspaceId, actorId],
+    );
+    const oldObservedAt = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString();
+    await pool.query(
+      `INSERT INTO agent_memory_facts (
+         id, organization_id, workspace_id, agent_definition_id, installation_id,
+         agent_version_id, namespace, memory_type, subject_key, predicate_key,
+         fact_key, created_by
+       ) VALUES ($1, $2, $3, $4, $5, $6, 'agent_private', 'semantic', $7, 'preference', $8, $9)`,
+      [factId, organizationId, workspaceId, agentId, installationId, versionId, `subject-${factId}`, `retention:${factId}`, actorId],
+    );
+    await pool.query(
+      `INSERT INTO agent_memory_revisions (
+         id, fact_id, organization_id, revision_number, transition_type,
+         lifecycle_state, canonical_text, typed_value, valid_from, observed_at,
+         confidence, source_trust, sensitivity, provenance, evidence_digest,
+         extraction_version, idempotency_key, operation_fingerprint, created_by
+       ) VALUES ($1, $2, $3, 1, 'assertion', 'active', 'old canonical retention record',
+                 '{"value":"retention"}'::jsonb, $4, $4, 1, 'user_explicit',
+                 'normal', '{}'::jsonb, $5, 'retention-integration', $6, $5, $7)`,
+      [revisionId, factId, organizationId, oldObservedAt, "a".repeat(64), `retention:${revisionId}`, actorId],
+    );
+  });
+
+  it("keeps held canonical memory out of retention, then expires it after release", async () => {
+    const policy = await retention.setPolicy({ organizationId, memoryDays: 30, conversationDays: 30, eventDays: 30, auditDays: 365, attachmentDays: 7, actorId });
+    expect(policy).toMatchObject({ organization_id: organizationId, memory_days: 30, revision: 1 });
 
     const holdCommand = await createOperatorCommand({
       actorId,
@@ -49,9 +100,12 @@ describe.skipIf(!runIntegration)("retention and legal-hold controls (integration
     const createdHold = await approveOperatorCommand({ actorId: secondActorId, commandId: String(holdCommand.command.id), dependencies: commandDependencies });
     holdId = String((createdHold.result as { legalHoldId: string }).legalHoldId);
     expect(createdHold).toMatchObject({ status: "completed", result: { status: "active", legalHoldId: holdId } });
-    await expect(memory.deleteMemory({ organizationId, agentId, actorId }, memoryId, actorId)).rejects.toMatchObject({ code: "MEMORY_LEGAL_HOLD_ACTIVE", statusCode: 409 });
     expect((await retention.preview(organizationId)).eligible).toMatchObject({ memory: 0 });
-    expect(await retention.applyMemoryRetention(organizationId, actorId)).toEqual({ expired: 0, skippedByHold: 1 });
+
+    const worker = new MemoryRetentionWorker(pool, workerSettings, { workerId: `retention-test-${randomUUID()}` });
+    const heldScan = await worker.runOnce(organizationId);
+    expect(heldScan).toBeGreaterThanOrEqual(1);
+    expect((await pool.query<{ lifecycle_state: string }>("SELECT lifecycle_state FROM agent_memory_revisions WHERE id = $1", [revisionId])).rows[0]?.lifecycle_state).toBe("active");
 
     const releaseCommand = await createOperatorCommand({
       actorId,
@@ -62,6 +116,7 @@ describe.skipIf(!runIntegration)("retention and legal-hold controls (integration
     commandIds.push(String(releaseCommand.command.id));
     expect(await approveOperatorCommand({ actorId: secondActorId, commandId: String(releaseCommand.command.id), dependencies: commandDependencies })).toMatchObject({ status: "completed", result: { status: "released", legalHoldId: holdId } });
     expect((await retention.preview(organizationId)).eligible).toMatchObject({ memory: 1 });
+
     const applyCommand = await createOperatorCommand({
       actorId,
       idempotencyKey: `retention-apply-${randomUUID()}`,
@@ -69,10 +124,18 @@ describe.skipIf(!runIntegration)("retention and legal-hold controls (integration
       dependencies: commandDependencies,
     });
     commandIds.push(String(applyCommand.command.id));
-    const applied = await approveOperatorCommand({ actorId: secondActorId, commandId: String(applyCommand.command.id), dependencies: commandDependencies });
-    expect(applied).toMatchObject({ status: "completed", result: { status: "applied", expired: 1 } });
-    expect((await pool.query<{ status: string }>("SELECT status FROM memory_records WHERE id = $1", [memoryId])).rows[0]?.status).toBe("expired");
-    expect((await pool.query<{ status: string }>("SELECT status FROM memory_deletion_jobs WHERE target_id = $1 ORDER BY created_at DESC LIMIT 1", [memoryId])).rows[0]?.status).toBe("queued");
+    const queued = await approveOperatorCommand({ actorId: secondActorId, commandId: String(applyCommand.command.id), dependencies: commandDependencies });
+    expect(queued).toMatchObject({ status: "completed", result: { status: "queued", workspacesQueued: 1 } });
+
+    const releasedScan = await worker.runOnce(organizationId);
+    expect(releasedScan).toBeGreaterThanOrEqual(1);
+    const revisions = await pool.query<{ lifecycle_state: string; transition_type: string; predecessor_revision_id: string | null }>(
+      "SELECT lifecycle_state, transition_type, predecessor_revision_id::text FROM agent_memory_revisions WHERE fact_id = $1 ORDER BY revision_number",
+      [factId],
+    );
+    expect(revisions.rows).toHaveLength(2);
+    expect(revisions.rows[1]).toMatchObject({ lifecycle_state: "expired", transition_type: "expiration", predecessor_revision_id: revisionId });
+    expect((await retention.preview(organizationId)).eligible).toMatchObject({ memory: 0 });
 
     const audit = await pool.query<{ id: string }>(
       "SELECT id::text FROM audit_records WHERE organization_id = $1 ORDER BY created_at DESC LIMIT 1",
@@ -86,8 +149,11 @@ describe.skipIf(!runIntegration)("retention and legal-hold controls (integration
 
   afterAll(async () => {
     await pool.query("DELETE FROM agent_operator_commands WHERE id = ANY($1::uuid[])", [commandIds]);
-    await pool.query("DELETE FROM memory_deletion_jobs WHERE organization_id = $1", [organizationId]);
-    await pool.query("DELETE FROM memory_records WHERE organization_id = $1", [organizationId]);
+    await pool.query("DELETE FROM agent_memory_maintenance_jobs WHERE organization_id = $1", [organizationId]);
+    await pool.query("DELETE FROM agent_memory_revisions WHERE fact_id = $1", [factId]);
+    await pool.query("DELETE FROM agent_memory_facts WHERE id = $1", [factId]);
+    await pool.query("DELETE FROM agent_installations WHERE id = $1", [installationId]);
+    await pool.query("DELETE FROM agent_versions WHERE id = $1", [versionId]);
     await pool.query("DELETE FROM agent_definitions WHERE id = $1", [agentId]);
     await pool.query("DELETE FROM agent_legal_holds WHERE organization_id = $1", [organizationId]);
     await pool.query("DELETE FROM agent_retention_policies WHERE organization_id = $1", [organizationId]);

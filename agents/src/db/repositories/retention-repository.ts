@@ -125,7 +125,29 @@ export class RetentionRepository {
   public async preview(organizationId: string): Promise<Record<string, unknown>> {
     const policy = await this.getPolicy(organizationId);
     const [memory, conversations, events, attachments, holds] = await Promise.all([
-      query<{ count: string }>(this.pool, `SELECT COUNT(*)::text AS count FROM memory_records m WHERE m.organization_id = $1 AND m.status = 'active' AND m.created_at <= now() - make_interval(days => $2::int) AND NOT EXISTS (SELECT 1 FROM agent_legal_holds h WHERE h.organization_id = m.organization_id AND h.status = 'active' AND (h.expires_at IS NULL OR h.expires_at > now()) AND ((h.scope_type = 'organization' AND h.scope_id = m.organization_id) OR (h.scope_type = 'installation' AND h.scope_id = m.installation_id::text) OR (h.scope_type = 'conversation' AND h.scope_id = m.conversation_id::text)))`, [organizationId, policy.memory_days]),
+      query<{ count: string }>(this.pool, `SELECT COUNT(*)::text AS count
+        FROM agent_memory_revisions revision
+        JOIN agent_memory_facts fact ON fact.id = revision.fact_id
+        WHERE fact.organization_id = $1
+          AND revision.lifecycle_state = 'active'
+          AND COALESCE(revision.observed_at, revision.valid_from) <= now() - make_interval(days => $2::int)
+          AND NOT EXISTS (
+            SELECT 1 FROM agent_memory_revisions successor
+            WHERE successor.predecessor_revision_id = revision.id
+              AND successor.transition_type IN ('correction', 'supersession', 'expiration', 'deletion')
+              AND successor.lifecycle_state IN ('active', 'superseded', 'expired', 'deleted')
+          )
+          AND NOT EXISTS (
+            SELECT 1 FROM agent_legal_holds h
+            WHERE h.organization_id = fact.organization_id
+              AND h.status = 'active'
+              AND (h.expires_at IS NULL OR h.expires_at > now())
+              AND (
+                (h.scope_type = 'organization' AND h.scope_id = fact.organization_id)
+                OR (h.scope_type = 'installation' AND h.scope_id = fact.installation_id::text)
+                OR (h.scope_type = 'conversation' AND h.scope_id = fact.conversation_id::text)
+              )
+          )`, [organizationId, policy.memory_days]),
       query<{ count: string }>(this.pool, "SELECT COUNT(*)::text AS count FROM conversations WHERE organization_id = $1 AND status <> 'deleted' AND created_at <= now() - make_interval(days => $2::int)", [organizationId, policy.conversation_days]),
       query<{ count: string }>(this.pool, "SELECT COUNT(*)::text AS count FROM agent_events WHERE organization_id = $1 AND created_at <= now() - make_interval(days => $2::int)", [organizationId, policy.event_days]),
       query<{ count: string }>(this.pool, "SELECT COUNT(*)::text AS count FROM agent_attachment_references WHERE organization_id = $1 AND (retention_expires_at IS NOT NULL AND retention_expires_at <= now())", [organizationId]),

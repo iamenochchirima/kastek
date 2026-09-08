@@ -68,6 +68,119 @@ describe("foundation migration", () => {
     expect(sql).toContain("superseded");
   });
 
+  it("adds durable memory source evidence and idempotent checkpoints", async () => {
+    const sql = await readFile(new URL("../migrations/130_memory_source_events_and_checkpoints.sql", import.meta.url), "utf8");
+    expect(sql).toContain("memory_source_events");
+    expect(sql).toContain("memory_checkpoints");
+    expect(sql).toContain("UNIQUE (organization_id, idempotency_key)");
+    expect(sql).toContain("evidence_digest");
+    expect(sql).toContain("FORCE ROW LEVEL SECURITY");
+  });
+
+  it("makes canonical memory workspace ownership explicit", async () => {
+    const sql = await readFile(new URL("../migrations/133_memory_revision_workspace_scope.sql", import.meta.url), "utf8");
+    expect(sql).toContain("workspace_id");
+    expect(sql).toContain("installation.scope_id");
+    expect(sql).toContain("Memory fact workspace is outside the installation scope");
+  });
+
+  it("enforces source and checkpoint scope at the database boundary", async () => {
+    const sql = await readFile(new URL("../migrations/134_memory_source_scope_validation.sql", import.meta.url), "utf8");
+    expect(sql).toContain("kasitek_validate_memory_source_event_scope");
+    expect(sql).toContain("kasitek_validate_memory_checkpoint_scope");
+    expect(sql).toContain("ALTER COLUMN agent_version_id SET NOT NULL");
+    expect(sql).toContain("Memory source event run is outside the event scope");
+    expect(sql).toContain("Memory checkpoint source event is outside the checkpoint scope");
+  });
+
+  it("freezes captured evidence and validates every fact scope update", async () => {
+    const sql = await readFile(new URL("../migrations/155_memory_integrity_guards.sql", import.meta.url), "utf8");
+    expect(sql).toContain("BEFORE INSERT OR UPDATE ON agent_memory_facts");
+    expect(sql).toContain("memory_source_events_immutable_trigger");
+    expect(sql).toContain("memory_checkpoints_transition_guard");
+    const nullSafe = await readFile(new URL("../migrations/156_memory_integrity_guard_nullsafe.sql", import.meta.url), "utf8");
+    expect(nullSafe).toContain("IS DISTINCT FROM 'system:memory-deletion'");
+  });
+
+  it("extends the source table into an ordered journal capture boundary", async () => {
+    const sql = await readFile(new URL("../migrations/139_memory_source_event_capture.sql", import.meta.url), "utf8");
+    expect(sql).toContain("event_type");
+    expect(sql).toContain("idempotency_key");
+    expect(sql).toContain("event_sequence");
+    expect(sql).toContain("memory_source_events_cursor_idx");
+  });
+
+  it("fences one memory source cursor per run", async () => {
+    const sql = await readFile(new URL("../migrations/151_memory_source_event_sequence_fence.sql", import.meta.url), "utf8");
+    expect(sql).toContain("memory_source_events_run_sequence_uidx");
+    expect(sql).toContain("run_id IS NOT NULL AND event_sequence IS NOT NULL");
+  });
+
+  it("keeps remote provider deletion durable after canonical purge", async () => {
+    const sql = await readFile(new URL("../migrations/143_memory_provider_deletion_jobs.sql", import.meta.url), "utf8");
+    expect(sql).toContain("agent_memory_provider_deletion_jobs");
+    expect(sql).toContain("provider_record_id");
+    expect(sql).toContain("UNIQUE (organization_id, provider_name, provider_record_id, content_digest)");
+    expect(sql).toContain("provider_pending");
+    expect(sql).toContain("kasitek_validate_memory_provider_deletion_scope");
+    expect(sql).toContain("FORCE ROW LEVEL SECURITY");
+  });
+
+  it("keeps a parent deletion pending until every provider child is confirmed", async () => {
+    const source = await readFile(new URL("../src/db/repositories/memory-deletion-job-repository.ts", import.meta.url), "utf8");
+    expect(source).toContain("provider_job.status <> 'completed'");
+    expect(source).toContain("status = 'provider_pending'");
+    expect(source).toContain("provider_confirmed_at");
+  });
+
+  it("adds explicit consolidation recovery metadata and requeue semantics", async () => {
+    const sql = await readFile(new URL("../migrations/144_memory_consolidation_recovery.sql", import.meta.url), "utf8");
+    expect(sql).toContain("next_attempt_at");
+    expect(sql).toContain("dead_letter");
+    expect(sql).toContain("evidence_digest");
+  });
+
+  it("adds resumable per-record backfill receipts without storing legacy content", async () => {
+    const sql = await readFile(new URL("../migrations/142_memory_migration_receipts.sql", import.meta.url), "utf8");
+    expect(sql).toContain("agent_memory_migration_receipts");
+    expect(sql).toContain("source_checksum");
+    expect(sql).toContain("canonical_revision_id");
+    expect(sql).toContain("FORCE ROW LEVEL SECURITY");
+  });
+
+  it("keeps revisions immutable while allowing readiness projections to advance", async () => {
+    const sql = await readFile(new URL("../migrations/141_memory_revision_projection_readiness.sql", import.meta.url), "utf8");
+    expect(sql).toContain("BEFORE UPDATE OF fact_id");
+    expect(sql).toContain("kasitek_reject_memory_revision_update");
+    expect(sql).not.toContain("BEFORE UPDATE ON agent_memory_revisions");
+  });
+
+  it("stores content-free retrieval decisions and bounded gate provenance", async () => {
+    const decisions = await readFile(new URL("../migrations/147_memory_retrieval_decisions.sql", import.meta.url), "utf8");
+    expect(decisions).toContain("agent_memory_retrieval_decisions");
+    expect(decisions).toContain("query_digest");
+    expect(decisions).toContain("selected_revision_ids");
+    expect(decisions).toContain("FORCE ROW LEVEL SECURITY");
+    const gate = await readFile(new URL("../migrations/148_memory_retrieval_gate_metadata.sql", import.meta.url), "utf8");
+    expect(gate).toContain("gate_source");
+    expect(gate).toContain("gate_confidence");
+  });
+
+  it("adds explicit consolidation flush reasons", async () => {
+    const sql = await readFile(new URL("../migrations/149_memory_consolidation_flush_reasons.sql", import.meta.url), "utf8");
+    expect(sql).toContain("flush_reason");
+    expect(sql).toContain("pre_compaction");
+    expect(sql).toContain("session_end");
+  });
+
+  it("records bounded shutdown abandonment and extractor provider metadata", async () => {
+    const sql = await readFile(new URL("../migrations/150_memory_consolidation_shutdown_recovery.sql", import.meta.url), "utf8");
+    expect(sql).toContain("abandonment_count");
+    expect(sql).toContain("last_abandoned_by");
+    expect(sql).toContain("MEMORY_CONSOLIDATION_ABANDONED");
+    expect(sql).toContain("extractor_provider");
+  });
+
   it("allows the dual-control operator memory review command", async () => {
     const sql = await readFile(new URL("../migrations/086_operator_memory_review_command.sql", import.meta.url), "utf8");
     expect(sql).toContain("agent_operator_commands_command_type_check");
@@ -227,6 +340,9 @@ describe("foundation migration", () => {
     expect(killSwitchSql).toContain("scope_type");
     const systemInstallationsSql = await readFile(new URL("../migrations/017_system_agent_installations.sql", import.meta.url), "utf8");
     expect(systemInstallationsSql).toContain("agent_installations_definition_scope_unique_idx");
+    const installationEnvironmentScopeSql = await readFile(new URL("../migrations/120_installation_environment_scope.sql", import.meta.url), "utf8");
+    expect(installationEnvironmentScopeSql).toContain("agent_installations_definition_scope_environment_unique_idx");
+    expect(installationEnvironmentScopeSql).toContain("settings ->> 'environment'");
     const platformChatSql = await readFile(new URL("../migrations/018_platform_chat_delivery.sql", import.meta.url), "utf8");
     expect(platformChatSql).toContain("ADD COLUMN IF NOT EXISTS run_id");
     expect(platformChatSql).toContain("messages_run_direction_idx");
@@ -433,6 +549,14 @@ describe("foundation migration", () => {
     expect(sql).toContain("embedding_model");
   });
 
+  it("indexes consolidation leases by the installation ownership tuple", async () => {
+    const sql = await readFile(new URL("../migrations/152_memory_consolidation_partition_fence.sql", import.meta.url), "utf8");
+    expect(sql).toContain("memory_consolidation_jobs_partition_due_idx");
+    expect(sql).toContain("organization_id");
+    expect(sql).toContain("installation_id");
+    expect(sql).toContain("conversation_id");
+  });
+
   it("stores immutable, scoped skill versions and agent-version pins", async () => {
     const sql = await readFile(new URL("../migrations/100_agent_skills.sql", import.meta.url), "utf8");
     for (const table of ["agent_skill_definitions", "agent_skill_versions", "agent_version_skills"]) {
@@ -628,6 +752,20 @@ describe("foundation migration", () => {
     expect(migration).toContain("memory_consolidation_jobs");
     expect(migration).toContain("messages_memory_consolidation_enqueue_trigger");
     expect(migration).toContain("deterministic-v1");
+  });
+
+  it("defines independently staged memory v2 rollout flags", async () => {
+    const migration = await readFile(new URL("../migrations/153_memory_rollout_flags.sql", import.meta.url), "utf8");
+    expect(migration).toContain("memory_v2_retrieval_enabled");
+    expect(migration).toContain("memory_v2_writes_enabled");
+    expect(migration).toContain("memory_consolidation_enabled");
+    expect(migration).toContain("DROP CONSTRAINT IF EXISTS agent_operator_feature_flags_flag_key_check");
+  });
+
+  it("defines an independently staged projection rollout flag", async () => {
+    const migration = await readFile(new URL("../migrations/154_memory_projection_rollout_flag.sql", import.meta.url), "utf8");
+    expect(migration).toContain("memory_projection_enabled");
+    expect(migration).toContain("DROP CONSTRAINT IF EXISTS agent_operator_feature_flags_flag_key_check");
   });
 
   it("creates a restricted runtime group without enabling RLS implicitly", async () => {

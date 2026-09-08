@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import type { MemoryRuntimeEventPayload } from "../runtime/context-memory-boundary";
 
 /**
  * The stable identity carried by every execution-journal event.
@@ -40,6 +41,26 @@ export interface ContextEvent {
     readonly knowledgeMatchCount?: number;
     readonly compacted: boolean;
   };
+}
+
+export interface ContextCompactionEvent {
+  readonly kind: "context.compaction";
+  readonly data: {
+    readonly operationId: string;
+    readonly contextId: string;
+    readonly status: "committed" | "replayed" | "failed";
+    readonly generation?: number;
+    readonly revision?: number;
+    readonly source?: string;
+    readonly providerFailureCode?: string;
+    readonly errorCode?: string;
+  };
+}
+
+/** Shared journal envelope for memory/context coordination facts. */
+export interface MemoryRuntimeEvent {
+  readonly kind: "memory.integration";
+  readonly data: MemoryRuntimeEventPayload;
 }
 
 export interface ModelEvent {
@@ -98,7 +119,7 @@ export interface DeliveryObligationEvent {
 export interface HarnessTurnEvent {
   readonly kind: "harness.turn";
   readonly data: {
-    readonly type: "loop.started" | "model.completed" | "tool.proposed" | "tool.completed" | "loop.paused" | "loop.completed" | "loop.failed" | "loop.limited";
+    readonly type: "loop.started" | "context.capability_resolved" | "context.planned" | "context.recovery" | "model.started" | "model.first_token" | "model.completed" | "model.failed" | "tool.proposed" | "tool.completed" | "loop.paused" | "loop.completed" | "loop.failed" | "loop.limited" | "compaction_attempted" | "compaction_candidate_created" | "compaction_committed" | "compaction_replayed" | "compaction_deferred" | "compaction_ineffective" | "compaction_cancelled" | "compaction_timed_out" | "compaction_failed" | "compaction_terminal";
     readonly iteration: number;
     readonly payload: Record<string, unknown>;
   };
@@ -116,6 +137,8 @@ export interface RuntimeFactEvent {
 export type ExecutionJournalEvent =
   | RunTransitionEvent
   | ContextEvent
+  | ContextCompactionEvent
+  | MemoryRuntimeEvent
   | ModelEvent
   | ToolEvent
   | WaitingEvent

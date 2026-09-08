@@ -11,6 +11,7 @@ import type {
   DeployStagedVersionInput,
   CreateVersionInput,
   HostedAgentCreationProfile,
+  StudioAgentCreationInput,
   UpdateAgentInput,
 } from "../../domain/types";
 import { query, withTransaction } from "../pool";
@@ -159,6 +160,14 @@ export interface ExternalAgentConnectionRecord {
   credential?: CreatedInstallationCredential;
 }
 
+export interface AgentDeletionResult {
+  agentId: string;
+  installationIds: string[];
+  deleted: boolean;
+  status: "deleted" | "queued";
+  deletionJobId?: string;
+}
+
 interface InstallationAnalyticsRow extends InstallationRecord {
   creation_profile: HostedAgentCreationProfile | "system";
   agent_audience: AgentAudience;
@@ -216,12 +225,12 @@ export class AgentRepository {
     const snapshot = await this.extensionSnapshots.ensureSnapshotForVersion(client, organizationId, actorId, versionId);
     const pinned = await client.query<AgentVersionRecord>(
       `UPDATE agent_versions
-       SET extension_snapshot_id = $4
-       WHERE id = $2
-         AND agent_definition_id = $3
-         AND (extension_snapshot_id IS NULL OR extension_snapshot_id = $4)
+       SET extension_snapshot_id = $3
+       WHERE id = $1
+         AND agent_definition_id = $2
+         AND (extension_snapshot_id IS NULL OR extension_snapshot_id = $3)
        RETURNING *`,
-      [organizationId, versionId, agentDefinitionId, snapshot.id],
+      [versionId, agentDefinitionId, snapshot.id],
     );
     if (!pinned.rows[0]) throw new Error("EXTENSION_SNAPSHOT_VERSION_PIN_FAILED");
     return pinned.rows[0];
@@ -282,6 +291,50 @@ export class AgentRepository {
       await this.enqueueDefinitionLifecycle(client, organizationId, createdAgent, "created", "active", [], "human", createdAgent.created_at);
       return createdAgent;
     });
+  }
+
+  /**
+   * Create the first Studio agent as one platform operation.
+   *
+   * The public repository methods remain independently useful for advanced
+   * management flows, but the Studio should not have to coordinate definition,
+   * version, publication, and Playground installation from the browser. The
+   * compensation path removes the incomplete definition if a later stage
+   * fails, so a rejected Studio setup does not leave an unusable agent behind.
+   */
+  public async createStudioAgent(
+    organizationId: string,
+    actorId: string,
+    input: StudioAgentCreationInput,
+    versionInput: CreateVersionInput,
+  ): Promise<{ agent: AgentRecord; version: AgentVersionRecord; installation: InstallationRecord }> {
+    const agent = await this.createAgent(organizationId, actorId, {
+      name: input.name,
+      description: input.description,
+      creationProfile: "custom",
+      agentAudience: "personal",
+      protected: false,
+    });
+
+    try {
+      const draft = await this.createVersion(organizationId, actorId, agent.id, versionInput);
+      const version = await this.publishVersion(organizationId, actorId, agent.id, draft.id);
+      const installation = await this.createInstallation(organizationId, actorId, {
+        agentVersionId: version.id,
+        scopeType: "organization",
+        settings: {
+          environment: "playground",
+          source: "studio",
+          executionProfile: "autonomous",
+        },
+        executionMode: "kasitek_hosted",
+        releaseMode: "pinned",
+      });
+      return { agent, version, installation };
+    } catch (error) {
+      await this.deleteAgent(organizationId, actorId, agent.id).catch(() => undefined);
+      throw error;
+    }
   }
 
   public async updateAgent(
@@ -725,7 +778,13 @@ export class AgentRepository {
         `INSERT INTO agent_installations
           (agent_definition_id, agent_version_id, organization_id, scope_type, scope_id, execution_mode, release_mode, settings, created_by)
          VALUES ($1, $2, $3, 'organization', $3, 'kasitek_hosted', 'follow_published', $4::jsonb, $5)
-         ON CONFLICT (organization_id, agent_definition_id, scope_type, scope_id)
+         ON CONFLICT (
+           organization_id,
+           agent_definition_id,
+           scope_type,
+           scope_id,
+           (COALESCE(settings ->> 'environment', 'live'))
+         )
          DO UPDATE SET updated_at = agent_installations.updated_at
          RETURNING *, (xmax = 0) AS created_now`,
         [agent.id, version.id, input.organizationId, JSON.stringify({ ...settings, templateKey: template.key, templateVersion: template.version }), input.actorId],
@@ -1549,8 +1608,142 @@ export class AgentRepository {
     });
   }
 
-  /** Permanently removes an organization-owned agent and all agent-scoped data. */
-  public async deleteAgent(organizationId: string, actorId: string, agentId: string): Promise<{ agentId: string; installationIds: string[]; deleted: true }> {
+  /**
+   * Requests deletion of an organization-owned agent.
+   *
+   * Agents with v2 memory are archived and routed through the durable memory
+   * deletion workflow first. This prevents installations from disappearing
+   * before source events, checkpoints, canonical revisions, and remote
+   * provider projections have been purged and acknowledged.
+   */
+  public async deleteAgent(organizationId: string, actorId: string, agentId: string): Promise<AgentDeletionResult> {
+    const queued = await withTransaction(this.pool, async (client) => {
+      const agentResult = await client.query<Pick<AgentRecord, "id" | "name" | "owner_type" | "protected" | "creation_profile" | "agent_audience" | "status">>(
+        `SELECT id, name, owner_type, protected, creation_profile, agent_audience, status
+         FROM agent_definitions
+         WHERE organization_id = $1 AND id = $2
+         FOR UPDATE`,
+        [organizationId, agentId],
+      );
+      const agent = agentResult.rows[0];
+      if (!agent) throw Object.assign(new Error("Agent not found"), { statusCode: 404, code: "AGENT_NOT_FOUND" });
+      if (agent.protected || agent.owner_type !== "organization") {
+        throw Object.assign(new Error("Protected agents cannot be deleted"), { statusCode: 403, code: "AGENT_PROTECTED" });
+      }
+
+      const installations = await client.query<{ id: string; status: string }>(
+        `SELECT id::text AS id, status
+         FROM agent_installations
+         WHERE organization_id = $1 AND agent_definition_id = $2
+         ORDER BY created_at
+         FOR UPDATE`,
+        [organizationId, agentId],
+      );
+      const installationIds = installations.rows.map((row) => row.id);
+      const memoryState = await client.query<{ requires_workflow: boolean }>(
+        `SELECT
+           EXISTS (SELECT 1 FROM agent_memory_facts WHERE organization_id = $1 AND agent_definition_id = $2) OR
+           EXISTS (SELECT 1 FROM memory_source_events WHERE organization_id = $1 AND agent_definition_id = $2) OR
+           EXISTS (SELECT 1 FROM memory_checkpoints WHERE organization_id = $1 AND agent_definition_id = $2) OR
+           EXISTS (SELECT 1 FROM agent_memory_provider_deletion_jobs provider_job
+                   WHERE provider_job.organization_id = $1
+                     AND provider_job.installation_id = ANY($3::uuid[])) OR
+           EXISTS (SELECT 1 FROM memory_deletion_jobs
+                   WHERE organization_id = $1 AND target_type = 'agent' AND target_id = $2::text
+                     AND status IN ('queued', 'running', 'held', 'provider_pending')) AS requires_workflow`,
+        [organizationId, agentId, installationIds],
+      );
+      if (!memoryState.rows[0]?.requires_workflow) return null;
+
+      const activeRuns = await client.query<{ count: string }>(
+        `SELECT COUNT(*)::text AS count
+         FROM agent_runs
+         WHERE organization_id = $1 AND agent_definition_id = $2
+           AND status NOT IN ('completed', 'failed', 'cancelled', 'expired')`,
+        [organizationId, agentId],
+      );
+      if (Number(activeRuns.rows[0]?.count ?? 0) > 0) {
+        throw Object.assign(new Error("Cancel active agent runs before deleting this agent"), { statusCode: 409, code: "AGENT_ACTIVE_RUNS" });
+      }
+      const activeLegalHold = await client.query(
+        `SELECT 1
+         FROM agent_legal_holds
+         WHERE organization_id = $1
+           AND status = 'active'
+           AND (expires_at IS NULL OR expires_at > now())
+           AND (
+             (scope_type = 'organization' AND scope_id = $1)
+             OR (scope_type = 'installation' AND scope_id = ANY($2::text[]))
+           )
+         LIMIT 1`,
+        [organizationId, installationIds],
+      );
+      if (activeLegalHold.rows[0]) {
+        throw Object.assign(new Error("Release the active legal hold before deleting this agent"), { statusCode: 409, code: "AGENT_LEGAL_HOLD_ACTIVE" });
+      }
+
+      const existingJob = await client.query<{ id: string }>(
+        `SELECT id::text AS id
+         FROM memory_deletion_jobs
+         WHERE organization_id = $1 AND target_type = 'agent' AND target_id = $2
+           AND status IN ('queued', 'running', 'held', 'provider_pending')
+         ORDER BY created_at DESC
+         LIMIT 1`,
+        [organizationId, agentId],
+      );
+      const deletionJobId = existingJob.rows[0]?.id ?? (await client.query<{ id: string }>(
+        `INSERT INTO memory_deletion_jobs
+           (organization_id, requested_by, target_type, target_id, status, next_attempt_at)
+         VALUES ($1, $2, 'agent', $3, 'queued', now())
+         RETURNING id::text AS id`,
+        [organizationId, actorId, agentId],
+      )).rows[0]!.id;
+
+      const archived = await client.query<AgentRecord>(
+        `UPDATE agent_definitions
+         SET status = 'archived', archived_at = COALESCE(archived_at, now()), updated_at = now()
+         WHERE organization_id = $1 AND id = $2
+         RETURNING *`,
+        [organizationId, agentId],
+      );
+      const archivedAgent = archived.rows[0];
+      if (!archivedAgent) throw new Error("Agent archive failed");
+      if (agent.status !== "archived") {
+        await this.enqueueDefinitionLifecycle(client, organizationId, archivedAgent, "archived", "archived", ["status"], "human", archivedAgent.updated_at);
+      }
+      const disabled = await client.query<InstallationRecord>(
+        `UPDATE agent_installations
+         SET status = 'disabled', updated_at = now()
+         WHERE organization_id = $1 AND agent_definition_id = $2 AND status <> 'disabled'
+         RETURNING *`,
+        [organizationId, agentId],
+      );
+      const previousById = new Map(installations.rows.map((installation) => [installation.id, installation.status]));
+      for (const installation of disabled.rows) {
+        const previousStatus = previousById.get(installation.id);
+        if (previousStatus) {
+          await this.enqueueInstallationLifecycle(client, installation, "disabled", previousStatus as InstallationLifecycleAnalyticsInput["previousStatus"], "human", installation.updated_at);
+        }
+      }
+      await client.query(
+        `INSERT INTO audit_records
+           (organization_id, actor_type, actor_id, action, resource_type, resource_id, metadata)
+         VALUES ($1, 'human', $2, 'agent.deletion.requested', 'agent_definition', $3, $4::jsonb)`,
+        [organizationId, actorId, agentId, JSON.stringify({ deletionJobId })],
+      );
+      return { agentId, installationIds, deleted: false, status: "queued" as const, deletionJobId };
+    });
+    if (queued) return queued;
+    return this.deleteAgentImmediately(organizationId, actorId, agentId);
+  }
+
+  /** Finalizer entrypoint used after the memory/provider deletion job completes. */
+  public async finalizeAgentDeletion(organizationId: string, actorId: string, agentId: string): Promise<AgentDeletionResult> {
+    return this.deleteAgentImmediately(organizationId, actorId, agentId);
+  }
+
+  /** Permanently removes an organization-owned agent after memory deletion is complete. */
+  private async deleteAgentImmediately(organizationId: string, actorId: string, agentId: string): Promise<AgentDeletionResult> {
     return withTransaction(this.pool, async (client) => {
       const agentResult = await client.query<Pick<AgentRecord, "id" | "name" | "owner_type" | "protected" | "creation_profile" | "agent_audience" | "status">>(
         `SELECT id, name, owner_type, protected, creation_profile, agent_audience, status
@@ -1563,6 +1756,17 @@ export class AgentRepository {
       if (!agent) throw Object.assign(new Error("Agent not found"), { statusCode: 404, code: "AGENT_NOT_FOUND" });
       if (agent.protected || agent.owner_type !== "organization") {
         throw Object.assign(new Error("Protected agents cannot be deleted"), { statusCode: 403, code: "AGENT_PROTECTED" });
+      }
+
+      const residualMemory = await client.query<{ requires_workflow: boolean }>(
+        `SELECT
+           EXISTS (SELECT 1 FROM agent_memory_facts WHERE organization_id = $1 AND agent_definition_id = $2) OR
+           EXISTS (SELECT 1 FROM memory_source_events WHERE organization_id = $1 AND agent_definition_id = $2) OR
+           EXISTS (SELECT 1 FROM memory_checkpoints WHERE organization_id = $1 AND agent_definition_id = $2) AS requires_workflow`,
+        [organizationId, agentId],
+      );
+      if (residualMemory.rows[0]?.requires_workflow) {
+        throw Object.assign(new Error("Agent memory deletion is still pending"), { statusCode: 409, code: "AGENT_MEMORY_DELETION_PENDING" });
       }
 
       await client.query(
@@ -1620,6 +1824,18 @@ export class AgentRepository {
         throw Object.assign(new Error("Release the active legal hold before deleting this agent"), { statusCode: 409, code: "AGENT_LEGAL_HOLD_ACTIVE" });
       }
 
+      const providerPending = await client.query<{ count: string }>(
+        `SELECT COUNT(*)::text AS count
+         FROM agent_memory_provider_deletion_jobs
+         WHERE organization_id = $1
+           AND installation_id IN (SELECT id FROM _agent_delete_installations)
+           AND status <> 'completed'`,
+        [organizationId],
+      );
+      if (Number(providerPending.rows[0]?.count ?? 0) > 0) {
+        throw Object.assign(new Error("Remote memory provider deletion is still pending"), { statusCode: 409, code: "AGENT_PROVIDER_DELETION_PENDING" });
+      }
+
       const deletedAt = new Date().toISOString();
       await this.enqueueDefinitionLifecycle(client, organizationId, agent, "deleted", "deleted", ["status"], "human", deletedAt);
       // Preserve immutable audit history, but remove execution, conversation, knowledge,
@@ -1651,6 +1867,7 @@ export class AgentRepository {
       await client.query("DELETE FROM agent_operator_run_assignments WHERE run_id IN (SELECT id FROM _agent_delete_runs)");
       await client.query("DELETE FROM agent_approval_records WHERE run_id IN (SELECT id FROM _agent_delete_runs)");
       await client.query("DELETE FROM agent_effect_receipts WHERE run_id IN (SELECT id FROM _agent_delete_runs)");
+      await client.query("DELETE FROM memory_consolidation_jobs WHERE trigger_run_id IN (SELECT id FROM _agent_delete_runs)");
       await client.query("DELETE FROM tool_invocations WHERE run_id IN (SELECT id FROM _agent_delete_runs)");
       await client.query("DELETE FROM run_attempts WHERE run_id IN (SELECT id FROM _agent_delete_runs)");
       await client.query("DELETE FROM run_steps WHERE run_id IN (SELECT id FROM _agent_delete_runs)");
@@ -1677,12 +1894,16 @@ export class AgentRepository {
       await client.query("DELETE FROM memory_records WHERE agent_definition_id = $1 OR installation_id IN (SELECT id FROM _agent_delete_installations) OR conversation_id IN (SELECT id FROM _agent_delete_conversations)", [agentId]);
       await client.query("DELETE FROM knowledge_chunks WHERE source_id IN (SELECT id FROM _agent_delete_sources) OR agent_definition_id = $1", [agentId]);
       await client.query("DELETE FROM knowledge_sources WHERE id IN (SELECT id FROM _agent_delete_sources)");
+      // Provider deletion children are retained until remote confirmation. At
+      // this point the preflight above proves every child is completed, so it
+      // is safe to remove the receipts before removing installations.
+      await client.query("DELETE FROM agent_memory_provider_deletion_jobs WHERE installation_id IN (SELECT id FROM _agent_delete_installations)");
       await client.query("DELETE FROM agent_tool_grants WHERE agent_version_id IN (SELECT id FROM _agent_delete_versions)");
       await client.query("DELETE FROM agent_principals WHERE installation_id IN (SELECT id FROM _agent_delete_installations)");
       await client.query("DELETE FROM agent_installations WHERE id IN (SELECT id FROM _agent_delete_installations)");
       await client.query("DELETE FROM agent_versions WHERE id IN (SELECT id FROM _agent_delete_versions)");
       await client.query("DELETE FROM agent_definitions WHERE organization_id = $1 AND id = $2", [organizationId, agentId]);
-      return { agentId, installationIds, deleted: true };
+      return { agentId, installationIds, deleted: true, status: "deleted" as const };
     });
   }
 
@@ -1811,7 +2032,13 @@ export class AgentRepository {
         `INSERT INTO agent_installations
           (agent_definition_id, agent_version_id, organization_id, scope_type, scope_id, execution_mode, settings, created_by)
          VALUES ($1, $2, $3, $4, $5, 'system_hosted', $6::jsonb, $7)
-         ON CONFLICT (organization_id, agent_definition_id, scope_type, scope_id)
+         ON CONFLICT (
+           organization_id,
+           agent_definition_id,
+           scope_type,
+           scope_id,
+           (COALESCE(settings ->> 'environment', 'live'))
+         )
          DO UPDATE SET updated_at = agent_installations.updated_at
          RETURNING *, (xmax = 0) AS created_now`,
         [
@@ -1984,6 +2211,7 @@ export class AgentRepository {
     systemSlug: string;
     scopeType?: "organization" | "user" | "business";
     scopeId?: string;
+    environment?: AgentEnvironment;
   }): Promise<SystemInstallationRecord | null> {
     const result = await query<SystemInstallationRecord>(
       this.pool,
@@ -1992,9 +2220,10 @@ export class AgentRepository {
        FROM agent_installations ai
        JOIN agent_definitions ad ON ad.id = ai.agent_definition_id
        JOIN agent_versions av ON av.id = ai.agent_version_id
-       WHERE ai.organization_id = $1 AND ad.organization_id = $2
+         WHERE ai.organization_id = $1 AND ad.organization_id = $2
          AND ad.owner_type = 'system' AND ad.protected = TRUE AND ad.slug = $3
          AND ai.scope_type = $4 AND ai.scope_id = $5
+         AND COALESCE(ai.settings ->> 'environment', 'live') = $6
        LIMIT 1`,
       [
         input.organizationId,
@@ -2002,6 +2231,7 @@ export class AgentRepository {
         input.systemSlug,
         input.scopeType ?? "organization",
         input.scopeId ?? input.organizationId,
+        input.environment ?? "live",
       ],
     );
     return result.rows[0] ?? null;

@@ -3,9 +3,8 @@ import { RunRepository } from "../db/repositories/run-repository";
 import { ModelCallRepository } from "../db/repositories/model-call-repository";
 import { RunBudgetRepository } from "../db/repositories/run-budget-repository";
 import { ConversationRepository } from "../db/repositories/conversation-repository";
-import { MemoryRepository } from "../db/repositories/memory-repository";
-import { MemoryLifecycle } from "../memory/lifecycle";
 import { RetrievalService } from "../memory/retrieval";
+import { memoryPolicyFromAgentPolicy } from "../memory/policy";
 import { KnowledgeRepository } from "../db/repositories/knowledge-repository";
 import type { AgentRunActivities } from "./contracts";
 import { ModelGateway } from "../model/gateway";
@@ -62,6 +61,7 @@ import { IntegrationRepository } from "../integrations/repository";
 import { IntegrationToolService } from "../integrations/service";
 import { registerIntegrationTools } from "../integrations/tools";
 import { recordBudgetExhaustion, recordRetrievalResult, recordTemporalActivityAttempt, withSpan } from "../telemetry/spans";
+import { operationalLogger } from "../telemetry/logger";
 import { AGENT_MEDIA_HARNESS_TOOLS, agentResponseSchema, agentResponseToolInputSchema, findAuthorizationRequirement, parseAgentResponse } from "../media/contracts";
 import { buildChannelMediaText, buildChannelUiFallback, channelUiNavigationButtons, type ResolvedAgentMedia } from "../media/delivery";
 import { channelMediaProfile } from "../media/profiles";
@@ -78,7 +78,28 @@ import { PostgresExecutionJournal, RunRepositoryExecutionJournalStore } from "..
 import { PostgresDeliveryObligationCoordinator } from "../delivery";
 import { compactDurableContext } from "../runtime/context-compaction";
 import { ContextCompactionRepository } from "../db/repositories/context-compaction-repository";
+import { ContextManifestRepository, type ContextManifestRecordInput } from "../db/repositories/context-manifest-repository";
+import { ContextAttemptBudgetRepository } from "../db/repositories/context-attempt-budget-repository";
+import { MemoryCheckpointRepository } from "../db/repositories/memory-checkpoint-repository";
+import { createRuntimeMemoryCheckpointPort } from "../memory/runtime-adapter";
+import { MemoryRevisionRetrievalRepository } from "../db/repositories/memory-revision-retrieval-repository";
+import { MemoryRetrievalDecisionRepository } from "../db/repositories/memory-retrieval-decision-repository";
+import { MemoryRetentionRepository } from "../db/repositories/memory-retention-repository";
+import { createRuntimeMemoryRetrievalPort } from "../memory/runtime-retrieval-adapter";
+import { createModelRetrievalGate } from "../memory/retrieval-gate";
+import { MemoryRevisionCommandService } from "../memory/revision-command-service";
+import { MemoryRevisionRepository } from "../db/repositories/memory-revision-repository";
+import { MemorySourceEventRepository } from "../db/repositories/memory-source-event-repository";
+import { MemoryConsolidationJobRepository } from "../db/repositories/memory-consolidation-job-repository";
+import { MemoryJournalSourceCapture, type MemoryJournalScope } from "../memory/journal-source-capture";
+import { ModelCapabilityRepository } from "../db/repositories/model-capability-repository";
+import { DurableContextCapabilityResolver, type ContextCapabilityCatalogResolver } from "../runtime/context-capability";
+import type { ProviderContextProfile } from "../runtime/context-planning";
+import { getKasiAiModelCatalog } from "../system/kasiai-models";
+import type { ModelCapabilityRoute } from "../model/model-capability-catalog";
+import { ProviderMetadataClient } from "../model/provider-metadata";
 import { createTemporalChildInvocationTool, type TemporalChildInvocationCoordinator } from "../children/temporal-coordinator";
+import { directEvidenceEnvelopeFromMessages, sourceEventBoundaryFromMessages, type MemoryEvidencePack, type MemoryRuntimeEventPayload, type MemoryRuntimeEventType, type MemoryRuntimeScope } from "../runtime/context-memory-boundary";
 
 export interface ActivityOptions {
   gateway?: ModelGateway;
@@ -103,7 +124,61 @@ export function normalizeConnectionFilter(value: unknown): string | undefined {
   return normalized && normalized.toLowerCase() !== "all" ? normalized : undefined;
 }
 
+function memoryScopeFromRun(run: Awaited<ReturnType<RunRepository["getRuntimeRun"]>> & object): MemoryRuntimeScope {
+  const workspaceId = run.installation_scope_id?.trim();
+  if (!workspaceId) throw Object.assign(new Error("Memory scope requires an installation host scope"), { code: "MEMORY_SCOPE_MISSING" });
+  // Normalize the persisted policy before constructing the runtime scope. A
+  // missing or legacy allow-list must resolve to the policy's bounded default,
+  // never to an unrestricted repository query.
+  const readableNamespaces = memoryPolicyFromAgentPolicy(run.policy).readableNamespaces
+    .map((value) => value === "user_private" ? "end_user_private" : value === "organization_shared" ? "workspace_shared" : value)
+    .filter((value) => ["conversation", "end_user_private", "workspace_shared", "agent_private"].includes(value));
+  return {
+    organizationId: run.organization_id,
+    workspaceId,
+    agentDefinitionId: run.agent_definition_id,
+    agentVersionId: run.agent_version_id,
+    installationId: run.installation_id,
+    ...(run.conversation_id ? { conversationId: run.conversation_id } : {}),
+    namespace: run.conversation_id ? "conversation" : "workspace_shared",
+    readableNamespaces: [...new Set(readableNamespaces)],
+  };
+}
+
+function typedMemoryIntent(reason: string): "current_fact" | "historical_episode" | "semantic_context" | undefined {
+  switch (reason) {
+    case "preference_reference":
+    case "semantic_reference":
+      return "current_fact";
+    case "contextual_question":
+      return "historical_episode";
+    case "always":
+    case "direct_reference":
+      return "semantic_context";
+    default:
+      return undefined;
+  }
+}
+
 function journalHarnessEvent(event: AgentLoopEvent) {
+  if (event.type === "memory_retrieval_requested" || event.type === "memory_retrieval_completed" || event.type === "memory_retrieval_blocked") {
+    const payload = event.payload;
+    return {
+      kind: "memory.integration" as const,
+      data: {
+        type: event.type.replace("memory_retrieval", "memory_retrieval") as MemoryRuntimeEventType,
+        runId: typeof payload.runId === "string" ? payload.runId : "unknown",
+        turnId: typeof payload.turnId === "string" ? payload.turnId : "unknown",
+        ...(typeof payload.attemptId === "string" ? { attemptId: payload.attemptId } : {}),
+        ...(typeof payload.compactionGeneration === "number" ? { compactionGeneration: payload.compactionGeneration } : {}),
+        ...(typeof payload.sourceEventBoundaryDigest === "string" ? { sourceEventBoundaryDigest: payload.sourceEventBoundaryDigest } : {}),
+        ...(typeof payload.reason === "string" ? { reason: payload.reason } : {}),
+        ...(typeof payload.packId === "string" ? { packId: payload.packId } : {}),
+        ...(typeof payload.evidenceCount === "number" ? { evidenceCount: payload.evidenceCount } : {}),
+        ...(typeof payload.errorCode === "string" ? { errorCode: payload.errorCode } : {}),
+      },
+    };
+  }
   return {
     kind: "harness.turn" as const,
     data: {
@@ -285,9 +360,15 @@ async function reserveRunModelBudget(input: {
   parallelLeaseId?: string;
   gateway: ModelGateway;
   request: ModelRequest;
+  estimatedInputTokens?: number;
+  reservedOutputTokens?: number;
+  contextManifestDigest?: string;
 }): Promise<ModelCreditReservation> {
-  const estimatedInputTokens = estimatePromptTokens(input.request);
-  const estimatedOutputTokens = Math.max(1, input.request.maxTokens ?? 4_096);
+  // The context runtime owns request accounting. The fallback keeps this
+  // helper compatible with legacy/non-loop callers while all harness model
+  // calls provide the immutable manifest values explicitly.
+  const estimatedInputTokens = input.estimatedInputTokens ?? estimatePromptTokens(input.request);
+  const estimatedOutputTokens = input.reservedOutputTokens ?? Math.max(1, input.request.maxTokens ?? 4_096);
   let reservation;
   try {
     reservation = await input.repository.reserveModelCall({
@@ -318,17 +399,16 @@ async function consumeRunToolBudget(repository: RunBudgetRepository, input: { or
   }
 }
 
-export function createDefaultTools(coreClient?: KasitekCoreReadClient, conversationActions?: ConversationActionService, integrationTools?: IntegrationToolService, memoryRepository?: MemoryRepository, hostCapabilities?: HostCapabilityRouter): ToolRegistry {
+export function createDefaultTools(coreClient?: KasitekCoreReadClient, conversationActions?: ConversationActionService, integrationTools?: IntegrationToolService, hostCapabilities?: HostCapabilityRouter, memoryRevisionCommands?: MemoryRevisionCommandService): ToolRegistry {
   const resolvedHostCapabilities = hostCapabilities ?? (coreClient
     ? new HostCapabilityRouter([new CoreHostAdapter(coreClient), new NativeHostAdapter()])
     : undefined);
   const tools = new ToolRegistry();
-  if (memoryRepository) {
-    const memoryLifecycle = new MemoryLifecycle(memoryRepository);
+  if (memoryRevisionCommands) {
     tools.register({
       name: "kasitek.agent.memory_search",
-      version: "1.0.0",
-      description: "Search the current agent's permitted memory for relevant prior evidence.",
+      version: "2.0.0",
+      description: "Search the current agent's scoped memory revisions.",
       riskClass: "read",
       requiresApproval: false,
       timeoutMs: 8_000,
@@ -339,31 +419,13 @@ export function createDefaultTools(coreClient?: KasitekCoreReadClient, conversat
         additionalProperties: false,
       },
       outputSchema: { type: "object", properties: { memories: { type: "array" } }, required: ["memories"], additionalProperties: false },
-      manifest: { ownerService: "agents", requiredScope: "agent.memory.read", execution: "immediate", idempotency: "not_applicable", approval: "none", auditClassification: "restricted", redaction: ["memories.content", "memories.provenance"] },
-      handler: async (context, args) => {
-        const records = await memoryLifecycle.search(
-          resourceAccessFromExecutionScope(context.scope),
-          String(args.query),
-          context.memoryPolicy,
-          typeof args.limit === "number" ? args.limit : undefined,
-        );
-        return {
-          memories: records.map((record) => ({
-            id: record.id,
-            namespace: record.namespace,
-            memoryType: record.memory_type,
-            text: record.canonical_text,
-            sensitivity: record.sensitivity,
-            confidence: record.confidence,
-            expiresAt: record.expires_at,
-          })),
-        };
-      },
+      manifest: { ownerService: "agents", requiredScope: "agent.memory.read", execution: "immediate", idempotency: "not_applicable", approval: "none", auditClassification: "restricted", redaction: ["memories.text"] },
+      handler: async (context, args) => ({ memories: await memoryRevisionCommands.search({ context, query: String(args.query), limit: typeof args.limit === "number" ? args.limit : undefined, allowSensitive: Boolean(context.memoryPolicy?.allowSensitive) }) }),
     });
     tools.register({
       name: "kasitek.agent.memory_remember",
-      version: "1.0.0",
-      description: "Save an explicit user-requested memory for this agent after approval.",
+      version: "2.0.0",
+      description: "Save an explicit user-requested memory as a versioned revision.",
       riskClass: "controlled-write",
       requiresApproval: true,
       timeoutMs: 8_000,
@@ -371,35 +433,63 @@ export function createDefaultTools(coreClient?: KasitekCoreReadClient, conversat
         type: "object",
         properties: {
           namespace: { type: "string", enum: ["conversation", "user_private", "organization_shared", "agent_private"] },
-          memoryType: { type: "string", enum: ["working", "semantic", "episodic", "procedural"] },
+          memoryType: { type: "string", enum: ["semantic", "episodic"] },
           text: { type: "string", minLength: 1, maxLength: 8_000 },
           factKey: { type: "string", minLength: 1, maxLength: 240 },
-          supersedesMemoryId: { type: "string", format: "uuid" },
           sensitivity: { type: "string", enum: ["normal", "sensitive", "restricted"] },
-          expiresAt: { type: ["string", "null"] },
         },
         required: ["namespace", "memoryType", "text"],
         additionalProperties: false,
       },
       outputSchema: { type: "object", properties: { memory: { type: "object" } }, required: ["memory"], additionalProperties: false },
-      manifest: { ownerService: "agents", requiredScope: "agent.memory.write", execution: "durable", idempotency: "required", approval: "always", auditClassification: "restricted", redaction: ["memory.content", "memory.provenance"] },
-      handler: async (context, args) => {
-        const memory = await memoryLifecycle.rememberExplicit(
-          resourceAccessFromExecutionScope(context.scope),
-          {
-            namespace: String(args.namespace) as Parameters<MemoryLifecycle["rememberExplicit"]>[1]["namespace"],
-            memoryType: String(args.memoryType) as Parameters<MemoryLifecycle["rememberExplicit"]>[1]["memoryType"],
-            canonicalText: String(args.text),
-            ...(typeof args.factKey === "string" ? { factKey: args.factKey } : {}),
-            ...(typeof args.supersedesMemoryId === "string" ? { supersedesMemoryId: args.supersedesMemoryId } : {}),
-            sensitivity: typeof args.sensitivity === "string" ? args.sensitivity as "normal" | "sensitive" | "restricted" : undefined,
-            expiresAt: args.expiresAt === null || typeof args.expiresAt === "string" ? args.expiresAt : undefined,
-            ...(String(args.namespace) === "user_private" && context.actorId ? { ownerUserId: context.actorId } : {}),
-          },
-          context.memoryPolicy,
-        );
-        return { memory: { id: memory.id, namespace: memory.namespace, memoryType: memory.memory_type, text: memory.canonical_text, expiresAt: memory.expires_at } };
+      manifest: { ownerService: "agents", requiredScope: "agent.memory.write", execution: "durable", idempotency: "required", approval: "always", auditClassification: "restricted", redaction: ["memory.text"] },
+      handler: async (context, args) => ({ memory: await memoryRevisionCommands.rememberExplicit({ context, namespace: String(args.namespace), memoryType: String(args.memoryType), text: String(args.text), ...(typeof args.factKey === "string" ? { factKey: args.factKey } : {}), sensitivity: typeof args.sensitivity === "string" ? args.sensitivity as "normal" | "sensitive" | "restricted" : undefined, idempotencyKey: context.runId ? `memory-command:${context.runId}:${String(args.namespace)}:${String(args.memoryType)}:${String(args.text)}` : undefined }) }),
+    });
+    tools.register({
+      name: "kasitek.agent.memory_correct",
+      version: "2.0.0",
+      description: "Correct a scoped memory revision with an explicit expected predecessor.",
+      riskClass: "controlled-write",
+      requiresApproval: true,
+      timeoutMs: 8_000,
+      inputSchema: {
+        type: "object",
+        properties: {
+          namespace: { type: "string", enum: ["conversation", "user_private", "organization_shared", "agent_private"] },
+          memoryType: { type: "string", enum: ["semantic", "episodic"] },
+          text: { type: "string", minLength: 1, maxLength: 8_000 },
+          factKey: { type: "string", minLength: 1, maxLength: 240 },
+          expectedRevisionId: { type: "string", minLength: 1, maxLength: 240 },
+          sensitivity: { type: "string", enum: ["normal", "sensitive", "restricted"] },
+        },
+        required: ["namespace", "memoryType", "text", "expectedRevisionId"],
+        additionalProperties: false,
       },
+      outputSchema: { type: "object", properties: { memory: { type: "object" } }, required: ["memory"], additionalProperties: false },
+      manifest: { ownerService: "agents", requiredScope: "agent.memory.write", execution: "durable", idempotency: "required", approval: "always", auditClassification: "restricted", redaction: ["memory.text"] },
+      handler: async (context, args) => ({ memory: await memoryRevisionCommands.correct({ context, namespace: String(args.namespace), memoryType: String(args.memoryType), text: String(args.text), expectedRevisionId: String(args.expectedRevisionId), ...(typeof args.factKey === "string" ? { factKey: args.factKey } : {}), sensitivity: typeof args.sensitivity === "string" ? args.sensitivity as "normal" | "sensitive" | "restricted" : undefined, idempotencyKey: `memory-correct:${context.runId}:${String(args.expectedRevisionId)}` }) }),
+    });
+    tools.register({
+      name: "kasitek.agent.memory_forget",
+      version: "2.0.0",
+      description: "Forget a scoped memory revision by appending a deletion transition.",
+      riskClass: "controlled-write",
+      requiresApproval: true,
+      timeoutMs: 8_000,
+      inputSchema: {
+        type: "object",
+        properties: {
+          namespace: { type: "string", enum: ["conversation", "user_private", "organization_shared", "agent_private"] },
+          memoryType: { type: "string", enum: ["semantic", "episodic"] },
+          factKey: { type: "string", minLength: 1, maxLength: 240 },
+          expectedRevisionId: { type: "string", minLength: 1, maxLength: 240 },
+        },
+        required: ["namespace", "memoryType"],
+        additionalProperties: false,
+      },
+      outputSchema: { type: "object", properties: { status: { type: "string" }, revisionId: { type: "string" } }, required: ["status"], additionalProperties: false },
+      manifest: { ownerService: "agents", requiredScope: "agent.memory.write", execution: "durable", idempotency: "required", approval: "always", auditClassification: "restricted", redaction: [] },
+      handler: async (context, args) => memoryRevisionCommands.forget({ context, namespace: String(args.namespace), memoryType: String(args.memoryType), ...(typeof args.factKey === "string" ? { factKey: args.factKey } : {}), ...(typeof args.expectedRevisionId === "string" ? { expectedRevisionId: args.expectedRevisionId } : {}) }),
     });
   }
   tools.register({
@@ -2212,9 +2302,61 @@ class SessionLeaseGuard {
 export function createActivities(pool: Pool, options: ActivityOptions = {}): AgentRunActivities {
   const runs = new RunRepository(pool);
   const modelCalls = new ModelCallRepository(pool);
+  const modelCapabilities = new ModelCapabilityRepository(pool);
+  let modelCatalogPromise: ReturnType<typeof getKasiAiModelCatalog> | undefined;
+  const catalogResolver: ContextCapabilityCatalogResolver | undefined = options.config
+    ? async (route: ModelCapabilityRoute) => {
+      // A catalog is valid only for the provider's registered default route.
+      // Custom endpoints must establish their own metadata or correction.
+      if (route.endpointId !== `${route.provider}:default`) return undefined;
+      modelCatalogPromise ??= getKasiAiModelCatalog(options.config!);
+      const catalog = await modelCatalogPromise;
+      const model = catalog.models.find((entry) => entry.provider === route.provider && entry.model === route.model);
+      const contextWindowTokens = model?.contextWindow;
+      const fetchedAt = Date.parse(catalog.fetchedAt);
+      if (!model || typeof contextWindowTokens !== "number" || !Number.isSafeInteger(contextWindowTokens) || contextWindowTokens <= 0 || !Number.isFinite(fetchedAt)) return undefined;
+      const ttlMs = catalog.source === "live" ? 5 * 60_000 : 60_000;
+      const expiresAt = new Date(fetchedAt + ttlMs).toISOString();
+      if (Date.parse(expiresAt) <= Date.now()) return undefined;
+      return {
+        ...route,
+        contextWindowTokens,
+        source: "catalog",
+        resolvedAt: new Date(fetchedAt).toISOString(),
+        expiresAt,
+      };
+    }
+    : undefined;
+  const contextCapabilities = new DurableContextCapabilityResolver(
+    modelCapabilities,
+    60_000,
+    catalogResolver ? { catalogResolver } : undefined,
+  );
+  const providerMetadata = new ProviderMetadataClient();
   const runBudgets = new RunBudgetRepository(pool);
   const conversations = new ConversationRepository(pool);
-  const memory = new MemoryRepository(pool);
+  const memoryV2Enabled = options.config?.MEMORY_V2_ENABLED ?? true;
+  const memoryCheckpoints = memoryV2Enabled ? new MemoryCheckpointRepository(pool, { analyticsEnabled: true }) : undefined;
+  const memoryCheckpointPort = memoryCheckpoints ? createRuntimeMemoryCheckpointPort(memoryCheckpoints) : undefined;
+  const memoryRevisionRetrieval = memoryV2Enabled ? new MemoryRevisionRetrievalRepository(pool) : undefined;
+  const memoryQuality = memoryV2Enabled ? new MemoryRetentionRepository(pool) : undefined;
+  const memoryRetrievalDecisions = memoryV2Enabled ? new MemoryRetrievalDecisionRepository(pool) : undefined;
+  const memoryRetrievalPort = memoryRevisionRetrieval && memoryQuality && memoryRetrievalDecisions
+    ? createRuntimeMemoryRetrievalPort(memoryRevisionRetrieval, memoryQuality, undefined, memoryRetrievalDecisions, pool)
+    : undefined;
+  const memoryRevisions = memoryV2Enabled ? new MemoryRevisionRepository(pool, { analyticsEnabled: true }) : undefined;
+  const memoryRevisionCommands = memoryRevisions ? new MemoryRevisionCommandService(pool, memoryRevisions, { analyticsPool: pool }) : undefined;
+  const memorySourceEvents = memoryV2Enabled ? new MemorySourceEventRepository(pool) : undefined;
+  const memoryJournalSourceCapture = memorySourceEvents ? new MemoryJournalSourceCapture(memorySourceEvents, {
+    resolve: async ({ organizationId, runId }) => {
+      const sourceRun = await runs.getRuntimeRunById(runId);
+      if (!sourceRun || sourceRun.organization_id !== organizationId) throw new Error("MEMORY_JOURNAL_SCOPE_NOT_FOUND");
+      const scope = memoryScopeFromRun(sourceRun);
+      if (!scope.workspaceId) throw new Error("MEMORY_JOURNAL_WORKSPACE_SCOPE_MISSING");
+      return scope as MemoryJournalScope;
+    },
+  }) : undefined;
+  const memoryConsolidationJobs = memoryV2Enabled ? new MemoryConsolidationJobRepository(pool) : undefined;
   const knowledge = new KnowledgeRepository(pool);
   const skills = options.skills ?? new SkillRepository(pool);
   const toolInvocations = new ToolInvocationRepository(pool);
@@ -2252,7 +2394,7 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
   const integrationRepository = options.config ? new IntegrationRepository(pool, options.config.AGENTS_CREDENTIAL_ENCRYPTION_KEY) : undefined;
   const remoteMcpProviders = options.remoteMcpProviders ?? new RemoteMcpProviderRepository(pool, integrationRepository ? (organizationId, credentialReference) => integrationRepository.resolveCredential(organizationId, credentialReference) : undefined);
   const integrationTools = options.integrationTools ?? (integrationRepository ? new IntegrationToolService(integrationRepository, options.config) : undefined);
-  const tools = options.harness?.tools ?? options.tools ?? createDefaultTools(coreClient, conversationActions, integrationTools, memory, hostCapabilities);
+  const tools = options.harness?.tools ?? options.tools ?? createDefaultTools(coreClient, conversationActions, integrationTools, hostCapabilities, memoryRevisionCommands);
   if (options.childInvocationCoordinator && !tools.get("kasitek.agent.delegate")) {
     tools.register(createTemporalChildInvocationTool(options.childInvocationCoordinator));
   }
@@ -2340,9 +2482,10 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
             toolInvocationLifecycle,
             sessionLease,
             sessionGuard,
+            options.config,
           );
         }
-        return await executeLoopForRun(run, input.resumeApprovedToolCall, input.resumeExternalEvent, input.loopStep, runs, modelCalls, runBudgets, conversations, memory, knowledge, skills, remoteMcpProviders, toolInvocations, approvals, effectReceipts, runSteps, toolGrants, installationGrants, summaries, killSwitches, controls, kasiaiPreferences, gateway, credentials, tools, harness, workflowState, workflowCheckpoints, modelPricing, creditPricing, creditBillingMode, coreClient, conversationActions, options.config?.TEMPORAL_STEP_ACTIVITIES_ENABLED === true, toolInvocationLifecycle, sessionLease, new ContextCompactionRepository(pool, run.organization_id), sessionGuard);
+        return await executeLoopForRun(run, input.resumeApprovedToolCall, input.resumeExternalEvent, input.loopStep, runs, modelCalls, contextCapabilities, providerMetadata, runBudgets, conversations, knowledge, skills, remoteMcpProviders, toolInvocations, approvals, effectReceipts, runSteps, toolGrants, installationGrants, summaries, killSwitches, controls, kasiaiPreferences, gateway, credentials, tools, harness, workflowState, workflowCheckpoints, modelPricing, creditPricing, creditBillingMode, coreClient, conversationActions, options.config?.TEMPORAL_STEP_ACTIVITIES_ENABLED === true, toolInvocationLifecycle, sessionLease, new ContextCompactionRepository(pool, run.organization_id), new ContextManifestRepository(pool, run.organization_id), new ContextAttemptBudgetRepository(pool, run.organization_id, { maxAttempts: restrictiveLimit(run.configuration.maxModelCalls, run.installation_settings?.maxModelCalls) ?? 8 }), memoryCheckpointPort, memoryRetrievalPort, sessionGuard, memoryJournalSourceCapture, options.config, memoryConsolidationJobs);
       } finally {
         sessionGuard?.stop();
       }
@@ -2842,6 +2985,7 @@ function isMcpToolRun(input: Record<string, unknown>): input is Record<string, u
 }
 
 function durableConversationMessageToModelMessage(message: {
+  id?: string;
   direction: string;
   message_type: string;
   content: Record<string, unknown>;
@@ -2861,6 +3005,14 @@ function durableConversationMessageToModelMessage(message: {
     ...(typeof content.name === "string" ? { name: content.name } : {}),
     ...(toolCalls?.length ? { toolCalls } : {}),
   };
+}
+
+function memoryRolloutFlagForTool(name: string): "memory_v2_retrieval_enabled" | "memory_v2_writes_enabled" | undefined {
+  if (name === "kasitek.agent.memory_search") return "memory_v2_retrieval_enabled";
+  if (name === "kasitek.agent.memory_remember" || name === "kasitek.agent.memory_correct" || name === "kasitek.agent.memory_forget") {
+    return "memory_v2_writes_enabled";
+  }
+  return undefined;
 }
 
 async function assertRunEnvironmentBoundary(
@@ -2895,17 +3047,33 @@ async function executeMcpToolRun(
   toolInvocationLifecycle: ReturnType<typeof createToolInvocationLifecycle>,
   sessionLease?: { sessionKey: string; fencingToken: string },
   sessionGuard?: SessionLeaseGuard,
+  appConfig?: AppConfig,
 ) {
   if (!isMcpToolRun(run.input)) throw new Error("Invalid MCP run input");
-  const executionScope = runtimeExecutionScopeFromRun(run, sessionLease);
   const assertSessionLease = async (): Promise<void> => {
     await sessionGuard?.assertCurrent();
+  };
+  const memoryRolloutDecisions = new Map<string, boolean>();
+  const assertMemoryRollout = async (toolName: string): Promise<void> => {
+    if (appConfig?.MEMORY_V2_ENABLED === false) return;
+    const flag = memoryRolloutFlagForTool(toolName);
+    if (!flag) return;
+    let enabled = memoryRolloutDecisions.get(flag);
+    if (enabled === undefined) {
+      enabled = await controls.isFeatureEnabled(run.organization_id, flag, run.installation_id);
+      memoryRolloutDecisions.set(flag, enabled);
+    }
+    if (!enabled) {
+      const code = flag === "memory_v2_retrieval_enabled" ? "MEMORY_V2_RETRIEVAL_DISABLED" : "MEMORY_V2_WRITES_DISABLED";
+      throw Object.assign(new Error(`Memory v2 rollout is disabled for ${toolName}`), { code });
+    }
   };
   const invocation = resumeApprovedToolCall ?? {
     id: run.input.mcpTool.toolCallId,
     name: run.input.mcpTool.name,
     arguments: run.input.mcpTool.arguments,
   };
+  await assertMemoryRollout(invocation.name);
   const configuration = run.configuration ?? {};
   const installationSettings = run.installation_settings ?? {};
   await runBudgets.ensure(
@@ -2915,11 +3083,19 @@ async function executeMcpToolRun(
   const manifest = capabilities.get(invocation.name);
   if (!manifest) throw new Error(`Tool is not registered: ${invocation.name}`);
   const argumentsHash = hashToolArguments(invocation.arguments);
+  const grantedTools = await toolGrants.effectiveTools(run.organization_id, run.agent_version_id, run.installation_id);
+  // Host adapters authorize against the admitted execution scope, not only the
+  // tool registry. Carry the effective installation grants into that scope so
+  // external-connected direct calls can reach native/core capabilities without
+  // bypassing the existing grant check below.
+  const executionScope = {
+    ...runtimeExecutionScopeFromRun(run, sessionLease),
+    capabilityGrants: [...grantedTools],
+  };
   const approvalRecord = resumeApprovedToolCall ? await approvals.getForRun(run.organization_id, run.id) : null;
   const resourceSnapshot = resumeApprovedToolCall?.approval.resourceSnapshot
     ?? approvalRecord?.resource_snapshot
     ?? await buildApprovalResourceSnapshotFromCore(coreClient, toolInvocationContextFromScope(executionScope), invocation.name, invocation.arguments);
-  const grantedTools = await toolGrants.effectiveTools(run.organization_id, run.agent_version_id, run.installation_id);
   // New direct calls must be granted before a proposal is created. Resumed
   // approvals are re-authorized in the guarded path below so revocation closes
   // the reserved effect as unexecuted without reaching the provider.
@@ -3068,6 +3244,10 @@ async function executeMcpToolRun(
     return {
       status: "completed" as const,
       messages: [],
+      directToolResult: {
+        name: invocation.name,
+        output: durableOutput,
+      },
       usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0, estimatedCostUsd: 0 },
       iterations: 0,
       toolCalls: 1,
@@ -3104,9 +3284,10 @@ async function executeLoopForRun(
   loopStep: Parameters<AgentRunActivities["executeLoop"]>[0]["loopStep"],
   runs: RunRepository,
   modelCalls: ModelCallRepository,
+  contextCapabilities: DurableContextCapabilityResolver,
+  providerMetadata: ProviderMetadataClient,
   runBudgets: RunBudgetRepository,
   conversations: ConversationRepository,
-  memory: MemoryRepository,
   knowledge: KnowledgeRepository,
   skills: SkillRepository,
   remoteMcpProviders: RemoteMcpProviderRepository,
@@ -3135,12 +3316,96 @@ async function executeLoopForRun(
   toolInvocationLifecycle: ReturnType<typeof createToolInvocationLifecycle>,
   sessionLease?: { sessionKey: string; fencingToken: string },
   contextCompaction?: ContextCompactionRepository,
+  contextManifests?: ContextManifestRepository,
+  contextAttemptBudget?: ContextAttemptBudgetRepository,
+  memoryCheckpointPort?: ReturnType<typeof createRuntimeMemoryCheckpointPort>,
+  memoryRetrievalPort?: ReturnType<typeof createRuntimeMemoryRetrievalPort>,
   sessionGuard?: SessionLeaseGuard,
+  memoryJournalSourceCapture?: MemoryJournalSourceCapture,
+  appConfig?: AppConfig,
+  memoryConsolidationJobs?: MemoryConsolidationJobRepository,
 ) {
   if (run.installation_status !== "active") throw new Error("INSTALLATION_NOT_ACTIVE");
-  const journal = new PostgresExecutionJournal(new RunRepositoryExecutionJournalStore(runs));
+  const journal = new PostgresExecutionJournal(
+    new RunRepositoryExecutionJournalStore(runs),
+    memoryJournalSourceCapture ? [event => memoryJournalSourceCapture.capture(event).then(() => undefined)] : [],
+  );
+  // Journal observers are deliberately non-blocking, so a worker can die
+  // after the execution event commits but before its memory projection is
+  // admitted. Reconcile the durable journal before building context; the
+  // capture object keeps a process-local cursor and safely replays from zero
+  // after a worker restart. A projection failure must remain observable but
+  // must not turn an already durable user turn into a second execution.
+  if (memoryJournalSourceCapture) {
+    try {
+      await memoryJournalSourceCapture.replay({
+        journal,
+        organizationId: run.organization_id,
+        runId: run.id,
+      });
+    } catch (error) {
+      operationalLogger.warn({
+        event: "memory.journal.replay.failed",
+        organization_id: run.organization_id,
+        run_id: run.id,
+        error_code: error instanceof Error && "code" in error && typeof error.code === "string" ? error.code : "MEMORY_JOURNAL_REPLAY_FAILED",
+      }, "Memory journal replay did not complete; durable journal remains the source of truth");
+    }
+  }
   const assertSessionLease = async (): Promise<void> => {
     await sessionGuard?.assertCurrent();
+  };
+  const memoryRolloutDecisions = new Map<string, boolean>();
+  const assertMemoryRollout = async (toolName: string): Promise<void> => {
+    if (appConfig?.MEMORY_V2_ENABLED === false) return;
+    const flag = memoryRolloutFlagForTool(toolName);
+    if (!flag) return;
+    let enabled = memoryRolloutDecisions.get(flag);
+    if (enabled === undefined) {
+      enabled = await controls.isFeatureEnabled(run.organization_id, flag, run.installation_id);
+      memoryRolloutDecisions.set(flag, enabled);
+    }
+    if (!enabled) {
+      const code = flag === "memory_v2_retrieval_enabled" ? "MEMORY_V2_RETRIEVAL_DISABLED" : "MEMORY_V2_WRITES_DISABLED";
+      throw Object.assign(new Error(`Memory v2 rollout is disabled for ${toolName}`), { code });
+    }
+  };
+  const persistContextManifest = async (input: {
+    provider: string;
+    model: string;
+    status: "fits" | "compacted" | "rejected";
+    decision: "ready" | "compact" | "prune" | "limited" | "cannot_fit";
+    manifest: import("../runtime/context-planning").ContextRequestManifest;
+  }): Promise<void> => {
+    if (!contextManifests) return;
+    const identity = input.manifest.identity;
+    const record: ContextManifestRecordInput = {
+      requestManifestId: identity.requestManifestId,
+      runId: run.id,
+      turnId: identity.turnId ?? `${run.id}:turn:${activeLoopStep}`,
+      ...(identity.modelAttemptId ? { modelAttemptId: identity.modelAttemptId } : {}),
+      ...(identity.providerRequestId ? { providerRequestId: identity.providerRequestId } : {}),
+      compactionGeneration: identity.compactionGeneration ?? 0,
+      sourceBoundaryDigest: identity.sourceEventBoundaryDigest,
+      sourceDigest: input.manifest.sourceDigest,
+      manifestDigest: input.manifest.digest,
+      sourceMessageCount: input.manifest.sourceMessageCount,
+      selectedMessageCount: input.manifest.selectedMessageCount,
+      sourceToolCount: input.manifest.sourceToolCount,
+      selectedToolCount: input.manifest.selectedToolCount,
+      estimatedInputTokens: input.manifest.estimatedInputTokens,
+      reservedOutputTokens: input.manifest.reservedOutputTokens,
+      safetyMarginTokens: input.manifest.safetyMarginTokens,
+      providerContextWindowTokens: input.manifest.providerContextWindowTokens,
+      inputBudgetTokens: input.manifest.inputBudgetTokens,
+      softThresholdTokens: input.manifest.softThresholdTokens,
+      hardLimitTokens: input.manifest.hardLimitTokens,
+      estimatedRequestBytes: input.manifest.estimatedRequestBytes,
+      components: input.manifest.components,
+      fitDecision: input.decision,
+      status: input.status,
+    };
+    await contextManifests.record(record);
   };
   const configuration = run.configuration;
   const installationSettings = run.installation_settings ?? {};
@@ -3256,6 +3521,42 @@ async function executeLoopForRun(
       ? configuration.credentialReference
       : modelTarget.credentialReference;
   const modelCredentials = await credentials.resolve(provider, credentialReference, run.organization_id);
+  const runtimeEnvironment = process.env.NODE_ENV ?? "development";
+  const resolveAttemptContextCapability = (input: {
+    provider: ModelProvider;
+    model: string;
+    profile: ProviderContextProfile;
+    credentialRouteId?: string;
+    credentials: ModelCredentials;
+  }) => contextCapabilities.resolve({
+    organizationId: run.organization_id,
+    profile: input.profile,
+    provider: input.provider,
+    model: input.model,
+    credentialRouteId: input.credentialRouteId,
+    runtimeEnvironment,
+    providerMetadata: (route) => providerMetadata.resolve({ route, credentials: input.credentials }),
+  });
+  // Context capacity must be resolved before the compatibility projection is
+  // built. A configured runtime limit is an optional policy ceiling; it is not
+  // evidence of the provider/model window and must never be reported as one.
+  const configuredContextPolicyLimit = isKasiAiInstallation
+    ? undefined
+    : restrictiveLimit(configuration.maxContextTokens, installationSettings.maxContextTokens);
+  const primaryContextCapability = await resolveAttemptContextCapability({
+    provider,
+    model,
+    profile: { provider, model, contextWindowTokens: 0, capabilitySource: "unknown" },
+    credentialRouteId: modelCredentials.credentialReference,
+    credentials: modelCredentials,
+  });
+  const providerContextWindowTokens = Number.isSafeInteger(primaryContextCapability.contextWindowTokens)
+    && primaryContextCapability.contextWindowTokens > 0
+    ? primaryContextCapability.contextWindowTokens
+    : 0;
+  const contextBudgetTokens = providerContextWindowTokens > 0
+    ? restrictiveLimit(providerContextWindowTokens, configuredContextPolicyLimit) ?? providerContextWindowTokens
+    : 0;
   const fallbackModels = [] as Array<{
     model: { provider: typeof provider; model: string; temperature?: number };
     credentials: ModelCredentials;
@@ -3343,24 +3644,127 @@ async function executeLoopForRun(
       })
     : [];
   const conversationSummary = run.conversation_id ? await summaries.getSummary(run.organization_id, run.conversation_id) : null;
-  const compacted = await compactDurableContext({
-    operationId: `context:${run.id}:${activeLoopStep}`,
-    contextId: run.conversation_id ?? run.id,
-    revision: activeLoopStep + 1,
-    messages: durableMessages.map(durableConversationMessageToModelMessage),
-    policy: {
-      maxRetainedMessageUnits: Math.max(1, restrictiveLimit(configuration.maxContextMessages, installationSettings.maxContextMessages) ?? 20),
-      maxSummaryTokens: 512,
+  const contextCompactionOperationId = `context:${run.id}:${activeLoopStep}`;
+  const contextCompactionId = run.conversation_id ?? run.id;
+  const memoryScope = memoryScopeFromRun(run);
+  const memorySourceMessages = durableMessages.map(durableConversationMessageToModelMessage);
+  const memorySourceEventIds = durableMessages.map((message) => message.id);
+  const memorySourceBoundary = sourceEventBoundaryFromMessages(memorySourceMessages, memorySourceEventIds);
+  const memoryDirectEvidence = directEvidenceEnvelopeFromMessages(memorySourceMessages, memorySourceEventIds);
+  if (memoryConsolidationJobs && run.conversation_id && memorySourceMessages.length > 0) {
+    const memoryPolicy = run.policy && typeof run.policy.memory === "object" && !Array.isArray(run.policy.memory)
+      ? run.policy.memory as Record<string, unknown>
+      : undefined;
+    if (memoryPolicy?.mode === "reviewed" || memoryPolicy?.mode === "automatic") {
+      await memoryConsolidationJobs.requestForcedFlush({
+        organizationId: run.organization_id,
+        agentDefinitionId: run.agent_definition_id,
+        agentVersionId: run.agent_version_id,
+        installationId: run.installation_id,
+        conversationId: run.conversation_id,
+        triggerRunId: run.id,
+        reason: "pre_compaction",
+      });
+    }
+  }
+  let compacted;
+  try {
+    compacted = await compactDurableContext({
+      operationId: contextCompactionOperationId,
+      contextId: contextCompactionId,
+      revision: activeLoopStep + 1,
+      fenceToken: sessionLease?.fencingToken,
+      messages: memorySourceMessages,
+      policy: {
+        maxRetainedMessageUnits: Math.max(1, restrictiveLimit(configuration.maxContextMessages, installationSettings.maxContextMessages) ?? 20),
+        maxSummaryTokens: 512,
+      },
+      adapter: contextCompaction,
+      contextAttemptBudget,
+      contextAttemptBudgetId: `context-attempts:${run.id}:turn:${activeLoopStep}`,
+      contextAttemptRunId: run.id,
+      contextAttemptTurnId: `${run.id}:turn:${activeLoopStep}`,
+      assertFenceCurrent: assertSessionLease,
+      memoryCheckpointPort,
+      memoryCheckpointRequired: Boolean(memoryCheckpointPort),
+      memoryRunId: run.id,
+      memoryTurnId: `${run.id}:turn:${activeLoopStep}`,
+      memoryScope,
+      sourceEventBoundary: memorySourceBoundary,
+      evidenceDigest: memorySourceBoundary.digest,
+      directEvidence: memoryDirectEvidence,
+      onMemoryEvent: async (event) => {
+        await journal.append({
+          scope: executionScope,
+          event: { kind: "memory.integration", data: event },
+        });
+      },
+      onCompactionEvent: async (event) => {
+        await journal.append({
+          scope: executionScope,
+          event: {
+            kind: "harness.turn",
+            data: {
+              type: event.type,
+              iteration: activeLoopStep,
+              payload: { ...event },
+            },
+          },
+        });
+      },
+    });
+  } catch (error) {
+    await journal.append({
+      scope: executionScope,
+      event: {
+        kind: "context.compaction",
+        data: {
+          operationId: contextCompactionOperationId,
+          contextId: contextCompactionId,
+          status: "failed",
+          errorCode: error instanceof Error && "code" in error && typeof error.code === "string" ? error.code : "CONTEXT_COMPACTION_FAILED",
+        },
+      },
+    });
+    throw error;
+  }
+  await journal.append({
+    scope: executionScope,
+    event: {
+      kind: "context.compaction",
+      data: {
+        operationId: compacted.diagnostics.operationId,
+        contextId: compacted.diagnostics.contextId,
+        status: compacted.diagnostics.replayed ? "replayed" : "committed",
+        generation: compacted.diagnostics.generation,
+        revision: compacted.diagnostics.revision,
+        source: compacted.diagnostics.source,
+        ...(compacted.diagnostics.providerFailureCode ? { providerFailureCode: compacted.diagnostics.providerFailureCode } : {}),
+      },
     },
-    adapter: contextCompaction,
   });
-  const compactedSummary = [conversationSummary?.summary, compacted.summary].filter((value): value is string => Boolean(value?.trim())).join("\n\n");
-  const memoryLifecycle = new MemoryLifecycle(memory);
-  const retrievalResult = await new RetrievalService(memoryLifecycle, knowledge).retrieve(resourceAccessFromExecutionScope(executionScope), currentMessage, run.policy, {
+  // Durable compaction is an evidence/checkpoint artifact. It must not become
+  // a second fixed-count prompt assembler: the shared provider-aware planner
+  // below needs the complete durable transcript so it can make the final,
+  // capability-specific selection and account for the exact request.
+  const compactedSummary = conversationSummary?.summary?.trim() || undefined;
+  const retrievalGate = appConfig?.MEMORY_RETRIEVAL_GATE_ENABLED
+    ? createModelRetrievalGate(gateway, {
+      provider,
+      model,
+      credentials: modelCredentials,
+      timeoutMs: appConfig.MEMORY_RETRIEVAL_GATE_TIMEOUT_MS,
+    })
+    : undefined;
+  const retrievalResult = await new RetrievalService(undefined, knowledge).retrieveKnowledge(resourceAccessFromExecutionScope(executionScope), currentMessage, run.policy, {
     always: run.installation_settings?.profile === "general",
+    gate: retrievalGate,
+    gateTimeoutMs: appConfig?.MEMORY_RETRIEVAL_GATE_TIMEOUT_MS,
+    gateMinConfidence: appConfig?.MEMORY_RETRIEVAL_GATE_MIN_CONFIDENCE,
   });
   const retrievalDecision = retrievalResult.decision;
   const retrievalRequested = retrievalDecision.requested;
+  const memoryIntent = retrievalRequested ? typedMemoryIntent(retrievalDecision.reasonCode) : undefined;
   const memoryMatches = retrievalResult.memoryMatches;
   const knowledgeMatches = retrievalResult.knowledgeMatches;
   recordRetrievalResult({
@@ -3386,7 +3790,7 @@ async function executeLoopForRun(
     stepId: retrievalStep.id,
     status: "completed",
     output: {
-      memoryMatchCount: memoryMatches.length,
+    memoryMatchCount: memoryMatches.length,
       knowledgeMatchCount: knowledgeMatches.length,
       evidence: retrievalResult.evidence.map((entry) => ({ sourceType: entry.sourceType, id: entry.id, rank: entry.rank, score: entry.score })),
     },
@@ -3412,9 +3816,9 @@ async function executeLoopForRun(
     currentMessage,
     alwaysRetrieveKnowledge: run.installation_settings?.profile === "general",
     retrievalDecision,
-    summary: compactedSummary || undefined,
+    summary: compactedSummary,
     longTermMemory: longTermMemory || undefined,
-    recentMessages: compacted.messages.filter((message) => message.role !== "system").map((message, index) => ({
+    recentMessages: memorySourceMessages.filter((message) => message.role !== "system").map((message, index) => ({
       direction: message.role === "user" ? "inbound" : message.role === "tool" ? "system" : "outbound",
       messageType: message.role,
       content: { text: message.content, ...(message.toolCallId ? { toolCallId: message.toolCallId } : {}), ...(message.name ? { name: message.name } : {}), ...(message.toolCalls ? { toolCalls: message.toolCalls } : {}) },
@@ -3427,9 +3831,45 @@ async function executeLoopForRun(
       : undefined,
     budget: {
       maxMessages: restrictiveLimit(configuration.maxContextMessages, installationSettings.maxContextMessages),
-      maxContextTokens: restrictiveLimit(configuration.maxContextTokens, installationSettings.maxContextTokens),
+      maxContextTokens: contextBudgetTokens,
     },
   });
+  let memoryRetrievalPack: MemoryEvidencePack | undefined;
+  let memoryRetrievalPackBoundaryDigest: string | undefined;
+  const memoryV2RetrievalEnabled = memoryRetrievalPort && appConfig?.MEMORY_V2_ENABLED !== false
+    ? await controls.isFeatureEnabled(run.organization_id, "memory_v2_retrieval_enabled", run.installation_id)
+    : false;
+  if (memoryIntent && memoryRetrievalPort && memoryV2RetrievalEnabled) {
+    const loopSourceBoundary = sourceEventBoundaryFromMessages(context.sourceMessages, memorySourceEventIds);
+    memoryRetrievalPackBoundaryDigest = loopSourceBoundary.digest;
+    try {
+      memoryRetrievalPack = await memoryRetrievalPort.retrieve({
+        runId: run.id,
+        turnId: `${run.id}:turn:${activeLoopStep}`,
+        attemptId: `${run.id}:${activeLoopStep}:memory:preflight`,
+        compactionGeneration: compacted.diagnostics.generation,
+        sourceEventBoundary: loopSourceBoundary,
+        scope: memoryScope,
+        reason: memoryIntent,
+        query: retrievalDecision.query,
+        maxEvidenceTokens: retrievalDecision.maxTokens,
+        ...(retrievalDecision.gate ? { gate: retrievalDecision.gate } : {}),
+      });
+    } catch (error) {
+      memoryRetrievalPack = {
+        packId: `memory-pack:${run.id}:${activeLoopStep}:preflight`,
+        status: "blocked",
+        evidence: [],
+        blockedReason: error instanceof Error && "code" in error && typeof error.code === "string"
+          ? error.code
+          : "MEMORY_RETRIEVAL_FAILED",
+      };
+    }
+    if (memoryRetrievalPack.status === "blocked"
+      && /(?:MEMORY_SCOPE|MEMORY_RETRIEVAL_INTENT|MEMORY_POLICY|MEMORY_AUTH)/u.test(memoryRetrievalPack.blockedReason ?? "")) {
+      throw Object.assign(new Error(memoryRetrievalPack.blockedReason ?? "Memory retrieval was blocked"), { code: "MEMORY_RETRIEVAL_BLOCKED" });
+    }
+  }
   const modelToolContext = toolInvocationContextFromScope(executionScope, {
     memoryPolicy: run.policy && typeof run.policy.memory === "object" && !Array.isArray(run.policy.memory) ? run.policy.memory as Record<string, unknown> : undefined,
   });
@@ -3483,35 +3923,10 @@ async function executeLoopForRun(
       },
     },
   });
-  if (context.decision.status === "limited") {
-    const error = {
-      code: "CONTEXT_MINIMUM_EXCEEDS_BUDGET",
-      message: "The minimum required instructions, current message, and tool schemas exceed the configured context budget.",
-      failureClass: "terminal" as const,
-    };
-    await runs.appendEvent({
-      organizationId: run.organization_id,
-      runId: run.id,
-      installationId: run.installation_id,
-      eventType: "agent.context.limited",
-      payload: { error, decision: context.decision, budget: context.budget },
-    });
-    await journal.append({
-      scope: executionScope,
-      event: {
-        kind: "harness.turn",
-        data: { type: "loop.limited", iteration: 0, payload: { reason: "context_minimum_exceeds_budget", decision: context.decision } },
-      },
-    });
-    return {
-      status: "limited" as const,
-      messages: context.messages,
-      usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0, estimatedCostUsd: 0 },
-      iterations: 0,
-      toolCalls: 0,
-      error,
-    };
-  }
+  // The compatibility preflight above is diagnostic only. It may expose a
+  // limited projection, but it must not terminate the run: the shared loop
+  // receives the complete source messages and performs the authoritative
+  // provider-capability, manifest, and fit decision immediately before dispatch.
   const budgetLedger: AgentBudgetLedger = createAgentBudgetLedger({
     contextTokens: runBudgetLimits.maxTotalTokens,
     modelTokens: runBudgetLimits.maxTotalTokens,
@@ -3520,6 +3935,16 @@ async function executeLoopForRun(
     childInvocations: 16,
     wallTimeMs: typeof configuration.maxWallTimeMs === "number" ? configuration.maxWallTimeMs : 60_000,
   });
+  const contextProfile = {
+    provider,
+    model,
+    contextWindowTokens: primaryContextCapability.contextWindowTokens,
+    ...(configuredContextPolicyLimit === undefined ? {} : { policyLimitTokens: configuredContextPolicyLimit }),
+    ...(primaryContextCapability.maxOutputTokens === undefined ? {} : { maxOutputTokens: primaryContextCapability.maxOutputTokens }),
+    capabilitySource: primaryContextCapability.capabilitySource,
+    ...(primaryContextCapability.capabilityResolvedAt === undefined ? {} : { capabilityResolvedAt: primaryContextCapability.capabilityResolvedAt }),
+    safetyMarginTokens: 256,
+  } as const;
   const executionPlan = {
     model: {
       provider,
@@ -3530,17 +3955,27 @@ async function executeLoopForRun(
     fallbackModels,
     gateway,
     grantedTools: allowedTools,
-    modelTools: context.tools,
-    modelContextTokens: context.budget.maxContextTokens,
-    contextProfile: {
-      provider,
-      model,
-      contextWindowTokens: context.budget.maxContextTokens,
-      maxOutputTokens: Math.max(1, Math.min(2_048, runBudgetLimits.maxTotalTokens)),
-      safetyMarginTokens: 256,
-    },
+    // `context.tools` is the compatibility preflight projection. The final
+    // provider-aware planner must receive every authorized schema so it can
+    // make the only model-facing selection for the actual route/capability.
+    modelTools: tools.list(allowedTools),
+    contextProfile,
+    requireContextCapability: true,
+    contextCapabilityResolver: resolveAttemptContextCapability,
+    recordContextCapabilityCorrection: async ({ provider: attemptProvider, model: attemptModel, profile, credentialRouteId, correction }: { provider: ModelProvider; model: string; profile: ProviderContextProfile; credentialRouteId?: string; correction: { contextWindowTokens?: number; maxOutputTokens?: number } }) => contextCapabilities.recordCorrection({ organizationId: run.organization_id, profile: { ...profile, provider: attemptProvider, model: attemptModel }, credentialRouteId, runtimeEnvironment: process.env.NODE_ENV ?? "development", correction }),
+    contextCompactionGeneration: compacted.diagnostics.generation,
+    ...(memoryIntent && memoryRetrievalPort && memoryV2RetrievalEnabled ? {
+      memoryRetrievalPort,
+      memoryScope,
+      memoryRetrievalQuery: retrievalDecision.query,
+      memoryRetrievalReason: memoryIntent,
+      memoryMaxEvidenceTokens: retrievalDecision.maxTokens,
+      memorySourceEventIds,
+      ...(memoryRetrievalPack ? { memoryRetrievalPack } : {}),
+      ...(memoryRetrievalPackBoundaryDigest ? { memoryRetrievalPackBoundaryDigest } : {}),
+    } : {}),
     contextPlanningPolicy: {
-      maxToolSchemaTokens: context.budget.toolSchemaTokens > 0 ? context.budget.toolSchemaTokens : 2_000,
+      maxToolSchemaTokens: context.budget.maxToolSchemaTokens,
       maxToolResultTokens: 1_500,
     },
     toolContext: modelToolContext,
@@ -3550,7 +3985,7 @@ async function executeLoopForRun(
     message: currentMessage,
     agentAudience: run.agent_audience,
     isSystemAgent: isKasiAiInstallation,
-    evidenceCount: retrievalResult.evidence.length,
+    evidenceCount: retrievalResult.evidence.length + (memoryRetrievalPack?.evidence.length ?? 0),
   })) {
     await assertSessionLease();
     const response = createGroundingFallbackResponse(provider, model);
@@ -3576,7 +4011,12 @@ async function executeLoopForRun(
       runId: run.id,
       installationId: run.installation_id,
       eventType: "agent.grounding.blocked",
-      payload: { reason: "no_trusted_evidence", retrievalRequested, knowledgeMatchCount: retrievalResult.evidence.filter((entry) => entry.sourceType === "knowledge").length },
+      payload: {
+        reason: "no_trusted_evidence",
+        retrievalRequested,
+        knowledgeMatchCount: retrievalResult.evidence.filter((entry) => entry.sourceType === "knowledge").length,
+        memoryEvidenceCount: memoryRetrievalPack?.evidence.length ?? 0,
+      },
     });
     const groundingResult: AgentLoopResult = {
       status: "completed",
@@ -3613,6 +4053,8 @@ async function executeLoopForRun(
     () => harness.runTurn({
       plan: {
         ...executionPlan,
+        admittedAt: run.created_at,
+        turnId: `${run.id}:turn:${activeLoopStep}`,
         model: {
           ...executionPlan.model,
           temperature: options.model?.temperature ?? executionPlan.model.temperature,
@@ -3624,6 +4066,9 @@ async function executeLoopForRun(
       dynamicUiEnabled,
       toolLifecycle: toolInvocationLifecycle,
       signal: activitySignal,
+      persistContextManifest,
+      contextAttemptBudget,
+      contextAttemptBudgetId: `context-attempts:${run.id}:turn:${activeLoopStep}`,
       operationKeyPrefix: options.operationKeyPrefix,
       parallelLeaseId: options.parallelLeaseId,
       limits: {
@@ -3634,7 +4079,7 @@ async function executeLoopForRun(
         maxWallTimeMs: typeof configuration.maxWallTimeMs === "number" ? configuration.maxWallTimeMs : undefined,
         ...options.limits,
       },
-      reserveRunBudget: async ({ request, reservationKey, parallelLeaseId }) => reserveRunModelBudget({ repository: runBudgets, organizationId: run.organization_id, runId: run.id, reservationKey, parallelLeaseId, gateway, request }),
+      reserveRunBudget: async ({ request, reservationKey, parallelLeaseId, estimatedInputTokens, reservedOutputTokens, contextManifestDigest }) => reserveRunModelBudget({ repository: runBudgets, organizationId: run.organization_id, runId: run.id, reservationKey, parallelLeaseId, gateway, request, estimatedInputTokens, reservedOutputTokens, contextManifestDigest }),
       consumeRunToolCall: ({ parallelLeaseId } = {}) => consumeRunToolBudget(runBudgets, { organizationId: run.organization_id, runId: run.id, parallelLeaseId }),
       replayToolInvocation: async ({ toolCallId, name, argumentsHash }) => (await toolInvocations.getCompleted({
         organizationId: run.organization_id,
@@ -3695,6 +4140,7 @@ async function executeLoopForRun(
         credentials: attemptCredentials,
       }),
       beforeToolInvoke: async (invocation) => {
+        await assertMemoryRollout(invocation.name);
         const manifest = tools.get(invocation.name);
         if (manifest?.requiresApproval && !invocation.approved) return;
       },
@@ -3894,6 +4340,8 @@ async function executeLoopForRun(
       harness,
       toolInvocationLifecycle,
       budgetLedger,
+      assertMemoryRollout,
+      memoryJournalSourceCapture,
       assertSessionLease,
       runAgentLoop: async ({ nodeId, config, state, maxIterations, usage, limits, parallelLeaseId }) => {
         const instruction = typeof config.instruction === "string" && config.instruction.trim()
@@ -3906,7 +4354,7 @@ async function executeLoopForRun(
           ? configuredIterations
           : Math.max(0, limits.maxModelCalls - usage.modelCalls);
         const loopResult = await runHostedAgentLoop({
-          messages: [...context.messages, { role: "user", content: JSON.stringify({ nodeId, instruction, state }) }],
+          messages: [...context.sourceMessages, { role: "user", content: JSON.stringify({ nodeId, instruction, state }) }],
           operationKeyPrefix: workflowAgentLoopOperationKeyPrefix(run.id, nodeId),
           parallelLeaseId,
           model: {
@@ -3958,13 +4406,16 @@ async function executeLoopForRun(
     return harness.runTurn({
     plan: executionPlan,
     messages: resumeExternalEvent
-      ? [...(loopCheckpoint?.messages ?? context.messages), { role: "user" as const, content: JSON.stringify({ externalEvent: resumeExternalEvent }) }]
-      : loopCheckpoint?.messages ?? context.messages,
+      ? [...(loopCheckpoint?.messages ?? context.sourceMessages), { role: "user" as const, content: JSON.stringify({ externalEvent: resumeExternalEvent }) }]
+      : loopCheckpoint?.messages ?? context.sourceMessages,
     uiChannel: run.reply_channel_type === "website" ? "website" : "platform",
     dynamicUiEnabled,
     toolLifecycle: toolInvocationLifecycle,
     resumeUi: loopCheckpoint?.ui,
     signal: activitySignal,
+    persistContextManifest,
+    contextAttemptBudget,
+    contextAttemptBudgetId: `context-attempts:${run.id}:turn:${activeLoopStep}`,
     operationKeyPrefix: agentLoopOperationKeyPrefix(run.id, stepExecutionEnabled ? (loopCheckpoint?.iterations ?? 0) : undefined),
     limits: {
       maxIterations: stepExecutionEnabled ? Math.min(1, remainingIterations) : (typeof configuration.maxIterations === "number" ? configuration.maxIterations : undefined),
@@ -3975,7 +4426,7 @@ async function executeLoopForRun(
       maxEstimatedCostUsd: runBudgetLimits.maxEstimatedCostUsd,
       maxWallTimeMs: typeof configuration.maxWallTimeMs === "number" ? configuration.maxWallTimeMs : undefined,
     },
-    reserveRunBudget: async ({ request, reservationKey, parallelLeaseId }) => reserveRunModelBudget({ repository: runBudgets, organizationId: run.organization_id, runId: run.id, reservationKey, parallelLeaseId, gateway, request }),
+    reserveRunBudget: async ({ request, reservationKey, parallelLeaseId, estimatedInputTokens, reservedOutputTokens, contextManifestDigest }) => reserveRunModelBudget({ repository: runBudgets, organizationId: run.organization_id, runId: run.id, reservationKey, parallelLeaseId, gateway, request, estimatedInputTokens, reservedOutputTokens, contextManifestDigest }),
     consumeRunToolCall: ({ parallelLeaseId } = {}) => consumeRunToolBudget(runBudgets, { organizationId: run.organization_id, runId: run.id, parallelLeaseId }),
     prepareModelCall: async ({ operationKey, model: attemptModel, credentials: attemptCredentials }) => {
       await assertSessionLease();
@@ -4031,6 +4482,7 @@ async function executeLoopForRun(
       });
     },
     beforeToolInvoke: async (invocation) => {
+      await assertMemoryRollout(invocation.name);
       const manifest = tools.get(invocation.name);
       if (manifest?.requiresApproval && !invocation.approved) return;
     },
@@ -4275,6 +4727,9 @@ async function executeConfiguredWorkflow(input: {
   harness: AgentHarness;
   toolInvocationLifecycle: ReturnType<typeof createToolInvocationLifecycle>;
   budgetLedger: AgentBudgetLedger;
+  assertMemoryRollout?: (toolName: string) => Promise<void>;
+  /** Projects workflow journal facts into the same durable memory evidence boundary as linear runs. */
+  memoryJournalSourceCapture?: MemoryJournalSourceCapture;
   runAgentLoop: (input: GraphAgentLoopRequest) => Promise<GraphAgentLoopResult>;
   limits: GraphExecutionLimits;
   /** Enables one-node Temporal continuation for linear graphs during controlled rollout. */
@@ -4327,13 +4782,19 @@ async function executeConfiguredWorkflow(input: {
   const graphStepActivitiesEnabled = input.graphStepActivitiesEnabled && supportsLinearStepContinuation;
   const toolSequence = { value: 0 };
   const usedTools = new Set<string>();
-  const workflowJournal = new PostgresExecutionJournal(new RunRepositoryExecutionJournalStore(input.runRepository));
+  const workflowJournal = new PostgresExecutionJournal(
+    new RunRepositoryExecutionJournalStore(input.runRepository),
+    input.memoryJournalSourceCapture
+      ? [event => input.memoryJournalSourceCapture!.capture(event).then(() => undefined)]
+      : [],
+  );
   const workflowJournalScope = input.modelToolContext.scope;
   let authorizationRequired: ReturnType<typeof findAuthorizationRequirement>;
   let lastModelResponse: ModelResponse | undefined;
 
   const executeTool = async (request: { name: string; arguments: Record<string, unknown>; nodeId: string; approved?: unknown }): Promise<unknown> => {
     await input.assertSessionLease?.();
+    await input.assertMemoryRollout?.(request.name);
     activityHeartbeat({ phase: "workflow.tool.started", nodeId: request.nodeId, tool: request.name });
     usedTools.add(request.name);
     const manifest = input.harness.get(request.name);

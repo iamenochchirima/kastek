@@ -2,7 +2,7 @@
 
 pub const REGISTRY_VERSION: &str = "20260824.1";
 pub const REGISTRY_SHA256: &str =
-    "ae3675e505498f5804520da2fe0e2a981b9c3578a1a38c1b6c6eadf04c42caff";
+    "732a46944532031fe28e6141e7e8ab938f91e9a01d54f26a3e5559d8735a0fb1";
 
 pub const CONTRACT_KEYS: &[&str] = &[
     "agent.approval.lifecycle@1",
@@ -19,6 +19,11 @@ pub const CONTRACT_KEYS: &[&str] = &[
     "agent.handoff.lifecycle@1",
     "agent.installation.deployment@1",
     "agent.installation.lifecycle@1",
+    "agent.memory.deletion@1",
+    "agent.memory.deletion@2",
+    "agent.memory.lifecycle@1",
+    "agent.memory.projection@1",
+    "agent.memory.retrieval@1",
     "agent.model_call.completed@1",
     "agent.model_call.failed@1",
     "agent.readiness.snapshot@1",

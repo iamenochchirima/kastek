@@ -15,6 +15,8 @@ export interface MemoryRuntimeScope {
   readonly conversationId?: string;
   readonly endUserId?: string;
   readonly namespace: string;
+  /** Namespaces the installation policy permits this retrieval to inspect. */
+  readonly readableNamespaces?: readonly string[];
 }
 
 export interface MemorySourceEventBoundary {
@@ -70,6 +72,11 @@ export interface MemoryEvidenceItem {
   readonly retrievalReason?: string;
   readonly score?: number;
   readonly redactedContent: string;
+  /** Content-free lineage for historical and contradiction explanations. */
+  readonly relations?: readonly {
+    readonly relationType: "supports" | "contradicts" | "supersedes" | "derived_from" | "about";
+    readonly relatedRevisionId: string;
+  }[];
   readonly measurement?: Record<string, unknown>;
 }
 

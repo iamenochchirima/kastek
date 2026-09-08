@@ -6,6 +6,7 @@ import { recordRetrievalDuration } from "../telemetry/spans";
 import { operationalLogger } from "../telemetry/logger";
 import { createEnvironmentEmbeddingProvider, embedSafely, type EmbeddingProvider } from "./embeddings";
 import { isKnowledgeSeekingMessage } from "../runtime/grounding";
+import { decideMemoryRetrievalWithGate, type RetrievalGateClassifier, type RetrievalGateMetadata } from "./retrieval-gate";
 
 export type RetrievalSourceType = "memory" | "knowledge";
 export type RetrievalReason = "always" | "direct_reference" | "preference_reference" | "contextual_question" | "semantic_reference" | "knowledge_reference" | "policy_disabled" | "not_requested";
@@ -19,6 +20,7 @@ export interface RetrievalDecision {
   sourceTypes: RetrievalSourceType[];
   maxResults: number;
   maxTokens: number;
+  gate?: RetrievalGateMetadata;
 }
 
 export interface RetrievalEvidence {
@@ -69,6 +71,23 @@ function sourceTypesFor(policy: MemoryPolicy): RetrievalSourceType[] {
   return policy.mode !== "disabled" && policy.maxRetrieved > 0 && policy.readableNamespaces.length > 0
     ? ["memory", "knowledge"]
     : ["knowledge"];
+}
+
+const memoryIntentReasons = new Set<RetrievalReason>([
+  "always",
+  "direct_reference",
+  "preference_reference",
+  "contextual_question",
+  "semantic_reference",
+]);
+
+/**
+ * Cheap prefilter: ordinary knowledge questions should not touch the memory
+ * store unless the message contains a memory-oriented anchor. This keeps
+ * retrieval bounded and makes the memory gate observable rather than implicit.
+ */
+export function shouldQueryMemory(reason: RetrievalReason): boolean {
+  return memoryIntentReasons.has(reason);
 }
 
 function policyFor(value: MemoryPolicy | unknown): MemoryPolicy {
@@ -123,7 +142,13 @@ export function decideMemoryRetrieval(
             ? "knowledge_reference"
             : undefined;
   if (!reason) return { requested: false, reason: "not_requested", reasonCode: "not_requested", ...base };
-  return { requested: true, reason, reasonCode: reason, ...base };
+  return {
+    requested: true,
+    reason,
+    reasonCode: reason,
+    ...base,
+    sourceTypes: shouldQueryMemory(reason) ? sourceTypes : ["knowledge"],
+  };
 }
 
 function normalizedText(value: string): string {
@@ -193,13 +218,15 @@ function rankEvidence(
 
 export class RetrievalService {
   public constructor(
-    private readonly memory: MemoryLifecycle,
+    private readonly memory: MemoryLifecycle | undefined,
     private readonly knowledge: KnowledgeRepository,
     private readonly embeddingProvider: EmbeddingProvider | undefined = createEnvironmentEmbeddingProvider(),
   ) {}
 
-  public async retrieve(scope: MemoryScope, message: string, policyValue: MemoryPolicy | unknown, options: { always?: boolean } = {}): Promise<RetrievalResult> {
-    const decision = decideMemoryRetrieval(message, { ...options, policy: policyValue });
+  public async retrieve(scope: MemoryScope, message: string, policyValue: MemoryPolicy | unknown, options: { always?: boolean; gate?: RetrievalGateClassifier; gateTimeoutMs?: number; gateMinConfidence?: number } = {}): Promise<RetrievalResult> {
+    if (!this.memory) throw new Error("MEMORY_RETRIEVAL_ADAPTER_UNAVAILABLE");
+    const gate = await decideMemoryRetrievalWithGate(message, { always: options.always, policy: policyValue, classifier: options.gate, timeoutMs: options.gateTimeoutMs, minConfidence: options.gateMinConfidence });
+    const decision = { ...gate.decision, gate: gate.metadata };
     if (!decision.requested) return { decision, evidence: [], memoryMatches: [], knowledgeMatches: [] };
     const started = performance.now();
     try {
@@ -222,6 +249,40 @@ export class RetrievalService {
         decision,
         evidence: rankEvidence(memoryMatches, knowledgeMatches, decision.maxResults, decision.maxTokens),
         memoryMatches,
+        knowledgeMatches,
+      };
+    } finally {
+      recordRetrievalDuration(performance.now() - started);
+    }
+  }
+
+  /**
+   * Knowledge-only projection used while the v2 memory revision adapter is
+   * authoritative for memory. This keeps the knowledge source contract and
+   * embedding repair path without querying the legacy memory_records table.
+   */
+  public async retrieveKnowledge(scope: MemoryScope, message: string, policyValue: MemoryPolicy | unknown, options: { always?: boolean; gate?: RetrievalGateClassifier; gateTimeoutMs?: number; gateMinConfidence?: number } = {}): Promise<RetrievalResult> {
+    const gate = await decideMemoryRetrievalWithGate(message, { always: options.always, policy: policyValue, classifier: options.gate, timeoutMs: options.gateTimeoutMs, minConfidence: options.gateMinConfidence });
+    const decision = { ...gate.decision, gate: gate.metadata };
+    if (!decision.requested) return { decision, evidence: [], memoryMatches: [], knowledgeMatches: [] };
+    const started = performance.now();
+    try {
+      const candidateLimit = Math.min(50, Math.max(decision.maxResults, decision.maxResults * 2));
+      try {
+        await this.knowledge.ensureEmbeddings?.(scope, 50);
+      } catch (error) {
+        operationalLogger.warn({
+          event: "knowledge.embedding.repair.failed",
+          error_code: error instanceof Error ? error.name.slice(0, 80) : "unknown",
+          fallback: "lexical",
+        }, "Knowledge embedding repair failed; continuing with retrieval fallback");
+      }
+      const queryEmbedding = (await embedSafely(this.embeddingProvider, [decision.query]))?.[0];
+      const knowledgeMatches = await this.knowledge.search(scope, decision.query, candidateLimit, queryEmbedding);
+      return {
+        decision,
+        evidence: rankEvidence([], knowledgeMatches, decision.maxResults, decision.maxTokens),
+        memoryMatches: [],
         knowledgeMatches,
       };
     } finally {

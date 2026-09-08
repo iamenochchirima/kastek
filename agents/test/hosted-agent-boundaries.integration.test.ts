@@ -89,12 +89,12 @@ describe.skipIf(!runIntegration)("hosted agent lifecycle and isolation (integrat
       agentVersionId: version.id,
       scopeType: "organization",
       scopeId: organizationA,
-      settings: { environment: "test" },
+      settings: { environment: "playground" },
     });
     installationId = installation.id;
     expect(await agents.getInstallation(organizationB, installation.id)).toBeNull();
     expect(await agents.setInstallationSettings(organizationA, installation.id, "owner-a", { region: "local" })).toMatchObject({
-      settings: { environment: "test", region: "local" },
+      settings: { environment: "playground", region: "local" },
     });
     expect((await agents.setInstallationStatus(organizationA, installation.id, "paused", "owner-a")).status).toBe("paused");
     expect((await agents.setInstallationStatus(organizationA, installation.id, "active", "owner-a")).status).toBe("active");

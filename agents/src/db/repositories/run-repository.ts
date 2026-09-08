@@ -73,6 +73,9 @@ export interface RuntimeRunRecord extends RunRecord {
   policy: Record<string, unknown>;
   installation_settings: Record<string, unknown>;
   installation_status: string;
+  /** The installation's explicit host scope. Memory and context use this as the workspace identity. */
+  installation_scope_type?: "organization" | "user" | "business";
+  installation_scope_id?: string;
 }
 
 export type ConversationRunSummary = Pick<RunRecord, "id" | "conversation_id" | "status" | "created_at" | "updated_at">;
@@ -633,7 +636,8 @@ export class RunRepository {
       `SELECT ar.*, ad.name AS agent_name, ad.description AS agent_description, ad.slug AS agent_slug,
               ad.owner_type AS agent_owner_type, ad.protected AS agent_protected,
               ai.execution_mode, av.instructions, av.configuration, av.policy,
-              ai.settings AS installation_settings, ai.status AS installation_status
+              ai.settings AS installation_settings, ai.status AS installation_status,
+              ai.scope_type AS installation_scope_type, ai.scope_id AS installation_scope_id
        FROM agent_runs ar
        JOIN agent_definitions ad ON ad.id = ar.agent_definition_id
        JOIN agent_versions av ON av.id = ar.agent_version_id
@@ -650,7 +654,8 @@ export class RunRepository {
       `SELECT ar.*, ad.name AS agent_name, ad.description AS agent_description, ad.slug AS agent_slug,
               ad.owner_type AS agent_owner_type, ad.protected AS agent_protected,
               ai.execution_mode, av.instructions, av.configuration, av.policy,
-              ai.settings AS installation_settings, ai.status AS installation_status
+              ai.settings AS installation_settings, ai.status AS installation_status,
+              ai.scope_type AS installation_scope_type, ai.scope_id AS installation_scope_id
        FROM agent_runs ar
        JOIN agent_definitions ad ON ad.id = ar.agent_definition_id
        JOIN agent_versions av ON av.id = ar.agent_version_id

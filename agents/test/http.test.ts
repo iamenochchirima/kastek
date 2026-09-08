@@ -1766,21 +1766,25 @@ describe("Agent Platform HTTP foundation", () => {
   });
 
   it("ensures the protected KasiAi installation for the authenticated organization", async () => {
+    let receivedSettings: Record<string, unknown> | undefined;
     const agents = {
-      ensureSystemInstallation: async (input: { organizationId: string; actorId: string }) => ({
+      ensureSystemInstallation: async (input: { organizationId: string; actorId: string; settings?: Record<string, unknown> }) => {
+        receivedSettings = input.settings;
+        return {
         id: "installation-1",
         organization_id: input.organizationId,
         created: true,
         created_by: input.actorId,
         agent_slug: "kasiai",
-      }),
+        };
+      },
     } as unknown as AgentRepository;
     const app = buildApp({ config, pool: fakePool, agents });
     const response = await app.inject({
       method: "POST",
       url: "/v1/system-agents/kasiai/installation",
       headers: { "x-organization-id": "org-1", "x-actor-id": "user-1" },
-      payload: { language: "en", tone: "balanced" },
+      payload: { language: "en", tone: "balanced", environment: "playground" },
     });
     expect(response.statusCode).toBe(201);
     expect(response.json()).toMatchObject({
@@ -1789,6 +1793,7 @@ describe("Agent Platform HTTP foundation", () => {
       created_by: "user-1",
       agent_slug: "kasiai",
     });
+    expect(receivedSettings).toMatchObject({ language: "en", tone: "balanced", environment: "playground" });
     await app.close();
   });
 
@@ -2375,6 +2380,81 @@ describe("Agent Platform HTTP foundation", () => {
       runs: {
         getRun: async () => ({ id: "run-1", status: "completed" }),
         listEvents: async () => [{ event_type: "run.completed" }],
+        listJournalEvents: async () => [
+          {
+            id: "journal-1",
+            sequence: 1,
+            occurredAt: "2026-09-07T00:00:00.000Z",
+            scope: { organizationId: "org-1", installationId: "installation-1", runId: "run-1" },
+            event: {
+              kind: "harness.turn",
+              data: { type: "loop.started", iteration: 0, payload: { startedAt: "2026-09-07T00:00:00.000Z" } },
+            },
+          },
+          {
+            id: "journal-2",
+            sequence: 2,
+            occurredAt: "2026-09-07T00:00:01.000Z",
+            scope: { organizationId: "org-1", installationId: "installation-1", runId: "run-1" },
+            event: {
+              kind: "harness.turn",
+              data: {
+                type: "context.planned",
+                iteration: 0,
+                payload: {
+                  decision: "ready",
+                  accounting: {
+                    estimatedInputTokens: 40,
+                    contextWindowTokens: 100,
+                    capabilitySource: "provider_metadata",
+                    reservedOutputTokens: 20,
+                    safetyMarginTokens: 10,
+                  },
+                  manifest: {
+                    schemaVersion: "v1",
+                    digest: "manifest-1",
+                    sourceMessageCount: 1,
+                    selectedMessageCount: 1,
+                    sourceToolCount: 0,
+                    selectedToolCount: 0,
+                    components: [],
+                  },
+                },
+              },
+            },
+          },
+          {
+            id: "journal-3",
+            sequence: 3,
+            occurredAt: "2026-09-07T00:00:03.000Z",
+            scope: { organizationId: "org-1", installationId: "installation-1", runId: "run-1" },
+            event: {
+              kind: "harness.turn",
+              data: {
+                type: "model.completed",
+                iteration: 0,
+                payload: {
+                  provider: "openai",
+                  model: "test-model",
+                  inputTokens: 42,
+                  outputTokens: 8,
+                  latencyMs: 2_000,
+                  contextMeasurementBasis: "provider_reported",
+                },
+              },
+            },
+          },
+          {
+            id: "journal-4",
+            sequence: 4,
+            occurredAt: "2026-09-07T00:00:04.000Z",
+            scope: { organizationId: "org-1", installationId: "installation-1", runId: "run-1" },
+            event: {
+              kind: "harness.turn",
+              data: { type: "loop.completed", iteration: 0, payload: {} },
+            },
+          },
+        ],
       } as unknown as RunRepository,
       runSteps: { listSteps: async () => [{ sequence_number: 1, step_type: "context" }] } as never,
       toolInvocations: { list: async () => [{ tool_name: "platform.current_time", arguments: { apiKey: "do-not-leak" } }] } as never,
@@ -2389,6 +2469,13 @@ describe("Agent Platform HTTP foundation", () => {
     expect(response.json()).toMatchObject({
       run: { id: "run-1" },
       events: [{ event_type: "run.completed" }],
+      telemetry: {
+        runId: "run-1",
+        revision: 4,
+        context: { tokens: 42, contextWindowTokens: 100, utilizationPercent: 42, basis: "provider_reported", capabilitySource: "provider_metadata", manifestDigest: "manifest-1" },
+        modelAttempt: { status: "completed", provider: "openai", model: "test-model", latencyMs: 2_000 },
+        turn: { status: "completed", elapsedMs: 4_000 },
+      },
       steps: [{ step_type: "context" }],
       toolCalls: [{ tool_name: "platform.current_time", arguments: { apiKey: "[REDACTED]" } }],
       effects: [{ provider_receipt: { accessToken: "[REDACTED]" } }],

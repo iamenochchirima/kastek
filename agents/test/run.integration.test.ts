@@ -13,6 +13,7 @@ import { KillSwitchRepository } from "../src/db/repositories/kill-switch-reposit
 import { createActivities } from "../src/temporal/activities";
 import { ToolRegistry } from "../src/tools/registry";
 import { RunBudgetRepository } from "../src/db/repositories/run-budget-repository";
+import { OperatorControlRepository } from "../src/db/repositories/operator-control-repository";
 
 const databaseUrl = process.env.AGENTS_DATABASE_URL;
 const runIntegration = Boolean(databaseUrl && process.env.RUN_AGENTS_DB_INTEGRATION_TESTS === "true");
@@ -29,6 +30,7 @@ describe.skipIf(!runIntegration)("durable run invariants (integration)", () => {
   const effectReceipts = new EffectReceiptRepository(pool);
   const killSwitches = new KillSwitchRepository(pool);
   const runBudgets = new RunBudgetRepository(pool);
+  const controls = new OperatorControlRepository(pool);
   const organizationId = `run-test-${randomUUID()}`;
   const agentId = randomUUID();
   const versionId = randomUUID();
@@ -52,7 +54,7 @@ describe.skipIf(!runIntegration)("durable run invariants (integration)", () => {
     }
     await pool.query("INSERT INTO agent_definitions (id, organization_id, name, slug, created_by) VALUES ($1, $2, 'Run test', $3, 'test')", [agentId, organizationId, `run-${agentId}`]);
     await pool.query("INSERT INTO agent_versions (id, agent_definition_id, version_number, instructions, checksum, created_by, status) VALUES ($1, $2, 1, 'test', 'test', 'test', 'published')", [versionId, agentId]);
-    await pool.query("INSERT INTO agent_installations (id, agent_definition_id, agent_version_id, organization_id, scope_type, scope_id, execution_mode, settings, created_by) VALUES ($1, $2, $3, $4, 'organization', $4, 'kasitek_hosted', $5::jsonb, 'test')", [installationId, agentId, versionId, organizationId, JSON.stringify({ maxModelCalls: 1 })]);
+    await pool.query("INSERT INTO agent_installations (id, agent_definition_id, agent_version_id, organization_id, scope_type, scope_id, execution_mode, settings, created_by) VALUES ($1, $2, $3, $4, 'organization', $4, 'kasitek_hosted', $5::jsonb, 'test')", [installationId, agentId, versionId, organizationId, JSON.stringify({ environment: "playground", maxModelCalls: 1 })]);
   });
 
   it("deduplicates an idempotent start and persists ordered steps", async () => {
@@ -755,6 +757,48 @@ describe.skipIf(!runIntegration)("durable run invariants (integration)", () => {
     expect(JSON.stringify(failedAnalytics.rows[0]?.envelope)).not.toContain("provider detail");
   });
 
+  it("enforces and then exercises scoped v2 memory rollout through the real activity path", async () => {
+    await pool.query(
+      `INSERT INTO agent_tool_grants (organization_id, agent_version_id, tool_name, granted_by)
+       VALUES ($1, $2, 'kasitek.agent.memory_search', 'test'),
+              ($1, $2, 'kasitek.agent.memory_remember', 'test')`,
+      [organizationId, versionId],
+    );
+    const activities = createActivities(pool);
+    const retrievalRun = await runs.createRun(organizationId, "test-user", {
+      installationId,
+      triggerType: "manual",
+      idempotencyKey: `memory-rollout-retrieval-${randomUUID()}`,
+      input: { mcpTool: { name: "kasitek.agent.memory_search", arguments: { query: "concise" }, toolCallId: "memory-search-rollout" } },
+    });
+    const writeRun = await runs.createRun(organizationId, "test-user", {
+      installationId,
+      triggerType: "manual",
+      idempotencyKey: `memory-rollout-write-${randomUUID()}`,
+      input: { mcpTool: { name: "kasitek.agent.memory_remember", arguments: { namespace: "organization_shared", memoryType: "semantic", text: "The launch review is on Friday." }, toolCallId: "memory-remember-rollout" } },
+    });
+    const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+    await controls.setFeatureFlag({ scopeType: "organization", scopeId: organizationId, organizationId, flagKey: "memory_v2_retrieval_enabled", enabled: false, reason: "integration rollout gate", expiresAt, actorId: "test-operator" });
+    await controls.setFeatureFlag({ scopeType: "organization", scopeId: organizationId, organizationId, flagKey: "memory_v2_writes_enabled", enabled: false, reason: "integration rollout gate", expiresAt, actorId: "test-operator" });
+    await expect(activities.executeLoop({ runId: retrievalRun.id })).rejects.toMatchObject({ code: "MEMORY_V2_RETRIEVAL_DISABLED" });
+    await expect(activities.executeLoop({ runId: writeRun.id })).rejects.toMatchObject({ code: "MEMORY_V2_WRITES_DISABLED" });
+
+    await controls.setFeatureFlag({ scopeType: "organization", scopeId: organizationId, organizationId, flagKey: "memory_v2_retrieval_enabled", enabled: true, reason: "integration rollout canary", expiresAt, actorId: "test-operator" });
+    await controls.setFeatureFlag({ scopeType: "organization", scopeId: organizationId, organizationId, flagKey: "memory_v2_writes_enabled", enabled: true, reason: "integration rollout canary", expiresAt, actorId: "test-operator" });
+    const retrievalResult = await activities.executeLoop({ runId: retrievalRun.id });
+    expect(retrievalResult.status).toBe("completed");
+    expect(retrievalResult.directToolResult).toMatchObject({ output: { memories: [] } });
+
+    const proposed = await activities.executeLoop({ runId: writeRun.id });
+    expect(proposed.status).toBe("awaiting_approval");
+    const pending = proposed.pendingToolCalls?.[0];
+    expect(pending).toBeDefined();
+    await approvals.decide({ organizationId, runId: writeRun.id, providerToolCallId: pending!.id, argumentsHash: pending!.argumentsHash, decision: "approved", approvedBy: "test-operator" });
+    const written = await activities.executeLoop({ runId: writeRun.id, resumeApprovedToolCall: { ...pending!, approval: { approvedBy: "test-operator", argumentsHash: pending!.argumentsHash, expiresAt } } });
+    expect(written.status).toBe("completed");
+    expect(written.directToolResult).toMatchObject({ output: { memory: { namespace: "organization_shared", memoryType: "semantic" } } });
+  });
+
   it("binds approval consumption to every persisted identity and proposal field", async () => {
     const isolatedRun = await runs.createRun(organizationId, "test-user", { installationId, idempotencyKey: `approval-binding-${randomUUID()}`, input: { message: "approval binding" }, triggerType: "manual" });
     const bindingRunId = isolatedRun.id;
@@ -797,6 +841,7 @@ describe.skipIf(!runIntegration)("durable run invariants (integration)", () => {
 
   afterAll(async () => {
     await pool.query("TRUNCATE analytics_outbox");
+    await pool.query("DELETE FROM agent_operator_feature_flags WHERE organization_id = $1", [organizationId]);
     await pool.query("DELETE FROM run_steps WHERE organization_id = $1", [organizationId]);
     await pool.query("DELETE FROM run_workflow_state WHERE organization_id = $1", [organizationId]);
     await pool.query("DELETE FROM model_calls WHERE organization_id = $1", [organizationId]);

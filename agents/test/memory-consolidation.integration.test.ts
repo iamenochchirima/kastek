@@ -46,6 +46,19 @@ describe.skipIf(!runIntegration)("memory consolidation (integration)", () => {
     expect(jobs.rows).toHaveLength(4);
     expect(jobs.rows.every((job) => job.status === "queued")).toBe(true);
 
+    const firstJob = await pool.query<{ trigger_run_id: string }>("SELECT trigger_run_id FROM memory_consolidation_jobs WHERE organization_id = $1 ORDER BY created_at LIMIT 1", [organizationId]);
+    await expect(jobsRepository.requestForcedFlush({
+      organizationId,
+      agentDefinitionId: agentId,
+      agentVersionId: versionId,
+      installationId,
+      conversationId,
+      triggerRunId: firstJob.rows[0]!.trigger_run_id,
+      reason: "pre_compaction",
+    })).resolves.toBe(true);
+    await expect(pool.query<{ flush_reason: string }>("SELECT flush_reason FROM memory_consolidation_jobs WHERE organization_id = $1 AND trigger_run_id = $2", [organizationId, firstJob.rows[0]!.trigger_run_id]))
+      .resolves.toMatchObject({ rows: [{ flush_reason: "pre_compaction" }] });
+
     const [firstClaims, secondClaims] = await Promise.all([
       jobsRepository.claimDue("consolidation-a", 4, 120_000, organizationId),
       jobsRepository.claimDue("consolidation-b", 4, 120_000, organizationId),
@@ -59,6 +72,26 @@ describe.skipIf(!runIntegration)("memory consolidation (integration)", () => {
       maxAttempts: 3,
       error: { code: "TEST_REQUEUE" },
     });
+
+    // Simulate a lost worker: the successor may reclaim the expired lease,
+    // while the old owner is fenced from completing it.
+    const crashed = (await jobsRepository.claimDue("crashed-worker", 1, 120_000, organizationId))[0];
+    expect(crashed).toBeDefined();
+    await pool.query("UPDATE memory_consolidation_jobs SET lease_expires_at = now() - interval '1 second' WHERE id = $1", [crashed!.id]);
+    const successor = (await jobsRepository.claimDue("successor-worker", 1, 120_000, organizationId))[0];
+    expect(successor?.id).toBe(crashed!.id);
+    await expect(jobsRepository.markCompleted({ jobId: crashed!.id, workerId: "crashed-worker", sourceMessageCount: 4, candidateCount: 2 })).resolves.toBe(false);
+    await expect(jobsRepository.markRetryable({ jobId: successor!.id, workerId: "successor-worker", maxAttempts: 3, error: { code: "TEST_REQUEUE_AFTER_RECOVERY" } })).resolves.toBe("queued");
+
+    // A bounded shutdown records the interruption and leaves the source job
+    // queued for a successor rather than losing the evidence window.
+    const interrupted = (await jobsRepository.claimDue("shutdown-worker", 1, 120_000, organizationId))[0];
+    expect(interrupted).toBeDefined();
+    await expect(jobsRepository.abandonLeases({ workerId: "shutdown-worker", reason: "MEMORY_WORKER_SHUTDOWN_TIMEOUT" })).resolves.toBe(1);
+    await expect(pool.query<{ status: string; abandonment_count: number; last_abandoned_by: string; last_abandonment_reason: string }>(
+      "SELECT status, abandonment_count, last_abandoned_by, last_abandonment_reason FROM memory_consolidation_jobs WHERE id = $1",
+      [interrupted!.id],
+    )).resolves.toMatchObject({ rows: [{ status: "queued", abandonment_count: 1, last_abandoned_by: "shutdown-worker", last_abandonment_reason: "MEMORY_WORKER_SHUTDOWN_TIMEOUT" }] });
 
     const worker = new MemoryConsolidationWorker(pool, {
       batchSize: 1,
@@ -76,6 +109,21 @@ describe.skipIf(!runIntegration)("memory consolidation (integration)", () => {
     expect(memories.rows).toHaveLength(2);
     expect(memories.rows.every((memory) => memory.status === "review_pending")).toBe(true);
     expect(memories.rows.every((memory) => memory.provenance.extractionVersion === "deterministic-v1")).toBe(true);
+
+    // Replaying the same source run/extraction version is idempotent and does
+    // not create another legacy candidate.
+    await jobsRepository.requestForcedFlush({
+      organizationId,
+      agentDefinitionId: agentId,
+      agentVersionId: versionId,
+      installationId,
+      conversationId,
+      triggerRunId: firstJob.rows[0]!.trigger_run_id,
+      reason: "operator",
+    });
+    await worker.runOnce(organizationId);
+    const replayed = await pool.query("SELECT id FROM memory_records WHERE organization_id = $1 AND agent_definition_id = $2", [organizationId, agentId]);
+    expect(replayed.rows).toHaveLength(2);
   });
 
   afterAll(async () => {

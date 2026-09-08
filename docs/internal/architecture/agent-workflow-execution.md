@@ -116,6 +116,32 @@ fan-out or `agent_loop` nodes therefore retain the existing whole-graph boundary
 enablement still requires provider billing reconciliation and real worker-loss evidence for the
 new activity implementation.
 
+## Context runtime contract
+
+Every hosted agent model attempt resolves capability for its own provider, route, and model before
+dispatch. The shared context planner selects history units, protects the current task and
+assistant tool-call/result pairs, bounds tool schemas/results, reserves output and safety margin,
+and measures both the generic request shape and the provider adapter envelope. A request is not
+admitted when either the token or serialized-byte gate fails. Provider-reported usage is a later
+measurement anchor; it does not replace the pre-dispatch fit decision.
+
+The planner emits a content-free request manifest and accounting fact through the existing
+`harness.turn` journal envelope. It contains component counts, token/byte estimates, source and
+manifest digests, and fit reasons—not prompts, credentials, or private tool output. After a
+compaction, occupancy remains unknown until a provider response re-anchors it. Durable compaction
+is fenced and replayable; its lifecycle events use the same journal. Before a lossy rewrite, the
+context runtime may call the memory checkpoint port, while memory remains responsible for evidence
+persistence and retrieval rather than token policy, pruning, or prompt assembly.
+
+Capability metadata is resolved against the exact provider, default endpoint, credential route,
+model, and runtime environment. The direct-provider metadata adapter uses credentials only for the
+metadata request, never logs or persists the secret, and returns no capacity when the provider does
+not publish an authoritative limit. Unknown capacity remains a typed fail-closed outcome. Attempt
+telemetry preserves queue delay, prompt/prefill time-to-first-token, total provider latency, output
+throughput, and the context measurement basis in the same durable read model. That read model keeps
+current context occupancy, cumulative provider usage, and the configured run-token budget as
+separate values; the Playground does not substitute one for another.
+
 Fan-out admission uses `run_budget_parallel_leases`. Before branch promises are launched, the
 executor identifies the first possible model and tool operation in each branch and atomically
 leases those capacities under the run budget row lock. The first operation consumes its matching
