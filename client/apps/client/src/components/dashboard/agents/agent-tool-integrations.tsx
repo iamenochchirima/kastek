@@ -93,7 +93,17 @@ export function AgentToolIntegrations({ installationId, embedded = false, refres
       : onChannelAction ? integrations : integrations.filter((integration) => integration.kind !== "channel");
     const normalizedQuery = query.trim().toLowerCase();
     const filtered = normalizedQuery ? available.filter((integration) => `${integration.name} ${integration.description} ${integration.category}`.toLowerCase().includes(normalizedQuery)) : available;
-    if (!directory?.length) return filtered;
+    const gatewayOrder = new Map([
+      ["whatsapp.messaging", 0],
+      ["instagram.messaging", 1],
+      ["facebook.messaging", 2],
+      ["telegram.messaging", 3],
+      ["discord.messaging", 4],
+    ]);
+    const ordered = channelsOnly
+      ? [...filtered].sort((left, right) => (gatewayOrder.get(left.id) ?? 99) - (gatewayOrder.get(right.id) ?? 99))
+      : filtered;
+    if (channelsOnly || !directory?.length) return ordered;
     const integrationsById = new Map(available.map((integration) => [integration.id, integration]));
     return directory
       .filter((entry) => entry.kind === "connector")

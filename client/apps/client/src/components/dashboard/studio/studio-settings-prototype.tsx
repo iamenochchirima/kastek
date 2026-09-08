@@ -391,19 +391,19 @@ const emptyCapabilityData: CapabilityData = {
 async function loadCapabilityData(installationId: string | null, versionId: string | null): Promise<CapabilityData> {
   const [directoryResult, catalogResult, packagesResult, providersResult, installationResult, readinessResult, pinnedSkillsResult, pinnedMcpResult, connectionsResult, skillDirectoryResult, pluginDirectoryResult] = await Promise.all([
     listAgentCapabilityDirectory(),
-    listAgentCapabilities().catch(() => ({ capabilities: [] })),
-    listAgentExtensionPackages().catch(() => ({ packages: [] })),
-    listAgentMcpProviders().catch(() => ({ providers: [] })),
-    installationId ? listAgentInstallationCapabilities(installationId).catch(() => ({ capabilities: [] })) : Promise.resolve({ capabilities: [] }),
-    installationId ? getAgentInstallationReadiness(installationId).catch(() => null) : Promise.resolve(null),
-    versionId ? listAgentVersionSkills(versionId).catch(() => ({ skills: [] })) : Promise.resolve({ skills: [] }),
-    versionId ? listAgentVersionMcpProviders(versionId).catch(() => ({ providers: [] })) : Promise.resolve({ providers: [] }),
-    installationId ? listAgentConnectionDirectory(installationId).catch(() => ({ connections: [] })) : Promise.resolve({ connections: [] }),
-    listAgentSkillDirectory(versionId ?? undefined).catch(() => ({ skills: [] })),
-    listAgentPluginDirectory().catch(() => ({ plugins: [] })),
+    listAgentCapabilities(),
+    listAgentExtensionPackages(),
+    listAgentMcpProviders(),
+    installationId ? listAgentInstallationCapabilities(installationId) : Promise.resolve({ capabilities: [] }),
+    installationId ? getAgentInstallationReadiness(installationId) : Promise.resolve(null),
+    versionId ? listAgentVersionSkills(versionId) : Promise.resolve({ skills: [] }),
+    versionId ? listAgentVersionMcpProviders(versionId) : Promise.resolve({ providers: [] }),
+    installationId ? listAgentConnectionDirectory(installationId) : Promise.resolve({ connections: [] }),
+    listAgentSkillDirectory(versionId ?? undefined),
+    listAgentPluginDirectory(),
   ]);
   const mcpVersionsEntries = await Promise.all(providersResult.providers.map(async (provider) => {
-    const result = await listAgentMcpProviderVersions(provider.id).catch(() => ({ versions: [] }));
+    const result = await listAgentMcpProviderVersions(provider.id);
     return [provider.id, result.versions] as const;
   }));
   return {
