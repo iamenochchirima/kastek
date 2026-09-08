@@ -1236,3 +1236,15 @@ Organization deletion evidence purge (2026-09-08):
   evidence after canonical facts are removed.
 - The PostgreSQL deletion fixture now creates source evidence and verifies the organization target
   removes it; the focused deletion and integrity suite passes 6/6 tests.
+
+Canonical revision selection hardening (2026-09-08):
+
+- The canonical `/v1/memory` list adapter now selects the newest revision for each fact before
+  applying the active/reviewable lifecycle filter. A rejected, expired, superseded, or deleted
+  newest revision therefore cannot expose an older active revision through the compatibility view.
+- Operator revalidation and review transitions preserve the current `valid_to` interval when no
+  replacement expiry is supplied, while an explicit `null` still clears it. The expiry is included
+  in the evidence digest so operator transitions remain auditable and idempotency-safe.
+- Agents build and the canonical HTTP/deletion hardening tests pass after this change. The complete
+  controlled PostgreSQL matrix remains green at 213 files / 1,183 tests, with 8 external-fixture
+  files and 31 tests intentionally skipped.
