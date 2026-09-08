@@ -1285,3 +1285,15 @@ Local observability smoke refresh (2026-09-08):
   database, provider, worker, metric, handled-error, and structured-log paths; the expected failure
   was bounded and handled. This proves the local telemetry contract only; durable exporter routing,
   dashboard installation, alert notification, and staging delivery remain operational gates.
+
+Clean artifact audit (2026-09-08):
+
+- A detached clean worktree was created from the current committed `rewrite` HEAD and the Agents
+  and MCP release builds were attempted without the dirty-worktree override. The Agents build
+  fails because the committed tree does not yet contain the parallel context-runtime changes that
+  the current dirty development tree relies on (context manifest/attempt-budget repositories,
+  context-compaction/runtime telemetry symbols, and related loop/Temporal types).
+- The temporary worktree was removed after the attempt. This does not indicate a memory v2 defect;
+  it means a clean tagged artifact cannot be produced until the parallel context-runtime work is
+  committed and its compile contract is stable. The memory release record therefore continues to
+  require a clean source commit before staging promotion.
