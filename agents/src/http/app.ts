@@ -31,11 +31,11 @@ import { CredentialVaultRepository } from "../db/repositories/credential-vault-r
 import { InstallationCredentialRepository } from "../db/repositories/installation-credential-repository";
 import { InstallationGrantRepository } from "../db/repositories/installation-grant-repository";
 import { KnowledgeRepository } from "../db/repositories/knowledge-repository";
-import { MemoryRepository } from "../db/repositories/memory-repository";
 import { MemoryDeletionJobRepository } from "../db/repositories/memory-deletion-job-repository";
 import { MemoryRetentionRepository } from "../db/repositories/memory-retention-repository";
 import { MemoryRevisionRepository } from "../db/repositories/memory-revision-repository";
 import { MemoryRevisionCommandService } from "../memory/revision-command-service";
+import { CanonicalMemoryHttpAdmin, type MemoryHttpAdmin } from "../memory/http-admin";
 import { chunkKnowledgeText, fetchBoundedKnowledgeDocument } from "../knowledge/ingestion";
 import { FirecrawlClient } from "../knowledge/firecrawl";
 import { extractKnowledgeFile, MAX_KNOWLEDGE_FILE_BYTES } from "../knowledge/file-ingestion";
@@ -215,7 +215,7 @@ export interface AppDependencies {
   installationInvocations?: Pick<InstallationCapabilityInvocationService, "accept">;
   knowledge?: KnowledgeRepository;
   websiteCrawler?: FirecrawlClient;
-  memory?: MemoryRepository;
+  memoryAdmin?: MemoryHttpAdmin;
   memoryDeletionJobs?: MemoryDeletionJobRepository;
   memoryRetention?: MemoryRetentionRepository;
   memoryRevisionCommands?: MemoryRevisionCommandService;
@@ -740,7 +740,6 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
   const effectReceipts = dependencies.effectReceipts ?? new EffectReceiptRepository(dependencies.pool);
   const approvals = dependencies.approvals ?? new ApprovalRepository(dependencies.pool);
   const knowledge = dependencies.knowledge ?? new KnowledgeRepository(dependencies.pool);
-  const memory = dependencies.memory ?? new MemoryRepository(dependencies.pool);
   const memoryDeletionJobs = dependencies.memoryDeletionJobs ?? new MemoryDeletionJobRepository(dependencies.pool);
   const memoryRetention = dependencies.memoryRetention ?? new MemoryRetentionRepository(dependencies.pool);
   const memoryRevisionCommands = dependencies.memoryRevisionCommands ?? new MemoryRevisionCommandService(
@@ -748,6 +747,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     new MemoryRevisionRepository(dependencies.pool, { analyticsEnabled: true }),
     { analyticsPool: dependencies.pool },
   );
+  const memoryAdmin = dependencies.memoryAdmin ?? new CanonicalMemoryHttpAdmin(dependencies.pool, memoryDeletionJobs, memoryRevisionCommands);
   const evaluations = dependencies.evaluations ?? new EvaluationRepository(dependencies.pool);
   const draftEvaluator = dependencies.draftEvaluator ?? ((input) => executeDraftEvaluation(
     input,
@@ -5443,7 +5443,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     const limit = request.query.limit ? Number(request.query.limit) : undefined;
     if (limit !== undefined && (!Number.isSafeInteger(limit) || limit < 1 || limit > 500)) throw new Error("Invalid memory limit");
     const reviewable = request.query.reviewable === "true";
-    return { memories: await memory.listMemory({ organizationId: auth.organizationId, agentId, installationId, actorId: auth.actorId }, limit, reviewable) };
+    return { memories: await memoryAdmin.list({ organizationId: auth.organizationId, agentId, installationId, limit, reviewable }) };
   });
 
   app.delete<{ Params: { memoryId: string } }>("/v1/memory/:memoryId", async (request, reply) => {
@@ -5451,7 +5451,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     requireScope(auth, dependencies.config, "agents:write");
     const input = z.object({ agentId: z.string().uuid(), installationId: z.string().uuid().optional(), conversationId: z.string().uuid().optional() }).parse(request.body);
     await requireHostedResourceScope(agents, auth.organizationId, input);
-    await memory.deleteMemory({ organizationId: auth.organizationId, agentId: input.agentId, installationId: input.installationId, conversationId: input.conversationId, actorId: auth.actorId }, request.params.memoryId, auth.actorId);
+    await memoryAdmin.delete({ organizationId: auth.organizationId, actorId: auth.actorId, memoryId: request.params.memoryId, agentId: input.agentId, installationId: input.installationId, conversationId: input.conversationId });
     return reply.code(204).send();
   });
 
@@ -5460,7 +5460,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     requireScope(auth, dependencies.config, "agents:write");
     const input = z.object({ agentId: z.string().uuid(), installationId: z.string().uuid().optional(), conversationId: z.string().uuid().optional(), expiresAt: z.string().datetime().nullable() }).parse(request.body);
     await requireHostedResourceScope(agents, auth.organizationId, input);
-    return memory.revalidateMemory({ organizationId: auth.organizationId, agentId: input.agentId, installationId: input.installationId, conversationId: input.conversationId, actorId: auth.actorId }, request.params.memoryId, input.expiresAt);
+    return memoryAdmin.revalidate({ organizationId: auth.organizationId, actorId: auth.actorId, memoryId: request.params.memoryId, agentId: input.agentId, installationId: input.installationId, conversationId: input.conversationId, expiresAt: input.expiresAt, operationId: headerValue(request, "idempotency-key") ?? auth.correlationId ?? randomUUID() });
   });
 
   app.post<{ Params: { memoryId: string } }>("/v1/memory/:memoryId/review", async (request) => {
@@ -5474,13 +5474,17 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       supersedesMemoryId: z.string().uuid().optional(),
     }).parse(request.body);
     await requireHostedResourceScope(agents, auth.organizationId, input);
-    const reviewed = await memory.reviewMemory(
-      { organizationId: auth.organizationId, agentId: input.agentId, installationId: input.installationId, conversationId: input.conversationId, actorId: auth.actorId },
-      request.params.memoryId,
-      input.decision,
-      auth.actorId,
-      input.supersedesMemoryId,
-    );
+    if (input.supersedesMemoryId) throw Object.assign(new Error("supersedesMemoryId is not supported by memory v2"), { statusCode: 422 });
+    const reviewed = await memoryAdmin.review({
+      organizationId: auth.organizationId,
+      actorId: auth.actorId,
+      memoryId: request.params.memoryId,
+      agentId: input.agentId,
+      installationId: input.installationId,
+      conversationId: input.conversationId,
+      decision: input.decision,
+      operationId: headerValue(request, "idempotency-key") ?? auth.correlationId ?? randomUUID(),
+    });
     await dependencies.pool.query(
       `INSERT INTO audit_records (organization_id, actor_type, actor_id, action, resource_type, resource_id, correlation_id, metadata)
        VALUES ($1, 'user', $2, 'memory.reviewed', 'memory', $3, $4, $5::jsonb)`,

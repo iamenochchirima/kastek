@@ -329,6 +329,7 @@ export class MemoryRevisionCommandService {
     actorId: string;
     operationId: string;
     command: "approve" | "reject" | "revalidate";
+    validTo?: string | null;
   }): Promise<{ status: "created" | "replayed"; revision: MemoryRevisionRecord }> {
     const organizationId = input.organizationId.trim();
     const actorId = input.actorId.trim();
@@ -345,6 +346,7 @@ export class MemoryRevisionCommandService {
       typedValue: current.typedValue,
       ...(current.memoryType === "episodic" ? { eventTime: current.eventTime ?? current.validFrom, eventSummary: current.eventSummary ?? current.canonicalText } : {}),
       validFrom: now,
+      ...(input.validTo ? { validTo: input.validTo } : {}),
       observedAt: now,
       sourceTrust: current.sourceTrust,
       sensitivity: current.sensitivity,

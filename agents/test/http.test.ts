@@ -2634,7 +2634,12 @@ describe("Agent Platform HTTP foundation", () => {
     const app = buildApp({
       config,
       pool: fakePool,
-      memory: { listMemory: async () => [{ id: "memory-1" }], deleteMemory: async () => undefined, revalidateMemory: async () => ({ id: "memory-1" }), reviewMemory: async () => ({ id: "memory-1", status: "active" }) } as never,
+      memoryAdmin: {
+        list: async () => [{ id: "memory-1" }],
+        delete: async () => undefined,
+        revalidate: async () => ({ id: "memory-1" }),
+        review: async () => ({ id: "memory-1", status: "active" }),
+      } as never,
       knowledge: {
         listSources: async () => [{ id: "source-1" }],
         getSourceDocument: async () => ({ source: { id: "source-1" }, text: "Saved support information" }),
