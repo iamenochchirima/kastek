@@ -40,6 +40,37 @@ export interface MemoryConsolidationJobRecord {
 export class MemoryConsolidationJobRepository {
   public constructor(private readonly pool: Pool) {}
 
+  /**
+   * Return a bounded set of organizations with work that is currently due.
+   * Workers use this as the fan-out boundary so the short advisory claim
+   * fence is per organization rather than a global queue lock.
+   */
+  public async listDueOrganizations(limit = 32): Promise<string[]> {
+    const boundedLimit = Math.max(1, Math.min(Math.trunc(limit), 128));
+    const result = await query<{ organization_id: string }>(
+      this.pool,
+      `SELECT jobs.organization_id
+       FROM memory_consolidation_jobs jobs
+       WHERE ((jobs.status = 'queued' AND jobs.next_attempt_at <= now())
+          OR (jobs.status = 'running' AND jobs.lease_expires_at IS NOT NULL AND jobs.lease_expires_at <= now()))
+         AND NOT EXISTS (
+           SELECT 1
+           FROM memory_consolidation_jobs running
+           WHERE running.organization_id = jobs.organization_id
+             AND running.installation_id = jobs.installation_id
+             AND running.conversation_id = jobs.conversation_id
+             AND running.status = 'running'
+             AND running.lease_expires_at IS NOT NULL
+             AND running.lease_expires_at > now()
+         )
+       GROUP BY jobs.organization_id
+       ORDER BY min(jobs.next_attempt_at) ASC, jobs.organization_id ASC
+       LIMIT $1`,
+      [boundedLimit],
+    );
+    return result.rows.map((row) => row.organization_id);
+  }
+
   public async claimDue(workerId: string, limit: number, leaseMs: number, organizationId?: string): Promise<MemoryConsolidationJobRecord[]> {
     const boundedLimit = Math.max(1, Math.min(Math.trunc(limit), 100));
     const boundedLease = Math.max(30_000, Math.min(Math.trunc(leaseMs), 900_000));

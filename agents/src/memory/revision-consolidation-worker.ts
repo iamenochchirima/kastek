@@ -193,11 +193,23 @@ export class MemoryRevisionConsolidationWorker {
   }
 
   private async runOnceInternal(organizationId?: string): Promise<number> {
-    const claimed = await runWithRequiredDatabaseContext(
+    const organizations: Array<string | undefined> = organizationId
+      ? [organizationId]
+      : typeof this.jobs.listDueOrganizations === "function"
+        ? await runWithRequiredDatabaseContext(
+          "memory-revision-consolidation-discover",
+          { organizationId: "platform", actorId: "system:memory-revision-consolidation", operator: true },
+          () => this.jobs.listDueOrganizations(32),
+        )
+        // Keep lightweight test doubles and older injected repositories
+        // compatible; the production repository always exposes discovery.
+        : [undefined];
+    if (organizations.length === 0) return 0;
+    const claimed = (await Promise.all(organizations.map((scopedOrganizationId) => runWithRequiredDatabaseContext(
       "memory-revision-consolidation-claim",
       { organizationId: "platform", actorId: "system:memory-revision-consolidation", operator: true },
-      () => this.jobs.claimDue(this.workerId, this.settings.batchSize, this.settings.leaseMs, organizationId),
-    );
+      () => this.jobs.claimDue(this.workerId, this.settings.batchSize, this.settings.leaseMs, scopedOrganizationId),
+    )))).flat();
     claimed.forEach((job) => recordQueueAge("memory_consolidation", Math.max(0, (Date.now() - new Date(job.created_at).getTime()) / 1000)));
     await Promise.all(claimed.map((job) => withSpan(
       "memory.revision.consolidation.job",
