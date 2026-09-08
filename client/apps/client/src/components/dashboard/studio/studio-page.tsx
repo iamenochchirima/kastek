@@ -531,7 +531,7 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
       if (result.run.status === "cancelled") {
         setNotice("Run cancelled");
       } else if (terminalStatuses.has(result.run.status) && result.run.status !== "completed") {
-        throw new Error(result.run.error?.message || `Run ${result.run.status}`);
+        throw new Error(result.run.error?.userMessage || result.run.error?.message || `Run ${result.run.status}`);
       } else {
         setNotice(`Run ${result.run.status}`);
       }

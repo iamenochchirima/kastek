@@ -374,7 +374,7 @@ export type AgentRun = {
   status: string;
   input?: Record<string, unknown>;
   output?: { message?: string; [key: string]: unknown } | null;
-  error?: { message?: string; [key: string]: unknown } | null;
+  error?: { code?: string; message?: string; userMessage?: string; remediation?: string; [key: string]: unknown } | null;
   created_at?: string;
   started_at?: string | null;
   finished_at?: string | null;
