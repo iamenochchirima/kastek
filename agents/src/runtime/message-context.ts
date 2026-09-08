@@ -19,42 +19,43 @@ export function prepareModelMessages(input: {
 
 function repairToolPairs(messages: readonly ModelMessage[]): PreparedModelMessages {
   const output: ModelMessage[] = [];
-  const knownCalls = new Map<string, { name: string }>();
-  const resolvedCalls = new Set<string>();
   let repairedPairCount = 0;
 
-  // Establish which results belong to an assistant call before emitting any
-  // placeholders. This keeps a valid later result from being duplicated by a
-  // recovery marker, while still rejecting results that have no preceding
-  // assistant call.
+  // Validate only the contiguous tool-result group that follows the current
+  // assistant call. A global call index would incorrectly accept a result that
+  // appears before its assistant call, which is not a valid provider transcript.
   for (let index = 0; index < messages.length; index += 1) {
     const current = messages[index]!;
     if (current.role === "assistant" && current.toolCalls?.length) {
-      for (const call of current.toolCalls) knownCalls.set(call.id, { name: call.name });
-      continue;
-    }
-    if (current.role === "tool" && current.toolCallId && knownCalls.has(current.toolCallId) && !resolvedCalls.has(current.toolCallId)) {
-      resolvedCalls.add(current.toolCallId);
-    }
-  }
-
-  for (const current of messages) {
-    if (current.role === "assistant" && current.toolCalls?.length) {
       output.push(current);
-      for (const call of current.toolCalls) {
-        if (resolvedCalls.has(call.id)) continue;
-        output.push({ role: "tool", name: call.name, toolCallId: call.id, content: "Tool result unavailable because the prior execution was interrupted; do not claim success." });
-        repairedPairCount += 1;
+
+      const calls = new Map(current.toolCalls.map((call) => [call.id, call]));
+      const results = new Map<string, ModelMessage>();
+      let cursor = index + 1;
+      while (cursor < messages.length && messages[cursor]?.role === "tool") {
+        const result = messages[cursor]!;
+        if (!result.toolCallId || !calls.has(result.toolCallId) || results.has(result.toolCallId)) {
+          repairedPairCount += 1;
+        } else {
+          results.set(result.toolCallId, result);
+        }
+        cursor += 1;
       }
+
+      for (const call of current.toolCalls) {
+        const result = results.get(call.id);
+        if (result) {
+          output.push(result);
+        } else {
+          output.push({ role: "tool", name: call.name, toolCallId: call.id, content: "Tool result unavailable because the prior execution was interrupted; do not claim success." });
+          repairedPairCount += 1;
+        }
+      }
+      index = cursor - 1;
       continue;
     }
     if (current.role === "tool") {
-      if (!current.toolCallId || !resolvedCalls.has(current.toolCallId)) {
-        repairedPairCount += 1;
-        continue;
-      }
-      output.push(current);
-      resolvedCalls.delete(current.toolCallId);
+      repairedPairCount += 1;
       continue;
     }
     output.push(current);

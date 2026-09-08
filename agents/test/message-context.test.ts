@@ -40,7 +40,7 @@ describe("model message context preparation", () => {
   it("drops orphan tool results instead of exposing an invalid model transcript", () => {
     const prepared = prepareModelMessages({
       messages: [
-        { role: "tool", name: "lookup", toolCallId: "orphan", content: "must not be sent" },
+        { role: "tool", name: "lookup", toolCallId: "call-1", content: "arrived before its call" },
         { role: "assistant", content: "", toolCalls: [{ id: "call-1", name: "lookup", arguments: {} }] },
         { role: "tool", name: "lookup", toolCallId: "call-1", content: "valid result" },
       ],
