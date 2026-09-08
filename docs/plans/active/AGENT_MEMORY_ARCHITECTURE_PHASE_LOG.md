@@ -1174,3 +1174,12 @@ Consolidation partition high-load refresh (2026-09-08):
   deterministic while leaving claimed-job extraction concurrent after commit.
 - This strengthens local contention evidence only; production-scale throughput, latency,
   capacity, and staging monitoring remain release gates.
+
+Organization-partitioned worker scheduling (2026-09-08):
+
+- The global consolidation worker now discovers due organizations and fans claims out through
+  organization-scoped transactions. Production scheduling therefore avoids a single global
+  claim fence while retaining a defensive global path for injected/test repositories that do not
+  expose organization discovery.
+- Worker and partition tests pass after the change; staging capacity, queue-age, and dead-letter
+  monitoring remain release gates.

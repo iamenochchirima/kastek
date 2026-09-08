@@ -584,7 +584,9 @@ external release approval remain open.
 - [~] Enable consolidation workers with a bounded queue and dead-letter monitoring. The scoped
       `memory_consolidation_enabled` flag, lease release path, and worker recovery tests are in
       place; the local rollout fixture proves a disabled organization releases a claimed job
-      without consuming an attempt, while bounded-queue monitoring evidence remains open.
+      without consuming an attempt. The global worker discovers due organizations and fans claims
+      out through organization-scoped transactions, while bounded-queue monitoring evidence
+      remains open.
 - [~] Enable projections independently during cutover. The scoped `memory_projection_enabled`
       flag and lease release path are implemented; the local backfill fixture pauses all six
       projection tasks, preserves accepted readiness, resumes them after the flag is enabled, and
@@ -686,7 +688,7 @@ external release approval remain open.
 | M0 | local pre-release manifest | Contract, scope, lifecycle, redaction, provider, and stale-version tests pass in full matrix | M0 reference checkpoint recorded; reviewer approval remains open | reviewer pending | 2026-09-08 |
 | M1 | local pre-release manifest | Journal capture, checkpoint, compaction recovery, journal-admission `SIGKILL`, and consolidation kill/reclaim fixtures pass | Durable journal admission and replay evidence recorded; reviewer approval remains open | reviewer pending | 2026-09-08 |
 | M2 | local pre-release manifest | Revision, correction, conflict, scope, migration, and backfill dimension fixtures pass | Seven-dimensional source/target counts and provenance evidence recorded; live cutover remains open | reviewer pending | 2026-09-08 |
-| M3 | local pre-release manifest | Consolidation retry, lease fencing, partition contention, provider acknowledgement, and recovery tests pass | Bounded 32-conversation and repeated 256-conversation/8-worker fixtures pass; production-scale load remains open | reviewer pending | 2026-09-08 |
+| M3 | local pre-release manifest | Consolidation retry, lease fencing, organization-partitioned worker scheduling, partition contention, provider acknowledgement, and recovery tests pass | Bounded 32-conversation and repeated 256-conversation/8-worker fixtures pass; production-scale load remains open | reviewer pending | 2026-09-08 |
 | M4 | local pre-release manifest | Typed planner, policy gate, direct-tool parity, retrieval, scope, and analytics tests pass | Evidence IDs and retrieval decisions are observable; provider/staging conformance remains open | reviewer pending | 2026-09-08 |
 | M5 | local pre-release manifest | Retention, legal hold, deletion, provider deletion, residual purge, and privacy tests pass | Local provider confirmation and residual checks pass; provider/staging approval remains open | reviewer pending | 2026-09-08 |
 | M6 event contract | local pre-release manifest | Event-stream, cursor replay, scope, failure fixture, and observatory projection tests pass | Backend event contract is ready; visual Studio work is deferred to P14 | reviewer pending | 2026-09-08 |
