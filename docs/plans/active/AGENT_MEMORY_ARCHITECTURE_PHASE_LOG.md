@@ -1192,3 +1192,11 @@ Legacy consolidation worker retirement (2026-09-08):
   targets `memory_records`.
 - The v2 worker-loss, lease-fencing, partition, retry, and PostgreSQL consolidation fixtures pass;
   legacy API/migration readers remain separate cutover work and are not used by the worker.
+
+Organization deletion evidence purge (2026-09-08):
+
+- Organization-scoped memory deletion now purges immutable `memory_source_events` inside the
+  system-owned deletion transaction, preventing queued extraction from resurrecting deleted
+  evidence after canonical facts are removed.
+- The PostgreSQL deletion fixture now creates source evidence and verifies the organization target
+  removes it; the focused deletion and integrity suite passes 6/6 tests.

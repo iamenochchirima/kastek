@@ -468,7 +468,8 @@ and reason for selection.
 - [x] No supported read path returns deleted content after completion; residual verification checks
       canonical, local projection, relation, source, and provider-receipt tables before completion.
       Source evidence updates are rejected at the database boundary and only the deletion actor may
-      purge it; fact scope validation now runs on every update.
+      purge it; organization deletion now purges all source evidence through that actor; fact scope
+      validation now runs on every update.
 - [~] Record the M5 reference checkpoint and reviewer approval. The phase log records retention,
       conflict, legal-hold, canonical purge, residual checks, provider confirmation, and deletion
       analytics evidence; provider acknowledgement conformance is now enforced locally by the
