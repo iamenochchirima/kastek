@@ -58,6 +58,7 @@ export function AgentToolIntegrations({ installationId, embedded = false, refres
   const [secret, setSecret] = useState("");
   const [saving, setSaving] = useState(false);
   const [busyIntegration, setBusyIntegration] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -74,7 +75,11 @@ export function AgentToolIntegrations({ installationId, embedded = false, refres
 
   useEffect(() => { void refresh(); }, [refresh, refreshKey]);
 
-  const visibleIntegrations = useMemo(() => onChannelAction ? integrations : integrations.filter((integration) => integration.kind !== "channel"), [integrations, onChannelAction]);
+  const visibleIntegrations = useMemo(() => {
+    const available = onChannelAction ? integrations : integrations.filter((integration) => integration.kind !== "channel");
+    const normalizedQuery = query.trim().toLowerCase();
+    return normalizedQuery ? available.filter((integration) => `${integration.name} ${integration.description} ${integration.category}`.toLowerCase().includes(normalizedQuery)) : available;
+  }, [integrations, onChannelAction, query]);
   const openConfiguration = (integration: AgentIntegration) => {
     setSelected(integration);
     setApiKey("");
@@ -129,9 +134,10 @@ export function AgentToolIntegrations({ installationId, embedded = false, refres
   };
 
   const content = <>
+    <div className="relative max-w-sm"><Search className="pointer-events-none absolute left-3 top-1/2 z-10 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" /><Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search connectors" className="h-9 pl-9 text-xs" /></div>
     {error ? <p className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive" role="alert">{error}</p> : null}
     {loading ? <div className="grid gap-3 sm:grid-cols-2"><div className="h-36 animate-pulse rounded-xl border border-border bg-secondary/30" /><div className="h-36 animate-pulse rounded-xl border border-border bg-secondary/30" /></div> : null}
-    {!loading ? <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+    {!loading && visibleIntegrations.length ? <div className="grid gap-3 md:grid-cols-2">
         {visibleIntegrations.map((integration) => {
           const connected = isConnected(integration);
           const pending = busyIntegration === integration.id;
@@ -152,6 +158,7 @@ export function AgentToolIntegrations({ installationId, embedded = false, refres
           </Card>;
         })}
       </div> : null}
+    {!loading && !visibleIntegrations.length ? <p className="rounded-xl border border-dashed border-border px-3 py-5 text-center text-xs text-muted-foreground">No connectors match this search.</p> : null}
 
     <Dialog open={Boolean(selected)} onOpenChange={(open) => { if (!open && !saving) setSelected(null); }}>
       <DialogContent>
