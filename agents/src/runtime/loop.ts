@@ -476,7 +476,7 @@ export async function runBoundedAgentLoop(input: AgentLoopInput): Promise<AgentL
             } catch (error) {
               await emit(input, { type: "memory_retrieval_blocked", iteration, payload: { runId, turnId, attemptId, reason: "memory_provider_failed", errorCode: error instanceof Error ? error.name : "MEMORY_RETRIEVAL_FAILED" } });
               const code = error instanceof Error && "code" in error && typeof error.code === "string" ? error.code : "";
-              if (/(?:MEMORY_SCOPE|MEMORY_RETRIEVAL_INTENT|MEMORY_POLICY|MEMORY_AUTH)/u.test(code)) throw error;
+              if (/(?:MEMORY_RETRIEVAL_BLOCKED|MEMORY_SCOPE|MEMORY_RETRIEVAL_INTENT|MEMORY_POLICY|MEMORY_AUTH)/u.test(code)) throw error;
             }
           }
         }
@@ -1312,9 +1312,16 @@ export async function runBoundedAgentLoop(input: AgentLoopInput): Promise<AgentL
         }
       }
     } catch (error) {
+      const codedError = error instanceof Error
+        && "code" in error
+        && typeof error.code === "string"
+        ? { code: error.code, message: error.message }
+        : undefined;
       const normalized = error instanceof ModelProviderError || error instanceof ToolPolicyError
         ? { code: error.code, message: error.message, failureClass: classifyFailureCode(error.code) }
-        : { code: "AGENT_LOOP_FAILED", message: error instanceof Error ? error.message : "Unknown agent loop failure", failureClass: "terminal" as const };
+        : codedError
+          ? { ...codedError, failureClass: classifyFailureCode(codedError.code) }
+          : { code: "AGENT_LOOP_FAILED", message: error instanceof Error ? error.message : "Unknown agent loop failure", failureClass: "terminal" as const };
       if (error instanceof ModelProviderError) await input.onModelError?.(normalized, lastModelAttempt, lastModelOperationKey);
       await emit(input, { type: "loop.failed", iteration, payload: normalized });
       return { status: "failed", messages, usage, iterations: iteration, toolCalls, error: normalized };

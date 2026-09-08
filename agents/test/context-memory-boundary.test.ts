@@ -11,7 +11,7 @@ import {
   type MemoryCheckpointRequest,
   type MemoryRetrievalPort,
 } from "../src/runtime/context-memory-boundary";
-import { compactDurableContext } from "../src/runtime/context-compaction";
+import { compactDurableContext, type DurableContextAdapter, type DurableContextRecord } from "../src/runtime/context-compaction";
 import { runBoundedAgentLoop } from "../src/runtime/loop";
 
 const credentials: ModelCredentials = { apiKey: "test", fundingSource: "kasitek" };
@@ -52,6 +52,55 @@ describe("context and memory integration boundary", () => {
     expect(requests).toHaveLength(1);
     expect(requests[0]).toMatchObject({ runId: "run-1", turnId: "turn-1", compactionGeneration: 1, evidenceDigest: expect.any(String), directEvidence: { schemaVersion: "v1", redacted: true } });
     expect(requests[0]?.directEvidence.items[0]).not.toHaveProperty("redactedContent");
+  });
+
+  it("replays after a worker is lost after memory checkpoint and before context projection", async () => {
+    const checkpointStatuses: string[] = [];
+    const checkpointKeys = new Set<string>();
+    const records = new Map<string, DurableContextRecord>();
+    let persistAttempts = 0;
+    const checkpointPort: MemoryCheckpointPort = {
+      async checkpoint(request) {
+        const replayed = checkpointKeys.has(request.idempotencyKey);
+        checkpointKeys.add(request.idempotencyKey);
+        checkpointStatuses.push(replayed ? "replayed" : "committed");
+        return { status: replayed ? "replayed" : "committed", checkpointId: "checkpoint-worker-loss" };
+      },
+    };
+    const adapter: DurableContextAdapter = {
+      read: async (operationId) => records.get(operationId),
+      readLatest: async (contextId) => Math.max(0, ...[...records.values()]
+        .filter((record) => record.compaction.contextId === contextId)
+        .map((record) => record.compaction.generation)),
+      persist: async (input) => {
+        persistAttempts += 1;
+        if (persistAttempts === 1) throw new Error("WORKER_LOST_AFTER_MEMORY_CHECKPOINT");
+        const record = { decision: input.decision, compaction: input.compaction };
+        records.set(input.decision.operationId, record);
+        return { status: "created" as const, record };
+      },
+    };
+    const input = {
+      operationId: "memory-worker-loss-after-checkpoint",
+      contextId: "conversation-1",
+      revision: 1,
+      messages,
+      policy: { maxRetainedMessageUnits: 1 },
+      adapter,
+      memoryCheckpointPort: checkpointPort,
+      memoryCheckpointRequired: true,
+      memoryRunId: "run-1",
+      memoryTurnId: "turn-1",
+      memoryScope: { organizationId: "org-1", agentDefinitionId: "agent-1", agentVersionId: "version-1", installationId: "installation-1", namespace: "conversation" as const },
+    } as const;
+
+    await expect(compactDurableContext(input)).rejects.toMatchObject({ code: "persistence_failed" });
+    const replay = await compactDurableContext(input);
+
+    expect(checkpointStatuses).toEqual(["committed", "replayed"]);
+    expect(persistAttempts).toBe(2);
+    expect(replay.diagnostics.replayed).toBe(false);
+    expect(records).toHaveProperty("size", 1);
   });
 
   it("blocks compaction when checkpoint enforcement is enabled and the port fails", async () => {
@@ -135,6 +184,42 @@ describe("context and memory integration boundary", () => {
     expect(requests).toHaveLength(1);
     expect(JSON.stringify(requests[0]?.messages)).toContain("evidence-1");
     expect(events).toEqual(expect.arrayContaining(["memory_retrieval_requested", "memory_retrieval_completed"]));
+  });
+
+  it("preserves a typed memory policy block instead of returning a generic loop failure", async () => {
+    const events: string[] = [];
+    let modelCalls = 0;
+    const result = await runBoundedAgentLoop({
+      model: { provider: "openai", model: "test-model" },
+      messages: [{ role: "system", content: "policy" }, { role: "user", content: "Use my saved preference." }],
+      credentials,
+      gateway: new ModelGateway([{
+        provider: "openai",
+        capabilities: { toolCalling: true, structuredOutput: true, streaming: false, vision: false },
+        complete: async (request) => {
+          modelCalls += 1;
+          return { provider: "openai", model: request.model, message: { role: "assistant", content: "Should not run." }, toolCalls: [], finishReason: "stop", usage: { inputTokens: 20, outputTokens: 2, totalTokens: 22 }, latencyMs: 1 };
+        },
+      }]),
+      tools: new ToolRegistry(),
+      toolContext: { organizationId: "org-1", agentId: "agent-1", agentVersionId: "version-1", installationId: "installation-1", runId: "run-1", correlationId: "corr-1", scope: { organizationId: "org-1", agentDefinitionId: "agent-1", agentVersionId: "version-1", installationId: "installation-1", runId: "run-1", correlationId: "corr-1", capabilityGrants: [] } },
+      grantedTools: new Set(),
+      contextProfile: { provider: "openai", model: "test-model", contextWindowTokens: 1_000, maxOutputTokens: 64 },
+      memoryRetrievalPort: {
+        async retrieve(request) {
+          return { packId: `blocked:${request.turnId}`, status: "blocked", evidence: [], blockedReason: "MEMORY_SCOPE_BLOCKED" };
+        },
+      },
+      memoryScope: { organizationId: "org-1", agentDefinitionId: "agent-1", agentVersionId: "version-1", installationId: "installation-1", namespace: "conversation" },
+      memoryRetrievalQuery: "Use my saved preference.",
+      memoryRetrievalReason: "preference_reference",
+      onEvent: (event) => events.push(event.type),
+    });
+
+    expect(result.status).toBe("failed");
+    expect(result.error).toMatchObject({ code: "MEMORY_RETRIEVAL_BLOCKED" });
+    expect(modelCalls).toBe(0);
+    expect(events.slice(-4)).toEqual(["memory_retrieval_requested", "memory_retrieval_blocked", "memory_retrieval_blocked", "loop.failed"]);
   });
 
   it("records a missing checkpoint scope as failed and blocked when enforcement is on", async () => {
