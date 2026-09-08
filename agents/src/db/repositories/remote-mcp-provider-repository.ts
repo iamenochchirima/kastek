@@ -19,6 +19,7 @@ import { DurableOperationRepository } from "./durable-operation-repository";
 export const createRemoteMcpProviderInputSchema = z.object({
   name: z.string().trim().min(1).max(160),
   endpointUrl: z.string().trim().url().max(2_000),
+  catalogId: z.string().trim().min(1).max(180).optional(),
   credentialReference: z.string().uuid().optional(),
   timeoutMs: z.number().int().min(1_000).max(120_000).default(15_000),
   maxResponseBytes: z.number().int().min(1_024).max(1_048_576).default(1_048_576),
@@ -33,6 +34,7 @@ export interface RemoteMcpProviderRecord {
   owner_id: string;
   name: string;
   endpoint_url: string;
+  catalog_id: string | null;
   credential_reference: string | null;
   status: "draft" | "approved" | "revoked";
   timeout_ms: number;
@@ -83,7 +85,7 @@ export class RemoteMcpProviderRepository {
   public async create(organizationId: string, actorId: string, input: CreateRemoteMcpProviderInput): Promise<RemoteMcpProviderRecord> {
     const parsed = createRemoteMcpProviderInputSchema.parse(input);
     validateRemoteMcpEndpoint(parsed.endpointUrl, process.env.NODE_ENV === "production" ? "production" : "development");
-    const result = await query<RemoteMcpProviderRecord>(this.pool, `INSERT INTO agent_mcp_providers (organization_id, owner_id, name, endpoint_url, credential_reference, timeout_ms, max_response_bytes, rate_limit_per_minute, created_by) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`, [organizationId, organizationId, parsed.name, parsed.endpointUrl, parsed.credentialReference ?? null, parsed.timeoutMs, parsed.maxResponseBytes, parsed.rateLimitPerMinute, actorId]);
+    const result = await query<RemoteMcpProviderRecord>(this.pool, `INSERT INTO agent_mcp_providers (organization_id, owner_id, name, catalog_id, endpoint_url, credential_reference, timeout_ms, max_response_bytes, rate_limit_per_minute, created_by) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`, [organizationId, organizationId, parsed.name, parsed.catalogId ?? null, parsed.endpointUrl, parsed.credentialReference ?? null, parsed.timeoutMs, parsed.maxResponseBytes, parsed.rateLimitPerMinute, actorId]);
     if (!result.rows[0]) throw new Error("REMOTE_MCP_PROVIDER_CREATE_FAILED");
     return result.rows[0];
   }
@@ -91,6 +93,17 @@ export class RemoteMcpProviderRepository {
   public async list(organizationId: string): Promise<RemoteMcpProviderRecord[]> {
     const result = await query<RemoteMcpProviderRecord>(this.pool, "SELECT * FROM agent_mcp_providers WHERE organization_id = $1 AND status <> 'revoked' ORDER BY name", [organizationId]);
     return result.rows;
+  }
+
+  public async getByCatalogId(organizationId: string, catalogId: string): Promise<RemoteMcpProviderRecord | null> {
+    const result = await query<RemoteMcpProviderRecord>(this.pool, "SELECT * FROM agent_mcp_providers WHERE organization_id = $1 AND catalog_id = $2 AND status <> 'revoked'", [organizationId, catalogId]);
+    return result.rows[0] ?? null;
+  }
+
+  public async setCredentialReference(organizationId: string, providerId: string, credentialReference: string | null): Promise<RemoteMcpProviderRecord> {
+    const result = await query<RemoteMcpProviderRecord>(this.pool, "UPDATE agent_mcp_providers SET credential_reference = $1, updated_at = now() WHERE id = $2 AND organization_id = $3 AND status <> 'revoked' RETURNING *", [credentialReference, providerId, organizationId]);
+    if (!result.rows[0]) throw new Error("REMOTE_MCP_PROVIDER_NOT_FOUND");
+    return result.rows[0];
   }
 
   public async discover(organizationId: string, actorId: string, providerId: string): Promise<RemoteMcpProviderVersionRecord> {

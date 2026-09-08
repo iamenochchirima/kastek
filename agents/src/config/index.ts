@@ -65,6 +65,8 @@ const envSchema = z.object({
   GOOGLE_CALENDAR_CLIENT_ID: z.string().trim().optional(),
   GOOGLE_CALENDAR_CLIENT_SECRET: z.string().trim().optional(),
   GOOGLE_CALENDAR_REDIRECT_URI: z.string().url().optional(),
+  MCP_OAUTH_REDIRECT_URI: z.string().url().optional(),
+  MCP_OAUTH_CLIENT_NAME: z.string().trim().min(1).max(120).default("KasiTek Agent Platform"),
   AGENT_INTEGRATIONS_RETURN_URL: z.string().url().optional(),
   MODEL_PRICING_JSON: z.string().optional(),
   CREDIT_BILLING_MODE: z.enum(["disabled", "shadow", "enforced"]).default("disabled"),

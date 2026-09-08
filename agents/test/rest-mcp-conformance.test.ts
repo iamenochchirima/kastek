@@ -133,15 +133,15 @@ function isProviderWebhook(route: Route): boolean {
 }
 
 function isPublicOAuthCallback(route: Route): boolean {
-  return route.path === "/v1/integrations/google.calendar/oauth/callback" && route.method === "GET";
+  return (route.path === "/v1/integrations/google.calendar/oauth/callback" || route.path === "/v1/integrations/mcp/oauth/callback") && route.method === "GET";
 }
 
 describe("Agent REST and MCP conformance matrices", () => {
   it("guards every mounted /v1 route before parsing input or touching dependencies", async () => {
     const routes = await mountedAgentRoutes();
     const protectedRoutes = routes.filter((route) => route.path.startsWith("/v1/") && route.path !== "/v1/installation-tokens/exchange" && !isPublicOAuthCallback(route));
-    expect(routes).toHaveLength(201);
-    expect(protectedRoutes).toHaveLength(194);
+    expect(routes).toHaveLength(211);
+    expect(protectedRoutes).toHaveLength(203);
 
     const app = buildApp({ config, pool: fakePool });
     try {
@@ -164,7 +164,7 @@ describe("Agent REST and MCP conformance matrices", () => {
       && !isPublicOAuthCallback(route)
       && !isPublicApiTransport(route),
     );
-    expect(directRoutes).toHaveLength(187);
+    expect(directRoutes).toHaveLength(196);
 
     const app = buildApp({ config: hmacConfig, pool: fakePool });
     try {

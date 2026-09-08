@@ -19,10 +19,10 @@ export class SkillRepository {
     const result = await query<SkillDefinitionRecord>(
       this.pool,
       `INSERT INTO agent_skill_definitions
-        (organization_id, owner_type, owner_id, slug, name, description, created_by)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
+        (organization_id, owner_type, owner_id, slug, name, description, catalog_id, created_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
        RETURNING *`,
-      [organizationId, parsed.ownerType, parsed.ownerType === "user" ? actorId : organizationId, parsed.slug, parsed.name, parsed.description ?? null, actorId],
+      [organizationId, parsed.ownerType, parsed.ownerType === "user" ? actorId : organizationId, parsed.slug, parsed.name, parsed.description ?? null, parsed.catalogId ?? null, actorId],
     );
     if (!result.rows[0]) throw new Error("SKILL_CREATE_FAILED");
     return result.rows[0];
@@ -103,6 +103,16 @@ export class SkillRepository {
       [organizationId],
     );
     return result.rows;
+  }
+
+  public async getByCatalogId(organizationId: string, catalogId: string): Promise<SkillDefinitionRecord | null> {
+    const result = await query<SkillDefinitionRecord>(
+      this.pool,
+      `SELECT * FROM agent_skill_definitions
+       WHERE organization_id = $1 AND catalog_id = $2 AND status <> 'revoked'`,
+      [organizationId, catalogId],
+    );
+    return result.rows[0] ?? null;
   }
 
   public async listVersions(organizationId: string, skillId: string): Promise<SkillVersionRecord[]> {

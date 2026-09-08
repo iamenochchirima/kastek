@@ -15,6 +15,7 @@ export const createSkillInputSchema = z.object({
   name: z.string().trim().min(1).max(160),
   description: z.string().trim().max(2_000).optional(),
   ownerType: z.enum(["organization", "user"]).default("organization"),
+  catalogId: z.string().trim().min(1).max(180).optional(),
 }).strict();
 export type CreateSkillInput = z.infer<typeof createSkillInputSchema>;
 
@@ -35,6 +36,7 @@ export interface SkillDefinitionRecord {
   owner_type: "platform" | "organization" | "user";
   owner_id: string;
   slug: string;
+  catalog_id: string | null;
   name: string;
   description: string | null;
   status: "draft" | "published" | "deprecated" | "revoked";

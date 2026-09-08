@@ -147,6 +147,9 @@ import { verifyChannelApprovalActionToken, type ChannelApprovalDecision } from "
 import { IntegrationRepository } from "../integrations/repository";
 import { IntegrationToolService } from "../integrations/service";
 import { getIntegration, listIntegrations, listToolIntegrations } from "../integrations/catalog";
+import { listConnectionDirectory, listPluginDirectory, listSkillDirectory } from "../integrations/directory";
+import { buildMcpAuthorizationUrl, createPkcePair, discoverMcpOAuth, exchangeMcpOAuthCode, registerMcpOAuthClient } from "../mcp/oauth";
+import { getHermesMcpCatalogEntry, getHermesSkillCatalogEntry } from "../integrations/hermes-directory";
 import { correlationIdFromHeader, currentCorrelationId, runWithCorrelationId } from "../telemetry/context";
 import { operationalLogFields, operationalLogRedaction, operationalLogSerializers } from "../telemetry/logger";
 import { AudioTranscriptionError, ElevenLabsTranscriptionProvider, hasAudioFileSignature, isSupportedAudioMimeType, MAX_AUDIO_FILE_BYTES, normalizeAudioMimeType, type AudioTranscriptionProvider } from "../transcription";
@@ -163,6 +166,7 @@ import { CoreHostAdapter, HostCapabilityRouter, NativeHostAdapter } from "../hos
 import { createAgentHarness, type AgentHarness } from "../runtime/harness";
 import { ExtensionSnapshotRepository } from "../db/repositories/extension-snapshot-repository";
 import type { ExtensionKind } from "../extensions";
+import { getHermesPluginAdapterCapabilityIds, getHermesPluginCatalogEntry } from "../extensions/hermes-plugin-directory";
 import { createCapabilityRuntime } from "../capabilities/runtime";
 import { registerIntegrationSources, registerMcpSources, registerPluginSources, registerSkillSources } from "../capabilities/source-adapters";
 import { PostgresDeliveryObligationCoordinator, type DeliveryObligationCoordinator } from "../delivery";
@@ -762,6 +766,34 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
   const retention = dependencies.retention ?? new RetentionRepository(dependencies.pool);
   const kasiaiPreferences = dependencies.kasiaiPreferences ?? new KasiAiPreferenceRepository(dependencies.pool);
   const skills = dependencies.skills ?? new SkillRepository(dependencies.pool);
+  const activateHermesMcp = async (input: {
+    organizationId: string;
+    actorId: string;
+    catalogId: string;
+    credentialReference?: string | null;
+    agentVersionId?: string;
+  }) => {
+    const catalogEntry = getHermesMcpCatalogEntry(input.catalogId);
+    if (!catalogEntry || !catalogEntry.managed || !catalogEntry.endpointUrl) throw new Error("HERMES_MCP_ENTRY_NOT_CONNECTABLE");
+    let provider = await remoteMcpProviders.getByCatalogId(input.organizationId, catalogEntry.id);
+    if (!provider) {
+      provider = await remoteMcpProviders.create(input.organizationId, input.actorId, {
+        name: catalogEntry.name,
+        endpointUrl: catalogEntry.endpointUrl,
+        catalogId: catalogEntry.id,
+        credentialReference: input.credentialReference ?? undefined,
+        timeoutMs: 15_000,
+        maxResponseBytes: 1_048_576,
+        rateLimitPerMinute: 60,
+      });
+    } else if (input.credentialReference !== undefined && input.credentialReference !== provider.credential_reference) {
+      provider = await remoteMcpProviders.setCredentialReference(input.organizationId, provider.id, input.credentialReference);
+    }
+    const discovered = await remoteMcpProviders.discover(input.organizationId, input.actorId, provider.id);
+    const published = await remoteMcpProviders.publish(input.organizationId, input.actorId, provider.id, discovered.id);
+    if (input.agentVersionId) await remoteMcpProviders.pin(input.organizationId, input.actorId, input.agentVersionId, published.id);
+    return { provider, version: published, pinned: Boolean(input.agentVersionId) };
+  };
   const websiteCrawler = dependencies.websiteCrawler ?? new FirecrawlClient({
     apiKey: dependencies.config.FIRECRAWL_API_KEY,
     baseUrl: dependencies.config.FIRECRAWL_API_BASE_URL,
@@ -2910,6 +2942,50 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     return { templates: listAgentTemplates(audience) };
   });
 
+  app.post<{ Params: { installationId: string; catalogId: string }; Body: { agentVersionId?: string } }>("/v1/installations/:installationId/skills/catalog/:catalogId/install", async (request, reply) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:write");
+    const installation = await agents.getInstallation(auth.organizationId, request.params.installationId);
+    if (!installation) return reply.code(404).send({ error: "installation_not_found" });
+    const entry = getHermesSkillCatalogEntry(request.params.catalogId);
+    if (!entry) return reply.code(404).send({ error: "skill_catalog_entry_not_found" });
+    const input = z.object({ agentVersionId: z.string().uuid().optional() }).strict().parse(request.body ?? {});
+    let definition = await skills.getByCatalogId(auth.organizationId, entry.id);
+    let version = definition ? (await skills.listVersions(auth.organizationId, definition.id)).find((candidate) => candidate.status === "published") : undefined;
+    if (!definition || !version) {
+      try {
+        const instructions = await fetchHermesSkillInstructions(entry.rawUrl);
+        definition = await skills.createSkill(auth.organizationId, auth.actorId, {
+          slug: hermesSkillSlug(entry.slug),
+          name: entry.name,
+          description: entry.description,
+          ownerType: "organization",
+          catalogId: entry.id,
+        });
+        const created = await skills.createVersion(auth.organizationId, auth.actorId, definition.id, {
+          instructions,
+          matching: { keywords: [entry.name, ...entry.tags].slice(0, 50), phrases: [], channels: [], audiences: [] },
+          requiredCapabilities: [],
+          requiredConnectors: [],
+          knowledgeSourceIds: [],
+          compatibleChannels: [],
+          compatibleAudiences: [],
+        });
+        version = await skills.publishVersion(auth.organizationId, auth.actorId, definition.id, created.id);
+      } catch (error) {
+        request.log.warn({ event: "hermes_skill.install_failed", catalog_id: entry.id, error_code: error instanceof Error ? error.message : "unknown" }, "Hermes skill installation failed");
+        return reply.code(502).send({ error: "skill_catalog_install_failed" });
+      }
+    }
+    if (!version) return reply.code(502).send({ error: "skill_catalog_version_missing" });
+    let pinned = false;
+    if (input.agentVersionId) {
+      await skills.pinVersion(auth.organizationId, auth.actorId, input.agentVersionId, version.id);
+      pinned = true;
+    }
+    return reply.code(201).send({ skill: definition, version, pinned });
+  });
+
   app.get("/v1/skills", async (request) => {
     const auth = requireAuth(request, dependencies.config);
     requireScope(auth, dependencies.config, "agents:read");
@@ -3368,6 +3444,120 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     return { integrations: listIntegrations() };
   });
 
+  app.get<{ Params: { installationId: string } }>("/v1/installations/:installationId/connection-directory", async (request, reply) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:read");
+    const installation = await agents.getInstallation(auth.organizationId, request.params.installationId);
+    if (!installation) return reply.code(404).send({ error: "installation_not_found" });
+    const [connections, providers] = await Promise.all([
+      integrationRepository.listConnections(auth.organizationId, installation.id),
+      remoteMcpProviders.list(auth.organizationId),
+    ]);
+    const nativeById = new Map(connections.map((connection) => [connection.integration_id, connection]));
+    const providerByCatalogId = new Map(providers.filter((provider) => provider.catalog_id).map((provider) => [provider.catalog_id!, provider]));
+    return {
+      installationId: installation.id,
+      connections: listConnectionDirectory().map((entry) => {
+        if (entry.kind === "native") {
+          const connection = nativeById.get(entry.id);
+          const ready = entry.auth === "internal";
+          const status = ready ? "ready" as const : connection?.status === "connected" ? "connected" as const : connection?.status === "unhealthy" ? "unhealthy" as const : "not_configured" as const;
+          return { ...entry, configured: ready || Boolean(connection), status, connectionId: connection?.id ?? null };
+        }
+        const provider = providerByCatalogId.get(entry.id);
+        const status = !entry.managed
+          ? "unsupported" as const
+          : provider?.health_status === "unhealthy"
+            ? "unhealthy" as const
+            : provider
+              ? "connected" as const
+              : "not_configured" as const;
+        return { ...entry, configured: Boolean(provider), status, providerId: provider?.id ?? null };
+      }),
+    };
+  });
+
+  app.get<{ Querystring: { agentVersionId?: string } }>("/v1/skills/directory", async (request) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:read");
+    const definitions = await skills.listSkills(auth.organizationId);
+    const installed = new Map(definitions.filter((definition) => definition.catalog_id).map((definition) => [definition.catalog_id!, definition]));
+    const pinned = request.query.agentVersionId
+      ? new Set((await skills.loadPinnedVersions(auth.organizationId, request.query.agentVersionId)).map((version) => version.id))
+      : new Set<string>();
+    const entries = await Promise.all(listSkillDirectory().map(async (entry) => {
+      const definition = installed.get(entry.id);
+      const versions = definition ? await skills.listVersions(auth.organizationId, definition.id) : [];
+      const version = versions.find((candidate) => candidate.status === "published") ?? versions[0];
+      return { ...entry, installed: Boolean(definition), skillId: definition?.id ?? null, versionId: version?.id ?? null, enabled: Boolean(version && pinned.has(version.id)) };
+    }));
+    return { skills: entries };
+  });
+
+  app.get<{ Querystring: { agentVersionId?: string } }>("/v1/plugins/directory", async (request) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:read");
+    const packages = (await extensionSnapshots.listPackages(auth.organizationId, "plugin"))
+      .filter((entry) => entry.status === "published" || entry.status === "deprecated");
+    const installed = new Map(packages.map((entry) => [`${entry.package_id}:${entry.version}`, entry]));
+    return {
+      plugins: listPluginDirectory().map((entry) => {
+        const packageRecord = installed.get(`${entry.id}:${entry.version}`);
+        return {
+          ...entry,
+          installed: Boolean(packageRecord),
+          packageId: packageRecord?.package_id ?? null,
+          packageVersionId: packageRecord?.id ?? null,
+          packageStatus: packageRecord?.status ?? null,
+        };
+      }),
+    };
+  });
+
+  app.post<{ Params: { installationId: string; catalogId: string } }>("/v1/installations/:installationId/plugins/catalog/:catalogId/install", async (request, reply) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:write");
+    const installation = await agents.getInstallation(auth.organizationId, request.params.installationId);
+    if (!installation) return reply.code(404).send({ error: "installation_not_found" });
+    const entry = getHermesPluginCatalogEntry(request.params.catalogId);
+    if (!entry) return reply.code(404).send({ error: "plugin_catalog_entry_not_found" });
+    if (entry.adapterStatus !== "supported") return reply.code(409).send({ error: "plugin_adapter_unavailable" });
+    const packageInput = {
+      declaration: {
+        kind: "plugin" as const,
+        id: entry.id,
+        version: entry.version,
+        checksum: entry.checksum,
+        name: entry.name,
+        available: true,
+        installed: true,
+        configured: true,
+        capabilityIds: getHermesPluginAdapterCapabilityIds(entry),
+      },
+      compatibility: {
+        constraints: {
+          source: "hermes-reviewed",
+          sourceUrl: entry.sourceUrl,
+          adapterStatus: entry.adapterStatus,
+          requiredEnv: entry.requiredEnv,
+          providedProviders: entry.providedProviders,
+          hooks: entry.hooks,
+          platforms: entry.platforms,
+        },
+      },
+    };
+    try {
+      const existing = (await extensionSnapshots.listPackages(auth.organizationId, "plugin"))
+        .find((candidate) => candidate.package_id === entry.id && candidate.version === entry.version);
+      const pkg = existing ?? await extensionSnapshots.createPackage(auth.organizationId, auth.actorId, packageInput);
+      const published = pkg.status === "draft" ? await extensionSnapshots.publishPackage(auth.organizationId, auth.actorId, pkg.id) : pkg;
+      return reply.code(existing ? 200 : 201).send({ plugin: entry, package: published, installationId: installation.id });
+    } catch (error) {
+      request.log.warn({ event: "hermes_plugin.install_failed", catalog_id: entry.id, error_code: error instanceof Error ? error.message : "unknown" }, "Hermes plugin install failed");
+      return reply.code(502).send({ error: "plugin_catalog_install_failed" });
+    }
+  });
+
   app.get<{ Params: { installationId: string } }>("/v1/installations/:installationId/integrations/google.calendar/oauth/start", async (request, reply) => {
     const auth = requireAuth(request, dependencies.config);
     requireScope(auth, dependencies.config, "agents:write");
@@ -3381,6 +3571,55 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     const authorizationUrl = new URL("https://accounts.google.com/o/oauth2/v2/auth");
     authorizationUrl.search = new URLSearchParams({ client_id: clientId, redirect_uri: redirectUri, response_type: "code", access_type: "offline", prompt: "consent", scope: "https://www.googleapis.com/auth/calendar.events", state }).toString();
     return { authorizationUrl: authorizationUrl.toString() };
+  });
+
+  app.post<{ Params: { installationId: string; catalogId: string }; Body: { agentVersionId?: string; apiKey?: string } }>("/v1/installations/:installationId/mcp/catalog/:catalogId/connect", async (request, reply) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:write");
+    const installation = await agents.getInstallation(auth.organizationId, request.params.installationId);
+    if (!installation) return reply.code(404).send({ error: "installation_not_found" });
+    const entry = getHermesMcpCatalogEntry(request.params.catalogId);
+    if (!entry || !entry.managed || !entry.endpointUrl) return reply.code(400).send({ error: "mcp_catalog_entry_not_connectable" });
+    const authMode = entry.auth as string;
+    if (authMode === "oauth") return reply.code(400).send({ error: "mcp_catalog_entry_requires_oauth" });
+    const input = z.object({ agentVersionId: z.string().uuid().optional(), apiKey: z.string().trim().min(1).max(4_000).optional() }).strict().parse(request.body ?? {});
+    if (authMode === "api_key" && !input.apiKey) return reply.code(400).send({ error: "mcp_api_key_required" });
+    if (authMode === "none" && input.apiKey) return reply.code(400).send({ error: "mcp_api_key_not_expected" });
+    let credentialId: string | null = null;
+    try {
+      if (input.apiKey) {
+        const credential = await integrationRepository.storeCredential({ organizationId: auth.organizationId, integrationId: entry.id, secret: input.apiKey, label: `${entry.name} MCP`, actorId: auth.actorId });
+        credentialId = credential.id;
+      }
+      const activated = await activateHermesMcp({ organizationId: auth.organizationId, actorId: auth.actorId, catalogId: entry.id, credentialReference: credentialId, agentVersionId: input.agentVersionId });
+      return reply.code(201).send(activated);
+    } catch (error) {
+      if (credentialId) await integrationRepository.revokeCredential(auth.organizationId, credentialId).catch(() => undefined);
+      request.log.warn({ event: "hermes_mcp.catalog_connect_failed", catalog_id: entry.id, error_code: error instanceof Error ? error.message : "unknown" }, "Hermes MCP catalogue connection failed");
+      return reply.code(502).send({ error: "mcp_catalog_connection_failed" });
+    }
+  });
+
+  app.post<{ Params: { installationId: string; catalogId: string }; Body: { agentVersionId?: string } }>("/v1/installations/:installationId/mcp/catalog/:catalogId/oauth/start", async (request, reply) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:write");
+    const installation = await agents.getInstallation(auth.organizationId, request.params.installationId);
+    if (!installation) return reply.code(404).send({ error: "installation_not_found" });
+    const entry = getHermesMcpCatalogEntry(request.params.catalogId);
+    if (!entry || !entry.managed || entry.auth !== "oauth" || !entry.endpointUrl) return reply.code(400).send({ error: "mcp_catalog_entry_not_oauth" });
+    const redirectUri = dependencies.config.MCP_OAUTH_REDIRECT_URI;
+    if (!redirectUri) return reply.code(503).send({ error: "mcp_oauth_not_configured" });
+    const input = z.object({ agentVersionId: z.string().uuid().optional() }).strict().parse(request.body ?? {});
+    try {
+      const discovery = await discoverMcpOAuth({ endpointUrl: entry.endpointUrl, environment: dependencies.config.NODE_ENV });
+      const client = await registerMcpOAuthClient({ discovery, redirectUri, clientName: dependencies.config.MCP_OAUTH_CLIENT_NAME, environment: dependencies.config.NODE_ENV });
+      const pkce = createPkcePair();
+      await integrationRepository.createOAuthState({ organizationId: auth.organizationId, installationId: installation.id, integrationId: entry.id, stateHash: createHash("sha256").update(pkce.state).digest("hex"), redirectUri, createdBy: auth.actorId, expiresAt: new Date(Date.now() + 10 * 60_000).toISOString(), flow: "mcp", codeVerifier: pkce.codeVerifier, clientId: client.clientId, clientSecret: client.clientSecret, resource: client.resource, authorizationEndpoint: client.authorizationEndpoint, tokenEndpoint: client.tokenEndpoint, agentVersionId: input.agentVersionId });
+      return { authorizationUrl: buildMcpAuthorizationUrl({ client, redirectUri, state: pkce.state, codeChallenge: pkce.codeChallenge }) };
+    } catch (error) {
+      request.log.warn({ event: "hermes_mcp.oauth_start_failed", catalog_id: entry.id, error_code: error instanceof Error ? error.message : "unknown" }, "Hermes MCP OAuth start failed");
+      return reply.code(502).send({ error: "mcp_oauth_start_failed" });
+    }
   });
 
   app.get<{ Querystring: { code?: string; state?: string; error?: string } }>("/v1/integrations/google.calendar/oauth/callback", async (request, reply) => {
@@ -3406,6 +3645,49 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       return reply.redirect(returnUrl.toString());
     }
     return { integration: "google.calendar", status: "connected", installationId: stateRecord.installation_id };
+  });
+
+  app.get<{ Querystring: { code?: string; state?: string; error?: string; error_description?: string } }>("/v1/integrations/mcp/oauth/callback", async (request, reply) => {
+    const state = request.query.state;
+    if (!state) return reply.code(400).send({ error: "oauth_state_missing" });
+    const stateRecord = await integrationRepository.consumeOAuthState(createHash("sha256").update(state).digest("hex"));
+    if (!stateRecord || stateRecord.flow !== "mcp") return reply.code(400).send({ error: "oauth_state_invalid_or_expired" });
+    const entry = getHermesMcpCatalogEntry(stateRecord.integration_id);
+    const returnError = (code: string) => {
+      if (dependencies.config.AGENT_INTEGRATIONS_RETURN_URL) {
+        const returnUrl = new URL(dependencies.config.AGENT_INTEGRATIONS_RETURN_URL);
+        returnUrl.searchParams.set("connection", stateRecord.integration_id);
+        returnUrl.searchParams.set("status", "error");
+        returnUrl.searchParams.set("error", code);
+        returnUrl.searchParams.set("installationId", stateRecord.installation_id);
+        return reply.redirect(returnUrl.toString());
+      }
+      return reply.code(502).send({ error: code });
+    };
+    if (!entry || !entry.endpointUrl || !stateRecord.code_verifier || !stateRecord.client_id || !stateRecord.authorization_endpoint || !stateRecord.token_endpoint) return returnError("mcp_oauth_state_incomplete");
+    if (request.query.error || !request.query.code) return returnError(request.query.error ?? "mcp_oauth_code_missing");
+    try {
+      const token = await exchangeMcpOAuthCode({
+        client: { clientId: stateRecord.client_id, clientSecret: stateRecord.client_secret ?? undefined, authorizationEndpoint: stateRecord.authorization_endpoint, tokenEndpoint: stateRecord.token_endpoint, resource: stateRecord.resource ?? entry.endpointUrl },
+        redirectUri: stateRecord.redirect_uri,
+        code: request.query.code,
+        codeVerifier: stateRecord.code_verifier,
+        environment: dependencies.config.NODE_ENV,
+      });
+      const credential = await integrationRepository.storeCredential({ organizationId: stateRecord.organization_id, integrationId: entry.id, secret: JSON.stringify(token), label: `${entry.name} MCP`, actorId: stateRecord.created_by });
+      const activated = await activateHermesMcp({ organizationId: stateRecord.organization_id, actorId: stateRecord.created_by, catalogId: entry.id, credentialReference: credential.id, agentVersionId: stateRecord.agent_version_id ?? undefined });
+      if (dependencies.config.AGENT_INTEGRATIONS_RETURN_URL) {
+        const returnUrl = new URL(dependencies.config.AGENT_INTEGRATIONS_RETURN_URL);
+        returnUrl.searchParams.set("connection", entry.id);
+        returnUrl.searchParams.set("status", "connected");
+        returnUrl.searchParams.set("installationId", stateRecord.installation_id);
+        return reply.redirect(returnUrl.toString());
+      }
+      return { connection: entry.id, status: "connected", installationId: stateRecord.installation_id, provider: activated.provider, version: activated.version };
+    } catch (error) {
+      request.log.warn({ event: "hermes_mcp.oauth_callback_failed", catalog_id: entry.id, error_code: error instanceof Error ? error.message : "unknown" }, "Hermes MCP OAuth callback failed");
+      return returnError("mcp_oauth_connection_failed");
+    }
   });
 
   app.get<{ Params: { installationId: string } }>("/v1/installations/:installationId/integrations", async (request, reply) => {
@@ -5877,4 +6159,25 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
   });
 
   return app;
+}
+
+async function fetchHermesSkillInstructions(rawUrl: string): Promise<string> {
+  const url = new URL(rawUrl);
+  if (url.protocol !== "https:" || url.hostname !== "raw.githubusercontent.com") throw new Error("HERMES_SKILL_SOURCE_NOT_ALLOWED");
+  const response = await fetch(url, { redirect: "error", headers: { accept: "text/plain" }, signal: AbortSignal.timeout(20_000) });
+  if (!response.ok) throw new Error("HERMES_SKILL_SOURCE_UNAVAILABLE");
+  const length = Number(response.headers.get("content-length"));
+  if (Number.isFinite(length) && length > 40_000) throw new Error("HERMES_SKILL_SOURCE_TOO_LARGE");
+  const raw = await response.text();
+  if (raw.length > 40_000) throw new Error("HERMES_SKILL_SOURCE_TOO_LARGE");
+  const bodyStart = raw.startsWith("---") ? raw.indexOf("\n---", 3) : -1;
+  const instructions = bodyStart >= 0 ? raw.slice(bodyStart + 4).trim() : raw.trim();
+  if (!instructions) throw new Error("HERMES_SKILL_SOURCE_EMPTY");
+  return instructions;
+}
+
+function hermesSkillSlug(slug: string): string {
+  const readable = slug.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 56) || "skill";
+  const suffix = createHash("sha256").update(slug).digest("hex").slice(0, 12);
+  return `hermes-${readable}-${suffix}`.slice(0, 80).replace(/-+$/, "");
 }
