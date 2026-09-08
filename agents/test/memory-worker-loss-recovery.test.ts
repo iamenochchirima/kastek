@@ -1,5 +1,4 @@
 import { describe, expect, it, vi } from "vitest";
-import { MemoryConsolidationWorker } from "../src/memory/consolidation-worker";
 import { extractMemoryCandidates } from "../src/memory/consolidation";
 import { MemoryConsolidationJobRepository } from "../src/db/repositories/memory-consolidation-job-repository";
 import { MemoryRevisionConsolidationWorker } from "../src/memory/revision-consolidation-worker";
@@ -127,65 +126,6 @@ describe("memory worker loss and recovery contracts", () => {
       workerId: "worker-2",
       sourceMessageCount: 1,
       candidateCount: 1,
-    }));
-  });
-
-  it("does not duplicate a legacy candidate when a successor fences stale completion", async () => {
-    const jobs = {
-      claimDue: vi.fn()
-        .mockResolvedValueOnce([{ ...job, lease_owner: "worker-1" }])
-        .mockResolvedValueOnce([{ ...job, lease_owner: "worker-2", attempt_count: 2 }]),
-      markCompleted: vi.fn()
-        .mockResolvedValueOnce(false)
-        .mockResolvedValueOnce(true),
-      markRetryable: vi.fn(),
-    };
-    let candidateCommitted = false;
-    const memory = {
-      countWritesForRun: vi.fn().mockResolvedValue(0),
-      hasConsolidationCandidate: vi.fn().mockImplementation(async () => candidateCommitted),
-      createMemory: vi.fn().mockImplementation(async () => {
-        candidateCommitted = true;
-        return { id: "legacy-memory-1" };
-      }),
-    };
-    const dependencies = {
-      jobs: jobs as never,
-      conversations: { listMessages: vi.fn().mockResolvedValue([oneCandidateMessage]) } as never,
-      memory: memory as never,
-      runs: { getRuntimeRunById: vi.fn().mockResolvedValue(run) } as never,
-    };
-    const settings = {
-      batchSize: 1,
-      leaseMs: 120_000,
-      pollIntervalMs: 5_000,
-      maxAttempts: 5,
-      minInboundMessages: 1,
-    };
-
-    const staleWorker = new MemoryConsolidationWorker({} as never, settings, {
-      ...dependencies,
-      workerId: "worker-1",
-    });
-    await expect(staleWorker.runOnce()).resolves.toBe(1);
-    expect(jobs.markCompleted).toHaveBeenNthCalledWith(1, expect.objectContaining({
-      workerId: "worker-1",
-      candidateCount: 1,
-    }));
-    await expect(jobs.markCompleted.mock.results[0]?.value).resolves.toBe(false);
-
-    const successorWorker = new MemoryConsolidationWorker({} as never, settings, {
-      ...dependencies,
-      workerId: "worker-2",
-    });
-    await expect(successorWorker.runOnce()).resolves.toBe(1);
-
-    expect(memory.createMemory).toHaveBeenCalledTimes(1);
-    expect(memory.hasConsolidationCandidate).toHaveBeenCalledTimes(2);
-    expect(jobs.markCompleted).toHaveBeenNthCalledWith(2, expect.objectContaining({
-      workerId: "worker-2",
-      sourceMessageCount: 1,
-      candidateCount: 0,
     }));
   });
 

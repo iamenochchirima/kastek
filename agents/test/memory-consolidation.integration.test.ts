@@ -3,7 +3,7 @@ import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { ConversationRepository } from "../src/db/repositories/conversation-repository";
 import { MemoryConsolidationJobRepository } from "../src/db/repositories/memory-consolidation-job-repository";
-import { MemoryConsolidationWorker } from "../src/memory/consolidation-worker";
+import { MemoryRevisionConsolidationWorker } from "../src/memory/revision-consolidation-worker";
 
 const databaseUrl = process.env.AGENTS_DATABASE_URL;
 const runIntegration = Boolean(databaseUrl && process.env.RUN_AGENTS_DB_INTEGRATION_TESTS === "true");
@@ -93,7 +93,7 @@ describe.skipIf(!runIntegration)("memory consolidation (integration)", () => {
       [interrupted!.id],
     )).resolves.toMatchObject({ rows: [{ status: "queued", abandonment_count: 1, last_abandoned_by: "shutdown-worker", last_abandonment_reason: "MEMORY_WORKER_SHUTDOWN_TIMEOUT" }] });
 
-    const worker = new MemoryConsolidationWorker(pool, {
+    const worker = new MemoryRevisionConsolidationWorker(pool, {
       batchSize: 1,
       leaseMs: 120_000,
       pollIntervalMs: 5_000,
@@ -102,12 +102,15 @@ describe.skipIf(!runIntegration)("memory consolidation (integration)", () => {
     }, { workerId: "consolidation-test" });
     for (let index = 0; index < 4; index += 1) await worker.runOnce(organizationId);
 
-    const memories = await pool.query<{ status: string; provenance: Record<string, unknown> }>(
-      "SELECT status, provenance FROM memory_records WHERE organization_id = $1 AND agent_definition_id = $2",
+    const memories = await pool.query<{ lifecycle_state: string; provenance: Record<string, unknown> }>(
+      `SELECT revision.lifecycle_state, revision.provenance
+       FROM agent_memory_revisions revision
+       JOIN agent_memory_facts fact ON fact.id = revision.fact_id
+       WHERE revision.organization_id = $1 AND fact.agent_definition_id = $2`,
       [organizationId, agentId],
     );
     expect(memories.rows).toHaveLength(2);
-    expect(memories.rows.every((memory) => memory.status === "review_pending")).toBe(true);
+    expect(memories.rows.every((memory) => memory.lifecycle_state === "review_pending")).toBe(true);
     expect(memories.rows.every((memory) => memory.provenance.extractionVersion === "deterministic-v1")).toBe(true);
 
     // Replaying the same source run/extraction version is idempotent and does
@@ -122,13 +125,22 @@ describe.skipIf(!runIntegration)("memory consolidation (integration)", () => {
       reason: "operator",
     });
     await worker.runOnce(organizationId);
-    const replayed = await pool.query("SELECT id FROM memory_records WHERE organization_id = $1 AND agent_definition_id = $2", [organizationId, agentId]);
+    const replayed = await pool.query(
+      `SELECT revision.id
+       FROM agent_memory_revisions revision
+       JOIN agent_memory_facts fact ON fact.id = revision.fact_id
+       WHERE revision.organization_id = $1 AND fact.agent_definition_id = $2`,
+      [organizationId, agentId],
+    );
     expect(replayed.rows).toHaveLength(2);
   });
 
   afterAll(async () => {
     await pool.query("DELETE FROM memory_consolidation_jobs WHERE organization_id = $1", [organizationId]);
-    await pool.query("DELETE FROM memory_records WHERE organization_id = $1", [organizationId]);
+    await pool.query("DELETE FROM agent_memory_relations WHERE organization_id = $1", [organizationId]);
+    await pool.query("DELETE FROM agent_memory_revision_sources WHERE organization_id = $1", [organizationId]);
+    await pool.query("DELETE FROM agent_memory_revisions WHERE organization_id = $1", [organizationId]);
+    await pool.query("DELETE FROM agent_memory_facts WHERE organization_id = $1", [organizationId]);
     await pool.query("DELETE FROM messages WHERE organization_id = $1", [organizationId]);
     await pool.query("DELETE FROM agent_runs WHERE organization_id = $1", [organizationId]);
     await pool.query("DELETE FROM conversations WHERE organization_id = $1", [organizationId]);
