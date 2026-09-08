@@ -795,6 +795,7 @@ export type AgentModel = {
   supportsTools?: boolean;
   supportsReasoning?: boolean;
   contextWindow?: number;
+  maxOutputTokens?: number;
   inputUsdPerMillion?: number;
   outputUsdPerMillion?: number;
 };

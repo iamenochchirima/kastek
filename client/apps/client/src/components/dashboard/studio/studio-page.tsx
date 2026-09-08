@@ -15,8 +15,6 @@ import {
   MessageCircle,
   Plus,
   Rocket,
-  Save,
-  Send,
   Settings2,
   SlidersHorizontal,
   ShieldCheck,
@@ -25,30 +23,37 @@ import {
   X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
 import {
   createAgentVersion,
   cancelAgentRun,
-  createNewPlatformConversation,
+  createPlatformConversation,
   deployAgentInstallation,
   ensureKasiAiPlayground,
+  getAudioTranscriptionJob,
   getPlatformConversation,
+  getAgentModelCatalog,
   getAgentRun,
   getAgentRunTimeline,
   listAgentVersions,
   publishAgentVersion,
   resolvePlatformConversation,
+  sendPlatformAudio,
   sendPlatformMessage,
   streamAgentRun,
   type AgentMessage,
   type AgentDefinition,
   type AgentJournalEvent,
+  type AgentModel,
+  type AgentModelCatalog,
+  type AgentModelProvider,
   type AgentRuntimeTelemetry,
   type AgentSpecInput,
   type AgentStreamEvent,
   type AgentVersion,
 } from "@/lib/agent-platform";
 import { cn } from "@/lib/utils";
+import { AgentChatComposer } from "@/components/dashboard/agents/agent-chat-composer";
+import { StudioSettingsPrototype } from "@/components/dashboard/studio/studio-settings-prototype";
 
 type StudioPageProps = {
   initialAgents: AgentDefinition[];
@@ -95,6 +100,33 @@ function chatMessageFromAgent(message: AgentMessage): ChatMessage {
 }
 
 const terminalStatuses = new Set(["completed", "failed", "cancelled", "expired"]);
+
+async function waitForStudioAudioTranscriptionJob(
+  jobId: string,
+  signal: AbortSignal,
+): Promise<Awaited<ReturnType<typeof getAudioTranscriptionJob>>> {
+  for (let attempt = 0; attempt < 120; attempt += 1) {
+    if (signal.aborted) throw new DOMException("Aborted", "AbortError");
+    try {
+      const job = await getAudioTranscriptionJob(jobId);
+      if (["completed", "failed", "deleted"].includes(job.status)) return job;
+    } catch {
+      // The job is durable. Keep polling through brief transport failures.
+    }
+    await new Promise<void>((resolve, reject) => {
+      const abort = () => {
+        window.clearTimeout(timer);
+        reject(new DOMException("Aborted", "AbortError"));
+      };
+      const timer = window.setTimeout(() => {
+        signal.removeEventListener("abort", abort);
+        resolve();
+      }, 800);
+      signal.addEventListener("abort", abort, { once: true });
+    });
+  }
+  throw new Error("Audio transcription is taking longer than expected");
+}
 
 function eventLabel(event: string, data: Record<string, unknown>) {
   const name = typeof data.name === "string" ? data.name : "";
@@ -207,21 +239,64 @@ function displayTimestamp(value: string | undefined) {
   return Number.isNaN(timestamp.getTime()) ? "—" : timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 }
 
-function RuntimeStatusRow({ telemetry, detailsOpen, onToggleDetails }: { telemetry: AgentRuntimeTelemetry | null; detailsOpen: boolean; onToggleDetails: () => void }) {
-  if (!telemetry) return null;
-  const contextValue = `${telemetry.context.tokens === undefined ? "—" : telemetry.context.tokens.toLocaleString()} / ${telemetry.context.contextWindowTokens === undefined ? "—" : telemetry.context.contextWindowTokens.toLocaleString()}`;
-  const latency = telemetry.modelAttempt?.latencyMs ?? telemetry.rolling.latencyMs;
+type ModelSelection = Pick<AgentModel, "provider" | "model">;
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function isAgentModelProvider(value: unknown): value is AgentModelProvider {
+  return typeof value === "string" && [
+    "openrouter",
+    "openai",
+    "anthropic",
+    "gemini",
+    "deepseek",
+    "glm",
+    "kimi",
+    "minimax",
+    "xai",
+    "opencode_go",
+    "opencode_zen",
+  ].includes(value);
+}
+
+function modelSelectionFromVersion(version: AgentVersion | null | undefined): ModelSelection | null {
+  const configuration = version?.configuration;
+  const spec = isRecord(configuration?.agentSpec) ? configuration.agentSpec : undefined;
+  const specModel = isRecord(spec?.model) ? spec.model : undefined;
+  const specPrimary = isRecord(specModel?.primary) ? specModel.primary : undefined;
+  const policy = version?.policy;
+  const modelPolicy = isRecord(policy?.modelPolicy)
+    ? policy.modelPolicy
+    : isRecord(version?.model_policy)
+      ? version.model_policy
+      : undefined;
+  const policyPrimary = isRecord(modelPolicy?.primary) ? modelPolicy.primary : undefined;
+  const provider = specPrimary?.provider ?? policyPrimary?.provider ?? configuration?.provider;
+  const model = specPrimary?.model ?? policyPrimary?.model ?? configuration?.model;
+  if (!isAgentModelProvider(provider) || typeof model !== "string" || !model.trim()) return null;
+  return { provider, model: model.trim() };
+}
+
+function RuntimeStatusRow({ telemetry, model, detailsOpen, onToggleDetails }: { telemetry: AgentRuntimeTelemetry | null; model?: AgentModel; detailsOpen: boolean; onToggleDetails: () => void }) {
+  const contextTokens = telemetry?.context.tokens ?? 0;
+  const contextWindowTokens = telemetry?.context.contextWindowTokens ?? model?.contextWindow ?? 0;
+  const contextValue = `${contextTokens.toLocaleString()} / ${contextWindowTokens.toLocaleString()}`;
+  const utilization = telemetry?.context.utilizationPercent ?? 0;
+  const latency = telemetry?.modelAttempt?.latencyMs ?? telemetry?.rolling.latencyMs ?? 0;
+  const turnElapsed = telemetry?.turn.elapsedMs ?? 0;
   return (
     <div className="border-b border-border bg-background/60 px-3 py-2">
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-[11px]">
         <span className="inline-flex items-center gap-1.5 font-medium text-foreground"><Activity className="size-3.5 text-primary" />Runtime</span>
         <span className="text-muted-foreground">Context <strong className="font-medium text-foreground">{contextValue}</strong></span>
-        <span className="text-muted-foreground">Use <strong className="font-medium text-foreground">{displayNumber(telemetry.context.utilizationPercent, "%")}</strong></span>
+        <span className="text-muted-foreground">Use <strong className="font-medium text-foreground">{displayNumber(utilization, "%")}</strong></span>
         <span className="text-muted-foreground">Latency <strong className="font-medium text-foreground">{displayDuration(latency)}</strong></span>
-        <span className="text-muted-foreground">Turn <strong className="font-medium text-foreground">{displayDuration(telemetry.turn.elapsedMs)}</strong></span>
+        <span className="text-muted-foreground">Turn <strong className="font-medium text-foreground">{displayDuration(turnElapsed)}</strong></span>
         <button type="button" className="ml-auto inline-flex items-center gap-1 text-primary hover:text-primary/80" aria-expanded={detailsOpen} onClick={onToggleDetails}>{detailsOpen ? "Hide" : "Details"}<span aria-hidden="true">{detailsOpen ? "−" : "+"}</span></button>
       </div>
-      {detailsOpen ? <RuntimeTelemetryDetail telemetry={telemetry} /> : null}
+      {detailsOpen ? telemetry ? <RuntimeTelemetryDetail telemetry={telemetry} /> : <div className="mt-3 border-t border-border pt-3 text-[11px] text-muted-foreground">No run data yet.</div> : null}
     </div>
   );
 }
@@ -376,6 +451,9 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
   const [versions, setVersions] = useState<AgentVersion[]>([]);
   const [selectedVersionId, setSelectedVersionId] = useState<string | null>(agent.installation_version_id ?? agent.published_version_id ?? null);
   const [instructions, setInstructions] = useState("");
+  const [modelCatalog, setModelCatalog] = useState<AgentModelCatalog | null>(null);
+  const [modelCatalogLoading, setModelCatalogLoading] = useState(true);
+  const [modelSelection, setModelSelection] = useState<ModelSelection | null>(null);
   const [trace, setTrace] = useState<TraceNode[]>([]);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [input, setInput] = useState("");
@@ -408,6 +486,17 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
   const selectedVersion = versions.find((version) => version.id === selectedVersionId) ?? versions[0] ?? null;
   const playgroundReady = agent.installation_settings?.environment === "playground";
   const canRun = Boolean(agent.installation_id && playgroundReady);
+  const pickerModels = useMemo<AgentModel[]>(() => {
+    const available = modelCatalog?.models ?? [];
+    if (!modelSelection || available.some((model) => model.provider === modelSelection.provider && model.model === modelSelection.model)) return available;
+    return [{ provider: modelSelection.provider, model: modelSelection.model, label: modelSelection.model, description: "Saved model is not in the current catalog.", tier: "balanced" }, ...available];
+  }, [modelCatalog, modelSelection]);
+  const selectedModelEntry = pickerModels.find((model) => model.provider === modelSelection?.provider && model.model === modelSelection.model)
+    ?? pickerModels.find((model) => model.isWorkspaceDefault)
+    ?? pickerModels[0];
+  const effectiveModelSelection = selectedModelEntry
+    ? { provider: selectedModelEntry.provider, model: selectedModelEntry.model }
+    : modelSelection;
 
   const applyConversation = useCallback((result: Awaited<ReturnType<typeof resolvePlatformConversation>>) => {
     setConversationId(result.conversation.id);
@@ -454,6 +543,7 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
           ?? null;
         setSelectedVersionId(preferred?.id ?? null);
         setInstructions(preferred?.instructions ?? "");
+        setModelSelection(modelSelectionFromVersion(preferred));
       })
       .catch((cause) => {
         if (!cancelled) showError(cause instanceof Error ? cause.message : "Unable to load agent versions");
@@ -463,6 +553,20 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
       });
     return () => { cancelled = true; };
   }, [agent]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setModelCatalogLoading(true);
+    void getAgentModelCatalog()
+      .then((result) => {
+        if (!cancelled) setModelCatalog(result);
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        if (!cancelled) setModelCatalogLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, []);
 
   useEffect(() => {
     if (!activeRunId) return;
@@ -485,8 +589,10 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
   }, [activeRunId]);
 
   const selectVersion = (versionId: string) => {
+    const nextVersion = versions.find((version) => version.id === versionId) ?? null;
     setSelectedVersionId(versionId);
-    setInstructions(versions.find((version) => version.id === versionId)?.instructions ?? "");
+    setInstructions(nextVersion?.instructions ?? "");
+    setModelSelection(modelSelectionFromVersion(nextVersion));
     setTrace([]);
     setSelectedNodeId(null);
     setTelemetry(null);
@@ -504,7 +610,7 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
     });
   }, []);
 
-  const runAgent = async () => {
+  const runAgent = async (audioFile?: File) => {
     if (!agent.installation_id) {
       showError("This agent is not installed yet.");
       return;
@@ -514,25 +620,49 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
       return;
     }
     const message = input.trim();
-    if (!message || running || conversationLoading) return;
+    if ((!message && !audioFile) || running || conversationLoading) return;
+    const displayInput = message || "Audio message";
     setRunning(true);
     clearError();
     setNotice(null);
     setSelectedNodeId(null);
-    setTrace([{ id: "input", event: "run.received", label: "Input", detail: message, status: "running", sequence: 0, data: { message } }]);
+    setTrace([{ id: "input", event: "run.received", label: "Input", detail: displayInput, status: "running", sequence: 0, data: { message: displayInput } }]);
     try {
       let targetConversationId = conversationId;
       if (!targetConversationId) {
-        const created = await createNewPlatformConversation(agent.installation_id);
+        const created = await createPlatformConversation(agent.installation_id, {
+          modelProvider: effectiveModelSelection?.provider,
+          model: effectiveModelSelection?.model,
+        });
         targetConversationId = created.conversation.id;
         applyConversation(created);
       }
-      const accepted = await sendPlatformMessage(agent.installation_id, {
-        message,
-        conversationId: targetConversationId,
-        idempotencyKey: crypto.randomUUID(),
-        context: { route: window.location.pathname, pageTitle: document.title },
-      });
+      const controller = new AbortController();
+      const accepted = audioFile
+        ? await (async () => {
+            const queued = await sendPlatformAudio(agent.installation_id!, {
+              file: audioFile,
+              conversationId: targetConversationId!,
+              idempotencyKey: crypto.randomUUID(),
+              context: { route: window.location.pathname, pageTitle: document.title },
+            });
+            const job = await waitForStudioAudioTranscriptionJob(queued.jobId, controller.signal);
+            if (job.status !== "completed") throw new Error(job.errorMessage || "Audio transcription failed");
+            if (!job.runId) throw new Error("Audio run was not created");
+            const conversationResult = await getPlatformConversation(targetConversationId!);
+            const audioMessage = [...conversationResult.messages].reverse().find(
+              (item) => item.direction === "inbound" && item.content.assetId === queued.assetId && item.run_id === job.runId,
+            );
+            if (!audioMessage) throw new Error("Transcribed audio message was not available");
+            return { conversation: conversationResult.conversation, message: audioMessage, runId: job.runId, status: "received" };
+          })()
+        : await sendPlatformMessage(agent.installation_id, {
+            message,
+            conversationId: targetConversationId,
+            idempotencyKey: crypto.randomUUID(),
+            ...(effectiveModelSelection ? { modelProvider: effectiveModelSelection.provider, model: effectiveModelSelection.model } : {}),
+            context: { route: window.location.pathname, pageTitle: document.title },
+          });
       setMessages((current) => {
         const acceptedMessage = chatMessageFromAgent(accepted.message);
         return current.some((item) => item.id === acceptedMessage.id) ? current : [...current, acceptedMessage];
@@ -540,7 +670,6 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
       setInput("");
       setActiveRunId(accepted.runId);
       addTraceEvent({ event: "run.received", data: { sequence_number: 1, run_id: accepted.runId } });
-      const controller = new AbortController();
       await streamAgentRun(accepted.runId, addTraceEvent, controller.signal);
       const result = await getAgentRun(accepted.runId);
       const timeline = await getAgentRunTimeline(accepted.runId).catch(() => null);
@@ -615,9 +744,28 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
               ...((configuredSpec as AgentSpecInput).behavior ?? {}),
               instructions,
             },
+            ...(modelSelection ? { model: { ...(configuredSpec as AgentSpecInput).model, primary: modelSelection } } : {}),
           },
         })
-        : await createAgentVersion(agent.id, { instructions });
+        : await createAgentVersion(agent.id, {
+          instructions,
+          configuration: {
+            ...(selectedVersion?.configuration ?? {}),
+            ...(modelSelection ? { provider: modelSelection.provider, model: modelSelection.model } : {}),
+          },
+          policy: {
+            ...(selectedVersion?.policy ?? {}),
+            ...(modelSelection ? {
+              modelPolicy: {
+                ...(isRecord(selectedVersion?.policy?.modelPolicy) ? selectedVersion.policy.modelPolicy : {}),
+                version: isRecord(selectedVersion?.policy?.modelPolicy) && typeof selectedVersion.policy.modelPolicy.version === "string"
+                  ? selectedVersion.policy.modelPolicy.version
+                  : "hosted-agent-v1",
+                primary: modelSelection,
+              },
+            } : {}),
+          },
+        });
       setVersions((current) => [next, ...current]);
       setSelectedVersionId(next.id);
       setNotice("Draft saved");
@@ -653,12 +801,11 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
         <div className="mx-auto flex max-w-[1760px] flex-wrap items-center gap-3">
           <Button type="button" variant="ghost" size="sm" className="-ml-2 gap-1.5 text-muted-foreground" onClick={onBack}><ArrowLeft className="size-4" />{surface === "playground" ? "Playground" : "Studio"}</Button>
           <span className="hidden h-5 w-px bg-border sm:block" />
-          <div className="min-w-0 flex-1"><div className="flex min-w-0 items-center gap-2"><Bot className="size-4 shrink-0 text-primary" /><span className="truncate text-sm font-semibold text-foreground">{agent.name}</span><span className={cn("rounded-full px-2 py-0.5 text-[10px] font-medium", statusClass(agent.status))}>{statusLabel(agent.status)}</span></div><p className="mt-0.5 text-[11px] text-muted-foreground">{selectedVersion ? `v${selectedVersion.version_number}` : "No version"}</p></div>
+          <div className="min-w-0 flex-1"><div className="flex min-w-0 items-center gap-2"><Bot className="size-4 shrink-0 text-primary" /><span className="truncate text-sm font-semibold text-foreground">{agent.name}</span><span className={cn("rounded-full px-2 py-0.5 text-[10px] font-medium", statusClass(agent.status))}>{statusLabel(agent.status)}</span></div></div>
           <label className="flex items-center gap-2 text-xs text-muted-foreground"><span className="hidden sm:inline">Version</span><select value={selectedVersionId ?? ""} onChange={(event) => selectVersion(event.target.value)} disabled={loadingVersions || !versions.length} className="h-8 max-w-36 rounded-md border border-border bg-background px-2 text-xs font-medium text-foreground outline-none focus:border-primary"><option value="">{loadingVersions ? "Loading…" : "No versions"}</option>{versions.map((version) => <option key={version.id} value={version.id}>v{version.version_number} · {version.status}</option>)}</select></label>
           <span className="inline-flex items-center gap-1.5 rounded-md border border-primary/20 bg-primary/5 px-2.5 py-1.5 text-xs text-primary"><FlaskConical className="size-3.5" />{surface === "playground" ? "Playground" : "Studio"}</span>
-          <Button type="button" variant="outline" size="sm" onClick={() => setConfigurationOpen(true)}><SlidersHorizontal className="mr-1.5 size-3.5" />Configuration</Button>
+          <Button type="button" variant="outline" size="sm" onClick={() => setConfigurationOpen(true)}><SlidersHorizontal className="mr-1.5 size-3.5" />Settings</Button>
           {activeRunId ? <Button type="button" variant="outline" size="sm" onClick={() => void cancelRun()} disabled={cancelling}><X className="mr-1.5 size-3.5" />{cancelling ? "Cancelling…" : "Cancel"}</Button> : null}
-          {agent.protected ? <span className="hidden rounded-md border border-primary/20 bg-primary/5 px-2.5 py-1.5 text-xs text-primary sm:inline-flex">Protected default</span> : null}
           {!agent.protected ? <Button type="button" variant="outline" size="sm" onClick={() => void deploy()} disabled={deploying || !selectedVersion}><Rocket className="mr-1.5 size-3.5" />{deploying ? "Updating…" : surface === "playground" ? "Update Playground" : "Update installation"}</Button> : null}
         </div>
       </header>
@@ -667,17 +814,31 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
         <div className="grid min-h-[calc(100dvh-9rem)] flex-1 overflow-hidden rounded-2xl border border-border bg-card xl:grid-cols-[minmax(330px,0.34fr)_minmax(0,0.66fr)]">
           <section className="flex min-h-[540px] min-w-0 flex-col border-b border-border xl:min-h-0 xl:border-b-0 xl:border-r">
             <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3"><div><SectionEyebrow>Conversation</SectionEyebrow><h1 className="mt-1 text-sm font-semibold text-foreground">{agent.name}</h1></div><span className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground"><MessageCircle className="size-3.5" />{conversationId ? "Ready" : conversationLoading ? "Loading" : "New"}</span></div>
-            <RuntimeStatusRow telemetry={telemetry} detailsOpen={telemetryDetailsOpen} onToggleDetails={() => setTelemetryDetailsOpen((current) => !current)} />
+            <RuntimeStatusRow telemetry={telemetry} model={selectedModelEntry} detailsOpen={telemetryDetailsOpen} onToggleDetails={() => setTelemetryDetailsOpen((current) => !current)} />
             <div className="flex-1 space-y-3 overflow-y-auto px-4 py-5">
               {conversationLoading ? <div className="flex h-full min-h-48 items-center justify-center text-xs text-muted-foreground"><LoaderCircle className="mr-2 size-4 animate-spin" />Loading conversation</div> : messages.length ? messages.map((message) => <div key={message.id} className={cn("flex", message.direction === "user" ? "justify-end" : "justify-start")}><div className={cn("max-w-[88%] rounded-2xl px-3.5 py-2.5 text-sm leading-5", message.direction === "user" ? "rounded-br-md bg-primary text-primary-foreground" : message.direction === "system" ? "border border-border bg-muted/50 text-muted-foreground" : "rounded-bl-md bg-muted text-foreground")}>{message.text}</div></div>) : <div className="flex h-full min-h-48 flex-col items-center justify-center px-5 text-center"><MessageCircle className="size-5 text-muted-foreground" /><p className="mt-3 text-sm font-medium text-foreground">Start a conversation</p><p className="mt-1 text-xs text-muted-foreground">Send a message to run this agent.</p></div>}
               {running ? <div className="flex justify-start"><div className="inline-flex items-center gap-2 rounded-2xl rounded-bl-md bg-muted px-3.5 py-2.5 text-xs text-muted-foreground"><LoaderCircle className="size-3.5 animate-spin" />Agent is running</div></div> : null}
             </div>
             {error ? <div className="mx-4 mb-3 flex items-start justify-between gap-3 rounded-lg border border-destructive/20 bg-destructive/10 px-3 py-2 text-xs text-destructive" role="alert"><div><p>{error}</p>{errorRemediation ? <p className="mt-1 text-destructive/80">{errorRemediation}</p> : null}</div><button type="button" aria-label="Dismiss error" onClick={clearError}><X className="size-4 shrink-0" /></button></div> : null}
             {notice ? <div className="mx-4 mb-3 flex items-center gap-2 rounded-lg border border-emerald-500/20 bg-emerald-500/5 px-3 py-2 text-xs text-emerald-700 dark:text-emerald-300"><Check className="size-3.5" />{notice}</div> : null}
-            <form className="border-t border-border p-3" onSubmit={(event) => { event.preventDefault(); void runAgent(); }}>
-              <div className="flex items-end gap-2 rounded-xl border border-border bg-background p-2 focus-within:border-primary"><Textarea value={input} onChange={(event) => setInput(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void runAgent(); } }} placeholder="Message this agent…" disabled={!canRun || conversationLoading || running} rows={2} className="min-h-12 resize-none border-0 bg-transparent p-1.5 text-sm shadow-none focus-visible:ring-0" aria-label="Message agent" /><Button type="submit" size="icon" className="size-9 shrink-0 rounded-lg" disabled={!canRun || conversationLoading || running || !input.trim()} aria-label="Send message"><Send className="size-4" /></Button></div>
-              {!agent.installation_id ? <p className="mt-2 px-1 text-[11px] text-amber-700 dark:text-amber-300">Agent is not installed</p> : !playgroundReady ? <div className="mt-2 flex items-center justify-between gap-2 px-1"><span className="text-[11px] text-amber-700 dark:text-amber-300">Playground installation required</span>{agent.protected && surface === "studio" ? <Button type="button" variant="outline" size="sm" className="h-7 px-2.5 text-[11px]" onClick={() => void installPlayground()} disabled={installingPlayground}>{installingPlayground ? <LoaderCircle className="mr-1.5 size-3 animate-spin" /> : <FlaskConical className="mr-1.5 size-3" />}{installingPlayground ? "Installing…" : "Install Playground"}</Button> : null}</div> : <p className="mt-2 px-1 text-[11px] text-muted-foreground">Enter to send · Shift+Enter for a new line</p>}
-            </form>
+            <AgentChatComposer
+              value={input}
+              onChange={setInput}
+              onSubmit={() => void runAgent()}
+              model={selectedModelEntry}
+              models={pickerModels}
+              onModelChange={(model, provider) => setModelSelection({ model, provider })}
+              modelDisabled={modelCatalogLoading || !pickerModels.length}
+              disabled={!canRun || conversationLoading}
+              sending={running}
+              onStop={() => void cancelRun()}
+              onAudioReady={(file) => void runAgent(file)}
+              onAudioError={showError}
+              placeholder="Message this agent…"
+              className="border-t border-border bg-card p-3 shadow-none"
+              ariaLabel="Message agent"
+            />
+            {!agent.installation_id ? <p className="px-4 pb-3 text-[11px] text-amber-700 dark:text-amber-300">Agent is not installed</p> : !playgroundReady ? <div className="flex items-center justify-between gap-2 px-4 pb-3"><span className="text-[11px] text-amber-700 dark:text-amber-300">Playground installation required</span>{agent.protected && surface === "studio" ? <Button type="button" variant="outline" size="sm" className="h-7 px-2.5 text-[11px]" onClick={() => void installPlayground()} disabled={installingPlayground}>{installingPlayground ? <LoaderCircle className="mr-1.5 size-3 animate-spin" /> : <FlaskConical className="mr-1.5 size-3" />}{installingPlayground ? "Installing…" : "Install Playground"}</Button> : null}</div> : null}
           </section>
 
           <section className="flex min-h-[620px] min-w-0 flex-col">
@@ -689,7 +850,7 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
           </section>
         </div>
       </div>
-      {configurationOpen ? <div className="fixed inset-0 z-50" role="presentation"><button type="button" aria-label="Close configuration" className="absolute inset-0 bg-black/50" onClick={() => setConfigurationOpen(false)} /><aside role="dialog" aria-modal="true" aria-labelledby="configuration-title" className="absolute inset-y-0 right-0 w-full max-w-md overflow-y-auto border-l border-border bg-card shadow-2xl"><div className="flex items-center justify-between border-b border-border px-5 py-4"><div><SectionEyebrow>Agent</SectionEyebrow><h2 id="configuration-title" className="mt-1 text-sm font-semibold text-foreground">Configuration</h2></div><button type="button" aria-label="Close configuration" onClick={() => setConfigurationOpen(false)} className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"><X className="size-4" /></button></div><Inspector node={null} agent={agent} version={selectedVersion} instructions={instructions} setInstructions={setInstructions} onSave={saveDraft} saving={saving} /></aside></div> : null}
+      {configurationOpen ? <div className="fixed inset-0 z-50" role="presentation"><button type="button" aria-label="Close settings" className="absolute inset-0 bg-black/50" onClick={() => setConfigurationOpen(false)} /><aside role="dialog" aria-modal="true" aria-labelledby="configuration-title" className="absolute inset-3 overflow-hidden rounded-2xl border border-border bg-card shadow-2xl sm:inset-6 lg:inset-10"><StudioSettingsPrototype agent={agent} version={selectedVersion} instructions={instructions} setInstructions={setInstructions} onSave={saveDraft} saving={saving} modelCatalog={modelCatalog} modelCatalogLoading={modelCatalogLoading} modelSelection={modelSelection} setModelSelection={setModelSelection} onClose={() => setConfigurationOpen(false)} /></aside></div> : null}
     </div>
   );
 }
@@ -709,11 +870,6 @@ function TraceIcon({ node }: { node: TraceNode }) {
   if (node.label === "Approval") return <ShieldCheck className="size-3.5" />;
   if (node.label === "Completed") return <Check className="size-3.5" />;
   return <CircleDot className="size-3.5" />;
-}
-
-function Inspector({ node, agent, version, instructions, setInstructions, onSave, saving }: { node: TraceNode | null; agent: AgentDefinition; version: AgentVersion | null; instructions: string; setInstructions: (value: string) => void; onSave: () => void; saving: boolean }) {
-  if (node) return <NodeInspector node={node} />;
-  return <div><div className="border-b border-border px-4 py-3"><SectionEyebrow>Agent</SectionEyebrow><h2 className="mt-1 text-sm font-semibold text-foreground">Configuration</h2></div><div className="space-y-5 p-4">{agent.protected ? <p className="rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-xs leading-5 text-primary">KasiAi is the protected platform default. Its runtime policy is managed by the platform.</p> : <><div><label htmlFor="studio-instructions" className="text-xs font-medium text-foreground">Instructions</label><Textarea id="studio-instructions" value={instructions} onChange={(event) => setInstructions(event.target.value)} placeholder="Define what this agent should do…" className="mt-2 min-h-40 resize-y text-sm" /></div><Button type="button" size="sm" onClick={onSave} disabled={saving}>{saving ? <LoaderCircle className="mr-1.5 size-3.5 animate-spin" /> : <Save className="mr-1.5 size-3.5" />}{saving ? "Saving…" : "Save draft"}</Button></>}<div className="border-t border-border pt-4"><div className="flex items-center justify-between gap-3 text-xs"><span className="text-muted-foreground">Version</span><span className="font-medium text-foreground">{version ? `v${version.version_number}` : "None"}</span></div><div className="mt-3 flex items-center justify-between gap-3 text-xs"><span className="text-muted-foreground">Installation</span><span className="font-medium text-foreground">{agent.installation_id ? "Ready" : "Not installed"}</span></div><div className="mt-3 flex items-center justify-between gap-3 text-xs"><span className="text-muted-foreground">Environment</span><span className="font-medium text-foreground">{agent.protected ? "Platform" : "Playground"}</span></div></div></div></div>;
 }
 
 function NodeInspector({ node }: { node: TraceNode }) {
