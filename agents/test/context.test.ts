@@ -44,6 +44,8 @@ describe("Waku-derived context builder", () => {
       budget: { maxMessages: 2, maxContextTokens: 1000 },
     });
     expect(context.messages.filter((message) => message.role === "user")).toHaveLength(3);
+    expect(context.sourceMessages.filter((message) => message.role === "user")).toHaveLength(11);
+    expect(context.sourceMessages.at(-2)?.content).toContain("message-9");
     expect(context.omittedMessageCount).toBe(8);
     expect(context.estimatedTokens).toBeLessThanOrEqual(1000);
     expect(estimateTokens("1234")).toBe(1);

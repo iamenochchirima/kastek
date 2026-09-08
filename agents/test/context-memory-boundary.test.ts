@@ -12,6 +12,7 @@ import {
   type MemoryRetrievalPort,
 } from "../src/runtime/context-memory-boundary";
 import { compactDurableContext, type DurableContextAdapter, type DurableContextRecord } from "../src/runtime/context-compaction";
+import { planProviderRequest, type ContextRequestManifest } from "../src/runtime/context-planning";
 import { runBoundedAgentLoop } from "../src/runtime/loop";
 
 const credentials: ModelCredentials = { apiKey: "test", fundingSource: "kasitek" };
@@ -146,8 +147,11 @@ describe("context and memory integration boundary", () => {
   it("injects retrieved evidence before the final manifest and keeps memory outside context policy", async () => {
     const requests: ModelRequest[] = [];
     const events: string[] = [];
+    const manifests: ContextRequestManifest[] = [];
+    const callbackOrder: string[] = [];
     const retrievalPort: MemoryRetrievalPort = {
       async retrieve(request) {
+        callbackOrder.push("retrieval");
         expect(request).toMatchObject({
           runId: "run-1",
           turnId: "run-1",
@@ -182,6 +186,7 @@ describe("context and memory integration boundary", () => {
         provider: "openai",
         capabilities: { toolCalling: true, structuredOutput: true, streaming: false, vision: false },
         complete: async (request) => {
+          callbackOrder.push("provider");
           requests.push(request);
           return { provider: "openai", model: request.model, message: { role: "assistant", content: "Concise." }, toolCalls: [], finishReason: "stop", usage: { inputTokens: 20, outputTokens: 2, totalTokens: 22 }, latencyMs: 1 };
         },
@@ -194,6 +199,10 @@ describe("context and memory integration boundary", () => {
       memoryScope: { organizationId: "org-1", agentDefinitionId: "agent-1", agentVersionId: "version-1", installationId: "installation-1", namespace: "conversation" },
       memoryRetrievalQuery: "What is my usual style?",
       memoryRetrievalReason: "preference_reference",
+      persistContextManifest: ({ manifest }) => {
+        callbackOrder.push("manifest");
+        manifests.push(manifest);
+      },
       onEvent: (event) => events.push(event.type),
     });
 
@@ -201,6 +210,27 @@ describe("context and memory integration boundary", () => {
     expect(requests).toHaveLength(1);
     expect(JSON.stringify(requests[0]?.messages)).toContain("evidence-1");
     expect(events).toEqual(expect.arrayContaining(["memory_retrieval_requested", "memory_retrieval_completed"]));
+    expect(events.indexOf("memory_retrieval_completed")).toBeLessThan(events.indexOf("context.planned"));
+    expect(callbackOrder).toEqual(["retrieval", "manifest", "provider"]);
+    expect(manifests).toHaveLength(1);
+
+    const manifest = manifests[0]!;
+    const systemComponent = manifest.components.find((component) => component.kind === "system");
+    expect(systemComponent).toMatchObject({ selectedCount: 2, estimatedTokens: expect.any(Number) });
+    expect(systemComponent?.estimatedBytes).toBeGreaterThan(Buffer.byteLength(JSON.stringify([{ role: "system", content: "policy" }]), "utf8"));
+    expect(manifest.estimatedInputTokens).toBe(
+      manifest.components.reduce((total, component) => total + component.estimatedTokens, 0),
+    );
+
+    const baseline = planProviderRequest({
+      profile: { provider: "openai", model: "test-model", contextWindowTokens: 1_000, maxOutputTokens: 64 },
+      policy: { requestedOutputTokens: 64, maxToolSchemaTokens: 2_000, maxToolResultTokens: 1_500 },
+      messages: [{ role: "system", content: "policy" }, { role: "user", content: "What is my usual style?" }],
+    });
+    expect(manifest.estimatedInputTokens).toBeGreaterThan(baseline.accounting.estimatedInputTokens);
+    expect(systemComponent!.estimatedTokens).toBeGreaterThan(
+      baseline.manifest.components.find((component) => component.kind === "system")!.estimatedTokens,
+    );
   });
 
   it("preserves a typed memory policy block instead of returning a generic loop failure", async () => {

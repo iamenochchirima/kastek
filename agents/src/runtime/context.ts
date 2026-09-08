@@ -54,6 +54,11 @@ export interface ContextBuildInput {
 
 export interface BuiltAgentContext {
   scope: ExecutionScope;
+  /**
+   * Complete normalized source messages for the turn. The final provider-aware
+   * planner must receive these rather than a compatibility preflight slice.
+   */
+  sourceMessages: ModelMessage[];
   messages: ModelMessage[];
   tools: Array<Omit<ToolDefinition, "handler">>;
   estimatedTokens: number;
@@ -69,6 +74,7 @@ export interface ContextBudgetLedger {
   maxContextTokens: number;
   reservedOutputTokens: number;
   availableInputTokens: number;
+  maxToolSchemaTokens: number;
   systemTokens: number;
   historyTokens: number;
   currentMessageTokens: number;
@@ -89,8 +95,8 @@ export interface ContextDecisionRecord {
 
 /**
  * The context seam used by the AgentHarness. Durable evidence stays outside
- * this module; it returns only the bounded model-facing projection plus the
- * evidence needed to explain its selection.
+ * this module; it returns the complete normalized source plus a compatibility
+ * preflight projection and the evidence needed to explain that projection.
  */
 export interface ContextPolicy {
   build(input: ContextBuildInput): BuiltAgentContext;
@@ -191,6 +197,7 @@ export class DefaultContextPolicy implements ContextPolicy {
       messages.push({ role, content: asUntrusted(`conversation-${durable.messageType}`, contentText(durable.content)) });
     }
     messages.push({ role: "user", content: asUntrusted("current-user-message", input.currentMessage) });
+    const sourceMessages = [...messages];
 
     const profile: ProviderContextProfile = {
       provider: input.contextProfile?.provider ?? "kasitek",
@@ -243,6 +250,7 @@ export class DefaultContextPolicy implements ContextPolicy {
     };
     return {
       scope: input.scope,
+      sourceMessages,
       messages: [...plan.messages],
       tools: selectedTools,
       estimatedTokens: plan.accounting.estimatedInputTokens,
@@ -254,6 +262,7 @@ export class DefaultContextPolicy implements ContextPolicy {
         maxContextTokens: plan.accounting.providerContextWindowTokens,
         reservedOutputTokens: plannerCategories.output_reservation,
         availableInputTokens: plan.accounting.inputBudgetTokens,
+        maxToolSchemaTokens: budget.maxToolSchemaTokens,
         systemTokens: plannerCategories.system,
         historyTokens: plannerCategories.history,
         currentMessageTokens: plannerCategories.current_message,
