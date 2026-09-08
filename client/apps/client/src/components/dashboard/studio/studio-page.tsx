@@ -14,6 +14,7 @@ import {
   LoaderCircle,
   MessageCircle,
   Plus,
+  Play,
   Rocket,
   SlidersHorizontal,
   X,
@@ -73,6 +74,49 @@ type TraceNode = {
   sequence: number;
   data: Record<string, unknown>;
 };
+
+type DemoTraceStep = {
+  event: string;
+  label?: string;
+  detail?: string;
+  data?: Record<string, unknown>;
+};
+
+const demoTraceSteps: DemoTraceStep[] = [
+  { event: "run.received", label: "Input", detail: "Customer asks about Friday availability", data: { channel: "web", message: "Is Friday available?" } },
+  { event: "channel.accepted", label: "Channel", detail: "Web channel authenticated", data: { channel: "web", tenant: "demo" } },
+  { event: "run.started", label: "Session", detail: "Durable run admitted", data: { session: "conversation-42", retry_policy: "enabled" } },
+  { event: "agent.context.prepared", label: "Context", detail: "Working set composed", data: { tokens: 2840, sources: 4 } },
+  { event: "memory.retrieval.completed", label: "Memory", detail: "Customer preferences retrieved", data: { facts: 3, scope: "customer" } },
+  { event: "context.retrieval.completed", label: "Knowledge", detail: "Availability policy retrieved", data: { evidence: 2, source: "workspace" } },
+  { event: "agent.model.completed", label: "Model", detail: "Selected availability lookup", data: { provider: "OpenAI", latency_ms: 820 } },
+  { event: "agent.route.selected", label: "Router", detail: "Bookings capability selected", data: { capability: "bookings.check_availability" } },
+  { event: "agent.tool.started", label: "Tool: calendar.check_availability", detail: "Checking Google Calendar", data: { name: "calendar.check_availability" } },
+  { event: "agent.tool.completed", label: "Tool: calendar.check_availability", detail: "Friday has two open slots", data: { name: "calendar.check_availability", duration_ms: 420 } },
+  { event: "agent.mcp.tool.started", label: "MCP: workspace.contacts", detail: "Loading customer record", data: { name: "workspace.contacts" } },
+  { event: "agent.mcp.tool.completed", label: "MCP: workspace.contacts", detail: "Customer record loaded", data: { name: "workspace.contacts", duration_ms: 260 } },
+  { event: "agent.skill.started", label: "Content skill", detail: "Preparing a follow-up message", data: { name: "content.follow_up" } },
+  { event: "agent.skill.completed", label: "Content skill", detail: "Follow-up drafted", data: { name: "content.follow_up", platforms: "web · WhatsApp" } },
+  { event: "approval.requested", label: "Approval", detail: "Waiting for send approval", data: { action: "send_follow_up", policy: "human" } },
+  { event: "approval.completed", label: "Approval", detail: "Approved by workspace policy", data: { action: "send_follow_up", decision: "approved" } },
+  { event: "handoff.requested", label: "Handoff", detail: "Context shared with support team", data: { target: "support", reason: "follow-up requested" } },
+  { event: "handoff.completed", label: "Handoff", detail: "Support team accepted context", data: { target: "support" } },
+  { event: "run.output.completed", label: "Response", detail: "Answer assembled", data: { format: "channel-aware" } },
+  { event: "memory.write.completed", label: "Memory write", detail: "Useful outcome persisted", data: { facts: 1, evidence: "run-42" } },
+  { event: "message.delivered", label: "Delivery", detail: "Response delivered to web", data: { channel: "web", receipt: "stored" } },
+];
+
+function demoTraceNode(step: DemoTraceStep, sequence: number): TraceNode {
+  return {
+    id: `demo-${sequence}-${step.event}`,
+    event: step.event,
+    label: step.label ?? eventLabel(step.event, step.data ?? {}),
+    detail: step.detail ?? eventDetail(step.event, step.data ?? {}),
+    status: eventStatus(step.event),
+    sequence,
+    data: { ...(step.data ?? {}), demo: true, sequence_number: sequence },
+  };
+}
 
 
 type ChatMessage = {
@@ -152,7 +196,7 @@ function eventDetail(event: string, data: Record<string, unknown>) {
 
 function eventStatus(event: string): TraceStatus {
   if (event.includes("failed") || event.includes("error")) return "error";
-  if (event.includes("completed") || event.includes("cancelled") || event.includes("expired")) return "complete";
+  if (event.includes("completed") || event.includes("delivered") || event.includes("cancelled") || event.includes("expired")) return "complete";
   return "running";
 }
 
@@ -161,8 +205,11 @@ function studioNodeStatus(node: StudioGraphNode, trace: TraceNode[]): StudioGrap
     const event = traceNode.event.toLowerCase();
     const label = traceNode.label.toLowerCase();
     if (node.id === "input") return event.includes("received") || label === "input";
+    if (node.id === "channel") return event.includes("channel") || label === "channel";
+    if (node.id === "session") return event.includes("run.started") || event.includes("run.queued");
     if (node.id === "context") return event.includes("context");
-    if (node.id === "memory-read" || node.id === "memory-write") return event.includes("memory");
+    if (node.id === "memory-read") return event.includes("memory.retriev") || event.includes("memory.read");
+    if (node.id === "memory-write") return event.includes("memory.write") || event.includes("memory.persist");
     if (node.id === "retrieval") return event.includes("retriev") || label.includes("knowledge");
     if (node.id === "model") return event.includes("model") || label === "model";
     if (node.id === "router") return event.includes("route") || event.includes("capabilit");
@@ -171,7 +218,8 @@ function studioNodeStatus(node: StudioGraphNode, trace: TraceNode[]): StudioGrap
     if (node.id === "content-skill") return label.includes("content") || label.includes("skill");
     if (node.id === "approval") return event.includes("approval");
     if (node.id === "handoff") return event.includes("handoff") || event.includes("human");
-    if (node.id === "output" || node.id === "delivery") return event.includes("complete") || event.includes("deliver");
+    if (node.id === "output") return event.includes("output") || event.includes("run.completed");
+    if (node.id === "delivery") return event.includes("deliver");
     return false;
   });
   const latest = matching.at(-1);
@@ -509,6 +557,7 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
   const [loadingVersions, setLoadingVersions] = useState(true);
   const [saving, setSaving] = useState(false);
   const [running, setRunning] = useState(false);
+  const [demoRunning, setDemoRunning] = useState(false);
   const [activeRunId, setActiveRunId] = useState<string | null>(null);
   const [telemetry, setTelemetry] = useState<AgentRuntimeTelemetry | null>(null);
   const [telemetryDetailsOpen, setTelemetryDetailsOpen] = useState(false);
@@ -659,6 +708,24 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
     });
   }, []);
 
+  const runDemoExecution = async () => {
+    if (running || demoRunning) return;
+    setDemoRunning(true);
+    clearError();
+    setNotice("Demo execution");
+    setSelectedNodeId(null);
+    setTrace([]);
+    try {
+      for (const [index, step] of demoTraceSteps.entries()) {
+        await new Promise<void>((resolve) => window.setTimeout(resolve, index === 0 ? 250 : 650));
+        setTrace((current) => [...current, demoTraceNode(step, index + 1)]);
+      }
+      setNotice("Demo completed");
+    } finally {
+      setDemoRunning(false);
+    }
+  };
+
   const runAgent = async (audioFile?: File) => {
     if (!agent.installation_id) {
       showError("This agent is not installed yet.");
@@ -669,7 +736,7 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
       return;
     }
     const message = input.trim();
-    if ((!message && !audioFile) || running || conversationLoading) return;
+    if ((!message && !audioFile) || running || demoRunning || conversationLoading) return;
     const displayInput = message || "Audio message";
     setRunning(true);
     clearError();
@@ -880,6 +947,7 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
           <div className="min-w-0 flex-1"><div className="flex min-w-0 items-center gap-2"><Bot className="size-4 shrink-0 text-primary" /><span className="truncate text-sm font-semibold text-foreground">{agent.name}</span><span className={cn("rounded-full px-2 py-0.5 text-[10px] font-medium", statusClass(agent.status))}>{statusLabel(agent.status)}</span></div></div>
           <label className="flex items-center gap-2 text-xs text-muted-foreground"><span className="hidden sm:inline">Version</span><select value={selectedVersionId ?? ""} onChange={(event) => selectVersion(event.target.value)} disabled={loadingVersions || !versions.length} className="h-8 max-w-36 rounded-md border border-border bg-background px-2 text-xs font-medium text-foreground outline-none focus:border-primary"><option value="">{loadingVersions ? "Loading…" : "No versions"}</option>{versions.map((version) => <option key={version.id} value={version.id}>v{version.version_number} · {version.status}</option>)}</select></label>
           <span className="inline-flex items-center gap-1.5 rounded-md border border-primary/20 bg-primary/5 px-2.5 py-1.5 text-xs text-primary"><FlaskConical className="size-3.5" />{surface === "playground" ? "Playground" : "Studio"}</span>
+          <Button type="button" variant="outline" size="sm" onClick={() => void runDemoExecution()} disabled={running || demoRunning}><Play className="mr-1.5 size-3.5" />{demoRunning ? "Demo running…" : "Demo run"}</Button>
           <Button type="button" variant="outline" size="sm" onClick={() => setConfigurationOpen(true)}><SlidersHorizontal className="mr-1.5 size-3.5" />Settings</Button>
           {activeRunId ? <Button type="button" variant="outline" size="sm" onClick={() => void cancelRun()} disabled={cancelling}><X className="mr-1.5 size-3.5" />{cancelling ? "Cancelling…" : "Cancel"}</Button> : null}
           {!agent.protected ? <Button type="button" variant="outline" size="sm" onClick={() => void deploy()} disabled={deploying || !selectedVersion}><Rocket className="mr-1.5 size-3.5" />{deploying ? "Updating…" : surface === "playground" ? "Update Playground" : "Update installation"}</Button> : null}
@@ -905,7 +973,7 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
               models={pickerModels}
               onModelChange={(model, provider) => setModelSelection({ model, provider })}
               modelDisabled={modelCatalogLoading || !pickerModels.length}
-              disabled={!canRun || conversationLoading}
+              disabled={!canRun || demoRunning || conversationLoading}
               sending={running}
               onStop={() => void cancelRun()}
               onAudioReady={(file) => void runAgent(file)}
@@ -918,9 +986,9 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
           </section>
 
           <section className="flex min-h-[620px] min-w-0 flex-col">
-            <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3"><div><SectionEyebrow>Execution observatory</SectionEyebrow><h1 className="mt-1 text-sm font-semibold text-foreground">System map</h1></div><span className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground"><CircleDot className={cn("size-3", running ? "animate-pulse text-primary" : "text-muted-foreground")} />{running ? "Run overlay" : trace.length ? "Trace ready" : "Ready"}</span></div>
+            <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3"><div><SectionEyebrow>Execution observatory</SectionEyebrow><h1 className="mt-1 text-sm font-semibold text-foreground">System map</h1></div><span className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground"><CircleDot className={cn("size-3", running || demoRunning ? "animate-pulse text-primary" : "text-muted-foreground")} />{running || demoRunning ? "Run overlay" : trace.length ? "Trace ready" : "Ready"}</span></div>
             <div className="relative min-h-[560px] flex-1 overflow-auto bg-[radial-gradient(circle_at_50%_45%,color-mix(in_srgb,var(--brand)_7%,transparent),transparent_58%)]">
-              <StudioSystemCanvas nodes={studioGraphNodes} selectedNodeId={selectedNodeId} onSelect={setSelectedNodeId} running={running} traceCount={trace.length} storageKey={`kasitek:studio-layout:${agent.id}:${selectedVersionId ?? "default"}`} />
+              <StudioSystemCanvas nodes={studioGraphNodes} selectedNodeId={selectedNodeId} onSelect={setSelectedNodeId} running={running || demoRunning} traceCount={trace.length} storageKey={`kasitek:studio-layout:${agent.id}:${selectedVersionId ?? "default"}`} />
               {selectedGraphNode ? <div className="absolute bottom-4 left-4 right-4 z-10 max-h-72 overflow-auto rounded-xl border border-border bg-card/95 shadow-xl backdrop-blur"><button type="button" aria-label="Close node details" onClick={() => setSelectedNodeId(null)} className="absolute right-3 top-3 z-10 rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"><X className="size-4" /></button><StudioGraphInspector node={selectedGraphNode} onConfigure={() => setConfigurationOpen(true)} /></div> : null}
             </div>
           </section>
