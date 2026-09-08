@@ -60,6 +60,7 @@ import {
   startAgentMcpCatalogOAuth,
   pinAgentMcpProviderVersion,
   pinAgentSkillVersion,
+  unpinAgentSkillVersion,
   publishAgentMcpProviderVersion,
   type AgentCapability,
   type AgentCapabilityDirectoryEntry,
@@ -547,6 +548,13 @@ function SkillsPanel({ directory, pinnedSkills, installationId, versionId, draft
       } else if (entry.skillId) {
         const enabled = selected.has(entry.skillId);
         const pinnedVersionIds = pinnedSkills.filter((version) => version.skill_definition_id === entry.skillId).map((version) => version.id);
+        if (versionId && entry.versionId) {
+          if (enabled) {
+            await Promise.all([...new Set([...pinnedVersionIds, entry.versionId])].map((skillVersionId) => unpinAgentSkillVersion(versionId, skillVersionId)));
+          } else {
+            await pinAgentSkillVersion(versionId, entry.versionId);
+          }
+        }
         onDraftChange((current) => ({ ...current, allowedSkillIds: enabled ? current.allowedSkillIds.filter((id) => id !== entry.skillId) : [...new Set([...current.allowedSkillIds, entry.skillId as string])], skillVersionIds: enabled ? current.skillVersionIds.filter((id) => !pinnedVersionIds.includes(id) && id !== entry.versionId) : [...new Set([...current.skillVersionIds, ...(entry.versionId ? [entry.versionId] : [])])] }));
       }
       onRefresh();
