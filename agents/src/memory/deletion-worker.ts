@@ -7,7 +7,7 @@ import {
   type MemoryDeletionJobRecord,
   type MemoryDeletionPurgeCounts,
 } from "../db/repositories/memory-deletion-job-repository";
-import { assertNoActiveLegalHold, purgeMemoryRecords } from "../db/repositories/memory-repository";
+import { assertNoActiveLegalHold, purgeMemoryRecords } from "../db/repositories/legacy-memory-cleanup";
 import { operationalLogger } from "../telemetry/logger";
 import { recordMemoryDeletion, recordQueueAge, recordRetry, withSpan } from "../telemetry/spans";
 import { finalizeReadyAgentDeletions } from "./agent-deletion-finalizer";

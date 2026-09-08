@@ -11,7 +11,7 @@ import type { RunRecord } from "./run-repository";
 import { ConversationHandoffService } from "../../handoff/service";
 import { HANDOFF_ACKNOWLEDGEMENT_TEXT } from "../../handoff/messages";
 import { recordConversationAdmission } from "../../telemetry/spans";
-import { purgeMemoryRecords } from "./memory-repository";
+import { purgeMemoryRecords } from "./legacy-memory-cleanup";
 
 export interface PlatformConversation {
   conversation: ConversationRecord;

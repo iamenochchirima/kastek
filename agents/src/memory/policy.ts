@@ -1,4 +1,4 @@
-import type { MemoryNamespace, MemoryType } from "../db/repositories/memory-repository";
+import type { MemoryNamespace, MemoryType } from "./legacy-contracts";
 
 export type MemoryPolicyMode = "disabled" | "explicit" | "reviewed" | "automatic";
 

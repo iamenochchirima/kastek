@@ -1,4 +1,5 @@
-import { MemoryRepository, type MemoryNamespace, type MemoryRecord, type MemoryScope, type MemoryType } from "../db/repositories/memory-repository";
+import { MemoryRepository } from "../db/repositories/memory-repository";
+import type { MemoryNamespace, MemoryRecord, MemoryScope, MemoryType } from "./legacy-contracts";
 import { memoryPolicyFromAgentPolicy, type MemoryPolicy } from "./policy";
 import { recordRetrievalScopeRejection } from "../telemetry/spans";
 

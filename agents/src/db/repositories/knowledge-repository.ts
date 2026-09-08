@@ -1,6 +1,7 @@
 import type { Pool } from "pg";
 import { query, withTransaction } from "../pool";
-import { assertNoActiveLegalHold, type MemoryScope } from "./memory-repository";
+import { assertNoActiveLegalHold } from "./legacy-memory-cleanup";
+import type { MemoryScope } from "../../memory/legacy-contracts";
 import { recordMemoryDeletion } from "../../telemetry/spans";
 import { createEnvironmentEmbeddingProvider, embedSafely, formatPgVector, MIN_VECTOR_SIMILARITY, type EmbeddingProvider } from "../../memory/embeddings";
 import { buildLexicalSearchQuery } from "../../memory/search-query";

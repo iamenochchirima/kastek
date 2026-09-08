@@ -1,5 +1,5 @@
 import type { KnowledgeChunkRecord, KnowledgeRepository } from "../db/repositories/knowledge-repository";
-import type { MemoryNamespace, MemoryRecord, MemoryScope } from "../db/repositories/memory-repository";
+import type { MemoryNamespace, MemoryRecord, MemoryScope } from "./legacy-contracts";
 import { MemoryLifecycle } from "./lifecycle";
 import { memoryPolicyFromAgentPolicy, type MemoryPolicy } from "./policy";
 import { recordRetrievalDuration } from "../telemetry/spans";
