@@ -6,30 +6,16 @@ import {
   ArrowLeft,
   ArrowRight,
   Activity,
-  BookOpen,
   Bot,
   Check,
   CircleDot,
-  Database,
   Gauge,
   FlaskConical,
-  GitBranch,
-  KeyRound,
   LoaderCircle,
   MessageCircle,
-  MessageSquareText,
-  Network,
-  PlugZap,
   Plus,
   Rocket,
-  Route,
-  Send,
-  Settings2,
   SlidersHorizontal,
-  ShieldCheck,
-  Sparkles,
-  Workflow,
-  Wrench,
   X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -64,6 +50,7 @@ import {
 import { cn } from "@/lib/utils";
 import { AgentChatComposer } from "@/components/dashboard/agents/agent-chat-composer";
 import { StudioSettingsPrototype, type StudioCapabilityDraft } from "@/components/dashboard/studio/studio-settings-prototype";
+import { StudioSystemCanvas, type StudioGraphNode, type StudioGraphStatus } from "@/components/dashboard/studio/studio-system-canvas";
 
 type StudioPageProps = {
   initialAgents: AgentDefinition[];
@@ -87,28 +74,6 @@ type TraceNode = {
   data: Record<string, unknown>;
 };
 
-type StudioGraphStatus = "idle" | "running" | "complete" | "error" | "waiting" | "skipped";
-
-type StudioGraphNode = {
-  id: string;
-  label: string;
-  detail: string;
-  kind: "input" | "channel" | "session" | "context" | "memory" | "retrieval" | "model" | "router" | "tool" | "mcp" | "skill" | "approval" | "handoff" | "output" | "delivery";
-  status: StudioGraphStatus;
-  configured: boolean;
-  configurable?: boolean;
-  provider?: string;
-  scope?: string;
-  event?: string;
-  data: Record<string, string>;
-};
-
-const studioGraphColumns: Array<{ label: string; subtitle: string; nodeIds: string[] }> = [
-  { label: "Ingress", subtitle: "How work enters", nodeIds: ["input", "channel", "session"] },
-  { label: "Context", subtitle: "What the agent knows", nodeIds: ["context", "memory-read", "retrieval", "model"] },
-  { label: "Actions", subtitle: "What it can do", nodeIds: ["router", "calendar", "mcp", "content-skill"] },
-  { label: "Control", subtitle: "How work completes", nodeIds: ["approval", "handoff", "memory-write", "output", "delivery"] },
-];
 
 type ChatMessage = {
   id: string;
@@ -955,7 +920,7 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
           <section className="flex min-h-[620px] min-w-0 flex-col">
             <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3"><div><SectionEyebrow>Execution observatory</SectionEyebrow><h1 className="mt-1 text-sm font-semibold text-foreground">System map</h1></div><span className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground"><CircleDot className={cn("size-3", running ? "animate-pulse text-primary" : "text-muted-foreground")} />{running ? "Run overlay" : trace.length ? "Trace ready" : "Ready"}</span></div>
             <div className="relative min-h-[560px] flex-1 overflow-auto bg-[radial-gradient(circle_at_50%_45%,color-mix(in_srgb,var(--brand)_7%,transparent),transparent_58%)]">
-              <StudioSystemGraph nodes={studioGraphNodes} selectedNodeId={selectedNodeId} onSelect={setSelectedNodeId} running={running} traceCount={trace.length} />
+              <StudioSystemCanvas nodes={studioGraphNodes} selectedNodeId={selectedNodeId} onSelect={setSelectedNodeId} running={running} traceCount={trace.length} />
               {selectedGraphNode ? <div className="absolute bottom-4 left-4 right-4 z-10 max-h-72 overflow-auto rounded-xl border border-border bg-card/95 shadow-xl backdrop-blur"><button type="button" aria-label="Close node details" onClick={() => setSelectedNodeId(null)} className="absolute right-3 top-3 z-10 rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"><X className="size-4" /></button><StudioGraphInspector node={selectedGraphNode} onConfigure={() => setConfigurationOpen(true)} /></div> : null}
             </div>
           </section>
@@ -966,95 +931,6 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
   );
 }
 
-function studioGraphStatusLabel(status: StudioGraphStatus) {
-  if (status === "running") return "Running";
-  if (status === "complete") return "Complete";
-  if (status === "error") return "Error";
-  if (status === "waiting") return "Waiting";
-  if (status === "skipped") return "Skipped";
-  return "Configured";
-}
-
-function StudioSystemGraph({ nodes, selectedNodeId, onSelect, running, traceCount }: { nodes: StudioGraphNode[]; selectedNodeId: string | null; onSelect: (id: string) => void; running: boolean; traceCount: number }) {
-  const nodeById = new Map(nodes.map((node) => [node.id, node]));
-  return (
-    <div className="min-w-[1040px] px-5 py-5 sm:px-7">
-      <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border/80 bg-background/70 px-3.5 py-2.5 backdrop-blur">
-        <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
-          <span className="inline-flex items-center gap-1.5 font-medium text-foreground"><Workflow className="size-3.5 text-primary" />Configured system</span>
-          <span>{nodes.length} nodes</span>
-          <span className="hidden text-border sm:inline">•</span>
-          <span>{traceCount ? `${traceCount} runtime events` : "No run events"}</span>
-        </div>
-        <div className="flex items-center gap-3 text-[10px] text-muted-foreground" aria-label="Node status legend">
-          <span className="inline-flex items-center gap-1.5"><span className="size-1.5 rounded-full bg-slate-400" />Configured</span>
-          <span className="inline-flex items-center gap-1.5"><span className="size-1.5 rounded-full bg-primary" />Active</span>
-          <span className="inline-flex items-center gap-1.5"><span className="size-1.5 rounded-full bg-emerald-500" />Complete</span>
-          {running ? <span className="inline-flex items-center gap-1.5 text-primary"><CircleDot className="size-3 animate-pulse" />Live</span> : null}
-        </div>
-      </div>
-
-      <div className="grid grid-cols-[minmax(0,1fr)_28px_minmax(0,1fr)_28px_minmax(0,1fr)_28px_minmax(0,1fr)] items-start gap-2">
-        {studioGraphColumns.map((column, columnIndex) => (
-          <div key={column.label} className="contents">
-            <div className="min-w-0">
-              <div className="mb-2 px-1"><p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-muted-foreground">{column.label}</p><p className="mt-0.5 text-[10px] text-muted-foreground/70">{column.subtitle}</p></div>
-              <div className="space-y-2.5">
-                {column.nodeIds.map((nodeId) => {
-                  const node = nodeById.get(nodeId);
-                  const nodeIndex = column.nodeIds.indexOf(nodeId);
-                  return node ? <div key={node.id}><StudioGraphNodeCard node={node} selected={selectedNodeId === node.id} onSelect={onSelect} />{nodeIndex < column.nodeIds.length - 1 ? <StudioVerticalConnector /> : null}</div> : null;
-                })}
-              </div>
-            </div>
-            {columnIndex < studioGraphColumns.length - 1 ? <StudioColumnConnector label={columnIndex === 0 ? "state" : columnIndex === 1 ? "decision" : "result"} /> : null}
-          </div>
-        ))}
-      </div>
-
-    </div>
-  );
-}
-
-function StudioColumnConnector({ label }: { label: string }) {
-  return <div className="flex min-h-[420px] flex-col items-center justify-center gap-2 text-[9px] uppercase tracking-[0.12em] text-muted-foreground/60"><svg width="28" height="36" viewBox="0 0 28 36" aria-hidden="true"><path d="M3 18H20" stroke="currentColor" strokeWidth="1.5" /><path d="M15 12L21 18L15 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" /></svg><span className="[writing-mode:vertical-rl]">{label}</span></div>;
-}
-
-function StudioVerticalConnector() {
-  return <div className="flex h-5 items-center justify-center text-border" aria-hidden="true"><svg width="16" height="20" viewBox="0 0 16 20"><path d="M8 1V14" stroke="currentColor" strokeWidth="1.25" /><path d="M4.5 11.5L8 15L11.5 11.5" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.25" /></svg></div>;
-}
-
-function StudioGraphNodeCard({ node, selected, onSelect }: { node: StudioGraphNode; selected: boolean; onSelect: (id: string) => void }) {
-  const statusTone = node.status === "error"
-    ? "border-destructive/50 bg-destructive/5"
-    : node.status === "running"
-      ? "border-primary/70 bg-primary/8 shadow-[0_0_0_3px_color-mix(in_srgb,var(--primary)_13%,transparent)]"
-      : node.status === "complete"
-        ? "border-emerald-500/45 bg-emerald-500/5"
-        : node.status === "waiting"
-          ? "border-amber-500/50 bg-amber-500/5"
-          : "border-border bg-card/80 hover:border-primary/45";
-  return <button type="button" onClick={() => onSelect(node.id)} aria-pressed={selected} className={cn("group relative w-full rounded-xl border p-3 text-left transition-all", statusTone, selected && "ring-2 ring-primary/20")}>{node.status === "running" ? <span className="absolute -inset-px rounded-xl border border-primary/50 opacity-70 animate-pulse" aria-hidden="true" /> : null}<span className="relative flex items-start gap-2.5"><span className={cn("flex size-8 shrink-0 items-center justify-center rounded-lg", node.status === "error" ? "bg-destructive/10 text-destructive" : node.status === "running" ? "bg-primary/12 text-primary" : node.status === "complete" ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-300" : node.status === "waiting" ? "bg-amber-500/10 text-amber-600 dark:text-amber-300" : "bg-muted text-muted-foreground group-hover:text-primary")}><StudioGraphIcon kind={node.kind} /></span><span className="min-w-0 flex-1"><span className="flex items-center gap-1.5"><span className="truncate text-xs font-semibold text-foreground">{node.label}</span>{node.configured ? <span className="size-1.5 shrink-0 rounded-full bg-emerald-500" title="Configured" /> : null}</span><span className="mt-1 block truncate text-[10px] leading-4 text-muted-foreground">{node.detail}</span><span className={cn("mt-2 inline-flex items-center gap-1 text-[9px] font-medium", node.status === "error" ? "text-destructive" : node.status === "running" ? "text-primary" : node.status === "complete" ? "text-emerald-600 dark:text-emerald-300" : node.status === "waiting" ? "text-amber-600 dark:text-amber-300" : "text-muted-foreground")}>{node.status === "running" ? <CircleDot className="size-2.5 animate-pulse" /> : node.status === "complete" ? <Check className="size-2.5" /> : node.status === "error" ? <X className="size-2.5" /> : <span className="size-1.5 rounded-full bg-current" />}{studioGraphStatusLabel(node.status)}</span></span></span></button>;
-}
-
-function StudioGraphIcon({ kind }: { kind: StudioGraphNode["kind"] }) {
-  const className = "size-4";
-  if (kind === "input" || kind === "output") return <MessageSquareText className={className} />;
-  if (kind === "channel" || kind === "delivery") return <Send className={className} />;
-  if (kind === "session") return <KeyRound className={className} />;
-  if (kind === "context") return <Settings2 className={className} />;
-  if (kind === "memory") return <Database className={className} />;
-  if (kind === "retrieval") return <BookOpen className={className} />;
-  if (kind === "model") return <Bot className={className} />;
-  if (kind === "router") return <Route className={className} />;
-  if (kind === "tool") return <Wrench className={className} />;
-  if (kind === "mcp") return <PlugZap className={className} />;
-  if (kind === "skill") return <Sparkles className={className} />;
-  if (kind === "approval") return <ShieldCheck className={className} />;
-  if (kind === "handoff") return <Network className={className} />;
-  return <GitBranch className={className} />;
-}
-
 function StudioGraphInspector({ node, onConfigure }: { node: StudioGraphNode; onConfigure: () => void }) {
-  return <div><div className="border-b border-border px-4 py-3"><SectionEyebrow>Selected node</SectionEyebrow><div className="mt-1 flex items-center gap-2"><span className="flex size-6 items-center justify-center rounded-md bg-primary/10 text-primary"><StudioGraphIcon kind={node.kind} /></span><h2 className="text-sm font-semibold text-foreground">{node.label}</h2><span className="ml-auto text-[10px] font-medium text-muted-foreground">{studioGraphStatusLabel(node.status)}</span></div></div><div className="grid gap-4 p-4 text-[11px] sm:grid-cols-[1.2fr_1fr_1fr]"><div><SectionEyebrow>Role</SectionEyebrow><p className="mt-1 text-xs leading-5 text-muted-foreground">{node.detail}</p><p className="mt-2 font-mono text-[10px] text-muted-foreground">{node.event}</p></div><div><SectionEyebrow>Scope</SectionEyebrow><p className="mt-1 text-foreground">{node.scope ?? "—"}</p><SectionEyebrow>Provider</SectionEyebrow><p className="mt-1 text-foreground">{node.provider ?? "KasiTek runtime"}</p></div><div><SectionEyebrow>Configuration</SectionEyebrow><dl className="mt-1 space-y-1 text-muted-foreground">{Object.entries(node.data).slice(0, 3).map(([key, value]) => <div key={key} className="flex justify-between gap-3"><dt>{key}</dt><dd className="max-w-[11rem] truncate text-right text-foreground">{value}</dd></div>)}</dl>{node.configurable ? <Button type="button" variant="outline" size="sm" className="mt-3 h-7 px-2.5 text-[11px]" onClick={onConfigure}><SlidersHorizontal className="mr-1.5 size-3" />Configure</Button> : null}</div></div></div>;
+  return <div><div className="border-b border-border px-4 py-3"><SectionEyebrow>Selected node</SectionEyebrow><div className="mt-1 flex items-center gap-2"><span className="flex size-6 items-center justify-center rounded-md bg-primary/10 text-primary"><CircleDot className="size-3.5" /></span><h2 className="text-sm font-semibold text-foreground">{node.label}</h2><span className="ml-auto text-[10px] font-medium text-muted-foreground">{node.status}</span></div></div><div className="grid gap-4 p-4 text-[11px] sm:grid-cols-[1.2fr_1fr_1fr]"><div><SectionEyebrow>Role</SectionEyebrow><p className="mt-1 text-xs leading-5 text-muted-foreground">{node.detail}</p><p className="mt-2 font-mono text-[10px] text-muted-foreground">{node.event}</p></div><div><SectionEyebrow>Scope</SectionEyebrow><p className="mt-1 text-foreground">{node.scope ?? "—"}</p><SectionEyebrow>Provider</SectionEyebrow><p className="mt-1 text-foreground">{node.provider ?? "KasiTek runtime"}</p></div><div><SectionEyebrow>Configuration</SectionEyebrow><dl className="mt-1 space-y-1 text-muted-foreground">{Object.entries(node.data).slice(0, 3).map(([key, value]) => <div key={key} className="flex justify-between gap-3"><dt>{key}</dt><dd className="max-w-[11rem] truncate text-right text-foreground">{value}</dd></div>)}</dl>{node.configurable ? <Button type="button" variant="outline" size="sm" className="mt-3 h-7 px-2.5 text-[11px]" onClick={onConfigure}><SlidersHorizontal className="mr-1.5 size-3" />Configure</Button> : null}</div></div></div>;
 }
