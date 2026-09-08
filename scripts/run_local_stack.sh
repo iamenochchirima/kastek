@@ -190,6 +190,7 @@ services["agent-gateway"]="$ROOT_DIR/agents|$AGENT_ENV_SETUP; pnpm run dev:gatew
 services["client"]="$ROOT_DIR/client|pnpm run dev"
 services["admin"]="$ROOT_DIR/client|pnpm dev:admin"
 services["labs"]="$ROOT_DIR/client|pnpm --filter labs dev"
+services["internal-docs"]="$ROOT_DIR/docs/internal-site|pnpm dev"
 
 if [[ "$TEMPORAL_MODE" == "local" ]]; then
   services["temporal"]="$ROOT_DIR|temporal server start-dev --db-filename '$ROOT_DIR/.local/temporal.sqlite'"
@@ -206,6 +207,7 @@ service_port() {
     client) echo 3000 ;;
     admin) echo 3001 ;;
     labs) echo 3007 ;;
+    internal-docs) echo 3006 ;;
     temporal) echo 7233 ;;
   esac
 }
@@ -485,6 +487,7 @@ show_usage() {
   echo "  $0 tenant-portal      # Run only the tenant portal"
   echo "  $0 core               # Run the Core API, including Calls"
   echo "  $0 core client        # Run the Core API and client"
+  echo "  $0 internal-docs      # Run the internal documentation site"
   echo "  $0 analytics-migrate # Apply Analytics migrations once"
   echo "  $0 analytics-worker  # Run the optional Analytics worker"
   echo "  $0 core-analytics-publisher tenants-analytics-publisher agent-analytics-publisher # Run source publishers"
@@ -497,7 +500,7 @@ show_usage() {
 # Parse command line arguments
 if [[ $# -eq 0 ]]; then
   # No arguments - run all services
-  services_to_start=(core tenant-api analytics-api agents-api agents-worker agent-gateway client admin labs)
+  services_to_start=(core tenant-api analytics-api agents-api agents-worker agent-gateway client admin labs internal-docs)
   if [[ "$TEMPORAL_MODE" == "local" ]]; then
     services_to_start+=(temporal)
   fi

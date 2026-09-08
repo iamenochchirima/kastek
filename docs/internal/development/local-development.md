@@ -67,6 +67,7 @@ Analytics and can start a local Temporal Server when `TEMPORAL_MODE=local` is se
 ./scripts/run_local_stack.sh tenants       # Tenant API + tenant portal only
 ./scripts/run_local_stack.sh agents-api agents-worker agent-gateway
 ./scripts/run_local_stack.sh analytics-api analytics-worker
+./scripts/run_local_stack.sh internal-docs  # Internal docs at http://localhost:3006
 ./scripts/run_local_stack.sh --help
 ```
 
@@ -81,8 +82,8 @@ PostgreSQL URL. It uses `KASITEK_LOCAL_TENANT_DATABASE_URL` when set; otherwise 
 The generic `DATABASE_URL` is never used as the Tenant database fallback.
 
 The default no-argument invocation starts the core, tenant, Analytics API, Agent API and worker,
-Agent gateway, client apps, and local Temporal when local mode is enabled. Start migrations as a
-separate release-like step before services that need the database:
+Agent gateway, client apps, internal docs, and local Temporal when local mode is enabled. Start
+migrations as a separate release-like step before services that need the database:
 
 ```bash
 ./scripts/run_local_stack.sh analytics-migrate
