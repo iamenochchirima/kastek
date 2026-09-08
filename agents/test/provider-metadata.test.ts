@@ -45,6 +45,19 @@ describe("provider model metadata", () => {
     expect(fetcher).toHaveBeenCalledOnce();
   });
 
+  it("uses the provider's x-api-key metadata contract without treating model ids as capacity", async () => {
+    const fetcher = vi.fn<typeof fetch>(async (_input, init) => {
+      expect(init?.headers).toEqual({ "x-api-key": "secret-key", "anthropic-version": "2023-06-01", accept: "application/json" });
+      return new Response(JSON.stringify({ data: [{ id: "claude-sonnet-5", context_window: 200_000 }] }), { status: 200 });
+    });
+    const client = new ProviderMetadataClient({ fetcher });
+
+    await expect(client.resolve({
+      route: route({ provider: "anthropic", model: "claude-sonnet-5", endpointId: "anthropic:default" }),
+      credentials,
+    })).resolves.toMatchObject({ contextWindowTokens: 200_000 });
+  });
+
   it("returns no capacity for a model endpoint that exposes only an id", async () => {
     const client = new ProviderMetadataClient({
       fetcher: async () => new Response(JSON.stringify({ data: [{ id: "gpt-5" }] }), { status: 200 }),

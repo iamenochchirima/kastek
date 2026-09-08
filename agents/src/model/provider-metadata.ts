@@ -106,7 +106,7 @@ export class ProviderMetadataClient {
 
   private requestHeaders(auth: "bearer" | "x-api-key" | "gemini-query", apiKey: string): Record<string, string> {
     if (auth === "bearer") return { authorization: `Bearer ${apiKey}`, accept: "application/json" };
-    if (auth === "x-api-key") return { "x-api-key": apiKey, accept: "application/json" };
+    if (auth === "x-api-key") return { "x-api-key": apiKey, "anthropic-version": "2023-06-01", accept: "application/json" };
     return { accept: "application/json" };
   }
 }
@@ -121,7 +121,8 @@ function modelRecords(payload: unknown): JsonRecord[] {
   const candidates = [payload.data, payload.models];
   for (const candidate of candidates) {
     if (!Array.isArray(candidate)) continue;
-    return candidate.filter(isRecord);
+    const records = candidate.filter(isRecord);
+    if (records.length) return records;
   }
   return [payload];
 }
