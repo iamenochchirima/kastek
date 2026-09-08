@@ -148,7 +148,16 @@ describe("context and memory integration boundary", () => {
     const events: string[] = [];
     const retrievalPort: MemoryRetrievalPort = {
       async retrieve(request) {
-        expect(request.scope.namespace).toBe("conversation");
+        expect(request).toMatchObject({
+          runId: "run-1",
+          turnId: "run-1",
+          attemptId: "model:1:memory",
+          compactionGeneration: 0,
+          sourceEventBoundary: { digest: expect.any(String) },
+          reason: "preference_reference",
+          query: "What is my usual style?",
+          scope: { organizationId: "org-1", agentDefinitionId: "agent-1", agentVersionId: "version-1", installationId: "installation-1", namespace: "conversation" },
+        });
         return {
           packId: "pack-1",
           status: "completed",
