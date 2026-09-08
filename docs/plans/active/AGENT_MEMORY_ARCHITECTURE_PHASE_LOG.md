@@ -36,7 +36,7 @@ Waku files refreshed:
 
 KasiTek files refreshed:
 
-- `agents/src/memory/lifecycle.ts`, `retrieval.ts`, `consolidation-worker.ts`, and
+- `agents/src/memory/lifecycle.ts`, `retrieval.ts`, `revision-consolidation-worker.ts`, and
   `db/repositories/memory-repository.ts` — legacy lifecycle and migration inputs.
 - `agents/src/runtime/context-compaction.ts`, `context-engine.ts`, `context-memory-boundary.ts`,
   `journal/`, and `runtime/runtime-telemetry.ts` — runtime seams and event envelope.
@@ -1122,6 +1122,17 @@ Legacy retention writer removal (2026-09-08):
   transition. The legacy retention repository remains for policy and legal-hold administration,
   preview, and compatibility reads; its memory-record mutation path is no longer reachable from
   the operator command.
+
+Broad deletion evidence fencing (2026-09-08):
+
+- User, agent, workspace, and organization deletion now removes checkpoint rows before deleting
+  their source events. This covers queued source evidence that has not produced a fact yet, so a
+  checkpoint cannot retain a deleted event after the source row is purged.
+- The organization deletion integration fixture now creates both a direct source event and a
+  checkpoint-backed event, then verifies that both rows are removed. The focused deletion,
+  agent-deletion, and integrity suite passes 7/7 tests.
+- The implementation keeps the source-event immutability guard intact. Only the system deletion
+  actor can perform this purge; ordinary source updates remain rejected.
 
 Final local matrix refresh (2026-09-08):
 

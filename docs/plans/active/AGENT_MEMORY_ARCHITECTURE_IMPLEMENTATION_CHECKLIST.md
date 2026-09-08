@@ -97,7 +97,7 @@ Before touching the matching KasiTek module, read:
 - `agents/src/memory/retrieval.ts` — current retrieval decision and hybrid search;
 - `agents/src/db/repositories/memory-repository.ts` — current scope, safety, conflict, and state
   enforcement;
-- `agents/src/memory/consolidation-worker.ts` — current durable extraction worker;
+- `agents/src/memory/revision-consolidation-worker.ts` — current durable extraction worker;
 - `agents/src/runtime/context-compaction.ts` and `agents/src/runtime/context-engine.ts` — current
   compaction and context seams;
 - `agents/src/journal/` and `agents/src/runtime/runtime-telemetry.ts` — event and observability
@@ -468,8 +468,9 @@ and reason for selection.
 - [x] No supported read path returns deleted content after completion; residual verification checks
       canonical, local projection, relation, source, and provider-receipt tables before completion.
       Source evidence updates are rejected at the database boundary and only the deletion actor may
-      purge it; organization deletion now purges all source evidence through that actor; fact scope
-      validation now runs on every update.
+      purge it; organization deletion now purges all source evidence through that actor; broad
+      user, agent, workspace, and organization cleanup deletes checkpoints before queued source
+      evidence; fact scope validation now runs on every update.
 - [~] Record the M5 reference checkpoint and reviewer approval. The phase log records retention,
       conflict, legal-hold, canonical purge, residual checks, provider confirmation, and deletion
       analytics evidence; provider acknowledgement conformance is now enforced locally by the
@@ -484,8 +485,9 @@ decay/revalidation prioritisation, durable stale queues, conflict detection, can
 provider deletion queuing are implemented by `137`-`143` migrations plus the retention, deletion,
       projection, and provider-deletion workers. Canonical purge now verifies residual local projection
       absence transactionally; parent deletion completion is fenced on every provider child, and the
-      provider worker preserves idempotency across timeout retries. Executable unit and PostgreSQL
-      coverage is in `memory-v2-deletion.integration.test.ts`; local provider acknowledgement
+      provider worker preserves idempotency across timeout retries. Broad target cleanup also removes
+      checkpoint rows before source evidence, including queued no-fact evidence. Executable unit and
+      PostgreSQL coverage is in `memory-v2-deletion.integration.test.ts`; local provider acknowledgement
       conformance is covered by the projection worker and contract tests, while provider-specific,
       staging, and reviewer approval remain release gates.
 
