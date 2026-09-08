@@ -6,6 +6,7 @@ import {
   useMemo,
   useState,
 } from "react";
+import type { CSSProperties } from "react";
 import {
   Background,
   BackgroundVariant,
@@ -303,7 +304,18 @@ export function StudioSystemCanvas({ nodes, selectedNodeId, onSelect, running, t
       <ObservatorySectionFrames />
       <ObservatoryLinks nodes={nodes} positions={positions} />
       <Background variant={BackgroundVariant.Dots} gap={22} size={1} color="rgba(148,163,184,.18)" />
-      <Controls showInteractive={false} position="bottom-left" />
+      <Controls
+        showInteractive={false}
+        position="bottom-left"
+        style={{
+          "--xy-controls-button-background-color": "#1b2538",
+          "--xy-controls-button-background-color-hover": "#2b3954",
+          "--xy-controls-button-color": "#b8c5dd",
+          "--xy-controls-button-color-hover": "#eef3ff",
+          "--xy-controls-button-border-color": "#3d4b67",
+          "--xy-controls-box-shadow": "0 8px 20px rgba(3, 8, 20, 0.35)",
+        } as CSSProperties}
+      />
       <MiniMap
         nodeColor={nodeColor}
         nodeStrokeColor="#8ea0c2"
