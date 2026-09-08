@@ -144,6 +144,10 @@ export interface AgentLoopInput {
     request: ModelRequest;
     reservationKey: string;
     parallelLeaseId?: string;
+    /** The context runtime's authoritative manifest accounting for this request. */
+    estimatedInputTokens?: number;
+    reservedOutputTokens?: number;
+    contextManifestDigest?: string;
   }) => Promise<ModelCreditReservation | undefined>;
   consumeRunToolCall?: (input?: { parallelLeaseId?: string }) => Promise<void>;
   /** Replays a completed tool outcome after a worker retry without invoking the handler again. */
@@ -834,7 +838,14 @@ export async function runBoundedAgentLoop(input: AgentLoopInput): Promise<AgentL
           const modelQueuedAt = new Date().toISOString();
           const prepared = await input.prepareModelCall?.({ operationKey, model: attempt.model, credentials: attempt.credentials });
           try {
-            runBudgetReservation = await input.reserveRunBudget?.({ request, reservationKey: operationKey, parallelLeaseId: input.parallelLeaseId });
+            runBudgetReservation = await input.reserveRunBudget?.({
+              request,
+              reservationKey: operationKey,
+              parallelLeaseId: input.parallelLeaseId,
+              estimatedInputTokens,
+              reservedOutputTokens: plannedOutputTokens,
+              ...(contextPlan ? { contextManifestDigest: contextPlan.manifest.digest } : {}),
+            });
           } catch (error) {
             // The provider response may already be durable while the worker
             // was lost after run-budget settlement. Replay the remaining
