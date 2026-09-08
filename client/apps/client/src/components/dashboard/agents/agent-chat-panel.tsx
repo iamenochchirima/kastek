@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Activity, Bot, LoaderCircle, MessageSquare, Plus, Send, Square, Trash2 } from "lucide-react";
+import { Activity, Bot, LoaderCircle, MessageSquare, Plus, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -31,7 +31,7 @@ import {
   type AgentConversation,
   type AgentMessage,
 } from "@/lib/agent-platform";
-import { AgentModelPicker } from "./agent-model-picker";
+import { AgentChatComposer } from "./agent-chat-composer";
 import { AgentMessageMedia, agentMessageHasMedia } from "./agent-message-media";
 import { AgentAuthorizationAction } from "./agent-authorization-action";
 
@@ -373,18 +373,21 @@ export function AgentChatPanel({ installationId, active, agentName, modal = fals
       </div>
 
       {error ? <div className="shrink-0 border-t border-destructive/20 bg-destructive/10 px-5 py-3 text-sm text-destructive" role="alert">{error}</div> : null}
-      <form className="shrink-0 border-t border-border bg-card p-4 sm:p-5" onSubmit={(event) => { event.preventDefault(); void send(); }}>
-        <div className="mx-auto max-w-3xl">
-          <div className="flex items-end gap-3 rounded-2xl border border-border bg-background p-2 shadow-sm focus-within:border-primary/50">
-          <textarea value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void send(); } }} disabled={!active || sending || loading || !conversation} rows={2} placeholder="Message this agent…" aria-label="Message this agent" className="min-h-[52px] min-w-0 flex-1 resize-none border-0 bg-transparent px-2 py-2 text-sm leading-6 text-foreground outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed" />
-          {sending && activeRunId ? <Button type="button" variant="outline" size="icon" aria-label="Stop agent run" title="Stop agent run" onClick={() => void stop()}><Square className="h-4 w-4" /></Button> : <Button type="submit" size="icon" aria-label="Send message" disabled={!active || loading || !conversation || !draft.trim()}><Send className="h-4 w-4" /></Button>}
-          </div>
-          <div className="mt-2 flex flex-wrap items-center justify-between gap-2 px-2">
-            <AgentModelPicker model={selectedModelEntry} models={pickerModels} disabled={modelCatalogLoading || !pickerModels.length || sending || loading || !active} compact menuPlacement="above" ariaLabel="Choose this test chat's model" onSelect={(value, provider) => { void changeModel(value, provider); }} />
-            <p className="text-[11px] text-muted-foreground">Press Enter to send · Shift+Enter for a new line</p>
-          </div>
-        </div>
-      </form>
+      <AgentChatComposer
+        value={draft}
+        onChange={setDraft}
+        onSubmit={() => void send()}
+        model={selectedModelEntry}
+        models={pickerModels}
+        onModelChange={(value, provider) => void changeModel(value, provider)}
+        modelDisabled={modelCatalogLoading || !pickerModels.length}
+        disabled={!active || loading || !conversation}
+        sending={sending}
+        onStop={() => void stop()}
+        placeholder="Message this agent…"
+        className="bg-card p-4 sm:p-5"
+        ariaLabel="Message this agent"
+      />
       <Dialog open={clearConfirmation} onOpenChange={setClearConfirmation}><DialogContent className="max-w-md"><DialogHeader><div className="flex h-11 w-11 items-center justify-center rounded-full bg-destructive/10 text-destructive"><Trash2 className="h-5 w-5" aria-hidden="true" /></div><DialogTitle>Clear test chats?</DialogTitle><DialogDescription>This clears this agent’s private chats and starts a new one. Customer and inbox conversations are not affected.</DialogDescription></DialogHeader><DialogFooter><Button type="button" variant="outline" onClick={() => setClearConfirmation(false)}>Cancel</Button><Button type="button" variant="destructive" onClick={() => void clearChats()}>Clear chats</Button></DialogFooter></DialogContent></Dialog>
     </div>
   </Card>;

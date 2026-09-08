@@ -17,7 +17,6 @@ import {
   ArrowLeft,
   Bot,
   Check,
-  ChevronDown,
   ChevronRight,
   Copy,
   LoaderCircle,
@@ -29,12 +28,10 @@ import {
   Plus,
   RotateCcw,
   Search,
-  Send,
   Settings2,
   SlidersHorizontal,
   Activity,
   Sparkles,
-  Square,
   Trash2,
   Unlink,
   X,
@@ -80,7 +77,7 @@ import {
 import { AgentApprovalPreview } from "@/components/dashboard/agents/agent-approval-preview";
 import { AgentMessageMedia, agentMessageHasMedia } from "@/components/dashboard/agents/agent-message-media";
 import { AgentAuthorizationAction } from "@/components/dashboard/agents/agent-authorization-action";
-import { AudioMessageControl } from "@/components/dashboard/kasiai/audio-message-control";
+import { AgentChatComposer } from "@/components/dashboard/agents/agent-chat-composer";
 import { DynamicUiRenderer } from "@/components/dashboard/kasiai/dynamic-ui-renderer";
 import type { AgentUiInteraction } from "@/components/dashboard/kasiai/dynamic-ui-renderer";
 import { cn } from "@/lib/utils";
@@ -1899,107 +1896,53 @@ export function KasiAiChat({
                       </div>
                     </div>
                   ) : null}
-                  <footer className="border-t border-border p-3">
-                    {isArchivedChat ? (
+                  {isArchivedChat ? (
+                    <footer className="border-t border-border p-3">
                       <div className="rounded-xl border border-border bg-muted/40 px-3 py-3 text-xs text-muted-foreground">
                         This chat is archived. Restore it from the conversation
                         library to continue it.
                       </div>
-                    ) : (
-                      <div className="rounded-xl border border-border bg-card p-2 focus-within:border-primary/50">
-                        {editingMessageId ? (
-                          <div className="mb-2 flex items-center justify-between gap-2 rounded-md bg-primary/5 px-2 py-1.5 text-[11px] text-muted-foreground">
-                            <span className="font-medium text-foreground">
-                              Editing message
-                            </span>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              className="h-6 px-2 text-[10px]"
-                              onClick={cancelEdit}
-                            >
-                              Cancel
-                            </Button>
-                          </div>
-                        ) : null}
-                        <div className="mb-1 flex items-center justify-between gap-2">
-                          <ComposerModelPicker
-                            model={activeModel}
-                            models={models}
-                            disabled={!conversation || sending}
-                            onSelect={(value) => void changeModel(value)}
-                          />
-                          {conversation && !conversation.is_primary ? (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-6 text-[10px]"
-                              onClick={() =>
-                                void setKasiAiChannelDefault(
-                                  conversation.id,
-                                ).then(async (updated) => {
-                                  setConversation(updated);
-                                  await refreshHome(installation!.id);
-                                })
-                              }
-                            >
-                              Use for channels
-                            </Button>
-                          ) : null}
+                    </footer>
+                  ) : (
+                    <AgentChatComposer
+                      value={draft}
+                      onChange={setDraft}
+                      onSubmit={() => void send()}
+                      model={activeModel}
+                      models={models}
+                      modelDisabled={!conversation || sending}
+                      onModelChange={(value, provider) => void changeModel(`${provider}:${value}`)}
+                      disabled={!installation}
+                      sending={sending}
+                      onStop={() => void stop()}
+                      onAudioReady={sendAudio}
+                      onAudioError={setError}
+                      placeholder={conversation ? "Ask KasiAi…" : "Start a new chat…"}
+                      inputRef={composerRef}
+                      leadingContent={editingMessageId ? (
+                        <div className="mb-2 flex items-center justify-between gap-2 rounded-md bg-primary/5 px-2 py-1.5 text-[11px] text-muted-foreground">
+                          <span className="font-medium text-foreground">Editing message</span>
+                          <Button type="button" variant="ghost" size="sm" className="h-6 px-2 text-[10px]" onClick={cancelEdit}>Cancel</Button>
                         </div>
-                        <textarea
-                          ref={composerRef}
-                          value={draft}
-                          onChange={(event) => setDraft(event.target.value)}
-                          onKeyDown={(event) => {
-                            if (event.key === "Enter" && !event.shiftKey) {
-                              event.preventDefault();
-                              void send();
-                            }
-                          }}
-                          placeholder={
-                            conversation ? "Ask KasiAi…" : "Start a new chat…"
-                          }
-                          rows={2}
-                          disabled={sending || !installation}
-                          className="min-h-12 w-full resize-none bg-transparent px-1 py-1 text-sm outline-none"
-                          aria-label="Message KasiAi"
-                        />
-                        <div className="flex items-center justify-between pt-1">
-                          <div className="flex min-w-0 items-center gap-1">
-                            <AudioMessageControl
-                              disabled={sending || !installation}
-                              onAudioReady={sendAudio}
-                              onError={(message) => setError(message)}
-                            />
-                            <span className="hidden text-[10px] text-muted-foreground sm:inline">
-                              Enter to send · Shift+Enter for a new line
-                            </span>
-                          </div>
-                          {sending ? (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => void stop()}
-                            >
-                              <Square className="h-3.5 w-3.5" />
-                              Stop
-                            </Button>
-                          ) : (
-                            <Button
-                              size="sm"
-                              disabled={!draft.trim() || !installation}
-                              onClick={() => void send()}
-                            >
-                              {editingMessageId ? "Send edited" : "Send"}
-                              <Send className="h-3.5 w-3.5" />
-                            </Button>
-                          )}
-                        </div>
-                      </div>
-                    )}
-                  </footer>
+                      ) : null}
+                      modelAccessory={conversation && !conversation.is_primary ? (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 text-[10px]"
+                          onClick={() => void setKasiAiChannelDefault(conversation.id).then(async (updated) => {
+                            setConversation(updated);
+                            await refreshHome(installation!.id);
+                          })}
+                        >
+                          Use for channels
+                        </Button>
+                      ) : null}
+                      className="border-t border-border bg-card p-3 shadow-none"
+                      ariaLabel="Message KasiAi"
+                    />
+                  )}
                 </>
               )}
             </>
@@ -2268,124 +2211,6 @@ function KasiAiNavigation({
         </div>
       ) : null}
     </nav>
-  );
-}
-
-function ComposerModelPicker({
-  model,
-  models,
-  disabled,
-  onSelect,
-}: {
-  model?: KasiAiModel;
-  models: KasiAiModel[];
-  disabled: boolean;
-  onSelect: (value: string) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const [search, setSearch] = useState("");
-  const selected = model ? `${model.provider}:${model.model}` : "";
-  const visible = open && !disabled;
-  const normalizedSearch = search.trim().toLowerCase();
-  const matchingModels = models.filter(
-    (item) =>
-      !normalizedSearch ||
-      `${item.label} ${item.model} ${item.provider}`
-        .toLowerCase()
-        .includes(normalizedSearch),
-  );
-  const displayedModels = matchingModels.slice(0, normalizedSearch ? 100 : 30);
-  return (
-    <div className="relative min-w-0">
-      <button
-        type="button"
-        disabled={disabled}
-        onClick={() => {
-          setOpen((value) => !value);
-          setSearch("");
-        }}
-        className="flex max-w-[14rem] items-center gap-1.5 rounded-md px-1.5 py-1 text-left text-[11px] text-muted-foreground transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-60"
-        aria-haspopup="listbox"
-        aria-expanded={visible}
-      >
-        <span className="truncate">{model?.label ?? "Workspace default"}</span>
-        <ChevronDown className="h-3.5 w-3.5 shrink-0" />
-      </button>
-      {visible ? (
-        <>
-          <button
-            type="button"
-            className="fixed inset-0 z-10 cursor-default"
-            onClick={() => {
-              setOpen(false);
-              setSearch("");
-            }}
-            aria-label="Close model picker"
-          />
-          <div
-            className="absolute bottom-full left-0 z-20 mb-2 w-72 overflow-hidden rounded-lg border border-border bg-popover shadow-xl"
-            role="listbox"
-            aria-label="Choose this chat's model"
-          >
-            <div className="border-b border-border px-3 py-2 text-[10px] text-muted-foreground">
-              Choose a model for this chat
-            </div>
-            <label className="flex items-center gap-2 border-b border-border px-3 py-2">
-              <Search className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-              <input
-                autoFocus
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder="Search models or IDs…"
-                className="min-w-0 flex-1 bg-transparent text-xs text-foreground outline-none placeholder:text-muted-foreground"
-              />
-            </label>
-            <div className="max-h-64 overflow-y-auto p-1">
-              {displayedModels.map((item) => {
-                const value = `${item.provider}:${item.model}`;
-                const active = value === selected;
-                return (
-                  <button
-                    type="button"
-                    key={value}
-                    role="option"
-                    aria-selected={active}
-                    onClick={() => {
-                      onSelect(value);
-                      setOpen(false);
-                      setSearch("");
-                    }}
-                    className={cn(
-                      "w-full rounded-md px-2.5 py-2 text-left transition-colors",
-                      active ? "bg-primary/10 text-primary" : "hover:bg-muted",
-                    )}
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="truncate text-xs font-medium">
-                        {item.label}
-                      </span>
-                      <span className="shrink-0 text-[10px] text-muted-foreground">
-                        {item.isFree ? "free" : item.tier}
-                      </span>
-                    </div>
-                  </button>
-                );
-              })}
-              {!matchingModels.length ? (
-                <p className="px-2.5 py-4 text-xs text-muted-foreground">
-                  No models match that search.
-                </p>
-              ) : null}
-              {matchingModels.length > displayedModels.length ? (
-                <p className="px-2.5 py-2 text-[10px] text-muted-foreground">
-                  Showing first {displayedModels.length} results. Search to narrow the list.
-                </p>
-              ) : null}
-            </div>
-          </div>
-        </>
-      ) : null}
-    </div>
   );
 }
 
