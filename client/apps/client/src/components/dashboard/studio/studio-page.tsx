@@ -257,6 +257,16 @@ function RuntimeTelemetryDetail({ telemetry }: { telemetry: AgentRuntimeTelemetr
           <dt>Rolling</dt><dd className="text-right text-foreground">{displayDuration(telemetry.rolling.latencyMs)} · {displayNumber(telemetry.rolling.outputTokensPerSecond)} t/s</dd>
         </dl>
       </div>
+      <div className="rounded-lg border border-border bg-card/70 p-2.5">
+        <div className="flex items-center gap-1.5 font-medium text-foreground"><Gauge className="size-3.5 text-primary" />Run usage</div>
+        <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-muted-foreground">
+          <dt>Total</dt><dd className="text-right text-foreground">{displayNumber(telemetry.usage.totalTokens)} tokens</dd>
+          <dt>Input / output</dt><dd className="text-right text-foreground">{displayNumber(telemetry.usage.inputTokens)} / {displayNumber(telemetry.usage.outputTokens)}</dd>
+          <dt>Budget</dt><dd className="text-right text-foreground">{displayNumber(telemetry.runBudget.maxTotalTokens)} tokens</dd>
+          <dt>Remaining</dt><dd className="text-right text-foreground">{displayNumber(telemetry.runBudget.remainingTokens)} tokens</dd>
+          <dt>Basis</dt><dd className="text-right text-foreground">{telemetry.usage.basis}</dd>
+        </dl>
+      </div>
       <div className="rounded-lg border border-border bg-card/70 p-2.5 sm:col-span-2">
         <div className="flex flex-wrap items-center justify-between gap-2 font-medium text-foreground"><span>Evidence</span><span className="font-mono text-[10px] text-muted-foreground">rev {telemetry.revision} · {displayTimestamp(telemetry.observedAt)}</span></div>
         <dl className="mt-2 grid gap-x-4 gap-y-1 text-muted-foreground sm:grid-cols-2">

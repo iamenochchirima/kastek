@@ -25,6 +25,18 @@ export interface RuntimeTelemetrySnapshot {
     readonly usageAnchorOperationKey?: string;
     readonly latestCompaction?: RuntimeCompactionSnapshot;
   };
+  /** Cumulative provider usage for this run; separate from current context occupancy. */
+  readonly usage: {
+    readonly inputTokens?: number;
+    readonly outputTokens?: number;
+    readonly totalTokens?: number;
+    readonly basis: "provider_reported" | "partial" | "not_measured";
+  };
+  /** Configured run budget; it is not a context-window measurement. */
+  readonly runBudget: {
+    readonly maxTotalTokens?: number;
+    readonly remainingTokens?: number;
+  };
   readonly modelAttempt?: RuntimeModelAttemptSnapshot;
   readonly attempts: readonly RuntimeModelAttemptSnapshot[];
   readonly turn: {
@@ -100,6 +112,8 @@ export class RuntimeTelemetryAccumulator {
       revision: 0,
       observedAt: new Date(0).toISOString(),
       context: { basis: "not_measured", compactionCount: 0 },
+      usage: { basis: "not_measured" },
+      runBudget: {},
       attempts: [],
       turn: { status: "running" },
       rolling: { sampleCount: 0 },
@@ -126,6 +140,12 @@ export class RuntimeTelemetryAccumulator {
       this.snapshotState = {
         ...this.snapshotState,
         observedAt,
+        runBudget: {
+          maxTotalTokens: integerValue(recordValue(payload.budget)?.maxTotalTokens),
+          ...(this.snapshotState.usage.totalTokens === undefined || integerValue(recordValue(payload.budget)?.maxTotalTokens) === undefined
+            ? {}
+            : { remainingTokens: Math.max(0, integerValue(recordValue(payload.budget)?.maxTotalTokens)! - this.snapshotState.usage.totalTokens) }),
+        },
         turn: {
           ...this.snapshotState.turn,
           status: "running",
@@ -226,6 +246,11 @@ export class RuntimeTelemetryAccumulator {
       const latencyMs = nonNegativeNumber(payload.latencyMs);
       const outputTokens = nonNegativeNumber(payload.outputTokens);
       const providerInputTokens = nonNegativeNumber(payload.inputTokens);
+      const providerOutputTokens = nonNegativeNumber(payload.outputTokens);
+      const providerTotalTokens = nonNegativeNumber(payload.totalTokens);
+      const inputTokensReported = payload.inputTokensReported !== false && providerInputTokens !== undefined;
+      const outputTokensReported = payload.outputTokensReported !== false && providerOutputTokens !== undefined;
+      const totalTokensReported = payload.totalTokensReported !== false && providerTotalTokens !== undefined;
       const reportedBasis = stringValue(payload.contextMeasurementBasis);
       const providerReported = reportedBasis === "provider_reported";
       const usageAnchor = recordValue(payload.contextUsageAnchor);
@@ -264,6 +289,17 @@ export class RuntimeTelemetryAccumulator {
       this.snapshotState = {
         ...this.snapshotState,
         observedAt,
+        usage: cumulativeUsage(this.snapshotState.usage, {
+          inputTokens: inputTokensReported ? providerInputTokens : undefined,
+          outputTokens: outputTokensReported ? providerOutputTokens : undefined,
+          totalTokens: totalTokensReported ? providerTotalTokens : undefined,
+        }),
+        runBudget: this.snapshotState.runBudget.maxTotalTokens === undefined || !totalTokensReported
+          ? this.snapshotState.runBudget
+          : {
+            ...this.snapshotState.runBudget,
+            remainingTokens: Math.max(0, this.snapshotState.runBudget.maxTotalTokens - ((this.snapshotState.usage.totalTokens ?? 0) + providerTotalTokens!)),
+          },
         context: {
           ...this.snapshotState.context,
           ...(canAnchorAfterCompaction && providerInputTokens !== undefined ? { tokens: providerInputTokens } : {}),
@@ -365,6 +401,29 @@ function upsertAttempt(
     : attempts.length - 1;
   if (index < 0) return [...attempts, next];
   return attempts.map((attempt, attemptIndex) => attemptIndex === index ? next : attempt);
+}
+
+function cumulativeUsage(
+  previous: RuntimeTelemetrySnapshot["usage"],
+  next: { inputTokens?: number; outputTokens?: number; totalTokens?: number },
+): RuntimeTelemetrySnapshot["usage"] {
+  const inputTokens = next.inputTokens === undefined ? previous.inputTokens : (previous.inputTokens ?? 0) + next.inputTokens;
+  const outputTokens = next.outputTokens === undefined ? previous.outputTokens : (previous.outputTokens ?? 0) + next.outputTokens;
+  const totalTokens = next.totalTokens === undefined ? previous.totalTokens : (previous.totalTokens ?? 0) + next.totalTokens;
+  const hasInput = inputTokens !== undefined;
+  const hasOutput = outputTokens !== undefined;
+  const hasTotal = totalTokens !== undefined;
+  const basis = hasInput && hasOutput && hasTotal
+    ? "provider_reported"
+    : hasInput || hasOutput || hasTotal
+      ? "partial"
+      : "not_measured";
+  return {
+    ...(inputTokens === undefined ? {} : { inputTokens }),
+    ...(outputTokens === undefined ? {} : { outputTokens }),
+    ...(totalTokens === undefined ? {} : { totalTokens }),
+    basis,
+  };
 }
 
 function rollingStats(samples: readonly ModelSample[]): RuntimeTelemetrySnapshot["rolling"] {

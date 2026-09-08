@@ -475,6 +475,16 @@ export type AgentRuntimeTelemetry = {
     usageAnchorOperationKey?: string;
     latestCompaction?: Record<string, unknown>;
   };
+  usage: {
+    inputTokens?: number;
+    outputTokens?: number;
+    totalTokens?: number;
+    basis: "provider_reported" | "partial" | "not_measured";
+  };
+  runBudget: {
+    maxTotalTokens?: number;
+    remainingTokens?: number;
+  };
   modelAttempt?: {
     status: "queued" | "running" | "streaming" | "completed" | "failed";
     provider?: string;

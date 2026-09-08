@@ -48,6 +48,43 @@ describe("runtime telemetry accumulator", () => {
     expect(snapshot.context).toMatchObject({ basis: "full_estimate", tokens: 240, utilizationPercent: 24 });
   });
 
+  it("keeps current occupancy, cumulative usage, and run budget distinct", () => {
+    const telemetry = new RuntimeTelemetryAccumulator();
+    telemetry.apply({
+      type: "loop.started",
+      payload: { budget: { maxTotalTokens: 500 } },
+      observedAt: "2026-09-07T00:00:00.000Z",
+    });
+    telemetry.apply({
+      type: "context.planned",
+      payload: {
+        decision: "ready",
+        accounting: { estimatedInputTokens: 120, contextWindowTokens: 1_000, capabilitySource: "provider_metadata" },
+        manifest: { schemaVersion: "v1", digest: "manifest-usage", sourceMessageCount: 2, selectedMessageCount: 2, sourceToolCount: 0, selectedToolCount: 0, components: [] },
+      },
+      observedAt: "2026-09-07T00:00:00.100Z",
+    });
+    const snapshot = telemetry.apply({
+      type: "model.completed",
+      payload: {
+        inputTokens: 120,
+        outputTokens: 20,
+        totalTokens: 140,
+        inputTokensReported: true,
+        outputTokensReported: true,
+        totalTokensReported: true,
+        latencyMs: 100,
+        contextMeasurementBasis: "provider_reported",
+      },
+      observedAt: "2026-09-07T00:00:00.200Z",
+    });
+
+    expect(snapshot.context).toMatchObject({ tokens: 120, contextWindowTokens: 1_000, utilizationPercent: 12 });
+    expect(snapshot.usage).toMatchObject({ inputTokens: 120, outputTokens: 20, totalTokens: 140, basis: "provider_reported" });
+    expect(snapshot.runBudget).toMatchObject({ maxTotalTokens: 500, remainingTokens: 360 });
+    expect(snapshot.context.tokens).not.toBe(snapshot.usage.totalTokens);
+  });
+
   it("keeps occupancy unknown through a committed compaction until a provider anchor arrives", () => {
     const telemetry = new RuntimeTelemetryAccumulator();
     telemetry.apply({

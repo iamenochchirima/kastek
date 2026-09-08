@@ -284,7 +284,16 @@ export async function runBoundedAgentLoop(input: AgentLoopInput): Promise<AgentL
   let memoryPreloadedPackConsumed = false;
   const startedAt = Date.now();
   const startedAtIso = new Date(startedAt).toISOString();
-  await emit(input, { type: "loop.started", iteration: 0, payload: { phase: "turn", admittedAt: input.admittedAt ?? startedAtIso, startedAt: startedAtIso } });
+  await emit(input, {
+    type: "loop.started",
+    iteration: 0,
+    payload: {
+      phase: "turn",
+      admittedAt: input.admittedAt ?? startedAtIso,
+      startedAt: startedAtIso,
+      budget: { maxTotalTokens: limits.maxTotalTokens },
+    },
+  });
 
   if (input.resumeApprovedToolCall) {
   try {
@@ -1099,6 +1108,10 @@ export async function runBoundedAgentLoop(input: AgentLoopInput): Promise<AgentL
           ...(lastModelOperationKey ? { operationKey: lastModelOperationKey } : {}),
           inputTokens: response.usage.inputTokens,
           outputTokens: response.usage.outputTokens,
+          totalTokens: response.usage.totalTokens,
+          inputTokensReported: response.usage.inputTokensReported !== false,
+          outputTokensReported: response.usage.outputTokensReported !== false,
+          totalTokensReported: response.usage.inputTokensReported !== false && response.usage.outputTokensReported !== false,
           latencyMs: response.latencyMs,
           ...(completedFirstTokenAt ? { firstTokenAt: completedFirstTokenAt, timeToFirstTokenMs: Math.max(0, Date.parse(completedFirstTokenAt) - (completedModelAttemptStartedAt ?? Date.now())) } : {}),
           completedAt: new Date().toISOString(),
