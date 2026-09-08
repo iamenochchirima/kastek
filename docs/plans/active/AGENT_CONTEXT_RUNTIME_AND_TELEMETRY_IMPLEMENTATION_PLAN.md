@@ -526,7 +526,8 @@ an estimate; the second must show provider-reported usage and a durable anchor.
   margin, capability source, manifest components, latest compaction, attempt history, and reasons.
   Evidence: `RuntimeStatusRow` and `RuntimeTelemetryDetail` in
   `client/apps/client/src/components/dashboard/studio/studio-page.tsx`; the Playground polls the
-  same durable timeline while a run is active.
+  same durable timeline while a run is active. The detail panel also separates current context
+  occupancy from cumulative provider usage and the configured run-token budget.
 - [x] Render unavailable or post-compaction values as unknown. Do not substitute cumulative tokens,
   empty values, or mock values. Evidence: the backend projection preserves
   `unknown_after_compaction`; the client renders missing measurements as `—` and displays the
@@ -607,7 +608,7 @@ has conformance coverage and the real-run proof above.
 | 3. Pressure and compaction | `context-compaction.ts`, `context-planning.ts`, `context-memory-boundary.ts`, `context-attempt-budget.ts`, `context-attempt-budget-repository.ts`, migration 146 | compaction, checkpoint-block, lifecycle telemetry, attempt-budget, transcript-structure, and planner tests | Hermes-adapted wire-only prune pass, protected active task/pairs, candidate validation, summary fallback, pre-loss memory checkpoint, typed outcomes with user remediation, durable PostgreSQL attempt budget, and content-free lifecycle events are covered; durable compaction remains an evidence/checkpoint artifact and no longer supplies an independent model-facing fixed-count projection; full pressure matrix remains | In progress |
 | 4. Durability and recovery | `context-compaction-repository.ts`, `context-compaction.ts` | generation CAS/fence, cancellation, timeout, lifecycle telemetry, worker-loss-after-commit fault injection, and replay tests | durable generation/fence path, shared-journal lifecycle events, typed late-commit rejection, replay after a commit-observation failure, and PostgreSQL replay/fencing are covered; PostgreSQL integration is green (2 tests); the local launcher now defaults to a local Temporal server, while the worker-loss fixture still awaits execution against that server | In progress |
 | 5. Usage and timings | model adapters, `context-usage-anchor.ts`, `runtime-telemetry.ts`, `loop.ts` | adapter, anchor, loop, streaming, compaction telemetry, and turn-clock tests | provider/estimate basis, queue/start/failure timing, first-token event, queue delay, prompt/prefill time-to-first-token, rolling timings, turn admission/waits, replay-safe attempt history, latest compaction lifecycle projection, and monotonic snapshot revision implemented; real provider usage and Playground proof remain | In progress |
-| 6. Projection and Playground | `http/app.ts`, `runtime-telemetry.ts`, client contract, Studio | timeline API and telemetry reducer tests; client lint/build | durable timeline projection/API contract, live timeline polling, compact status row, detail panel, unknown-value rendering, journal-linked graph nodes, snapshot revision display, and responsive Studio layout implemented; real reconnect/manual run proof remains | In progress |
+| 6. Projection and Playground | `http/app.ts`, `runtime-telemetry.ts`, client contract, Studio | timeline API and telemetry reducer tests; client lint/build | durable timeline projection/API contract, live timeline polling, compact status row, detail panel, unknown-value rendering, distinct context/usage/run-budget telemetry, journal-linked graph nodes, snapshot revision display, and responsive Studio layout implemented; real reconnect/manual run proof remains | In progress |
 | Memory coordination seam | `context-memory-boundary.ts`, `context-compaction.ts`, `context-engine.ts`, `loop.ts`, `journal/contracts.ts` | `context-memory-boundary.test.ts`, `context-engine.test.ts`; focused tests, full agents suite, and build | fake/no-op adapter, enforced checkpoint block, explicit failed-plus-blocked events, public-engine boundary forwarding, retrieval-before-manifest, redacted request fields, injected-evidence boundary isolation, and shared journal envelope are green; the production adapter handoff remains pending because the parallel adapter must persist the runtime-provided digest and boundary without recomputing them | In progress |
 | 7. End-to-end certification |  | Full suite and PostgreSQL context-runtime integration | Full suite: 179 files / 1,055 tests passed, 38 files / 111 tests skipped; PostgreSQL context-runtime integration: 2 tests passed; Temporal worker-loss/replay and real Playground proofs remain blocked on local Temporal/manual execution | Pending |
 
@@ -617,7 +618,10 @@ has conformance coverage and the real-run proof above.
 - [x] No model-facing path retains an independent token-limit or compaction decision outside the
   context runtime. Temporal passes the complete durable transcript into the shared provider-aware
   planner, and the loop dispatches the exact output reservation recorded in its manifest.
-- [ ] Context occupancy, run budgets, and cumulative usage remain distinct from storage through UI.
+- [x] Context occupancy, run budgets, and cumulative usage remain distinct from storage through UI.
+  The durable runtime snapshot exposes separate `context`, `usage`, and `runBudget` objects, and
+  the Studio detail panel renders them independently; reducer coverage proves the values cannot be
+  confused by matching token counts.
 - [ ] A long real autonomous Playground run compacts safely and reports its actual measurement basis.
 - [ ] Context overflow recovery is bounded, durable, fenced, and explainable; an unresolvable fit
   produces a typed terminal outcome.
