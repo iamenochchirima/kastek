@@ -156,37 +156,4 @@ export class RetentionRepository {
     return { organizationId, policy: { memoryDays: policy.memory_days, conversationDays: policy.conversation_days, eventDays: policy.event_days, auditDays: policy.audit_days, attachmentDays: policy.attachment_days, revision: policy.revision }, eligible: { memory: Number(memory.rows[0]?.count ?? 0), conversations: Number(conversations.rows[0]?.count ?? 0), events: Number(events.rows[0]?.count ?? 0), attachments: Number(attachments.rows[0]?.count ?? 0) }, activeLegalHolds: Number(holds.rows[0]?.count ?? 0), generatedAt: new Date().toISOString() };
   }
 
-  public async applyMemoryRetention(organizationId: string, actorId: string, limit = 500): Promise<{ expired: number; skippedByHold: number }> {
-    const policy = await this.getPolicy(organizationId);
-    return withTransaction(this.pool, async (client) => {
-      const held = await client.query<{ count: string }>(
-        `SELECT COUNT(*)::text AS count FROM memory_records m
-         WHERE m.organization_id = $1 AND m.status = 'active'
-           AND m.created_at <= now() - make_interval(days => $2::int)
-           AND EXISTS (
-             SELECT 1 FROM agent_legal_holds h
-             WHERE h.organization_id = m.organization_id AND h.status = 'active'
-               AND (h.expires_at IS NULL OR h.expires_at > now())
-               AND ((h.scope_type = 'organization' AND h.scope_id = m.organization_id)
-                 OR (h.scope_type = 'installation' AND h.scope_id = m.installation_id::text)
-                 OR (h.scope_type = 'conversation' AND h.scope_id = m.conversation_id::text))
-           )`,
-        [organizationId, policy.memory_days],
-      );
-      const skippedByHold = Number(held.rows[0]?.count ?? 0);
-      const candidates = await client.query<{ id: string }>(
-        `SELECT m.id::text FROM memory_records m
-         WHERE m.organization_id = $1 AND m.status = 'active' AND m.created_at <= now() - make_interval(days => $2::int)
-           AND NOT EXISTS (SELECT 1 FROM agent_legal_holds h WHERE h.organization_id = m.organization_id AND h.status = 'active' AND (h.expires_at IS NULL OR h.expires_at > now()) AND ((h.scope_type = 'organization' AND h.scope_id = m.organization_id) OR (h.scope_type = 'installation' AND h.scope_id = m.installation_id::text) OR (h.scope_type = 'conversation' AND h.scope_id = m.conversation_id::text)))
-         ORDER BY m.created_at ASC LIMIT $3 FOR UPDATE SKIP LOCKED`,
-        [organizationId, policy.memory_days, Math.max(1, Math.min(limit, 500))],
-      );
-      if (!candidates.rows.length) return { expired: 0, skippedByHold };
-      const ids = candidates.rows.map((row) => row.id);
-      const updated = await client.query("UPDATE memory_records SET status = 'expired', updated_at = now() WHERE id = ANY($1::uuid[])", [ids]);
-      for (const id of ids) await client.query("INSERT INTO memory_deletion_jobs (organization_id, requested_by, target_type, target_id, status) VALUES ($1, $2, 'memory', $3, 'queued')", [organizationId, actorId, id]);
-      await client.query("INSERT INTO audit_records (organization_id, actor_type, actor_id, action, resource_type, resource_id, metadata) VALUES ($1, 'platform_admin', $2, 'retention_policy.applied', 'retention_policy', $1, $3::jsonb)", [organizationId, actorId, JSON.stringify({ expired: updated.rowCount ?? 0, policyRevision: policy.revision })]);
-      return { expired: updated.rowCount ?? 0, skippedByHold };
-    });
-  }
 }
