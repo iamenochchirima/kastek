@@ -394,6 +394,16 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
   const [deploying, setDeploying] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [errorRemediation, setErrorRemediation] = useState<string | null>(null);
+
+  const clearError = () => {
+    setError(null);
+    setErrorRemediation(null);
+  };
+  const showError = (message: string, remediation?: string) => {
+    setError(message);
+    setErrorRemediation(remediation ?? null);
+  };
 
   const selectedVersion = versions.find((version) => version.id === selectedVersionId) ?? versions[0] ?? null;
   const playgroundReady = agent.installation_settings?.environment === "playground";
@@ -421,7 +431,7 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
         if (!cancelled) applyConversation(result);
       })
       .catch((cause) => {
-        if (!cancelled) setError(cause instanceof Error ? cause.message : "Unable to load Playground conversation");
+        if (!cancelled) showError(cause instanceof Error ? cause.message : "Unable to load Playground conversation");
       })
       .finally(() => {
         if (!cancelled) setConversationLoading(false);
@@ -444,7 +454,7 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
         setInstructions(preferred?.instructions ?? "");
       })
       .catch((cause) => {
-        if (!cancelled) setError(cause instanceof Error ? cause.message : "Unable to load agent versions");
+        if (!cancelled) showError(cause instanceof Error ? cause.message : "Unable to load agent versions");
       })
       .finally(() => {
         if (!cancelled) setLoadingVersions(false);
@@ -494,17 +504,17 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
 
   const runAgent = async () => {
     if (!agent.installation_id) {
-      setError("This agent is not installed yet.");
+      showError("This agent is not installed yet.");
       return;
     }
     if (agent.installation_settings?.environment !== "playground") {
-      setError("This agent has no isolated Playground installation.");
+      showError("This agent has no isolated Playground installation.");
       return;
     }
     const message = input.trim();
     if (!message || running || conversationLoading) return;
     setRunning(true);
-    setError(null);
+    clearError();
     setNotice(null);
     setSelectedNodeId(null);
     setTrace([{ id: "input", event: "run.received", label: "Input", detail: message, status: "running", sequence: 0, data: { message } }]);
@@ -541,12 +551,16 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
       if (result.run.status === "cancelled") {
         setNotice("Run cancelled");
       } else if (terminalStatuses.has(result.run.status) && result.run.status !== "completed") {
-        throw new Error(result.run.error?.userMessage || result.run.error?.message || `Run ${result.run.status}`);
+        const runError = result.run.error;
+        throw Object.assign(new Error(runError?.userMessage || runError?.message || `Run ${result.run.status}`), {
+          remediation: typeof runError?.remediation === "string" ? runError.remediation : undefined,
+        });
       } else {
         setNotice(`Run ${result.run.status}`);
       }
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Agent run failed");
+      const remediation = cause instanceof Error && "remediation" in cause && typeof cause.remediation === "string" ? cause.remediation : undefined;
+      showError(cause instanceof Error ? cause.message : "Agent run failed", remediation);
       setTrace((current) => current.map((node) => node.status === "running" ? { ...node, status: "error" } : node));
     } finally {
       setRunning(false);
@@ -558,20 +572,20 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
   const cancelRun = async () => {
     if (!activeRunId || cancelling) return;
     setCancelling(true);
-    setError(null);
+    clearError();
     try {
       await cancelAgentRun(activeRunId, "Cancelled from Playground");
       setNotice("Cancellation requested");
     } catch (cause) {
       setCancelling(false);
-      setError(cause instanceof Error ? cause.message : "Unable to cancel run");
+      showError(cause instanceof Error ? cause.message : "Unable to cancel run");
     }
   };
 
   const installPlayground = async () => {
     if (!agent.protected || installingPlayground) return;
     setInstallingPlayground(true);
-    setError(null);
+    clearError();
     setNotice(null);
     try {
       const installation = await ensureKasiAiPlayground();
@@ -580,14 +594,14 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
       }
       router.push(`/playground?agent=${encodeURIComponent(agent.id)}`);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Unable to install Playground");
+      showError(cause instanceof Error ? cause.message : "Unable to install Playground");
       setInstallingPlayground(false);
     }
   };
 
   const saveDraft = async () => {
     setSaving(true);
-    setError(null);
+    clearError();
     setNotice(null);
     try {
       const configuredSpec = selectedVersion?.configuration?.agentSpec;
@@ -606,7 +620,7 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
       setSelectedVersionId(next.id);
       setNotice("Draft saved");
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Unable to save draft");
+      showError(cause instanceof Error ? cause.message : "Unable to save draft");
     } finally {
       setSaving(false);
     }
@@ -615,7 +629,7 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
   const deploy = async () => {
     if (!selectedVersion) return;
     setDeploying(true);
-    setError(null);
+    clearError();
     setNotice(null);
     try {
       const published = selectedVersion.status === "published" ? selectedVersion : await publishAgentVersion(agent.id, selectedVersion.id);
@@ -623,7 +637,7 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
       setVersions((current) => current.map((version) => version.id === published.id ? published : version));
       setNotice(surface === "playground" ? "Playground updated" : "Installation updated");
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Unable to deploy version");
+      showError(cause instanceof Error ? cause.message : "Unable to deploy version");
     } finally {
       setDeploying(false);
     }
@@ -657,7 +671,7 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
               {conversationLoading ? <div className="flex h-full min-h-48 items-center justify-center text-xs text-muted-foreground"><LoaderCircle className="mr-2 size-4 animate-spin" />Loading conversation</div> : messages.length ? messages.map((message) => <div key={message.id} className={cn("flex", message.direction === "user" ? "justify-end" : "justify-start")}><div className={cn("max-w-[88%] rounded-2xl px-3.5 py-2.5 text-sm leading-5", message.direction === "user" ? "rounded-br-md bg-primary text-primary-foreground" : message.direction === "system" ? "border border-border bg-muted/50 text-muted-foreground" : "rounded-bl-md bg-muted text-foreground")}>{message.text}</div></div>) : <div className="flex h-full min-h-48 flex-col items-center justify-center px-5 text-center"><MessageCircle className="size-5 text-muted-foreground" /><p className="mt-3 text-sm font-medium text-foreground">Start a conversation</p><p className="mt-1 text-xs text-muted-foreground">Send a message to run this agent.</p></div>}
               {running ? <div className="flex justify-start"><div className="inline-flex items-center gap-2 rounded-2xl rounded-bl-md bg-muted px-3.5 py-2.5 text-xs text-muted-foreground"><LoaderCircle className="size-3.5 animate-spin" />Agent is running</div></div> : null}
             </div>
-            {error ? <div className="mx-4 mb-3 flex items-start justify-between gap-3 rounded-lg border border-destructive/20 bg-destructive/10 px-3 py-2 text-xs text-destructive" role="alert"><span>{error}</span><button type="button" aria-label="Dismiss error" onClick={() => setError(null)}><X className="size-4 shrink-0" /></button></div> : null}
+            {error ? <div className="mx-4 mb-3 flex items-start justify-between gap-3 rounded-lg border border-destructive/20 bg-destructive/10 px-3 py-2 text-xs text-destructive" role="alert"><div><p>{error}</p>{errorRemediation ? <p className="mt-1 text-destructive/80">{errorRemediation}</p> : null}</div><button type="button" aria-label="Dismiss error" onClick={clearError}><X className="size-4 shrink-0" /></button></div> : null}
             {notice ? <div className="mx-4 mb-3 flex items-center gap-2 rounded-lg border border-emerald-500/20 bg-emerald-500/5 px-3 py-2 text-xs text-emerald-700 dark:text-emerald-300"><Check className="size-3.5" />{notice}</div> : null}
             <form className="border-t border-border p-3" onSubmit={(event) => { event.preventDefault(); void runAgent(); }}>
               <div className="flex items-end gap-2 rounded-xl border border-border bg-background p-2 focus-within:border-primary"><Textarea value={input} onChange={(event) => setInput(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void runAgent(); } }} placeholder={surface === "playground" ? "Message this agent…" : "Open Playground to run"} disabled={surface !== "playground" || !playgroundReady || conversationLoading || running} rows={2} className="min-h-12 resize-none border-0 bg-transparent p-1.5 text-sm shadow-none focus-visible:ring-0" aria-label="Message agent" /><Button type="submit" size="icon" className="size-9 shrink-0 rounded-lg" disabled={surface !== "playground" || !playgroundReady || conversationLoading || running || !input.trim()} aria-label="Send message"><Send className="size-4" /></Button></div>
