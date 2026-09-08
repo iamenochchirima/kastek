@@ -30,7 +30,16 @@ function IntegrationLogo({ integration }: { integration: AgentIntegration }) {
   };
   const ChannelIcon = integration.channelType ? channelIcons[integration.channelType] : undefined;
   if (ChannelIcon) {
-    return <span className="grid h-9 w-9 place-items-center rounded-lg bg-primary/10 text-primary"><ChannelIcon className="h-4 w-4" /></span>;
+    const channelColor = integration.channelType === "whatsapp"
+      ? "text-[#25D366]"
+      : integration.channelType === "telegram"
+        ? "text-[#229ED9]"
+        : integration.channelType === "discord"
+          ? "text-[#5865F2]"
+          : integration.channelType === "facebook"
+            ? "text-[#0084FF]"
+            : "text-[#E4405F]";
+    return <span className="grid h-9 w-9 place-items-center rounded-lg bg-secondary"><ChannelIcon className={`h-4 w-4 ${channelColor}`} /></span>;
   }
   const fallback = integration.id === "internal.calendar" ? <CalendarDays className="h-5 w-5" /> : integration.id === "tavily.search" ? <Search className="h-5 w-5" /> : integration.id === "opentelemetry" ? <Activity className="h-5 w-5" /> : <Link2 className="h-5 w-5" />;
   if (integration.logo === "google-calendar" || integration.logo === "apple" || integration.logo === "tavily") {
@@ -168,14 +177,14 @@ export function AgentToolIntegrations({ installationId, embedded = false, refres
     <div className="relative max-w-sm"><Search className="pointer-events-none absolute left-3 top-1/2 z-10 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" /><Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={channelsOnly ? "Search gateways" : "Search connectors"} className="h-9 pl-9 text-xs" /></div>
     {error ? <p className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive" role="alert">{error}</p> : null}
     {loading ? <div className="grid gap-2 sm:grid-cols-2"><div className="h-24 animate-pulse rounded-xl border border-border bg-secondary/30" /><div className="h-24 animate-pulse rounded-xl border border-border bg-secondary/30" /></div> : null}
-    {!loading && visibleIntegrations.length ? <div className="grid gap-2 md:grid-cols-2">
+    {!loading && visibleIntegrations.length ? <div className={`grid gap-2 ${channelsOnly ? "md:grid-cols-3" : "md:grid-cols-2"}`}>
         {visibleIntegrations.map((integration) => {
           const connected = isConnected(integration);
           const pending = busyIntegration === integration.id;
           const canConfigure = integration.kind !== "channel" && integration.configurable && integration.auth !== "observability";
           return <Card key={integration.id} className="gap-0 border-border bg-card transition-colors hover:border-primary/30">
-            <CardContent className="flex min-h-[84px] items-center gap-3 p-2.5">
-              <IntegrationLogo integration={integration} /><div className="min-w-0 flex-1"><h4 className="truncate text-sm font-semibold leading-5 text-foreground">{integration.name}</h4><p className="mt-0.5 line-clamp-2 text-xs leading-4 text-muted-foreground">{integration.description}</p></div><div className="flex shrink-0 flex-col items-end gap-1.5"><span className="inline-flex items-center gap-1.5 text-[11px] leading-4 text-muted-foreground"><span className={`h-1.5 w-1.5 rounded-full ${connected ? "bg-status-success" : "bg-muted-foreground/50"}`} />{statusLabel(integration)}</span>
+            <CardContent className={`flex min-h-[84px] items-center gap-3 p-2.5 ${channelsOnly ? "md:min-h-[104px] md:flex-col md:items-start" : ""}`}>
+              <div className="flex min-w-0 flex-1 items-center gap-3"><IntegrationLogo integration={integration} /><div className="min-w-0 flex-1"><h4 className="truncate text-sm font-semibold leading-5 text-foreground">{integration.name}</h4><p className="mt-0.5 line-clamp-2 text-xs leading-4 text-muted-foreground">{integration.description}</p></div></div><div className={`flex shrink-0 items-center gap-2 ${channelsOnly ? "w-full justify-between" : "flex-col items-end"}`}><span className="inline-flex items-center gap-1.5 text-[11px] leading-4 text-muted-foreground"><span className={`h-1.5 w-1.5 rounded-full ${connected ? "bg-status-success" : "bg-muted-foreground/50"}`} />{statusLabel(integration)}</span>
                 {integration.kind === "channel" ? <Button type="button" size="sm" onClick={() => onChannelAction?.(integration)} disabled={pending || !onChannelAction}>{pending ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : null}{connected ? "Manage" : "Connect"}</Button> : null}
                 {integration.kind !== "channel" && connected && integration.auth !== "internal" ? <Button type="button" size="sm" variant="ghost" onClick={() => setDisconnecting(integration)} disabled={pending}><Unplug className="h-3.5 w-3.5" />Disconnect</Button> : null}
                 {integration.id === "google.calendar" && !connected ? <Button type="button" size="sm" onClick={() => void connectGoogle()} disabled={pending}>{pending ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : null}Connect</Button> : null}
