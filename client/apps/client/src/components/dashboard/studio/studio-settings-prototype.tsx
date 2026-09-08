@@ -4,6 +4,7 @@
 // capabilities without making users learn plugin or MCP terminology?
 
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
+import Image from "next/image";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   Activity,
@@ -43,6 +44,7 @@ import {
   getAgentInstallationReadiness,
   healthCheckAgentMcpProvider,
   listAgentCapabilities,
+  listAgentCapabilityDirectory,
   listAgentExtensionPackages,
   listAgentInstallationCapabilities,
   listAgentInstallationIntegrations,
@@ -56,6 +58,8 @@ import {
   pinAgentSkillVersion,
   publishAgentMcpProviderVersion,
   type AgentCapability,
+  type AgentCapabilityDirectoryEntry,
+  type AgentCapabilityToolset,
   type AgentDefinition,
   type AgentExtensionPackage,
   type AgentIntegration,
@@ -328,7 +332,7 @@ function SettingsContent({
 }) {
   const title = sections.find((item) => item.id === section)?.label ?? "Settings";
   const description = sections.find((item) => item.id === section)?.description ?? "";
-  return <div className="mx-auto max-w-4xl px-5 py-6 pb-24 sm:px-8 sm:py-8"><div className="mb-7 flex items-start justify-between gap-4"><div><p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Agent settings</p><h3 className="mt-2 text-2xl font-semibold tracking-[-0.03em] text-foreground">{title}</h3><p className="mt-1 text-sm text-muted-foreground">{description}</p></div><span className="hidden items-center gap-1.5 rounded-full border border-border px-2.5 py-1 text-[10px] text-muted-foreground sm:inline-flex"><span className="size-1.5 rounded-full bg-amber-500" />Draft</span></div>{capabilitySaveError ? <div className="mb-4 rounded-xl border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">{capabilitySaveError}</div> : null}{section === "overview" ? <OverviewSection agent={agent} version={version} instructions={instructions} setInstructions={setInstructions} selectedModel={selectedModel} pickerModels={pickerModels} modelCatalog={modelCatalog} modelCatalogLoading={modelCatalogLoading} effectiveSelection={effectiveSelection} setModelSelection={setModelSelection} /> : null}{section === "capabilities" ? <CapabilitiesSection installationId={installationId} versionId={version?.id ?? null} draft={capabilityDraft} onDraftChange={setCapabilityDraft} /> : null}{section === "memory" ? <MemorySection /> : null}{section === "connections" ? <ConnectionsSection /> : null}{section === "safety" ? <SafetySection /> : null}{section === "runtime" ? <RuntimeSection selectedModel={selectedModel} /> : null}<div className="mt-8 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-5"><p className="text-[11px] text-muted-foreground">Changes apply to the next Playground version.</p><div className="flex items-center gap-2"><Button type="button" variant="outline" size="sm" onClick={() => setSection("overview")}><ArrowLeft className="mr-1.5 size-3.5" />Overview</Button><Button type="button" size="sm" onClick={onSave} disabled={saving}>{saving ? <Clock3 className="mr-1.5 size-3.5 animate-pulse" /> : <Save className="mr-1.5 size-3.5" />}{saving ? "Saving…" : "Save draft"}</Button></div></div></div>;
+  return <div className="mx-auto max-w-4xl px-5 py-6 pb-24 sm:px-8 sm:py-8"><div className="mb-7 flex items-start justify-between gap-4"><div><p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Agent settings</p><h3 className="mt-2 text-2xl font-semibold tracking-[-0.03em] text-foreground">{title}</h3><p className="mt-1 text-sm text-muted-foreground">{description}</p></div><span className="hidden items-center gap-1.5 rounded-full border border-border px-2.5 py-1 text-[10px] text-muted-foreground sm:inline-flex"><span className="size-1.5 rounded-full bg-amber-500" />Draft</span></div>{capabilitySaveError ? <div className="mb-4 rounded-xl border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">{capabilitySaveError}</div> : null}{section === "overview" ? <OverviewSection agent={agent} version={version} instructions={instructions} setInstructions={setInstructions} selectedModel={selectedModel} pickerModels={pickerModels} modelCatalog={modelCatalog} modelCatalogLoading={modelCatalogLoading} effectiveSelection={effectiveSelection} setModelSelection={setModelSelection} /> : null}{section === "capabilities" ? <CapabilitiesSection installationId={installationId} versionId={version?.id ?? null} draft={capabilityDraft} onDraftChange={setCapabilityDraft} /> : null}{section === "memory" ? <MemorySection /> : null}{section === "connections" ? <ConnectionsSection installationId={installationId} /> : null}{section === "safety" ? <SafetySection /> : null}{section === "runtime" ? <RuntimeSection selectedModel={selectedModel} /> : null}<div className="mt-8 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-5"><p className="text-[11px] text-muted-foreground">Changes apply to the next Playground version.</p><div className="flex items-center gap-2"><Button type="button" variant="outline" size="sm" onClick={() => setSection("overview")}><ArrowLeft className="mr-1.5 size-3.5" />Overview</Button><Button type="button" size="sm" onClick={onSave} disabled={saving}>{saving ? <Clock3 className="mr-1.5 size-3.5 animate-pulse" /> : <Save className="mr-1.5 size-3.5" />}{saving ? "Saving…" : "Save draft"}</Button></div></div></div>;
 }
 
 function OverviewSection({ agent, version, instructions, setInstructions, selectedModel, pickerModels, modelCatalog, modelCatalogLoading, effectiveSelection, setModelSelection }: { agent: AgentDefinition; version: AgentVersion | null; instructions: string; setInstructions: (value: string) => void; selectedModel?: AgentModel; pickerModels: AgentModel[]; modelCatalog: AgentModelCatalog | null; modelCatalogLoading: boolean; effectiveSelection: ModelSelection | null; setModelSelection: (value: ModelSelection | null) => void }) {
@@ -338,14 +342,16 @@ function OverviewSection({ agent, version, instructions, setInstructions, select
 const capabilityTabs = [
   { id: "tools", label: "Tools" },
   { id: "skills", label: "Skills" },
-  { id: "connectors", label: "Connectors" },
   { id: "plugins", label: "Plugins" },
   { id: "mcp", label: "MCP" },
+  { id: "user_tools", label: "User tools" },
 ] as const;
 
 type CapabilityTab = (typeof capabilityTabs)[number]["id"];
 
 type CapabilityData = {
+  directory: AgentCapabilityDirectoryEntry[];
+  toolsets: AgentCapabilityToolset[];
   catalog: AgentCapability[];
   installation: AgentCapability[];
   readiness: AgentReadiness | null;
@@ -359,6 +365,8 @@ type CapabilityData = {
 };
 
 const emptyCapabilityData: CapabilityData = {
+  directory: [],
+  toolsets: [],
   catalog: [],
   installation: [],
   readiness: null,
@@ -372,7 +380,8 @@ const emptyCapabilityData: CapabilityData = {
 };
 
 async function loadCapabilityData(installationId: string | null, versionId: string | null): Promise<CapabilityData> {
-  const [catalogResult, packagesResult, skillsResult, providersResult, installationResult, readinessResult, integrationsResult, pinnedSkillsResult, pinnedMcpResult] = await Promise.all([
+  const [directoryResult, catalogResult, packagesResult, skillsResult, providersResult, installationResult, readinessResult, integrationsResult, pinnedSkillsResult, pinnedMcpResult] = await Promise.all([
+    listAgentCapabilityDirectory(),
     listAgentCapabilities().catch(() => ({ capabilities: [] })),
     listAgentExtensionPackages().catch(() => ({ packages: [] })),
     listAgentSkills().catch(() => ({ skills: [] })),
@@ -388,6 +397,8 @@ async function loadCapabilityData(installationId: string | null, versionId: stri
     return [provider.id, result.versions] as const;
   }));
   return {
+    directory: directoryResult.directory,
+    toolsets: directoryResult.toolsets,
     catalog: catalogResult.capabilities,
     extensionPackages: packagesResult.packages,
     installation: installationResult.capabilities,
@@ -435,20 +446,19 @@ function CapabilitiesSection({ installationId, versionId, draft, onDraftChange }
     setError(null);
     setRefreshKey((current) => current + 1);
   };
-  const tools = data.installation.length ? data.installation : data.catalog;
-  const connectedConnectors = data.integrations.filter((integration) => integration.kind === "tool" && integration.status === "connected").length;
-  const enabledSkillIds = new Set(draft.allowedSkillIds);
-  const enabledMcpIds = new Set(draft.mcpProviderVersionIds);
   const plugins = data.extensionPackages.filter((pkg) => pkg.status === "published" && pkg.kind === "plugin");
-  const publishedSkills = data.skills.filter((skill) => skill.status === "published");
+  const directoryTools = data.directory.filter((entry) => ["builtin_tool", "connector_tool", "plugin_tool", "mcp_tool", "user_tool"].includes(entry.kind));
+  const directorySkills = data.directory.filter((entry) => entry.kind === "skill");
+  const directoryPlugins = data.directory.filter((entry) => entry.kind === "plugin");
+  const directoryMcpServers = data.directory.filter((entry) => entry.kind === "mcp_server");
+  const directoryUserTools = data.directory.filter((entry) => entry.kind === "user_tool");
   const tabCount = (tab: CapabilityTab) => {
     if (loading) return "…";
-    if (tab === "tools") return String(tools.length);
-    if (tab === "skills") return String(enabledSkillIds.size);
-    if (tab === "connectors") return String(connectedConnectors);
-    if (tab === "plugins") return String(draft.extensionPackages.length);
-    if (tab === "mcp") return String(enabledMcpIds.size);
-    return String(publishedSkills.length);
+    if (tab === "tools") return String(directoryTools.length);
+    if (tab === "skills") return String(directorySkills.length);
+    if (tab === "plugins") return String(directoryPlugins.length);
+    if (tab === "mcp") return String(directoryMcpServers.length);
+    return String(directoryUserTools.length);
   };
   const activeTabLabel = capabilityTabs.find((tab) => tab.id === activeTab)?.label ?? "Tools";
 
@@ -461,7 +471,7 @@ function CapabilitiesSection({ installationId, versionId, draft, onDraftChange }
       </TabsList>
       <TabsContent value={activeTab} className="rounded-2xl border border-border bg-card p-4 shadow-sm sm:p-5">
         <div className="mb-4 flex items-center justify-between gap-3"><div><p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Capabilities</p><h4 className="mt-1 text-sm font-semibold text-foreground">{activeTabLabel}</h4></div>{loading ? <span className="text-[11px] text-muted-foreground">Loading…</span> : null}</div>
-        {activeTab === "tools" ? <ToolsPanel tools={tools} draft={draft} onDraftChange={onDraftChange} /> : null}{activeTab === "skills" ? <SkillsPanel skills={data.skills} pinnedSkills={data.pinnedSkills} draft={draft} onDraftChange={onDraftChange} /> : null}{activeTab === "connectors" ? <ConnectorsPanel installationId={installationId} refreshKey={refreshKey} /> : null}{activeTab === "plugins" ? <PluginsPanel packages={plugins} draft={draft} onDraftChange={onDraftChange} /> : null}{activeTab === "mcp" ? <McpPanel providers={data.mcpProviders} pinnedProviders={data.pinnedMcpProviders} versions={data.mcpVersions} draft={draft} onDraftChange={onDraftChange} onRefresh={refresh} /> : null}
+        {activeTab === "tools" ? <ToolsPanel tools={directoryTools} toolsets={data.toolsets} draft={draft} onDraftChange={onDraftChange} /> : null}{activeTab === "skills" ? <SkillsPanel directory={directorySkills} skills={data.skills} pinnedSkills={data.pinnedSkills} draft={draft} onDraftChange={onDraftChange} /> : null}{activeTab === "plugins" ? <PluginsPanel directory={directoryPlugins} packages={plugins} draft={draft} onDraftChange={onDraftChange} /> : null}{activeTab === "mcp" ? <McpPanel directory={directoryMcpServers} providers={data.mcpProviders} pinnedProviders={data.pinnedMcpProviders} versions={data.mcpVersions} draft={draft} onDraftChange={onDraftChange} onRefresh={refresh} /> : null}{activeTab === "user_tools" ? <UserToolsPanel tools={directoryUserTools} draft={draft} onDraftChange={onDraftChange} /> : null}
       </TabsContent>
     </Tabs>
     <details className="rounded-2xl border border-border bg-card p-4"><summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-sm font-medium text-foreground"><span className="flex items-center gap-2"><Eye className="size-4 text-muted-foreground" />Advanced source details</span><ChevronDown className="size-4 text-muted-foreground" /></summary><p className="mt-3 max-w-2xl text-xs leading-5 text-muted-foreground">Technical package versions, MCP endpoints, discovered tool schemas, checksums, and provider health stay available here when debugging.</p></details>
@@ -482,7 +492,10 @@ function directoryTone(label: string) {
   return directoryTones[index];
 }
 
-function DirectoryIcon({ label, icon }: { label: string; icon: ReactNode }) {
+function DirectoryIcon({ label, icon, logo }: { label: string; icon: ReactNode; logo?: string }) {
+  if (["google-calendar", "apple", "tavily"].includes(logo ?? "")) {
+    return <span className="grid size-11 shrink-0 place-items-center rounded-xl border border-border bg-background"><Image src={`/images/integrations/${logo}.svg`} alt="" width={32} height={32} className="size-8 rounded-lg" /></span>;
+  }
   return <span className={cn("grid size-11 shrink-0 place-items-center rounded-xl", directoryTone(label))}>{icon}</span>;
 }
 
@@ -490,11 +503,11 @@ function DirectorySearch({ value, onChange, placeholder }: { value: string; onCh
   return <label className="relative block w-full sm:max-w-xs"><Search className="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" /><input value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} className="h-9 w-full rounded-lg border border-border bg-background pl-9 pr-3 text-xs text-foreground outline-none placeholder:text-muted-foreground focus:border-primary" /></label>;
 }
 
-function ToolsPanel({ tools, draft, onDraftChange }: { tools: AgentCapability[]; draft: StudioCapabilityDraft; onDraftChange: (value: StudioCapabilityDraft | ((current: StudioCapabilityDraft) => StudioCapabilityDraft)) => void }) {
+function ToolsPanel({ tools, toolsets, draft, onDraftChange }: { tools: AgentCapabilityDirectoryEntry[]; toolsets: AgentCapabilityToolset[]; draft: StudioCapabilityDraft; onDraftChange: (value: StudioCapabilityDraft | ((current: StudioCapabilityDraft) => StudioCapabilityDraft)) => void }) {
   const [query, setQuery] = useState("");
-  const allNames = tools.map((tool) => tool.name);
+  const allNames = tools.filter((tool) => tool.kind === "builtin_tool" || tool.kind === "connector_tool").map((tool) => tool.id);
   const selectedNames = new Set(draft.allowedTools.length ? draft.allowedTools : allNames);
-  const filteredTools = tools.filter((tool) => `${tool.name} ${tool.description}`.toLowerCase().includes(query.trim().toLowerCase()));
+  const filteredTools = tools.filter((tool) => `${tool.id} ${tool.name} ${tool.description} ${tool.tags.join(" ")}`.toLowerCase().includes(query.trim().toLowerCase()));
   const toggle = (name: string) => {
     onDraftChange((current) => {
       const selected = new Set(current.allowedTools.length ? current.allowedTools : allNames);
@@ -504,15 +517,10 @@ function ToolsPanel({ tools, draft, onDraftChange }: { tools: AgentCapability[];
     });
   };
   if (!tools.length) return <p className="text-xs text-muted-foreground">No workspace tools are available for this installation.</p>;
-  return <div className="space-y-4"><div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><p className="text-xs text-muted-foreground">Platform-managed actions available to this agent.</p><DirectorySearch value={query} onChange={setQuery} placeholder="Search tools" /></div><div className="grid gap-3 sm:grid-cols-2">{filteredTools.map((tool) => { const selected = selectedNames.has(tool.name); return <label key={`${tool.name}:${tool.version}`} className="group flex cursor-pointer items-center gap-3 rounded-xl border border-border p-3 transition-colors hover:border-primary/40 hover:bg-muted/20"><input type="checkbox" checked={selected} onChange={() => toggle(tool.name)} className="sr-only" /><DirectoryIcon label={tool.name} icon={<Wrench className="size-5" />} /><span className="min-w-0 flex-1"><span className="flex flex-wrap items-center gap-2 text-xs font-medium text-foreground"><span className="truncate">{tool.name}</span>{tool.requiresApproval ? <span className="rounded-full bg-amber-500/10 px-1.5 py-0.5 text-[10px] text-amber-700 dark:text-amber-300">Approval</span> : null}</span><span className="mt-1 block line-clamp-2 text-[11px] leading-4 text-muted-foreground">{tool.description || "No description"}</span></span><span className={cn("grid size-7 shrink-0 place-items-center rounded-lg", selected ? "bg-emerald-500/15 text-emerald-400" : "bg-muted text-muted-foreground")}>{selected ? <Check className="size-4" /> : <Plus className="size-4" />}</span></label>; })}</div>{!filteredTools.length ? <p className="rounded-xl border border-dashed border-border px-3 py-5 text-center text-xs text-muted-foreground">No tools match this search.</p> : null}</div>;
+  return <div className="space-y-4"><div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><p className="text-xs text-muted-foreground">All executable tools discovered by the platform registry.</p><DirectorySearch value={query} onChange={setQuery} placeholder="Search tools" /></div>{toolsets.length ? <div className="flex flex-wrap gap-1.5">{toolsets.slice(0, 12).map((toolset) => <span key={`${toolset.id}:${toolset.version}`} className="rounded-full border border-border bg-muted/30 px-2 py-1 text-[10px] text-muted-foreground">{toolset.name} · {toolset.capabilityIds.length}</span>)}{toolsets.length > 12 ? <span className="rounded-full border border-border bg-muted/30 px-2 py-1 text-[10px] text-muted-foreground">+{toolsets.length - 12} toolsets</span> : null}</div> : null}<div className="grid gap-3 sm:grid-cols-2">{filteredTools.map((tool) => { const grantable = tool.kind === "builtin_tool" || tool.kind === "connector_tool"; const selected = selectedNames.has(tool.id); const sourceLabel = tool.kind.replaceAll("_", " "); return <label key={`${tool.id}:${tool.version}`} className={cn("group flex items-center gap-3 rounded-xl border border-border p-3 transition-colors", grantable ? "cursor-pointer hover:border-primary/40 hover:bg-muted/20" : "cursor-default opacity-75")}><input type="checkbox" checked={selected} onChange={() => grantable && toggle(tool.id)} disabled={!grantable} className="sr-only" /><DirectoryIcon label={tool.name} logo={tool.logo} icon={tool.kind === "mcp_tool" ? <PlugZap className="size-5" /> : tool.kind === "plugin_tool" ? <Puzzle className="size-5" /> : tool.kind === "user_tool" ? <Bot className="size-5" /> : <Wrench className="size-5" />} /><span className="min-w-0 flex-1"><span className="flex flex-wrap items-center gap-2 text-xs font-medium text-foreground"><span className="truncate">{tool.name}</span>{tool.runtime.requiresApproval ? <span className="rounded-full bg-amber-500/10 px-1.5 py-0.5 text-[10px] text-amber-700 dark:text-amber-300">Approval</span> : null}</span><span className="mt-1 block line-clamp-2 text-[11px] leading-4 text-muted-foreground">{tool.description || "No description"}</span><span className="mt-1 block text-[10px] capitalize text-muted-foreground/70">{sourceLabel} · v{tool.version}</span></span><span className={cn("grid size-7 shrink-0 place-items-center rounded-lg", !grantable ? "bg-muted text-muted-foreground" : selected ? "bg-emerald-500/15 text-emerald-400" : "bg-muted text-muted-foreground")}>{!grantable ? <LockKeyhole className="size-3.5" /> : selected ? <Check className="size-4" /> : <Plus className="size-4" />}</span></label>; })}</div>{!filteredTools.length ? <p className="rounded-xl border border-dashed border-border px-3 py-5 text-center text-xs text-muted-foreground">No tools match this search.</p> : null}</div>;
 }
 
-function ConnectorsPanel({ installationId, refreshKey }: { installationId: string | null; refreshKey: number }) {
-  if (!installationId) return <p className="text-xs text-muted-foreground">Install this agent in Playground before connecting services.</p>;
-  return <AgentToolIntegrations installationId={installationId} embedded refreshKey={String(refreshKey)} />;
-}
-
-function SkillsPanel({ skills, pinnedSkills, draft, onDraftChange }: { skills: AgentSkill[]; pinnedSkills: AgentSkillVersion[]; draft: StudioCapabilityDraft; onDraftChange: (value: StudioCapabilityDraft | ((current: StudioCapabilityDraft) => StudioCapabilityDraft)) => void }) {
+function SkillsPanel({ directory, skills, pinnedSkills, draft, onDraftChange }: { directory: AgentCapabilityDirectoryEntry[]; skills: AgentSkill[]; pinnedSkills: AgentSkillVersion[]; draft: StudioCapabilityDraft; onDraftChange: (value: StudioCapabilityDraft | ((current: StudioCapabilityDraft) => StudioCapabilityDraft)) => void }) {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [draftVersions, setDraftVersions] = useState<Record<string, string>>({});
   const [query, setQuery] = useState("");
@@ -536,9 +544,10 @@ function SkillsPanel({ skills, pinnedSkills, draft, onDraftChange }: { skills: A
       setBusyId(null);
     }
   };
-  const publishedSkills = skills.filter((skill) => skill.status === "published");
+  const directorySkillNames = new Set(directory.map((entry) => entry.name));
+  const publishedSkills = skills.filter((skill) => skill.status === "published" && (!directory.length || directorySkillNames.has(skill.name)));
   const filteredSkills = publishedSkills.filter((skill) => `${skill.name} ${skill.slug} ${skill.description ?? ""}`.toLowerCase().includes(query.trim().toLowerCase()));
-  return <div className="space-y-4"><div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><p className="text-xs text-muted-foreground">Versioned instructions and behaviors pinned to this draft.</p><DirectorySearch value={query} onChange={setQuery} placeholder="Search skills" /></div>{filteredSkills.length ? <div className="grid gap-3 sm:grid-cols-2">{filteredSkills.map((skill) => { const enabled = selected.has(skill.id); return <div key={skill.id} className="flex items-center gap-3 rounded-xl border border-border p-3 transition-colors hover:border-primary/40"><DirectoryIcon label={skill.name} icon={<Sparkles className="size-5" />} /><div className="min-w-0 flex-1"><p className="truncate text-xs font-medium text-foreground">{skill.name}</p><p className="mt-1 line-clamp-2 text-[11px] leading-4 text-muted-foreground">{skill.description || skill.slug}</p></div><Button type="button" variant={enabled ? "default" : "outline"} size="icon" className="size-8 shrink-0" aria-label={enabled ? `Disable ${skill.name}` : `Enable ${skill.name}`} onClick={() => void toggle(skill)} disabled={busyId === skill.id}>{busyId === skill.id ? <Clock3 className="size-3.5 animate-pulse" /> : enabled ? <Check className="size-4" /> : <Plus className="size-4" />}</Button></div>; })}</div> : <p className="rounded-xl border border-dashed border-border px-3 py-5 text-center text-xs text-muted-foreground">{publishedSkills.length ? "No skills match this search." : "No published skills are available."}</p>}</div>;
+  return <div className="space-y-4"><div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><p className="text-xs text-muted-foreground">{directory.length} published skill version{directory.length === 1 ? "" : "s"} discovered from the registry.</p><DirectorySearch value={query} onChange={setQuery} placeholder="Search skills" /></div>{filteredSkills.length ? <div className="grid gap-3 sm:grid-cols-2">{filteredSkills.map((skill) => { const enabled = selected.has(skill.id); const directoryEntry = directory.find((entry) => entry.name === skill.name); return <div key={skill.id} className="flex items-center gap-3 rounded-xl border border-border p-3 transition-colors hover:border-primary/40"><DirectoryIcon label={skill.name} logo={directoryEntry?.logo} icon={<Sparkles className="size-5" />} /><div className="min-w-0 flex-1"><p className="truncate text-xs font-medium text-foreground">{skill.name}</p><p className="mt-1 line-clamp-2 text-[11px] leading-4 text-muted-foreground">{skill.description || skill.slug}</p></div><Button type="button" variant={enabled ? "default" : "outline"} size="icon" className="size-8 shrink-0" aria-label={enabled ? `Disable ${skill.name}` : `Enable ${skill.name}`} onClick={() => void toggle(skill)} disabled={busyId === skill.id}>{busyId === skill.id ? <Clock3 className="size-3.5 animate-pulse" /> : enabled ? <Check className="size-4" /> : <Plus className="size-4" />}</Button></div>; })}</div> : <p className="rounded-xl border border-dashed border-border px-3 py-5 text-center text-xs text-muted-foreground">{publishedSkills.length ? "No skills match this search." : "No published skills are available."}</p>}</div>;
 }
 
 function isPackageSelected(draft: StudioCapabilityDraft, pkg: AgentExtensionPackage) {
@@ -552,9 +561,11 @@ function packageDescription(pkg: AgentExtensionPackage) {
   return permissions.length ? `${permissions.length} permission${permissions.length === 1 ? "" : "s"} requested` : "Declarative extension for this agent";
 }
 
-function PluginsPanel({ packages, draft, onDraftChange }: { packages: AgentExtensionPackage[]; draft: StudioCapabilityDraft; onDraftChange: (value: StudioCapabilityDraft | ((current: StudioCapabilityDraft) => StudioCapabilityDraft)) => void }) {
+function PluginsPanel({ directory, packages, draft, onDraftChange }: { directory: AgentCapabilityDirectoryEntry[]; packages: AgentExtensionPackage[]; draft: StudioCapabilityDraft; onDraftChange: (value: StudioCapabilityDraft | ((current: StudioCapabilityDraft) => StudioCapabilityDraft)) => void }) {
   const [query, setQuery] = useState("");
-  const filteredPackages = packages.filter((pkg) => `${pkg.name ?? ""} ${pkg.package_id} ${packageDescription(pkg)}`.toLowerCase().includes(query.trim().toLowerCase()));
+  const directoryPackageKeys = new Set(directory.map((entry) => `${entry.source.id}@${entry.version}`));
+  const visiblePackages = packages.filter((pkg) => !directory.length || directoryPackageKeys.has(`${pkg.package_id}@${pkg.version}`));
+  const filteredPackages = visiblePackages.filter((pkg) => `${pkg.name ?? ""} ${pkg.package_id} ${packageDescription(pkg)}`.toLowerCase().includes(query.trim().toLowerCase()));
   const togglePackage = (pkg: AgentExtensionPackage) => {
     const reference = { kind: pkg.kind, id: pkg.package_id, version: pkg.version, checksum: pkg.checksum, configuration: {} };
     const permissions = Array.isArray(pkg.declaration.permissions) ? pkg.declaration.permissions.filter((permission): permission is string => typeof permission === "string") : [];
@@ -566,10 +577,10 @@ function PluginsPanel({ packages, draft, onDraftChange }: { packages: AgentExten
       extensionGrants: selected ? current.extensionGrants.filter((entry) => !(entry && typeof entry === "object" && !Array.isArray(entry) && (entry as Record<string, unknown>).kind === pkg.kind && (entry as Record<string, unknown>).id === pkg.package_id)) : [...current.extensionGrants, grant],
     }));
   };
-  return <div className="space-y-4"><div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><p className="text-xs text-muted-foreground">Installable packages with explicit permissions for this draft.</p><DirectorySearch value={query} onChange={setQuery} placeholder="Search plugins" /></div>{filteredPackages.length ? <div className="grid gap-3 sm:grid-cols-2">{filteredPackages.map((pkg) => { const enabled = isPackageSelected(draft, pkg); const title = pkg.name || pkg.package_id; return <div key={pkg.id} className="flex items-center gap-3 rounded-xl border border-border p-3 transition-colors hover:border-primary/40"><DirectoryIcon label={title} icon={<Puzzle className="size-5" />} /><div className="min-w-0 flex-1"><p className="truncate text-xs font-medium text-foreground">{title}</p><p className="mt-1 line-clamp-2 text-[11px] leading-4 text-muted-foreground">{packageDescription(pkg)}</p><p className="mt-1 text-[10px] text-muted-foreground">v{pkg.version}</p></div><Button type="button" variant={enabled ? "default" : "outline"} size="icon" className="size-8 shrink-0" aria-label={enabled ? `Disable ${title}` : `Enable ${title}`} onClick={() => togglePackage(pkg)}>{enabled ? <Check className="size-4" /> : <Plus className="size-4" />}</Button></div>; })}</div> : <p className="rounded-xl border border-dashed border-border px-3 py-5 text-center text-xs text-muted-foreground">{packages.length ? "No plugins match this search." : "No published plugins are available."}</p>}</div>;
+  return <div className="space-y-4"><div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><p className="text-xs text-muted-foreground">{directory.length} published plugin package{directory.length === 1 ? "" : "s"} discovered from the registry.</p><DirectorySearch value={query} onChange={setQuery} placeholder="Search plugins" /></div>{filteredPackages.length ? <div className="grid gap-3 sm:grid-cols-2">{filteredPackages.map((pkg) => { const enabled = isPackageSelected(draft, pkg); const title = pkg.name || pkg.package_id; const directoryEntry = directory.find((entry) => entry.source.id === pkg.package_id && entry.version === pkg.version); return <div key={pkg.id} className="flex items-center gap-3 rounded-xl border border-border p-3 transition-colors hover:border-primary/40"><DirectoryIcon label={title} logo={directoryEntry?.logo} icon={<Puzzle className="size-5" />} /><div className="min-w-0 flex-1"><p className="truncate text-xs font-medium text-foreground">{title}</p><p className="mt-1 line-clamp-2 text-[11px] leading-4 text-muted-foreground">{packageDescription(pkg)}</p><p className="mt-1 text-[10px] text-muted-foreground">v{pkg.version}</p></div><Button type="button" variant={enabled ? "default" : "outline"} size="icon" className="size-8 shrink-0" aria-label={enabled ? `Disable ${title}` : `Enable ${title}`} onClick={() => togglePackage(pkg)}>{enabled ? <Check className="size-4" /> : <Plus className="size-4" />}</Button></div>; })}</div> : <p className="rounded-xl border border-dashed border-border px-3 py-5 text-center text-xs text-muted-foreground">{visiblePackages.length ? "No plugins match this search." : "No published plugins are available."}</p>}</div>;
 }
 
-function McpPanel({ providers, pinnedProviders, versions, draft, onDraftChange, onRefresh }: { providers: AgentMcpProvider[]; pinnedProviders: AgentMcpProviderVersion[]; versions: Record<string, AgentMcpProviderVersion[]>; draft: StudioCapabilityDraft; onDraftChange: (value: StudioCapabilityDraft | ((current: StudioCapabilityDraft) => StudioCapabilityDraft)) => void; onRefresh: () => void }) {
+function McpPanel({ directory, providers, pinnedProviders, versions, draft, onDraftChange, onRefresh }: { directory: AgentCapabilityDirectoryEntry[]; providers: AgentMcpProvider[]; pinnedProviders: AgentMcpProviderVersion[]; versions: Record<string, AgentMcpProviderVersion[]>; draft: StudioCapabilityDraft; onDraftChange: (value: StudioCapabilityDraft | ((current: StudioCapabilityDraft) => StudioCapabilityDraft)) => void; onRefresh: () => void }) {
   const [name, setName] = useState("");
   const [endpoint, setEndpoint] = useState("");
   const [busy, setBusy] = useState(false);
@@ -609,7 +620,18 @@ function McpPanel({ providers, pinnedProviders, versions, draft, onDraftChange, 
     }
   };
   const filteredProviders = providers.filter((provider) => `${provider.name} ${provider.endpoint_url}`.toLowerCase().includes(query.trim().toLowerCase()));
-  return <div className="space-y-4"><div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><p className="text-xs text-muted-foreground">External tool servers discovered, reviewed, and pinned by version.</p><div className="flex flex-wrap gap-2"><DirectorySearch value={query} onChange={setQuery} placeholder="Search MCP servers" /><Button type="button" size="sm" onClick={() => setAddOpen((current) => !current)}><Plus className="mr-1.5 size-3.5" />Add server</Button></div></div>{addOpen ? <form onSubmit={addServer} className="grid gap-2 rounded-xl border border-primary/20 bg-primary/5 p-3 sm:grid-cols-[minmax(0,0.7fr)_minmax(0,1fr)_auto]"><input value={name} onChange={(event) => setName(event.target.value)} placeholder="Server name" className="h-9 rounded-md border border-border bg-background px-2 text-xs text-foreground outline-none focus:border-primary" /><input value={endpoint} onChange={(event) => setEndpoint(event.target.value)} placeholder="https://server.example/mcp" type="url" className="h-9 rounded-md border border-border bg-background px-2 text-xs text-foreground outline-none focus:border-primary" /><Button type="submit" size="sm" className="h-9" disabled={busy || !name.trim() || !endpoint.trim()}>{busy ? "Adding…" : "Add MCP"}</Button></form> : null}{error ? <p className="rounded-lg bg-destructive/5 px-3 py-2 text-xs text-destructive">{error}</p> : null}{filteredProviders.length ? <div className="grid gap-3 sm:grid-cols-2">{filteredProviders.map((provider) => { const published = (versions[provider.id] ?? []).filter((version) => version.status === "published").sort((left, right) => right.revision - left.revision)[0]; const enabled = Boolean(published && pinnedIds.has(published.id)); return <div key={provider.id} className="flex items-center gap-3 rounded-xl border border-border p-3 transition-colors hover:border-primary/40"><DirectoryIcon label={provider.name} icon={<PlugZap className="size-5" />} /><div className="min-w-0 flex-1"><div className="flex items-center gap-2"><p className="truncate text-xs font-medium text-foreground">{provider.name}</p><span className={cn("size-1.5 shrink-0 rounded-full", provider.health_status === "healthy" ? "bg-emerald-500" : "bg-amber-500")} /></div><p className="mt-1 truncate text-[11px] text-muted-foreground">{provider.endpoint_url}</p><p className="mt-1 text-[10px] text-muted-foreground">{published ? `${published.tools.length} tools · v${published.revision}` : "Not published"}</p></div><div className="flex shrink-0 items-center gap-1"><Button type="button" variant="ghost" size="sm" className="h-8 px-2 text-[10px]" onClick={() => void health(provider.id)} disabled={busy}>Health</Button><Button type="button" variant={enabled ? "default" : "outline"} size="icon" className="size-8" aria-label={enabled ? `Disable ${provider.name}` : `Enable ${provider.name}`} disabled={!published || busy} onClick={() => { if (!published) return; onDraftChange((current) => ({ ...current, mcpProviderVersionIds: enabled ? current.mcpProviderVersionIds.filter((id) => id !== published.id) : [...new Set([...current.mcpProviderVersionIds, published.id])] })); }}>{enabled ? <Check className="size-4" /> : <Plus className="size-4" />}</Button></div></div>; })}</div> : <p className="rounded-xl border border-dashed border-border px-3 py-5 text-center text-xs text-muted-foreground">{providers.length ? "No MCP servers match this search." : "No MCP servers configured."}</p>}</div>;
+  return <div className="space-y-4"><div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><p className="text-xs text-muted-foreground">{directory.length} published MCP revision{directory.length === 1 ? "" : "s"} discovered from the registry.</p><div className="flex flex-wrap gap-2"><DirectorySearch value={query} onChange={setQuery} placeholder="Search MCP servers" /><Button type="button" size="sm" onClick={() => setAddOpen((current) => !current)}><Plus className="mr-1.5 size-3.5" />Add server</Button></div></div>{addOpen ? <form onSubmit={addServer} className="grid gap-2 rounded-xl border border-primary/20 bg-primary/5 p-3 sm:grid-cols-[minmax(0,0.7fr)_minmax(0,1fr)_auto]"><input value={name} onChange={(event) => setName(event.target.value)} placeholder="Server name" className="h-9 rounded-md border border-border bg-background px-2 text-xs text-foreground outline-none focus:border-primary" /><input value={endpoint} onChange={(event) => setEndpoint(event.target.value)} placeholder="https://server.example/mcp" type="url" className="h-9 rounded-md border border-border bg-background px-2 text-xs text-foreground outline-none focus:border-primary" /><Button type="submit" size="sm" className="h-9" disabled={busy || !name.trim() || !endpoint.trim()}>{busy ? "Adding…" : "Add MCP"}</Button></form> : null}{error ? <p className="rounded-lg bg-destructive/5 px-3 py-2 text-xs text-destructive">{error}</p> : null}{filteredProviders.length ? <div className="grid gap-3 sm:grid-cols-2">{filteredProviders.map((provider) => { const published = (versions[provider.id] ?? []).filter((version) => version.status === "published").sort((left, right) => right.revision - left.revision)[0]; const enabled = Boolean(published && pinnedIds.has(published.id)); const directoryEntry = directory.find((entry) => entry.source.id === published?.id); return <div key={provider.id} className="flex items-center gap-3 rounded-xl border border-border p-3 transition-colors hover:border-primary/40"><DirectoryIcon label={provider.name} logo={directoryEntry?.logo} icon={<PlugZap className="size-5" />} /><div className="min-w-0 flex-1"><div className="flex items-center gap-2"><p className="truncate text-xs font-medium text-foreground">{provider.name}</p><span className={cn("size-1.5 shrink-0 rounded-full", provider.health_status === "healthy" ? "bg-emerald-500" : "bg-amber-500")} /></div><p className="mt-1 truncate text-[11px] text-muted-foreground">{provider.endpoint_url}</p><p className="mt-1 text-[10px] text-muted-foreground">{published ? `${published.tools.length} tools · v${published.revision}` : "Not published"}</p></div><div className="flex shrink-0 items-center gap-1"><Button type="button" variant="ghost" size="sm" className="h-8 px-2 text-[10px]" onClick={() => void health(provider.id)} disabled={busy}>Health</Button><Button type="button" variant={enabled ? "default" : "outline"} size="icon" className="size-8" aria-label={enabled ? `Disable ${provider.name}` : `Enable ${provider.name}`} disabled={!published || busy} onClick={() => { if (!published) return; onDraftChange((current) => ({ ...current, mcpProviderVersionIds: enabled ? current.mcpProviderVersionIds.filter((id) => id !== published.id) : [...new Set([...current.mcpProviderVersionIds, published.id])] })); }}>{enabled ? <Check className="size-4" /> : <Plus className="size-4" />}</Button></div></div>; })}</div> : <p className="rounded-xl border border-dashed border-border px-3 py-5 text-center text-xs text-muted-foreground">{providers.length ? "No MCP servers match this search." : "No MCP servers configured."}</p>}</div>;
+}
+
+function UserToolsPanel({ tools, draft, onDraftChange }: { tools: AgentCapabilityDirectoryEntry[]; draft: StudioCapabilityDraft; onDraftChange: (value: StudioCapabilityDraft | ((current: StudioCapabilityDraft) => StudioCapabilityDraft)) => void }) {
+  const [query, setQuery] = useState("");
+  const selected = new Set(draft.allowedTools);
+  const filtered = tools.filter((tool) => `${tool.name} ${tool.description} ${tool.tags.join(" ")}`.toLowerCase().includes(query.trim().toLowerCase()));
+  const toggle = (tool: AgentCapabilityDirectoryEntry) => onDraftChange((current) => ({
+    ...current,
+    allowedTools: selected.has(tool.id) ? current.allowedTools.filter((id) => id !== tool.id) : [...new Set([...current.allowedTools, tool.id])],
+  }));
+  return <div className="space-y-4"><div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><p className="text-xs text-muted-foreground">Tools created by this organization and published to the registry.</p><DirectorySearch value={query} onChange={setQuery} placeholder="Search user tools" /></div>{filtered.length ? <div className="grid gap-3 sm:grid-cols-2">{filtered.map((tool) => { const enabled = selected.has(tool.id); return <div key={`${tool.id}:${tool.version}`} className="flex items-center gap-3 rounded-xl border border-border p-3"><DirectoryIcon label={tool.name} logo={tool.logo} icon={<Bot className="size-5" />} /><div className="min-w-0 flex-1"><p className="truncate text-xs font-medium text-foreground">{tool.name}</p><p className="mt-1 line-clamp-2 text-[11px] leading-4 text-muted-foreground">{tool.description}</p><p className="mt-1 text-[10px] text-muted-foreground">v{tool.version}</p></div><Button type="button" variant={enabled ? "default" : "outline"} size="icon" className="size-8 shrink-0" aria-label={enabled ? `Disable ${tool.name}` : `Enable ${tool.name}`} onClick={() => toggle(tool)}>{enabled ? <Check className="size-4" /> : <Plus className="size-4" />}</Button></div>; })}</div> : <p className="rounded-xl border border-dashed border-border px-3 py-5 text-center text-xs text-muted-foreground">No published user tools are available.</p>}</div>;
 }
 
 function CapabilityRow({ icon, title, detail, status, statusText, action, onAction }: { icon: ReactNode; title: string; detail: string; status: "ready" | "attention" | "included" | "not_configured"; statusText: string; action: string; onAction?: () => void }) {
@@ -620,8 +642,28 @@ function MemorySection() {
   return <div className="space-y-4"><CapabilityRow icon={<MemoryStick className="size-4" />} title="Agent memory" detail="Control what this agent can retrieve and write" status="not_configured" statusText="Review policy" action="Configure" /><div className="grid gap-4 sm:grid-cols-2"><InfoTile label="Scope" value="Workspace" icon={<Database className="size-4" />} /><InfoTile label="Retrieval" value="Not configured" icon={<Eye className="size-4" />} /></div><SettingNote title="Memory stays scoped" detail="The agent only receives evidence allowed by its workspace, environment, and candidate policy." /></div>;
 }
 
-function ConnectionsSection() {
-  return <div className="space-y-4"><div className="grid gap-4 sm:grid-cols-2"><ConnectionCard title="Playground" detail="Isolated test bindings" status="Ready" statusKind="ready" /><ConnectionCard title="Live" detail="Production bindings" status="Not connected" statusKind="not_configured" /></div><CapabilityRow icon={<KeyRound className="size-4" />} title="Workspace resources" detail="Credential references and service bindings used by this agent" status="attention" statusText="Review bindings" action="Manage" /><SettingNote title="Credentials are environment-specific" detail="Playground credentials are never copied into Live. Deployment checks that Live bindings exist." /></div>;
+function ConnectionsSection({ installationId }: { installationId: string | null }) {
+  const [directory, setDirectory] = useState<AgentCapabilityDirectoryEntry[]>([]);
+  const [loading, setLoading] = useState(Boolean(installationId));
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!installationId) return;
+    let mounted = true;
+    void listAgentCapabilityDirectory()
+      .then((result) => {
+        if (mounted) setDirectory(result.directory.filter((entry) => entry.kind === "connector"));
+      })
+      .catch(() => {
+        if (mounted) setError("Connections could not be loaded");
+      })
+      .finally(() => {
+        if (mounted) setLoading(false);
+      });
+    return () => { mounted = false; };
+  }, [installationId]);
+
+  return <div className="space-y-5"><div className="grid gap-4 sm:grid-cols-2"><ConnectionCard title="Playground" detail="Isolated test bindings" status="Ready" statusKind="ready" /><ConnectionCard title="Live" detail="Production bindings" status="Not connected" statusKind="not_configured" /></div><div className="rounded-2xl border border-border bg-card p-4 sm:p-5"><div className="flex items-center justify-between gap-3"><h4 className="text-sm font-semibold text-foreground">Connectors</h4>{loading ? <Clock3 className="size-4 animate-pulse text-muted-foreground" /> : null}</div>{error ? <p className="mt-4 rounded-lg bg-destructive/5 px-3 py-2 text-xs text-destructive">{error}</p> : null}{installationId ? <div className="mt-4"><AgentToolIntegrations installationId={installationId} embedded directory={directory} /></div> : null}</div></div>;
 }
 
 function SafetySection() {

@@ -94,6 +94,22 @@ There must be one source of truth for each concern:
 6. **Execution journal** — remains the only event source for discovery, readiness, activation,
    invocation, MCP, plugin, and tool progress evidence.
 
+### Connections versus MCP
+
+Connections and MCP are separate views over one activation model:
+
+- **Connections** manages native service bindings: OAuth accounts, API keys, local connectors,
+  resource bindings, credential references, and environment-specific health.
+- **MCP** manages a server and its discovered, versioned tools: endpoint/transport, discovery,
+  tool filters, server health, revision pins, and MCP-specific permissions.
+- A native Google Calendar adapter appears under Connections. A Google Calendar MCP server
+  appears under Capabilities → MCP. They do not duplicate credentials or tool registries.
+- Both surfaces resolve into the same immutable agent-version extension snapshot. A connection
+  supplies access; it does not grant an MCP server, and browsing either directory does not grant
+  runtime access.
+- Agent creation provisions the Playground installation as part of the creation flow. Live is a
+  later deployment target; users do not perform a manual Playground installation step.
+
 ### Canonical descriptor shape
 
 The descriptor interface must cover the information required by runtime, Studio, and audit without
@@ -197,18 +213,20 @@ The resolver must support:
 
 ### 6. MCP servers
 
-- [ ] Make MCP provider configuration a versioned, scoped extension record with transport,
+- [x] Make MCP provider configuration a versioned, scoped extension record with transport,
   credential reference, server metadata, trust/source, and tool filters.
-- [ ] Discover MCP tools and register them as namespaced `mcp.<provider>.<tool>` descriptors with
+- [x] Discover MCP tools and register them as namespaced `mcp.<provider>.<tool>` descriptors with
   schemas, provenance, readiness, and server toolset membership.
 - [ ] Support HTTP and stdio-compatible adapters only through the managed Agent Platform seam;
   do not run arbitrary MCP processes inside the Temporal worker.
 - [ ] Add connect, authenticate, discover, health-check, refresh, filter, enable, disable,
   revoke, and reconnect lifecycle operations.
-- [ ] Reuse the durable MCP operation coordinator, snapshot checksum, cancellation, timeout,
+- [x] Reuse the durable MCP operation coordinator, snapshot checksum, cancellation, timeout,
   unknown-outcome, and journal contracts already defined in the Hermes gap plan.
-- [ ] Add bounded discovery and per-server filtering so a large MCP server cannot overflow the
+- [x] Add bounded discovery and per-server filtering so a large MCP server cannot overflow the
   model request or bypass approval policy.
+- [x] Project pinned, healthy, published MCP revisions and their discovered tools into the
+  immutable extension snapshot used for publication and run admission.
 
 ### 7. User-created tools
 
@@ -224,20 +242,22 @@ The resolver must support:
 
 ### 8. Studio directory and configuration
 
-- [ ] Build one capability directory backed by the canonical catalog, with first-class views for
-  Built-in tools, Connectors, Skills, Plugins, MCP, and User-created tools.
-- [ ] Provide search, category/source filters, branded logos, versions, trust/provenance,
+- [x] Build one capability directory backed by the canonical catalog, with first-class views for
+  Tools, Skills, Plugins, MCP, and User-created tools; keep native Connections as a separate
+  binding surface.
+- [x] Provide search, category/source filters, branded logos, versions, trust/provenance,
   readiness, permissions, configured state, and concise configure/enable actions.
-- [ ] Keep discovery separate from activation: browsing a capability does not grant or load it.
-- [ ] Show toolsets as useful bundles while exposing individual tools and permissions before
+- [x] Keep discovery separate from activation: browsing a capability does not grant or load it.
+- [x] Show toolsets as useful bundles while exposing individual tools and permissions before
   activation.
-- [ ] Reuse the shared compact directory row/card pattern and model-picker/configuration shell.
+- [x] Reuse the shared compact directory row/card pattern and model-picker/configuration shell.
 - [ ] Add responsive desktop/tablet/mobile behavior and accessible loading, empty, error, and
   confirmation states.
 
 ### 9. Runtime, context, journal, and deployment integration
 
-- [ ] Resolve one immutable capability snapshot at agent-version installation/run admission.
+- [x] Resolve one immutable capability snapshot at agent-version publication/run admission,
+  including pinned MCP revisions.
 - [ ] Pass only the authorized, ready, context-fitting model tool projection to the context
   runtime; keep the full registry out of model requests.
 - [ ] Add journal events for catalog discovery, provider readiness, skill load, plugin activation,
@@ -300,9 +320,11 @@ Post-release review date: to be assigned
 
 ## Current status
 
-The architecture mapping and Hermes comparison are complete. The canonical descriptor catalog,
-toolset resolver, source adapters, registry projection, connector projection, MCP registration
-metadata, and organization-scoped directory route are now implemented. Focused registry,
-source-adapter, integration, and build checks pass. The next work batch is the full Studio
-directory UI plus lifecycle/grant wiring for skills, plugins, MCP servers, and user-created tools;
-the existing execution and context ownership boundaries remain unchanged.
+The canonical descriptor catalog, toolset resolver, source adapters, registry projection, connector
+projection, MCP registration metadata, organization-scoped directory route, first-class Studio
+capability tabs, separate Connections surface, automatic Playground provisioning path, and pinned
+MCP-to-extension-snapshot projection are implemented. Focused registry, source-adapter,
+integration, snapshot, and client lint checks pass. Remaining work is the broader provider
+directory, stdio/managed MCP transport, complete plugin and user-tool lifecycle persistence,
+full activation/grant snapshot wiring for every source, and responsive/browser end-to-end
+verification. The existing execution and context ownership boundaries remain unchanged.

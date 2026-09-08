@@ -4,6 +4,7 @@ import { query, withTransaction } from "../pool";
 import {
   discoverRemoteMcpTools,
   remoteMcpToolsSchema,
+  remoteMcpToolName,
   validateRemoteMcpEndpoint,
   type RemoteMcpTool,
 } from "../../mcp/remote";
@@ -66,10 +67,6 @@ export interface RemoteMcpProviderVersionRecord {
   timeout_ms?: number;
   max_response_bytes?: number;
   rate_limit_per_minute?: number;
-}
-
-export function remoteMcpToolName(providerVersionId: string, toolName: string): string {
-  return `remote_mcp.${providerVersionId}.${toolName}`;
 }
 
 export class RemoteMcpProviderRepository {

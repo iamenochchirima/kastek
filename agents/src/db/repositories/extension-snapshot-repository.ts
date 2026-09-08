@@ -1,5 +1,6 @@
 import type { Pool } from "pg";
 import { ExtensionResolver, type ConnectorExtensionDeclaration, type ExtensionDeclarationBase, type ExtensionKind, type ExtensionPackageSelectionKind, type ExtensionSnapshot, type McpCapabilityDeclaration, type PluginExtensionDeclaration, type SelectedExtensionPackage, type SkillExtensionDeclaration } from "../../extensions";
+import { remoteMcpToolsSchema, remoteMcpToolName, type RemoteMcpTool } from "../../mcp/remote";
 import { query, withTransaction } from "../pool";
 
 export type ExtensionDeclaration =
@@ -108,6 +109,19 @@ type CanonicalPackageGrant = {
   permissions: string[];
 };
 
+type PinnedMcpCapabilityRow = {
+  provider_version_id: string;
+  provider_id: string;
+  provider_name: string | null;
+  provider_status: "draft" | "approved" | "revoked";
+  health_status: "unknown" | "healthy" | "unhealthy";
+  revision: number;
+  status: "draft" | "published" | "revoked";
+  protocol_version: string;
+  tools: RemoteMcpTool[] | string;
+  checksum: string;
+};
+
 const extensionKinds = new Set<ExtensionKind>(["skill", "plugin", "connector", "mcp_capability"]);
 
 function normalizeList(values: readonly string[] | undefined): string[] {
@@ -174,6 +188,29 @@ function normalizeCompatibility(input: ExtensionPackageCompatibilityInput | unde
 
 function parseJson<T>(value: T | string): T {
   return typeof value === "string" ? JSON.parse(value) as T : value;
+}
+
+function pinnedMcpDeclarations(rows: readonly PinnedMcpCapabilityRow[]): McpCapabilityDeclaration[] {
+  return rows.flatMap((row) => {
+    if (row.provider_status !== "approved" || row.health_status !== "healthy" || row.status !== "published") {
+      throw new Error(`EXTENSION_SNAPSHOT_MCP_PROVIDER_NOT_READY:${row.provider_version_id}`);
+    }
+    const tools = remoteMcpToolsSchema.parse(parseJson(row.tools));
+    const version = `${row.revision}.0.0`;
+    return tools.map((tool) => ({
+      kind: "mcp_capability" as const,
+      id: remoteMcpToolName(row.provider_version_id, tool.name),
+      version,
+      checksum: row.checksum,
+      name: `${row.provider_name ?? row.provider_id}: ${tool.name}`,
+      available: true,
+      installed: true,
+      configured: true,
+      providerId: row.provider_id,
+      toolName: tool.name,
+      requiredConnectorIds: [],
+    }));
+  });
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -554,6 +591,28 @@ export class ExtensionSnapshotRepository {
        ORDER BY skill_version.skill_definition_id`,
       [organizationId, agentVersionId],
     );
+    const mcpResult = await executor.query<PinnedMcpCapabilityRow>(
+      `SELECT pin.provider_version_id,
+              provider_version.provider_id,
+              provider.name AS provider_name,
+              provider.status AS provider_status,
+              provider.health_status,
+              provider_version.revision,
+              provider_version.status,
+              provider_version.protocol_version,
+              provider_version.tools,
+              provider_version.checksum
+       FROM agent_version_mcp_providers pin
+       JOIN agent_mcp_provider_versions provider_version
+         ON provider_version.id = pin.provider_version_id
+        AND provider_version.organization_id = pin.organization_id
+       JOIN agent_mcp_providers provider
+         ON provider.id = provider_version.provider_id
+        AND provider.organization_id = pin.organization_id
+       WHERE pin.organization_id = $1 AND pin.agent_version_id = $2
+       ORDER BY provider.name, provider_version.revision`,
+      [organizationId, agentVersionId],
+    );
     const extension = extensionConfig(version);
     const canonical = await this.resolveCanonicalPackages(executor, organizationId, extension.packages, extension.packageGrants);
     const pinnedSkillDeclarations: SkillExtensionDeclaration[] = skillResult.rows.map((skill) => ({
@@ -571,7 +630,8 @@ export class ExtensionSnapshotRepository {
     const skillDeclarations = mergeExtensionDeclarations("skill", pinnedSkillDeclarations, canonical.skills);
     const plugins = mergeExtensionDeclarations("plugin", extension.plugins, canonical.plugins);
     const connectors = mergeExtensionDeclarations("connector", extension.connectors);
-    const mcpCapabilities = mergeExtensionDeclarations("mcp_capability", extension.mcpCapabilities);
+    const pinnedMcpCapabilities = pinnedMcpDeclarations(mcpResult.rows);
+    const mcpCapabilities = mergeExtensionDeclarations("mcp_capability", extension.mcpCapabilities, pinnedMcpCapabilities);
     const policy = parseJson(version.policy);
     const requestedSkills = isRecord(policy) && Array.isArray(policy.allowedSkillIds)
       ? policy.allowedSkillIds.filter((entry): entry is string => typeof entry === "string")
@@ -586,7 +646,7 @@ export class ExtensionSnapshotRepository {
         skillIds: [...new Set([...pinnedSkillDeclarations.map((skill) => skill.id), ...requestedSkills, ...extension.grants.skillIds, ...canonical.grantedSkillIds])],
         pluginIds: [...new Set([...extension.grants.pluginIds, ...canonical.grantedPluginIds])],
         connectorIds: extension.grants.connectorIds,
-        capabilityIds: extension.grants.capabilityIds,
+        capabilityIds: [...new Set([...extension.grants.capabilityIds, ...pinnedMcpCapabilities.map((capability) => capability.id)])],
       },
       selectedPackages: canonical.selectedPackages,
     });

@@ -1988,6 +1988,59 @@ export class AgentRepository {
     });
   }
 
+  public async ensurePlaygroundInstallation(
+    organizationId: string,
+    actorId: string,
+    agentId: string,
+  ): Promise<InstallationRecord> {
+    return withTransaction(this.pool, async (client) => {
+      const version = await client.query<AgentVersionRecord & { owner_type: string; protected: boolean }>(
+        `SELECT av.*, ad.owner_type, ad.protected
+         FROM agent_versions av
+         JOIN agent_definitions ad ON ad.id = av.agent_definition_id
+         WHERE ad.id = $2 AND ad.organization_id = $1 AND ad.owner_type = 'organization'
+           AND ad.protected = FALSE AND ad.status = 'active' AND av.status = 'published'
+         LIMIT 1`,
+        [organizationId, agentId],
+      );
+      const target = version.rows[0];
+      if (!target) throw new Error("Published organization agent version not found");
+      const created = await client.query<InstallationRecord & { created_now: boolean }>(
+        `INSERT INTO agent_installations
+          (agent_definition_id, agent_version_id, organization_id, scope_type, scope_id,
+           execution_mode, release_mode, settings, created_by)
+         VALUES ($1, $2, $3, 'organization', $3, 'kasitek_hosted', 'pinned', $4::jsonb, $5)
+         ON CONFLICT (
+           organization_id,
+           agent_definition_id,
+           scope_type,
+           scope_id,
+           (COALESCE(settings ->> 'environment', 'live'))
+         )
+         DO UPDATE SET updated_at = agent_installations.updated_at
+         RETURNING *, (xmax = 0) AS created_now`,
+        [agentId, target.id, organizationId, JSON.stringify(normalizeInstallationSettings({ environment: "playground", source: "studio", executionProfile: "autonomous" }, "playground")), actorId],
+      );
+      const installation = created.rows[0];
+      if (!installation) throw new Error("Playground installation was not created");
+      if (installation.created_now) {
+        await this.enqueueInstallationLifecycle(client, installation, "created", null, "human", installation.created_at);
+        await client.query(
+          `INSERT INTO agent_principals (installation_id, organization_id)
+           VALUES ($1, $2) ON CONFLICT (installation_id) DO NOTHING`,
+          [installation.id, organizationId],
+        );
+        await client.query(
+          `INSERT INTO audit_records
+            (organization_id, actor_type, actor_id, action, resource_type, resource_id, metadata)
+           VALUES ($1, 'human', $2, 'agent_installation.created', 'agent_installation', $3, $4::jsonb)`,
+          [organizationId, actorId, installation.id, JSON.stringify({ versionId: target.id, environment: "playground", source: "studio" })],
+        );
+      }
+      return installation;
+    });
+  }
+
   public async deployInstallation(
     organizationId: string,
     actorId: string,

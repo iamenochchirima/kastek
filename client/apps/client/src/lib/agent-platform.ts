@@ -967,6 +967,10 @@ export function createAgentInstallation(agentVersionId: string, settings: Record
   return request("/api/agents/installations", { method: "POST", body: JSON.stringify({ agentVersionId, scopeType: "organization", settings, ...(releaseMode ? { releaseMode } : {}) }) });
 }
 
+export function ensureAgentPlayground(agentId: string): Promise<AgentInstallation> {
+  return request(`/api/agents/${encodeURIComponent(agentId)}/playground/ensure`, { method: "POST", body: JSON.stringify({}) });
+}
+
 export function deployAgentInstallation(installationId: string, versionId: string, expectedVersionId?: string): Promise<AgentInstallation> {
   return request(`/api/agents/installations/${encodeURIComponent(installationId)}/deploy`, { method: "POST", body: JSON.stringify({ versionId, ...(expectedVersionId ? { expectedVersionId } : {}) }) });
 }
@@ -1058,6 +1062,16 @@ export type AgentCapabilityDirectoryEntry = {
   runtime: { execution: string; riskClass?: string; requiresApproval?: boolean; timeoutMs?: number; requiredScopes: string[]; credentialRequirements: string[] };
 };
 
+export type AgentCapabilityToolset = {
+  id: string;
+  version: string;
+  name: string;
+  description: string;
+  source: { kind: string; id: string; version: string; checksum?: string; trust: string };
+  capabilityIds: string[];
+  includes: string[];
+};
+
 export type AgentCapability = {
   name: string;
   version: string;
@@ -1095,11 +1109,11 @@ export type AgentCapability = {
   };
 };
 
-export function listAgentCapabilities(): Promise<{ capabilities: AgentCapability[]; directory?: AgentCapabilityDirectoryEntry[]; toolsets?: unknown[] }> {
+export function listAgentCapabilities(): Promise<{ capabilities: AgentCapability[]; directory?: AgentCapabilityDirectoryEntry[]; toolsets?: AgentCapabilityToolset[] }> {
   return request("/api/agents/capabilities");
 }
 
-export function listAgentCapabilityDirectory(): Promise<{ directory: AgentCapabilityDirectoryEntry[]; toolsets: unknown[] }> {
+export function listAgentCapabilityDirectory(): Promise<{ directory: AgentCapabilityDirectoryEntry[]; toolsets: AgentCapabilityToolset[] }> {
   return request("/api/agents/capabilities/directory");
 }
 

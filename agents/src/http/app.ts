@@ -2662,6 +2662,13 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     return reply.code(201).send(agent);
   });
 
+  app.post<{ Params: { agentId: string } }>("/v1/agents/:agentId/playground/ensure", async (request, reply) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:write");
+    const installation = await agents.ensurePlaygroundInstallation(auth.organizationId, auth.actorId, request.params.agentId);
+    return reply.send(installation);
+  });
+
   app.post("/v1/studio/agents", async (request, reply) => {
     const auth = requireAuth(request, dependencies.config);
     requireScope(auth, dependencies.config, "agents:write");

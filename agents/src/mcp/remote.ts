@@ -13,6 +13,11 @@ export const remoteMcpToolSchema = z.object({
 }).strict();
 export type RemoteMcpTool = z.infer<typeof remoteMcpToolSchema>;
 
+/** Stable runtime name shared by discovery, registry projection, and snapshots. */
+export function remoteMcpToolName(providerVersionId: string, toolName: string): string {
+  return `remote_mcp.${providerVersionId}.${toolName}`;
+}
+
 export const remoteMcpToolsSchema = z.array(remoteMcpToolSchema).max(MAX_REMOTE_TOOLS);
 
 export interface RemoteMcpProviderSettings {

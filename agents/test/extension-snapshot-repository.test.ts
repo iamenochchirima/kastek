@@ -154,16 +154,55 @@ describe("ExtensionSnapshotRepository", () => {
     const pool = { query: vi.fn()
       .mockResolvedValueOnce({ rows: [{ id: versionId, configuration: {}, policy: {} }] })
       .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [row] }) };
     const repository = new ExtensionSnapshotRepository(pool as never);
 
     const result = await repository.ensureSnapshotForVersion(pool as never, organizationId, actorId, versionId);
 
     expect(result).toEqual(row);
-    expect(pool.query).toHaveBeenCalledTimes(3);
-    expect(pool.query.mock.calls[2][0]).toContain("INSERT INTO agent_extension_snapshots");
-    expect(pool.query.mock.calls[2][1]?.[0]).toBe(organizationId);
-    expect(pool.query.mock.calls[2][1]?.[1]).toBe(versionId);
+    expect(pool.query).toHaveBeenCalledTimes(4);
+    expect(pool.query.mock.calls[3][0]).toContain("INSERT INTO agent_extension_snapshots");
+    expect(pool.query.mock.calls[3][1]?.[0]).toBe(organizationId);
+    expect(pool.query.mock.calls[3][1]?.[1]).toBe(versionId);
+  });
+
+  it("projects pinned MCP revisions into the immutable capability snapshot", async () => {
+    const row = snapshotRow();
+    const providerVersionId = "33333333-3333-4333-8333-333333333333";
+    const pool = { query: vi.fn()
+      .mockResolvedValueOnce({ rows: [{ id: versionId, configuration: {}, policy: {} }] })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [{
+        provider_version_id: providerVersionId,
+        provider_id: "mcp-notes",
+        provider_name: "Notes",
+        provider_status: "approved",
+        health_status: "healthy",
+        revision: 3,
+        status: "published",
+        protocol_version: "2025-06-18",
+        tools: [{ name: "search", description: "Search notes", inputSchema: { type: "object" } }],
+        checksum: "d".repeat(64),
+      }] })
+      .mockResolvedValueOnce({ rows: [row] }) };
+    const repository = new ExtensionSnapshotRepository(pool as never);
+
+    await repository.ensureSnapshotForVersion(pool as never, organizationId, actorId, versionId);
+
+    const persistedSnapshot = JSON.parse(String(pool.query.mock.calls[3]?.[1]?.[4])) as {
+      mcpCapabilities: Array<{ declaration: { id: string; providerId: string; toolName: string; version: string } }>;
+    };
+    expect(persistedSnapshot.mcpCapabilities).toEqual([
+      expect.objectContaining({
+        declaration: expect.objectContaining({
+          id: `remote_mcp.${providerVersionId}.search`,
+          providerId: "mcp-notes",
+          toolName: "search",
+          version: "3.0.0",
+        }),
+      }),
+    ]);
   });
 
   it("rejects executable package declarations before storage", async () => {

@@ -16,6 +16,7 @@ import {
   saveAgentIntegrationApiKey,
   saveAgentIntegrationLocalConnector,
   startAgentGoogleCalendarOAuth,
+  type AgentCapabilityDirectoryEntry,
   type AgentIntegration,
 } from "@/lib/agent-platform";
 
@@ -47,7 +48,7 @@ function isConnected(integration: AgentIntegration): boolean {
   return integration.status === "connected" && integration.available;
 }
 
-export function AgentToolIntegrations({ installationId, embedded = false, refreshKey, onChannelAction }: { installationId: string; embedded?: boolean; refreshKey?: string; onChannelAction?: (integration: AgentIntegration) => void }) {
+export function AgentToolIntegrations({ installationId, embedded = false, refreshKey, onChannelAction, directory }: { installationId: string; embedded?: boolean; refreshKey?: string; onChannelAction?: (integration: AgentIntegration) => void; directory?: AgentCapabilityDirectoryEntry[] }) {
   const [integrations, setIntegrations] = useState<AgentIntegration[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -78,8 +79,34 @@ export function AgentToolIntegrations({ installationId, embedded = false, refres
   const visibleIntegrations = useMemo(() => {
     const available = onChannelAction ? integrations : integrations.filter((integration) => integration.kind !== "channel");
     const normalizedQuery = query.trim().toLowerCase();
-    return normalizedQuery ? available.filter((integration) => `${integration.name} ${integration.description} ${integration.category}`.toLowerCase().includes(normalizedQuery)) : available;
-  }, [integrations, onChannelAction, query]);
+    const filtered = normalizedQuery ? available.filter((integration) => `${integration.name} ${integration.description} ${integration.category}`.toLowerCase().includes(normalizedQuery)) : available;
+    if (!directory?.length) return filtered;
+    const integrationsById = new Map(available.map((integration) => [integration.id, integration]));
+    return directory
+      .filter((entry) => entry.kind === "connector")
+      .filter((entry) => !normalizedQuery || `${entry.name} ${entry.description} ${entry.category}`.toLowerCase().includes(normalizedQuery))
+      .map((entry): AgentIntegration => integrationsById.get(entry.source.id) ?? {
+        id: entry.source.id,
+        kind: "tool",
+        runtime: "tool_registry",
+        name: entry.name,
+        description: entry.description,
+        category: entry.category,
+        auth: entry.runtime.credentialRequirements[0] ?? "internal",
+        logo: entry.logo ?? "",
+        capabilityNames: [],
+        requiredScopes: entry.runtime.requiredScopes,
+        configurable: entry.runtime.credentialRequirements.length > 0,
+        status: entry.runtime.credentialRequirements.length > 0 ? "not_configured" : "connected",
+        available: entry.runtime.credentialRequirements.length === 0,
+        hasCredential: entry.runtime.credentialRequirements.length === 0,
+        configuration: {},
+        connectionId: null,
+        connectionCount: 0,
+        healthMessage: null,
+        lastCheckedAt: null,
+      });
+  }, [directory, integrations, onChannelAction, query]);
   const openConfiguration = (integration: AgentIntegration) => {
     setSelected(integration);
     setApiKey("");

@@ -108,6 +108,7 @@ describe("ExtensionSnapshotRepository canonical package reconciliation", () => {
     const pool = { query: vi.fn()
       .mockResolvedValueOnce({ rows: [version(canonicalConfiguration(), canonicalPolicy())] })
       .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [
         packageRow({ kind: "skill", id: "support.skill", version: "1.0.0", checksum: skillChecksum }),
         packageRow({ kind: "plugin", id: "support.plugin", version: "2.0.0", checksum: pluginChecksum }),
@@ -117,7 +118,7 @@ describe("ExtensionSnapshotRepository canonical package reconciliation", () => {
 
     const result = await repository.ensureSnapshotForVersion(pool as never, organizationId, actorId, versionId);
 
-    const insertValues = pool.query.mock.calls[3]?.[1] as unknown[];
+    const insertValues = pool.query.mock.calls[4]?.[1] as unknown[];
     const persistedSnapshot = JSON.parse(String(insertValues[4])) as {
       selectedPackages: Array<Record<string, unknown>>;
       skills: Array<{ declaration: { id: string } }>;
@@ -147,8 +148,8 @@ describe("ExtensionSnapshotRepository canonical package reconciliation", () => {
         grantedPermissions: ["tickets.write"],
       }),
     ]));
-    expect(pool.query.mock.calls[2]?.[0]).toContain("organization_id = $1");
-    expect(pool.query.mock.calls[2]?.[0]).toContain("package_id = $3");
+    expect(pool.query.mock.calls[3]?.[0]).toContain("organization_id = $1");
+    expect(pool.query.mock.calls[3]?.[0]).toContain("package_id = $3");
   });
 
   it.each([
@@ -159,11 +160,12 @@ describe("ExtensionSnapshotRepository canonical package reconciliation", () => {
     const pool = { query: vi.fn()
       .mockResolvedValueOnce({ rows: [version({ extensions: { packages: [{ kind: "plugin", id: "support.plugin", version: "2.0.0", checksum: pluginChecksum }] } }, { extensions: { grants: [{ kind: "plugin", id: "support.plugin", permissions: ["tickets.write"] }] } })] })
       .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows }) };
     const repository = new ExtensionSnapshotRepository(pool as never);
 
     await expect(repository.ensureSnapshotForVersion(pool as never, organizationId, actorId, versionId)).rejects.toThrow(error);
-    expect(pool.query).toHaveBeenCalledTimes(3);
+    expect(pool.query).toHaveBeenCalledTimes(4);
   });
 
   it("fails closed when a catalog package is published but not ready", async () => {
@@ -172,22 +174,24 @@ describe("ExtensionSnapshotRepository canonical package reconciliation", () => {
     const pool = { query: vi.fn()
       .mockResolvedValueOnce({ rows: [version({ extensions: { packages: [{ kind: "plugin", id: "support.plugin", version: "2.0.0", checksum: pluginChecksum }] } }, { extensions: { grants: [{ kind: "plugin", id: "support.plugin", permissions: ["tickets.write"] }] } })] })
       .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [blockedPackage] }) };
     const repository = new ExtensionSnapshotRepository(pool as never);
 
     await expect(repository.ensureSnapshotForVersion(pool as never, organizationId, actorId, versionId))
       .rejects.toThrow("EXTENSION_SNAPSHOT_EXTENSION_NOT_READY:plugin:support.plugin:not_configured");
-    expect(pool.query).toHaveBeenCalledTimes(3);
+    expect(pool.query).toHaveBeenCalledTimes(4);
   });
 
   it("rejects canonical mcp_adapter selections instead of coercing or ignoring them", async () => {
     const pool = { query: vi.fn()
       .mockResolvedValueOnce({ rows: [version({ extensions: { packages: [{ kind: "mcp_adapter", id: "calendar.adapter", version: "1.0.0", checksum: "e".repeat(64) }] } }, { extensions: { grants: [{ kind: "mcp_adapter", id: "calendar.adapter", permissions: ["calendar.read"] }] } })] })
+      .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [] }) };
     const repository = new ExtensionSnapshotRepository(pool as never);
 
     await expect(repository.ensureSnapshotForVersion(pool as never, organizationId, actorId, versionId))
       .rejects.toThrow("EXTENSION_SNAPSHOT_MCP_ADAPTER_UNSUPPORTED");
-    expect(pool.query).toHaveBeenCalledTimes(2);
+    expect(pool.query).toHaveBeenCalledTimes(3);
   });
 });

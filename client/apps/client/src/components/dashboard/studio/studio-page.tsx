@@ -31,6 +31,7 @@ import {
   getAgentModelCatalog,
   getAgentRun,
   getAgentRunTimeline,
+  ensureAgentPlayground,
   listAgentVersions,
   publishAgentVersion,
   resolvePlatformConversation,
@@ -520,7 +521,7 @@ function StudioAgentList({
                   <span className="flex flex-wrap items-center gap-2"><span className="truncate text-sm font-semibold text-foreground">{agent.name}</span><span className={cn("rounded-full px-2 py-0.5 text-[10px] font-medium", statusClass(agent.status))}>{statusLabel(agent.status)}</span>{agent.protected ? <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary">Default</span> : null}</span>
                     <span className="mt-1 block truncate text-xs text-muted-foreground">{agent.description || "No description"}</span>
                   </span>
-                  <span className="hidden shrink-0 text-right text-xs text-muted-foreground sm:block"><span className="block">{agent.version_number ? `v${agent.version_number}` : "No version"}</span><span className="mt-1 block">{agent.installation_id ? "Installed" : "Not installed"}</span></span>
+                  <span className="hidden shrink-0 text-right text-xs text-muted-foreground sm:block"><span className="block">{agent.version_number ? `v${agent.version_number}` : "No version"}</span><span className="mt-1 block">{agent.installation_id ? "Playground ready" : "Preparing Playground"}</span></span>
                   <ArrowRight className="size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-foreground" />
                 </button>
               ))}
@@ -562,7 +563,6 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
   const [telemetry, setTelemetry] = useState<AgentRuntimeTelemetry | null>(null);
   const [telemetryDetailsOpen, setTelemetryDetailsOpen] = useState(false);
   const [cancelling, setCancelling] = useState(false);
-  const [installingPlayground, setInstallingPlayground] = useState(false);
   const [deploying, setDeploying] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -591,6 +591,24 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
   const effectiveModelSelection = selectedModelEntry
     ? { provider: selectedModelEntry.provider, model: selectedModelEntry.model }
     : modelSelection;
+
+  useEffect(() => {
+    if (agent.installation_id || !agent.published_version_id) return;
+    let cancelled = false;
+    const installation = agent.protected
+      ? ensureKasiAiPlayground()
+      : ensureAgentPlayground(agent.id);
+    void installation
+      .then(() => {
+        if (!cancelled) router.refresh();
+      })
+      .catch((cause) => {
+        if (!cancelled) {
+          setError(cause instanceof Error ? cause.message : "Unable to prepare Playground");
+        }
+      });
+    return () => { cancelled = true; };
+  }, [agent.id, agent.installation_id, agent.published_version_id, agent.protected, router]);
   const studioGraphNodes = useMemo(
     () => buildStudioGraph(selectedModelEntry?.label ?? selectedModelEntry?.model ?? "Primary model", trace),
     [selectedModelEntry?.label, selectedModelEntry?.model, trace],
@@ -829,23 +847,6 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
     }
   };
 
-  const installPlayground = async () => {
-    if (!agent.protected || installingPlayground) return;
-    setInstallingPlayground(true);
-    clearError();
-    setNotice(null);
-    try {
-      const installation = await ensureKasiAiPlayground();
-      if (installation.settings?.environment !== "playground") {
-        throw new Error("Playground installation is not available yet. Restart the local Agent Platform and try again.");
-      }
-      router.refresh();
-    } catch (cause) {
-      showError(cause instanceof Error ? cause.message : "Unable to install Playground");
-      setInstallingPlayground(false);
-    }
-  };
-
   const saveDraft = async (capabilityDraft?: StudioCapabilityDraft): Promise<AgentVersion | null> => {
     setSaving(true);
     clearError();
@@ -982,7 +983,6 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
               className="border-t border-border bg-card p-3 shadow-none"
               ariaLabel="Message agent"
             />
-            {!agent.installation_id ? <p className="px-4 pb-3 text-[11px] text-amber-700 dark:text-amber-300">Agent is not installed</p> : !playgroundReady ? <div className="flex items-center justify-between gap-2 px-4 pb-3"><span className="text-[11px] text-amber-700 dark:text-amber-300">Playground installation required</span>{agent.protected && surface === "studio" ? <Button type="button" variant="outline" size="sm" className="h-7 px-2.5 text-[11px]" onClick={() => void installPlayground()} disabled={installingPlayground}>{installingPlayground ? <LoaderCircle className="mr-1.5 size-3 animate-spin" /> : <FlaskConical className="mr-1.5 size-3" />}{installingPlayground ? "Installing…" : "Install Playground"}</Button> : null}</div> : null}
           </section>
 
           <section className="flex min-h-[620px] min-w-0 flex-col">
