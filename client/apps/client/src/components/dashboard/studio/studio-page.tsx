@@ -6,19 +6,29 @@ import {
   ArrowLeft,
   ArrowRight,
   Activity,
+  BookOpen,
   Bot,
   Check,
   CircleDot,
+  Database,
   Gauge,
   FlaskConical,
+  GitBranch,
+  KeyRound,
   LoaderCircle,
   MessageCircle,
+  MessageSquareText,
+  Network,
+  PlugZap,
   Plus,
   Rocket,
+  Route,
+  Send,
   Settings2,
   SlidersHorizontal,
   ShieldCheck,
   Sparkles,
+  Workflow,
   Wrench,
   X,
 } from "lucide-react";
@@ -76,6 +86,29 @@ type TraceNode = {
   sequence: number;
   data: Record<string, unknown>;
 };
+
+type StudioGraphStatus = "idle" | "running" | "complete" | "error" | "waiting" | "skipped";
+
+type StudioGraphNode = {
+  id: string;
+  label: string;
+  detail: string;
+  kind: "input" | "channel" | "session" | "context" | "memory" | "retrieval" | "model" | "router" | "tool" | "mcp" | "skill" | "approval" | "handoff" | "output" | "delivery";
+  status: StudioGraphStatus;
+  configured: boolean;
+  configurable?: boolean;
+  provider?: string;
+  scope?: string;
+  event?: string;
+  data: Record<string, string>;
+};
+
+const studioGraphColumns: Array<{ label: string; subtitle: string; nodeIds: string[] }> = [
+  { label: "Ingress", subtitle: "How work enters", nodeIds: ["input", "channel", "session"] },
+  { label: "Context", subtitle: "What the agent knows", nodeIds: ["context", "memory-read", "retrieval", "model"] },
+  { label: "Actions", subtitle: "What it can do", nodeIds: ["router", "calendar", "mcp", "content-skill"] },
+  { label: "Control", subtitle: "How work completes", nodeIds: ["approval", "handoff", "memory-write", "output", "delivery"] },
+];
 
 type ChatMessage = {
   id: string;
@@ -156,6 +189,53 @@ function eventStatus(event: string): TraceStatus {
   if (event.includes("failed") || event.includes("error")) return "error";
   if (event.includes("completed") || event.includes("cancelled") || event.includes("expired")) return "complete";
   return "running";
+}
+
+function studioNodeStatus(node: StudioGraphNode, trace: TraceNode[]): StudioGraphStatus {
+  const matching = trace.filter((traceNode) => {
+    const event = traceNode.event.toLowerCase();
+    const label = traceNode.label.toLowerCase();
+    if (node.id === "input") return event.includes("received") || label === "input";
+    if (node.id === "context") return event.includes("context");
+    if (node.id === "memory-read" || node.id === "memory-write") return event.includes("memory");
+    if (node.id === "retrieval") return event.includes("retriev") || label.includes("knowledge");
+    if (node.id === "model") return event.includes("model") || label === "model";
+    if (node.id === "router") return event.includes("route") || event.includes("capabilit");
+    if (node.id === "calendar") return label.includes("calendar") || label.includes("booking");
+    if (node.id === "mcp") return event.includes("mcp") || label.includes("mcp");
+    if (node.id === "content-skill") return label.includes("content") || label.includes("skill");
+    if (node.id === "approval") return event.includes("approval");
+    if (node.id === "handoff") return event.includes("handoff") || event.includes("human");
+    if (node.id === "output" || node.id === "delivery") return event.includes("complete") || event.includes("deliver");
+    return false;
+  });
+  const latest = matching.at(-1);
+  if (!latest) return "idle";
+  if (latest.status === "error") return "error";
+  if (latest.status === "running" && latest.id === trace.at(-1)?.id) return node.id === "approval" ? "waiting" : "running";
+  return "complete";
+}
+
+function buildStudioGraph(modelLabel: string, trace: TraceNode[]): StudioGraphNode[] {
+  const nodes: StudioGraphNode[] = [
+    { id: "input", label: "Message input", detail: "Web, WhatsApp, Telegram, Discord", kind: "input", status: "idle", configured: true, scope: "channel", event: "run.received", data: { source: "webhook or conversation", mode: "inbound" } },
+    { id: "channel", label: "Channel gateway", detail: "Normalize and authenticate", kind: "channel", status: "idle", configured: true, configurable: true, scope: "workspace", event: "channel.accepted", data: { channels: "Web · WhatsApp · Telegram · Discord", auth: "workspace connection" } },
+    { id: "session", label: "Session", detail: "Durable run and conversation", kind: "session", status: "idle", configured: true, scope: "tenant / conversation", event: "run.started", data: { state: "durable", retries: "enabled" } },
+    { id: "context", label: "Context engine", detail: "Compose the model's working set", kind: "context", status: "idle", configured: true, configurable: true, scope: "agent / run", event: "agent.context.prepared", data: { policy: "bounded context", sources: "messages · workspace · memory" } },
+    { id: "memory-read", label: "Memory read", detail: "Facts, preferences, prior work", kind: "memory", status: "idle", configured: true, configurable: true, scope: "tenant / user / agent", event: "memory.retrieval.completed", data: { namespaces: "customer · business · agent", ranking: "hybrid + temporal" } },
+    { id: "retrieval", label: "Knowledge retrieval", detail: "Connected sources and evidence", kind: "retrieval", status: "idle", configured: true, configurable: true, scope: "workspace", event: "context.retrieval.completed", data: { sources: "workspace knowledge · connected apps", evidence: "source IDs retained" } },
+    { id: "model", label: modelLabel || "Primary model", detail: "Reason, plan, and choose next step", kind: "model", status: "idle", configured: true, configurable: true, provider: "Model provider", scope: "agent version", event: "agent.model.completed", data: { provider: "configured model provider", turn: "bounded by run policy" } },
+    { id: "router", label: "Capability router", detail: "Select the next operation", kind: "router", status: "idle", configured: true, scope: "agent version", event: "agent.route.selected", data: { policy: "typed capabilities", selection: "model decision" } },
+    { id: "calendar", label: "Bookings tool", detail: "Check and update availability", kind: "tool", status: "idle", configured: true, configurable: true, provider: "Google Calendar", scope: "workspace connection", event: "agent.tool.completed", data: { tool: "check_availability", connection: "Google Calendar", risk: "write requires approval" } },
+    { id: "mcp", label: "MCP server", detail: "Connected workspace tools", kind: "mcp", status: "idle", configured: true, configurable: true, provider: "KasiTek MCP", scope: "workspace", event: "agent.mcp.tool.completed", data: { server: "KasiTek workspace", tools: "content · campaigns · contacts" } },
+    { id: "content-skill", label: "Content skill", detail: "Draft and publish across platforms", kind: "skill", status: "idle", configured: true, configurable: true, provider: "multi-platform content", scope: "agent version", event: "agent.skill.completed", data: { skill: "content-management", platforms: "LinkedIn · Instagram · Facebook" } },
+    { id: "approval", label: "Approval gate", detail: "Pause before sensitive actions", kind: "approval", status: "idle", configured: true, configurable: true, scope: "workspace policy", event: "approval.requested", data: { policy: "human approval", actions: "publish · send · modify" } },
+    { id: "handoff", label: "Human handoff", detail: "Escalate with full context", kind: "handoff", status: "idle", configured: true, configurable: true, scope: "workspace / team", event: "handoff.requested", data: { target: "support team", context: "conversation + evidence" } },
+    { id: "memory-write", label: "Memory write", detail: "Persist useful outcomes", kind: "memory", status: "idle", configured: true, configurable: true, scope: "tenant / user / agent", event: "memory.write.completed", data: { lifecycle: "capture · review · project", evidence: "run event digest" } },
+    { id: "output", label: "Response", detail: "Assemble the final answer", kind: "output", status: "idle", configured: true, scope: "run", event: "run.completed", data: { format: "channel-aware response", trace: "journal-backed" } },
+    { id: "delivery", label: "Delivery", detail: "Send and record the result", kind: "delivery", status: "idle", configured: true, configurable: true, scope: "channel", event: "message.delivered", data: { retries: "idempotent", receipts: "stored" } },
+  ];
+  return nodes.map((node) => ({ ...node, status: studioNodeStatus(node, trace) }));
 }
 
 function nodeFromEvent(event: AgentStreamEvent): TraceNode {
@@ -497,6 +577,10 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
   const effectiveModelSelection = selectedModelEntry
     ? { provider: selectedModelEntry.provider, model: selectedModelEntry.model }
     : modelSelection;
+  const studioGraphNodes = useMemo(
+    () => buildStudioGraph(selectedModelEntry?.label ?? selectedModelEntry?.model ?? "Primary model", trace),
+    [selectedModelEntry?.label, selectedModelEntry?.model, trace],
+  );
 
   const applyConversation = useCallback((result: Awaited<ReturnType<typeof resolvePlatformConversation>>) => {
     setConversationId(result.conversation.id);
@@ -820,7 +904,7 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
     }
   };
 
-  const selectedNode = trace.find((node) => node.id === selectedNodeId) ?? null;
+  const selectedGraphNode = studioGraphNodes.find((node) => node.id === selectedNodeId) ?? null;
 
   return (
     <div className="flex min-h-[calc(100dvh-4rem)] flex-col bg-canvas">
@@ -869,10 +953,10 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
           </section>
 
           <section className="flex min-h-[620px] min-w-0 flex-col">
-            <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3"><div><SectionEyebrow>Execution graph</SectionEyebrow><h1 className="mt-1 text-sm font-semibold text-foreground">{trace.length ? "Latest run" : "No run yet"}</h1></div><span className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground"><CircleDot className={cn("size-3", running ? "animate-pulse text-primary" : "text-muted-foreground")} />{running ? "Running" : trace.length ? "Trace ready" : "Waiting"}</span></div>
-            <div className="relative min-h-[560px] flex-1 overflow-auto bg-[radial-gradient(circle_at_50%_45%,color-mix(in_srgb,var(--brand)_6%,transparent),transparent_55%)]">
-              {trace.length ? <TraceGraph nodes={trace} selectedNodeId={selectedNodeId} onSelect={setSelectedNodeId} /> : <div className="flex h-full min-h-[560px] flex-col items-center justify-center px-6 text-center"><div className="flex size-12 items-center justify-center rounded-full border border-border bg-background text-muted-foreground"><Sparkles className="size-5" /></div><p className="mt-4 text-sm font-medium text-foreground">Run the agent to see its execution</p><p className="mt-1 max-w-xs text-xs leading-5 text-muted-foreground">The graph will be built from the durable run events.</p></div>}
-              {selectedNode ? <div className="absolute bottom-4 left-4 right-4 z-10 max-h-72 overflow-auto rounded-xl border border-border bg-card/95 shadow-xl backdrop-blur"><button type="button" aria-label="Close step details" onClick={() => setSelectedNodeId(null)} className="absolute right-3 top-3 z-10 rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"><X className="size-4" /></button><NodeInspector node={selectedNode} /></div> : null}
+            <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3"><div><SectionEyebrow>Execution observatory</SectionEyebrow><h1 className="mt-1 text-sm font-semibold text-foreground">System map</h1></div><span className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground"><CircleDot className={cn("size-3", running ? "animate-pulse text-primary" : "text-muted-foreground")} />{running ? "Run overlay" : trace.length ? "Trace ready" : "Ready"}</span></div>
+            <div className="relative min-h-[560px] flex-1 overflow-auto bg-[radial-gradient(circle_at_50%_45%,color-mix(in_srgb,var(--brand)_7%,transparent),transparent_58%)]">
+              <StudioSystemGraph nodes={studioGraphNodes} selectedNodeId={selectedNodeId} onSelect={setSelectedNodeId} running={running} traceCount={trace.length} />
+              {selectedGraphNode ? <div className="absolute bottom-4 left-4 right-4 z-10 max-h-72 overflow-auto rounded-xl border border-border bg-card/95 shadow-xl backdrop-blur"><button type="button" aria-label="Close node details" onClick={() => setSelectedNodeId(null)} className="absolute right-3 top-3 z-10 rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"><X className="size-4" /></button><StudioGraphInspector node={selectedGraphNode} onConfigure={() => setConfigurationOpen(true)} /></div> : null}
             </div>
           </section>
         </div>
@@ -882,23 +966,95 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
   );
 }
 
-function TraceGraph({ nodes, selectedNodeId, onSelect }: { nodes: TraceNode[]; selectedNodeId: string | null; onSelect: (id: string) => void }) {
-  return <div className="flex min-w-max items-center justify-center px-8 py-24"><div className="flex items-center">{nodes.map((node, index) => <div key={node.id} className="flex items-center"><button type="button" onClick={() => onSelect(node.id)} className={cn("w-32 rounded-lg border bg-background p-3 text-left transition-colors", selectedNodeId === node.id ? "border-primary ring-2 ring-primary/15" : "border-border hover:border-primary/50")}><span className={cn("flex size-6 items-center justify-center rounded-md", node.status === "error" ? "bg-destructive/10 text-destructive" : node.status === "running" ? "bg-primary/10 text-primary" : "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300")}><TraceIcon node={node} /></span><span className="mt-3 block truncate text-xs font-semibold text-foreground">{node.label}</span><span className="mt-1 block truncate text-[10px] text-muted-foreground">{node.detail}</span></button>{index < nodes.length - 1 ? <TraceConnector /> : null}</div>)}</div></div>;
+function studioGraphStatusLabel(status: StudioGraphStatus) {
+  if (status === "running") return "Running";
+  if (status === "complete") return "Complete";
+  if (status === "error") return "Error";
+  if (status === "waiting") return "Waiting";
+  if (status === "skipped") return "Skipped";
+  return "Configured";
 }
 
-function TraceConnector() {
-  return <svg width="58" height="24" viewBox="0 0 58 24" className="shrink-0 text-border" aria-hidden="true"><path d="M3 12H47" stroke="currentColor" strokeWidth="1.5" /><path d="M42 6L49 12L42 18" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" /></svg>;
+function StudioSystemGraph({ nodes, selectedNodeId, onSelect, running, traceCount }: { nodes: StudioGraphNode[]; selectedNodeId: string | null; onSelect: (id: string) => void; running: boolean; traceCount: number }) {
+  const nodeById = new Map(nodes.map((node) => [node.id, node]));
+  return (
+    <div className="min-w-[1040px] px-5 py-5 sm:px-7">
+      <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border/80 bg-background/70 px-3.5 py-2.5 backdrop-blur">
+        <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
+          <span className="inline-flex items-center gap-1.5 font-medium text-foreground"><Workflow className="size-3.5 text-primary" />Configured system</span>
+          <span>{nodes.length} nodes</span>
+          <span className="hidden text-border sm:inline">•</span>
+          <span>{traceCount ? `${traceCount} runtime events` : "No run events"}</span>
+        </div>
+        <div className="flex items-center gap-3 text-[10px] text-muted-foreground" aria-label="Node status legend">
+          <span className="inline-flex items-center gap-1.5"><span className="size-1.5 rounded-full bg-slate-400" />Configured</span>
+          <span className="inline-flex items-center gap-1.5"><span className="size-1.5 rounded-full bg-primary" />Active</span>
+          <span className="inline-flex items-center gap-1.5"><span className="size-1.5 rounded-full bg-emerald-500" />Complete</span>
+          {running ? <span className="inline-flex items-center gap-1.5 text-primary"><CircleDot className="size-3 animate-pulse" />Live</span> : null}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-[minmax(0,1fr)_28px_minmax(0,1fr)_28px_minmax(0,1fr)_28px_minmax(0,1fr)] items-start gap-2">
+        {studioGraphColumns.map((column, columnIndex) => (
+          <div key={column.label} className="contents">
+            <div className="min-w-0">
+              <div className="mb-2 px-1"><p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-muted-foreground">{column.label}</p><p className="mt-0.5 text-[10px] text-muted-foreground/70">{column.subtitle}</p></div>
+              <div className="space-y-2.5">
+                {column.nodeIds.map((nodeId) => {
+                  const node = nodeById.get(nodeId);
+                  const nodeIndex = column.nodeIds.indexOf(nodeId);
+                  return node ? <div key={node.id}><StudioGraphNodeCard node={node} selected={selectedNodeId === node.id} onSelect={onSelect} />{nodeIndex < column.nodeIds.length - 1 ? <StudioVerticalConnector /> : null}</div> : null;
+                })}
+              </div>
+            </div>
+            {columnIndex < studioGraphColumns.length - 1 ? <StudioColumnConnector label={columnIndex === 0 ? "state" : columnIndex === 1 ? "decision" : "result"} /> : null}
+          </div>
+        ))}
+      </div>
+
+    </div>
+  );
 }
 
-function TraceIcon({ node }: { node: TraceNode }) {
-  if (node.label.startsWith("Tool")) return <Wrench className="size-3.5" />;
-  if (node.label === "Context") return <Settings2 className="size-3.5" />;
-  if (node.label === "Model") return <Bot className="size-3.5" />;
-  if (node.label === "Approval") return <ShieldCheck className="size-3.5" />;
-  if (node.label === "Completed") return <Check className="size-3.5" />;
-  return <CircleDot className="size-3.5" />;
+function StudioColumnConnector({ label }: { label: string }) {
+  return <div className="flex min-h-[420px] flex-col items-center justify-center gap-2 text-[9px] uppercase tracking-[0.12em] text-muted-foreground/60"><svg width="28" height="36" viewBox="0 0 28 36" aria-hidden="true"><path d="M3 18H20" stroke="currentColor" strokeWidth="1.5" /><path d="M15 12L21 18L15 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" /></svg><span className="[writing-mode:vertical-rl]">{label}</span></div>;
 }
 
-function NodeInspector({ node }: { node: TraceNode }) {
-  return <div><div className="border-b border-border px-4 py-3"><SectionEyebrow>Execution step</SectionEyebrow><h2 className="mt-1 text-sm font-semibold text-foreground">{node.label}</h2></div><div className="space-y-4 p-4"><div className="flex items-center justify-between gap-3"><span className="text-xs text-muted-foreground">Status</span><span className={cn("inline-flex items-center gap-1.5 text-xs font-medium", node.status === "error" ? "text-destructive" : node.status === "running" ? "text-primary" : "text-emerald-700 dark:text-emerald-300")}><span className="size-1.5 rounded-full bg-current" />{node.status}</span></div><div className="grid gap-3 text-[11px] sm:grid-cols-3"><div><SectionEyebrow>Event ID</SectionEyebrow><p className="mt-1 break-all font-mono text-foreground">{node.eventId ?? "—"}</p></div><div><SectionEyebrow>Sequence</SectionEyebrow><p className="mt-1 font-mono text-foreground">{node.journalSequence ?? node.sequence}</p></div><div><SectionEyebrow>Snapshot</SectionEyebrow><p className="mt-1 font-mono text-foreground">{node.snapshotRevision ?? "—"}</p></div></div><div><SectionEyebrow>Event</SectionEyebrow><p className="mt-1 break-all font-mono text-[11px] text-foreground">{node.event}</p></div><div><SectionEyebrow>Detail</SectionEyebrow><p className="mt-1 text-xs leading-5 text-muted-foreground">{node.detail}</p></div><div><SectionEyebrow>Payload</SectionEyebrow><pre className="mt-2 max-h-52 overflow-auto rounded-lg bg-muted/60 p-3 font-mono text-[10px] leading-4 text-muted-foreground">{JSON.stringify(node.data, null, 2)}</pre></div></div></div>;
+function StudioVerticalConnector() {
+  return <div className="flex h-5 items-center justify-center text-border" aria-hidden="true"><svg width="16" height="20" viewBox="0 0 16 20"><path d="M8 1V14" stroke="currentColor" strokeWidth="1.25" /><path d="M4.5 11.5L8 15L11.5 11.5" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.25" /></svg></div>;
+}
+
+function StudioGraphNodeCard({ node, selected, onSelect }: { node: StudioGraphNode; selected: boolean; onSelect: (id: string) => void }) {
+  const statusTone = node.status === "error"
+    ? "border-destructive/50 bg-destructive/5"
+    : node.status === "running"
+      ? "border-primary/70 bg-primary/8 shadow-[0_0_0_3px_color-mix(in_srgb,var(--primary)_13%,transparent)]"
+      : node.status === "complete"
+        ? "border-emerald-500/45 bg-emerald-500/5"
+        : node.status === "waiting"
+          ? "border-amber-500/50 bg-amber-500/5"
+          : "border-border bg-card/80 hover:border-primary/45";
+  return <button type="button" onClick={() => onSelect(node.id)} aria-pressed={selected} className={cn("group relative w-full rounded-xl border p-3 text-left transition-all", statusTone, selected && "ring-2 ring-primary/20")}>{node.status === "running" ? <span className="absolute -inset-px rounded-xl border border-primary/50 opacity-70 animate-pulse" aria-hidden="true" /> : null}<span className="relative flex items-start gap-2.5"><span className={cn("flex size-8 shrink-0 items-center justify-center rounded-lg", node.status === "error" ? "bg-destructive/10 text-destructive" : node.status === "running" ? "bg-primary/12 text-primary" : node.status === "complete" ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-300" : node.status === "waiting" ? "bg-amber-500/10 text-amber-600 dark:text-amber-300" : "bg-muted text-muted-foreground group-hover:text-primary")}><StudioGraphIcon kind={node.kind} /></span><span className="min-w-0 flex-1"><span className="flex items-center gap-1.5"><span className="truncate text-xs font-semibold text-foreground">{node.label}</span>{node.configured ? <span className="size-1.5 shrink-0 rounded-full bg-emerald-500" title="Configured" /> : null}</span><span className="mt-1 block truncate text-[10px] leading-4 text-muted-foreground">{node.detail}</span><span className={cn("mt-2 inline-flex items-center gap-1 text-[9px] font-medium", node.status === "error" ? "text-destructive" : node.status === "running" ? "text-primary" : node.status === "complete" ? "text-emerald-600 dark:text-emerald-300" : node.status === "waiting" ? "text-amber-600 dark:text-amber-300" : "text-muted-foreground")}>{node.status === "running" ? <CircleDot className="size-2.5 animate-pulse" /> : node.status === "complete" ? <Check className="size-2.5" /> : node.status === "error" ? <X className="size-2.5" /> : <span className="size-1.5 rounded-full bg-current" />}{studioGraphStatusLabel(node.status)}</span></span></span></button>;
+}
+
+function StudioGraphIcon({ kind }: { kind: StudioGraphNode["kind"] }) {
+  const className = "size-4";
+  if (kind === "input" || kind === "output") return <MessageSquareText className={className} />;
+  if (kind === "channel" || kind === "delivery") return <Send className={className} />;
+  if (kind === "session") return <KeyRound className={className} />;
+  if (kind === "context") return <Settings2 className={className} />;
+  if (kind === "memory") return <Database className={className} />;
+  if (kind === "retrieval") return <BookOpen className={className} />;
+  if (kind === "model") return <Bot className={className} />;
+  if (kind === "router") return <Route className={className} />;
+  if (kind === "tool") return <Wrench className={className} />;
+  if (kind === "mcp") return <PlugZap className={className} />;
+  if (kind === "skill") return <Sparkles className={className} />;
+  if (kind === "approval") return <ShieldCheck className={className} />;
+  if (kind === "handoff") return <Network className={className} />;
+  return <GitBranch className={className} />;
+}
+
+function StudioGraphInspector({ node, onConfigure }: { node: StudioGraphNode; onConfigure: () => void }) {
+  return <div><div className="border-b border-border px-4 py-3"><SectionEyebrow>Selected node</SectionEyebrow><div className="mt-1 flex items-center gap-2"><span className="flex size-6 items-center justify-center rounded-md bg-primary/10 text-primary"><StudioGraphIcon kind={node.kind} /></span><h2 className="text-sm font-semibold text-foreground">{node.label}</h2><span className="ml-auto text-[10px] font-medium text-muted-foreground">{studioGraphStatusLabel(node.status)}</span></div></div><div className="grid gap-4 p-4 text-[11px] sm:grid-cols-[1.2fr_1fr_1fr]"><div><SectionEyebrow>Role</SectionEyebrow><p className="mt-1 text-xs leading-5 text-muted-foreground">{node.detail}</p><p className="mt-2 font-mono text-[10px] text-muted-foreground">{node.event}</p></div><div><SectionEyebrow>Scope</SectionEyebrow><p className="mt-1 text-foreground">{node.scope ?? "—"}</p><SectionEyebrow>Provider</SectionEyebrow><p className="mt-1 text-foreground">{node.provider ?? "KasiTek runtime"}</p></div><div><SectionEyebrow>Configuration</SectionEyebrow><dl className="mt-1 space-y-1 text-muted-foreground">{Object.entries(node.data).slice(0, 3).map(([key, value]) => <div key={key} className="flex justify-between gap-3"><dt>{key}</dt><dd className="max-w-[11rem] truncate text-right text-foreground">{value}</dd></div>)}</dl>{node.configurable ? <Button type="button" variant="outline" size="sm" className="mt-3 h-7 px-2.5 text-[11px]" onClick={onConfigure}><SlidersHorizontal className="mr-1.5 size-3" />Configure</Button> : null}</div></div></div>;
 }
