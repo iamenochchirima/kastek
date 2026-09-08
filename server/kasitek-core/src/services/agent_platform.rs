@@ -142,6 +142,38 @@ impl AgentPlatformClient {
         .await
     }
 
+    pub async fn list_capabilities(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::GET,
+            "/v1/capabilities",
+            organization_id,
+            actor_id,
+            &["agents:read"],
+            None,
+        )
+        .await
+    }
+
+    pub async fn list_capability_directory(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::GET,
+            "/v1/capabilities/directory",
+            organization_id,
+            actor_id,
+            &["agents:read"],
+            None,
+        )
+        .await
+    }
+
     pub async fn create_agent(
         &self,
         organization_id: &str,
@@ -3585,6 +3617,29 @@ mod tests {
         assert!(requests[0].starts_with("GET /v1/conversations/handoffs?"));
         assert!(requests[0].contains("assignment=mine"));
         assert_scoped_request(&requests[0], "agents:read");
+    }
+
+    #[tokio::test]
+    async fn capability_catalog_routes_are_forwarded_to_agent_platform() {
+        let (base_url, server) = mock_agent_server(vec![
+            (200, r#"{"capabilities":[]}"#),
+            (200, r#"{"directory":[],"toolsets":[]}"#),
+        ])
+        .await;
+        let client = test_client(&base_url);
+
+        client.list_capabilities("org-1", "actor-1").await.unwrap();
+        client
+            .list_capability_directory("org-1", "actor-1")
+            .await
+            .unwrap();
+
+        let requests = server.await.unwrap();
+        assert_eq!(requests.len(), 2);
+        assert!(requests[0].starts_with("GET /v1/capabilities HTTP/1.1"));
+        assert!(requests[1].starts_with("GET /v1/capabilities/directory HTTP/1.1"));
+        assert_scoped_request(&requests[0], "agents:read");
+        assert_scoped_request(&requests[1], "agents:read");
     }
 
     #[tokio::test]

@@ -186,6 +186,14 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                 "/models/catalog",
                 web::get().to(agent_platform::get_model_catalog),
             )
+            .route(
+                "/capabilities",
+                web::get().to(agent_platform::list_capabilities),
+            )
+            .route(
+                "/capabilities/directory",
+                web::get().to(agent_platform::list_capability_directory),
+            )
             .route("/{agentId}", web::patch().to(agent_platform::update_agent))
             .route("/{agentId}", web::delete().to(agent_platform::delete_agent))
             .route(
