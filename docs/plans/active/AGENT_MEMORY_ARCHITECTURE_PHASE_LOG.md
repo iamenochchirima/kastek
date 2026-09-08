@@ -1248,3 +1248,14 @@ Canonical revision selection hardening (2026-09-08):
 - Agents build and the canonical HTTP/deletion hardening tests pass after this change. The complete
   controlled PostgreSQL matrix remains green at 213 files / 1,183 tests, with 8 external-fixture
   files and 31 tests intentionally skipped.
+
+Local authenticated E2E refresh (2026-09-08):
+
+- Ran the local REST/MCP smoke against a disposable API/gateway pair with an ephemeral ES256
+  installation-token key. REST credential exchange, discovery, idempotency, durable execution,
+  MCP gateway authentication, protocol negotiation, and terminal completion all passed.
+- The smoke deleted its temporary external-agent installation through the authenticated boundary;
+  the memory facts, revisions, source events, checkpoints, consolidation jobs, and legacy records
+  tables are empty afterward. The only remaining row is the append-only deletion-job audit record.
+- The default development API remains intentionally unconfigured for installation-token signing;
+  manual external-agent smoke must use the documented isolated key pair until a local key is added.
