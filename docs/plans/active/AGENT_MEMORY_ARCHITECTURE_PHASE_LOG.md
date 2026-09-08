@@ -1186,6 +1186,16 @@ Consolidation partition high-load refresh (2026-09-08):
 - This strengthens local contention evidence only; production-scale throughput, latency,
   capacity, and staging monitoring remain release gates.
 
+Latest local verification refresh (2026-09-08):
+
+- After the broad deletion fencing and legacy retention-writer removal, the controlled
+  DB-enabled Vitest matrix passed 212 files and 1,179 tests. Eight external-fixture files with
+  31 tests remain intentionally skipped because they require provider or staging resources.
+- The focused deletion, agent-deletion, integrity, and retention repository run passed 8/8.
+  Agents and MCP builds, release-manifest verification, and `git diff --check` also pass.
+- The local worker remains quiesced after the matrix so the database is ready for manual testing;
+  the Temporal and gateway health services remain available.
+
 Organization-partitioned worker scheduling (2026-09-08):
 
 - The global consolidation worker now discovers due organizations and fans claims out through
