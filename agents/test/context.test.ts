@@ -157,6 +157,7 @@ describe("Waku-derived context builder", () => {
     });
     expect(context.tools.map((tool) => tool.name)).toEqual(["first.read"]);
     expect(context.omittedToolCount).toBe(1);
+    expect(context.decision.status).toBe("ready");
     expect(context.decision.reasons).toContain("tool_schema_budget");
 
     const limited = buildAgentContext({

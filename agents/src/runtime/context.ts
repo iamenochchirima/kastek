@@ -146,15 +146,6 @@ function asUntrusted(label: string, content: string): string {
   return `<untrusted-data source="${label}">\n${content}\n</untrusted-data>`;
 }
 
-function boundedText(value: string, maxTokens: number): { text: string; truncated: boolean } {
-  const maxCharacters = Math.max(4, maxTokens * 4);
-  if (value.length <= maxCharacters) return { text: value, truncated: false };
-  return {
-    text: `${value.slice(0, Math.max(0, maxCharacters - 64))}\n[Earlier content omitted by context policy]`,
-    truncated: true,
-  };
-}
-
 export { sanitizeAssistantResponse } from "./sanitize";
 
 export class DefaultContextPolicy implements ContextPolicy {
@@ -190,15 +181,14 @@ export class DefaultContextPolicy implements ContextPolicy {
       })));
     }
 
-    const ordered = input.recentMessages.slice(-budget.maxMessages);
-    let omittedMessageCount = Math.max(0, input.recentMessages.length - ordered.length);
-    let boundedHistoryCount = 0;
     const messages: ModelMessage[] = [{ role: "system", content: systemSections.join("\n\n") }];
-    for (const durable of ordered) {
+    // The planner is the only owner of model-facing history selection. Keep
+    // the complete durable input here so the same provider-aware fit gate can
+    // account for message units, tool pairs, output reservation, and byte
+    // pressure without a hidden pre-pruner.
+    for (const durable of input.recentMessages) {
       const role = durable.direction === "outbound" ? "assistant" : durable.direction === "system" ? "system" : "user";
-      const bounded = boundedText(contentText(durable.content), budget.maxHistoricalMessageTokens);
-      if (bounded.truncated) boundedHistoryCount += 1;
-      messages.push({ role, content: asUntrusted(`conversation-${durable.messageType}`, bounded.text) });
+      messages.push({ role, content: asUntrusted(`conversation-${durable.messageType}`, contentText(durable.content)) });
     }
     messages.push({ role: "user", content: asUntrusted("current-user-message", input.currentMessage) });
 
@@ -217,7 +207,9 @@ export class DefaultContextPolicy implements ContextPolicy {
         requestedOutputTokens: input.contextPlanningPolicy?.requestedOutputTokens ?? Math.max(1, reservedOutputTokens),
         maxToolSchemaTokens: input.contextPlanningPolicy?.maxToolSchemaTokens ?? budget.maxToolSchemaTokens,
         maxToolResultTokens: input.contextPlanningPolicy?.maxToolResultTokens ?? budget.maxHistoricalMessageTokens,
-        maxMessageUnits: input.contextPlanningPolicy?.maxMessageUnits,
+        // maxMessages is a historical-message compatibility setting. The
+        // current user message is an additional protected unit.
+        maxMessageUnits: input.contextPlanningPolicy?.maxMessageUnits ?? budget.maxMessages + 1,
       },
       messages,
       tools: input.authorizedTools.map(({ name, description, inputSchema }) => ({ name, description, inputSchema })),
@@ -227,8 +219,6 @@ export class DefaultContextPolicy implements ContextPolicy {
     const selectedToolNames = new Set(plan.tools.map((tool) => tool.name));
     const selectedTools = input.authorizedTools.filter((tool) => selectedToolNames.has(tool.name));
     const plannerReasons = [...plan.diagnostics.reasons];
-    if (boundedHistoryCount > 0) plannerReasons.push("history_message_limit");
-    if (omittedMessageCount > 0 || plan.diagnostics.omittedMessageCount > 0 || plan.status === "compacted") plannerReasons.push("history_compacted");
     if (plan.status === "rejected") {
       plannerReasons.push(plan.rejection.code);
       // Keep the old reason for callers that only understand the legacy
@@ -238,10 +228,12 @@ export class DefaultContextPolicy implements ContextPolicy {
     const reasons = [...new Set(plannerReasons)];
     const retrievalDecision = input.retrievalDecision ?? fallbackRetrievalDecision;
     const plannerCategories = plan.accounting.categories;
-    const totalOmittedMessages = omittedMessageCount + plan.diagnostics.omittedMessageCount;
+    const totalOmittedMessages = plan.diagnostics.omittedMessageCount;
     const decision: ContextDecisionRecord = {
       policyVersion: "v1",
-      status: plan.status === "rejected" || reasons.length > 0 ? "limited" : "ready",
+      // Safe pruning/compaction is an admitted request, not a terminal limit.
+      // Only the provider-aware planner's rejected status may stop the run.
+      status: plan.status === "rejected" ? "limited" : "ready",
       reasons,
       selectedMessageCount: plan.messages.filter((message) => message.role !== "system").length,
       omittedMessageCount: totalOmittedMessages,
