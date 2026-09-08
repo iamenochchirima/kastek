@@ -77,9 +77,9 @@ const NODE_WIDTH = 210;
 const NODE_HEIGHT = 104;
 
 const groupNodes: Node[] = [
-  { id: "group-runtime", type: "group", position: { x: -30, y: 120 }, data: { label: "RUNTIME · durable execution", subtitle: "input, session, context, and model" }, style: { width: 1400, height: 500 }, selectable: false, draggable: false, connectable: false, zIndex: -1 },
-  { id: "group-capabilities", type: "group", position: { x: 1380, y: 30 }, data: { label: "CAPABILITIES · configured actions", subtitle: "tools, skills, MCP, approvals, handoff" }, style: { width: 570, height: 590 }, selectable: false, draggable: false, connectable: false, zIndex: -1 },
-  { id: "group-delivery", type: "group", position: { x: 1940, y: 120 }, data: { label: "OUTCOME · persistence and delivery", subtitle: "response, memory, and channels" }, style: { width: 560, height: 500 }, selectable: false, draggable: false, connectable: false, zIndex: -1 },
+  { id: "group-runtime", type: "group", position: { x: -30, y: 120 }, data: { label: "RUNTIME · durable execution", subtitle: "input, session, context, and model" }, style: { width: 1400, height: 500 }, selectable: false, draggable: false, connectable: false, zIndex: -10 },
+  { id: "group-capabilities", type: "group", position: { x: 1380, y: 30 }, data: { label: "CAPABILITIES · configured actions", subtitle: "tools, skills, MCP, approvals, handoff" }, style: { width: 570, height: 590 }, selectable: false, draggable: false, connectable: false, zIndex: -10 },
+  { id: "group-delivery", type: "group", position: { x: 1940, y: 120 }, data: { label: "OUTCOME · persistence and delivery", subtitle: "response, memory, and channels" }, style: { width: 560, height: 500 }, selectable: false, draggable: false, connectable: false, zIndex: -10 },
 ];
 
 const nodePositions: Record<string, { x: number; y: number }> = {
@@ -180,7 +180,7 @@ function ObservatoryNode({ data, selected }: NodeProps<CanvasNode>) {
 function createCanvasNodes(nodes: StudioGraphNode[], selectedNodeId: string | null, positions: Record<string, XYPosition>): CanvasNode[] {
   return [
     ...groupNodes as CanvasNode[],
-    ...nodes.map((node) => ({ id: node.id, type: "observatory" as const, position: positions[node.id] ?? nodePositions[node.id] ?? { x: 0, y: 0 }, data: node, selected: node.id === selectedNodeId, style: { width: NODE_WIDTH, height: NODE_HEIGHT }, draggable: true })),
+    ...nodes.map((node) => ({ id: node.id, type: "observatory" as const, position: positions[node.id] ?? nodePositions[node.id] ?? { x: 0, y: 0 }, data: node, selected: node.id === selectedNodeId, style: { width: NODE_WIDTH, height: NODE_HEIGHT, zIndex: 10 }, draggable: true })),
   ];
 }
 
