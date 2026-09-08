@@ -319,8 +319,9 @@ migration evidence and reviewer approval remain open.
       worker bottleneck; leasing now fences by organization + installation + conversation, with
       migration 152 indexing that ownership tuple. The bounded PostgreSQL fixture claims 32
       conversations across four workers and 256 conversations across eight workers in two ordered
-      waves with no duplicate conversation claim; production-scale throughput/load proof remains
-      open.
+      waves with no duplicate conversation claim; the obsolete legacy consolidation worker was
+      removed, leaving the revision-backed worker as the only production consolidation path;
+      production-scale throughput/load proof remains open.
 - [x] Add thresholded batch extraction and forced session-end/pre-compaction flushes.
 - [x] Select a bounded evidence window with exact source event IDs.
 - [x] Run deterministic filtering and poisoning checks before model extraction.

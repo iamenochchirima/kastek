@@ -1183,3 +1183,12 @@ Organization-partitioned worker scheduling (2026-09-08):
   expose organization discovery.
 - Worker and partition tests pass after the change; staging capacity, queue-age, and dead-letter
   monitoring remain release gates.
+
+Legacy consolidation worker retirement (2026-09-08):
+
+- Removed the unused `MemoryConsolidationWorker` implementation and its legacy candidate-writing
+  tests. The production worker and integration coverage now use
+  `MemoryRevisionConsolidationWorker`, which writes only immutable v2 facts/revisions and never
+  targets `memory_records`.
+- The v2 worker-loss, lease-fencing, partition, retry, and PostgreSQL consolidation fixtures pass;
+  legacy API/migration readers remain separate cutover work and are not used by the worker.
