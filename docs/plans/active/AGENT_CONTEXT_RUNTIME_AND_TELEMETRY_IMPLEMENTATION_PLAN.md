@@ -400,7 +400,9 @@ recorded capability, threshold, and gate change before its next call.
   into durable run-budget admission. The run-budget layer no longer needs to make an independent
   model-facing fit decision; its compatibility estimator is used only when an older non-harness
   caller omits the fields. Evidence: `agents/src/runtime/loop.ts`, the Temporal activity adapters,
-  `agents/test/runtime.test.ts`, and commit `dac02f45`.
+  `agents/test/runtime.test.ts`, and commits `dac02f45` and `f7672b59`. A concurrent durable
+  reservation rejection is translated into the typed `CONTEXT_RUN_BUDGET_EXCEEDED` limited outcome
+  instead of leaking `MODEL_TOKEN_BUDGET_EXCEEDED`.
 - [x] Compute hard fit from `input + reserved output + safety margin <= context window`; keep run
   budgets and cumulative billing separate.
 - [x] Make payload-byte pressure independently actionable for media/request-size limits. Evidence:
