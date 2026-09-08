@@ -3,6 +3,7 @@
 import {
   useCallback,
   useEffect,
+  useMemo,
   useState,
 } from "react";
 import {
@@ -76,23 +77,36 @@ const NODE_WIDTH = 210;
 const NODE_HEIGHT = 104;
 
 const nodePositions: Record<string, { x: number; y: number }> = {
-  input: { x: 30, y: 285 },
-  channel: { x: 285, y: 285 },
-  session: { x: 540, y: 285 },
-  context: { x: 795, y: 205 },
-  "memory-read": { x: 795, y: 410 },
-  retrieval: { x: 1050, y: 410 },
-  model: { x: 1050, y: 205 },
-  router: { x: 1305, y: 285 },
-  calendar: { x: 1500, y: 90 },
-  mcp: { x: 1500, y: 285 },
-  "content-skill": { x: 1500, y: 480 },
-  approval: { x: 1760, y: 90 },
-  handoff: { x: 1760, y: 285 },
-  "memory-write": { x: 2020, y: 480 },
-  output: { x: 2020, y: 205 },
-  delivery: { x: 2275, y: 205 },
+  input: { x: 80, y: 160 },
+  channel: { x: 305, y: 160 },
+  session: { x: 192, y: 285 },
+  context: { x: 640, y: 105 },
+  "memory-read": { x: 640, y: 255 },
+  retrieval: { x: 865, y: 255 },
+  model: { x: 865, y: 105 },
+  router: { x: 80, y: 585 },
+  calendar: { x: 305, y: 475 },
+  mcp: { x: 305, y: 615 },
+  "content-skill": { x: 305, y: 755 },
+  approval: { x: 640, y: 475 },
+  handoff: { x: 640, y: 615 },
+  "memory-write": { x: 640, y: 755 },
+  output: { x: 865, y: 545 },
+  delivery: { x: 865, y: 685 },
 };
+
+const movableKinds = new Set<StudioGraphNode["kind"]>(["tool", "mcp", "skill"]);
+
+function isMovableNode(node: Pick<StudioGraphNode, "kind" | "configurable">) {
+  return Boolean(node.configurable && movableKinds.has(node.kind));
+}
+
+const sectionFrames = [
+  { id: "ingress", title: "INGRESS & SESSION", detail: "How work enters and becomes durable", x: 40, y: 45, width: 510, height: 365 },
+  { id: "context", title: "CONTEXT & REASONING", detail: "What the agent knows before acting", x: 600, y: 45, width: 510, height: 365 },
+  { id: "capabilities", title: "CAPABILITIES", detail: "Tools, MCP, and skills available to the agent", x: 40, y: 445, width: 510, height: 410 },
+  { id: "outcome", title: "CONTROL & DELIVERY", detail: "Approvals, handoff, memory, and response", x: 600, y: 445, width: 510, height: 410 },
+];
 
 const edgeDefinitions: Array<{ id: string; source: string; target: string; sourceHandle?: string; targetHandle?: string; label?: string; dashed?: boolean }> = [
   { id: "input-channel", source: "input", target: "channel", label: "accepted" },
@@ -155,7 +169,7 @@ function statusClasses(status: StudioGraphStatus) {
 
 function ObservatoryNode({ data, selected }: NodeProps<CanvasNode>) {
   const status = statusClasses(data.status);
-  return <div className={cn("relative h-full w-full rounded-xl border bg-[#f6f8fc]/95 px-3.5 py-3 shadow-[0_10px_30px_-20px_rgba(0,0,0,.8)] transition-all dark:bg-[#222c41]/95", status.border, selected && "ring-2 ring-primary/35", data.status === "running" && "shadow-[0_0_26px_-8px_color-mix(in_srgb,var(--primary)_80%,transparent)]")}>
+  return <div className={cn("relative h-full w-full rounded-xl border bg-[#f6f8fc]/95 px-3.5 py-3 shadow-[0_10px_30px_-20px_rgba(0,0,0,.8)] transition-all dark:bg-[#222c41]/95", isMovableNode(data) && "cursor-grab active:cursor-grabbing", status.border, selected && "ring-2 ring-primary/35", data.status === "running" && "shadow-[0_0_26px_-8px_color-mix(in_srgb,var(--primary)_80%,transparent)]")}>
     <Handle id="target" type="target" position={Position.Left} className="!h-2 !w-2 !border-0 !bg-muted-foreground/70" />
     <Handle id="source" type="source" position={Position.Right} className="!h-2 !w-2 !border-0 !bg-muted-foreground/70" />
     <div className="flex items-start gap-2.5"><span className={cn("flex size-8 shrink-0 items-center justify-center rounded-lg", status.icon)}>{nodeIcon(data.kind)}</span><div className="min-w-0 flex-1"><div className="flex items-center gap-1.5"><p className="truncate text-xs font-semibold text-foreground">{data.label}</p><span className="size-1.5 shrink-0 rounded-full bg-emerald-500" title="Configured" /></div><p className="mt-1 truncate text-[10px] leading-4 text-muted-foreground">{data.detail}</p><p className={cn("mt-2 inline-flex items-center gap-1 text-[9px] font-medium", status.text)}>{data.status === "running" ? <CircleDot className="size-2.5 animate-pulse" /> : data.status === "complete" ? <Check className="size-2.5" /> : data.status === "error" ? <X className="size-2.5" /> : <span className="size-1.5 rounded-full bg-current" />}{graphStatusLabel(data.status)}</p></div></div>
@@ -164,8 +178,21 @@ function ObservatoryNode({ data, selected }: NodeProps<CanvasNode>) {
 
 function createCanvasNodes(nodes: StudioGraphNode[], selectedNodeId: string | null, positions: Record<string, XYPosition>): CanvasNode[] {
   return [
-    ...nodes.map((node) => ({ id: node.id, type: "observatory" as const, position: positions[node.id] ?? nodePositions[node.id] ?? { x: 0, y: 0 }, data: node, selected: node.id === selectedNodeId, width: NODE_WIDTH, height: NODE_HEIGHT, style: { zIndex: 10 }, draggable: true })),
+    ...nodes.map((node) => ({ id: node.id, type: "observatory" as const, position: isMovableNode(node) ? positions[node.id] ?? nodePositions[node.id] ?? { x: 0, y: 0 } : nodePositions[node.id] ?? { x: 0, y: 0 }, data: node, selected: node.id === selectedNodeId, width: NODE_WIDTH, height: NODE_HEIGHT, style: { zIndex: 10 }, draggable: isMovableNode(node) })),
   ];
+}
+
+function ObservatorySectionFrames() {
+  return <ViewportPortal>
+    <svg aria-hidden="true" className="pointer-events-none absolute left-0 top-0 z-0 overflow-visible" width="1200" height="900" viewBox="0 0 1200 900">
+      {sectionFrames.map((section) => <g key={section.id}>
+        <rect x={section.x} y={section.y} width={section.width} height={section.height} rx="22" fill="rgba(28, 39, 59, .42)" stroke="rgba(122, 143, 180, .34)" strokeWidth="1.5" />
+        <rect x={section.x + 1} y={section.y + 1} width={section.width - 2} height="54" rx="21" fill="rgba(46, 61, 88, .34)" />
+        <text x={section.x + 22} y={section.y + 25} fill="#b9c6df" fontSize="11" fontWeight="700" letterSpacing="1.6">{section.title}</text>
+        <text x={section.x + 22} y={section.y + 43} fill="#8492ab" fontSize="10">{section.detail}</text>
+      </g>)}
+    </svg>
+  </ViewportPortal>;
 }
 
 function ObservatoryLinks({ nodes, positions }: { nodes: StudioGraphNode[]; positions: Record<string, XYPosition> }) {
@@ -204,6 +231,7 @@ export function StudioSystemCanvas({ nodes, selectedNodeId, onSelect, running, t
   const [positions, setPositions] = useState<Record<string, XYPosition>>(() => Object.fromEntries(nodes.map((node) => [node.id, nodePositions[node.id] ?? { x: 0, y: 0 }])));
   const [positionsLoaded, setPositionsLoaded] = useState(!storageKey);
   const [isMounted, setIsMounted] = useState(false);
+  const movableNodeIds = useMemo(() => new Set(nodes.filter(isMovableNode).map((node) => node.id)), [nodes]);
 
   useEffect(() => {
     setIsMounted(true);
@@ -215,14 +243,14 @@ export function StudioSystemCanvas({ nodes, selectedNodeId, onSelect, running, t
       const stored = window.localStorage.getItem(storageKey);
       if (stored) {
         const parsed = JSON.parse(stored) as Record<string, XYPosition>;
-        setPositions((current) => ({ ...current, ...Object.fromEntries(Object.entries(parsed).filter(([, value]) => value && typeof value.x === "number" && typeof value.y === "number")) }));
+        setPositions((current) => ({ ...current, ...Object.fromEntries(Object.entries(parsed).filter(([id, value]) => movableNodeIds.has(id) && value && typeof value.x === "number" && typeof value.y === "number")) }));
       }
     } catch {
       // A stale layout should never prevent the observatory from opening.
     } finally {
       setPositionsLoaded(true);
     }
-  }, [storageKey]);
+  }, [movableNodeIds, storageKey]);
 
   useEffect(() => {
     setPositions((current) => {
@@ -249,11 +277,11 @@ export function StudioSystemCanvas({ nodes, selectedNodeId, onSelect, running, t
       const changedNodes = applyNodeChanges(changes, currentNodes);
       const next = { ...current };
       for (const changedNode of changedNodes) {
-        if (changedNode.type !== "group") next[changedNode.id] = changedNode.position;
+        if (changedNode.type !== "group" && movableNodeIds.has(changedNode.id)) next[changedNode.id] = changedNode.position;
       }
       return next;
     });
-  }, [nodes, selectedNodeId]);
+  }, [movableNodeIds, nodes, selectedNodeId]);
 
   const resetLayout = useCallback(() => {
     setPositions(Object.fromEntries(nodes.map((node) => [node.id, nodePositions[node.id] ?? { x: 0, y: 0 }])));
@@ -272,6 +300,7 @@ export function StudioSystemCanvas({ nodes, selectedNodeId, onSelect, running, t
   }
   return <div className="relative h-full min-h-[560px] w-full overflow-hidden bg-[#141a29] [&_.react-flow__attribution]:bg-transparent [&_.react-flow__attribution]:text-muted-foreground/50 [&_.react-flow__controls]:overflow-hidden [&_.react-flow__controls]:rounded-lg [&_.react-flow__controls]:border-border/70 [&_.react-flow__controls_button]:border-border/70 [&_.react-flow__controls_button]:bg-card/90 [&_.react-flow__controls_button]:fill-muted-foreground [&_.react-flow__minimap]:overflow-hidden [&_.react-flow__minimap]:rounded-lg [&_.react-flow__minimap]:border [&_.react-flow__minimap]:border-border/70 [&_.react-flow__minimap]:bg-card/90">
     <ReactFlow nodes={canvasNodes} edges={[]} nodeTypes={observatoryNodeTypes} onNodesChange={handleNodesChange} onNodeClick={(_, node) => onSelect(node.id)} fitView fitViewOptions={{ padding: 0.14, minZoom: 0.18, maxZoom: 0.8 }} minZoom={0.18} maxZoom={1.6} nodesDraggable nodesConnectable={false} elementsSelectable panOnScroll zoomOnScroll zoomOnPinch selectionOnDrag={false}>
+      <ObservatorySectionFrames />
       <ObservatoryLinks nodes={nodes} positions={positions} />
       <Background variant={BackgroundVariant.Dots} gap={22} size={1} color="rgba(148,163,184,.18)" />
       <Controls showInteractive={false} position="bottom-left" />
@@ -282,7 +311,7 @@ export function StudioSystemCanvas({ nodes, selectedNodeId, onSelect, running, t
         <span className="text-border">•</span>
         <span>{traceCount ? `${traceCount} events` : "Ready"}</span>
         {running ? <span className="inline-flex items-center gap-1 text-primary"><CircleDot className="size-3 animate-pulse" />Live</span> : null}
-        <button type="button" onClick={resetLayout} className="ml-1 inline-flex items-center gap-1 rounded-md border border-border/70 px-2 py-1 text-[9px] text-muted-foreground transition-colors hover:border-primary/50 hover:text-foreground" title="Reset node positions"><RotateCcw className="size-3" />Reset layout</button>
+        <button type="button" onClick={resetLayout} className="ml-1 inline-flex items-center gap-1 rounded-md border border-border/70 px-2 py-1 text-[9px] text-muted-foreground transition-colors hover:border-primary/50 hover:text-foreground" title="Reset tool positions"><RotateCcw className="size-3" />Reset tools</button>
       </Panel>
       <Panel position="top-right" className="!m-4 flex items-center gap-3 rounded-lg border border-border/70 bg-card/90 px-3 py-2 text-[9px] text-muted-foreground shadow-lg backdrop-blur">
         <span className="inline-flex items-center gap-1.5"><span className="size-1.5 rounded-full bg-slate-400" />Configured</span>
