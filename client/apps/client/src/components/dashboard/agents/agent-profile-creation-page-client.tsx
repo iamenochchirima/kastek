@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { ArrowLeft, Bot, Check, ChevronLeft, ChevronRight, LoaderCircle, PlugZap, Rocket, ShieldCheck } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -223,7 +222,7 @@ export function AgentProfileCreationPageClient({
             {created.warning ? <p className="mx-auto mt-4 max-w-lg rounded-xl border border-status-attention/30 bg-status-attention-soft px-4 py-3 text-left text-sm text-status-attention">The agent was created, but knowledge indexing needs attention: {created.warning}</p> : null}
             <div className="mt-8 flex flex-wrap justify-center gap-2">
               <Button type="button" variant="outline" onClick={() => router.push("/agents")}>Agents</Button>
-              <Button type="button" onClick={() => router.push(`/playground?agent=${encodeURIComponent(created.agent.id)}`)}>Open Playground</Button>
+              <Button type="button" onClick={() => router.push(`/studio?agent=${encodeURIComponent(created.agent.id)}`)}>Open Studio</Button>
             </div>
           </CardContent>
         </Card>

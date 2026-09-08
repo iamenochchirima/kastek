@@ -332,7 +332,7 @@ function StudioAgentList({
           <div>
             <div className="flex items-center gap-2 text-primary"><FlaskConical className="size-4" /><SectionEyebrow>{surface === "playground" ? "Agent testing" : "Automation"}</SectionEyebrow></div>
             <h1 className="mt-3 text-3xl font-semibold tracking-[-0.04em] text-foreground sm:text-4xl">{surface === "playground" ? "Playground" : "Studio"}</h1>
-            <p className="mt-2 text-sm text-muted-foreground">{surface === "playground" ? "Run agents against live Playground resources." : "Configure and publish agents."}</p>
+            <p className="mt-2 text-sm text-muted-foreground">{surface === "playground" ? "Run agents against live Playground resources." : "Configure and run agents."}</p>
           </div>
         <Button type="button" onClick={onCreate}><Plus className="mr-1.5 size-4" />Create agent</Button>
         </header>
@@ -381,7 +381,7 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [conversationId, setConversationId] = useState<string | null>(null);
-  const [conversationLoading, setConversationLoading] = useState(surface === "playground");
+  const [conversationLoading, setConversationLoading] = useState(Boolean(agent.installation_id && agent.installation_settings?.environment === "playground"));
   const [configurationOpen, setConfigurationOpen] = useState(false);
   const [loadingVersions, setLoadingVersions] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -407,6 +407,7 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
 
   const selectedVersion = versions.find((version) => version.id === selectedVersionId) ?? versions[0] ?? null;
   const playgroundReady = agent.installation_settings?.environment === "playground";
+  const canRun = Boolean(agent.installation_id && playgroundReady);
 
   const applyConversation = useCallback((result: Awaited<ReturnType<typeof resolvePlatformConversation>>) => {
     setConversationId(result.conversation.id);
@@ -420,13 +421,14 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
   }, []);
 
   useEffect(() => {
-    if (surface !== "playground" || !agent.installation_id || !playgroundReady) {
+    const installationId = agent.installation_id;
+    if (!canRun || !installationId) {
       setConversationLoading(false);
       return;
     }
     let cancelled = false;
     setConversationLoading(true);
-    void resolvePlatformConversation(agent.installation_id)
+    void resolvePlatformConversation(installationId)
       .then((result) => {
         if (!cancelled) applyConversation(result);
       })
@@ -437,7 +439,7 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
         if (!cancelled) setConversationLoading(false);
       });
     return () => { cancelled = true; };
-  }, [agent.installation_id, applyConversation, playgroundReady, surface]);
+  }, [agent.installation_id, applyConversation, canRun]);
 
   useEffect(() => {
     let cancelled = false;
@@ -507,8 +509,8 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
       showError("This agent is not installed yet.");
       return;
     }
-    if (agent.installation_settings?.environment !== "playground") {
-      showError("This agent has no isolated Playground installation.");
+    if (!playgroundReady) {
+      showError("This agent has no Playground installation.");
       return;
     }
     const message = input.trim();
@@ -592,7 +594,7 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
       if (installation.settings?.environment !== "playground") {
         throw new Error("Playground installation is not available yet. Restart the local Agent Platform and try again.");
       }
-      router.push(`/playground?agent=${encodeURIComponent(agent.id)}`);
+      router.refresh();
     } catch (cause) {
       showError(cause instanceof Error ? cause.message : "Unable to install Playground");
       setInstallingPlayground(false);
@@ -655,9 +657,8 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
           <label className="flex items-center gap-2 text-xs text-muted-foreground"><span className="hidden sm:inline">Version</span><select value={selectedVersionId ?? ""} onChange={(event) => selectVersion(event.target.value)} disabled={loadingVersions || !versions.length} className="h-8 max-w-36 rounded-md border border-border bg-background px-2 text-xs font-medium text-foreground outline-none focus:border-primary"><option value="">{loadingVersions ? "Loading…" : "No versions"}</option>{versions.map((version) => <option key={version.id} value={version.id}>v{version.version_number} · {version.status}</option>)}</select></label>
           <span className="inline-flex items-center gap-1.5 rounded-md border border-primary/20 bg-primary/5 px-2.5 py-1.5 text-xs text-primary"><FlaskConical className="size-3.5" />{surface === "playground" ? "Playground" : "Studio"}</span>
           <Button type="button" variant="outline" size="sm" onClick={() => setConfigurationOpen(true)}><SlidersHorizontal className="mr-1.5 size-3.5" />Configuration</Button>
-          {surface === "playground"
-            ? activeRunId ? <Button type="button" variant="outline" size="sm" onClick={() => void cancelRun()} disabled={cancelling}><X className="mr-1.5 size-3.5" />{cancelling ? "Cancelling…" : "Cancel"}</Button> : null
-            : agent.protected ? <span className="hidden rounded-md border border-primary/20 bg-primary/5 px-2.5 py-1.5 text-xs text-primary sm:inline-flex">Protected default</span> : <Button type="button" size="sm" onClick={() => router.push(`/playground?agent=${encodeURIComponent(agent.id)}`)}><FlaskConical className="mr-1.5 size-3.5" />Open Playground</Button>}
+          {activeRunId ? <Button type="button" variant="outline" size="sm" onClick={() => void cancelRun()} disabled={cancelling}><X className="mr-1.5 size-3.5" />{cancelling ? "Cancelling…" : "Cancel"}</Button> : null}
+          {agent.protected ? <span className="hidden rounded-md border border-primary/20 bg-primary/5 px-2.5 py-1.5 text-xs text-primary sm:inline-flex">Protected default</span> : null}
           {!agent.protected ? <Button type="button" variant="outline" size="sm" onClick={() => void deploy()} disabled={deploying || !selectedVersion}><Rocket className="mr-1.5 size-3.5" />{deploying ? "Updating…" : surface === "playground" ? "Update Playground" : "Update installation"}</Button> : null}
         </div>
       </header>
@@ -674,7 +675,7 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
             {error ? <div className="mx-4 mb-3 flex items-start justify-between gap-3 rounded-lg border border-destructive/20 bg-destructive/10 px-3 py-2 text-xs text-destructive" role="alert"><div><p>{error}</p>{errorRemediation ? <p className="mt-1 text-destructive/80">{errorRemediation}</p> : null}</div><button type="button" aria-label="Dismiss error" onClick={clearError}><X className="size-4 shrink-0" /></button></div> : null}
             {notice ? <div className="mx-4 mb-3 flex items-center gap-2 rounded-lg border border-emerald-500/20 bg-emerald-500/5 px-3 py-2 text-xs text-emerald-700 dark:text-emerald-300"><Check className="size-3.5" />{notice}</div> : null}
             <form className="border-t border-border p-3" onSubmit={(event) => { event.preventDefault(); void runAgent(); }}>
-              <div className="flex items-end gap-2 rounded-xl border border-border bg-background p-2 focus-within:border-primary"><Textarea value={input} onChange={(event) => setInput(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void runAgent(); } }} placeholder={surface === "playground" ? "Message this agent…" : "Open Playground to run"} disabled={surface !== "playground" || !playgroundReady || conversationLoading || running} rows={2} className="min-h-12 resize-none border-0 bg-transparent p-1.5 text-sm shadow-none focus-visible:ring-0" aria-label="Message agent" /><Button type="submit" size="icon" className="size-9 shrink-0 rounded-lg" disabled={surface !== "playground" || !playgroundReady || conversationLoading || running || !input.trim()} aria-label="Send message"><Send className="size-4" /></Button></div>
+              <div className="flex items-end gap-2 rounded-xl border border-border bg-background p-2 focus-within:border-primary"><Textarea value={input} onChange={(event) => setInput(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void runAgent(); } }} placeholder="Message this agent…" disabled={!canRun || conversationLoading || running} rows={2} className="min-h-12 resize-none border-0 bg-transparent p-1.5 text-sm shadow-none focus-visible:ring-0" aria-label="Message agent" /><Button type="submit" size="icon" className="size-9 shrink-0 rounded-lg" disabled={!canRun || conversationLoading || running || !input.trim()} aria-label="Send message"><Send className="size-4" /></Button></div>
               {!agent.installation_id ? <p className="mt-2 px-1 text-[11px] text-amber-700 dark:text-amber-300">Agent is not installed</p> : !playgroundReady ? <div className="mt-2 flex items-center justify-between gap-2 px-1"><span className="text-[11px] text-amber-700 dark:text-amber-300">Playground installation required</span>{agent.protected && surface === "studio" ? <Button type="button" variant="outline" size="sm" className="h-7 px-2.5 text-[11px]" onClick={() => void installPlayground()} disabled={installingPlayground}>{installingPlayground ? <LoaderCircle className="mr-1.5 size-3 animate-spin" /> : <FlaskConical className="mr-1.5 size-3" />}{installingPlayground ? "Installing…" : "Install Playground"}</Button> : null}</div> : <p className="mt-2 px-1 text-[11px] text-muted-foreground">Enter to send · Shift+Enter for a new line</p>}
             </form>
           </section>
