@@ -762,7 +762,15 @@ export async function runBoundedAgentLoop(input: AgentLoopInput): Promise<AgentL
           const modelMessages: ModelMessage[] = contextPlan ? [...contextPlan.messages] : messages;
           const modelTools: ModelToolDefinition[] = contextPlan ? [...contextPlan.tools] : tools;
           const estimatedInputTokens = contextPlan?.accounting.estimatedInputTokens ?? estimatePromptTokens({ messages: modelMessages, tools: modelTools });
-          if (!contextBudgetConsumed && !budget.admit("context", estimatedInputTokens)) {
+          const requestedOutputTokens = attempt.model.maxTokens
+            ?? attemptContextProfile?.maxOutputTokens
+            ?? Math.min(2_048, remainingTokens);
+          const plannedOutputTokens = contextPlan?.accounting.categories.output_reservation ?? Math.max(1, Math.min(
+            requestedOutputTokens,
+            contextRecoveryOutputTokens ?? Number.MAX_SAFE_INTEGER,
+            Math.max(1, remainingTokens - estimatedInputTokens),
+          ));
+          if (!contextBudgetConsumed && (estimatedInputTokens + plannedOutputTokens > remainingTokens || !budget.admit("context", estimatedInputTokens))) {
             const contextBudgetError = {
               code: "CONTEXT_RUN_BUDGET_EXCEEDED",
               message: "The planned request exceeds the remaining durable run token budget",
@@ -770,27 +778,19 @@ export async function runBoundedAgentLoop(input: AgentLoopInput): Promise<AgentL
               userMessage: "I couldn't safely start this request because the remaining run token budget is too small for its context.",
               remediation: "Shorten the request or increase the run token budget before retrying.",
             };
-            await emit(input, { type: "loop.limited", iteration, payload: { reason: "context_budget", code: contextBudgetError.code, estimatedInputTokens, budget: budget.snapshot() } });
+            await emit(input, { type: "loop.limited", iteration, payload: { reason: "context_budget", code: contextBudgetError.code, estimatedInputTokens, reservedOutputTokens: plannedOutputTokens, budget: budget.snapshot() } });
             return { status: "limited", messages, usage, iterations: iteration - 1, toolCalls, error: contextBudgetError, ...(lastToolUi ? { ui: lastToolUi } : {}) };
           }
           if (!contextBudgetConsumed) {
             budget.consume("context", estimatedInputTokens);
             contextBudgetConsumed = true;
           }
-          const requestedOutputTokens = attempt.model.maxTokens
-            ?? attemptContextProfile?.maxOutputTokens
-            ?? Math.min(2_048, remainingTokens);
-          const plannedOutputTokens = contextPlan?.accounting.categories.output_reservation;
           const request: ModelRequest = {
             ...attempt.model,
             messages: modelMessages,
             signal: input.signal,
             tools: modelTools,
-            maxTokens: plannedOutputTokens ?? Math.max(1, Math.min(
-              requestedOutputTokens,
-              contextRecoveryOutputTokens ?? Number.MAX_SAFE_INTEGER,
-              Math.max(1, remainingTokens - estimatedInputTokens),
-            )),
+            maxTokens: plannedOutputTokens,
           };
           if (input.contextAttemptBudget) {
             const attemptBudget = await input.contextAttemptBudget.reserve({
