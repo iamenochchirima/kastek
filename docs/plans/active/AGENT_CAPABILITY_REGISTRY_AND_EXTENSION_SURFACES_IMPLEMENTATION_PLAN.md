@@ -36,6 +36,8 @@
 - [completed] Add browser-started MCP OAuth using protected-resource metadata, authorization-server
   discovery, PKCE, dynamic client registration where offered, encrypted token storage, and the
   existing remote-provider discovery/version/pin lifecycle.
+- [completed] Support providers without dynamic registration through user-supplied OAuth client
+  credentials in Studio; client secrets remain encrypted in one-use OAuth state.
 - [completed] Add catalogue skill installation that materializes the reviewed Hermes skill into the
   existing organization skill/version store before it can be pinned to an agent version.
 - [completed] Import the reviewed Hermes plugin/extension catalogue as first-class plugin entries,
@@ -350,7 +352,7 @@ Logs, metrics, dashboards, and alerts: structured failure logs were added for ca
   skill, and plugin activation; new dashboards/alerts are not applicable to this preview slice
 User, API, internal, and operational documentation: updated MCP, connection, and remote-provider docs
 Validation evidence: Agents build; client production build; targeted client lint; reviewed-directory
-  tests; REST/MCP route-conformance tests
+  tests; MCP PKCE/authorization URL tests; REST/MCP route-conformance tests
 Rollback or disable plan: disable the new directory routes or revert the additive migration/code;
   existing native integrations, grants, and pinned snapshots remain intact
 Post-release review date: to be assigned
@@ -360,7 +362,8 @@ Post-release review date: to be assigned
 
 The reviewed Hermes MCP (65), skill (137), and plugin (104) catalogues now flow through authenticated
 directory routes and searchable Studio panels. Native connections retain their existing provider
-flows; reviewed HTTP MCP entries support API-key or browser OAuth activation, skill entries install
+flows; reviewed HTTP MCP entries support API-key or browser OAuth activation, including manual
+client credentials for providers without dynamic registration; skill entries install
 and pin into the organization skill store, and plugin entries use the existing declarative extension
 package lifecycle. The plugin catalogue deliberately marks entries without a registered KasiTek
 adapter unavailable; foreign Hermes code is not executed. Agents/client builds, targeted lint, route

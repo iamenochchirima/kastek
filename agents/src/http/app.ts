@@ -3600,7 +3600,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     }
   });
 
-  app.post<{ Params: { installationId: string; catalogId: string }; Body: { agentVersionId?: string } }>("/v1/installations/:installationId/mcp/catalog/:catalogId/oauth/start", async (request, reply) => {
+  app.post<{ Params: { installationId: string; catalogId: string }; Body: { agentVersionId?: string; clientId?: string; clientSecret?: string } }>("/v1/installations/:installationId/mcp/catalog/:catalogId/oauth/start", async (request, reply) => {
     const auth = requireAuth(request, dependencies.config);
     requireScope(auth, dependencies.config, "agents:write");
     const installation = await agents.getInstallation(auth.organizationId, request.params.installationId);
@@ -3609,10 +3609,24 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     if (!entry || !entry.managed || entry.auth !== "oauth" || !entry.endpointUrl) return reply.code(400).send({ error: "mcp_catalog_entry_not_oauth" });
     const redirectUri = dependencies.config.MCP_OAUTH_REDIRECT_URI;
     if (!redirectUri) return reply.code(503).send({ error: "mcp_oauth_not_configured" });
-    const input = z.object({ agentVersionId: z.string().uuid().optional() }).strict().parse(request.body ?? {});
+    const input = z.object({
+      agentVersionId: z.string().uuid().optional(),
+      clientId: z.string().trim().min(1).max(500).optional(),
+      clientSecret: z.string().trim().min(1).max(2_000).optional(),
+    }).strict().parse(request.body ?? {});
+    if (!input.clientId && input.clientSecret) return reply.code(400).send({ error: "mcp_oauth_client_id_required" });
     try {
       const discovery = await discoverMcpOAuth({ endpointUrl: entry.endpointUrl, environment: dependencies.config.NODE_ENV });
-      const client = await registerMcpOAuthClient({ discovery, redirectUri, clientName: dependencies.config.MCP_OAUTH_CLIENT_NAME, environment: dependencies.config.NODE_ENV });
+      const client = input.clientId
+        ? {
+          clientId: input.clientId,
+          clientSecret: input.clientSecret,
+          authorizationEndpoint: discovery.authorizationEndpoint,
+          tokenEndpoint: discovery.tokenEndpoint,
+          resource: discovery.resource,
+          scope: discovery.scopesSupported.length ? discovery.scopesSupported.join(" ") : undefined,
+        }
+        : await registerMcpOAuthClient({ discovery, redirectUri, clientName: dependencies.config.MCP_OAUTH_CLIENT_NAME, environment: dependencies.config.NODE_ENV });
       const pkce = createPkcePair();
       await integrationRepository.createOAuthState({ organizationId: auth.organizationId, installationId: installation.id, integrationId: entry.id, stateHash: createHash("sha256").update(pkce.state).digest("hex"), redirectUri, createdBy: auth.actorId, expiresAt: new Date(Date.now() + 10 * 60_000).toISOString(), flow: "mcp", codeVerifier: pkce.codeVerifier, clientId: client.clientId, clientSecret: client.clientSecret, resource: client.resource, authorizationEndpoint: client.authorizationEndpoint, tokenEndpoint: client.tokenEndpoint, agentVersionId: input.agentVersionId });
       return { authorizationUrl: buildMcpAuthorizationUrl({ client, redirectUri, state: pkce.state, codeChallenge: pkce.codeChallenge }) };

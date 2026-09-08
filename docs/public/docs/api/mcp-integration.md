@@ -68,6 +68,10 @@ discovery, PKCE, and the provider's dynamic client registration when available. 
 store the key in the encrypted credential vault. After connection, KasiTek discovers and publishes
 an immutable provider revision before it can be pinned to an agent version.
 
+If a provider does not support dynamic registration, Studio exposes an OAuth client ID and
+optional client secret and continues the same PKCE flow with those credentials. Client secrets
+remain in encrypted one-use OAuth state until the token exchange completes.
+
 The directory also accepts a custom HTTPS MCP endpoint for providers that are not in the reviewed
 catalogue. Stdio manifests are shown for discovery but are unavailable until a managed stdio
 execution adapter is registered. Browsing or connecting a server does not grant every discovered

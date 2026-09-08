@@ -1149,8 +1149,8 @@ export function connectAgentMcpCatalog(installationId: string, catalogId: string
   });
 }
 
-export function startAgentMcpCatalogOAuth(installationId: string, catalogId: string, agentVersionId?: string): Promise<{ authorizationUrl: string }> {
-  return request(`/api/agents/installations/${encodeURIComponent(installationId)}/mcp/catalog/${encodeURIComponent(catalogId)}/oauth/start`, { method: "POST", body: JSON.stringify(agentVersionId ? { agentVersionId } : {}) });
+export function startAgentMcpCatalogOAuth(installationId: string, catalogId: string, input: { agentVersionId?: string; clientId?: string; clientSecret?: string } = {}): Promise<{ authorizationUrl: string }> {
+  return request(`/api/agents/installations/${encodeURIComponent(installationId)}/mcp/catalog/${encodeURIComponent(catalogId)}/oauth/start`, { method: "POST", body: JSON.stringify(input) });
 }
 
 export type AgentSkill = {
