@@ -596,8 +596,8 @@ external release approval remain open.
 - [~] Run the full isolation, retry, deletion, and compaction checkpoint matrix. The local
       PostgreSQL memory/context matrix collected 36 files in the latest targeted run (25 passed,
       11 intentionally skipped; 127 tests passed and 33 skipped), and the DB-enabled repository
-      baseline DB-enabled suite passes 213 files and 1,181 tests; the final hardening rerun passes
-      six affected memory integration files (29 tests); the Temporal-enabled local REST/MCP smoke also
+      baseline DB-enabled suite passes 212 files and 1,178 tests; the final hardening rerun passes
+      four affected memory integration files (17 tests) after obsolete worker-path removal; the Temporal-enabled local REST/MCP smoke also
       passes credential exchange, discovery, idempotency, gateway auth, and durable execution. A
       temporary restricted runtime login also passed the four RLS integration files (14 assertions)
       before being removed. Provider, staging, and production evidence remain open.
@@ -660,8 +660,8 @@ external release approval remain open.
       enablement remains controlled by the release record.
 - [~] Run lint, type checks, unit tests, integration tests, migration tests, worker recovery tests,
       provider conformance tests, and memory event/projection contract checks. TypeScript build,
-      MCP package build, full unit suite, baseline DB-enabled repository suite (213 files/1,181 tests),
-      final affected-memory hardening suite (6 files/29 tests), local
+      MCP package build, full unit suite, baseline DB-enabled repository suite (212 files/1,178 tests),
+      final affected-memory hardening suite (4 files/17 tests), local
       PostgreSQL matrix, migration runner, contract checks, and the Temporal-enabled local REST/MCP
       smoke pass (the harness now waits for both REST and MCP runs to complete before cleanup).
       The DB-backed suite was run
@@ -694,7 +694,7 @@ external release approval remain open.
 | M5 | local pre-release manifest | Retention, legal hold, deletion, provider deletion, residual purge, and privacy tests pass | Local provider confirmation and residual checks pass; provider/staging approval remains open | reviewer pending | 2026-09-08 |
 | M6 event contract | local pre-release manifest | Event-stream, cursor replay, scope, failure fixture, and observatory projection tests pass | Backend event contract is ready; visual Studio work is deferred to P14 | reviewer pending | 2026-09-08 |
 | P14 Studio visualization | deferred | deferred | deferred | deferred | deferred |
-| Cutover | local pre-release manifest | Full PostgreSQL matrix: 213 files / 1,181 tests passed; 8 external-fixture files / 31 tests skipped; final affected-memory hardening suite: 6 files / 29 tests passed; canonical retention/legal-hold fixture verifies worker-side hold fencing and immutable expiration | Staging backup, migration, parity, queue, rollback, and smoke evidence remain open | release owner pending | 2026-09-08 |
+| Cutover | local pre-release manifest | Full PostgreSQL matrix: 212 files / 1,178 tests passed; 8 external-fixture files / 31 tests skipped; final affected-memory hardening suite: 4 files / 17 tests passed after obsolete worker-path removal; canonical retention/legal-hold fixture verifies worker-side hold fencing and immutable expiration | Staging backup, migration, parity, queue, rollback, and smoke evidence remain open | release owner pending | 2026-09-08 |
 | Release closure | local pre-release manifest | Agents/MCP builds, manifest generation/verification, docs builds, and diff check pass | Clean tagged artifact, staging/provider inspection, production promotion, rollback drill, and review remain open | release owner pending | 2026-09-08 |
 
 ## Unresolved decisions and blockers
