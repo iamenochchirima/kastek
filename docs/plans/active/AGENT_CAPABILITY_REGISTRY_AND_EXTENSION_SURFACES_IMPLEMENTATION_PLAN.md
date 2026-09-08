@@ -287,6 +287,8 @@ The resolver must support:
 - [x] Reuse the shared compact directory row/card pattern and model-picker/configuration shell.
 - [x] Forward the catalog and directory through the authenticated Core API façade consumed by
   Studio.
+- [x] Forward the reviewed Connections, Skills, Plugins, and catalogue MCP install/auth actions
+  through the same authenticated Core façade; direct Agents routes are not exposed to the browser.
 - [x] Consolidate external service and MCP management under Capabilities → Connections, with
   Gateways reserved for agent execution endpoints.
 - [ ] Add responsive desktop/tablet/mobile behavior and accessible loading, empty, error, and
@@ -352,7 +354,8 @@ Logs, metrics, dashboards, and alerts: structured failure logs were added for ca
   skill, and plugin activation; new dashboards/alerts are not applicable to this preview slice
 User, API, internal, and operational documentation: updated MCP, connection, and remote-provider docs
 Validation evidence: Agents build; client production build; targeted client lint; reviewed-directory
-  tests; MCP PKCE/authorization URL tests; REST/MCP route-conformance tests
+  tests; MCP PKCE/authorization URL tests; REST/MCP route-conformance tests; Core façade forwarding
+  unit test for directory and activation routes
 Rollback or disable plan: disable the new directory routes or revert the additive migration/code;
   existing native integrations, grants, and pinned snapshots remain intact
 Post-release review date: to be assigned
@@ -361,13 +364,15 @@ Post-release review date: to be assigned
 ## Current status
 
 The reviewed Hermes MCP (65), skill (137), and plugin (104) catalogues now flow through authenticated
-directory routes and searchable Studio panels. Native connections retain their existing provider
-flows; reviewed HTTP MCP entries support API-key or browser OAuth activation, including manual
-client credentials for providers without dynamic registration; skill entries install
-and pin into the organization skill store, and plugin entries use the existing declarative extension
-package lifecycle. The plugin catalogue deliberately marks entries without a registered KasiTek
-adapter unavailable; foreign Hermes code is not executed. Agents/client builds, targeted lint, route
-conformance, and catalogue tests pass. Remaining work is broader real-provider coverage, managed
-stdio MCP transport, native adapters for more plugin entries, complete user-tool lifecycle wiring,
-and responsive/browser end-to-end verification. Existing execution and context ownership boundaries
+directory routes and searchable Studio panels. The browser reaches those routes through the
+authenticated KasiTek Core façade, including catalogue installation, MCP API-key connection, and
+browser OAuth start actions. Native connections retain their existing provider flows; reviewed HTTP
+MCP entries support API-key or browser OAuth activation, including manual client credentials for
+providers without dynamic registration; skill entries install and pin into the organization skill
+store, and plugin entries use the existing declarative extension package lifecycle. The plugin
+catalogue deliberately marks entries without a registered KasiTek adapter unavailable; foreign Hermes
+code is not executed. Agents/client builds, targeted lint, façade forwarding tests, route conformance,
+and catalogue tests pass. Remaining work is broader real-provider coverage, managed stdio MCP
+transport, native adapters for more plugin entries, complete user-tool lifecycle wiring, and
+responsive/browser end-to-end verification. Existing execution and context ownership boundaries
 remain unchanged.

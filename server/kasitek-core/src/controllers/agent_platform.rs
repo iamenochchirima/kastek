@@ -47,6 +47,12 @@ pub struct AgentListQuery {
     pub environment: Option<String>,
 }
 
+#[derive(Debug, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct CapabilityDirectoryQuery {
+    pub agent_version_id: Option<String>,
+}
+
 fn client(config: &AppConfig) -> Result<AgentPlatformClient, AppError> {
     AgentPlatformClient::from_config(config)
 }
@@ -2146,6 +2152,19 @@ pub async fn list_capability_directory(
     Ok(HttpResponse::Ok().json(response))
 }
 
+pub async fn list_connection_directory(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    installation_id: web::Path<String>,
+) -> Result<HttpResponse, AppError> {
+    let (user, organization_id) = scope(&req, pool.get_ref()).await?;
+    let response = client(config.get_ref())?
+        .list_connection_directory(&organization_id, &user.id, installation_id.trim())
+        .await?;
+    Ok(HttpResponse::Ok().json(response))
+}
+
 pub async fn get_installation_readiness(
     pool: web::Data<PgPool>,
     config: web::Data<AppConfig>,
@@ -2169,6 +2188,75 @@ pub async fn list_skills(
         .list_skills(&organization_id, &user.id)
         .await?;
     Ok(HttpResponse::Ok().json(response))
+}
+
+pub async fn list_skill_directory(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    query: web::Query<CapabilityDirectoryQuery>,
+) -> Result<HttpResponse, AppError> {
+    let (user, organization_id) = scope(&req, pool.get_ref()).await?;
+    let response = client(config.get_ref())?
+        .list_skill_directory(
+            &organization_id,
+            &user.id,
+            query.agent_version_id.as_deref(),
+        )
+        .await?;
+    Ok(HttpResponse::Ok().json(response))
+}
+
+pub async fn list_plugin_directory(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+) -> Result<HttpResponse, AppError> {
+    let (user, organization_id) = scope(&req, pool.get_ref()).await?;
+    let response = client(config.get_ref())?
+        .list_plugin_directory(&organization_id, &user.id)
+        .await?;
+    Ok(HttpResponse::Ok().json(response))
+}
+
+pub async fn install_skill_catalog(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    path: web::Path<(String, String)>,
+    body: web::Json<Value>,
+) -> Result<HttpResponse, AppError> {
+    let (user, organization_id) = management_scope(&req, pool.get_ref()).await?;
+    let (installation_id, catalog_id) = path.into_inner();
+    let response = client(config.get_ref())?
+        .install_skill_catalog(
+            &organization_id,
+            &user.id,
+            installation_id.trim(),
+            catalog_id.trim(),
+            body.into_inner(),
+        )
+        .await?;
+    Ok(HttpResponse::Created().json(response))
+}
+
+pub async fn install_plugin_catalog(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    path: web::Path<(String, String)>,
+) -> Result<HttpResponse, AppError> {
+    let (user, organization_id) = management_scope(&req, pool.get_ref()).await?;
+    let (installation_id, catalog_id) = path.into_inner();
+    let response = client(config.get_ref())?
+        .install_plugin_catalog(
+            &organization_id,
+            &user.id,
+            installation_id.trim(),
+            catalog_id.trim(),
+        )
+        .await?;
+    Ok(HttpResponse::Created().json(response))
 }
 
 pub async fn list_extension_packages(
@@ -2255,6 +2343,48 @@ pub async fn list_mcp_providers(
     let (user, organization_id) = scope(&req, pool.get_ref()).await?;
     let response = client(config.get_ref())?
         .list_mcp_providers(&organization_id, &user.id)
+        .await?;
+    Ok(HttpResponse::Ok().json(response))
+}
+
+pub async fn connect_mcp_catalog(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    path: web::Path<(String, String)>,
+    body: web::Json<Value>,
+) -> Result<HttpResponse, AppError> {
+    let (user, organization_id) = management_scope(&req, pool.get_ref()).await?;
+    let (installation_id, catalog_id) = path.into_inner();
+    let response = client(config.get_ref())?
+        .connect_mcp_catalog(
+            &organization_id,
+            &user.id,
+            installation_id.trim(),
+            catalog_id.trim(),
+            body.into_inner(),
+        )
+        .await?;
+    Ok(HttpResponse::Created().json(response))
+}
+
+pub async fn start_mcp_catalog_oauth(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    path: web::Path<(String, String)>,
+    body: web::Json<Value>,
+) -> Result<HttpResponse, AppError> {
+    let (user, organization_id) = management_scope(&req, pool.get_ref()).await?;
+    let (installation_id, catalog_id) = path.into_inner();
+    let response = client(config.get_ref())?
+        .start_mcp_catalog_oauth(
+            &organization_id,
+            &user.id,
+            installation_id.trim(),
+            catalog_id.trim(),
+            body.into_inner(),
+        )
         .await?;
     Ok(HttpResponse::Ok().json(response))
 }

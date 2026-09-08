@@ -194,6 +194,10 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                 "/capabilities/directory",
                 web::get().to(agent_platform::list_capability_directory),
             )
+            .route(
+                "/installations/{installationId}/connection-directory",
+                web::get().to(agent_platform::list_connection_directory),
+            )
             .route("/{agentId}", web::patch().to(agent_platform::update_agent))
             .route("/{agentId}", web::delete().to(agent_platform::delete_agent))
             .route(
@@ -332,6 +336,22 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
             )
             .route("/skills", web::get().to(agent_platform::list_skills))
             .route(
+                "/skills/directory",
+                web::get().to(agent_platform::list_skill_directory),
+            )
+            .route(
+                "/plugins/directory",
+                web::get().to(agent_platform::list_plugin_directory),
+            )
+            .route(
+                "/installations/{installationId}/skills/catalog/{catalogId}/install",
+                web::post().to(agent_platform::install_skill_catalog),
+            )
+            .route(
+                "/installations/{installationId}/plugins/catalog/{catalogId}/install",
+                web::post().to(agent_platform::install_plugin_catalog),
+            )
+            .route(
                 "/extensions/packages",
                 web::get().to(agent_platform::list_extension_packages),
             )
@@ -353,6 +373,14 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
             )
             .route("/mcp/providers", web::get().to(agent_platform::list_mcp_providers))
             .route("/mcp/providers", web::post().to(agent_platform::create_mcp_provider))
+            .route(
+                "/installations/{installationId}/mcp/catalog/{catalogId}/connect",
+                web::post().to(agent_platform::connect_mcp_catalog),
+            )
+            .route(
+                "/installations/{installationId}/mcp/catalog/{catalogId}/oauth/start",
+                web::post().to(agent_platform::start_mcp_catalog_oauth),
+            )
             .route(
                 "/mcp/providers/{providerId}/discover",
                 web::post().to(agent_platform::discover_mcp_provider),

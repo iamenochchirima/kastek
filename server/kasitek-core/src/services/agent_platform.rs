@@ -174,6 +174,23 @@ impl AgentPlatformClient {
         .await
     }
 
+    pub async fn list_connection_directory(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        installation_id: &str,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::GET,
+            &format!("/v1/installations/{installation_id}/connection-directory"),
+            organization_id,
+            actor_id,
+            &["agents:read"],
+            None,
+        )
+        .await
+    }
+
     pub async fn create_agent(
         &self,
         organization_id: &str,
@@ -1067,6 +1084,85 @@ impl AgentPlatformClient {
         .await
     }
 
+    pub async fn list_skill_directory(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        agent_version_id: Option<&str>,
+    ) -> Result<Value, AppError> {
+        let path = agent_version_id
+            .filter(|value| !value.trim().is_empty())
+            .map(|value| {
+                format!(
+                    "/v1/skills/directory?agentVersionId={}",
+                    urlencoding::encode(value)
+                )
+            })
+            .unwrap_or_else(|| "/v1/skills/directory".to_string());
+        self.request_json(
+            Method::GET,
+            &path,
+            organization_id,
+            actor_id,
+            &["agents:read"],
+            None,
+        )
+        .await
+    }
+
+    pub async fn list_plugin_directory(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::GET,
+            "/v1/plugins/directory",
+            organization_id,
+            actor_id,
+            &["agents:read"],
+            None,
+        )
+        .await
+    }
+
+    pub async fn install_skill_catalog(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        installation_id: &str,
+        catalog_id: &str,
+        body: Value,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::POST,
+            &format!("/v1/installations/{installation_id}/skills/catalog/{catalog_id}/install"),
+            organization_id,
+            actor_id,
+            &["agents:write"],
+            Some(body),
+        )
+        .await
+    }
+
+    pub async fn install_plugin_catalog(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        installation_id: &str,
+        catalog_id: &str,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::POST,
+            &format!("/v1/installations/{installation_id}/plugins/catalog/{catalog_id}/install"),
+            organization_id,
+            actor_id,
+            &["agents:write"],
+            Some(json!({})),
+        )
+        .await
+    }
+
     pub async fn list_extension_packages(
         &self,
         organization_id: &str,
@@ -1165,6 +1261,44 @@ impl AgentPlatformClient {
             actor_id,
             &["agents:read"],
             None,
+        )
+        .await
+    }
+
+    pub async fn connect_mcp_catalog(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        installation_id: &str,
+        catalog_id: &str,
+        body: Value,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::POST,
+            &format!("/v1/installations/{installation_id}/mcp/catalog/{catalog_id}/connect"),
+            organization_id,
+            actor_id,
+            &["agents:write"],
+            Some(body),
+        )
+        .await
+    }
+
+    pub async fn start_mcp_catalog_oauth(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        installation_id: &str,
+        catalog_id: &str,
+        body: Value,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::POST,
+            &format!("/v1/installations/{installation_id}/mcp/catalog/{catalog_id}/oauth/start"),
+            organization_id,
+            actor_id,
+            &["agents:write"],
+            Some(body),
         )
         .await
     }
@@ -3640,6 +3774,97 @@ mod tests {
         assert!(requests[1].starts_with("GET /v1/capabilities/directory HTTP/1.1"));
         assert_scoped_request(&requests[0], "agents:read");
         assert_scoped_request(&requests[1], "agents:read");
+    }
+
+    #[tokio::test]
+    async fn reviewed_directory_and_activation_routes_are_forwarded() {
+        let (base_url, server) = mock_agent_server(vec![
+            (200, r#"{"connections":[]}"#),
+            (200, r#"{"skills":[]}"#),
+            (200, r#"{"plugins":[]}"#),
+            (201, r#"{"skill":{}}"#),
+            (201, r#"{"plugin":{}}"#),
+            (201, r#"{"provider":{}}"#),
+            (200, r#"{"authorizationUrl":"https://example.test/oauth"}"#),
+        ])
+        .await;
+        let client = test_client(&base_url);
+
+        client
+            .list_connection_directory("org-1", "actor-1", "install-1")
+            .await
+            .unwrap();
+        client
+            .list_skill_directory("org-1", "actor-1", Some("version-1"))
+            .await
+            .unwrap();
+        client
+            .list_plugin_directory("org-1", "actor-1")
+            .await
+            .unwrap();
+        client
+            .install_skill_catalog(
+                "org-1",
+                "actor-1",
+                "install-1",
+                "hermes.skill.example",
+                json!({}),
+            )
+            .await
+            .unwrap();
+        client
+            .install_plugin_catalog("org-1", "actor-1", "install-1", "hermes.plugin.example")
+            .await
+            .unwrap();
+        client
+            .connect_mcp_catalog(
+                "org-1",
+                "actor-1",
+                "install-1",
+                "hermes.mcp.example",
+                json!({"apiKey":"secret"}),
+            )
+            .await
+            .unwrap();
+        client
+            .start_mcp_catalog_oauth(
+                "org-1",
+                "actor-1",
+                "install-1",
+                "hermes.mcp.example",
+                json!({}),
+            )
+            .await
+            .unwrap();
+
+        let requests = server.await.unwrap();
+        assert_eq!(requests.len(), 7);
+        assert!(requests[0]
+            .starts_with("GET /v1/installations/install-1/connection-directory HTTP/1.1"));
+        assert!(
+            requests[1].starts_with("GET /v1/skills/directory?agentVersionId=version-1 HTTP/1.1")
+        );
+        assert!(requests[2].starts_with("GET /v1/plugins/directory HTTP/1.1"));
+        assert!(requests[3].starts_with(
+            "POST /v1/installations/install-1/skills/catalog/hermes.skill.example/install HTTP/1.1"
+        ));
+        assert!(requests[4].starts_with("POST /v1/installations/install-1/plugins/catalog/hermes.plugin.example/install HTTP/1.1"));
+        assert!(requests[5].starts_with(
+            "POST /v1/installations/install-1/mcp/catalog/hermes.mcp.example/connect HTTP/1.1"
+        ));
+        assert!(requests[6].starts_with(
+            "POST /v1/installations/install-1/mcp/catalog/hermes.mcp.example/oauth/start HTTP/1.1"
+        ));
+        for (index, request) in requests.iter().enumerate() {
+            assert_scoped_request(
+                request,
+                if index < 3 {
+                    "agents:read"
+                } else {
+                    "agents:write"
+                },
+            );
+        }
     }
 
     #[tokio::test]
