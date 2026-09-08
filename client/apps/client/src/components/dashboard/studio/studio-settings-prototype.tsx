@@ -3,7 +3,7 @@
 // Prototype question: which settings workspace best exposes an agent's useful
 // capabilities without making users learn plugin or MCP terminology?
 
-import { useEffect, useState, type FormEvent, type ReactNode } from "react";
+import { createElement, useEffect, useState, type FormEvent, type ReactNode } from "react";
 import Image from "next/image";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
@@ -12,7 +12,6 @@ import {
   ArrowRight,
   Bot,
   Check,
-  ChevronDown,
   CircleHelp,
   Clock3,
   Database,
@@ -46,20 +45,26 @@ import {
   healthCheckAgentMcpProvider,
   listAgentCapabilities,
   listAgentCapabilityDirectory,
+  listAgentConnectionDirectory,
   listAgentExtensionPackages,
+  listAgentPluginDirectory,
   listAgentInstallationCapabilities,
   listAgentMcpProviders,
   listAgentMcpProviderVersions,
-  listAgentSkillVersions,
-  listAgentSkills,
+  listAgentSkillDirectory,
   listAgentVersionMcpProviders,
   listAgentVersionSkills,
+  connectAgentMcpCatalog,
+  installAgentPluginCatalog,
+  installAgentSkillCatalog,
+  startAgentMcpCatalogOAuth,
   pinAgentMcpProviderVersion,
   pinAgentSkillVersion,
   publishAgentMcpProviderVersion,
   type AgentCapability,
   type AgentCapabilityDirectoryEntry,
   type AgentCapabilityToolset,
+  type AgentConnectionDirectoryEntry,
   type AgentDefinition,
   type AgentExtensionPackage,
   type AgentModel,
@@ -67,11 +72,13 @@ import {
   type AgentMcpProvider,
   type AgentMcpProviderVersion,
   type AgentReadiness,
-  type AgentSkill,
+  type AgentPluginDirectoryEntry,
+  type AgentSkillDirectoryEntry,
   type AgentSkillVersion,
   type AgentVersion,
 } from "@/lib/agent-platform";
 import { cn } from "@/lib/utils";
+import { getPlatformBrandColor, getPlatformBrandIcon } from "@/lib/platform-icons";
 
 type SettingsSection = "overview" | "capabilities" | "memory" | "gateways" | "safety" | "runtime";
 type PrototypeVariant = "a" | "b" | "c";
@@ -354,12 +361,14 @@ type CapabilityData = {
   catalog: AgentCapability[];
   installation: AgentCapability[];
   readiness: AgentReadiness | null;
-  skills: AgentSkill[];
   pinnedSkills: AgentSkillVersion[];
   mcpProviders: AgentMcpProvider[];
   pinnedMcpProviders: AgentMcpProviderVersion[];
   mcpVersions: Record<string, AgentMcpProviderVersion[]>;
   extensionPackages: AgentExtensionPackage[];
+  connections: AgentConnectionDirectoryEntry[];
+  skillDirectory: AgentSkillDirectoryEntry[];
+  pluginDirectory: AgentPluginDirectoryEntry[];
 };
 
 const emptyCapabilityData: CapabilityData = {
@@ -368,25 +377,29 @@ const emptyCapabilityData: CapabilityData = {
   catalog: [],
   installation: [],
   readiness: null,
-  skills: [],
   pinnedSkills: [],
   mcpProviders: [],
   pinnedMcpProviders: [],
   mcpVersions: {},
   extensionPackages: [],
+  connections: [],
+  skillDirectory: [],
+  pluginDirectory: [],
 };
 
 async function loadCapabilityData(installationId: string | null, versionId: string | null): Promise<CapabilityData> {
-  const [directoryResult, catalogResult, packagesResult, skillsResult, providersResult, installationResult, readinessResult, pinnedSkillsResult, pinnedMcpResult] = await Promise.all([
+  const [directoryResult, catalogResult, packagesResult, providersResult, installationResult, readinessResult, pinnedSkillsResult, pinnedMcpResult, connectionsResult, skillDirectoryResult, pluginDirectoryResult] = await Promise.all([
     listAgentCapabilityDirectory(),
     listAgentCapabilities().catch(() => ({ capabilities: [] })),
     listAgentExtensionPackages().catch(() => ({ packages: [] })),
-    listAgentSkills().catch(() => ({ skills: [] })),
     listAgentMcpProviders().catch(() => ({ providers: [] })),
     installationId ? listAgentInstallationCapabilities(installationId).catch(() => ({ capabilities: [] })) : Promise.resolve({ capabilities: [] }),
     installationId ? getAgentInstallationReadiness(installationId).catch(() => null) : Promise.resolve(null),
     versionId ? listAgentVersionSkills(versionId).catch(() => ({ skills: [] })) : Promise.resolve({ skills: [] }),
     versionId ? listAgentVersionMcpProviders(versionId).catch(() => ({ providers: [] })) : Promise.resolve({ providers: [] }),
+    installationId ? listAgentConnectionDirectory(installationId).catch(() => ({ connections: [] })) : Promise.resolve({ connections: [] }),
+    listAgentSkillDirectory(versionId ?? undefined).catch(() => ({ skills: [] })),
+    listAgentPluginDirectory().catch(() => ({ plugins: [] })),
   ]);
   const mcpVersionsEntries = await Promise.all(providersResult.providers.map(async (provider) => {
     const result = await listAgentMcpProviderVersions(provider.id).catch(() => ({ versions: [] }));
@@ -399,11 +412,13 @@ async function loadCapabilityData(installationId: string | null, versionId: stri
     extensionPackages: packagesResult.packages,
     installation: installationResult.capabilities,
     readiness: readinessResult,
-    skills: skillsResult.skills,
     pinnedSkills: pinnedSkillsResult.skills,
     mcpProviders: providersResult.providers,
     pinnedMcpProviders: pinnedMcpResult.providers,
     mcpVersions: Object.fromEntries(mcpVersionsEntries),
+    connections: connectionsResult.connections,
+    skillDirectory: skillDirectoryResult.skills,
+    pluginDirectory: pluginDirectoryResult.plugins,
   };
 }
 
@@ -443,10 +458,10 @@ function CapabilitiesSection({ installationId, versionId, draft, onDraftChange }
   };
   const plugins = data.extensionPackages.filter((pkg) => pkg.status === "published" && pkg.kind === "plugin");
   const directoryTools = data.directory.filter((entry) => ["builtin_tool", "connector_tool", "plugin_tool", "mcp_tool", "user_tool"].includes(entry.kind));
-  const directorySkills = data.directory.filter((entry) => entry.kind === "skill");
-  const directoryPlugins = data.directory.filter((entry) => entry.kind === "plugin");
+  const directorySkills = data.skillDirectory;
+  const directoryPlugins = data.pluginDirectory;
   const directoryMcpServers = data.directory.filter((entry) => entry.kind === "mcp_server");
-  const directoryConnections = data.directory.filter((entry) => entry.kind === "connector" || entry.kind === "mcp_server");
+  const directoryConnections = data.connections;
   const directoryUserTools = data.directory.filter((entry) => entry.kind === "user_tool");
   const tabCount = (tab: CapabilityTab) => {
     if (loading) return "…";
@@ -459,7 +474,6 @@ function CapabilitiesSection({ installationId, versionId, draft, onDraftChange }
   const activeTabLabel = capabilityTabs.find((tab) => tab.id === activeTab)?.label ?? "Tools";
 
   return <div className="space-y-4">
-    <p className="max-w-2xl text-xs leading-5 text-muted-foreground">Choose what this Playground version can use. Changes are pinned when the draft is saved.</p>
     {error ? <div className="flex items-center justify-between rounded-xl border border-destructive/20 bg-destructive/5 px-3 py-2 text-xs text-destructive"><span>{error}</span><Button type="button" variant="outline" size="sm" className="h-7" onClick={refresh}>Retry</Button></div> : null}
     <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as CapabilityTab)} className="gap-4">
       <TabsList aria-label="Capabilities" className="h-auto w-full justify-start overflow-x-auto rounded-xl border border-border bg-muted/30 p-1">
@@ -467,10 +481,9 @@ function CapabilitiesSection({ installationId, versionId, draft, onDraftChange }
       </TabsList>
       <TabsContent value={activeTab} className="rounded-2xl border border-border bg-card p-4 shadow-sm sm:p-5">
         <div className="mb-4 flex items-center justify-between gap-3"><div><p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Capabilities</p><h4 className="mt-1 text-sm font-semibold text-foreground">{activeTabLabel}</h4></div>{loading ? <span className="text-[11px] text-muted-foreground">Loading…</span> : null}</div>
-        {activeTab === "tools" ? <ToolsPanel tools={directoryTools} toolsets={data.toolsets} draft={draft} onDraftChange={onDraftChange} /> : null}{activeTab === "skills" ? <SkillsPanel directory={directorySkills} skills={data.skills} pinnedSkills={data.pinnedSkills} draft={draft} onDraftChange={onDraftChange} /> : null}{activeTab === "plugins" ? <PluginsPanel directory={directoryPlugins} packages={plugins} draft={draft} onDraftChange={onDraftChange} /> : null}{activeTab === "connections" ? <ConnectionCapabilitiesPanel installationId={installationId} directory={directoryConnections} mcpDirectory={directoryMcpServers} providers={data.mcpProviders} pinnedProviders={data.pinnedMcpProviders} versions={data.mcpVersions} draft={draft} onDraftChange={onDraftChange} onRefresh={refresh} /> : null}{activeTab === "user_tools" ? <UserToolsPanel tools={directoryUserTools} draft={draft} onDraftChange={onDraftChange} /> : null}
+        {activeTab === "tools" ? <ToolsPanel tools={directoryTools} toolsets={data.toolsets} draft={draft} onDraftChange={onDraftChange} /> : null}{activeTab === "skills" ? <SkillsPanel directory={directorySkills} pinnedSkills={data.pinnedSkills} installationId={installationId} versionId={versionId} draft={draft} onDraftChange={onDraftChange} onRefresh={refresh} /> : null}{activeTab === "plugins" ? <PluginsPanel directory={directoryPlugins} packages={plugins} installationId={installationId} draft={draft} onDraftChange={onDraftChange} onRefresh={refresh} /> : null}{activeTab === "connections" ? <ConnectionCapabilitiesPanel installationId={installationId} connectionDirectory={directoryConnections} mcpDirectory={directoryMcpServers} providers={data.mcpProviders} pinnedProviders={data.pinnedMcpProviders} versions={data.mcpVersions} versionId={versionId} draft={draft} onDraftChange={onDraftChange} onRefresh={refresh} /> : null}{activeTab === "user_tools" ? <UserToolsPanel tools={directoryUserTools} draft={draft} onDraftChange={onDraftChange} /> : null}
       </TabsContent>
     </Tabs>
-    <details className="rounded-2xl border border-border bg-card p-4"><summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-sm font-medium text-foreground"><span className="flex items-center gap-2"><Eye className="size-4 text-muted-foreground" />Advanced source details</span><ChevronDown className="size-4 text-muted-foreground" /></summary><p className="mt-3 max-w-2xl text-xs leading-5 text-muted-foreground">Technical package versions, MCP endpoints, discovered tool schemas, checksums, and provider health stay available here when debugging.</p></details>
   </div>;
 }
 
@@ -492,6 +505,8 @@ function DirectoryIcon({ label, icon, logo }: { label: string; icon: ReactNode; 
   if (["google-calendar", "apple", "tavily"].includes(logo ?? "")) {
     return <span className="grid size-11 shrink-0 place-items-center rounded-xl border border-border bg-background"><Image src={`/images/integrations/${logo}.svg`} alt="" width={32} height={32} className="size-8 rounded-lg" /></span>;
   }
+  const brandIcon = getPlatformBrandIcon(logo ?? label);
+  if (brandIcon) return <span className="grid size-11 shrink-0 place-items-center rounded-xl border border-border bg-background">{createElement(brandIcon, { className: cn("size-6", getPlatformBrandColor(logo ?? label)) })}</span>;
   return <span className={cn("grid size-11 shrink-0 place-items-center rounded-xl", directoryTone(label))}>{icon}</span>;
 }
 
@@ -516,70 +531,108 @@ function ToolsPanel({ tools, toolsets, draft, onDraftChange }: { tools: AgentCap
   return <div className="space-y-4"><div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><p className="text-xs text-muted-foreground">All executable tools discovered by the platform registry.</p><DirectorySearch value={query} onChange={setQuery} placeholder="Search tools" /></div>{toolsets.length ? <div className="flex flex-wrap gap-1.5">{toolsets.slice(0, 12).map((toolset) => <span key={`${toolset.id}:${toolset.version}`} className="rounded-full border border-border bg-muted/30 px-2 py-1 text-[10px] text-muted-foreground">{toolset.name} · {toolset.capabilityIds.length}</span>)}{toolsets.length > 12 ? <span className="rounded-full border border-border bg-muted/30 px-2 py-1 text-[10px] text-muted-foreground">+{toolsets.length - 12} toolsets</span> : null}</div> : null}<div className="grid gap-3 sm:grid-cols-2">{filteredTools.map((tool) => { const grantable = tool.kind === "builtin_tool" || tool.kind === "connector_tool"; const selected = selectedNames.has(tool.id); const sourceLabel = tool.kind.replaceAll("_", " "); return <label key={`${tool.id}:${tool.version}`} className={cn("group flex items-center gap-3 rounded-xl border border-border p-3 transition-colors", grantable ? "cursor-pointer hover:border-primary/40 hover:bg-muted/20" : "cursor-default opacity-75")}><input type="checkbox" checked={selected} onChange={() => grantable && toggle(tool.id)} disabled={!grantable} className="sr-only" /><DirectoryIcon label={tool.name} logo={tool.logo} icon={tool.kind === "mcp_tool" ? <PlugZap className="size-5" /> : tool.kind === "plugin_tool" ? <Puzzle className="size-5" /> : tool.kind === "user_tool" ? <Bot className="size-5" /> : <Wrench className="size-5" />} /><span className="min-w-0 flex-1"><span className="flex flex-wrap items-center gap-2 text-xs font-medium text-foreground"><span className="truncate">{tool.name}</span>{tool.runtime.requiresApproval ? <span className="rounded-full bg-amber-500/10 px-1.5 py-0.5 text-[10px] text-amber-700 dark:text-amber-300">Approval</span> : null}</span><span className="mt-1 block line-clamp-2 text-[11px] leading-4 text-muted-foreground">{tool.description || "No description"}</span><span className="mt-1 block text-[10px] capitalize text-muted-foreground/70">{sourceLabel} · v{tool.version}</span></span><span className={cn("grid size-7 shrink-0 place-items-center rounded-lg", !grantable ? "bg-muted text-muted-foreground" : selected ? "bg-emerald-500/15 text-emerald-400" : "bg-muted text-muted-foreground")}>{!grantable ? <LockKeyhole className="size-3.5" /> : selected ? <Check className="size-4" /> : <Plus className="size-4" />}</span></label>; })}</div>{!filteredTools.length ? <p className="rounded-xl border border-dashed border-border px-3 py-5 text-center text-xs text-muted-foreground">No tools match this search.</p> : null}</div>;
 }
 
-function SkillsPanel({ directory, skills, pinnedSkills, draft, onDraftChange }: { directory: AgentCapabilityDirectoryEntry[]; skills: AgentSkill[]; pinnedSkills: AgentSkillVersion[]; draft: StudioCapabilityDraft; onDraftChange: (value: StudioCapabilityDraft | ((current: StudioCapabilityDraft) => StudioCapabilityDraft)) => void }) {
+function SkillsPanel({ directory, pinnedSkills, installationId, versionId, draft, onDraftChange, onRefresh }: { directory: AgentSkillDirectoryEntry[]; pinnedSkills: AgentSkillVersion[]; installationId: string | null; versionId: string | null; draft: StudioCapabilityDraft; onDraftChange: (value: StudioCapabilityDraft | ((current: StudioCapabilityDraft) => StudioCapabilityDraft)) => void; onRefresh: () => void }) {
   const [busyId, setBusyId] = useState<string | null>(null);
-  const [draftVersions, setDraftVersions] = useState<Record<string, string>>({});
   const [query, setQuery] = useState("");
-  const selected = new Set(draft.allowedSkillIds);
-  const toggle = async (skill: AgentSkill) => {
-    setBusyId(skill.id);
+  const selected = new Set(draft.allowedSkillIds.length ? draft.allowedSkillIds : directory.filter((entry) => entry.enabled && entry.skillId).map((entry) => entry.skillId as string));
+  const toggle = async (entry: AgentSkillDirectoryEntry) => {
+    if (!installationId) return;
+    setBusyId(entry.id);
     try {
-      if (selected.has(skill.id)) {
-        const pinnedVersionIds = pinnedSkills.filter((version) => version.skill_definition_id === skill.id).map((version) => version.id);
-        const draftVersionId = draftVersions[skill.id];
-        onDraftChange((current) => ({ ...current, allowedSkillIds: current.allowedSkillIds.filter((id) => id !== skill.id), skillVersionIds: current.skillVersionIds.filter((id) => !pinnedVersionIds.includes(id) && id !== draftVersionId) }));
-        setDraftVersions((current) => { const next = { ...current }; delete next[skill.id]; return next; });
-        return;
+      if (!entry.installed) {
+        const result = await installAgentSkillCatalog(installationId, entry.id, versionId ?? undefined) as { skill?: { id?: string }; version?: { id?: string } };
+        const skillId = result.skill?.id ?? entry.skillId;
+        const versionIdFromInstall = result.version?.id ?? entry.versionId;
+        if (skillId) onDraftChange((current) => ({ ...current, allowedSkillIds: [...new Set([...current.allowedSkillIds, skillId])], skillVersionIds: versionIdFromInstall ? [...new Set([...current.skillVersionIds, versionIdFromInstall])] : current.skillVersionIds }));
+      } else if (entry.skillId) {
+        const enabled = selected.has(entry.skillId);
+        const pinnedVersionIds = pinnedSkills.filter((version) => version.skill_definition_id === entry.skillId).map((version) => version.id);
+        onDraftChange((current) => ({ ...current, allowedSkillIds: enabled ? current.allowedSkillIds.filter((id) => id !== entry.skillId) : [...new Set([...current.allowedSkillIds, entry.skillId as string])], skillVersionIds: enabled ? current.skillVersionIds.filter((id) => !pinnedVersionIds.includes(id) && id !== entry.versionId) : [...new Set([...current.skillVersionIds, ...(entry.versionId ? [entry.versionId] : [])])] }));
       }
-      const result = await listAgentSkillVersions(skill.id);
-      const latest = result.versions.filter((version) => version.status === "published").sort((left, right) => right.version_number - left.version_number)[0];
-      if (!latest) return;
-      setDraftVersions((current) => ({ ...current, [skill.id]: latest.id }));
-      onDraftChange((current) => ({ ...current, allowedSkillIds: [...new Set([...current.allowedSkillIds, skill.id])], skillVersionIds: [...new Set([...current.skillVersionIds, latest.id])] }));
+      onRefresh();
     } finally {
       setBusyId(null);
     }
   };
-  const directorySkillNames = new Set(directory.map((entry) => entry.name));
-  const publishedSkills = skills.filter((skill) => skill.status === "published" && (!directory.length || directorySkillNames.has(skill.name)));
-  const filteredSkills = publishedSkills.filter((skill) => `${skill.name} ${skill.slug} ${skill.description ?? ""}`.toLowerCase().includes(query.trim().toLowerCase()));
-  return <div className="space-y-4"><div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><p className="text-xs text-muted-foreground">{directory.length} published skill version{directory.length === 1 ? "" : "s"} discovered from the registry.</p><DirectorySearch value={query} onChange={setQuery} placeholder="Search skills" /></div>{filteredSkills.length ? <div className="grid gap-3 sm:grid-cols-2">{filteredSkills.map((skill) => { const enabled = selected.has(skill.id); const directoryEntry = directory.find((entry) => entry.name === skill.name); return <div key={skill.id} className="flex items-center gap-3 rounded-xl border border-border p-3 transition-colors hover:border-primary/40"><DirectoryIcon label={skill.name} logo={directoryEntry?.logo} icon={<Sparkles className="size-5" />} /><div className="min-w-0 flex-1"><p className="truncate text-xs font-medium text-foreground">{skill.name}</p><p className="mt-1 line-clamp-2 text-[11px] leading-4 text-muted-foreground">{skill.description || skill.slug}</p></div><Button type="button" variant={enabled ? "default" : "outline"} size="icon" className="size-8 shrink-0" aria-label={enabled ? `Disable ${skill.name}` : `Enable ${skill.name}`} onClick={() => void toggle(skill)} disabled={busyId === skill.id}>{busyId === skill.id ? <Clock3 className="size-3.5 animate-pulse" /> : enabled ? <Check className="size-4" /> : <Plus className="size-4" />}</Button></div>; })}</div> : <p className="rounded-xl border border-dashed border-border px-3 py-5 text-center text-xs text-muted-foreground">{publishedSkills.length ? "No skills match this search." : "No published skills are available."}</p>}</div>;
+  const filtered = directory.filter((entry) => `${entry.name} ${entry.slug} ${entry.description} ${entry.tags.join(" ")}`.toLowerCase().includes(query.trim().toLowerCase()));
+  return <div className="space-y-4"><div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><span className="text-xs text-muted-foreground">{directory.length} skills</span><DirectorySearch value={query} onChange={setQuery} placeholder="Search skills" /></div>{filtered.length ? <div className="grid gap-2 sm:grid-cols-2">{filtered.map((entry) => { const enabled = Boolean(entry.skillId && selected.has(entry.skillId)); return <div key={entry.id} className="flex items-center gap-3 rounded-xl border border-border p-3 transition-colors hover:border-primary/40"><DirectoryIcon label={entry.name} icon={<Sparkles className="size-5" />} /><div className="min-w-0 flex-1"><p className="truncate text-xs font-medium text-foreground">{entry.name}</p><p className="mt-1 line-clamp-2 text-[11px] leading-4 text-muted-foreground">{entry.description}</p><p className="mt-1 text-[10px] text-muted-foreground">{entry.author} · v{entry.version}</p></div><Button type="button" variant={enabled ? "default" : "outline"} size="icon" className="size-8 shrink-0" aria-label={enabled ? `Disable ${entry.name}` : `Add ${entry.name}`} onClick={() => void toggle(entry)} disabled={busyId === entry.id || !installationId}>{busyId === entry.id ? <Clock3 className="size-3.5 animate-pulse" /> : enabled ? <Check className="size-4" /> : <Plus className="size-4" />}</Button></div>; })}</div> : <p className="rounded-xl border border-dashed border-border px-3 py-5 text-center text-xs text-muted-foreground">No skills match.</p>}</div>;
 }
 
-function isPackageSelected(draft: StudioCapabilityDraft, pkg: AgentExtensionPackage) {
-  return draft.extensionPackages.some((entry) => entry && typeof entry === "object" && !Array.isArray(entry) && (entry as Record<string, unknown>).kind === pkg.kind && (entry as Record<string, unknown>).id === pkg.package_id && (entry as Record<string, unknown>).version === pkg.version);
+
+function isPluginSelected(draft: StudioCapabilityDraft, entry: AgentPluginDirectoryEntry) {
+  return draft.extensionPackages.some((value) => value && typeof value === "object" && !Array.isArray(value) && (value as Record<string, unknown>).kind === "plugin" && (value as Record<string, unknown>).id === entry.id && (value as Record<string, unknown>).version === entry.version);
 }
 
-function packageDescription(pkg: AgentExtensionPackage) {
-  const description = pkg.declaration.description;
-  if (typeof description === "string" && description.trim()) return description;
-  const permissions = Array.isArray(pkg.declaration.permissions) ? pkg.declaration.permissions.filter((permission): permission is string => typeof permission === "string") : [];
-  return permissions.length ? `${permissions.length} permission${permissions.length === 1 ? "" : "s"} requested` : "Declarative extension for this agent";
-}
-
-function PluginsPanel({ directory, packages, draft, onDraftChange }: { directory: AgentCapabilityDirectoryEntry[]; packages: AgentExtensionPackage[]; draft: StudioCapabilityDraft; onDraftChange: (value: StudioCapabilityDraft | ((current: StudioCapabilityDraft) => StudioCapabilityDraft)) => void }) {
+function PluginsPanel({ directory, packages, installationId, draft, onDraftChange, onRefresh }: { directory: AgentPluginDirectoryEntry[]; packages: AgentExtensionPackage[]; installationId: string | null; draft: StudioCapabilityDraft; onDraftChange: (value: StudioCapabilityDraft | ((current: StudioCapabilityDraft) => StudioCapabilityDraft)) => void; onRefresh: () => void }) {
+  const [busyId, setBusyId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
-  const directoryPackageKeys = new Set(directory.map((entry) => `${entry.source.id}@${entry.version}`));
-  const visiblePackages = packages.filter((pkg) => !directory.length || directoryPackageKeys.has(`${pkg.package_id}@${pkg.version}`));
-  const filteredPackages = visiblePackages.filter((pkg) => `${pkg.name ?? ""} ${pkg.package_id} ${packageDescription(pkg)}`.toLowerCase().includes(query.trim().toLowerCase()));
-  const togglePackage = (pkg: AgentExtensionPackage) => {
-    const reference = { kind: pkg.kind, id: pkg.package_id, version: pkg.version, checksum: pkg.checksum, configuration: {} };
-    const permissions = Array.isArray(pkg.declaration.permissions) ? pkg.declaration.permissions.filter((permission): permission is string => typeof permission === "string") : [];
-    const grant = { kind: pkg.kind, id: pkg.package_id, permissions };
-    const selected = isPackageSelected(draft, pkg);
-    onDraftChange((current) => ({
-      ...current,
-      extensionPackages: selected ? current.extensionPackages.filter((entry) => !(entry && typeof entry === "object" && !Array.isArray(entry) && (entry as Record<string, unknown>).kind === pkg.kind && (entry as Record<string, unknown>).id === pkg.package_id && (entry as Record<string, unknown>).version === pkg.version)) : [...current.extensionPackages, reference],
-      extensionGrants: selected ? current.extensionGrants.filter((entry) => !(entry && typeof entry === "object" && !Array.isArray(entry) && (entry as Record<string, unknown>).kind === pkg.kind && (entry as Record<string, unknown>).id === pkg.package_id)) : [...current.extensionGrants, grant],
-    }));
+  const installedPackages = new Map(packages.map((pkg) => [`${pkg.package_id}:${pkg.version}`, pkg]));
+  const toggle = async (entry: AgentPluginDirectoryEntry) => {
+    if (!installationId || entry.adapterStatus !== "supported") return;
+    setBusyId(entry.id);
+    try {
+      const installed = installedPackages.get(`${entry.id}:${entry.version}`);
+      const installedResult = installed ? null : await installAgentPluginCatalog(installationId, entry.id);
+      const selected = isPluginSelected(draft, entry);
+      const adapterCapabilityIds = entry.adapterCapabilityIds.length
+        ? entry.adapterCapabilityIds
+        : Array.isArray(installed?.declaration.capabilityIds)
+          ? installed.declaration.capabilityIds.filter((value): value is string => typeof value === "string")
+          : installedResult && Array.isArray(installedResult.package.declaration.capabilityIds)
+            ? installedResult.package.declaration.capabilityIds.filter((value): value is string => typeof value === "string")
+            : [];
+      const reference = { kind: "plugin", id: entry.id, version: entry.version, checksum: entry.checksum, configuration: {} };
+      const grant = { kind: "plugin", id: entry.id, permissions: [] };
+      onDraftChange((current) => ({
+        ...current,
+        extensionPackages: selected ? current.extensionPackages.filter((value) => !(value && typeof value === "object" && !Array.isArray(value) && (value as Record<string, unknown>).kind === "plugin" && (value as Record<string, unknown>).id === entry.id)) : [...current.extensionPackages.filter((value) => !(value && typeof value === "object" && !Array.isArray(value) && (value as Record<string, unknown>).kind === "plugin" && (value as Record<string, unknown>).id === entry.id)), reference],
+        extensionGrants: selected ? current.extensionGrants.filter((value) => !(value && typeof value === "object" && !Array.isArray(value) && (value as Record<string, unknown>).kind === "plugin" && (value as Record<string, unknown>).id === entry.id)) : [...current.extensionGrants.filter((value) => !(value && typeof value === "object" && !Array.isArray(value) && (value as Record<string, unknown>).kind === "plugin" && (value as Record<string, unknown>).id === entry.id)), grant],
+        allowedTools: selected ? current.allowedTools.filter((id) => !adapterCapabilityIds.includes(id)) : [...new Set([...current.allowedTools, ...adapterCapabilityIds])],
+      }));
+      onRefresh();
+    } finally {
+      setBusyId(null);
+    }
   };
-  return <div className="space-y-4"><div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><p className="text-xs text-muted-foreground">{directory.length} published plugin package{directory.length === 1 ? "" : "s"} discovered from the registry.</p><DirectorySearch value={query} onChange={setQuery} placeholder="Search plugins" /></div>{filteredPackages.length ? <div className="grid gap-3 sm:grid-cols-2">{filteredPackages.map((pkg) => { const enabled = isPackageSelected(draft, pkg); const title = pkg.name || pkg.package_id; const directoryEntry = directory.find((entry) => entry.source.id === pkg.package_id && entry.version === pkg.version); return <div key={pkg.id} className="flex items-center gap-3 rounded-xl border border-border p-3 transition-colors hover:border-primary/40"><DirectoryIcon label={title} logo={directoryEntry?.logo} icon={<Puzzle className="size-5" />} /><div className="min-w-0 flex-1"><p className="truncate text-xs font-medium text-foreground">{title}</p><p className="mt-1 line-clamp-2 text-[11px] leading-4 text-muted-foreground">{packageDescription(pkg)}</p><p className="mt-1 text-[10px] text-muted-foreground">v{pkg.version}</p></div><Button type="button" variant={enabled ? "default" : "outline"} size="icon" className="size-8 shrink-0" aria-label={enabled ? `Disable ${title}` : `Enable ${title}`} onClick={() => togglePackage(pkg)}>{enabled ? <Check className="size-4" /> : <Plus className="size-4" />}</Button></div>; })}</div> : <p className="rounded-xl border border-dashed border-border px-3 py-5 text-center text-xs text-muted-foreground">{visiblePackages.length ? "No plugins match this search." : "No published plugins are available."}</p>}</div>;
+  const filtered = directory.filter((entry) => `${entry.name} ${entry.slug} ${entry.description} ${entry.kind} ${entry.providedTools.join(" ")}`.toLowerCase().includes(query.trim().toLowerCase()));
+  return <div className="space-y-4"><div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><span className="text-xs text-muted-foreground">{directory.length} plugins</span><DirectorySearch value={query} onChange={setQuery} placeholder="Search plugins" /></div>{filtered.length ? <div className="grid gap-2 sm:grid-cols-2">{filtered.map((entry) => { const enabled = isPluginSelected(draft, entry); const unavailable = entry.adapterStatus !== "supported"; const meta = entry.providedTools.length ? `${entry.providedTools.length} tools` : entry.kind; return <div key={entry.id} className={cn("flex items-center gap-3 rounded-xl border border-border p-3", unavailable ? "opacity-70" : "transition-colors hover:border-primary/40")}><DirectoryIcon label={entry.name} icon={<Puzzle className="size-5" />} /><div className="min-w-0 flex-1"><p className="truncate text-xs font-medium text-foreground">{entry.name}</p><p className="mt-1 line-clamp-2 text-[11px] leading-4 text-muted-foreground">{entry.description}</p><p className="mt-1 text-[10px] text-muted-foreground">{meta} · v{entry.version}</p></div><Button type="button" variant={enabled ? "default" : "outline"} size="icon" className="size-8 shrink-0" aria-label={unavailable ? `${entry.name} unavailable` : enabled ? `Disable ${entry.name}` : `Add ${entry.name}`} onClick={() => void toggle(entry)} disabled={busyId === entry.id || unavailable || !installationId}>{busyId === entry.id ? <Clock3 className="size-3.5 animate-pulse" /> : unavailable ? <LockKeyhole className="size-3.5" /> : enabled ? <Check className="size-4" /> : <Plus className="size-4" />}</Button></div>; })}</div> : <p className="rounded-xl border border-dashed border-border px-3 py-5 text-center text-xs text-muted-foreground">No plugins match.</p>}</div>;
 }
 
-function ConnectionCapabilitiesPanel({ installationId, directory, mcpDirectory, providers, pinnedProviders, versions, draft, onDraftChange, onRefresh }: { installationId: string | null; directory: AgentCapabilityDirectoryEntry[]; mcpDirectory: AgentCapabilityDirectoryEntry[]; providers: AgentMcpProvider[]; pinnedProviders: AgentMcpProviderVersion[]; versions: Record<string, AgentMcpProviderVersion[]>; draft: StudioCapabilityDraft; onDraftChange: (value: StudioCapabilityDraft | ((current: StudioCapabilityDraft) => StudioCapabilityDraft)) => void; onRefresh: () => void }) {
+function ConnectionDirectoryPanel({ installationId, versionId, directory, onRefresh }: { installationId: string; versionId: string | null; directory: AgentConnectionDirectoryEntry[]; onRefresh: () => void }) {
+  const [query, setQuery] = useState("");
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [apiKeyId, setApiKeyId] = useState<string | null>(null);
+  const [apiKey, setApiKey] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const mcpEntries = directory.filter((entry) => entry.kind === "mcp");
+  const filtered = mcpEntries.filter((entry) => `${entry.name} ${entry.description} ${entry.category} ${(entry.keywords ?? []).join(" ")}`.toLowerCase().includes(query.trim().toLowerCase()));
+  const connect = async (entry: AgentConnectionDirectoryEntry) => {
+    setBusyId(entry.id);
+    setError(null);
+    try {
+      if (entry.auth === "oauth") {
+        const result = await startAgentMcpCatalogOAuth(installationId, entry.id, versionId ?? undefined);
+        window.location.assign(result.authorizationUrl);
+        return;
+      }
+      await connectAgentMcpCatalog(installationId, entry.id, { apiKey: apiKey.trim() || undefined, agentVersionId: versionId ?? undefined });
+      setApiKey("");
+      setApiKeyId(null);
+      onRefresh();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Unable to connect");
+    } finally {
+      setBusyId(null);
+    }
+  };
+  return <div className="space-y-4"><div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><span className="text-xs text-muted-foreground">{mcpEntries.length} MCP servers</span><DirectorySearch value={query} onChange={setQuery} placeholder="Search connections" /></div>{error ? <p className="rounded-lg bg-destructive/5 px-3 py-2 text-xs text-destructive">{error}</p> : null}{filtered.length ? <div className="grid gap-2 sm:grid-cols-2">{filtered.map((entry) => { const unsupported = entry.status === "unsupported" || entry.transport === "stdio" || !entry.managed; const needsKey = entry.auth === "api_key"; const connected = entry.status === "connected" || entry.status === "ready"; return <div key={entry.id} className={cn("rounded-xl border border-border p-3", unsupported ? "opacity-65" : "transition-colors hover:border-primary/40")}><div className="flex items-center gap-3"><DirectoryIcon label={entry.name} logo={entry.logo} icon={<PlugZap className="size-5" />} /><div className="min-w-0 flex-1"><p className="truncate text-xs font-medium text-foreground">{entry.name}</p><p className="mt-1 line-clamp-2 text-[11px] leading-4 text-muted-foreground">{entry.description}</p><p className="mt-1 text-[10px] text-muted-foreground">{entry.auth === "oauth" ? "OAuth" : entry.auth === "api_key" ? "API key" : "No key"}</p></div><span className={cn("size-1.5 shrink-0 rounded-full", connected ? "bg-emerald-500" : unsupported ? "bg-muted-foreground/40" : "bg-amber-500")} /></div>{needsKey && apiKeyId === entry.id ? <div className="mt-3 flex gap-2"><input type="password" value={apiKey} onChange={(event) => setApiKey(event.target.value)} placeholder="API key" className="h-8 min-w-0 flex-1 rounded-md border border-border bg-background px-2 text-xs text-foreground outline-none focus:border-primary" /><Button type="button" size="sm" className="h-8" disabled={!apiKey.trim() || busyId === entry.id} onClick={() => void connect(entry)}>{busyId === entry.id ? "…" : "Connect"}</Button></div> : <div className="mt-3 flex justify-end"><Button type="button" variant={connected ? "outline" : "default"} size="sm" className="h-8" disabled={unsupported || busyId === entry.id} onClick={() => needsKey ? setApiKeyId(entry.id) : void connect(entry)}>{busyId === entry.id ? "…" : connected ? "Connected" : entry.auth === "oauth" ? "Connect" : "Connect"}</Button></div>}</div>; })}</div> : <p className="rounded-xl border border-dashed border-border px-3 py-5 text-center text-xs text-muted-foreground">No connections match.</p>}</div>;
+}
+
+function ConnectionCapabilitiesPanel({ installationId, connectionDirectory, mcpDirectory, providers, pinnedProviders, versions, versionId, draft, onDraftChange, onRefresh }: { installationId: string | null; connectionDirectory: AgentConnectionDirectoryEntry[]; mcpDirectory: AgentCapabilityDirectoryEntry[]; providers: AgentMcpProvider[]; pinnedProviders: AgentMcpProviderVersion[]; versions: Record<string, AgentMcpProviderVersion[]>; versionId: string | null; draft: StudioCapabilityDraft; onDraftChange: (value: StudioCapabilityDraft | ((current: StudioCapabilityDraft) => StudioCapabilityDraft)) => void; onRefresh: () => void }) {
   return <div className="space-y-6">
-    {installationId ? <section className="space-y-3"><h5 className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Services</h5><AgentToolIntegrations installationId={installationId} embedded directory={directory} /></section> : null}
-    <section className="space-y-3"><h5 className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">MCP servers</h5><McpPanel directory={mcpDirectory} providers={providers} pinnedProviders={pinnedProviders} versions={versions} draft={draft} onDraftChange={onDraftChange} onRefresh={onRefresh} /></section>
+    {installationId ? <section className="space-y-3"><h5 className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Services</h5><AgentToolIntegrations installationId={installationId} embedded /></section> : null}
+    {installationId ? <section className="space-y-3"><h5 className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">MCP servers</h5><ConnectionDirectoryPanel installationId={installationId} versionId={versionId} directory={connectionDirectory} onRefresh={onRefresh} /></section> : null}
+    <section className="space-y-3"><h5 className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Custom MCP</h5><McpPanel directory={mcpDirectory} providers={providers} pinnedProviders={pinnedProviders} versions={versions} draft={draft} onDraftChange={onDraftChange} onRefresh={onRefresh} /></section>
   </div>;
 }
 

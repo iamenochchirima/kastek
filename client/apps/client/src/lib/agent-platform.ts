@@ -1117,6 +1117,42 @@ export function listAgentCapabilityDirectory(): Promise<{ directory: AgentCapabi
   return request("/api/agents/capabilities/directory");
 }
 
+export type AgentConnectionDirectoryEntry = {
+  id: string;
+  kind: "native" | "mcp" | string;
+  name: string;
+  description: string;
+  category: string;
+  logo: string;
+  auth: "internal" | "oauth2" | "api_key" | "webhook" | "local_connector" | "observability" | "oauth" | "none" | string;
+  source: "kasitek" | "hermes-reviewed" | string;
+  sourceUrl?: string;
+  endpointUrl?: string | null;
+  transport?: "http" | "stdio";
+  managed?: boolean;
+  keywords?: string[];
+  hosts?: string[];
+  configured?: boolean;
+  status?: "ready" | "connected" | "not_configured" | "unhealthy" | "unsupported" | string;
+  connectionId?: string | null;
+  providerId?: string | null;
+};
+
+export function listAgentConnectionDirectory(installationId: string): Promise<{ installationId: string; connections: AgentConnectionDirectoryEntry[] }> {
+  return request(`/api/agents/installations/${encodeURIComponent(installationId)}/connection-directory`);
+}
+
+export function connectAgentMcpCatalog(installationId: string, catalogId: string, input: { apiKey?: string; agentVersionId?: string } = {}): Promise<unknown> {
+  return request(`/api/agents/installations/${encodeURIComponent(installationId)}/mcp/catalog/${encodeURIComponent(catalogId)}/connect`, {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export function startAgentMcpCatalogOAuth(installationId: string, catalogId: string, agentVersionId?: string): Promise<{ authorizationUrl: string }> {
+  return request(`/api/agents/installations/${encodeURIComponent(installationId)}/mcp/catalog/${encodeURIComponent(catalogId)}/oauth/start`, { method: "POST", body: JSON.stringify(agentVersionId ? { agentVersionId } : {}) });
+}
+
 export type AgentSkill = {
   id: string;
   slug: string;
@@ -1144,6 +1180,37 @@ export function listAgentSkills(): Promise<{ skills: AgentSkill[] }> {
   return request("/api/agents/skills");
 }
 
+export type AgentSkillDirectoryEntry = {
+  id: string;
+  slug: string;
+  name: string;
+  description: string;
+  version: string;
+  author: string;
+  license: string;
+  category: string;
+  tags: string[];
+  sourceUrl: string;
+  rawUrl: string;
+  source: "hermes-reviewed" | string;
+  installed: boolean;
+  enabled: boolean;
+  skillId: string | null;
+  versionId: string | null;
+};
+
+export function listAgentSkillDirectory(agentVersionId?: string): Promise<{ skills: AgentSkillDirectoryEntry[] }> {
+  const query = agentVersionId ? `?agentVersionId=${encodeURIComponent(agentVersionId)}` : "";
+  return request(`/api/agents/skills/directory${query}`);
+}
+
+export function installAgentSkillCatalog(installationId: string, catalogId: string, agentVersionId?: string): Promise<unknown> {
+  return request(`/api/agents/installations/${encodeURIComponent(installationId)}/skills/catalog/${encodeURIComponent(catalogId)}/install`, {
+    method: "POST",
+    body: JSON.stringify(agentVersionId ? { agentVersionId } : {}),
+  });
+}
+
 export type AgentExtensionPackage = {
   id: string;
   kind: "skill" | "plugin" | "connector" | "mcp_capability" | string;
@@ -1159,6 +1226,42 @@ export type AgentExtensionPackage = {
 
 export function listAgentExtensionPackages(): Promise<{ packages: AgentExtensionPackage[] }> {
   return request("/api/agents/extensions/packages");
+}
+
+export type AgentPluginDirectoryEntry = {
+  id: string;
+  slug: string;
+  name: string;
+  version: string;
+  description: string;
+  author: string;
+  kind: "backend" | "standalone" | "model-provider" | "platform" | string;
+  requiredEnv: string[];
+  providedTools: string[];
+  providedProviders: string[];
+  adapterCapabilityIds: string[];
+  hooks: string[];
+  platforms: string[];
+  homepage?: string;
+  sourceUrl: string;
+  checksum: string;
+  adapterStatus: "metadata_only" | "supported" | string;
+  source: "hermes-reviewed" | string;
+  installed: boolean;
+  packageId: string | null;
+  packageVersionId: string | null;
+  packageStatus?: string | null;
+};
+
+export function listAgentPluginDirectory(): Promise<{ plugins: AgentPluginDirectoryEntry[] }> {
+  return request("/api/agents/plugins/directory");
+}
+
+export function installAgentPluginCatalog(installationId: string, catalogId: string): Promise<{ plugin: AgentPluginDirectoryEntry; package: AgentExtensionPackage; installationId: string }> {
+  return request(`/api/agents/installations/${encodeURIComponent(installationId)}/plugins/catalog/${encodeURIComponent(catalogId)}/install`, {
+    method: "POST",
+    body: JSON.stringify({}),
+  });
 }
 
 export function listAgentSkillVersions(skillId: string): Promise<{ versions: AgentSkillVersion[] }> {
