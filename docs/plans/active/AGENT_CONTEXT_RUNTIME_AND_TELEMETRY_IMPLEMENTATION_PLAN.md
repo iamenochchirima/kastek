@@ -589,14 +589,15 @@ has conformance coverage and the real-run proof above.
 | Owner | Agent Platform |
 | Risk | High: affects every model call and can alter run termination behaviour |
 | Affected services and surfaces | Agents worker, Temporal workflows, PostgreSQL, model adapters, internal Core boundary, Playground |
-| API/schema/migration | Expected: versioned events/read model and context state migrations; exact schemas recorded before implementation |
-| Rollout | Local-first, isolated Playground verification; no Railway or Vercel deployment is in scope |
-| Analytics | Define context-compaction, cannot-fit, overflow-recovery, and telemetry-basis events before implementation |
-| Logs/metrics | Structured redacted context/attempt/compaction events, error rates, fit failures, compaction effectiveness, latency, and queue/worker-loss signals |
+| API/schema/migration | Additive versioned journal/read-model contracts and context migrations 145-146; no destructive migration is required for local certification |
+| Feature flag / rollout | Local-only, isolated Playground verification; no Railway or Vercel deployment is in scope. Any hosted rollout requires a separate release decision after Temporal and Playground certification |
+| Analytics | Not applicable as a new product analytics event set; operational context, compaction, usage, and failure facts use the existing redacted `harness.turn` journal contract |
+| Logs/metrics | Structured redacted context/attempt/compaction events, error rates, fit failures, compaction effectiveness, latency, and queue/worker-loss signals; no new exporter or retention system is introduced here |
 | Documentation | Update agent context architecture, provider/runtime contracts, Playground operational guide, and migration/runbook material as contracts settle |
-| Version/release ID | Record before merge; not applicable to this planning-only change |
-| Rollback | Feature-gate or route-level rollback to a tested prior harness revision; no destructive migration in the first cutover |
-| Post-release review | Review real-run context failures, provider errors, compaction effectiveness, and telemetry accuracy after the first local certification window |
+| Validation evidence | Full agents suite: 179 files / 1,056 tests passed, 38 files / 111 tests skipped; agents build and client TypeScript/lint pass; PostgreSQL context-runtime integration: 2 tests passed; Temporal and real Playground evidence remain open |
+| Version/release ID | Not applicable to the current local-only certification; any future hosted release must record the platform release ID, commit SHA, artifact versions, and migration versions before promotion |
+| Rollback | Local branch rollback is a commit-level revert; migrations are additive and no destructive migration is part of the first cutover. Hosted rollout requires a tested prior harness revision and explicit rollback gate |
+| Post-release review | Not applicable until a hosted release exists; local certification must review real-run context failures, provider errors, compaction effectiveness, and telemetry accuracy before promotion |
 
 ## Evidence log
 
@@ -626,5 +627,6 @@ has conformance coverage and the real-run proof above.
 - [ ] Context overflow recovery is bounded, durable, fenced, and explainable; an unresolvable fit
   produces a typed terminal outcome.
 - [ ] PostgreSQL/Temporal worker-loss and replay tests pass on the local stack.
-- [ ] The plan's release record, migrations, documentation, observability, validation, and rollback
-  decisions are completed or explicitly recorded as not applicable.
+- [x] The plan's release record, migrations, documentation, observability, validation, and rollback
+  decisions are completed or explicitly recorded as not applicable for the local-only certification
+  scope; hosted promotion remains gated on the open Temporal and Playground evidence.
