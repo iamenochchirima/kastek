@@ -32,6 +32,10 @@ callback flow with protected-resource metadata, authorization-server discovery, 
 client registration, one-use state, and encrypted token storage. The callback then runs the same
 discover, publish, health, and version-pin lifecycle described above.
 
+If a provider does not expose dynamic client registration, Studio accepts a user-supplied OAuth
+client ID and optional secret and uses the same PKCE callback. The secret exists only in encrypted
+one-use OAuth state until token exchange completes.
+
 API-key entries write only an encrypted credential reference to the provider record. Stdio entries
 remain unavailable until a managed execution adapter exists; do not enable them by copying a
 Hermes command into the worker.
