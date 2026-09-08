@@ -1259,3 +1259,12 @@ Local authenticated E2E refresh (2026-09-08):
   tables are empty afterward. The only remaining row is the append-only deletion-job audit record.
 - The default development API remains intentionally unconfigured for installation-token signing;
   manual external-agent smoke must use the documented isolated key pair until a local key is added.
+
+Critical local Temporal recovery refresh (2026-09-08):
+
+- Re-ran the four critical recovery suites against the local Temporal server after the memory
+  hardening work: worker-loss matrix, Temporal recovery, context-compaction recovery, and child
+  activation. All 4 files and 17 tests passed.
+- The configured cloud Temporal endpoint reset the transport before test execution in a separate
+  attempt. That is recorded as an external environment limitation, not a local implementation
+  failure; cloud/staging recovery evidence remains a release gate.
