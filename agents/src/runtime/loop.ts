@@ -16,9 +16,23 @@ import { createAgentBudgetLedger, type AgentBudgetLedger } from "./budget";
 import {
   accountProviderUsage,
   planProviderRequest,
+  type ContextRequestManifest,
   type ContextPlanningPolicy,
   type ProviderContextProfile,
 } from "./context-planning";
+import { contextCapabilityCorrectionFromProviderError, resolveContextCapability } from "./context-capability";
+import { createContextUsageAnchor } from "./context-usage-anchor";
+import type {
+  ContextAttemptBudgetPort,
+  ContextAttemptBudgetReceipt,
+} from "./context-attempt-budget";
+import {
+  memoryEvidencePrompt,
+  sourceEventBoundaryFromMessages,
+  type MemoryEvidencePack,
+  type MemoryRetrievalPort,
+  type MemoryRuntimeScope,
+} from "./context-memory-boundary";
 
 export interface AgentLoopLimits {
   maxIterations: number;
@@ -31,7 +45,7 @@ export interface AgentLoopLimits {
 }
 
 export interface AgentLoopEvent {
-  type: "loop.started" | "model.completed" | "tool.proposed" | "tool.completed" | "loop.paused" | "loop.completed" | "loop.failed" | "loop.limited";
+  type: "loop.started" | "context.capability_resolved" | "context.planned" | "context.recovery" | "model.started" | "model.first_token" | "model.completed" | "model.failed" | "tool.proposed" | "tool.completed" | "loop.paused" | "loop.completed" | "loop.failed" | "loop.limited" | "memory_retrieval_requested" | "memory_retrieval_completed" | "memory_retrieval_blocked";
   iteration: number;
   payload: Record<string, unknown>;
 }
@@ -56,12 +70,47 @@ export interface AgentLoopInput {
   modelContextTokens?: number;
   /** Provider-aware model-boundary contract. When present, this replaces rough prompt-only admission. */
   contextProfile?: ProviderContextProfile;
+  /** Resolves provider/model capacity again for each fallback attempt. */
+  contextCapabilityResolver?: (input: { provider: AgentLoopInput["model"]["provider"]; model: string; profile: ProviderContextProfile; credentialRouteId?: string; credentials: ModelCredentials }) => Promise<ProviderContextProfile | undefined> | ProviderContextProfile | undefined;
+  /** Persists an evidence-backed provider capacity correction. */
+  recordContextCapabilityCorrection?: (input: { provider: AgentLoopInput["model"]["provider"]; model: string; profile: ProviderContextProfile; credentialRouteId?: string; correction: { contextWindowTokens?: number; maxOutputTokens?: number } }) => Promise<void> | void;
+  /** Production autonomous turns fail closed if no safe provider capacity is available. */
+  requireContextCapability?: boolean;
+  /** Opt into adapter streaming so first-token timing can be recorded. */
+  streamModel?: boolean;
+  /** Durable generation of the context projection used by this turn. */
+  contextCompactionGeneration?: number;
+  /** Durable run admission time, separate from harness execution start. */
+  admittedAt?: string;
+  /** Stable turn identity shared with memory and context journal events. */
+  turnId?: string;
+  /** Memory is an injected evidence source; it does not own request assembly. */
+  memoryRetrievalPort?: MemoryRetrievalPort;
+  memoryScope?: MemoryRuntimeScope;
+  memoryRetrievalQuery?: string;
+  memoryRetrievalReason?: string;
+  memoryMaxEvidenceTokens?: number;
+  memorySourceEventIds?: readonly string[];
+  /** Optional typed preflight result. The loop consumes it once when its source boundary matches. */
+  memoryRetrievalPack?: MemoryEvidencePack;
+  memoryRetrievalPackBoundaryDigest?: string;
   /** Per-agent limits for tool schemas/results and response reservation. */
   contextPlanningPolicy?: Partial<ContextPlanningPolicy>;
   budgetLedger?: AgentBudgetLedger;
   signal?: AbortSignal;
   /** Prefix used to keep durable operation keys unique across hosted loop contexts. */
   operationKeyPrefix?: string;
+  /** Optional durable budget shared by context recovery and provider retries. */
+  contextAttemptBudget?: ContextAttemptBudgetPort;
+  contextAttemptBudgetId?: string;
+  /** Persists the bounded manifest before a provider dispatch. */
+  persistContextManifest?: (input: {
+    provider: string;
+    model: string;
+    status: "fits" | "compacted" | "rejected";
+    decision: "ready" | "compact" | "prune" | "limited" | "cannot_fit";
+    manifest: ContextRequestManifest;
+  }) => Promise<void> | void;
   /** Durable fan-out admission lease used by the first model/tool operation in a branch. */
   parallelLeaseId?: string;
   limits?: Partial<AgentLoopLimits>;
@@ -174,7 +223,7 @@ export interface AgentLoopResult {
   usage: { inputTokens: number; outputTokens: number; totalTokens: number; estimatedCostUsd: number };
   iterations: number;
   toolCalls: number;
-  error?: { code: string; message: string; failureClass?: "retryable" | "terminal"; userMessage?: string };
+  error?: { code: string; message: string; failureClass?: "retryable" | "terminal"; userMessage?: string; remediation?: string };
   waitingFor?: string;
   ui?: AgentResponse["ui"];
   provenance?: GroundingProvenance;
@@ -227,8 +276,11 @@ export async function runBoundedAgentLoop(input: AgentLoopInput): Promise<AgentL
   let lastModelAttempt: { model: AgentLoopInput["model"]; credentials: ModelCredentials } = { model: input.model, credentials: input.credentials };
   let lastModelOperationKey: string | undefined;
   let emptyResponseRetries = 0;
+  let memoryEvidenceBoundaryDigest: string | undefined;
+  let memoryPreloadedPackConsumed = false;
   const startedAt = Date.now();
-  await emit(input, { type: "loop.started", iteration: 0, payload: {} });
+  const startedAtIso = new Date(startedAt).toISOString();
+  await emit(input, { type: "loop.started", iteration: 0, payload: { phase: "turn", admittedAt: input.admittedAt ?? startedAtIso, startedAt: startedAtIso } });
 
   if (input.resumeApprovedToolCall) {
   try {
@@ -342,8 +394,80 @@ export async function runBoundedAgentLoop(input: AgentLoopInput): Promise<AgentL
       await emit(input, { type: "loop.limited", iteration, payload: { reason: "budget" } });
       return { status: "limited", messages, usage, iterations: iteration - 1, toolCalls, ...(lastToolUi ? { ui: lastToolUi } : {}) };
     }
-    const remainingTokens = Math.max(1, limits.maxTotalTokens - usage.totalTokens);
+  const remainingTokens = Math.max(1, limits.maxTotalTokens - usage.totalTokens);
     try {
+      if (input.memoryRetrievalPort) {
+        const sourceEventBoundary = sourceEventBoundaryFromMessages(messages, input.memorySourceEventIds);
+        if (sourceEventBoundary.digest !== memoryEvidenceBoundaryDigest && !(input.memoryRetrievalPack && memoryPreloadedPackConsumed)) {
+          const runId = input.toolContext.runId;
+          const turnId = input.turnId ?? runId;
+          const attemptId = `${input.operationKeyPrefix ?? "model"}:${iteration}:memory`;
+          // Memory retrieval is admitted only with a typed planner intent. The
+          // runtime never turns free-form prompt text into a storage query.
+          const reason = input.memoryRetrievalReason ?? "semantic_context";
+          await emit(input, {
+            type: "memory_retrieval_requested",
+            iteration,
+            payload: {
+              runId,
+              turnId,
+              attemptId,
+              compactionGeneration: input.contextCompactionGeneration ?? 0,
+              sourceEventBoundaryDigest: sourceEventBoundary.digest,
+              reason,
+            },
+          });
+          memoryEvidenceBoundaryDigest = sourceEventBoundary.digest;
+          if (!input.memoryScope) {
+            await emit(input, { type: "memory_retrieval_blocked", iteration, payload: { runId, turnId, attemptId, reason: "scope_missing", errorCode: "MEMORY_RETRIEVAL_SCOPE_MISSING" } });
+          } else {
+            try {
+              const preflightPack = input.memoryRetrievalPack
+                && input.memoryRetrievalPackBoundaryDigest === sourceEventBoundary.digest
+                ? input.memoryRetrievalPack
+                : undefined;
+              const pack = preflightPack ?? await input.memoryRetrievalPort.retrieve({
+                  runId,
+                  turnId,
+                  attemptId,
+                  compactionGeneration: input.contextCompactionGeneration ?? 0,
+                  sourceEventBoundary,
+                  scope: input.memoryScope,
+                  reason,
+                  query: input.memoryRetrievalQuery ?? lastUserMessage(messages),
+                  ...(input.memoryMaxEvidenceTokens === undefined ? {} : { maxEvidenceTokens: input.memoryMaxEvidenceTokens }),
+                });
+              if (preflightPack) memoryPreloadedPackConsumed = true;
+              if (pack.status === "blocked") {
+                await emit(input, { type: "memory_retrieval_blocked", iteration, payload: { runId, turnId, attemptId, reason: pack.blockedReason ?? "memory_provider_blocked", packId: pack.packId } });
+                if (/(?:MEMORY_SCOPE|MEMORY_RETRIEVAL_INTENT|MEMORY_POLICY|MEMORY_AUTH)/u.test(pack.blockedReason ?? "")) {
+                  throw Object.assign(new Error(pack.blockedReason ?? "Memory retrieval was blocked"), { code: "MEMORY_RETRIEVAL_BLOCKED" });
+                }
+              } else {
+                const prompt = memoryEvidencePrompt(pack.evidence);
+                if (prompt) messages.splice(Math.min(1, messages.length), 0, { role: "system", content: prompt });
+                await emit(input, {
+                  type: "memory_retrieval_completed",
+                  iteration,
+                  payload: {
+                    runId,
+                    turnId,
+                    attemptId,
+                    packId: pack.packId,
+                    evidenceCount: pack.evidence.length,
+                    sourceEventBoundaryDigest: sourceEventBoundary.digest,
+                    ...(pack.diagnostics ? { diagnostics: pack.diagnostics } : {}),
+                  },
+                });
+              }
+            } catch (error) {
+              await emit(input, { type: "memory_retrieval_blocked", iteration, payload: { runId, turnId, attemptId, reason: "memory_provider_failed", errorCode: error instanceof Error ? error.name : "MEMORY_RETRIEVAL_FAILED" } });
+              const code = error instanceof Error && "code" in error && typeof error.code === "string" ? error.code : "";
+              if (/(?:MEMORY_SCOPE|MEMORY_RETRIEVAL_INTENT|MEMORY_POLICY|MEMORY_AUTH)/u.test(code)) throw error;
+            }
+          }
+        }
+      }
       const attempts = [
         { model: input.model, credentials: input.credentials },
         ...(input.fallbackModels ?? []),
@@ -352,52 +476,217 @@ export async function runBoundedAgentLoop(input: AgentLoopInput): Promise<AgentL
       let response: ModelResponse | undefined;
       let lastError: unknown;
       let contextPlanForResponse: ReturnType<typeof planProviderRequest> | undefined;
+      let contextRecoveryAttempted = false;
+      let contextRecoverySafetyMarginTokens = 0;
+      let contextRecoveryContextWindowTokens: number | undefined;
+      let completedFirstTokenAt: string | undefined;
+      let completedModelAttemptStartedAt: number | undefined;
+      let contextRecoveryOutputTokens: number | undefined;
       for (const [attemptIndex, attempt] of attempts.entries()) {
         lastModelAttempt = attempt;
         let creditReservation: ModelCreditReservation | undefined;
         let runBudgetReservation: ModelCreditReservation | undefined;
         let operationKey: string | undefined;
+        let attemptContextProfile: ProviderContextProfile | undefined;
+        let modelAttemptStartedAt: number | undefined;
+        let contextAttemptReceipt: ContextAttemptBudgetReceipt | undefined;
         try {
           await input.beforeModelCall?.();
           const tools = input.modelTools ?? input.tools.list(input.grantedTools);
-          const preparedMessages = prepareModelMessages({
-            messages,
-            maxContextTokens: input.modelContextTokens ?? 8_000,
-            // Once a provider profile is available, the shared context
-            // planner is the only component allowed to compact history. The
-            // repair pass still protects interrupted tool pairs.
-            compact: input.contextProfile === undefined,
-          });
-          if (preparedMessages.compacted || preparedMessages.repairedPairCount > 0) {
+          operationKey = `${input.operationKeyPrefix ?? "model"}:${iteration}:${attemptIndex}`;
+          lastModelOperationKey = operationKey;
+          const preparedMessages = prepareModelMessages({ messages });
+          if (preparedMessages.repairedPairCount > 0) {
             messages.splice(0, messages.length, ...preparedMessages.messages);
             await emit(input, {
               type: "loop.started",
               iteration,
               payload: {
-                contextCompacted: preparedMessages.compacted,
-                omittedMessageCount: preparedMessages.omittedMessageCount,
+                phase: "iteration",
                 repairedPairCount: preparedMessages.repairedPairCount,
               },
             });
           }
-          const contextPlan = input.contextProfile
-            ? planProviderRequest({
-              profile: {
-                ...input.contextProfile,
+          const isPrimaryModel = attempt.model.provider === input.model.provider && attempt.model.model === input.model.model;
+          const profileForAttempt: ProviderContextProfile | undefined = input.contextProfile
+            ? {
+              ...input.contextProfile,
+              provider: attempt.model.provider,
+              model: attempt.model.model,
+              // A fallback model must prove its own capacity. A same-model
+              // overflow recovery may retain the original profile while the
+              // durable resolver still records the corrected capacity.
+              contextWindowTokens: isPrimaryModel ? input.contextProfile.contextWindowTokens : 0,
+            }
+            : input.requireContextCapability
+              ? undefined
+              : {
                 provider: attempt.model.provider,
                 model: attempt.model.model,
-                ...(attempt.model.maxTokens !== undefined ? { maxOutputTokens: attempt.model.maxTokens } : {}),
-              },
-              policy: {
-                requestedOutputTokens: attempt.model.maxTokens ?? Math.min(2_048, Math.max(1, remainingTokens)),
-                maxToolSchemaTokens: input.contextPlanningPolicy?.maxToolSchemaTokens ?? 2_000,
-                maxToolResultTokens: input.contextPlanningPolicy?.maxToolResultTokens ?? 1_500,
-                ...(input.contextPlanningPolicy?.maxMessageUnits !== undefined ? { maxMessageUnits: input.contextPlanningPolicy.maxMessageUnits } : {}),
-              },
-              messages,
-              tools,
-            })
+                contextWindowTokens: input.modelContextTokens ?? 8_000,
+                ...(attempt.model.maxTokens === undefined ? {} : { maxOutputTokens: attempt.model.maxTokens }),
+                capabilitySource: "unknown",
+              };
+          attemptContextProfile = profileForAttempt
+            ? input.contextCapabilityResolver
+              ? await input.contextCapabilityResolver({ provider: attempt.model.provider, model: attempt.model.model, profile: profileForAttempt, credentialRouteId: attempt.credentials.credentialReference, credentials: attempt.credentials })
+              : resolveContextCapability({
+                profile: profileForAttempt,
+                provider: attempt.model.provider,
+                model: attempt.model.model,
+              })
             : undefined;
+          if (!attemptContextProfile || !Number.isSafeInteger(attemptContextProfile.contextWindowTokens) || attemptContextProfile.contextWindowTokens <= 0) {
+            if (!input.requireContextCapability) {
+              attemptContextProfile = {
+                provider: attempt.model.provider,
+                model: attempt.model.model,
+                contextWindowTokens: input.modelContextTokens ?? 8_000,
+                ...(attempt.model.maxTokens === undefined ? {} : { maxOutputTokens: attempt.model.maxTokens }),
+                capabilitySource: "unknown",
+              };
+            }
+          }
+          if (!attemptContextProfile && input.requireContextCapability) {
+            await emit(input, {
+              type: "context.planned",
+              iteration,
+              payload: {
+                provider: attempt.model.provider,
+                model: attempt.model.model,
+                decision: "cannot_fit",
+                status: "rejected",
+                diagnostics: { reasons: ["context_capability_unknown"] },
+              },
+            });
+            await emit(input, { type: "loop.limited", iteration, payload: { reason: "context_capability_unknown", provider: attempt.model.provider, model: attempt.model.model } });
+            return {
+              status: "limited",
+              messages,
+              usage,
+              iterations: iteration - 1,
+              toolCalls,
+              error: {
+                code: "CONTEXT_CAPABILITY_UNKNOWN",
+                message: "The model context capacity is not known for this provider route",
+                failureClass: "terminal",
+                userMessage: "I can't safely run this request because the selected provider route has no verified context capacity.",
+                remediation: "Choose a model with verified context metadata or configure a provider route with a known context window.",
+              },
+              ...(lastToolUi ? { ui: lastToolUi } : {}),
+            };
+          }
+          if (attemptContextProfile) {
+            await emit(input, {
+              type: "context.capability_resolved",
+              iteration,
+              payload: {
+                provider: attemptContextProfile.provider,
+                model: attemptContextProfile.model,
+                endpointId: attemptContextProfile.endpointId,
+                contextWindowTokens: attemptContextProfile.contextWindowTokens,
+                maxOutputTokens: attemptContextProfile.maxOutputTokens,
+                capabilitySource: attemptContextProfile.capabilitySource,
+                capabilityResolvedAt: attemptContextProfile.capabilityResolvedAt,
+              },
+            });
+          }
+          const contextPlan = attemptContextProfile
+            ? (() => {
+              const planningProfile = {
+                ...attemptContextProfile,
+                ...(contextRecoveryContextWindowTokens === undefined ? {} : { contextWindowTokens: contextRecoveryContextWindowTokens }),
+                ...(contextRecoverySafetyMarginTokens > 0
+                  ? { safetyMarginTokens: Math.max(attemptContextProfile.safetyMarginTokens ?? 0, contextRecoverySafetyMarginTokens) }
+                  : {}),
+              };
+              const requestedOutputLimit = Math.min(
+                attempt.model.maxTokens ?? Math.min(2_048, Math.max(1, remainingTokens)),
+                contextRecoveryOutputTokens ?? Number.MAX_SAFE_INTEGER,
+              );
+              let planningOutputTokens = Math.max(1, requestedOutputLimit);
+              let plan;
+              // The run budget can be smaller than the provider request budget.
+              // Re-plan when that budget clamps output so the immutable manifest
+              // and the dispatched request reserve the same number of tokens.
+              for (let pass = 0; pass < 12; pass += 1) {
+                plan = planProviderRequest({
+                  profile: planningProfile,
+                  policy: {
+                    requestedOutputTokens: planningOutputTokens,
+                    maxToolSchemaTokens: input.contextPlanningPolicy?.maxToolSchemaTokens ?? 2_000,
+                    maxToolResultTokens: input.contextPlanningPolicy?.maxToolResultTokens ?? 1_500,
+                    ...(input.contextPlanningPolicy?.maxMessageUnits !== undefined ? { maxMessageUnits: input.contextPlanningPolicy.maxMessageUnits } : {}),
+                    ...(input.contextPlanningPolicy?.maxRequestBytes !== undefined ? { maxRequestBytes: input.contextPlanningPolicy.maxRequestBytes } : {}),
+                    ...(input.contextPlanningPolicy?.softThresholdTokens !== undefined ? { softThresholdTokens: input.contextPlanningPolicy.softThresholdTokens } : {}),
+                  },
+                  messages,
+                  tools,
+                  identity: {
+                    turnId: input.turnId ?? input.toolContext.runId,
+                    modelAttemptId: operationKey,
+                    compactionGeneration: input.contextCompactionGeneration ?? 0,
+                    sourceEventBoundaryDigest: sourceEventBoundaryFromMessages(messages, input.memorySourceEventIds ?? []).digest,
+                  },
+                  requestBytesEstimator: ({ messages: candidateMessages, tools: candidateTools }) => input.gateway.estimateRequestBytes({
+                    provider: attempt.model.provider,
+                    model: attempt.model.model,
+                    ...(attempt.model.temperature === undefined ? {} : { temperature: attempt.model.temperature }),
+                    maxTokens: Math.min(planningOutputTokens, planningProfile.maxOutputTokens ?? Number.MAX_SAFE_INTEGER),
+                    messages: [...candidateMessages],
+                    tools: [...candidateTools],
+                  }),
+                });
+                if (plan.status === "rejected") break;
+                const availableOutputTokens = Math.max(1, remainingTokens - plan.accounting.estimatedInputTokens);
+                const nextOutputTokens = Math.max(1, Math.min(
+                  planningOutputTokens,
+                  planningProfile.maxOutputTokens ?? Number.MAX_SAFE_INTEGER,
+                  contextRecoveryOutputTokens ?? Number.MAX_SAFE_INTEGER,
+                  availableOutputTokens,
+                ));
+                if (nextOutputTokens === plan.accounting.categories.output_reservation) break;
+                planningOutputTokens = nextOutputTokens;
+              }
+              return plan;
+            })()
+            : undefined;
+          const persistManifestFailure = async (): Promise<AgentLoopResult | undefined> => {
+            if (!contextPlan || !input.persistContextManifest) return undefined;
+            try {
+              await input.persistContextManifest({
+                provider: contextPlan.provider,
+                model: contextPlan.model,
+                status: contextPlan.status,
+                decision: contextPlan.decision,
+                manifest: contextPlan.manifest,
+              });
+              return undefined;
+            } catch {
+              await emit(input, {
+                type: "loop.limited",
+                iteration,
+                payload: { reason: "context_manifest_persistence_failed", manifestDigest: contextPlan.manifest.digest },
+              });
+              return {
+                status: "limited",
+                messages: [...contextPlan.messages],
+                usage,
+                iterations: iteration - 1,
+                toolCalls,
+                error: {
+                  code: "CONTEXT_MANIFEST_PERSISTENCE_FAILED",
+                  message: "The bounded context manifest could not be persisted before dispatch",
+                  failureClass: "terminal",
+                  userMessage: "I couldn't safely start this request because its context record could not be saved.",
+                  remediation: "Retry the request after the context runtime is available; no provider call was dispatched.",
+                },
+                ...(lastToolUi ? { ui: lastToolUi } : {}),
+              };
+            }
+          };
+          const manifestPersistenceFailure = await persistManifestFailure();
+          if (manifestPersistenceFailure) return manifestPersistenceFailure;
           if (contextPlan?.status === "rejected") {
             await emit(input, {
               type: "loop.limited",
@@ -417,21 +706,52 @@ export async function runBoundedAgentLoop(input: AgentLoopInput): Promise<AgentL
               iterations: iteration - 1,
               toolCalls,
               error: {
-                code: "CONTEXT_PLAN_REJECTED",
+                code: contextPlan.rejection.code === "request_payload_exceeds_byte_budget" ? "CONTEXT_PAYLOAD_TOO_LARGE" : "CONTEXT_PLAN_REJECTED",
                 message: contextPlan.rejection.message,
                 failureClass: "terminal",
+                userMessage: contextPlan.rejection.code === "request_payload_exceeds_byte_budget"
+                  ? "I couldn't send this request because its serialized payload is too large."
+                  : "I couldn't fit the required request content into the selected model context.",
+                remediation: contextPlan.rejection.code === "request_payload_exceeds_byte_budget"
+                  ? "Remove large media or tool output, or choose a provider route with a larger request-size limit."
+                  : "Shorten the request, remove unnecessary attachments or tools, or choose a model with a larger verified context window.",
               },
               ...(lastToolUi ? { ui: lastToolUi } : {}),
             };
           }
           if (contextPlan) {
             contextPlanForResponse = contextPlan;
+            await emit(input, {
+              type: "context.planned",
+              iteration,
+              payload: {
+                provider: contextPlan.provider,
+                model: contextPlan.model,
+                decision: contextPlan.decision,
+                status: contextPlan.status,
+                manifest: contextPlan.manifest,
+                accounting: {
+                  basis: contextPlan.accounting.basis,
+                  capabilitySource: contextPlan.accounting.capabilitySource,
+                  estimatedInputTokens: contextPlan.accounting.estimatedInputTokens,
+                  inputBudgetTokens: contextPlan.accounting.inputBudgetTokens,
+                  contextWindowTokens: contextPlan.accounting.providerContextWindowTokens,
+                  reservedOutputTokens: contextPlan.accounting.categories.output_reservation,
+                  safetyMarginTokens: contextPlan.accounting.categories.safety_margin,
+                  softThresholdTokens: contextPlan.accounting.softThresholdTokens,
+                  hardLimitTokens: contextPlan.accounting.hardLimitTokens,
+                  pressure: contextPlan.accounting.pressure,
+                },
+                diagnostics: contextPlan.diagnostics,
+              },
+            });
             if (contextPlan.status === "compacted" || contextPlan.diagnostics.truncatedToolResultCount > 0 || contextPlan.diagnostics.omittedToolCount > 0) {
               messages.splice(0, messages.length, ...contextPlan.messages);
               await emit(input, {
                 type: "loop.started",
                 iteration,
                 payload: {
+                  phase: "iteration",
                   contextCompacted: contextPlan.status === "compacted",
                   contextPlan: contextPlan.diagnostics,
                   contextAccounting: contextPlan.accounting,
@@ -443,23 +763,75 @@ export async function runBoundedAgentLoop(input: AgentLoopInput): Promise<AgentL
           const modelTools: ModelToolDefinition[] = contextPlan ? [...contextPlan.tools] : tools;
           const estimatedInputTokens = contextPlan?.accounting.estimatedInputTokens ?? estimatePromptTokens({ messages: modelMessages, tools: modelTools });
           if (!contextBudgetConsumed && !budget.admit("context", estimatedInputTokens)) {
-            await emit(input, { type: "loop.limited", iteration, payload: { reason: "context_budget", estimatedInputTokens, budget: budget.snapshot() } });
-            return { status: "limited", messages, usage, iterations: iteration - 1, toolCalls, ...(lastToolUi ? { ui: lastToolUi } : {}) };
+            const contextBudgetError = {
+              code: "CONTEXT_RUN_BUDGET_EXCEEDED",
+              message: "The planned request exceeds the remaining durable run token budget",
+              failureClass: "terminal" as const,
+              userMessage: "I couldn't safely start this request because the remaining run token budget is too small for its context.",
+              remediation: "Shorten the request or increase the run token budget before retrying.",
+            };
+            await emit(input, { type: "loop.limited", iteration, payload: { reason: "context_budget", code: contextBudgetError.code, estimatedInputTokens, budget: budget.snapshot() } });
+            return { status: "limited", messages, usage, iterations: iteration - 1, toolCalls, error: contextBudgetError, ...(lastToolUi ? { ui: lastToolUi } : {}) };
           }
           if (!contextBudgetConsumed) {
             budget.consume("context", estimatedInputTokens);
             contextBudgetConsumed = true;
           }
-          const availableOutputTokens = Math.max(1, remainingTokens - estimatedInputTokens);
-          operationKey = `${input.operationKeyPrefix ?? "model"}:${iteration}:${attemptIndex}`;
-          lastModelOperationKey = operationKey;
+          const requestedOutputTokens = attempt.model.maxTokens
+            ?? attemptContextProfile?.maxOutputTokens
+            ?? Math.min(2_048, remainingTokens);
+          const plannedOutputTokens = contextPlan?.accounting.categories.output_reservation;
           const request: ModelRequest = {
             ...attempt.model,
             messages: modelMessages,
             signal: input.signal,
             tools: modelTools,
-            maxTokens: attempt.model.maxTokens === undefined ? availableOutputTokens : Math.min(attempt.model.maxTokens, availableOutputTokens),
+            maxTokens: plannedOutputTokens ?? Math.max(1, Math.min(
+              requestedOutputTokens,
+              contextRecoveryOutputTokens ?? Number.MAX_SAFE_INTEGER,
+              Math.max(1, remainingTokens - estimatedInputTokens),
+            )),
           };
+          if (input.contextAttemptBudget) {
+            const attemptBudget = await input.contextAttemptBudget.reserve({
+              budgetId: input.contextAttemptBudgetId ?? `context-attempts:${input.toolContext.runId}:${input.turnId ?? input.toolContext.runId}`,
+              runId: input.toolContext.runId,
+              turnId: input.turnId ?? input.toolContext.runId,
+              operationKey,
+              kind: "provider_retry",
+            });
+            if (attemptBudget.status === "exhausted") {
+              await emit(input, {
+                type: "loop.limited",
+                iteration,
+                payload: {
+                  reason: "context_attempt_budget_exhausted",
+                  code: attemptBudget.outcome.code,
+                  budgetId: attemptBudget.outcome.budgetId,
+                  attemptedAttempts: attemptBudget.outcome.attemptedAttempts,
+                  maxAttempts: attemptBudget.outcome.maxAttempts,
+                },
+              });
+              return {
+                status: "limited",
+                messages,
+                usage,
+                iterations: iteration - 1,
+                toolCalls,
+                error: {
+                  code: attemptBudget.outcome.code,
+                  message: "The durable context attempt budget is exhausted",
+                  failureClass: "terminal",
+                  userMessage: "I couldn't safely recover the request within the context runtime's retry budget.",
+                  remediation: "Retry after the current run settles or increase the configured context recovery attempt budget.",
+                },
+                ...(lastToolUi ? { ui: lastToolUi } : {}),
+              };
+            }
+            contextAttemptReceipt = attemptBudget.receipt;
+          }
+          let firstTokenAt: string | undefined;
+          const modelQueuedAt = new Date().toISOString();
           const prepared = await input.prepareModelCall?.({ operationKey, model: attempt.model, credentials: attempt.credentials });
           try {
             runBudgetReservation = await input.reserveRunBudget?.({ request, reservationKey: operationKey, parallelLeaseId: input.parallelLeaseId });
@@ -475,6 +847,22 @@ export async function runBoundedAgentLoop(input: AgentLoopInput): Promise<AgentL
             runBudgetReservation = undefined;
             throw new Error("MODEL_CALL_OUTCOME_UNKNOWN");
           }
+          modelAttemptStartedAt = Date.now();
+          completedModelAttemptStartedAt = modelAttemptStartedAt;
+          await emit(input, {
+            type: "model.started",
+            iteration,
+            payload: {
+              provider: request.provider,
+              model: request.model,
+              operationKey,
+              queuedAt: modelQueuedAt,
+              startedAt: new Date(modelAttemptStartedAt).toISOString(),
+              estimatedInputTokens,
+              reservedOutputTokens: request.maxTokens,
+              contextManifestDigest: contextPlan?.manifest.digest,
+            },
+          });
           if (prepared?.status === "completed") {
             response = prepared.response;
             if (!response) throw new Error("MODEL_CALL_RESPONSE_MISSING");
@@ -484,7 +872,27 @@ export async function runBoundedAgentLoop(input: AgentLoopInput): Promise<AgentL
             creditReservation = await input.reserveModelCall?.({ request, credentials: attempt.credentials, operationKey });
           } else {
             creditReservation = await input.reserveModelCall?.({ request, credentials: attempt.credentials, operationKey });
-          response = await input.gateway.complete(request, attempt.credentials);
+            const shouldStream = input.streamModel === true && input.gateway.capabilities(request.provider)?.streaming === true;
+            if (shouldStream) {
+              response = (await input.gateway.stream(request, attempt.credentials, async (delta) => {
+                if (firstTokenAt || (delta.type !== "text_delta" && delta.type !== "tool_call_delta")) return;
+                firstTokenAt = new Date().toISOString();
+                completedFirstTokenAt = firstTokenAt;
+                await emit(input, {
+                  type: "model.first_token",
+                  iteration,
+                  payload: {
+                    provider: request.provider,
+                    model: request.model,
+                    operationKey,
+                    firstTokenAt,
+                    timeToFirstTokenMs: Math.max(0, Date.parse(firstTokenAt) - (modelAttemptStartedAt ?? Date.now())),
+                  },
+                });
+              })).response;
+            } else {
+              response = await input.gateway.complete(request, attempt.credentials);
+            }
             await input.persistModelResponse?.({ operationKey, response, attempt });
           }
           if (runBudgetReservation) {
@@ -502,6 +910,10 @@ export async function runBoundedAgentLoop(input: AgentLoopInput): Promise<AgentL
             await creditReservation.capture(response);
             creditReservation = undefined;
           }
+          if (contextAttemptReceipt && input.contextAttemptBudget) {
+            await input.contextAttemptBudget.consume(contextAttemptReceipt);
+            contextAttemptReceipt = undefined;
+          }
           break;
         } catch (error) {
           if (runBudgetReservation) {
@@ -510,11 +922,80 @@ export async function runBoundedAgentLoop(input: AgentLoopInput): Promise<AgentL
           if (creditReservation) {
             await creditReservation.release(error instanceof Error ? error.message : "model provider failure").catch(() => undefined);
           }
+          if (contextAttemptReceipt && input.contextAttemptBudget && !(error instanceof Error && error.message === "MODEL_CALL_OUTCOME_UNKNOWN")) {
+            await input.contextAttemptBudget.consume(contextAttemptReceipt).catch(() => undefined);
+          }
           lastError = error;
           if (error instanceof ModelProviderError) {
             const normalized = { code: error.code, message: error.message };
+            await emit(input, {
+              type: "model.failed",
+              iteration,
+              payload: {
+                provider: attempt.model.provider,
+                model: attempt.model.model,
+                operationKey,
+                code: error.code,
+                retryable: error.retryable,
+                ...(modelAttemptStartedAt === undefined ? {} : {
+                  failedAt: new Date().toISOString(),
+                  latencyMs: Math.max(0, Date.now() - modelAttemptStartedAt),
+                }),
+              },
+            });
             if (operationKey) await input.persistModelError?.({ operationKey, model: attempt.model, credentials: attempt.credentials, error: normalized });
+            if (isProviderPayloadOverflow(error)) {
+              await emit(input, { type: "loop.limited", iteration, payload: { reason: "provider_payload_too_large", code: error.code, statusCode: error.statusCode } });
+              return {
+                status: "limited",
+                messages,
+                usage,
+                iterations: iteration - 1,
+                toolCalls,
+                error: {
+                  code: "PROVIDER_PAYLOAD_TOO_LARGE",
+                  message: "The provider rejected the serialized request payload size",
+                  failureClass: "terminal",
+                  userMessage: "The provider rejected this request because its serialized payload is too large.",
+                  remediation: "Remove large media or tool output, or choose a provider route with a larger request-size limit.",
+                },
+                ...(lastToolUi ? { ui: lastToolUi } : {}),
+              };
+            }
             if (isProviderContextOverflow(error)) {
+              const correction = contextCapabilityCorrectionFromProviderError({ code: error.code, message: error.message });
+              if (correction && attemptContextProfile) {
+                if (correction.contextWindowTokens !== undefined && correction.contextWindowTokens < attemptContextProfile.contextWindowTokens) {
+                  contextRecoveryContextWindowTokens = correction.contextWindowTokens;
+                }
+                if (correction.maxOutputTokens !== undefined) {
+                  contextRecoveryOutputTokens = Math.max(1, Math.min(contextRecoveryOutputTokens ?? requestMaxTokensForRecovery(attempt, input, remainingTokens), correction.maxOutputTokens));
+                }
+                await input.recordContextCapabilityCorrection?.({ provider: attempt.model.provider, model: attempt.model.model, profile: attemptContextProfile, credentialRouteId: attempt.credentials.credentialReference, correction });
+              }
+              if (!contextRecoveryAttempted && attemptContextProfile && attemptContextProfile.capabilitySource !== "unknown") {
+                contextRecoveryAttempted = true;
+                attempts.splice(attemptIndex + 1, 0, attempt);
+                contextRecoverySafetyMarginTokens = Math.max(
+                  (attemptContextProfile.safetyMarginTokens ?? 0) + 256,
+                  Math.ceil(attemptContextProfile.contextWindowTokens * 0.1),
+                );
+                contextRecoveryOutputTokens = Math.max(1, Math.floor((requestMaxTokensForRecovery(attempt, input, remainingTokens)) / 2));
+                await emit(input, {
+                  type: "context.recovery",
+                  iteration,
+                  payload: {
+                    status: "provider_overflow_recovering",
+                    provider: attempt.model.provider,
+                    model: attempt.model.model,
+                    operationKey,
+                    safetyMarginTokens: contextRecoverySafetyMarginTokens,
+                    reservedOutputTokens: contextRecoveryOutputTokens,
+                  },
+                });
+                continue;
+              }
+              if (contextRecoveryAttempted && attemptIndex < attempts.length - 1) continue;
               await emit(input, { type: "loop.limited", iteration, payload: { reason: "provider_context_overflow", code: error.code } });
               return {
                 status: "limited",
@@ -522,7 +1003,13 @@ export async function runBoundedAgentLoop(input: AgentLoopInput): Promise<AgentL
                 usage,
                 iterations: iteration - 1,
                 toolCalls,
-                error: { code: "PROVIDER_CONTEXT_OVERFLOW", message: "The provider rejected the bounded context", failureClass: "terminal" },
+                error: {
+                  code: "PROVIDER_CONTEXT_OVERFLOW",
+                  message: "The provider rejected the bounded context",
+                  failureClass: "terminal",
+                  userMessage: "The provider rejected this request because it still exceeds the verified context boundary.",
+                  remediation: "Shorten the request or choose a model with a larger verified context window.",
+                },
                 ...(lastToolUi ? { ui: lastToolUi } : {}),
               };
             }
@@ -541,16 +1028,42 @@ export async function runBoundedAgentLoop(input: AgentLoopInput): Promise<AgentL
       usage.totalTokens += response.usage.totalTokens;
       usage.estimatedCostUsd += response.usage.estimatedCostUsd ?? 0;
       const contextUsage = contextPlanForResponse ? accountProviderUsage(contextPlanForResponse, response.usage) : undefined;
+      const contextUsageAnchor = contextPlanForResponse
+        && lastModelOperationKey
+        && response.usage.inputTokensReported !== false
+        && response.usage.outputTokensReported !== false
+        ? createContextUsageAnchor({
+          operationKey: lastModelOperationKey,
+          boundary: {
+            provider: contextPlanForResponse.provider,
+            model: contextPlanForResponse.model,
+            manifestDigest: contextPlanForResponse.manifest.digest,
+            sourceDigest: contextPlanForResponse.manifest.sourceDigest,
+            compactionGeneration: input.contextCompactionGeneration ?? (contextPlanForResponse.status === "compacted" ? 1 : 0),
+          },
+          estimatedInputTokens: contextPlanForResponse.accounting.estimatedInputTokens,
+          providerInputTokens: response.usage.inputTokens,
+          providerOutputTokens: response.usage.outputTokens,
+          providerTotalTokens: response.usage.totalTokens,
+        })
+        : undefined;
       await emit(input, {
         type: "model.completed",
         iteration,
         payload: {
           provider: response.provider,
           model: response.model,
+          ...(lastModelOperationKey ? { operationKey: lastModelOperationKey } : {}),
           inputTokens: response.usage.inputTokens,
           outputTokens: response.usage.outputTokens,
+          latencyMs: response.latencyMs,
+          ...(completedFirstTokenAt ? { firstTokenAt: completedFirstTokenAt, timeToFirstTokenMs: Math.max(0, Date.parse(completedFirstTokenAt) - (completedModelAttemptStartedAt ?? Date.now())) } : {}),
+          completedAt: new Date().toISOString(),
           finishReason: response.finishReason,
           toolCallCount: response.toolCalls.length,
+          contextMeasurementBasis: contextUsage?.basis ?? contextPlanForResponse?.accounting.basis,
+          contextManifestDigest: contextPlanForResponse?.manifest.digest,
+          ...(contextUsageAnchor ? { contextUsageAnchor } : {}),
           ...(contextUsage ? {
             contextUsage: {
               status: contextUsage.status,
@@ -757,4 +1270,21 @@ export async function runBoundedAgentLoop(input: AgentLoopInput): Promise<AgentL
 
 function isProviderContextOverflow(error: ModelProviderError): boolean {
   return /(?:context|token).*(?:length|limit|exceed|overflow)|(?:context|token)_?(?:length|limit|exceed|overflow)/i.test(`${error.code} ${error.message}`);
+}
+
+function isProviderPayloadOverflow(error: ModelProviderError): boolean {
+  return error.statusCode === 413 || /(?:payload|request).*(?:too large|size|limit)|entity[_ -]?too[_ -]?large/i.test(`${error.code} ${error.message}`);
+}
+
+function requestMaxTokensForRecovery(
+  attempt: { readonly model: Pick<ModelRequest, "maxTokens"> },
+  input: AgentLoopInput,
+  remainingTokens: number,
+): number {
+  return Math.max(1, attempt.model.maxTokens ?? input.contextProfile?.maxOutputTokens ?? Math.min(2_048, remainingTokens));
+}
+
+function lastUserMessage(messages: readonly ModelMessage[]): string {
+  const message = [...messages].reverse().find((candidate) => candidate.role === "user");
+  return message && typeof message.content === "string" ? message.content.slice(0, 4_000) : "";
 }
