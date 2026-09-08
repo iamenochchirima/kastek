@@ -3,7 +3,7 @@
 // Prototype question: which settings workspace best exposes an agent's useful
 // capabilities without making users learn plugin or MCP terminology?
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   Activity,
@@ -35,17 +35,74 @@ import {
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { AgentModelPicker } from "@/components/dashboard/agents/agent-model-picker";
-import type {
-  AgentDefinition,
-  AgentModel,
-  AgentModelCatalog,
-  AgentVersion,
+import {
+  createAgentMcpProvider,
+  discoverAgentMcpProvider,
+  disconnectAgentIntegration,
+  getAgentInstallationReadiness,
+  healthCheckAgentMcpProvider,
+  listAgentCapabilities,
+  listAgentExtensionPackages,
+  listAgentInstallationCapabilities,
+  listAgentInstallationIntegrations,
+  listAgentMcpProviders,
+  listAgentMcpProviderVersions,
+  listAgentSkillVersions,
+  listAgentSkills,
+  listAgentVersionMcpProviders,
+  listAgentVersionSkills,
+  pinAgentMcpProviderVersion,
+  pinAgentSkillVersion,
+  publishAgentMcpProviderVersion,
+  saveAgentIntegrationApiKey,
+  startAgentGoogleCalendarOAuth,
+  type AgentCapability,
+  type AgentDefinition,
+  type AgentExtensionPackage,
+  type AgentIntegration,
+  type AgentModel,
+  type AgentModelCatalog,
+  type AgentMcpProvider,
+  type AgentMcpProviderVersion,
+  type AgentReadiness,
+  type AgentSkill,
+  type AgentSkillVersion,
+  type AgentVersion,
 } from "@/lib/agent-platform";
 import { cn } from "@/lib/utils";
 
 type SettingsSection = "overview" | "capabilities" | "memory" | "connections" | "safety" | "runtime";
 type PrototypeVariant = "a" | "b" | "c";
 type ModelSelection = Pick<AgentModel, "provider" | "model">;
+
+export type StudioCapabilityDraft = {
+  allowedTools: string[];
+  requiredCapabilities: string[];
+  allowedSkillIds: string[];
+  skillVersionIds: string[];
+  mcpProviderVersionIds: string[];
+  extensionPackages: unknown[];
+  extensionGrants: unknown[];
+};
+
+function capabilityDraftFromVersion(version: AgentVersion | null): StudioCapabilityDraft {
+  const rawSpec = version?.configuration?.agentSpec;
+  const spec = rawSpec && typeof rawSpec === "object" && !Array.isArray(rawSpec) ? rawSpec as Record<string, unknown> : {};
+  const objectAt = (key: string) => spec[key] && typeof spec[key] === "object" && !Array.isArray(spec[key]) ? spec[key] as Record<string, unknown> : {};
+  const list = (value: unknown) => Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
+  const capabilities = objectAt("capabilities");
+  const skills = objectAt("skills");
+  const extensions = objectAt("extensions");
+  return {
+    allowedTools: list(capabilities.allowedTools),
+    requiredCapabilities: list(capabilities.requiredCapabilities),
+    allowedSkillIds: list(skills.allowedSkillIds),
+    skillVersionIds: [],
+    mcpProviderVersionIds: [],
+    extensionPackages: Array.isArray(extensions.packages) ? extensions.packages : [],
+    extensionGrants: Array.isArray(extensions.grants) ? extensions.grants : [],
+  };
+}
 
 const sections: Array<{ id: SettingsSection; label: string; description: string }> = [
   { id: "overview", label: "Overview", description: "Identity, instructions, and model" },
@@ -80,6 +137,7 @@ function StatusDot({ status }: { status: "ready" | "attention" | "included" | "n
 export function StudioSettingsPrototype({
   agent,
   version,
+  installationId,
   instructions,
   setInstructions,
   onSave,
@@ -92,9 +150,10 @@ export function StudioSettingsPrototype({
 }: {
   agent: AgentDefinition;
   version: AgentVersion | null;
+  installationId: string | null;
   instructions: string;
   setInstructions: (value: string) => void;
-  onSave: () => void;
+  onSave: (draft?: StudioCapabilityDraft) => Promise<AgentVersion | null> | void;
   saving: boolean;
   modelCatalog: AgentModelCatalog | null;
   modelCatalogLoading: boolean;
@@ -106,6 +165,9 @@ export function StudioSettingsPrototype({
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [section, setSection] = useState<SettingsSection>("overview");
+  const [capabilityDraft, setCapabilityDraft] = useState<StudioCapabilityDraft>(() => capabilityDraftFromVersion(version));
+  const [capabilitySaving, setCapabilitySaving] = useState(false);
+  const [capabilitySaveError, setCapabilitySaveError] = useState<string | null>(null);
   const requestedVariant = searchParams.get("studioVariant");
   const variant: PrototypeVariant = requestedVariant === "b" || requestedVariant === "c" ? requestedVariant : "a";
 
@@ -140,16 +202,37 @@ export function StudioSettingsPrototype({
     ?? pickerModels[0];
   const effectiveSelection = selectedModel ? { provider: selectedModel.provider, model: selectedModel.model } : modelSelection;
 
+  const saveSettings = async () => {
+    setCapabilitySaveError(null);
+    const next = await onSave(capabilityDraft);
+    if (!next) return;
+    setCapabilitySaving(true);
+    try {
+      await Promise.all([
+        ...capabilityDraft.skillVersionIds.map((skillVersionId) => pinAgentSkillVersion(next.id, skillVersionId)),
+        ...capabilityDraft.mcpProviderVersionIds.map((providerVersionId) => pinAgentMcpProviderVersion(next.id, providerVersionId)),
+      ]);
+    } catch (cause) {
+      setCapabilitySaveError(cause instanceof Error ? cause.message : "Draft saved, but a capability could not be pinned");
+    } finally {
+      setCapabilitySaving(false);
+    }
+  };
+
   const content = (
     <SettingsContent
       agent={agent}
       version={version}
+      installationId={installationId}
       section={section}
       setSection={setSection}
       instructions={instructions}
       setInstructions={setInstructions}
-      onSave={onSave}
-      saving={saving}
+      onSave={saveSettings}
+      saving={saving || capabilitySaving}
+      capabilitySaveError={capabilitySaveError}
+      capabilityDraft={capabilityDraft}
+      setCapabilityDraft={setCapabilityDraft}
       modelCatalog={modelCatalog}
       modelCatalogLoading={modelCatalogLoading}
       selectedModel={selectedModel}
@@ -208,6 +291,7 @@ function SettingsIcon({ section }: { section: SettingsSection }) {
 function SettingsContent({
   agent,
   version,
+  installationId,
   section,
   setSection,
   instructions,
@@ -220,9 +304,13 @@ function SettingsContent({
   pickerModels,
   effectiveSelection,
   setModelSelection,
+  capabilityDraft,
+  setCapabilityDraft,
+  capabilitySaveError,
 }: {
   agent: AgentDefinition;
   version: AgentVersion | null;
+  installationId: string | null;
   section: SettingsSection;
   setSection: (value: SettingsSection) => void;
   instructions: string;
@@ -235,23 +323,279 @@ function SettingsContent({
   pickerModels: AgentModel[];
   effectiveSelection: ModelSelection | null;
   setModelSelection: (value: ModelSelection | null) => void;
+  capabilityDraft: StudioCapabilityDraft;
+  setCapabilityDraft: (value: StudioCapabilityDraft | ((current: StudioCapabilityDraft) => StudioCapabilityDraft)) => void;
+  capabilitySaveError: string | null;
 }) {
   const title = sections.find((item) => item.id === section)?.label ?? "Settings";
   const description = sections.find((item) => item.id === section)?.description ?? "";
-  return <div className="mx-auto max-w-4xl px-5 py-6 pb-24 sm:px-8 sm:py-8"><div className="mb-7 flex items-start justify-between gap-4"><div><p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Agent settings</p><h3 className="mt-2 text-2xl font-semibold tracking-[-0.03em] text-foreground">{title}</h3><p className="mt-1 text-sm text-muted-foreground">{description}</p></div><span className="hidden items-center gap-1.5 rounded-full border border-border px-2.5 py-1 text-[10px] text-muted-foreground sm:inline-flex"><span className="size-1.5 rounded-full bg-amber-500" />Draft</span></div>{section === "overview" ? <OverviewSection agent={agent} version={version} instructions={instructions} setInstructions={setInstructions} selectedModel={selectedModel} pickerModels={pickerModels} modelCatalog={modelCatalog} modelCatalogLoading={modelCatalogLoading} effectiveSelection={effectiveSelection} setModelSelection={setModelSelection} /> : null}{section === "capabilities" ? <CapabilitiesSection /> : null}{section === "memory" ? <MemorySection /> : null}{section === "connections" ? <ConnectionsSection /> : null}{section === "safety" ? <SafetySection /> : null}{section === "runtime" ? <RuntimeSection selectedModel={selectedModel} /> : null}<div className="mt-8 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-5"><p className="text-[11px] text-muted-foreground">Changes apply to the next Playground version.</p><div className="flex items-center gap-2"><Button type="button" variant="outline" size="sm" onClick={() => setSection("overview")}><ArrowLeft className="mr-1.5 size-3.5" />Overview</Button><Button type="button" size="sm" onClick={onSave} disabled={saving}>{saving ? <Clock3 className="mr-1.5 size-3.5 animate-pulse" /> : <Save className="mr-1.5 size-3.5" />}{saving ? "Saving…" : "Save draft"}</Button></div></div></div>;
+  return <div className="mx-auto max-w-4xl px-5 py-6 pb-24 sm:px-8 sm:py-8"><div className="mb-7 flex items-start justify-between gap-4"><div><p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Agent settings</p><h3 className="mt-2 text-2xl font-semibold tracking-[-0.03em] text-foreground">{title}</h3><p className="mt-1 text-sm text-muted-foreground">{description}</p></div><span className="hidden items-center gap-1.5 rounded-full border border-border px-2.5 py-1 text-[10px] text-muted-foreground sm:inline-flex"><span className="size-1.5 rounded-full bg-amber-500" />Draft</span></div>{capabilitySaveError ? <div className="mb-4 rounded-xl border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">{capabilitySaveError}</div> : null}{section === "overview" ? <OverviewSection agent={agent} version={version} instructions={instructions} setInstructions={setInstructions} selectedModel={selectedModel} pickerModels={pickerModels} modelCatalog={modelCatalog} modelCatalogLoading={modelCatalogLoading} effectiveSelection={effectiveSelection} setModelSelection={setModelSelection} /> : null}{section === "capabilities" ? <CapabilitiesSection installationId={installationId} versionId={version?.id ?? null} draft={capabilityDraft} onDraftChange={setCapabilityDraft} /> : null}{section === "memory" ? <MemorySection /> : null}{section === "connections" ? <ConnectionsSection /> : null}{section === "safety" ? <SafetySection /> : null}{section === "runtime" ? <RuntimeSection selectedModel={selectedModel} /> : null}<div className="mt-8 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-5"><p className="text-[11px] text-muted-foreground">Changes apply to the next Playground version.</p><div className="flex items-center gap-2"><Button type="button" variant="outline" size="sm" onClick={() => setSection("overview")}><ArrowLeft className="mr-1.5 size-3.5" />Overview</Button><Button type="button" size="sm" onClick={onSave} disabled={saving}>{saving ? <Clock3 className="mr-1.5 size-3.5 animate-pulse" /> : <Save className="mr-1.5 size-3.5" />}{saving ? "Saving…" : "Save draft"}</Button></div></div></div>;
 }
 
 function OverviewSection({ agent, version, instructions, setInstructions, selectedModel, pickerModels, modelCatalog, modelCatalogLoading, effectiveSelection, setModelSelection }: { agent: AgentDefinition; version: AgentVersion | null; instructions: string; setInstructions: (value: string) => void; selectedModel?: AgentModel; pickerModels: AgentModel[]; modelCatalog: AgentModelCatalog | null; modelCatalogLoading: boolean; effectiveSelection: ModelSelection | null; setModelSelection: (value: ModelSelection | null) => void }) {
   return <div className="space-y-5"><div className="grid gap-4 sm:grid-cols-2"><InfoTile label="Agent" value={agent.name} icon={<Bot className="size-4" />} /><InfoTile label="Version" value={version ? `v${version.version_number} · ${version.status}` : "No version"} icon={<Layers3 className="size-4" />} /></div><section className="rounded-2xl border border-border bg-card p-4 sm:p-5"><div className="flex items-center gap-2"><Bot className="size-4 text-primary" /><h4 className="text-sm font-semibold text-foreground">Instructions</h4></div><Textarea value={instructions} onChange={(event) => setInstructions(event.target.value)} placeholder="Define what this agent should do…" className="mt-4 min-h-44 resize-y text-sm" /></section><section className="rounded-2xl border border-border bg-card p-4 sm:p-5"><div className="flex items-start justify-between gap-4"><div><div className="flex items-center gap-2"><Sparkles className="size-4 text-primary" /><h4 className="text-sm font-semibold text-foreground">Model</h4></div><p className="mt-1 text-xs text-muted-foreground">The model used for the next Playground run.</p></div>{selectedModel ? <span className="text-[11px] text-muted-foreground">{formatTokens(selectedModel.contextWindow)} context</span> : null}</div>{modelCatalogLoading ? <p className="mt-4 text-xs text-muted-foreground">Loading models…</p> : modelCatalog ? <div className="mt-4"><AgentModelPicker model={selectedModel} models={pickerModels} disabled={!pickerModels.length} ariaLabel="Select agent model" pickerTitle="Choose a model" onSelect={(model, provider) => setModelSelection({ model, provider })} />{effectiveSelection ? <p className="mt-2 text-[11px] text-muted-foreground">{effectiveSelection.provider}:{effectiveSelection.model}</p> : null}</div> : <p className="mt-4 text-xs text-muted-foreground">Model catalog unavailable.</p>}</section></div>;
 }
 
-function CapabilitiesSection() {
-  const [addOpen, setAddOpen] = useState(false);
-  return <div className="space-y-4"><div className="flex items-center justify-between gap-3"><p className="max-w-lg text-xs leading-5 text-muted-foreground">Give this agent access to useful work. Built-in tools stay grouped. Technical plugin and MCP details appear only when you open a capability.</p><Button type="button" size="sm" onClick={() => setAddOpen((value) => !value)}><Plus className="mr-1.5 size-3.5" />Add capability</Button></div>{addOpen ? <div className="grid gap-2 rounded-2xl border border-primary/20 bg-primary/5 p-3 sm:grid-cols-2"><CapabilityAddOption icon={<Server className="size-4" />} label="Connect a service" detail="Calendar, messaging, notes" /><CapabilityAddOption icon={<Sparkles className="size-4" />} label="Add a skill" detail="Reusable agent behavior" /><CapabilityAddOption icon={<Puzzle className="size-4" />} label="Add an extension" detail="Plugin or MCP source" /><CapabilityAddOption icon={<Wrench className="size-4" />} label="Add a custom tool" detail="Your own action schema" /></div> : null}<CapabilityRow icon={<Bot className="size-4" />} title="KasiTek workspace tools" detail="Platform-managed tools available to KasiAI" status="included" statusText="Included" action="View tools" /><CapabilityRow icon={<Server className="size-4" />} title="Connected services" detail="External services this agent may use" status="not_configured" statusText="None configured" action="Add service" onAction={() => setAddOpen(true)} /><CapabilityRow icon={<Sparkles className="size-4" />} title="Skills" detail="Reusable instructions and behaviors" status="not_configured" statusText="None enabled" action="Add skill" onAction={() => setAddOpen(true)} /><CapabilityRow icon={<Puzzle className="size-4" />} title="Extensions" detail="Plugins and MCP sources, grouped together" status="not_configured" statusText="None enabled" action="Add extension" onAction={() => setAddOpen(true)} /><details className="rounded-2xl border border-border bg-card p-4"><summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-sm font-medium text-foreground"><span className="flex items-center gap-2"><Eye className="size-4 text-muted-foreground" />Advanced source details</span><ChevronDown className="size-4 text-muted-foreground" /></summary><p className="mt-3 max-w-2xl text-xs leading-5 text-muted-foreground">Technical type, package version, MCP endpoint, schema, digest, and provider adapter appear here for debugging. They are not part of the main setup flow.</p></details></div>;
+type CapabilityPanel = "tools" | "services" | "skills" | "extensions" | null;
+
+type CapabilityData = {
+  catalog: AgentCapability[];
+  installation: AgentCapability[];
+  readiness: AgentReadiness | null;
+  integrations: AgentIntegration[];
+  skills: AgentSkill[];
+  pinnedSkills: AgentSkillVersion[];
+  mcpProviders: AgentMcpProvider[];
+  pinnedMcpProviders: AgentMcpProviderVersion[];
+  mcpVersions: Record<string, AgentMcpProviderVersion[]>;
+  extensionPackages: AgentExtensionPackage[];
+};
+
+const emptyCapabilityData: CapabilityData = {
+  catalog: [],
+  installation: [],
+  readiness: null,
+  integrations: [],
+  skills: [],
+  pinnedSkills: [],
+  mcpProviders: [],
+  pinnedMcpProviders: [],
+  mcpVersions: {},
+  extensionPackages: [],
+};
+
+async function loadCapabilityData(installationId: string | null, versionId: string | null): Promise<CapabilityData> {
+  const [catalogResult, packagesResult, skillsResult, providersResult, installationResult, readinessResult, integrationsResult, pinnedSkillsResult, pinnedMcpResult] = await Promise.all([
+    listAgentCapabilities().catch(() => ({ capabilities: [] })),
+    listAgentExtensionPackages().catch(() => ({ packages: [] })),
+    listAgentSkills().catch(() => ({ skills: [] })),
+    listAgentMcpProviders().catch(() => ({ providers: [] })),
+    installationId ? listAgentInstallationCapabilities(installationId).catch(() => ({ capabilities: [] })) : Promise.resolve({ capabilities: [] }),
+    installationId ? getAgentInstallationReadiness(installationId).catch(() => null) : Promise.resolve(null),
+    installationId ? listAgentInstallationIntegrations(installationId).catch(() => ({ integrations: [] })) : Promise.resolve({ integrations: [] }),
+    versionId ? listAgentVersionSkills(versionId).catch(() => ({ skills: [] })) : Promise.resolve({ skills: [] }),
+    versionId ? listAgentVersionMcpProviders(versionId).catch(() => ({ providers: [] })) : Promise.resolve({ providers: [] }),
+  ]);
+  const mcpVersionsEntries = await Promise.all(providersResult.providers.map(async (provider) => {
+    const result = await listAgentMcpProviderVersions(provider.id).catch(() => ({ versions: [] }));
+    return [provider.id, result.versions] as const;
+  }));
+  return {
+    catalog: catalogResult.capabilities,
+    extensionPackages: packagesResult.packages,
+    installation: installationResult.capabilities,
+    readiness: readinessResult,
+    integrations: integrationsResult.integrations,
+    skills: skillsResult.skills,
+    pinnedSkills: pinnedSkillsResult.skills,
+    mcpProviders: providersResult.providers,
+    pinnedMcpProviders: pinnedMcpResult.providers,
+    mcpVersions: Object.fromEntries(mcpVersionsEntries),
+  };
 }
 
-function CapabilityAddOption({ icon, label, detail }: { icon: ReactNode; label: string; detail: string }) {
-  return <button type="button" className="flex items-center gap-3 rounded-xl border border-border bg-card p-3 text-left hover:border-primary/40"><span className="text-primary">{icon}</span><span><span className="block text-xs font-medium text-foreground">{label}</span><span className="mt-0.5 block text-[11px] text-muted-foreground">{detail}</span></span><ChevronRight className="ml-auto size-3.5 text-muted-foreground" /></button>;
+function CapabilitiesSection({ installationId, versionId, draft, onDraftChange }: { installationId: string | null; versionId: string | null; draft: StudioCapabilityDraft; onDraftChange: (value: StudioCapabilityDraft | ((current: StudioCapabilityDraft) => StudioCapabilityDraft)) => void }) {
+  const [addOpen, setAddOpen] = useState(false);
+  const [activePanel, setActivePanel] = useState<CapabilityPanel>(null);
+  const [data, setData] = useState<CapabilityData>(emptyCapabilityData);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  useEffect(() => {
+    let mounted = true;
+    void loadCapabilityData(installationId, versionId).then((next) => {
+      if (mounted) {
+        setData(next);
+        onDraftChange((current) => ({
+          ...current,
+          skillVersionIds: current.skillVersionIds.length ? current.skillVersionIds : next.pinnedSkills.map((skill) => skill.id),
+          allowedSkillIds: current.allowedSkillIds.length ? current.allowedSkillIds : [...new Set(next.pinnedSkills.map((skill) => skill.skill_definition_id))],
+          mcpProviderVersionIds: current.mcpProviderVersionIds.length ? current.mcpProviderVersionIds : next.pinnedMcpProviders.map((provider) => provider.id),
+        }));
+        setLoading(false);
+      }
+    }).catch(() => {
+      if (mounted) {
+        setError("Capabilities could not be loaded");
+        setLoading(false);
+      }
+    });
+    return () => { mounted = false; };
+  }, [installationId, onDraftChange, versionId, refreshKey]);
+
+  const refresh = () => {
+    setLoading(true);
+    setError(null);
+    setRefreshKey((current) => current + 1);
+  };
+  const tools = data.installation.length ? data.installation : data.catalog;
+  const connectedServices = data.integrations.filter((integration) => integration.status === "connected").length;
+  const enabledSkillIds = new Set(draft.allowedSkillIds);
+  const enabledMcpIds = new Set(draft.mcpProviderVersionIds);
+  const toolStatus = data.readiness?.checks.capabilities.missing.length ? "attention" : "included";
+  const setPanel = (panel: Exclude<CapabilityPanel, null>) => {
+    setAddOpen(false);
+    setActivePanel((current) => current === panel ? null : panel);
+  };
+
+  return <div className="space-y-4">
+    <div className="flex items-center justify-between gap-3"><p className="max-w-lg text-xs leading-5 text-muted-foreground">Select what this Playground version can use. Built-in tools, skills, services, and external servers stay separate and are pinned when the draft is saved.</p><Button type="button" size="sm" onClick={() => setAddOpen((value) => !value)}><Plus className="mr-1.5 size-3.5" />Add capability</Button></div>
+    {addOpen ? <div className="grid gap-2 rounded-2xl border border-primary/20 bg-primary/5 p-3 sm:grid-cols-2"><CapabilityAddOption icon={<Server className="size-4" />} label="Connect a service" detail="Calendar and other accounts" onClick={() => setPanel("services")} /><CapabilityAddOption icon={<Sparkles className="size-4" />} label="Add a skill" detail="Reusable agent behavior" onClick={() => setPanel("skills")} /><CapabilityAddOption icon={<Puzzle className="size-4" />} label="Add an extension" detail="Plugin or MCP source" onClick={() => setPanel("extensions")} /><CapabilityAddOption icon={<Wrench className="size-4" />} label="Choose workspace tools" detail="Platform-managed actions" onClick={() => setPanel("tools")} /></div> : null}
+    {error ? <div className="flex items-center justify-between rounded-xl border border-destructive/20 bg-destructive/5 px-3 py-2 text-xs text-destructive"><span>{error}</span><Button type="button" variant="outline" size="sm" className="h-7" onClick={refresh}>Retry</Button></div> : null}
+    <CapabilityRow icon={<Bot className="size-4" />} title="KasiTek workspace tools" detail={`${tools.length} platform-managed tools available`} status={toolStatus} statusText={loading ? "Loading" : data.readiness?.checks.capabilities.missing.length ? `${data.readiness.checks.capabilities.missing.length} need access` : `${tools.length} available`} action="View tools" onAction={() => setPanel("tools")} />
+    <CapabilityRow icon={<Server className="size-4" />} title="Connected services" detail="External accounts and resource bindings" status={connectedServices ? "ready" : "not_configured"} statusText={loading ? "Loading" : connectedServices ? `${connectedServices} connected` : "None connected"} action="Manage" onAction={() => setPanel("services")} />
+    <CapabilityRow icon={<Sparkles className="size-4" />} title="Skills" detail="Versioned instructions and behaviors" status={enabledSkillIds.size ? "ready" : "not_configured"} statusText={loading ? "Loading" : enabledSkillIds.size ? `${enabledSkillIds.size} enabled` : "None enabled"} action="Manage" onAction={() => setPanel("skills")} />
+    <CapabilityRow icon={<Puzzle className="size-4" />} title="Extensions" detail="Plugins and MCP servers with explicit grants" status={enabledMcpIds.size || draft.extensionPackages.length ? "ready" : "not_configured"} statusText={loading ? "Loading" : enabledMcpIds.size || draft.extensionPackages.length ? `${enabledMcpIds.size + draft.extensionPackages.length} enabled` : "None enabled"} action="Manage" onAction={() => setPanel("extensions")} />
+    {activePanel ? <div className="rounded-2xl border border-primary/20 bg-card p-4 shadow-sm sm:p-5"><div className="mb-4 flex items-start justify-between gap-3"><div><p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Capability setup</p><h4 className="mt-1 text-sm font-semibold text-foreground">{activePanel === "tools" ? "Workspace tools" : activePanel === "services" ? "Connected services" : activePanel === "skills" ? "Skills" : "Extensions"}</h4></div><button type="button" aria-label="Close capability setup" onClick={() => setActivePanel(null)} className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"><X className="size-4" /></button></div>{activePanel === "tools" ? <ToolsPanel tools={tools} draft={draft} onDraftChange={onDraftChange} /> : null}{activePanel === "services" ? <ServicesPanel installationId={installationId} integrations={data.integrations} onRefresh={refresh} /> : null}{activePanel === "skills" ? <SkillsPanel skills={data.skills} pinnedSkills={data.pinnedSkills} draft={draft} onDraftChange={onDraftChange} /> : null}{activePanel === "extensions" ? <ExtensionsPanel packages={data.extensionPackages} providers={data.mcpProviders} pinnedProviders={data.pinnedMcpProviders} versions={data.mcpVersions} draft={draft} onDraftChange={onDraftChange} onRefresh={refresh} /> : null}</div> : null}
+    <details className="rounded-2xl border border-border bg-card p-4"><summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-sm font-medium text-foreground"><span className="flex items-center gap-2"><Eye className="size-4 text-muted-foreground" />Advanced source details</span><ChevronDown className="size-4 text-muted-foreground" /></summary><p className="mt-3 max-w-2xl text-xs leading-5 text-muted-foreground">Technical package versions, MCP endpoints, discovered tool schemas, checksums, and provider health stay available here when debugging.</p></details>
+  </div>;
+}
+
+function CapabilityAddOption({ icon, label, detail, onClick }: { icon: ReactNode; label: string; detail: string; onClick: () => void }) {
+  return <button type="button" onClick={onClick} className="flex items-center gap-3 rounded-xl border border-border bg-card p-3 text-left hover:border-primary/40"><span className="text-primary">{icon}</span><span><span className="block text-xs font-medium text-foreground">{label}</span><span className="mt-0.5 block text-[11px] text-muted-foreground">{detail}</span></span><ChevronRight className="ml-auto size-3.5 text-muted-foreground" /></button>;
+}
+
+function ToolsPanel({ tools, draft, onDraftChange }: { tools: AgentCapability[]; draft: StudioCapabilityDraft; onDraftChange: (value: StudioCapabilityDraft | ((current: StudioCapabilityDraft) => StudioCapabilityDraft)) => void }) {
+  const allNames = tools.map((tool) => tool.name);
+  const selectedNames = new Set(draft.allowedTools.length ? draft.allowedTools : allNames);
+  const toggle = (name: string) => {
+    onDraftChange((current) => {
+      const selected = new Set(current.allowedTools.length ? current.allowedTools : allNames);
+      if (selected.has(name)) selected.delete(name);
+      else selected.add(name);
+      return { ...current, allowedTools: [...selected] };
+    });
+  };
+  if (!tools.length) return <p className="text-xs text-muted-foreground">No workspace tools are available for this installation.</p>;
+  return <div className="space-y-2"><p className="text-xs text-muted-foreground">Tools are explicit capabilities. Approval and credential checks still apply at runtime.</p><div className="divide-y divide-border rounded-xl border border-border">{tools.map((tool) => <label key={`${tool.name}:${tool.version}`} className="flex cursor-pointer items-start gap-3 p-3"><input type="checkbox" checked={selectedNames.has(tool.name)} onChange={() => toggle(tool.name)} className="mt-0.5 accent-[var(--brand)]" /><span className="min-w-0 flex-1"><span className="flex flex-wrap items-center gap-2 text-xs font-medium text-foreground"><span>{tool.name}</span>{tool.requiresApproval ? <span className="rounded-full bg-amber-500/10 px-1.5 py-0.5 text-[10px] text-amber-700 dark:text-amber-300">Approval</span> : null}</span><span className="mt-1 block text-[11px] leading-4 text-muted-foreground">{tool.description || "No description"}</span></span><span className={cn("text-[10px]", tool.availability === "available" ? "text-emerald-700 dark:text-emerald-300" : "text-amber-700 dark:text-amber-300")}>{tool.availability}</span></label>)}</div></div>;
+}
+
+function ServicesPanel({ installationId, integrations, onRefresh }: { installationId: string | null; integrations: AgentIntegration[]; onRefresh: () => void }) {
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [apiKeys, setApiKeys] = useState<Record<string, string>>({});
+  const [error, setError] = useState<string | null>(null);
+  if (!installationId) return <p className="text-xs text-muted-foreground">Install this agent in Playground before connecting services.</p>;
+  const connect = async (integration: AgentIntegration) => {
+    setBusyId(integration.id);
+    setError(null);
+    try {
+      if (integration.auth === "oauth2" && integration.id === "google.calendar") {
+        const result = await startAgentGoogleCalendarOAuth(installationId);
+        window.location.assign(result.authorizationUrl);
+        return;
+      }
+      if (integration.auth === "api_key") {
+        const apiKey = apiKeys[integration.id]?.trim();
+        if (!apiKey) {
+          setError(`Enter a key for ${integration.name}`);
+          return;
+        }
+        await saveAgentIntegrationApiKey(installationId, integration.id, { apiKey });
+        setApiKeys((current) => ({ ...current, [integration.id]: "" }));
+        onRefresh();
+        return;
+      }
+      setError(`${integration.name} requires its connector setup first`);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : `Unable to connect ${integration.name}`);
+    } finally {
+      setBusyId(null);
+    }
+  };
+  const disconnect = async (integration: AgentIntegration) => {
+    setBusyId(integration.id);
+    setError(null);
+    try {
+      await disconnectAgentIntegration(installationId, integration.id);
+      onRefresh();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : `Unable to disconnect ${integration.name}`);
+    } finally {
+      setBusyId(null);
+    }
+  };
+  return <div className="space-y-3"><p className="text-xs text-muted-foreground">Connections belong to the installation. Playground and Live credentials stay separate.</p>{error ? <p className="rounded-lg bg-destructive/5 px-3 py-2 text-xs text-destructive">{error}</p> : null}{integrations.length ? integrations.map((integration) => <div key={integration.id} className="rounded-xl border border-border p-3"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="text-xs font-medium text-foreground">{integration.name}</p><p className="mt-1 text-[11px] text-muted-foreground">{integration.description}</p></div><span className={cn("text-[10px]", integration.status === "connected" ? "text-emerald-700 dark:text-emerald-300" : "text-muted-foreground")}>{integration.status.replaceAll("_", " ")}</span></div>{integration.status === "connected" ? <Button type="button" variant="outline" size="sm" className="mt-3 h-8" onClick={() => void disconnect(integration)} disabled={busyId === integration.id}>{busyId === integration.id ? "Working…" : "Disconnect"}</Button> : integration.auth === "api_key" ? <div className="mt-3 flex gap-2"><input type="password" value={apiKeys[integration.id] ?? ""} onChange={(event) => setApiKeys((current) => ({ ...current, [integration.id]: event.target.value }))} placeholder="API key" className="h-8 min-w-0 flex-1 rounded-md border border-border bg-background px-2 text-xs text-foreground outline-none focus:border-primary" /><Button type="button" size="sm" className="h-8" onClick={() => void connect(integration)} disabled={busyId === integration.id}>{busyId === integration.id ? "Saving…" : "Connect"}</Button></div> : <Button type="button" variant="outline" size="sm" className="mt-3 h-8" onClick={() => void connect(integration)} disabled={busyId === integration.id}>{busyId === integration.id ? "Opening…" : integration.auth === "oauth2" ? "Connect" : "Configure"}</Button>}</div>) : <p className="rounded-xl border border-dashed border-border px-3 py-4 text-xs text-muted-foreground">No services are available for this installation.</p>}</div>;
+}
+
+function SkillsPanel({ skills, pinnedSkills, draft, onDraftChange }: { skills: AgentSkill[]; pinnedSkills: AgentSkillVersion[]; draft: StudioCapabilityDraft; onDraftChange: (value: StudioCapabilityDraft | ((current: StudioCapabilityDraft) => StudioCapabilityDraft)) => void }) {
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [draftVersions, setDraftVersions] = useState<Record<string, string>>({});
+  const selected = new Set(draft.allowedSkillIds);
+  const toggle = async (skill: AgentSkill) => {
+    setBusyId(skill.id);
+    try {
+      if (selected.has(skill.id)) {
+        const pinnedVersionIds = pinnedSkills.filter((version) => version.skill_definition_id === skill.id).map((version) => version.id);
+        const draftVersionId = draftVersions[skill.id];
+        onDraftChange((current) => ({ ...current, allowedSkillIds: current.allowedSkillIds.filter((id) => id !== skill.id), skillVersionIds: current.skillVersionIds.filter((id) => !pinnedVersionIds.includes(id) && id !== draftVersionId) }));
+        setDraftVersions((current) => { const next = { ...current }; delete next[skill.id]; return next; });
+        return;
+      }
+      const result = await listAgentSkillVersions(skill.id);
+      const latest = result.versions.filter((version) => version.status === "published").sort((left, right) => right.version_number - left.version_number)[0];
+      if (!latest) return;
+      setDraftVersions((current) => ({ ...current, [skill.id]: latest.id }));
+      onDraftChange((current) => ({ ...current, allowedSkillIds: [...new Set([...current.allowedSkillIds, skill.id])], skillVersionIds: [...new Set([...current.skillVersionIds, latest.id])] }));
+    } finally {
+      setBusyId(null);
+    }
+  };
+  const publishedSkills = skills.filter((skill) => skill.status === "published");
+  return <div className="space-y-3"><p className="text-xs text-muted-foreground">Skills are versioned and pinned to the draft. A skill can declare required tools or connectors.</p>{publishedSkills.length ? <div className="divide-y divide-border rounded-xl border border-border">{publishedSkills.map((skill) => <div key={skill.id} className="flex items-center gap-3 p-3"><Sparkles className="size-4 shrink-0 text-primary" /><div className="min-w-0 flex-1"><p className="text-xs font-medium text-foreground">{skill.name}</p><p className="mt-1 text-[11px] text-muted-foreground">{skill.description || skill.slug}</p></div><Button type="button" variant={selected.has(skill.id) ? "default" : "outline"} size="sm" className="h-8" onClick={() => void toggle(skill)} disabled={busyId === skill.id}>{busyId === skill.id ? "Loading…" : selected.has(skill.id) ? "Enabled" : "Enable"}</Button></div>)}</div> : <p className="rounded-xl border border-dashed border-border px-3 py-4 text-xs text-muted-foreground">No published skills are available.</p>}</div>;
+}
+
+function ExtensionsPanel({ packages, providers, pinnedProviders, versions, draft, onDraftChange, onRefresh }: { packages: AgentExtensionPackage[]; providers: AgentMcpProvider[]; pinnedProviders: AgentMcpProviderVersion[]; versions: Record<string, AgentMcpProviderVersion[]>; draft: StudioCapabilityDraft; onDraftChange: (value: StudioCapabilityDraft | ((current: StudioCapabilityDraft) => StudioCapabilityDraft)) => void; onRefresh: () => void }) {
+  const [name, setName] = useState("");
+  const [endpoint, setEndpoint] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const pinnedIds = new Set(draft.mcpProviderVersionIds.length ? draft.mcpProviderVersionIds : pinnedProviders.map((provider) => provider.id));
+  const addServer = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!name.trim() || !endpoint.trim()) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const provider = await createAgentMcpProvider({ name: name.trim(), endpointUrl: endpoint.trim() });
+      const discovered = await discoverAgentMcpProvider(provider.id);
+      const published = await publishAgentMcpProviderVersion(provider.id, discovered.id);
+      onDraftChange((current) => ({ ...current, mcpProviderVersionIds: [...new Set([...current.mcpProviderVersionIds, published.id])] }));
+      setName("");
+      setEndpoint("");
+      onRefresh();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Unable to add MCP server");
+    } finally {
+      setBusy(false);
+    }
+  };
+  const health = async (providerId: string) => {
+    setBusy(true);
+    setError(null);
+    try {
+      await healthCheckAgentMcpProvider(providerId);
+      onRefresh();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "MCP health check failed");
+    } finally {
+      setBusy(false);
+    }
+  };
+  const togglePackage = (pkg: AgentExtensionPackage) => {
+    const reference = { kind: pkg.kind, id: pkg.package_id, version: pkg.version, checksum: pkg.checksum, configuration: {} };
+    const declaration = pkg.declaration;
+    const permissions = Array.isArray(declaration.permissions) ? declaration.permissions.filter((permission): permission is string => typeof permission === "string") : [];
+    const grant = { kind: pkg.kind, id: pkg.package_id, permissions };
+    const selected = draft.extensionPackages.some((entry) => entry && typeof entry === "object" && !Array.isArray(entry) && (entry as Record<string, unknown>).kind === pkg.kind && (entry as Record<string, unknown>).id === pkg.package_id && (entry as Record<string, unknown>).version === pkg.version);
+    onDraftChange((current) => ({
+      ...current,
+      extensionPackages: selected ? current.extensionPackages.filter((entry) => !(entry && typeof entry === "object" && !Array.isArray(entry) && (entry as Record<string, unknown>).kind === pkg.kind && (entry as Record<string, unknown>).id === pkg.package_id && (entry as Record<string, unknown>).version === pkg.version)) : [...current.extensionPackages, reference],
+      extensionGrants: selected ? current.extensionGrants.filter((entry) => !(entry && typeof entry === "object" && !Array.isArray(entry) && (entry as Record<string, unknown>).kind === pkg.kind && (entry as Record<string, unknown>).id === pkg.package_id)) : [...current.extensionGrants, grant],
+    }));
+  };
+  const publishedPackages = packages.filter((pkg) => pkg.status === "published" && pkg.kind === "plugin");
+  return <div className="space-y-4"><div><p className="text-xs text-muted-foreground">MCP servers are discovered, reviewed, and pinned by published version. Plugins and other declarative packages are enabled explicitly for this draft.</p></div>{error ? <p className="rounded-lg bg-destructive/5 px-3 py-2 text-xs text-destructive">{error}</p> : null}<form onSubmit={addServer} className="grid gap-2 rounded-xl border border-border p-3 sm:grid-cols-[minmax(0,0.7fr)_minmax(0,1fr)_auto]"><input value={name} onChange={(event) => setName(event.target.value)} placeholder="Server name" className="h-8 rounded-md border border-border bg-background px-2 text-xs text-foreground outline-none focus:border-primary" /><input value={endpoint} onChange={(event) => setEndpoint(event.target.value)} placeholder="https://server.example/mcp" type="url" className="h-8 rounded-md border border-border bg-background px-2 text-xs text-foreground outline-none focus:border-primary" /><Button type="submit" size="sm" className="h-8" disabled={busy || !name.trim() || !endpoint.trim()}>{busy ? "Adding…" : "Add MCP"}</Button></form>{publishedPackages.length ? <div className="space-y-2"><p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Published packages</p>{publishedPackages.map((pkg) => { const enabled = draft.extensionPackages.some((entry) => entry && typeof entry === "object" && !Array.isArray(entry) && (entry as Record<string, unknown>).kind === pkg.kind && (entry as Record<string, unknown>).id === pkg.package_id && (entry as Record<string, unknown>).version === pkg.version); return <div key={pkg.id} className="flex items-center gap-3 rounded-xl border border-border p-3"><Puzzle className="size-4 shrink-0 text-primary" /><div className="min-w-0 flex-1"><p className="text-xs font-medium text-foreground">{pkg.name || pkg.package_id}</p><p className="mt-1 text-[11px] text-muted-foreground">{pkg.kind} · v{pkg.version} · {pkg.checksum.slice(0, 10)}</p></div><Button type="button" variant={enabled ? "default" : "outline"} size="sm" className="h-8" onClick={() => togglePackage(pkg)}>{enabled ? "Enabled" : "Enable"}</Button></div>; })}</div> : null}{providers.length ? <div className="space-y-2"><p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">MCP servers</p>{providers.map((provider) => { const published = (versions[provider.id] ?? []).filter((version) => version.status === "published").sort((left, right) => right.revision - left.revision)[0]; const enabled = Boolean(published && pinnedIds.has(published.id)); return <div key={provider.id} className="rounded-xl border border-border p-3"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="text-xs font-medium text-foreground">{provider.name}</p><p className="mt-1 truncate text-[11px] text-muted-foreground">{provider.endpoint_url}</p></div><span className={cn("text-[10px]", provider.health_status === "healthy" ? "text-emerald-700 dark:text-emerald-300" : "text-amber-700 dark:text-amber-300")}>{provider.health_status}</span></div><div className="mt-3 flex flex-wrap items-center gap-2"><span className="text-[10px] text-muted-foreground">{published ? `${published.tools.length} tools · v${published.revision}` : "Not published"}</span><Button type="button" variant="outline" size="sm" className="ml-auto h-8" onClick={() => void health(provider.id)} disabled={busy}>Health</Button><Button type="button" variant={enabled ? "default" : "outline"} size="sm" className="h-8" disabled={!published} onClick={() => { if (!published) return; onDraftChange((current) => ({ ...current, mcpProviderVersionIds: enabled ? current.mcpProviderVersionIds.filter((id) => id !== published.id) : [...new Set([...current.mcpProviderVersionIds, published.id])] })); }}>{enabled ? "Enabled" : "Enable"}</Button></div></div>; })}</div> : <p className="rounded-xl border border-dashed border-border px-3 py-4 text-xs text-muted-foreground">No MCP servers configured.</p>}</div>;
 }
 
 function CapabilityRow({ icon, title, detail, status, statusText, action, onAction }: { icon: ReactNode; title: string; detail: string; status: "ready" | "attention" | "included" | "not_configured"; statusText: string; action: string; onAction?: () => void }) {

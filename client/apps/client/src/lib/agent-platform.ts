@@ -1074,6 +1074,135 @@ export function listAgentCapabilities(): Promise<{ capabilities: AgentCapability
   return request("/api/agents/capabilities");
 }
 
+export type AgentSkill = {
+  id: string;
+  slug: string;
+  name: string;
+  description?: string | null;
+  owner_type?: "platform" | "organization" | "user" | string;
+  status: "draft" | "published" | "deprecated" | "revoked" | string;
+};
+
+export type AgentSkillVersion = {
+  id: string;
+  skill_definition_id: string;
+  version_number: number;
+  status: "draft" | "published" | "retired" | "revoked" | string;
+  instructions?: string;
+  required_capabilities: string[];
+  required_connectors: string[];
+  skill_slug?: string;
+  skill_name?: string;
+  skill_status?: string;
+  checksum: string;
+};
+
+export function listAgentSkills(): Promise<{ skills: AgentSkill[] }> {
+  return request("/api/agents/skills");
+}
+
+export type AgentExtensionPackage = {
+  id: string;
+  kind: "skill" | "plugin" | "connector" | "mcp_capability" | string;
+  package_id: string;
+  version: string;
+  name?: string | null;
+  checksum: string;
+  status: "draft" | "published" | "deprecated" | "revoked" | string;
+  declaration: Record<string, unknown>;
+  dependencies?: Array<Record<string, unknown>>;
+  compatibility?: Record<string, unknown> | null;
+};
+
+export function listAgentExtensionPackages(): Promise<{ packages: AgentExtensionPackage[] }> {
+  return request("/api/agents/extensions/packages");
+}
+
+export function listAgentSkillVersions(skillId: string): Promise<{ versions: AgentSkillVersion[] }> {
+  return request(`/api/agents/skills/${encodeURIComponent(skillId)}/versions`);
+}
+
+export function listAgentVersionSkills(agentVersionId: string): Promise<{ skills: AgentSkillVersion[] }> {
+  return request(`/api/agents/agent-versions/${encodeURIComponent(agentVersionId)}/skills`);
+}
+
+export function pinAgentSkillVersion(agentVersionId: string, skillVersionId: string): Promise<unknown> {
+  return request(`/api/agents/agent-versions/${encodeURIComponent(agentVersionId)}/skills/${encodeURIComponent(skillVersionId)}`, { method: "POST" });
+}
+
+export function unpinAgentSkillVersion(agentVersionId: string, skillVersionId: string): Promise<unknown> {
+  return request(`/api/agents/agent-versions/${encodeURIComponent(agentVersionId)}/skills/${encodeURIComponent(skillVersionId)}`, { method: "DELETE" });
+}
+
+export type AgentMcpProvider = {
+  id: string;
+  name: string;
+  endpoint_url: string;
+  credential_reference?: string | null;
+  status: "draft" | "approved" | "revoked" | string;
+  health_status: "unknown" | "healthy" | "unhealthy" | string;
+  health_latency_ms?: number | null;
+  health_failure_code?: string | null;
+  health_checked_at?: string | null;
+  created_at?: string;
+  updated_at?: string;
+};
+
+export type AgentMcpProviderVersion = {
+  id: string;
+  provider_id: string;
+  revision: number;
+  status: "draft" | "published" | "revoked" | string;
+  protocol_version: string;
+  tools: Array<{ name: string; description?: string; inputSchema: Record<string, unknown> }>;
+  checksum: string;
+  provider_name?: string;
+  endpoint_url?: string;
+  credential_reference?: string | null;
+  created_at?: string;
+  published_at?: string | null;
+};
+
+export function listAgentMcpProviders(): Promise<{ providers: AgentMcpProvider[] }> {
+  return request("/api/agents/mcp/providers");
+}
+
+export function createAgentMcpProvider(input: { name: string; endpointUrl: string; credentialReference?: string }): Promise<AgentMcpProvider> {
+  return request("/api/agents/mcp/providers", { method: "POST", body: JSON.stringify(input) });
+}
+
+export function discoverAgentMcpProvider(providerId: string): Promise<AgentMcpProviderVersion> {
+  return request(`/api/agents/mcp/providers/${encodeURIComponent(providerId)}/discover`, { method: "POST" });
+}
+
+export function healthCheckAgentMcpProvider(providerId: string): Promise<AgentMcpProvider> {
+  return request(`/api/agents/mcp/providers/${encodeURIComponent(providerId)}/health`, { method: "POST" });
+}
+
+export function listAgentMcpProviderVersions(providerId: string): Promise<{ versions: AgentMcpProviderVersion[] }> {
+  return request(`/api/agents/mcp/providers/${encodeURIComponent(providerId)}/versions`);
+}
+
+export function publishAgentMcpProviderVersion(providerId: string, versionId: string): Promise<AgentMcpProviderVersion> {
+  return request(`/api/agents/mcp/providers/${encodeURIComponent(providerId)}/versions/${encodeURIComponent(versionId)}/publish`, { method: "POST" });
+}
+
+export function revokeAgentMcpProvider(providerId: string): Promise<{ revoked: boolean }> {
+  return request(`/api/agents/mcp/providers/${encodeURIComponent(providerId)}/revoke`, { method: "POST" });
+}
+
+export function listAgentVersionMcpProviders(agentVersionId: string): Promise<{ providers: AgentMcpProviderVersion[] }> {
+  return request(`/api/agents/agent-versions/${encodeURIComponent(agentVersionId)}/mcp-providers`);
+}
+
+export function pinAgentMcpProviderVersion(agentVersionId: string, providerVersionId: string): Promise<unknown> {
+  return request(`/api/agents/agent-versions/${encodeURIComponent(agentVersionId)}/mcp-providers/${encodeURIComponent(providerVersionId)}`, { method: "POST" });
+}
+
+export function unpinAgentMcpProviderVersion(agentVersionId: string, providerVersionId: string): Promise<unknown> {
+  return request(`/api/agents/agent-versions/${encodeURIComponent(agentVersionId)}/mcp-providers/${encodeURIComponent(providerVersionId)}`, { method: "DELETE" });
+}
+
 export type AgentReadiness = {
   installationId: string;
   agentId: string;

@@ -110,10 +110,14 @@ impl AgentPlatformClient {
         &self,
         organization_id: &str,
         actor_id: &str,
+        environment: Option<&str>,
     ) -> Result<Value, AppError> {
+        let path = environment
+            .map(|value| format!("/v1/agents?environment={value}"))
+            .unwrap_or_else(|| "/v1/agents".to_string());
         self.request_json(
             Method::GET,
-            "/v1/agents",
+            &path,
             organization_id,
             actor_id,
             &["agents:read"],
@@ -147,6 +151,23 @@ impl AgentPlatformClient {
         self.request_json(
             Method::POST,
             "/v1/agents",
+            organization_id,
+            actor_id,
+            &["agents:write"],
+            Some(body),
+        )
+        .await
+    }
+
+    pub async fn create_studio_agent(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        body: Value,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::POST,
+            "/v1/studio/agents",
             organization_id,
             actor_id,
             &["agents:write"],
@@ -993,6 +1014,280 @@ impl AgentPlatformClient {
             organization_id,
             actor_id,
             &["agents:read"],
+            None,
+        )
+        .await
+    }
+
+    pub async fn list_skills(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::GET,
+            "/v1/skills",
+            organization_id,
+            actor_id,
+            &["agents:read"],
+            None,
+        )
+        .await
+    }
+
+    pub async fn list_extension_packages(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::GET,
+            "/v1/extensions/packages",
+            organization_id,
+            actor_id,
+            &["agents:read"],
+            None,
+        )
+        .await
+    }
+
+    pub async fn list_skill_versions(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        skill_id: &str,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::GET,
+            &format!("/v1/skills/{skill_id}/versions"),
+            organization_id,
+            actor_id,
+            &["agents:read"],
+            None,
+        )
+        .await
+    }
+
+    pub async fn list_pinned_skills(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        agent_version_id: &str,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::GET,
+            &format!("/v1/agent-versions/{agent_version_id}/skills"),
+            organization_id,
+            actor_id,
+            &["agents:read"],
+            None,
+        )
+        .await
+    }
+
+    pub async fn pin_skill(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        agent_version_id: &str,
+        skill_version_id: &str,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::POST,
+            &format!("/v1/agent-versions/{agent_version_id}/skills/{skill_version_id}"),
+            organization_id,
+            actor_id,
+            &["agents:write"],
+            None,
+        )
+        .await
+    }
+
+    pub async fn unpin_skill(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        agent_version_id: &str,
+        skill_version_id: &str,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::DELETE,
+            &format!("/v1/agent-versions/{agent_version_id}/skills/{skill_version_id}"),
+            organization_id,
+            actor_id,
+            &["agents:write"],
+            None,
+        )
+        .await
+    }
+
+    pub async fn list_mcp_providers(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::GET,
+            "/v1/mcp/providers",
+            organization_id,
+            actor_id,
+            &["agents:read"],
+            None,
+        )
+        .await
+    }
+
+    pub async fn create_mcp_provider(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        body: Value,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::POST,
+            "/v1/mcp/providers",
+            organization_id,
+            actor_id,
+            &["agents:write"],
+            Some(body),
+        )
+        .await
+    }
+
+    pub async fn discover_mcp_provider(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        provider_id: &str,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::POST,
+            &format!("/v1/mcp/providers/{provider_id}/discover"),
+            organization_id,
+            actor_id,
+            &["agents:write"],
+            None,
+        )
+        .await
+    }
+
+    pub async fn health_mcp_provider(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        provider_id: &str,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::POST,
+            &format!("/v1/mcp/providers/{provider_id}/health"),
+            organization_id,
+            actor_id,
+            &["agents:write"],
+            None,
+        )
+        .await
+    }
+
+    pub async fn list_mcp_provider_versions(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        provider_id: &str,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::GET,
+            &format!("/v1/mcp/providers/{provider_id}/versions"),
+            organization_id,
+            actor_id,
+            &["agents:read"],
+            None,
+        )
+        .await
+    }
+
+    pub async fn publish_mcp_provider_version(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        provider_id: &str,
+        version_id: &str,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::POST,
+            &format!("/v1/mcp/providers/{provider_id}/versions/{version_id}/publish"),
+            organization_id,
+            actor_id,
+            &["agents:write"],
+            None,
+        )
+        .await
+    }
+
+    pub async fn revoke_mcp_provider(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        provider_id: &str,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::POST,
+            &format!("/v1/mcp/providers/{provider_id}/revoke"),
+            organization_id,
+            actor_id,
+            &["agents:write"],
+            None,
+        )
+        .await
+    }
+
+    pub async fn list_pinned_mcp_providers(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        agent_version_id: &str,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::GET,
+            &format!("/v1/agent-versions/{agent_version_id}/mcp-providers"),
+            organization_id,
+            actor_id,
+            &["agents:read"],
+            None,
+        )
+        .await
+    }
+
+    pub async fn pin_mcp_provider(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        agent_version_id: &str,
+        provider_version_id: &str,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::POST,
+            &format!("/v1/agent-versions/{agent_version_id}/mcp-providers/{provider_version_id}"),
+            organization_id,
+            actor_id,
+            &["agents:write"],
+            None,
+        )
+        .await
+    }
+
+    pub async fn unpin_mcp_provider(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        agent_version_id: &str,
+        provider_version_id: &str,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::DELETE,
+            &format!("/v1/agent-versions/{agent_version_id}/mcp-providers/{provider_version_id}"),
+            organization_id,
+            actor_id,
+            &["agents:write"],
             None,
         )
         .await
@@ -3584,7 +3879,7 @@ mod tests {
             .ensure_kasiai("org-1", "actor-1", body.clone())
             .await
             .unwrap();
-        client.list_agents("org-1", "actor-1").await.unwrap();
+        client.list_agents("org-1", "actor-1", None).await.unwrap();
         client.get_model_catalog("org-1", "actor-1").await.unwrap();
         client
             .create_agent("org-1", "actor-1", body.clone())
@@ -4109,6 +4404,21 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[tokio::test]
+    async fn list_agents_forwards_the_environment_filter() {
+        let (base_url, server) = mock_agent_server(vec![(200, r#"{"agents":[]}"#)]).await;
+        let client = test_client(&base_url);
+
+        client
+            .list_agents("org-1", "actor-1", Some("playground"))
+            .await
+            .unwrap();
+
+        let requests = server.await.unwrap();
+        assert_eq!(requests.len(), 1);
+        assert!(requests[0].starts_with("GET /v1/agents?environment=playground HTTP/1.1"));
     }
 
     #[tokio::test]

@@ -179,6 +179,10 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
             .route("", web::get().to(agent_platform::list_agents))
             .route("", web::post().to(agent_platform::create_agent))
             .route(
+                "/studio",
+                web::post().to(agent_platform::create_studio_agent),
+            )
+            .route(
                 "/models/catalog",
                 web::get().to(agent_platform::get_model_catalog),
             )
@@ -317,6 +321,61 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
             .route(
                 "/installations/{installationId}/readiness",
                 web::get().to(agent_platform::get_installation_readiness),
+            )
+            .route("/skills", web::get().to(agent_platform::list_skills))
+            .route(
+                "/extensions/packages",
+                web::get().to(agent_platform::list_extension_packages),
+            )
+            .route(
+                "/skills/{skillId}/versions",
+                web::get().to(agent_platform::list_skill_versions),
+            )
+            .route(
+                "/agent-versions/{agentVersionId}/skills",
+                web::get().to(agent_platform::list_pinned_skills),
+            )
+            .route(
+                "/agent-versions/{agentVersionId}/skills/{skillVersionId}",
+                web::post().to(agent_platform::pin_skill),
+            )
+            .route(
+                "/agent-versions/{agentVersionId}/skills/{skillVersionId}",
+                web::delete().to(agent_platform::unpin_skill),
+            )
+            .route("/mcp/providers", web::get().to(agent_platform::list_mcp_providers))
+            .route("/mcp/providers", web::post().to(agent_platform::create_mcp_provider))
+            .route(
+                "/mcp/providers/{providerId}/discover",
+                web::post().to(agent_platform::discover_mcp_provider),
+            )
+            .route(
+                "/mcp/providers/{providerId}/health",
+                web::post().to(agent_platform::health_mcp_provider),
+            )
+            .route(
+                "/mcp/providers/{providerId}/versions",
+                web::get().to(agent_platform::list_mcp_provider_versions),
+            )
+            .route(
+                "/mcp/providers/{providerId}/versions/{versionId}/publish",
+                web::post().to(agent_platform::publish_mcp_provider_version),
+            )
+            .route(
+                "/mcp/providers/{providerId}/revoke",
+                web::post().to(agent_platform::revoke_mcp_provider),
+            )
+            .route(
+                "/agent-versions/{agentVersionId}/mcp-providers",
+                web::get().to(agent_platform::list_pinned_mcp_providers),
+            )
+            .route(
+                "/agent-versions/{agentVersionId}/mcp-providers/{providerVersionId}",
+                web::post().to(agent_platform::pin_mcp_provider),
+            )
+            .route(
+                "/agent-versions/{agentVersionId}/mcp-providers/{providerVersionId}",
+                web::delete().to(agent_platform::unpin_mcp_provider),
             )
             .route(
                 "/installations/{installationId}/grants",

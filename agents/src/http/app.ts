@@ -162,6 +162,7 @@ import { VaultCredentialResolver } from "../model/credentials";
 import { CoreHostAdapter, HostCapabilityRouter, NativeHostAdapter } from "../hosts/capabilities";
 import { createAgentHarness, type AgentHarness } from "../runtime/harness";
 import { ExtensionSnapshotRepository } from "../db/repositories/extension-snapshot-repository";
+import type { ExtensionKind } from "../extensions";
 import { createCapabilityRuntime } from "../capabilities/runtime";
 import { PostgresDeliveryObligationCoordinator, type DeliveryObligationCoordinator } from "../delivery";
 import { RuntimeTelemetryAccumulator } from "../runtime/runtime-telemetry";
@@ -2843,6 +2844,19 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     const auth = requireAuth(request, dependencies.config);
     requireScope(auth, dependencies.config, "agents:read");
     return { skills: await skills.listSkills(auth.organizationId) };
+  });
+
+  app.get<{ Querystring: { kind?: string } }>("/v1/extensions/packages", async (request) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:read");
+    const kind = request.query.kind;
+    if (kind && !(["skill", "plugin", "connector", "mcp_capability"] as ExtensionKind[]).includes(kind as ExtensionKind)) {
+      throw Object.assign(new Error("Invalid extension package kind"), { statusCode: 400, code: "extension_package_kind_invalid" });
+    }
+    return {
+      packages: (await extensionSnapshots.listPackages(auth.organizationId, kind as ExtensionKind | undefined))
+        .filter((entry) => entry.status === "published"),
+    };
   });
 
   app.post("/v1/skills", async (request, reply) => {

@@ -53,7 +53,7 @@ import {
 } from "@/lib/agent-platform";
 import { cn } from "@/lib/utils";
 import { AgentChatComposer } from "@/components/dashboard/agents/agent-chat-composer";
-import { StudioSettingsPrototype } from "@/components/dashboard/studio/studio-settings-prototype";
+import { StudioSettingsPrototype, type StudioCapabilityDraft } from "@/components/dashboard/studio/studio-settings-prototype";
 
 type StudioPageProps = {
   initialAgents: AgentDefinition[];
@@ -730,7 +730,7 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
     }
   };
 
-  const saveDraft = async () => {
+  const saveDraft = async (capabilityDraft?: StudioCapabilityDraft): Promise<AgentVersion | null> => {
     setSaving(true);
     clearError();
     setNotice(null);
@@ -745,6 +745,22 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
               instructions,
             },
             ...(modelSelection ? { model: { ...(configuredSpec as AgentSpecInput).model, primary: modelSelection } } : {}),
+            ...(capabilityDraft ? {
+              capabilities: {
+                ...((configuredSpec as AgentSpecInput).capabilities ?? {}),
+                allowedTools: capabilityDraft.allowedTools,
+                requiredCapabilities: capabilityDraft.requiredCapabilities,
+              },
+              skills: {
+                ...((configuredSpec as AgentSpecInput).skills ?? {}),
+                allowedSkillIds: capabilityDraft.allowedSkillIds,
+              },
+              extensions: {
+                ...((configuredSpec as AgentSpecInput).extensions ?? {}),
+                packages: capabilityDraft.extensionPackages,
+                grants: capabilityDraft.extensionGrants,
+              },
+            } : {}),
           },
         })
         : await createAgentVersion(agent.id, {
@@ -755,6 +771,15 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
           },
           policy: {
             ...(selectedVersion?.policy ?? {}),
+            ...(capabilityDraft ? {
+              allowedTools: capabilityDraft.allowedTools,
+              requiredCapabilities: capabilityDraft.requiredCapabilities,
+              extensions: {
+                ...(isRecord(selectedVersion?.policy?.extensions) ? selectedVersion.policy.extensions : {}),
+                packages: capabilityDraft.extensionPackages,
+                grants: capabilityDraft.extensionGrants,
+              },
+            } : {}),
             ...(modelSelection ? {
               modelPolicy: {
                 ...(isRecord(selectedVersion?.policy?.modelPolicy) ? selectedVersion.policy.modelPolicy : {}),
@@ -769,8 +794,10 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
       setVersions((current) => [next, ...current]);
       setSelectedVersionId(next.id);
       setNotice("Draft saved");
+      return next;
     } catch (cause) {
       showError(cause instanceof Error ? cause.message : "Unable to save draft");
+      return null;
     } finally {
       setSaving(false);
     }
@@ -850,7 +877,7 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
           </section>
         </div>
       </div>
-      {configurationOpen ? <div className="fixed inset-0 z-50" role="presentation"><button type="button" aria-label="Close settings" className="absolute inset-0 bg-black/50" onClick={() => setConfigurationOpen(false)} /><aside role="dialog" aria-modal="true" aria-labelledby="configuration-title" className="absolute inset-3 overflow-hidden rounded-2xl border border-border bg-card shadow-2xl sm:inset-6 lg:inset-10"><StudioSettingsPrototype agent={agent} version={selectedVersion} instructions={instructions} setInstructions={setInstructions} onSave={saveDraft} saving={saving} modelCatalog={modelCatalog} modelCatalogLoading={modelCatalogLoading} modelSelection={modelSelection} setModelSelection={setModelSelection} onClose={() => setConfigurationOpen(false)} /></aside></div> : null}
+      {configurationOpen ? <div className="fixed inset-0 z-50" role="presentation"><button type="button" aria-label="Close settings" className="absolute inset-0 bg-black/50" onClick={() => setConfigurationOpen(false)} /><aside role="dialog" aria-modal="true" aria-labelledby="configuration-title" className="absolute inset-3 overflow-hidden rounded-2xl border border-border bg-card shadow-2xl sm:inset-6 lg:inset-10"><StudioSettingsPrototype key={selectedVersion?.id ?? "new-version"} agent={agent} version={selectedVersion} installationId={agent.installation_id ?? null} instructions={instructions} setInstructions={setInstructions} onSave={saveDraft} saving={saving} modelCatalog={modelCatalog} modelCatalogLoading={modelCatalogLoading} modelSelection={modelSelection} setModelSelection={setModelSelection} onClose={() => setConfigurationOpen(false)} /></aside></div> : null}
     </div>
   );
 }

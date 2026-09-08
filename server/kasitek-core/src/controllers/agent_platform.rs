@@ -42,6 +42,11 @@ pub struct LiveConversationQuery {
     pub limit: Option<u32>,
 }
 
+#[derive(Debug, Deserialize, Default)]
+pub struct AgentListQuery {
+    pub environment: Option<String>,
+}
+
 fn client(config: &AppConfig) -> Result<AgentPlatformClient, AppError> {
     AgentPlatformClient::from_config(config)
 }
@@ -99,8 +104,20 @@ pub async fn list_agents(
     req: HttpRequest,
 ) -> Result<HttpResponse, AppError> {
     let (user, organization_id) = scope(&req, pool.get_ref()).await?;
+    let query = web::Query::<AgentListQuery>::from_query(req.query_string())
+        .map_err(|_| AppError::BadRequest("Invalid agent list query".to_string()))?;
+    let environment = query
+        .environment
+        .as_deref()
+        .map(|value| match value {
+            "playground" | "live" => Ok(value),
+            _ => Err(AppError::BadRequest(
+                "Agent environment must be playground or live".to_string(),
+            )),
+        })
+        .transpose()?;
     let response = client(config.get_ref())?
-        .list_agents(&organization_id, &user.id)
+        .list_agents(&organization_id, &user.id, environment)
         .await?;
     Ok(HttpResponse::Ok().json(response))
 }
@@ -131,6 +148,24 @@ pub async fn create_agent(
     }
     let response = client(config.get_ref())?
         .create_agent(&organization_id, &user.id, body.into_inner())
+        .await?;
+    Ok(HttpResponse::Created().json(response))
+}
+
+pub async fn create_studio_agent(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    body: web::Json<Value>,
+) -> Result<HttpResponse, AppError> {
+    let (user, organization_id) = management_scope(&req, pool.get_ref()).await?;
+    if !body.is_object() {
+        return Err(AppError::BadRequest(
+            "Studio agent body must be an object".to_string(),
+        ));
+    }
+    let response = client(config.get_ref())?
+        .create_studio_agent(&organization_id, &user.id, body.into_inner())
         .await?;
     Ok(HttpResponse::Created().json(response))
 }
@@ -2098,6 +2133,246 @@ pub async fn get_installation_readiness(
         .get_installation_readiness(&organization_id, &user.id, installation_id.trim())
         .await?;
     Ok(HttpResponse::Ok().json(response))
+}
+
+pub async fn list_skills(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+) -> Result<HttpResponse, AppError> {
+    let (user, organization_id) = scope(&req, pool.get_ref()).await?;
+    let response = client(config.get_ref())?
+        .list_skills(&organization_id, &user.id)
+        .await?;
+    Ok(HttpResponse::Ok().json(response))
+}
+
+pub async fn list_extension_packages(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+) -> Result<HttpResponse, AppError> {
+    let (user, organization_id) = scope(&req, pool.get_ref()).await?;
+    let response = client(config.get_ref())?
+        .list_extension_packages(&organization_id, &user.id)
+        .await?;
+    Ok(HttpResponse::Ok().json(response))
+}
+
+pub async fn list_skill_versions(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    skill_id: web::Path<String>,
+) -> Result<HttpResponse, AppError> {
+    let (user, organization_id) = scope(&req, pool.get_ref()).await?;
+    let response = client(config.get_ref())?
+        .list_skill_versions(&organization_id, &user.id, skill_id.trim())
+        .await?;
+    Ok(HttpResponse::Ok().json(response))
+}
+
+pub async fn list_pinned_skills(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    agent_version_id: web::Path<String>,
+) -> Result<HttpResponse, AppError> {
+    let (user, organization_id) = scope(&req, pool.get_ref()).await?;
+    let response = client(config.get_ref())?
+        .list_pinned_skills(&organization_id, &user.id, agent_version_id.trim())
+        .await?;
+    Ok(HttpResponse::Ok().json(response))
+}
+
+pub async fn pin_skill(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    path: web::Path<(String, String)>,
+) -> Result<HttpResponse, AppError> {
+    let (user, organization_id) = management_scope(&req, pool.get_ref()).await?;
+    let (agent_version_id, skill_version_id) = path.into_inner();
+    let response = client(config.get_ref())?
+        .pin_skill(
+            &organization_id,
+            &user.id,
+            agent_version_id.trim(),
+            skill_version_id.trim(),
+        )
+        .await?;
+    Ok(HttpResponse::Ok().json(response))
+}
+
+pub async fn unpin_skill(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    path: web::Path<(String, String)>,
+) -> Result<HttpResponse, AppError> {
+    let (user, organization_id) = management_scope(&req, pool.get_ref()).await?;
+    let (agent_version_id, skill_version_id) = path.into_inner();
+    client(config.get_ref())?
+        .unpin_skill(
+            &organization_id,
+            &user.id,
+            agent_version_id.trim(),
+            skill_version_id.trim(),
+        )
+        .await?;
+    Ok(HttpResponse::NoContent().finish())
+}
+
+pub async fn list_mcp_providers(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+) -> Result<HttpResponse, AppError> {
+    let (user, organization_id) = scope(&req, pool.get_ref()).await?;
+    let response = client(config.get_ref())?
+        .list_mcp_providers(&organization_id, &user.id)
+        .await?;
+    Ok(HttpResponse::Ok().json(response))
+}
+
+pub async fn create_mcp_provider(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    body: web::Json<Value>,
+) -> Result<HttpResponse, AppError> {
+    let (user, organization_id) = management_scope(&req, pool.get_ref()).await?;
+    if !body.is_object() {
+        return Err(AppError::BadRequest(
+            "MCP provider body must be an object".to_string(),
+        ));
+    }
+    let response = client(config.get_ref())?
+        .create_mcp_provider(&organization_id, &user.id, body.into_inner())
+        .await?;
+    Ok(HttpResponse::Created().json(response))
+}
+
+pub async fn discover_mcp_provider(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    provider_id: web::Path<String>,
+) -> Result<HttpResponse, AppError> {
+    let (user, organization_id) = management_scope(&req, pool.get_ref()).await?;
+    let response = client(config.get_ref())?
+        .discover_mcp_provider(&organization_id, &user.id, provider_id.trim())
+        .await?;
+    Ok(HttpResponse::Created().json(response))
+}
+
+pub async fn health_mcp_provider(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    provider_id: web::Path<String>,
+) -> Result<HttpResponse, AppError> {
+    let (user, organization_id) = management_scope(&req, pool.get_ref()).await?;
+    let response = client(config.get_ref())?
+        .health_mcp_provider(&organization_id, &user.id, provider_id.trim())
+        .await?;
+    Ok(HttpResponse::Ok().json(response))
+}
+
+pub async fn list_mcp_provider_versions(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    provider_id: web::Path<String>,
+) -> Result<HttpResponse, AppError> {
+    let (user, organization_id) = scope(&req, pool.get_ref()).await?;
+    let response = client(config.get_ref())?
+        .list_mcp_provider_versions(&organization_id, &user.id, provider_id.trim())
+        .await?;
+    Ok(HttpResponse::Ok().json(response))
+}
+
+pub async fn publish_mcp_provider_version(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    path: web::Path<(String, String)>,
+) -> Result<HttpResponse, AppError> {
+    let (user, organization_id) = management_scope(&req, pool.get_ref()).await?;
+    let (provider_id, version_id) = path.into_inner();
+    let response = client(config.get_ref())?
+        .publish_mcp_provider_version(
+            &organization_id,
+            &user.id,
+            provider_id.trim(),
+            version_id.trim(),
+        )
+        .await?;
+    Ok(HttpResponse::Ok().json(response))
+}
+
+pub async fn revoke_mcp_provider(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    provider_id: web::Path<String>,
+) -> Result<HttpResponse, AppError> {
+    let (user, organization_id) = management_scope(&req, pool.get_ref()).await?;
+    let response = client(config.get_ref())?
+        .revoke_mcp_provider(&organization_id, &user.id, provider_id.trim())
+        .await?;
+    Ok(HttpResponse::Ok().json(response))
+}
+
+pub async fn list_pinned_mcp_providers(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    agent_version_id: web::Path<String>,
+) -> Result<HttpResponse, AppError> {
+    let (user, organization_id) = scope(&req, pool.get_ref()).await?;
+    let response = client(config.get_ref())?
+        .list_pinned_mcp_providers(&organization_id, &user.id, agent_version_id.trim())
+        .await?;
+    Ok(HttpResponse::Ok().json(response))
+}
+
+pub async fn pin_mcp_provider(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    path: web::Path<(String, String)>,
+) -> Result<HttpResponse, AppError> {
+    let (user, organization_id) = management_scope(&req, pool.get_ref()).await?;
+    let (agent_version_id, provider_version_id) = path.into_inner();
+    let response = client(config.get_ref())?
+        .pin_mcp_provider(
+            &organization_id,
+            &user.id,
+            agent_version_id.trim(),
+            provider_version_id.trim(),
+        )
+        .await?;
+    Ok(HttpResponse::Ok().json(response))
+}
+
+pub async fn unpin_mcp_provider(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    path: web::Path<(String, String)>,
+) -> Result<HttpResponse, AppError> {
+    let (user, organization_id) = management_scope(&req, pool.get_ref()).await?;
+    let (agent_version_id, provider_version_id) = path.into_inner();
+    client(config.get_ref())?
+        .unpin_mcp_provider(
+            &organization_id,
+            &user.id,
+            agent_version_id.trim(),
+            provider_version_id.trim(),
+        )
+        .await?;
+    Ok(HttpResponse::NoContent().finish())
 }
 
 pub async fn list_integrations_catalog(
