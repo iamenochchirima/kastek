@@ -150,12 +150,12 @@ function statusClasses(status: StudioGraphStatus) {
   if (status === "complete") return { border: "border-emerald-500/55", icon: "bg-emerald-500/12 text-emerald-500", text: "text-emerald-500" };
   if (status === "error") return { border: "border-destructive/70", icon: "bg-destructive/12 text-destructive", text: "text-destructive" };
   if (status === "waiting") return { border: "border-amber-500/65", icon: "bg-amber-500/12 text-amber-500", text: "text-amber-500" };
-  return { border: "border-border/90", icon: "bg-muted text-muted-foreground", text: "text-muted-foreground" };
+  return { border: "border-[#52617e]/80", icon: "bg-muted text-muted-foreground", text: "text-muted-foreground" };
 }
 
 function ObservatoryNode({ data, selected }: NodeProps<CanvasNode>) {
   const status = statusClasses(data.status);
-  return <div className={cn("relative h-full w-full rounded-xl border bg-card/95 px-3.5 py-3 shadow-[0_10px_30px_-20px_rgba(0,0,0,.8)] transition-all", status.border, selected && "ring-2 ring-primary/35", data.status === "running" && "shadow-[0_0_26px_-8px_color-mix(in_srgb,var(--primary)_80%,transparent)]")}>
+  return <div className={cn("relative h-full w-full rounded-xl border bg-[#f6f8fc]/95 px-3.5 py-3 shadow-[0_10px_30px_-20px_rgba(0,0,0,.8)] transition-all dark:bg-[#222c41]/95", status.border, selected && "ring-2 ring-primary/35", data.status === "running" && "shadow-[0_0_26px_-8px_color-mix(in_srgb,var(--primary)_80%,transparent)]")}>
     <Handle id="target" type="target" position={Position.Left} className="!h-2 !w-2 !border-0 !bg-muted-foreground/70" />
     <Handle id="source" type="source" position={Position.Right} className="!h-2 !w-2 !border-0 !bg-muted-foreground/70" />
     <div className="flex items-start gap-2.5"><span className={cn("flex size-8 shrink-0 items-center justify-center rounded-lg", status.icon)}>{nodeIcon(data.kind)}</span><div className="min-w-0 flex-1"><div className="flex items-center gap-1.5"><p className="truncate text-xs font-semibold text-foreground">{data.label}</p><span className="size-1.5 shrink-0 rounded-full bg-emerald-500" title="Configured" /></div><p className="mt-1 truncate text-[10px] leading-4 text-muted-foreground">{data.detail}</p><p className={cn("mt-2 inline-flex items-center gap-1 text-[9px] font-medium", status.text)}>{data.status === "running" ? <CircleDot className="size-2.5 animate-pulse" /> : data.status === "complete" ? <Check className="size-2.5" /> : data.status === "error" ? <X className="size-2.5" /> : <span className="size-1.5 rounded-full bg-current" />}{graphStatusLabel(data.status)}</p></div></div>
@@ -191,7 +191,7 @@ function ObservatoryLinks({ nodes, positions }: { nodes: StudioGraphNode[]; posi
         const endX = targetPosition.x;
         const endY = targetPosition.y + NODE_HEIGHT / 2;
         const bend = Math.max(38, Math.abs(endX - startX) * 0.42);
-        const color = failed ? "#f87171" : live ? "#a78bfa" : completed ? "#34d399" : "#71809b";
+        const color = failed ? "#f87171" : live ? "#a78bfa" : completed ? "#34d399" : "#8b98b2";
         return <path key={definition.id} d={`M ${startX} ${startY} C ${startX + bend} ${startY}, ${endX - bend} ${endY}, ${endX} ${endY}`} fill="none" stroke={color} strokeWidth={live ? 3 : 1.8} strokeOpacity={live ? 0.95 : 0.78} strokeDasharray={definition.dashed ? "8 6" : undefined} markerEnd="url(#observatory-arrow)" />;
       })}
     </svg>
@@ -268,9 +268,9 @@ export function StudioSystemCanvas({ nodes, selectedNodeId, onSelect, running, t
     return "var(--muted-foreground)";
   };
   if (!isMounted) {
-    return <div className="h-full min-h-[560px] w-full bg-[#0b0d15]" aria-busy="true" />;
+    return <div className="h-full min-h-[560px] w-full bg-[#141a29]" aria-busy="true" />;
   }
-  return <div className="relative h-full min-h-[560px] w-full overflow-hidden bg-[#0b0d15] [&_.react-flow__attribution]:bg-transparent [&_.react-flow__attribution]:text-muted-foreground/50 [&_.react-flow__controls]:overflow-hidden [&_.react-flow__controls]:rounded-lg [&_.react-flow__controls]:border-border/70 [&_.react-flow__controls_button]:border-border/70 [&_.react-flow__controls_button]:bg-card/90 [&_.react-flow__controls_button]:fill-muted-foreground [&_.react-flow__minimap]:overflow-hidden [&_.react-flow__minimap]:rounded-lg [&_.react-flow__minimap]:border [&_.react-flow__minimap]:border-border/70 [&_.react-flow__minimap]:bg-card/90">
+  return <div className="relative h-full min-h-[560px] w-full overflow-hidden bg-[#141a29] [&_.react-flow__attribution]:bg-transparent [&_.react-flow__attribution]:text-muted-foreground/50 [&_.react-flow__controls]:overflow-hidden [&_.react-flow__controls]:rounded-lg [&_.react-flow__controls]:border-border/70 [&_.react-flow__controls_button]:border-border/70 [&_.react-flow__controls_button]:bg-card/90 [&_.react-flow__controls_button]:fill-muted-foreground [&_.react-flow__minimap]:overflow-hidden [&_.react-flow__minimap]:rounded-lg [&_.react-flow__minimap]:border [&_.react-flow__minimap]:border-border/70 [&_.react-flow__minimap]:bg-card/90">
     <ReactFlow nodes={canvasNodes} edges={[]} nodeTypes={observatoryNodeTypes} onNodesChange={handleNodesChange} onNodeClick={(_, node) => onSelect(node.id)} fitView fitViewOptions={{ padding: 0.14, minZoom: 0.18, maxZoom: 0.8 }} minZoom={0.18} maxZoom={1.6} nodesDraggable nodesConnectable={false} elementsSelectable panOnScroll zoomOnScroll zoomOnPinch selectionOnDrag={false}>
       <ObservatoryLinks nodes={nodes} positions={positions} />
       <Background variant={BackgroundVariant.Dots} gap={22} size={1} color="rgba(148,163,184,.18)" />
