@@ -79,7 +79,10 @@ export async function registerMcpOAuthClient(input: {
     body: JSON.stringify({
       client_name: input.clientName,
       redirect_uris: [input.redirectUri],
-      grant_types: ["authorization_code", "refresh_token"],
+      // The MCP runtime currently exchanges authorization codes but does not
+      // refresh MCP credentials. Advertising refresh_token here causes strict
+      // DCR providers such as Calendly to reject an otherwise valid client.
+      grant_types: ["authorization_code"],
       response_types: ["code"],
       token_endpoint_auth_method: "none",
     }),
@@ -159,8 +162,13 @@ export async function exchangeMcpOAuthCode(input: {
 }
 
 async function fetchProtectedResourceMetadata(endpoint: URL, input: { environment?: "development" | "test" | "production"; signal?: AbortSignal }): Promise<Record<string, unknown> | null> {
+  // RFC 9728 places a resource path after the well-known suffix. Do not copy
+  // the URL's root slash into that suffix: some providers redirect
+  // `/oauth-protected-resource/` to `/oauth-protected-resource`, and metadata
+  // discovery intentionally rejects redirects.
+  const resourcePath = endpoint.pathname.replace(/^\/+|\/+$/g, "");
   const candidates = [
-    new URL(`/.well-known/oauth-protected-resource${endpoint.pathname}`, endpoint.origin),
+    new URL(`/.well-known/oauth-protected-resource${resourcePath ? `/${resourcePath}` : ""}`, endpoint.origin),
     new URL("/.well-known/oauth-protected-resource", endpoint.origin),
   ];
   for (const url of uniqueUrls(candidates)) {

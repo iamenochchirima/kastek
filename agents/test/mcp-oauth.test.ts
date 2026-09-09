@@ -1,40 +1,59 @@
-import { describe, expect, it } from "vitest";
-import { buildMcpAuthorizationUrl, createPkcePair } from "../src/mcp/oauth";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { discoverMcpOAuth, registerMcpOAuthClient } from "../src/mcp/oauth";
 
-describe("MCP OAuth browser flow", () => {
-  it("creates an RFC 7636 PKCE pair with an opaque state", () => {
-    const first = createPkcePair();
-    const second = createPkcePair();
+const jsonResponse = (body: Record<string, unknown>, status = 200) => new Response(JSON.stringify(body), {
+  status,
+  headers: { "content-type": "application/json" },
+});
 
-    expect(first.state).toMatch(/^[A-Za-z0-9_-]+$/);
-    expect(first.codeVerifier).toMatch(/^[A-Za-z0-9_-]+$/);
-    expect(first.codeChallenge).toMatch(/^[A-Za-z0-9_-]+$/);
-    expect(first.state).not.toBe(second.state);
-    expect(first.codeVerifier).not.toBe(second.codeVerifier);
+describe("MCP OAuth discovery and registration", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("uses the canonical protected-resource metadata URL for root endpoints", async () => {
+    const requestedUrls: string[] = [];
+    vi.stubGlobal("fetch", vi.fn(async (input: URL | string) => {
+      const url = String(input);
+      requestedUrls.push(url);
+      if (url === "https://mcp.calendly.com/.well-known/oauth-protected-resource") {
+        return jsonResponse({ resource: "https://mcp.calendly.com/", authorization_servers: ["https://calendly.com/"] });
+      }
+      if (url === "https://calendly.com/.well-known/oauth-authorization-server") {
+        return jsonResponse({ authorization_endpoint: "https://calendly.com/oauth/authorize", token_endpoint: "https://calendly.com/oauth/token", registration_endpoint: "https://calendly.com/oauth/register" });
+      }
+      throw new Error(`Unexpected request: ${url}`);
+    }));
+
+    await expect(discoverMcpOAuth({ endpointUrl: "https://mcp.calendly.com", environment: "development" })).resolves.toMatchObject({
+      authorizationEndpoint: "https://calendly.com/oauth/authorize",
+      tokenEndpoint: "https://calendly.com/oauth/token",
+      registrationEndpoint: "https://calendly.com/oauth/register",
+    });
+    expect(requestedUrls).not.toContain("https://mcp.calendly.com/.well-known/oauth-protected-resource/");
   });
 
-  it("builds the provider authorization URL without exposing a client secret", () => {
-    const pkce = createPkcePair();
-    const authorizationUrl = buildMcpAuthorizationUrl({
-      client: {
-        clientId: "client-123",
-        clientSecret: "must-not-appear",
-        authorizationEndpoint: "https://provider.example/oauth/authorize",
-        tokenEndpoint: "https://provider.example/oauth/token",
-        resource: "https://provider.example/mcp",
-        scope: "openid tools",
-      },
-      redirectUri: "https://app.example/api/agents/v1/integrations/mcp/oauth/callback",
-      state: pkce.state,
-      codeChallenge: pkce.codeChallenge,
-    });
-    const parsed = new URL(authorizationUrl);
+  it("registers a public client with only the grant the runtime supports", async () => {
+    let registrationBody: Record<string, unknown> | undefined;
+    vi.stubGlobal("fetch", vi.fn(async (input: URL | string, init?: RequestInit) => {
+      const url = String(input);
+      if (url === "https://example.com/oauth/register") {
+        registrationBody = JSON.parse(String(init?.body)) as Record<string, unknown>;
+        return jsonResponse({ client_id: "client-123" }, 201);
+      }
+      throw new Error(`Unexpected request: ${url}`);
+    }));
 
-    expect(parsed.searchParams.get("client_id")).toBe("client-123");
-    expect(parsed.searchParams.get("code_challenge")).toBe(pkce.codeChallenge);
-    expect(parsed.searchParams.get("code_challenge_method")).toBe("S256");
-    expect(parsed.searchParams.get("resource")).toBe("https://provider.example/mcp");
-    expect(parsed.searchParams.get("scope")).toBe("openid tools");
-    expect(authorizationUrl).not.toContain("must-not-appear");
+    await expect(registerMcpOAuthClient({
+      discovery: {
+        resource: "https://example.com/mcp",
+        authorizationEndpoint: "https://example.com/oauth/authorize",
+        tokenEndpoint: "https://example.com/oauth/token",
+        registrationEndpoint: "https://example.com/oauth/register",
+        scopesSupported: [],
+      },
+      redirectUri: "https://dev-client.kasitek.co.za/api/agents/integrations/mcp/oauth/callback",
+      clientName: "KasiTek Agent Platform",
+      environment: "development",
+    })).resolves.toMatchObject({ clientId: "client-123" });
+    expect(registrationBody?.grant_types).toEqual(["authorization_code"]);
   });
 });

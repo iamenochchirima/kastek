@@ -10,7 +10,11 @@ export const remoteMcpToolSchema = z.object({
   name: z.string().trim().min(1).max(160).regex(/^[A-Za-z0-9._:-]+$/),
   description: z.string().trim().max(2_000).default("Remote MCP tool"),
   inputSchema: z.record(z.string(), z.unknown()).default({ type: "object", properties: {}, additionalProperties: false }),
-}).strict();
+  // MCP servers may include protocol metadata such as title, outputSchema,
+  // annotations, and _meta. KasiTek only needs the executable tool contract;
+  // strip provider-specific metadata instead of rejecting an otherwise valid
+  // tools/list response.
+}).strip();
 export type RemoteMcpTool = z.infer<typeof remoteMcpToolSchema>;
 
 /** Stable runtime name shared by discovery, registry projection, and snapshots. */
@@ -19,6 +23,31 @@ export function remoteMcpToolName(providerVersionId: string, toolName: string): 
 }
 
 export const remoteMcpToolsSchema = z.array(remoteMcpToolSchema).max(MAX_REMOTE_TOOLS);
+
+/**
+ * OAuth credentials are persisted as an encrypted JSON envelope, while the
+ * remote MCP adapter needs only the bearer access token. Plain API keys stay
+ * unchanged for non-OAuth providers.
+ */
+export function resolveRemoteMcpAuthorizationToken(rawCredential: string): string {
+  const raw = rawCredential.trim();
+  if (!raw) return raw;
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      const record = parsed as Record<string, unknown>;
+      const accessToken = typeof record.accessToken === "string"
+        ? record.accessToken
+        : typeof record.access_token === "string"
+          ? record.access_token
+          : undefined;
+      if (accessToken?.trim()) return accessToken.trim();
+    }
+  } catch {
+    // A non-JSON credential is a normal API key or bearer token.
+  }
+  return raw;
+}
 
 export interface RemoteMcpProviderSettings {
   endpointUrl: string;

@@ -5,6 +5,7 @@ import {
   discoverRemoteMcpTools,
   remoteMcpToolsSchema,
   remoteMcpToolName,
+  resolveRemoteMcpAuthorizationToken,
   validateRemoteMcpEndpoint,
   type RemoteMcpTool,
 } from "../../mcp/remote";
@@ -71,6 +72,10 @@ export interface RemoteMcpProviderVersionRecord {
   rate_limit_per_minute?: number;
 }
 
+export function isCustomRemoteMcpProvider(provider: Pick<RemoteMcpProviderRecord, "catalog_id">): boolean {
+  return provider.catalog_id === null;
+}
+
 export class RemoteMcpProviderRepository {
   private readonly operations: DurableOperationCoordinator;
 
@@ -110,7 +115,7 @@ export class RemoteMcpProviderRepository {
     const provider = await this.get(organizationId, providerId);
     if (!provider || provider.status === "revoked") throw new Error("REMOTE_MCP_PROVIDER_NOT_FOUND");
     const authorizationToken = provider.credential_reference && this.resolveCredential
-      ? await this.resolveCredential(organizationId, provider.credential_reference)
+      ? resolveRemoteMcpAuthorizationToken(await this.resolveCredential(organizationId, provider.credential_reference))
       : undefined;
     const startedAt = performance.now();
     let discovered;
@@ -138,7 +143,7 @@ export class RemoteMcpProviderRepository {
     const provider = await this.get(organizationId, providerId);
     if (!provider || provider.status === "revoked") throw new Error("REMOTE_MCP_PROVIDER_NOT_FOUND");
     const authorizationToken = provider.credential_reference && this.resolveCredential
-      ? await this.resolveCredential(organizationId, provider.credential_reference)
+      ? resolveRemoteMcpAuthorizationToken(await this.resolveCredential(organizationId, provider.credential_reference))
       : undefined;
     const startedAt = performance.now();
     try {
@@ -306,7 +311,9 @@ export class RemoteMcpProviderRepository {
     }
     const tool = hydrateVersion(provider).tools.find((candidate) => candidate.name === input.toolName);
     if (!tool) throw new Error("REMOTE_MCP_TOOL_NOT_PINNED");
-    const authorizationToken = provider.credential_reference && this.resolveCredential ? await this.resolveCredential(input.organizationId, provider.credential_reference) : undefined;
+    const authorizationToken = provider.credential_reference && this.resolveCredential
+      ? resolveRemoteMcpAuthorizationToken(await this.resolveCredential(input.organizationId, provider.credential_reference))
+      : undefined;
     const startedAt = performance.now();
     try {
       const snapshot = createMcpServerSnapshot({

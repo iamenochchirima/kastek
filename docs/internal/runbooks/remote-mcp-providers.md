@@ -26,8 +26,8 @@ version. The provider must also have a healthy reachability projection.
 
 ## Reviewed catalogue and OAuth
 
-The Studio reviewed directory is imported from a pinned Hermes revision as metadata. A catalogue
-entry is not an active provider until a user connects it. HTTP OAuth entries use the browser
+The Studio reviewed directory is imported from a pinned external manifest revision as metadata. A
+catalogue entry is not an active provider until a user connects it. HTTP OAuth entries use the browser
 callback flow with protected-resource metadata, authorization-server discovery, PKCE, dynamic
 client registration, one-use state, and encrypted token storage. The callback then runs the same
 discover, publish, health, and version-pin lifecycle described above.
@@ -56,8 +56,8 @@ environment. MCP providers with dynamic client registration can register the cal
 time; providers without it need one platform-managed client registration for each environment.
 
 API-key entries write only an encrypted credential reference to the provider record. Stdio entries
-remain unavailable until a managed execution adapter exists; do not enable them by copying a
-Hermes command into the worker.
+remain unavailable until a managed execution adapter exists; do not enable them by copying an
+external command into the worker.
 
 ## Failure behavior
 
