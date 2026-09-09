@@ -193,9 +193,24 @@ export function AgentDeploymentLifecycle({
     }
   };
 
-  const candidateDiffers = Boolean(selectedVersion && selectedVersion.id !== status?.live.version?.versionId);
+  const candidateDiffers = Boolean(status && selectedVersion && selectedVersion.id !== status.live.version?.versionId);
   const canPromote = Boolean(status?.live.installationId && candidateDiffers && selectedVersion);
   const canRollback = Boolean(status?.rollbackTarget && status.live.installationId);
+
+  const compactControls = <div className="flex items-center gap-2">
+    {candidateDiffers ? <span className="text-[11px] text-muted-foreground">Changes</span> : null}
+    <Button
+      type="button"
+      size="sm"
+      variant={candidateDiffers ? "default" : "outline"}
+      className={!candidateDiffers ? "border-border/70 bg-muted/40 text-muted-foreground" : undefined}
+      onClick={() => void preparePromotion()}
+      disabled={!candidateDiffers || !status?.live.installationId || loading || busy !== null}
+      aria-label={candidateDiffers ? "Deploy changes" : "Deployed"}
+    >
+      {busy === "preflight" ? "Deploying…" : candidateDiffers ? "Deploy" : "Deployed"}
+    </Button>
+  </div>;
 
   const controls = <div className="flex flex-wrap items-center gap-2">
     <Button type="button" variant="outline" size="sm" onClick={() => void updatePlayground()} disabled={!selectedVersion || busy !== null}>
@@ -219,7 +234,7 @@ export function AgentDeploymentLifecycle({
   </div>;
 
   return <>
-    {compact ? <div className="flex flex-wrap items-center justify-end gap-3">{summary}{controls}</div> : <Card>
+    {compact ? <div className="flex items-center justify-end">{compactControls}</div> : <Card>
       <CardContent className="space-y-4 p-6">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>

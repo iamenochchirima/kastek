@@ -437,6 +437,9 @@ closes that UI seam and aligns manual deployment eligibility with the immutable-
     version selection. Preserve stale-pointer and idempotency errors as actionable UI feedback.
 24. [x] Verify the shared UI flow with client typecheck/lint/build and local API route coverage;
     record the exact local checks before marking this follow-up complete.
+25. [x] Reduce the compact Studio/Playground deployment control to two states: active `Deploy`
+    when the draft differs from Live, and muted inert `Deployed` when it matches. Keep status
+    details, blockers, and rollback inside the full Deployment panel.
 
 ### Implementation evidence
 
@@ -455,6 +458,9 @@ closes that UI seam and aligns manual deployment eligibility with the immutable-
   Playground, runs Live preflight, confirms promotion, and performs target-scoped rollback. Manual
   deployment accepts published or retired immutable candidates; automatic follow-published and
   staged rollout paths remain published-only.
+- Compact deployment verification: Studio and Playground now expose only `Deploy` (with a small
+  `Changes` indicator) when the candidate differs from Live, or an inert `Deployed` state when it
+  matches. The detailed Deployment panel remains the diagnostic and rollback surface.
 - `pnpm build` in `docs/internal-site`: passed.
 - `cargo check --manifest-path server/kasitek-core/Cargo.toml`: passed after adding the authenticated
   deployment proxy routes.
