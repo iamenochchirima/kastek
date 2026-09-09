@@ -424,6 +424,7 @@ snapshot, approval, redaction, and durable operation contracts as native tools.
 - `pnpm exec tsc --noEmit` and targeted ESLint for the changed Studio/settings/integration files:
   passed.
 - `pnpm build` in `client/apps/client`: passed; all 56 generated pages completed.
+- `pnpm build` in `docs/internal-site`: passed after adding the staging runbook.
 - `cargo check --manifest-path server/kasitek-core/Cargo.toml`: passed after adding the authenticated
   deployment proxy routes.
 - `cargo test --manifest-path server/kasitek-core/Cargo.toml --lib`: 271 passed, 3 ignored.
