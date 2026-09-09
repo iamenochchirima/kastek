@@ -167,7 +167,10 @@ export function getAgentTemplate(key: string): AgentTemplateDefinition | undefin
 }
 
 export function templateVersionInput(template: AgentTemplateDefinition, settings: Record<string, unknown>): CreateVersionInput {
-  const { tone } = templateSettingsSchema.parse(settings);
+  // Installation settings also carry runtime metadata such as `environment`.
+  // Keep that boundary out of the template's configurable fields so strict
+  // template validation does not reject a valid installation request.
+  const { tone } = templateSettingsSchema.parse({ tone: settings.tone });
   const compiled = compileAgentSpec({
     specVersion: 1,
     identity: { displayName: template.name, purpose: template.description, audience: template.audience },
