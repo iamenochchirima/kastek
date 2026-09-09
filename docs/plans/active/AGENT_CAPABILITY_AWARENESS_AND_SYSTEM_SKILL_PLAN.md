@@ -450,6 +450,9 @@ snapshot, approval, redaction, and durable operation contracts as native tools.
   one base tool, one connected connector, one MCP tool, one isolated plugin, one pinned
   dependency-ready skill, an unavailable dependency, and an approval-gated external effect. The
   smoke also verified that the plugin and approved effect execute only through the granted runtime.
+- Hosted staging execution and evidence capture are documented in
+  [`agent-capability-awareness-staging.md`](../../internal/runbooks/agent-capability-awareness-staging.md);
+  the target and isolated credentials are not present in this workspace.
 - The local OpenTelemetry smoke passed with structured success and handled-error events. Durable
   cross-release telemetry comparison remains a staging gate.
 
