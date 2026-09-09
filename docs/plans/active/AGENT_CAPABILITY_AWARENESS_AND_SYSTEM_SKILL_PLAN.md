@@ -422,6 +422,7 @@ snapshot, approval, redaction, and durable operation contracts as native tools.
 - `pnpm build` in `client/apps/client`: passed; all 56 generated pages completed.
 - `cargo check --manifest-path server/kasitek-core/Cargo.toml`: passed after adding the authenticated
   deployment proxy routes.
+- `cargo test --manifest-path server/kasitek-core/Cargo.toml --lib`: 271 passed, 3 ignored.
 - `git diff --check`: passed during the implementation batches.
 - Local unit and HTTP coverage includes capability intent, snapshot projection, readiness reasons,
   promotion preflight, stale-pointer/idempotency checks, rollback, and route conformance.
