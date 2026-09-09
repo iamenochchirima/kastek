@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { toast } from "sonner";
 import { createStudioAgent } from "@/lib/agent-platform";
 
 const defaultInstructions = "You are an autonomous workspace assistant. Plan the user's request, use only authorized capabilities, and clearly report what you completed.";
@@ -17,12 +18,10 @@ export function StudioAgentCreationPage() {
   const [description, setDescription] = useState("");
   const [instructions, setInstructions] = useState(defaultInstructions);
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   const submit = async () => {
     if (!name.trim() || !instructions.trim() || submitting) return;
     setSubmitting(true);
-    setError(null);
     try {
       const created = await createStudioAgent({
         name: name.trim(),
@@ -31,7 +30,7 @@ export function StudioAgentCreationPage() {
       });
       router.push(`/studio?agent=${encodeURIComponent(created.agent.id)}`);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Unable to create the agent");
+      toast.error(cause instanceof Error ? cause.message : "Unable to create the agent");
       setSubmitting(false);
     }
   };
@@ -51,7 +50,6 @@ export function StudioAgentCreationPage() {
               <CardDescription>Creates an autonomous agent with a Playground installation.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-5">
-              {error ? <div className="rounded-lg border border-destructive/20 bg-destructive/10 px-3 py-2 text-sm text-destructive" role="alert">{error}</div> : null}
               <div>
                 <label htmlFor="studio-agent-name" className="text-sm font-medium text-foreground">Name</label>
                 <Input id="studio-agent-name" value={name} onChange={(event) => setName(event.target.value)} placeholder="Research assistant" className="mt-2" autoFocus />

@@ -14,7 +14,6 @@ import {
   Check,
   CircleHelp,
   Clock3,
-  Database,
   Eye,
   FlaskConical,
   KeyRound,
@@ -24,6 +23,7 @@ import {
   Plus,
   PlugZap,
   Puzzle,
+  RefreshCw,
   Search,
   Save,
   ShieldCheck,
@@ -34,8 +34,10 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import { toast } from "sonner";
 import { AgentModelPicker } from "@/components/dashboard/agents/agent-model-picker";
 import { InstallationIntegrations } from "@/components/dashboard/agents/agent-detail-page-client";
 import {
@@ -43,7 +45,6 @@ import {
   discoverAgentMcpProvider,
   getAgentInstallationReadiness,
   listAgentInstallationIntegrations,
-  healthCheckAgentMcpProvider,
   listAgentCapabilities,
   listAgentCapabilityDirectory,
   listAgentConnectionDirectory,
@@ -66,7 +67,7 @@ import {
   publishAgentMcpProviderVersion,
   saveAgentIntegrationApiKey,
   saveAgentIntegrationLocalConnector,
-  startAgentGoogleOAuth,
+  startAgentIntegrationOAuth,
   type AgentCapability,
   type AgentCapabilityDirectoryEntry,
   type AgentCapabilityToolset,
@@ -88,9 +89,34 @@ import {
 import { cn } from "@/lib/utils";
 import { getPlatformBrandColor, getPlatformBrandIcon } from "@/lib/platform-icons";
 
-type SettingsSection = "overview" | "capabilities" | "memory" | "gateways" | "safety" | "runtime";
+type SettingsSection = "overview" | "behavior" | "capabilities" | "memory" | "gateways" | "safety" | "runtime";
 type PrototypeVariant = "a" | "b" | "c";
 type ModelSelection = Pick<AgentModel, "provider" | "model">;
+
+export type StudioBehaviorDraft = {
+  purpose: string;
+  role: "standalone" | "orchestrator";
+  audience: "personal" | "customer_service";
+  tone: "concise" | "balanced" | "detailed" | "formal" | "warm" | "direct";
+  responseLength: "short" | "balanced" | "detailed";
+  initiative: "cautious" | "balanced" | "proactive";
+  language: string;
+  formatting: "plain" | "markdown" | "structured";
+  rules: string[];
+  advancedInstructions: string;
+};
+
+export type StudioMemoryDraft = {
+  mode: "disabled" | "explicit" | "reviewed" | "automatic";
+  readableNamespaces: string[];
+  writableNamespaces: string[];
+  writableTypes: string[];
+  maxRetrieved: number;
+  maxRetrievedTokens: number;
+  maxWritesPerRun: number;
+  retentionDays: string;
+  allowSensitive: boolean;
+};
 
 export type StudioCapabilityDraft = {
   allowedTools: string[];
@@ -100,6 +126,12 @@ export type StudioCapabilityDraft = {
   mcpProviderVersionIds: string[];
   extensionPackages: unknown[];
   extensionGrants: unknown[];
+};
+
+export type StudioSettingsDraft = {
+  capabilities: StudioCapabilityDraft;
+  behavior: StudioBehaviorDraft;
+  memory: StudioMemoryDraft;
 };
 
 function capabilityDraftFromVersion(version: AgentVersion | null): StudioCapabilityDraft {
@@ -121,8 +153,71 @@ function capabilityDraftFromVersion(version: AgentVersion | null): StudioCapabil
   };
 }
 
+function recordAt(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+}
+
+function stringAt(value: unknown, fallback = ""): string {
+  return typeof value === "string" ? value : fallback;
+}
+
+function enumAt<T extends string>(value: unknown, allowed: readonly T[], fallback: T): T {
+  return typeof value === "string" && allowed.includes(value as T) ? value as T : fallback;
+}
+
+const memoryNamespaces = ["conversation", "user_private", "organization_shared", "agent_private"] as const;
+const memoryTypes = ["working", "semantic", "episodic", "procedural"] as const;
+
+function listAt(value: unknown, allowed: readonly string[], fallback: string[]): string[] {
+  if (!Array.isArray(value)) return [...fallback];
+  const values = value.filter((item): item is string => typeof item === "string" && allowed.includes(item));
+  return [...new Set(values)];
+}
+
+function behaviorDraftFromVersion(agent: AgentDefinition, version: AgentVersion | null, legacyInstructions?: string): StudioBehaviorDraft {
+  const configuration = recordAt(version?.configuration);
+  const spec = recordAt(configuration.agentSpec);
+  const identity = recordAt(spec.identity);
+  const execution = recordAt(spec.execution);
+  const behavior = recordAt(spec.behavior);
+  return {
+    purpose: stringAt(identity.purpose, agent.description ?? ""),
+    role: enumAt(execution.role, ["standalone", "orchestrator"], "standalone"),
+    audience: enumAt(identity.audience, ["personal", "customer_service"], agent.agent_audience ?? "personal"),
+    tone: enumAt(behavior.tone, ["concise", "balanced", "detailed", "formal", "warm", "direct"], "balanced"),
+    responseLength: enumAt(behavior.responseLength, ["short", "balanced", "detailed"], "balanced"),
+    initiative: enumAt(behavior.initiative, ["cautious", "balanced", "proactive"], "balanced"),
+    language: stringAt(behavior.language, "auto"),
+    formatting: enumAt(behavior.formatting, ["plain", "markdown", "structured"], "markdown"),
+    rules: Array.isArray(behavior.rules) ? behavior.rules.filter((item): item is string => typeof item === "string") : typeof behavior.rules === "string" ? behavior.rules.split("\n").map((item) => item.trim()).filter(Boolean) : [],
+    advancedInstructions: stringAt(behavior.advancedInstructions, legacyInstructions ?? version?.instructions ?? ""),
+  };
+}
+
+function memoryDraftFromVersion(version: AgentVersion | null): StudioMemoryDraft {
+  const configuration = recordAt(version?.configuration);
+  const spec = recordAt(configuration.agentSpec);
+  const policy = recordAt(version?.policy);
+  const memory = Object.keys(recordAt(spec.memory)).length ? recordAt(spec.memory) : Object.keys(recordAt(policy.memory)).length ? recordAt(policy.memory) : recordAt(configuration.memory);
+  const readableDefault = ["conversation", "user_private", "organization_shared", "agent_private"];
+  const writableDefault = ["conversation", "user_private", "agent_private"];
+  const writableTypesDefault = ["working", "semantic", "episodic"];
+  return {
+    mode: enumAt(memory.mode, ["disabled", "explicit", "reviewed", "automatic"], "explicit"),
+    readableNamespaces: listAt(memory.readableNamespaces, memoryNamespaces, readableDefault),
+    writableNamespaces: listAt(memory.writableNamespaces, memoryNamespaces, writableDefault),
+    writableTypes: listAt(memory.writableTypes, memoryTypes, writableTypesDefault),
+    maxRetrieved: typeof memory.maxRetrieved === "number" && Number.isFinite(memory.maxRetrieved) ? memory.maxRetrieved : 8,
+    maxRetrievedTokens: typeof memory.maxRetrievedTokens === "number" && Number.isFinite(memory.maxRetrievedTokens) ? memory.maxRetrievedTokens : 1600,
+    maxWritesPerRun: typeof memory.maxWritesPerRun === "number" && Number.isFinite(memory.maxWritesPerRun) ? memory.maxWritesPerRun : 3,
+    retentionDays: memory.retentionDays === undefined || memory.retentionDays === null ? "" : String(memory.retentionDays),
+    allowSensitive: memory.allowSensitive === true,
+  };
+}
+
 const sections: Array<{ id: SettingsSection; label: string; description: string }> = [
-  { id: "overview", label: "Overview", description: "Identity, instructions, and model" },
+  { id: "overview", label: "Overview", description: "Identity, deployment, and draft status" },
+  { id: "behavior", label: "Behavior", description: "Purpose, response style, and rules" },
   { id: "capabilities", label: "Capabilities", description: "Tools, skills, and extensions" },
   { id: "memory", label: "Memory", description: "Scope and retrieval" },
   { id: "gateways", label: "Gateways", description: "Channels and surfaces" },
@@ -151,6 +246,25 @@ function StatusDot({ status }: { status: "ready" | "attention" | "included" | "n
   return <span className={cn("size-1.5 shrink-0 rounded-full", status === "ready" || status === "included" ? "bg-emerald-500" : status === "attention" ? "bg-amber-500" : "bg-muted-foreground/40")} />;
 }
 
+function googleOAuthCallbackMessage(error: string): string {
+  switch (error) {
+    case "access_denied":
+      return "Google authorization was cancelled";
+    case "google_oauth_not_configured":
+      return "Google connection unavailable";
+    case "google_token_exchange_failed":
+      return "Google authorization failed";
+    case "google_access_token_missing":
+      return "Google did not return an access token";
+    case "oauth_state_invalid_or_expired":
+      return "Google authorization expired; try again";
+    case "oauth_code_missing":
+      return "Google authorization did not complete";
+    default:
+      return "Google authorization failed";
+  }
+}
+
 export function StudioSettingsPrototype({
   agent,
   version,
@@ -170,7 +284,7 @@ export function StudioSettingsPrototype({
   installationId: string | null;
   instructions: string;
   setInstructions: (value: string) => void;
-  onSave: (draft?: StudioCapabilityDraft) => Promise<AgentVersion | null> | void;
+  onSave: (draft?: StudioSettingsDraft) => Promise<AgentVersion | null> | void;
   saving: boolean;
   modelCatalog: AgentModelCatalog | null;
   modelCatalogLoading: boolean;
@@ -183,10 +297,18 @@ export function StudioSettingsPrototype({
   const searchParams = useSearchParams();
   const [section, setSection] = useState<SettingsSection>("overview");
   const [capabilityDraft, setCapabilityDraft] = useState<StudioCapabilityDraft>(() => capabilityDraftFromVersion(version));
+  const [behaviorDraft, setBehaviorDraft] = useState<StudioBehaviorDraft>(() => behaviorDraftFromVersion(agent, version, instructions));
+  const [memoryDraft, setMemoryDraft] = useState<StudioMemoryDraft>(() => memoryDraftFromVersion(version));
   const [capabilitySaving, setCapabilitySaving] = useState(false);
   const [capabilitySaveError, setCapabilitySaveError] = useState<string | null>(null);
   const requestedVariant = searchParams.get("studioVariant");
   const variant: PrototypeVariant = requestedVariant === "b" || requestedVariant === "c" ? requestedVariant : "a";
+  const oauthError = searchParams.get("status") === "error" ? searchParams.get("error") : null;
+  const oauthFeedback = oauthError ? googleOAuthCallbackMessage(oauthError) : null;
+
+  useEffect(() => {
+    if (oauthFeedback) toast.error(oauthFeedback);
+  }, [oauthFeedback]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -221,7 +343,8 @@ export function StudioSettingsPrototype({
 
   const saveSettings = async () => {
     setCapabilitySaveError(null);
-    const next = await onSave(capabilityDraft);
+    setInstructions(behaviorDraft.advancedInstructions);
+    const next = await onSave({ capabilities: capabilityDraft, behavior: behaviorDraft, memory: memoryDraft });
     if (!next) return;
     setCapabilitySaving(true);
     try {
@@ -243,13 +366,15 @@ export function StudioSettingsPrototype({
       installationId={installationId}
       section={section}
       setSection={setSection}
-      instructions={instructions}
-      setInstructions={setInstructions}
       onSave={saveSettings}
       saving={saving || capabilitySaving}
       capabilitySaveError={capabilitySaveError}
       capabilityDraft={capabilityDraft}
       setCapabilityDraft={setCapabilityDraft}
+      behaviorDraft={behaviorDraft}
+      setBehaviorDraft={setBehaviorDraft}
+      memoryDraft={memoryDraft}
+      setMemoryDraft={setMemoryDraft}
       modelCatalog={modelCatalog}
       modelCatalogLoading={modelCatalogLoading}
       selectedModel={selectedModel}
@@ -297,6 +422,7 @@ function SettingsNavigation({ section, setSection }: { section: SettingsSection;
 }
 
 function SettingsIcon({ section }: { section: SettingsSection }) {
+  if (section === "behavior") return <SlidersHorizontal className="size-3.5" />;
   if (section === "capabilities") return <Wrench className="size-3.5" />;
   if (section === "memory") return <MemoryStick className="size-3.5" />;
   if (section === "gateways") return <KeyRound className="size-3.5" />;
@@ -311,8 +437,6 @@ function SettingsContent({
   installationId,
   section,
   setSection,
-  instructions,
-  setInstructions,
   onSave,
   saving,
   modelCatalog,
@@ -323,6 +447,10 @@ function SettingsContent({
   setModelSelection,
   capabilityDraft,
   setCapabilityDraft,
+  behaviorDraft,
+  setBehaviorDraft,
+  memoryDraft,
+  setMemoryDraft,
   capabilitySaveError,
 }: {
   agent: AgentDefinition;
@@ -330,8 +458,6 @@ function SettingsContent({
   installationId: string | null;
   section: SettingsSection;
   setSection: (value: SettingsSection) => void;
-  instructions: string;
-  setInstructions: (value: string) => void;
   onSave: () => void;
   saving: boolean;
   modelCatalog: AgentModelCatalog | null;
@@ -342,15 +468,35 @@ function SettingsContent({
   setModelSelection: (value: ModelSelection | null) => void;
   capabilityDraft: StudioCapabilityDraft;
   setCapabilityDraft: (value: StudioCapabilityDraft | ((current: StudioCapabilityDraft) => StudioCapabilityDraft)) => void;
+  behaviorDraft: StudioBehaviorDraft;
+  setBehaviorDraft: (value: StudioBehaviorDraft | ((current: StudioBehaviorDraft) => StudioBehaviorDraft)) => void;
+  memoryDraft: StudioMemoryDraft;
+  setMemoryDraft: (value: StudioMemoryDraft | ((current: StudioMemoryDraft) => StudioMemoryDraft)) => void;
   capabilitySaveError: string | null;
 }) {
   const title = sections.find((item) => item.id === section)?.label ?? "Settings";
   const description = sections.find((item) => item.id === section)?.description ?? "";
-  return <div className="mx-auto max-w-4xl px-5 py-6 pb-24 sm:px-8 sm:py-8"><div className="mb-7 flex items-start justify-between gap-4"><div><p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Agent settings</p><h3 className="mt-2 text-2xl font-semibold tracking-[-0.03em] text-foreground">{title}</h3><p className="mt-1 text-sm text-muted-foreground">{description}</p></div><span className="hidden items-center gap-1.5 rounded-full border border-border px-2.5 py-1 text-[10px] text-muted-foreground sm:inline-flex"><span className="size-1.5 rounded-full bg-amber-500" />Draft</span></div>{capabilitySaveError ? <div className="mb-4 rounded-xl border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">{capabilitySaveError}</div> : null}{section === "overview" ? <OverviewSection agent={agent} version={version} instructions={instructions} setInstructions={setInstructions} selectedModel={selectedModel} pickerModels={pickerModels} modelCatalog={modelCatalog} modelCatalogLoading={modelCatalogLoading} effectiveSelection={effectiveSelection} setModelSelection={setModelSelection} /> : null}{section === "capabilities" ? <CapabilitiesSection installationId={installationId} versionId={version?.id ?? null} draft={capabilityDraft} onDraftChange={setCapabilityDraft} /> : null}{section === "memory" ? <MemorySection /> : null}{section === "gateways" ? <GatewaysSection agent={agent} installationId={installationId} /> : null}{section === "safety" ? <SafetySection /> : null}{section === "runtime" ? <RuntimeSection selectedModel={selectedModel} /> : null}<div className="mt-8 flex flex-wrap items-center justify-end gap-3 border-t border-border pt-5"><div className="flex items-center gap-2"><Button type="button" variant="outline" size="sm" onClick={() => setSection("overview")}><ArrowLeft className="mr-1.5 size-3.5" />Overview</Button><Button type="button" size="sm" onClick={onSave} disabled={saving}>{saving ? <Clock3 className="mr-1.5 size-3.5 animate-pulse" /> : <Save className="mr-1.5 size-3.5" />}{saving ? "Saving…" : "Save draft"}</Button></div></div></div>;
+  return <div className="mx-auto max-w-4xl px-5 py-6 pb-24 sm:px-8 sm:py-8"><div className="mb-7 flex items-start justify-between gap-4"><div><p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Agent settings</p><h3 className="mt-2 text-2xl font-semibold tracking-[-0.03em] text-foreground">{title}</h3><p className="mt-1 text-sm text-muted-foreground">{description}</p></div><span className="hidden items-center gap-1.5 rounded-full border border-border px-2.5 py-1 text-[10px] text-muted-foreground sm:inline-flex"><span className="size-1.5 rounded-full bg-amber-500" />Draft</span></div>{capabilitySaveError ? <div className="mb-4 rounded-xl border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">{capabilitySaveError}</div> : null}{section === "overview" ? <OverviewSection agent={agent} version={version} selectedModel={selectedModel} capabilityDraft={capabilityDraft} behaviorDraft={behaviorDraft} memoryDraft={memoryDraft} /> : null}{section === "behavior" ? <BehaviorSection draft={behaviorDraft} onDraftChange={setBehaviorDraft} /> : null}{section === "capabilities" ? <CapabilitiesSection installationId={installationId} versionId={version?.id ?? null} draft={capabilityDraft} onDraftChange={setCapabilityDraft} /> : null}{section === "memory" ? <MemorySection draft={memoryDraft} onDraftChange={setMemoryDraft} /> : null}{section === "gateways" ? <GatewaysSection agent={agent} installationId={installationId} /> : null}{section === "safety" ? <SafetySection /> : null}{section === "runtime" ? <RuntimeSection selectedModel={selectedModel} pickerModels={pickerModels} modelCatalog={modelCatalog} modelCatalogLoading={modelCatalogLoading} effectiveSelection={effectiveSelection} setModelSelection={setModelSelection} /> : null}<div className="mt-8 flex flex-wrap items-center justify-end gap-3 border-t border-border pt-5"><div className="flex items-center gap-2"><Button type="button" variant="outline" size="sm" onClick={() => setSection("overview")}><ArrowLeft className="mr-1.5 size-3.5" />Overview</Button><Button type="button" size="sm" onClick={onSave} disabled={saving}>{saving ? <Clock3 className="mr-1.5 size-3.5 animate-pulse" /> : <Save className="mr-1.5 size-3.5" />}{saving ? "Saving…" : "Save draft"}</Button></div></div></div>;
 }
 
-function OverviewSection({ agent, version, instructions, setInstructions, selectedModel, pickerModels, modelCatalog, modelCatalogLoading, effectiveSelection, setModelSelection }: { agent: AgentDefinition; version: AgentVersion | null; instructions: string; setInstructions: (value: string) => void; selectedModel?: AgentModel; pickerModels: AgentModel[]; modelCatalog: AgentModelCatalog | null; modelCatalogLoading: boolean; effectiveSelection: ModelSelection | null; setModelSelection: (value: ModelSelection | null) => void }) {
-  return <div className="space-y-5"><div className="grid gap-4 sm:grid-cols-2"><InfoTile label="Agent" value={agent.name} icon={<Bot className="size-4" />} /><InfoTile label="Version" value={version ? `v${version.version_number} · ${version.status}` : "No version"} icon={<Layers3 className="size-4" />} /></div><section className="rounded-2xl border border-border bg-card p-4 sm:p-5"><div className="flex items-center gap-2"><Bot className="size-4 text-primary" /><h4 className="text-sm font-semibold text-foreground">Instructions</h4></div><Textarea value={instructions} onChange={(event) => setInstructions(event.target.value)} placeholder="Define what this agent should do…" className="mt-4 min-h-44 resize-y text-sm" /></section><section className="rounded-2xl border border-border bg-card p-4 sm:p-5"><div className="flex items-start justify-between gap-4"><div><div className="flex items-center gap-2"><Sparkles className="size-4 text-primary" /><h4 className="text-sm font-semibold text-foreground">Model</h4></div><p className="mt-1 text-xs text-muted-foreground">The model used for the next Playground run.</p></div>{selectedModel ? <span className="text-[11px] text-muted-foreground">{formatTokens(selectedModel.contextWindow)} context</span> : null}</div>{modelCatalogLoading ? <p className="mt-4 text-xs text-muted-foreground">Loading models…</p> : modelCatalog ? <div className="mt-4"><AgentModelPicker model={selectedModel} models={pickerModels} disabled={!pickerModels.length} ariaLabel="Select agent model" pickerTitle="Choose a model" onSelect={(model, provider) => setModelSelection({ model, provider })} />{effectiveSelection ? <p className="mt-2 text-[11px] text-muted-foreground">{effectiveSelection.provider}:{effectiveSelection.model}</p> : null}</div> : <p className="mt-4 text-xs text-muted-foreground">Model catalog unavailable.</p>}</section></div>;
+function OverviewSection({ agent, version, selectedModel, capabilityDraft, behaviorDraft, memoryDraft }: { agent: AgentDefinition; version: AgentVersion | null; selectedModel?: AgentModel; capabilityDraft: StudioCapabilityDraft; behaviorDraft: StudioBehaviorDraft; memoryDraft: StudioMemoryDraft }) {
+  const deployment = agent.installation_status ?? "not_configured";
+  const deploymentLabel = deployment === "active" ? "Live" : deployment === "paused" ? "Paused" : deployment === "disabled" ? "Disabled" : "Not configured";
+  const playgroundLabel = agent.installation_settings?.environment === "playground" ? deploymentLabel : "Not configured";
+  const liveLabel = agent.published_version_number ? `v${agent.published_version_number} · Published` : "Not configured";
+  const behaviorSummary = [behaviorDraft.tone, `${behaviorDraft.responseLength} responses`, `${behaviorDraft.initiative} initiative`].join(" · ");
+  const memorySummary = memoryDraft.mode === "disabled" ? "Disabled" : `${memoryDraft.mode} · ${memoryDraft.readableNamespaces.length} read scopes · ${memoryDraft.writableNamespaces.length} write scopes`;
+  const capabilityCount = capabilityDraft.allowedTools.length + capabilityDraft.requiredCapabilities.length + capabilityDraft.allowedSkillIds.length + capabilityDraft.extensionPackages.length;
+  return <div className="space-y-5"><div className="grid gap-4 sm:grid-cols-2"><InfoTile label="Agent" value={agent.name} icon={<Bot className="size-4" />} /><InfoTile label="Active version" value={version ? `v${version.version_number} · ${version.status}` : "No version"} icon={<Layers3 className="size-4" />} /><InfoTile label="Playground" value={playgroundLabel} icon={<FlaskConical className="size-4" />} /><InfoTile label="Live" value={liveLabel} icon={<Activity className="size-4" />} /><InfoTile label="Model" value={selectedModel?.label ?? selectedModel?.model ?? "Not selected"} icon={<Sparkles className="size-4" />} /></div><section className="rounded-2xl border border-border bg-card p-4 sm:p-5"><div className="flex items-center gap-2"><SlidersHorizontal className="size-4 text-primary" /><h4 className="text-sm font-semibold text-foreground">Draft summary</h4></div><dl className="mt-4 divide-y divide-border text-xs"><SummaryRow label="Behavior" value={behaviorSummary} /><SummaryRow label="Memory policy" value={memorySummary} /><SummaryRow label="Capabilities" value={capabilityCount ? `${capabilityCount} selected` : "None selected"} /><SummaryRow label="Next step" value="Save draft, then deploy when ready" /></dl></section><SettingNote title="Overview is a summary" detail="Edit behavior, memory, and capabilities in their dedicated tabs. Platform safety, permissions, and system skills remain managed by the runtime." /></div>;
+}
+
+function SummaryRow({ label, value }: { label: string; value: string }) {
+  return <div className="flex flex-col gap-1 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4"><dt className="text-muted-foreground">{label}</dt><dd className="font-medium text-foreground sm:text-right">{value}</dd></div>;
+}
+
+function BehaviorSection({ draft, onDraftChange }: { draft: StudioBehaviorDraft; onDraftChange: (value: StudioBehaviorDraft | ((current: StudioBehaviorDraft) => StudioBehaviorDraft)) => void }) {
+  const update = <K extends keyof StudioBehaviorDraft>(key: K, value: StudioBehaviorDraft[K]) => onDraftChange((current) => ({ ...current, [key]: value }));
+  return <div className="space-y-5"><section className="rounded-2xl border border-border bg-card p-4 sm:p-5"><div><h4 className="text-sm font-semibold text-foreground">Identity</h4><p className="mt-1 text-xs text-muted-foreground">Describe the agent’s purpose and operating context.</p></div><div className="mt-4 grid gap-4 sm:grid-cols-2"><label className="block text-xs font-medium text-foreground sm:col-span-2">Purpose<input value={draft.purpose} onChange={(event) => update("purpose", event.target.value)} maxLength={2_000} placeholder="What should this agent help with?" className="mt-1.5 h-10 w-full rounded-md border border-border bg-background px-3 text-sm font-normal text-foreground outline-none focus:border-primary" /></label><label className="block text-xs font-medium text-foreground">Role<Select value={draft.role} onValueChange={(value) => update("role", value as StudioBehaviorDraft["role"])}><SelectTrigger className="mt-1.5 h-10 text-sm font-normal"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="standalone">Standalone agent</SelectItem><SelectItem value="orchestrator">Orchestrator</SelectItem></SelectContent></Select></label><label className="block text-xs font-medium text-foreground">Audience<Select value={draft.audience} onValueChange={(value) => update("audience", value as StudioBehaviorDraft["audience"])}><SelectTrigger className="mt-1.5 h-10 text-sm font-normal"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="personal">Personal workspace</SelectItem><SelectItem value="customer_service">Customer service</SelectItem></SelectContent></Select></label></div></section><section className="rounded-2xl border border-border bg-card p-4 sm:p-5"><div><h4 className="text-sm font-semibold text-foreground">Response style</h4><p className="mt-1 text-xs text-muted-foreground">Set defaults for the next Playground turn.</p></div><div className="mt-4 grid gap-4 sm:grid-cols-2"><label className="block text-xs font-medium text-foreground">Tone<Select value={draft.tone} onValueChange={(value) => update("tone", value as StudioBehaviorDraft["tone"])}><SelectTrigger className="mt-1.5 h-10 text-sm font-normal"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="concise">Concise</SelectItem><SelectItem value="balanced">Balanced</SelectItem><SelectItem value="detailed">Detailed</SelectItem><SelectItem value="formal">Formal</SelectItem><SelectItem value="warm">Warm</SelectItem><SelectItem value="direct">Direct</SelectItem></SelectContent></Select></label><label className="block text-xs font-medium text-foreground">Response length<Select value={draft.responseLength} onValueChange={(value) => update("responseLength", value as StudioBehaviorDraft["responseLength"])}><SelectTrigger className="mt-1.5 h-10 text-sm font-normal"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="short">Short</SelectItem><SelectItem value="balanced">Standard</SelectItem><SelectItem value="detailed">Long</SelectItem></SelectContent></Select></label><label className="block text-xs font-medium text-foreground">Initiative<Select value={draft.initiative} onValueChange={(value) => update("initiative", value as StudioBehaviorDraft["initiative"])}><SelectTrigger className="mt-1.5 h-10 text-sm font-normal"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="cautious">Cautious</SelectItem><SelectItem value="balanced">Balanced</SelectItem><SelectItem value="proactive">Proactive</SelectItem></SelectContent></Select></label><label className="block text-xs font-medium text-foreground">Language<input value={draft.language} onChange={(event) => update("language", event.target.value)} minLength={2} maxLength={80} placeholder="auto" className="mt-1.5 h-10 w-full rounded-md border border-border bg-background px-3 text-sm font-normal text-foreground outline-none focus:border-primary" /></label><label className="block text-xs font-medium text-foreground sm:col-span-2">Formatting<Select value={draft.formatting} onValueChange={(value) => update("formatting", value as StudioBehaviorDraft["formatting"])}><SelectTrigger className="mt-1.5 h-10 text-sm font-normal"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="plain">Plain text</SelectItem><SelectItem value="markdown">Markdown</SelectItem><SelectItem value="structured">Structured responses</SelectItem></SelectContent></Select></label></div></section><section className="rounded-2xl border border-border bg-card p-4 sm:p-5"><div><h4 className="text-sm font-semibold text-foreground">Behavior rules</h4><p className="mt-1 text-xs text-muted-foreground">Short, stable preferences that shape responses.</p></div><Textarea value={draft.rules.join("\n")} onChange={(event) => update("rules", event.target.value.split("\n").map((item) => item.trim().slice(0, 500)).filter(Boolean).slice(0, 20))} rows={4} maxLength={8_000} placeholder="One rule per line" className="mt-4 resize-y text-sm leading-6" /></section><section className="rounded-2xl border border-border bg-card p-4 sm:p-5"><div><h4 className="text-sm font-semibold text-foreground">Advanced overlay</h4><p className="mt-1 text-xs leading-5 text-muted-foreground">Optional additions to the typed behavior settings. Platform safety, permissions, and system skills remain outside this field.</p></div><Textarea value={draft.advancedInstructions} onChange={(event) => update("advancedInstructions", event.target.value)} rows={6} maxLength={20_000} placeholder="Add expert guidance for this agent…" className="mt-4 resize-y font-mono text-xs leading-5" /></section></div>;
 }
 
 const capabilityTabs = [
@@ -434,7 +580,6 @@ function CapabilitiesSection({ installationId, versionId, draft, onDraftChange }
   const [activeTab, setActiveTab] = useState<CapabilityTab>("tools");
   const [data, setData] = useState<CapabilityData>(emptyCapabilityData);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
@@ -452,7 +597,7 @@ function CapabilitiesSection({ installationId, versionId, draft, onDraftChange }
       }
     }).catch(() => {
       if (mounted) {
-        setError("Capabilities could not be loaded");
+        toast.error("Capabilities could not be loaded", { action: { label: "Retry", onClick: () => { setLoading(true); setRefreshKey((current) => current + 1); } } });
         setLoading(false);
       }
     });
@@ -461,14 +606,12 @@ function CapabilitiesSection({ installationId, versionId, draft, onDraftChange }
 
   const refresh = () => {
     setLoading(true);
-    setError(null);
     setRefreshKey((current) => current + 1);
   };
   const plugins = data.extensionPackages.filter((pkg) => pkg.status === "published" && pkg.kind === "plugin");
   const directoryTools = data.directory.filter((entry) => ["builtin_tool", "connector_tool", "plugin_tool", "mcp_tool", "user_tool"].includes(entry.kind));
   const directorySkills = data.skillDirectory;
   const directoryPlugins = data.pluginDirectory;
-  const directoryMcpServers = data.directory.filter((entry) => entry.kind === "mcp_server");
   const directoryConnections = data.connections;
   const directoryUserTools = data.directory.filter((entry) => entry.kind === "user_tool");
   const tabCount = (tab: CapabilityTab) => {
@@ -476,20 +619,19 @@ function CapabilitiesSection({ installationId, versionId, draft, onDraftChange }
     if (tab === "tools") return String(directoryTools.length);
     if (tab === "skills") return String(directorySkills.length);
     if (tab === "plugins") return String(directoryPlugins.length);
-    if (tab === "connections") return String(directoryConnections.length);
+    if (tab === "connections") return String(directoryConnections.length + data.mcpProviders.filter((provider) => !provider.catalog_id).length);
     return String(directoryUserTools.length);
   };
   const activeTabLabel = capabilityTabs.find((tab) => tab.id === activeTab)?.label ?? "Tools";
 
   return <div className="space-y-4">
-    {error ? <div className="flex items-center justify-between rounded-xl border border-destructive/20 bg-destructive/5 px-3 py-2 text-xs text-destructive"><span>{error}</span><Button type="button" variant="outline" size="sm" className="h-7" onClick={refresh}>Retry</Button></div> : null}
     <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as CapabilityTab)} className="gap-4">
       <TabsList aria-label="Capabilities" className="h-auto w-full justify-start overflow-x-auto rounded-xl border border-border bg-muted/30 p-1">
         {capabilityTabs.map((tab) => <TabsTrigger key={tab.id} value={tab.id} className="min-w-[7rem] flex-1 gap-2 px-3 py-2 text-xs"><span>{tab.label}</span><span className="min-w-5 rounded-full bg-muted px-1.5 py-0.5 text-center text-[10px] text-muted-foreground data-[state=active]:bg-primary/10 data-[state=active]:text-primary">{tabCount(tab.id)}</span></TabsTrigger>)}
       </TabsList>
       <TabsContent value={activeTab} className="rounded-2xl border border-border bg-card p-4 shadow-sm sm:p-5">
         <div className="mb-4 flex items-center justify-between gap-3"><div><p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Capabilities</p><h4 className="mt-1 text-sm font-semibold text-foreground">{activeTabLabel}</h4></div>{loading ? <span className="text-[11px] text-muted-foreground">Loading…</span> : null}</div>
-        {activeTab === "tools" ? <ToolsPanel tools={directoryTools} toolsets={data.toolsets} draft={draft} onDraftChange={onDraftChange} /> : null}{activeTab === "skills" ? <SkillsPanel directory={directorySkills} pinnedSkills={data.pinnedSkills} installationId={installationId} versionId={versionId} draft={draft} onDraftChange={onDraftChange} onRefresh={refresh} /> : null}{activeTab === "plugins" ? <PluginsPanel directory={directoryPlugins} packages={plugins} installationId={installationId} draft={draft} onDraftChange={onDraftChange} onRefresh={refresh} /> : null}{activeTab === "connections" ? <ConnectionCapabilitiesPanel installationId={installationId} connectionDirectory={directoryConnections} mcpDirectory={directoryMcpServers} providers={data.mcpProviders} pinnedProviders={data.pinnedMcpProviders} versions={data.mcpVersions} versionId={versionId} draft={draft} onDraftChange={onDraftChange} onRefresh={refresh} /> : null}{activeTab === "user_tools" ? <UserToolsPanel tools={directoryUserTools} draft={draft} onDraftChange={onDraftChange} /> : null}
+        {activeTab === "tools" ? <ToolsPanel tools={directoryTools} toolsets={data.toolsets} draft={draft} onDraftChange={onDraftChange} /> : null}{activeTab === "skills" ? <SkillsPanel directory={directorySkills} pinnedSkills={data.pinnedSkills} installationId={installationId} versionId={versionId} draft={draft} onDraftChange={onDraftChange} onRefresh={refresh} /> : null}{activeTab === "plugins" ? <PluginsPanel directory={directoryPlugins} packages={plugins} installationId={installationId} draft={draft} onDraftChange={onDraftChange} onRefresh={refresh} /> : null}{activeTab === "connections" ? <ConnectionCapabilitiesPanel installationId={installationId} connectionDirectory={directoryConnections} providers={data.mcpProviders} pinnedProviders={data.pinnedMcpProviders} versions={data.mcpVersions} versionId={versionId} draft={draft} onDraftChange={onDraftChange} onRefresh={refresh} /> : null}{activeTab === "user_tools" ? <UserToolsPanel tools={directoryUserTools} draft={draft} onDraftChange={onDraftChange} /> : null}
       </TabsContent>
     </Tabs>
   </div>;
@@ -614,13 +756,36 @@ function PluginsPanel({ directory, packages, installationId, draft, onDraftChang
 }
 
 type ConnectionSetupMode = "api_key" | "local_connector" | "oauth_client";
+type ConnectionFilter = "all" | "connected";
+
+function connectionCategoryLabel(value: string): string {
+  return value
+    .replaceAll("_", " ")
+    .replaceAll("-", " ")
+    .replace(/\b\w/g, (character) => character.toUpperCase());
+}
+
+function connectionCategoryRank(value: string): number {
+  switch (value.toLowerCase()) {
+    case "google": return 0;
+    case "custom": return 1;
+    case "productivity": return 2;
+    case "messaging": return 3;
+    case "search": return 4;
+    case "development": return 5;
+    case "data": return 6;
+    case "observability": return 7;
+    default: return 8;
+  }
+}
 
 function connectionErrorMessage(cause: unknown): string {
   if (cause instanceof AgentRequestError) {
     switch (cause.code) {
       case "google_oauth_not_configured": return "Google connection unavailable";
       case "mcp_oauth_not_configured": return "OAuth is unavailable";
-      case "mcp_oauth_client_registration_failed": return "OAuth setup failed";
+      case "mcp_oauth_client_registration_failed": return "Provider rejected OAuth registration";
+      case "mcp_oauth_provider_unavailable": return "Provider OAuth metadata is unavailable";
       case "mcp_oauth_start_failed": return "Unable to start OAuth";
       default: return cause.message;
     }
@@ -628,9 +793,11 @@ function connectionErrorMessage(cause: unknown): string {
   return cause instanceof Error ? cause.message : "Unable to connect";
 }
 
-function ConnectionCataloguePanel({ installationId, versionId, directory, onRefresh }: { installationId: string; versionId: string | null; directory: AgentConnectionDirectoryEntry[]; onRefresh: () => void }) {
+function ConnectionCataloguePanel({ installationId, versionId, directory, providers, pinnedProviders, versions, draft, onDraftChange, onRefresh }: { installationId: string; versionId: string | null; directory: AgentConnectionDirectoryEntry[]; providers: AgentMcpProvider[]; pinnedProviders: AgentMcpProviderVersion[]; versions: Record<string, AgentMcpProviderVersion[]>; draft: StudioCapabilityDraft; onDraftChange: (value: StudioCapabilityDraft | ((current: StudioCapabilityDraft) => StudioCapabilityDraft)) => void; onRefresh: () => void }) {
   const [integrations, setIntegrations] = useState<AgentIntegration[]>([]);
   const [query, setQuery] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("all");
+  const [connectionFilter, setConnectionFilter] = useState<ConnectionFilter>("all");
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [setupId, setSetupId] = useState<string | null>(null);
@@ -640,16 +807,18 @@ function ConnectionCataloguePanel({ installationId, versionId, directory, onRefr
   const [secret, setSecret] = useState("");
   const [oauthClientId, setOauthClientId] = useState("");
   const [oauthClientSecret, setOauthClientSecret] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  const [customOpen, setCustomOpen] = useState(false);
+  const [customName, setCustomName] = useState("");
+  const [customEndpoint, setCustomEndpoint] = useState("");
+  const [customBusy, setCustomBusy] = useState(false);
 
   const refresh = useCallback(async () => {
     setLoading(true);
-    setError(null);
     try {
       const result = await listAgentInstallationIntegrations(installationId);
       setIntegrations(result.integrations);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Unable to load connections");
+      toast.error(cause instanceof Error ? cause.message : "Unable to load connections", { action: { label: "Retry", onClick: () => void refresh() } });
     } finally {
       setLoading(false);
     }
@@ -660,9 +829,24 @@ function ConnectionCataloguePanel({ installationId, versionId, directory, onRefr
   const liveById = new Map(integrations.map((integration) => [integration.id, integration]));
   const setupEntry = setupId ? directory.find((entry) => entry.id === setupId) : undefined;
   const normalizedQuery = query.trim().toLowerCase();
-  const filtered = directory
-    .filter((entry) => entry.kind === "native" || entry.kind === "mcp")
-    .filter((entry) => !normalizedQuery || `${entry.name} ${entry.description} ${entry.category} ${(entry.keywords ?? []).join(" ")}`.toLowerCase().includes(normalizedQuery));
+  const pinnedMcpVersionIds = new Set(draft.mcpProviderVersionIds.length ? draft.mcpProviderVersionIds : pinnedProviders.map((provider) => provider.id));
+  const customProviders = providers.filter((provider) => !provider.catalog_id);
+  const customConnections: AgentConnectionDirectoryEntry[] = customProviders.map((provider) => ({
+    id: `custom:${provider.id}`,
+    kind: "mcp",
+    name: provider.name,
+    description: provider.endpoint_url,
+    category: "Custom",
+    logo: "",
+    auth: "none",
+    source: "custom",
+    endpointUrl: provider.endpoint_url,
+    managed: true,
+    configured: true,
+    status: provider.health_status === "unhealthy" ? "unhealthy" : "ready",
+    providerId: provider.id,
+  }));
+  const allConnections = [...directory.filter((entry) => entry.kind === "native" || entry.kind === "mcp"), ...customConnections];
 
   const closeSetup = () => {
     setSetupId(null);
@@ -675,19 +859,39 @@ function ConnectionCataloguePanel({ installationId, versionId, directory, onRefr
   };
 
   const openSetup = (entry: AgentConnectionDirectoryEntry, mode: ConnectionSetupMode, integration?: AgentIntegration) => {
-    setError(null);
     setSetupId(entry.id);
     setSetupMode(mode);
     if (mode === "local_connector") setEndpoint(typeof integration?.configuration.endpoint === "string" ? integration.configuration.endpoint : "");
   };
 
-  const isConnected = (entry: AgentConnectionDirectoryEntry, integration?: AgentIntegration) => entry.kind === "native"
-    ? integration?.status === "connected" && integration.available || entry.status === "ready"
-    : entry.status === "connected" || entry.status === "ready";
+  const customVersion = (entry: AgentConnectionDirectoryEntry) => entry.source === "custom" && entry.providerId
+    ? (versions[entry.providerId] ?? []).filter((version) => version.status === "published").sort((left, right) => right.revision - left.revision)[0]
+    : undefined;
+  const isConnected = (entry: AgentConnectionDirectoryEntry, integration?: AgentIntegration) => entry.source === "custom"
+    ? Boolean(customVersion(entry) && pinnedMcpVersionIds.has(customVersion(entry)!.id))
+    : entry.kind === "native"
+      ? integration?.status === "connected" && integration.available || entry.status === "ready"
+      : entry.status === "connected" || entry.status === "ready";
+
+  const connectedCount = allConnections.filter((entry) => isConnected(entry, entry.kind === "native" ? liveById.get(entry.id) : undefined)).length;
+  const categories = [...new Set([...allConnections.map((entry) => entry.category.trim().toLowerCase()).filter(Boolean), "custom"])].sort((left, right) => {
+    const rankDifference = connectionCategoryRank(left) - connectionCategoryRank(right);
+    return rankDifference || connectionCategoryLabel(left).localeCompare(connectionCategoryLabel(right));
+  });
+  const filtered = allConnections
+    .filter((entry) => !normalizedQuery || `${entry.name} ${entry.description} ${entry.category} ${(entry.keywords ?? []).join(" ")}`.toLowerCase().includes(normalizedQuery))
+    .filter((entry) => categoryFilter === "all" || entry.category.trim().toLowerCase() === categoryFilter)
+    .filter((entry) => connectionFilter !== "connected" || isConnected(entry, entry.kind === "native" ? liveById.get(entry.id) : undefined))
+    .sort((left, right) => {
+      const leftConnected = isConnected(left, left.kind === "native" ? liveById.get(left.id) : undefined);
+      const rightConnected = isConnected(right, right.kind === "native" ? liveById.get(right.id) : undefined);
+      if (leftConnected !== rightConnected) return leftConnected ? -1 : 1;
+      const categoryDifference = connectionCategoryRank(left.category) - connectionCategoryRank(right.category);
+      return categoryDifference || left.name.localeCompare(right.name);
+    });
 
   const connect = async (entry: AgentConnectionDirectoryEntry, integration?: AgentIntegration) => {
     setBusyId(entry.id);
-    setError(null);
     try {
       if (entry.kind === "mcp") {
         if (entry.auth === "oauth") {
@@ -701,8 +905,8 @@ function ConnectionCataloguePanel({ installationId, versionId, directory, onRefr
           return;
         }
         await connectAgentMcpCatalog(installationId, entry.id, { apiKey: apiKey.trim() || undefined, agentVersionId: versionId ?? undefined });
-      } else if (entry.id === "google.calendar") {
-        const result = await startAgentGoogleOAuth(installationId, entry.id);
+      } else if (entry.kind === "native" && entry.auth === "oauth2") {
+        const result = await startAgentIntegrationOAuth(installationId, entry.id);
         window.location.assign(result.authorizationUrl);
         return;
       } else if (entry.auth === "api_key" || integration?.auth === "api_key") {
@@ -717,14 +921,59 @@ function ConnectionCataloguePanel({ installationId, versionId, directory, onRefr
       if (entry.kind === "mcp" && entry.auth === "oauth" && cause instanceof AgentRequestError && cause.code === "mcp_oauth_client_registration_unsupported") {
         openSetup(entry, "oauth_client", integration);
       } else {
-        setError(connectionErrorMessage(cause));
+        toast.error(connectionErrorMessage(cause));
       }
     } finally {
       setBusyId(null);
     }
   };
 
+  const toggleCustom = async (entry: AgentConnectionDirectoryEntry) => {
+    const version = customVersion(entry);
+    if (!entry.providerId || !version) {
+      toast.error("This connector has no published tools");
+      return;
+    }
+    const enabled = pinnedMcpVersionIds.has(version.id);
+    setBusyId(entry.id);
+    try {
+      if (versionId) {
+        if (enabled) await unpinAgentMcpProviderVersion(versionId, version.id);
+        else await pinAgentMcpProviderVersion(versionId, version.id);
+      }
+      onDraftChange((current) => ({ ...current, mcpProviderVersionIds: enabled ? current.mcpProviderVersionIds.filter((id) => id !== version.id) : [...new Set([...current.mcpProviderVersionIds, version.id])] }));
+      onRefresh();
+    } catch (cause) {
+      toast.error(cause instanceof Error ? cause.message : "Unable to update custom connector");
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const addCustomConnector = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!customName.trim() || !customEndpoint.trim()) return;
+    setCustomBusy(true);
+    try {
+      const provider = await createAgentMcpProvider({ name: customName.trim(), endpointUrl: customEndpoint.trim() });
+      const discovered = await discoverAgentMcpProvider(provider.id);
+      const published = await publishAgentMcpProviderVersion(provider.id, discovered.id);
+      if (versionId) await pinAgentMcpProviderVersion(versionId, published.id);
+      onDraftChange((current) => ({ ...current, mcpProviderVersionIds: [...new Set([...current.mcpProviderVersionIds, published.id])] }));
+      setCustomName("");
+      setCustomEndpoint("");
+      setCustomOpen(false);
+      toast.success("Custom connector added");
+      onRefresh();
+    } catch (cause) {
+      toast.error(cause instanceof Error ? cause.message : "Unable to add custom connector");
+    } finally {
+      setCustomBusy(false);
+    }
+  };
+
   const authLabel = (entry: AgentConnectionDirectoryEntry, integration?: AgentIntegration) => {
+    if (entry.source === "custom") return "Custom MCP";
     if (entry.kind === "mcp") return entry.auth === "oauth" ? "OAuth" : entry.auth === "api_key" ? "API key" : "No key";
     if ((integration?.auth ?? entry.auth) === "oauth2") return "OAuth";
     if ((integration?.auth ?? entry.auth) === "api_key") return "API key";
@@ -739,18 +988,32 @@ function ConnectionCataloguePanel({ installationId, versionId, directory, onRefr
       : !oauthClientId.trim();
 
   return <div className="space-y-4">
-    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><span className="text-xs text-muted-foreground">{directory.filter((entry) => entry.kind === "native" || entry.kind === "mcp").length} connections</span><DirectorySearch value={query} onChange={setQuery} placeholder="Search connections" /></div>
-    {error ? <div className="flex items-center justify-between gap-3 rounded-lg bg-destructive/5 px-3 py-2 text-xs text-destructive"><span>{error}</span><Button type="button" variant="outline" size="sm" className="h-7" onClick={() => void refresh()}>Retry</Button></div> : null}
+    <div className="flex justify-end"><Button type="button" size="sm" onClick={() => setCustomOpen(true)}><Plus className="mr-1.5 size-3.5" />Add</Button></div>
+    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-wrap items-center gap-2">
+        <Button type="button" size="sm" variant={connectionFilter === "all" ? "secondary" : "outline"} onClick={() => setConnectionFilter("all")}>All <span className="ml-1 rounded-full bg-background/60 px-1.5 py-0.5 text-[10px]">{allConnections.length}</span></Button>
+      <Button type="button" size="sm" variant={connectionFilter === "connected" ? "secondary" : "outline"} onClick={() => setConnectionFilter("connected")}>Connected{connectedCount ? ` · ${connectedCount}` : ""}</Button>
+      <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+        <SelectTrigger className="h-8 w-full text-xs sm:w-44"><SelectValue placeholder="Category" /></SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">All categories</SelectItem>
+          {categories.map((category) => <SelectItem key={category} value={category}>{connectionCategoryLabel(category)}</SelectItem>)}
+        </SelectContent>
+      </Select>
+      </div>
+      <DirectorySearch value={query} onChange={setQuery} placeholder="Search connections" />
+    </div>
     {loading ? <div className="grid gap-2 sm:grid-cols-2"><div className="h-24 animate-pulse rounded-xl border border-border bg-muted/20" /><div className="h-24 animate-pulse rounded-xl border border-border bg-muted/20" /></div> : null}
     {!loading && filtered.length ? <div className="grid gap-2 sm:grid-cols-2">{filtered.map((entry) => {
       const integration = entry.kind === "native" ? liveById.get(entry.id) : undefined;
       const connected = isConnected(entry, integration);
+      const needsAttention = entry.status === "unhealthy";
       const unsupported = entry.kind === "mcp" && (entry.status === "unsupported" || entry.transport === "stdio" || !entry.managed);
       const needsApiKey = entry.auth === "api_key";
       const needsLocalConnector = entry.kind === "native" && (entry.auth === "local_connector" || integration?.auth === "local_connector");
-      const actionDisabled = unsupported || connected || busyId === entry.id || entry.auth === "observability" || entry.auth === "internal" || integration?.auth === "observability" || integration?.auth === "internal";
+      const actionDisabled = unsupported || (connected && entry.source !== "custom") || busyId === entry.id || entry.auth === "observability" || entry.auth === "internal" || integration?.auth === "observability" || integration?.auth === "internal";
       return <div key={entry.id} className={cn("rounded-xl border border-border p-3 transition-colors", unsupported ? "opacity-60" : "hover:border-primary/40")}>
-        <div className="flex items-center gap-3"><DirectoryIcon label={entry.name} logo={entry.logo} icon={entry.kind === "mcp" ? <PlugZap className="size-5" /> : <Wrench className="size-5" />} /><div className="min-w-0 flex-1"><p className="truncate text-xs font-medium text-foreground">{entry.name}</p><p className="mt-1 line-clamp-2 text-[11px] leading-4 text-muted-foreground">{entry.description}</p><p className="mt-1 text-[10px] text-muted-foreground">{authLabel(entry, integration)}</p></div><span className={cn("size-1.5 shrink-0 rounded-full", connected ? "bg-emerald-500" : unsupported ? "bg-muted-foreground/40" : "bg-amber-500")} /><Button type="button" variant={connected ? "outline" : "default"} size="icon" className="size-8 shrink-0" aria-label={unsupported ? `${entry.name} unavailable` : connected ? `${entry.name} connected` : `Connect ${entry.name}`} disabled={actionDisabled} onClick={() => { if (entry.kind === "mcp" && entry.auth === "oauth") void connect(entry, integration); else if (needsApiKey) openSetup(entry, "api_key", integration); else if (needsLocalConnector) openSetup(entry, "local_connector", integration); else void connect(entry, integration); }}>{busyId === entry.id ? <Clock3 className="size-3.5 animate-pulse" /> : connected ? <Check className="size-4 text-emerald-500" /> : unsupported ? <LockKeyhole className="size-3.5" /> : entry.auth === "observability" || integration?.auth === "observability" ? <Activity className="size-3.5" /> : entry.auth === "internal" || integration?.auth === "internal" ? <Check className="size-4" /> : <Plus className="size-4" />}</Button></div>
+        <div className="flex items-center gap-3"><DirectoryIcon label={entry.name} logo={entry.logo} icon={entry.kind === "mcp" ? <PlugZap className="size-5" /> : <Wrench className="size-5" />} /><div className="min-w-0 flex-1"><p className="truncate text-xs font-medium text-foreground">{entry.name}</p><p className="mt-1 line-clamp-2 text-[11px] leading-4 text-muted-foreground">{entry.description}</p><p className="mt-1 text-[10px] text-muted-foreground">{authLabel(entry, integration)}</p></div><span className={cn("size-1.5 shrink-0 rounded-full", connected ? "bg-emerald-500" : unsupported ? "bg-muted-foreground/40" : "bg-amber-500")} /><Button type="button" variant={connected || needsAttention ? "outline" : "default"} size="icon" className="size-8 shrink-0" aria-label={unsupported ? `${entry.name} unavailable` : connected && entry.source === "custom" ? `Disable ${entry.name}` : connected ? `${entry.name} connected` : needsAttention ? `Retry ${entry.name}` : `Connect ${entry.name}`} disabled={actionDisabled} onClick={() => { if (entry.source === "custom") void toggleCustom(entry); else if (entry.kind === "mcp" && entry.auth === "oauth") void connect(entry, integration); else if (needsApiKey) openSetup(entry, "api_key", integration); else if (needsLocalConnector) openSetup(entry, "local_connector", integration); else void connect(entry, integration); }}>{busyId === entry.id ? <Clock3 className="size-3.5 animate-pulse" /> : connected ? <Check className="size-4 text-emerald-500" /> : unsupported ? <LockKeyhole className="size-3.5" /> : entry.auth === "observability" || integration?.auth === "observability" ? <Activity className="size-3.5" /> : entry.auth === "internal" || integration?.auth === "internal" ? <Check className="size-4" /> : needsAttention ? <RefreshCw className="size-3.5" /> : <Plus className="size-4" />}</Button></div>
       </div>;
     })}</div> : null}
     {!loading && !filtered.length ? <p className="rounded-xl border border-dashed border-border px-3 py-5 text-center text-xs text-muted-foreground">No connections match.</p> : null}
@@ -763,73 +1026,22 @@ function ConnectionCataloguePanel({ installationId, versionId, directory, onRefr
         <DialogFooter><Button type="button" variant="ghost" onClick={closeSetup}>Cancel</Button><Button type="button" disabled={!setupEntry || setupDisabled || busyId === setupId} onClick={() => { if (setupEntry) void connect(setupEntry, setupEntry.kind === "native" ? liveById.get(setupEntry.id) : undefined); }}>{busyId === setupId ? "…" : setupMode === "oauth_client" ? "Continue" : "Connect"}</Button></DialogFooter>
       </DialogContent>
     </Dialog>
+    <Dialog open={customOpen} onOpenChange={(open) => { setCustomOpen(open); if (!open) { setCustomName(""); setCustomEndpoint(""); } }}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader><DialogTitle>Add custom connector</DialogTitle><p className="text-sm leading-5 text-muted-foreground">Connect KasiTek to your data and tools.</p></DialogHeader>
+        <form onSubmit={addCustomConnector} className="space-y-4">
+          <div className="space-y-2"><input value={customName} onChange={(event) => setCustomName(event.target.value)} placeholder="Name" className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-primary" autoFocus /><p className="text-xs text-muted-foreground">Shown in the connections list.</p></div>
+          <div className="space-y-2"><input value={customEndpoint} onChange={(event) => setCustomEndpoint(event.target.value)} placeholder="Remote MCP server URL" type="url" className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-primary" /><p className="text-xs text-muted-foreground">The HTTPS address where the server accepts MCP requests.</p></div>
+          <p className="text-xs leading-5 text-muted-foreground">Only use connectors from developers you trust.</p>
+          <DialogFooter><Button type="button" variant="ghost" onClick={() => setCustomOpen(false)}>Cancel</Button><Button type="submit" disabled={customBusy || !customName.trim() || !customEndpoint.trim()}>{customBusy ? "Adding…" : "Continue"}</Button></DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   </div>;
 }
 
-function ConnectionCapabilitiesPanel({ installationId, connectionDirectory, mcpDirectory, providers, pinnedProviders, versions, versionId, draft, onDraftChange, onRefresh }: { installationId: string | null; connectionDirectory: AgentConnectionDirectoryEntry[]; mcpDirectory: AgentCapabilityDirectoryEntry[]; providers: AgentMcpProvider[]; pinnedProviders: AgentMcpProviderVersion[]; versions: Record<string, AgentMcpProviderVersion[]>; versionId: string | null; draft: StudioCapabilityDraft; onDraftChange: (value: StudioCapabilityDraft | ((current: StudioCapabilityDraft) => StudioCapabilityDraft)) => void; onRefresh: () => void }) {
-  return <div className="space-y-6">
-    {installationId ? <section className="space-y-3"><ConnectionCataloguePanel installationId={installationId} versionId={versionId} directory={connectionDirectory} onRefresh={onRefresh} /></section> : null}
-    <section className="space-y-3"><h5 className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Custom MCP</h5><McpPanel directory={mcpDirectory} providers={providers} pinnedProviders={pinnedProviders} versions={versions} versionId={versionId} draft={draft} onDraftChange={onDraftChange} onRefresh={onRefresh} /></section>
-  </div>;
-}
-
-function McpPanel({ directory, providers, pinnedProviders, versions, versionId, draft, onDraftChange, onRefresh }: { directory: AgentCapabilityDirectoryEntry[]; providers: AgentMcpProvider[]; pinnedProviders: AgentMcpProviderVersion[]; versions: Record<string, AgentMcpProviderVersion[]>; versionId: string | null; draft: StudioCapabilityDraft; onDraftChange: (value: StudioCapabilityDraft | ((current: StudioCapabilityDraft) => StudioCapabilityDraft)) => void; onRefresh: () => void }) {
-  const [name, setName] = useState("");
-  const [endpoint, setEndpoint] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [query, setQuery] = useState("");
-  const [addOpen, setAddOpen] = useState(false);
-  const pinnedIds = new Set(draft.mcpProviderVersionIds.length ? draft.mcpProviderVersionIds : pinnedProviders.map((provider) => provider.id));
-  const addServer = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!name.trim() || !endpoint.trim()) return;
-    setBusy(true);
-    setError(null);
-    try {
-      const provider = await createAgentMcpProvider({ name: name.trim(), endpointUrl: endpoint.trim() });
-      const discovered = await discoverAgentMcpProvider(provider.id);
-      const published = await publishAgentMcpProviderVersion(provider.id, discovered.id);
-      onDraftChange((current) => ({ ...current, mcpProviderVersionIds: [...new Set([...current.mcpProviderVersionIds, published.id])] }));
-      setName("");
-      setEndpoint("");
-      onRefresh();
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Unable to add MCP server");
-    } finally {
-      setBusy(false);
-    }
-  };
-  const health = async (providerId: string) => {
-    setBusy(true);
-    setError(null);
-    try {
-      await healthCheckAgentMcpProvider(providerId);
-      onRefresh();
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "MCP health check failed");
-    } finally {
-      setBusy(false);
-    }
-  };
-  const toggle = async (providerVersion: AgentMcpProviderVersion, enabled: boolean) => {
-    setBusy(true);
-    setError(null);
-    try {
-      if (versionId) {
-        if (enabled) await unpinAgentMcpProviderVersion(versionId, providerVersion.id);
-        else await pinAgentMcpProviderVersion(versionId, providerVersion.id);
-      }
-      onDraftChange((current) => ({ ...current, mcpProviderVersionIds: enabled ? current.mcpProviderVersionIds.filter((id) => id !== providerVersion.id) : [...new Set([...current.mcpProviderVersionIds, providerVersion.id])] }));
-      onRefresh();
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Unable to update MCP access");
-    } finally {
-      setBusy(false);
-    }
-  };
-  const filteredProviders = providers.filter((provider) => `${provider.name} ${provider.endpoint_url}`.toLowerCase().includes(query.trim().toLowerCase()));
-  return <div className="space-y-4"><div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><p className="text-xs text-muted-foreground">{directory.length} published MCP revision{directory.length === 1 ? "" : "s"} discovered from the registry.</p><div className="flex flex-wrap gap-2"><DirectorySearch value={query} onChange={setQuery} placeholder="Search MCP servers" /><Button type="button" size="sm" onClick={() => setAddOpen((current) => !current)}><Plus className="mr-1.5 size-3.5" />Add server</Button></div></div>{addOpen ? <form onSubmit={addServer} className="grid gap-2 rounded-xl border border-primary/20 bg-primary/5 p-3 sm:grid-cols-[minmax(0,0.7fr)_minmax(0,1fr)_auto]"><input value={name} onChange={(event) => setName(event.target.value)} placeholder="Server name" className="h-9 rounded-md border border-border bg-background px-2 text-xs text-foreground outline-none focus:border-primary" /><input value={endpoint} onChange={(event) => setEndpoint(event.target.value)} placeholder="https://server.example/mcp" type="url" className="h-9 rounded-md border border-border bg-background px-2 text-xs text-foreground outline-none focus:border-primary" /><Button type="submit" size="sm" className="h-9" disabled={busy || !name.trim() || !endpoint.trim()}>{busy ? "Adding…" : "Add MCP"}</Button></form> : null}{error ? <p className="rounded-lg bg-destructive/5 px-3 py-2 text-xs text-destructive">{error}</p> : null}{filteredProviders.length ? <div className="grid gap-3 sm:grid-cols-2">{filteredProviders.map((provider) => { const published = (versions[provider.id] ?? []).filter((version) => version.status === "published").sort((left, right) => right.revision - left.revision)[0]; const enabled = Boolean(published && pinnedIds.has(published.id)); const directoryEntry = directory.find((entry) => entry.source.id === published?.id); return <div key={provider.id} className="flex items-center gap-3 rounded-xl border border-border p-3 transition-colors hover:border-primary/40"><DirectoryIcon label={provider.name} logo={directoryEntry?.logo} icon={<PlugZap className="size-5" />} /><div className="min-w-0 flex-1"><div className="flex items-center gap-2"><p className="truncate text-xs font-medium text-foreground">{provider.name}</p><span className={cn("size-1.5 shrink-0 rounded-full", provider.health_status === "healthy" ? "bg-emerald-500" : "bg-amber-500")} /></div><p className="mt-1 truncate text-[11px] text-muted-foreground">{provider.endpoint_url}</p><p className="mt-1 text-[10px] text-muted-foreground">{published ? `${published.tools.length} tools · v${published.revision}` : "Not published"}</p></div><div className="flex shrink-0 items-center gap-1"><Button type="button" variant="ghost" size="sm" className="h-8 px-2 text-[10px]" onClick={() => void health(provider.id)} disabled={busy}>Health</Button><Button type="button" variant={enabled ? "default" : "outline"} size="icon" className="size-8" aria-label={enabled ? `Disable ${provider.name}` : `Enable ${provider.name}`} disabled={!published || busy} onClick={() => published && void toggle(published, enabled)}>{enabled ? <Check className="size-4" /> : <Plus className="size-4" />}</Button></div></div>; })}</div> : <p className="rounded-xl border border-dashed border-border px-3 py-5 text-center text-xs text-muted-foreground">{providers.length ? "No MCP servers match this search." : "No MCP servers configured."}</p>}</div>;
+function ConnectionCapabilitiesPanel({ installationId, connectionDirectory, providers, pinnedProviders, versions, versionId, draft, onDraftChange, onRefresh }: { installationId: string | null; connectionDirectory: AgentConnectionDirectoryEntry[]; providers: AgentMcpProvider[]; pinnedProviders: AgentMcpProviderVersion[]; versions: Record<string, AgentMcpProviderVersion[]>; versionId: string | null; draft: StudioCapabilityDraft; onDraftChange: (value: StudioCapabilityDraft | ((current: StudioCapabilityDraft) => StudioCapabilityDraft)) => void; onRefresh: () => void }) {
+  return installationId ? <ConnectionCataloguePanel installationId={installationId} versionId={versionId} directory={connectionDirectory} providers={providers} pinnedProviders={pinnedProviders} versions={versions} draft={draft} onDraftChange={onDraftChange} onRefresh={onRefresh} /> : null;
 }
 
 function UserToolsPanel({ tools, draft, onDraftChange }: { tools: AgentCapabilityDirectoryEntry[]; draft: StudioCapabilityDraft; onDraftChange: (value: StudioCapabilityDraft | ((current: StudioCapabilityDraft) => StudioCapabilityDraft)) => void }) {
@@ -847,8 +1059,18 @@ function CapabilityRow({ icon, title, detail, status, statusText, action, onActi
   return <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-border bg-card p-4 sm:flex-nowrap"><span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">{icon}</span><div className="min-w-0 flex-1"><p className="text-sm font-medium text-foreground">{title}</p><p className="mt-1 text-xs text-muted-foreground">{detail}</p></div><span className={cn("inline-flex items-center gap-1.5 text-[11px]", statusClass(status))}><StatusDot status={status} />{statusText}</span><Button type="button" variant="outline" size="sm" className="h-8 shrink-0" onClick={onAction}>{action}</Button></div>;
 }
 
-function MemorySection() {
-  return <div className="space-y-4"><CapabilityRow icon={<MemoryStick className="size-4" />} title="Agent memory" detail="Control what this agent can retrieve and write" status="not_configured" statusText="Review policy" action="Configure" /><div className="grid gap-4 sm:grid-cols-2"><InfoTile label="Scope" value="Workspace" icon={<Database className="size-4" />} /><InfoTile label="Retrieval" value="Not configured" icon={<Eye className="size-4" />} /></div><SettingNote title="Memory stays scoped" detail="The agent only receives evidence allowed by its workspace, environment, and candidate policy." /></div>;
+function memoryLabel(value: string): string {
+  return value.replaceAll("_", " ").replace(/\b\w/g, (character) => character.toUpperCase());
+}
+
+function MemoryCheckboxGroup({ title, values, selected, onChange }: { title: string; values: readonly string[]; selected: string[]; onChange: (next: string[]) => void }) {
+  const selectedSet = new Set(selected);
+  return <fieldset className="rounded-xl border border-border p-3"><legend className="px-1 text-xs font-medium text-foreground">{title}</legend><div className="mt-2 grid gap-2 sm:grid-cols-2">{values.map((value) => <label key={value} className="flex items-center gap-2 rounded-md px-2 py-1.5 text-xs text-muted-foreground hover:bg-muted/50"><input type="checkbox" checked={selectedSet.has(value)} onChange={(event) => onChange(event.target.checked ? [...selected, value] : selected.filter((item) => item !== value))} className="size-3.5 accent-primary" />{memoryLabel(value)}</label>)}</div></fieldset>;
+}
+
+function MemorySection({ draft, onDraftChange }: { draft: StudioMemoryDraft; onDraftChange: (value: StudioMemoryDraft | ((current: StudioMemoryDraft) => StudioMemoryDraft)) => void }) {
+  const update = <K extends keyof StudioMemoryDraft>(key: K, value: StudioMemoryDraft[K]) => onDraftChange((current) => ({ ...current, [key]: value }));
+  return <div className="space-y-5"><section className="rounded-2xl border border-border bg-card p-4 sm:p-5"><div className="flex items-start gap-3"><span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary"><MemoryStick className="size-4" /></span><div><h4 className="text-sm font-semibold text-foreground">Memory policy</h4><p className="mt-1 text-xs leading-5 text-muted-foreground">Controls runtime retrieval, writes, and retention. Memory records stay in the current environment.</p></div></div><label className="mt-5 block text-xs font-medium text-foreground">Mode<Select value={draft.mode} onValueChange={(value) => update("mode", value as StudioMemoryDraft["mode"])}><SelectTrigger className="mt-1.5 h-10 text-sm font-normal"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="disabled">Disabled</SelectItem><SelectItem value="explicit">Explicit retrieval</SelectItem><SelectItem value="reviewed">Reviewed writes</SelectItem><SelectItem value="automatic">Automatic</SelectItem></SelectContent></Select></label></section><section className="rounded-2xl border border-border bg-card p-4 sm:p-5"><div className="grid gap-4 sm:grid-cols-2"><MemoryCheckboxGroup title="Readable scopes" values={memoryNamespaces} selected={draft.readableNamespaces} onChange={(next) => update("readableNamespaces", next)} /><MemoryCheckboxGroup title="Writable scopes" values={memoryNamespaces} selected={draft.writableNamespaces} onChange={(next) => update("writableNamespaces", next)} /><MemoryCheckboxGroup title="Writable types" values={memoryTypes} selected={draft.writableTypes} onChange={(next) => update("writableTypes", next)} /></div></section><section className="rounded-2xl border border-border bg-card p-4 sm:p-5"><div><h4 className="text-sm font-semibold text-foreground">Limits and retention</h4><p className="mt-1 text-xs text-muted-foreground">Keep memory evidence bounded for each run.</p></div><div className="mt-4 grid gap-4 sm:grid-cols-2"><label className="block text-xs font-medium text-foreground">Retrieved items<input type="number" min={0} max={50} value={draft.maxRetrieved} onChange={(event) => update("maxRetrieved", Math.max(0, Math.min(50, Number(event.target.value) || 0)))} className="mt-1.5 h-10 w-full rounded-md border border-border bg-background px-3 text-sm font-normal text-foreground outline-none focus:border-primary" /></label><label className="block text-xs font-medium text-foreground">Retrieved tokens<input type="number" min={256} max={8_000} value={draft.maxRetrievedTokens} onChange={(event) => update("maxRetrievedTokens", Math.max(256, Math.min(8_000, Number(event.target.value) || 256)))} className="mt-1.5 h-10 w-full rounded-md border border-border bg-background px-3 text-sm font-normal text-foreground outline-none focus:border-primary" /></label><label className="block text-xs font-medium text-foreground">Writes per run<input type="number" min={0} max={20} value={draft.maxWritesPerRun} onChange={(event) => update("maxWritesPerRun", Math.max(0, Math.min(20, Number(event.target.value) || 0)))} className="mt-1.5 h-10 w-full rounded-md border border-border bg-background px-3 text-sm font-normal text-foreground outline-none focus:border-primary" /></label><label className="block text-xs font-medium text-foreground">Retention days<input type="number" min={1} max={3_650} value={draft.retentionDays} onChange={(event) => update("retentionDays", event.target.value)} placeholder="No limit" className="mt-1.5 h-10 w-full rounded-md border border-border bg-background px-3 text-sm font-normal text-foreground outline-none focus:border-primary" /></label></div><label className="mt-4 flex items-center gap-2 text-xs text-foreground"><input type="checkbox" checked={draft.allowSensitive} onChange={(event) => update("allowSensitive", event.target.checked)} className="size-3.5 accent-primary" />Allow sensitive memory</label></section><SettingNote title="Environment-local memory" detail="Changing this policy affects the next Playground turn after save. It does not copy memories into a candidate or change Live until deployment." /></div>;
 }
 
 function GatewaysSection({ agent, installationId }: { agent: AgentDefinition; installationId: string | null }) {
@@ -860,8 +1082,8 @@ function SafetySection() {
   return <div className="space-y-4"><CapabilityRow icon={<ShieldCheck className="size-4" />} title="Approval policy" detail="Require a decision before higher-risk actions" status="ready" statusText="Configured" action="Review" /><div className="grid gap-3 sm:grid-cols-3"><InfoTile label="External effects" value="Ask first" icon={<LockKeyhole className="size-4" />} /><InfoTile label="Unknown effects" value="Reconcile" icon={<CircleHelp className="size-4" />} /><InfoTile label="Data access" value="Workspace" icon={<Eye className="size-4" />} /></div><SettingNote title="Every action remains observable" detail="Approvals, denials, retries, and unknown provider effects appear in the run observatory." /></div>;
 }
 
-function RuntimeSection({ selectedModel }: { selectedModel?: AgentModel }) {
-  return <div className="space-y-4"><div className="grid gap-4 sm:grid-cols-2"><InfoTile label="Context window" value={formatTokens(selectedModel?.contextWindow)} icon={<MemoryStick className="size-4" />} /><InfoTile label="Max output" value={formatTokens(selectedModel?.maxOutputTokens)} icon={<Activity className="size-4" />} /><InfoTile label="Run budget" value="Configured per version" icon={<Clock3 className="size-4" />} /><InfoTile label="Overflow recovery" value="Runtime-managed" icon={<Wrench className="size-4" />} /></div><SettingNote title="Runtime policy stays with the context runtime" detail="This screen exposes the policy and measurements. It does not calculate token usage in the browser." /></div>;
+function RuntimeSection({ selectedModel, pickerModels, modelCatalog, modelCatalogLoading, effectiveSelection, setModelSelection }: { selectedModel?: AgentModel; pickerModels: AgentModel[]; modelCatalog: AgentModelCatalog | null; modelCatalogLoading: boolean; effectiveSelection: ModelSelection | null; setModelSelection: (value: ModelSelection | null) => void }) {
+  return <div className="space-y-4"><section className="rounded-2xl border border-border bg-card p-4 sm:p-5"><div className="flex items-start justify-between gap-4"><div><div className="flex items-center gap-2"><Sparkles className="size-4 text-primary" /><h4 className="text-sm font-semibold text-foreground">Model</h4></div><p className="mt-1 text-xs text-muted-foreground">The model used for the next Playground run.</p></div>{selectedModel ? <span className="text-[11px] text-muted-foreground">{formatTokens(selectedModel.contextWindow)} context</span> : null}</div>{modelCatalogLoading ? <p className="mt-4 text-xs text-muted-foreground">Loading models…</p> : modelCatalog ? <div className="mt-4"><AgentModelPicker model={selectedModel} models={pickerModels} disabled={!pickerModels.length} ariaLabel="Select agent model" pickerTitle="Choose a model" onSelect={(model, provider) => setModelSelection({ model, provider })} />{effectiveSelection ? <p className="mt-2 text-[11px] text-muted-foreground">{effectiveSelection.provider}:{effectiveSelection.model}</p> : null}</div> : <p className="mt-4 text-xs text-muted-foreground">Model catalog unavailable.</p>}</section><div className="grid gap-4 sm:grid-cols-2"><InfoTile label="Context window" value={formatTokens(selectedModel?.contextWindow)} icon={<MemoryStick className="size-4" />} /><InfoTile label="Max output" value={formatTokens(selectedModel?.maxOutputTokens)} icon={<Activity className="size-4" />} /><InfoTile label="Run budget" value="Configured per version" icon={<Clock3 className="size-4" />} /><InfoTile label="Overflow recovery" value="Runtime-managed" icon={<Wrench className="size-4" />} /></div><SettingNote title="Runtime policy stays with the context runtime" detail="This screen exposes the policy and measurements. It does not calculate token usage in the browser." /></div>;
 }
 
 function InfoTile({ label, value, icon }: { label: string; value: string; icon: ReactNode }) {

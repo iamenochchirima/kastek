@@ -17,11 +17,17 @@ import {
   X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { toast } from "sonner";
 import {
   createAgentVersion,
   cancelAgentRun,
   createPlatformConversation,
   deployAgentInstallation,
+  getAgentDeploymentStatus,
+  preflightAgentInstallationDeployment,
+  promoteAgentInstallation,
+  rollbackAgentInstallation,
   ensureKasiAiPlayground,
   getAudioTranscriptionJob,
   getPlatformConversation,
@@ -43,6 +49,8 @@ import {
   type AgentModelCatalog,
   type AgentModelProvider,
   type AgentRuntimeTelemetry,
+  type AgentDeploymentPreflight,
+  type AgentDeploymentStatus,
   type AgentSpecInput,
   type AgentStreamEvent,
   type AgentVersion,
@@ -52,7 +60,7 @@ import { AgentChatComposer } from "@/components/dashboard/agents/agent-chat-comp
 import { AgentChatMessageList } from "@/components/dashboard/agents/agent-chat-message-list";
 import { AgentChatRunStatus } from "@/components/dashboard/agents/agent-chat-run-status";
 import { AgentChatSurface } from "@/components/dashboard/agents/agent-chat-surface";
-import { StudioSettingsPrototype, type StudioCapabilityDraft } from "@/components/dashboard/studio/studio-settings-prototype";
+import { StudioSettingsPrototype, type StudioSettingsDraft } from "@/components/dashboard/studio/studio-settings-prototype";
 import { StudioSystemCanvas, type StudioGraphNode, type StudioGraphStatus } from "@/components/dashboard/studio/studio-system-canvas";
 import type { AgentUiInteraction } from "@/components/dashboard/kasiai/dynamic-ui-renderer";
 
@@ -453,22 +461,44 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
   const [telemetryDetailsOpen, setTelemetryDetailsOpen] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const [deploying, setDeploying] = useState(false);
+  const [deploymentStatus, setDeploymentStatus] = useState<AgentDeploymentStatus | null>(null);
+  const [deploymentStatusLoading, setDeploymentStatusLoading] = useState(false);
+  const [promotionOpen, setPromotionOpen] = useState(false);
+  const [promotionPreflight, setPromotionPreflight] = useState<AgentDeploymentPreflight | null>(null);
+  const [promotionCandidateId, setPromotionCandidateId] = useState<string | null>(null);
+  const [promotionBusy, setPromotionBusy] = useState(false);
+  const [rollbackOpen, setRollbackOpen] = useState(false);
+  const [rollbackBusy, setRollbackBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [errorRemediation, setErrorRemediation] = useState<string | null>(null);
-
-  const clearError = () => {
-    setError(null);
-    setErrorRemediation(null);
-  };
   const showError = (message: string, remediation?: string) => {
-    setError(message);
-    setErrorRemediation(remediation ?? null);
+    toast.error(message, remediation ? { description: remediation } : undefined);
   };
+  const clearError = () => undefined;
+
+  const refreshDeploymentStatus = useCallback(async () => {
+    setDeploymentStatusLoading(true);
+    try {
+      setDeploymentStatus(await getAgentDeploymentStatus(agent.id));
+    } catch (cause) {
+      toast.error(cause instanceof Error ? cause.message : "Unable to load deployment status");
+    } finally {
+      setDeploymentStatusLoading(false);
+    }
+  }, [agent.id]);
+
+  useEffect(() => {
+    void refreshDeploymentStatus();
+  }, [refreshDeploymentStatus]);
 
   const selectedVersion = versions.find((version) => version.id === selectedVersionId) ?? versions[0] ?? null;
   const playgroundReady = agent.installation_settings?.environment === "playground";
   const canRun = Boolean(agent.installation_id && playgroundReady);
+  const showPromotion = Boolean(
+    deploymentStatus
+      && deploymentStatus.live.installationId
+      && (deploymentStatus.state === "pending"
+        || selectedVersion?.id !== deploymentStatus.live.version?.versionId),
+  );
   const pickerModels = useMemo<AgentModel[]>(() => {
     const available = modelCatalog?.models ?? [];
     if (!modelSelection || available.some((model) => model.provider === modelSelection.provider && model.model === modelSelection.model)) return available;
@@ -493,7 +523,7 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
       })
       .catch((cause) => {
         if (!cancelled) {
-          setError(cause instanceof Error ? cause.message : "Unable to prepare Playground");
+          showError(cause instanceof Error ? cause.message : "Unable to prepare Playground");
         }
       });
     return () => { cancelled = true; };
@@ -781,20 +811,57 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
     }
   };
 
-  const saveDraft = async (capabilityDraft?: StudioCapabilityDraft): Promise<AgentVersion | null> => {
+  const saveDraft = async (settingsDraft?: StudioSettingsDraft): Promise<AgentVersion | null> => {
     setSaving(true);
     clearError();
     setNotice(null);
     try {
+      const capabilityDraft = settingsDraft?.capabilities;
+      const behaviorDraft = settingsDraft?.behavior;
+      const memoryDraft = settingsDraft?.memory;
+      const behaviorInstructions = behaviorDraft?.advancedInstructions.trim() || instructions.trim() || "Follow the configured behavior settings.";
+      const retentionDays = memoryDraft ? Number(memoryDraft.retentionDays) : Number.NaN;
+      const memoryPolicy = memoryDraft ? {
+        mode: memoryDraft.mode,
+        readableNamespaces: memoryDraft.readableNamespaces,
+        writableNamespaces: memoryDraft.writableNamespaces,
+        writableTypes: memoryDraft.writableTypes,
+        maxRetrieved: memoryDraft.maxRetrieved,
+        maxRetrievedTokens: memoryDraft.maxRetrievedTokens,
+        maxWritesPerRun: memoryDraft.maxWritesPerRun,
+        ...(Number.isInteger(retentionDays) && retentionDays >= 1 && retentionDays <= 3_650 ? { retentionDays } : {}),
+        allowSensitive: memoryDraft.allowSensitive,
+      } : undefined;
       const configuredSpec = selectedVersion?.configuration?.agentSpec;
       const next = configuredSpec && typeof configuredSpec === "object" && !Array.isArray(configuredSpec)
         ? await createAgentVersion(agent.id, {
           spec: {
             ...(configuredSpec as AgentSpecInput),
+            ...(behaviorDraft ? {
+              identity: {
+                ...((configuredSpec as AgentSpecInput).identity ?? {}),
+                purpose: behaviorDraft.purpose.trim() || undefined,
+                audience: behaviorDraft.audience,
+              },
+              execution: {
+                ...((configuredSpec as AgentSpecInput).execution ?? {}),
+                role: behaviorDraft.role,
+              },
+            } : {}),
             behavior: {
               ...((configuredSpec as AgentSpecInput).behavior ?? {}),
-              instructions,
+              instructions: behaviorInstructions,
+              ...(behaviorDraft ? {
+                tone: behaviorDraft.tone,
+                responseLength: behaviorDraft.responseLength,
+                initiative: behaviorDraft.initiative,
+                language: behaviorDraft.language.trim() || "en",
+                formatting: behaviorDraft.formatting,
+                rules: behaviorDraft.rules,
+                advancedInstructions: behaviorDraft.advancedInstructions.trim() || undefined,
+              } : {}),
             },
+            ...(memoryPolicy ? { memory: { ...((configuredSpec as AgentSpecInput).memory ?? {}), ...memoryPolicy } } : {}),
             ...(modelSelection ? { model: { ...(configuredSpec as AgentSpecInput).model, primary: modelSelection } } : {}),
             ...(capabilityDraft ? {
               capabilities: {
@@ -815,13 +882,17 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
           },
         })
         : await createAgentVersion(agent.id, {
-          instructions,
+          instructions: behaviorInstructions,
           configuration: {
             ...(selectedVersion?.configuration ?? {}),
             ...(modelSelection ? { provider: modelSelection.provider, model: modelSelection.model } : {}),
+            ...(behaviorDraft ? { behavior: { ...behaviorDraft, rules: behaviorDraft.rules } } : {}),
+            ...(memoryPolicy ? { memory: memoryPolicy } : {}),
           },
           policy: {
             ...(selectedVersion?.policy ?? {}),
+            ...(behaviorDraft ? { behavior: behaviorDraft } : {}),
+            ...(memoryPolicy ? { memory: memoryPolicy } : {}),
             ...(capabilityDraft ? {
               allowedTools: capabilityDraft.allowedTools,
               requiredCapabilities: capabilityDraft.requiredCapabilities,
@@ -871,6 +942,79 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
     }
   };
 
+  const preparePromotion = async () => {
+    if (!selectedVersion || promotionBusy) return;
+    setPromotionBusy(true);
+    try {
+      const candidate = selectedVersion.status === "published" ? selectedVersion : await publishAgentVersion(agent.id, selectedVersion.id);
+      let latest = await getAgentDeploymentStatus(agent.id);
+      if (!latest) throw new Error("Deployment status is unavailable");
+      setDeploymentStatus(latest);
+      const sourceInstallationId = latest.playground.installationId ?? agent.installation_id;
+      if (!sourceInstallationId) throw new Error("Create a Playground installation before promoting to Live");
+      let sourceVersionId = latest.playground.version?.versionId;
+      if (sourceVersionId !== candidate.id) {
+        await deployAgentInstallation(sourceInstallationId, candidate.id, sourceVersionId);
+        latest = await getAgentDeploymentStatus(agent.id);
+        if (!latest) throw new Error("Deployment status is unavailable");
+        setDeploymentStatus(latest);
+        sourceVersionId = latest.playground.version?.versionId;
+      }
+      const liveInstallationId = latest.live.installationId;
+      const expectedVersionId = latest.live.version?.versionId;
+      if (!liveInstallationId || !expectedVersionId || sourceVersionId !== candidate.id) throw new Error("Live promotion is not ready");
+      const preflight = await preflightAgentInstallationDeployment(liveInstallationId, { versionId: candidate.id, sourceInstallationId, expectedVersionId });
+      setPromotionCandidateId(candidate.id);
+      setPromotionPreflight(preflight);
+      setPromotionOpen(true);
+      setVersions((versionsState) => versionsState.map((version) => version.id === candidate.id ? candidate : version));
+    } catch (cause) {
+      showError(cause instanceof Error ? cause.message : "Unable to prepare Live promotion");
+    } finally {
+      setPromotionBusy(false);
+    }
+  };
+
+  const promoteToLive = async () => {
+    if (!promotionPreflight?.ready || !promotionCandidateId || !deploymentStatus?.live.installationId || !promotionPreflight.sourceInstallationId || !promotionPreflight.current?.versionId || promotionBusy) return;
+    setPromotionBusy(true);
+    try {
+      await promoteAgentInstallation(deploymentStatus.live.installationId, {
+        versionId: promotionCandidateId,
+        sourceInstallationId: promotionPreflight.sourceInstallationId,
+        expectedVersionId: promotionPreflight.current.versionId,
+        idempotencyKey: crypto.randomUUID(),
+      });
+      setPromotionOpen(false);
+      setNotice("Live updated");
+      await refreshDeploymentStatus();
+      toast.success("Live updated");
+    } catch (cause) {
+      showError(cause instanceof Error ? cause.message : "Unable to promote to Live");
+    } finally {
+      setPromotionBusy(false);
+    }
+  };
+
+  const rollbackLive = async () => {
+    if (!deploymentStatus?.live.installationId || !deploymentStatus.live.version?.versionId || rollbackBusy) return;
+    setRollbackBusy(true);
+    try {
+      await rollbackAgentInstallation(deploymentStatus.live.installationId, {
+        expectedVersionId: deploymentStatus.live.version.versionId,
+        targetVersionId: deploymentStatus.rollbackTarget?.versionId ?? undefined,
+        idempotencyKey: crypto.randomUUID(),
+      });
+      setRollbackOpen(false);
+      setNotice("Live rolled back");
+      await refreshDeploymentStatus();
+    } catch (cause) {
+      showError(cause instanceof Error ? cause.message : "Unable to roll back Live");
+    } finally {
+      setRollbackBusy(false);
+    }
+  };
+
   const selectedGraphNode = studioGraphNodes.find((node) => node.id === selectedNodeId) ?? null;
 
   return (
@@ -886,6 +1030,8 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
           <Button type="button" variant="outline" size="sm" onClick={() => setConfigurationOpen(true)}><SlidersHorizontal className="mr-1.5 size-3.5" />Settings</Button>
           {activeRunId ? <Button type="button" variant="outline" size="sm" onClick={() => void cancelRun()} disabled={cancelling}><X className="mr-1.5 size-3.5" />{cancelling ? "Cancelling…" : "Cancel"}</Button> : null}
           {!agent.protected ? <Button type="button" variant="outline" size="sm" onClick={() => void deploy()} disabled={deploying || !selectedVersion}><Rocket className="mr-1.5 size-3.5" />{deploying ? "Updating…" : surface === "playground" ? "Update Playground" : "Update installation"}</Button> : null}
+          {showPromotion ? <Button type="button" size="sm" onClick={() => void preparePromotion()} disabled={promotionBusy || deploymentStatusLoading || !selectedVersion}><Rocket className="mr-1.5 size-3.5" />{promotionBusy ? "Checking…" : "Promote to Live"}</Button> : null}
+          {deploymentStatus?.rollbackTarget && deploymentStatus.live.installationId ? <Button type="button" variant="outline" size="sm" onClick={() => setRollbackOpen(true)} disabled={rollbackBusy}><ArrowLeft className="mr-1.5 size-3.5" />Rollback</Button> : null}
         </div>
       </header>
 
@@ -902,7 +1048,6 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
                   {notice ? <div className="mx-4 mb-3 flex shrink-0 items-center gap-2 rounded-lg border border-emerald-500/20 bg-emerald-500/5 px-3 py-2 text-xs text-emerald-700 dark:text-emerald-300"><Check className="size-3.5" />{notice}</div> : null}
                 </>
               }
-              error={error ? <div className="flex items-start justify-between gap-3 text-xs"><div><p>{error}</p>{errorRemediation ? <p className="mt-1 text-destructive/80">{errorRemediation}</p> : null}</div><button type="button" aria-label="Dismiss error" onClick={clearError}><X className="size-4 shrink-0" /></button></div> : null}
               composer={<AgentChatComposer
                 value={input}
                 onChange={setInput}
@@ -939,6 +1084,8 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
           </section>
         </div>
       </div>
+      <Dialog open={promotionOpen} onOpenChange={(open) => { if (!promotionBusy) setPromotionOpen(open); }}><DialogContent><DialogHeader><DialogTitle>Promote to Live</DialogTitle></DialogHeader><div className="space-y-3 text-sm"><div className="flex items-center justify-between gap-3 rounded-lg border border-border px-3 py-2"><span className="text-muted-foreground">Preflight</span><span className={cn("font-medium", promotionPreflight?.ready ? "text-emerald-700 dark:text-emerald-300" : "text-amber-700 dark:text-amber-300")}>{promotionPreflight?.status ?? "Checking"}</span></div>{promotionPreflight?.candidate ? <div className="flex items-center justify-between gap-3 text-xs"><span className="text-muted-foreground">Candidate</span><span className="font-medium text-foreground">v{promotionPreflight.candidate.versionNumber}</span></div> : null}{promotionPreflight?.current ? <div className="flex items-center justify-between gap-3 text-xs"><span className="text-muted-foreground">Current Live</span><span className="font-medium text-foreground">v{promotionPreflight.current.versionNumber}</span></div> : null}{promotionPreflight?.blockers.length ? <ul className="space-y-1 rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 text-xs text-amber-700 dark:text-amber-300">{promotionPreflight.blockers.map((blocker) => <li key={`${blocker.code}:${blocker.detail}`}>{blocker.detail}</li>)}</ul> : <p className="text-xs text-muted-foreground">The selected immutable Playground candidate will become Live for this agent.</p>}</div><DialogFooter><Button type="button" variant="ghost" onClick={() => setPromotionOpen(false)} disabled={promotionBusy}>Cancel</Button><Button type="button" onClick={() => void promoteToLive()} disabled={promotionBusy || !promotionPreflight?.ready}>{promotionBusy ? "Promoting…" : "Promote to Live"}</Button></DialogFooter></DialogContent></Dialog>
+          <Dialog open={rollbackOpen} onOpenChange={(open) => { if (!rollbackBusy) setRollbackOpen(open); }}><DialogContent><DialogHeader><DialogTitle>Roll back Live?</DialogTitle></DialogHeader><p className="text-sm text-muted-foreground">Restore the previous tested Live version. Playground, conversations, memories, and active runs stay unchanged.</p><DialogFooter><Button type="button" variant="ghost" onClick={() => setRollbackOpen(false)} disabled={rollbackBusy}>Cancel</Button><Button type="button" variant="destructive" onClick={() => void rollbackLive()} disabled={rollbackBusy}>{rollbackBusy ? "Rolling back…" : "Roll back"}</Button></DialogFooter></DialogContent></Dialog>
       {configurationOpen ? <div className="fixed inset-0 z-50" role="presentation"><button type="button" aria-label="Close settings" className="absolute inset-0 bg-black/50" onClick={() => setConfigurationOpen(false)} /><aside role="dialog" aria-modal="true" aria-labelledby="configuration-title" className="absolute inset-3 overflow-hidden rounded-2xl border border-border bg-card shadow-2xl sm:inset-6 lg:inset-10"><StudioSettingsPrototype key={selectedVersion?.id ?? "new-version"} agent={agent} version={selectedVersion} installationId={agent.installation_id ?? null} instructions={instructions} setInstructions={setInstructions} onSave={saveDraft} saving={saving} modelCatalog={modelCatalog} modelCatalogLoading={modelCatalogLoading} modelSelection={modelSelection} setModelSelection={setModelSelection} onClose={() => setConfigurationOpen(false)} /></aside></div> : null}
     </div>
   );
