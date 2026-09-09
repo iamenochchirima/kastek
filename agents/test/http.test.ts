@@ -2433,7 +2433,7 @@ describe("Agent Platform HTTP foundation", () => {
       config,
       pool: fakePool,
       runs: {
-        getRun: async () => ({ id: "run-1", status: "completed" }),
+        getRun: async () => ({ id: "run-1", organization_id: "org-1", installation_id: "installation-1", status: "completed" }),
         listEvents: async () => [{ event_type: "run.completed" }],
         listJournalEvents: async () => [
           {
@@ -2524,6 +2524,11 @@ describe("Agent Platform HTTP foundation", () => {
     expect(response.json()).toMatchObject({
       run: { id: "run-1" },
       events: [{ event_type: "run.completed" }],
+      items: expect.arrayContaining([
+        expect.objectContaining({ kind: "journal", scope: { organizationId: "org-1", installationId: "installation-1", runId: "run-1" } }),
+        expect.objectContaining({ kind: "tool_call", data: { arguments: { apiKey: "[REDACTED]" } } }),
+        expect.objectContaining({ kind: "effect", data: { provider_receipt: { accessToken: "[REDACTED]" } } }),
+      ]),
       telemetry: {
         runId: "run-1",
         revision: 4,

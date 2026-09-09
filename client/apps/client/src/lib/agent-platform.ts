@@ -536,6 +536,18 @@ export type AgentRunTimeline = {
   run: AgentRun;
   events: AgentOperationEvent[];
   journal?: AgentJournalEvent[];
+  items?: Array<{
+    id: string;
+    kind: "event" | "journal" | "step" | "tool_call" | "effect" | string;
+    scope: { organizationId: string; installationId: string; runId: string; operationId?: string };
+    sequence?: number;
+    occurredAt?: string;
+    event?: string;
+    status?: string;
+    operationId?: string;
+    attemptId?: string;
+    data: Record<string, unknown>;
+  }>;
   telemetry?: AgentRuntimeTelemetry;
   projection?: {
     version: string;

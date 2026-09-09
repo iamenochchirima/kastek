@@ -480,6 +480,94 @@ function publicApprovalStatus(approval: { status: string; provider_tool_call_id:
   };
 }
 
+type StudioTimelineItemKind = "event" | "journal" | "step" | "tool_call" | "effect";
+
+type StudioTimelineItem = {
+  id: string;
+  kind: StudioTimelineItemKind;
+  scope: {
+    organizationId: string;
+    installationId: string;
+    runId: string;
+    operationId?: string;
+  };
+  sequence?: number;
+  occurredAt?: string;
+  event?: string;
+  status?: string;
+  operationId?: string;
+  attemptId?: string;
+  data: Record<string, unknown>;
+};
+
+function timelineRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+}
+
+function timelineText(record: Record<string, unknown>, keys: string[]): string | undefined {
+  for (const key of keys) {
+    const value = record[key];
+    if (typeof value === "string" && value.length > 0) return value;
+    if (typeof value === "number" && Number.isSafeInteger(value)) return String(value);
+    if (value instanceof Date && !Number.isNaN(value.getTime())) return value.toISOString();
+  }
+  return undefined;
+}
+
+function timelineNestedRecord(record: Record<string, unknown>, key: string): Record<string, unknown> {
+  return timelineRecord(record[key]);
+}
+
+function projectStudioTimelineItem(
+  kind: StudioTimelineItemKind,
+  value: unknown,
+  run: { id: string; organization_id: string; installation_id: string },
+  index: number,
+): StudioTimelineItem {
+  const record = timelineRecord(value);
+  const nestedEvent = timelineNestedRecord(record, "event");
+  const nestedEventData = timelineNestedRecord(nestedEvent, "data");
+  const recordPayload = timelineRecord(record.payload);
+  const payload = Object.keys(recordPayload).length ? recordPayload : timelineRecord(nestedEventData.payload);
+  const sequence = timelineText(record, ["sequence_number", "sequence"]);
+  const operationId = timelineText(record, ["operation_id", "operationId"])
+    ?? timelineText(timelineNestedRecord(record, "scope"), ["operationId", "operation_id"]);
+  const id = timelineText(record, ["id", "event_id", "provider_tool_call_id", "providerToolCallId"])
+    ?? `${run.id}:${kind}:${index}`;
+  const event = timelineText(record, ["event_type", "event", "event_kind", "kind"])
+    ?? timelineText(nestedEventData, ["type"])
+    ?? timelineText(nestedEvent, ["kind", "type"]);
+  const occurredAt = timelineText(record, ["occurred_at", "occurredAt", "created_at", "updated_at", "finished_at"]);
+  const status = timelineText(record, ["status", "outcome", "state"]);
+  const attemptId = timelineText(record, ["attempt_id", "attemptId"]);
+  const redacted = redactSensitiveValue({
+    payload: Object.keys(payload).length ? payload : undefined,
+    input: record.input,
+    output: record.output,
+    error: record.error,
+    arguments: record.arguments,
+    provider_receipt: record.provider_receipt,
+    metadata: record.metadata,
+  });
+  return {
+    id: `studio:${kind}:${id}`,
+    kind,
+    scope: {
+      organizationId: run.organization_id,
+      installationId: run.installation_id,
+      runId: run.id,
+      ...(operationId ? { operationId } : {}),
+    },
+    ...(sequence ? { sequence: Number(sequence) } : {}),
+    ...(occurredAt ? { occurredAt } : {}),
+    ...(event ? { event } : {}),
+    ...(status ? { status } : {}),
+    ...(operationId ? { operationId } : {}),
+    ...(attemptId ? { attemptId } : {}),
+    data: timelineRecord(redacted),
+  };
+}
+
 type McpTaskStatus = "working" | "input_required" | "completed" | "failed" | "cancelled";
 
 function mcpTaskStatus(runStatus: string): McpTaskStatus {
@@ -5431,10 +5519,23 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       toolInvocations.list(auth.organizationId, run.id),
       effectReceipts.listForRun(auth.organizationId, run.id),
     ]);
+    const items = [
+      ...events.map((event, index) => projectStudioTimelineItem("event", event, run, index)),
+      ...journal.map((event, index) => projectStudioTimelineItem("journal", event, run, index)),
+      ...steps.map((step, index) => projectStudioTimelineItem("step", step, run, index)),
+      ...toolCalls.map((toolCall, index) => projectStudioTimelineItem("tool_call", toolCall, run, index)),
+      ...effects.map((effect, index) => projectStudioTimelineItem("effect", effect, run, index)),
+    ].sort((left, right) => {
+      const leftTime = left.occurredAt ? Date.parse(left.occurredAt) : Number.NaN;
+      const rightTime = right.occurredAt ? Date.parse(right.occurredAt) : Number.NaN;
+      if (Number.isFinite(leftTime) && Number.isFinite(rightTime) && leftTime !== rightTime) return leftTime - rightTime;
+      return (left.sequence ?? Number.MAX_SAFE_INTEGER) - (right.sequence ?? Number.MAX_SAFE_INTEGER) || left.id.localeCompare(right.id);
+    });
     return {
       run,
       events,
       journal,
+      items,
       telemetry: projectRuntimeTelemetry(journal, { runId: run.id }),
       projection: {
         version: "studio.run-timeline.v1",
