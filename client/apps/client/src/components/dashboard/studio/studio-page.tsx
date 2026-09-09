@@ -610,7 +610,7 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
           ...existing,
           ...timeline.run,
           organization_id: timeline.run.organization_id ?? existing?.organization_id ?? "",
-          installation_id: timeline.run.installation_id ?? existing?.installation_id ?? installationId,
+          installation_id: timeline.run.installation_id ?? existing?.installation_id ?? agent.installation_id ?? "",
         };
         return existing
           ? current.map((run) => run.id === observedRunId ? nextRun : run)
@@ -628,7 +628,7 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
       cancelled = true;
       if (timer) window.clearInterval(timer);
     };
-  }, [activeRunId, selectedRunId]);
+  }, [activeRunId, agent.installation_id, selectedRunId]);
 
   const selectVersion = (versionId: string) => {
     const nextVersion = versions.find((version) => version.id === versionId) ?? null;
