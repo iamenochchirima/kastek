@@ -7,20 +7,24 @@ describe("integration catalog", () => {
   it("keeps provider configuration separate from capability names", () => {
     const catalog = listIntegrations();
     expect(catalog.map((entry) => entry.id)).toEqual([
-      "whatsapp.messaging",
-      "facebook.messaging",
-      "instagram.messaging",
-      "telegram.messaging",
-      "discord.messaging",
-      "internal.calendar",
       "google.calendar",
+      "google.gmail",
+      "google.drive",
+      "internal.calendar",
       "apple.tools",
       "tavily.search",
       "opentelemetry",
+      "discord.messaging",
+      "facebook.messaging",
+      "instagram.messaging",
+      "telegram.messaging",
+      "whatsapp.messaging",
     ]);
     expect(getIntegration("google.calendar")?.capabilityNames).toContain("kasitek.calendar.create");
     expect(getIntegration("google.calendar")?.requiredScopes).toEqual(["https://www.googleapis.com/auth/calendar.events"]);
     expect(getIntegration("google.calendar")?.auth).toBe("oauth2");
+    expect(getIntegration("google.gmail")?.requiredScopes).toEqual(["https://www.googleapis.com/auth/gmail.readonly"]);
+    expect(getIntegration("google.drive")?.requiredScopes).toEqual(["https://www.googleapis.com/auth/drive.readonly"]);
     expect(getIntegration("internal.calendar")?.auth).toBe("internal");
     expect(getIntegration("tavily.search")?.auth).toBe("api_key");
     expect(getIntegration("telegram.messaging")?.runtime).toBe("webhook");

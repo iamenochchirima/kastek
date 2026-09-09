@@ -200,4 +200,4 @@ connections use `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`, and
 `GOOGLE_OAUTH_REDIRECT_URI`; each catalog entry supplies its own requested scopes through the
 shared Google OAuth boundary. Add a provider by adding one catalog entry, an adapter in
 `IntegrationToolService`, and its connection form; do not add a new tool execution path. The first
-adapters are KasiTek Calendar, Google Calendar, Tavily Search, and an Apple Tools local bridge.
+adapters are KasiTek Calendar, Google Calendar, Gmail, Google Drive, Tavily Search, and an Apple Tools local bridge.

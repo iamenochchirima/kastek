@@ -15,6 +15,9 @@ export interface IntegrationCatalogEntry {
   auth: "internal" | ConnectorAuthScheme | "local_connector" | "observability";
   channelType?: "whatsapp" | "facebook" | "instagram" | "telegram" | "discord";
   logo: string;
+  provider?: string;
+  oauthProvider?: string;
+  displayOrder?: number;
   capabilityNames: string[];
   requiredScopes: string[];
   configurable: boolean;
@@ -100,6 +103,8 @@ export const INTEGRATION_CATALOG: readonly IntegrationCatalogEntry[] = [
     category: "productivity",
     auth: "internal",
     logo: "calendar",
+    provider: "kasitek",
+    displayOrder: 40,
     capabilityNames: ["kasitek.calendar.list", "kasitek.calendar.create", "kasitek.calendar.update", "kasitek.calendar.delete"],
     requiredScopes: [],
     configurable: false,
@@ -113,8 +118,43 @@ export const INTEGRATION_CATALOG: readonly IntegrationCatalogEntry[] = [
     category: "productivity",
     auth: "oauth2",
     logo: "google-calendar",
+    provider: "google",
+    oauthProvider: "google",
+    displayOrder: 10,
     capabilityNames: ["kasitek.calendar.list", "kasitek.calendar.create", "kasitek.calendar.update", "kasitek.calendar.delete"],
     requiredScopes: ["https://www.googleapis.com/auth/calendar.events"],
+    configurable: true,
+  },
+  {
+    id: "google.gmail",
+    kind: "tool",
+    runtime: "tool_registry",
+    name: "Gmail",
+    description: "Search messages in a connected Gmail account.",
+    category: "productivity",
+    auth: "oauth2",
+    logo: "google-gmail",
+    provider: "google",
+    oauthProvider: "google",
+    displayOrder: 20,
+    capabilityNames: ["kasitek.gmail.search"],
+    requiredScopes: ["https://www.googleapis.com/auth/gmail.readonly"],
+    configurable: true,
+  },
+  {
+    id: "google.drive",
+    kind: "tool",
+    runtime: "tool_registry",
+    name: "Google Drive",
+    description: "Search files in a connected Google Drive.",
+    category: "productivity",
+    auth: "oauth2",
+    logo: "google-drive",
+    provider: "google",
+    oauthProvider: "google",
+    displayOrder: 30,
+    capabilityNames: ["kasitek.drive.search"],
+    requiredScopes: ["https://www.googleapis.com/auth/drive.readonly"],
     configurable: true,
   },
   {
@@ -126,6 +166,8 @@ export const INTEGRATION_CATALOG: readonly IntegrationCatalogEntry[] = [
     category: "apple",
     auth: "local_connector",
     logo: "apple",
+    provider: "apple",
+    displayOrder: 50,
     capabilityNames: ["kasitek.apple.calendar.list", "kasitek.apple.mail.list", "kasitek.apple.reminder.create", "kasitek.apple.note.create"],
     requiredScopes: ["apple.calendar.read", "apple.mail.read", "apple.reminders.write", "apple.notes.write"],
     configurable: true,
@@ -139,6 +181,8 @@ export const INTEGRATION_CATALOG: readonly IntegrationCatalogEntry[] = [
     category: "search",
     auth: "api_key",
     logo: "tavily",
+    provider: "tavily",
+    displayOrder: 60,
     capabilityNames: ["kasitek.web.search"],
     requiredScopes: [],
     configurable: true,
@@ -152,6 +196,8 @@ export const INTEGRATION_CATALOG: readonly IntegrationCatalogEntry[] = [
     category: "observability",
     auth: "observability",
     logo: "opentelemetry",
+    provider: "opentelemetry",
+    displayOrder: 90,
     capabilityNames: [],
     requiredScopes: [],
     configurable: true,
@@ -163,7 +209,9 @@ export function getIntegration(id: string): IntegrationCatalogEntry | undefined 
 }
 
 export function listIntegrations(): IntegrationCatalogEntry[] {
-  return INTEGRATION_CATALOG.map((entry) => ({ ...entry, capabilityNames: [...entry.capabilityNames], requiredScopes: [...entry.requiredScopes] }));
+  return INTEGRATION_CATALOG
+    .map((entry) => ({ ...entry, capabilityNames: [...entry.capabilityNames], requiredScopes: [...entry.requiredScopes] }))
+    .sort((left, right) => (left.displayOrder ?? 1_000) - (right.displayOrder ?? 1_000) || left.name.localeCompare(right.name));
 }
 
 export function listToolIntegrations(): IntegrationCatalogEntry[] {

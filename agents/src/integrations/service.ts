@@ -5,6 +5,8 @@ import { IntegrationRepository, type IntegrationConnectionRecord } from "./repos
 import { withProviderSpan } from "../telemetry/spans";
 
 const GOOGLE_CALENDAR_API = "https://www.googleapis.com/calendar/v3";
+const GOOGLE_GMAIL_API = "https://gmail.googleapis.com/gmail/v1";
+const GOOGLE_DRIVE_API = "https://www.googleapis.com/drive/v3";
 
 export class IntegrationToolError extends Error {
   public constructor(public readonly code: string, message = code) {
@@ -142,6 +144,48 @@ export class IntegrationToolService {
     return { answer: payload.answer ?? "", results: (payload.results ?? []).map((item) => ({ title: item.title ?? "", url: item.url ?? "", content: item.content ?? "", score: item.score })) };
   }
 
+  public async searchGmail(context: ToolInvocationContext, args: Record<string, unknown>): Promise<Record<string, unknown>> {
+    const queryText = stringArg(args, "query");
+    if (!queryText) throw new IntegrationToolError("INVALID_GMAIL_SEARCH", "query is required");
+    const limit = Math.max(1, Math.min(typeof args.limit === "number" ? args.limit : 10, 20));
+    const connection = await this.requireConnection(context, "google.gmail");
+    const listQuery = new URLSearchParams({ q: queryText, maxResults: String(limit), includeSpamTrash: "false" });
+    const listing = await this.googleProviderRequest(context.organizationId, connection, "google-gmail", "Gmail", GOOGLE_GMAIL_API, "GET", `/users/me/messages?${listQuery.toString()}`) as { messages?: Array<{ id?: string; threadId?: string }>; nextPageToken?: string };
+    const messages = await Promise.all((listing.messages ?? []).filter((message): message is { id: string; threadId?: string } => Boolean(message.id)).slice(0, limit).map(async (message) => {
+      const detailQuery = new URLSearchParams([
+        ["format", "metadata"],
+        ["metadataHeaders", "Subject"],
+        ["metadataHeaders", "From"],
+        ["metadataHeaders", "To"],
+        ["metadataHeaders", "Date"],
+      ]);
+      const detail = await this.googleProviderRequest(context.organizationId, connection, "google-gmail", "Gmail", GOOGLE_GMAIL_API, "GET", `/users/me/messages/${encodeURIComponent(message.id)}?${detailQuery.toString()}`) as { id?: string; threadId?: string; snippet?: string; internalDate?: string; payload?: { headers?: Array<{ name?: string; value?: string }> } };
+      const headers = new Map((detail.payload?.headers ?? []).filter((header): header is { name: string; value?: string } => Boolean(header.name)).map((header) => [header.name.toLowerCase(), header.value ?? ""]));
+      return {
+        id: detail.id ?? message.id,
+        threadId: detail.threadId ?? message.threadId ?? "",
+        subject: headers.get("subject") ?? "",
+        from: headers.get("from") ?? "",
+        to: headers.get("to") ?? "",
+        date: headers.get("date") ?? "",
+        receivedAt: detail.internalDate ? new Date(Number(detail.internalDate)).toISOString() : undefined,
+        snippet: detail.snippet ?? "",
+      };
+    }));
+    return { messages, nextPageToken: listing.nextPageToken ?? null };
+  }
+
+  public async searchDrive(context: ToolInvocationContext, args: Record<string, unknown>): Promise<Record<string, unknown>> {
+    const queryText = stringArg(args, "query");
+    const limit = Math.max(1, Math.min(typeof args.limit === "number" ? args.limit : 20, 100));
+    const connection = await this.requireConnection(context, "google.drive");
+    const escapedQuery = queryText.replaceAll("\\", "\\\\").replaceAll("'", "\\'");
+    const query = queryText ? `trashed = false and (name contains '${escapedQuery}' or fullText contains '${escapedQuery}')` : "trashed = false";
+    const driveQuery = new URLSearchParams({ q: query, pageSize: String(limit), orderBy: "modifiedTime desc", fields: "files(id,name,mimeType,webViewLink,modifiedTime,size,description),nextPageToken" });
+    const payload = await this.googleProviderRequest(context.organizationId, connection, "google-drive", "Google Drive", GOOGLE_DRIVE_API, "GET", `/files?${driveQuery.toString()}`) as { files?: Array<Record<string, unknown>>; nextPageToken?: string };
+    return { files: payload.files ?? [], nextPageToken: payload.nextPageToken ?? null };
+  }
+
   public async appleTool(context: ToolInvocationContext, operation: string, args: Record<string, unknown>): Promise<Record<string, unknown>> {
     const connection = await this.requireConnection(context, "apple.tools");
     return { results: await this.callApple(context, connection, operation, args) };
@@ -177,22 +221,26 @@ export class IntegrationToolService {
   }
 
   private async googleRequest(organizationId: string, connection: IntegrationConnectionRecord, method: string, path: string, body?: unknown): Promise<unknown> {
-    if (!connection.credential_id) throw new IntegrationToolError("INTEGRATION_NOT_CONNECTED", "Google Calendar credential is missing");
+    return this.googleProviderRequest(organizationId, connection, "google-calendar", "Google Calendar", GOOGLE_CALENDAR_API, method, path, body);
+  }
+
+  private async googleProviderRequest(organizationId: string, connection: IntegrationConnectionRecord, provider: string, providerLabel: string, apiBase: string, method: string, path: string, body?: unknown): Promise<unknown> {
+    if (!connection.credential_id) throw new IntegrationToolError("INTEGRATION_NOT_CONNECTED", `${providerLabel} credential is missing`);
     let credential = jsonRecord(await this.repository.resolveCredential(organizationId, connection.credential_id)) as GoogleCredential;
-    if (!credential.accessToken) throw new IntegrationToolError("INTEGRATION_CREDENTIAL_INVALID", "Google Calendar access token is missing");
+    if (!credential.accessToken) throw new IntegrationToolError("INTEGRATION_CREDENTIAL_INVALID", `${providerLabel} access token is missing`);
     if (credential.expiresAt && Date.parse(credential.expiresAt) <= Date.now() + 30_000 && credential.refreshToken && this.config?.GOOGLE_OAUTH_CLIENT_ID && this.config.GOOGLE_OAUTH_CLIENT_SECRET) {
       const clientId = this.config.GOOGLE_OAUTH_CLIENT_ID;
       const clientSecret = this.config.GOOGLE_OAUTH_CLIENT_SECRET;
       const refreshToken = credential.refreshToken;
-      const refreshed = await withProviderSpan("google-calendar", "oauth.refresh", () => fetch("https://oauth2.googleapis.com/token", { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ client_id: clientId, client_secret: clientSecret, grant_type: "refresh_token", refresh_token: refreshToken }), signal: AbortSignal.timeout(20_000) }));
-      if (!refreshed.ok) throw new IntegrationToolError("INTEGRATION_REAUTH_REQUIRED", "Google Calendar authorization has expired");
+      const refreshed = await withProviderSpan(provider, "oauth.refresh", () => fetch("https://oauth2.googleapis.com/token", { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ client_id: clientId, client_secret: clientSecret, grant_type: "refresh_token", refresh_token: refreshToken }), signal: AbortSignal.timeout(20_000) }));
+      if (!refreshed.ok) throw new IntegrationToolError("INTEGRATION_REAUTH_REQUIRED", `${providerLabel} authorization has expired`);
       const token = await refreshed.json() as { access_token?: string; expires_in?: number };
-      if (!token.access_token) throw new IntegrationToolError("INTEGRATION_REAUTH_REQUIRED", "Google Calendar refresh did not return an access token");
+      if (!token.access_token) throw new IntegrationToolError("INTEGRATION_REAUTH_REQUIRED", `${providerLabel} refresh did not return an access token`);
       credential = { ...credential, accessToken: token.access_token, expiresAt: new Date(Date.now() + (token.expires_in ?? 3_600) * 1_000).toISOString() };
       await this.repository.replaceCredential(organizationId, connection.credential_id, JSON.stringify(credential));
     }
-    const response = await withProviderSpan("google-calendar", "calendar.request", () => fetch(`${GOOGLE_CALENDAR_API}${path}`, { method, headers: { authorization: `Bearer ${credential.accessToken}`, "content-type": "application/json" }, ...(body === undefined ? {} : { body: JSON.stringify(body) }), signal: AbortSignal.timeout(20_000) }));
-    if (!response.ok) throw new IntegrationToolError(response.status === 401 ? "INTEGRATION_REAUTH_REQUIRED" : "PROVIDER_ERROR", `Google Calendar returned HTTP ${response.status}`);
+    const response = await withProviderSpan(provider, "request", () => fetch(`${apiBase}${path}`, { method, headers: { authorization: `Bearer ${credential.accessToken}`, "content-type": "application/json" }, ...(body === undefined ? {} : { body: JSON.stringify(body) }), signal: AbortSignal.timeout(20_000) }));
+    if (!response.ok) throw new IntegrationToolError(response.status === 401 ? "INTEGRATION_REAUTH_REQUIRED" : "PROVIDER_ERROR", `${providerLabel} returned HTTP ${response.status}`);
     if (response.status === 204) return {};
     return response.json();
   }

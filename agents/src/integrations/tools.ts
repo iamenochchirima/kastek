@@ -34,6 +34,25 @@ const calendarListInput = {
   additionalProperties: false,
 };
 
+const gmailSearchInput = {
+  type: "object",
+  properties: {
+    query: { type: "string", minLength: 1, maxLength: 1_000 },
+    limit: { type: "integer", minimum: 1, maximum: 20 },
+  },
+  required: ["query"],
+  additionalProperties: false,
+};
+
+const driveSearchInput = {
+  type: "object",
+  properties: {
+    query: { type: "string", maxLength: 500 },
+    limit: { type: "integer", minimum: 1, maximum: 100 },
+  },
+  additionalProperties: false,
+};
+
 function readManifest(requiredScope: string, redaction: string[] = []) {
   return { ownerService: "agents.integrations", requiredScope, execution: "immediate" as const, idempotency: "not_applicable" as const, approval: "none" as const, auditClassification: "restricted" as const, redaction };
 }
@@ -52,6 +71,10 @@ function register(
     ? "tavily.search"
     : definition.name.startsWith("kasitek.calendar.")
     ? "calendar"
+    : definition.name.startsWith("kasitek.gmail.")
+    ? "google.gmail"
+    : definition.name.startsWith("kasitek.drive.")
+    ? "google.drive"
     : "integrations";
   const toolsetIds = connectorId === "calendar"
     ? ["connector.internal.calendar", "connector.google.calendar", "connector.apple.tools"]
@@ -125,6 +148,32 @@ export function registerIntegrationTools(registry: ToolRegistry, service: Integr
     outputSchema: { type: "object", required: ["answer", "results"], properties: { answer: { type: "string" }, results: { type: "array" } }, additionalProperties: false },
     manifest: readManifest("web.search"),
     handler: (context, args) => service.searchWeb(context, args),
+  });
+
+  register(registry, {
+    name: "kasitek.gmail.search",
+    version: "1.0.0",
+    description: "Search messages in a connected Gmail account.",
+    riskClass: "read",
+    requiresApproval: false,
+    timeoutMs: 30_000,
+    inputSchema: gmailSearchInput,
+    outputSchema: { type: "object", required: ["messages"], properties: { messages: { type: "array" }, nextPageToken: { type: ["string", "null"] } }, additionalProperties: false },
+    manifest: readManifest("gmail.read", ["messages.snippet", "messages.body"]),
+    handler: (context, args) => service.searchGmail(context, args),
+  });
+
+  register(registry, {
+    name: "kasitek.drive.search",
+    version: "1.0.0",
+    description: "Search files in a connected Google Drive.",
+    riskClass: "read",
+    requiresApproval: false,
+    timeoutMs: 30_000,
+    inputSchema: driveSearchInput,
+    outputSchema: { type: "object", required: ["files"], properties: { files: { type: "array" }, nextPageToken: { type: ["string", "null"] } }, additionalProperties: false },
+    manifest: readManifest("drive.read", ["files.description"]),
+    handler: (context, args) => service.searchDrive(context, args),
   });
 
   for (const [name, description, operation] of [
