@@ -191,8 +191,8 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                 web::get().to(agent_platform::complete_mcp_oauth_callback),
             )
             .route(
-                "/integrations/google.calendar/oauth/callback",
-                web::get().to(agent_platform::complete_google_calendar_oauth_callback),
+                "/integrations/google/oauth/callback",
+                web::get().to(agent_platform::complete_google_oauth_callback),
             )
             .route(
                 "/capabilities",
@@ -323,8 +323,8 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                 web::get().to(agent_platform::list_installation_integrations),
             )
             .route(
-                "/installations/{installationId}/integrations/google.calendar/oauth/start",
-                web::get().to(agent_platform::start_google_calendar_oauth),
+                "/installations/{installationId}/integrations/{integrationId}/oauth/start",
+                web::get().to(agent_platform::start_google_oauth),
             )
             .route(
                 "/installations/{installationId}/integrations/{integrationId}/api-key",

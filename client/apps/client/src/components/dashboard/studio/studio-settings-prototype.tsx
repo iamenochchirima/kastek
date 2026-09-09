@@ -66,7 +66,7 @@ import {
   publishAgentMcpProviderVersion,
   saveAgentIntegrationApiKey,
   saveAgentIntegrationLocalConnector,
-  startAgentGoogleCalendarOAuth,
+  startAgentGoogleOAuth,
   type AgentCapability,
   type AgentCapabilityDirectoryEntry,
   type AgentCapabilityToolset,
@@ -618,7 +618,7 @@ type ConnectionSetupMode = "api_key" | "local_connector" | "oauth_client";
 function connectionErrorMessage(cause: unknown): string {
   if (cause instanceof AgentRequestError) {
     switch (cause.code) {
-      case "google_calendar_oauth_not_configured": return "Google Calendar is unavailable";
+      case "google_oauth_not_configured": return "Google connection unavailable";
       case "mcp_oauth_not_configured": return "OAuth is unavailable";
       case "mcp_oauth_client_registration_failed": return "OAuth setup failed";
       case "mcp_oauth_start_failed": return "Unable to start OAuth";
@@ -702,7 +702,7 @@ function ConnectionCataloguePanel({ installationId, versionId, directory, onRefr
         }
         await connectAgentMcpCatalog(installationId, entry.id, { apiKey: apiKey.trim() || undefined, agentVersionId: versionId ?? undefined });
       } else if (entry.id === "google.calendar") {
-        const result = await startAgentGoogleCalendarOAuth(installationId);
+        const result = await startAgentGoogleOAuth(installationId, entry.id);
         window.location.assign(result.authorizationUrl);
         return;
       } else if (entry.auth === "api_key" || integration?.auth === "api_key") {

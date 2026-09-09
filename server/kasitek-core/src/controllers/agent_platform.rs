@@ -120,12 +120,12 @@ pub async fn complete_mcp_oauth_callback(
     oauth_callback_redirect(config.get_ref(), &result)
 }
 
-pub async fn complete_google_calendar_oauth_callback(
+pub async fn complete_google_oauth_callback(
     config: web::Data<AppConfig>,
     req: HttpRequest,
 ) -> Result<HttpResponse, AppError> {
     let result = client(config.get_ref())?
-        .complete_google_calendar_oauth_callback(req.query_string())
+        .complete_google_oauth_callback(req.query_string())
         .await?;
     oauth_callback_redirect(config.get_ref(), &result)
 }
@@ -2601,15 +2601,21 @@ pub async fn list_installation_integrations(
     Ok(HttpResponse::Ok().json(response))
 }
 
-pub async fn start_google_calendar_oauth(
+pub async fn start_google_oauth(
     pool: web::Data<PgPool>,
     config: web::Data<AppConfig>,
     req: HttpRequest,
-    installation_id: web::Path<String>,
+    path: web::Path<(String, String)>,
 ) -> Result<HttpResponse, AppError> {
     let (user, organization_id) = management_scope(&req, pool.get_ref()).await?;
+    let (installation_id, integration_id) = path.into_inner();
     let response = client(config.get_ref())?
-        .start_google_calendar_oauth(&organization_id, &user.id, installation_id.trim())
+        .start_google_oauth(
+            &organization_id,
+            &user.id,
+            installation_id.trim(),
+            integration_id.trim(),
+        )
         .await?;
     Ok(HttpResponse::Ok().json(response))
 }

@@ -195,7 +195,9 @@ model calls.
 Agent integrations use the same encrypted-secret boundary without adding provider-specific
 credential tables. The catalog in `src/integrations/catalog.ts` describes each provider, the
 connection API stores installation-scoped state, and `src/integrations/tools.ts` exposes provider
-operations through the existing capability registry and approval policy. Add a provider by adding
-one catalog entry, an adapter in `IntegrationToolService`, and its connection form; do not add a
-new tool execution path. The first adapters are KasiTek Calendar, Google Calendar, Tavily Search,
-and an Apple Tools local bridge.
+operations through the existing capability registry and approval policy. OAuth-backed Google
+connections use `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`, and
+`GOOGLE_OAUTH_REDIRECT_URI`; each catalog entry supplies its own requested scopes through the
+shared Google OAuth boundary. Add a provider by adding one catalog entry, an adapter in
+`IntegrationToolService`, and its connection form; do not add a new tool execution path. The first
+adapters are KasiTek Calendar, Google Calendar, Tavily Search, and an Apple Tools local bridge.

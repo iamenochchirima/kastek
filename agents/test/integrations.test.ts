@@ -19,6 +19,8 @@ describe("integration catalog", () => {
       "opentelemetry",
     ]);
     expect(getIntegration("google.calendar")?.capabilityNames).toContain("kasitek.calendar.create");
+    expect(getIntegration("google.calendar")?.requiredScopes).toEqual(["https://www.googleapis.com/auth/calendar.events"]);
+    expect(getIntegration("google.calendar")?.auth).toBe("oauth2");
     expect(getIntegration("internal.calendar")?.auth).toBe("internal");
     expect(getIntegration("tavily.search")?.auth).toBe("api_key");
     expect(getIntegration("telegram.messaging")?.runtime).toBe("webhook");

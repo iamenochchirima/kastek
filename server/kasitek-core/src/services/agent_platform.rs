@@ -31,15 +31,12 @@ fn new_correlation_id() -> String {
 
 fn known_upstream_code(code: Option<&str>) -> Option<&'static str> {
     match code {
-        Some("google_calendar_oauth_not_configured") => {
-            Some("google_calendar_oauth_not_configured")
+        Some("google_oauth_integration_not_supported") => {
+            Some("google_oauth_integration_not_supported")
         }
-        Some("google_calendar_token_exchange_failed") => {
-            Some("google_calendar_token_exchange_failed")
-        }
-        Some("google_calendar_access_token_missing") => {
-            Some("google_calendar_access_token_missing")
-        }
+        Some("google_oauth_not_configured") => Some("google_oauth_not_configured"),
+        Some("google_token_exchange_failed") => Some("google_token_exchange_failed"),
+        Some("google_access_token_missing") => Some("google_access_token_missing"),
         Some("mcp_oauth_not_configured") => Some("mcp_oauth_not_configured"),
         Some("mcp_oauth_client_registration_unsupported") => {
             Some("mcp_oauth_client_registration_unsupported")
@@ -1338,14 +1335,11 @@ impl AgentPlatformClient {
         self.request_oauth_callback(&path).await
     }
 
-    pub async fn complete_google_calendar_oauth_callback(
-        &self,
-        query: &str,
-    ) -> Result<Value, AppError> {
+    pub async fn complete_google_oauth_callback(&self, query: &str) -> Result<Value, AppError> {
         let path = if query.trim().is_empty() {
-            "/v1/integrations/google.calendar/oauth/callback".to_string()
+            "/v1/integrations/google/oauth/callback".to_string()
         } else {
-            format!("/v1/integrations/google.calendar/oauth/callback?{query}")
+            format!("/v1/integrations/google/oauth/callback?{query}")
         };
         self.request_oauth_callback(&path).await
     }
@@ -1539,16 +1533,17 @@ impl AgentPlatformClient {
         .await
     }
 
-    pub async fn start_google_calendar_oauth(
+    pub async fn start_google_oauth(
         &self,
         organization_id: &str,
         actor_id: &str,
         installation_id: &str,
+        integration_id: &str,
     ) -> Result<Value, AppError> {
         self.request_json(
             Method::GET,
             &format!(
-                "/v1/installations/{installation_id}/integrations/google.calendar/oauth/start"
+                "/v1/installations/{installation_id}/integrations/{integration_id}/oauth/start"
             ),
             organization_id,
             actor_id,
@@ -3888,6 +3883,7 @@ mod tests {
             (201, r#"{"plugin":{}}"#),
             (201, r#"{"provider":{}}"#),
             (200, r#"{"authorizationUrl":"https://example.test/oauth"}"#),
+            (200, r#"{"authorizationUrl":"https://accounts.google.com/o/oauth2/v2/auth"}"#),
             (200, r#"{"connection":"hermes.mcp.example","status":"connected","installationId":"install-1"}"#),
             (200, r#"{"integration":"google.calendar","status":"connected","installationId":"install-1"}"#),
         ])
@@ -3941,16 +3937,20 @@ mod tests {
             .await
             .unwrap();
         client
+            .start_google_oauth("org-1", "actor-1", "install-1", "google.calendar")
+            .await
+            .unwrap();
+        client
             .complete_mcp_oauth_callback("code=oauth-code&state=oauth-state")
             .await
             .unwrap();
         client
-            .complete_google_calendar_oauth_callback("code=google-code&state=google-state")
+            .complete_google_oauth_callback("code=google-code&state=google-state")
             .await
             .unwrap();
 
         let requests = server.await.unwrap();
-        assert_eq!(requests.len(), 9);
+        assert_eq!(requests.len(), 10);
         assert!(requests[0]
             .starts_with("GET /v1/installations/install-1/connection-directory HTTP/1.1"));
         assert!(
@@ -3968,12 +3968,15 @@ mod tests {
             "POST /v1/installations/install-1/mcp/catalog/hermes.mcp.example/oauth/start HTTP/1.1"
         ));
         assert!(requests[7].starts_with(
-            "GET /v1/integrations/mcp/oauth/callback?code=oauth-code&state=oauth-state HTTP/1.1"
+            "GET /v1/installations/install-1/integrations/google.calendar/oauth/start HTTP/1.1"
         ));
         assert!(requests[8].starts_with(
-            "GET /v1/integrations/google.calendar/oauth/callback?code=google-code&state=google-state HTTP/1.1"
+            "GET /v1/integrations/mcp/oauth/callback?code=oauth-code&state=oauth-state HTTP/1.1"
         ));
-        for (index, request) in requests.iter().take(7).enumerate() {
+        assert!(requests[9].starts_with(
+            "GET /v1/integrations/google/oauth/callback?code=google-code&state=google-state HTTP/1.1"
+        ));
+        for (index, request) in requests.iter().take(8).enumerate() {
             assert_scoped_request(
                 request,
                 if index < 3 {
@@ -3983,7 +3986,7 @@ mod tests {
                 },
             );
         }
-        for request in requests.iter().skip(7) {
+        for request in requests.iter().skip(8) {
             assert_eq!(
                 request_header(request, "x-organization-id").as_deref(),
                 Some("oauth-callback")
@@ -4023,17 +4026,18 @@ mod tests {
 
     #[tokio::test]
     async fn oauth_configuration_errors_preserve_the_upstream_reason_code() {
-        let (base_url, server) = mock_agent_server(vec![
-            (503, r#"{"error":"google_calendar_oauth_not_configured","code":"google_calendar_oauth_not_configured"}"#),
-        ])
+        let (base_url, server) = mock_agent_server(vec![(
+            503,
+            r#"{"error":"google_oauth_not_configured","code":"google_oauth_not_configured"}"#,
+        )])
         .await;
         let client = test_client(&base_url);
         let error = client
-            .start_google_calendar_oauth("org-1", "actor-1", "install-1")
+            .start_google_oauth("org-1", "actor-1", "install-1", "google.calendar")
             .await
             .expect_err("missing Google OAuth configuration should be surfaced");
 
-        assert_eq!(error.code(), "google_calendar_oauth_not_configured");
+        assert_eq!(error.code(), "google_oauth_not_configured");
         assert_eq!(
             error.error_response().status(),
             actix_web::http::StatusCode::SERVICE_UNAVAILABLE

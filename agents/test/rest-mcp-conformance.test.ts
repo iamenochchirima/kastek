@@ -133,7 +133,7 @@ function isProviderWebhook(route: Route): boolean {
 }
 
 function isPublicOAuthCallback(route: Route): boolean {
-  return (route.path === "/v1/integrations/google.calendar/oauth/callback" || route.path === "/v1/integrations/mcp/oauth/callback") && route.method === "GET";
+  return (route.path === "/v1/integrations/google/oauth/callback" || route.path === "/v1/integrations/mcp/oauth/callback") && route.method === "GET";
 }
 
 describe("Agent REST and MCP conformance matrices", () => {

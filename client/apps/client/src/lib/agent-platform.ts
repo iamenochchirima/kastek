@@ -1466,8 +1466,8 @@ export function saveAgentIntegrationLocalConnector(installationId: string, integ
   return request(`/api/agents/installations/${encodeURIComponent(installationId)}/integrations/${encodeURIComponent(integrationId)}/local-connector`, { method: "POST", body: JSON.stringify(input) });
 }
 
-export function startAgentGoogleCalendarOAuth(installationId: string): Promise<{ authorizationUrl: string }> {
-  return request(`/api/agents/installations/${encodeURIComponent(installationId)}/integrations/google.calendar/oauth/start`);
+export function startAgentGoogleOAuth(installationId: string, integrationId: string): Promise<{ authorizationUrl: string }> {
+  return request(`/api/agents/installations/${encodeURIComponent(installationId)}/integrations/${encodeURIComponent(integrationId)}/oauth/start`);
 }
 
 export function disconnectAgentIntegration(installationId: string, integrationId: string): Promise<unknown> {

@@ -116,7 +116,7 @@ mod tests {
             (Method::GET, "/api/agents/integrations/mcp/oauth/callback"),
             (
                 Method::GET,
-                "/api/agents/integrations/google.calendar/oauth/callback",
+                "/api/agents/integrations/google/oauth/callback",
             ),
             (Method::PATCH, "/api/agents/agent-1"),
             (Method::GET, "/api/agents/knowledge/sources/source-1"),

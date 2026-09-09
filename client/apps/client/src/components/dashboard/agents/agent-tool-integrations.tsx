@@ -15,7 +15,7 @@ import {
   listAgentInstallationIntegrations,
   saveAgentIntegrationApiKey,
   saveAgentIntegrationLocalConnector,
-  startAgentGoogleCalendarOAuth,
+  startAgentGoogleOAuth,
   type AgentCapabilityDirectoryEntry,
   type AgentIntegration,
 } from "@/lib/agent-platform";
@@ -141,7 +141,7 @@ export function AgentToolIntegrations({ installationId, embedded = false, refres
     setBusyIntegration("google.calendar");
     setError(null);
     try {
-      const response = await startAgentGoogleCalendarOAuth(installationId);
+      const response = await startAgentGoogleOAuth(installationId, "google.calendar");
       window.location.assign(response.authorizationUrl);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Unable to start Google Calendar connection");

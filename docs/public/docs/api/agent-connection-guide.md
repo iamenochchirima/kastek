@@ -183,3 +183,8 @@ agent version. Plugins use reviewed declarative manifests and the extension-pack
 plugin is selectable only when KasiTek has a registered runtime adapter for it; Hermes plugin code
 is not imported into the worker. Unavailable manifests remain visible as catalogue metadata so an
 operator can distinguish a missing adapter from a missing credential.
+
+Native Google connections use one OAuth client and one callback per environment. The selected
+catalog entry supplies its own scopes, so Calendar, Gmail, and Drive can be connected separately
+as their adapters become available. The callback is
+`/api/agents/integrations/google/oauth/callback`; users do not enter OAuth client credentials.

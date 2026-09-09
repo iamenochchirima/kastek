@@ -180,9 +180,9 @@ export class IntegrationToolService {
     if (!connection.credential_id) throw new IntegrationToolError("INTEGRATION_NOT_CONNECTED", "Google Calendar credential is missing");
     let credential = jsonRecord(await this.repository.resolveCredential(organizationId, connection.credential_id)) as GoogleCredential;
     if (!credential.accessToken) throw new IntegrationToolError("INTEGRATION_CREDENTIAL_INVALID", "Google Calendar access token is missing");
-    if (credential.expiresAt && Date.parse(credential.expiresAt) <= Date.now() + 30_000 && credential.refreshToken && this.config?.GOOGLE_CALENDAR_CLIENT_ID && this.config.GOOGLE_CALENDAR_CLIENT_SECRET) {
-      const clientId = this.config.GOOGLE_CALENDAR_CLIENT_ID;
-      const clientSecret = this.config.GOOGLE_CALENDAR_CLIENT_SECRET;
+    if (credential.expiresAt && Date.parse(credential.expiresAt) <= Date.now() + 30_000 && credential.refreshToken && this.config?.GOOGLE_OAUTH_CLIENT_ID && this.config.GOOGLE_OAUTH_CLIENT_SECRET) {
+      const clientId = this.config.GOOGLE_OAUTH_CLIENT_ID;
+      const clientSecret = this.config.GOOGLE_OAUTH_CLIENT_SECRET;
       const refreshToken = credential.refreshToken;
       const refreshed = await withProviderSpan("google-calendar", "oauth.refresh", () => fetch("https://oauth2.googleapis.com/token", { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ client_id: clientId, client_secret: clientSecret, grant_type: "refresh_token", refresh_token: refreshToken }), signal: AbortSignal.timeout(20_000) }));
       if (!refreshed.ok) throw new IntegrationToolError("INTEGRATION_REAUTH_REQUIRED", "Google Calendar authorization has expired");
