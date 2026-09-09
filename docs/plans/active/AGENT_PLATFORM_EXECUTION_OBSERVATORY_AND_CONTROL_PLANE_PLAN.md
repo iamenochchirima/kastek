@@ -8,7 +8,7 @@ description: Third Agent Platform implementation chunk for real Playground execu
 
 # Agent Playground and Execution Observatory
 
-**Status:** In progress; Playground and first observatory/control slices implemented
+**Status:** In progress; Playground, observatory evidence links, and first control/promotion identity slices implemented
 
 **Owner:** Agent Platform
 
@@ -81,7 +81,10 @@ The first implementation slice is now available for local testing:
 - timeline responses expose a bounded, role-scoped unified item list for run events, journal events,
   steps, tool calls, and effects, while preserving the legacy arrays for compatibility.
 - memory run projections and revision-lineage summaries are scoped through the existing memory
-  observatory repository and surfaced without exposing raw memory content by default.
+  observatory repository and surfaced without exposing raw memory content by default;
+- exact execution items retain a configured-stage link, child executions have an explicit graph
+  kind, effect receipts expose bounded reconciliation metadata, and Studio shows the active Live
+  candidate identity without copying or displaying credentials.
 
 This is a usable entry point, not completion of this chunk. Separate resource and credential
 bindings, promotion manifests, live activation, deeper aggregated graph relationships, and full
