@@ -90,6 +90,7 @@ type TraceNode = {
 };
 
 type StudioStreamState = "idle" | "connected" | "replaying" | "delayed" | "unavailable";
+type StudioGraphMode = "topology" | "execution";
 
 const terminalStatuses = new Set(["completed", "failed", "cancelled", "expired"]);
 
@@ -469,6 +470,7 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
   const [telemetryDetailsOpen, setTelemetryDetailsOpen] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const [runStreamState, setRunStreamState] = useState<StudioStreamState>("idle");
+  const [graphMode, setGraphMode] = useState<StudioGraphMode>("topology");
   const [notice, setNotice] = useState<string | null>(null);
   const showError = (message: string, remediation?: string) => {
     toast.error(message, remediation ? { description: remediation } : undefined);
@@ -522,6 +524,9 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
   );
   const studioGraphNodes = studioProjection.nodes;
   const studioGraphEdges = studioProjection.edges;
+  const executionGraphAvailable = studioProjection.executionNodes.length > 0;
+  const visibleGraphNodes = graphMode === "execution" && executionGraphAvailable ? studioProjection.executionNodes : studioGraphNodes;
+  const visibleGraphEdges = graphMode === "execution" && executionGraphAvailable ? studioProjection.executionEdges : studioGraphEdges;
 
   const applyConversation = useCallback((result: Awaited<ReturnType<typeof resolvePlatformConversation>>) => {
     setConversationId(result.conversation.id);
@@ -989,7 +994,7 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
     }
   };
 
-  const selectedGraphNode = studioGraphNodes.find((node) => node.id === selectedNodeId) ?? null;
+  const selectedGraphNode = visibleGraphNodes.find((node) => node.id === selectedNodeId) ?? null;
 
   return (
     <div className="flex h-[calc(100dvh-4rem)] min-h-0 flex-col overflow-hidden bg-canvas">
@@ -1048,12 +1053,12 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
           </section>
 
           <section className="flex min-h-[620px] min-w-0 flex-col xl:min-h-0">
-            <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3"><div><SectionEyebrow>Execution observatory</SectionEyebrow><h1 className="mt-1 text-sm font-semibold text-foreground">System map</h1></div><span className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground"><CircleDot className={cn("size-3", running ? "animate-pulse text-primary" : "text-muted-foreground")} />{running ? "Run overlay" : trace.length ? "Trace ready" : effectiveConfigLoading ? "Loading config" : effectiveConfigError ? "Config unavailable" : "Ready"}</span></div>
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-3"><div><SectionEyebrow>Execution observatory</SectionEyebrow><h1 className="mt-1 text-sm font-semibold text-foreground">{graphMode === "execution" && executionGraphAvailable ? "Generated run graph" : "System map"}</h1></div><div className="flex flex-wrap items-center justify-end gap-2"><div role="group" aria-label="Graph view" className="inline-flex rounded-md border border-border/70 p-0.5 text-[10px]"><button type="button" aria-pressed={graphMode === "topology"} onClick={() => { setGraphMode("topology"); setSelectedNodeId(null); }} className={cn("rounded px-2 py-1 transition-colors", graphMode === "topology" ? "bg-muted text-foreground" : "text-muted-foreground hover:text-foreground")}>Topology</button><button type="button" aria-pressed={graphMode === "execution"} disabled={!executionGraphAvailable} onClick={() => { setGraphMode("execution"); setSelectedNodeId(null); }} className={cn("rounded px-2 py-1 transition-colors", graphMode === "execution" ? "bg-muted text-foreground" : "text-muted-foreground hover:text-foreground", !executionGraphAvailable && "cursor-not-allowed opacity-50")}>Run</button></div><span className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground"><CircleDot className={cn("size-3", running ? "animate-pulse text-primary" : "text-muted-foreground")} />{running ? "Run overlay" : trace.length ? "Trace ready" : effectiveConfigLoading ? "Loading config" : effectiveConfigError ? "Config unavailable" : "Ready"}</span></div></div>
             <div className="relative min-h-[560px] min-w-0 flex-1 overflow-auto bg-[radial-gradient(circle_at_50%_45%,color-mix(in_srgb,var(--brand)_7%,transparent),transparent_58%)] xl:min-h-0">
-              <StudioSystemCanvas nodes={studioGraphNodes} edges={studioGraphEdges} selectedNodeId={selectedNodeId} onSelect={setSelectedNodeId} running={running} traceCount={trace.length} storageKey={`kasitek:studio-layout:${agent.id}:${selectedVersionId ?? "default"}`} />
+              <StudioSystemCanvas nodes={visibleGraphNodes} edges={visibleGraphEdges} selectedNodeId={selectedNodeId} onSelect={setSelectedNodeId} running={running} traceCount={trace.length} graphMode={graphMode} storageKey={`kasitek:studio-layout:${agent.id}:${selectedVersionId ?? "default"}:${graphMode}`} />
               {selectedGraphNode ? <div className="absolute bottom-4 left-4 right-4 z-10 max-h-72 overflow-auto rounded-xl border border-border bg-card/95 shadow-xl backdrop-blur"><button type="button" aria-label="Close node details" onClick={() => setSelectedNodeId(null)} className="absolute right-3 top-3 z-10 rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"><X className="size-4" /></button><StudioGraphInspector node={selectedGraphNode} telemetry={telemetry} onConfigure={() => setConfigurationOpen(true)} /></div> : null}
             </div>
-            <StudioExecutionTimeline trace={trace} nodes={studioGraphNodes} projection={timelineProjection} run={runHistory.find((run) => run.id === (activeRunId ?? selectedRunId)) ?? null} streamState={runStreamState} onSelectNode={setSelectedNodeId} />
+            <StudioExecutionTimeline trace={trace} nodes={visibleGraphNodes} projection={timelineProjection} run={runHistory.find((run) => run.id === (activeRunId ?? selectedRunId)) ?? null} streamState={runStreamState} onSelectNode={setSelectedNodeId} />
           </section>
         </div>
       </div>

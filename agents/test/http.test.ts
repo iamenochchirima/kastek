@@ -2531,6 +2531,13 @@ describe("Agent Platform HTTP foundation", () => {
         modelAttempt: { status: "completed", provider: "openai", model: "test-model", latencyMs: 2_000 },
         turn: { status: "completed", elapsedMs: 4_000 },
       },
+      projection: {
+        version: "studio.run-timeline.v1",
+        cursor: 4,
+        freshness: "settled",
+        redaction: "role_scoped",
+        observedAt: expect.any(String),
+      },
       steps: [{ step_type: "context" }],
       toolCalls: [{ tool_name: "platform.current_time", arguments: { apiKey: "[REDACTED]" } }],
       effects: [{ provider_receipt: { accessToken: "[REDACTED]" } }],

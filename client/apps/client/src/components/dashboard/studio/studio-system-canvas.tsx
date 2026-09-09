@@ -68,6 +68,7 @@ type StudioCanvasProps = {
   traceCount: number;
   edges?: StudioGraphEdge[];
   storageKey?: string;
+  graphMode?: "topology" | "execution";
 };
 
 type CanvasNodeData = StudioGraphNode & Record<string, unknown>;
@@ -245,7 +246,7 @@ function ObservatoryNode({ data, selected }: NodeProps<CanvasNode>) {
 
 function createCanvasNodes(nodes: StudioGraphNode[], selectedNodeId: string | null, positions: Record<string, XYPosition>): CanvasNode[] {
   return [
-      ...nodes.map((node) => { const size = nodeSize(node.kind); return { id: node.id, type: "observatory" as const, position: isMovableNode(node) ? positions[node.id] ?? node.position ?? nodePositions[node.id] ?? { x: 0, y: 0 } : nodePositions[node.id] ?? { x: 0, y: 0 }, data: node, selected: node.id === selectedNodeId, width: size.width, height: size.height, style: { zIndex: 10 }, draggable: isMovableNode(node) }; }),
+      ...nodes.map((node) => { const size = nodeSize(node.kind); return { id: node.id, type: "observatory" as const, position: positions[node.id] ?? node.position ?? nodePositions[node.id] ?? { x: 0, y: 0 }, data: node, selected: node.id === selectedNodeId, width: size.width, height: size.height, style: { zIndex: 10 }, draggable: isMovableNode(node) }; }),
   ];
 }
 
@@ -321,9 +322,9 @@ function ObservatoryLinks({ nodes, positions, edges }: { nodes: StudioGraphNode[
 
 const observatoryNodeTypes = { observatory: ObservatoryNode };
 
-export function StudioSystemCanvas({ nodes, selectedNodeId, onSelect, running, traceCount, edges = edgeDefinitions, storageKey }: StudioCanvasProps) {
+export function StudioSystemCanvas({ nodes, selectedNodeId, onSelect, running, traceCount, edges = edgeDefinitions, storageKey, graphMode = "topology" }: StudioCanvasProps) {
   const layoutStorageKey = storageKey ? `${storageKey}:compact-v1` : undefined;
-  const [positions, setPositions] = useState<Record<string, XYPosition>>(() => Object.fromEntries(nodes.map((node) => [node.id, nodePositions[node.id] ?? { x: 0, y: 0 }])));
+  const [positions, setPositions] = useState<Record<string, XYPosition>>(() => Object.fromEntries(nodes.map((node) => [node.id, node.position ?? nodePositions[node.id] ?? { x: 0, y: 0 }])));
   const [positionsLoaded, setPositionsLoaded] = useState(!layoutStorageKey);
   const [isMounted, setIsMounted] = useState(false);
   const movableNodeIds = useMemo(() => new Set(nodes.filter(isMovableNode).map((node) => node.id)), [nodes]);
@@ -421,7 +422,7 @@ export function StudioSystemCanvas({ nodes, selectedNodeId, onSelect, running, t
         position="bottom-right"
       />
       <Panel position="top-left" className="!m-4 flex items-center gap-3 rounded-lg border border-border/70 bg-card/90 px-3 py-2 text-[10px] text-muted-foreground shadow-lg backdrop-blur">
-        <span className="inline-flex items-center gap-1.5 font-semibold text-foreground"><Workflow className="size-3.5 text-primary" />System topology</span>
+        <span className="inline-flex items-center gap-1.5 font-semibold text-foreground"><Workflow className="size-3.5 text-primary" />{graphMode === "execution" ? "Generated execution" : "System topology"}</span>
         <span>{nodes.length} nodes</span>
         <span className="text-border">•</span>
         <span>{traceCount ? `${traceCount} events` : "Ready"}</span>

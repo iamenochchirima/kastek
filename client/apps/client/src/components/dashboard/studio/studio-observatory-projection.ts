@@ -32,6 +32,13 @@ type ProjectionInput = {
   configurationState?: "loading" | "ready" | "unavailable";
 };
 
+export type StudioObservatoryProjection = {
+  nodes: StudioGraphNode[];
+  edges: StudioGraphEdge[];
+  executionNodes: StudioGraphNode[];
+  executionEdges: StudioGraphEdge[];
+};
+
 const coreDefinitions: Array<Pick<StudioGraphNode, "id" | "label" | "detail" | "kind" | "configured" | "configurable" | "scope" | "event"> & { data: Record<string, string> }> = [
   { id: "input", label: "Message input", detail: "Inbound message or interaction", kind: "input", configured: true, scope: "channel", event: "run.received", data: { source: "conversation or gateway", mode: "inbound" } },
   { id: "channel", label: "Channel gateway", detail: "Normalize and authenticate", kind: "channel", configured: true, configurable: true, scope: "workspace", event: "channel.accepted", data: { channels: "configured channels", auth: "workspace binding" } },
@@ -149,6 +156,62 @@ function capabilityPosition(index: number) {
   return { x: 48 + (index % 4) * 132, y: 560 + Math.floor(index / 4) * 104 };
 }
 
+function executionKind(item: StudioTraceItem): StudioGraphNode["kind"] {
+  const event = normalized(item.event);
+  const tokens = `${event} ${tokensForTrace(item).join(" ")}`;
+  if (event === "run.received" || event.includes("input")) return "input";
+  if (event.includes("channel")) return "channel";
+  if (event.includes("session") || event === "run.started" || event === "run.queued") return "session";
+  if (event.includes("context")) return "context";
+  if (event.includes("memory")) return "memory";
+  if (event.includes("retrieval")) return "retrieval";
+  if (event.includes("model")) return "model";
+  if (event.includes("approval")) return "approval";
+  if (event.includes("handoff") || event.includes("human")) return "handoff";
+  if (event.includes("delivery") || event.includes("delivered")) return "delivery";
+  if (event.includes("output") || event === "run.completed") return "output";
+  if (tokens.includes("mcp")) return "mcp";
+  if (tokens.includes("skill")) return "skill";
+  if (event.includes("tool") || event.includes("operation") || event.includes("effect")) return "tool";
+  return "router";
+}
+
+function safeExecutionData(item: StudioTraceItem): Record<string, string> {
+  const allowed = new Set(["status", "reason", "code", "provider", "model", "name", "iteration", "attemptId", "operationId", "turnId", "retryCount", "latencyMs", "sequence_number"]);
+  const data: Record<string, string> = { event: item.event, sequence: String(item.sequence) };
+  for (const [key, value] of Object.entries(item.data)) {
+    if (!allowed.has(key) || value === null || value === undefined) continue;
+    const text = typeof value === "string" ? value : typeof value === "number" || typeof value === "boolean" ? String(value) : "";
+    if (text) data[key] = text.slice(0, 160);
+  }
+  return data;
+}
+
+function projectExecutionGraph(trace: StudioTraceItem[]): { nodes: StudioGraphNode[]; edges: StudioGraphEdge[] } {
+  const nodes = trace.map((item, index) => ({
+    id: `execution:${item.id}`,
+    label: item.label,
+    detail: item.detail,
+    kind: executionKind(item),
+    status: statusForEvent(item),
+    configured: false,
+    scope: "selected run",
+    event: item.event,
+    data: safeExecutionData(item),
+    position: { x: 44 + (index % 6) * 154, y: 84 + Math.floor(index / 6) * 112 },
+    evidence: { id: item.id, event: item.event, sequence: item.sequence, detail: item.detail },
+  } satisfies StudioGraphNode));
+  const edges = nodes.slice(1).map((node, index) => ({
+    id: `execution:${nodes[index]!.id}:${node.id}`,
+    source: nodes[index]!.id,
+    target: node.id,
+    sourceAnchor: "right" as const,
+    targetAnchor: "left" as const,
+    dashed: node.status === "waiting" || node.status === "error",
+  }));
+  return { nodes, edges };
+}
+
 function labelForCapability(name: string) {
   const last = name.split(/[.:/]/).at(-1) ?? name;
   return last.replaceAll("_", " ").replaceAll("-", " ").replace(/\b\w/g, (character) => character.toUpperCase());
@@ -191,9 +254,10 @@ function capabilityNode(input: {
   };
 }
 
-export function projectStudioObservatory(input: ProjectionInput): { nodes: StudioGraphNode[]; edges: StudioGraphEdge[] } {
+export function projectStudioObservatory(input: ProjectionInput): StudioObservatoryProjection {
   const effective = input.effectiveConfig;
   const configUnavailable = input.configurationState === "unavailable";
+  const execution = projectExecutionGraph(input.trace);
   const coreNodes = coreDefinitions.map((definition) => {
     const data = { ...definition.data };
     if (definition.id === "channel" && effective?.channels.length) data.channels = effective.channels.join(" · ");
@@ -217,7 +281,7 @@ export function projectStudioObservatory(input: ProjectionInput): { nodes: Studi
   });
 
   if (!effective || configUnavailable) {
-    return { nodes: coreNodes, edges: buildEdges(coreNodes, []) };
+    return { nodes: coreNodes, edges: buildEdges(coreNodes, []), executionNodes: execution.nodes, executionEdges: execution.edges };
   }
 
   const capabilityByName = new Map((input.capabilities ?? []).map((capability) => [normalized(capability.name), capability]));
@@ -319,7 +383,7 @@ export function projectStudioObservatory(input: ProjectionInput): { nodes: Studi
   }
 
   const nodes = [...coreNodes, ...capabilityNodes];
-  return { nodes, edges: buildEdges(nodes, capabilityNodes) };
+  return { nodes, edges: buildEdges(nodes, capabilityNodes), executionNodes: execution.nodes, executionEdges: execution.edges };
 }
 
 function buildEdges(nodes: StudioGraphNode[], capabilityNodes: StudioGraphNode[]): StudioGraphEdge[] {
