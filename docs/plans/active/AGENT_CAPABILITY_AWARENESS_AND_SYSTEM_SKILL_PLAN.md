@@ -440,6 +440,8 @@ snapshot, approval, redaction, and durable operation contracts as native tools.
 - The `capability_awareness_enabled` operator flag is additive, defaults to enabled when absent, and
   can disable only the model-facing capability contract/native discovery path while retaining the
   effective snapshot for tool admission and audit. Migration 161 and command validation cover it.
+- Capability snapshot digests exclude volatile run identity, so retries and equivalent Playground/Live
+  resolutions compare the same candidate state; a regression test covers different run IDs.
 
 The remaining unchecked items require a running local/staging environment with real KasiAi
 connections, one MCP/plugin binding, an approval-gated effect, and release telemetry comparison.
