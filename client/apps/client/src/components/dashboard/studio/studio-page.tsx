@@ -189,8 +189,19 @@ function nodeFromEvent(event: AgentStreamEvent): TraceNode {
   };
 }
 
+function normalizeTraceNodes(nodes: TraceNode[]) {
+  const seen = new Set<string>();
+  return nodes
+    .filter((node) => {
+      if (seen.has(node.id)) return false;
+      seen.add(node.id);
+      return true;
+    })
+    .sort((left, right) => left.sequence - right.sequence);
+}
+
 function nodesFromJournalEvents(events: AgentJournalEvent[], snapshotRevision?: number) {
-  return events
+  return normalizeTraceNodes(events
     .map((event) => {
       const rawData = event.event?.data ?? {};
       const rawPayload = rawData.payload;
@@ -213,16 +224,16 @@ function nodesFromJournalEvents(events: AgentJournalEvent[], snapshotRevision?: 
         },
       };
     })
-    .sort((left, right) => left.sequence - right.sequence);
+  );
 }
 
 function nodesFromRunEvents(events: Array<{ event_type?: string; payload?: Record<string, unknown>; sequence_number?: number | string }>) {
-  return events
+  return normalizeTraceNodes(events
     .map((event) => nodeFromEvent({
       event: event.event_type ?? "event",
       data: { ...(event.payload ?? {}), sequence_number: event.sequence_number },
     }))
-    .sort((left, right) => left.sequence - right.sequence);
+  );
 }
 
 function statusLabel(status: string) {
@@ -995,7 +1006,7 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
               <StudioSystemCanvas nodes={studioGraphNodes} edges={studioGraphEdges} selectedNodeId={selectedNodeId} onSelect={setSelectedNodeId} running={running} traceCount={trace.length} storageKey={`kasitek:studio-layout:${agent.id}:${selectedVersionId ?? "default"}`} />
               {selectedGraphNode ? <div className="absolute bottom-4 left-4 right-4 z-10 max-h-72 overflow-auto rounded-xl border border-border bg-card/95 shadow-xl backdrop-blur"><button type="button" aria-label="Close node details" onClick={() => setSelectedNodeId(null)} className="absolute right-3 top-3 z-10 rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"><X className="size-4" /></button><StudioGraphInspector node={selectedGraphNode} telemetry={telemetry} onConfigure={() => setConfigurationOpen(true)} /></div> : null}
             </div>
-            <StudioExecutionTimeline trace={trace} nodes={studioGraphNodes} projection={timelineProjection} onSelectNode={setSelectedNodeId} />
+            <StudioExecutionTimeline trace={trace} nodes={studioGraphNodes} projection={timelineProjection} run={runHistory.find((run) => run.id === (activeRunId ?? selectedRunId)) ?? null} onSelectNode={setSelectedNodeId} />
           </section>
         </div>
       </div>
@@ -1004,9 +1015,12 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
   );
 }
 
-function StudioExecutionTimeline({ trace, nodes, projection, onSelectNode }: { trace: TraceNode[]; nodes: StudioGraphNode[]; projection: Awaited<ReturnType<typeof getAgentRunTimeline>>["projection"] | null; onSelectNode: (id: string) => void }) {
+function StudioExecutionTimeline({ trace, nodes, projection, run, onSelectNode }: { trace: TraceNode[]; nodes: StudioGraphNode[]; projection: AgentRunTimeline["projection"] | null; run: AgentInstallationRun | null; onSelectNode: (id: string) => void }) {
+  const hasSequenceGap = trace.some((item, index) => index > 0 && item.sequence > trace[index - 1]!.sequence + 1);
+  const failure = run?.error?.userMessage ?? run?.error?.message;
   return <div className="max-h-44 shrink-0 border-t border-border bg-card/90 px-4 py-3">
-    <div className="flex items-center justify-between gap-3"><SectionEyebrow>Journal timeline</SectionEyebrow><span className="text-[10px] text-muted-foreground">{trace.length ? `${trace.length} events${projection ? ` · cursor ${projection.cursor}` : ""}` : "No run selected"}</span></div>
+    <div className="flex flex-wrap items-center justify-between gap-2"><SectionEyebrow>Journal timeline</SectionEyebrow><div className="flex flex-wrap items-center justify-end gap-2 text-[10px] text-muted-foreground">{run ? <span className="rounded-md border border-border/70 px-2 py-1">{run.status} · {run.trigger_type ?? "manual"}</span> : null}{projection ? <span className={cn("rounded-md border px-2 py-1", projection.freshness === "live" ? "border-primary/30 text-primary" : "border-border/70")}>{projection.freshness} · cursor {projection.cursor}</span> : null}{hasSequenceGap ? <span className="rounded-md border border-amber-500/30 bg-amber-500/5 px-2 py-1 text-amber-700 dark:text-amber-300">sequence gap</span> : null}</div></div>
+    {failure ? <p className="mt-2 truncate text-[10px] text-destructive">{failure}</p> : null}
     {trace.length ? <div className="mt-2 flex max-h-24 gap-2 overflow-x-auto pb-1">
       {trace.map((item) => {
         const target = nodes.find((node) => node.evidence?.id === item.id) ?? nodes.find((node) => node.event === item.event);
