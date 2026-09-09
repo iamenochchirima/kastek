@@ -9,7 +9,7 @@ import { cancelAgentRun, signalAgentRunExternalEvent } from "@/lib/agent-platfor
 
 const terminalStatuses = new Set(["completed", "failed", "cancelled", "expired"]);
 
-export function AgentRunActions({ runId, status, waitingFor }: { runId: string; status: string; waitingFor?: string }) {
+export function AgentRunActions({ runId, status, waitingFor, showCancel = true }: { runId: string; status: string; waitingFor?: string; showCancel?: boolean }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -58,5 +58,5 @@ export function AgentRunActions({ runId, status, waitingFor }: { runId: string; 
     }
   };
 
-  return <div className="flex flex-col items-end gap-1"><div className="flex flex-wrap justify-end gap-2">{status === "awaiting_external_event" || status === "awaiting_human" ? <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => void signalExternalEvent()}><PlayCircle className="mr-1.5 h-3.5 w-3.5" />{busy ? "Resuming…" : status === "awaiting_human" ? "Resolve handoff" : "Send event"}</Button> : null}<Button type="button" size="sm" variant="outline" disabled={busy || terminalStatuses.has(status)} onClick={() => void cancel()}><Ban className="mr-1.5 h-3.5 w-3.5" />{busy ? "Cancelling…" : "Cancel run"}</Button></div>{error ? <span className="max-w-48 text-right text-[11px] text-destructive" role="alert">{error}</span> : null}</div>;
+  return <div className="flex flex-col items-end gap-1"><div className="flex flex-wrap justify-end gap-2">{status === "awaiting_external_event" || status === "awaiting_human" ? <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => void signalExternalEvent()}><PlayCircle className="mr-1.5 h-3.5 w-3.5" />{busy ? "Resuming…" : status === "awaiting_human" ? "Resolve handoff" : "Send event"}</Button> : null}{showCancel ? <Button type="button" size="sm" variant="outline" disabled={busy || terminalStatuses.has(status)} onClick={() => void cancel()}><Ban className="mr-1.5 h-3.5 w-3.5" />{busy ? "Cancelling…" : "Cancel run"}</Button> : null}</div>{error ? <span className="max-w-48 text-right text-[11px] text-destructive" role="alert">{error}</span> : null}</div>;
 }

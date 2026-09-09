@@ -8,7 +8,7 @@ description: Standalone Studio plan for visualising context, memory, capabilitie
 
 # Studio runtime observatory and promotion update
 
-**Status:** UI implementation slice complete; broader runtime, memory, and promotion contract work remains
+**Status:** Observatory UI and first control slice implemented; broader promotion and runtime proof work remains
 
 **Owner:** Agent Platform and Studio
 
@@ -237,8 +237,10 @@ The current implementation also loads installation-scoped run history, reconstru
 from the durable timeline endpoint, and displays the backend cursor, freshness, redaction level,
 terminal outcome, sequence gaps, and bounded capability operation evidence. Timeline items are
 deduplicated by their durable event identity before they are projected into the graph and timeline.
-Memory revision lineage, cursor-delta replay, exact/aggregated graph modes, and push-based
-reconnection remain runtime-contract follow-ups; the UI does not label those as implemented.
+The observatory now has a configured topology and an exact run graph, reconnects the active-run SSE
+stream from its last durable cursor, exposes retry/resume/cancel/approval commands through existing
+durable APIs, and can open a bounded memory revision-lineage summary. Richer promotion evidence,
+full lineage controls, and manual environment proof remain runtime-contract follow-ups.
 
 ## Release record for the UI slice
 
@@ -253,9 +255,9 @@ Feature flag or rollout method: existing Studio route; graph projection is read-
 Analytics events and success metrics: not applicable; no new user outcome is persisted
 Logs, metrics, dashboards, and alerts: not applicable; no backend lifecycle is added
 User, API, internal, and operational documentation: this plan updated
-Validation evidence: client ESLint, TypeScript check, and production Next.js build pass; Agents TypeScript check passes; Studio projection uses effective candidate data and durable journal evidence
+Validation evidence: client ESLint, TypeScript check, and production Next.js build pass; Agents TypeScript check and HTTP projection tests pass; Studio projection uses effective candidate data, durable journal evidence, cursor-aware SSE replay, and scoped memory projections
 Rollback or disable plan: revert the Studio UI commit; existing run/configuration APIs are unchanged
-Post-release review date: when effective candidate projection work begins
+Post-release review date: when promotion and full runtime-proof work begins
 ```
 
 ### Core execution nodes

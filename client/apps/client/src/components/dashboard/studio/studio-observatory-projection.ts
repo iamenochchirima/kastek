@@ -166,6 +166,9 @@ function latestMemoryEvidence(graph: AgentMemoryObservatoryGraph | null | undefi
     evidenceCount: node.evidenceIds.length,
     revisionCount: node.revisionIds.length,
     sourceEventCount: node.sourceEventIds.length,
+    revisionIds: node.revisionIds.slice(0, 8),
+    sourceEventIds: node.sourceEventIds.slice(0, 8),
+    evidenceIds: node.evidenceIds.slice(0, 8),
     ...(node.errorCode ? { errorCode: node.errorCode } : {}),
   };
 }
@@ -195,7 +198,7 @@ function executionKind(item: StudioTraceItem): StudioGraphNode["kind"] {
 }
 
 function safeExecutionData(item: StudioTraceItem): Record<string, string> {
-  const allowed = new Set(["status", "reason", "code", "provider", "model", "name", "iteration", "attemptId", "operationId", "turnId", "runId", "retryCount", "latencyMs", "sequence_number", "run_id", "turn_id", "operation_id", "attempt_id", "event_id", "journal_sequence", "occurred_at"]);
+  const allowed = new Set(["status", "reason", "code", "provider", "model", "name", "iteration", "attemptId", "operationId", "turnId", "runId", "retryCount", "latencyMs", "parentOperationId", "parentEventId", "parentRunId", "causationId", "correlationId", "branchId", "parallelGroup", "childRunId", "sequence_number", "run_id", "turn_id", "operation_id", "attempt_id", "event_id", "journal_sequence", "occurred_at", "parent_operation_id", "parent_event_id", "parent_run_id", "causation_id", "correlation_id", "branch_id", "parallel_group", "child_run_id"]);
   const data: Record<string, string> = { event: item.event, sequence: String(item.sequence) };
   for (const [key, value] of Object.entries(item.data)) {
     if (!allowed.has(key) || value === null || value === undefined) continue;
@@ -203,6 +206,17 @@ function safeExecutionData(item: StudioTraceItem): Record<string, string> {
     if (text) data[key] = text.slice(0, 160);
   }
   return data;
+}
+
+function executionDataValue(item: StudioTraceItem, keys: string[]) {
+  return keys.map((key) => item.data[key]).find((value): value is string => typeof value === "string" && value.length > 0);
+}
+
+function executionIdentity(item: StudioTraceItem) {
+  return [
+    item.id,
+    executionDataValue(item, ["operationId", "operation_id", "event_id", "eventId", "journal_sequence"]),
+  ].filter((value): value is string => Boolean(value));
 }
 
 function projectExecutionGraph(trace: StudioTraceItem[]): { nodes: StudioGraphNode[]; edges: StudioGraphEdge[] } {
@@ -219,14 +233,49 @@ function projectExecutionGraph(trace: StudioTraceItem[]): { nodes: StudioGraphNo
     position: { x: 44 + (index % 6) * 154, y: 84 + Math.floor(index / 6) * 112 },
     evidence: { id: item.id, event: item.event, sequence: item.sequence, detail: item.detail },
   } satisfies StudioGraphNode));
-  const edges = nodes.slice(1).map((node, index) => ({
-    id: `execution:${nodes[index]!.id}:${node.id}`,
-    source: nodes[index]!.id,
-    target: node.id,
-    sourceAnchor: "right" as const,
-    targetAnchor: "left" as const,
-    dashed: node.status === "waiting" || node.status === "error",
-  }));
+  const edges: StudioGraphEdge[] = [];
+  const edgeKeys = new Set<string>();
+  const addEdge = (source: string, target: string, relation: string, dashed = false) => {
+    if (source === target) return;
+    const key = `${source}:${target}:${relation}`;
+    if (edgeKeys.has(key)) return;
+    edgeKeys.add(key);
+    edges.push({
+      id: `execution:${key}`,
+      source,
+      target,
+      sourceAnchor: "right",
+      targetAnchor: "left",
+      dashed,
+      relation,
+    });
+  };
+  for (let index = 0; index < nodes.length; index += 1) {
+    const node = nodes[index]!;
+    const item = trace[index]!;
+    const previous = nodes[index - 1];
+    if (previous) addEdge(previous.id, node.id, "sequence", node.status === "waiting" || node.status === "error");
+
+    const causationReference = executionDataValue(item, ["causationId", "causation_id"]);
+    const parentReference = executionDataValue(item, ["parentOperationId", "parent_operation_id", "parentEventId", "parent_event_id"]) ?? causationReference;
+    if (parentReference) {
+      const parentIndex = trace.slice(0, index).findLastIndex((candidate) => executionIdentity(candidate).includes(parentReference));
+      if (parentIndex >= 0) addEdge(nodes[parentIndex]!.id, node.id, causationReference === parentReference ? "causation" : "parent", true);
+    }
+
+    const operationId = executionDataValue(item, ["operationId", "operation_id"]);
+    const retryCount = executionDataValue(item, ["retryCount", "retry_count"]);
+    if (operationId && (item.event.includes("retry") || Number(retryCount) > 0)) {
+      const retryIndex = trace.slice(0, index).findLastIndex((candidate) => executionDataValue(candidate, ["operationId", "operation_id"]) === operationId);
+      if (retryIndex >= 0) addEdge(nodes[retryIndex]!.id, node.id, "retry", true);
+    }
+
+    const branchReference = executionDataValue(item, ["branchId", "branch_id", "parallelGroup", "parallel_group"]);
+    if (branchReference) {
+      const branchIndex = trace.slice(0, index).findLastIndex((candidate) => executionDataValue(candidate, ["branchId", "branch_id", "parallelGroup", "parallel_group"]) === branchReference);
+      if (branchIndex >= 0 && branchIndex !== index - 1) addEdge(nodes[branchIndex]!.id, node.id, "parallel", true);
+    }
+  }
   return { nodes, edges };
 }
 

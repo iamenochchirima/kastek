@@ -15,6 +15,7 @@ import {
   X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useConfirmationDialog } from "@/components/ui/confirmation-provider";
 import { toast } from "sonner";
 import {
   createAgentVersion,
@@ -25,6 +26,7 @@ import {
   getPlatformConversation,
   getAgentModelCatalog,
   getAgentRun,
+  getAgentMemoryLineage,
   getAgentRunMemoryObservatory,
   getAgentRunTimeline,
   getAgentVersionEffectiveConfig,
@@ -33,6 +35,7 @@ import {
   listAgentInstallationCapabilities,
   listAgentConnectionDirectory,
   listAgentInstallationRuns,
+  retryAgentRun,
   ensureAgentPlayground,
   listAgentVersions,
   resolvePlatformConversation,
@@ -50,6 +53,7 @@ import {
   type AgentRunTimeline,
   type AgentInstallationRun,
   type AgentMemoryObservatoryGraph,
+  type AgentApproval,
   type AgentEffectiveConfigProjection,
   type AgentCapability,
   type AgentConnectionDirectoryEntry,
@@ -60,6 +64,8 @@ import {
 } from "@/lib/agent-platform";
 import { cn } from "@/lib/utils";
 import { AgentChatComposer } from "@/components/dashboard/agents/agent-chat-composer";
+import { AgentApprovalActions } from "@/components/dashboard/agents/agent-approval-actions";
+import { AgentRunActions } from "@/components/dashboard/agents/agent-run-actions";
 import { AgentChatMessageList } from "@/components/dashboard/agents/agent-chat-message-list";
 import { AgentChatRunStatus } from "@/components/dashboard/agents/agent-chat-run-status";
 import { AgentChatSurface } from "@/components/dashboard/agents/agent-chat-surface";
@@ -451,6 +457,9 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
   const [timelineProjection, setTimelineProjection] = useState<AgentRunTimeline["projection"] | null>(null);
   const [memoryObservatory, setMemoryObservatory] = useState<AgentMemoryObservatoryGraph | null>(null);
+  const [memoryLineage, setMemoryLineage] = useState<AgentMemoryObservatoryGraph | null>(null);
+  const [approval, setApproval] = useState<AgentApproval | null>(null);
+  const [canApprove, setCanApprove] = useState(false);
   const [operationEvidence, setOperationEvidence] = useState<Array<Record<string, unknown>>>([]);
   const [effectiveConfig, setEffectiveConfig] = useState<AgentEffectiveConfigProjection | null>(null);
   const [effectiveCapabilities, setEffectiveCapabilities] = useState<AgentCapability[]>([]);
@@ -472,9 +481,11 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
   const [telemetry, setTelemetry] = useState<AgentRuntimeTelemetry | null>(null);
   const [telemetryDetailsOpen, setTelemetryDetailsOpen] = useState(false);
   const [cancelling, setCancelling] = useState(false);
+  const [retrying, setRetrying] = useState(false);
   const [runStreamState, setRunStreamState] = useState<StudioStreamState>("idle");
   const [graphMode, setGraphMode] = useState<StudioGraphMode>("topology");
   const [notice, setNotice] = useState<string | null>(null);
+  const { confirm } = useConfirmationDialog();
   const showError = (message: string, remediation?: string) => {
     toast.error(message, remediation ? { description: remediation } : undefined);
   };
@@ -664,12 +675,34 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
     if (!observedRunId) return;
     let cancelled = false;
     const refreshRuntimeEvidence = async () => {
-      const timeline = await getAgentRunTimeline(observedRunId).catch(() => null);
-      if (cancelled || !timeline) return;
-      const memory = await getAgentRunMemoryObservatory(observedRunId, { afterSequence: 0, limit: 200 }).catch(() => null);
+      const [timelineResult, detailResult] = await Promise.allSettled([
+        getAgentRunTimeline(observedRunId),
+        getAgentRun(observedRunId),
+      ]);
+      if (cancelled) return;
+      if (timelineResult.status !== "fulfilled") {
+        showError("Execution timeline unavailable", "The durable run record could not be loaded.");
+        return;
+      }
+      const timeline = timelineResult.value;
+      const detail = detailResult.status === "fulfilled" ? detailResult.value : null;
+      const memoryResult = await getAgentRunMemoryObservatory(observedRunId, { afterSequence: 0, limit: 200 }).then(
+        (value) => ({ status: "fulfilled" as const, value }),
+        (reason) => ({ status: "rejected" as const, reason }),
+      );
+      if (memoryResult.status === "rejected") {
+        showError("Memory observatory unavailable", "Run timeline evidence is still available.");
+      }
+      const memory = memoryResult.status === "fulfilled" ? memoryResult.value : null;
       setTelemetry(timeline.telemetry ?? null);
       setTimelineProjection(timeline.projection ?? null);
       setMemoryObservatory(memory);
+      setApproval(detail?.approval ?? null);
+      // The standard run detail route returns the approval record but does not
+      // advertise a separate capability flag. Let the durable command enforce
+      // authorization and only hide the control when a route explicitly says
+      // this actor cannot approve.
+      setCanApprove(detail ? detail.canApprove !== false : false);
       setOperationEvidence([...timeline.toolCalls, ...timeline.effects, ...timeline.steps]);
       setRunHistory((current) => {
         const existing = current.find((run) => run.id === observedRunId);
@@ -705,6 +738,9 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
     setTelemetry(null);
     setRunStreamState("idle");
     setMemoryObservatory(null);
+    setMemoryLineage(null);
+    setApproval(null);
+    setCanApprove(false);
     setTimelineProjection(null);
     setOperationEvidence([]);
     setTelemetryDetailsOpen(false);
@@ -721,6 +757,9 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
     setTelemetry(null);
     setRunStreamState("idle");
     setMemoryObservatory(null);
+    setMemoryLineage(null);
+    setApproval(null);
+    setCanApprove(false);
     setTimelineProjection(null);
     setOperationEvidence([]);
     setSelectedNodeId(null);
@@ -877,6 +916,7 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
 
   const cancelRun = async () => {
     if (!activeRunId || cancelling) return;
+    if (!await confirm({ title: "Cancel run?", description: "The durable run will be marked cancelled.", confirmLabel: "Cancel run", variant: "destructive" })) return;
     setCancelling(true);
     clearError();
     try {
@@ -885,6 +925,44 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
     } catch (cause) {
       setCancelling(false);
       showError(cause instanceof Error ? cause.message : "Unable to cancel run");
+    }
+  };
+
+  const retryRun = async () => {
+    if (!selectedRunId || running || retrying) return;
+    setRetrying(true);
+    setNotice(null);
+    setSelectedNodeId(null);
+    setTrace([]);
+    try {
+      const accepted = await retryAgentRun(selectedRunId);
+      setConversationId(accepted.conversation.id);
+      setMessages((current) => current.some((item) => item.id === accepted.message.id) ? current : [...current, accepted.message]);
+      setActiveRunId(accepted.runId);
+      setSelectedRunId(accepted.runId);
+      setLastRunId(accepted.runId);
+      setTrace([{ id: "input", event: "run.received", label: "Retry", detail: "Retried from the selected run", status: "running", sequence: 0, data: { run_id: accepted.runId } }]);
+      const controller = new AbortController();
+      await streamStudioRun(accepted.runId, addTraceEvent, controller.signal, setRunStreamState);
+      const result = await getAgentRun(accepted.runId);
+      const timeline = await getAgentRunTimeline(accepted.runId).catch(() => null);
+      const runNodes = timeline?.journal?.length
+        ? nodesFromJournalEvents(timeline.journal, timeline.telemetry?.revision)
+        : nodesFromRunEvents(result.events);
+      if (runNodes.length) setTrace(runNodes);
+      await refreshConversation(accepted.conversation.id);
+      if (result.run.status !== "completed") {
+        const runError = result.run.error;
+        throw new Error(runError?.userMessage || runError?.message || `Run ${result.run.status}`);
+      }
+      setNotice("Run completed");
+    } catch (cause) {
+      showError(cause instanceof Error ? cause.message : "Unable to retry run");
+      setTrace((current) => current.map((node) => node.status === "running" ? { ...node, status: "error" } : node));
+    } finally {
+      setRetrying(false);
+      setRunStreamState("idle");
+      setActiveRunId(null);
     }
   };
 
@@ -1003,6 +1081,25 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
   };
 
   const selectedGraphNode = visibleGraphNodes.find((node) => node.id === selectedNodeId) ?? null;
+  const observedRunId = activeRunId ?? selectedRunId;
+  const selectedRun = runHistory.find((run) => run.id === (activeRunId ?? selectedRunId)) ?? null;
+  const selectedMemoryRevisionId = selectedGraphNode?.evidence?.memory?.revisionIds[0] ?? null;
+
+  useEffect(() => {
+    if (!selectedMemoryRevisionId) {
+      setMemoryLineage(null);
+      return;
+    }
+    let cancelled = false;
+    void getAgentMemoryLineage(selectedMemoryRevisionId)
+      .then((lineage) => {
+        if (!cancelled) setMemoryLineage(lineage);
+      })
+      .catch(() => {
+        if (!cancelled) setMemoryLineage(null);
+      });
+    return () => { cancelled = true; };
+  }, [selectedMemoryRevisionId]);
 
   return (
     <div className="flex h-[calc(100dvh-4rem)] min-h-0 flex-col overflow-hidden bg-canvas">
@@ -1016,6 +1113,8 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
           <span className="inline-flex items-center gap-1.5 rounded-md border border-primary/20 bg-primary/5 px-2.5 py-1.5 text-xs text-primary"><FlaskConical className="size-3.5" />{surface === "playground" ? "Playground" : "Studio"}</span>
           <Button type="button" variant="outline" size="sm" onClick={() => setConfigurationOpen(true)}><SlidersHorizontal className="mr-1.5 size-3.5" />Settings</Button>
           {activeRunId ? <Button type="button" variant="outline" size="sm" onClick={() => void cancelRun()} disabled={cancelling}><X className="mr-1.5 size-3.5" />{cancelling ? "Cancelling…" : "Cancel"}</Button> : null}
+          {!activeRunId && selectedRun && ["failed", "expired"].includes(selectedRun.status) ? <Button type="button" variant="outline" size="sm" onClick={() => void retryRun()} disabled={retrying}><ArrowRight className="mr-1.5 size-3.5" />{retrying ? "Retrying…" : "Retry"}</Button> : null}
+          {selectedRun && ["awaiting_external_event", "awaiting_human"].includes(selectedRun.status) ? <AgentRunActions runId={selectedRun.id} status={selectedRun.status} waitingFor={typeof selectedRun.output?.waitingFor === "string" ? selectedRun.output.waitingFor : undefined} showCancel={!activeRunId} /> : null}
           <AgentDeploymentLifecycle agent={agent} versions={versions} selectedVersionId={selectedVersionId} onVersionsChange={setVersions} compact />
         </div>
       </header>
@@ -1064,7 +1163,7 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-3"><div><SectionEyebrow>Execution observatory</SectionEyebrow><h1 className="mt-1 text-sm font-semibold text-foreground">{graphMode === "execution" && executionGraphAvailable ? "Generated run graph" : "System map"}</h1></div><div className="flex flex-wrap items-center justify-end gap-2"><div role="group" aria-label="Graph view" className="inline-flex rounded-md border border-border/70 p-0.5 text-[10px]"><button type="button" aria-pressed={graphMode === "topology"} onClick={() => { setGraphMode("topology"); setSelectedNodeId(null); }} className={cn("rounded px-2 py-1 transition-colors", graphMode === "topology" ? "bg-muted text-foreground" : "text-muted-foreground hover:text-foreground")}>Topology</button><button type="button" aria-pressed={graphMode === "execution"} disabled={!executionGraphAvailable} onClick={() => { setGraphMode("execution"); setSelectedNodeId(null); }} className={cn("rounded px-2 py-1 transition-colors", graphMode === "execution" ? "bg-muted text-foreground" : "text-muted-foreground hover:text-foreground", !executionGraphAvailable && "cursor-not-allowed opacity-50")}>Run</button></div><span className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground"><CircleDot className={cn("size-3", running ? "animate-pulse text-primary" : "text-muted-foreground")} />{running ? "Run overlay" : trace.length ? "Trace ready" : effectiveConfigLoading ? "Loading config" : effectiveConfigError ? "Config unavailable" : "Ready"}</span></div></div>
             <div className="relative min-h-[560px] min-w-0 flex-1 overflow-auto bg-[radial-gradient(circle_at_50%_45%,color-mix(in_srgb,var(--brand)_7%,transparent),transparent_58%)] xl:min-h-0">
               <StudioSystemCanvas nodes={visibleGraphNodes} edges={visibleGraphEdges} selectedNodeId={selectedNodeId} onSelect={setSelectedNodeId} running={running} traceCount={trace.length} graphMode={graphMode} storageKey={`kasitek:studio-layout:${agent.id}:${selectedVersionId ?? "default"}:${graphMode}`} />
-              {selectedGraphNode ? <div className="absolute bottom-4 left-4 right-4 z-10 max-h-72 overflow-auto rounded-xl border border-border bg-card/95 shadow-xl backdrop-blur"><button type="button" aria-label="Close node details" onClick={() => setSelectedNodeId(null)} className="absolute right-3 top-3 z-10 rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"><X className="size-4" /></button><StudioGraphInspector node={selectedGraphNode} telemetry={telemetry} memory={memoryObservatory} onConfigure={() => setConfigurationOpen(true)} /></div> : null}
+              {selectedGraphNode ? <div className="absolute bottom-4 left-4 right-4 z-10 max-h-72 overflow-auto rounded-xl border border-border bg-card/95 shadow-xl backdrop-blur"><button type="button" aria-label="Close node details" onClick={() => setSelectedNodeId(null)} className="absolute right-3 top-3 z-10 rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"><X className="size-4" /></button><StudioGraphInspector node={selectedGraphNode} telemetry={telemetry} memory={memoryObservatory} lineage={memoryLineage} approval={approval} canApprove={canApprove} runId={observedRunId} onApprovalDecided={(decision) => { setApproval((current) => current ? { ...current, status: decision } : current); setNotice(`Approval ${decision}`); }} onConfigure={() => setConfigurationOpen(true)} /></div> : null}
             </div>
             <StudioExecutionTimeline trace={trace} nodes={visibleGraphNodes} projection={timelineProjection} run={runHistory.find((run) => run.id === (activeRunId ?? selectedRunId)) ?? null} streamState={runStreamState} onSelectNode={setSelectedNodeId} />
           </section>
@@ -1101,7 +1200,7 @@ function StudioExecutionTimeline({ trace, nodes, projection, run, streamState, o
   </div>;
 }
 
-function StudioGraphInspector({ node, telemetry, memory, onConfigure }: { node: StudioGraphNode; telemetry: AgentRuntimeTelemetry | null; memory: AgentMemoryObservatoryGraph | null; onConfigure: () => void }) {
+function StudioGraphInspector({ node, telemetry, memory, lineage, approval, canApprove, runId, onApprovalDecided, onConfigure }: { node: StudioGraphNode; telemetry: AgentRuntimeTelemetry | null; memory: AgentMemoryObservatoryGraph | null; lineage: AgentMemoryObservatoryGraph | null; approval: AgentApproval | null; canApprove: boolean; runId: string | null; onApprovalDecided?: (decision: "approved" | "rejected") => void; onConfigure: () => void }) {
   const context = telemetry?.context;
   const modelAttempt = telemetry?.modelAttempt;
   const sourceEventId = node.data.event_id ?? node.evidence?.id;
@@ -1109,6 +1208,7 @@ function StudioGraphInspector({ node, telemetry, memory, onConfigure }: { node: 
   const memoryEvidence = node.evidence?.memory;
   return <div>
     <StudioGraphInspectorBase node={node} telemetry={telemetry} onConfigure={onConfigure} />
+    {approval && runId ? <section className="border-t border-border px-4 py-3"><SectionEyebrow>Approval</SectionEyebrow><div className="mt-2 flex flex-wrap items-center justify-between gap-3"><div className="min-w-0"><p className="text-xs font-medium text-foreground">{approval.capability}</p><p className="mt-1 text-[10px] text-muted-foreground">{approval.status === "pending" ? `Expires ${approval.expiresAt}` : `Decision: ${approval.status}`}</p></div>{approval.status === "pending" && canApprove ? <AgentApprovalActions runId={runId} approval={approval} onDecided={(decision) => { onApprovalDecided?.(decision); }} /> : null}</div>{approval.status === "pending" && !canApprove ? <p className="mt-2 text-[10px] text-muted-foreground">Approval is required from an authorized operator.</p> : null}</section> : null}
     <section className="border-t border-border px-4 py-3">
       <SectionEyebrow>Durable evidence</SectionEyebrow>
       <dl className="mt-2 grid gap-x-4 gap-y-1 text-[10px] text-muted-foreground sm:grid-cols-2">
@@ -1119,7 +1219,7 @@ function StudioGraphInspector({ node, telemetry, memory, onConfigure }: { node: 
       </dl>
       {context && ["context", "memory-read", "retrieval"].includes(node.id) ? <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1 text-[10px] text-muted-foreground sm:grid-cols-4"><span>Capacity <b className="ml-1 text-foreground">{context.contextWindowTokens ?? "unknown"}</b></span><span>Reserved <b className="ml-1 text-foreground">{context.reservedOutputTokens ?? "unknown"}</b></span><span>Safety <b className="ml-1 text-foreground">{context.safetyMarginTokens ?? "unknown"}</b></span><span>Budget left <b className="ml-1 text-foreground">{telemetry.runBudget.remainingTokens ?? "unknown"}</b></span><span>Input <b className="ml-1 text-foreground">{telemetry.usage.inputTokens ?? "unknown"}</b></span><span>Output <b className="ml-1 text-foreground">{telemetry.usage.outputTokens ?? "unknown"}</b></span><span>Usage basis <b className="ml-1 text-foreground">{telemetry.usage.basis}</b></span><span>Manifest <b className="ml-1 max-w-24 truncate text-foreground" title={context.manifestDigest}>{context.manifestDigest ?? "unknown"}</b></span></div> : null}
       {modelAttempt && node.id === "model" ? <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1 text-[10px] text-muted-foreground sm:grid-cols-4"><span>Queue <b className="ml-1 text-foreground">{modelAttempt.queueMs !== undefined ? `${modelAttempt.queueMs} ms` : "unknown"}</b></span><span>First token <b className="ml-1 text-foreground">{modelAttempt.timeToFirstTokenMs !== undefined ? `${modelAttempt.timeToFirstTokenMs} ms` : "unknown"}</b></span><span>Turn <b className="ml-1 text-foreground">{telemetry.turn.elapsedMs !== undefined ? `${telemetry.turn.elapsedMs} ms` : "unknown"}</b></span><span>Attempts <b className="ml-1 text-foreground">{telemetry.attempts.length}</b></span></div> : null}
-      {memoryEvidence ? <div className="mt-3 rounded-lg border border-border/80 bg-background/50 p-2"><SectionEyebrow>Memory observatory</SectionEyebrow><div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-[10px] text-muted-foreground sm:grid-cols-4"><span>Stage <b className="ml-1 text-foreground">{memoryEvidence.kind}</b></span><span>Status <b className="ml-1 text-foreground">{memoryEvidence.status}</b></span><span>Evidence <b className="ml-1 text-foreground">{memoryEvidence.evidenceCount}</b></span><span>Revisions <b className="ml-1 text-foreground">{memoryEvidence.revisionCount}</b></span><span>Sources <b className="ml-1 text-foreground">{memoryEvidence.sourceEventCount}</b></span><span>Cursor <b className="ml-1 text-foreground">{memory?.projection?.cursor ?? memory?.cursor ?? "unknown"}</b></span><span>Redaction <b className="ml-1 text-foreground">{memory?.projection?.redaction ?? "unknown"}</b></span>{memoryEvidence.errorCode ? <span>Error <b className="ml-1 text-destructive">{memoryEvidence.errorCode}</b></span> : null}</div></div> : null}
+      {memoryEvidence ? <div className="mt-3 rounded-lg border border-border/80 bg-background/50 p-2"><SectionEyebrow>Memory observatory</SectionEyebrow><div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-[10px] text-muted-foreground sm:grid-cols-4"><span>Stage <b className="ml-1 text-foreground">{memoryEvidence.kind}</b></span><span>Status <b className="ml-1 text-foreground">{memoryEvidence.status}</b></span><span>Evidence <b className="ml-1 text-foreground">{memoryEvidence.evidenceCount}</b></span><span>Revisions <b className="ml-1 text-foreground">{memoryEvidence.revisionCount}</b></span><span>Sources <b className="ml-1 text-foreground">{memoryEvidence.sourceEventCount}</b></span><span>Cursor <b className="ml-1 text-foreground">{memory?.projection?.cursor ?? memory?.cursor ?? "unknown"}</b></span><span>Redaction <b className="ml-1 text-foreground">{memory?.projection?.redaction ?? "unknown"}</b></span>{memoryEvidence.errorCode ? <span>Error <b className="ml-1 text-destructive">{memoryEvidence.errorCode}</b></span> : null}</div>{lineage ? <div className="mt-2 border-t border-border/70 pt-2 text-[10px] text-muted-foreground"><span>Lineage <b className="ml-1 text-foreground">{lineage.nodes.length} nodes · {lineage.edges.length} links</b></span><span className="ml-3">{lineage.projection?.freshness ?? "unknown"} · {lineage.projection?.redaction ?? "unknown"}</span></div> : null}</div> : null}
     </section>
   </div>;
 }

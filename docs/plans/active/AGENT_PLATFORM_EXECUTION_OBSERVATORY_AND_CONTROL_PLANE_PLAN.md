@@ -8,7 +8,7 @@ description: Third Agent Platform implementation chunk for real Playground execu
 
 # Agent Playground and Execution Observatory
 
-**Status:** In progress; first Playground and creation slice implemented
+**Status:** In progress; Playground and first observatory/control slices implemented
 
 **Owner:** Agent Platform
 
@@ -72,10 +72,18 @@ The first implementation slice is now available for local testing:
 - the Playground workspace uses a chat-first two-pane layout: the conversation owns the left
   composer and message history, the execution graph owns the remaining workspace, and agent
   configuration is opened on demand rather than occupying a persistent side panel.
+- the observatory loads effective candidate topology and installation-scoped readiness, reconstructs
+  runs from the durable timeline, exposes cursor/freshness/redaction metadata, and offers a separate
+  exact run graph without treating chat state as execution evidence.
+- active runs reconnect to the durable SSE stream from the last received cursor; historical runs can
+  be retried or resumed through the existing durable command routes, and pending approvals can be
+  decided from the selected-run inspector.
+- memory run projections and revision-lineage summaries are scoped through the existing memory
+  observatory repository and surfaced without exposing raw memory content by default.
 
 This is a usable entry point, not completion of this chunk. Separate resource and credential
-bindings, promotion manifests, live activation, reconnectable observatory projections, and stateful
-controls remain unchecked until their backend contracts and evidence exist.
+bindings, promotion manifests, live activation, deeper aggregated graph relationships, and full
+manual validation remain unchecked until their backend contracts and evidence exist.
 
 ## Studio-owned creation flow
 

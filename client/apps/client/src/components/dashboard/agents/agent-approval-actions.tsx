@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { useConfirmationDialog } from "@/components/ui/confirmation-provider";
 import { decideAgentRunApproval, type AgentApproval } from "@/lib/agent-platform";
 
-export function AgentApprovalActions({ runId, approval }: { runId: string; approval: AgentApproval }) {
+export function AgentApprovalActions({ runId, approval, onDecided }: { runId: string; approval: AgentApproval; onDecided?: (decision: "approved" | "rejected") => void }) {
   const router = useRouter();
   const [busy, setBusy] = useState<"approved" | "rejected" | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -19,6 +19,7 @@ export function AgentApprovalActions({ runId, approval }: { runId: string; appro
     setBusy(decision); setError(null);
     try {
       await decideAgentRunApproval(runId, approval, decision);
+      onDecided?.(decision);
       router.refresh();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Unable to record approval decision");
