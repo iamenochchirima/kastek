@@ -78,6 +78,8 @@ The first implementation slice is now available for local testing:
 - active runs reconnect to the durable SSE stream from the last received cursor; historical runs can
   be retried or resumed through the existing durable command routes, and pending approvals can be
   decided from the selected-run inspector.
+- timeline responses expose a bounded, role-scoped unified item list for run events, journal events,
+  steps, tool calls, and effects, while preserving the legacy arrays for compatibility.
 - memory run projections and revision-lineage summaries are scoped through the existing memory
   observatory repository and surfaced without exposing raw memory content by default.
 

@@ -227,7 +227,7 @@ surface before the runtime projection is wired in:
 - [x] Use temporary representative configuration data until the effective candidate projection is
       available. This data is clearly marked as configured/demo state and is not a runtime claim.
 - [x] Replace the representative graph with the effective candidate and extension snapshot.
-- [x] Attach timeline items and operation evidence from durable journal records; memory lineage remains a backend projection follow-up.
+- [x] Attach timeline items and operation evidence from durable journal records, with scoped memory observatory and selected-revision lineage summaries.
 - [x] Add readiness states and the existing authorized configuration recovery action from backend contracts.
 
 This slice is a preview surface, not a second execution engine. It does not create runs, infer
@@ -238,9 +238,10 @@ from the durable timeline endpoint, and displays the backend cursor, freshness, 
 terminal outcome, sequence gaps, and bounded capability operation evidence. Timeline items are
 deduplicated by their durable event identity before they are projected into the graph and timeline.
 The observatory now has a configured topology and an exact run graph, reconnects the active-run SSE
-stream from its last durable cursor, exposes retry/resume/cancel/approval commands through existing
-durable APIs, and can open a bounded memory revision-lineage summary. Richer promotion evidence,
-full lineage controls, and manual environment proof remain runtime-contract follow-ups.
+stream from its last durable cursor, consumes a versioned unified timeline-item projection, exposes
+retry/resume/cancel/approval commands through existing durable APIs, and can open a bounded memory
+revision-lineage summary. Richer promotion evidence, full lineage controls, and manual environment
+proof remain runtime-contract follow-ups.
 
 ## Release record for the UI slice
 
@@ -250,12 +251,12 @@ Owner: Agent Platform and Studio
 Risk: standard
 Affected services and user surfaces: client Studio/Playground observatory only
 Platform release version or release ID: not applicable (preview UI slice)
-API/schema/migration changes: timeline responses now include versioned projection metadata (cursor, freshness, redaction, observed timestamp); no migration is required
+API/schema/migration changes: timeline responses now include versioned projection metadata (cursor, freshness, redaction, observed timestamp) and bounded scoped `items` for events, journal entries, steps, tool calls, and effects; no migration is required
 Feature flag or rollout method: existing Studio route; graph projection is read-only and uses existing effective-config, readiness, connection, and run-journal APIs
 Analytics events and success metrics: not applicable; no new user outcome is persisted
 Logs, metrics, dashboards, and alerts: not applicable; no backend lifecycle is added
 User, API, internal, and operational documentation: this plan updated
-Validation evidence: client ESLint, TypeScript check, and production Next.js build pass; Agents TypeScript check and HTTP projection tests pass; Studio projection uses effective candidate data, durable journal evidence, cursor-aware SSE replay, and scoped memory projections
+Validation evidence: client ESLint, TypeScript check, and production Next.js build pass; Agents TypeScript check and HTTP projection tests pass; Studio projection uses effective candidate data, durable journal evidence, cursor-aware SSE replay, unified timeline items, and scoped memory projections
 Rollback or disable plan: revert the Studio UI commit; existing run/configuration APIs are unchanged
 Post-release review date: when promotion and full runtime-proof work begins
 ```
