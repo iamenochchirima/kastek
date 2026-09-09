@@ -12,6 +12,7 @@ export interface ContextCompactionWorkflowInput {
 export interface ContextCompactionWorkflowResult {
   readonly generation: number;
   readonly replayed: boolean;
+  readonly projectionDigest: string;
 }
 
 interface ContextCompactionActivities {

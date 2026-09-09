@@ -57,6 +57,7 @@ describe("context capability resolution", () => {
         model: "primary",
         contextWindowTokens: 16_000,
         maxOutputTokens: 2_000,
+        capabilitySource: "configured_override",
       },
       provider: "anthropic",
       model: "fallback",
@@ -118,7 +119,7 @@ describe("context capability resolution", () => {
     expect(resolved).not.toHaveProperty("contextWindowTokens", 32_000);
   });
 
-  it("keeps the configured profile when durable evidence is only another configured fallback", async () => {
+  it("does not promote a configured durable record into provider capacity implicitly", async () => {
     const configured: ContextCapabilityRecord = { organizationId: "org-1", provider: "openai", model: "primary", endpointId: "openai:default", contextWindowTokens: 32_000, source: "configured_override", resolvedAt: "2026-09-07T00:00:00.000Z" };
     const store: ContextCapabilityStore = {
       get: async () => configured,
@@ -126,7 +127,7 @@ describe("context capability resolution", () => {
     };
     const resolver = new DurableContextCapabilityResolver(store);
     const resolved = await resolver.resolve({ organizationId: "org-1", profile: { provider: "openai", model: "primary", contextWindowTokens: 64_000 }, provider: "openai", model: "primary" });
-    expect(resolved).toMatchObject({ contextWindowTokens: 64_000, capabilitySource: "configured_override" });
+    expect(resolved).toMatchObject({ contextWindowTokens: 0, capabilitySource: "unknown" });
   });
 
   it("accepts only explicit numeric provider capacity corrections", () => {
@@ -135,7 +136,7 @@ describe("context capability resolution", () => {
     expect(contextCapabilityCorrectionFromProviderError({ code: "CONTEXT_LENGTH_EXCEEDED", message: "request is too large" })).toBeUndefined();
   });
 
-  it("does not reuse expired durable evidence and allows a fresh configured fallback", async () => {
+  it("does not reuse expired durable evidence or synthesize a replacement capacity", async () => {
     const records = new Map<string, ContextCapabilityRecord>();
     const key = "org-1:openai:primary:openai:default";
     const expired: ContextCapabilityRecord = {
@@ -161,7 +162,7 @@ describe("context capability resolution", () => {
       model: "primary",
     });
 
-    expect(resolved).toMatchObject({ contextWindowTokens: 32_000, capabilitySource: "configured_override" });
+    expect(resolved).toMatchObject({ contextWindowTokens: 0, capabilitySource: "unknown" });
     await resolver.rememberConfigured({
       organizationId: "org-1",
       profile: { provider: "openai", model: "primary", contextWindowTokens: 32_000 },
@@ -266,8 +267,8 @@ describe("context capability resolution", () => {
     });
 
     expect(exactRoute).toMatchObject({ contextWindowTokens: 128_000, capabilitySource: "provider_metadata" });
-    expect(differentModel).toMatchObject({ contextWindowTokens: 64_000, capabilitySource: "configured_override" });
-    expect(differentProvider).toMatchObject({ contextWindowTokens: 48_000, capabilitySource: "configured_override" });
+    expect(differentModel).toMatchObject({ contextWindowTokens: 0, capabilitySource: "unknown" });
+    expect(differentProvider).toMatchObject({ contextWindowTokens: 0, capabilitySource: "unknown" });
     expect(records.get(capabilityKey(route))).toMatchObject({ contextWindowTokens: 128_000, source: "provider_metadata" });
   });
 
@@ -301,6 +302,9 @@ describe("context capability resolution", () => {
   });
 
   it("uses an explicit configured override before provider metadata, catalog, and durable evidence", async () => {
+    vi.useFakeTimers();
+    try {
+    vi.setSystemTime(new Date("2026-09-07T00:02:00.000Z"));
     const records = new Map<string, ContextCapabilityRecord>();
     const route = {
       organizationId: "org-1",
@@ -342,9 +346,15 @@ describe("context capability resolution", () => {
 
     expect(resolved).toMatchObject({ contextWindowTokens: 32_000, capabilitySource: "configured_override" });
     expect(providerMetadata).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("prefers provider metadata over catalog and preserves the exact route and environment", async () => {
+    vi.useFakeTimers();
+    try {
+    vi.setSystemTime(new Date("2026-09-07T00:02:00.000Z"));
     const { store } = createCapabilityStore(new Map());
     const providerMetadata = vi.fn().mockImplementation(async (route: { runtimeEnvironment: string }) => ({
       ...catalogEntry({ contextWindowTokens: route.runtimeEnvironment === "playground" ? 96_000 : 192_000, source: "provider_metadata", expiresAt: "2026-09-08T00:05:00.000Z" }),
@@ -373,36 +383,45 @@ describe("context capability resolution", () => {
     expect(playground).toMatchObject({ contextWindowTokens: 96_000, capabilitySource: "provider_metadata", endpointId: "openai:default" });
     expect(live).toMatchObject({ contextWindowTokens: 192_000, capabilitySource: "provider_metadata", endpointId: "openai:default" });
     expect(providerMetadata).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("hydrates a lazy catalog for the exact route without inheriting another endpoint", async () => {
-    const { store } = createCapabilityStore(new Map());
-    const catalogResolver = vi.fn().mockImplementation(async (route: { provider: string; model: string; endpointId: string; credentialRouteId: string; runtimeEnvironment: string }) => ({
-      ...route,
-      contextWindowTokens: 128_000,
-      source: "catalog",
-      resolvedAt: "2026-09-07T00:00:00.000Z",
-      expiresAt: "2026-09-08T00:00:00.000Z",
-    }));
-    const resolver = new DurableContextCapabilityResolver(store, 60_000, { catalogResolver });
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date("2026-09-07T12:00:00.000Z"));
+      const { store } = createCapabilityStore(new Map());
+      const catalogResolver = vi.fn().mockImplementation(async (route: { provider: string; model: string; endpointId: string; credentialRouteId: string; runtimeEnvironment: string }) => ({
+        ...route,
+        contextWindowTokens: 128_000,
+        source: "catalog",
+        resolvedAt: "2026-09-07T00:00:00.000Z",
+        expiresAt: "2026-09-08T00:00:00.000Z",
+      }));
+      const resolver = new DurableContextCapabilityResolver(store, 60_000, { catalogResolver });
 
-    const resolved = await resolver.resolve({
-      organizationId: "org-1",
-      profile: { provider: "openai", model: "primary", contextWindowTokens: 0, capabilitySource: "unknown" },
-      provider: "openai",
-      model: "primary",
-      endpointId: "openai:default",
-      credentialRouteId: "workspace-key",
-      runtimeEnvironment: "playground",
-    });
+      const resolved = await resolver.resolve({
+        organizationId: "org-1",
+        profile: { provider: "openai", model: "primary", contextWindowTokens: 0, capabilitySource: "unknown" },
+        provider: "openai",
+        model: "primary",
+        endpointId: "openai:default",
+        credentialRouteId: "workspace-key",
+        runtimeEnvironment: "playground",
+      });
 
-    expect(resolved).toMatchObject({
-      contextWindowTokens: 128_000,
-      capabilitySource: "catalog",
-      endpointId: "openai:default",
-      capabilityExpiresAt: "2026-09-08T00:00:00.000Z",
-    });
-    expect(catalogResolver).toHaveBeenCalledWith(expect.objectContaining({ credentialRouteId: "workspace-key", runtimeEnvironment: "playground" }));
+      expect(resolved).toMatchObject({
+        contextWindowTokens: 128_000,
+        capabilitySource: "catalog",
+        endpointId: "openai:default",
+        capabilityExpiresAt: "2026-09-08T00:00:00.000Z",
+      });
+      expect(catalogResolver).toHaveBeenCalledWith(expect.objectContaining({ credentialRouteId: "workspace-key", runtimeEnvironment: "playground" }));
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("uses an exact unexpired catalog entry before durable correction, then falls back after expiry", async () => {

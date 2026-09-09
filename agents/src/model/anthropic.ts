@@ -21,6 +21,33 @@ export class AnthropicAdapter implements ModelAdapter {
     this.authHeader = options.authHeader ?? "x-api-key";
   }
 
+  public estimateRequestBytes(request: ModelRequest): number {
+    const system = request.messages.filter((message) => message.role === "system").map((message) => message.content).join("\n\n");
+    const messages = request.messages
+      .filter((message) => message.role !== "system")
+      .map((message) => {
+        if (message.role === "tool") return { role: "user", content: [{ type: "tool_result", tool_use_id: message.toolCallId, content: message.content }] };
+        if (message.role === "assistant" && message.toolCalls?.length) {
+          return {
+            role: "assistant",
+            content: [
+              ...(message.content ? [{ type: "text", text: message.content }] : []),
+              ...message.toolCalls.map((toolCall) => ({ type: "tool_use", id: toolCall.id, name: toolCall.name, input: toolCall.arguments })),
+            ],
+          };
+        }
+        return { role: message.role, content: message.content };
+      });
+    return Buffer.byteLength(JSON.stringify({
+      model: request.model,
+      max_tokens: request.maxTokens ?? 4_096,
+      ...(system ? { system } : {}),
+      messages,
+      ...(request.tools?.length ? { tools: request.tools.map((tool) => ({ name: tool.name, description: tool.description, input_schema: tool.inputSchema })) } : {}),
+      ...(request.temperature === undefined ? {} : { temperature: request.temperature }),
+    }), "utf8");
+  }
+
   public async complete(request: ModelRequest, credentials: ModelCredentials): Promise<ModelResponse> {
     const startedAt = Date.now();
     const system = request.messages.filter((message) => message.role === "system").map((message) => message.content).join("\n\n");
@@ -82,13 +109,22 @@ export class AnthropicAdapter implements ModelAdapter {
       .map((block, index) => ({ id: block.id ?? `anthropic-tool-${index}`, name: block.name!, arguments: block.input ?? {} }));
     const inputTokens = body.usage?.input_tokens ?? 0;
     const outputTokens = body.usage?.output_tokens ?? 0;
+    const inputTokensReported = body.usage?.input_tokens !== undefined;
+    const outputTokensReported = body.usage?.output_tokens !== undefined;
     return {
       provider: this.provider,
       model: request.model,
       message: { role: "assistant", content: text, ...(toolCalls.length ? { toolCalls } : {}) },
       toolCalls,
       finishReason: body.stop_reason ?? null,
-      usage: { inputTokens, outputTokens, totalTokens: inputTokens + outputTokens },
+      usage: {
+        inputTokens,
+        outputTokens,
+        totalTokens: inputTokens + outputTokens,
+        inputTokensReported,
+        outputTokensReported,
+        totalTokensReported: false,
+      },
       latencyMs: Date.now() - startedAt,
     };
   }

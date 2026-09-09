@@ -13,6 +13,7 @@ const profile: ProviderContextProfile = {
   maxOutputTokens: 200,
   safetyMarginTokens: 50,
   charsPerToken: 4,
+  capabilitySource: "configured_override",
 };
 
 const policy = {
@@ -22,6 +23,17 @@ const policy = {
 };
 
 describe("provider context planning", () => {
+  it("does not infer configured provenance for an unlabelled profile", () => {
+    const plan = planProviderRequest({
+      profile: { provider: "openai", model: "unlabelled", contextWindowTokens: 1_000, maxOutputTokens: 200 },
+      policy,
+      messages: [{ role: "user", content: "current question" }],
+      tools: [],
+    });
+
+    expect(plan.accounting.capabilitySource).toBe("unknown");
+  });
+
   it("plans against provider capacity and exposes approximate accounting", () => {
     const plan = planProviderRequest({
       profile,
@@ -67,8 +79,24 @@ describe("provider context planning", () => {
       policy,
       messages: [{ role: "user", content: "current question" }],
     });
-    expect(plan.accounting.providerContextWindowTokens).toBe(1_000);
+    // The policy ceiling controls fit decisions, but telemetry and manifests
+    // must retain the provider's verified model capacity.
+    expect(plan.accounting.providerContextWindowTokens).toBe(128_000);
+    expect(plan.accounting.inputBudgetTokens).toBe(830);
     expect(plan.accounting.reservedRequestTokens).toBeLessThanOrEqual(1_000);
+  });
+
+  it("does not turn an unbounded provider window into a legacy policy window", () => {
+    const plan = planProviderRequest({
+      profile: { ...profile, contextWindowTokens: 1_050_000, policyLimitTokens: undefined },
+      policy,
+      messages: [{ role: "user", content: "current question" }],
+    });
+
+    expect(plan.status).toBe("fits");
+    expect(plan.accounting.providerContextWindowTokens).toBe(1_050_000);
+    expect(plan.manifest.providerContextWindowTokens).toBe(1_050_000);
+    expect(plan.accounting.hardLimitTokens).toBe(1_049_830);
   });
 
   it("carries durable request identity without copying prompt content into the manifest", () => {

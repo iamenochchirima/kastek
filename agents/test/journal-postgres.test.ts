@@ -114,4 +114,15 @@ describe("PostgresExecutionJournal", () => {
       occurredAt: "2026-09-06T12:00:00.000Z",
     })).rejects.toThrow("Execution journal store changed the event identity");
   });
+
+  it("runs durable source observers after the journal event is persisted", async () => {
+    const store = new FakePostgresJournalStore();
+    const observer = vi.fn(async () => undefined);
+    const journal = new PostgresExecutionJournal(store, [observer]);
+    const appended = await journal.append({
+      scope: { organizationId: "org-1", installationId: "installation-1", runId: "run-1" },
+      event: { kind: "run.transition", data: { to: "running" } },
+    });
+    expect(observer).toHaveBeenCalledWith(appended);
+  });
 });

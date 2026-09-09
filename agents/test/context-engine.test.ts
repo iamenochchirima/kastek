@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { ContextEngine, ContextEngineError, type ContextEngineJournalEvent } from "../src/runtime/context-engine";
 import { InMemoryContextEngineStateAdapter } from "../src/runtime/context-engine-state";
+import { directEvidenceEnvelopeFromMessages, type MemoryCheckpointRequest } from "../src/runtime/context-memory-boundary";
 
 const request = {
   profile: {
@@ -144,6 +145,52 @@ describe("ContextEngine", () => {
     await first.startTurn({ turnId: "duplicate-turn", request });
     await expect(second.startTurn({ turnId: "duplicate-turn", request })).rejects.toMatchObject({
       code: "turn_already_started",
+    });
+  });
+
+  it("forwards the durable memory checkpoint boundary through the public engine wrapper", async () => {
+    const checkpointRequests: MemoryCheckpointRequest[] = [];
+    const engine = new ContextEngine({
+      memoryCheckpointRequired: true,
+      memoryScope: {
+        organizationId: "org-1",
+        agentDefinitionId: "agent-1",
+        agentVersionId: "version-1",
+        installationId: "installation-1",
+        namespace: "conversation",
+      },
+      memoryCheckpointPort: {
+        checkpoint: async (checkpointRequest) => {
+          checkpointRequests.push(checkpointRequest);
+          return { status: "committed", checkpointId: "checkpoint-1" };
+        },
+      },
+    });
+    const messages = [
+      { role: "system" as const, content: "policy" },
+      { role: "user" as const, content: "older evidence" },
+      { role: "user" as const, content: "current task" },
+    ];
+    const started = await engine.startTurn({
+      turnId: "turn-memory-boundary",
+      request: { ...request, messages },
+    });
+
+    await engine.compactContext(started.handle, {
+      policy: { maxRetainedMessageUnits: 1 },
+      sourceEventBoundary: { eventIds: ["event-1", "event-2"], digest: "boundary-1" },
+      evidenceDigest: "evidence-1",
+      directEvidence: directEvidenceEnvelopeFromMessages(messages, ["event-1", "event-2", "event-3"]),
+    });
+
+    expect(checkpointRequests).toHaveLength(1);
+    expect(checkpointRequests[0]).toMatchObject({
+      runId: "turn-memory-boundary",
+      turnId: "turn-memory-boundary",
+      compactionGeneration: 1,
+      sourceEventBoundary: { eventIds: ["event-1", "event-2"], digest: "boundary-1" },
+      evidenceDigest: "evidence-1",
+      directEvidence: { redacted: true },
     });
   });
 });

@@ -66,7 +66,7 @@ export interface ProviderContextProfile {
   readonly messageOverheadTokens?: number;
   /** Route or credential-bound endpoint identity, when the provider exposes one. */
   readonly endpointId?: string;
-  /** Provenance for contextWindowTokens. Defaults to configured_override for legacy callers. */
+  /** Provenance for contextWindowTokens. Missing provenance is treated as unknown. */
   readonly capabilitySource?: ContextCapabilitySource;
   /** Timestamp at which the capability was resolved or last confirmed. */
   readonly capabilityResolvedAt?: string;
@@ -483,7 +483,11 @@ export function estimateRequestBytes(messages: readonly ModelMessage[], tools: r
 interface NormalizedProfile {
   readonly provider: string;
   readonly model: string;
+  /** The model/provider capacity, never reduced by an agent policy ceiling. */
+  readonly providerContextWindowTokens: number;
+  /** The effective context ceiling used for fit decisions. */
   readonly contextWindowTokens: number;
+  readonly policyLimitTokens: number;
   readonly maxOutputTokens: number | undefined;
   readonly safetyMarginTokens: number;
   readonly charsPerToken: number;
@@ -503,12 +507,14 @@ function normalizeProfile(profile: ProviderContextProfile): NormalizedProfile {
   return {
     provider: profile.provider,
     model: profile.model,
+    providerContextWindowTokens,
     contextWindowTokens,
+    policyLimitTokens,
     maxOutputTokens,
     safetyMarginTokens,
     charsPerToken,
     messageOverheadTokens,
-    capabilitySource: profile.capabilitySource ?? "configured_override",
+    capabilitySource: profile.capabilitySource ?? "unknown",
     valid: Boolean(profile.provider && profile.model && providerContextWindowTokens > 0 && policyLimitTokens > 0 && contextWindowTokens > 0 && (maxOutputTokens === undefined || maxOutputTokens > 0) && safetyMarginTokens >= 0 && messageOverheadTokens >= 0),
   };
 }
@@ -804,7 +810,7 @@ function createAccounting(categories: ContextBudgetCategories, profile: Normaliz
     categories: withReservation,
     estimatedInputTokens,
     reservedRequestTokens: estimatedInputTokens + outputReservation + profile.safetyMarginTokens,
-    providerContextWindowTokens: profile.contextWindowTokens,
+    providerContextWindowTokens: profile.providerContextWindowTokens,
     inputBudgetTokens: hardLimitTokens,
     softThresholdTokens: softLimit,
     hardLimitTokens,
@@ -858,7 +864,7 @@ function rejectedPlan(
       categories,
       estimatedInputTokens,
       reservedRequestTokens: estimatedInputTokens + outputReservation + normalized.safetyMarginTokens,
-      providerContextWindowTokens: normalized.contextWindowTokens,
+      providerContextWindowTokens: normalized.providerContextWindowTokens,
       inputBudgetTokens: hardLimitTokens,
       softThresholdTokens: softLimit,
       hardLimitTokens,
@@ -878,7 +884,7 @@ function rejectedPlan(
         categories,
         estimatedInputTokens,
         reservedRequestTokens: estimatedInputTokens + outputReservation + normalized.safetyMarginTokens,
-        providerContextWindowTokens: normalized.contextWindowTokens,
+        providerContextWindowTokens: normalized.providerContextWindowTokens,
         inputBudgetTokens: normalized.contextWindowTokens - outputReservation - normalized.safetyMarginTokens,
         softThresholdTokens: softLimit,
         hardLimitTokens,

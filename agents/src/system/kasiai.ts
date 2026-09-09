@@ -46,8 +46,7 @@ export function kasiaiInitialVersion(config: AppConfig) {
       maxModelCalls: 6,
       maxTotalTokens: 32_000,
       maxContextMessages: 30,
-      maxContextTokens: 12_000,
-      maxWallTimeMs: 45_000,
+      maxWallTimeMs: 120_000,
     },
     policy: {
       allowedTools: [...KASIAI_ALLOWED_TOOLS],

@@ -42,7 +42,7 @@ describe("context planner at the model boundary", () => {
       tools: new ToolRegistry(),
       toolContext: { organizationId: "org", installationId: "installation", runId: "run" },
       grantedTools: new Set(),
-      contextProfile: { provider: "openai", model: "test-model", contextWindowTokens: 220, maxOutputTokens: 32, safetyMarginTokens: 10 },
+      contextProfile: { provider: "openai", model: "test-model", contextWindowTokens: 220, maxOutputTokens: 32, safetyMarginTokens: 10, capabilitySource: "configured_override" },
       persistContextManifest: (input) => { manifests.push(input as typeof manifests[number]); },
       onEvent: (event) => events.push(event),
     });
@@ -90,7 +90,7 @@ describe("context planner at the model boundary", () => {
       tools: new ToolRegistry(),
       toolContext: { organizationId: "org", installationId: "installation", runId: "run" },
       grantedTools: new Set(),
-      contextProfile: { provider: "openai", model: "test-model", contextWindowTokens: 1_000, maxOutputTokens: 128, safetyMarginTokens: 10 },
+      contextProfile: { provider: "openai", model: "test-model", contextWindowTokens: 1_000, maxOutputTokens: 128, safetyMarginTokens: 10, capabilitySource: "configured_override" },
       limits: { maxTotalTokens: 24 },
       persistContextManifest: (input) => { manifests.push(input as typeof manifests[number]); },
     });
@@ -112,7 +112,7 @@ describe("context planner at the model boundary", () => {
       tools: new ToolRegistry(),
       toolContext: { organizationId: "org", installationId: "installation", runId: "run" },
       grantedTools: new Set(),
-      contextProfile: { provider: "openai", model: "test-model", contextWindowTokens: 100, maxOutputTokens: 32, safetyMarginTokens: 10 },
+      contextProfile: { provider: "openai", model: "test-model", contextWindowTokens: 100, maxOutputTokens: 32, safetyMarginTokens: 10, capabilitySource: "configured_override" },
     });
 
     expect(result).toMatchObject({
@@ -136,7 +136,7 @@ describe("context planner at the model boundary", () => {
       tools: new ToolRegistry(),
       toolContext: { organizationId: "org", installationId: "installation", runId: "run" },
       grantedTools: new Set(),
-      contextProfile: { provider: "openai", model: "test-model", contextWindowTokens: 1_000, maxOutputTokens: 64 },
+      contextProfile: { provider: "openai", model: "test-model", contextWindowTokens: 1_000, maxOutputTokens: 64, capabilitySource: "configured_override" },
       limits: { maxTotalTokens: 1 },
     });
 
@@ -201,7 +201,7 @@ describe("context planner at the model boundary", () => {
       tools: new ToolRegistry(),
       toolContext: { organizationId: "org", installationId: "installation", runId: "run" },
       grantedTools: new Set(),
-      contextProfile: { provider: "openai", model: "stream-model", contextWindowTokens: 1_000, maxOutputTokens: 64 },
+      contextProfile: { provider: "openai", model: "stream-model", contextWindowTokens: 1_000, maxOutputTokens: 64, capabilitySource: "configured_override" },
       streamModel: true,
       onEvent: (event) => events.push(event),
     });
@@ -231,7 +231,7 @@ describe("context planner at the model boundary", () => {
       tools: new ToolRegistry(),
       toolContext: { organizationId: "org", installationId: "installation", runId: "run" },
       grantedTools: new Set(),
-      contextProfile: { provider: "openai", model: "primary", contextWindowTokens: 1_000, maxOutputTokens: 64, safetyMarginTokens: 10 },
+      contextProfile: { provider: "openai", model: "primary", contextWindowTokens: 1_000, maxOutputTokens: 64, safetyMarginTokens: 10, capabilitySource: "configured_override" },
       contextCapabilityResolver: ({ model, profile }) => ({ ...profile, model, contextWindowTokens: model === "primary" ? 220 : 900, capabilitySource: "catalog" }),
       onEvent: (event) => {
         if (event.type === "context.planned") planned.push({ model: event.payload.model, window: (event.payload.accounting as Record<string, unknown> | undefined)?.contextWindowTokens });

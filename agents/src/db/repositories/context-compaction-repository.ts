@@ -12,6 +12,8 @@ import type {
 interface ContextRevisionRow {
   organization_id: string;
   operation_id: string;
+  context_id?: string;
+  revision?: number;
   decision: DurableContextDecisionRevision;
   compaction: DurableContextCompactionRevision;
 }
@@ -37,8 +39,49 @@ export class ContextCompactionRepository implements DurableContextAdapter {
     return row ? { decision: row.decision, compaction: row.compaction } : undefined;
   }
 
+  async readLatest(contextId: string): Promise<number> {
+    const result = await query<{ generation: string | number | null }>(
+      this.pool,
+      `SELECT COALESCE(MAX(COALESCE((decision->>'generation')::integer, revision)), 0) AS generation
+       FROM agent_context_compaction_revisions
+       WHERE organization_id = $1 AND context_id = $2`,
+      [this.organizationId, contextId],
+    );
+    return Number(result.rows[0]?.generation ?? 0);
+  }
+
   async persist(input: DurableContextPersistenceInput): Promise<DurableContextPersistenceResult> {
     return withTransaction(this.pool, async (client) => {
+      // Serialize competing compactions for one organization/context pair so
+      // the generation check below is a real compare-and-swap, not a racy
+      // read followed by two successful inserts.
+      await client.query(`SELECT pg_advisory_xact_lock(hashtextextended($1, 0))`, [
+        `${this.organizationId}:${input.decision.contextId}`,
+      ]);
+      const existing = await client.query<ContextRevisionRow>(
+        `SELECT organization_id, operation_id, decision, compaction
+         FROM agent_context_compaction_revisions
+         WHERE organization_id = $1 AND operation_id = $2
+         FOR UPDATE`,
+        [this.organizationId, input.decision.operationId],
+      );
+      if (existing.rows[0]) {
+        const record = { decision: existing.rows[0].decision, compaction: existing.rows[0].compaction };
+        if (record.decision.operationFingerprint !== input.decision.operationFingerprint
+          || record.compaction.operationFingerprint !== input.compaction.operationFingerprint) {
+          throw new Error("CONTEXT_COMPACTION_REVISION_CONFLICT");
+        }
+        return { status: "replayed", record };
+      }
+      const latest = await client.query<{ generation: string }>(
+        `SELECT COALESCE(MAX(COALESCE((decision->>'generation')::integer, revision)), 0)::text AS generation
+         FROM agent_context_compaction_revisions
+         WHERE organization_id = $1 AND context_id = $2`,
+        [this.organizationId, input.decision.contextId],
+      );
+      if (Number(latest.rows[0]?.generation ?? 0) !== input.decision.expectedGeneration) {
+        throw new Error("CONTEXT_COMPACTION_FENCE_CONFLICT");
+      }
       const inserted = await client.query<ContextRevisionRow>(
         `INSERT INTO agent_context_compaction_revisions
            (organization_id, operation_id, context_id, revision, source_digest, operation_fingerprint, decision, compaction)

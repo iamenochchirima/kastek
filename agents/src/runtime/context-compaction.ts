@@ -1,5 +1,18 @@
 import { createHash } from "node:crypto";
 import type { ModelMessage, ModelToolCall } from "../model/types";
+import {
+  directEvidenceEnvelopeFromMessages,
+  sourceEventBoundaryFromMessages,
+  type MemoryCheckpointPort,
+  type MemoryDirectEvidenceEnvelope,
+  type MemoryRuntimeEventPayload,
+  type MemoryRuntimeScope,
+  type MemorySourceEventBoundary,
+} from "./context-memory-boundary";
+import type {
+  ContextAttemptBudgetPort,
+  ContextAttemptBudgetReceipt,
+} from "./context-attempt-budget";
 
 const DEFAULT_MAX_SUMMARY_TOKENS = 512;
 const DEFAULT_MAX_RETAINED_MESSAGE_UNITS = 20;
@@ -56,6 +69,12 @@ export interface DurableContextDecisionRevision {
   readonly operationId: string;
   readonly contextId: string;
   readonly revision: number;
+  /** Monotonic context projection generation used for compare-and-swap. */
+  readonly generation: number;
+  /** Generation observed immediately before this operation was admitted. */
+  readonly expectedGeneration: number;
+  /** Hash of the session/worker fence; the raw token is never persisted here. */
+  readonly fenceTokenDigest?: string;
   /** Digest of all source messages, not the summary or active projection. */
   readonly sourceDigest: string;
   /** Digest of operation identity, source, and bounded policy. */
@@ -74,11 +93,16 @@ export interface DurableContextCompactionRevision {
   readonly operationId: string;
   readonly contextId: string;
   readonly revision: number;
+  readonly generation: number;
+  readonly expectedGeneration: number;
+  readonly fenceTokenDigest?: string;
   readonly sourceDigest: string;
   readonly operationFingerprint: string;
   /** The only content-bearing value persisted by this context seam. */
   readonly summary: string;
   readonly summaryDigest: string;
+  /** Digest of the exact projected message list used for replay validation. */
+  readonly projectionDigest?: string;
   readonly source: ContextCompactionSource;
   readonly providerFailureCode: ContextSummaryProviderFailureCode | undefined;
   readonly sourceMessageCount: number;
@@ -111,6 +135,8 @@ export interface DurableContextPersistenceResult {
  */
 export interface DurableContextAdapter {
   read(operationId: string): Promise<DurableContextRecord | undefined>;
+  /** Returns the latest committed generation for a context, when available. */
+  readLatest?(contextId: string): Promise<number>;
   persist(input: DurableContextPersistenceInput): Promise<DurableContextPersistenceResult>;
 }
 
@@ -118,6 +144,7 @@ export interface ContextCompactionDiagnostics {
   readonly operationId: string;
   readonly contextId: string;
   readonly revision: number;
+  readonly generation: number;
   readonly replayed: boolean;
   readonly source: ContextCompactionSource;
   readonly providerFailureCode: ContextSummaryProviderFailureCode | undefined;
@@ -130,18 +157,74 @@ export interface ContextCompactionDiagnostics {
   readonly maxRetainedMessageUnits: number;
   readonly sourceDigest: string;
   readonly summaryDigest: string;
+  /** Content-free digest of the model-facing projection produced by this revision. */
+  readonly projectionDigest: string;
+}
+
+/** Content-free lifecycle facts for the shared execution journal/telemetry path. */
+export type ContextCompactionRuntimeEventType =
+  | "compaction_attempted"
+  | "compaction_candidate_created"
+  | "compaction_committed"
+  | "compaction_replayed"
+  | "compaction_deferred"
+  | "compaction_ineffective"
+  | "compaction_cancelled"
+  | "compaction_timed_out"
+  | "compaction_failed"
+  | "compaction_terminal";
+
+export interface ContextCompactionRuntimeEvent {
+  readonly type: ContextCompactionRuntimeEventType;
+  readonly operationId: string;
+  readonly contextId: string;
+  readonly revision: number;
+  readonly generation?: number;
+  readonly sourceDigest?: string;
+  readonly source?: ContextCompactionSource;
+  readonly providerFailureCode?: ContextSummaryProviderFailureCode;
+  readonly omittedMessageCount?: number;
+  readonly retainedMessageCount?: number;
+  readonly reason?: string;
+  readonly errorCode?: ContextCompactionErrorCode;
+  readonly attemptNumber?: number;
 }
 
 export interface ContextCompactionInput {
   readonly operationId: string;
   readonly contextId: string;
   readonly revision: number;
+  /** Optional compare-and-swap predecessor; adapters may resolve it from durable state. */
+  readonly expectedGeneration?: number;
+  /** Session/worker fence token. Only its digest is included in durable records. */
+  readonly fenceToken?: string;
   /** Durable history is read-only input. This function never mutates it. */
   readonly messages: readonly ModelMessage[];
   readonly policy?: ContextCompactionPolicy;
   readonly adapter?: DurableContextAdapter;
   readonly summaryProvider?: ContextSummaryProvider;
   readonly signal?: AbortSignal;
+  /** Optional live session/fencing check performed before checkpoint and commit. */
+  readonly assertFenceCurrent?: () => Promise<void> | void;
+  /** Optional memory handoff called before a lossy projection is committed. */
+  readonly memoryCheckpointPort?: MemoryCheckpointPort;
+  /** When true, missing or failed checkpoint persistence blocks compaction. */
+  readonly memoryCheckpointRequired?: boolean;
+  readonly memoryRunId?: string;
+  readonly memoryTurnId?: string;
+  readonly memoryScope?: MemoryRuntimeScope;
+  readonly sourceEventBoundary?: MemorySourceEventBoundary;
+  readonly evidenceDigest?: string;
+  readonly directEvidence?: MemoryDirectEvidenceEnvelope;
+  /** Shared execution-journal adapter; this seam never creates a second event stream. */
+  readonly onMemoryEvent?: (event: MemoryRuntimeEventPayload) => void | Promise<void>;
+  /** Content-free compaction lifecycle facts for the shared journal/telemetry path. */
+  readonly onCompactionEvent?: (event: ContextCompactionRuntimeEvent) => void | Promise<void>;
+  /** One durable bounded budget shared by compaction and recovery attempts. */
+  readonly contextAttemptBudget?: ContextAttemptBudgetPort;
+  readonly contextAttemptBudgetId?: string;
+  readonly contextAttemptRunId?: string;
+  readonly contextAttemptTurnId?: string;
 }
 
 export interface ContextCompactionResult {
@@ -156,7 +239,14 @@ export interface ContextCompactionResult {
 export type ContextCompactionErrorCode =
   | "invalid_input"
   | "replay_conflict"
-  | "persistence_failed";
+  | "fence_conflict"
+  | "persistence_failed"
+  | "memory_checkpoint_blocked"
+  | "memory_checkpoint_failed"
+  | "attempt_budget_exhausted"
+  | "cancelled"
+  | "candidate_invalid"
+  | "no_progress";
 
 export class ContextCompactionError extends Error {
   public constructor(
@@ -201,42 +291,172 @@ interface SummarySelection {
  * rejected rather than silently replacing a previous durable decision.
  */
 export async function compactDurableContext(input: ContextCompactionInput): Promise<ContextCompactionResult> {
+  try {
+    return await compactDurableContextInternal(input);
+  } catch (error) {
+    const operationId = typeof input.operationId === "string" ? input.operationId : "unknown";
+    const contextId = typeof input.contextId === "string" ? input.contextId : "unknown";
+    const revision = Number.isInteger(input.revision) ? input.revision : 0;
+    const code = error instanceof ContextCompactionError ? error.code : "persistence_failed";
+    if (code === "no_progress") {
+      await emitCompactionEvent(input, {
+        type: "compaction_ineffective",
+        operationId,
+        contextId,
+        revision,
+        reason: "no_progress",
+        errorCode: code,
+      });
+    }
+    await emitCompactionEvent(input, {
+      type: code === "cancelled" ? "compaction_cancelled" : code === "no_progress" || code === "candidate_invalid" || code === "attempt_budget_exhausted" ? "compaction_terminal" : "compaction_failed",
+      operationId,
+      contextId,
+      revision,
+      errorCode: code,
+    });
+    throw error;
+  }
+}
+
+async function compactDurableContextInternal(input: ContextCompactionInput): Promise<ContextCompactionResult> {
   const operationId = normalizeIdentifier(input.operationId, "operationId");
   const contextId = normalizeIdentifier(input.contextId, "contextId");
   const revision = normalizeRevision(input.revision);
   const policy = normalizePolicy(input.policy);
   const messages = input.messages.map(cloneMessage);
   const sourceDigest = digest(messages);
+  const existing = await readExisting(input.adapter, operationId);
+  const expectedGeneration = input.expectedGeneration
+    ?? existing?.decision.expectedGeneration
+    ?? await resolveExpectedGeneration(input.adapter, contextId, undefined, revision);
+  const generation = existing?.decision.generation ?? expectedGeneration + 1;
   const operationFingerprint = digest({
     operationId,
     contextId,
     revision,
+    generation,
     sourceDigest,
+    expectedGeneration,
+    fenceTokenDigest: input.fenceToken ? digest(input.fenceToken) : undefined,
     policy,
   });
 
-  const existing = await readExisting(input.adapter, operationId);
   if (existing) {
-    assertReplayCompatible(existing, { operationId, contextId, revision, sourceDigest, operationFingerprint });
+    assertReplayCompatible(existing, { operationId, contextId, revision, generation, expectedGeneration, sourceDigest, operationFingerprint });
+    await emitCompactionEvent(input, {
+      type: "compaction_replayed",
+      operationId,
+      contextId,
+      revision,
+      generation,
+      sourceDigest,
+      source: existing.compaction.source,
+      providerFailureCode: existing.compaction.providerFailureCode,
+      omittedMessageCount: existing.compaction.omittedMessageCount,
+      retainedMessageCount: existing.compaction.retainedMessageCount,
+    });
     return resultFromRecord(messages, existing, true, existing.compaction.providerFailureCode, policy);
   }
 
+  await assertCompactionCanCommit(input, operationId);
   const projection = selectProjection(messages, policy.maxRetainedMessageUnits);
+  await emitCompactionEvent(input, {
+    type: projection.omittedMessageCount > 0 ? "compaction_attempted" : "compaction_deferred",
+    operationId,
+    contextId,
+    revision,
+    generation,
+    sourceDigest,
+    omittedMessageCount: projection.omittedMessageCount,
+    retainedMessageCount: projection.retainedMessageCount,
+    ...(projection.omittedMessageCount === 0 ? { reason: "no_lossy_rewrite_required" } : {}),
+  });
+  const attemptReceipt = projection.omittedMessageCount > 0
+    ? await reserveContextAttempt(input, { operationId, contextId })
+    : undefined;
+  // The memory seam is also the durable capture boundary. When memory is
+  // required, capture the source range even if this particular projection
+  // did not omit messages; a later retry or compaction must not be the first
+  // time the turn becomes durable memory evidence.
+  if (projection.omittedMessageCount > 0 || input.memoryCheckpointRequired) {
+    await checkpointMemoryBeforeCompaction(input, {
+      operationId,
+      contextId,
+      generation,
+      sourceDigest,
+      messages,
+    });
+  }
   const selection = await selectSummary({
     operationId,
     contextId,
     revision,
+    generation,
     omittedMessages: projection.omittedMessages,
     policy,
     summaryProvider: input.summaryProvider,
     signal: input.signal,
   });
+  await assertCompactionCanCommit(input, operationId);
+  const projectedMessages = applySummary(projection, selection.summary);
+  validateCompactionCandidate({
+    messages,
+    projection,
+    projectedMessages,
+    selection,
+    policy,
+    operationId,
+    allowNoProgress: input.memoryCheckpointRequired === true,
+  });
+  if (projection.omittedMessageCount === 0) {
+    await emitCompactionEvent(input, {
+      type: "compaction_ineffective",
+      operationId,
+      contextId,
+      revision,
+      generation,
+      sourceDigest,
+      reason: "no_lossy_rewrite_required",
+      omittedMessageCount: 0,
+      retainedMessageCount: projection.retainedMessageCount,
+    });
+  } else {
+    await emitCompactionEvent(input, {
+      type: "compaction_candidate_created",
+      operationId,
+      contextId,
+      revision,
+      generation,
+      sourceDigest,
+      source: selection.source,
+      providerFailureCode: selection.providerFailureCode,
+      omittedMessageCount: projection.omittedMessageCount,
+      retainedMessageCount: projection.retainedMessageCount,
+    });
+    if (selection.providerFailureCode === "provider_timeout") {
+      await emitCompactionEvent(input, {
+        type: "compaction_timed_out",
+        operationId,
+        contextId,
+        revision,
+        generation,
+        sourceDigest,
+        source: selection.source,
+        providerFailureCode: selection.providerFailureCode,
+        reason: "summary_provider_timeout_fell_back_to_deterministic_summary",
+      });
+    }
+  }
   const record = createRecord({
     operationId,
     contextId,
     revision,
+    generation,
     sourceDigest,
     operationFingerprint,
+    expectedGeneration,
+    fenceTokenDigest: input.fenceToken ? digest(input.fenceToken) : undefined,
     policy,
     projection,
     selection,
@@ -247,16 +467,189 @@ export async function compactDurableContext(input: ContextCompactionInput): Prom
   if (input.adapter) {
     let persistence: DurableContextPersistenceResult;
     try {
+      await assertCompactionCanCommit(input, operationId);
       persistence = await input.adapter.persist({ decision: record.decision, compaction: record.compaction });
-    } catch {
+    } catch (error) {
+      if (error instanceof Error && error.message === "CONTEXT_COMPACTION_FENCE_CONFLICT") {
+        throw new ContextCompactionError("Context compaction lost its durable generation fence.", "fence_conflict", operationId);
+      }
       throw new ContextCompactionError("Context compaction persistence failed.", "persistence_failed", operationId);
     }
-    assertReplayCompatible(persistence.record, { operationId, contextId, revision, sourceDigest, operationFingerprint });
+    assertReplayCompatible(persistence.record, { operationId, contextId, revision, generation, expectedGeneration, sourceDigest, operationFingerprint });
     persisted = persistence.record;
     replayed = persistence.status === "replayed";
   }
 
+  if (attemptReceipt && input.contextAttemptBudget) {
+    try {
+      await input.contextAttemptBudget.consume(attemptReceipt);
+    } catch {
+      throw new ContextCompactionError("Context compaction completed but its durable attempt budget could not be settled.", "persistence_failed", operationId);
+    }
+  }
+
+  await emitCompactionEvent(input, {
+    type: replayed ? "compaction_replayed" : "compaction_committed",
+    operationId,
+    contextId,
+    revision,
+    generation,
+    sourceDigest,
+    source: persisted.compaction.source,
+    providerFailureCode: persisted.compaction.providerFailureCode,
+    omittedMessageCount: persisted.compaction.omittedMessageCount,
+    retainedMessageCount: persisted.compaction.retainedMessageCount,
+  });
+
   return resultFromRecord(messages, persisted, replayed, selection.providerFailureCode, policy);
+}
+
+async function reserveContextAttempt(
+  input: ContextCompactionInput,
+  context: { operationId: string; contextId: string },
+): Promise<ContextAttemptBudgetReceipt | undefined> {
+  if (!input.contextAttemptBudget) return undefined;
+  const result = await input.contextAttemptBudget.reserve({
+    budgetId: input.contextAttemptBudgetId ?? `context-attempts:${context.contextId}`,
+    runId: input.contextAttemptRunId ?? context.contextId,
+    turnId: input.contextAttemptTurnId ?? context.operationId,
+    operationKey: context.operationId,
+    kind: "proactive_compaction",
+  });
+  if (result.status === "exhausted") {
+    throw new ContextCompactionError("The durable context attempt budget is exhausted.", "attempt_budget_exhausted", context.operationId);
+  }
+  return result.receipt;
+}
+
+async function emitCompactionEvent(input: ContextCompactionInput, event: ContextCompactionRuntimeEvent): Promise<void> {
+  try {
+    await input.onCompactionEvent?.(event);
+  } catch {
+    // Telemetry must not change the durable context decision.
+  }
+}
+
+async function assertCompactionCanCommit(input: ContextCompactionInput, operationId: string): Promise<void> {
+  if (input.signal?.aborted) throw new ContextCompactionError("Context compaction was cancelled.", "cancelled", operationId);
+  try {
+    await input.assertFenceCurrent?.();
+  } catch {
+    throw new ContextCompactionError("Context compaction lost its active session fence.", "fence_conflict", operationId);
+  }
+}
+
+function validateCompactionCandidate(input: {
+  readonly messages: readonly ModelMessage[];
+  readonly projection: Projection;
+  readonly projectedMessages: readonly ModelMessage[];
+  readonly selection: SummarySelection;
+  readonly policy: NormalizedPolicy;
+  readonly operationId: string;
+  readonly allowNoProgress: boolean;
+}): void {
+  if (estimateSummaryTokens(input.selection.summary, input.policy.charsPerToken) > input.policy.maxSummaryTokens) {
+    throw new ContextCompactionError("The context summary exceeds its bounded candidate budget.", "candidate_invalid", input.operationId);
+  }
+  if (!hasCompleteToolPairs(input.projectedMessages)) {
+    throw new ContextCompactionError("The context compaction candidate would split a tool call/result pair.", "candidate_invalid", input.operationId);
+  }
+  // A one-message omission may legitimately be replaced by one bounded
+  // summary message. The hard progress invariant is therefore structural:
+  // candidates must omit an eligible range and retain a bounded projection;
+  // request-fit progress is validated by the next provider-aware planner.
+  if (!input.allowNoProgress && input.projection.omittedMessageCount === 0 && input.projectedMessages.length >= input.messages.length) {
+    throw new ContextCompactionError("The context compaction candidate makes no material progress.", "no_progress", input.operationId);
+  }
+}
+
+function hasCompleteToolPairs(messages: readonly ModelMessage[]): boolean {
+  const pending = new Set<string>();
+  for (const message of messages) {
+    if (message.role === "assistant" && message.toolCalls?.length) {
+      for (const call of message.toolCalls) pending.add(call.id);
+      continue;
+    }
+    if (message.role === "tool") {
+      if (!message.toolCallId || !pending.has(message.toolCallId)) return false;
+      pending.delete(message.toolCallId);
+    }
+  }
+  return pending.size === 0;
+}
+
+async function checkpointMemoryBeforeCompaction(
+  input: ContextCompactionInput,
+  context: { operationId: string; contextId: string; generation: number; sourceDigest: string; messages: readonly ModelMessage[] },
+): Promise<void> {
+  const runId = input.memoryRunId ?? context.contextId;
+  const turnId = input.memoryTurnId ?? context.operationId;
+  const sourceEventBoundary = input.sourceEventBoundary ?? sourceEventBoundaryFromMessages(context.messages);
+  const directEvidence = input.directEvidence ?? directEvidenceEnvelopeFromMessages(context.messages);
+  const evidenceDigest = input.evidenceDigest ?? context.sourceDigest;
+  const emit = async (event: MemoryRuntimeEventPayload): Promise<void> => {
+    await input.onMemoryEvent?.(event);
+  };
+  if (!input.memoryCheckpointPort && !input.memoryCheckpointRequired) return;
+  const requested = {
+    type: "memory_checkpoint_requested" as const,
+    runId,
+    turnId,
+    compactionGeneration: context.generation,
+    sourceEventBoundaryDigest: sourceEventBoundary.digest,
+  };
+  await emit(requested);
+  if (!input.memoryCheckpointPort) {
+    if (input.memoryCheckpointRequired) {
+      await emit({ ...requested, type: "memory_checkpoint_blocked", status: "blocked", reason: "checkpoint_port_missing", errorCode: "MEMORY_CHECKPOINT_PORT_MISSING" });
+      throw new ContextCompactionError("Memory evidence must be checkpointed before context compaction.", "memory_checkpoint_blocked", context.operationId);
+    }
+    return;
+  }
+  if (!input.memoryScope) {
+    await emit({ ...requested, type: "memory_checkpoint_failed", status: "failed", reason: "scope_missing", errorCode: "MEMORY_CHECKPOINT_SCOPE_MISSING" });
+    if (input.memoryCheckpointRequired) {
+      await emit({
+        ...requested,
+        type: "memory_checkpoint_blocked",
+        status: "blocked",
+        reason: "scope_missing",
+        errorCode: "MEMORY_CHECKPOINT_SCOPE_MISSING",
+      });
+      throw new ContextCompactionError("Memory checkpoint scope is missing.", "memory_checkpoint_blocked", context.operationId);
+    }
+    return;
+  }
+  try {
+    const result = await input.memoryCheckpointPort.checkpoint({
+      runId,
+      turnId,
+      compactionGeneration: context.generation,
+      sourceEventBoundary,
+      scope: input.memoryScope,
+      evidenceDigest,
+      directEvidence,
+    });
+    await emit({
+      ...requested,
+      type: "memory_checkpoint_committed",
+      status: result.status,
+      checkpointId: result.checkpointId,
+    });
+  } catch (error) {
+    const errorCode = error instanceof Error && "code" in error && typeof error.code === "string" ? error.code : "MEMORY_CHECKPOINT_FAILED";
+    await emit({ ...requested, type: "memory_checkpoint_failed", status: "failed", errorCode });
+    if (input.memoryCheckpointRequired) {
+      await emit({
+        ...requested,
+        type: "memory_checkpoint_blocked",
+        status: "blocked",
+        reason: "checkpoint_failed",
+        errorCode,
+      });
+      throw new ContextCompactionError("Memory checkpoint failed; context compaction is blocked.", "memory_checkpoint_blocked", context.operationId);
+    }
+  }
 }
 
 /**
@@ -307,9 +700,26 @@ async function readExisting(adapter: DurableContextAdapter | undefined, operatio
   }
 }
 
+async function resolveExpectedGeneration(
+  adapter: DurableContextAdapter | undefined,
+  contextId: string,
+  requested: number | undefined,
+  revision: number,
+): Promise<number> {
+  if (requested !== undefined) return normalizeGeneration(requested);
+  if (adapter?.readLatest) {
+    try {
+      return normalizeGeneration(await adapter.readLatest(contextId));
+    } catch {
+      throw new ContextCompactionError("Context compaction generation could not be loaded.", "persistence_failed");
+    }
+  }
+  return Math.max(0, revision - 1);
+}
+
 function assertReplayCompatible(
   record: DurableContextRecord,
-  expected: { operationId: string; contextId: string; revision: number; sourceDigest: string; operationFingerprint: string },
+  expected: { operationId: string; contextId: string; revision: number; generation: number; expectedGeneration: number; sourceDigest: string; operationFingerprint: string },
 ): void {
   const decision = record.decision;
   const compaction = record.compaction;
@@ -320,6 +730,10 @@ function assertReplayCompatible(
     || compaction.contextId !== expected.contextId
     || decision.revision !== expected.revision
     || compaction.revision !== expected.revision
+    || decision.generation !== expected.generation
+    || compaction.generation !== expected.generation
+    || decision.expectedGeneration !== expected.expectedGeneration
+    || compaction.expectedGeneration !== expected.expectedGeneration
     || decision.sourceDigest !== expected.sourceDigest
     || compaction.sourceDigest !== expected.sourceDigest
     || decision.operationFingerprint !== expected.operationFingerprint
@@ -333,6 +747,7 @@ async function selectSummary(input: {
   readonly operationId: string;
   readonly contextId: string;
   readonly revision: number;
+  readonly generation: number;
   readonly omittedMessages: readonly ModelMessage[];
   readonly policy: NormalizedPolicy;
   readonly summaryProvider: ContextSummaryProvider | undefined;
@@ -410,18 +825,25 @@ function createRecord(input: {
   readonly operationId: string;
   readonly contextId: string;
   readonly revision: number;
+  readonly generation: number;
   readonly sourceDigest: string;
   readonly operationFingerprint: string;
+  readonly expectedGeneration: number;
+  readonly fenceTokenDigest: string | undefined;
   readonly policy: NormalizedPolicy;
   readonly projection: Projection;
   readonly selection: SummarySelection;
 }): DurableContextRecord {
   const summaryDigest = digest(input.selection.summary);
+  const projectionDigest = digest(applySummary(input.projection, input.selection.summary));
   const shared = {
     schemaVersion: "v1" as const,
     operationId: input.operationId,
     contextId: input.contextId,
     revision: input.revision,
+    generation: input.generation,
+    expectedGeneration: input.expectedGeneration,
+    ...(input.fenceTokenDigest ? { fenceTokenDigest: input.fenceTokenDigest } : {}),
     sourceDigest: input.sourceDigest,
     operationFingerprint: input.operationFingerprint,
     sourceMessageCount: input.projection.omittedMessages.length + input.projection.retainedMessageCount,
@@ -440,6 +862,7 @@ function createRecord(input: {
       ...shared,
       summary: input.selection.summary,
       summaryDigest,
+      projectionDigest,
       source: input.selection.source,
       providerFailureCode: input.selection.providerFailureCode,
     },
@@ -458,6 +881,10 @@ function resultFromRecord(
     throw new ContextCompactionError("Durable context revision does not match the current source projection.", "replay_conflict", record.compaction.operationId);
   }
   const projectedMessages = applySummary(projection, record.compaction.summary);
+  const projectionDigest = digest(projectedMessages);
+  if (record.compaction.projectionDigest && record.compaction.projectionDigest !== projectionDigest) {
+    throw new ContextCompactionError("Durable context revision does not match the projected request.", "replay_conflict", record.compaction.operationId);
+  }
   const summaryTokens = estimateSummaryTokens(record.compaction.summary, policy.charsPerToken);
   return {
     messages: projectedMessages,
@@ -468,6 +895,7 @@ function resultFromRecord(
       operationId: record.compaction.operationId,
       contextId: record.compaction.contextId,
       revision: record.compaction.revision,
+      generation: record.compaction.generation,
       replayed,
       source: record.compaction.source,
       providerFailureCode: providerFailureCode ?? record.compaction.providerFailureCode,
@@ -480,6 +908,7 @@ function resultFromRecord(
       maxRetainedMessageUnits: record.compaction.maxRetainedMessageUnits,
       sourceDigest: record.compaction.sourceDigest,
       summaryDigest: record.compaction.summaryDigest,
+      projectionDigest,
     },
   };
 }
@@ -488,9 +917,19 @@ function selectProjection(messages: readonly ModelMessage[], maxRetainedMessageU
   const systemMessages = messages.filter((message) => message.role === "system").map(cloneMessage);
   const bodyMessages = messages.filter((message) => message.role !== "system");
   const units = buildMessageUnits(bodyMessages);
-  const retainedUnitStart = Math.max(0, units.length - maxRetainedMessageUnits);
-  const omittedUnits = units.slice(0, retainedUnitStart);
-  const retainedUnits = units.slice(retainedUnitStart);
+  const retainedIndexes = new Set<number>();
+  for (let index = Math.max(0, units.length - maxRetainedMessageUnits); index < units.length; index += 1) retainedIndexes.add(index);
+  // A tail-only slice is not sufficient when an external event or an
+  // interrupted tool result follows the active task. Keep the newest user
+  // task as a protected structural unit even when it falls before the tail.
+  for (let index = units.length - 1; index >= 0; index -= 1) {
+    if (units[index]?.messages.some((message) => message.role === "user")) {
+      retainedIndexes.add(index);
+      break;
+    }
+  }
+  const omittedUnits = units.filter((_unit, index) => !retainedIndexes.has(index));
+  const retainedUnits = units.filter((_unit, index) => retainedIndexes.has(index));
   const omittedMessages = omittedUnits.flatMap((unit) => unit.messages.map(cloneMessage));
   const retainedMessages = retainedUnits.flatMap((unit) => unit.messages.map(cloneMessage));
   return {
@@ -579,6 +1018,11 @@ function normalizeIdentifier(value: string, field: string): string {
 
 function normalizeRevision(value: number): number {
   if (!Number.isInteger(value) || value < 1) throw new ContextCompactionError("A positive context revision is required.", "invalid_input");
+  return value;
+}
+
+function normalizeGeneration(value: number): number {
+  if (!Number.isInteger(value) || value < 0) throw new ContextCompactionError("A non-negative context generation is required.", "invalid_input");
   return value;
 }
 

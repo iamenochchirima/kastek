@@ -86,7 +86,7 @@ describe.skipIf(!runIntegration)("Temporal context compaction recovery (integrat
         policy: { maxRetainedMessageUnits: 1 },
         adapter,
       });
-      return { generation: result.diagnostics.generation, replayed: result.diagnostics.replayed };
+      return { generation: result.diagnostics.generation, replayed: result.diagnostics.replayed, projectionDigest: result.diagnostics.projectionDigest };
     };
 
     const activities = { executeContextCompaction };
@@ -129,6 +129,12 @@ describe.skipIf(!runIntegration)("Temporal context compaction recovery (integrat
       expect(executions.length).toBeGreaterThanOrEqual(2);
       expect(result.replayed).toBe(pausePoint === "after_persist");
       expect(result.generation).toBe(1);
+      expect(result.projectionDigest).toMatch(/^[a-f0-9]{64}$/);
+      const persistedProjection = await pool.query<{ projection_digest: string | null }>(
+        "SELECT compaction->>'projectionDigest' AS projection_digest FROM agent_context_compaction_revisions WHERE organization_id = $1 AND operation_id = $2",
+        [organizationId, operationId],
+      );
+      expect(persistedProjection.rows[0]?.projection_digest).toBe(result.projectionDigest);
       expect((await pool.query("SELECT count(*)::int AS count FROM agent_context_compaction_revisions WHERE organization_id = $1 AND operation_id = $2", [organizationId, operationId])).rows[0]?.count).toBe(1);
     } finally {
       await pool.query("DELETE FROM agent_context_compaction_revisions WHERE organization_id = $1", [organizationId]);

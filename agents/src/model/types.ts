@@ -73,6 +73,10 @@ export interface ModelUsage {
   inputTokens: number;
   outputTokens: number;
   totalTokens: number;
+  /** Provider response included this counter. Absent means the number is not authoritative. */
+  inputTokensReported?: boolean;
+  outputTokensReported?: boolean;
+  totalTokensReported?: boolean;
   /** Cost reported by the provider, when the provider returns one. */
   providerCostUsd?: number;
   estimatedCostUsd?: number;
@@ -107,6 +111,8 @@ export interface ModelCredentials {
 export interface ModelAdapter {
   readonly provider: ModelProvider;
   readonly capabilities: ModelCapabilities;
+  /** Redacted provider-envelope size used by the context runtime's final byte gate. */
+  estimateRequestBytes?(request: ModelRequest): number;
   complete(request: ModelRequest, credentials: ModelCredentials): Promise<ModelResponse>;
   stream?(request: ModelRequest, credentials: ModelCredentials, onDelta: (delta: ModelStreamDelta) => void | Promise<void>): Promise<ModelResponse>;
 }

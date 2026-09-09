@@ -3,9 +3,11 @@ import {
   planProviderRequest,
   type ContextAccountingStatus,
   type ContextPlan,
+  type ContextPlanDecision,
   type ContextPlanInput,
   type ContextPlanRejection,
   type ContextPlanStatus,
+  type ContextMeasurementBasis,
   type ContextUsageAccounting,
   type ProviderReportedUsage,
 } from "./context-planning";
@@ -14,6 +16,7 @@ import {
   type ContextCompactionDiagnostics,
   type ContextCompactionPolicy,
   type ContextCompactionResult,
+  type ContextCompactionRuntimeEvent,
   type ContextSummaryProvider,
   type DurableContextAdapter,
 } from "./context-compaction";
@@ -21,6 +24,13 @@ import {
   InMemoryContextEngineStateAdapter,
   type ContextEngineStateAdapter,
 } from "./context-engine-state";
+import type {
+  MemoryCheckpointPort,
+  MemoryDirectEvidenceEnvelope,
+  MemoryRuntimeEventPayload,
+  MemoryRuntimeScope,
+  MemorySourceEventBoundary,
+} from "./context-memory-boundary";
 
 /**
  * The lifecycle owned by ContextEngine. The engine plans one provider request
@@ -51,6 +61,13 @@ export interface ContextCompactionRequest {
   readonly contextId?: string;
   readonly revision?: number;
   readonly policy?: ContextCompactionPolicy;
+  readonly memoryScope?: MemoryRuntimeScope;
+  /** Optional source boundary supplied by the durable journal owner. */
+  readonly sourceEventBoundary?: MemorySourceEventBoundary;
+  /** Optional digest of the redacted evidence envelope being checkpointed. */
+  readonly evidenceDigest?: string;
+  /** Redacted evidence only. Raw prompt/tool content never crosses this seam. */
+  readonly directEvidence?: MemoryDirectEvidenceEnvelope;
 }
 
 export interface ContextTurnHandle {
@@ -71,11 +88,16 @@ export interface ContextTurnDiagnostics {
   /** Monotonic only within this ContextEngine instance; it is not durable. */
   readonly eventSequence: number;
   readonly planStatus: ContextPlanStatus | "not_planned";
+  readonly planDecision: ContextPlanDecision | "not_planned";
+  readonly measurementBasis: ContextMeasurementBasis | "not_measured";
+  readonly capabilitySource: string;
+  readonly contextWindowTokens: number | undefined;
   readonly planRejectionCode: ContextPlanRejection | undefined;
   readonly planReasons: readonly string[];
   readonly omittedMessageCount: number;
   readonly omittedToolCount: number;
   readonly truncatedToolResultCount: number;
+  readonly toolResultReferenceCount: number;
   readonly protectedPairCount: number;
   readonly selectedMessageUnitCount: number;
   readonly estimatedInputTokens: number | undefined;
@@ -177,6 +199,11 @@ export interface ContextEngineOptions {
   /** Optional advisory summarizer; deterministic fallback remains authoritative. */
   readonly summaryProvider?: ContextSummaryProvider;
   readonly compactionPolicy?: ContextCompactionPolicy;
+  readonly memoryCheckpointPort?: MemoryCheckpointPort;
+  readonly memoryCheckpointRequired?: boolean;
+  readonly memoryScope?: MemoryRuntimeScope;
+  readonly onMemoryEvent?: (event: MemoryRuntimeEventPayload) => void | Promise<void>;
+  readonly onCompactionEvent?: (event: ContextCompactionRuntimeEvent) => void | Promise<void>;
 }
 
 export type ContextEngineErrorCode =
@@ -226,6 +253,11 @@ export class ContextEngine {
   private readonly stateAdapter: ContextEngineStateAdapter<ContextEngineState>;
   private readonly summaryProvider?: ContextSummaryProvider;
   private readonly compactionPolicy?: ContextCompactionPolicy;
+  private readonly memoryCheckpointPort?: MemoryCheckpointPort;
+  private readonly memoryCheckpointRequired: boolean;
+  private readonly memoryScope?: MemoryRuntimeScope;
+  private readonly onMemoryEvent?: (event: MemoryRuntimeEventPayload) => void | Promise<void>;
+  private readonly onCompactionEvent?: (event: ContextCompactionRuntimeEvent) => void | Promise<void>;
   private nextEventSequence = 1;
 
   public constructor(options: ContextEngineOptions = {}) {
@@ -234,6 +266,11 @@ export class ContextEngine {
     this.stateAdapter = options.state ?? new InMemoryContextEngineStateAdapter<ContextEngineState>();
     this.summaryProvider = options.summaryProvider;
     this.compactionPolicy = options.compactionPolicy;
+    this.memoryCheckpointPort = options.memoryCheckpointPort;
+    this.memoryCheckpointRequired = options.memoryCheckpointRequired === true;
+    this.memoryScope = options.memoryScope;
+    this.onMemoryEvent = options.onMemoryEvent;
+    this.onCompactionEvent = options.onCompactionEvent;
   }
 
   public async compactContext(handle: ContextTurnHandle, input: ContextCompactionRequest = {}): Promise<ContextCompactionResult> {
@@ -251,6 +288,16 @@ export class ContextEngine {
       policy: { ...this.compactionPolicy, ...input.policy },
       adapter: this.durableContext,
       summaryProvider: this.summaryProvider,
+      memoryCheckpointPort: this.memoryCheckpointPort,
+      memoryCheckpointRequired: this.memoryCheckpointRequired,
+      memoryRunId: state.handle.turnId,
+      memoryTurnId: state.handle.turnId,
+      memoryScope: input.memoryScope ?? this.memoryScope,
+      sourceEventBoundary: input.sourceEventBoundary,
+      evidenceDigest: input.evidenceDigest,
+      directEvidence: input.directEvidence,
+      onMemoryEvent: this.onMemoryEvent,
+      onCompactionEvent: this.onCompactionEvent,
     });
     const nextState: ActiveContextTurn = {
       ...state,
@@ -562,6 +609,7 @@ export class ContextEngine {
     readonly compaction: ContextCompactionResult | undefined;
     readonly outcome: ContextTurnOutcome | undefined;
     readonly completionErrorCode: string | undefined;
+    readonly providerCapabilitySource?: string;
   }): ContextTurnDiagnostics {
     const planDiagnostics = input.plan?.diagnostics;
     const accounting = input.accounting;
@@ -573,11 +621,16 @@ export class ContextEngine {
       revision: input.revision,
       eventSequence: this.nextEventSequence++,
       planStatus: input.plan?.status ?? "not_planned",
+      planDecision: input.plan?.decision ?? "not_planned",
+      measurementBasis: accounting?.basis ?? (input.plan ? "full_estimate" : "not_measured"),
+      capabilitySource: input.plan?.accounting.capabilitySource ?? input.providerCapabilitySource ?? "unknown",
+      contextWindowTokens: input.plan?.accounting.providerContextWindowTokens,
       planRejectionCode: input.plan?.status === "rejected" ? input.plan.rejection.code : undefined,
       planReasons: Object.freeze([...(planDiagnostics?.reasons ?? [])]),
       omittedMessageCount: planDiagnostics?.omittedMessageCount ?? 0,
       omittedToolCount: planDiagnostics?.omittedToolCount ?? 0,
       truncatedToolResultCount: planDiagnostics?.truncatedToolResultCount ?? 0,
+      toolResultReferenceCount: planDiagnostics?.toolResultReferenceCount ?? 0,
       protectedPairCount: planDiagnostics?.protectedPairCount ?? 0,
       selectedMessageUnitCount: planDiagnostics?.selectedMessageUnitCount ?? 0,
       estimatedInputTokens: input.plan?.accounting.estimatedInputTokens,

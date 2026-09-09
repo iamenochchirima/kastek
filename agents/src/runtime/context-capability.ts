@@ -83,11 +83,10 @@ export function contextCapabilityCorrectionFromProviderError(input: { code: stri
 /**
  * Resolves the capability identity used by one provider attempt.
  *
- * The runtime currently receives the context window from the pinned agent
- * policy, so the value is explicitly marked as a configured override. Future
- * provider/catalog adapters can supply a stronger source without changing the
- * planner or loop interface. A fallback attempt is always re-keyed here so it
- * cannot inherit the primary model's identity by accident.
+ * This seam only normalizes an already-resolved capability. A profile without
+ * provenance is unknown; it is not evidence of provider capacity. A fallback
+ * attempt is always re-keyed here so it cannot inherit the primary model's
+ * identity by accident.
  */
 export function resolveContextCapability(input: {
   profile: ProviderContextProfile;
@@ -99,7 +98,7 @@ export function resolveContextCapability(input: {
   const endpointId = input.endpointId
     ?? (input.profile.provider === input.provider ? input.profile.endpointId : undefined)
     ?? `${input.provider}:default`;
-  const capabilitySource = input.profile.capabilitySource ?? "configured_override";
+  const capabilitySource = input.profile.capabilitySource ?? "unknown";
   return {
     ...input.profile,
     provider: input.provider,
@@ -112,9 +111,9 @@ export function resolveContextCapability(input: {
 }
 
 /**
- * Adds a durable, tenant-scoped cache around the attempt resolver. The
- * configured profile remains the safe fallback, while provider metadata or an
- * evidence-backed correction wins when it is still valid.
+ * Adds a durable, tenant-scoped cache around the attempt resolver. Provider
+ * metadata, a verified catalog entry, or an evidence-backed correction must
+ * establish capacity; an unproven profile remains unknown and fails closed.
  */
 export class DurableContextCapabilityResolver {
   private readonly cache = new Map<string, { record: ContextCapabilityRecord; expiresAt: number }>();
@@ -212,7 +211,7 @@ export class DurableContextCapabilityResolver {
     return fallback.capabilitySource === "unknown" ? unknownCapability(fallback) : fallback;
   }
 
-  /** Record a configured fallback without overwriting stronger evidence. */
+  /** Record an explicit configured capacity override without overwriting stronger evidence. */
   public async rememberConfigured(input: {
     organizationId: string;
     profile: ProviderContextProfile;
@@ -284,8 +283,7 @@ export class DurableContextCapabilityResolver {
 function configuredOverrideFromProfile(profile: ProviderContextProfile, route: ModelCapabilityRoute): ExplicitContextCapabilityOverride | undefined {
   // A profile with an explicit non-configured provenance is evidence supplied
   // by another resolver, not a new override. Profiles without provenance are
-  // retained as a legacy fallback, but are not allowed to outrank metadata or
-  // durable correction evidence.
+  // not evidence and cannot establish a provider window.
   if (profile.capabilitySource !== "configured_override") return undefined;
   if (profile.provider !== route.provider || profile.model !== route.model) return undefined;
   if (profile.endpointId !== undefined && profile.endpointId !== route.endpointId) return undefined;

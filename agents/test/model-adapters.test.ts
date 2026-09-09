@@ -101,6 +101,18 @@ describe("provider adapters", () => {
     vi.unstubAllGlobals();
   });
 
+  it("keeps absent provider usage distinguishable from a reported zero", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      choices: [{ message: { role: "assistant", content: "ok" }, finish_reason: "stop" }],
+    }), { status: 200, headers: { "content-type": "application/json" } }));
+    vi.stubGlobal("fetch", fetchMock);
+    const adapter = new OpenAICompatibleAdapter({ provider: "openai", baseUrl: "https://example.test/v1" });
+    const result = await new ModelGateway([adapter]).complete({ provider: "openai", model: "test", messages: [{ role: "user", content: "hi" }] }, credentials);
+    expect(result.usage).toMatchObject({ inputTokens: 0, outputTokens: 0, inputTokensReported: false, outputTokensReported: false, totalTokensReported: false });
+    expect(result.usage.estimatedCostUsd).toBeUndefined();
+    vi.unstubAllGlobals();
+  });
+
   it("preserves a provider-reported cost separately from the local estimate", async () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
       choices: [{ message: { role: "assistant", content: "ok" }, finish_reason: "stop" }],

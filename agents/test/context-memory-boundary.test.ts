@@ -194,7 +194,7 @@ describe("context and memory integration boundary", () => {
       tools: new ToolRegistry(),
       toolContext: { organizationId: "org-1", agentId: "agent-1", agentVersionId: "version-1", installationId: "installation-1", runId: "run-1", correlationId: "corr-1", scope: { organizationId: "org-1", agentDefinitionId: "agent-1", agentVersionId: "version-1", installationId: "installation-1", runId: "run-1", correlationId: "corr-1", capabilityGrants: [] } },
       grantedTools: new Set(),
-      contextProfile: { provider: "openai", model: "test-model", contextWindowTokens: 1_000, maxOutputTokens: 64 },
+      contextProfile: { provider: "openai", model: "test-model", contextWindowTokens: 1_000, maxOutputTokens: 64, capabilitySource: "configured_override" },
       memoryRetrievalPort: retrievalPort,
       memoryScope: { organizationId: "org-1", agentDefinitionId: "agent-1", agentVersionId: "version-1", installationId: "installation-1", namespace: "conversation" },
       memoryRetrievalQuery: "What is my usual style?",
@@ -251,7 +251,7 @@ describe("context and memory integration boundary", () => {
       tools: new ToolRegistry(),
       toolContext: { organizationId: "org-1", agentId: "agent-1", agentVersionId: "version-1", installationId: "installation-1", runId: "run-1", correlationId: "corr-1", scope: { organizationId: "org-1", agentDefinitionId: "agent-1", agentVersionId: "version-1", installationId: "installation-1", runId: "run-1", correlationId: "corr-1", capabilityGrants: [] } },
       grantedTools: new Set(),
-      contextProfile: { provider: "openai", model: "test-model", contextWindowTokens: 1_000, maxOutputTokens: 64 },
+      contextProfile: { provider: "openai", model: "test-model", contextWindowTokens: 1_000, maxOutputTokens: 64, capabilitySource: "configured_override" },
       memoryRetrievalPort: {
         async retrieve(request) {
           return { packId: `blocked:${request.turnId}`, status: "blocked", evidence: [], blockedReason: "MEMORY_SCOPE_BLOCKED" };
