@@ -298,6 +298,8 @@ The resolver must support:
   Studio.
 - [x] Forward the reviewed Connections, Skills, Plugins, and catalogue MCP install/auth actions
   through the same authenticated Core façade; direct Agents routes are not exposed to the browser.
+- [x] Preserve the selected Studio agent when a native or MCP OAuth flow returns, including
+  provider-denied and token-exchange error results.
 - [x] Consolidate external service and MCP management under Capabilities → Connections, with
   Gateways reserved for agent execution endpoints.
 - [ ] Add responsive desktop/tablet/mobile behavior and accessible loading, empty, error, and
@@ -364,8 +366,8 @@ Logs, metrics, dashboards, and alerts: structured failure logs were added for ca
 User, API, internal, and operational documentation: updated MCP, connection, and remote-provider docs
 Validation evidence: Agents build; client production build; targeted client lint; reviewed-directory
   tests; MCP PKCE/authorization URL tests; REST/MCP route-conformance tests; Core façade forwarding
-  unit test for directory and activation routes; Core check and public OAuth callback compilation
-  verification
+  unit test for directory and activation routes; Core check and public OAuth callback compilation;
+  Studio resolves OAuth callback installation IDs back to the selected agent
 Rollback or disable plan: disable the new directory routes or revert the additive migration/code;
   existing native integrations, grants, and pinned snapshots remain intact
 Post-release review date: to be assigned

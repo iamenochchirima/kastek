@@ -9,12 +9,12 @@ export const metadata = { title: "Studio | KasiTek" };
 export default async function StudioRoute({
   searchParams,
 }: {
-  searchParams: Promise<{ agent?: string }>;
+  searchParams: Promise<{ agent?: string; installationId?: string }>;
 }) {
   const session = await getRustSession();
   if (!session?.user?.id) redirect("/login");
 
-  const { agent } = await searchParams;
+  const { agent, installationId } = await searchParams;
   await fetchRustJson<{ id: string }>("/api/agents/kasiai/ensure", {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -23,6 +23,9 @@ export default async function StudioRoute({
   const result = await fetchRustJson<{ agents: AgentDefinition[] }>("/api/agents?environment=playground")
     .then((value) => ({ agents: value.agents, unavailable: false }))
     .catch(() => ({ agents: [] as AgentDefinition[], unavailable: true }));
+  const returnAgentId = agent ?? (installationId
+    ? result.agents.find((candidate) => candidate.installation_id === installationId)?.id
+    : undefined);
 
-  return <StudioPage initialAgents={result.agents} initialAgentId={agent} agentsUnavailable={result.unavailable} />;
+  return <StudioPage initialAgents={result.agents} initialAgentId={returnAgentId} agentsUnavailable={result.unavailable} />;
 }

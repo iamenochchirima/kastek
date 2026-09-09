@@ -3641,14 +3641,26 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     if (!state) return reply.code(400).send({ error: "oauth_state_missing" });
     const stateRecord = await integrationRepository.consumeOAuthState(createHash("sha256").update(state).digest("hex"));
     if (!stateRecord) return reply.code(400).send({ error: "oauth_state_invalid_or_expired" });
-    if (request.query.error || !request.query.code) return reply.code(400).send({ error: request.query.error ?? "oauth_code_missing" });
+    const returnError = (statusCode: number, code: string) => {
+      const payload = { integration: "google.calendar", status: "error", error: code, installationId: stateRecord.installation_id };
+      if (dependencies.config.AGENT_INTEGRATIONS_RETURN_URL && request.headers["x-kasitek-oauth-proxy"] !== "1") {
+        const returnUrl = new URL(dependencies.config.AGENT_INTEGRATIONS_RETURN_URL);
+        returnUrl.searchParams.set("integration", payload.integration);
+        returnUrl.searchParams.set("status", payload.status);
+        returnUrl.searchParams.set("error", payload.error);
+        returnUrl.searchParams.set("installationId", payload.installationId);
+        return reply.redirect(returnUrl.toString());
+      }
+      return reply.code(statusCode).send(payload);
+    };
+    if (request.query.error || !request.query.code) return returnError(400, request.query.error ?? "oauth_code_missing");
     const clientId = dependencies.config.GOOGLE_CALENDAR_CLIENT_ID;
     const clientSecret = dependencies.config.GOOGLE_CALENDAR_CLIENT_SECRET;
-    if (!clientId || !clientSecret) return reply.code(503).send({ error: "google_calendar_oauth_not_configured" });
+    if (!clientId || !clientSecret) return returnError(503, "google_calendar_oauth_not_configured");
     const tokenResponse = await fetch("https://oauth2.googleapis.com/token", { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ code: request.query.code, client_id: clientId, client_secret: clientSecret, redirect_uri: stateRecord.redirect_uri, grant_type: "authorization_code" }), signal: AbortSignal.timeout(20_000) });
-    if (!tokenResponse.ok) return reply.code(502).send({ error: "google_calendar_token_exchange_failed" });
+    if (!tokenResponse.ok) return returnError(502, "google_calendar_token_exchange_failed");
     const token = await tokenResponse.json() as { access_token?: string; refresh_token?: string; expires_in?: number; scope?: string };
-    if (!token.access_token) return reply.code(502).send({ error: "google_calendar_access_token_missing" });
+    if (!token.access_token) return returnError(502, "google_calendar_access_token_missing");
     const credential = await integrationRepository.storeCredential({ organizationId: stateRecord.organization_id, integrationId: "google.calendar", secret: JSON.stringify({ accessToken: token.access_token, refreshToken: token.refresh_token, expiresAt: new Date(Date.now() + (token.expires_in ?? 3_600) * 1_000).toISOString(), scope: token.scope }), label: "Google Calendar", actorId: stateRecord.created_by });
     await integrationRepository.upsertConnection({ organizationId: stateRecord.organization_id, installationId: stateRecord.installation_id, integrationId: "google.calendar", credentialId: credential.id, status: "connected", configuration: { calendarId: "primary" }, actorId: stateRecord.created_by });
     if (dependencies.config.AGENT_INTEGRATIONS_RETURN_URL && request.headers["x-kasitek-oauth-proxy"] !== "1") {
