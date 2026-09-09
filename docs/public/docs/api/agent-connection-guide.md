@@ -118,10 +118,12 @@ POST /v1/installations/{installationId}/preflight
 { "versionId": "...", "sourceInstallationId": "...", "expectedVersionId": "..." }
 ```
 
-The source must be a Playground installation pinned to the selected published version, and the
-expected version protects the Live pointer from concurrent changes. Activate the exact preflighted
-candidate with `POST /v1/installations/{installationId}/promote`, adding an `idempotencyKey`; a
-blocked preflight returns `409` with the structured blockers. Roll back a Live installation with
+The source must be a Playground installation pinned to the selected immutable version. Candidates
+may be published or retired; retiring removes a version from the current publication stream but
+does not delete its snapshot or prevent an explicit manual deployment. The expected version
+protects the Live pointer from concurrent changes. Activate the exact preflighted candidate with
+`POST /v1/installations/{installationId}/promote`, adding an `idempotencyKey`; a blocked preflight
+returns `409` with the structured blockers. Roll back a Live installation with
 `POST /v1/installations/{installationId}/rollback`, optionally supplying `targetVersionId` and
 `expectedVersionId`. Promotion and rollback history records retain the candidate digest, extension
 snapshot checksum, binding revision, source installation, prior pointer, and idempotency key.

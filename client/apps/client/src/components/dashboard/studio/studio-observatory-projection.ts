@@ -28,6 +28,7 @@ type ProjectionInput = {
   readiness?: StudioReadinessSnapshot | null;
   modelLabel?: string;
   trace: StudioTraceItem[];
+  operations?: Array<Record<string, unknown>>;
   configurationState?: "loading" | "ready" | "unavailable";
 };
 
@@ -125,9 +126,23 @@ function overlayCapabilityStatus(base: StudioGraphStatus, trace: StudioTraceItem
   return latest ? statusForEvent(latest) : base;
 }
 
-function latestCapabilityEvidence(trace: StudioTraceItem[], names: string[]) {
+function latestCapabilityEvidence(trace: StudioTraceItem[], names: string[], operations: Array<Record<string, unknown>> = []) {
   const latest = trace.filter((item) => matchesCapability(item, names)).at(-1);
-  return latest ? { id: latest.id, event: latest.event, sequence: latest.sequence, detail: latest.detail } : undefined;
+  const operationNames = names.map(normalized).filter(Boolean);
+  const operation = operations.filter((record) => {
+    const values = [record.capability, record.name, record.tool_name, record.toolName, record.provider_tool_call_id, record.providerToolCallId];
+    return values.map(normalized).some((value) => operationNames.some((name) => value === name || value.endsWith(`.${name}`) || value.includes(name)));
+  }).at(-1);
+  const operationId = operation && [operation.id, operation.provider_tool_call_id, operation.providerToolCallId, operation.step_id, operation.stepId].find((value): value is string => typeof value === "string" && value.length > 0);
+  const operationStatus = operation && [operation.status, operation.outcome, operation.state].find((value): value is string => typeof value === "string" && value.length > 0);
+  if (!latest && !operationId) return undefined;
+  return {
+    id: latest?.id ?? operationId ?? "operation",
+    event: latest?.event ?? "operation.evidence",
+    sequence: latest?.sequence ?? 0,
+    detail: latest?.detail ?? "Redacted operation evidence available",
+    ...(operationId ? { operation: { id: operationId, kind: typeof operation?.kind === "string" ? operation.kind : "capability", status: operationStatus ?? "recorded" } } : {}),
+  };
 }
 
 function capabilityPosition(index: number) {
@@ -227,7 +242,7 @@ export function projectStudioObservatory(input: ProjectionInput): { nodes: Studi
       },
       index: index++,
       names: [tool, metadata?.name ?? ""],
-      evidence: latestCapabilityEvidence(input.trace, [tool, metadata?.name ?? ""]),
+      evidence: latestCapabilityEvidence(input.trace, [tool, metadata?.name ?? ""], input.operations),
     }));
   }
 
@@ -245,7 +260,7 @@ export function projectStudioObservatory(input: ProjectionInput): { nodes: Studi
       data: { connection: connector, readiness: metadata?.status ?? "declared", auth: metadata?.auth ?? "managed" },
       index: index++,
       names: [connector, metadata?.id ?? "", metadata?.name ?? ""],
-      evidence: latestCapabilityEvidence(input.trace, [connector, metadata?.id ?? "", metadata?.name ?? ""]),
+      evidence: latestCapabilityEvidence(input.trace, [connector, metadata?.id ?? "", metadata?.name ?? ""], input.operations),
     }));
   }
 
@@ -261,7 +276,7 @@ export function projectStudioObservatory(input: ProjectionInput): { nodes: Studi
       data: { skill: skill.slug, version: String(skill.versionNumber), checksum: skill.checksum, required: `${skill.requiredCapabilities.length} capabilities` },
       index: index++,
       names: [skill.id, skill.name, skill.slug],
-      evidence: latestCapabilityEvidence(input.trace, [skill.id, skill.name, skill.slug]),
+      evidence: latestCapabilityEvidence(input.trace, [skill.id, skill.name, skill.slug], input.operations),
     }));
   }
 
@@ -278,7 +293,7 @@ export function projectStudioObservatory(input: ProjectionInput): { nodes: Studi
       data: { provider: provider.providerName, revision: String(provider.revision), tools: String(provider.toolCount), checksum: provider.checksum },
       index: index++,
       names: [provider.id, provider.providerName],
-      evidence: latestCapabilityEvidence(input.trace, [provider.id, provider.providerName]),
+      evidence: latestCapabilityEvidence(input.trace, [provider.id, provider.providerName], input.operations),
     }));
   }
 

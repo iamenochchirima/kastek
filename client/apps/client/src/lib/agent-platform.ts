@@ -537,6 +537,13 @@ export type AgentRunTimeline = {
   events: AgentOperationEvent[];
   journal?: AgentJournalEvent[];
   telemetry?: AgentRuntimeTelemetry;
+  projection?: {
+    version: string;
+    cursor: number;
+    freshness: "live" | "settled" | "unknown" | string;
+    redaction: "role_scoped" | "redacted" | string;
+    observedAt: string;
+  };
   steps: Array<Record<string, unknown>>;
   toolCalls: Array<Record<string, unknown>>;
   effects: Array<Record<string, unknown>>;

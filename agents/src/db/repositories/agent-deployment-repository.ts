@@ -236,10 +236,14 @@ export class AgentDeploymentModule {
     if (input.expectedVersionId && current.agent_version_id !== input.expectedVersionId) {
       throw deploymentError("Installation version changed before deployment", 409, "INSTALLATION_VERSION_CONFLICT");
     }
-    if (current.execution_mode !== "kasitek_hosted") {
-      throw deploymentError("Only hosted organization installations can be deployed here", 403, "INSTALLATION_DEPLOYMENT_NOT_ALLOWED");
+    if (!["kasitek_hosted", "system_hosted"].includes(current.execution_mode)) {
+      throw deploymentError("External-connected installations are not managed by hosted deployment", 403, "INSTALLATION_DEPLOYMENT_NOT_ALLOWED");
     }
-    await this.assertPublishedHostedVersion(client, organizationId, current.agent_definition_id, input.versionId);
+    // Manual deployment may intentionally select a retired immutable version
+    // so the operator can reproduce or test an earlier candidate in
+    // Playground. Automatic follow-published and staged rollouts remain
+    // published-only through assertPublishedHostedVersion.
+    await this.assertDeployableHostedVersion(client, organizationId, current.agent_definition_id, input.versionId);
     if (current.agent_version_id === input.versionId) return current;
     return this.applyDeployment(client, {
       organizationId,
@@ -308,7 +312,7 @@ export class AgentDeploymentModule {
        LEFT JOIN agent_extension_snapshots snapshot ON snapshot.id = version.extension_snapshot_id
        WHERE version.id = $3
          AND version.agent_definition_id = $4
-         AND version.status = 'published'
+         AND version.status IN ('published', 'retired')
          AND (
            definition.organization_id = $1
            OR (
@@ -332,7 +336,7 @@ export class AgentDeploymentModule {
       blockers.push(versionExists.rows[0]?.agent_definition_id !== installation.agent_definition_id
         ? { code: "installation_agent_mismatch", detail: "The candidate belongs to a different agent." }
         : versionExists.rows[0]?.status !== "published"
-          ? { code: "version_not_published", detail: "Only published immutable versions can be promoted." }
+          ? { code: "version_not_published", detail: "Only published or retired immutable versions can be deployed." }
           : { code: "version_not_found", detail: "The candidate version is not available to this organization." });
     }
 
@@ -691,6 +695,37 @@ export class AgentDeploymentModule {
       [versionId, agentId, organizationId],
     );
     if (!target.rows[0]) throw deploymentError("Published agent version not found", 404, "AGENT_VERSION_NOT_FOUND");
+  }
+
+  private async assertDeployableHostedVersion(
+    client: PoolClient,
+    organizationId: string,
+    agentId: string,
+    versionId: string,
+  ): Promise<void> {
+    const target = await client.query(
+      `SELECT 1
+       FROM agent_versions av
+       JOIN agent_definitions ad ON ad.id = av.agent_definition_id
+       WHERE av.id = $1 AND av.agent_definition_id = $2
+         AND ad.status = 'active'
+         AND av.status IN ('published', 'retired')
+         AND (
+           (ad.organization_id = $3 AND ad.owner_type = 'organization' AND ad.protected = FALSE)
+           OR (
+             ad.owner_type = 'system' AND ad.protected = TRUE
+             AND EXISTS (
+               SELECT 1 FROM agent_installations visible
+               WHERE visible.organization_id = $3
+                 AND visible.agent_definition_id = ad.id
+                 AND visible.execution_mode = 'system_hosted'
+             )
+           )
+         )
+       FOR SHARE OF av`,
+      [versionId, agentId, organizationId],
+    );
+    if (!target.rows[0]) throw deploymentError("Deployable agent version not found", 404, "AGENT_VERSION_NOT_FOUND");
   }
 
   private async applyDeployment(client: PoolClient, input: DeploymentInput): Promise<DeploymentInstallation> {

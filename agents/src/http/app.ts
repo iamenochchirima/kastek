@@ -5433,6 +5433,16 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       events,
       journal,
       telemetry: projectRuntimeTelemetry(journal, { runId: run.id }),
+      projection: {
+        version: "studio.run-timeline.v1",
+        cursor: Math.max(
+          journal.at(-1)?.sequence ?? 0,
+          Number.isSafeInteger(Number(events.at(-1)?.sequence_number)) ? Number(events.at(-1)?.sequence_number) : 0,
+        ),
+        freshness: ["completed", "failed", "cancelled", "timed_out"].includes(run.status) ? "settled" : "live",
+        redaction: "role_scoped",
+        observedAt: new Date().toISOString(),
+      },
       steps: steps.map((step) => ({ ...step, input: redactSensitiveValue(step.input), output: redactSensitiveValue(step.output), error: redactSensitiveValue(step.error) })),
       toolCalls: toolCalls.map((toolCall) => redactSensitiveValue(toolCall)),
       effects: effects.map((effect) => ({ ...effect, provider_receipt: redactSensitiveValue(effect.provider_receipt), error: redactSensitiveValue(effect.error) })),

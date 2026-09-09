@@ -5,7 +5,7 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useSearchParams } from "next/navigation";
-import { Archive, ArrowLeft, BarChart3, BookOpen, CheckCircle2, Copy, Cpu, Globe2, History, KeyRound, LayoutDashboard, MessageSquare, PlugZap, RefreshCw, Rocket, RotateCcw, Settings2, SlidersHorizontal, Sparkles, Trash2, Upload, Workflow, Wrench } from "lucide-react";
+import { Archive, ArrowLeft, BarChart3, BookOpen, CheckCircle2, Copy, Cpu, Globe2, History, KeyRound, LayoutDashboard, MessageSquare, PlugZap, RefreshCw, Rocket, Settings2, SlidersHorizontal, Sparkles, Trash2, Upload, Workflow, Wrench } from "lucide-react";
 import type { IconType } from "react-icons";
 import { SiDiscord, SiInstagram, SiMessenger, SiModelcontextprotocol, SiTelegram, SiWhatsapp } from "react-icons/si";
 import { Badge } from "@/components/ui/badge";
@@ -47,13 +47,13 @@ import {
   setAgentInstallationStatus,
   publishAgentVersion,
   createAgentVersion,
-  rollbackAgentVersion,
   retireAgentVersion,
   updateAgentInstallationSettings,
   updateKasiAiConversation,
   updateKasiAiPreferences,
   getPlatformConversation,
   listAgentConversations,
+  listAgentVersions,
   sendPlatformMessage,
   createAgentInstallationCredential,
   listAgentInstallationCredentials,
@@ -122,6 +122,7 @@ import {
   AGENT_MODEL_PROVIDERS,
   AGENT_MODEL_PROVIDER_LABELS,
 } from "@/lib/agent-platform";
+import { AgentDeploymentLifecycle } from "./agent-deployment-lifecycle";
 
 function versionStatusClass(status: string) {
   if (status === "published") return "border-status-success/30 bg-status-success-soft text-status-success";
@@ -580,7 +581,8 @@ export function AgentDetailPageClient({ agent, initialVersions }: { agent: Agent
   const activeSection: DetailSection = (
     (normalizedSection === "conversations" && !customerConversationSurface)
     || (normalizedSection === "tools" && !hostedAgent)
-    || (["integrations", "deployment", "appearance"].includes(normalizedSection) && !channelSurface)
+    || (["integrations", "appearance"].includes(normalizedSection) && !channelSurface)
+    || (normalizedSection === "deployment" && !hostedAgent)
   ) ? "activity" : normalizedSection;
 
   useEffect(() => {
@@ -719,14 +721,14 @@ export function AgentDetailPageClient({ agent, initialVersions }: { agent: Agent
         ...(kasitekHostedAgent ? [{ label: "Behaviour", items: [{ section: "behavior" as const, label: "Tune agent", description: "Instructions, runtime, and workflow", icon: SlidersHorizontal }] }] : []),
         { label: "Models", items: [{ section: "models", label: "Models", description: "Model and API key", icon: Cpu }] },
         { label: "Tools", items: [{ section: "tools", label: "Tools", description: "Capabilities and access", icon: Wrench }] },
-        ...(channelSurface ? [{
+        {
           label: "Deployment",
           items: [
-            { section: "integrations" as const, label: "Integrations", description: "Connect channels and surfaces", icon: PlugZap },
+            ...(channelSurface ? [{ section: "integrations" as const, label: "Integrations", description: "Connect channels and surfaces", icon: PlugZap }] : []),
             ...(websiteChatConfigured ? [{ section: "appearance" as const, label: "Appearance", description: "Customize Website Chat", icon: Sparkles }] : []),
-            { section: "deployment" as const, label: "Channels & status", description: "Health, routing, and delivery", icon: Rocket },
+            { section: "deployment" as const, label: "Deploy", description: "Playground, Live, and rollback", icon: Rocket },
           ],
-        }] : []),
+        },
       );
     } else {
       groups.push({ label: "Connection", items: [{ section: "connection", label: "Credentials", description: "Connect and monitor runtime", icon: KeyRound }] });
@@ -783,7 +785,9 @@ export function AgentDetailPageClient({ agent, initialVersions }: { agent: Agent
     try {
       await operation();
       router.refresh();
-      setVersions((current) => current.map((version) => {
+      const refreshed = hostedAgent ? await listAgentVersions(agent.id).catch(() => null) : null;
+      if (refreshed) setVersions(refreshed.versions);
+      else setVersions((current) => current.map((version) => {
         if (action === `publish:${version.id}` || action === `rollback:${version.id}`) return { ...version, status: "published", published_at: new Date().toISOString() };
         if (action === `retire:${version.id}`) return { ...version, status: "retired", retired_at: new Date().toISOString() };
         return action === "archive" ? current[0] ?? version : version;
@@ -904,7 +908,7 @@ export function AgentDetailPageClient({ agent, initialVersions }: { agent: Agent
                   <p className="mt-1 text-sm leading-6 text-muted-foreground">{agentDescription || "Installed Agent Platform agent"}</p>
                 </div>
               </div>
-              <div className="flex flex-wrap items-center justify-end gap-2">{customHostedAgent ? <Button asChild><Link href={`/agents/${encodeURIComponent(agent.id)}/workflow`}><Workflow className="mr-2 h-4 w-4" />Edit workflow</Link></Button> : null}{agent.installation_id && installationStatus !== "disabled" ? <Button type="button" variant="outline" disabled={busy !== null} onClick={() => void toggleInstallation()}>{busy === "installation-status" ? "Updating…" : installationStatus === "active" ? "Pause installation" : "Resume installation"}</Button> : null}{protectedAgent ? <Badge className="w-fit border-primary/20 bg-primary/10 text-primary">Protected system agent</Badge> : deletableAgent ? <Button type="button" variant="outline" disabled={busy === "archive" || busy === "delete"} onClick={() => void mutate("archive", () => externalAgent && agent.installation_id ? archiveExternalAgent(agent.installation_id) : archiveAgent(agent.id))}><Archive className="mr-2 h-4 w-4" />{busy === "archive" ? "Archiving…" : "Archive agent"}</Button> : null}</div>
+              <div className="flex flex-wrap items-center justify-end gap-2">{hostedAgent ? <Button type="button" variant="outline" onClick={() => selectSection("deployment")}><Rocket className="mr-2 h-4 w-4" />Deploy</Button> : null}{customHostedAgent ? <Button asChild><Link href={`/agents/${encodeURIComponent(agent.id)}/workflow`}><Workflow className="mr-2 h-4 w-4" />Edit workflow</Link></Button> : null}{agent.installation_id && installationStatus !== "disabled" ? <Button type="button" variant="outline" disabled={busy !== null} onClick={() => void toggleInstallation()}>{busy === "installation-status" ? "Updating…" : installationStatus === "active" ? "Pause installation" : "Resume installation"}</Button> : null}{protectedAgent ? <Badge className="w-fit border-primary/20 bg-primary/10 text-primary">Protected system agent</Badge> : deletableAgent ? <Button type="button" variant="outline" disabled={busy === "archive" || busy === "delete"} onClick={() => void mutate("archive", () => externalAgent && agent.installation_id ? archiveExternalAgent(agent.installation_id) : archiveAgent(agent.id))}><Archive className="mr-2 h-4 w-4" />{busy === "archive" ? "Archiving…" : "Archive agent"}</Button> : null}</div>
             </div>
             {externalAgent ? <p className="rounded-lg border border-status-info/20 bg-status-info-soft/40 px-3 py-2 text-sm text-muted-foreground">This is an external-connected installation. It calls KasiTek through MCP or REST and does not run hosted chat, channels, schedules, knowledge, or model workflows here.</p> : null}
           </CardContent>
@@ -967,6 +971,8 @@ export function AgentDetailPageClient({ agent, initialVersions }: { agent: Agent
         {activeSection === "conversations" && customerConversationSurface && agent.installation_id ? <AgentConversationHistory agentId={agent.id} installationId={agent.installation_id} /> : null}
 
         {activeSection === "integrations" && agent.installation_id ? channelSurface ? <InstallationIntegrations agentId={agent.id} installationId={agent.installation_id} personal={executionMode === "system_hosted"} agentName={agent.name} onWebsiteDeploymentStateChange={setWebsiteChatConfigured} /> : <AgentToolIntegrations installationId={agent.installation_id} /> : null}
+
+        {activeSection === "deployment" && hostedAgent ? <AgentDeploymentLifecycle agent={agent} versions={versions} onVersionsChange={setVersions} /> : null}
 
         {activeSection === "deployment" && channelSurface && agent.installation_id ? <InstallationChannels installationId={agent.installation_id} personal={executionMode === "system_hosted"} /> : null}
 
@@ -1034,7 +1040,7 @@ export function AgentDetailPageClient({ agent, initialVersions }: { agent: Agent
                 {credentialError ? <p className="text-xs text-destructive" role="alert">{credentialError}</p> : null}
               </div>
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <p className="text-xs text-muted-foreground">Changes are saved as a new version. Publish it from Settings when you are ready.</p>
+                <p className="text-xs text-muted-foreground">Changes are saved as a draft candidate. Publish it, then deploy it from Deploy.</p>
                 <Button type="button" disabled={creatingVersion || !instructions.trim() || !model.trim() || Boolean(modelCatalog && providerModels.length && !selectedModelAvailable) || !workflowReady || !workflowValid || !workflow || (credentialMode === "user" && (!credentialReference || credentialProvider !== modelProvider))} onClick={() => void createVersion()}>{creatingVersion ? "Saving…" : "Save version"}</Button>
               </div>
             </CardContent>
@@ -1053,7 +1059,7 @@ export function AgentDetailPageClient({ agent, initialVersions }: { agent: Agent
               <AgentRuntimeLimits value={runtimeLimits} onChange={setRuntimeLimits} />
               <Textarea value={instructions} onChange={(event) => setInstructions(event.target.value)} rows={8} maxLength={200000} className="resize-y font-mono leading-6" aria-label="Agent instructions" />
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <p className="text-xs text-muted-foreground">Changes are saved as a new version. Publish it from Settings when you are ready.</p>
+                <p className="text-xs text-muted-foreground">Changes are saved as a draft candidate. Publish it, then deploy it from Deploy.</p>
                 <Button type="button" disabled={creatingVersion || !instructions.trim() || !model.trim() || Boolean(modelCatalog && providerModels.length && !selectedModelAvailable) || !workflowReady || !workflowValid || !workflow || (credentialMode === "user" && (!credentialReference || credentialProvider !== modelProvider))} onClick={() => void createVersion()}>{creatingVersion ? "Saving…" : "Save version"}</Button>
               </div>
             </CardContent>
@@ -1061,15 +1067,14 @@ export function AgentDetailPageClient({ agent, initialVersions }: { agent: Agent
         ) : null}
 
         {activeSection === "settings" ? <details className="group rounded-xl border border-border bg-card" aria-labelledby="agent-versions-title">
-          <summary className="cursor-pointer list-none p-5 [&::-webkit-details-marker]:hidden"><div className="flex items-center justify-between gap-3"><div><h2 id="agent-versions-title" className="font-semibold text-foreground">Version history</h2><p className="mt-1 text-sm text-muted-foreground">Publish, retire, or roll back agent versions.</p></div><span className="text-xs font-medium text-primary group-open:hidden">Open</span><span className="hidden text-xs font-medium text-primary group-open:inline">Close</span></div></summary>
+          <summary className="cursor-pointer list-none p-5 [&::-webkit-details-marker]:hidden"><div className="flex items-center justify-between gap-3"><div><h2 id="agent-versions-title" className="font-semibold text-foreground">Version history</h2><p className="mt-1 text-sm text-muted-foreground">Publish candidates and review immutable versions. Use Deploy for Live activation.</p></div><span className="text-xs font-medium text-primary group-open:hidden">Open</span><span className="hidden text-xs font-medium text-primary group-open:inline">Close</span></div></summary>
           <div className="space-y-3 border-t border-border p-5">
           {error ? <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive" role="alert">{error}</p> : null}
           {!versions.length ? <Card><CardContent className="p-6 text-sm text-muted-foreground">No versions are available for this agent.</CardContent></Card> : versions.map((version) => (
             <Card key={version.id}><CardContent className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
               <div><div className="flex items-center gap-2"><h3 className="font-semibold text-foreground">Version {version.version_number}</h3>{version.id === agent.published_version_id ? <><CheckCircle2 className="h-4 w-4 text-status-success" aria-label="Published" /><Badge className="border-status-success/30 bg-status-success-soft text-status-success">Published</Badge></> : <Badge className={versionStatusClass(version.status)}>{version.status}</Badge>}{version.id === agent.installation_version_id ? <Badge className="border-primary/30 bg-primary/10 text-primary">Deployed</Badge> : null}</div><p className="mt-1 text-xs text-muted-foreground">Created {new Date(version.created_at).toLocaleString()}{version.published_at ? ` · Published ${new Date(version.published_at).toLocaleString()}` : ""}</p></div>
               {kasitekHostedAgent ? <div className="flex flex-wrap gap-2">
-                {version.status === "draft" ? <Button type="button" size="sm" disabled={busy !== null} onClick={() => void mutate(`publish:${version.id}`, () => publishAgentVersion(agent.id, version.id))}>Publish</Button> : null}
-                {version.status === "retired" ? <Button type="button" size="sm" variant="outline" disabled={busy !== null} onClick={() => void mutate(`rollback:${version.id}`, () => rollbackAgentVersion(agent.id, version.id))}><RotateCcw className="mr-1.5 h-3.5 w-3.5" />Rollback</Button> : null}
+                {version.status === "draft" ? <Button type="button" size="sm" disabled={busy !== null} onClick={() => void mutate(`publish:${version.id}`, () => publishAgentVersion(agent.id, version.id))}>Publish candidate</Button> : null}
                 {version.status === "published" ? <Button type="button" size="sm" variant="outline" disabled={busy !== null} onClick={() => void mutate(`retire:${version.id}`, () => retireAgentVersion(agent.id, version.id))}>Retire</Button> : null}
               </div> : null}
             </CardContent></Card>
@@ -2630,19 +2635,19 @@ function DiscordSetupDialog({ open, onOpenChange, installationId, personal, exis
     onOpenChange(nextOpen);
   };
 
-  const issuePairing = async (created: AgentChannelConnection) => {
+  const issuePairing = useCallback(async (created: AgentChannelConnection) => {
     try {
       setPairing(await issueAgentChannelPairing(installationId, created.id));
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Unable to create Discord pairing code");
     }
-  };
+  }, [installationId]);
 
   useEffect(() => {
     if (!open || !existingConnection || connection) return;
     setConnection(existingConnection);
     if (personal) void issuePairing(existingConnection);
-  }, [connection, existingConnection, open, personal]);
+  }, [connection, existingConnection, issuePairing, open, personal]);
 
   const connect = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();

@@ -11,22 +11,15 @@ import {
   FlaskConical,
   MessageCircle,
   Plus,
-  Rocket,
   SlidersHorizontal,
   X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import {
   createAgentVersion,
   cancelAgentRun,
   createPlatformConversation,
-  deployAgentInstallation,
-  getAgentDeploymentStatus,
-  preflightAgentInstallationDeployment,
-  promoteAgentInstallation,
-  rollbackAgentInstallation,
   ensureKasiAiPlayground,
   getAudioTranscriptionJob,
   getPlatformConversation,
@@ -37,9 +30,9 @@ import {
   getAgentInstallationReadiness,
   listAgentInstallationCapabilities,
   listAgentConnectionDirectory,
+  listAgentInstallationRuns,
   ensureAgentPlayground,
   listAgentVersions,
-  publishAgentVersion,
   resolvePlatformConversation,
   sendPlatformAudio,
   sendPlatformMessage,
@@ -52,12 +45,12 @@ import {
   type AgentModelCatalog,
   type AgentModelProvider,
   type AgentRuntimeTelemetry,
+  type AgentRunTimeline,
+  type AgentInstallationRun,
   type AgentEffectiveConfigProjection,
   type AgentCapability,
   type AgentConnectionDirectoryEntry,
   type AgentReadiness,
-  type AgentDeploymentPreflight,
-  type AgentDeploymentStatus,
   type AgentSpecInput,
   type AgentStreamEvent,
   type AgentVersion,
@@ -67,6 +60,7 @@ import { AgentChatComposer } from "@/components/dashboard/agents/agent-chat-comp
 import { AgentChatMessageList } from "@/components/dashboard/agents/agent-chat-message-list";
 import { AgentChatRunStatus } from "@/components/dashboard/agents/agent-chat-run-status";
 import { AgentChatSurface } from "@/components/dashboard/agents/agent-chat-surface";
+import { AgentDeploymentLifecycle } from "@/components/dashboard/agents/agent-deployment-lifecycle";
 import { StudioSettingsPrototype, type StudioSettingsDraft } from "@/components/dashboard/studio/studio-settings-prototype";
 import { StudioSystemCanvas, type StudioGraphNode } from "@/components/dashboard/studio/studio-system-canvas";
 import { projectStudioObservatory } from "@/components/dashboard/studio/studio-observatory-projection";
@@ -245,6 +239,12 @@ function statusClass(status: string) {
   return "bg-muted text-muted-foreground";
 }
 
+function formatRunTime(value?: string) {
+  if (!value) return "unknown";
+  const timestamp = Date.parse(value);
+  return Number.isFinite(timestamp) ? new Date(timestamp).toISOString().slice(5, 16).replace("T", " ") : "unknown";
+}
+
 function SectionEyebrow({ children }: { children: ReactNode }) {
   return <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">{children}</p>;
 }
@@ -389,6 +389,10 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
   const [modelCatalogLoading, setModelCatalogLoading] = useState(true);
   const [modelSelection, setModelSelection] = useState<ModelSelection | null>(null);
   const [trace, setTrace] = useState<TraceNode[]>([]);
+  const [runHistory, setRunHistory] = useState<AgentInstallationRun[]>([]);
+  const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
+  const [timelineProjection, setTimelineProjection] = useState<AgentRunTimeline["projection"] | null>(null);
+  const [operationEvidence, setOperationEvidence] = useState<Array<Record<string, unknown>>>([]);
   const [effectiveConfig, setEffectiveConfig] = useState<AgentEffectiveConfigProjection | null>(null);
   const [effectiveCapabilities, setEffectiveCapabilities] = useState<AgentCapability[]>([]);
   const [effectiveConnections, setEffectiveConnections] = useState<AgentConnectionDirectoryEntry[]>([]);
@@ -409,45 +413,15 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
   const [telemetry, setTelemetry] = useState<AgentRuntimeTelemetry | null>(null);
   const [telemetryDetailsOpen, setTelemetryDetailsOpen] = useState(false);
   const [cancelling, setCancelling] = useState(false);
-  const [deploying, setDeploying] = useState(false);
-  const [deploymentStatus, setDeploymentStatus] = useState<AgentDeploymentStatus | null>(null);
-  const [deploymentStatusLoading, setDeploymentStatusLoading] = useState(false);
-  const [promotionOpen, setPromotionOpen] = useState(false);
-  const [promotionPreflight, setPromotionPreflight] = useState<AgentDeploymentPreflight | null>(null);
-  const [promotionCandidateId, setPromotionCandidateId] = useState<string | null>(null);
-  const [promotionBusy, setPromotionBusy] = useState(false);
-  const [rollbackOpen, setRollbackOpen] = useState(false);
-  const [rollbackBusy, setRollbackBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const showError = (message: string, remediation?: string) => {
     toast.error(message, remediation ? { description: remediation } : undefined);
   };
   const clearError = () => undefined;
 
-  const refreshDeploymentStatus = useCallback(async () => {
-    setDeploymentStatusLoading(true);
-    try {
-      setDeploymentStatus(await getAgentDeploymentStatus(agent.id));
-    } catch (cause) {
-      toast.error(cause instanceof Error ? cause.message : "Unable to load deployment status");
-    } finally {
-      setDeploymentStatusLoading(false);
-    }
-  }, [agent.id]);
-
-  useEffect(() => {
-    void refreshDeploymentStatus();
-  }, [refreshDeploymentStatus]);
-
   const selectedVersion = versions.find((version) => version.id === selectedVersionId) ?? versions[0] ?? null;
   const playgroundReady = agent.installation_settings?.environment === "playground";
   const canRun = Boolean(agent.installation_id && playgroundReady);
-  const showPromotion = Boolean(
-    deploymentStatus
-      && deploymentStatus.live.installationId
-      && (deploymentStatus.state === "pending"
-        || selectedVersion?.id !== deploymentStatus.live.version?.versionId),
-  );
   const pickerModels = useMemo<AgentModel[]>(() => {
     const available = modelCatalog?.models ?? [];
     if (!modelSelection || available.some((model) => model.provider === modelSelection.provider && model.model === modelSelection.model)) return available;
@@ -485,9 +459,10 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
       readiness: installationReadiness,
       modelLabel: selectedModelEntry?.label ?? selectedModelEntry?.model ?? "Primary model",
       trace,
+      operations: operationEvidence,
       configurationState: effectiveConfigLoading ? "loading" : effectiveConfigError ? "unavailable" : "ready",
     }),
-    [effectiveCapabilities, effectiveConfig, effectiveConfigError, effectiveConfigLoading, effectiveConnections, installationReadiness, selectedModelEntry?.label, selectedModelEntry?.model, trace],
+    [effectiveCapabilities, effectiveConfig, effectiveConfigError, effectiveConfigLoading, effectiveConnections, installationReadiness, operationEvidence, selectedModelEntry?.label, selectedModelEntry?.model, trace],
   );
   const studioGraphNodes = studioProjection.nodes;
   const studioGraphEdges = studioProjection.edges;
@@ -602,24 +577,47 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
   }, [agent.installation_id, selectedVersionId]);
 
   useEffect(() => {
-    if (!activeRunId) return;
+    const installationId = agent.installation_id;
+    if (!installationId) {
+      setRunHistory([]);
+      setSelectedRunId(null);
+      return;
+    }
+    let cancelled = false;
+    void listAgentInstallationRuns(installationId, 50)
+      .then((result) => {
+        if (cancelled) return;
+        setRunHistory(result.runs);
+        setSelectedRunId((current) => current && result.runs.some((run) => run.id === current) ? current : result.runs[0]?.id ?? null);
+      })
+      .catch(() => undefined);
+    return () => { cancelled = true; };
+  }, [agent.installation_id]);
+
+  useEffect(() => {
+    const observedRunId = activeRunId ?? selectedRunId;
+    if (!observedRunId) return;
     let cancelled = false;
     const refreshRuntimeEvidence = async () => {
-      const timeline = await getAgentRunTimeline(activeRunId).catch(() => null);
+      const timeline = await getAgentRunTimeline(observedRunId).catch(() => null);
       if (cancelled || !timeline) return;
       setTelemetry(timeline.telemetry ?? null);
+      setTimelineProjection(timeline.projection ?? null);
+      setOperationEvidence([...timeline.toolCalls, ...timeline.effects, ...timeline.steps]);
+      setRunHistory((current) => current.map((run) => run.id === observedRunId ? { ...run, ...timeline.run } : run));
       if (timeline.journal?.length) {
         const journalNodes = nodesFromJournalEvents(timeline.journal, timeline.telemetry?.revision);
         if (journalNodes.length) setTrace(journalNodes);
       }
+      else if (timeline.events.length) setTrace(nodesFromRunEvents(timeline.events));
     };
     void refreshRuntimeEvidence();
-    const timer = window.setInterval(() => { void refreshRuntimeEvidence(); }, 1_000);
+    const timer = activeRunId ? window.setInterval(() => { void refreshRuntimeEvidence(); }, 1_000) : undefined;
     return () => {
       cancelled = true;
-      window.clearInterval(timer);
+      if (timer) window.clearInterval(timer);
     };
-  }, [activeRunId]);
+  }, [activeRunId, selectedRunId]);
 
   const selectVersion = (versionId: string) => {
     const nextVersion = versions.find((version) => version.id === versionId) ?? null;
@@ -629,8 +627,23 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
     setTrace([]);
     setSelectedNodeId(null);
     setTelemetry(null);
+    setTimelineProjection(null);
+    setOperationEvidence([]);
     setTelemetryDetailsOpen(false);
     setLastRunId(null);
+    setSelectedRunId(null);
+    setNotice(null);
+  };
+
+  const selectRun = (runId: string) => {
+    if (running) return;
+    setSelectedRunId(runId || null);
+    setLastRunId(runId || null);
+    setTrace([]);
+    setTelemetry(null);
+    setTimelineProjection(null);
+    setOperationEvidence([]);
+    setSelectedNodeId(null);
     setNotice(null);
   };
 
@@ -702,6 +715,7 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
       });
       setInput("");
       setActiveRunId(accepted.runId);
+      setSelectedRunId(accepted.runId);
       setLastRunId(accepted.runId);
       addTraceEvent({ event: "run.received", data: { sequence_number: 1, run_id: accepted.runId } });
       await streamAgentRun(accepted.runId, addTraceEvent, controller.signal);
@@ -752,6 +766,7 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
       });
       setMessages((current) => current.some((item) => item.id === accepted.message.id) ? current : [...current, accepted.message]);
       setActiveRunId(accepted.runId);
+      setSelectedRunId(accepted.runId);
       setLastRunId(accepted.runId);
       setTrace((current) => [...current, { id: `ui-${accepted.runId}`, event: "run.received", label: "Input", detail: "Interactive result action", status: "running", sequence: current.length, data: { run_id: accepted.runId, action_id: interaction.actionId } }]);
       await streamAgentRun(accepted.runId, addTraceEvent, controller.signal);
@@ -905,96 +920,6 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
     }
   };
 
-  const deploy = async () => {
-    if (!selectedVersion) return;
-    setDeploying(true);
-    clearError();
-    setNotice(null);
-    try {
-      const published = selectedVersion.status === "published" ? selectedVersion : await publishAgentVersion(agent.id, selectedVersion.id);
-      if (agent.installation_id) await deployAgentInstallation(agent.installation_id, published.id, agent.installation_version_id ?? undefined);
-      setVersions((current) => current.map((version) => version.id === published.id ? published : version));
-      setNotice(surface === "playground" ? "Playground updated" : "Installation updated");
-    } catch (cause) {
-      showError(cause instanceof Error ? cause.message : "Unable to deploy version");
-    } finally {
-      setDeploying(false);
-    }
-  };
-
-  const preparePromotion = async () => {
-    if (!selectedVersion || promotionBusy) return;
-    setPromotionBusy(true);
-    try {
-      const candidate = selectedVersion.status === "published" ? selectedVersion : await publishAgentVersion(agent.id, selectedVersion.id);
-      let latest = await getAgentDeploymentStatus(agent.id);
-      if (!latest) throw new Error("Deployment status is unavailable");
-      setDeploymentStatus(latest);
-      const sourceInstallationId = latest.playground.installationId ?? agent.installation_id;
-      if (!sourceInstallationId) throw new Error("Create a Playground installation before promoting to Live");
-      let sourceVersionId = latest.playground.version?.versionId;
-      if (sourceVersionId !== candidate.id) {
-        await deployAgentInstallation(sourceInstallationId, candidate.id, sourceVersionId);
-        latest = await getAgentDeploymentStatus(agent.id);
-        if (!latest) throw new Error("Deployment status is unavailable");
-        setDeploymentStatus(latest);
-        sourceVersionId = latest.playground.version?.versionId;
-      }
-      const liveInstallationId = latest.live.installationId;
-      const expectedVersionId = latest.live.version?.versionId;
-      if (!liveInstallationId || !expectedVersionId || sourceVersionId !== candidate.id) throw new Error("Live promotion is not ready");
-      const preflight = await preflightAgentInstallationDeployment(liveInstallationId, { versionId: candidate.id, sourceInstallationId, expectedVersionId });
-      setPromotionCandidateId(candidate.id);
-      setPromotionPreflight(preflight);
-      setPromotionOpen(true);
-      setVersions((versionsState) => versionsState.map((version) => version.id === candidate.id ? candidate : version));
-    } catch (cause) {
-      showError(cause instanceof Error ? cause.message : "Unable to prepare Live promotion");
-    } finally {
-      setPromotionBusy(false);
-    }
-  };
-
-  const promoteToLive = async () => {
-    if (!promotionPreflight?.ready || !promotionCandidateId || !deploymentStatus?.live.installationId || !promotionPreflight.sourceInstallationId || !promotionPreflight.current?.versionId || promotionBusy) return;
-    setPromotionBusy(true);
-    try {
-      await promoteAgentInstallation(deploymentStatus.live.installationId, {
-        versionId: promotionCandidateId,
-        sourceInstallationId: promotionPreflight.sourceInstallationId,
-        expectedVersionId: promotionPreflight.current.versionId,
-        idempotencyKey: crypto.randomUUID(),
-      });
-      setPromotionOpen(false);
-      setNotice("Live updated");
-      await refreshDeploymentStatus();
-      toast.success("Live updated");
-    } catch (cause) {
-      showError(cause instanceof Error ? cause.message : "Unable to promote to Live");
-    } finally {
-      setPromotionBusy(false);
-    }
-  };
-
-  const rollbackLive = async () => {
-    if (!deploymentStatus?.live.installationId || !deploymentStatus.live.version?.versionId || rollbackBusy) return;
-    setRollbackBusy(true);
-    try {
-      await rollbackAgentInstallation(deploymentStatus.live.installationId, {
-        expectedVersionId: deploymentStatus.live.version.versionId,
-        targetVersionId: deploymentStatus.rollbackTarget?.versionId ?? undefined,
-        idempotencyKey: crypto.randomUUID(),
-      });
-      setRollbackOpen(false);
-      setNotice("Live rolled back");
-      await refreshDeploymentStatus();
-    } catch (cause) {
-      showError(cause instanceof Error ? cause.message : "Unable to roll back Live");
-    } finally {
-      setRollbackBusy(false);
-    }
-  };
-
   const selectedGraphNode = studioGraphNodes.find((node) => node.id === selectedNodeId) ?? null;
 
   return (
@@ -1005,12 +930,11 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
           <span className="hidden h-5 w-px bg-border sm:block" />
           <div className="min-w-0 flex-1"><div className="flex min-w-0 items-center gap-2"><Bot className="size-4 shrink-0 text-primary" /><span className="truncate text-sm font-semibold text-foreground">{agent.name}</span><span className={cn("rounded-full px-2 py-0.5 text-[10px] font-medium", statusClass(agent.status))}>{statusLabel(agent.status)}</span></div></div>
           <label className="flex items-center gap-2 text-xs text-muted-foreground"><span className="hidden sm:inline">Version</span><select value={selectedVersionId ?? ""} onChange={(event) => selectVersion(event.target.value)} disabled={loadingVersions || !versions.length} className="h-8 max-w-36 rounded-md border border-border bg-background px-2 text-xs font-medium text-foreground outline-none focus:border-primary"><option value="">{loadingVersions ? "Loading…" : "No versions"}</option>{versions.map((version) => <option key={version.id} value={version.id}>v{version.version_number} · {version.status}</option>)}</select></label>
+          {agent.installation_id ? <label className="flex items-center gap-2 text-xs text-muted-foreground"><span className="hidden sm:inline">Run</span><select value={selectedRunId ?? ""} onChange={(event) => selectRun(event.target.value)} disabled={running || !runHistory.length} className="h-8 max-w-44 rounded-md border border-border bg-background px-2 text-xs font-medium text-foreground outline-none focus:border-primary"><option value="">{runHistory.length ? "Select run" : "No runs"}</option>{runHistory.map((run) => <option key={run.id} value={run.id}>{run.status} · {formatRunTime(run.created_at)}</option>)}</select></label> : null}
           <span className="inline-flex items-center gap-1.5 rounded-md border border-primary/20 bg-primary/5 px-2.5 py-1.5 text-xs text-primary"><FlaskConical className="size-3.5" />{surface === "playground" ? "Playground" : "Studio"}</span>
           <Button type="button" variant="outline" size="sm" onClick={() => setConfigurationOpen(true)}><SlidersHorizontal className="mr-1.5 size-3.5" />Settings</Button>
           {activeRunId ? <Button type="button" variant="outline" size="sm" onClick={() => void cancelRun()} disabled={cancelling}><X className="mr-1.5 size-3.5" />{cancelling ? "Cancelling…" : "Cancel"}</Button> : null}
-          {!agent.protected ? <Button type="button" variant="outline" size="sm" onClick={() => void deploy()} disabled={deploying || !selectedVersion}><Rocket className="mr-1.5 size-3.5" />{deploying ? "Updating…" : surface === "playground" ? "Update Playground" : "Update installation"}</Button> : null}
-          {showPromotion ? <Button type="button" size="sm" onClick={() => void preparePromotion()} disabled={promotionBusy || deploymentStatusLoading || !selectedVersion}><Rocket className="mr-1.5 size-3.5" />{promotionBusy ? "Checking…" : "Promote to Live"}</Button> : null}
-          {deploymentStatus?.rollbackTarget && deploymentStatus.live.installationId ? <Button type="button" variant="outline" size="sm" onClick={() => setRollbackOpen(true)} disabled={rollbackBusy}><ArrowLeft className="mr-1.5 size-3.5" />Rollback</Button> : null}
+          <AgentDeploymentLifecycle agent={agent} versions={versions} selectedVersionId={selectedVersionId} onVersionsChange={setVersions} compact />
         </div>
       </header>
 
@@ -1060,20 +984,18 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
               <StudioSystemCanvas nodes={studioGraphNodes} edges={studioGraphEdges} selectedNodeId={selectedNodeId} onSelect={setSelectedNodeId} running={running} traceCount={trace.length} storageKey={`kasitek:studio-layout:${agent.id}:${selectedVersionId ?? "default"}`} />
               {selectedGraphNode ? <div className="absolute bottom-4 left-4 right-4 z-10 max-h-72 overflow-auto rounded-xl border border-border bg-card/95 shadow-xl backdrop-blur"><button type="button" aria-label="Close node details" onClick={() => setSelectedNodeId(null)} className="absolute right-3 top-3 z-10 rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"><X className="size-4" /></button><StudioGraphInspector node={selectedGraphNode} telemetry={telemetry} onConfigure={() => setConfigurationOpen(true)} /></div> : null}
             </div>
-            <StudioExecutionTimeline trace={trace} nodes={studioGraphNodes} onSelectNode={setSelectedNodeId} />
+            <StudioExecutionTimeline trace={trace} nodes={studioGraphNodes} projection={timelineProjection} onSelectNode={setSelectedNodeId} />
           </section>
         </div>
       </div>
-      <Dialog open={promotionOpen} onOpenChange={(open) => { if (!promotionBusy) setPromotionOpen(open); }}><DialogContent><DialogHeader><DialogTitle>Promote to Live</DialogTitle></DialogHeader><div className="space-y-3 text-sm"><div className="flex items-center justify-between gap-3 rounded-lg border border-border px-3 py-2"><span className="text-muted-foreground">Preflight</span><span className={cn("font-medium", promotionPreflight?.ready ? "text-emerald-700 dark:text-emerald-300" : "text-amber-700 dark:text-amber-300")}>{promotionPreflight?.status ?? "Checking"}</span></div>{promotionPreflight?.candidate ? <div className="flex items-center justify-between gap-3 text-xs"><span className="text-muted-foreground">Candidate</span><span className="font-medium text-foreground">v{promotionPreflight.candidate.versionNumber}</span></div> : null}{promotionPreflight?.current ? <div className="flex items-center justify-between gap-3 text-xs"><span className="text-muted-foreground">Current Live</span><span className="font-medium text-foreground">v{promotionPreflight.current.versionNumber}</span></div> : null}{promotionPreflight?.blockers.length ? <ul className="space-y-1 rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 text-xs text-amber-700 dark:text-amber-300">{promotionPreflight.blockers.map((blocker) => <li key={`${blocker.code}:${blocker.detail}`}>{blocker.detail}</li>)}</ul> : <p className="text-xs text-muted-foreground">The selected immutable Playground candidate will become Live for this agent.</p>}</div><DialogFooter><Button type="button" variant="ghost" onClick={() => setPromotionOpen(false)} disabled={promotionBusy}>Cancel</Button><Button type="button" onClick={() => void promoteToLive()} disabled={promotionBusy || !promotionPreflight?.ready}>{promotionBusy ? "Promoting…" : "Promote to Live"}</Button></DialogFooter></DialogContent></Dialog>
-          <Dialog open={rollbackOpen} onOpenChange={(open) => { if (!rollbackBusy) setRollbackOpen(open); }}><DialogContent><DialogHeader><DialogTitle>Roll back Live?</DialogTitle></DialogHeader><p className="text-sm text-muted-foreground">Restore the previous tested Live version. Playground, conversations, memories, and active runs stay unchanged.</p><DialogFooter><Button type="button" variant="ghost" onClick={() => setRollbackOpen(false)} disabled={rollbackBusy}>Cancel</Button><Button type="button" variant="destructive" onClick={() => void rollbackLive()} disabled={rollbackBusy}>{rollbackBusy ? "Rolling back…" : "Roll back"}</Button></DialogFooter></DialogContent></Dialog>
       {configurationOpen ? <div className="fixed inset-0 z-50" role="presentation"><button type="button" aria-label="Close settings" className="absolute inset-0 bg-black/50" onClick={() => setConfigurationOpen(false)} /><aside role="dialog" aria-modal="true" aria-labelledby="configuration-title" className="absolute inset-3 overflow-hidden rounded-2xl border border-border bg-card shadow-2xl sm:inset-6 lg:inset-10"><StudioSettingsPrototype key={selectedVersion?.id ?? "new-version"} agent={agent} version={selectedVersion} installationId={agent.installation_id ?? null} instructions={instructions} setInstructions={setInstructions} onSave={saveDraft} saving={saving} modelCatalog={modelCatalog} modelCatalogLoading={modelCatalogLoading} modelSelection={modelSelection} setModelSelection={setModelSelection} onClose={() => setConfigurationOpen(false)} /></aside></div> : null}
     </div>
   );
 }
 
-function StudioExecutionTimeline({ trace, nodes, onSelectNode }: { trace: TraceNode[]; nodes: StudioGraphNode[]; onSelectNode: (id: string) => void }) {
+function StudioExecutionTimeline({ trace, nodes, projection, onSelectNode }: { trace: TraceNode[]; nodes: StudioGraphNode[]; projection: Awaited<ReturnType<typeof getAgentRunTimeline>>["projection"] | null; onSelectNode: (id: string) => void }) {
   return <div className="max-h-44 shrink-0 border-t border-border bg-card/90 px-4 py-3">
-    <div className="flex items-center justify-between gap-3"><SectionEyebrow>Journal timeline</SectionEyebrow><span className="text-[10px] text-muted-foreground">{trace.length ? `${trace.length} events` : "No run selected"}</span></div>
+    <div className="flex items-center justify-between gap-3"><SectionEyebrow>Journal timeline</SectionEyebrow><span className="text-[10px] text-muted-foreground">{trace.length ? `${trace.length} events${projection ? ` · cursor ${projection.cursor}` : ""}` : "No run selected"}</span></div>
     {trace.length ? <div className="mt-2 flex max-h-24 gap-2 overflow-x-auto pb-1">
       {trace.map((item) => {
         const target = nodes.find((node) => node.evidence?.id === item.id) ?? nodes.find((node) => node.event === item.event);

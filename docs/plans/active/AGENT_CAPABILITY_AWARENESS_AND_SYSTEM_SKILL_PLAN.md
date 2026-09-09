@@ -417,6 +417,27 @@ snapshot, approval, redaction, and durable operation contracts as native tools.
     coverage is green, and the tested disable path remains available as a local rollback
     control. Removing that control after a hosted review window is outside this plan.
 
+### Frontend deployment lifecycle integration
+
+The runtime and API promotion contract are implemented, but the user-facing Agents surfaces must
+all use the same candidate/Playground/Live lifecycle. The legacy version-history actions may still
+publish or roll back a version without making the target Live pointer explicit. This follow-up
+closes that UI seam and aligns manual deployment eligibility with the immutable-version contract:
+
+20. [x] Add one shared deployment-status and promotion controller for Studio, Playground, and Agent
+    Settings. It must load paired Playground/Live state, expose candidate/live digests and blockers,
+    and use the same preflight, promotion, confirmation, and rollback actions everywhere.
+21. [x] Replace legacy user-facing `Publish`/version rollback actions with explicit candidate
+    publication and `Deploy to Live`/`Rollback Live` actions. Publishing a candidate must never be
+    presented as activating Live.
+22. [x] Show deployment controls for every hosted agent, including protected KasiAi, while keeping
+    external-connected installations outside hosted promotion. Add responsive loading, disabled,
+    blocked, success, and error states with no native browser dialogs.
+23. [x] Refresh deployment status after edits, candidate publication, promotion, rollback, and
+    version selection. Preserve stale-pointer and idempotency errors as actionable UI feedback.
+24. [x] Verify the shared UI flow with client typecheck/lint/build and local API route coverage;
+    record the exact local checks before marking this follow-up complete.
+
 ### Implementation evidence
 
 - `pnpm test` in `agents`: 190 test files passed, 40 skipped; 1,129 tests passed, 122 skipped.
@@ -424,6 +445,16 @@ snapshot, approval, redaction, and durable operation contracts as native tools.
 - `pnpm exec tsc --noEmit` and targeted ESLint for the changed Studio/settings/integration files:
   passed.
 - `pnpm build` in `client/apps/client`: passed; all 56 generated pages completed.
+- Shared deployment lifecycle verification: `pnpm --dir client/apps/client exec tsc --noEmit` passed;
+  targeted ESLint for the lifecycle, Agent Settings, and Studio files passed; `pnpm --dir
+  client/apps/client run build` passed; and
+  `pnpm --dir agents exec vitest run test/http.test.ts test/agent-lifecycle.integration.test.ts`
+  passed (100 HTTP tests; database integration tests skipped without a configured test database).
+- Studio and Agent Settings now import the same deployment controller. It reads paired
+  Playground/Live status, publishes draft candidates, deploys the selected immutable version to
+  Playground, runs Live preflight, confirms promotion, and performs target-scoped rollback. Manual
+  deployment accepts published or retired immutable candidates; automatic follow-published and
+  staged rollout paths remain published-only.
 - `pnpm build` in `docs/internal-site`: passed.
 - `cargo check --manifest-path server/kasitek-core/Cargo.toml`: passed after adding the authenticated
   deployment proxy routes.
@@ -590,9 +621,9 @@ do not block local end-to-end testing.
   must resolve Live bindings independently.
 - Existing knowledge grounding remains correct for factual questions. This plan changes intent
   routing and capability context, not the evidence policy.
-- The current Studio deployment path is not aligned with this contract: it targets the loaded
-  Playground installation, while the browser/Core path lacks the complete promotion preflight and
-  activation surface. These are explicit implementation tasks above, not accepted behavior.
+- Studio, Playground, and Agent Settings now share the same deployment lifecycle controller. The
+  controller targets the paired Playground installation first, requires Live preflight evidence,
+  and activates or rolls back only the selected workspace Live pointer.
 - The current Overview Instructions editor is not aligned with the user-editable behavior boundary.
   It must be removed from Overview and replaced by typed Behavior settings. Overview must not become
   a memory or capability editor.
