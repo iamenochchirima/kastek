@@ -9,7 +9,6 @@ import {
   Check,
   CircleDot,
   FlaskConical,
-  LoaderCircle,
   MessageCircle,
   Plus,
   Play,
@@ -51,6 +50,7 @@ import {
 import { cn } from "@/lib/utils";
 import { AgentChatComposer } from "@/components/dashboard/agents/agent-chat-composer";
 import { AgentChatMessageList } from "@/components/dashboard/agents/agent-chat-message-list";
+import { AgentChatRunStatus } from "@/components/dashboard/agents/agent-chat-run-status";
 import { AgentChatSurface } from "@/components/dashboard/agents/agent-chat-surface";
 import { StudioSettingsPrototype, type StudioCapabilityDraft } from "@/components/dashboard/studio/studio-settings-prototype";
 import { StudioSystemCanvas, type StudioGraphNode, type StudioGraphStatus } from "@/components/dashboard/studio/studio-system-canvas";
@@ -448,6 +448,7 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
   const [running, setRunning] = useState(false);
   const [demoRunning, setDemoRunning] = useState(false);
   const [activeRunId, setActiveRunId] = useState<string | null>(null);
+  const [lastRunId, setLastRunId] = useState<string | null>(null);
   const [telemetry, setTelemetry] = useState<AgentRuntimeTelemetry | null>(null);
   const [telemetryDetailsOpen, setTelemetryDetailsOpen] = useState(false);
   const [cancelling, setCancelling] = useState(false);
@@ -601,6 +602,7 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
     setSelectedNodeId(null);
     setTelemetry(null);
     setTelemetryDetailsOpen(false);
+    setLastRunId(null);
     setNotice(null);
   };
 
@@ -690,6 +692,7 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
       });
       setInput("");
       setActiveRunId(accepted.runId);
+      setLastRunId(accepted.runId);
       addTraceEvent({ event: "run.received", data: { sequence_number: 1, run_id: accepted.runId } });
       await streamAgentRun(accepted.runId, addTraceEvent, controller.signal);
       const result = await getAgentRun(accepted.runId);
@@ -739,6 +742,7 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
       });
       setMessages((current) => current.some((item) => item.id === accepted.message.id) ? current : [...current, accepted.message]);
       setActiveRunId(accepted.runId);
+      setLastRunId(accepted.runId);
       setTrace((current) => [...current, { id: `ui-${accepted.runId}`, event: "run.received", label: "Input", detail: "Interactive result action", status: "running", sequence: current.length, data: { run_id: accepted.runId, action_id: interaction.actionId } }]);
       await streamAgentRun(accepted.runId, addTraceEvent, controller.signal);
       const result = await getAgentRun(accepted.runId);
@@ -894,7 +898,7 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
               contentClassName="space-y-3 px-4 py-5"
               statusContent={
                 <>
-                  {running ? <div className="shrink-0 border-t border-border px-4 py-2"><div className="inline-flex items-center gap-2 rounded-2xl rounded-bl-md bg-muted px-3.5 py-2.5 text-xs text-muted-foreground"><LoaderCircle className="size-3.5 animate-spin" />Agent is running</div></div> : null}
+                  <AgentChatRunStatus runId={lastRunId} progress={running ? "Agent is running" : notice ?? "Run completed"} events={trace.slice(-5).map((node) => ({ event: node.event, label: node.label }))} running={running} />
                   {notice ? <div className="mx-4 mb-3 flex shrink-0 items-center gap-2 rounded-lg border border-emerald-500/20 bg-emerald-500/5 px-3 py-2 text-xs text-emerald-700 dark:text-emerald-300"><Check className="size-3.5" />{notice}</div> : null}
                 </>
               }

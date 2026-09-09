@@ -1,8 +1,7 @@
 "use client";
 
-import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Activity, Bot, LoaderCircle, MessageSquare, Plus, Trash2 } from "lucide-react";
+import { Bot, MessageSquare, Plus, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -36,6 +35,7 @@ import {
 } from "@/lib/agent-platform";
 import { AgentChatComposer } from "./agent-chat-composer";
 import { AgentChatMessageList } from "./agent-chat-message-list";
+import { AgentChatRunStatus } from "./agent-chat-run-status";
 import { AgentChatSurface } from "./agent-chat-surface";
 import type { AgentUiInteraction } from "@/components/dashboard/kasiai/dynamic-ui-renderer";
 
@@ -409,7 +409,7 @@ export function AgentChatPanel({ installationId, active, agentName, modal = fals
       </header>}
       inactiveNotice={!active ? <div className="shrink-0 border-b border-border bg-status-attention-soft px-5 py-3 text-sm text-status-attention sm:px-6">Resume this installation to start testing.</div> : null}
       contentClassName="bg-secondary/10 px-4 py-6 sm:px-6"
-      statusContent={(sending || lastRunId) ? <div className="shrink-0 border-t border-border bg-secondary/10 px-4 py-3 sm:px-6"><div className="mx-auto max-w-3xl rounded-xl border border-border bg-card px-4 py-3 text-xs shadow-sm"><div className="flex items-center justify-between gap-3"><div className="flex min-w-0 items-center gap-2 text-muted-foreground"><Activity className="h-3.5 w-3.5 shrink-0 text-primary" /><span className="truncate">{runProgress}</span>{sending ? <LoaderCircle className="h-3.5 w-3.5 shrink-0 animate-spin text-primary" /> : null}</div>{lastRunId ? <Link href={`/agents/activity/${encodeURIComponent(lastRunId)}`} className="shrink-0 font-medium text-primary hover:underline">View activity</Link> : null}</div>{runEvents.length ? <div className="mt-2 flex flex-wrap gap-1.5" aria-label="Run activity">{runEvents.map((entry, index) => <span key={`${entry.event}-${index}`} className={`rounded-full px-2 py-0.5 text-[10px] ${entry.event.includes("failed") ? "bg-destructive/10 text-destructive" : entry.event.includes("approval") ? "bg-status-attention-soft text-status-attention" : "bg-secondary text-muted-foreground"}`}>{entry.label}</span>)}</div> : null}</div></div> : null}
+      statusContent={<AgentChatRunStatus runId={lastRunId} progress={runProgress} events={runEvents} running={sending} className="bg-secondary/10 py-3 sm:px-6" />}
       error={error}
       composer={<AgentChatComposer
         value={draft}

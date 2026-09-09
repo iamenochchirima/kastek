@@ -46,6 +46,7 @@ Post-release review date: not applicable until a release is scheduled
 - [x] Add shared message-list module.
 - [x] Add shared runtime telemetry module.
 - [x] Add shared fixed-height chat surface module.
+- [x] Add shared run-activity status module with progress, event chips, spinner, and activity link.
 - [x] Migrate main chat.
 - [x] Migrate Studio/Playground.
 - [x] Migrate agent test panel.

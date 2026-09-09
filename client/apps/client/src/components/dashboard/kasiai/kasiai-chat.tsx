@@ -29,7 +29,6 @@ import {
   Search,
   Settings2,
   SlidersHorizontal,
-  Activity,
   Sparkles,
   Trash2,
   Unlink,
@@ -76,6 +75,7 @@ import {
 import { AgentApprovalPreview } from "@/components/dashboard/agents/agent-approval-preview";
 import { AgentChatComposer } from "@/components/dashboard/agents/agent-chat-composer";
 import { AgentChatMessageList, channelLabel, messageChannel, messageText } from "@/components/dashboard/agents/agent-chat-message-list";
+import { AgentChatRunStatus } from "@/components/dashboard/agents/agent-chat-run-status";
 import { AgentChatSurface } from "@/components/dashboard/agents/agent-chat-surface";
 import type { AgentUiInteraction } from "@/components/dashboard/kasiai/dynamic-ui-renderer";
 import { cn } from "@/lib/utils";
@@ -1556,18 +1556,7 @@ export function KasiAiChat({
                         }}
                       />
                     ) : null}
-                    {lastRunId ? (
-                      <div className="shrink-0 border-t border-border px-4 py-2 text-xs">
-                        <div className="flex items-center justify-between gap-3">
-                          <div className="flex min-w-0 items-center gap-2 text-muted-foreground">
-                            <Activity className="h-3.5 w-3.5 shrink-0 text-primary" />
-                            <span className="truncate">{runProgress}</span>
-                          </div>
-                          <Link href={`/agents/activity/${encodeURIComponent(lastRunId)}`} className="shrink-0 font-medium text-primary hover:underline">View activity</Link>
-                        </div>
-                        {runEvents.length ? <div className="mt-2 flex flex-wrap gap-1.5" aria-label="Run activity">{runEvents.map((entry, index) => <span key={`${entry.event}-${index}`} className={cn("rounded-full px-2 py-0.5 text-[10px]", entry.event.includes("failed") ? "bg-destructive/10 text-destructive" : entry.event.includes("approval") ? "bg-status-attention-soft text-status-attention" : "bg-secondary text-muted-foreground")}>{entry.label}</span>)}</div> : null}
-                      </div>
-                    ) : null}
+                    <AgentChatRunStatus runId={lastRunId} progress={runProgress} events={runEvents} running={sending} />
                     {groundingSummary ? <div className="mx-4 mb-2 shrink-0 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-[10px] text-muted-foreground" aria-label="Grounding summary"><span className="font-medium text-foreground">Grounded response</span>{groundingSummary.organizationScoped ? " · workspace scoped" : " · scope unavailable"}{groundingSummary.toolEvidence ? ` · ${groundingSummary.toolEvidence.used?.length ?? 0} tools used` : ""}{groundingSummary.reviewedKnowledge?.requested ? ` · ${groundingSummary.reviewedKnowledge.matchedChunks ?? 0} reviewed sources` : " · no reviewed sources requested"}{groundingSummary.unavailableActions?.length ? ` · ${groundingSummary.unavailableActions.length} unavailable action${groundingSummary.unavailableActions.length === 1 ? "" : "s"}` : ""}{groundingSummary.uncertainty === "not_asserted" ? " · no unsupported certainty" : ""}</div> : null}
                   </>
                 }
@@ -1609,7 +1598,6 @@ export function KasiAiChat({
                     retryable={(message, status) => messageChannel(message) === "platform" && message.direction === "inbound" && ["failed", "cancelled", "expired"].includes(status ?? "")}
                     actionDisabled={sending}
                   />
-                  {sending ? <div className="mx-auto flex max-w-3xl items-center gap-2 text-xs text-muted-foreground"><LoaderCircle className="h-3.5 w-3.5 animate-spin" />KasiAi is working…</div> : null}
                   <div ref={messagesEnd} />
                 </div> : <NewChatHome suggestions={suggestions} onSuggestion={(suggestion) => void send(suggestion)} />}
               </AgentChatSurface>
