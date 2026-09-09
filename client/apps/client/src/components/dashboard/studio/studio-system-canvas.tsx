@@ -238,10 +238,10 @@ function ObservatorySectionFrames() {
   return <ViewportPortal>
     <svg aria-hidden="true" className="pointer-events-none absolute left-0 top-0 z-0 overflow-visible" width="1000" height="760" viewBox="0 0 1000 760">
       {sectionFrames.map((section) => <g key={section.id}>
-        <rect x={section.x} y={section.y} width={section.width} height={section.height} rx="22" fill="rgba(28, 39, 59, .42)" stroke="rgba(122, 143, 180, .34)" strokeWidth="1.5" />
-        <rect x={section.x + 1} y={section.y + 1} width={section.width - 2} height="54" rx="21" fill="rgba(46, 61, 88, .34)" />
-        <text x={section.x + 22} y={section.y + 25} fill="#b9c6df" fontSize="11" fontWeight="700" letterSpacing="1.6">{section.title}</text>
-        <text x={section.x + 22} y={section.y + 43} fill="#8492ab" fontSize="10">{section.detail}</text>
+        <rect x={section.x} y={section.y} width={section.width} height={section.height} rx="16" fill="rgba(28, 39, 59, .42)" stroke="rgba(122, 143, 180, .34)" strokeWidth="1.5" />
+        <rect x={section.x + 1} y={section.y + 1} width={section.width - 2} height="34" rx="15" fill="rgba(46, 61, 88, .34)" />
+        <text x={section.x + 16} y={section.y + 16} fill="#b9c6df" fontSize="8.5" fontWeight="700" letterSpacing="1.1">{section.title}</text>
+        <text x={section.x + 16} y={section.y + 28} fill="#8492ab" fontSize="7.5">{section.detail}</text>
       </g>)}
     </svg>
   </ViewportPortal>;
