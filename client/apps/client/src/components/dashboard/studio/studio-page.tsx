@@ -604,7 +604,18 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
       setTelemetry(timeline.telemetry ?? null);
       setTimelineProjection(timeline.projection ?? null);
       setOperationEvidence([...timeline.toolCalls, ...timeline.effects, ...timeline.steps]);
-      setRunHistory((current) => current.map((run) => run.id === observedRunId ? { ...run, ...timeline.run } : run));
+      setRunHistory((current) => {
+        const existing = current.find((run) => run.id === observedRunId);
+        const nextRun: AgentInstallationRun = {
+          ...existing,
+          ...timeline.run,
+          organization_id: timeline.run.organization_id ?? existing?.organization_id ?? "",
+          installation_id: timeline.run.installation_id ?? existing?.installation_id ?? installationId,
+        };
+        return existing
+          ? current.map((run) => run.id === observedRunId ? nextRun : run)
+          : [nextRun, ...current].slice(0, 50);
+      });
       if (timeline.journal?.length) {
         const journalNodes = nodesFromJournalEvents(timeline.journal, timeline.telemetry?.revision);
         if (journalNodes.length) setTrace(journalNodes);
