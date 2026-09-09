@@ -97,6 +97,8 @@ type TraceNode = {
   data: Record<string, unknown>;
 };
 
+type StudioTimelineItem = NonNullable<AgentRunTimeline["items"]>[number];
+
 type StudioStreamState = "idle" | "connected" | "replaying" | "delayed" | "unavailable";
 type StudioGraphMode = "topology" | "execution";
 
@@ -287,6 +289,31 @@ function nodesFromRunEvents(events: Array<{ event_type?: string; payload?: Recor
       data: { ...(event.payload ?? {}), sequence_number: event.sequence_number },
     }))
   );
+}
+
+function nodesFromTimelineItems(items: StudioTimelineItem[]) {
+  return normalizeTraceNodes(items.map((item) => {
+    const payload = isRecord(item.data.payload) ? item.data.payload : item.data;
+    const node = nodeFromEvent({
+      event: item.event ?? `${item.kind}.recorded`,
+      data: {
+        ...payload,
+        sequence_number: item.sequence,
+        event_id: item.id,
+        operation_id: item.operationId,
+        attempt_id: item.attemptId,
+        occurred_at: item.occurredAt,
+        status: item.status,
+      },
+    });
+    return {
+      ...node,
+      id: item.id,
+      eventId: item.id,
+      journalSequence: item.sequence,
+      data: { ...node.data, event_id: item.id, occurred_at: item.occurredAt },
+    };
+  }));
 }
 
 function statusLabel(status: string) {
@@ -720,6 +747,7 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
         const journalNodes = nodesFromJournalEvents(timeline.journal, timeline.telemetry?.revision);
         if (journalNodes.length) setTrace(journalNodes);
       }
+      else if (timeline.items?.length) setTrace(nodesFromTimelineItems(timeline.items));
       else if (timeline.events.length) setTrace(nodesFromRunEvents(timeline.events));
     };
     void refreshRuntimeEvidence();
@@ -843,7 +871,9 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
       setTelemetry(timeline?.telemetry ?? null);
       const runNodes = timeline?.journal?.length
         ? nodesFromJournalEvents(timeline.journal, timeline.telemetry?.revision)
-        : nodesFromRunEvents(result.events);
+        : timeline?.items?.length
+          ? nodesFromTimelineItems(timeline.items)
+          : nodesFromRunEvents(result.events);
       if (runNodes.length) setTrace(runNodes);
       await refreshConversation(targetConversationId);
       if (result.run.status === "cancelled") {
@@ -895,7 +925,9 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
       setTelemetry(timeline?.telemetry ?? null);
       const runNodes = timeline?.journal?.length
         ? nodesFromJournalEvents(timeline.journal, timeline.telemetry?.revision)
-        : nodesFromRunEvents(result.events);
+        : timeline?.items?.length
+          ? nodesFromTimelineItems(timeline.items)
+          : nodesFromRunEvents(result.events);
       if (runNodes.length) setTrace(runNodes);
       await refreshConversation(conversationId);
       if (result.run.status !== "completed") {
