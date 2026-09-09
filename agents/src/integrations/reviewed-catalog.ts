@@ -1,17 +1,17 @@
-export const HERMES_CATALOG_REVISION = "9a84bee265daad14340a80d7585928cd8ea1f9eb";
+export const REVIEWED_CATALOG_REVISION = "9a84bee265daad14340a80d7585928cd8ea1f9eb";
 
-export type HermesMcpAuth = "oauth" | "api_key" | "none";
-export type HermesMcpTransport = "http" | "stdio";
+export type ReviewedMcpAuth = "oauth" | "api_key" | "none";
+export type ReviewedMcpTransport = "http" | "stdio";
 
-export interface HermesMcpCatalogEntry {
+export interface ReviewedMcpCatalogEntry {
   id: string;
   slug: string;
   name: string;
   description: string;
   sourceUrl: string;
   endpointUrl: string | null;
-  transport: HermesMcpTransport;
-  auth: HermesMcpAuth;
+  transport: ReviewedMcpTransport;
+  auth: ReviewedMcpAuth;
   keywords: string[];
   hosts: string[];
   defaultExcludedTools: string[];
@@ -19,7 +19,7 @@ export interface HermesMcpCatalogEntry {
   managed: boolean;
 }
 
-export interface HermesSkillCatalogEntry {
+export interface ReviewedSkillCatalogEntry {
   id: string;
   slug: string;
   name: string;
@@ -33,7 +33,7 @@ export interface HermesSkillCatalogEntry {
   rawUrl: string;
 }
 
-export const HERMES_MCP_CATALOG = [
+export const REVIEWED_MCP_CATALOG = [
   {
     "id": "hermes.mcp.airtable",
     "slug": "airtable",
@@ -1514,9 +1514,9 @@ export const HERMES_MCP_CATALOG = [
     "defaultEnabledTools": [],
     "managed": true
   }
-] as const satisfies readonly HermesMcpCatalogEntry[];
+] as const satisfies readonly ReviewedMcpCatalogEntry[];
 
-export const HERMES_SKILL_CATALOG = [
+export const REVIEWED_SKILL_CATALOG = [
   {
     "id": "hermes.skill.autonomous-ai-agents.agent-merge-conflict-arbiter",
     "slug": "autonomous-ai-agents/agent-merge-conflict-arbiter",
@@ -4389,12 +4389,12 @@ export const HERMES_SKILL_CATALOG = [
     "sourceUrl": "https://github.com/NousResearch/hermes-agent/tree/9a84bee265daad14340a80d7585928cd8ea1f9eb/optional-skills/yuanbao",
     "rawUrl": "https://raw.githubusercontent.com/NousResearch/hermes-agent/9a84bee265daad14340a80d7585928cd8ea1f9eb/optional-skills/yuanbao/SKILL.md"
   }
-] as const satisfies readonly HermesSkillCatalogEntry[];
+] as const satisfies readonly ReviewedSkillCatalogEntry[];
 
-export function getHermesMcpCatalogEntry(id: string) {
-  return HERMES_MCP_CATALOG.find((entry) => entry.id === id || entry.slug === id);
+export function getReviewedMcpCatalogEntry(id: string) {
+  return REVIEWED_MCP_CATALOG.find((entry) => entry.id === id || entry.slug === id);
 }
 
-export function getHermesSkillCatalogEntry(id: string) {
-  return HERMES_SKILL_CATALOG.find((entry) => entry.id === id || entry.slug === id);
+export function getReviewedSkillCatalogEntry(id: string) {
+  return REVIEWED_SKILL_CATALOG.find((entry) => entry.id === id || entry.slug === id);
 }

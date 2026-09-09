@@ -6,6 +6,7 @@ import {
   type ExtensionPackageManifest,
   type ExtensionPackageRuntime,
 } from "./package-manifest";
+import { ToolRegistry } from "../tools/registry";
 import type { ToolDefinition, ToolInvocationContext } from "../tools/types";
 
 export const PLUGIN_PROTOCOL_VERSION = 1 as const;
@@ -802,7 +803,7 @@ export class DeterministicPluginSubprocessFactory implements PluginSubprocessFac
  * still owns schema validation, approval, lifecycle, redaction, and grants;
  * this adapter owns only the process boundary.
  */
-export function createPluginToolDefinition(input: {
+export type PluginToolDefinitionInput = {
   name: string;
   description: string;
   version: string;
@@ -813,7 +814,9 @@ export function createPluginToolDefinition(input: {
   adapter: IsolatedPluginAdapter;
   riskClass?: ToolDefinition["riskClass"];
   requiresApproval?: boolean;
-}): ToolDefinition {
+};
+
+export function createPluginToolDefinition(input: PluginToolDefinitionInput): ToolDefinition {
   return {
     name: input.name,
     description: input.description,
@@ -848,4 +851,9 @@ export function createPluginToolDefinition(input: {
       return result.output;
     },
   };
+}
+
+/** Registers only explicitly supplied isolated tools; no catalog metadata can create a tool. */
+export function registerIsolatedPluginTools(registry: ToolRegistry, registrations: readonly PluginToolDefinitionInput[]): void {
+  for (const registration of registrations) registry.register(createPluginToolDefinition(registration));
 }

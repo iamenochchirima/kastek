@@ -45,12 +45,15 @@ in Studio.
 
 ## Plugins
 
-Studio imports the pinned Hermes plugin manifests as reviewed catalogue metadata. A plugin is
+Studio imports pinned external plugin manifests as reviewed catalogue metadata. A plugin is
 selectable only when KasiTek has a registered adapter for its declared capabilities. Supported
 selections are installed as published, checksum-pinned extension packages and persisted in the
 agent version's extension snapshot. The initial native adapter maps the reviewed Tavily web plugin
-to KasiTek's existing web-search capability; other reviewed entries remain visible for discovery
-until a compatible adapter is registered. Hermes plugin code is never executed by the worker.
+to KasiTek's existing web-search capability. Support is derived from an exact adapter registration
+for the reviewed plugin id, version, and checksum; the catalogue flag is not sufficient. Other
+reviewed entries remain visible for discovery until a compatible adapter is registered. Pass an
+`installationId` to `GET /v1/plugins/directory` to receive the adapter readiness projection; only
+supported and ready entries can be enabled. External plugin code is never executed by the worker.
 
 ## Effective configuration and version diff
 

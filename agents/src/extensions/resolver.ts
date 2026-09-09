@@ -276,7 +276,7 @@ export class ExtensionResolver {
       dependencies: (entry) => [
         ...dependency("skill", entry.skillIds),
         ...dependency("connector", entry.connectorIds),
-        ...dependency("mcp_capability", [...(entry.capabilityIds ?? []), ...(entry.mcpCapabilityIds ?? [])]),
+        ...dependency("mcp_capability", entry.mcpCapabilityIds),
       ],
       resolved,
     });

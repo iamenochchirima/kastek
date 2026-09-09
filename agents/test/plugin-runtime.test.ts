@@ -7,11 +7,13 @@ import {
   encodePluginWorkerRequest,
   IsolatedPluginAdapter,
   PluginProtocolError,
+  registerIsolatedPluginTools,
   type PluginExecutionRequest,
   type PluginWorkerRequest,
   type PluginWorkerResponse,
 } from "../src/extensions";
 import type { ExtensionPackageManifest, ExtensionPackageRuntime } from "../src/extensions/package-manifest";
+import { ToolRegistry } from "../src/tools/registry";
 
 const checksum = "a".repeat(64);
 
@@ -200,6 +202,51 @@ describe("isolated plugin execution", () => {
 
     expect(output).toEqual({ connected: true });
     expect(tool.manifest).toMatchObject({ execution: "durable", idempotency: "required", requiredScope: "plugin:demo-plugin" });
+  });
+
+  it("registers explicitly provisioned plugin tools in the agent registry", async () => {
+    const { adapter } = makeAdapter({ execute: async (workerRequest) => success(workerRequest, { connected: true }) });
+    const registry = new ToolRegistry();
+
+    registerIsolatedPluginTools(registry, [{
+      name: "plugin.demo",
+      description: "Demo plugin",
+      version: "1.0.0",
+      inputSchema: { type: "object" },
+      outputSchema: { type: "object", required: ["connected"], properties: { connected: { type: "boolean" } } },
+      package: request().package,
+      runtime: runtime(),
+      adapter,
+      riskClass: "read",
+      requiresApproval: false,
+    }]);
+
+    const result = await registry.invoke({
+      name: "plugin.demo",
+      arguments: { value: 1 },
+      grantedTools: new Set(["plugin.demo"]),
+      context: {
+        scope: {
+          organizationId: "org-a",
+          installationId: "installation-1",
+          agentDefinitionId: "agent-1",
+          agentVersionId: "agent-version-1",
+          runId: "run-1",
+          correlationId: "correlation-1",
+          capabilityGrants: ["calendar.read"],
+        },
+        organizationId: "org-a",
+        agentId: "agent-1",
+        agentVersionId: "agent-version-1",
+        installationId: "installation-1",
+        runId: "run-1",
+        correlationId: "correlation-1",
+        operationId: "plugin-operation-1",
+      },
+    });
+
+    expect(result.output).toEqual({ connected: true });
+    expect(registry.get("plugin.demo")).toMatchObject({ name: "plugin.demo", manifest: { requiredScope: "plugin:demo-plugin" } });
   });
 
   it.each([

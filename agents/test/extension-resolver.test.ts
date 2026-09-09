@@ -57,6 +57,28 @@ describe("ExtensionResolver", () => {
     expect(snapshot.plugins[0]?.readiness.ready).toBe(false);
   });
 
+  it("keeps native capability mappings separate from MCP dependencies", () => {
+    const snapshot = new ExtensionResolver().resolve(input({
+      skills: [],
+      mcpCapabilities: [],
+      plugins: [{
+        kind: "plugin",
+        id: "tavily-plugin",
+        version: "1.0.0",
+        checksum,
+        available: true,
+        installed: true,
+        configured: true,
+        capabilityIds: ["kasitek.web.search"],
+      }],
+      grants: { connectorIds: [], capabilityIds: [], skillIds: [], pluginIds: ["tavily-plugin"] },
+      connectors: [],
+    }));
+
+    expect(snapshot.plugins[0]?.readiness).toMatchObject({ ready: true, blockers: [] });
+    expect(snapshot.plugins[0]?.declaration.capabilityIds).toEqual(["kasitek.web.search"]);
+  });
+
   it("keeps the compiled checksum deterministic regardless of declaration or grant order", () => {
     const resolver = new ExtensionResolver();
     const first = resolver.resolve(input());

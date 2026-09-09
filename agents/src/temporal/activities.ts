@@ -54,6 +54,7 @@ import { buildDomainApprovalSnapshot, projectBookingApprovalResource, projectCam
 import { ConversationActionService } from "../actions/conversation-actions";
 import type { OfferHandoffArguments } from "../actions/conversation-actions";
 import { HandoffRepository } from "../db/repositories/handoff-repository";
+import { ExtensionSnapshotRepository } from "../db/repositories/extension-snapshot-repository";
 import { authorizationRemediationText } from "../channels/authorization";
 import { createChannelApprovalActionToken } from "../approval/channel-action";
 import { buildChannelApprovalPrompt } from "../approval/channel-prompt";
@@ -102,6 +103,10 @@ import type { ModelCapabilityRoute } from "../model/model-capability-catalog";
 import { ProviderMetadataClient } from "../model/provider-metadata";
 import { createTemporalChildInvocationTool, type TemporalChildInvocationCoordinator } from "../children/temporal-coordinator";
 import { directEvidenceEnvelopeFromMessages, sourceEventBoundaryFromMessages, type MemoryEvidencePack, type MemoryRuntimeEventPayload, type MemoryRuntimeEventType, type MemoryRuntimeScope } from "../runtime/context-memory-boundary";
+import { registerIsolatedPluginTools, type PluginToolDefinitionInput } from "../extensions/plugin-runtime";
+import { agentBehaviorSettingsSchema, renderAgentBehaviorSettings } from "../domain/agent-spec";
+import { KASIAI_PLATFORM_GUIDANCE_EXTENSION } from "../system/kasiai-platform-guidance";
+import { getPluginAdapter, type PluginAdapter, type PluginAdapterCredentialState } from "../extensions/plugin-adapters";
 
 export interface ActivityOptions {
   gateway?: ModelGateway;
@@ -118,6 +123,10 @@ export interface ActivityOptions {
   hostCapabilities?: HostCapabilityRouter;
   harness?: AgentHarness;
   childInvocationCoordinator?: TemporalChildInvocationCoordinator;
+  /** Explicitly provisioned isolated plugin tools. Metadata-only catalog entries never populate this list. */
+  pluginTools?: readonly PluginToolDefinitionInput[];
+  /** Kill switch for isolated plugin execution; disabled unless explicitly enabled by the caller. */
+  pluginExecutionEnabled?: boolean;
 }
 
 export function normalizeConnectionFilter(value: unknown): string | undefined {
@@ -2398,7 +2407,61 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
   const integrationRepository = options.config ? new IntegrationRepository(pool, options.config.AGENTS_CREDENTIAL_ENCRYPTION_KEY) : undefined;
   const remoteMcpProviders = options.remoteMcpProviders ?? new RemoteMcpProviderRepository(pool, integrationRepository ? (organizationId, credentialReference) => integrationRepository.resolveCredential(organizationId, credentialReference) : undefined);
   const integrationTools = options.integrationTools ?? (integrationRepository ? new IntegrationToolService(integrationRepository, options.config) : undefined);
+  const extensionSnapshots = new ExtensionSnapshotRepository(pool);
+  type PluginExecutionGate = { adapter?: PluginAdapter; configuration: Readonly<Record<string, unknown>> };
+  const pluginExecutionGates = new Map<string, Promise<ReadonlyMap<string, PluginExecutionGate>>>();
+  const pluginGatesForRequest = async (request: import("../tools/types").ToolInvocationRequest): Promise<ReadonlyMap<string, PluginExecutionGate> | undefined> => {
+    const snapshotId = request.context.scope.extensionSnapshotId;
+    if (!snapshotId) return undefined;
+    const cacheKey = `${request.context.organizationId}:${request.context.runId}:${snapshotId}`;
+    let gates = pluginExecutionGates.get(cacheKey);
+    if (!gates) {
+      gates = extensionSnapshots.getRunAdmissionSnapshot(request.context.organizationId, request.context.runId).then((record) => {
+        const selected = new Map((record?.snapshot.selectedPackages ?? [])
+          .filter((entry) => entry.kind === "plugin")
+          .map((entry) => [`${entry.id}:${entry.version}`, entry] as const));
+        const resolved = new Map<string, PluginExecutionGate>();
+        for (const plugin of record?.snapshot.plugins ?? []) {
+          const declaration = plugin.declaration;
+          const adapter = getPluginAdapter({ id: declaration.id, version: declaration.version, checksum: declaration.checksum });
+          const packageConfiguration = selected.get(`${declaration.id}:${declaration.version}`)?.configuration ?? {};
+          for (const capabilityId of adapter?.capabilityIds ?? declaration.capabilityIds ?? []) {
+            resolved.set(capabilityId, { adapter, configuration: packageConfiguration });
+          }
+        }
+        return resolved;
+      });
+      pluginExecutionGates.set(cacheKey, gates);
+    }
+    return gates;
+  };
+  const pluginReadinessForRequest = async (request: import("../tools/types").ToolInvocationRequest): Promise<{ status: "ready" | "not_configured"; reason?: string }> => {
+    const gate = (await pluginGatesForRequest(request))?.get(request.name);
+    if (!gate) return { status: "ready" };
+    if (!gate.adapter) return { status: "not_configured", reason: "PLUGIN_ADAPTER_UNAVAILABLE" };
+    const credentials: Record<string, PluginAdapterCredentialState> = {};
+    for (const credentialRef of gate.adapter.requiredCredentialRefs) {
+      const connection = integrationRepository
+        ? await integrationRepository.getConnection(request.context.organizationId, request.context.installationId, credentialRef)
+        : null;
+      const available = integrationTools
+        ? await integrationTools.isAvailable(request.context.organizationId, request.context.installationId, credentialRef)
+        : false;
+      credentials[credentialRef] = available
+        ? "configured"
+        : connection?.status === "revoked"
+          ? "revoked"
+          : connection?.status === "unhealthy"
+            ? "unknown"
+            : "missing";
+    }
+    const readiness = gate.adapter.checkReadiness({ configuration: gate.configuration, credentials });
+    return readiness.state === "ready"
+      ? { status: "ready" }
+      : { status: "not_configured", reason: `PLUGIN_${readiness.blockers[0]?.toUpperCase() ?? "NOT_READY"}` };
+  };
   const tools = options.harness?.tools ?? options.tools ?? createDefaultTools(coreClient, conversationActions, integrationTools, hostCapabilities, memoryRevisionCommands);
+  if (options.pluginExecutionEnabled === true && options.pluginTools?.length) registerIsolatedPluginTools(tools, options.pluginTools);
   if (options.childInvocationCoordinator && !tools.get("kasitek.agent.delegate")) {
     tools.register(createTemporalChildInvocationTool(options.childInvocationCoordinator));
   }
@@ -2420,6 +2483,8 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
             installationGrants,
             approved: Boolean(request.approval),
           });
+          const pluginReadiness = await pluginReadinessForRequest(request);
+          if (pluginReadiness.status !== "ready") return pluginReadiness;
           return { status: "ready" };
         },
       },

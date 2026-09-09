@@ -1246,15 +1246,17 @@ export type AgentPluginDirectoryEntry = {
   sourceUrl: string;
   checksum: string;
   adapterStatus: "metadata_only" | "supported" | string;
-  source: "hermes-reviewed" | string;
+  readiness?: { state: "ready" | "blocked"; blockers: string[] } | null;
+  source: "reviewed-catalog" | string;
   installed: boolean;
   packageId: string | null;
   packageVersionId: string | null;
   packageStatus?: string | null;
 };
 
-export function listAgentPluginDirectory(): Promise<{ plugins: AgentPluginDirectoryEntry[] }> {
-  return request("/api/agents/plugins/directory");
+export function listAgentPluginDirectory(installationId?: string): Promise<{ plugins: AgentPluginDirectoryEntry[] }> {
+  const query = installationId ? `?installationId=${encodeURIComponent(installationId)}` : "";
+  return request(`/api/agents/plugins/directory${query}`);
 }
 
 export function installAgentPluginCatalog(installationId: string, catalogId: string): Promise<{ plugin: AgentPluginDirectoryEntry; package: AgentExtensionPackage; installationId: string }> {

@@ -1,24 +1,26 @@
 /**
- * Reviewed metadata imported from Hermes plugin manifests.
+ * Reviewed plugin metadata imported from an external catalogue.
  *
- * This is a catalogue only. Hermes Python/plugin code is never imported or
+ * This is catalogue data only. External plugin code is never imported or
  * executed by the KasiTek API. A plugin becomes runnable only after a native
  * adapter is registered against the platform plugin runtime.
  */
 
-export const HERMES_PLUGIN_CATALOG_REVISION = "9a84bee265daad14340a80d7585928cd8ea1f9eb" as const;
+import { getPluginAdapter, getPluginAdapterStatus } from "./plugin-adapters";
 
-export type HermesPluginKind = "backend" | "standalone" | "model-provider" | "platform";
-export type HermesPluginAdapterStatus = "metadata_only" | "supported";
+export const REVIEWED_PLUGIN_CATALOG_REVISION = "9a84bee265daad14340a80d7585928cd8ea1f9eb" as const;
 
-export interface HermesPluginCatalogEntry {
+export type ReviewedPluginKind = "backend" | "standalone" | "model-provider" | "platform";
+export type ReviewedPluginAdapterStatus = "metadata_only" | "supported";
+
+export interface ReviewedPluginCatalogEntry {
   id: string;
   slug: string;
   name: string;
   version: string;
   description: string;
   author: string;
-  kind: HermesPluginKind;
+  kind: ReviewedPluginKind;
   requiredEnv: readonly string[];
   providedTools: readonly string[];
   providedProviders: readonly string[];
@@ -27,10 +29,10 @@ export interface HermesPluginCatalogEntry {
   homepage?: string;
   sourceUrl: string;
   checksum: string;
-  adapterStatus: HermesPluginAdapterStatus;
+  adapterStatus: ReviewedPluginAdapterStatus;
 }
 
-export const HERMES_PLUGIN_CATALOG: readonly HermesPluginCatalogEntry[] = [
+export const REVIEWED_PLUGIN_CATALOG: readonly ReviewedPluginCatalogEntry[] = [
   {"id":"hermes.plugin.browser.browser_use","slug":"browser/browser_use","name":"browser-browser-use","version":"1.0.0","description":"Browser Use (https://browser-use.com) cloud browser backend. Supports both direct BROWSER_USE_API_KEY and the managed Nous tool gateway. Also powers the 'Nous Subscription' UX flow that bills usage to a Nous subscription.","author":"NousResearch","kind":"backend","requiredEnv":[],"providedTools":[],"providedProviders":["browser_providers:browser-use"],"hooks":[],"platforms":[],"homepage":"","sourceUrl":"https://github.com/NousResearch/hermes-agent/tree/9a84bee265daad14340a80d7585928cd8ea1f9eb/plugins/browser/browser_use","checksum":"9e8178f4d851691e2743dcd4393947473b589d7ee7754221d5a3947c39771abd","adapterStatus":"metadata_only"},
   {"id":"hermes.plugin.browser.browserbase","slug":"browser/browserbase","name":"browser-browserbase","version":"1.0.0","description":"Browserbase (https://browserbase.com) cloud browser backend. Requires BROWSERBASE_API_KEY + BROWSERBASE_PROJECT_ID. Supports stealth, proxies, and keep-alive sessions; auto-falls-back when paid features are unavailable.","author":"NousResearch","kind":"backend","requiredEnv":[],"providedTools":[],"providedProviders":["browser_providers:browserbase"],"hooks":[],"platforms":[],"homepage":"","sourceUrl":"https://github.com/NousResearch/hermes-agent/tree/9a84bee265daad14340a80d7585928cd8ea1f9eb/plugins/browser/browserbase","checksum":"bfb1c61e25f49108bc7f47c763b9d7e241d5c921b8148d4376f5e0b0a4ea4410","adapterStatus":"metadata_only"},
   {"id":"hermes.plugin.browser.firecrawl","slug":"browser/firecrawl","name":"browser-firecrawl","version":"1.0.0","description":"Firecrawl (https://firecrawl.dev) cloud browser backend. Requires FIRECRAWL_API_KEY. Distinct from the firecrawl WEB search/extract plugin — the two share an API key but operate on different endpoints.","author":"NousResearch","kind":"backend","requiredEnv":[],"providedTools":[],"providedProviders":["browser_providers:firecrawl"],"hooks":[],"platforms":[],"homepage":"","sourceUrl":"https://github.com/NousResearch/hermes-agent/tree/9a84bee265daad14340a80d7585928cd8ea1f9eb/plugins/browser/firecrawl","checksum":"fe7d6a8540634314b8a103fd42a49775de8504eebbf1c276636add1fdc6721d7","adapterStatus":"metadata_only"},
@@ -137,11 +139,19 @@ export const HERMES_PLUGIN_CATALOG: readonly HermesPluginCatalogEntry[] = [
   {"id":"hermes.plugin.web.xai","slug":"web/xai","name":"web-xai","version":"1.0.0","description":"xAI Web Search — search the web via Grok's agentic web_search tool (Responses API). Requires xAI Grok OAuth (via `hermes auth`) or XAI_API_KEY (https://x.ai).","author":"NousResearch","kind":"backend","requiredEnv":[],"providedTools":[],"providedProviders":["web_providers:xai"],"hooks":[],"platforms":[],"homepage":"","sourceUrl":"https://github.com/NousResearch/hermes-agent/tree/9a84bee265daad14340a80d7585928cd8ea1f9eb/plugins/web/xai","checksum":"add36182d0d1753d52540cc18d2909e7582e37eb000168fdabe15ec4fa52545c","adapterStatus":"metadata_only"},
 ];
 
-export function getHermesPluginCatalogEntry(id: string): HermesPluginCatalogEntry | undefined {
-  return HERMES_PLUGIN_CATALOG.find((entry) => entry.id === id || entry.slug === id);
+export function getReviewedPluginCatalogEntry(id: string): ReviewedPluginCatalogEntry | undefined {
+  return REVIEWED_PLUGIN_CATALOG.find((entry) => entry.id === id || entry.slug === id);
 }
 
 /** Native KasiTek capabilities that a reviewed plugin may safely alias. */
-export function getHermesPluginAdapterCapabilityIds(entry: HermesPluginCatalogEntry): string[] {
-  return entry.slug === "web/tavily" ? ["kasitek.web.search"] : [];
+export function getReviewedPluginAdapterCapabilityIds(entry: ReviewedPluginCatalogEntry): string[] {
+  return [...(getPluginAdapter(entry)?.capabilityIds ?? [])];
+}
+
+export function getReviewedPluginAdapterConnectorIds(entry: ReviewedPluginCatalogEntry): string[] {
+  return [...(getPluginAdapter(entry)?.connectorIds ?? [])];
+}
+
+export function getReviewedPluginAdapterStatus(entry: ReviewedPluginCatalogEntry): ReviewedPluginAdapterStatus {
+  return getPluginAdapterStatus(entry);
 }

@@ -407,7 +407,7 @@ async function loadCapabilityData(installationId: string | null, versionId: stri
     versionId ? listAgentVersionMcpProviders(versionId) : Promise.resolve({ providers: [] }),
     installationId ? listAgentConnectionDirectory(installationId) : Promise.resolve({ connections: [] }),
     listAgentSkillDirectory(versionId ?? undefined),
-    listAgentPluginDirectory(),
+    listAgentPluginDirectory(installationId ?? undefined),
   ]);
   const mcpVersionsEntries = await Promise.all(providersResult.providers.map(async (provider) => {
     const result = await listAgentMcpProviderVersions(provider.id);
@@ -583,12 +583,12 @@ function PluginsPanel({ directory, packages, installationId, draft, onDraftChang
   const [query, setQuery] = useState("");
   const installedPackages = new Map(packages.map((pkg) => [`${pkg.package_id}:${pkg.version}`, pkg]));
   const toggle = async (entry: AgentPluginDirectoryEntry) => {
-    if (!installationId || entry.adapterStatus !== "supported") return;
+    const selected = isPluginSelected(draft, entry);
+    if (!installationId || entry.adapterStatus !== "supported" || (!selected && entry.readiness?.state !== "ready")) return;
     setBusyId(entry.id);
     try {
       const installed = installedPackages.get(`${entry.id}:${entry.version}`);
       const installedResult = installed ? null : await installAgentPluginCatalog(installationId, entry.id);
-      const selected = isPluginSelected(draft, entry);
       const adapterCapabilityIds = entry.adapterCapabilityIds.length
         ? entry.adapterCapabilityIds
         : Array.isArray(installed?.declaration.capabilityIds)
@@ -610,7 +610,7 @@ function PluginsPanel({ directory, packages, installationId, draft, onDraftChang
     }
   };
   const filtered = directory.filter((entry) => `${entry.name} ${entry.slug} ${entry.description} ${entry.kind} ${entry.providedTools.join(" ")}`.toLowerCase().includes(query.trim().toLowerCase()));
-  return <div className="space-y-4"><div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><span className="text-xs text-muted-foreground">{directory.length} plugins</span><DirectorySearch value={query} onChange={setQuery} placeholder="Search plugins" /></div>{filtered.length ? <div className="grid gap-2 sm:grid-cols-2">{filtered.map((entry) => { const enabled = isPluginSelected(draft, entry); const unavailable = entry.adapterStatus !== "supported"; const meta = entry.providedTools.length ? `${entry.providedTools.length} tools` : entry.kind; const logo = entry.slug.split("/").filter(Boolean).at(-1); return <div key={entry.id} className={cn("flex items-center gap-3 rounded-xl border border-border p-3", unavailable ? "opacity-70" : "transition-colors hover:border-primary/40")}><DirectoryIcon label={entry.name} logo={logo} icon={<Puzzle className="size-5" />} /><div className="min-w-0 flex-1"><p className="truncate text-xs font-medium text-foreground">{entry.name}</p><p className="mt-1 line-clamp-2 text-[11px] leading-4 text-muted-foreground">{entry.description}</p><p className="mt-1 text-[10px] text-muted-foreground">{meta} · v{entry.version}</p></div><Button type="button" variant={enabled ? "default" : "outline"} size="icon" className="size-8 shrink-0" aria-label={unavailable ? `${entry.name} unavailable` : enabled ? `Disable ${entry.name}` : `Add ${entry.name}`} onClick={() => void toggle(entry)} disabled={busyId === entry.id || unavailable || !installationId}>{busyId === entry.id ? <Clock3 className="size-3.5 animate-pulse" /> : unavailable ? <LockKeyhole className="size-3.5" /> : enabled ? <Check className="size-4" /> : <Plus className="size-4" />}</Button></div>; })}</div> : <p className="rounded-xl border border-dashed border-border px-3 py-5 text-center text-xs text-muted-foreground">No plugins match.</p>}</div>;
+  return <div className="space-y-4"><div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><span className="text-xs text-muted-foreground">{directory.length} plugins</span><DirectorySearch value={query} onChange={setQuery} placeholder="Search plugins" /></div>{filtered.length ? <div className="grid gap-2 sm:grid-cols-2">{filtered.map((entry) => { const enabled = isPluginSelected(draft, entry); const unavailable = entry.adapterStatus !== "supported"; const notReady = !unavailable && Boolean(entry.readiness && entry.readiness.state !== "ready"); const meta = entry.providedTools.length ? `${entry.providedTools.length} tools` : entry.kind; const status = unavailable ? "Unavailable" : notReady ? "Connect required" : "Ready"; const logo = entry.slug.split("/").filter(Boolean).at(-1); return <div key={entry.id} className={cn("flex items-center gap-3 rounded-xl border border-border p-3", unavailable ? "opacity-70" : "transition-colors hover:border-primary/40")}><DirectoryIcon label={entry.name} logo={logo} icon={<Puzzle className="size-5" />} /><div className="min-w-0 flex-1"><p className="truncate text-xs font-medium text-foreground">{entry.name}</p><p className="mt-1 line-clamp-2 text-[11px] leading-4 text-muted-foreground">{entry.description}</p><p className="mt-1 text-[10px] text-muted-foreground">{meta} · v{entry.version} · {status}</p></div><Button type="button" variant={enabled ? "default" : "outline"} size="icon" className="size-8 shrink-0" aria-label={unavailable ? `${entry.name} unavailable` : enabled ? `Disable ${entry.name}` : notReady ? `${entry.name} requires connection` : `Add ${entry.name}`} onClick={() => void toggle(entry)} disabled={busyId === entry.id || unavailable || (!enabled && notReady) || !installationId}>{busyId === entry.id ? <Clock3 className="size-3.5 animate-pulse" /> : unavailable ? <LockKeyhole className="size-3.5" /> : enabled ? <Check className="size-4" /> : <Plus className="size-4" />}</Button></div>; })}</div> : <p className="rounded-xl border border-dashed border-border px-3 py-5 text-center text-xs text-muted-foreground">No plugins match.</p>}</div>;
 }
 
 type ConnectionSetupMode = "api_key" | "local_connector" | "oauth_client";
