@@ -291,6 +291,18 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                 web::post().to(agent_platform::create_installation),
             )
             .route(
+                "/installations/{installationId}/preflight",
+                web::post().to(agent_platform::preflight_installation_deployment),
+            )
+            .route(
+                "/installations/{installationId}/promote",
+                web::post().to(agent_platform::promote_installation),
+            )
+            .route(
+                "/installations/{installationId}/rollback",
+                web::post().to(agent_platform::rollback_installation),
+            )
+            .route(
                 "/installations/{installationId}/settings",
                 web::patch().to(agent_platform::set_installation_settings),
             )
@@ -517,6 +529,10 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
             .route(
                 "/{agentId}/versions",
                 web::get().to(agent_platform::list_agent_versions),
+            )
+            .route(
+                "/{agentId}/deployment-status",
+                web::get().to(agent_platform::get_agent_deployment_status),
             )
             .route(
                 "/{agentId}/versions",

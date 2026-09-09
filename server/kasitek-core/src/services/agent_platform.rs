@@ -2085,6 +2085,77 @@ impl AgentPlatformClient {
         .await
     }
 
+    pub async fn get_agent_deployment_status(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        agent_id: &str,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::GET,
+            &format!("/v1/agents/{agent_id}/deployment-status"),
+            organization_id,
+            actor_id,
+            &["agents:read"],
+            None,
+        )
+        .await
+    }
+
+    pub async fn preflight_installation_deployment(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        installation_id: &str,
+        body: Value,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::POST,
+            &format!("/v1/installations/{installation_id}/preflight"),
+            organization_id,
+            actor_id,
+            &["agents:read"],
+            Some(body),
+        )
+        .await
+    }
+
+    pub async fn promote_installation(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        installation_id: &str,
+        body: Value,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::POST,
+            &format!("/v1/installations/{installation_id}/promote"),
+            organization_id,
+            actor_id,
+            &["agents:write"],
+            Some(body),
+        )
+        .await
+    }
+
+    pub async fn rollback_installation(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        installation_id: &str,
+        body: Value,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::POST,
+            &format!("/v1/installations/{installation_id}/rollback"),
+            organization_id,
+            actor_id,
+            &["agents:write"],
+            Some(body),
+        )
+        .await
+    }
+
     pub async fn publish_agent_version(
         &self,
         organization_id: &str,

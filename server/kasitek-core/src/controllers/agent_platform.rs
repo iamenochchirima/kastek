@@ -2834,6 +2834,88 @@ pub async fn list_agent_versions(
     Ok(HttpResponse::Ok().json(response))
 }
 
+pub async fn get_agent_deployment_status(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    agent_id: web::Path<String>,
+) -> Result<HttpResponse, AppError> {
+    let (user, organization_id) = scope(&req, pool.get_ref()).await?;
+    let response = client(config.get_ref())?
+        .get_agent_deployment_status(&organization_id, &user.id, agent_id.trim())
+        .await?;
+    Ok(HttpResponse::Ok().json(response))
+}
+
+pub async fn preflight_installation_deployment(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    installation_id: web::Path<String>,
+    body: Option<web::Json<Value>>,
+) -> Result<HttpResponse, AppError> {
+    let (user, organization_id) = scope(&req, pool.get_ref()).await?;
+    let input = body
+        .map(|value| value.into_inner())
+        .unwrap_or_else(|| Value::Object(Default::default()));
+    if !input.is_object() {
+        return Err(AppError::BadRequest(
+            "Deployment preflight body must be an object".to_string(),
+        ));
+    }
+    let response = client(config.get_ref())?
+        .preflight_installation_deployment(
+            &organization_id,
+            &user.id,
+            installation_id.trim(),
+            input,
+        )
+        .await?;
+    Ok(HttpResponse::Ok().json(response))
+}
+
+pub async fn promote_installation(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    installation_id: web::Path<String>,
+    body: web::Json<Value>,
+) -> Result<HttpResponse, AppError> {
+    let (user, organization_id) = management_scope(&req, pool.get_ref()).await?;
+    let input = body.into_inner();
+    if !input.is_object() {
+        return Err(AppError::BadRequest(
+            "Installation promotion body must be an object".to_string(),
+        ));
+    }
+    let response = client(config.get_ref())?
+        .promote_installation(&organization_id, &user.id, installation_id.trim(), input)
+        .await?;
+    Ok(HttpResponse::Ok().json(response))
+}
+
+pub async fn rollback_installation(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    installation_id: web::Path<String>,
+    body: Option<web::Json<Value>>,
+) -> Result<HttpResponse, AppError> {
+    let (user, organization_id) = management_scope(&req, pool.get_ref()).await?;
+    let input = body
+        .map(|value| value.into_inner())
+        .unwrap_or_else(|| Value::Object(Default::default()));
+    if !input.is_object() {
+        return Err(AppError::BadRequest(
+            "Installation rollback body must be an object".to_string(),
+        ));
+    }
+    let response = client(config.get_ref())?
+        .rollback_installation(&organization_id, &user.id, installation_id.trim(), input)
+        .await?;
+    Ok(HttpResponse::Ok().json(response))
+}
+
 pub async fn create_installation(
     pool: web::Data<PgPool>,
     config: web::Data<AppConfig>,
