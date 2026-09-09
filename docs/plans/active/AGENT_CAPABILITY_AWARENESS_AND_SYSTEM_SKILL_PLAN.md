@@ -1,6 +1,6 @@
 # Agent capability awareness and system capability skill
 
-**Status:** Implementation complete through local verification; staging rollout and production release evidence pending
+**Status:** Implementation complete through local verification, including a live local KasiAi capability run; staging rollout and production release evidence pending
 
 **Owner:** Agent Platform and Studio
 
@@ -432,6 +432,11 @@ snapshot, approval, redaction, and durable operation contracts as native tools.
 - Local durable smoke passed with an isolated installation-token key and temporary API/gateway
   ports: REST credential exchange, tool discovery, idempotent durable execution, MCP authentication,
   protocol negotiation, and terminal completion all passed. The fixture was deleted after the run.
+- A local KasiAi platform-message run answered “What tools and capabilities can you use?” from the
+  effective snapshot (20 callable tools, 35 unavailable tools, no connected services, no loaded
+  skills), and the run journal recorded `agent.capabilities.resolved` with `capabilityAwarenessEnabled:
+  true` and a snapshot digest. This verifies the native discovery contract is reaching the real
+  model path rather than existing only in unit tests.
 - The `capability_awareness_enabled` operator flag is additive, defaults to enabled when absent, and
   can disable only the model-facing capability contract/native discovery path while retaining the
   effective snapshot for tool admission and audit. Migration 161 and command validation cover it.
