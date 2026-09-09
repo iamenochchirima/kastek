@@ -40,13 +40,13 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-export type StudioGraphStatus = "idle" | "running" | "complete" | "error" | "waiting" | "skipped";
+export type StudioGraphStatus = "idle" | "ready" | "running" | "complete" | "error" | "waiting" | "blocked" | "unavailable" | "skipped";
 
 export type StudioGraphNode = {
   id: string;
   label: string;
   detail: string;
-  kind: "input" | "channel" | "session" | "context" | "memory" | "retrieval" | "model" | "router" | "tool" | "mcp" | "skill" | "approval" | "handoff" | "output" | "delivery";
+  kind: "input" | "channel" | "session" | "context" | "memory" | "retrieval" | "model" | "router" | "tool" | "connector" | "mcp" | "skill" | "approval" | "handoff" | "output" | "delivery";
   status: StudioGraphStatus;
   configured: boolean;
   configurable?: boolean;
@@ -54,7 +54,11 @@ export type StudioGraphNode = {
   scope?: string;
   event?: string;
   data: Record<string, string>;
+  position?: XYPosition;
+  evidence?: { id: string; event: string; sequence: number; detail: string };
 };
+
+export type StudioGraphEdge = { id: string; source: string; target: string; sourceAnchor: EdgeAnchor; targetAnchor: EdgeAnchor; dashed?: boolean; routeY?: number };
 
 type StudioCanvasProps = {
   nodes: StudioGraphNode[];
@@ -62,6 +66,7 @@ type StudioCanvasProps = {
   onSelect: (id: string) => void;
   running: boolean;
   traceCount: number;
+  edges?: StudioGraphEdge[];
   storageKey?: string;
 };
 
@@ -87,7 +92,7 @@ const nodePositions: Record<string, { x: number; y: number }> = {
   delivery: { x: 838, y: 574 },
 };
 
-const movableKinds = new Set<StudioGraphNode["kind"]>(["tool", "mcp", "skill"]);
+const movableKinds = new Set<StudioGraphNode["kind"]>(["tool", "connector", "mcp", "skill"]);
 
 function isMovableNode(node: Pick<StudioGraphNode, "kind" | "configurable">) {
   return Boolean(node.configurable && movableKinds.has(node.kind));
@@ -140,6 +145,9 @@ function graphStatusLabel(status: StudioGraphStatus) {
   if (status === "complete") return "Complete";
   if (status === "error") return "Error";
   if (status === "waiting") return "Waiting";
+  if (status === "ready") return "Ready";
+  if (status === "blocked") return "Blocked";
+  if (status === "unavailable") return "Unavailable";
   if (status === "skipped") return "Skipped";
   return "Configured";
 }
@@ -155,6 +163,7 @@ function nodeIcon(kind: StudioGraphNode["kind"]) {
   if (kind === "model") return <Bot className={className} />;
   if (kind === "router") return <Route className={className} />;
   if (kind === "tool") return <Wrench className={className} />;
+  if (kind === "connector") return <PlugZap className={className} />;
   if (kind === "mcp") return <PlugZap className={className} />;
   if (kind === "skill") return <Sparkles className={className} />;
   if (kind === "approval") return <ShieldCheck className={className} />;
@@ -167,6 +176,9 @@ function statusClasses(status: StudioGraphStatus) {
   if (status === "complete") return { border: "border-emerald-500/55", icon: "bg-emerald-500/12 text-emerald-500", text: "text-emerald-500" };
   if (status === "error") return { border: "border-destructive/70", icon: "bg-destructive/12 text-destructive", text: "text-destructive" };
   if (status === "waiting") return { border: "border-amber-500/65", icon: "bg-amber-500/12 text-amber-500", text: "text-amber-500" };
+  if (status === "ready") return { border: "border-emerald-500/55", icon: "bg-emerald-500/10 text-emerald-500", text: "text-emerald-500" };
+  if (status === "blocked") return { border: "border-amber-500/70", icon: "bg-amber-500/10 text-amber-500", text: "text-amber-500" };
+  if (status === "unavailable") return { border: "border-destructive/55", icon: "bg-destructive/10 text-destructive", text: "text-destructive" };
   return { border: "border-[#52617e]/80", icon: "bg-muted text-muted-foreground", text: "text-muted-foreground" };
 }
 
@@ -196,6 +208,9 @@ function nodeStatusDot(status: StudioGraphStatus) {
   if (status === "running") return "animate-pulse bg-primary";
   if (status === "error") return "bg-destructive";
   if (status === "complete") return "bg-emerald-400";
+  if (status === "ready") return "bg-emerald-400";
+  if (status === "blocked") return "bg-amber-400";
+  if (status === "unavailable") return "bg-destructive";
   return "bg-emerald-500";
 }
 
@@ -230,7 +245,7 @@ function ObservatoryNode({ data, selected }: NodeProps<CanvasNode>) {
 
 function createCanvasNodes(nodes: StudioGraphNode[], selectedNodeId: string | null, positions: Record<string, XYPosition>): CanvasNode[] {
   return [
-    ...nodes.map((node) => { const size = nodeSize(node.kind); return { id: node.id, type: "observatory" as const, position: isMovableNode(node) ? positions[node.id] ?? nodePositions[node.id] ?? { x: 0, y: 0 } : nodePositions[node.id] ?? { x: 0, y: 0 }, data: node, selected: node.id === selectedNodeId, width: size.width, height: size.height, style: { zIndex: 10 }, draggable: isMovableNode(node) }; }),
+      ...nodes.map((node) => { const size = nodeSize(node.kind); return { id: node.id, type: "observatory" as const, position: isMovableNode(node) ? positions[node.id] ?? node.position ?? nodePositions[node.id] ?? { x: 0, y: 0 } : nodePositions[node.id] ?? { x: 0, y: 0 }, data: node, selected: node.id === selectedNodeId, width: size.width, height: size.height, style: { zIndex: 10 }, draggable: isMovableNode(node) }; }),
   ];
 }
 
@@ -276,7 +291,7 @@ function orthogonalPath(start: { x: number; y: number }, end: { x: number; y: nu
   return `M ${start.x} ${start.y} L ${start.x} ${midY} L ${end.x} ${midY} L ${end.x} ${end.y}`;
 }
 
-function ObservatoryLinks({ nodes, positions }: { nodes: StudioGraphNode[]; positions: Record<string, XYPosition> }) {
+function ObservatoryLinks({ nodes, positions, edges }: { nodes: StudioGraphNode[]; positions: Record<string, XYPosition>; edges: StudioGraphEdge[] }) {
   const nodeById = new Map(nodes.map((node) => [node.id, node]));
   return <ViewportPortal>
     <svg aria-hidden="true" className="pointer-events-none absolute left-0 top-0 z-[1] overflow-visible" width="1000" height="760" viewBox="0 0 1000 760">
@@ -285,7 +300,7 @@ function ObservatoryLinks({ nodes, positions }: { nodes: StudioGraphNode[]; posi
           <path d="M0,0 L9,4.5 L0,9 z" fill="#8490a8" />
         </marker>
       </defs>
-      {edgeDefinitions.map((definition) => {
+      {edges.map((definition) => {
         const sourcePosition = positions[definition.source] ?? nodePositions[definition.source];
         const targetPosition = positions[definition.target] ?? nodePositions[definition.target];
         if (!sourcePosition || !targetPosition || !nodeById.has(definition.source) || !nodeById.has(definition.target)) return null;
@@ -306,7 +321,7 @@ function ObservatoryLinks({ nodes, positions }: { nodes: StudioGraphNode[]; posi
 
 const observatoryNodeTypes = { observatory: ObservatoryNode };
 
-export function StudioSystemCanvas({ nodes, selectedNodeId, onSelect, running, traceCount, storageKey }: StudioCanvasProps) {
+export function StudioSystemCanvas({ nodes, selectedNodeId, onSelect, running, traceCount, edges = edgeDefinitions, storageKey }: StudioCanvasProps) {
   const layoutStorageKey = storageKey ? `${storageKey}:compact-v1` : undefined;
   const [positions, setPositions] = useState<Record<string, XYPosition>>(() => Object.fromEntries(nodes.map((node) => [node.id, nodePositions[node.id] ?? { x: 0, y: 0 }])));
   const [positionsLoaded, setPositionsLoaded] = useState(!layoutStorageKey);
@@ -336,7 +351,7 @@ export function StudioSystemCanvas({ nodes, selectedNodeId, onSelect, running, t
     setPositions((current) => {
       const next = { ...current };
       for (const node of nodes) {
-        if (!next[node.id]) next[node.id] = nodePositions[node.id] ?? { x: 0, y: 0 };
+        if (!next[node.id]) next[node.id] = node.position ?? nodePositions[node.id] ?? { x: 0, y: 0 };
       }
       return next;
     });
@@ -364,7 +379,7 @@ export function StudioSystemCanvas({ nodes, selectedNodeId, onSelect, running, t
   }, [movableNodeIds, nodes, selectedNodeId]);
 
   const resetLayout = useCallback(() => {
-    setPositions(Object.fromEntries(nodes.map((node) => [node.id, nodePositions[node.id] ?? { x: 0, y: 0 }])));
+    setPositions(Object.fromEntries(nodes.map((node) => [node.id, node.position ?? nodePositions[node.id] ?? { x: 0, y: 0 }])));
   }, [nodes]);
 
   const canvasNodes = createCanvasNodes(nodes, selectedNodeId, positions);
@@ -381,7 +396,7 @@ export function StudioSystemCanvas({ nodes, selectedNodeId, onSelect, running, t
   return <div className="relative h-full min-h-[560px] w-full overflow-hidden bg-[#141a29] [&_.react-flow__attribution]:bg-transparent [&_.react-flow__attribution]:text-muted-foreground/50 [&_.react-flow__controls]:overflow-hidden [&_.react-flow__controls]:rounded-lg [&_.react-flow__controls]:border-border/70 [&_.react-flow__controls-button]:border-border/70 [&_.react-flow__controls-button]:bg-card/90 [&_.react-flow__controls-button]:fill-muted-foreground [&_.react-flow__minimap]:overflow-hidden [&_.react-flow__minimap]:rounded-lg [&_.react-flow__minimap]:border [&_.react-flow__minimap]:border-border/70 [&_.react-flow__minimap]:bg-card/90">
     <ReactFlow nodes={canvasNodes} edges={[]} nodeTypes={observatoryNodeTypes} onNodesChange={handleNodesChange} onNodeClick={(_, node) => onSelect(node.id)} fitView fitViewOptions={{ padding: 0.08, minZoom: 0.62, maxZoom: 0.92 }} minZoom={0.45} maxZoom={1.6} nodesDraggable nodesConnectable={false} elementsSelectable panOnScroll zoomOnScroll zoomOnPinch selectionOnDrag={false}>
       <ObservatorySectionFrames />
-      <ObservatoryLinks nodes={nodes} positions={positions} />
+      <ObservatoryLinks nodes={nodes} positions={positions} edges={edges} />
       <Controls
         showInteractive={false}
         position="bottom-left"
@@ -415,6 +430,8 @@ export function StudioSystemCanvas({ nodes, selectedNodeId, onSelect, running, t
       </Panel>
       <Panel position="top-right" className="!m-4 flex items-center gap-3 rounded-lg border border-border/70 bg-card/90 px-3 py-2 text-[9px] text-muted-foreground shadow-lg backdrop-blur">
         <span className="inline-flex items-center gap-1.5"><span className="size-1.5 rounded-full bg-slate-400" />Configured</span>
+        <span className="inline-flex items-center gap-1.5"><span className="size-1.5 rounded-full bg-emerald-500" />Ready</span>
+        <span className="inline-flex items-center gap-1.5"><span className="size-1.5 rounded-full bg-amber-500" />Blocked</span>
         <span className="inline-flex items-center gap-1.5"><span className="size-1.5 rounded-full bg-primary" />Active</span>
         <span className="inline-flex items-center gap-1.5"><span className="size-1.5 rounded-full bg-emerald-500" />Complete</span>
       </Panel>

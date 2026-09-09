@@ -11,7 +11,6 @@ import {
   FlaskConical,
   MessageCircle,
   Plus,
-  Play,
   Rocket,
   SlidersHorizontal,
   X,
@@ -34,6 +33,10 @@ import {
   getAgentModelCatalog,
   getAgentRun,
   getAgentRunTimeline,
+  getAgentVersionEffectiveConfig,
+  getAgentInstallationReadiness,
+  listAgentInstallationCapabilities,
+  listAgentConnectionDirectory,
   ensureAgentPlayground,
   listAgentVersions,
   publishAgentVersion,
@@ -49,6 +52,10 @@ import {
   type AgentModelCatalog,
   type AgentModelProvider,
   type AgentRuntimeTelemetry,
+  type AgentEffectiveConfigProjection,
+  type AgentCapability,
+  type AgentConnectionDirectoryEntry,
+  type AgentReadiness,
   type AgentDeploymentPreflight,
   type AgentDeploymentStatus,
   type AgentSpecInput,
@@ -61,7 +68,8 @@ import { AgentChatMessageList } from "@/components/dashboard/agents/agent-chat-m
 import { AgentChatRunStatus } from "@/components/dashboard/agents/agent-chat-run-status";
 import { AgentChatSurface } from "@/components/dashboard/agents/agent-chat-surface";
 import { StudioSettingsPrototype, type StudioSettingsDraft } from "@/components/dashboard/studio/studio-settings-prototype";
-import { StudioSystemCanvas, type StudioGraphNode, type StudioGraphStatus } from "@/components/dashboard/studio/studio-system-canvas";
+import { StudioSystemCanvas, type StudioGraphNode } from "@/components/dashboard/studio/studio-system-canvas";
+import { projectStudioObservatory } from "@/components/dashboard/studio/studio-observatory-projection";
 import type { AgentUiInteraction } from "@/components/dashboard/kasiai/dynamic-ui-renderer";
 
 type StudioPageProps = {
@@ -85,50 +93,6 @@ type TraceNode = {
   sequence: number;
   data: Record<string, unknown>;
 };
-
-type DemoTraceStep = {
-  event: string;
-  label?: string;
-  detail?: string;
-  data?: Record<string, unknown>;
-};
-
-const demoTraceSteps: DemoTraceStep[] = [
-  { event: "run.received", label: "Input", detail: "Customer asks about Friday availability", data: { channel: "web", message: "Is Friday available?" } },
-  { event: "channel.accepted", label: "Channel", detail: "Web channel authenticated", data: { channel: "web", tenant: "demo" } },
-  { event: "run.started", label: "Session", detail: "Durable run admitted", data: { session: "conversation-42", retry_policy: "enabled" } },
-  { event: "agent.context.prepared", label: "Context", detail: "Working set composed", data: { tokens: 2840, sources: 4 } },
-  { event: "memory.retrieval.completed", label: "Memory", detail: "Customer preferences retrieved", data: { facts: 3, scope: "customer" } },
-  { event: "context.retrieval.completed", label: "Knowledge", detail: "Availability policy retrieved", data: { evidence: 2, source: "workspace" } },
-  { event: "agent.model.completed", label: "Model", detail: "Selected availability lookup", data: { provider: "OpenAI", latency_ms: 820 } },
-  { event: "agent.route.selected", label: "Router", detail: "Bookings capability selected", data: { capability: "bookings.check_availability" } },
-  { event: "agent.tool.started", label: "Tool: calendar.check_availability", detail: "Checking Google Calendar", data: { name: "calendar.check_availability" } },
-  { event: "agent.tool.completed", label: "Tool: calendar.check_availability", detail: "Friday has two open slots", data: { name: "calendar.check_availability", duration_ms: 420 } },
-  { event: "agent.mcp.tool.started", label: "MCP: workspace.contacts", detail: "Loading customer record", data: { name: "workspace.contacts" } },
-  { event: "agent.mcp.tool.completed", label: "MCP: workspace.contacts", detail: "Customer record loaded", data: { name: "workspace.contacts", duration_ms: 260 } },
-  { event: "agent.skill.started", label: "Content skill", detail: "Preparing a follow-up message", data: { name: "content.follow_up" } },
-  { event: "agent.skill.completed", label: "Content skill", detail: "Follow-up drafted", data: { name: "content.follow_up", platforms: "web · WhatsApp" } },
-  { event: "approval.requested", label: "Approval", detail: "Waiting for send approval", data: { action: "send_follow_up", policy: "human" } },
-  { event: "approval.completed", label: "Approval", detail: "Approved by workspace policy", data: { action: "send_follow_up", decision: "approved" } },
-  { event: "handoff.requested", label: "Handoff", detail: "Context shared with support team", data: { target: "support", reason: "follow-up requested" } },
-  { event: "handoff.completed", label: "Handoff", detail: "Support team accepted context", data: { target: "support" } },
-  { event: "run.output.completed", label: "Response", detail: "Answer assembled", data: { format: "channel-aware" } },
-  { event: "memory.write.completed", label: "Memory write", detail: "Useful outcome persisted", data: { facts: 1, evidence: "run-42" } },
-  { event: "message.delivered", label: "Delivery", detail: "Response delivered to web", data: { channel: "web", receipt: "stored" } },
-];
-
-function demoTraceNode(step: DemoTraceStep, sequence: number): TraceNode {
-  return {
-    id: `demo-${sequence}-${step.event}`,
-    event: step.event,
-    label: step.label ?? eventLabel(step.event, step.data ?? {}),
-    detail: step.detail ?? eventDetail(step.event, step.data ?? {}),
-    status: eventStatus(step.event),
-    sequence,
-    data: { ...(step.data ?? {}), demo: true, sequence_number: sequence },
-  };
-}
-
 
 const terminalStatuses = new Set(["completed", "failed", "cancelled", "expired"]);
 
@@ -187,57 +151,6 @@ function eventStatus(event: string): TraceStatus {
   if (event.includes("failed") || event.includes("error")) return "error";
   if (event.includes("completed") || event.includes("delivered") || event.includes("cancelled") || event.includes("expired")) return "complete";
   return "running";
-}
-
-function studioNodeStatus(node: StudioGraphNode, trace: TraceNode[]): StudioGraphStatus {
-  const matching = trace.filter((traceNode) => {
-    const event = traceNode.event.toLowerCase();
-    const label = traceNode.label.toLowerCase();
-    if (node.id === "input") return event.includes("received") || label === "input";
-    if (node.id === "channel") return event.includes("channel") || label === "channel";
-    if (node.id === "session") return event.includes("run.started") || event.includes("run.queued");
-    if (node.id === "context") return event.includes("context");
-    if (node.id === "memory-read") return event.includes("memory.retriev") || event.includes("memory.read");
-    if (node.id === "memory-write") return event.includes("memory.write") || event.includes("memory.persist");
-    if (node.id === "retrieval") return event.includes("retriev") || label.includes("knowledge");
-    if (node.id === "model") return event.includes("model") || label === "model";
-    if (node.id === "router") return event.includes("route") || event.includes("capabilit");
-    if (node.id === "calendar") return label.includes("calendar") || label.includes("booking");
-    if (node.id === "mcp") return event.includes("mcp") || label.includes("mcp");
-    if (node.id === "content-skill") return label.includes("content") || label.includes("skill");
-    if (node.id === "approval") return event.includes("approval");
-    if (node.id === "handoff") return event.includes("handoff") || event.includes("human");
-    if (node.id === "output") return event.includes("output") || event.includes("run.completed");
-    if (node.id === "delivery") return event.includes("deliver");
-    return false;
-  });
-  const latest = matching.at(-1);
-  if (!latest) return "idle";
-  if (latest.status === "error") return "error";
-  if (latest.status === "running" && latest.id === trace.at(-1)?.id) return node.id === "approval" ? "waiting" : "running";
-  return "complete";
-}
-
-function buildStudioGraph(modelLabel: string, trace: TraceNode[]): StudioGraphNode[] {
-  const nodes: StudioGraphNode[] = [
-    { id: "input", label: "Message input", detail: "Web, WhatsApp, Telegram, Discord", kind: "input", status: "idle", configured: true, scope: "channel", event: "run.received", data: { source: "webhook or conversation", mode: "inbound" } },
-    { id: "channel", label: "Channel gateway", detail: "Normalize and authenticate", kind: "channel", status: "idle", configured: true, configurable: true, scope: "workspace", event: "channel.accepted", data: { channels: "Web · WhatsApp · Telegram · Discord", auth: "workspace connection" } },
-    { id: "session", label: "Session", detail: "Durable run and conversation", kind: "session", status: "idle", configured: true, scope: "tenant / conversation", event: "run.started", data: { state: "durable", retries: "enabled" } },
-    { id: "context", label: "Context engine", detail: "Compose the model's working set", kind: "context", status: "idle", configured: true, configurable: true, scope: "agent / run", event: "agent.context.prepared", data: { policy: "bounded context", sources: "messages · workspace · memory" } },
-    { id: "memory-read", label: "Memory read", detail: "Facts, preferences, prior work", kind: "memory", status: "idle", configured: true, configurable: true, scope: "tenant / user / agent", event: "memory.retrieval.completed", data: { namespaces: "customer · business · agent", ranking: "hybrid + temporal" } },
-    { id: "retrieval", label: "Knowledge retrieval", detail: "Connected sources and evidence", kind: "retrieval", status: "idle", configured: true, configurable: true, scope: "workspace", event: "context.retrieval.completed", data: { sources: "workspace knowledge · connected apps", evidence: "source IDs retained" } },
-    { id: "model", label: modelLabel || "Primary model", detail: "Reason, plan, and choose next step", kind: "model", status: "idle", configured: true, configurable: true, provider: "Model provider", scope: "agent version", event: "agent.model.completed", data: { provider: "configured model provider", turn: "bounded by run policy" } },
-    { id: "router", label: "Capability router", detail: "Select the next operation", kind: "router", status: "idle", configured: true, scope: "agent version", event: "agent.route.selected", data: { policy: "typed capabilities", selection: "model decision" } },
-    { id: "calendar", label: "Bookings tool", detail: "Check and update availability", kind: "tool", status: "idle", configured: true, configurable: true, provider: "Google Calendar", scope: "workspace connection", event: "agent.tool.completed", data: { tool: "check_availability", connection: "Google Calendar", risk: "write requires approval" } },
-    { id: "mcp", label: "MCP server", detail: "Connected workspace tools", kind: "mcp", status: "idle", configured: true, configurable: true, provider: "KasiTek MCP", scope: "workspace", event: "agent.mcp.tool.completed", data: { server: "KasiTek workspace", tools: "content · campaigns · contacts" } },
-    { id: "content-skill", label: "Content skill", detail: "Draft and publish across platforms", kind: "skill", status: "idle", configured: true, configurable: true, provider: "multi-platform content", scope: "agent version", event: "agent.skill.completed", data: { skill: "content-management", platforms: "LinkedIn · Instagram · Facebook" } },
-    { id: "approval", label: "Approval gate", detail: "Pause before sensitive actions", kind: "approval", status: "idle", configured: true, configurable: true, scope: "workspace policy", event: "approval.requested", data: { policy: "human approval", actions: "publish · send · modify" } },
-    { id: "handoff", label: "Human handoff", detail: "Escalate with full context", kind: "handoff", status: "idle", configured: true, configurable: true, scope: "workspace / team", event: "handoff.requested", data: { target: "support team", context: "conversation + evidence" } },
-    { id: "memory-write", label: "Memory write", detail: "Persist useful outcomes", kind: "memory", status: "idle", configured: true, configurable: true, scope: "tenant / user / agent", event: "memory.write.completed", data: { lifecycle: "capture · review · project", evidence: "run event digest" } },
-    { id: "output", label: "Response", detail: "Assemble the final answer", kind: "output", status: "idle", configured: true, scope: "run", event: "run.completed", data: { format: "channel-aware response", trace: "journal-backed" } },
-    { id: "delivery", label: "Delivery", detail: "Send and record the result", kind: "delivery", status: "idle", configured: true, configurable: true, scope: "channel", event: "message.delivered", data: { retries: "idempotent", receipts: "stored" } },
-  ];
-  return nodes.map((node) => ({ ...node, status: studioNodeStatus(node, trace) }));
 }
 
 function nodeFromEvent(event: AgentStreamEvent): TraceNode {
@@ -445,6 +358,12 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
   const [modelCatalogLoading, setModelCatalogLoading] = useState(true);
   const [modelSelection, setModelSelection] = useState<ModelSelection | null>(null);
   const [trace, setTrace] = useState<TraceNode[]>([]);
+  const [effectiveConfig, setEffectiveConfig] = useState<AgentEffectiveConfigProjection | null>(null);
+  const [effectiveCapabilities, setEffectiveCapabilities] = useState<AgentCapability[]>([]);
+  const [effectiveConnections, setEffectiveConnections] = useState<AgentConnectionDirectoryEntry[]>([]);
+  const [installationReadiness, setInstallationReadiness] = useState<AgentReadiness | null>(null);
+  const [effectiveConfigLoading, setEffectiveConfigLoading] = useState(false);
+  const [effectiveConfigError, setEffectiveConfigError] = useState<string | null>(null);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<AgentMessage[]>([]);
@@ -454,7 +373,6 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
   const [loadingVersions, setLoadingVersions] = useState(true);
   const [saving, setSaving] = useState(false);
   const [running, setRunning] = useState(false);
-  const [demoRunning, setDemoRunning] = useState(false);
   const [activeRunId, setActiveRunId] = useState<string | null>(null);
   const [lastRunId, setLastRunId] = useState<string | null>(null);
   const [telemetry, setTelemetry] = useState<AgentRuntimeTelemetry | null>(null);
@@ -528,10 +446,20 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
       });
     return () => { cancelled = true; };
   }, [agent.id, agent.installation_id, agent.published_version_id, agent.protected, router]);
-  const studioGraphNodes = useMemo(
-    () => buildStudioGraph(selectedModelEntry?.label ?? selectedModelEntry?.model ?? "Primary model", trace),
-    [selectedModelEntry?.label, selectedModelEntry?.model, trace],
+  const studioProjection = useMemo(
+    () => projectStudioObservatory({
+      effectiveConfig,
+      capabilities: effectiveCapabilities,
+      connections: effectiveConnections,
+      readiness: installationReadiness,
+      modelLabel: selectedModelEntry?.label ?? selectedModelEntry?.model ?? "Primary model",
+      trace,
+      configurationState: effectiveConfigLoading ? "loading" : effectiveConfigError ? "unavailable" : "ready",
+    }),
+    [effectiveCapabilities, effectiveConfig, effectiveConfigError, effectiveConfigLoading, effectiveConnections, installationReadiness, selectedModelEntry?.label, selectedModelEntry?.model, trace],
   );
+  const studioGraphNodes = studioProjection.nodes;
+  const studioGraphEdges = studioProjection.edges;
 
   const applyConversation = useCallback((result: Awaited<ReturnType<typeof resolvePlatformConversation>>) => {
     setConversationId(result.conversation.id);
@@ -604,6 +532,41 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
   }, []);
 
   useEffect(() => {
+    if (!selectedVersionId) {
+      setEffectiveConfig(null);
+      setEffectiveCapabilities([]);
+      setEffectiveConnections([]);
+      setInstallationReadiness(null);
+      setEffectiveConfigError(null);
+      return;
+    }
+    let cancelled = false;
+    setEffectiveConfigLoading(true);
+    setEffectiveConfigError(null);
+    const installationId = agent.installation_id ?? undefined;
+    void Promise.allSettled([
+      getAgentVersionEffectiveConfig(selectedVersionId, installationId),
+      installationId ? listAgentInstallationCapabilities(installationId) : Promise.resolve({ capabilities: [] as AgentCapability[] }),
+      installationId ? listAgentConnectionDirectory(installationId) : Promise.resolve({ connections: [] as AgentConnectionDirectoryEntry[] }),
+      installationId ? getAgentInstallationReadiness(installationId) : Promise.resolve(null),
+    ]).then(([configResult, capabilitiesResult, connectionsResult, readinessResult]) => {
+      if (cancelled) return;
+      if (configResult.status === "fulfilled") {
+        setEffectiveConfig(configResult.value.effective);
+      } else {
+        setEffectiveConfig(null);
+        setEffectiveConfigError(configResult.reason instanceof Error ? configResult.reason.message : "Effective configuration unavailable");
+      }
+      setEffectiveCapabilities(capabilitiesResult.status === "fulfilled" ? capabilitiesResult.value.capabilities : []);
+      setEffectiveConnections(connectionsResult.status === "fulfilled" ? connectionsResult.value.connections : []);
+      setInstallationReadiness(readinessResult.status === "fulfilled" ? readinessResult.value : null);
+    }).finally(() => {
+      if (!cancelled) setEffectiveConfigLoading(false);
+    });
+    return () => { cancelled = true; };
+  }, [agent.installation_id, selectedVersionId]);
+
+  useEffect(() => {
     if (!activeRunId) return;
     let cancelled = false;
     const refreshRuntimeEvidence = async () => {
@@ -646,24 +609,6 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
     });
   }, []);
 
-  const runDemoExecution = async () => {
-    if (running || demoRunning) return;
-    setDemoRunning(true);
-    clearError();
-    setNotice("Demo execution");
-    setSelectedNodeId(null);
-    setTrace([]);
-    try {
-      for (const [index, step] of demoTraceSteps.entries()) {
-        await new Promise<void>((resolve) => window.setTimeout(resolve, index === 0 ? 250 : 650));
-        setTrace((current) => [...current, demoTraceNode(step, index + 1)]);
-      }
-      setNotice("Demo completed");
-    } finally {
-      setDemoRunning(false);
-    }
-  };
-
   const runAgent = async (audioFile?: File) => {
     if (!agent.installation_id) {
       showError("This agent is not installed yet.");
@@ -674,7 +619,7 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
       return;
     }
     const message = input.trim();
-    if ((!message && !audioFile) || running || demoRunning || conversationLoading) return;
+    if ((!message && !audioFile) || running || conversationLoading) return;
     const displayInput = message || "Audio message";
     setRunning(true);
     clearError();
@@ -755,7 +700,7 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
   };
 
   const submitUiInteraction = async (message: AgentMessage, interaction: AgentUiInteraction) => {
-    if (!agent.installation_id || !conversationId || running || demoRunning) return;
+    if (!agent.installation_id || !conversationId || running) return;
     setRunning(true);
     clearError();
     setNotice(null);
@@ -1026,7 +971,6 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
           <div className="min-w-0 flex-1"><div className="flex min-w-0 items-center gap-2"><Bot className="size-4 shrink-0 text-primary" /><span className="truncate text-sm font-semibold text-foreground">{agent.name}</span><span className={cn("rounded-full px-2 py-0.5 text-[10px] font-medium", statusClass(agent.status))}>{statusLabel(agent.status)}</span></div></div>
           <label className="flex items-center gap-2 text-xs text-muted-foreground"><span className="hidden sm:inline">Version</span><select value={selectedVersionId ?? ""} onChange={(event) => selectVersion(event.target.value)} disabled={loadingVersions || !versions.length} className="h-8 max-w-36 rounded-md border border-border bg-background px-2 text-xs font-medium text-foreground outline-none focus:border-primary"><option value="">{loadingVersions ? "Loading…" : "No versions"}</option>{versions.map((version) => <option key={version.id} value={version.id}>v{version.version_number} · {version.status}</option>)}</select></label>
           <span className="inline-flex items-center gap-1.5 rounded-md border border-primary/20 bg-primary/5 px-2.5 py-1.5 text-xs text-primary"><FlaskConical className="size-3.5" />{surface === "playground" ? "Playground" : "Studio"}</span>
-          <Button type="button" variant="outline" size="sm" onClick={() => void runDemoExecution()} disabled={running || demoRunning}><Play className="mr-1.5 size-3.5" />{demoRunning ? "Demo running…" : "Demo run"}</Button>
           <Button type="button" variant="outline" size="sm" onClick={() => setConfigurationOpen(true)}><SlidersHorizontal className="mr-1.5 size-3.5" />Settings</Button>
           {activeRunId ? <Button type="button" variant="outline" size="sm" onClick={() => void cancelRun()} disabled={cancelling}><X className="mr-1.5 size-3.5" />{cancelling ? "Cancelling…" : "Cancel"}</Button> : null}
           {!agent.protected ? <Button type="button" variant="outline" size="sm" onClick={() => void deploy()} disabled={deploying || !selectedVersion}><Rocket className="mr-1.5 size-3.5" />{deploying ? "Updating…" : surface === "playground" ? "Update Playground" : "Update installation"}</Button> : null}
@@ -1056,7 +1000,7 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
                 models={pickerModels}
                 onModelChange={(model, provider) => setModelSelection({ model, provider })}
                 modelDisabled={modelCatalogLoading || !pickerModels.length}
-                disabled={!canRun || demoRunning || conversationLoading}
+                disabled={!canRun || conversationLoading}
                 sending={running}
                 onStop={() => void cancelRun()}
                 onAudioReady={(file) => void runAgent(file)}
@@ -1076,11 +1020,12 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
           </section>
 
           <section className="flex min-h-[620px] min-w-0 flex-col xl:min-h-0">
-            <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3"><div><SectionEyebrow>Execution observatory</SectionEyebrow><h1 className="mt-1 text-sm font-semibold text-foreground">System map</h1></div><span className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground"><CircleDot className={cn("size-3", running || demoRunning ? "animate-pulse text-primary" : "text-muted-foreground")} />{running || demoRunning ? "Run overlay" : trace.length ? "Trace ready" : "Ready"}</span></div>
+            <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3"><div><SectionEyebrow>Execution observatory</SectionEyebrow><h1 className="mt-1 text-sm font-semibold text-foreground">System map</h1></div><span className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground"><CircleDot className={cn("size-3", running ? "animate-pulse text-primary" : "text-muted-foreground")} />{running ? "Run overlay" : trace.length ? "Trace ready" : effectiveConfigLoading ? "Loading config" : effectiveConfigError ? "Config unavailable" : "Ready"}</span></div>
             <div className="relative min-h-[560px] min-w-0 flex-1 overflow-auto bg-[radial-gradient(circle_at_50%_45%,color-mix(in_srgb,var(--brand)_7%,transparent),transparent_58%)] xl:min-h-0">
-              <StudioSystemCanvas nodes={studioGraphNodes} selectedNodeId={selectedNodeId} onSelect={setSelectedNodeId} running={running || demoRunning} traceCount={trace.length} storageKey={`kasitek:studio-layout:${agent.id}:${selectedVersionId ?? "default"}`} />
+              <StudioSystemCanvas nodes={studioGraphNodes} edges={studioGraphEdges} selectedNodeId={selectedNodeId} onSelect={setSelectedNodeId} running={running} traceCount={trace.length} storageKey={`kasitek:studio-layout:${agent.id}:${selectedVersionId ?? "default"}`} />
               {selectedGraphNode ? <div className="absolute bottom-4 left-4 right-4 z-10 max-h-72 overflow-auto rounded-xl border border-border bg-card/95 shadow-xl backdrop-blur"><button type="button" aria-label="Close node details" onClick={() => setSelectedNodeId(null)} className="absolute right-3 top-3 z-10 rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"><X className="size-4" /></button><StudioGraphInspector node={selectedGraphNode} onConfigure={() => setConfigurationOpen(true)} /></div> : null}
             </div>
+            <StudioExecutionTimeline trace={trace} nodes={studioGraphNodes} onSelectNode={setSelectedNodeId} />
           </section>
         </div>
       </div>
@@ -1091,6 +1036,21 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
   );
 }
 
+function StudioExecutionTimeline({ trace, nodes, onSelectNode }: { trace: TraceNode[]; nodes: StudioGraphNode[]; onSelectNode: (id: string) => void }) {
+  return <div className="max-h-44 shrink-0 border-t border-border bg-card/90 px-4 py-3">
+    <div className="flex items-center justify-between gap-3"><SectionEyebrow>Journal timeline</SectionEyebrow><span className="text-[10px] text-muted-foreground">{trace.length ? `${trace.length} events` : "No run selected"}</span></div>
+    {trace.length ? <div className="mt-2 flex max-h-24 gap-2 overflow-x-auto pb-1">
+      {trace.map((item) => {
+        const target = nodes.find((node) => node.evidence?.id === item.id) ?? nodes.find((node) => node.event === item.event);
+        return <button key={item.id} type="button" onClick={() => { if (target) onSelectNode(target.id); }} disabled={!target} className="group min-w-40 max-w-56 shrink-0 rounded-lg border border-border/80 bg-background/60 px-2.5 py-2 text-left transition-colors hover:border-primary/50 disabled:cursor-default disabled:opacity-70">
+          <span className="flex items-center gap-2"><span className={cn("size-1.5 shrink-0 rounded-full", item.status === "error" ? "bg-destructive" : item.status === "running" ? "animate-pulse bg-primary" : "bg-emerald-500")} /><span className="truncate text-[10px] font-medium text-foreground">{item.label}</span><span className="ml-auto text-[9px] text-muted-foreground">#{item.sequence}</span></span>
+          <span className="mt-1 block truncate text-[10px] text-muted-foreground">{item.detail}</span>
+        </button>;
+      })}
+    </div> : <p className="mt-2 text-[11px] text-muted-foreground">Run the agent to populate the durable execution journal.</p>}
+  </div>;
+}
+
 function StudioGraphInspector({ node, onConfigure }: { node: StudioGraphNode; onConfigure: () => void }) {
-  return <div><div className="border-b border-border px-4 py-3"><SectionEyebrow>Selected node</SectionEyebrow><div className="mt-1 flex items-center gap-2"><span className="flex size-6 items-center justify-center rounded-md bg-primary/10 text-primary"><CircleDot className="size-3.5" /></span><h2 className="text-sm font-semibold text-foreground">{node.label}</h2><span className="ml-auto text-[10px] font-medium text-muted-foreground">{node.status}</span></div></div><div className="grid gap-4 p-4 text-[11px] sm:grid-cols-[1.2fr_1fr_1fr]"><div><SectionEyebrow>Role</SectionEyebrow><p className="mt-1 text-xs leading-5 text-muted-foreground">{node.detail}</p><p className="mt-2 font-mono text-[10px] text-muted-foreground">{node.event}</p></div><div><SectionEyebrow>Scope</SectionEyebrow><p className="mt-1 text-foreground">{node.scope ?? "—"}</p><SectionEyebrow>Provider</SectionEyebrow><p className="mt-1 text-foreground">{node.provider ?? "KasiTek runtime"}</p></div><div><SectionEyebrow>Configuration</SectionEyebrow><dl className="mt-1 space-y-1 text-muted-foreground">{Object.entries(node.data).slice(0, 3).map(([key, value]) => <div key={key} className="flex justify-between gap-3"><dt>{key}</dt><dd className="max-w-[11rem] truncate text-right text-foreground">{value}</dd></div>)}</dl>{node.configurable ? <Button type="button" variant="outline" size="sm" className="mt-3 h-7 px-2.5 text-[11px]" onClick={onConfigure}><SlidersHorizontal className="mr-1.5 size-3" />Configure</Button> : null}</div></div></div>;
+  return <div><div className="border-b border-border px-4 py-3"><SectionEyebrow>Selected node</SectionEyebrow><div className="mt-1 flex items-center gap-2"><span className="flex size-6 items-center justify-center rounded-md bg-primary/10 text-primary"><CircleDot className="size-3.5" /></span><h2 className="text-sm font-semibold text-foreground">{node.label}</h2><span className="ml-auto text-[10px] font-medium text-muted-foreground">{node.status}</span></div></div><div className="grid gap-4 p-4 text-[11px] sm:grid-cols-[1.2fr_1fr_1fr]"><div><SectionEyebrow>Role</SectionEyebrow><p className="mt-1 text-xs leading-5 text-muted-foreground">{node.detail}</p><p className="mt-2 font-mono text-[10px] text-muted-foreground">{node.event}</p>{node.evidence ? <div className="mt-3 rounded-lg border border-border/80 bg-background/50 p-2"><SectionEyebrow>Latest evidence</SectionEyebrow><p className="mt-1 text-[10px] text-foreground">{node.evidence.detail}</p><p className="mt-1 font-mono text-[9px] text-muted-foreground">{node.evidence.event} · #{node.evidence.sequence}</p></div> : null}</div><div><SectionEyebrow>Scope</SectionEyebrow><p className="mt-1 text-foreground">{node.scope ?? "—"}</p><SectionEyebrow>Provider</SectionEyebrow><p className="mt-1 text-foreground">{node.provider ?? "KasiTek runtime"}</p></div><div><SectionEyebrow>Configuration</SectionEyebrow><dl className="mt-1 space-y-1 text-muted-foreground">{Object.entries(node.data).slice(0, 3).map(([key, value]) => <div key={key} className="flex justify-between gap-3"><dt>{key}</dt><dd className="max-w-[11rem] truncate text-right text-foreground">{value}</dd></div>)}</dl>{node.configurable ? <Button type="button" variant="outline" size="sm" className="mt-3 h-7 px-2.5 text-[11px]" onClick={onConfigure}><SlidersHorizontal className="mr-1.5 size-3" />Configure</Button> : null}</div></div></div>;
 }

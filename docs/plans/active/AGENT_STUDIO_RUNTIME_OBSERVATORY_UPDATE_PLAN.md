@@ -226,9 +226,9 @@ surface before the runtime projection is wired in:
       details; open the existing settings surface for configurable nodes.
 - [x] Use temporary representative configuration data until the effective candidate projection is
       available. This data is clearly marked as configured/demo state and is not a runtime claim.
-- [ ] Replace the representative graph with the effective candidate and extension snapshot.
-- [ ] Attach timeline items, memory lineage, and operation evidence from durable journal records.
-- [ ] Add readiness states and authorized recovery actions from backend contracts.
+- [x] Replace the representative graph with the effective candidate and extension snapshot.
+- [x] Attach timeline items and operation evidence from durable journal records; memory lineage remains a backend projection follow-up.
+- [x] Add readiness states and the existing authorized configuration recovery action from backend contracts.
 
 This slice is a preview surface, not a second execution engine. It does not create runs, infer
 events from chat text, or persist configuration from node selection.
@@ -242,11 +242,11 @@ Risk: standard
 Affected services and user surfaces: client Studio/Playground observatory only
 Platform release version or release ID: not applicable (preview UI slice)
 API/schema/migration changes: not applicable
-Feature flag or rollout method: existing Studio route; temporary representative data is preview-only
+Feature flag or rollout method: existing Studio route; graph projection is read-only and uses existing effective-config, readiness, connection, and run-journal APIs
 Analytics events and success metrics: not applicable; no new user outcome is persisted
 Logs, metrics, dashboards, and alerts: not applicable; no backend lifecycle is added
 User, API, internal, and operational documentation: this plan updated
-Validation evidence: client ESLint, TypeScript check, and production Next.js build
+Validation evidence: client ESLint, TypeScript check, and production Next.js build pass; Studio projection uses effective candidate data and durable journal evidence
 Rollback or disable plan: revert the Studio UI commit; existing run/configuration APIs are unchanged
 Post-release review date: when effective candidate projection work begins
 ```

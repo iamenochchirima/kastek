@@ -1788,6 +1788,72 @@ export type AgentVersion = {
   retired_at?: string | null;
 };
 
+export type AgentEffectiveConfigProjection = {
+  version: {
+    id: string;
+    agentDefinitionId: string;
+    versionNumber: number;
+    status: string;
+    checksum: string;
+    extensionSnapshotId: string | null;
+    createdAt: string;
+    publishedAt: string | null;
+  };
+  source: "typed" | "legacy" | string;
+  behavior: { instructionCharacters: number };
+  model: {
+    provider?: string;
+    model?: string;
+    policyVersion?: string;
+    fallback: Array<{ provider: string; model: string }>;
+    maxTokensPerRun?: number;
+    maxEstimatedCostUsd?: number;
+    allowUserFundedFallbackToKasiTek: boolean;
+    error?: string;
+  };
+  tools: string[];
+  connectors: string[];
+  knowledge: { sourceIds: string[]; requiredConnections: string[] };
+  memory: Record<string, unknown>;
+  limits: Record<string, unknown>;
+  workflow: { configured: boolean; valid: boolean; nodeCount?: number; error?: string };
+  channels: string[];
+  skills: Array<{
+    id: string;
+    skillDefinitionId: string;
+    name: string;
+    slug: string;
+    versionNumber: number;
+    status: string;
+    checksum: string;
+    requiredCapabilities: string[];
+    requiredConnectors: string[];
+    knowledgeSourceIds: string[];
+  }>;
+  remoteMcpProviders: Array<{
+    id: string;
+    providerName: string;
+    revision: number;
+    status: string;
+    protocolVersion: string;
+    checksum: string;
+    toolCount: number;
+    healthStatus: string;
+  }>;
+  installation?: {
+    id: string;
+    scopeType: string;
+    scopeId: string;
+    executionMode: string;
+    releaseMode: string;
+  };
+};
+
+export function getAgentVersionEffectiveConfig(agentVersionId: string, installationId?: string): Promise<{ effective: AgentEffectiveConfigProjection }> {
+  const query = installationId ? `?installationId=${encodeURIComponent(installationId)}` : "";
+  return request(`/api/agents/agent-versions/${encodeURIComponent(agentVersionId)}/effective-config${query}`);
+}
+
 export function listAgentVersions(agentId: string): Promise<{ versions: AgentVersion[] }> {
   return request(`/api/agents/${encodeURIComponent(agentId)}/versions`);
 }
