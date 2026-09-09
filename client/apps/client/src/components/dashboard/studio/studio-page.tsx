@@ -28,6 +28,7 @@ import {
   getAgentRunTimeline,
   getAgentVersionEffectiveConfig,
   getAgentInstallationReadiness,
+  AgentRequestError,
   listAgentInstallationCapabilities,
   listAgentConnectionDirectory,
   listAgentInstallationRuns,
@@ -87,6 +88,8 @@ type TraceNode = {
   sequence: number;
   data: Record<string, unknown>;
 };
+
+type StudioStreamState = "idle" | "connected" | "replaying" | "delayed" | "unavailable";
 
 const terminalStatuses = new Set(["completed", "failed", "cancelled", "expired"]);
 
@@ -198,6 +201,47 @@ function normalizeTraceNodes(nodes: TraceNode[]) {
       return true;
     })
     .sort((left, right) => left.sequence - right.sequence);
+}
+
+async function streamStudioRun(
+  runId: string,
+  onEvent: (event: AgentStreamEvent) => void,
+  signal: AbortSignal,
+  onState: (state: Exclude<StudioStreamState, "idle">) => void,
+): Promise<void> {
+  let cursor = 0;
+  let retryCount = 0;
+  while (!signal.aborted) {
+    try {
+      onState(cursor > 0 ? "replaying" : "connected");
+      const result = await streamAgentRun(runId, (event) => {
+        const sequence = Number(event.data.sequence_number);
+        if (Number.isSafeInteger(sequence) && sequence > cursor) cursor = sequence;
+        onEvent(event);
+      }, signal, cursor);
+      cursor = Math.max(cursor, result.lastSequence);
+      if (result.terminal || signal.aborted) return;
+      retryCount += 1;
+      onState("delayed");
+    } catch (cause) {
+      if (signal.aborted || (cause instanceof DOMException && cause.name === "AbortError")) return;
+      if (cause instanceof AgentRequestError && cause.status >= 400 && cause.status < 500) throw cause;
+      retryCount += 1;
+      onState("delayed");
+    }
+    const delayMs = Math.min(5_000, 250 * 2 ** Math.min(retryCount, 5));
+    await new Promise<void>((resolve, reject) => {
+      const abort = () => {
+        window.clearTimeout(timer);
+        reject(new DOMException("Aborted", "AbortError"));
+      };
+      const timer = window.setTimeout(() => {
+        signal.removeEventListener("abort", abort);
+        resolve();
+      }, delayMs);
+      signal.addEventListener("abort", abort, { once: true });
+    });
+  }
 }
 
 function nodesFromJournalEvents(events: AgentJournalEvent[], snapshotRevision?: number) {
@@ -424,6 +468,7 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
   const [telemetry, setTelemetry] = useState<AgentRuntimeTelemetry | null>(null);
   const [telemetryDetailsOpen, setTelemetryDetailsOpen] = useState(false);
   const [cancelling, setCancelling] = useState(false);
+  const [runStreamState, setRunStreamState] = useState<StudioStreamState>("idle");
   const [notice, setNotice] = useState<string | null>(null);
   const showError = (message: string, remediation?: string) => {
     toast.error(message, remediation ? { description: remediation } : undefined);
@@ -634,10 +679,8 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
       else if (timeline.events.length) setTrace(nodesFromRunEvents(timeline.events));
     };
     void refreshRuntimeEvidence();
-    const timer = activeRunId ? window.setInterval(() => { void refreshRuntimeEvidence(); }, 1_000) : undefined;
     return () => {
       cancelled = true;
-      if (timer) window.clearInterval(timer);
     };
   }, [activeRunId, agent.installation_id, selectedRunId]);
 
@@ -649,6 +692,7 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
     setTrace([]);
     setSelectedNodeId(null);
     setTelemetry(null);
+    setRunStreamState("idle");
     setTimelineProjection(null);
     setOperationEvidence([]);
     setTelemetryDetailsOpen(false);
@@ -663,6 +707,7 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
     setLastRunId(runId || null);
     setTrace([]);
     setTelemetry(null);
+    setRunStreamState("idle");
     setTimelineProjection(null);
     setOperationEvidence([]);
     setSelectedNodeId(null);
@@ -740,7 +785,7 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
       setSelectedRunId(accepted.runId);
       setLastRunId(accepted.runId);
       addTraceEvent({ event: "run.received", data: { sequence_number: 1, run_id: accepted.runId } });
-      await streamAgentRun(accepted.runId, addTraceEvent, controller.signal);
+      await streamStudioRun(accepted.runId, addTraceEvent, controller.signal, setRunStreamState);
       const result = await getAgentRun(accepted.runId);
       const timeline = await getAgentRunTimeline(accepted.runId).catch(() => null);
       setTelemetry(timeline?.telemetry ?? null);
@@ -766,6 +811,7 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
     } finally {
       setRunning(false);
       setCancelling(false);
+      setRunStreamState("idle");
       setActiveRunId(null);
     }
   };
@@ -791,7 +837,7 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
       setSelectedRunId(accepted.runId);
       setLastRunId(accepted.runId);
       setTrace((current) => [...current, { id: `ui-${accepted.runId}`, event: "run.received", label: "Input", detail: "Interactive result action", status: "running", sequence: current.length, data: { run_id: accepted.runId, action_id: interaction.actionId } }]);
-      await streamAgentRun(accepted.runId, addTraceEvent, controller.signal);
+      await streamStudioRun(accepted.runId, addTraceEvent, controller.signal, setRunStreamState);
       const result = await getAgentRun(accepted.runId);
       const timeline = await getAgentRunTimeline(accepted.runId).catch(() => null);
       setTelemetry(timeline?.telemetry ?? null);
@@ -811,6 +857,7 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
     } finally {
       setRunning(false);
       setCancelling(false);
+      setRunStreamState("idle");
       setActiveRunId(null);
     }
   };
@@ -1006,7 +1053,7 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
               <StudioSystemCanvas nodes={studioGraphNodes} edges={studioGraphEdges} selectedNodeId={selectedNodeId} onSelect={setSelectedNodeId} running={running} traceCount={trace.length} storageKey={`kasitek:studio-layout:${agent.id}:${selectedVersionId ?? "default"}`} />
               {selectedGraphNode ? <div className="absolute bottom-4 left-4 right-4 z-10 max-h-72 overflow-auto rounded-xl border border-border bg-card/95 shadow-xl backdrop-blur"><button type="button" aria-label="Close node details" onClick={() => setSelectedNodeId(null)} className="absolute right-3 top-3 z-10 rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"><X className="size-4" /></button><StudioGraphInspector node={selectedGraphNode} telemetry={telemetry} onConfigure={() => setConfigurationOpen(true)} /></div> : null}
             </div>
-            <StudioExecutionTimeline trace={trace} nodes={studioGraphNodes} projection={timelineProjection} run={runHistory.find((run) => run.id === (activeRunId ?? selectedRunId)) ?? null} onSelectNode={setSelectedNodeId} />
+            <StudioExecutionTimeline trace={trace} nodes={studioGraphNodes} projection={timelineProjection} run={runHistory.find((run) => run.id === (activeRunId ?? selectedRunId)) ?? null} streamState={runStreamState} onSelectNode={setSelectedNodeId} />
           </section>
         </div>
       </div>
@@ -1015,11 +1062,19 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
   );
 }
 
-function StudioExecutionTimeline({ trace, nodes, projection, run, onSelectNode }: { trace: TraceNode[]; nodes: StudioGraphNode[]; projection: AgentRunTimeline["projection"] | null; run: AgentInstallationRun | null; onSelectNode: (id: string) => void }) {
+function streamStateLabel(state: StudioStreamState) {
+  if (state === "connected") return "Live";
+  if (state === "replaying") return "Replaying";
+  if (state === "delayed") return "Delayed";
+  if (state === "unavailable") return "Unavailable";
+  return "Idle";
+}
+
+function StudioExecutionTimeline({ trace, nodes, projection, run, streamState, onSelectNode }: { trace: TraceNode[]; nodes: StudioGraphNode[]; projection: AgentRunTimeline["projection"] | null; run: AgentInstallationRun | null; streamState: StudioStreamState; onSelectNode: (id: string) => void }) {
   const hasSequenceGap = trace.some((item, index) => index > 0 && item.sequence > trace[index - 1]!.sequence + 1);
   const failure = run?.error?.userMessage ?? run?.error?.message;
   return <div className="max-h-44 shrink-0 border-t border-border bg-card/90 px-4 py-3">
-    <div className="flex flex-wrap items-center justify-between gap-2"><SectionEyebrow>Journal timeline</SectionEyebrow><div className="flex flex-wrap items-center justify-end gap-2 text-[10px] text-muted-foreground">{run ? <span className="rounded-md border border-border/70 px-2 py-1">{run.status} · {run.trigger_type ?? "manual"}</span> : null}{projection ? <span className={cn("rounded-md border px-2 py-1", projection.freshness === "live" ? "border-primary/30 text-primary" : "border-border/70")}>{projection.freshness} · cursor {projection.cursor}</span> : null}{hasSequenceGap ? <span className="rounded-md border border-amber-500/30 bg-amber-500/5 px-2 py-1 text-amber-700 dark:text-amber-300">sequence gap</span> : null}</div></div>
+    <div className="flex flex-wrap items-center justify-between gap-2"><SectionEyebrow>Journal timeline</SectionEyebrow><div className="flex flex-wrap items-center justify-end gap-2 text-[10px] text-muted-foreground">{run ? <span className="rounded-md border border-border/70 px-2 py-1">{run.status} · {run.trigger_type ?? "manual"}</span> : null}{streamState !== "idle" ? <span className={cn("rounded-md border px-2 py-1", streamState === "connected" ? "border-primary/30 text-primary" : streamState === "delayed" ? "border-amber-500/30 text-amber-700 dark:text-amber-300" : "border-border/70")}>{streamStateLabel(streamState)}</span> : null}{projection ? <span className={cn("rounded-md border px-2 py-1", projection.freshness === "live" ? "border-primary/30 text-primary" : "border-border/70")}>{projection.freshness} · cursor {projection.cursor}</span> : null}{hasSequenceGap ? <span className="rounded-md border border-amber-500/30 bg-amber-500/5 px-2 py-1 text-amber-700 dark:text-amber-300">sequence gap</span> : null}</div></div>
     {failure ? <p className="mt-2 truncate text-[10px] text-destructive">{failure}</p> : null}
     {trace.length ? <div className="mt-2 flex max-h-24 gap-2 overflow-x-auto pb-1">
       {trace.map((item) => {
