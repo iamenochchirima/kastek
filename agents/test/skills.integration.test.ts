@@ -15,6 +15,7 @@ describe.skipIf(!runIntegration)("procedural skills persistence (integration)", 
   const agentVersionId = randomUUID();
   let skillId: string;
   let skillVersionId: string;
+  let secondSkillVersionId: string;
 
   it("creates, publishes, pins, and loads one immutable skill version", async () => {
     const skill = await repository.createSkill(organizationId, actorId, {
@@ -39,6 +40,19 @@ describe.skipIf(!runIntegration)("procedural skills persistence (integration)", 
     expect(loaded).toHaveLength(1);
     expect(loaded[0]).toMatchObject({ id: version.id, skill_name: "Booking flow", status: "published" });
     expect(loaded[0]!.matching.phrases).toEqual(["make a booking"]);
+
+    const secondVersion = await repository.createVersion(organizationId, actorId, skill.id, {
+      instructions: "Use the approved booking flow and confirm the time zone.",
+      matching: { phrases: ["make a booking"] },
+      requiredCapabilities: ["calendar.create"],
+    });
+    secondSkillVersionId = secondVersion.id;
+    expect(secondVersion).toMatchObject({ version_number: version.version_number + 1, status: "draft", published_at: null });
+    await repository.publishVersion(organizationId, actorId, skill.id, secondVersion.id);
+    await repository.pinVersion(organizationId, actorId, agentVersionId, secondVersion.id);
+    const publishedVersions = await repository.loadPinnedVersions(organizationId, agentVersionId);
+    expect(publishedVersions.map((entry) => entry.version_number)).toEqual([2, 1]);
+    expect(publishedVersions.every((entry) => entry.status === "published" && entry.published_at)).toBe(true);
   });
 
   it("does not expose an organization skill to another organization", async () => {
@@ -50,6 +64,7 @@ describe.skipIf(!runIntegration)("procedural skills persistence (integration)", 
     await pool.query("DELETE FROM agent_versions WHERE id = $1", [agentVersionId]);
     await pool.query("DELETE FROM agent_definitions WHERE id = $1", [agentId]);
     if (skillVersionId) await pool.query("DELETE FROM agent_skill_versions WHERE id = $1", [skillVersionId]);
+    if (secondSkillVersionId) await pool.query("DELETE FROM agent_skill_versions WHERE id = $1", [secondSkillVersionId]);
     if (skillId) await pool.query("DELETE FROM agent_skill_definitions WHERE id = $1", [skillId]);
     await pool.end();
   });
