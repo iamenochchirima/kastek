@@ -177,7 +177,7 @@ function executionKind(item: StudioTraceItem): StudioGraphNode["kind"] {
 }
 
 function safeExecutionData(item: StudioTraceItem): Record<string, string> {
-  const allowed = new Set(["status", "reason", "code", "provider", "model", "name", "iteration", "attemptId", "operationId", "turnId", "retryCount", "latencyMs", "sequence_number"]);
+  const allowed = new Set(["status", "reason", "code", "provider", "model", "name", "iteration", "attemptId", "operationId", "turnId", "runId", "retryCount", "latencyMs", "sequence_number", "run_id", "turn_id", "operation_id", "attempt_id", "event_id", "journal_sequence", "occurred_at"]);
   const data: Record<string, string> = { event: item.event, sequence: String(item.sequence) };
   for (const [key, value] of Object.entries(item.data)) {
     if (!allowed.has(key) || value === null || value === undefined) continue;
