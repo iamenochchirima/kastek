@@ -90,6 +90,12 @@ describe("effective capability discovery", () => {
       grantedTools: ["b", "a"],
     });
     expect(first.digest).toBe(second.digest);
+    const retry = createEffectiveCapabilitySnapshot({
+      scope: { ...scope, runId: "run-2" },
+      tools: [tool("a"), tool("b")],
+      grantedTools: ["a", "b"],
+    });
+    expect(first.digest).toBe(retry.digest);
   });
 
   it("reports grants for tools missing from the runtime registry without exposing a callable schema", () => {

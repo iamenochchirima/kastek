@@ -391,9 +391,17 @@ export function createEffectiveCapabilitySnapshot(input: EffectiveCapabilitySnap
     ...bindingConnections.filter((connection) => connection.status !== "connected").map((connection) => ({ id: connection.id, kind: "connection" as const, reason: connection.status === "not_configured" ? "not_configured" as const : connection.status === "unhealthy" ? "unhealthy" as const : "unsupported" as const })),
   ].sort((left, right) => `${left.kind}:${left.id}`.localeCompare(`${right.kind}:${right.id}`));
   const summary = renderCapabilitySummary({ callableTools, unavailableTools: executionTools.filter((tool) => tool.readiness === "unavailable"), skills: skillIndex, connections: bindingConnections });
+  const digestScope = {
+    organizationId: input.scope.organizationId,
+    installationId: input.scope.installationId,
+    agentDefinitionId: input.scope.agentDefinitionId,
+    agentVersionId: input.scope.agentVersionId,
+  };
   const portable = {
     snapshotVersion: CAPABILITY_SNAPSHOT_VERSION,
-    scope: input.scope,
+    // A run id is execution evidence, not candidate capability state. Keeping
+    // it out of the digest makes retries and Playground/Live comparisons stable.
+    scope: digestScope,
     tools: executionTools.map(({ inputSchema: _inputSchema, outputSchema: _outputSchema, ...tool }) => tool),
     skills: skillIndex,
     connections: bindingConnections,
