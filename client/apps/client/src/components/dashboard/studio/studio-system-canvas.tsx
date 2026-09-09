@@ -8,8 +8,6 @@ import {
 } from "react";
 import type { CSSProperties } from "react";
 import {
-  Background,
-  BackgroundVariant,
   applyNodeChanges,
   Controls,
   Handle,
@@ -392,7 +390,6 @@ export function StudioSystemCanvas({ nodes, selectedNodeId, onSelect, running, t
     <ReactFlow nodes={canvasNodes} edges={[]} nodeTypes={observatoryNodeTypes} onNodesChange={handleNodesChange} onNodeClick={(_, node) => onSelect(node.id)} fitView fitViewOptions={{ padding: 0.08, minZoom: 0.62, maxZoom: 0.92 }} minZoom={0.45} maxZoom={1.6} nodesDraggable nodesConnectable={false} elementsSelectable panOnScroll zoomOnScroll zoomOnPinch selectionOnDrag={false}>
       <ObservatorySectionFrames />
       <ObservatoryLinks nodes={nodes} positions={positions} />
-      <Background variant={BackgroundVariant.Dots} gap={22} size={1} color="rgba(148,163,184,.18)" />
       <Controls
         showInteractive={false}
         position="bottom-left"
