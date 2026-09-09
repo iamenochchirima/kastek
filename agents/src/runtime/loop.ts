@@ -26,6 +26,7 @@ import type {
   ContextAttemptBudgetPort,
   ContextAttemptBudgetReceipt,
 } from "./context-attempt-budget";
+import type { EffectiveCapabilitySnapshot } from "./effective-capabilities";
 import {
   memoryEvidencePrompt,
   sourceEventBoundaryFromMessages,
@@ -66,8 +67,8 @@ export interface AgentLoopInput {
   toolLifecycle?: ToolInvocationLifecycle;
   /** Model-facing capability projection selected by ContextPolicy for this turn. */
   modelTools?: Array<Omit<ToolDefinition, "handler">>;
-  /** Effective context window used for every model request, including later tool rounds. */
-  modelContextTokens?: number;
+  /** Immutable per-run capability projection used to derive modelTools. */
+  capabilitySnapshot?: EffectiveCapabilitySnapshot;
   /** Provider-aware model-boundary contract. When present, this replaces rough prompt-only admission. */
   contextProfile?: ProviderContextProfile;
   /** Resolves provider/model capacity again for each fallback attempt. */
@@ -217,6 +218,18 @@ export interface AgentLoopResult {
   response?: ModelResponse;
   completionMessage?: string;
   completionResponse?: AgentResponse;
+  /**
+   * Result for a direct durable capability invocation (MCP/REST).
+   *
+   * These runs do not execute a model turn and therefore must not be forced
+   * through the assistant-response delivery path. The output is already
+   * redacted by the capability activity before it crosses the durable
+   * workflow boundary.
+   */
+  directToolResult?: {
+    name: string;
+    output: unknown;
+  };
   /** Set when an approved batch was admitted but Core still reports PROCESSING. */
   pendingBatch?: {
     toolName: "kasitek.core.content_post_publish_batch" | "kasitek.core.content_post_publish_batch_retry";
@@ -531,15 +544,7 @@ export async function runBoundedAgentLoop(input: AgentLoopInput): Promise<AgentL
               // durable resolver still records the corrected capacity.
               contextWindowTokens: isPrimaryModel ? input.contextProfile.contextWindowTokens : 0,
             }
-            : input.requireContextCapability
-              ? undefined
-              : {
-                provider: attempt.model.provider,
-                model: attempt.model.model,
-                contextWindowTokens: input.modelContextTokens ?? 8_000,
-                ...(attempt.model.maxTokens === undefined ? {} : { maxOutputTokens: attempt.model.maxTokens }),
-                capabilitySource: "unknown",
-              };
+            : undefined;
           attemptContextProfile = profileForAttempt
             ? input.contextCapabilityResolver
               ? await input.contextCapabilityResolver({ provider: attempt.model.provider, model: attempt.model.model, profile: profileForAttempt, credentialRouteId: attempt.credentials.credentialReference, credentials: attempt.credentials })
@@ -549,16 +554,8 @@ export async function runBoundedAgentLoop(input: AgentLoopInput): Promise<AgentL
                 model: attempt.model.model,
               })
             : undefined;
-          if (!attemptContextProfile || !Number.isSafeInteger(attemptContextProfile.contextWindowTokens) || attemptContextProfile.contextWindowTokens <= 0) {
-            if (!input.requireContextCapability) {
-              attemptContextProfile = {
-                provider: attempt.model.provider,
-                model: attempt.model.model,
-                contextWindowTokens: input.modelContextTokens ?? 8_000,
-                ...(attempt.model.maxTokens === undefined ? {} : { maxOutputTokens: attempt.model.maxTokens }),
-                capabilitySource: "unknown",
-              };
-            }
+          if (attemptContextProfile && (!Number.isSafeInteger(attemptContextProfile.contextWindowTokens) || attemptContextProfile.contextWindowTokens <= 0)) {
+            attemptContextProfile = undefined;
           }
           if (!attemptContextProfile && input.requireContextCapability) {
             await emit(input, {

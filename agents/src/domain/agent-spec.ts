@@ -27,6 +27,20 @@ const extensionPermissionSchema = z.string().trim().regex(
 );
 const extensionConfigurationKeySchema = z.string().trim().min(1).max(160);
 
+export const agentBehaviorSettingsSchema = z.object({
+  /** Legacy/base instructions remain versioned for compatibility. */
+  instructions: z.string().trim().min(1).max(200_000),
+  tone: z.enum(["concise", "balanced", "detailed", "formal", "warm", "direct"]).default("balanced"),
+  responseLength: z.enum(["short", "balanced", "detailed"]).default("balanced"),
+  initiative: z.enum(["cautious", "balanced", "proactive"]).default("balanced"),
+  language: z.string().trim().min(2).max(80).default("auto"),
+  formatting: z.enum(["plain", "markdown", "structured"]).default("markdown"),
+  rules: z.array(z.string().trim().min(1).max(500)).max(20).default([]),
+  advancedInstructions: z.string().trim().max(20_000).optional(),
+}).strict();
+
+export type AgentBehaviorSettings = z.infer<typeof agentBehaviorSettingsSchema>;
+
 export const agentExtensionPackageReferenceSchema = z.object({
   kind: extensionPackageKindSchema,
   id: extensionPackageIdSchema,
@@ -98,14 +112,20 @@ export type AgentExtensionPackageGrant = z.infer<typeof agentExtensionPackageGra
  */
 export const agentSpecSchema = z.object({
   specVersion: z.literal(1),
+  execution: z.object({
+    // Studio currently creates autonomous agents only. Keep this explicit in
+    // the persisted contract so guided and workflow modes can be introduced
+    // as deliberate runtime capabilities later, rather than inferred from a
+    // UI route or a missing graph.
+    mode: z.literal("autonomous").default("autonomous"),
+    role: z.enum(["standalone", "orchestrator"]).default("standalone"),
+  }).strict().default({ mode: "autonomous", role: "standalone" }),
   identity: z.object({
     displayName: z.string().trim().min(1).max(160).optional(),
     purpose: z.string().trim().max(2_000).optional(),
     audience: z.enum(["personal", "customer_service"]).optional(),
   }).strict().default({}),
-  behavior: z.object({
-    instructions: z.string().trim().min(1).max(200_000),
-  }).strict(),
+  behavior: agentBehaviorSettingsSchema,
   model: modelPolicySchema.strict(),
   runtime: z.object({
     maxContextMessages: z.number().int().positive().max(500).optional(),
@@ -146,6 +166,11 @@ export const agentSpecSchema = z.object({
     maxWritesPerRun: z.number().int().nonnegative().max(20).default(3),
     retentionDays: z.number().int().positive().max(3_650).optional(),
     allowSensitive: z.boolean().default(false),
+    providerProjection: z.object({
+      providerName: z.string().trim().min(1).max(160),
+      projectionVersion: z.string().trim().min(1).max(80).default("v1"),
+      payload: z.record(z.string(), z.unknown()).default({}),
+    }).strict().optional(),
   }).strict().default({
     mode: "explicit",
     readableNamespaces: ["conversation", "user_private", "organization_shared", "agent_private"],
@@ -172,6 +197,30 @@ export const agentSpecSchema = z.object({
 }).strict();
 
 export type AgentSpec = z.infer<typeof agentSpecSchema>;
+
+/**
+ * Render only the user-editable behavior controls into a compact runtime
+ * section. The base instructions, platform contract, capability discovery,
+ * and tool schemas remain separate prompt layers.
+ */
+export function renderAgentBehaviorSettings(behavior: AgentBehaviorSettings): string {
+  const rules = behavior.rules.length > 0
+    ? `\nStable behavior rules:\n${behavior.rules.map((rule) => `- ${rule}`).join("\n")}`
+    : "";
+  const advanced = behavior.advancedInstructions?.trim()
+    ? `\nAdvanced behavior overlay:\n${behavior.advancedInstructions.trim()}`
+    : "";
+  return [
+    "User-configured behavior preferences:",
+    `Tone: ${behavior.tone}.`,
+    `Response length: ${behavior.responseLength}.`,
+    `Initiative: ${behavior.initiative}.`,
+    `Language: ${behavior.language}.`,
+    `Formatting: ${behavior.formatting}.`,
+    rules,
+    advanced,
+  ].filter(Boolean).join("\n");
+}
 
 export interface CompiledAgentSpec {
   instructions: string;

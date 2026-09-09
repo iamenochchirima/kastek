@@ -2,6 +2,15 @@ import { describe, expect, it } from "vitest";
 import { createDefaultTools } from "../src/temporal/activities";
 
 describe("capability discovery", () => {
+  it("selects revision-backed memory tools when both memory adapters are supplied", () => {
+    const registry = createDefaultTools(undefined, undefined, undefined, undefined, {} as never);
+
+    expect(registry.get("kasitek.agent.memory_search")).toMatchObject({ version: "2.0.0" });
+    expect(registry.get("kasitek.agent.memory_remember")).toMatchObject({ version: "2.0.0" });
+    expect(registry.get("kasitek.agent.memory_correct")).toMatchObject({ version: "2.0.0" });
+    expect(registry.get("kasitek.agent.memory_forget")).toMatchObject({ version: "2.0.0" });
+  });
+
   it("contains manifest metadata for the default platform tools", () => {
     const manifests = createDefaultTools().manifests();
     expect(manifests.map((manifest) => manifest.name)).toEqual([
@@ -78,5 +87,6 @@ describe("capability discovery", () => {
       runtime: { execution: "native", riskClass: "read", requiredScopes: ["platform.time.read"] },
     });
     expect(registry.surfaces()[0]?.catalog).toMatchObject({ kind: "builtin_tool", source: { kind: "builtin" } });
+    expect(registry.catalog.resolveToolsets(["builtin.platform"])).toContain("platform.current_time");
   });
 });

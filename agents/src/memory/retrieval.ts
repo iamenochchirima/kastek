@@ -5,7 +5,7 @@ import { memoryPolicyFromAgentPolicy, type MemoryPolicy } from "./policy";
 import { recordRetrievalDuration } from "../telemetry/spans";
 import { operationalLogger } from "../telemetry/logger";
 import { createEnvironmentEmbeddingProvider, embedSafely, type EmbeddingProvider } from "./embeddings";
-import { isKnowledgeSeekingMessage } from "../runtime/grounding";
+import { classifyAgentIntent, isKnowledgeSeekingMessage } from "../runtime/grounding";
 import { decideMemoryRetrievalWithGate, type RetrievalGateClassifier, type RetrievalGateMetadata } from "./retrieval-gate";
 
 export type RetrievalSourceType = "memory" | "knowledge";
@@ -109,6 +109,12 @@ export function decideMemoryRetrieval(
   const sourceTypes = sourceTypesFor(policy);
   const base = { query, sourceTypes, maxResults: 8, maxTokens: policy.maxRetrievedTokens };
   if (options.always) return { requested: true, reason: "always", reasonCode: "always", ...base };
+  // Capability questions are answered from the effective runtime snapshot,
+  // but remain eligible for the knowledge path so existing retrieval/index
+  // repair behavior stays observable and any configured supporting evidence
+  // can still be supplied to the model.
+  const asksForKnowledgeOrCapabilities = isKnowledgeSeekingMessage(query)
+    || classifyAgentIntent(query) === "capability_request";
   const tokens = normalizeTokens(query);
   const hasDirectReference = tokens.some((token) => directReferenceTerms.has(token));
   const hasContextualQuestion = includesPhrase(tokens, ["what", "did", "we"])
@@ -120,7 +126,7 @@ export function decideMemoryRetrieval(
     || tokens.includes("continue")
     || tokens.includes("resume");
   if (policy.mode === "disabled") {
-    return !hasDirectReference && !hasContextualQuestion && isKnowledgeSeekingMessage(query)
+    return !hasDirectReference && !hasContextualQuestion && asksForKnowledgeOrCapabilities
       ? { requested: true, reason: "knowledge_reference", reasonCode: "knowledge_reference", ...base }
       : { requested: false, reason: "policy_disabled", reasonCode: "policy_disabled", ...base };
   }
@@ -128,7 +134,7 @@ export function decideMemoryRetrieval(
   const hasPreferenceReference = (hasPersonalAnchor && tokens.some((token) => preferenceTerms.has(token)))
     || includesPhrase(tokens, ["what", "do", "you", "know", "about", "me"]);
   const hasSemanticReference = tokens.some((token) => semanticReferenceTerms.has(token));
-  const hasKnowledgeReference = tokens.some((token) => knowledgeReferenceTerms.has(token)) || isKnowledgeSeekingMessage(query);
+  const hasKnowledgeReference = tokens.some((token) => knowledgeReferenceTerms.has(token)) || asksForKnowledgeOrCapabilities;
 
   const reason: RetrievalReason | undefined = hasPreferenceReference
     ? "preference_reference"

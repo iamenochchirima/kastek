@@ -4,6 +4,8 @@ import type { ToolInvocationContext, ToolDefinition } from "../tools/types";
 import type { AgentBudgetLedger } from "./budget";
 import type { AgentLoopInput } from "./loop";
 import type { ContextPlanningPolicy, ProviderContextProfile } from "./context-planning";
+import type { MemoryRuntimeScope } from "./context-memory-boundary";
+import type { EffectiveCapabilitySnapshot } from "./effective-capabilities";
 
 /**
  * The resolved, run-pinned dependencies for one harness turn.
@@ -19,8 +21,26 @@ export interface AgentExecutionPlan {
   readonly gateway: ModelGateway;
   readonly grantedTools: ReadonlySet<string>;
   readonly modelTools?: Array<Omit<ToolDefinition, "handler">>;
-  readonly modelContextTokens?: number;
+  /** Effective snapshot shared by prompt, model schema admission, and evidence. */
+  readonly capabilitySnapshot?: EffectiveCapabilitySnapshot;
   readonly contextProfile?: ProviderContextProfile;
+  readonly contextCapabilityResolver?: AgentLoopInput["contextCapabilityResolver"];
+  readonly recordContextCapabilityCorrection?: AgentLoopInput["recordContextCapabilityCorrection"];
+  readonly requireContextCapability?: AgentLoopInput["requireContextCapability"];
+  readonly streamModel?: AgentLoopInput["streamModel"];
+  /** Durable run admission time used to separate queue delay from execution time. */
+  readonly admittedAt?: AgentLoopInput["admittedAt"];
+  readonly turnId?: AgentLoopInput["turnId"];
+  readonly memoryRetrievalPort?: AgentLoopInput["memoryRetrievalPort"];
+  readonly memoryScope?: MemoryRuntimeScope;
+  readonly memoryRetrievalQuery?: string;
+  readonly memoryRetrievalReason?: string;
+  readonly memoryMaxEvidenceTokens?: number;
+  readonly memorySourceEventIds?: readonly string[];
+  readonly memoryRetrievalPack?: AgentLoopInput["memoryRetrievalPack"];
+  readonly memoryRetrievalPackBoundaryDigest?: AgentLoopInput["memoryRetrievalPackBoundaryDigest"];
+  /** Durable compaction generation used to invalidate stale usage anchors. */
+  readonly contextCompactionGeneration?: number;
   readonly contextPlanningPolicy?: Partial<ContextPlanningPolicy>;
   readonly toolContext: ToolInvocationContext;
   readonly budgetLedger?: AgentBudgetLedger;

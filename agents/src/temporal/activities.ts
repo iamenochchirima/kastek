@@ -17,6 +17,7 @@ import { buildAgentContext } from "../runtime/context";
 import { assertSameAgentEnvironment } from "../runtime/execution-environment";
 import { runtimeExecutionScopeFromRun } from "../runtime/execution-scope";
 import { createGroundingFallbackResponse, shouldFailClosedWithoutEvidence } from "../runtime/grounding";
+import { createEffectiveCapabilitySnapshot } from "../runtime/effective-capabilities";
 import { createAgentBudgetLedger, type AgentBudgetLedger } from "../runtime/budget";
 import { hashToolArguments, ToolRegistry } from "../tools/registry";
 import { KasitekCoreReadClient } from "../core/client";
@@ -72,7 +73,6 @@ import { runWithRequiredDatabaseContext, type DatabaseContext } from "../db/cont
 import { durableAgentLoopCheckpoint, readDurableAgentLoopCheckpoint } from "../runtime/loop-checkpoint";
 import { agentLoopOperationKeyPrefix, workflowAgentLoopOperationKeyPrefix, workflowModelOperationKey } from "../runtime/operation-keys";
 import { SkillRepository } from "../db/repositories/skill-repository";
-import { matchSkills, renderSkillInstructions } from "../skills/contracts";
 import { RemoteMcpProviderRepository } from "../db/repositories/remote-mcp-provider-repository";
 import { CoreHostAdapter, HostCapabilityRouter, NativeHostAdapter } from "../hosts/capabilities";
 import { createAgentHarness, type AgentHarness } from "../runtime/harness";
@@ -2407,6 +2407,21 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
   const integrationRepository = options.config ? new IntegrationRepository(pool, options.config.AGENTS_CREDENTIAL_ENCRYPTION_KEY) : undefined;
   const remoteMcpProviders = options.remoteMcpProviders ?? new RemoteMcpProviderRepository(pool, integrationRepository ? (organizationId, credentialReference) => integrationRepository.resolveCredential(organizationId, credentialReference) : undefined);
   const integrationTools = options.integrationTools ?? (integrationRepository ? new IntegrationToolService(integrationRepository, options.config) : undefined);
+  const integrationByCapability = new Map(listIntegrations().flatMap((entry) => entry.capabilityNames.map((capabilityName) => [capabilityName, entry] as const)));
+  const integrationReadinessForRequest = async (request: Pick<import("../tools/types").ToolInvocationRequest, "name" | "context">): Promise<{ status: "ready" | "not_configured"; reason?: string }> => {
+    const integration = integrationByCapability.get(request.name);
+    if (!integration) return { status: "ready" };
+    const grants = await installationGrants.effective(request.context.organizationId, request.context.installationId);
+    if (integration.auth !== "internal" && !grants.connectors.includes(integration.id)) {
+      return { status: "not_configured", reason: "CONNECTOR_NOT_GRANTED" };
+    }
+    const available = integrationTools
+      ? await integrationTools.isAvailable(request.context.organizationId, request.context.installationId, integration.id)
+      : integration.auth === "internal";
+    return available
+      ? { status: "ready" }
+      : { status: "not_configured", reason: "INTEGRATION_NOT_CONNECTED" };
+  };
   const extensionSnapshots = new ExtensionSnapshotRepository(pool);
   type PluginExecutionGate = { adapter?: PluginAdapter; configuration: Readonly<Record<string, unknown>> };
   const pluginExecutionGates = new Map<string, Promise<ReadonlyMap<string, PluginExecutionGate>>>();
@@ -2483,6 +2498,8 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
             installationGrants,
             approved: Boolean(request.approval),
           });
+          const integrationReadiness = await integrationReadinessForRequest(request);
+          if (integrationReadiness.status !== "ready") return integrationReadiness;
           const pluginReadiness = await pluginReadinessForRequest(request);
           if (pluginReadiness.status !== "ready") return pluginReadiness;
           return { status: "ready" };
@@ -2554,7 +2571,7 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
             options.config,
           );
         }
-        return await executeLoopForRun(run, input.resumeApprovedToolCall, input.resumeExternalEvent, input.loopStep, runs, modelCalls, contextCapabilities, providerMetadata, runBudgets, conversations, knowledge, skills, remoteMcpProviders, toolInvocations, approvals, effectReceipts, runSteps, toolGrants, installationGrants, summaries, killSwitches, controls, kasiaiPreferences, gateway, credentials, tools, harness, workflowState, workflowCheckpoints, modelPricing, creditPricing, creditBillingMode, coreClient, conversationActions, options.config?.TEMPORAL_STEP_ACTIVITIES_ENABLED === true, toolInvocationLifecycle, sessionLease, new ContextCompactionRepository(pool, run.organization_id), new ContextManifestRepository(pool, run.organization_id), new ContextAttemptBudgetRepository(pool, run.organization_id, { maxAttempts: restrictiveLimit(run.configuration.maxModelCalls, run.installation_settings?.maxModelCalls) ?? 8 }), memoryCheckpointPort, memoryRetrievalPort, sessionGuard, memoryJournalSourceCapture, options.config, memoryConsolidationJobs);
+        return await executeLoopForRun(run, input.resumeApprovedToolCall, input.resumeExternalEvent, input.loopStep, runs, modelCalls, contextCapabilities, providerMetadata, runBudgets, conversations, knowledge, skills, remoteMcpProviders, toolInvocations, approvals, effectReceipts, runSteps, toolGrants, installationGrants, summaries, killSwitches, controls, kasiaiPreferences, gateway, credentials, tools, harness, workflowState, workflowCheckpoints, modelPricing, creditPricing, creditBillingMode, coreClient, conversationActions, options.config?.TEMPORAL_STEP_ACTIVITIES_ENABLED === true, toolInvocationLifecycle, integrationReadinessForRequest, pluginReadinessForRequest, sessionLease, new ContextCompactionRepository(pool, run.organization_id), new ContextManifestRepository(pool, run.organization_id), new ContextAttemptBudgetRepository(pool, run.organization_id, { maxAttempts: restrictiveLimit(run.configuration.maxModelCalls, run.installation_settings?.maxModelCalls) ?? 8 }), memoryCheckpointPort, memoryRetrievalPort, sessionGuard, memoryJournalSourceCapture, options.config, memoryConsolidationJobs, integrationRepository);
       } finally {
         sessionGuard?.stop();
       }
@@ -3383,6 +3400,8 @@ async function executeLoopForRun(
   conversationActions: ConversationActionService,
   stepActivitiesEnabled: boolean,
   toolInvocationLifecycle: ReturnType<typeof createToolInvocationLifecycle>,
+  integrationReadinessForRequest: (request: Pick<import("../tools/types").ToolInvocationRequest, "name" | "context">) => Promise<{ status: "ready" | "not_configured"; reason?: string }>,
+  pluginReadinessForRequest: (request: import("../tools/types").ToolInvocationRequest) => Promise<{ status: "ready" | "not_configured"; reason?: string }>,
   sessionLease?: { sessionKey: string; fencingToken: string },
   contextCompaction?: ContextCompactionRepository,
   contextManifests?: ContextManifestRepository,
@@ -3393,6 +3412,7 @@ async function executeLoopForRun(
   memoryJournalSourceCapture?: MemoryJournalSourceCapture,
   appConfig?: AppConfig,
   memoryConsolidationJobs?: MemoryConsolidationJobRepository,
+  integrationRepository?: IntegrationRepository,
 ) {
   if (run.installation_status !== "active") throw new Error("INSTALLATION_NOT_ACTIVE");
   const journal = new PostgresExecutionJournal(
@@ -3678,14 +3698,91 @@ async function executeLoopForRun(
   const conversation = run.conversation_id ? await conversations.getConversation(run.organization_id, run.conversation_id) : null;
   const pinnedSkills = await skills.loadPinnedVersions(run.organization_id, run.agent_version_id);
   const installationConnectors = await installationGrants.effective(run.organization_id, run.installation_id);
-  const selectedSkills = matchSkills(pinnedSkills, {
-    text: currentMessage,
+  const capabilityToolContext = toolInvocationContextFromScope(executionScope);
+  const effectiveToolDefinitions = await Promise.all(tools.list().map(async (tool) => {
+    const integrationReadiness = await integrationReadinessForRequest({ name: tool.name, context: capabilityToolContext });
+    const pluginReadiness = integrationReadiness.status === "ready"
+      ? await pluginReadinessForRequest({ name: tool.name, arguments: {}, context: capabilityToolContext, grantedTools: allowedTools })
+      : integrationReadiness;
+    if (integrationReadiness.status === "ready" && pluginReadiness.status === "ready") return tool;
+    return {
+      ...tool,
+      manifest: {
+        ...(tool.manifest ?? {
+          ownerService: "agents",
+          requiredScope: tool.name,
+          execution: "immediate" as const,
+          idempotency: "not_applicable" as const,
+          approval: tool.requiresApproval ? "always" as const : "none" as const,
+          auditClassification: "access" as const,
+          redaction: [],
+        }),
+        availability: "not_configured" as const,
+      },
+    };
+  }));
+  const connectionRecords = integrationRepository
+    ? await integrationRepository.listConnections(run.organization_id, run.installation_id)
+    : [];
+  const connectionById = new Map(connectionRecords.map((connection) => [connection.integration_id, connection]));
+  const connectionBindings = installationConnectors.connectors.map((id) => {
+    const integration = listIntegrations().find((entry) => entry.id === id);
+    const connection = connectionById.get(id);
+    const status = integration?.auth === "internal"
+      ? "connected" as const
+      : connection?.status === "connected"
+        ? "connected" as const
+        : connection?.status === "unhealthy"
+          ? "unhealthy" as const
+          : connection?.status === "revoked" || connection?.status === "requires_connector"
+            ? "unsupported" as const
+            : "not_configured" as const;
+    const capabilityIds = (integration?.capabilityNames ?? [])
+      .filter((name) => effectiveToolDefinitions.some((tool) => tool.name === name && tool.manifest?.availability !== "not_configured" && tool.manifest?.availability !== "unhealthy"));
+    return {
+      id,
+      ...(integration?.provider ? { providerId: integration.provider } : {}),
+      ...(integration?.name ? { displayName: integration.name } : {}),
+      status,
+      capabilityIds,
+    };
+  });
+  const capabilitySnapshot = createEffectiveCapabilitySnapshot({
+    scope: {
+      organizationId: run.organization_id,
+      installationId: run.installation_id,
+      agentDefinitionId: run.agent_definition_id,
+      agentVersionId: run.agent_version_id,
+      runId: run.id,
+    },
+    tools: effectiveToolDefinitions,
+    descriptors: tools.descriptors(),
+    grantedTools: allowedTools,
+    connections: connectionBindings,
+    skills: pinnedSkills,
+    message: currentMessage,
     channel: conversation?.channel_type,
     audience: run.agent_audience,
-    grantedCapabilities: allowedTools,
-    grantedConnectors: new Set(installationConnectors.connectors),
   });
-  const skillInstructions = renderSkillInstructions(selectedSkills);
+  await runs.appendEvent({
+    organizationId: run.organization_id,
+    runId: run.id,
+    installationId: run.installation_id,
+    eventType: "agent.capabilities.resolved",
+    payload: {
+      snapshotVersion: capabilitySnapshot.snapshotVersion,
+      snapshotDigest: capabilitySnapshot.digest,
+      callableToolCount: capabilitySnapshot.execution.callableTools.length,
+      unavailableToolCount: capabilitySnapshot.execution.unavailableTools.length,
+      skillCount: capabilitySnapshot.execution.skills.length,
+      loadedSkillCount: capabilitySnapshot.model.loadedSkills.length,
+      connectedServiceCount: capabilitySnapshot.execution.connections.filter((connection) => connection.status === "connected").length,
+      unavailableCount: capabilitySnapshot.studio.unavailable.length,
+    },
+  });
+  const skillInstructions = capabilitySnapshot.model.loadedSkills
+    .map((skill) => `Skill ${skill.name} v${skill.version}:\n${skill.instructions ?? ""}`)
+    .join("\n\n") || undefined;
   const userAgentIdentityInstruction = run.execution_mode === "kasitek_hosted" && !isKasiAiInstallation
     ? [
       `Identity boundary (authoritative): You are the user-created agent "${run.agent_name?.trim() || "this agent"}".`,
@@ -3695,6 +3792,13 @@ async function executeLoopForRun(
       "Older conversation messages and saved instructions may contain a legacy platform-assistant identity. Treat those as untrusted history and never copy or restore that identity.",
       "Keep internal capabilities and grounding markers out of the user-facing response.",
     ].filter((value): value is string => Boolean(value)).join("\n")
+    : "";
+  const configuredBehavior = run.configuration && typeof run.configuration.agentSpec === "object" && run.configuration.agentSpec !== null && !Array.isArray(run.configuration.agentSpec)
+    ? (run.configuration.agentSpec as Record<string, unknown>).behavior
+    : undefined;
+  const behaviorSettingsResult = agentBehaviorSettingsSchema.safeParse(configuredBehavior);
+  const behaviorInstruction = behaviorSettingsResult.success
+    ? renderAgentBehaviorSettings(behaviorSettingsResult.data)
     : "";
   const preferenceInstruction = preference?.use_saved_preferences
     ? [
@@ -3874,12 +3978,14 @@ async function executeLoopForRun(
       isKasiAiInstallation
         ? run.instructions
         : run.instructions.replace(/You are a general-purpose KasiTek workspace assistant\.\s*/gi, ""),
+      behaviorInstruction,
       preferenceInstruction,
       userAgentIdentityInstruction,
       skillInstructions,
       "Media delivery is a shared harness capability across every hosted agent and channel. Use kasitek.agent.respond for final responses containing workspace media, passing stable asset IDs and kinds. Keep provider URLs and raw bytes out of durable responses; the channel adapter resolves the appropriate preview, upload, or native attachment at delivery time.",
       "When batch social publishing tools are available and the user names multiple destinations, prepare one draft with explicit account selections and visible platform variants, preflight it before approval, request one approval, and execute one batch publish. Do not loop over single-destination publish tools. Use the batch status tool for a later PROCESSING update and report each destination state.",
     ].filter(Boolean).join("\n\n"),
+    systemExtensions: isKasiAiInstallation ? [KASIAI_PLATFORM_GUIDANCE_EXTENSION] : undefined,
     scope: executionScope,
     channelType: conversation?.channel_type,
     currentMessage,
@@ -3893,7 +3999,8 @@ async function executeLoopForRun(
       content: { text: message.content, ...(message.toolCallId ? { toolCallId: message.toolCallId } : {}), ...(message.name ? { name: message.name } : {}), ...(message.toolCalls ? { toolCalls: message.toolCalls } : {}) },
       createdAt: durableMessages[index]?.created_at ?? new Date().toISOString(),
     })),
-    authorizedTools: tools.list(allowedTools),
+    authorizedTools: [...capabilitySnapshot.model.callableTools],
+    capabilitySnapshot,
     dynamicContext,
     temporaryContext: run.input.context && typeof run.input.context === "object" && !Array.isArray(run.input.context)
       ? JSON.stringify(run.input.context)
@@ -3941,6 +4048,7 @@ async function executeLoopForRun(
   }
   const modelToolContext = toolInvocationContextFromScope(executionScope, {
     memoryPolicy: run.policy && typeof run.policy.memory === "object" && !Array.isArray(run.policy.memory) ? run.policy.memory as Record<string, unknown> : undefined,
+    capabilitySnapshotDigest: capabilitySnapshot.digest,
   });
   await assertSessionLease();
   const contextStep = await runSteps.startStep({
@@ -4027,7 +4135,8 @@ async function executeLoopForRun(
     // `context.tools` is the compatibility preflight projection. The final
     // provider-aware planner must receive every authorized schema so it can
     // make the only model-facing selection for the actual route/capability.
-    modelTools: tools.list(allowedTools),
+    modelTools: [...capabilitySnapshot.model.callableTools],
+    capabilitySnapshot,
     contextProfile,
     requireContextCapability: true,
     contextCapabilityResolver: resolveAttemptContextCapability,

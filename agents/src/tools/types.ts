@@ -52,6 +52,8 @@ export interface ToolInvocationContext {
   memoryPolicy?: Record<string, unknown>;
   /** Snapshot hash approved for the resumed external effect, when applicable. */
   approvalSnapshotHash?: string;
+  /** Digest of the effective capability projection used for this run. */
+  capabilitySnapshotDigest?: string;
 }
 
 /**
@@ -83,7 +85,7 @@ export interface ToolInvocationLifecycle {
 
 export function toolInvocationContextFromScope(
   scope: ExecutionScope,
-  extras: Pick<ToolInvocationContext, "memoryPolicy" | "approvalSnapshotHash" | "signal" | "operationId"> = {},
+  extras: Pick<ToolInvocationContext, "memoryPolicy" | "approvalSnapshotHash" | "signal" | "operationId" | "capabilitySnapshotDigest"> = {},
 ): ToolInvocationContext {
   return {
     scope,
