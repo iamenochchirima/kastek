@@ -16,7 +16,7 @@ import { actualModelCallCredits, estimateModelCallCredits, estimatePromptTokens,
 import { buildAgentContext } from "../runtime/context";
 import { assertSameAgentEnvironment } from "../runtime/execution-environment";
 import { runtimeExecutionScopeFromRun } from "../runtime/execution-scope";
-import { createGroundingFallbackResponse, shouldFailClosedWithoutEvidence } from "../runtime/grounding";
+import { classifyAgentIntent, createGroundingFallbackResponse, shouldFailClosedWithoutEvidence } from "../runtime/grounding";
 import { createEffectiveCapabilitySnapshot } from "../runtime/effective-capabilities";
 import { createAgentBudgetLedger, type AgentBudgetLedger } from "../runtime/budget";
 import { hashToolArguments, ToolRegistry } from "../tools/registry";
@@ -3680,6 +3680,7 @@ async function executeLoopForRun(
           },
         })
       : JSON.stringify(currentInputMessage ?? run.input);
+  const currentIntent = classifyAgentIntent(currentMessage);
   const rawDynamicContext = run.input.context && typeof run.input.context === "object" && !Array.isArray(run.input.context)
     ? run.input.context as Record<string, unknown>
     : undefined;
@@ -3780,6 +3781,7 @@ async function executeLoopForRun(
       connectedServiceCount: capabilitySnapshot.execution.connections.filter((connection) => connection.status === "connected").length,
       unavailableCount: capabilitySnapshot.studio.unavailable.length,
       capabilityAwarenessEnabled,
+      intent: currentIntent,
     },
   });
   const skillInstructions = capabilitySnapshot.model.loadedSkills
@@ -4198,6 +4200,7 @@ async function executeLoopForRun(
         retrievalRequested,
         knowledgeMatchCount: retrievalResult.evidence.filter((entry) => entry.sourceType === "knowledge").length,
         memoryEvidenceCount: memoryRetrievalPack?.evidence.length ?? 0,
+        intent: currentIntent,
       },
     });
     const groundingResult: AgentLoopResult = {
