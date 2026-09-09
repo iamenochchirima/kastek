@@ -419,7 +419,7 @@ snapshot, approval, redaction, and durable operation contracts as native tools.
 
 ### Implementation evidence
 
-- `pnpm test` in `agents`: 190 test files passed, 40 skipped; 1,128 tests passed, 122 skipped.
+- `pnpm test` in `agents`: 190 test files passed, 40 skipped; 1,129 tests passed, 122 skipped.
 - `pnpm build` in `agents`: passed.
 - `pnpm exec tsc --noEmit` and targeted ESLint for the changed Studio/settings/integration files:
   passed.
@@ -441,6 +441,9 @@ snapshot, approval, redaction, and durable operation contracts as native tools.
 - The `capability_awareness_enabled` operator flag is additive, defaults to enabled when absent, and
   can disable only the model-facing capability contract/native discovery path while retaining the
   effective snapshot for tool admission and audit. Migration 161 and command validation cover it.
+- A rollout regression test verifies that toggling `capability_awareness_enabled` changes only the
+  model-facing native guidance; callable schemas, tool admission, and the effective snapshot digest
+  remain identical.
 - Capability snapshot digests exclude volatile run identity, so retries and equivalent Playground/Live
   resolutions compare the same candidate state; a regression test covers different run IDs.
 - The local staging-equivalent capability smoke passed through the real registry/runtime seams with

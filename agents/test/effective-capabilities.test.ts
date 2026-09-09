@@ -162,6 +162,36 @@ describe("effective capability discovery", () => {
     expect(snapshot.model.summary).toContain("Capability projection");
   });
 
+  it("keeps tool admission stable while the capability-awareness rollout flag changes prompt guidance", () => {
+    const snapshot = createEffectiveCapabilitySnapshot({
+      scope,
+      tools: [tool("calendar.read")],
+      grantedTools: ["calendar.read"],
+      message: "What tools can you use?",
+    });
+    const input = {
+      instructions: "Answer clearly.",
+      scope,
+      currentMessage: "What tools can you use?",
+      recentMessages: [],
+      authorizedTools: [tool("calendar.read")],
+      capabilitySnapshot: snapshot,
+      budget: { maxContextTokens: 20_000, reservedOutputTokens: 0 },
+    } as const;
+    const enabled = buildAgentContext({ ...input, capabilityAwarenessEnabled: true });
+    const disabled = buildAgentContext({ ...input, capabilityAwarenessEnabled: false });
+    const enabledSystem = String(enabled.messages[0]?.content);
+    const disabledSystem = String(disabled.messages[0]?.content);
+
+    expect(enabledSystem).toContain("Capability awareness contract (runtime-owned)");
+    expect(enabledSystem).toContain("Agent capability discovery v1.0.0");
+    expect(disabledSystem).not.toContain("Capability awareness contract (runtime-owned)");
+    expect(disabledSystem).not.toContain("Agent capability discovery v1.0.0");
+    expect(enabled.tools.map((entry) => entry.name)).toEqual(["calendar.read"]);
+    expect(disabled.tools.map((entry) => entry.name)).toEqual(["calendar.read"]);
+    expect(enabled.capabilitySnapshotDigest).toBe(disabled.capabilitySnapshotDigest);
+  });
+
   it("does not trust an optimistic skill dependency flag over missing grants", () => {
     const snapshot = createEffectiveCapabilitySnapshot({
       scope,
