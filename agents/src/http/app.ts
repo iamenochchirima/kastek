@@ -518,6 +518,22 @@ function timelineNestedRecord(record: Record<string, unknown>, key: string): Rec
   return timelineRecord(record[key]);
 }
 
+function boundedTimelineData(value: unknown, maxBytes = 24_000): Record<string, unknown> {
+  const record = timelineRecord(value);
+  const entries = Object.entries(record).slice(0, 32);
+  const bounded = Object.fromEntries(entries);
+  try {
+    const serialized = JSON.stringify(bounded);
+    if (serialized.length <= maxBytes) return bounded;
+    return {
+      summary: serialized.slice(0, maxBytes - 64),
+      truncated: true,
+    };
+  } catch {
+    return { truncated: true };
+  }
+}
+
 function projectStudioTimelineItem(
   kind: StudioTimelineItemKind,
   value: unknown,
@@ -564,7 +580,7 @@ function projectStudioTimelineItem(
     ...(status ? { status } : {}),
     ...(operationId ? { operationId } : {}),
     ...(attemptId ? { attemptId } : {}),
-    data: timelineRecord(redacted),
+    data: boundedTimelineData(redacted),
   };
 }
 
