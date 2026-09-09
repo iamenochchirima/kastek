@@ -3651,7 +3651,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     if (!token.access_token) return reply.code(502).send({ error: "google_calendar_access_token_missing" });
     const credential = await integrationRepository.storeCredential({ organizationId: stateRecord.organization_id, integrationId: "google.calendar", secret: JSON.stringify({ accessToken: token.access_token, refreshToken: token.refresh_token, expiresAt: new Date(Date.now() + (token.expires_in ?? 3_600) * 1_000).toISOString(), scope: token.scope }), label: "Google Calendar", actorId: stateRecord.created_by });
     await integrationRepository.upsertConnection({ organizationId: stateRecord.organization_id, installationId: stateRecord.installation_id, integrationId: "google.calendar", credentialId: credential.id, status: "connected", configuration: { calendarId: "primary" }, actorId: stateRecord.created_by });
-    if (dependencies.config.AGENT_INTEGRATIONS_RETURN_URL) {
+    if (dependencies.config.AGENT_INTEGRATIONS_RETURN_URL && request.headers["x-kasitek-oauth-proxy"] !== "1") {
       const returnUrl = new URL(dependencies.config.AGENT_INTEGRATIONS_RETURN_URL);
       returnUrl.searchParams.set("integration", "google.calendar");
       returnUrl.searchParams.set("status", "connected");
@@ -3668,7 +3668,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     if (!stateRecord || stateRecord.flow !== "mcp") return reply.code(400).send({ error: "oauth_state_invalid_or_expired" });
     const entry = getHermesMcpCatalogEntry(stateRecord.integration_id);
     const returnError = (code: string) => {
-      if (dependencies.config.AGENT_INTEGRATIONS_RETURN_URL) {
+      if (dependencies.config.AGENT_INTEGRATIONS_RETURN_URL && request.headers["x-kasitek-oauth-proxy"] !== "1") {
         const returnUrl = new URL(dependencies.config.AGENT_INTEGRATIONS_RETURN_URL);
         returnUrl.searchParams.set("connection", stateRecord.integration_id);
         returnUrl.searchParams.set("status", "error");
@@ -3690,7 +3690,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       });
       const credential = await integrationRepository.storeCredential({ organizationId: stateRecord.organization_id, integrationId: entry.id, secret: JSON.stringify(token), label: `${entry.name} MCP`, actorId: stateRecord.created_by });
       const activated = await activateHermesMcp({ organizationId: stateRecord.organization_id, actorId: stateRecord.created_by, catalogId: entry.id, credentialReference: credential.id, agentVersionId: stateRecord.agent_version_id ?? undefined });
-      if (dependencies.config.AGENT_INTEGRATIONS_RETURN_URL) {
+      if (dependencies.config.AGENT_INTEGRATIONS_RETURN_URL && request.headers["x-kasitek-oauth-proxy"] !== "1") {
         const returnUrl = new URL(dependencies.config.AGENT_INTEGRATIONS_RETURN_URL);
         returnUrl.searchParams.set("connection", entry.id);
         returnUrl.searchParams.set("status", "connected");

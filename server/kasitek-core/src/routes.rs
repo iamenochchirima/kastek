@@ -111,7 +111,13 @@ mod tests {
                 "/api/internal/agents/v1/content/posts/post-1",
             ),
             (Method::GET, "/api/agents"),
+            (Method::POST, "/api/agents/studio"),
             (Method::GET, "/api/agents/conversations/events/stream"),
+            (Method::GET, "/api/agents/integrations/mcp/oauth/callback"),
+            (
+                Method::GET,
+                "/api/agents/integrations/google.calendar/oauth/callback",
+            ),
             (Method::PATCH, "/api/agents/agent-1"),
             (Method::GET, "/api/agents/knowledge/sources/source-1"),
             (Method::GET, "/api/developers"),

@@ -43,6 +43,15 @@ metadata, authorization-server discovery, PKCE, dynamic client registration when
 encrypted one-use state. Providers without dynamic registration use the manual OAuth client fields
 in Studio.
 
+## Plugins
+
+Studio imports the pinned Hermes plugin manifests as reviewed catalogue metadata. A plugin is
+selectable only when KasiTek has a registered adapter for its declared capabilities. Supported
+selections are installed as published, checksum-pinned extension packages and persisted in the
+agent version's extension snapshot. The initial native adapter maps the reviewed Tavily web plugin
+to KasiTek's existing web-search capability; other reviewed entries remain visible for discovery
+until a compatible adapter is registered. Hermes plugin code is never executed by the worker.
+
 ## Effective configuration and version diff
 
 Read the sanitized configuration that will be used for a version with:

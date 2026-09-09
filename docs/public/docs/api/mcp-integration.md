@@ -72,10 +72,10 @@ If a provider does not support dynamic registration, Studio exposes an OAuth cli
 optional client secret and continues the same PKCE flow with those credentials. Client secrets
 remain in encrypted one-use OAuth state until the token exchange completes.
 
-Set `MCP_OAUTH_REDIRECT_URI` to the public Agents callback URL
-(`/v1/integrations/mcp/oauth/callback`) and register that exact URL with the provider. Set
-`AGENT_INTEGRATIONS_RETURN_URL` to the Studio route that should receive the user after consent.
-Without the return URL, the callback still completes the connection but returns its result as JSON.
+Set `MCP_OAUTH_REDIRECT_URI` to the public Core callback URL
+(`/api/agents/integrations/mcp/oauth/callback`) and register that exact URL with the provider.
+Core forwards the one-use callback to the private Agents API and returns the browser to Studio.
+`AGENT_INTEGRATIONS_RETURN_URL` is only needed when calling the private Agents callback directly.
 
 The directory also accepts a custom HTTPS MCP endpoint for providers that are not in the reviewed
 catalogue. Stdio manifests are shown for discovery but are unavailable until a managed stdio

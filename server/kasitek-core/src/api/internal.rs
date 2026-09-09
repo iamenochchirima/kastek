@@ -187,6 +187,14 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                 web::get().to(agent_platform::get_model_catalog),
             )
             .route(
+                "/integrations/mcp/oauth/callback",
+                web::get().to(agent_platform::complete_mcp_oauth_callback),
+            )
+            .route(
+                "/integrations/google.calendar/oauth/callback",
+                web::get().to(agent_platform::complete_google_calendar_oauth_callback),
+            )
+            .route(
                 "/capabilities",
                 web::get().to(agent_platform::list_capabilities),
             )

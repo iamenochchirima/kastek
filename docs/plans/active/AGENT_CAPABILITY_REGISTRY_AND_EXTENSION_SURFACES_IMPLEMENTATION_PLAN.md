@@ -34,8 +34,9 @@
 - [completed] Add a single Connections directory projection that merges native adapters with
   reviewed remote MCP providers, preserving connection status separately from catalogue state.
 - [completed] Add browser-started MCP OAuth using protected-resource metadata, authorization-server
-  discovery, PKCE, dynamic client registration where offered, encrypted token storage, and the
-  existing remote-provider discovery/version/pin lifecycle.
+  discovery, PKCE, dynamic client registration where offered, encrypted token storage, a public
+  Core callback for the private Agents service, and the existing remote-provider
+  discovery/version/pin lifecycle.
 - [completed] Support providers without dynamic registration through user-supplied OAuth client
   credentials in Studio; client secrets remain encrypted in one-use OAuth state.
 - [completed] Add catalogue skill installation that materializes the reviewed Hermes skill into the
@@ -235,6 +236,12 @@ The resolver must support:
 
 ### 5. Plugins
 
+- [x] Import the pinned Hermes plugin manifests as reviewed catalogue metadata with explicit
+  adapter status and provenance; catalogue entries never execute foreign Hermes code.
+- [x] Add a first native adapter mapping for the reviewed Tavily web plugin to the existing
+  namespaced KasiTek web-search capability.
+- [x] Add Studio discovery, install, version selection, and persisted grant wiring for supported
+  plugin packages, with unsupported entries kept visible but non-runnable.
 - [ ] Complete manifest-driven plugin lifecycle: discover, validate, install, publish, pin,
   configure, enable, disable, revoke, and remove.
 - [ ] Register plugin tools into the canonical capability registry with namespaced IDs and source
@@ -357,7 +364,8 @@ Logs, metrics, dashboards, and alerts: structured failure logs were added for ca
 User, API, internal, and operational documentation: updated MCP, connection, and remote-provider docs
 Validation evidence: Agents build; client production build; targeted client lint; reviewed-directory
   tests; MCP PKCE/authorization URL tests; REST/MCP route-conformance tests; Core façade forwarding
-  unit test for directory and activation routes
+  unit test for directory and activation routes; Core check and public OAuth callback compilation
+  verification
 Rollback or disable plan: disable the new directory routes or revert the additive migration/code;
   existing native integrations, grants, and pinned snapshots remain intact
 Post-release review date: to be assigned
@@ -373,8 +381,10 @@ entries in one searchable catalogue with branded cards and direct connect action
 the provider's protected-resource discovery, PKCE, and dynamic registration when available, with a
 manual client-credential path for providers that require it. Skill entries install and pin into the
 organization skill store, and plugin entries use the existing declarative extension package
-lifecycle. The plugin catalogue deliberately marks entries without a registered KasiTek adapter
-unavailable; foreign Hermes code is not executed. Agents/client builds, targeted lint, façade
+lifecycle. Plugin selections persist into the same immutable agent-version extension snapshot;
+the reviewed Tavily entry uses the existing native web-search adapter, while entries without a
+registered KasiTek adapter remain visible and non-runnable. Foreign Hermes code is not executed.
+Agents/client builds, targeted lint, façade
 forwarding tests, route conformance, and catalogue tests pass. Remaining work is broader real-provider
 coverage, managed stdio MCP transport, native adapters for more plugin entries, complete user-tool
 lifecycle wiring, and responsive/browser end-to-end verification. Existing execution and context

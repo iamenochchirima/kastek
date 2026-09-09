@@ -1303,6 +1303,27 @@ impl AgentPlatformClient {
         .await
     }
 
+    pub async fn complete_mcp_oauth_callback(&self, query: &str) -> Result<Value, AppError> {
+        let path = if query.trim().is_empty() {
+            "/v1/integrations/mcp/oauth/callback".to_string()
+        } else {
+            format!("/v1/integrations/mcp/oauth/callback?{query}")
+        };
+        self.request_oauth_callback(&path).await
+    }
+
+    pub async fn complete_google_calendar_oauth_callback(
+        &self,
+        query: &str,
+    ) -> Result<Value, AppError> {
+        let path = if query.trim().is_empty() {
+            "/v1/integrations/google.calendar/oauth/callback".to_string()
+        } else {
+            format!("/v1/integrations/google.calendar/oauth/callback?{query}")
+        };
+        self.request_oauth_callback(&path).await
+    }
+
     pub async fn create_mcp_provider(
         &self,
         organization_id: &str,
@@ -3265,6 +3286,55 @@ impl AgentPlatformClient {
         Err(self.map_status(response).await)
     }
 
+    async fn request_oauth_callback(&self, path: &str) -> Result<Value, AppError> {
+        let correlation_id = new_correlation_id();
+        let token = self.token("oauth-callback", "oauth-callback", &[], &correlation_id)?;
+        let request = self
+            .client
+            .get(format!("{}{}", self.base_url, path))
+            .timeout(self.timeout)
+            .header("Authorization", format!("Bearer {token}"))
+            .header("x-organization-id", "oauth-callback")
+            .header("x-actor-id", "oauth-callback")
+            .header("x-correlation-id", &correlation_id)
+            .header("x-kasitek-oauth-proxy", "1");
+        let response = observability::provider_result_span_with(
+            "kasitek-agents",
+            "http.request",
+            move || async move {
+                let mut trace_headers = HeaderMap::new();
+                observability::inject_trace_context(&mut trace_headers);
+                request.headers(trace_headers).send().await
+            },
+        )
+        .await
+        .map_err(|error| self.map_request_error(error))?;
+        if !response.status().is_success() {
+            let status = response.status();
+            let body = response.json::<Value>().await;
+            if let Ok(value) = body {
+                if value.is_object() {
+                    return Ok(value);
+                }
+            }
+            return Err(AppError::BadGateway(format!(
+                "Agent Platform OAuth callback failed with status {status}"
+            )));
+        }
+        response.json::<Value>().await.map_err(|error| {
+            observability::tracing::error!(
+                event = "provider.call.failed",
+                provider = "kasitek-agents",
+                operation = "oauth.callback",
+                error_type = %std::any::type_name_of_val(&error),
+                "Agent Platform returned invalid OAuth callback JSON"
+            );
+            AppError::BadGateway(
+                "Agent Platform returned an invalid OAuth callback response".to_string(),
+            )
+        })
+    }
+
     async fn request_json(
         &self,
         method: Method,
@@ -3786,6 +3856,8 @@ mod tests {
             (201, r#"{"plugin":{}}"#),
             (201, r#"{"provider":{}}"#),
             (200, r#"{"authorizationUrl":"https://example.test/oauth"}"#),
+            (200, r#"{"connection":"hermes.mcp.example","status":"connected","installationId":"install-1"}"#),
+            (200, r#"{"integration":"google.calendar","status":"connected","installationId":"install-1"}"#),
         ])
         .await;
         let client = test_client(&base_url);
@@ -3836,9 +3908,17 @@ mod tests {
             )
             .await
             .unwrap();
+        client
+            .complete_mcp_oauth_callback("code=oauth-code&state=oauth-state")
+            .await
+            .unwrap();
+        client
+            .complete_google_calendar_oauth_callback("code=google-code&state=google-state")
+            .await
+            .unwrap();
 
         let requests = server.await.unwrap();
-        assert_eq!(requests.len(), 7);
+        assert_eq!(requests.len(), 9);
         assert!(requests[0]
             .starts_with("GET /v1/installations/install-1/connection-directory HTTP/1.1"));
         assert!(
@@ -3855,7 +3935,13 @@ mod tests {
         assert!(requests[6].starts_with(
             "POST /v1/installations/install-1/mcp/catalog/hermes.mcp.example/oauth/start HTTP/1.1"
         ));
-        for (index, request) in requests.iter().enumerate() {
+        assert!(requests[7].starts_with(
+            "GET /v1/integrations/mcp/oauth/callback?code=oauth-code&state=oauth-state HTTP/1.1"
+        ));
+        assert!(requests[8].starts_with(
+            "GET /v1/integrations/google.calendar/oauth/callback?code=google-code&state=google-state HTTP/1.1"
+        ));
+        for (index, request) in requests.iter().take(7).enumerate() {
             assert_scoped_request(
                 request,
                 if index < 3 {
@@ -3864,6 +3950,17 @@ mod tests {
                     "agents:write"
                 },
             );
+        }
+        for request in requests.iter().skip(7) {
+            assert_eq!(
+                request_header(request, "x-organization-id").as_deref(),
+                Some("oauth-callback")
+            );
+            assert_eq!(
+                request_header(request, "x-actor-id").as_deref(),
+                Some("oauth-callback")
+            );
+            assert!(request_header(request, "authorization").is_some());
         }
     }
 

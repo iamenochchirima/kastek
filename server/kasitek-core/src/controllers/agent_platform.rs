@@ -4,6 +4,7 @@ use futures_util::StreamExt;
 use serde::Deserialize;
 use serde_json::{json, Map, Value};
 use sqlx::PgPool;
+use url::Url;
 
 use crate::config::AppConfig;
 use crate::db::models::{CreateAgentWebsiteDeploymentRequest, UpdateAgentWebsiteDeploymentRequest};
@@ -81,6 +82,52 @@ async fn management_scope(
     billing::require_capability(pool, &organization_id, billing::capabilities::AGENTS_MANAGE)
         .await?;
     Ok((user, organization_id))
+}
+
+fn oauth_callback_redirect(config: &AppConfig, result: &Value) -> Result<HttpResponse, AppError> {
+    let mut target = Url::parse(&format!(
+        "{}/studio",
+        config.frontend_url.trim_end_matches('/')
+    ))
+    .map_err(|error| AppError::Internal(format!("Invalid frontend URL: {error}")))?;
+    for key in [
+        "connection",
+        "integration",
+        "status",
+        "installationId",
+        "error",
+    ] {
+        if let Some(value) = result.get(key).and_then(Value::as_str) {
+            target.query_pairs_mut().append_pair(key, value);
+        }
+    }
+    if result.get("error").is_some() && result.get("status").is_none() {
+        target.query_pairs_mut().append_pair("status", "error");
+    }
+    Ok(HttpResponse::Found()
+        .append_header(("Cache-Control", "no-store"))
+        .append_header(("Location", target.to_string()))
+        .finish())
+}
+
+pub async fn complete_mcp_oauth_callback(
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+) -> Result<HttpResponse, AppError> {
+    let result = client(config.get_ref())?
+        .complete_mcp_oauth_callback(req.query_string())
+        .await?;
+    oauth_callback_redirect(config.get_ref(), &result)
+}
+
+pub async fn complete_google_calendar_oauth_callback(
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+) -> Result<HttpResponse, AppError> {
+    let result = client(config.get_ref())?
+        .complete_google_calendar_oauth_callback(req.query_string())
+        .await?;
+    oauth_callback_redirect(config.get_ref(), &result)
 }
 
 pub async fn ensure_kasiai(

@@ -20,6 +20,7 @@ chrono.workspace = true
 bcrypt = "0.15"
 cuid2 = "0.1"
 urlencoding = "2.1"
+url.workspace = true
 
 reqwest = { workspace = true, features = ["multipart", "stream"] }
 redis = { version = "0.27", features = ["tokio-comp"] }
