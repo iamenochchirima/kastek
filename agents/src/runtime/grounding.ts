@@ -63,10 +63,15 @@ export function shouldFailClosedWithoutEvidence(input: {
   agentAudience?: "personal" | "customer_service";
   isSystemAgent?: boolean;
   evidenceCount: number;
+  capabilityAwarenessEnabled?: boolean;
 }): boolean {
+  const intent = classifyAgentIntent(input.message);
+  const effectiveIntent = input.capabilityAwarenessEnabled === false && intent === "capability_request"
+    ? "knowledge_request"
+    : intent;
   return input.evidenceCount <= 0
     && (input.agentAudience === "customer_service" || input.isSystemAgent === true)
-    && classifyAgentIntent(input.message) === "knowledge_request";
+    && effectiveIntent === "knowledge_request";
 }
 
 export const NO_APPROVED_KNOWLEDGE_RESPONSE = "I don’t have enough approved information to answer that yet.";

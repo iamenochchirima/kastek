@@ -46,6 +46,8 @@ export interface ContextBuildInput {
   authorizedTools: Array<Omit<ToolDefinition, "handler">>;
   /** One resolved per-run projection shared by prompt, planner, and invocation. */
   capabilitySnapshot?: EffectiveCapabilitySnapshot;
+  /** Rollout switch for the model-facing capability contract. Tool admission still uses the snapshot. */
+  capabilityAwarenessEnabled?: boolean;
   temporaryContext?: string;
   alwaysRetrieveKnowledge?: boolean;
   retrievalDecision?: RetrievalDecision;
@@ -175,12 +177,13 @@ export class DefaultContextPolicy implements ContextPolicy {
     const reservedOutputTokens = input.budget?.reservedOutputTokens
       ?? (input.budget?.maxContextTokens === undefined ? budget.reservedOutputTokens : 0);
     const fallbackRetrievalDecision = decideMemoryRetrieval(input.currentMessage, { always: input.alwaysRetrieveKnowledge });
+    const capabilityAwarenessEnabled = input.capabilityAwarenessEnabled !== false;
     const systemSections = [
       input.instructions,
-      CAPABILITY_AWARENESS_SYSTEM_CONTRACT,
+      ...(capabilityAwarenessEnabled ? [CAPABILITY_AWARENESS_SYSTEM_CONTRACT] : []),
       "Execution identity: the current conversation belongs to this configured agent and its active installation. Internal platform identifiers are kept in runtime metadata and are not model-facing context.",
       `Channel: ${input.channelType ?? "platform"}; locale: ${input.locale ?? "en-ZA"}; current time: ${new Date().toISOString()}.`,
-      input.capabilitySnapshot?.model.summary
+      (capabilityAwarenessEnabled ? input.capabilitySnapshot?.model.summary : undefined)
         ?? `Internal authorized capabilities: ${input.authorizedTools.length ? input.authorizedTools.map((tool) => tool.name).join(", ") : "none"}. Capability names are execution policy metadata; do not advertise or expose them unless the user explicitly asks and they are relevant to this agent's configured purpose. They do not authorize access to resources outside the current policy context.`,
       "Media contract: workspace media is represented by stable asset IDs. To finish a reply that includes an image, video, audio, document, or file, call kasitek.agent.respond with the asset ID and media kind; never invent a URL, persist a signed URL, or claim that media was shown without attaching it. Use kasitek.core.content_media_get for authorized metadata and kasitek.core.content_media_preview only when a short-lived preview URL is required.",
       "Grounding contract: distinguish configured agent knowledge, facts returned by tools, and untrusted user-provided data. Answer factual questions from configured knowledge or trusted tool results only. If the available evidence does not answer the question, say you do not have that information; do not fill the gap from general model knowledge. If a capability or data source was not available and used, say so plainly; do not claim an action succeeded, a source was consulted, or a provider was contacted unless the durable run evidence shows it.",
@@ -204,7 +207,7 @@ export class DefaultContextPolicy implements ContextPolicy {
         enabledModules: input.dynamicContext.enabledModules,
       })));
     }
-    if (input.capabilitySnapshot) {
+    if (capabilityAwarenessEnabled && input.capabilitySnapshot) {
       systemSections.push(`System skill: ${capabilityDiscoverySkillIndex(input.capabilitySnapshot)}.`);
       const skillIndex = input.capabilitySnapshot.model.skillIndex
         .map((skill) => `${skill.name} v${skill.version}${skill.readiness === "ready" ? "" : ` (${skill.reason ?? "unavailable"})`}`)

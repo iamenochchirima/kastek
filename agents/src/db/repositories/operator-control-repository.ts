@@ -4,7 +4,7 @@ import { query, withTransaction } from "../pool";
 export type OperatorFlagScope = "global" | "organization" | "installation";
 export type OperatorHoldScope = "organization" | "installation" | "run";
 export type OperatorHoldType = "execution" | "effects" | "delivery";
-export type OperatorFlagKey = "agent_execution_enabled" | "agent_version_deployment_enabled" | "effect_execution_enabled" | "mcp_enabled" | "rest_enabled" | "customer_handoff_enabled" | "audio_transcription_enabled" | "dynamic_ui_enabled" | "memory_v2_retrieval_enabled" | "memory_v2_writes_enabled" | "memory_consolidation_enabled" | "memory_projection_enabled";
+export type OperatorFlagKey = "agent_execution_enabled" | "agent_version_deployment_enabled" | "effect_execution_enabled" | "mcp_enabled" | "rest_enabled" | "customer_handoff_enabled" | "audio_transcription_enabled" | "dynamic_ui_enabled" | "memory_v2_retrieval_enabled" | "memory_v2_writes_enabled" | "memory_consolidation_enabled" | "memory_projection_enabled" | "capability_awareness_enabled";
 
 export interface OperatorFeatureFlagRecord {
   id: string;

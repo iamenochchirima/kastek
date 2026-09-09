@@ -3556,6 +3556,7 @@ async function executeLoopForRun(
     && run.agent_owner_type === "system"
     && run.agent_protected === true
     && run.agent_slug === "kasiai";
+  const capabilityAwarenessEnabled = await controls.isFeatureEnabled(run.organization_id, "capability_awareness_enabled", run.installation_id);
   const preference = isKasiAiInstallation
     ? await kasiaiPreferences.get(run.organization_id, run.installation_id, run.created_by)
     : null;
@@ -3778,6 +3779,7 @@ async function executeLoopForRun(
       loadedSkillCount: capabilitySnapshot.model.loadedSkills.length,
       connectedServiceCount: capabilitySnapshot.execution.connections.filter((connection) => connection.status === "connected").length,
       unavailableCount: capabilitySnapshot.studio.unavailable.length,
+      capabilityAwarenessEnabled,
     },
   });
   const skillInstructions = capabilitySnapshot.model.loadedSkills
@@ -3981,7 +3983,7 @@ async function executeLoopForRun(
       behaviorInstruction,
       preferenceInstruction,
       userAgentIdentityInstruction,
-      skillInstructions,
+      ...(capabilityAwarenessEnabled ? [] : [skillInstructions]),
       "Media delivery is a shared harness capability across every hosted agent and channel. Use kasitek.agent.respond for final responses containing workspace media, passing stable asset IDs and kinds. Keep provider URLs and raw bytes out of durable responses; the channel adapter resolves the appropriate preview, upload, or native attachment at delivery time.",
       "When batch social publishing tools are available and the user names multiple destinations, prepare one draft with explicit account selections and visible platform variants, preflight it before approval, request one approval, and execute one batch publish. Do not loop over single-destination publish tools. Use the batch status tool for a later PROCESSING update and report each destination state.",
     ].filter(Boolean).join("\n\n"),
@@ -4001,6 +4003,7 @@ async function executeLoopForRun(
     })),
     authorizedTools: [...capabilitySnapshot.model.callableTools],
     capabilitySnapshot,
+    capabilityAwarenessEnabled,
     dynamicContext,
     temporaryContext: run.input.context && typeof run.input.context === "object" && !Array.isArray(run.input.context)
       ? JSON.stringify(run.input.context)
@@ -4164,6 +4167,7 @@ async function executeLoopForRun(
     agentAudience: run.agent_audience,
     isSystemAgent: isKasiAiInstallation,
     evidenceCount: retrievalResult.evidence.length + (memoryRetrievalPack?.evidence.length ?? 0),
+    capabilityAwarenessEnabled,
   })) {
     await assertSessionLease();
     const response = createGroundingFallbackResponse(provider, model);

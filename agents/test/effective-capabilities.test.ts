@@ -155,4 +155,26 @@ describe("effective capability discovery", () => {
     expect(String(context.messages[0]?.content)).toContain("Protected system extension kasiai-platform-guidance v1.0.0");
     expect(snapshot.model.summary).toContain("Capability projection");
   });
+
+  it("does not trust an optimistic skill dependency flag over missing grants", () => {
+    const snapshot = createEffectiveCapabilitySnapshot({
+      scope,
+      tools: [tool("calendar.read")],
+      grantedTools: [],
+      skills: [{
+        id: "booking",
+        version: "1.0.0",
+        name: "Booking",
+        published: true,
+        pinned: true,
+        dependencyReady: true,
+        requiredCapabilityIds: ["calendar.read"],
+        instructions: "Use the calendar flow.",
+        matching: { keywords: ["booking"] },
+      }],
+      message: "Help with booking",
+    });
+    expect(snapshot.model.skillIndex).toContainEqual(expect.objectContaining({ id: "booking", readiness: "unavailable", reason: "dependency_not_ready" }));
+    expect(snapshot.model.loadedSkills).toEqual([]);
+  });
 });

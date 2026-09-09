@@ -768,6 +768,12 @@ describe("foundation migration", () => {
     expect(migration).toContain("DROP CONSTRAINT IF EXISTS agent_operator_feature_flags_flag_key_check");
   });
 
+  it("defines the capability-awareness rollout flag", async () => {
+    const migration = await readFile(new URL("../migrations/161_capability_awareness_rollout_flag.sql", import.meta.url), "utf8");
+    expect(migration).toContain("capability_awareness_enabled");
+    expect(migration).toContain("DROP CONSTRAINT IF EXISTS agent_operator_feature_flags_flag_key_check");
+  });
+
   it("creates a restricted runtime group without enabling RLS implicitly", async () => {
     const migration = await readFile(new URL("../migrations/090_agents_runtime_role.sql", import.meta.url), "utf8");
     expect(migration).toContain("kasitek_agents_runtime");

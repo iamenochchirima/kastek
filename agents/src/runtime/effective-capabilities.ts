@@ -341,15 +341,19 @@ export function createEffectiveCapabilitySnapshot(input: EffectiveCapabilitySnap
     ...(input.descriptors ?? []).map((descriptor) => descriptor.id),
   ]);
   const sourceSkills = (input.skills ?? []).map(asSkillBinding).map((skill) => {
-    if (skill.dependencyReady !== undefined) return skill;
     const missingCapability = (skill.requiredCapabilityIds ?? []).find((id) => !granted.has(id));
     const missingCapabilityRegistration = (skill.requiredCapabilityIds ?? []).find((id) => !knownCapabilityIds.has(id));
     const missingConnector = (skill.requiredConnectorIds ?? []).find((id) => !connectedIds.has(id));
     const missingDependency = missingCapabilityRegistration || missingCapability || missingConnector;
+    const dependencyReady = skill.dependencyReady !== false && !missingDependency;
     return {
       ...skill,
-      dependencyReady: !missingDependency,
-      ...(missingDependency ? { dependencyReason: missingCapabilityRegistration ? "dependency_not_found" as const : "dependency_not_ready" as const } : {}),
+      dependencyReady,
+      ...(!dependencyReady ? {
+        dependencyReason: skill.dependencyReady === false
+          ? skill.dependencyReason ?? "dependency_not_ready" as const
+          : missingCapabilityRegistration ? "dependency_not_found" as const : "dependency_not_ready" as const,
+      } : {}),
     };
   }).sort((left, right) => left.id.localeCompare(right.id) || left.version.localeCompare(right.version));
   const skillIndex = sourceSkills.map((skill) => {

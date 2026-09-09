@@ -110,6 +110,14 @@ describe("operator command contract", () => {
     }
   });
 
+  it("accepts the capability-awareness rollout flag", () => {
+    expect(operatorCommandInputSchema.parse({
+      commandType: "set_feature_flag",
+      targetId: "org-1",
+      payload: { flagKey: "capability_awareness_enabled", scopeType: "organization", scopeId: "org-1", organizationId: "org-1", enabled: false, reason: "pause capability rollout", expiresAt: "2026-09-12T00:00:00.000Z" },
+    })).toMatchObject({ commandType: "set_feature_flag", targetId: "org-1" });
+  });
+
   it("projects command status without payload or provider receipt material", () => {
     const command: OperatorCommandRecord = {
       id: "command-1",

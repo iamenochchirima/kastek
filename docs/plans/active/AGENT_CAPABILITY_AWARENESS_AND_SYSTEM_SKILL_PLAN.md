@@ -409,9 +409,12 @@ snapshot, approval, redaction, and durable operation contracts as native tools.
 17. [x] Add capability resolution, promotion, activation, and rollback events plus Studio-readable
     projections without exposing secrets or raw provider identifiers.
 18. [ ] Run focused tests, agent build checks, local manual KasiAi checks, promotion/rollback tests,
-    and staging smoke tests.
+    and staging smoke tests. Local focused/runtime and promotion checks are complete; local
+    browser/KasiAi and staging evidence remain release gates.
 19. [ ] Roll out the capability-aware path, compare grounding and tool-use telemetry, and remove
-    temporary compatibility logic after the review window.
+    temporary compatibility logic after the review window. The scoped
+    `capability_awareness_enabled` control is implemented; staged enablement and post-review
+    compatibility removal remain release-owner work.
 
 ### Implementation evidence
 
@@ -426,6 +429,12 @@ snapshot, approval, redaction, and durable operation contracts as native tools.
 - `git diff --check`: passed during the implementation batches.
 - Local unit and HTTP coverage includes capability intent, snapshot projection, readiness reasons,
   promotion preflight, stale-pointer/idempotency checks, rollback, and route conformance.
+- Local durable smoke passed with an isolated installation-token key and temporary API/gateway
+  ports: REST credential exchange, tool discovery, idempotent durable execution, MCP authentication,
+  protocol negotiation, and terminal completion all passed. The fixture was deleted after the run.
+- The `capability_awareness_enabled` operator flag is additive, defaults to enabled when absent, and
+  can disable only the model-facing capability contract/native discovery path while retaining the
+  effective snapshot for tool admission and audit. Migration 161 and command validation cover it.
 
 The remaining unchecked items require a running local/staging environment with real KasiAi
 connections, one MCP/plugin binding, an approval-gated effect, and release telemetry comparison.
@@ -537,15 +546,15 @@ They are validation and rollout gates, not unimplemented runtime or API seams.
 | Historical version selection | Read-only preview until explicit promotion confirmation | Studio | Implemented |
 | Rollback semantics | Atomically restore the previous Live candidate and binding revision; keep active runs and evidence unchanged | Agent Platform | Implemented |
 | Agent promotion scope | Every agent promotes a candidate only to the selected workspace's Live installation; no cross-workspace mutation | Agent Platform | Implemented |
-| KasiAi baseline | Platform-managed baseline is an upstream candidate input and release-gate concern, not a different user lifecycle | Agent Platform | Proposed |
-| Connected integrations | Connection state does not imply callable capability | Platform Integrations | Proposed |
-| System-skill loading scope | Add an explicit system-scope pin/read path or equivalent source-defined inclusion | Agent Platform | Open |
-| Settings information architecture | Overview is a read-only summary; Behavior owns user-editable identity and response preferences; Memory owns retrieval/write policy | Studio and Agent Platform | Proposed |
-| User-editable behavior boundary | Advanced instructions are an overlay, not the complete system prompt, and cannot override platform-owned rules | Studio and Agent Platform | Proposed |
-| Memory settings boundary | Keep Memory for scope, retrieval, write/consolidation, retention, review, and readiness; keep records environment-local | Studio and Agent Platform | Proposed |
+| KasiAi baseline | Platform-managed baseline is an upstream candidate input and release-gate concern, not a different user lifecycle | Agent Platform | Implemented |
+| Connected integrations | Connection state does not imply callable capability | Platform Integrations | Implemented |
+| System-skill loading scope | Source-defined runtime inclusion supplies the versioned generic skill to every hosted agent; user skills remain pinned and progressively loaded | Agent Platform | Implemented |
+| Settings information architecture | Overview is a read-only summary; Behavior owns user-editable identity and response preferences; Memory owns retrieval/write policy | Studio and Agent Platform | Implemented |
+| User-editable behavior boundary | Advanced instructions are an overlay, not the complete system prompt, and cannot override platform-owned rules | Studio and Agent Platform | Implemented |
+| Memory settings boundary | Keep Memory for scope, retrieval, write/consolidation, retention, review, and readiness; keep records environment-local | Studio and Agent Platform | Implemented |
 | Google Calendar/Drive/Gmail tools | Decide which adapters and actions are supported first | Platform Integrations | Open |
-| Capability summary size | Compact prompt projection first; detailed discovery may become a read-only capability | Context Runtime | Open |
-| Rollout flag | Choose flag name and whether custom agents enter the first rollout | Release owner | Open |
+| Capability summary size | Compact prompt projection first; detailed discovery is progressive through the metadata index and matched skill bodies | Context Runtime | Implemented |
+| Rollout flag | `capability_awareness_enabled`, scoped globally, by organization, or installation; absent rows default enabled | Release owner | Implemented |
 
 ## Notes and blockers
 
@@ -567,5 +576,6 @@ They are validation and rollout gates, not unimplemented runtime or API seams.
   mechanism or used to hard-code KasiAi's current tools.
 - The Memory tab remains necessary when it represents memory policy. It should not be used as a
   second prompt editor or as a view of portable memory records.
-- No implementation changes are included in this draft. Refine the remaining open decisions before
-  coding.
+- Runtime, deployment, Studio settings, and rollout-control implementation is recorded above. The
+  remaining gates are environment-bound: authenticated local browser checks against KasiAi, staging
+  provider/MCP/plugin/approval smoke, telemetry comparison, and release-owner sign-off.
