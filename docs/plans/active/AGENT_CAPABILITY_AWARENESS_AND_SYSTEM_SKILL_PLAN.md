@@ -435,8 +435,8 @@ snapshot, approval, redaction, and durable operation contracts as native tools.
 - A local KasiAi platform-message run answered “What tools and capabilities can you use?” from the
   effective snapshot (20 callable tools, 35 unavailable tools, no connected services, no loaded
   skills), and the run journal recorded `agent.capabilities.resolved` with `capabilityAwarenessEnabled:
-  true` and a snapshot digest. This verifies the native discovery contract is reaching the real
-  model path rather than existing only in unit tests.
+  true`, `intent: capability_request`, and a snapshot digest. This verifies the native discovery
+  contract is reaching the real model path rather than existing only in unit tests.
 - The `capability_awareness_enabled` operator flag is additive, defaults to enabled when absent, and
   can disable only the model-facing capability contract/native discovery path while retaining the
   effective snapshot for tool admission and audit. Migration 161 and command validation cover it.
