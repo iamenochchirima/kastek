@@ -62,9 +62,11 @@ implementation; PostgreSQL and Temporal failure matrices are still release-gated
 
 The creation flow writes `settings.environment = "playground"` on a pinned installation. The
 Playground UI only starts runs against that installation and consumes the same durable run/event
-APIs as other hosts. Full environment binding isolation—separate credentials, data namespaces,
-allowlisted destinations, and promotion to live—is still an open implementation item; the setting
-must not be treated as proof of resource isolation by a provider or channel adapter.
+APIs as other hosts. The Agent API now exposes paired Playground/Live deployment status,
+non-mutating Live preflight, idempotent target-scoped promotion, and rollback evidence. Full
+environment binding isolation—separate credentials, data namespaces, and allowlisted
+destinations—remains an open implementation item; the setting must not be treated as proof of
+resource isolation by a provider or channel adapter.
 
 ## Verification
 

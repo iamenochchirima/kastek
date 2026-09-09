@@ -377,6 +377,11 @@ plan, beginning with the context and token execution kernel.
 
 [`Agent Platform Execution Observatory and Visual Control Plane`](../active/AGENT_PLATFORM_EXECUTION_OBSERVATORY_AND_CONTROL_PLANE_PLAN.md)
 
+The focused Studio visual contract is maintained in [`Studio runtime observatory and promotion
+update`](../active/AGENT_STUDIO_RUNTIME_OBSERVATORY_UPDATE_PLAN.md). It covers the composition of
+context, memory, tools, skills, plugins, MCP, approvals, child runs, delivery, telemetry, and
+Playground-to-Live promotion without moving ownership of those runtime contracts into the client.
+
 Consumes the second chunk's durable journal, projections, and cursor contracts to build the Agent
 Playground as a real execution environment: draft configuration, immutable candidates, separately
 bound Playground resources, production-equivalent execution, generated timeline and graph, live
@@ -1098,6 +1103,8 @@ customer and operator-visible history.
 
 **Depends on:** P02 and P03
 
+**Memory implementation plan:** [`Agent memory architecture and implementation`](./AGENT_MEMORY_ARCHITECTURE_AND_IMPLEMENTATION_PLAN.md)
+
 **Goal:** Assemble useful context without leaking tenants, inventing evidence, or requiring Core.
 
 **Module:** `ContextAssembler`
@@ -1115,6 +1122,10 @@ customer and operator-visible history.
   improvement.
 - Record retrieval query class, selected evidence references, ranking revision, latency, and bounded
   decision summary in the journal.
+
+The memory portion of this package is defined in the dedicated M0-M6 plan above. That plan is the
+implementation authority for memory contracts, durable capture, semantic and episodic revisions,
+consolidation, retrieval, retention, deletion, and Studio memory observability.
 
 **Verification:** Cross-tenant and cross-installation retrieval return no evidence. No-evidence
 requests do not fabricate grounding. Poisoned or revoked evidence is excluded. Hostless, Core, and
@@ -1332,6 +1343,8 @@ cannot use live authority or escape their destination and resource constraints.
 **State:** `planned`
 
 **Depends on:** P01 and the event-producing capability packages
+
+**Studio implementation plan:** [`Studio runtime observatory and promotion update`](../active/AGENT_STUDIO_RUNTIME_OBSERVATORY_UPDATE_PLAN.md)
 
 **Goal:** Turn the thin P01 visualizer into the shared execution observatory and, where needed, an
 optional workflow builder. The observatory is available to every agent; the builder is only needed

@@ -24,6 +24,8 @@ description: Third Agent Platform implementation chunk for real Playground execu
 
 **Related research:** [`Agent execution visualization platform research`](../agents/AGENT_PLATFORM_EXECUTION_VISUALIZATION_RESEARCH.md)
 
+**Studio visual contract:** [`Studio runtime observatory and promotion update`](./AGENT_STUDIO_RUNTIME_OBSERVATORY_UPDATE_PLAN.md)
+
 ## Objective
 
 Build the Agent Playground as a real Agent Platform environment. Users configure an agent, execute
@@ -58,10 +60,89 @@ The first implementation slice is now available for local testing:
 - `/playground` filters to installations explicitly marked `environment=playground`; and
 - the runtime scope carries an explicit `playground` or `live` environment and rejects cross-environment
   child activation.
+- protected system agents can receive a separate, idempotent Playground installation without
+  changing their live/platform installation; existing workspaces expose this as an explicit
+  install action while workspace bootstrap remains the default path for new workspaces.
+- the installation endpoint accepts the requested environment without silently stripping it, and
+  the Core browser boundary preserves `environment=playground` when listing installations; the
+  tunnel host therefore uses the same local, environment-scoped behavior as direct local access.
+- browser-facing Studio and Playground requests use the app-origin API proxy by default so the
+  authenticated session and active-workspace scope remain attached; direct browser-to-Core
+  requests require an explicit opt-out for hosts that do not ship the proxy.
+- the Playground workspace uses a chat-first two-pane layout: the conversation owns the left
+  composer and message history, the execution graph owns the remaining workspace, and agent
+  configuration is opened on demand rather than occupying a persistent side panel.
 
 This is a usable entry point, not completion of this chunk. Separate resource and credential
 bindings, promotion manifests, live activation, reconnectable observatory projections, and stateful
 controls remain unchecked until their backend contracts and evidence exist.
+
+## Studio-owned creation flow
+
+The current implementation keeps agent creation in Studio and leaves the older Agents-page
+wizard out of this slice. KasiAi is a protected platform default and is ensured when Studio
+opens; it is visible for inspection but cannot be edited or republished through the custom-agent
+surface. New user agents are created as autonomous agents only for now. Guided service agents,
+workflow agents, and specialist delegation are later runtime modes, not alternate creation paths
+that should be implied by a missing field or a graph editor.
+
+Studio creation submits one typed setup request. The Agent Platform creates the definition, creates
+and publishes the first immutable version, and pins it to a Playground installation. The browser
+does not coordinate four independent writes. A failed later stage compensates the incomplete
+definition so a rejected setup does not leave an unusable local agent behind. The persisted spec
+records `execution.mode=autonomous` explicitly and uses bounded context, iteration, model-call,
+tool-call, token, and wall-time limits.
+
+The first manual proof for this slice is: open Studio and see KasiAi as the default; create a
+second autonomous agent from `/studio/new`; confirm it appears with a Playground installation;
+open its Studio workspace; run it from Playground; inspect the durable execution graph; and
+confirm KasiAi's protected configuration does not expose an edit or deploy action. The Agents page
+will be redesigned separately and must not become a dependency of this flow.
+
+## Studio capability management contract
+
+The Studio settings workspace is the agent's draft control plane. It follows the same separation
+used by Hermes-style harnesses: platform-managed tools are listed as built-in capabilities;
+versioned skills are enabled separately; external MCP servers are discovered and health-checked
+before a published server version is selected; and declarative plugin packages are selected from
+the organization's published package catalog with explicit permission grants. A provider being
+available is not the same as a version being enabled for an agent.
+
+The implementation uses the existing AgentSpec and immutable AgentVersion boundaries:
+
+- tool selection is written to `spec.capabilities.allowedTools` and readiness remains enforced by
+  the runtime and installation grants;
+- skill selection writes `spec.skills.allowedSkillIds`, then pins the selected published skill
+  versions to the newly created draft version;
+- MCP selection creates, discovers, publishes, and health-checks through the existing remote MCP
+  repository, then pins the selected provider version to the draft;
+- plugin selection writes canonical package references and grants to `spec.extensions`; package
+  contents remain declarative and are resolved by the extension snapshot repository;
+- credentials and connected services remain installation-scoped, so Playground credentials cannot
+  be copied into Live by saving a draft.
+
+The browser does not become a second runtime, package resolver, or approval system. It only edits
+the draft contract and shows readiness/health data returned by the platform. The execution graph
+and runtime telemetry remain sourced from the durable journal. The authoritative external-harness
+references for this separation are the [Hermes plugin model](https://github.com/NousResearch/hermes-agent/blob/main/website/docs/user-guide/features/plugins.md)
+and [Hermes MCP model](https://github.com/NousResearch/hermes-agent/blob/main/website/docs/user-guide/features/mcp.md).
+
+Current implementation seams are the `/api/agents/skills`, `/api/agents/mcp/*`,
+`/api/agents/extensions/packages`, installation integration/readiness routes, and the existing
+version creation/publish flow. Handoff criteria for the next phase are: package configuration
+forms use the declared configuration schema; permission grants are reviewed before publication;
+the complete capability snapshot is included in promotion evidence; and browser tests prove that
+save, refresh, draft replacement, deployment, and rollback preserve the exact selected versions.
+
+Release impact for this local implementation slice: owner is Agent Platform; affected surfaces are
+the Agents API, Core internal proxy, Studio settings, Playground drafts, skills, MCP, and extension
+package catalog; no migration or hosted release is included; existing agents:read/agents:write
+authorization and installation credential isolation remain the rollout boundary; structured API
+errors and existing provider logs cover failures; analytics additions are not applicable until the
+capability-management events are registered; validation is Agents TypeScript, client lint/typecheck,
+Rust Core check, and browser/manual capability-save evidence; rollback is code rollback plus
+selecting the previous immutable agent version, with no deletion of packages, pins, credentials, or
+execution evidence.
 
 ## Why this is the third chunk
 
@@ -78,6 +159,12 @@ The third chunk consumes those contracts to provide:
 - state-aware controls for pause, resume, cancel, retry, and reconciliation;
 - role- and tenant-safe projections for developers, operators, and customer agent builders;
 - a manual test surface for reproducing failures and verifying recovery.
+
+The detailed Studio visual contract is kept in the standalone [Studio runtime observatory and
+promotion update](./AGENT_STUDIO_RUNTIME_OBSERVATORY_UPDATE_PLAN.md). This plan owns the broader
+Playground, projection, control, and promotion implementation. The Studio plan owns how context,
+memory, capabilities, extensions, approvals, child runs, delivery, and promotion are composed for
+people using the workspace.
 
 The Playground is not a replacement for the runtime, and it is not an n8n-style requirement that
 ordinary agents be assembled from blocks. Ordinary agents are configured as an agent profile with
@@ -698,6 +785,8 @@ not sufficient evidence for a runtime or data contract.
   changes.
 - [ ] Show connected, replaying, delayed, disconnected, and unavailable states in the UI.
 - [ ] Verify that reconnect reconstructs an identical timeline and graph.
+- [ ] Verify browser requests preserve session and active-workspace scope through the app-origin
+  proxy in local and production-shaped environments; direct cross-origin API access is opt-in.
 
 ### Observatory UI
 

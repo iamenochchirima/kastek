@@ -22,6 +22,7 @@ This is the canonical home for private Kasitek documentation.
 - [Environments](./operations/environments.md)
 - [Railway Deployment Topology](./operations/deployment-topology.md)
 - [Observability](./operations/observability.md)
+- [Agent Memory Observability](./operations/agent-memory-observability.md)
 - [Documentation Maintenance](./operations/documentation-maintenance.md)
 - [Agent Platform Implementation Plan](/plans/agents/)
 - [Agent runtime host boundary](./architecture/agent-host-boundary.md)

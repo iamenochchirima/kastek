@@ -20,6 +20,8 @@ description: Dedicated implementation plan for durable, provider-aware context m
 
 **Related Playground work:** [`Agent Playground and Execution Observatory`](./AGENT_PLATFORM_EXECUTION_OBSERVATORY_AND_CONTROL_PLANE_PLAN.md)
 
+**Studio visual handoff:** [`Studio runtime observatory and promotion update`](./AGENT_STUDIO_RUNTIME_OBSERVATORY_UPDATE_PLAN.md)
+
 **Research record:** [`Hermes context and runtime telemetry research`](../agents/HERMES_CONTEXT_AND_RUNTIME_TELEMETRY_RESEARCH.md)
 
 ## Objective
@@ -299,6 +301,24 @@ reservation instead of independently re-estimating the model request; the legacy
 only as a compatibility fallback for non-harness callers.
 This is not yet the complete runtime rewrite: PostgreSQL/Temporal replay certification, real
 memory adapter handoff, and real Playground certification remain open.
+
+### Legacy context cleanup status
+
+- [x] Removed `modelContextTokens` from the loop/execution-plan contract and deleted the fixed
+  8,000-token capability fallback. Autonomous runs now require a verified provider capability;
+  low-level compatibility callers without a profile do not receive a fabricated context window.
+- [x] Changed missing capability provenance to `unknown` in both capability normalization and
+  request planning. A positive context value is only usable when its source is explicit.
+- [x] Stopped the protected KasiAI activity from treating its persisted `maxContextTokens` value
+  as provider capacity or as an effective ceiling. Existing legacy KasiAI records therefore cannot
+  clamp a model that now reports a larger verified window.
+- [ ] Remove the diagnostic `harness.buildContext` projection after every caller has migrated to
+  the provider-aware planner. It remains active as a normalized transcript/retrieval boundary;
+  deleting it now would remove required source-message and memory handoff behavior, so it is not
+  dead code yet.
+- [ ] Revisit the generic `ContextEngine` wrapper after the durable activity path and memory
+  checkpoint handoff are certified. Its public memory boundary and tests are still active contract
+  coverage, so it is not removed in this cleanup pass.
 
 ### 0. Baseline and contracts
 

@@ -4,6 +4,12 @@ const sidebars = {
     { type: "doc", id: "agents/agent-platform-implementation-plan", label: "Overview" },
     { type: "doc", id: "active/agent-platform-host-boundary-restructure", label: "First implementation · Runtime foundation rewrite" },
     { type: "doc", id: "active/agent-platform-hermes-aligned-runtime-reliability", label: "Second implementation · Hermes-aligned runtime" },
+    { type: "doc", id: "active/agent-context-runtime-and-telemetry", label: "Context runtime · implementation" },
+    { type: "doc", id: "agents/agent-memory-architecture-and-implementation-plan", label: "Memory architecture · implementation" },
+    { type: "doc", id: "active/agent-memory-architecture-implementation-checklist", label: "Memory architecture · checklist" },
+    { type: "doc", id: "active/agent-memory-architecture-phase-log", label: "Memory architecture · phase log" },
+    { type: "doc", id: "active/agent-memory-architecture-baseline", label: "Memory architecture · baseline" },
+    { type: "doc", id: "active/agent-studio-runtime-observatory-update", label: "Studio updates · observatory and promotion" },
     { type: "doc", id: "active/agent-platform-execution-observatory-control-plane", label: "Third implementation · Agent Playground" },
     { type: "doc", id: "agents/agent-platform-execution-visualization-research", label: "Research · Execution visualization" },
     {
