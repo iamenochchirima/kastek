@@ -10,6 +10,9 @@ import {
   createInstallationInputSchema,
   deployInstallationInputSchema,
   deployStagedVersionInputSchema,
+  installationDeploymentPreflightInputSchema,
+  installationPromotionInputSchema,
+  installationRollbackInputSchema,
   createVersionInputSchema,
   studioAgentCreationInputSchema,
   updateAgentInputSchema,
@@ -158,7 +161,7 @@ import { enterDatabaseContext, runWithDatabaseContext } from "../db/context";
 import { reconcileRunUsage } from "../operations/usage-reconciliation";
 import { SkillRepository } from "../db/repositories/skill-repository";
 import { createSkillInputSchema, createSkillVersionInputSchema } from "../skills/contracts";
-import { RemoteMcpProviderRepository, createRemoteMcpProviderInputSchema } from "../db/repositories/remote-mcp-provider-repository";
+import { isCustomRemoteMcpProvider, RemoteMcpProviderRepository, createRemoteMcpProviderInputSchema } from "../db/repositories/remote-mcp-provider-repository";
 import { executeDraftEvaluation, type DraftEvaluationRunner } from "../evaluations/draft";
 import { ModelGateway } from "../model/gateway";
 import { VaultCredentialResolver } from "../model/credentials";
@@ -3074,7 +3077,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
   app.get("/v1/mcp/providers", async (request) => {
     const auth = requireAuth(request, dependencies.config);
     requireScope(auth, dependencies.config, "agents:read");
-    return { providers: await remoteMcpProviders.list(auth.organizationId) };
+    return { providers: (await remoteMcpProviders.list(auth.organizationId)).filter(isCustomRemoteMcpProvider) };
   });
 
   app.post("/v1/mcp/providers", async (request, reply) => {
@@ -3330,6 +3333,43 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     requireScope(auth, dependencies.config, "agents:write");
     const input = deployInstallationInputSchema.parse(request.body);
     return agents.deployInstallation(auth.organizationId, auth.actorId, request.params.installationId, input);
+  });
+
+  app.get<{ Params: { agentId: string } }>("/v1/agents/:agentId/deployment-status", async (request, reply) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:read");
+    const status = await agents.getDeploymentStatus(auth.organizationId, request.params.agentId);
+    if (!status) return reply.code(404).send({ error: "agent_not_found" });
+    return status;
+  });
+
+  app.post<{ Params: { installationId: string } }>("/v1/installations/:installationId/preflight", async (request) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:read");
+    const input = installationDeploymentPreflightInputSchema.parse(request.body);
+    return agents.preflightInstallationDeployment(auth.organizationId, request.params.installationId, input);
+  });
+
+  app.post<{ Params: { installationId: string } }>("/v1/installations/:installationId/promote", async (request, reply) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:write");
+    const input = installationPromotionInputSchema.parse(request.body);
+    try {
+      return await agents.promoteInstallation(auth.organizationId, auth.actorId, request.params.installationId, input);
+    } catch (error) {
+      const typed = error as { statusCode?: number; code?: string; preflight?: unknown };
+      if (typed.code === "PROMOTION_PREFLIGHT_BLOCKED" && typed.preflight) {
+        return reply.code(409).send({ error: typed.code, code: typed.code, preflight: typed.preflight });
+      }
+      throw error;
+    }
+  });
+
+  app.post<{ Params: { installationId: string } }>("/v1/installations/:installationId/rollback", async (request) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:write");
+    const input = installationRollbackInputSchema.parse(request.body ?? {});
+    return agents.rollbackInstallation(auth.organizationId, auth.actorId, request.params.installationId, input);
   });
 
   app.post<{ Params: { agentId: string; versionId: string } }>(
@@ -3594,8 +3634,8 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     const installation = await agents.getInstallation(auth.organizationId, request.params.installationId);
     if (!installation) return reply.code(404).send({ error: "installation_not_found" });
     const entry = getIntegration(request.params.integrationId);
-    if (!entry || entry.kind !== "tool" || entry.auth !== "oauth2" || !entry.id.startsWith("google.") || entry.requiredScopes.length === 0) {
-      return reply.code(400).send({ error: "google_oauth_integration_not_supported", code: "google_oauth_integration_not_supported" });
+    if (!entry || entry.kind !== "tool" || entry.auth !== "oauth2" || !entry.oauthProvider || entry.requiredScopes.length === 0) {
+      return reply.code(400).send({ error: "oauth_integration_not_supported", code: "oauth_integration_not_supported" });
     }
     const clientId = dependencies.config.GOOGLE_OAUTH_CLIENT_ID;
     const redirectUri = dependencies.config.GOOGLE_OAUTH_REDIRECT_URI;
@@ -3641,7 +3681,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     requireScope(auth, dependencies.config, "agents:write");
     const installation = await agents.getInstallation(auth.organizationId, request.params.installationId);
     if (!installation) return reply.code(404).send({ error: "installation_not_found" });
-    const entry = getHermesMcpCatalogEntry(request.params.catalogId);
+    const entry = getReviewedMcpCatalogEntry(request.params.catalogId);
     if (!entry || !entry.managed || entry.auth !== "oauth" || !entry.endpointUrl) return reply.code(400).send({ error: "mcp_catalog_entry_not_oauth" });
     const redirectUri = dependencies.config.MCP_OAUTH_REDIRECT_URI;
     if (!redirectUri) return reply.code(503).send({ error: "mcp_oauth_not_configured", code: "mcp_oauth_not_configured" });
@@ -3673,6 +3713,8 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
         ? "mcp_oauth_client_registration_unsupported"
         : providerError === "MCP_OAUTH_CLIENT_REGISTRATION_FAILED"
           ? "mcp_oauth_client_registration_failed"
+          : providerError.startsWith("MCP_OAUTH_")
+            ? "mcp_oauth_provider_unavailable"
           : "mcp_oauth_start_failed";
       const statusCode = code === "mcp_oauth_client_registration_unsupported" ? 409 : 502;
       return reply.code(statusCode).send({ error: code, code });

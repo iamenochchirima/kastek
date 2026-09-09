@@ -1189,6 +1189,61 @@ describe("Agent Platform HTTP foundation", () => {
     await app.close();
   });
 
+  it("exposes paired deployment status, Live preflight, promotion, and rollback", async () => {
+    const getDeploymentStatus = vi.fn(async () => ({
+      agentId: "44444444-4444-4444-8444-444444444444",
+      state: "pending",
+      playground: { installationId: "33333333-3333-4333-8333-333333333333", status: "active", version: null },
+      live: { installationId: "55555555-5555-4555-8555-555555555555", status: "active", version: null },
+      rollbackTarget: null,
+      latestPromotion: null,
+    }));
+    const preflightInstallationDeployment = vi.fn(async () => ({
+      installationId: "55555555-5555-4555-8555-555555555555",
+      agentId: "44444444-4444-4444-8444-444444444444",
+      environment: "live",
+      ready: true,
+      status: "ready",
+      candidate: null,
+      current: null,
+      sourceInstallationId: "33333333-3333-4333-8333-333333333333",
+      bindingRevision: "live-4",
+      blockers: [],
+    }));
+    const promoteInstallation = vi.fn(async () => ({ status: "activated", promotionId: "promotion-1", installation: { id: "55555555-5555-4555-8555-555555555555" }, manifest: {} }));
+    const rollbackInstallation = vi.fn(async () => ({ status: "activated", promotionId: "promotion-2", installation: { id: "55555555-5555-4555-8555-555555555555" }, manifest: {} }));
+    const app = buildApp({ config, pool: fakePool, agents: { getDeploymentStatus, preflightInstallationDeployment, promoteInstallation, rollbackInstallation } as unknown as AgentRepository });
+    const headers = { "x-organization-id": "org-1", "x-actor-id": "user-1" };
+    const status = await app.inject({ method: "GET", url: "/v1/agents/44444444-4444-4444-8444-444444444444/deployment-status", headers });
+    const preflight = await app.inject({
+      method: "POST",
+      url: "/v1/installations/55555555-5555-4555-8555-555555555555/preflight",
+      headers,
+      payload: { versionId: "22222222-2222-4222-8222-222222222222", sourceInstallationId: "33333333-3333-4333-8333-333333333333", expectedVersionId: "11111111-1111-4111-8111-111111111111" },
+    });
+    const promotion = await app.inject({
+      method: "POST",
+      url: "/v1/installations/55555555-5555-4555-8555-555555555555/promote",
+      headers,
+      payload: { versionId: "22222222-2222-4222-8222-222222222222", sourceInstallationId: "33333333-3333-4333-8333-333333333333", expectedVersionId: "11111111-1111-4111-8111-111111111111", idempotencyKey: "promotion-20260909" },
+    });
+    const rollback = await app.inject({
+      method: "POST",
+      url: "/v1/installations/55555555-5555-4555-8555-555555555555/rollback",
+      headers,
+      payload: { expectedVersionId: "22222222-2222-4222-8222-222222222222" },
+    });
+    expect(status.statusCode).toBe(200);
+    expect(preflight.statusCode).toBe(200);
+    expect(promotion.statusCode).toBe(200);
+    expect(rollback.statusCode).toBe(200);
+    expect(getDeploymentStatus).toHaveBeenCalledWith("org-1", "44444444-4444-4444-8444-444444444444");
+    expect(preflightInstallationDeployment).toHaveBeenCalledWith("org-1", "55555555-5555-4555-8555-555555555555", expect.objectContaining({ versionId: "22222222-2222-4222-8222-222222222222" }));
+    expect(promoteInstallation).toHaveBeenCalledWith("org-1", "user-1", "55555555-5555-4555-8555-555555555555", expect.objectContaining({ idempotencyKey: "promotion-20260909" }));
+    expect(rollbackInstallation).toHaveBeenCalledWith("org-1", "user-1", "55555555-5555-4555-8555-555555555555", { expectedVersionId: "22222222-2222-4222-8222-222222222222" });
+    await app.close();
+  });
+
   it("creates a dedicated external-connected aggregate and returns its secret once", async () => {
     const createExternalInstallation = vi.fn(async (_organizationId: string, _actorId: string, input: Record<string, unknown>) => ({
       agent: { id: "external-agent-1", owner_type: "organization", protected: false },

@@ -110,6 +110,22 @@ Management clients can deploy a hosted installation explicitly with `POST
 /v1/installations/{installationId}/deploy` and `{ "versionId": "...", "expectedVersionId": "..." }`.
 The expected version is optional, but prevents overwriting a concurrent deployment when supplied.
 
+Playground-to-Live promotion uses a target-scoped contract. Read paired state with `GET
+/v1/agents/{agentId}/deployment-status`, then validate the candidate without changing a pointer:
+
+```http
+POST /v1/installations/{installationId}/preflight
+{ "versionId": "...", "sourceInstallationId": "...", "expectedVersionId": "..." }
+```
+
+The source must be a Playground installation pinned to the selected published version, and the
+expected version protects the Live pointer from concurrent changes. Activate the exact preflighted
+candidate with `POST /v1/installations/{installationId}/promote`, adding an `idempotencyKey`; a
+blocked preflight returns `409` with the structured blockers. Roll back a Live installation with
+`POST /v1/installations/{installationId}/rollback`, optionally supplying `targetVersionId` and
+`expectedVersionId`. Promotion and rollback history records retain the candidate digest, extension
+snapshot checksum, binding revision, source installation, prior pointer, and idempotency key.
+
 ### Workflow agent loops
 
 Version 1 workflow graphs support `agent_loop` nodes. The node runs within the hosted agent's
@@ -180,11 +196,11 @@ endpoints such as Website Chat and messaging channels.
 
 Skills are installed into the organization skill/version store and can then be enabled on the next
 agent version. Plugins use reviewed declarative manifests and the extension-package lifecycle. A
-plugin is selectable only when KasiTek has a registered runtime adapter for it; Hermes plugin code
+plugin is selectable only when KasiTek has a registered runtime adapter for it; external plugin code
 is not imported into the worker. Unavailable manifests remain visible as catalogue metadata so an
 operator can distinguish a missing adapter from a missing credential.
 
 Native Google connections use one OAuth client and one callback per environment. The selected
-catalog entry supplies its own scopes, so Calendar, Gmail, and Drive can be connected separately
-as their adapters become available. The callback is
+catalog entry supplies its own scopes, so Calendar, Gmail, and Drive can be connected separately.
+The callback is
 `/api/agents/integrations/google/oauth/callback`; users do not enter OAuth client credentials.

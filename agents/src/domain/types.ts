@@ -79,6 +79,13 @@ export const createAgentInputSchema = z.object({
 });
 export type CreateAgentInput = z.input<typeof createAgentInputSchema>;
 
+export const studioAgentCreationInputSchema = z.object({
+  name: z.string().trim().min(1).max(160),
+  description: z.string().trim().max(2000).optional(),
+  instructions: z.string().trim().min(1).max(200_000),
+}).strict();
+export type StudioAgentCreationInput = z.infer<typeof studioAgentCreationInputSchema>;
+
 export const updateAgentInputSchema = z.object({
   name: z.string().trim().min(1).max(160).optional(),
   slug: z
@@ -164,6 +171,38 @@ export const deployInstallationInputSchema = z.object({
   expectedVersionId: z.string().uuid().optional(),
 });
 export type DeployInstallationInput = z.infer<typeof deployInstallationInputSchema>;
+
+/**
+ * Read-only validation for moving an immutable candidate to a target
+ * installation. The source installation is optional for callers that only
+ * need to validate a published version; promotion requires it.
+ */
+export const installationDeploymentPreflightInputSchema = z.object({
+  versionId: z.string().uuid(),
+  sourceInstallationId: z.string().uuid().optional(),
+  expectedVersionId: z.string().uuid().optional(),
+}).strict();
+export type InstallationDeploymentPreflightInput = z.infer<typeof installationDeploymentPreflightInputSchema>;
+
+/**
+ * Activation is deliberately separate from the existing deploy endpoint:
+ * promotion names the tested Playground source and is idempotent against the
+ * target Live pointer.
+ */
+export const installationPromotionInputSchema = z.object({
+  versionId: z.string().uuid(),
+  sourceInstallationId: z.string().uuid(),
+  expectedVersionId: z.string().uuid(),
+  idempotencyKey: z.string().trim().min(8).max(240),
+}).strict();
+export type InstallationPromotionInput = z.infer<typeof installationPromotionInputSchema>;
+
+export const installationRollbackInputSchema = z.object({
+  expectedVersionId: z.string().uuid().optional(),
+  targetVersionId: z.string().uuid().optional(),
+  idempotencyKey: z.string().trim().min(8).max(240).optional(),
+}).strict();
+export type InstallationRollbackInput = z.infer<typeof installationRollbackInputSchema>;
 
 export const deployStagedVersionInputSchema = z.object({
   installationIds: z.array(z.string().uuid()).min(1).max(100).optional(),

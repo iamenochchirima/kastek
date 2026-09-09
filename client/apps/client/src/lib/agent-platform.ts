@@ -909,7 +909,16 @@ export type AgentSpecInput = {
   specVersion: 1;
   execution?: { mode?: "autonomous"; role?: "standalone" | "orchestrator" };
   identity?: { displayName?: string; purpose?: string; audience?: AgentAudience };
-  behavior: { instructions: string };
+  behavior: {
+    instructions: string;
+    tone?: "concise" | "balanced" | "detailed" | "formal" | "warm" | "direct";
+    responseLength?: "short" | "balanced" | "detailed";
+    initiative?: "cautious" | "balanced" | "proactive";
+    language?: string;
+    formatting?: "plain" | "markdown" | "structured";
+    rules?: string[];
+    advancedInstructions?: string;
+  };
   model: {
     version: string;
     primary: { provider: AgentModelProvider; model: string };
@@ -971,8 +980,80 @@ export function ensureAgentPlayground(agentId: string): Promise<AgentInstallatio
   return request(`/api/agents/${encodeURIComponent(agentId)}/playground/ensure`, { method: "POST", body: JSON.stringify({}) });
 }
 
+export type AgentDeploymentVersion = {
+  versionId: string;
+  versionNumber: number;
+  status: string;
+  digest: string;
+  extensionSnapshotId: string | null;
+  extensionSnapshotChecksum: string | null;
+};
+
+export type AgentDeploymentStatus = {
+  agentId: string;
+  state: "pending" | "ready" | "blocked" | "deployed" | "rollback_available";
+  status: "pending" | "ready" | "blocked" | "deployed" | "rollback_available";
+  playground: { installationId: string | null; status: string | null; version: AgentDeploymentVersion | null };
+  live: { installationId: string | null; status: string | null; version: AgentDeploymentVersion | null };
+  rollbackTarget: AgentDeploymentVersion | null;
+  latestPromotion: {
+    id: string;
+    candidateVersionId: string | null;
+    previousVersionId: string | null;
+    sourceInstallationId: string | null;
+    bindingRevision: string | null;
+    createdAt: string;
+  } | null;
+};
+
+export type AgentDeploymentPreflight = {
+  installationId: string;
+  agentId: string;
+  environment: "live";
+  ready: boolean;
+  status: "ready" | "blocked";
+  candidate: AgentDeploymentVersion | null;
+  current: AgentDeploymentVersion | null;
+  sourceInstallationId: string | null;
+  bindingRevision: string | null;
+  blockers: Array<{ code: string; detail: string }>;
+};
+
+export type AgentDeploymentActivation = {
+  status: "activated" | "already_active";
+  promotionId: string;
+  installation: AgentInstallation;
+  manifest: {
+    sourceInstallationId: string | null;
+    targetInstallationId: string;
+    candidateVersionId: string;
+    candidateDigest: string;
+    extensionSnapshotChecksum: string | null;
+    bindingRevision: string | null;
+    expectedVersionId: string;
+    previousVersionId: string | null;
+    idempotencyKey: string;
+  };
+};
+
 export function deployAgentInstallation(installationId: string, versionId: string, expectedVersionId?: string): Promise<AgentInstallation> {
   return request(`/api/agents/installations/${encodeURIComponent(installationId)}/deploy`, { method: "POST", body: JSON.stringify({ versionId, ...(expectedVersionId ? { expectedVersionId } : {}) }) });
+}
+
+export function getAgentDeploymentStatus(agentId: string): Promise<AgentDeploymentStatus> {
+  return request(`/api/agents/${encodeURIComponent(agentId)}/deployment-status`);
+}
+
+export function preflightAgentInstallationDeployment(installationId: string, input: { versionId: string; sourceInstallationId?: string; expectedVersionId?: string }): Promise<AgentDeploymentPreflight> {
+  return request(`/api/agents/installations/${encodeURIComponent(installationId)}/preflight`, { method: "POST", body: JSON.stringify(input) });
+}
+
+export function promoteAgentInstallation(installationId: string, input: { versionId: string; sourceInstallationId: string; expectedVersionId: string; idempotencyKey: string }): Promise<AgentDeploymentActivation> {
+  return request(`/api/agents/installations/${encodeURIComponent(installationId)}/promote`, { method: "POST", body: JSON.stringify(input) });
+}
+
+export function rollbackAgentInstallation(installationId: string, input: { expectedVersionId?: string; targetVersionId?: string; idempotencyKey?: string } = {}): Promise<AgentDeploymentActivation> {
+  return request(`/api/agents/installations/${encodeURIComponent(installationId)}/rollback`, { method: "POST", body: JSON.stringify(input) });
 }
 
 export function deployStagedAgentVersion(agentId: string, versionId: string, input: { installationIds?: string[]; percentage?: number }): Promise<{ versionId: string; deployedInstallationIds: string[]; deploymentCount: number }> {
@@ -1124,8 +1205,10 @@ export type AgentConnectionDirectoryEntry = {
   description: string;
   category: string;
   logo: string;
+  provider?: string;
+  oauthProvider?: string;
   auth: "internal" | "oauth2" | "api_key" | "webhook" | "local_connector" | "observability" | "oauth" | "none" | string;
-  source: "kasitek" | "hermes-reviewed" | string;
+  source: "kasitek" | "reviewed-catalog" | string;
   sourceUrl?: string;
   endpointUrl?: string | null;
   transport?: "http" | "stdio";
@@ -1192,7 +1275,7 @@ export type AgentSkillDirectoryEntry = {
   tags: string[];
   sourceUrl: string;
   rawUrl: string;
-  source: "hermes-reviewed" | string;
+  source: "reviewed-catalog" | string;
   installed: boolean;
   enabled: boolean;
   skillId: string | null;
@@ -1286,6 +1369,7 @@ export type AgentMcpProvider = {
   id: string;
   name: string;
   endpoint_url: string;
+  catalog_id?: string | null;
   credential_reference?: string | null;
   status: "draft" | "approved" | "revoked" | string;
   health_status: "unknown" | "healthy" | "unhealthy" | string;
@@ -1396,6 +1480,8 @@ export type AgentIntegration = {
   category: "productivity" | "search" | "apple" | "observability" | string;
   auth: "internal" | "oauth2" | "api_key" | "webhook" | "local_connector" | "observability" | string;
   logo: string;
+  provider?: string;
+  oauthProvider?: string;
   capabilityNames: string[];
   requiredScopes: string[];
   configurable: boolean;
@@ -1468,7 +1554,7 @@ export function saveAgentIntegrationLocalConnector(installationId: string, integ
   return request(`/api/agents/installations/${encodeURIComponent(installationId)}/integrations/${encodeURIComponent(integrationId)}/local-connector`, { method: "POST", body: JSON.stringify(input) });
 }
 
-export function startAgentGoogleOAuth(installationId: string, integrationId: string): Promise<{ authorizationUrl: string }> {
+export function startAgentIntegrationOAuth(installationId: string, integrationId: string): Promise<{ authorizationUrl: string }> {
   return request(`/api/agents/installations/${encodeURIComponent(installationId)}/integrations/${encodeURIComponent(integrationId)}/oauth/start`);
 }
 
@@ -1722,7 +1808,13 @@ export function archiveAgent(agentId: string): Promise<AgentDefinition> {
   return request(`/api/agents/${encodeURIComponent(agentId)}/archive`, { method: "POST" });
 }
 
-export function deleteAgent(agentId: string): Promise<{ agentId: string; installationIds?: string[]; deleted: true }> {
+export function deleteAgent(agentId: string): Promise<{
+  agentId: string;
+  installationIds?: string[];
+  deleted: boolean;
+  status: "deleted" | "queued";
+  deletionJobId?: string;
+}> {
   return request(`/api/agents/${encodeURIComponent(agentId)}`, { method: "DELETE" });
 }
 

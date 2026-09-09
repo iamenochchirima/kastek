@@ -11,6 +11,9 @@ import type {
   DeployStagedVersionInput,
   CreateVersionInput,
   HostedAgentCreationProfile,
+  InstallationDeploymentPreflightInput,
+  InstallationPromotionInput,
+  InstallationRollbackInput,
   StudioAgentCreationInput,
   UpdateAgentInput,
 } from "../../domain/types";
@@ -24,7 +27,7 @@ import { KASIAI_KNOWLEDGE_CHUNKS, KASIAI_KNOWLEDGE_SOURCE_NAME, KASIAI_KNOWLEDGE
 import { KASIAI_EVALUATION_SCENARIOS, KASIAI_EVALUATION_VERSION } from "../../system/kasiai-evaluations";
 import { createInstallationCredentialInTransaction, type CreatedInstallationCredential } from "./installation-credential-repository";
 import { buildDefinitionLifecycleEvent, buildInstallationLifecycleEvent, buildVersionLifecycleEvent, enqueueOutbox, type DefinitionLifecycleAnalyticsInput, type InstallationLifecycleAnalyticsInput, type VersionLifecycleAnalyticsInput } from "../../analytics";
-import { AgentDeploymentModule, type StagedDeploymentResult } from "./agent-deployment-repository";
+import { AgentDeploymentModule, type DeploymentActivationResult, type DeploymentPreflightResult, type DeploymentVersionProjection, type StagedDeploymentResult } from "./agent-deployment-repository";
 import { ExtensionSnapshotRepository } from "./extension-snapshot-repository";
 import { parseAgentEnvironment, type AgentEnvironment } from "../../runtime/execution-environment";
 
@@ -143,6 +146,31 @@ export interface SystemAgentReleaseStatus {
   staleInstallationCount: number;
 }
 
+export interface AgentDeploymentStatus {
+  agentId: string;
+  state: "pending" | "ready" | "blocked" | "deployed" | "rollback_available";
+  status: "pending" | "ready" | "blocked" | "deployed" | "rollback_available";
+  playground: {
+    installationId: string | null;
+    status: string | null;
+    version: DeploymentVersionProjection | null;
+  };
+  live: {
+    installationId: string | null;
+    status: string | null;
+    version: DeploymentVersionProjection | null;
+  };
+  rollbackTarget: DeploymentVersionProjection | null;
+  latestPromotion: {
+    id: string;
+    candidateVersionId: string | null;
+    previousVersionId: string | null;
+    sourceInstallationId: string | null;
+    bindingRevision: string | null;
+    createdAt: string;
+  } | null;
+}
+
 export interface TemplateInstallationRecord {
   agent: AgentRecord;
   version: AgentVersionRecord;
@@ -171,6 +199,56 @@ export interface AgentDeletionResult {
 interface InstallationAnalyticsRow extends InstallationRecord {
   creation_profile: HostedAgentCreationProfile | "system";
   agent_audience: AgentAudience;
+}
+
+interface DeploymentStatusRow {
+  agent_id: string;
+  playground_installation_id: string | null;
+  playground_status: string | null;
+  playground_version_id: string | null;
+  playground_version_number: number | null;
+  playground_version_status: string | null;
+  playground_digest: string | null;
+  playground_extension_snapshot_id: string | null;
+  playground_extension_snapshot_checksum: string | null;
+  live_installation_id: string | null;
+  live_status: string | null;
+  live_version_id: string | null;
+  live_version_number: number | null;
+  live_version_status: string | null;
+  live_digest: string | null;
+  live_extension_snapshot_id: string | null;
+  live_extension_snapshot_checksum: string | null;
+  latest_promotion_id: string | null;
+  latest_candidate_version_id: string | null;
+  latest_previous_version_id: string | null;
+  latest_source_installation_id: string | null;
+  latest_binding_revision: string | null;
+  latest_promotion_created_at: string | null;
+  rollback_version_id: string | null;
+  rollback_version_number: number | null;
+  rollback_version_status: string | null;
+  rollback_digest: string | null;
+  rollback_extension_snapshot_id: string | null;
+  rollback_extension_snapshot_checksum: string | null;
+}
+
+function projectDeploymentVersionRow(row: {
+  version_id: string;
+  version_number: number | null;
+  status: string | null;
+  checksum: string | null;
+  extension_snapshot_id: string | null;
+  extension_snapshot_checksum: string | null;
+}): DeploymentVersionProjection {
+  return {
+    versionId: row.version_id,
+    versionNumber: Number(row.version_number ?? 0),
+    status: row.status ?? "unknown",
+    digest: row.checksum ?? "",
+    extensionSnapshotId: row.extension_snapshot_id,
+    extensionSnapshotChecksum: row.extension_snapshot_checksum,
+  };
 }
 
 type CreateSystemAgentInput = Omit<CreateAgentInput, "creationProfile"> & { creationProfile?: HostedAgentCreationProfile };
@@ -326,6 +404,22 @@ export class AgentRepository {
           environment: "playground",
           source: "studio",
           executionProfile: "autonomous",
+        },
+        executionMode: "kasitek_hosted",
+        releaseMode: "pinned",
+      });
+      // Every hosted agent has a separate Live target from its first
+      // published candidate. Future edits update Playground only; the
+      // explicit promotion contract moves the pinned Live pointer.
+      await this.createInstallation(organizationId, actorId, {
+        agentVersionId: version.id,
+        scopeType: "organization",
+        settings: {
+          environment: "live",
+          source: "studio",
+          executionProfile: "autonomous",
+          bindingRevision: "initial",
+          bindingStatus: "ready",
         },
         executionMode: "kasitek_hosted",
         releaseMode: "pinned",
@@ -2048,6 +2142,163 @@ export class AgentRepository {
     input: DeployInstallationInput,
   ): Promise<InstallationRecord> {
     return withTransaction(this.pool, (client) => this.deploymentModule.deployInstallation(client, organizationId, actorId, installationId, input));
+  }
+
+  public async getDeploymentStatus(organizationId: string, agentId: string): Promise<AgentDeploymentStatus | null> {
+    const result = await query<DeploymentStatusRow>(
+      this.pool,
+      `SELECT definition.id AS agent_id,
+              playground.id AS playground_installation_id,
+              playground.status AS playground_status,
+              playground_version.id AS playground_version_id,
+              playground_version.version_number AS playground_version_number,
+              playground_version.status AS playground_version_status,
+              playground_version.checksum AS playground_digest,
+              playground_version.extension_snapshot_id AS playground_extension_snapshot_id,
+              playground_snapshot.checksum AS playground_extension_snapshot_checksum,
+              live.id AS live_installation_id,
+              live.status AS live_status,
+              live_version.id AS live_version_id,
+              live_version.version_number AS live_version_number,
+              live_version.status AS live_version_status,
+              live_version.checksum AS live_digest,
+              live_version.extension_snapshot_id AS live_extension_snapshot_id,
+              live_snapshot.checksum AS live_extension_snapshot_checksum,
+              latest.id AS latest_promotion_id,
+              latest.agent_version_id AS latest_candidate_version_id,
+              latest.previous_agent_version_id AS latest_previous_version_id,
+              latest.source_installation_id AS latest_source_installation_id,
+              latest.binding_revision AS latest_binding_revision,
+              latest.created_at AS latest_promotion_created_at,
+              rollback_version.id AS rollback_version_id,
+              rollback_version.version_number AS rollback_version_number,
+              rollback_version.status AS rollback_version_status,
+              rollback_version.checksum AS rollback_digest,
+              rollback_version.extension_snapshot_id AS rollback_extension_snapshot_id,
+              rollback_snapshot.checksum AS rollback_extension_snapshot_checksum
+       FROM agent_definitions definition
+       LEFT JOIN LATERAL (
+         SELECT installation.* FROM agent_installations installation
+         WHERE installation.organization_id = $1
+           AND installation.agent_definition_id = definition.id
+           AND COALESCE(installation.settings ->> 'environment', 'live') = 'playground'
+         ORDER BY installation.updated_at DESC LIMIT 1
+       ) playground ON TRUE
+       LEFT JOIN agent_versions playground_version ON playground_version.id = playground.agent_version_id
+       LEFT JOIN agent_extension_snapshots playground_snapshot ON playground_snapshot.id = playground_version.extension_snapshot_id
+       LEFT JOIN LATERAL (
+         SELECT installation.* FROM agent_installations installation
+         WHERE installation.organization_id = $1
+           AND installation.agent_definition_id = definition.id
+           AND COALESCE(installation.settings ->> 'environment', 'live') = 'live'
+         ORDER BY installation.updated_at DESC LIMIT 1
+       ) live ON TRUE
+       LEFT JOIN agent_versions live_version ON live_version.id = live.agent_version_id
+       LEFT JOIN agent_extension_snapshots live_snapshot ON live_snapshot.id = live_version.extension_snapshot_id
+       LEFT JOIN LATERAL (
+         SELECT deployment.* FROM agent_installation_deployments deployment
+         WHERE deployment.organization_id = $1
+           AND deployment.installation_id = live.id
+           AND deployment.outcome = 'success'
+           AND deployment.idempotency_key IS NOT NULL
+         ORDER BY deployment.created_at DESC LIMIT 1
+       ) latest ON TRUE
+       LEFT JOIN agent_versions rollback_version ON rollback_version.id = latest.previous_agent_version_id
+       LEFT JOIN agent_extension_snapshots rollback_snapshot ON rollback_snapshot.id = rollback_version.extension_snapshot_id
+       WHERE definition.id = $2
+         AND (
+           definition.organization_id = $1
+           OR (
+             definition.owner_type = 'system' AND definition.protected = TRUE
+             AND EXISTS (
+               SELECT 1 FROM agent_installations visible
+               WHERE visible.organization_id = $1 AND visible.agent_definition_id = definition.id
+             )
+           )
+         )`,
+      [organizationId, agentId],
+    );
+    const row = result.rows[0];
+    if (!row) return null;
+    const playground = row.playground_version_id ? projectDeploymentVersionRow({
+      version_id: row.playground_version_id,
+      version_number: row.playground_version_number,
+      status: row.playground_version_status,
+      checksum: row.playground_digest,
+      extension_snapshot_id: row.playground_extension_snapshot_id,
+      extension_snapshot_checksum: row.playground_extension_snapshot_checksum,
+    }) : null;
+    const live = row.live_version_id ? projectDeploymentVersionRow({
+      version_id: row.live_version_id,
+      version_number: row.live_version_number,
+      status: row.live_version_status,
+      checksum: row.live_digest,
+      extension_snapshot_id: row.live_extension_snapshot_id,
+      extension_snapshot_checksum: row.live_extension_snapshot_checksum,
+    }) : null;
+    const rollbackTarget = row.rollback_version_id ? projectDeploymentVersionRow({
+      version_id: row.rollback_version_id,
+      version_number: row.rollback_version_number,
+      status: row.rollback_version_status,
+      checksum: row.rollback_digest,
+      extension_snapshot_id: row.rollback_extension_snapshot_id,
+      extension_snapshot_checksum: row.rollback_extension_snapshot_checksum,
+    }) : null;
+    const blocked = !row.playground_installation_id || !row.live_installation_id
+      || row.playground_status !== "active" || row.live_status !== "active";
+    const differs = Boolean(playground && live && (
+      playground.versionId !== live.versionId
+      || playground.extensionSnapshotChecksum !== live.extensionSnapshotChecksum
+    ));
+    const state = blocked
+      ? "blocked"
+      : differs
+        ? "pending"
+        : rollbackTarget
+          ? "rollback_available"
+          : "deployed";
+    return {
+      agentId: row.agent_id,
+      state,
+      status: state,
+      playground: { installationId: row.playground_installation_id, status: row.playground_status, version: playground },
+      live: { installationId: row.live_installation_id, status: row.live_status, version: live },
+      rollbackTarget,
+      latestPromotion: row.latest_promotion_id ? {
+        id: row.latest_promotion_id,
+        candidateVersionId: row.latest_candidate_version_id,
+        previousVersionId: row.latest_previous_version_id,
+        sourceInstallationId: row.latest_source_installation_id,
+        bindingRevision: row.latest_binding_revision,
+        createdAt: row.latest_promotion_created_at ?? "",
+      } : null,
+    };
+  }
+
+  public async preflightInstallationDeployment(
+    organizationId: string,
+    installationId: string,
+    input: InstallationDeploymentPreflightInput,
+  ): Promise<DeploymentPreflightResult> {
+    return withTransaction(this.pool, (client) => this.deploymentModule.preflightInstallation(client, organizationId, installationId, input));
+  }
+
+  public async promoteInstallation(
+    organizationId: string,
+    actorId: string,
+    installationId: string,
+    input: InstallationPromotionInput,
+  ): Promise<DeploymentActivationResult> {
+    return withTransaction(this.pool, (client) => this.deploymentModule.promoteInstallation(client, organizationId, actorId, installationId, input));
+  }
+
+  public async rollbackInstallation(
+    organizationId: string,
+    actorId: string,
+    installationId: string,
+    input: InstallationRollbackInput,
+  ): Promise<DeploymentActivationResult> {
+    return withTransaction(this.pool, (client) => this.deploymentModule.rollbackInstallation(client, organizationId, actorId, installationId, input));
   }
 
   public async deployStagedVersion(
