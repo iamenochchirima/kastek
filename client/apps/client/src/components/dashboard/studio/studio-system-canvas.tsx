@@ -26,7 +26,6 @@ import {
 import {
   BookOpen,
   Bot,
-  Check,
   CircleDot,
   Database,
   GitBranch,
@@ -42,7 +41,6 @@ import {
   Sparkles,
   Workflow,
   Wrench,
-  X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -74,32 +72,35 @@ type StudioCanvasProps = {
 type CanvasNodeData = StudioGraphNode & Record<string, unknown>;
 type CanvasNode = Node<CanvasNodeData>;
 
-const NODE_WIDTH = 150;
-const NODE_HEIGHT = 72;
-
 const nodePositions: Record<string, { x: number; y: number }> = {
-  input: { x: 58, y: 112 },
-  channel: { x: 58, y: 198 },
-  session: { x: 58, y: 284 },
-  context: { x: 380, y: 112 },
-  "memory-read": { x: 380, y: 208 },
-  retrieval: { x: 555, y: 208 },
-  model: { x: 555, y: 112 },
-  router: { x: 257, y: 432 },
-  calendar: { x: 58, y: 548 },
-  mcp: { x: 235, y: 548 },
-  "content-skill": { x: 412, y: 548 },
-  approval: { x: 672, y: 432 },
-  handoff: { x: 672, y: 528 },
-  "memory-write": { x: 672, y: 624 },
-  output: { x: 835, y: 432 },
-  delivery: { x: 835, y: 528 },
+  input: { x: 62, y: 108 },
+  channel: { x: 62, y: 190 },
+  session: { x: 62, y: 272 },
+  context: { x: 380, y: 108 },
+  "memory-read": { x: 380, y: 190 },
+  retrieval: { x: 560, y: 190 },
+  model: { x: 560, y: 108 },
+  router: { x: 268, y: 430 },
+  calendar: { x: 56, y: 544 },
+  mcp: { x: 230, y: 544 },
+  "content-skill": { x: 404, y: 544 },
+  approval: { x: 670, y: 430 },
+  handoff: { x: 670, y: 526 },
+  "memory-write": { x: 670, y: 622 },
+  output: { x: 838, y: 430 },
+  delivery: { x: 838, y: 526 },
 };
 
 const movableKinds = new Set<StudioGraphNode["kind"]>(["tool", "mcp", "skill"]);
 
 function isMovableNode(node: Pick<StudioGraphNode, "kind" | "configurable">) {
   return Boolean(node.configurable && movableKinds.has(node.kind));
+}
+
+function nodeSize(kind: StudioGraphNode["kind"]) {
+  if (kind === "model") return { width: 174, height: 72 };
+  if (movableKinds.has(kind)) return { width: 122, height: 54 };
+  return { width: 136, height: 58 };
 }
 
 const sectionFrames = [
@@ -120,7 +121,7 @@ const edgeDefinitions: EdgeDefinition[] = [
   { id: "context-memory", source: "context", target: "memory-read", sourceAnchor: "bottom", targetAnchor: "top" },
   { id: "memory-retrieval", source: "memory-read", target: "retrieval", sourceAnchor: "right", targetAnchor: "left" },
   { id: "retrieval-model", source: "retrieval", target: "model", sourceAnchor: "top", targetAnchor: "bottom" },
-  { id: "model-router", source: "model", target: "router", sourceAnchor: "bottom", targetAnchor: "top" },
+  { id: "model-router", source: "model", target: "router", sourceAnchor: "right", targetAnchor: "top" },
   { id: "router-calendar", source: "router", target: "calendar", sourceAnchor: "bottom", targetAnchor: "top" },
   { id: "router-mcp", source: "router", target: "mcp", sourceAnchor: "bottom", targetAnchor: "top" },
   { id: "router-content", source: "router", target: "content-skill", sourceAnchor: "bottom", targetAnchor: "top" },
@@ -173,16 +174,19 @@ function statusClasses(status: StudioGraphStatus) {
 
 function ObservatoryNode({ data, selected }: NodeProps<CanvasNode>) {
   const status = statusClasses(data.status);
-  return <div className={cn("relative h-full w-full rounded-lg border bg-[#f6f8fc]/95 px-2.5 py-2 shadow-[0_8px_24px_-18px_rgba(0,0,0,.9)] transition-all dark:bg-[#222c41]/95", isMovableNode(data) && "cursor-grab active:cursor-grabbing", status.border, selected && "ring-2 ring-primary/35", data.status === "running" && "shadow-[0_0_26px_-8px_color-mix(in_srgb,var(--primary)_80%,transparent)]")}>
+  const compact = movableKinds.has(data.kind);
+  const model = data.kind === "model";
+  return <div className={cn("relative h-full w-full border bg-[#f6f8fc]/95 shadow-[0_8px_24px_-18px_rgba(0,0,0,.9)] transition-all dark:bg-[#222c41]/95", compact ? "rounded-2xl px-2.5 py-2" : model ? "rounded-xl px-3 py-2.5" : "rounded-lg px-2.5 py-2", isMovableNode(data) && "cursor-grab active:cursor-grabbing", status.border, selected && "ring-2 ring-primary/35", data.status === "running" && "shadow-[0_0_26px_-8px_color-mix(in_srgb,var(--primary)_80%,transparent)]")}>
     <Handle id="target" type="target" position={Position.Left} className="!h-1.5 !w-1.5 !border-0 !bg-muted-foreground/70" />
     <Handle id="source" type="source" position={Position.Right} className="!h-1.5 !w-1.5 !border-0 !bg-muted-foreground/70" />
-    <div className="flex items-start gap-2"><span className={cn("flex size-6 shrink-0 items-center justify-center rounded-md", status.icon)}>{nodeIcon(data.kind)}</span><div className="min-w-0 flex-1"><div className="flex items-center gap-1"><p className="truncate text-[11px] font-semibold text-foreground">{data.label}</p><span className="size-1.5 shrink-0 rounded-full bg-emerald-500" title="Configured" /></div><p className="mt-0.5 truncate text-[9px] leading-3.5 text-muted-foreground">{data.detail}</p><p className={cn("mt-1 inline-flex items-center gap-1 text-[8px] font-medium", status.text)}>{data.status === "running" ? <CircleDot className="size-2 animate-pulse" /> : data.status === "complete" ? <Check className="size-2" /> : data.status === "error" ? <X className="size-2" /> : <span className="size-1 rounded-full bg-current" />}{graphStatusLabel(data.status)}</p></div></div>
+    <div className="flex items-center gap-2"><span className={cn("flex shrink-0 items-center justify-center", compact ? "size-5 rounded-full" : model ? "size-7 rounded-lg" : "size-5 rounded-md", status.icon)}>{nodeIcon(data.kind)}</span><div className="min-w-0 flex-1"><div className="flex items-center gap-1"><p className={cn("truncate font-semibold text-foreground", model ? "text-xs" : "text-[10px]")}>{data.label}</p><span className={cn("size-1.5 shrink-0 rounded-full", data.status === "running" ? "animate-pulse bg-primary" : data.status === "error" ? "bg-destructive" : data.status === "complete" ? "bg-emerald-400" : "bg-emerald-500")} title={graphStatusLabel(data.status)} /></div>{compact ? null : <p className="mt-0.5 truncate text-[8px] leading-3 text-muted-foreground">{data.detail}</p>}</div></div>
+    {model ? <p className="mt-1 truncate pl-9 text-[9px] leading-3 text-muted-foreground">{data.detail}</p> : null}
   </div>;
 }
 
 function createCanvasNodes(nodes: StudioGraphNode[], selectedNodeId: string | null, positions: Record<string, XYPosition>): CanvasNode[] {
   return [
-    ...nodes.map((node) => ({ id: node.id, type: "observatory" as const, position: isMovableNode(node) ? positions[node.id] ?? nodePositions[node.id] ?? { x: 0, y: 0 } : nodePositions[node.id] ?? { x: 0, y: 0 }, data: node, selected: node.id === selectedNodeId, width: NODE_WIDTH, height: NODE_HEIGHT, style: { zIndex: 10 }, draggable: isMovableNode(node) })),
+    ...nodes.map((node) => { const size = nodeSize(node.kind); return { id: node.id, type: "observatory" as const, position: isMovableNode(node) ? positions[node.id] ?? nodePositions[node.id] ?? { x: 0, y: 0 } : nodePositions[node.id] ?? { x: 0, y: 0 }, data: node, selected: node.id === selectedNodeId, width: size.width, height: size.height, style: { zIndex: 10 }, draggable: isMovableNode(node) }; }),
   ];
 }
 
@@ -199,11 +203,12 @@ function ObservatorySectionFrames() {
   </ViewportPortal>;
 }
 
-function anchorPoint(position: XYPosition, anchor: EdgeAnchor) {
-  if (anchor === "left") return { x: position.x, y: position.y + NODE_HEIGHT / 2 };
-  if (anchor === "right") return { x: position.x + NODE_WIDTH, y: position.y + NODE_HEIGHT / 2 };
-  if (anchor === "top") return { x: position.x + NODE_WIDTH / 2, y: position.y };
-  return { x: position.x + NODE_WIDTH / 2, y: position.y + NODE_HEIGHT };
+function anchorPoint(position: XYPosition, kind: StudioGraphNode["kind"], anchor: EdgeAnchor) {
+  const size = nodeSize(kind);
+  if (anchor === "left") return { x: position.x, y: position.y + size.height / 2 };
+  if (anchor === "right") return { x: position.x + size.width, y: position.y + size.height / 2 };
+  if (anchor === "top") return { x: position.x + size.width / 2, y: position.y };
+  return { x: position.x + size.width / 2, y: position.y + size.height };
 }
 
 function orthogonalPath(start: { x: number; y: number }, end: { x: number; y: number }, sourceAnchor: EdgeAnchor, targetAnchor: EdgeAnchor) {
@@ -234,13 +239,14 @@ function ObservatoryLinks({ nodes, positions }: { nodes: StudioGraphNode[]; posi
         if (!sourcePosition || !targetPosition || !nodeById.has(definition.source) || !nodeById.has(definition.target)) return null;
         const source = nodeById.get(definition.source);
         const target = nodeById.get(definition.target);
-        const live = source?.status === "running" || target?.status === "running";
-        const failed = source?.status === "error" || target?.status === "error";
-        const completed = source?.status === "complete" && target?.status === "complete";
-        const start = anchorPoint(sourcePosition, definition.sourceAnchor);
-        const end = anchorPoint(targetPosition, definition.targetAnchor);
+        if (!source || !target) return null;
+        const live = source.status === "running" || target.status === "running";
+        const failed = source.status === "error" || target.status === "error";
+        const completed = source.status === "complete" && target.status === "complete";
+        const start = anchorPoint(sourcePosition, source.kind, definition.sourceAnchor);
+        const end = anchorPoint(targetPosition, target.kind, definition.targetAnchor);
         const color = failed ? "#f87171" : live ? "#a78bfa" : completed ? "#34d399" : "#8b98b2";
-        return <path key={definition.id} d={orthogonalPath(start, end, definition.sourceAnchor, definition.targetAnchor)} fill="none" stroke={color} strokeWidth={live ? 2.6 : 1.5} strokeOpacity={live ? 0.95 : 0.7} strokeDasharray={definition.dashed ? "7 5" : undefined} markerEnd="url(#observatory-arrow)" />;
+        return <path key={definition.id} d={orthogonalPath(start, end, definition.sourceAnchor, definition.targetAnchor)} fill="none" stroke={color} strokeWidth={live ? 2.4 : 1.35} strokeOpacity={live ? 0.95 : 0.62} strokeDasharray={definition.dashed ? "6 6" : undefined} markerEnd="url(#observatory-arrow)" />;
       })}
     </svg>
   </ViewportPortal>;
