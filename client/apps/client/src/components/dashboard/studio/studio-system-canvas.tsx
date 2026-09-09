@@ -10,10 +10,8 @@ import type { CSSProperties } from "react";
 import {
   applyNodeChanges,
   Controls,
-  Handle,
   MiniMap,
   Panel,
-  Position,
   ReactFlow,
   type Node,
   type NodeChange,
@@ -212,8 +210,6 @@ function ObservatoryNode({ data, selected }: NodeProps<CanvasNode>) {
 
   if (compact || trigger || (!model && !decision)) {
     return <div className={cn("relative flex h-full w-full flex-col items-center gap-1", isMovableNode(data) && "cursor-grab active:cursor-grabbing", selected && "rounded-xl ring-2 ring-primary/35")}>
-      <Handle id="target" type="target" position={Position.Left} className="!h-1.5 !w-1.5 !border-0 !bg-muted-foreground/70" />
-      <Handle id="source" type="source" position={Position.Right} className="!h-1.5 !w-1.5 !border-0 !bg-muted-foreground/70" />
       <span className={cn("flex size-11 shrink-0 items-center justify-center border shadow-[0_8px_20px_-15px_rgba(0,0,0,.9)]", trigger || ["channel", "session", "context", "approval", "handoff", "output", "delivery"].includes(data.kind) ? "rounded-xl" : "rounded-full", status.icon, status.border, data.status === "running" && "shadow-[0_0_22px_-8px_color-mix(in_srgb,var(--primary)_80%,transparent)]")}>{nodeIcon(data.kind)}</span>
       {labelView}
     </div>;
@@ -221,16 +217,12 @@ function ObservatoryNode({ data, selected }: NodeProps<CanvasNode>) {
 
   if (decision) {
     return <div className={cn("relative h-full w-full", selected && "rounded-xl ring-2 ring-primary/35")}>
-      <Handle id="target" type="target" position={Position.Left} className="!h-1.5 !w-1.5 !border-0 !bg-muted-foreground/70" />
-      <Handle id="source" type="source" position={Position.Right} className="!h-1.5 !w-1.5 !border-0 !bg-muted-foreground/70" />
       <span className={cn("absolute left-1/2 top-[37%] flex size-10 -translate-x-1/2 -translate-y-1/2 rotate-45 items-center justify-center rounded-lg border bg-[#222c41]/95", status.border, status.icon)}><span className="-rotate-45">{nodeIcon(data.kind)}</span></span>
       <span className="absolute inset-x-0 bottom-0">{labelView}</span>
     </div>;
   }
 
   return <div className={cn("relative flex h-full w-full flex-col items-center gap-1", selected && "rounded-xl ring-2 ring-primary/35")}>
-    <Handle id="target" type="target" position={Position.Left} className="!h-1.5 !w-1.5 !border-0 !bg-muted-foreground/70" />
-    <Handle id="source" type="source" position={Position.Right} className="!h-1.5 !w-1.5 !border-0 !bg-muted-foreground/70" />
     <div className="flex h-[72px] w-full shrink-0 items-center justify-center rounded-xl border bg-[#f6f8fc]/95 shadow-[0_8px_24px_-18px_rgba(0,0,0,.9)] transition-all dark:bg-[#222c41]/95"><span className="flex size-9 items-center justify-center rounded-lg bg-primary/15 text-primary">{nodeIcon(data.kind)}</span></div>
     {labelView}
   </div>;
