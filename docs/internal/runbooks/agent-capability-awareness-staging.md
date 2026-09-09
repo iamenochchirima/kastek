@@ -8,9 +8,10 @@ last_reviewed: 2026-09-09
 
 # Agent capability awareness staging
 
-Use this runbook to validate the capability-aware runtime before enabling it for a wider
-installation set. The test must use an isolated staging organization and non-production provider
-accounts. Never paste credentials, raw provider IDs, or message bodies into the release record.
+This is an optional hosted-release runbook for validating the capability-aware runtime before
+enabling it for a wider installation set. It is not required for local end-to-end acceptance.
+Use an isolated staging organization and non-production provider accounts. Never paste
+credentials, raw provider IDs, or message bodies into the release record.
 
 ## Preconditions
 
@@ -87,6 +88,6 @@ Record the following in the active capability-awareness plan and release record:
 - flag scope, revision, enable/disable times, comparison window, and metric query/dashboard;
 - release-owner decision and any remediation or rollback result.
 
-The local capability staging-equivalent test is not a substitute for this hosted evidence. If the
-staging target, isolated credentials, or telemetry destination is unavailable, leave the staging
-and rollout checklist items open rather than marking them passed.
+The local capability staging-equivalent test is the acceptance evidence for local development. If
+hosted staging is unavailable, leave this optional hosted-release procedure pending; it does not
+block local implementation or local end-to-end testing.

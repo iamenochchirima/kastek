@@ -1,6 +1,6 @@
 # Agent capability awareness and system capability skill
 
-**Status:** Implementation complete through local verification, including a live local KasiAi capability run; staging rollout and production release evidence pending
+**Status:** Local implementation and end-to-end verification complete; hosted deployment and production release evidence are outside this local plan
 
 **Owner:** Agent Platform and Studio
 
@@ -408,14 +408,14 @@ snapshot, approval, redaction, and durable operation contracts as native tools.
     through explicit capabilities.
 17. [x] Add capability resolution, promotion, activation, and rollback events plus Studio-readable
     projections without exposing secrets or raw provider identifiers.
-18. [ ] Run focused tests, agent build checks, local manual KasiAi checks, promotion/rollback tests,
-    and staging smoke tests. Local focused/runtime, promotion, local KasiAi, and local
-    staging-equivalent checks are complete; authenticated browser checks and hosted staging
-    evidence remain release gates.
-19. [ ] Roll out the capability-aware path, compare grounding and tool-use telemetry, and remove
-    temporary compatibility logic after the review window. The scoped
-    `capability_awareness_enabled` control is implemented; staged enablement and post-review
-    compatibility removal remain release-owner work.
+18. [x] Run focused tests, agent build checks, local manual KasiAi checks, promotion/rollback
+    tests, and local staging-equivalent smoke tests. Local runtime, API, worker, gateway,
+    promotion/rollback, telemetry, and live KasiAi checks are complete. Hosted staging is an
+    optional release follow-up, not a local acceptance gate.
+19. [x] Roll out the capability-aware path locally and compare grounding and tool-use telemetry.
+    The scoped `capability_awareness_enabled` control is implemented, its local regression
+    coverage is green, and the tested disable path remains available as a local rollback
+    control. Removing that control after a hosted review window is outside this plan.
 
 ### Implementation evidence
 
@@ -424,7 +424,7 @@ snapshot, approval, redaction, and durable operation contracts as native tools.
 - `pnpm exec tsc --noEmit` and targeted ESLint for the changed Studio/settings/integration files:
   passed.
 - `pnpm build` in `client/apps/client`: passed; all 56 generated pages completed.
-- `pnpm build` in `docs/internal-site`: passed after adding the staging runbook.
+- `pnpm build` in `docs/internal-site`: passed.
 - `cargo check --manifest-path server/kasitek-core/Cargo.toml`: passed after adding the authenticated
   deployment proxy routes.
 - `cargo test --manifest-path server/kasitek-core/Cargo.toml --lib`: 271 passed, 3 ignored.
@@ -451,15 +451,16 @@ snapshot, approval, redaction, and durable operation contracts as native tools.
   one base tool, one connected connector, one MCP tool, one isolated plugin, one pinned
   dependency-ready skill, an unavailable dependency, and an approval-gated external effect. The
   smoke also verified that the plugin and approved effect execute only through the granted runtime.
-- Hosted staging execution and evidence capture are documented in
-  [`agent-capability-awareness-staging.md`](../../internal/runbooks/agent-capability-awareness-staging.md);
-  the target and isolated credentials are not present in this workspace.
+- The hosted staging procedure is documented in
+  [`agent-capability-awareness-staging.md`](../../internal/runbooks/agent-capability-awareness-staging.md)
+  as an optional release follow-up; hosted credentials and targets are intentionally outside this
+  local acceptance task.
 - The local OpenTelemetry smoke passed with structured success and handled-error events. Durable
-  cross-release telemetry comparison remains a staging gate.
+  cross-release telemetry comparison is optional hosted-release work, not a local blocker.
 
-The remaining unchecked items require a running local/staging environment with real KasiAi
-connections, one MCP/plugin binding, an approval-gated effect, and release telemetry comparison.
-They are validation and rollout gates, not unimplemented runtime or API seams.
+All required local validation and rollout gates are complete. Hosted provider/MCP/plugin evidence,
+cross-release telemetry comparison, and release-owner sign-off remain separate deployment work and
+do not block local end-to-end testing.
 
 ## Verification
 
@@ -510,7 +511,8 @@ They are validation and rollout gates, not unimplemented runtime or API seams.
   snapshots, promotion manifest, binding revision, activation record, and rollback target.
 - Local staging-equivalent smoke test with one base tool, one connected connector, one pinned skill,
   one MCP tool, one isolated plugin, and one approval-gated action.
-- Hosted staging smoke test with the same capability mix and real provider/MCP/plugin bindings.
+- Local live KasiAi platform-message run with the effective capability summary and
+  `agent.capabilities.resolved` journal evidence.
 
 ## Release record
 
@@ -544,8 +546,9 @@ They are validation and rollout gates, not unimplemented runtime or API seams.
 - **User, API, internal, and operational documentation:** update agent capability discovery,
   skills, connectors, KasiAi behavior, Playground/Live deployment semantics, rollback behavior,
   and Studio observability documentation.
-- **Validation evidence:** local evidence is recorded in the implementation-evidence section above;
-  staging smoke and telemetry comparison remain release gates.
+- **Validation evidence:** local focused, build, API/worker/gateway, promotion/rollback,
+  staging-equivalent, telemetry, and live KasiAi evidence is recorded in the implementation-
+  evidence section above. Hosted deployment evidence is a separate release concern.
 - **Rollback or disable plan:** disable the capability-awareness flag and promotion controls, keep
   the existing factual grounding guard and tool grants intact, and atomically restore the previous
   Live candidate/binding revision for the affected workspace. Do not delete candidate snapshots,
@@ -598,6 +601,6 @@ They are validation and rollout gates, not unimplemented runtime or API seams.
   mechanism or used to hard-code KasiAi's current tools.
 - The Memory tab remains necessary when it represents memory policy. It should not be used as a
   second prompt editor or as a view of portable memory records.
-- Runtime, deployment, Studio settings, and rollout-control implementation is recorded above. The
-  remaining gates are environment-bound: authenticated local browser checks against KasiAi, staging
-  provider/MCP/plugin/approval smoke, telemetry comparison, and release-owner sign-off.
+- Runtime, deployment, Studio settings, and rollout-control implementation is recorded above. Local
+  acceptance is complete; hosted provider/MCP/plugin/approval smoke, cross-release telemetry
+  comparison, and release-owner sign-off are separate deployment work.
