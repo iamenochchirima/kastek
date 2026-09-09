@@ -5,11 +5,9 @@ import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
   ArrowRight,
-  Activity,
   Bot,
   Check,
   CircleDot,
-  Gauge,
   FlaskConical,
   LoaderCircle,
   MessageCircle,
@@ -37,6 +35,7 @@ import {
   resolvePlatformConversation,
   sendPlatformAudio,
   sendPlatformMessage,
+  submitAgentUiInteraction,
   streamAgentRun,
   type AgentMessage,
   type AgentDefinition,
@@ -51,8 +50,11 @@ import {
 } from "@/lib/agent-platform";
 import { cn } from "@/lib/utils";
 import { AgentChatComposer } from "@/components/dashboard/agents/agent-chat-composer";
+import { AgentChatMessageList } from "@/components/dashboard/agents/agent-chat-message-list";
+import { AgentChatSurface } from "@/components/dashboard/agents/agent-chat-surface";
 import { StudioSettingsPrototype, type StudioCapabilityDraft } from "@/components/dashboard/studio/studio-settings-prototype";
 import { StudioSystemCanvas, type StudioGraphNode, type StudioGraphStatus } from "@/components/dashboard/studio/studio-system-canvas";
+import type { AgentUiInteraction } from "@/components/dashboard/kasiai/dynamic-ui-renderer";
 
 type StudioPageProps = {
   initialAgents: AgentDefinition[];
@@ -119,28 +121,6 @@ function demoTraceNode(step: DemoTraceStep, sequence: number): TraceNode {
   };
 }
 
-
-type ChatMessage = {
-  id: string;
-  text: string;
-  direction: "user" | "agent" | "system";
-  createdAt?: string;
-  pending?: boolean;
-};
-
-function chatMessageFromAgent(message: AgentMessage): ChatMessage {
-  const text = typeof message.content?.text === "string"
-    ? message.content.text
-    : message.message_type === "text"
-      ? JSON.stringify(message.content)
-      : message.message_type;
-  const direction = message.direction === "outbound"
-    ? "agent"
-    : message.direction === "system"
-      ? "system"
-      : "user";
-  return { id: message.id, text, direction, createdAt: message.created_at };
-}
 
 const terminalStatuses = new Set(["completed", "failed", "cancelled", "expired"]);
 
@@ -317,22 +297,6 @@ function SectionEyebrow({ children }: { children: ReactNode }) {
   return <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">{children}</p>;
 }
 
-function displayNumber(value: number | undefined, suffix = "") {
-  return value === undefined || !Number.isFinite(value) ? "—" : `${Math.round(value).toLocaleString()}${suffix}`;
-}
-
-function displayDuration(value: number | undefined) {
-  if (value === undefined || !Number.isFinite(value)) return "—";
-  if (value < 1_000) return `${Math.round(value)}ms`;
-  return `${(value / 1_000).toFixed(value >= 10_000 ? 0 : 1)}s`;
-}
-
-function displayTimestamp(value: string | undefined) {
-  if (!value) return "—";
-  const timestamp = new Date(value);
-  return Number.isNaN(timestamp.getTime()) ? "—" : timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
-}
-
 type ModelSelection = Pick<AgentModel, "provider" | "model">;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -371,82 +335,6 @@ function modelSelectionFromVersion(version: AgentVersion | null | undefined): Mo
   const model = specPrimary?.model ?? policyPrimary?.model ?? configuration?.model;
   if (!isAgentModelProvider(provider) || typeof model !== "string" || !model.trim()) return null;
   return { provider, model: model.trim() };
-}
-
-function RuntimeStatusRow({ telemetry, model, detailsOpen, onToggleDetails }: { telemetry: AgentRuntimeTelemetry | null; model?: AgentModel; detailsOpen: boolean; onToggleDetails: () => void }) {
-  const contextTokens = telemetry?.context.tokens ?? 0;
-  const contextWindowTokens = telemetry?.context.contextWindowTokens ?? model?.contextWindow ?? 0;
-  const contextValue = `${contextTokens.toLocaleString()} / ${contextWindowTokens.toLocaleString()}`;
-  const utilization = telemetry?.context.utilizationPercent ?? 0;
-  const latency = telemetry?.modelAttempt?.latencyMs ?? telemetry?.rolling.latencyMs ?? 0;
-  const turnElapsed = telemetry?.turn.elapsedMs ?? 0;
-  return (
-    <div className="border-b border-border bg-background/60 px-3 py-2">
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-[11px]">
-        <span className="inline-flex items-center gap-1.5 font-medium text-foreground"><Activity className="size-3.5 text-primary" />Runtime</span>
-        <span className="text-muted-foreground">Context <strong className="font-medium text-foreground">{contextValue}</strong></span>
-        <span className="text-muted-foreground">Use <strong className="font-medium text-foreground">{displayNumber(utilization, "%")}</strong></span>
-        <span className="text-muted-foreground">Latency <strong className="font-medium text-foreground">{displayDuration(latency)}</strong></span>
-        <span className="text-muted-foreground">Turn <strong className="font-medium text-foreground">{displayDuration(turnElapsed)}</strong></span>
-        <button type="button" className="ml-auto inline-flex items-center gap-1 text-primary hover:text-primary/80" aria-expanded={detailsOpen} onClick={onToggleDetails}>{detailsOpen ? "Hide" : "Details"}<span aria-hidden="true">{detailsOpen ? "−" : "+"}</span></button>
-      </div>
-      {detailsOpen ? telemetry ? <RuntimeTelemetryDetail telemetry={telemetry} /> : <div className="mt-3 border-t border-border pt-3 text-[11px] text-muted-foreground">No run data yet.</div> : null}
-    </div>
-  );
-}
-
-function RuntimeTelemetryDetail({ telemetry }: { telemetry: AgentRuntimeTelemetry }) {
-  const manifest = telemetry.context.manifest;
-  const latestCompaction = telemetry.context.latestCompaction;
-  return (
-    <div className="mt-3 grid gap-2 border-t border-border pt-3 text-[11px] sm:grid-cols-2">
-      <div className="rounded-lg border border-border bg-card/70 p-2.5">
-        <div className="flex items-center gap-1.5 font-medium text-foreground"><Gauge className="size-3.5 text-primary" />Context</div>
-        <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-muted-foreground">
-          <dt>Basis</dt><dd className="text-right text-foreground">{telemetry.context.basis}</dd>
-          <dt>Pressure</dt><dd className="text-right text-foreground">{telemetry.context.pressure ?? "—"}</dd>
-          <dt>Decision</dt><dd className="text-right text-foreground">{telemetry.context.decision ?? "—"}</dd>
-          <dt>Reserve</dt><dd className="text-right text-foreground">{displayNumber(telemetry.context.reservedOutputTokens)}</dd>
-          <dt>Safety</dt><dd className="text-right text-foreground">{displayNumber(telemetry.context.safetyMarginTokens)}</dd>
-          <dt>Soft / hard</dt><dd className="text-right text-foreground">{displayNumber(telemetry.context.softThresholdTokens)} / {displayNumber(telemetry.context.hardLimitTokens)}</dd>
-          <dt>Capability</dt><dd className="truncate text-right text-foreground">{telemetry.context.capabilitySource ?? "—"}</dd>
-          <dt>Reason</dt><dd className="truncate text-right text-foreground">{typeof latestCompaction?.reason === "string" ? latestCompaction.reason : telemetry.modelAttempt?.errorCode ?? telemetry.context.decision ?? "—"}</dd>
-        </dl>
-      </div>
-      <div className="rounded-lg border border-border bg-card/70 p-2.5">
-        <div className="flex items-center gap-1.5 font-medium text-foreground"><Activity className="size-3.5 text-primary" />Model</div>
-        <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-muted-foreground">
-          <dt>Attempt</dt><dd className="text-right text-foreground">{telemetry.modelAttempt?.status ?? "—"}</dd>
-          <dt>Model</dt><dd className="truncate text-right text-foreground">{telemetry.modelAttempt?.model ?? "—"}</dd>
-          <dt>Queue</dt><dd className="text-right text-foreground">{displayDuration(telemetry.modelAttempt?.queueMs)}</dd>
-          <dt>First token</dt><dd className="text-right text-foreground">{displayDuration(telemetry.modelAttempt?.timeToFirstTokenMs)}</dd>
-          <dt>Latency</dt><dd className="text-right text-foreground">{displayDuration(telemetry.modelAttempt?.latencyMs)}</dd>
-          <dt>Output</dt><dd className="text-right text-foreground">{displayNumber(telemetry.modelAttempt?.outputTokens)} tokens</dd>
-          <dt>Attempts</dt><dd className="text-right text-foreground">{telemetry.attempts.length}</dd>
-          <dt>Rolling</dt><dd className="text-right text-foreground">{displayDuration(telemetry.rolling.latencyMs)} · {displayNumber(telemetry.rolling.outputTokensPerSecond)} t/s</dd>
-        </dl>
-      </div>
-      <div className="rounded-lg border border-border bg-card/70 p-2.5">
-        <div className="flex items-center gap-1.5 font-medium text-foreground"><Gauge className="size-3.5 text-primary" />Run usage</div>
-        <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-muted-foreground">
-          <dt>Total</dt><dd className="text-right text-foreground">{displayNumber(telemetry.usage.totalTokens)} tokens</dd>
-          <dt>Input / output</dt><dd className="text-right text-foreground">{displayNumber(telemetry.usage.inputTokens)} / {displayNumber(telemetry.usage.outputTokens)}</dd>
-          <dt>Budget</dt><dd className="text-right text-foreground">{displayNumber(telemetry.runBudget.maxTotalTokens)} tokens</dd>
-          <dt>Remaining</dt><dd className="text-right text-foreground">{displayNumber(telemetry.runBudget.remainingTokens)} tokens</dd>
-          <dt>Basis</dt><dd className="text-right text-foreground">{telemetry.usage.basis}</dd>
-        </dl>
-      </div>
-      <div className="rounded-lg border border-border bg-card/70 p-2.5 sm:col-span-2">
-        <div className="flex flex-wrap items-center justify-between gap-2 font-medium text-foreground"><span>Evidence</span><span className="font-mono text-[10px] text-muted-foreground">rev {telemetry.revision} · {displayTimestamp(telemetry.observedAt)}</span></div>
-        <dl className="mt-2 grid gap-x-4 gap-y-1 text-muted-foreground sm:grid-cols-2">
-          <div className="flex justify-between gap-3"><dt>Manifest</dt><dd className="max-w-[14rem] truncate font-mono text-foreground">{telemetry.context.manifestDigest ?? "—"}</dd></div>
-          <div className="flex justify-between gap-3"><dt>Components</dt><dd className="text-foreground">{Array.isArray(manifest?.components) ? manifest.components.length : "—"}</dd></div>
-          <div className="flex justify-between gap-3"><dt>Compactions</dt><dd className="text-foreground">{telemetry.context.compactionCount}</dd></div>
-          <div className="flex justify-between gap-3"><dt>Latest</dt><dd className="max-w-[14rem] truncate text-foreground">{latestCompaction && typeof latestCompaction.type === "string" ? latestCompaction.type : "—"}</dd></div>
-        </dl>
-      </div>
-    </div>
-  );
 }
 
 export function StudioPage({ initialAgents, initialAgentId, agentsUnavailable = false, surface = "studio" }: StudioPageProps) {
@@ -551,7 +439,7 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
   const [trace, setTrace] = useState<TraceNode[]>([]);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [input, setInput] = useState("");
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [messages, setMessages] = useState<AgentMessage[]>([]);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [conversationLoading, setConversationLoading] = useState(Boolean(agent.installation_id && agent.installation_settings?.environment === "playground"));
   const [configurationOpen, setConfigurationOpen] = useState(false);
@@ -616,13 +504,13 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
 
   const applyConversation = useCallback((result: Awaited<ReturnType<typeof resolvePlatformConversation>>) => {
     setConversationId(result.conversation.id);
-    setMessages(result.messages.map(chatMessageFromAgent));
+    setMessages(result.messages);
   }, []);
 
   const refreshConversation = useCallback(async (id: string) => {
     const result = await getPlatformConversation(id);
     setConversationId(result.conversation.id);
-    setMessages(result.messages.map(chatMessageFromAgent));
+    setMessages(result.messages);
   }, []);
 
   useEffect(() => {
@@ -798,8 +686,7 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
             context: { route: window.location.pathname, pageTitle: document.title },
           });
       setMessages((current) => {
-        const acceptedMessage = chatMessageFromAgent(accepted.message);
-        return current.some((item) => item.id === acceptedMessage.id) ? current : [...current, acceptedMessage];
+        return current.some((item) => item.id === accepted.message.id) ? current : [...current, accepted.message];
       });
       setInput("");
       setActiveRunId(accepted.runId);
@@ -826,6 +713,49 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
     } catch (cause) {
       const remediation = cause instanceof Error && "remediation" in cause && typeof cause.remediation === "string" ? cause.remediation : undefined;
       showError(cause instanceof Error ? cause.message : "Agent run failed", remediation);
+      setTrace((current) => current.map((node) => node.status === "running" ? { ...node, status: "error" } : node));
+    } finally {
+      setRunning(false);
+      setCancelling(false);
+      setActiveRunId(null);
+    }
+  };
+
+  const submitUiInteraction = async (message: AgentMessage, interaction: AgentUiInteraction) => {
+    if (!agent.installation_id || !conversationId || running || demoRunning) return;
+    setRunning(true);
+    clearError();
+    setNotice(null);
+    const controller = new AbortController();
+    try {
+      const accepted = await submitAgentUiInteraction(agent.installation_id, {
+        conversationId,
+        messageId: message.id,
+        blockId: interaction.blockId,
+        actionId: interaction.actionId,
+        idempotencyKey: crypto.randomUUID(),
+        ...(interaction.values ? { values: interaction.values } : {}),
+        context: { route: window.location.pathname, pageTitle: document.title },
+      });
+      setMessages((current) => current.some((item) => item.id === accepted.message.id) ? current : [...current, accepted.message]);
+      setActiveRunId(accepted.runId);
+      setTrace((current) => [...current, { id: `ui-${accepted.runId}`, event: "run.received", label: "Input", detail: "Interactive result action", status: "running", sequence: current.length, data: { run_id: accepted.runId, action_id: interaction.actionId } }]);
+      await streamAgentRun(accepted.runId, addTraceEvent, controller.signal);
+      const result = await getAgentRun(accepted.runId);
+      const timeline = await getAgentRunTimeline(accepted.runId).catch(() => null);
+      setTelemetry(timeline?.telemetry ?? null);
+      const runNodes = timeline?.journal?.length
+        ? nodesFromJournalEvents(timeline.journal, timeline.telemetry?.revision)
+        : nodesFromRunEvents(result.events);
+      if (runNodes.length) setTrace(runNodes);
+      await refreshConversation(conversationId);
+      if (result.run.status !== "completed") {
+        const runError = result.run.error;
+        throw new Error(runError?.userMessage || runError?.message || `Run ${result.run.status}`);
+      }
+      setNotice(`Run ${result.run.status}`);
+    } catch (cause) {
+      showError(cause instanceof Error ? cause.message : "Unable to submit this action");
       setTrace((current) => current.map((node) => node.status === "running" ? { ...node, status: "error" } : node));
     } finally {
       setRunning(false);
@@ -958,31 +888,42 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
       <div className="mx-auto flex h-full min-h-0 w-full max-w-[1760px] flex-1 px-3 py-3 sm:px-5 lg:px-6">
         <div className="grid h-full min-h-0 flex-1 overflow-hidden rounded-2xl border border-border bg-card xl:grid-cols-[minmax(330px,0.34fr)_minmax(0,0.66fr)]">
           <section className="flex min-h-[540px] min-w-0 flex-col border-b border-border xl:min-h-0 xl:border-b-0 xl:border-r">
-            <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3"><div><SectionEyebrow>Conversation</SectionEyebrow><h1 className="mt-1 text-sm font-semibold text-foreground">{agent.name}</h1></div><span className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground"><MessageCircle className="size-3.5" />{conversationId ? "Ready" : conversationLoading ? "Loading" : "New"}</span></div>
-            <RuntimeStatusRow telemetry={telemetry} model={selectedModelEntry} detailsOpen={telemetryDetailsOpen} onToggleDetails={() => setTelemetryDetailsOpen((current) => !current)} />
-            <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-5">
-              {conversationLoading ? <div className="flex h-full min-h-48 items-center justify-center text-xs text-muted-foreground"><LoaderCircle className="mr-2 size-4 animate-spin" />Loading conversation</div> : messages.length ? messages.map((message) => <div key={message.id} className={cn("flex", message.direction === "user" ? "justify-end" : "justify-start")}><div className={cn("max-w-[88%] rounded-2xl px-3.5 py-2.5 text-sm leading-5", message.direction === "user" ? "rounded-br-md bg-primary text-primary-foreground" : message.direction === "system" ? "border border-border bg-muted/50 text-muted-foreground" : "rounded-bl-md bg-muted text-foreground")}>{message.text}</div></div>) : <div className="flex h-full min-h-48 flex-col items-center justify-center px-5 text-center"><MessageCircle className="size-5 text-muted-foreground" /><p className="mt-3 text-sm font-medium text-foreground">Start a conversation</p><p className="mt-1 text-xs text-muted-foreground">Send a message to run this agent.</p></div>}
-              {running ? <div className="flex justify-start"><div className="inline-flex items-center gap-2 rounded-2xl rounded-bl-md bg-muted px-3.5 py-2.5 text-xs text-muted-foreground"><LoaderCircle className="size-3.5 animate-spin" />Agent is running</div></div> : null}
-            </div>
-            {error ? <div className="mx-4 mb-3 flex items-start justify-between gap-3 rounded-lg border border-destructive/20 bg-destructive/10 px-3 py-2 text-xs text-destructive" role="alert"><div><p>{error}</p>{errorRemediation ? <p className="mt-1 text-destructive/80">{errorRemediation}</p> : null}</div><button type="button" aria-label="Dismiss error" onClick={clearError}><X className="size-4 shrink-0" /></button></div> : null}
-            {notice ? <div className="mx-4 mb-3 flex items-center gap-2 rounded-lg border border-emerald-500/20 bg-emerald-500/5 px-3 py-2 text-xs text-emerald-700 dark:text-emerald-300"><Check className="size-3.5" />{notice}</div> : null}
-            <AgentChatComposer
-              value={input}
-              onChange={setInput}
-              onSubmit={() => void runAgent()}
-              model={selectedModelEntry}
-              models={pickerModels}
-              onModelChange={(model, provider) => setModelSelection({ model, provider })}
-              modelDisabled={modelCatalogLoading || !pickerModels.length}
-              disabled={!canRun || demoRunning || conversationLoading}
-              sending={running}
-              onStop={() => void cancelRun()}
-              onAudioReady={(file) => void runAgent(file)}
-              onAudioError={showError}
-              placeholder="Message this agent…"
-              className="border-t border-border bg-card p-3 shadow-none"
-              ariaLabel="Message agent"
-            />
+            <AgentChatSurface
+              header={<div className="flex shrink-0 items-center justify-between gap-3 border-b border-border px-4 py-3"><div><SectionEyebrow>Conversation</SectionEyebrow><h1 className="mt-1 text-sm font-semibold text-foreground">{agent.name}</h1></div><span className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground"><MessageCircle className="size-3.5" />{conversationId ? "Ready" : conversationLoading ? "Loading" : "New"}</span></div>}
+              runtime={{ telemetry, model: selectedModelEntry, detailsOpen: telemetryDetailsOpen, onToggleDetails: () => setTelemetryDetailsOpen((current) => !current) }}
+              contentClassName="space-y-3 px-4 py-5"
+              statusContent={
+                <>
+                  {running ? <div className="shrink-0 border-t border-border px-4 py-2"><div className="inline-flex items-center gap-2 rounded-2xl rounded-bl-md bg-muted px-3.5 py-2.5 text-xs text-muted-foreground"><LoaderCircle className="size-3.5 animate-spin" />Agent is running</div></div> : null}
+                  {notice ? <div className="mx-4 mb-3 flex shrink-0 items-center gap-2 rounded-lg border border-emerald-500/20 bg-emerald-500/5 px-3 py-2 text-xs text-emerald-700 dark:text-emerald-300"><Check className="size-3.5" />{notice}</div> : null}
+                </>
+              }
+              error={error ? <div className="flex items-start justify-between gap-3 text-xs"><div><p>{error}</p>{errorRemediation ? <p className="mt-1 text-destructive/80">{errorRemediation}</p> : null}</div><button type="button" aria-label="Dismiss error" onClick={clearError}><X className="size-4 shrink-0" /></button></div> : null}
+              composer={<AgentChatComposer
+                value={input}
+                onChange={setInput}
+                onSubmit={() => void runAgent()}
+                model={selectedModelEntry}
+                models={pickerModels}
+                onModelChange={(model, provider) => setModelSelection({ model, provider })}
+                modelDisabled={modelCatalogLoading || !pickerModels.length}
+                disabled={!canRun || demoRunning || conversationLoading}
+                sending={running}
+                onStop={() => void cancelRun()}
+                onAudioReady={(file) => void runAgent(file)}
+                onAudioError={showError}
+                placeholder="Message this agent…"
+                className="border-t border-border bg-card p-3 shadow-none"
+                ariaLabel="Message agent"
+              />}
+            >
+              <AgentChatMessageList
+                messages={messages}
+                loading={conversationLoading}
+                onUiInteraction={submitUiInteraction}
+                emptyState={<div className="flex min-h-48 flex-col items-center justify-center px-5 text-center"><MessageCircle className="size-5 text-muted-foreground" /><p className="mt-3 text-sm font-medium text-foreground">Start a conversation</p><p className="mt-1 text-xs text-muted-foreground">Send a message to run this agent.</p></div>}
+              />
+            </AgentChatSurface>
           </section>
 
           <section className="flex min-h-[620px] min-w-0 flex-col xl:min-h-0">

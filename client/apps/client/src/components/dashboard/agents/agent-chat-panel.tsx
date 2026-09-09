@@ -19,10 +19,12 @@ import {
   clearPlatformConversations,
   createNewPlatformConversation,
   getAgentRun,
+  getAgentRunTimeline,
   getAgentModelCatalog,
   getPlatformConversation,
   resolvePlatformConversation,
   sendPlatformMessage,
+  submitAgentUiInteraction,
   streamAgentRun,
   updateKasiAiConversation,
   type AgentModel,
@@ -30,10 +32,12 @@ import {
   type AgentModelProvider,
   type AgentConversation,
   type AgentMessage,
+  type AgentRuntimeTelemetry,
 } from "@/lib/agent-platform";
 import { AgentChatComposer } from "./agent-chat-composer";
-import { AgentMessageMedia, agentMessageHasMedia } from "./agent-message-media";
-import { AgentAuthorizationAction } from "./agent-authorization-action";
+import { AgentChatMessageList } from "./agent-chat-message-list";
+import { AgentChatSurface } from "./agent-chat-surface";
+import type { AgentUiInteraction } from "@/components/dashboard/kasiai/dynamic-ui-renderer";
 
 const testChatActiveRunStatuses = new Set(["received", "queued", "running", "awaiting_approval", "awaiting_human", "awaiting_external_event"]);
 const testChatTerminalRunStatuses = new Set(["completed", "failed", "cancelled", "expired"]);
@@ -90,6 +94,8 @@ export function AgentChatPanel({ installationId, active, agentName, modal = fals
   const [error, setError] = useState<string | null>(null);
   const [activeRunId, setActiveRunId] = useState<string | null>(null);
   const [lastRunId, setLastRunId] = useState<string | null>(null);
+  const [runtimeTelemetry, setRuntimeTelemetry] = useState<AgentRuntimeTelemetry | null>(null);
+  const [runtimeDetailsOpen, setRuntimeDetailsOpen] = useState(false);
   const [runProgress, setRunProgress] = useState("Preparing request…");
   const [runEvents, setRunEvents] = useState<Array<{ event: string; label: string }>>([]);
   const [modelCatalog, setModelCatalog] = useState<AgentModelCatalog | null>(null);
@@ -203,6 +209,26 @@ export function AgentChatPanel({ installationId, active, agentName, modal = fals
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }, [messages, sending]);
+
+  useEffect(() => {
+    const runId = activeRunId ?? lastRunId;
+    if (!runId) {
+      setRuntimeTelemetry(null);
+      return;
+    }
+    let cancelled = false;
+    const refreshRuntimeTelemetry = async () => {
+      const timeline = await getAgentRunTimeline(runId).catch(() => null);
+      if (!cancelled) setRuntimeTelemetry(timeline?.telemetry ?? null);
+    };
+    void refreshRuntimeTelemetry();
+    if (!activeRunId) return () => { cancelled = true; };
+    const timer = window.setInterval(() => { void refreshRuntimeTelemetry(); }, 1_000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [activeRunId, lastRunId]);
 
   useEffect(() => () => {
     streamAbort.current?.abort();
@@ -323,6 +349,40 @@ export function AgentChatPanel({ installationId, active, agentName, modal = fals
     }
   };
 
+  const submitUiInteraction = async (message: AgentMessage, interaction: AgentUiInteraction) => {
+    if (!active || sending || !conversation) return;
+    setSending(true);
+    setError(null);
+    setLastRunId(null);
+    setRunProgress("Submitting action…");
+    setRunEvents([]);
+    const controller = new AbortController();
+    streamAbort.current = controller;
+    try {
+      const accepted = await submitAgentUiInteraction(installationId, {
+        conversationId: conversation.id,
+        messageId: message.id,
+        blockId: interaction.blockId,
+        actionId: interaction.actionId,
+        idempotencyKey: crypto.randomUUID(),
+        ...(interaction.values ? { values: interaction.values } : {}),
+        context: { route: window.location.pathname, pageTitle: document.title },
+      });
+      setConversation(accepted.conversation);
+      setMessages((current) => current.some((item) => item.id === accepted.message.id) ? current : [...current, accepted.message]);
+      setLastRunId(accepted.runId);
+      setActiveRunId(accepted.runId);
+      await watchRun(accepted.runId, controller);
+      await refresh(accepted.conversation.id);
+    } catch (cause) {
+      if (!(cause instanceof DOMException && cause.name === "AbortError")) setError(cause instanceof Error ? cause.message : "Unable to submit this action");
+    } finally {
+      streamAbort.current = null;
+      setActiveRunId(null);
+      setSending(false);
+    }
+  };
+
   const stop = async () => {
     if (!activeRunId) return;
     setRunProgress("Cancellation requested…");
@@ -333,8 +393,9 @@ export function AgentChatPanel({ installationId, active, agentName, modal = fals
   };
 
   return <Card className="relative h-full min-h-0 overflow-hidden border-border/80 shadow-sm">
-    <div className="flex h-full min-h-0 flex-col">
-      <header className={`flex shrink-0 flex-col gap-3 border-b border-border bg-card px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6 ${modal ? "pr-12" : ""}`}>
+    <AgentChatSurface
+      runtime={{ telemetry: runtimeTelemetry, model: selectedModelEntry, detailsOpen: runtimeDetailsOpen, onToggleDetails: () => setRuntimeDetailsOpen((current) => !current) }}
+      header={<header className={`flex shrink-0 flex-col gap-3 border-b border-border bg-card px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6 ${modal ? "pr-12" : ""}`}>
         <div className="flex items-center gap-3">
           <div className="grid h-10 w-10 place-items-center rounded-xl bg-primary/10 text-primary"><Bot className="h-5 w-5" /></div>
           <div><h2 className="text-lg font-semibold text-foreground">{agentName ? `${agentName} chat` : "Test chat"}</h2><p className="mt-0.5 text-sm text-muted-foreground">Try a conversation with this agent.</p></div>
@@ -345,35 +406,12 @@ export function AgentChatPanel({ installationId, active, agentName, modal = fals
           <Button type="button" variant="outline" size="sm" className="h-8 gap-1.5" disabled={!active || loading || sending || clearing} onClick={() => setClearConfirmation(true)}><Trash2 className="h-3.5 w-3.5" />Clear chats</Button>
           <Button type="button" variant="outline" size="sm" className="h-8 gap-1.5" disabled={!active || loading || sending || clearing} onClick={() => void startNewChat()}><Plus className="h-3.5 w-3.5" />New chat</Button>
         </div>
-      </header>
-
-      {!active ? <div className="border-b border-border bg-status-attention-soft px-5 py-3 text-sm text-status-attention sm:px-6">Resume this installation to start testing.</div> : null}
-
-      <div className="min-h-0 flex-1 overflow-y-auto bg-secondary/10 px-4 py-6 sm:px-6" aria-live="polite">
-        <div className="mx-auto flex min-h-full max-w-3xl flex-col justify-end gap-5">
-          {loading ? <div className="flex min-h-[300px] items-center justify-center"><p className="text-sm text-muted-foreground">Loading conversation…</p></div> : messages.length ? <>
-            {messages.map((message) => {
-              const isUser = message.direction === "inbound";
-              const isSystem = message.direction === "system";
-              const text = typeof message.content?.text === "string" ? message.content.text : "";
-              return <div key={message.id} className={`flex ${isSystem ? "justify-center" : isUser ? "justify-end" : "justify-start"}`}>
-                <div className={`max-w-[88%] rounded-2xl px-4 py-3 text-sm leading-6 shadow-sm sm:max-w-[78%] ${isSystem ? "rounded-lg border border-border bg-card text-muted-foreground" : isUser ? "rounded-br-md bg-primary text-primary-foreground" : "rounded-bl-md border border-border bg-card text-foreground"}`}>
-                  <div className={`mb-1 text-[10px] font-semibold uppercase tracking-[0.12em] ${isSystem ? "text-muted-foreground" : isUser ? "text-primary-foreground/70" : "text-muted-foreground"}`}>{isSystem ? "System" : isUser ? "You" : "Agent"}</div>
-                  <AgentMessageMedia message={message} />
-                  {text ? <p className="whitespace-pre-wrap">{text}</p> : !agentMessageHasMedia(message) ? <p className="whitespace-pre-wrap">(No text content)</p> : null}
-                  <AgentAuthorizationAction message={message} />
-                  <p className={`mt-1 text-[10px] ${isUser ? "text-primary-foreground/60" : "text-muted-foreground"}`}>{new Date(message.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</p>
-                </div>
-              </div>;
-            })}
-            {(sending || lastRunId) ? <div className="rounded-xl border border-border bg-card px-4 py-3 text-xs shadow-sm"><div className="flex items-center justify-between gap-3"><div className="flex min-w-0 items-center gap-2 text-muted-foreground"><Activity className="h-3.5 w-3.5 shrink-0 text-primary" /><span className="truncate">{runProgress}</span>{sending ? <LoaderCircle className="h-3.5 w-3.5 shrink-0 animate-spin text-primary" /> : null}</div>{lastRunId ? <Link href={`/agents/activity/${encodeURIComponent(lastRunId)}`} className="shrink-0 font-medium text-primary hover:underline">View activity</Link> : null}</div>{runEvents.length ? <div className="mt-2 flex flex-wrap gap-1.5" aria-label="Run activity">{runEvents.map((entry, index) => <span key={`${entry.event}-${index}`} className={`rounded-full px-2 py-0.5 text-[10px] ${entry.event.includes("failed") ? "bg-destructive/10 text-destructive" : entry.event.includes("approval") ? "bg-status-attention-soft text-status-attention" : "bg-secondary text-muted-foreground"}`}>{entry.label}</span>)}</div> : null}</div> : null}
-          </> : <div className="flex min-h-[300px] flex-col items-center justify-center text-center"><div className="grid h-14 w-14 place-items-center rounded-2xl bg-primary/10 text-primary"><MessageSquare className="h-6 w-6" /></div><h3 className="mt-4 text-base font-semibold text-foreground">Start a conversation</h3><p className="mt-1 max-w-sm text-sm leading-6 text-muted-foreground">Send a message below to see how this agent responds.</p></div>}
-          <div ref={messagesEndRef} />
-        </div>
-      </div>
-
-      {error ? <div className="shrink-0 border-t border-destructive/20 bg-destructive/10 px-5 py-3 text-sm text-destructive" role="alert">{error}</div> : null}
-      <AgentChatComposer
+      </header>}
+      inactiveNotice={!active ? <div className="shrink-0 border-b border-border bg-status-attention-soft px-5 py-3 text-sm text-status-attention sm:px-6">Resume this installation to start testing.</div> : null}
+      contentClassName="bg-secondary/10 px-4 py-6 sm:px-6"
+      statusContent={(sending || lastRunId) ? <div className="shrink-0 border-t border-border bg-secondary/10 px-4 py-3 sm:px-6"><div className="mx-auto max-w-3xl rounded-xl border border-border bg-card px-4 py-3 text-xs shadow-sm"><div className="flex items-center justify-between gap-3"><div className="flex min-w-0 items-center gap-2 text-muted-foreground"><Activity className="h-3.5 w-3.5 shrink-0 text-primary" /><span className="truncate">{runProgress}</span>{sending ? <LoaderCircle className="h-3.5 w-3.5 shrink-0 animate-spin text-primary" /> : null}</div>{lastRunId ? <Link href={`/agents/activity/${encodeURIComponent(lastRunId)}`} className="shrink-0 font-medium text-primary hover:underline">View activity</Link> : null}</div>{runEvents.length ? <div className="mt-2 flex flex-wrap gap-1.5" aria-label="Run activity">{runEvents.map((entry, index) => <span key={`${entry.event}-${index}`} className={`rounded-full px-2 py-0.5 text-[10px] ${entry.event.includes("failed") ? "bg-destructive/10 text-destructive" : entry.event.includes("approval") ? "bg-status-attention-soft text-status-attention" : "bg-secondary text-muted-foreground"}`}>{entry.label}</span>)}</div> : null}</div></div> : null}
+      error={error}
+      composer={<AgentChatComposer
         value={draft}
         onChange={setDraft}
         onSubmit={() => void send()}
@@ -387,8 +425,18 @@ export function AgentChatPanel({ installationId, active, agentName, modal = fals
         placeholder="Message this agent…"
         className="bg-card p-4 sm:p-5"
         ariaLabel="Message this agent"
-      />
-      <Dialog open={clearConfirmation} onOpenChange={setClearConfirmation}><DialogContent className="max-w-md"><DialogHeader><div className="flex h-11 w-11 items-center justify-center rounded-full bg-destructive/10 text-destructive"><Trash2 className="h-5 w-5" aria-hidden="true" /></div><DialogTitle>Clear test chats?</DialogTitle><DialogDescription>This clears this agent’s private chats and starts a new one. Customer and inbox conversations are not affected.</DialogDescription></DialogHeader><DialogFooter><Button type="button" variant="outline" onClick={() => setClearConfirmation(false)}>Cancel</Button><Button type="button" variant="destructive" onClick={() => void clearChats()}>Clear chats</Button></DialogFooter></DialogContent></Dialog>
-    </div>
+      />}
+    >
+      <div className="mx-auto flex min-h-full max-w-3xl flex-col justify-end gap-5">
+        <AgentChatMessageList
+          messages={messages}
+          loading={loading}
+          onUiInteraction={submitUiInteraction}
+          emptyState={<div className="flex min-h-[300px] flex-col items-center justify-center text-center"><div className="grid h-14 w-14 place-items-center rounded-2xl bg-primary/10 text-primary"><MessageSquare className="h-6 w-6" /></div><h3 className="mt-4 text-base font-semibold text-foreground">Start a conversation</h3><p className="mt-1 max-w-sm text-sm leading-6 text-muted-foreground">Send a message below to see how this agent responds.</p></div>}
+        />
+        <div ref={messagesEndRef} />
+      </div>
+    </AgentChatSurface>
+    <Dialog open={clearConfirmation} onOpenChange={setClearConfirmation}><DialogContent className="max-w-md"><DialogHeader><div className="flex h-11 w-11 items-center justify-center rounded-full bg-destructive/10 text-destructive"><Trash2 className="h-5 w-5" aria-hidden="true" /></div><DialogTitle>Clear test chats?</DialogTitle><DialogDescription>This clears this agent’s private chats and starts a new one. Customer and inbox conversations are not affected.</DialogDescription></DialogHeader><DialogFooter><Button type="button" variant="outline" onClick={() => setClearConfirmation(false)}>Cancel</Button><Button type="button" variant="destructive" onClick={() => void clearChats()}>Clear chats</Button></DialogFooter></DialogContent></Dialog>
   </Card>;
 }
