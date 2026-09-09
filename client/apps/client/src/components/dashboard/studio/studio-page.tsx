@@ -30,6 +30,7 @@ import {
   getAgentRunMemoryObservatory,
   getAgentRunTimeline,
   getAgentVersionEffectiveConfig,
+  type AgentDeploymentStatus,
   getAgentInstallationReadiness,
   AgentRequestError,
   listAgentInstallationCapabilities,
@@ -54,6 +55,7 @@ import {
   type AgentInstallationRun,
   type AgentMemoryObservatoryGraph,
   type AgentApproval,
+  type AgentEffectReceipt,
   type AgentEffectiveConfigProjection,
   type AgentCapability,
   type AgentConnectionDirectoryEntry,
@@ -65,6 +67,7 @@ import {
 import { cn } from "@/lib/utils";
 import { AgentChatComposer } from "@/components/dashboard/agents/agent-chat-composer";
 import { AgentApprovalActions } from "@/components/dashboard/agents/agent-approval-actions";
+import { AgentReconciliationActions } from "@/components/dashboard/agents/agent-reconciliation-actions";
 import { AgentRunActions } from "@/components/dashboard/agents/agent-run-actions";
 import { AgentChatMessageList } from "@/components/dashboard/agents/agent-chat-message-list";
 import { AgentChatRunStatus } from "@/components/dashboard/agents/agent-chat-run-status";
@@ -99,7 +102,7 @@ type TraceNode = {
 
 type StudioTimelineItem = NonNullable<AgentRunTimeline["items"]>[number];
 
-type StudioStreamState = "idle" | "connected" | "replaying" | "delayed" | "unavailable";
+type StudioStreamState = "idle" | "connected" | "replaying" | "delayed" | "disconnected" | "unavailable";
 type StudioGraphMode = "topology" | "execution";
 
 const terminalStatuses = new Set(["completed", "failed", "cancelled", "expired"]);
@@ -236,9 +239,12 @@ async function streamStudioRun(
       onState("delayed");
     } catch (cause) {
       if (signal.aborted || (cause instanceof DOMException && cause.name === "AbortError")) return;
-      if (cause instanceof AgentRequestError && cause.status >= 400 && cause.status < 500) throw cause;
+      if (cause instanceof AgentRequestError && cause.status >= 400 && cause.status < 500) {
+        onState("unavailable");
+        throw cause;
+      }
       retryCount += 1;
-      onState("delayed");
+      onState(retryCount >= 3 ? "disconnected" : "delayed");
     }
     const delayMs = Math.min(5_000, 250 * 2 ** Math.min(retryCount, 5));
     await new Promise<void>((resolve, reject) => {
@@ -488,6 +494,7 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
   const [approval, setApproval] = useState<AgentApproval | null>(null);
   const [canApprove, setCanApprove] = useState(false);
   const [operationEvidence, setOperationEvidence] = useState<Array<Record<string, unknown>>>([]);
+  const [deploymentStatus, setDeploymentStatus] = useState<AgentDeploymentStatus | null>(null);
   const [effectiveConfig, setEffectiveConfig] = useState<AgentEffectiveConfigProjection | null>(null);
   const [effectiveCapabilities, setEffectiveCapabilities] = useState<AgentCapability[]>([]);
   const [effectiveConnections, setEffectiveConnections] = useState<AgentConnectionDirectoryEntry[]>([]);
@@ -869,7 +876,7 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
       const result = await getAgentRun(accepted.runId);
       const timeline = await getAgentRunTimeline(accepted.runId).catch(() => null);
       setTelemetry(timeline?.telemetry ?? null);
-      const runNodes = timeline?.journal?.length
+        const runNodes = timeline?.journal?.length
         ? nodesFromJournalEvents(timeline.journal, timeline.telemetry?.revision)
         : timeline?.items?.length
           ? nodesFromTimelineItems(timeline.items)
@@ -980,7 +987,9 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
       const timeline = await getAgentRunTimeline(accepted.runId).catch(() => null);
       const runNodes = timeline?.journal?.length
         ? nodesFromJournalEvents(timeline.journal, timeline.telemetry?.revision)
-        : nodesFromRunEvents(result.events);
+        : timeline?.items?.length
+          ? nodesFromTimelineItems(timeline.items)
+          : nodesFromRunEvents(result.events);
       if (runNodes.length) setTrace(runNodes);
       await refreshConversation(accepted.conversation.id);
       if (result.run.status !== "completed") {
@@ -1144,11 +1153,12 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
           {agent.installation_id ? <label className="flex items-center gap-2 text-xs text-muted-foreground"><span className="hidden sm:inline">Run</span><select value={selectedRunId ?? ""} onChange={(event) => selectRun(event.target.value)} disabled={running || !runHistory.length} className="h-8 max-w-44 rounded-md border border-border bg-background px-2 text-xs font-medium text-foreground outline-none focus:border-primary"><option value="">{runHistory.length ? "Select run" : "No runs"}</option>{runHistory.map((run) => <option key={run.id} value={run.id}>{run.status} · {formatRunTime(run.created_at)}</option>)}</select></label> : null}
           <span className="inline-flex items-center gap-1.5 rounded-md border border-primary/20 bg-primary/5 px-2.5 py-1.5 text-xs text-primary"><FlaskConical className="size-3.5" />{surface === "playground" ? "Playground" : "Studio"}</span>
           <span className={cn("inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-[11px]", installationReadiness?.ready ? "border-emerald-500/30 bg-emerald-500/5 text-emerald-700 dark:text-emerald-300" : installationReadiness ? "border-amber-500/30 bg-amber-500/5 text-amber-700 dark:text-amber-300" : "border-border text-muted-foreground")} title={effectiveConfig?.version.checksum ? `Candidate ${effectiveConfig.version.checksum}` : undefined}><CircleDot className="size-3" />{installationReadiness ? (installationReadiness.ready ? "Ready" : "Blocked") : effectiveConfigLoading ? "Checking" : "Unknown"}{effectiveConfig?.version ? ` · v${effectiveConfig.version.versionNumber}` : ""}</span>
+          {deploymentStatus?.live.version ? <span className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-[11px] text-muted-foreground" title={`Live candidate ${deploymentStatus.live.version.digest}`}><CircleDot className="size-3 text-status-success" />Live · v{deploymentStatus.live.version.versionNumber}</span> : null}
           <Button type="button" variant="outline" size="sm" onClick={() => setConfigurationOpen(true)}><SlidersHorizontal className="mr-1.5 size-3.5" />Settings</Button>
           {activeRunId ? <Button type="button" variant="outline" size="sm" onClick={() => void cancelRun()} disabled={cancelling}><X className="mr-1.5 size-3.5" />{cancelling ? "Cancelling…" : "Cancel"}</Button> : null}
           {!activeRunId && selectedRun && ["failed", "expired"].includes(selectedRun.status) ? <Button type="button" variant="outline" size="sm" onClick={() => void retryRun()} disabled={retrying}><ArrowRight className="mr-1.5 size-3.5" />{retrying ? "Retrying…" : "Retry"}</Button> : null}
           {selectedRun && ["awaiting_external_event", "awaiting_human"].includes(selectedRun.status) ? <AgentRunActions runId={selectedRun.id} status={selectedRun.status} waitingFor={typeof selectedRun.output?.waitingFor === "string" ? selectedRun.output.waitingFor : undefined} showCancel={!activeRunId} /> : null}
-          <AgentDeploymentLifecycle agent={agent} versions={versions} selectedVersionId={selectedVersionId} onVersionsChange={setVersions} compact />
+          <AgentDeploymentLifecycle agent={agent} versions={versions} selectedVersionId={selectedVersionId} onVersionsChange={setVersions} onStatusChange={setDeploymentStatus} compact />
         </div>
       </header>
 
@@ -1211,6 +1221,7 @@ function streamStateLabel(state: StudioStreamState) {
   if (state === "connected") return "Live";
   if (state === "replaying") return "Replaying";
   if (state === "delayed") return "Delayed";
+  if (state === "disconnected") return "Disconnected";
   if (state === "unavailable") return "Unavailable";
   return "Idle";
 }
@@ -1219,7 +1230,7 @@ function StudioExecutionTimeline({ trace, nodes, projection, run, streamState, o
   const hasSequenceGap = trace.some((item, index) => index > 0 && item.sequence > trace[index - 1]!.sequence + 1);
   const failure = run?.error?.userMessage ?? run?.error?.message;
   return <div className="max-h-44 shrink-0 border-t border-border bg-card/90 px-4 py-3">
-    <div className="flex flex-wrap items-center justify-between gap-2"><SectionEyebrow>Journal timeline</SectionEyebrow><div className="flex flex-wrap items-center justify-end gap-2 text-[10px] text-muted-foreground">{run ? <span className="rounded-md border border-border/70 px-2 py-1">{run.status} · {run.trigger_type ?? "manual"}</span> : null}{streamState !== "idle" ? <span className={cn("rounded-md border px-2 py-1", streamState === "connected" ? "border-primary/30 text-primary" : streamState === "delayed" ? "border-amber-500/30 text-amber-700 dark:text-amber-300" : "border-border/70")}>{streamStateLabel(streamState)}</span> : null}{projection ? <span className={cn("rounded-md border px-2 py-1", projection.freshness === "live" ? "border-primary/30 text-primary" : "border-border/70")}>{projection.freshness} · cursor {projection.cursor}</span> : null}{hasSequenceGap ? <span className="rounded-md border border-amber-500/30 bg-amber-500/5 px-2 py-1 text-amber-700 dark:text-amber-300">sequence gap</span> : null}</div></div>
+    <div className="flex flex-wrap items-center justify-between gap-2"><SectionEyebrow>Journal timeline</SectionEyebrow><div className="flex flex-wrap items-center justify-end gap-2 text-[10px] text-muted-foreground">{run ? <span className="rounded-md border border-border/70 px-2 py-1">{run.status} · {run.trigger_type ?? "manual"}</span> : null}{streamState !== "idle" ? <span className={cn("rounded-md border px-2 py-1", streamState === "connected" ? "border-primary/30 text-primary" : streamState === "delayed" || streamState === "disconnected" ? "border-amber-500/30 text-amber-700 dark:text-amber-300" : streamState === "unavailable" ? "border-destructive/30 text-destructive" : "border-border/70")}>{streamStateLabel(streamState)}</span> : null}{projection ? <span className={cn("rounded-md border px-2 py-1", projection.freshness === "live" ? "border-primary/30 text-primary" : "border-border/70")}>{projection.freshness} · cursor {projection.cursor}</span> : null}{hasSequenceGap ? <span className="rounded-md border border-amber-500/30 bg-amber-500/5 px-2 py-1 text-amber-700 dark:text-amber-300">sequence gap</span> : null}</div></div>
     {failure ? <p className="mt-2 truncate text-[10px] text-destructive">{failure}</p> : null}
     {trace.length ? <div className="mt-2 flex max-h-24 gap-2 overflow-x-auto pb-1">
       {trace.map((item) => {
@@ -1239,6 +1250,7 @@ function StudioGraphInspector({ node, telemetry, memory, lineage, approval, canA
   const sourceEventId = node.data.event_id ?? node.evidence?.id;
   const occurredAt = node.data.occurred_at;
   const memoryEvidence = node.evidence?.memory;
+  const operation = node.evidence?.operation;
   return <div>
     <StudioGraphInspectorBase node={node} telemetry={telemetry} onConfigure={onConfigure} />
     {approval && runId ? <section className="border-t border-border px-4 py-3"><SectionEyebrow>Approval</SectionEyebrow><div className="mt-2 flex flex-wrap items-center justify-between gap-3"><div className="min-w-0"><p className="text-xs font-medium text-foreground">{approval.capability}</p><p className="mt-1 text-[10px] text-muted-foreground">{approval.status === "pending" ? `Expires ${approval.expiresAt}` : `Decision: ${approval.status}`}</p></div>{approval.status === "pending" && canApprove ? <AgentApprovalActions runId={runId} approval={approval} onDecided={(decision) => { onApprovalDecided?.(decision); }} /> : null}</div>{approval.status === "pending" && !canApprove ? <p className="mt-2 text-[10px] text-muted-foreground">Approval is required from an authorized operator.</p> : null}</section> : null}
@@ -1248,8 +1260,11 @@ function StudioGraphInspector({ node, telemetry, memory, lineage, approval, canA
         <div className="flex min-w-0 justify-between gap-3"><dt>Event ID</dt><dd className="truncate font-mono text-foreground" title={sourceEventId}>{sourceEventId ?? "—"}</dd></div>
         <div className="flex justify-between gap-3"><dt>Sequence</dt><dd className="tabular-nums text-foreground">{node.evidence?.sequence ?? node.data.journal_sequence ?? "—"}</dd></div>
         <div className="flex min-w-0 justify-between gap-3"><dt>Occurred</dt><dd className="truncate font-mono text-foreground" title={occurredAt}>{occurredAt ?? "—"}</dd></div>
-        {node.evidence?.operation ? <div className="flex min-w-0 justify-between gap-3"><dt>Operation</dt><dd className="truncate font-mono text-foreground" title={node.evidence.operation.id}>{node.evidence.operation.kind} · {node.evidence.operation.status}</dd></div> : null}
+        {operation ? <div className="flex min-w-0 justify-between gap-3"><dt>Operation</dt><dd className="truncate font-mono text-foreground" title={operation.id}>{operation.kind} · {operation.status}</dd></div> : null}
+        {operation?.attemptId ? <div className="flex min-w-0 justify-between gap-3"><dt>Attempt</dt><dd className="truncate font-mono text-foreground" title={operation.attemptId}>{operation.attemptId}</dd></div> : null}
+        {operation?.receipt ? <div className="flex min-w-0 justify-between gap-3"><dt>Receipt</dt><dd className="text-foreground">{operation.receipt}</dd></div> : null}
       </dl>
+      {operation?.reconciliationRequired ? <div className="mt-3 rounded-lg border border-status-attention/30 bg-status-attention-soft p-2"><p className="text-[10px] font-medium text-status-attention">Provider effect unknown</p><p className="mt-1 text-[10px] text-muted-foreground">Resolve the durable effect before retrying this operation.</p><AgentReconciliationActions effect={{ id: operation.id, status: operation.status, capability: node.label, reconciliation_required: true } satisfies AgentEffectReceipt} /></div> : null}
       {context && ["context", "memory-read", "retrieval"].includes(node.id) ? <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1 text-[10px] text-muted-foreground sm:grid-cols-4"><span>Capacity <b className="ml-1 text-foreground">{context.contextWindowTokens ?? "unknown"}</b></span><span>Reserved <b className="ml-1 text-foreground">{context.reservedOutputTokens ?? "unknown"}</b></span><span>Safety <b className="ml-1 text-foreground">{context.safetyMarginTokens ?? "unknown"}</b></span><span>Budget left <b className="ml-1 text-foreground">{telemetry.runBudget.remainingTokens ?? "unknown"}</b></span><span>Input <b className="ml-1 text-foreground">{telemetry.usage.inputTokens ?? "unknown"}</b></span><span>Output <b className="ml-1 text-foreground">{telemetry.usage.outputTokens ?? "unknown"}</b></span><span>Usage basis <b className="ml-1 text-foreground">{telemetry.usage.basis}</b></span><span>Manifest <b className="ml-1 max-w-24 truncate text-foreground" title={context.manifestDigest}>{context.manifestDigest ?? "unknown"}</b></span></div> : null}
       {modelAttempt && node.id === "model" ? <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1 text-[10px] text-muted-foreground sm:grid-cols-4"><span>Queue <b className="ml-1 text-foreground">{modelAttempt.queueMs !== undefined ? `${modelAttempt.queueMs} ms` : "unknown"}</b></span><span>First token <b className="ml-1 text-foreground">{modelAttempt.timeToFirstTokenMs !== undefined ? `${modelAttempt.timeToFirstTokenMs} ms` : "unknown"}</b></span><span>Turn <b className="ml-1 text-foreground">{telemetry.turn.elapsedMs !== undefined ? `${telemetry.turn.elapsedMs} ms` : "unknown"}</b></span><span>Attempts <b className="ml-1 text-foreground">{telemetry.attempts.length}</b></span></div> : null}
       {memoryEvidence ? <div className="mt-3 rounded-lg border border-border/80 bg-background/50 p-2"><SectionEyebrow>Memory observatory</SectionEyebrow><div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-[10px] text-muted-foreground sm:grid-cols-4"><span>Stage <b className="ml-1 text-foreground">{memoryEvidence.kind}</b></span><span>Status <b className="ml-1 text-foreground">{memoryEvidence.status}</b></span><span>Evidence <b className="ml-1 text-foreground">{memoryEvidence.evidenceCount}</b></span><span>Revisions <b className="ml-1 text-foreground">{memoryEvidence.revisionCount}</b></span><span>Sources <b className="ml-1 text-foreground">{memoryEvidence.sourceEventCount}</b></span><span>Cursor <b className="ml-1 text-foreground">{memory?.projection?.cursor ?? memory?.cursor ?? "unknown"}</b></span><span>Redaction <b className="ml-1 text-foreground">{memory?.projection?.redaction ?? "unknown"}</b></span>{memoryEvidence.errorCode ? <span>Error <b className="ml-1 text-destructive">{memoryEvidence.errorCode}</b></span> : null}</div>{lineage ? <div className="mt-2 border-t border-border/70 pt-2 text-[10px] text-muted-foreground"><span>Lineage <b className="ml-1 text-foreground">{lineage.nodes.length} nodes · {lineage.edges.length} links</b></span><span className="ml-3">{lineage.projection?.freshness ?? "unknown"} · {lineage.projection?.redaction ?? "unknown"}</span></div> : null}</div> : null}
@@ -1262,5 +1277,5 @@ function StudioGraphInspectorBase({ node, telemetry, onConfigure }: { node: Stud
   const modelAttempt = telemetry?.modelAttempt;
   const showContextTelemetry = node.id === "context" || node.id === "memory-read" || node.id === "retrieval";
   const showModelTelemetry = node.id === "model";
-  return <div><div className="border-b border-border px-4 py-3"><SectionEyebrow>Selected node</SectionEyebrow><div className="mt-1 flex items-center gap-2"><span className="flex size-6 items-center justify-center rounded-md bg-primary/10 text-primary"><CircleDot className="size-3.5" /></span><h2 className="text-sm font-semibold text-foreground">{node.label}</h2><span className="ml-auto text-[10px] font-medium text-muted-foreground">{node.status}</span></div></div><div className="grid gap-4 p-4 text-[11px] sm:grid-cols-[1.2fr_1fr_1fr]"><div><SectionEyebrow>Role</SectionEyebrow><p className="mt-1 text-xs leading-5 text-muted-foreground">{node.detail}</p><p className="mt-2 font-mono text-[10px] text-muted-foreground">{node.event}</p>{node.evidence ? <div className="mt-3 rounded-lg border border-border/80 bg-background/50 p-2"><SectionEyebrow>Latest evidence</SectionEyebrow><p className="mt-1 text-[10px] text-foreground">{node.evidence.detail}</p><p className="mt-1 font-mono text-[9px] text-muted-foreground">{node.evidence.event} · #{node.evidence.sequence}</p></div> : null}</div><div><SectionEyebrow>Scope</SectionEyebrow><p className="mt-1 text-foreground">{node.scope ?? "—"}</p><SectionEyebrow>Provider</SectionEyebrow><p className="mt-1 text-foreground">{node.provider ?? "KasiTek runtime"}</p></div><div><SectionEyebrow>Configuration</SectionEyebrow><dl className="mt-1 space-y-1 text-muted-foreground">{Object.entries(node.data).slice(0, 3).map(([key, value]) => <div key={key} className="flex justify-between gap-3"><dt>{key}</dt><dd className="max-w-[11rem] truncate text-right text-foreground">{value}</dd></div>)}</dl>{node.configurable ? <Button type="button" variant="outline" size="sm" className="mt-3 h-7 px-2.5 text-[11px]" onClick={onConfigure}><SlidersHorizontal className="mr-1.5 size-3" />Configure</Button> : null}</div>{showContextTelemetry && context ? <div className="rounded-lg border border-border/80 bg-background/50 p-2 sm:col-span-3"><SectionEyebrow>Runtime context</SectionEyebrow><div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-[10px] text-muted-foreground sm:grid-cols-4"><span>Tokens <b className="ml-1 text-foreground">{context.tokens ?? "—"}</b></span><span>Basis <b className="ml-1 text-foreground">{context.basis}</b></span><span>Utilization <b className="ml-1 text-foreground">{context.utilizationPercent !== undefined ? `${context.utilizationPercent}%` : "—"}</b></span><span>Pressure <b className="ml-1 text-foreground">{context.pressure ?? "—"}</b></span><span>Decision <b className="ml-1 text-foreground">{context.decision ?? "—"}</b></span><span>Compactions <b className="ml-1 text-foreground">{context.compactionCount}</b></span><span>Turn <b className="ml-1 text-foreground">{telemetry.turn.status}</b></span><span>Revision <b className="ml-1 text-foreground">{telemetry.revision}</b></span></div></div> : null}{showModelTelemetry && modelAttempt ? <div className="rounded-lg border border-border/80 bg-background/50 p-2 sm:col-span-3"><SectionEyebrow>Runtime model attempt</SectionEyebrow><div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-[10px] text-muted-foreground sm:grid-cols-4"><span>Provider <b className="ml-1 text-foreground">{modelAttempt.provider ?? "—"}</b></span><span>Model <b className="ml-1 text-foreground">{modelAttempt.model ?? "—"}</b></span><span>Status <b className="ml-1 text-foreground">{modelAttempt.status}</b></span><span>Latency <b className="ml-1 text-foreground">{modelAttempt.latencyMs !== undefined ? `${modelAttempt.latencyMs} ms` : "—"}</b></span></div></div> : null}</div></div>;
+  return <div><div className="border-b border-border px-4 py-3"><SectionEyebrow>Selected node</SectionEyebrow><div className="mt-1 flex items-center gap-2"><span className="flex size-6 items-center justify-center rounded-md bg-primary/10 text-primary"><CircleDot className="size-3.5" /></span><h2 className="text-sm font-semibold text-foreground">{node.label}</h2><span className="ml-auto text-[10px] font-medium text-muted-foreground">{node.status}</span></div></div><div className="grid gap-4 p-4 text-[11px] sm:grid-cols-[1.2fr_1fr_1fr]"><div><SectionEyebrow>Role</SectionEyebrow><p className="mt-1 text-xs leading-5 text-muted-foreground">{node.detail}</p><p className="mt-2 font-mono text-[10px] text-muted-foreground">{node.event}</p>{node.configuredNodeId ? <p className="mt-2 text-[10px] text-primary">Configured stage · {node.configuredNodeId}</p> : null}{node.evidence ? <div className="mt-3 rounded-lg border border-border/80 bg-background/50 p-2"><SectionEyebrow>Latest evidence</SectionEyebrow><p className="mt-1 text-[10px] text-foreground">{node.evidence.detail}</p><p className="mt-1 font-mono text-[9px] text-muted-foreground">{node.evidence.event} · #{node.evidence.sequence}</p></div> : null}</div><div><SectionEyebrow>Scope</SectionEyebrow><p className="mt-1 text-foreground">{node.scope ?? "—"}</p><SectionEyebrow>Provider</SectionEyebrow><p className="mt-1 text-foreground">{node.provider ?? "KasiTek runtime"}</p></div><div><SectionEyebrow>Configuration</SectionEyebrow><dl className="mt-1 space-y-1 text-muted-foreground">{Object.entries(node.data).slice(0, 3).map(([key, value]) => <div key={key} className="flex justify-between gap-3"><dt>{key}</dt><dd className="max-w-[11rem] truncate text-right text-foreground">{value}</dd></div>)}</dl>{node.configurable ? <Button type="button" variant="outline" size="sm" className="mt-3 h-7 px-2.5 text-[11px]" onClick={onConfigure}><SlidersHorizontal className="mr-1.5 size-3" />Configure</Button> : null}</div>{showContextTelemetry && context ? <div className="rounded-lg border border-border/80 bg-background/50 p-2 sm:col-span-3"><SectionEyebrow>Runtime context</SectionEyebrow><div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-[10px] text-muted-foreground sm:grid-cols-4"><span>Tokens <b className="ml-1 text-foreground">{context.tokens ?? "—"}</b></span><span>Basis <b className="ml-1 text-foreground">{context.basis}</b></span><span>Utilization <b className="ml-1 text-foreground">{context.utilizationPercent !== undefined ? `${context.utilizationPercent}%` : "—"}</b></span><span>Pressure <b className="ml-1 text-foreground">{context.pressure ?? "—"}</b></span><span>Decision <b className="ml-1 text-foreground">{context.decision ?? "—"}</b></span><span>Compactions <b className="ml-1 text-foreground">{context.compactionCount}</b></span><span>Turn <b className="ml-1 text-foreground">{telemetry.turn.status}</b></span><span>Revision <b className="ml-1 text-foreground">{telemetry.revision}</b></span></div></div> : null}{showModelTelemetry && modelAttempt ? <div className="rounded-lg border border-border/80 bg-background/50 p-2 sm:col-span-3"><SectionEyebrow>Runtime model attempt</SectionEyebrow><div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-[10px] text-muted-foreground sm:grid-cols-4"><span>Provider <b className="ml-1 text-foreground">{modelAttempt.provider ?? "—"}</b></span><span>Model <b className="ml-1 text-foreground">{modelAttempt.model ?? "—"}</b></span><span>Status <b className="ml-1 text-foreground">{modelAttempt.status}</b></span><span>Latency <b className="ml-1 text-foreground">{modelAttempt.latencyMs !== undefined ? `${modelAttempt.latencyMs} ms` : "—"}</b></span></div></div> : null}</div></div>;
 }

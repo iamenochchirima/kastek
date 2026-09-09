@@ -144,13 +144,19 @@ function latestCapabilityEvidence(trace: StudioTraceItem[], names: string[], ope
   }).at(-1);
   const operationId = operation && [operation.id, operation.provider_tool_call_id, operation.providerToolCallId, operation.step_id, operation.stepId].find((value): value is string => typeof value === "string" && value.length > 0);
   const operationStatus = operation && [operation.status, operation.outcome, operation.state].find((value): value is string => typeof value === "string" && value.length > 0);
+  const operationKind = operation && [operation.kind, operation.operation_kind, operation.operationKind].find((value): value is string => typeof value === "string" && value.length > 0);
+  const attemptId = operation && [operation.attempt_id, operation.attemptId].find((value): value is string => typeof value === "string" && value.length > 0);
+  const errorRecord = operation && operation.error && typeof operation.error === "object" && !Array.isArray(operation.error) ? operation.error as Record<string, unknown> : undefined;
+  const errorCode = operation && [operation.error_code, operation.errorCode, errorRecord?.code].find((value): value is string => typeof value === "string" && value.length > 0);
+  const reconciliationRequired = operation?.reconciliation_required === true || operation?.reconciliationRequired === true;
+  const receipt = operation && operation.provider_receipt !== undefined && operation.provider_receipt !== null ? "recorded" as const : "missing" as const;
   if (!latest && !operationId) return undefined;
   return {
     id: latest?.id ?? operationId ?? "operation",
     event: latest?.event ?? "operation.evidence",
     sequence: latest?.sequence ?? 0,
     detail: latest?.detail ?? "Redacted operation evidence available",
-    ...(operationId ? { operation: { id: operationId, kind: typeof operation?.kind === "string" ? operation.kind : "capability", status: operationStatus ?? "recorded" } } : {}),
+    ...(operationId ? { operation: { id: operationId, kind: operationKind ?? "capability", status: operationStatus ?? "recorded", ...(attemptId ? { attemptId } : {}), ...(errorCode ? { errorCode } : {}), ...(reconciliationRequired ? { reconciliationRequired: true } : {}), ...(operation ? { receipt } : {}) } } : {}),
   };
 }
 
@@ -183,6 +189,7 @@ function executionKind(item: StudioTraceItem): StudioGraphNode["kind"] {
   if (event === "run.received" || event.includes("input")) return "input";
   if (event.includes("channel")) return "channel";
   if (event.includes("session") || event === "run.started" || event === "run.queued") return "session";
+  if (event.includes("child") || event.includes("delegate")) return "child";
   if (event.includes("context")) return "context";
   if (event.includes("memory")) return "memory";
   if (event.includes("retrieval")) return "retrieval";
@@ -219,7 +226,19 @@ function executionIdentity(item: StudioTraceItem) {
   ].filter((value): value is string => Boolean(value));
 }
 
-function projectExecutionGraph(trace: StudioTraceItem[]): { nodes: StudioGraphNode[]; edges: StudioGraphEdge[] } {
+function configuredNodeForTrace(item: StudioTraceItem, configuredNodes: StudioGraphNode[]) {
+  const coreMatch = Object.entries(coreEventMatchers).find(([, matcher]) => matcher(item));
+  if (coreMatch && configuredNodes.some((node) => node.id === coreMatch[0])) return coreMatch[0];
+  const capabilityMatch = configuredNodes.find((node) => {
+    const matchKeys = typeof node.data.matchKeys === "string" ? node.data.matchKeys.split(" · ") : [];
+    return matchKeys.length > 0 && matchesCapability(item, matchKeys);
+  });
+  if (capabilityMatch) return capabilityMatch.id;
+  const kind = executionKind(item);
+  return configuredNodes.find((node) => node.kind === kind && node.configured)?.id;
+}
+
+function projectExecutionGraph(trace: StudioTraceItem[], configuredNodes: StudioGraphNode[] = []): { nodes: StudioGraphNode[]; edges: StudioGraphEdge[] } {
   const nodes = trace.map((item, index) => ({
     id: `execution:${item.id}`,
     label: item.label,
@@ -229,6 +248,7 @@ function projectExecutionGraph(trace: StudioTraceItem[]): { nodes: StudioGraphNo
     configured: false,
     scope: "selected run",
     event: item.event,
+    configuredNodeId: configuredNodeForTrace(item, configuredNodes),
     data: safeExecutionData(item),
     position: { x: 44 + (index % 6) * 154, y: 84 + Math.floor(index / 6) * 112 },
     evidence: { id: item.id, event: item.event, sequence: item.sequence, detail: item.detail },
@@ -324,7 +344,6 @@ function capabilityNode(input: {
 export function projectStudioObservatory(input: ProjectionInput): StudioObservatoryProjection {
   const effective = input.effectiveConfig;
   const configUnavailable = input.configurationState === "unavailable";
-  const execution = projectExecutionGraph(input.trace);
   const coreNodes = coreDefinitions.map((definition) => {
     const data = { ...definition.data };
     if (definition.id === "channel" && effective?.channels.length) data.channels = effective.channels.join(" · ");
@@ -361,6 +380,7 @@ export function projectStudioObservatory(input: ProjectionInput): StudioObservat
   });
 
   if (!effective || configUnavailable) {
+    const execution = projectExecutionGraph(input.trace, coreNodes);
     return { nodes: coreNodes, edges: buildEdges(coreNodes, []), executionNodes: execution.nodes, executionEdges: execution.edges };
   }
 
@@ -463,6 +483,7 @@ export function projectStudioObservatory(input: ProjectionInput): StudioObservat
   }
 
   const nodes = [...coreNodes, ...capabilityNodes];
+  const execution = projectExecutionGraph(input.trace, nodes);
   return { nodes, edges: buildEdges(nodes, capabilityNodes), executionNodes: execution.nodes, executionEdges: execution.edges };
 }
 

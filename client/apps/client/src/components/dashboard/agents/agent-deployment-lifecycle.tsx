@@ -26,6 +26,7 @@ type AgentDeploymentLifecycleProps = {
   versions: AgentVersion[];
   selectedVersionId?: string | null;
   onVersionsChange?: (versions: AgentVersion[]) => void;
+  onStatusChange?: (status: AgentDeploymentStatus | null) => void;
   compact?: boolean;
 };
 
@@ -55,6 +56,7 @@ export function AgentDeploymentLifecycle({
   versions,
   selectedVersionId,
   onVersionsChange,
+  onStatusChange,
   compact = false,
 }: AgentDeploymentLifecycleProps) {
   const [status, setStatus] = useState<AgentDeploymentStatus | null>(null);
@@ -83,14 +85,16 @@ export function AgentDeploymentLifecycle({
     try {
       const next = await getAgentDeploymentStatus(agent.id);
       setStatus(next);
+      onStatusChange?.(next);
       return next;
     } catch (cause) {
       setStatus(null);
+      onStatusChange?.(null);
       throw cause;
     } finally {
       setLoading(false);
     }
-  }, [agent.id]);
+  }, [agent.id, onStatusChange]);
 
   useEffect(() => {
     void refresh().catch((cause) => toast.error(cause instanceof Error ? cause.message : "Unable to load deployment status"));

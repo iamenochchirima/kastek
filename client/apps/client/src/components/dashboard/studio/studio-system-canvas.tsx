@@ -46,13 +46,14 @@ export type StudioGraphNode = {
   id: string;
   label: string;
   detail: string;
-  kind: "input" | "channel" | "session" | "context" | "memory" | "retrieval" | "model" | "router" | "tool" | "connector" | "mcp" | "skill" | "approval" | "handoff" | "output" | "delivery";
+  kind: "input" | "channel" | "session" | "context" | "memory" | "retrieval" | "model" | "router" | "tool" | "connector" | "mcp" | "skill" | "approval" | "handoff" | "output" | "delivery" | "child";
   status: StudioGraphStatus;
   configured: boolean;
   configurable?: boolean;
   provider?: string;
   scope?: string;
   event?: string;
+  configuredNodeId?: string;
   data: Record<string, string>;
   position?: XYPosition;
   evidence?: {
@@ -60,7 +61,7 @@ export type StudioGraphNode = {
     event: string;
     sequence: number;
     detail: string;
-    operation?: { id: string; kind: string; status: string };
+    operation?: { id: string; kind: string; status: string; attemptId?: string; errorCode?: string; reconciliationRequired?: boolean; receipt?: "recorded" | "missing" };
     memory?: { id: string; kind: string; status: string; sequence: number; evidenceCount: number; revisionCount: number; sourceEventCount: number; revisionIds: string[]; sourceEventIds: string[]; evidenceIds: string[]; errorCode?: string };
   };
 };
@@ -109,7 +110,7 @@ function isMovableNode(node: Pick<StudioGraphNode, "kind" | "configurable">) {
 function nodeSize(kind: StudioGraphNode["kind"]) {
   if (kind === "input") return { width: 112, height: 78 };
   if (kind === "model") return { width: 174, height: 92 };
-  if (movableKinds.has(kind)) return { width: 112, height: 84 };
+  if (movableKinds.has(kind) || kind === "child") return { width: 112, height: 84 };
   if (kind === "router") return { width: 136, height: 78 };
   return { width: 112, height: 76 };
 }
@@ -176,6 +177,7 @@ function nodeIcon(kind: StudioGraphNode["kind"]) {
   if (kind === "skill") return <Sparkles className={className} />;
   if (kind === "approval") return <ShieldCheck className={className} />;
   if (kind === "handoff") return <Network className={className} />;
+  if (kind === "child") return <Network className={className} />;
   return <GitBranch className={className} />;
 }
 
@@ -208,6 +210,7 @@ function displayNodeLabel(node: StudioGraphNode) {
     "memory-write": "Persist",
     output: "Response",
     delivery: "Delivery",
+    child: "Child run",
   };
   return labels[node.id] ?? labels[node.kind] ?? node.label.split(/\s|:|·/)[0] ?? node.label;
 }
@@ -257,10 +260,13 @@ function createCanvasNodes(nodes: StudioGraphNode[], selectedNodeId: string | nu
   ];
 }
 
-function ObservatorySectionFrames() {
+function ObservatorySectionFrames({ graphMode }: { graphMode: "topology" | "execution" }) {
+  const frames = graphMode === "execution"
+    ? [{ id: "execution", title: "DURABLE EXECUTION", detail: "Journal items and causal relationships", x: 32, y: 40, width: 960, height: 720 }]
+    : sectionFrames;
   return <ViewportPortal>
     <svg aria-hidden="true" className="pointer-events-none absolute left-0 top-0 z-0 overflow-visible" width="1000" height="760" viewBox="0 0 1000 760">
-      {sectionFrames.map((section) => <g key={section.id}>
+      {frames.map((section) => <g key={section.id}>
         <rect x={section.x} y={section.y} width={section.width} height={section.height} rx="16" fill="rgba(28, 39, 59, .42)" stroke="rgba(122, 143, 180, .34)" strokeWidth="1.5" />
         <rect x={section.x + 1} y={section.y + 1} width={section.width - 2} height="34" rx="15" fill="rgba(46, 61, 88, .34)" />
         <text x={section.x + 16} y={section.y + 16} fill="#b9c6df" fontSize="8.5" fontWeight="700" letterSpacing="1.1">{section.title}</text>
@@ -403,7 +409,7 @@ export function StudioSystemCanvas({ nodes, selectedNodeId, onSelect, running, t
   }
   return <div className="relative h-full min-h-[560px] w-full overflow-hidden bg-[#141a29] [&_.react-flow__attribution]:bg-transparent [&_.react-flow__attribution]:text-muted-foreground/50 [&_.react-flow__controls]:overflow-hidden [&_.react-flow__controls]:rounded-lg [&_.react-flow__controls]:border-border/70 [&_.react-flow__controls-button]:border-border/70 [&_.react-flow__controls-button]:bg-card/90 [&_.react-flow__controls-button]:fill-muted-foreground [&_.react-flow__minimap]:overflow-hidden [&_.react-flow__minimap]:rounded-lg [&_.react-flow__minimap]:border [&_.react-flow__minimap]:border-border/70 [&_.react-flow__minimap]:bg-card/90">
     <ReactFlow nodes={canvasNodes} edges={[]} nodeTypes={observatoryNodeTypes} onNodesChange={handleNodesChange} onNodeClick={(_, node) => onSelect(node.id)} fitView fitViewOptions={{ padding: 0.08, minZoom: 0.62, maxZoom: 0.92 }} minZoom={0.45} maxZoom={1.6} nodesDraggable nodesConnectable={false} elementsSelectable panOnScroll zoomOnScroll zoomOnPinch selectionOnDrag={false}>
-      <ObservatorySectionFrames />
+      <ObservatorySectionFrames graphMode={graphMode} />
       <ObservatoryLinks nodes={nodes} positions={positions} edges={edges} />
       <Controls
         showInteractive={false}
