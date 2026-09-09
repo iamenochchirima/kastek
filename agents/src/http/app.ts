@@ -3565,7 +3565,9 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     if (!installation) return reply.code(404).send({ error: "installation_not_found" });
     const clientId = dependencies.config.GOOGLE_CALENDAR_CLIENT_ID;
     const redirectUri = dependencies.config.GOOGLE_CALENDAR_REDIRECT_URI;
-    if (!clientId || !dependencies.config.GOOGLE_CALENDAR_CLIENT_SECRET || !redirectUri) return reply.code(503).send({ error: "google_calendar_oauth_not_configured" });
+    if (!clientId || !dependencies.config.GOOGLE_CALENDAR_CLIENT_SECRET || !redirectUri) {
+      return reply.code(503).send({ error: "google_calendar_oauth_not_configured", code: "google_calendar_oauth_not_configured" });
+    }
     const state = randomBytes(32).toString("base64url");
     await integrationRepository.createOAuthState({ organizationId: auth.organizationId, installationId: installation.id, integrationId: "google.calendar", stateHash: createHash("sha256").update(state).digest("hex"), redirectUri, createdBy: auth.actorId, expiresAt: new Date(Date.now() + 10 * 60_000).toISOString() });
     const authorizationUrl = new URL("https://accounts.google.com/o/oauth2/v2/auth");
@@ -3608,7 +3610,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     const entry = getHermesMcpCatalogEntry(request.params.catalogId);
     if (!entry || !entry.managed || entry.auth !== "oauth" || !entry.endpointUrl) return reply.code(400).send({ error: "mcp_catalog_entry_not_oauth" });
     const redirectUri = dependencies.config.MCP_OAUTH_REDIRECT_URI;
-    if (!redirectUri) return reply.code(503).send({ error: "mcp_oauth_not_configured" });
+    if (!redirectUri) return reply.code(503).send({ error: "mcp_oauth_not_configured", code: "mcp_oauth_not_configured" });
     const input = z.object({
       agentVersionId: z.string().uuid().optional(),
       clientId: z.string().trim().min(1).max(500).optional(),
@@ -3631,8 +3633,15 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       await integrationRepository.createOAuthState({ organizationId: auth.organizationId, installationId: installation.id, integrationId: entry.id, stateHash: createHash("sha256").update(pkce.state).digest("hex"), redirectUri, createdBy: auth.actorId, expiresAt: new Date(Date.now() + 10 * 60_000).toISOString(), flow: "mcp", codeVerifier: pkce.codeVerifier, clientId: client.clientId, clientSecret: client.clientSecret, resource: client.resource, authorizationEndpoint: client.authorizationEndpoint, tokenEndpoint: client.tokenEndpoint, agentVersionId: input.agentVersionId });
       return { authorizationUrl: buildMcpAuthorizationUrl({ client, redirectUri, state: pkce.state, codeChallenge: pkce.codeChallenge }) };
     } catch (error) {
-      request.log.warn({ event: "hermes_mcp.oauth_start_failed", catalog_id: entry.id, error_code: error instanceof Error ? error.message : "unknown" }, "Hermes MCP OAuth start failed");
-      return reply.code(502).send({ error: "mcp_oauth_start_failed" });
+      const providerError = error instanceof Error ? error.message : "unknown";
+      request.log.warn({ event: "hermes_mcp.oauth_start_failed", catalog_id: entry.id, error_code: providerError }, "Hermes MCP OAuth start failed");
+      const code = providerError === "MCP_OAUTH_CLIENT_REGISTRATION_UNSUPPORTED"
+        ? "mcp_oauth_client_registration_unsupported"
+        : providerError === "MCP_OAUTH_CLIENT_REGISTRATION_FAILED"
+          ? "mcp_oauth_client_registration_failed"
+          : "mcp_oauth_start_failed";
+      const statusCode = code === "mcp_oauth_client_registration_unsupported" ? 409 : 502;
+      return reply.code(statusCode).send({ error: code, code });
     }
   });
 

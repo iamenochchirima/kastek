@@ -68,6 +68,10 @@ discovery, PKCE, and the provider's dynamic client registration when available. 
 store the key in the encrypted credential vault. After connection, KasiTek discovers and publishes
 an immutable provider revision before it can be pinned to an agent version.
 
+Native service bindings use the same connection cards and activation flow. Platform-owned OAuth
+clients are configured by the deployment; Studio starts the provider flow and does not ask users
+for client IDs or secrets.
+
 If a provider does not support dynamic registration, Studio exposes an OAuth client ID and
 optional client secret and continues the same PKCE flow with those credentials. Client secrets
 remain in encrypted one-use OAuth state until the token exchange completes.

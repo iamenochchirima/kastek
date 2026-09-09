@@ -48,6 +48,11 @@
 - [completed] Replace the Studio Connections, Skills, and Plugins panels' provider-only lists with
   searchable catalogue cards and direct Connect/Add actions, while keeping configured items visible
   as state rather than treating them as the catalogue.
+- [completed] Use one shared external connection interaction in Studio: OAuth starts in the
+  provider flow, API keys and local bridges use a focused setup dialog, and manual OAuth client
+  fields appear only when dynamic registration is explicitly unsupported.
+- [completed] Return typed OAuth failure codes so missing platform configuration and provider
+  registration failures are not misreported as manual client-credential requirements.
 - [in_progress] Verify the directory and OAuth/skill activation paths with focused API, repository,
   client build, and browser-flow checks; record release evidence below.
 
@@ -367,7 +372,8 @@ User, API, internal, and operational documentation: updated MCP, connection, and
 Validation evidence: Agents build; client production build; targeted client lint; reviewed-directory
   tests; MCP PKCE/authorization URL tests; REST/MCP route-conformance tests; Core façade forwarding
   unit test for directory and activation routes; Core check and public OAuth callback compilation;
-  Studio resolves OAuth callback installation IDs back to the selected agent
+  Studio resolves OAuth callback installation IDs back to the selected agent; connection cards
+  keep OAuth/API-key/local-connector setup out of the catalogue rows and preserve typed OAuth errors
 Rollback or disable plan: disable the new directory routes or revert the additive migration/code;
   existing native integrations, grants, and pinned snapshots remain intact
 Post-release review date: to be assigned

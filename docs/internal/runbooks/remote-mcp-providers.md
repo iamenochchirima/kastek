@@ -36,6 +36,10 @@ If a provider does not expose dynamic client registration, Studio accepts a user
 client ID and optional secret and uses the same PKCE callback. The secret exists only in encrypted
 one-use OAuth state until token exchange completes.
 
+Studio only opens that manual client form for the explicit dynamic-registration-unsupported result.
+Missing platform OAuth configuration and provider registration failures remain connection errors;
+they must not be presented as a request for user-supplied OAuth credentials.
+
 API-key entries write only an encrypted credential reference to the provider record. Stdio entries
 remain unavailable until a managed execution adapter exists; do not enable them by copying a
 Hermes command into the worker.

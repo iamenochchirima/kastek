@@ -33,6 +33,7 @@ import {
   X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { AgentModelPicker } from "@/components/dashboard/agents/agent-model-picker";
@@ -82,6 +83,7 @@ import {
   type AgentSkillDirectoryEntry,
   type AgentSkillVersion,
   type AgentVersion,
+  AgentRequestError,
 } from "@/lib/agent-platform";
 import { cn } from "@/lib/utils";
 import { getPlatformBrandColor, getPlatformBrandIcon } from "@/lib/platform-icons";
@@ -611,17 +613,31 @@ function PluginsPanel({ directory, packages, installationId, draft, onDraftChang
   return <div className="space-y-4"><div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><span className="text-xs text-muted-foreground">{directory.length} plugins</span><DirectorySearch value={query} onChange={setQuery} placeholder="Search plugins" /></div>{filtered.length ? <div className="grid gap-2 sm:grid-cols-2">{filtered.map((entry) => { const enabled = isPluginSelected(draft, entry); const unavailable = entry.adapterStatus !== "supported"; const meta = entry.providedTools.length ? `${entry.providedTools.length} tools` : entry.kind; const logo = entry.slug.split("/").filter(Boolean).at(-1); return <div key={entry.id} className={cn("flex items-center gap-3 rounded-xl border border-border p-3", unavailable ? "opacity-70" : "transition-colors hover:border-primary/40")}><DirectoryIcon label={entry.name} logo={logo} icon={<Puzzle className="size-5" />} /><div className="min-w-0 flex-1"><p className="truncate text-xs font-medium text-foreground">{entry.name}</p><p className="mt-1 line-clamp-2 text-[11px] leading-4 text-muted-foreground">{entry.description}</p><p className="mt-1 text-[10px] text-muted-foreground">{meta} · v{entry.version}</p></div><Button type="button" variant={enabled ? "default" : "outline"} size="icon" className="size-8 shrink-0" aria-label={unavailable ? `${entry.name} unavailable` : enabled ? `Disable ${entry.name}` : `Add ${entry.name}`} onClick={() => void toggle(entry)} disabled={busyId === entry.id || unavailable || !installationId}>{busyId === entry.id ? <Clock3 className="size-3.5 animate-pulse" /> : unavailable ? <LockKeyhole className="size-3.5" /> : enabled ? <Check className="size-4" /> : <Plus className="size-4" />}</Button></div>; })}</div> : <p className="rounded-xl border border-dashed border-border px-3 py-5 text-center text-xs text-muted-foreground">No plugins match.</p>}</div>;
 }
 
+type ConnectionSetupMode = "api_key" | "local_connector" | "oauth_client";
+
+function connectionErrorMessage(cause: unknown): string {
+  if (cause instanceof AgentRequestError) {
+    switch (cause.code) {
+      case "google_calendar_oauth_not_configured": return "Google Calendar is unavailable";
+      case "mcp_oauth_not_configured": return "OAuth is unavailable";
+      case "mcp_oauth_client_registration_failed": return "OAuth setup failed";
+      case "mcp_oauth_start_failed": return "Unable to start OAuth";
+      default: return cause.message;
+    }
+  }
+  return cause instanceof Error ? cause.message : "Unable to connect";
+}
+
 function ConnectionCataloguePanel({ installationId, versionId, directory, onRefresh }: { installationId: string; versionId: string | null; directory: AgentConnectionDirectoryEntry[]; onRefresh: () => void }) {
   const [integrations, setIntegrations] = useState<AgentIntegration[]>([]);
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
-  const [apiKeyId, setApiKeyId] = useState<string | null>(null);
+  const [setupId, setSetupId] = useState<string | null>(null);
+  const [setupMode, setSetupMode] = useState<ConnectionSetupMode | null>(null);
   const [apiKey, setApiKey] = useState("");
-  const [localConnectorId, setLocalConnectorId] = useState<string | null>(null);
   const [endpoint, setEndpoint] = useState("");
   const [secret, setSecret] = useState("");
-  const [oauthConfigId, setOauthConfigId] = useState<string | null>(null);
   const [oauthClientId, setOauthClientId] = useState("");
   const [oauthClientSecret, setOauthClientSecret] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -642,10 +658,28 @@ function ConnectionCataloguePanel({ installationId, versionId, directory, onRefr
   useEffect(() => { void refresh(); }, [refresh]);
 
   const liveById = new Map(integrations.map((integration) => [integration.id, integration]));
+  const setupEntry = setupId ? directory.find((entry) => entry.id === setupId) : undefined;
   const normalizedQuery = query.trim().toLowerCase();
   const filtered = directory
     .filter((entry) => entry.kind === "native" || entry.kind === "mcp")
     .filter((entry) => !normalizedQuery || `${entry.name} ${entry.description} ${entry.category} ${(entry.keywords ?? []).join(" ")}`.toLowerCase().includes(normalizedQuery));
+
+  const closeSetup = () => {
+    setSetupId(null);
+    setSetupMode(null);
+    setApiKey("");
+    setEndpoint("");
+    setSecret("");
+    setOauthClientId("");
+    setOauthClientSecret("");
+  };
+
+  const openSetup = (entry: AgentConnectionDirectoryEntry, mode: ConnectionSetupMode, integration?: AgentIntegration) => {
+    setError(null);
+    setSetupId(entry.id);
+    setSetupMode(mode);
+    if (mode === "local_connector") setEndpoint(typeof integration?.configuration.endpoint === "string" ? integration.configuration.endpoint : "");
+  };
 
   const isConnected = (entry: AgentConnectionDirectoryEntry, integration?: AgentIntegration) => entry.kind === "native"
     ? integration?.status === "connected" && integration.available || entry.status === "ready"
@@ -659,7 +693,7 @@ function ConnectionCataloguePanel({ installationId, versionId, directory, onRefr
         if (entry.auth === "oauth") {
           const result = await startAgentMcpCatalogOAuth(installationId, entry.id, {
             agentVersionId: versionId ?? undefined,
-            ...(oauthConfigId === entry.id && oauthClientId.trim()
+            ...(setupMode === "oauth_client" && oauthClientId.trim()
               ? { clientId: oauthClientId.trim(), ...(oauthClientSecret.trim() ? { clientSecret: oauthClientSecret.trim() } : {}) }
               : {}),
           });
@@ -671,24 +705,19 @@ function ConnectionCataloguePanel({ installationId, versionId, directory, onRefr
         const result = await startAgentGoogleCalendarOAuth(installationId);
         window.location.assign(result.authorizationUrl);
         return;
-      } else if (integration?.auth === "api_key") {
+      } else if (entry.auth === "api_key" || integration?.auth === "api_key") {
         await saveAgentIntegrationApiKey(installationId, entry.id, { apiKey: apiKey.trim() });
-      } else if (integration?.auth === "local_connector") {
+      } else if (entry.auth === "local_connector" || integration?.auth === "local_connector") {
         await saveAgentIntegrationLocalConnector(installationId, entry.id, { endpoint: endpoint.trim(), secret: secret.trim() });
       }
-      setApiKey("");
-      setApiKeyId(null);
-      setEndpoint("");
-      setSecret("");
-      setLocalConnectorId(null);
+      closeSetup();
       await refresh();
       onRefresh();
     } catch (cause) {
-      if (entry.kind === "mcp" && entry.auth === "oauth" && oauthConfigId !== entry.id) {
-        setOauthConfigId(entry.id);
-        setError("OAuth client registration unavailable");
+      if (entry.kind === "mcp" && entry.auth === "oauth" && cause instanceof AgentRequestError && cause.code === "mcp_oauth_client_registration_unsupported") {
+        openSetup(entry, "oauth_client", integration);
       } else {
-        setError(cause instanceof Error ? cause.message : "Unable to connect");
+        setError(connectionErrorMessage(cause));
       }
     } finally {
       setBusyId(null);
@@ -697,11 +726,17 @@ function ConnectionCataloguePanel({ installationId, versionId, directory, onRefr
 
   const authLabel = (entry: AgentConnectionDirectoryEntry, integration?: AgentIntegration) => {
     if (entry.kind === "mcp") return entry.auth === "oauth" ? "OAuth" : entry.auth === "api_key" ? "API key" : "No key";
-    if (integration?.auth === "oauth2") return "OAuth";
-    if (integration?.auth === "api_key") return "API key";
-    if (integration?.auth === "local_connector") return "Connector";
-    return integration?.auth === "internal" ? "Included" : "Server";
+    if ((integration?.auth ?? entry.auth) === "oauth2") return "OAuth";
+    if ((integration?.auth ?? entry.auth) === "api_key") return "API key";
+    if ((integration?.auth ?? entry.auth) === "local_connector") return "Connector";
+    return (integration?.auth ?? entry.auth) === "internal" ? "Included" : "Server";
   };
+
+  const setupDisabled = setupMode === "api_key"
+    ? !apiKey.trim()
+    : setupMode === "local_connector"
+      ? !endpoint.trim() || !secret.trim()
+      : !oauthClientId.trim();
 
   return <div className="space-y-4">
     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><span className="text-xs text-muted-foreground">{directory.filter((entry) => entry.kind === "native" || entry.kind === "mcp").length} connections</span><DirectorySearch value={query} onChange={setQuery} placeholder="Search connections" /></div>
@@ -712,18 +747,22 @@ function ConnectionCataloguePanel({ installationId, versionId, directory, onRefr
       const connected = isConnected(entry, integration);
       const unsupported = entry.kind === "mcp" && (entry.status === "unsupported" || entry.transport === "stdio" || !entry.managed);
       const needsApiKey = entry.auth === "api_key";
-      const needsLocalConnector = entry.kind === "native" && integration?.auth === "local_connector";
-      const manualOAuth = oauthConfigId === entry.id;
-      const editingApiKey = apiKeyId === entry.id;
-      const editingLocal = localConnectorId === entry.id;
+      const needsLocalConnector = entry.kind === "native" && (entry.auth === "local_connector" || integration?.auth === "local_connector");
+      const actionDisabled = unsupported || connected || busyId === entry.id || entry.auth === "observability" || entry.auth === "internal" || integration?.auth === "observability" || integration?.auth === "internal";
       return <div key={entry.id} className={cn("rounded-xl border border-border p-3 transition-colors", unsupported ? "opacity-60" : "hover:border-primary/40")}>
-        <div className="flex items-center gap-3"><DirectoryIcon label={entry.name} logo={entry.logo} icon={entry.kind === "mcp" ? <PlugZap className="size-5" /> : <Wrench className="size-5" />} /><div className="min-w-0 flex-1"><p className="truncate text-xs font-medium text-foreground">{entry.name}</p><p className="mt-1 line-clamp-2 text-[11px] leading-4 text-muted-foreground">{entry.description}</p><p className="mt-1 text-[10px] text-muted-foreground">{authLabel(entry, integration)}</p></div><span className={cn("size-1.5 shrink-0 rounded-full", connected ? "bg-emerald-500" : unsupported ? "bg-muted-foreground/40" : "bg-amber-500")} />{!manualOAuth && !editingApiKey && !editingLocal ? <Button type="button" variant={connected ? "outline" : "default"} size="icon" className="size-8 shrink-0" aria-label={unsupported ? `${entry.name} unavailable` : connected ? `${entry.name} connected` : `Connect ${entry.name}`} disabled={unsupported || connected || busyId === entry.id || integration?.auth === "observability" || integration?.auth === "internal"} onClick={() => { if (entry.kind === "mcp" && entry.auth === "oauth") void connect(entry, integration); else if (needsApiKey) setApiKeyId(entry.id); else if (needsLocalConnector) { setLocalConnectorId(entry.id); setEndpoint(typeof integration?.configuration.endpoint === "string" ? integration.configuration.endpoint : ""); } else void connect(entry, integration); }}>{busyId === entry.id ? <Clock3 className="size-3.5 animate-pulse" /> : connected ? <Check className="size-4 text-emerald-500" /> : unsupported ? <LockKeyhole className="size-3.5" /> : integration?.auth === "observability" ? <Activity className="size-3.5" /> : integration?.auth === "internal" ? <Check className="size-4" /> : <Plus className="size-4" />}</Button> : null}</div>
-        {manualOAuth ? <div className="mt-3 space-y-2"><input value={oauthClientId} onChange={(event) => setOauthClientId(event.target.value)} placeholder="OAuth client ID" className="h-8 w-full rounded-md border border-border bg-background px-2 text-xs text-foreground outline-none focus:border-primary" autoComplete="off" /><input type="password" value={oauthClientSecret} onChange={(event) => setOauthClientSecret(event.target.value)} placeholder="OAuth client secret (optional)" className="h-8 w-full rounded-md border border-border bg-background px-2 text-xs text-foreground outline-none focus:border-primary" autoComplete="off" /><div className="flex justify-end gap-2"><Button type="button" variant="ghost" size="sm" className="h-8" onClick={() => { setOauthConfigId(null); setOauthClientId(""); setOauthClientSecret(""); }}>Cancel</Button><Button type="button" size="sm" className="h-8" disabled={!oauthClientId.trim() || busyId === entry.id} onClick={() => void connect(entry, integration)}>{busyId === entry.id ? "…" : "Continue"}</Button></div></div> : null}
-        {editingApiKey ? <div className="mt-3 flex gap-2"><input type="password" value={apiKey} onChange={(event) => setApiKey(event.target.value)} placeholder="API key" className="h-8 min-w-0 flex-1 rounded-md border border-border bg-background px-2 text-xs text-foreground outline-none focus:border-primary" autoComplete="off" /><Button type="button" size="sm" className="h-8" disabled={!apiKey.trim() || busyId === entry.id} onClick={() => void connect(entry, integration)}>{busyId === entry.id ? "…" : "Connect"}</Button></div> : null}
-        {editingLocal ? <div className="mt-3 space-y-2"><input value={endpoint} onChange={(event) => setEndpoint(event.target.value)} placeholder="Connector URL" className="h-8 w-full rounded-md border border-border bg-background px-2 text-xs text-foreground outline-none focus:border-primary" /><div className="flex gap-2"><input type="password" value={secret} onChange={(event) => setSecret(event.target.value)} placeholder="Connector secret" className="h-8 min-w-0 flex-1 rounded-md border border-border bg-background px-2 text-xs text-foreground outline-none focus:border-primary" autoComplete="off" /><Button type="button" size="sm" className="h-8" disabled={!endpoint.trim() || !secret.trim() || busyId === entry.id} onClick={() => void connect(entry, integration)}>{busyId === entry.id ? "…" : "Connect"}</Button></div></div> : null}
+        <div className="flex items-center gap-3"><DirectoryIcon label={entry.name} logo={entry.logo} icon={entry.kind === "mcp" ? <PlugZap className="size-5" /> : <Wrench className="size-5" />} /><div className="min-w-0 flex-1"><p className="truncate text-xs font-medium text-foreground">{entry.name}</p><p className="mt-1 line-clamp-2 text-[11px] leading-4 text-muted-foreground">{entry.description}</p><p className="mt-1 text-[10px] text-muted-foreground">{authLabel(entry, integration)}</p></div><span className={cn("size-1.5 shrink-0 rounded-full", connected ? "bg-emerald-500" : unsupported ? "bg-muted-foreground/40" : "bg-amber-500")} /><Button type="button" variant={connected ? "outline" : "default"} size="icon" className="size-8 shrink-0" aria-label={unsupported ? `${entry.name} unavailable` : connected ? `${entry.name} connected` : `Connect ${entry.name}`} disabled={actionDisabled} onClick={() => { if (entry.kind === "mcp" && entry.auth === "oauth") void connect(entry, integration); else if (needsApiKey) openSetup(entry, "api_key", integration); else if (needsLocalConnector) openSetup(entry, "local_connector", integration); else void connect(entry, integration); }}>{busyId === entry.id ? <Clock3 className="size-3.5 animate-pulse" /> : connected ? <Check className="size-4 text-emerald-500" /> : unsupported ? <LockKeyhole className="size-3.5" /> : entry.auth === "observability" || integration?.auth === "observability" ? <Activity className="size-3.5" /> : entry.auth === "internal" || integration?.auth === "internal" ? <Check className="size-4" /> : <Plus className="size-4" />}</Button></div>
       </div>;
     })}</div> : null}
     {!loading && !filtered.length ? <p className="rounded-xl border border-dashed border-border px-3 py-5 text-center text-xs text-muted-foreground">No connections match.</p> : null}
+    <Dialog open={Boolean(setupId)} onOpenChange={(open) => { if (!open) closeSetup(); }}>
+      <DialogContent>
+        <DialogHeader><DialogTitle>{setupEntry?.name ?? "Connect"}</DialogTitle></DialogHeader>
+        {setupMode === "api_key" ? <input type="password" value={apiKey} onChange={(event) => setApiKey(event.target.value)} placeholder="API key" className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-primary" autoComplete="off" /> : null}
+        {setupMode === "local_connector" ? <div className="space-y-2"><input value={endpoint} onChange={(event) => setEndpoint(event.target.value)} placeholder="Connector URL" className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-primary" /><input type="password" value={secret} onChange={(event) => setSecret(event.target.value)} placeholder="Connector secret" className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-primary" autoComplete="off" /></div> : null}
+        {setupMode === "oauth_client" ? <div className="space-y-2"><input value={oauthClientId} onChange={(event) => setOauthClientId(event.target.value)} placeholder="OAuth client ID" className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-primary" autoComplete="off" /><input type="password" value={oauthClientSecret} onChange={(event) => setOauthClientSecret(event.target.value)} placeholder="OAuth client secret (optional)" className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-primary" autoComplete="off" /></div> : null}
+        <DialogFooter><Button type="button" variant="ghost" onClick={closeSetup}>Cancel</Button><Button type="button" disabled={!setupEntry || setupDisabled || busyId === setupId} onClick={() => { if (setupEntry) void connect(setupEntry, setupEntry.kind === "native" ? liveById.get(setupEntry.id) : undefined); }}>{busyId === setupId ? "…" : setupMode === "oauth_client" ? "Continue" : "Connect"}</Button></DialogFooter>
+      </DialogContent>
+    </Dialog>
   </div>;
 }
 
