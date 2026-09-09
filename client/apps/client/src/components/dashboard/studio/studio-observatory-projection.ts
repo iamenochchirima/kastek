@@ -69,6 +69,7 @@ function normalized(value: unknown) {
 
 function statusForEvent(item: StudioTraceItem): StudioGraphStatus {
   if (item.status === "error") return "error";
+  if (item.event === "approval.requested" || item.event === "operation.waiting" || item.event.includes("paused")) return "waiting";
   if (item.status === "running") return "running";
   return "complete";
 }

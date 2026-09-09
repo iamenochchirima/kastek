@@ -150,7 +150,35 @@ function eventDetail(event: string, data: Record<string, unknown>) {
 function eventStatus(event: string): TraceStatus {
   if (event.includes("failed") || event.includes("error")) return "error";
   if (event.includes("completed") || event.includes("delivered") || event.includes("cancelled") || event.includes("expired")) return "complete";
+  if (event.includes("waiting") || event === "approval.requested" || event.includes("paused")) return "running";
   return "running";
+}
+
+function journalEventType(kind: string, data: Record<string, unknown>) {
+  const rawType = typeof data.type === "string" ? data.type : "";
+  if (rawType) {
+    if (rawType === "loop_started") return "run.started";
+    if (rawType === "loop_completed") return "run.completed";
+    if (rawType === "loop_failed") return "run.failed";
+    if (rawType.startsWith("context_")) return `agent.context.${rawType.slice("context_".length).replaceAll("_", ".")}`;
+    if (rawType.startsWith("model_")) return `agent.model.${rawType.slice("model_".length).replaceAll("_", ".")}`;
+    if (rawType.startsWith("tool_")) return `agent.tool.${rawType.slice("tool_".length).replaceAll("_", ".")}`;
+    if (rawType.startsWith("memory_retrieval_")) return `memory.retrieval.${rawType.slice("memory_retrieval_".length).replaceAll("_", ".")}`;
+    return rawType.replaceAll("_", ".");
+  }
+  if (kind === "run.transition") return typeof data.to === "string" ? `run.${data.to}` : kind;
+  if (kind === "context.assembled") return "agent.context.prepared";
+  if (kind === "context.compaction") return "agent.context.compaction";
+  if (kind === "model.completed") return "agent.model.completed";
+  if (kind === "tool.invoked") {
+    const outcome = typeof data.outcome === "string" ? data.outcome : "completed";
+    return outcome === "awaiting_approval" ? "approval.requested" : `agent.tool.${outcome}`;
+  }
+  if (kind === "operation.waiting") return data.reason === "approval" ? "approval.requested" : "operation.waiting";
+  if (kind === "effect.uncertain") return "agent.effect.uncertain";
+  if (kind === "delivery.obligation") return data.status === "sent" ? "message.delivered" : `delivery.${String(data.status ?? "queued")}`;
+  if (kind === "memory.integration") return typeof data.type === "string" ? `memory.${data.type.replaceAll("_", ".")}` : kind;
+  return kind;
 }
 
 function nodeFromEvent(event: AgentStreamEvent): TraceNode {
@@ -169,10 +197,12 @@ function nodeFromEvent(event: AgentStreamEvent): TraceNode {
 
 function nodesFromJournalEvents(events: AgentJournalEvent[], snapshotRevision?: number) {
   return events
-    .filter((event) => event.event?.kind === "harness.turn" && typeof event.event.data?.type === "string")
     .map((event) => {
-      const payload = event.event?.data?.payload ?? {};
-      const node = nodeFromEvent({ event: event.event?.data?.type ?? "event", data: { ...payload, sequence_number: event.sequence } });
+      const rawData = event.event?.data ?? {};
+      const rawPayload = rawData.payload;
+      const payload = isRecord(rawPayload) ? rawPayload : rawData;
+      const eventType = journalEventType(event.event?.kind ?? "event", rawData);
+      const node = nodeFromEvent({ event: eventType, data: { ...payload, sequence_number: event.sequence } });
       return {
         ...node,
         id: event.id,
@@ -182,6 +212,7 @@ function nodesFromJournalEvents(events: AgentJournalEvent[], snapshotRevision?: 
         data: {
           ...node.data,
           event_id: event.id,
+          event_kind: event.event?.kind,
           journal_sequence: event.sequence,
           snapshot_revision: snapshotRevision,
           occurred_at: event.occurredAt,
@@ -543,6 +574,10 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
     let cancelled = false;
     setEffectiveConfigLoading(true);
     setEffectiveConfigError(null);
+    setEffectiveConfig(null);
+    setEffectiveCapabilities([]);
+    setEffectiveConnections([]);
+    setInstallationReadiness(null);
     const installationId = agent.installation_id ?? undefined;
     void Promise.allSettled([
       getAgentVersionEffectiveConfig(selectedVersionId, installationId),
