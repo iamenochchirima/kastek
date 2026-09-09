@@ -73,22 +73,22 @@ type CanvasNodeData = StudioGraphNode & Record<string, unknown>;
 type CanvasNode = Node<CanvasNodeData>;
 
 const nodePositions: Record<string, { x: number; y: number }> = {
-  input: { x: 62, y: 108 },
-  channel: { x: 62, y: 190 },
-  session: { x: 62, y: 272 },
+  input: { x: 62, y: 94 },
+  channel: { x: 62, y: 202 },
+  session: { x: 62, y: 306 },
   context: { x: 380, y: 108 },
-  "memory-read": { x: 380, y: 190 },
-  retrieval: { x: 560, y: 190 },
+  "memory-read": { x: 380, y: 210 },
+  retrieval: { x: 560, y: 210 },
   model: { x: 560, y: 108 },
-  router: { x: 268, y: 430 },
-  calendar: { x: 56, y: 544 },
-  mcp: { x: 230, y: 544 },
-  "content-skill": { x: 404, y: 544 },
-  approval: { x: 670, y: 430 },
-  handoff: { x: 670, y: 526 },
-  "memory-write": { x: 670, y: 622 },
-  output: { x: 838, y: 430 },
-  delivery: { x: 838, y: 526 },
+  router: { x: 268, y: 480 },
+  calendar: { x: 56, y: 590 },
+  mcp: { x: 230, y: 590 },
+  "content-skill": { x: 404, y: 590 },
+  approval: { x: 670, y: 480 },
+  handoff: { x: 670, y: 574 },
+  "memory-write": { x: 670, y: 668 },
+  output: { x: 838, y: 480 },
+  delivery: { x: 838, y: 574 },
 };
 
 const movableKinds = new Set<StudioGraphNode["kind"]>(["tool", "mcp", "skill"]);
@@ -98,20 +98,22 @@ function isMovableNode(node: Pick<StudioGraphNode, "kind" | "configurable">) {
 }
 
 function nodeSize(kind: StudioGraphNode["kind"]) {
-  if (kind === "model") return { width: 174, height: 72 };
-  if (movableKinds.has(kind)) return { width: 122, height: 54 };
-  return { width: 136, height: 58 };
+  if (kind === "input") return { width: 112, height: 78 };
+  if (kind === "model") return { width: 174, height: 92 };
+  if (movableKinds.has(kind)) return { width: 112, height: 84 };
+  if (kind === "router") return { width: 136, height: 78 };
+  return { width: 136, height: 76 };
 }
 
 const sectionFrames = [
-  { id: "ingress", title: "INGRESS", detail: "Messages, channels, session", x: 32, y: 40, width: 300, height: 280 },
-  { id: "context", title: "CONTEXT & REASONING", detail: "Working state, memory, model", x: 352, y: 40, width: 600, height: 280 },
-  { id: "capabilities", title: "CAPABILITIES", detail: "Tools, MCP, and skills", x: 32, y: 350, width: 600, height: 365 },
-  { id: "outcome", title: "CONTROL & DELIVERY", detail: "Approval, handoff, response", x: 652, y: 350, width: 340, height: 365 },
+  { id: "ingress", title: "INGRESS", detail: "Messages, channels, session", x: 32, y: 40, width: 300, height: 370 },
+  { id: "context", title: "CONTEXT & REASONING", detail: "Working state, memory, model", x: 352, y: 40, width: 600, height: 370 },
+  { id: "capabilities", title: "CAPABILITIES", detail: "Tools, MCP, and skills", x: 32, y: 440, width: 600, height: 320 },
+  { id: "outcome", title: "CONTROL & DELIVERY", detail: "Approval, handoff, response", x: 652, y: 440, width: 340, height: 320 },
 ];
 
 type EdgeAnchor = "left" | "right" | "top" | "bottom";
-type EdgeDefinition = { id: string; source: string; target: string; sourceAnchor: EdgeAnchor; targetAnchor: EdgeAnchor; dashed?: boolean };
+type EdgeDefinition = { id: string; source: string; target: string; sourceAnchor: EdgeAnchor; targetAnchor: EdgeAnchor; dashed?: boolean; routeY?: number };
 
 const edgeDefinitions: EdgeDefinition[] = [
   { id: "input-channel", source: "input", target: "channel", sourceAnchor: "bottom", targetAnchor: "top" },
@@ -131,7 +133,7 @@ const edgeDefinitions: EdgeDefinition[] = [
   { id: "router-handoff", source: "router", target: "handoff", sourceAnchor: "right", targetAnchor: "left", dashed: true },
   { id: "approval-output", source: "approval", target: "output", sourceAnchor: "right", targetAnchor: "left" },
   { id: "handoff-output", source: "handoff", target: "output", sourceAnchor: "right", targetAnchor: "left", dashed: true },
-  { id: "router-output", source: "router", target: "output", sourceAnchor: "right", targetAnchor: "left" },
+  { id: "router-output", source: "router", target: "output", sourceAnchor: "right", targetAnchor: "left", routeY: 445 },
   { id: "output-memory", source: "output", target: "memory-write", sourceAnchor: "bottom", targetAnchor: "top", dashed: true },
   { id: "output-delivery", source: "output", target: "delivery", sourceAnchor: "bottom", targetAnchor: "top" },
   { id: "delivery-session", source: "delivery", target: "session", sourceAnchor: "left", targetAnchor: "right", dashed: true },
@@ -172,15 +174,67 @@ function statusClasses(status: StudioGraphStatus) {
   return { border: "border-[#52617e]/80", icon: "bg-muted text-muted-foreground", text: "text-muted-foreground" };
 }
 
+function displayNodeLabel(node: StudioGraphNode) {
+  const labels: Record<string, string> = {
+    input: "Input",
+    channel: "Channel",
+    session: "Session",
+    context: "Context",
+    "memory-read": "Memory",
+    retrieval: "Retrieval",
+    model: "Model",
+    router: "Router",
+    calendar: "Bookings",
+    mcp: "MCP",
+    "content-skill": "Content",
+    approval: "Approval",
+    handoff: "Handoff",
+    "memory-write": "Persist",
+    output: "Response",
+    delivery: "Delivery",
+  };
+  return labels[node.id] ?? labels[node.kind] ?? node.label.split(/\s|:|·/)[0] ?? node.label;
+}
+
+function nodeStatusDot(status: StudioGraphStatus) {
+  if (status === "running") return "animate-pulse bg-primary";
+  if (status === "error") return "bg-destructive";
+  if (status === "complete") return "bg-emerald-400";
+  return "bg-emerald-500";
+}
+
 function ObservatoryNode({ data, selected }: NodeProps<CanvasNode>) {
   const status = statusClasses(data.status);
   const compact = movableKinds.has(data.kind);
   const model = data.kind === "model";
-  return <div className={cn("relative h-full w-full border bg-[#f6f8fc]/95 shadow-[0_8px_24px_-18px_rgba(0,0,0,.9)] transition-all dark:bg-[#222c41]/95", compact ? "rounded-2xl px-2.5 py-2" : model ? "rounded-xl px-3 py-2.5" : "rounded-lg px-2.5 py-2", isMovableNode(data) && "cursor-grab active:cursor-grabbing", status.border, selected && "ring-2 ring-primary/35", data.status === "running" && "shadow-[0_0_26px_-8px_color-mix(in_srgb,var(--primary)_80%,transparent)]")}>
+  const trigger = data.kind === "input";
+  const decision = data.kind === "router";
+  const label = displayNodeLabel(data);
+  const labelView = <span className="flex max-w-full items-center justify-center gap-1"><span className="max-w-[116px] truncate text-[9px] font-medium text-foreground">{label}</span><span className={cn("size-1.5 shrink-0 rounded-full", nodeStatusDot(data.status))} title={graphStatusLabel(data.status)} /></span>;
+
+  if (compact || trigger) {
+    return <div className={cn("relative flex h-full w-full flex-col items-center gap-1", isMovableNode(data) && "cursor-grab active:cursor-grabbing", selected && "rounded-xl ring-2 ring-primary/35")}>
+      <Handle id="target" type="target" position={Position.Left} className="!h-1.5 !w-1.5 !border-0 !bg-muted-foreground/70" />
+      <Handle id="source" type="source" position={Position.Right} className="!h-1.5 !w-1.5 !border-0 !bg-muted-foreground/70" />
+      <span className={cn("flex shrink-0 items-center justify-center border shadow-[0_8px_20px_-15px_rgba(0,0,0,.9)]", trigger ? "size-11 rounded-xl" : "size-11 rounded-full", status.icon, status.border, data.status === "running" && "shadow-[0_0_22px_-8px_color-mix(in_srgb,var(--primary)_80%,transparent)]")}>{nodeIcon(data.kind)}</span>
+      {labelView}
+    </div>;
+  }
+
+  if (decision) {
+    return <div className={cn("relative h-full w-full", selected && "rounded-xl ring-2 ring-primary/35")}>
+      <Handle id="target" type="target" position={Position.Left} className="!h-1.5 !w-1.5 !border-0 !bg-muted-foreground/70" />
+      <Handle id="source" type="source" position={Position.Right} className="!h-1.5 !w-1.5 !border-0 !bg-muted-foreground/70" />
+      <span className={cn("absolute left-1/2 top-[37%] flex size-10 -translate-x-1/2 -translate-y-1/2 rotate-45 items-center justify-center rounded-lg border bg-[#222c41]/95", status.border, status.icon)}><span className="-rotate-45">{nodeIcon(data.kind)}</span></span>
+      <span className="absolute inset-x-0 bottom-0">{labelView}</span>
+    </div>;
+  }
+
+  return <div className={cn("relative flex h-full w-full flex-col items-center gap-1", selected && "rounded-xl ring-2 ring-primary/35")}>
     <Handle id="target" type="target" position={Position.Left} className="!h-1.5 !w-1.5 !border-0 !bg-muted-foreground/70" />
     <Handle id="source" type="source" position={Position.Right} className="!h-1.5 !w-1.5 !border-0 !bg-muted-foreground/70" />
-    <div className="flex items-center gap-2"><span className={cn("flex shrink-0 items-center justify-center", compact ? "size-5 rounded-full" : model ? "size-7 rounded-lg" : "size-5 rounded-md", status.icon)}>{nodeIcon(data.kind)}</span><div className="min-w-0 flex-1"><div className="flex items-center gap-1"><p className={cn("truncate font-semibold text-foreground", model ? "text-xs" : "text-[10px]")}>{data.label}</p><span className={cn("size-1.5 shrink-0 rounded-full", data.status === "running" ? "animate-pulse bg-primary" : data.status === "error" ? "bg-destructive" : data.status === "complete" ? "bg-emerald-400" : "bg-emerald-500")} title={graphStatusLabel(data.status)} /></div>{compact ? null : <p className="mt-0.5 truncate text-[8px] leading-3 text-muted-foreground">{data.detail}</p>}</div></div>
-    {model ? <p className="mt-1 truncate pl-9 text-[9px] leading-3 text-muted-foreground">{data.detail}</p> : null}
+    <div className={cn("flex w-full shrink-0 items-center justify-center border bg-[#f6f8fc]/95 shadow-[0_8px_24px_-18px_rgba(0,0,0,.9)] transition-all dark:bg-[#222c41]/95", model ? "h-[72px] rounded-xl" : "h-[58px] rounded-lg", status.border, data.status === "running" && "shadow-[0_0_26px_-8px_color-mix(in_srgb,var(--primary)_80%,transparent)]")}><span className={cn("flex items-center justify-center", model ? "size-9 rounded-lg" : "size-6 rounded-md", status.icon)}>{nodeIcon(data.kind)}</span></div>
+    {labelView}
   </div>;
 }
 
@@ -205,13 +259,21 @@ function ObservatorySectionFrames() {
 
 function anchorPoint(position: XYPosition, kind: StudioGraphNode["kind"], anchor: EdgeAnchor) {
   const size = nodeSize(kind);
-  if (anchor === "left") return { x: position.x, y: position.y + size.height / 2 };
-  if (anchor === "right") return { x: position.x + size.width, y: position.y + size.height / 2 };
-  if (anchor === "top") return { x: position.x + size.width / 2, y: position.y };
-  return { x: position.x + size.width / 2, y: position.y + size.height };
+  const surface = movableKinds.has(kind) || kind === "input"
+    ? { width: 44, height: 44, offsetX: (size.width - 44) / 2, offsetY: 0 }
+    : kind === "router"
+      ? { width: 48, height: 48, offsetX: (size.width - 48) / 2, offsetY: 4 }
+      : { width: size.width, height: kind === "model" ? 72 : 58, offsetX: 0, offsetY: 0 };
+  const left = position.x + surface.offsetX;
+  const top = position.y + surface.offsetY;
+  if (anchor === "left") return { x: left, y: top + surface.height / 2 };
+  if (anchor === "right") return { x: left + surface.width, y: top + surface.height / 2 };
+  if (anchor === "top") return { x: left + surface.width / 2, y: top };
+  return { x: left + surface.width / 2, y: top + surface.height };
 }
 
-function orthogonalPath(start: { x: number; y: number }, end: { x: number; y: number }, sourceAnchor: EdgeAnchor, targetAnchor: EdgeAnchor) {
+function orthogonalPath(start: { x: number; y: number }, end: { x: number; y: number }, sourceAnchor: EdgeAnchor, targetAnchor: EdgeAnchor, routeY?: number) {
+  if (routeY !== undefined) return `M ${start.x} ${start.y} L ${start.x} ${routeY} L ${end.x} ${routeY} L ${end.x} ${end.y}`;
   if ((sourceAnchor === "left" || sourceAnchor === "right") && (targetAnchor === "left" || targetAnchor === "right")) {
     const midX = start.x + (end.x - start.x) / 2;
     return `M ${start.x} ${start.y} L ${midX} ${start.y} L ${midX} ${end.y} L ${end.x} ${end.y}`;
@@ -246,7 +308,7 @@ function ObservatoryLinks({ nodes, positions }: { nodes: StudioGraphNode[]; posi
         const start = anchorPoint(sourcePosition, source.kind, definition.sourceAnchor);
         const end = anchorPoint(targetPosition, target.kind, definition.targetAnchor);
         const color = failed ? "#f87171" : live ? "#a78bfa" : completed ? "#34d399" : "#8b98b2";
-        return <path key={definition.id} d={orthogonalPath(start, end, definition.sourceAnchor, definition.targetAnchor)} fill="none" stroke={color} strokeWidth={live ? 2.4 : 1.35} strokeOpacity={live ? 0.95 : 0.62} strokeDasharray={definition.dashed ? "6 6" : undefined} markerEnd="url(#observatory-arrow)" />;
+        return <path key={definition.id} d={orthogonalPath(start, end, definition.sourceAnchor, definition.targetAnchor, definition.routeY)} fill="none" stroke={color} strokeWidth={live ? 2.4 : 1.35} strokeOpacity={live ? 0.95 : 0.62} strokeDasharray={definition.dashed ? "6 6" : undefined} markerEnd="url(#observatory-arrow)" />;
       })}
     </svg>
   </ViewportPortal>;
