@@ -549,6 +549,36 @@ export type AgentRunTimeline = {
   effects: Array<Record<string, unknown>>;
 };
 
+export type AgentMemoryObservatoryGraph = {
+  organizationId: string;
+  runId?: string;
+  cursor: number;
+  hasMore: boolean;
+  nodes: Array<{
+    id: string;
+    sequence?: number;
+    kind: string;
+    status: string;
+    occurredAt: string;
+    scope: { organizationId: string; installationId: string; runId?: string };
+    sourceEventIds: string[];
+    revisionIds: string[];
+    evidenceIds: string[];
+    readiness?: string;
+    retryCount: number;
+    errorCode?: string;
+    metadata: Record<string, string | number | boolean>;
+  }>;
+  edges: Array<{ id: string; from: string; to: string; relation: string }>;
+  projection?: {
+    version: string;
+    cursor: number;
+    freshness: "live" | "settled" | "unknown" | string;
+    redaction: "role_scoped" | "redacted" | string;
+    observedAt: string;
+  };
+};
+
 export type AgentApproval = {
   status: "pending" | "approved" | "denied" | "expired" | "consumed" | "cancelled" | string;
   providerToolCallId: string;
@@ -601,6 +631,18 @@ export function getAgentRun(runId: string): Promise<{ run: AgentRun; canApprove?
 
 export function getAgentRunTimeline(runId: string): Promise<AgentRunTimeline> {
   return request(`/api/agents/runs/${encodeURIComponent(runId)}/timeline`);
+}
+
+export function getAgentRunMemoryObservatory(runId: string, options: { afterSequence?: number; limit?: number } = {}): Promise<AgentMemoryObservatoryGraph> {
+  const query = new URLSearchParams();
+  if (options.afterSequence !== undefined) query.set("afterSequence", String(options.afterSequence));
+  if (options.limit !== undefined) query.set("limit", String(options.limit));
+  const suffix = query.toString() ? `?${query.toString()}` : "";
+  return request(`/api/agents/runs/${encodeURIComponent(runId)}/memory-observatory${suffix}`);
+}
+
+export function getAgentMemoryLineage(revisionId: string): Promise<AgentMemoryObservatoryGraph> {
+  return request(`/api/agents/memory/revisions/${encodeURIComponent(revisionId)}/lineage`);
 }
 
 export function decideAgentRunApproval(runId: string, approval: Pick<AgentApproval, "providerToolCallId" | "argumentsHash">, decision: "approved" | "rejected"): Promise<{ runId: string; status: string }> {

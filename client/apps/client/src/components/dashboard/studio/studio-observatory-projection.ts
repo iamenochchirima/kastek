@@ -2,6 +2,7 @@ import type {
   AgentCapability,
   AgentConnectionDirectoryEntry,
   AgentEffectiveConfigProjection,
+  AgentMemoryObservatoryGraph,
 } from "@/lib/agent-platform";
 import type { StudioGraphEdge, StudioGraphNode, StudioGraphStatus } from "@/components/dashboard/studio/studio-system-canvas";
 
@@ -29,6 +30,7 @@ type ProjectionInput = {
   modelLabel?: string;
   trace: StudioTraceItem[];
   operations?: Array<Record<string, unknown>>;
+  memory?: AgentMemoryObservatoryGraph | null;
   configurationState?: "loading" | "ready" | "unavailable";
 };
 
@@ -152,6 +154,22 @@ function latestCapabilityEvidence(trace: StudioTraceItem[], names: string[], ope
   };
 }
 
+function latestMemoryEvidence(graph: AgentMemoryObservatoryGraph | null | undefined, kinds: string[]) {
+  const kindSet = new Set(kinds);
+  const node = graph?.nodes.filter((candidate) => kindSet.has(candidate.kind)).at(-1);
+  if (!node) return undefined;
+  return {
+    id: node.id,
+    kind: node.kind,
+    status: node.status,
+    sequence: node.sequence ?? 0,
+    evidenceCount: node.evidenceIds.length,
+    revisionCount: node.revisionIds.length,
+    sourceEventCount: node.sourceEventIds.length,
+    ...(node.errorCode ? { errorCode: node.errorCode } : {}),
+  };
+}
+
 function capabilityPosition(index: number) {
   return { x: 48 + (index % 4) * 132, y: 560 + Math.floor(index / 4) * 104 };
 }
@@ -271,12 +289,25 @@ export function projectStudioObservatory(input: ProjectionInput): StudioObservat
     }
     if (definition.id === "router" && effective) data.capabilities = `${effective.tools.length} tools · ${effective.skills.length} skills · ${effective.remoteMcpProviders.length} MCP`;
     const evidence = coreEventMatchers[definition.id] ? input.trace.filter(coreEventMatchers[definition.id]).at(-1) : undefined;
+    const memory = definition.id === "memory-read"
+      ? latestMemoryEvidence(input.memory, ["retrieval_plan", "evidence"])
+      : definition.id === "retrieval"
+        ? latestMemoryEvidence(input.memory, ["retrieval_plan", "evidence"])
+        : definition.id === "memory-write"
+          ? latestMemoryEvidence(input.memory, ["capture", "semantic_revision", "episodic_revision", "projection", "deletion"])
+          : undefined;
     return {
       ...definition,
       status: configUnavailable ? "unavailable" : statusForCore(definition.id, input.trace),
       label: definition.id === "model" ? effective?.model.model ?? input.modelLabel ?? definition.label : definition.label,
       data,
-      evidence: evidence ? { id: evidence.id, event: evidence.event, sequence: evidence.sequence, detail: evidence.detail } : undefined,
+      evidence: evidence || memory ? {
+        id: evidence?.id ?? memory?.id ?? "memory",
+        event: evidence?.event ?? "memory.observatory",
+        sequence: evidence?.sequence ?? memory?.sequence ?? 0,
+        detail: evidence?.detail ?? `${memory?.kind ?? "memory"} · ${memory?.status ?? "recorded"}`,
+        ...(memory ? { memory } : {}),
+      } : undefined,
     } satisfies StudioGraphNode;
   });
 

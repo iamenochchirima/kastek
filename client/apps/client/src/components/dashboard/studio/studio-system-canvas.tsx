@@ -55,7 +55,14 @@ export type StudioGraphNode = {
   event?: string;
   data: Record<string, string>;
   position?: XYPosition;
-  evidence?: { id: string; event: string; sequence: number; detail: string; operation?: { id: string; kind: string; status: string } };
+  evidence?: {
+    id: string;
+    event: string;
+    sequence: number;
+    detail: string;
+    operation?: { id: string; kind: string; status: string };
+    memory?: { id: string; kind: string; status: string; sequence: number; evidenceCount: number; revisionCount: number; sourceEventCount: number; errorCode?: string };
+  };
 };
 
 export type StudioGraphEdge = { id: string; source: string; target: string; sourceAnchor: EdgeAnchor; targetAnchor: EdgeAnchor; dashed?: boolean; routeY?: number };

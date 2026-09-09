@@ -39,6 +39,7 @@ import { MemoryRetentionRepository } from "../db/repositories/memory-retention-r
 import { MemoryRevisionRepository } from "../db/repositories/memory-revision-repository";
 import { MemoryRevisionCommandService } from "../memory/revision-command-service";
 import { CanonicalMemoryHttpAdmin, type MemoryHttpAdmin } from "../memory/http-admin";
+import { MemoryObservatoryRepository } from "../memory/observatory";
 import { chunkKnowledgeText, fetchBoundedKnowledgeDocument } from "../knowledge/ingestion";
 import { FirecrawlClient } from "../knowledge/firecrawl";
 import { extractKnowledgeFile, MAX_KNOWLEDGE_FILE_BYTES } from "../knowledge/file-ingestion";
@@ -226,6 +227,7 @@ export interface AppDependencies {
   knowledge?: KnowledgeRepository;
   websiteCrawler?: FirecrawlClient;
   memoryAdmin?: MemoryHttpAdmin;
+  memoryObservatory?: MemoryObservatoryRepository;
   memoryDeletionJobs?: MemoryDeletionJobRepository;
   memoryRetention?: MemoryRetentionRepository;
   memoryRevisionCommands?: MemoryRevisionCommandService;
@@ -777,6 +779,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     { analyticsPool: dependencies.pool },
   );
   const memoryAdmin = dependencies.memoryAdmin ?? new CanonicalMemoryHttpAdmin(dependencies.pool, memoryDeletionJobs, memoryRevisionCommands);
+  const memoryObservatory = dependencies.memoryObservatory ?? new MemoryObservatoryRepository(dependencies.pool);
   const evaluations = dependencies.evaluations ?? new EvaluationRepository(dependencies.pool);
   const draftEvaluator = dependencies.draftEvaluator ?? ((input) => executeDraftEvaluation(
     input,
@@ -5446,6 +5449,47 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       steps: steps.map((step) => ({ ...step, input: redactSensitiveValue(step.input), output: redactSensitiveValue(step.output), error: redactSensitiveValue(step.error) })),
       toolCalls: toolCalls.map((toolCall) => redactSensitiveValue(toolCall)),
       effects: effects.map((effect) => ({ ...effect, provider_receipt: redactSensitiveValue(effect.provider_receipt), error: redactSensitiveValue(effect.error) })),
+    };
+  });
+
+  app.get<{ Params: { runId: string }; Querystring: { afterSequence?: string; limit?: string } }>("/v1/runs/:runId/memory-observatory", async (request, reply) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "runs:read");
+    const run = await runs.getRun(auth.organizationId, request.params.runId);
+    if (!run) return reply.code(404).send({ error: "run_not_found" });
+    const afterSequence = request.query.afterSequence === undefined ? 0 : Number(request.query.afterSequence);
+    const limit = request.query.limit === undefined ? 200 : Number(request.query.limit);
+    if (!Number.isSafeInteger(afterSequence) || afterSequence < 0 || !Number.isSafeInteger(limit) || limit < 1 || limit > 200) {
+      return reply.code(400).send({ error: "invalid_memory_observatory_cursor" });
+    }
+    const graph = await memoryObservatory.listRun({ organizationId: auth.organizationId, runId: run.id, afterSequence, limit });
+    return {
+      ...graph,
+      projection: {
+        version: "studio.memory-observatory.v1",
+        cursor: Math.max(afterSequence, graph.cursor),
+        freshness: ["completed", "failed", "cancelled", "timed_out", "expired"].includes(run.status) ? "settled" : "live",
+        redaction: "role_scoped",
+        observedAt: new Date().toISOString(),
+      },
+    };
+  });
+
+  app.get<{ Params: { revisionId: string } }>("/v1/memory/revisions/:revisionId/lineage", async (request, reply) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:read");
+    const revisionId = z.string().uuid().parse(request.params.revisionId);
+    const graph = await memoryObservatory.listRevision({ organizationId: auth.organizationId, revisionId });
+    if (!graph.nodes.length) return reply.code(404).send({ error: "memory_revision_not_found" });
+    return {
+      ...graph,
+      projection: {
+        version: "studio.memory-lineage.v1",
+        cursor: graph.cursor,
+        freshness: "settled",
+        redaction: "role_scoped",
+        observedAt: new Date().toISOString(),
+      },
     };
   });
 

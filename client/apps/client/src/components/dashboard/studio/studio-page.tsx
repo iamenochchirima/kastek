@@ -25,6 +25,7 @@ import {
   getPlatformConversation,
   getAgentModelCatalog,
   getAgentRun,
+  getAgentRunMemoryObservatory,
   getAgentRunTimeline,
   getAgentVersionEffectiveConfig,
   getAgentInstallationReadiness,
@@ -48,6 +49,7 @@ import {
   type AgentRuntimeTelemetry,
   type AgentRunTimeline,
   type AgentInstallationRun,
+  type AgentMemoryObservatoryGraph,
   type AgentEffectiveConfigProjection,
   type AgentCapability,
   type AgentConnectionDirectoryEntry,
@@ -448,6 +450,7 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
   const [runHistory, setRunHistory] = useState<AgentInstallationRun[]>([]);
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
   const [timelineProjection, setTimelineProjection] = useState<AgentRunTimeline["projection"] | null>(null);
+  const [memoryObservatory, setMemoryObservatory] = useState<AgentMemoryObservatoryGraph | null>(null);
   const [operationEvidence, setOperationEvidence] = useState<Array<Record<string, unknown>>>([]);
   const [effectiveConfig, setEffectiveConfig] = useState<AgentEffectiveConfigProjection | null>(null);
   const [effectiveCapabilities, setEffectiveCapabilities] = useState<AgentCapability[]>([]);
@@ -518,9 +521,10 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
       modelLabel: selectedModelEntry?.label ?? selectedModelEntry?.model ?? "Primary model",
       trace,
       operations: operationEvidence,
+      memory: memoryObservatory,
       configurationState: effectiveConfigLoading ? "loading" : effectiveConfigError ? "unavailable" : "ready",
     }),
-    [effectiveCapabilities, effectiveConfig, effectiveConfigError, effectiveConfigLoading, effectiveConnections, installationReadiness, operationEvidence, selectedModelEntry?.label, selectedModelEntry?.model, trace],
+    [effectiveCapabilities, effectiveConfig, effectiveConfigError, effectiveConfigLoading, effectiveConnections, installationReadiness, memoryObservatory, operationEvidence, selectedModelEntry?.label, selectedModelEntry?.model, trace],
   );
   const studioGraphNodes = studioProjection.nodes;
   const studioGraphEdges = studioProjection.edges;
@@ -662,8 +666,10 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
     const refreshRuntimeEvidence = async () => {
       const timeline = await getAgentRunTimeline(observedRunId).catch(() => null);
       if (cancelled || !timeline) return;
+      const memory = await getAgentRunMemoryObservatory(observedRunId, { afterSequence: 0, limit: 200 }).catch(() => null);
       setTelemetry(timeline.telemetry ?? null);
       setTimelineProjection(timeline.projection ?? null);
+      setMemoryObservatory(memory);
       setOperationEvidence([...timeline.toolCalls, ...timeline.effects, ...timeline.steps]);
       setRunHistory((current) => {
         const existing = current.find((run) => run.id === observedRunId);
@@ -698,6 +704,7 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
     setSelectedNodeId(null);
     setTelemetry(null);
     setRunStreamState("idle");
+    setMemoryObservatory(null);
     setTimelineProjection(null);
     setOperationEvidence([]);
     setTelemetryDetailsOpen(false);
@@ -713,6 +720,7 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
     setTrace([]);
     setTelemetry(null);
     setRunStreamState("idle");
+    setMemoryObservatory(null);
     setTimelineProjection(null);
     setOperationEvidence([]);
     setSelectedNodeId(null);
@@ -1056,7 +1064,7 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-3"><div><SectionEyebrow>Execution observatory</SectionEyebrow><h1 className="mt-1 text-sm font-semibold text-foreground">{graphMode === "execution" && executionGraphAvailable ? "Generated run graph" : "System map"}</h1></div><div className="flex flex-wrap items-center justify-end gap-2"><div role="group" aria-label="Graph view" className="inline-flex rounded-md border border-border/70 p-0.5 text-[10px]"><button type="button" aria-pressed={graphMode === "topology"} onClick={() => { setGraphMode("topology"); setSelectedNodeId(null); }} className={cn("rounded px-2 py-1 transition-colors", graphMode === "topology" ? "bg-muted text-foreground" : "text-muted-foreground hover:text-foreground")}>Topology</button><button type="button" aria-pressed={graphMode === "execution"} disabled={!executionGraphAvailable} onClick={() => { setGraphMode("execution"); setSelectedNodeId(null); }} className={cn("rounded px-2 py-1 transition-colors", graphMode === "execution" ? "bg-muted text-foreground" : "text-muted-foreground hover:text-foreground", !executionGraphAvailable && "cursor-not-allowed opacity-50")}>Run</button></div><span className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground"><CircleDot className={cn("size-3", running ? "animate-pulse text-primary" : "text-muted-foreground")} />{running ? "Run overlay" : trace.length ? "Trace ready" : effectiveConfigLoading ? "Loading config" : effectiveConfigError ? "Config unavailable" : "Ready"}</span></div></div>
             <div className="relative min-h-[560px] min-w-0 flex-1 overflow-auto bg-[radial-gradient(circle_at_50%_45%,color-mix(in_srgb,var(--brand)_7%,transparent),transparent_58%)] xl:min-h-0">
               <StudioSystemCanvas nodes={visibleGraphNodes} edges={visibleGraphEdges} selectedNodeId={selectedNodeId} onSelect={setSelectedNodeId} running={running} traceCount={trace.length} graphMode={graphMode} storageKey={`kasitek:studio-layout:${agent.id}:${selectedVersionId ?? "default"}:${graphMode}`} />
-              {selectedGraphNode ? <div className="absolute bottom-4 left-4 right-4 z-10 max-h-72 overflow-auto rounded-xl border border-border bg-card/95 shadow-xl backdrop-blur"><button type="button" aria-label="Close node details" onClick={() => setSelectedNodeId(null)} className="absolute right-3 top-3 z-10 rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"><X className="size-4" /></button><StudioGraphInspector node={selectedGraphNode} telemetry={telemetry} onConfigure={() => setConfigurationOpen(true)} /></div> : null}
+              {selectedGraphNode ? <div className="absolute bottom-4 left-4 right-4 z-10 max-h-72 overflow-auto rounded-xl border border-border bg-card/95 shadow-xl backdrop-blur"><button type="button" aria-label="Close node details" onClick={() => setSelectedNodeId(null)} className="absolute right-3 top-3 z-10 rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"><X className="size-4" /></button><StudioGraphInspector node={selectedGraphNode} telemetry={telemetry} memory={memoryObservatory} onConfigure={() => setConfigurationOpen(true)} /></div> : null}
             </div>
             <StudioExecutionTimeline trace={trace} nodes={visibleGraphNodes} projection={timelineProjection} run={runHistory.find((run) => run.id === (activeRunId ?? selectedRunId)) ?? null} streamState={runStreamState} onSelectNode={setSelectedNodeId} />
           </section>
@@ -1093,11 +1101,12 @@ function StudioExecutionTimeline({ trace, nodes, projection, run, streamState, o
   </div>;
 }
 
-function StudioGraphInspector({ node, telemetry, onConfigure }: { node: StudioGraphNode; telemetry: AgentRuntimeTelemetry | null; onConfigure: () => void }) {
+function StudioGraphInspector({ node, telemetry, memory, onConfigure }: { node: StudioGraphNode; telemetry: AgentRuntimeTelemetry | null; memory: AgentMemoryObservatoryGraph | null; onConfigure: () => void }) {
   const context = telemetry?.context;
   const modelAttempt = telemetry?.modelAttempt;
   const sourceEventId = node.data.event_id ?? node.evidence?.id;
   const occurredAt = node.data.occurred_at;
+  const memoryEvidence = node.evidence?.memory;
   return <div>
     <StudioGraphInspectorBase node={node} telemetry={telemetry} onConfigure={onConfigure} />
     <section className="border-t border-border px-4 py-3">
@@ -1110,6 +1119,7 @@ function StudioGraphInspector({ node, telemetry, onConfigure }: { node: StudioGr
       </dl>
       {context && ["context", "memory-read", "retrieval"].includes(node.id) ? <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1 text-[10px] text-muted-foreground sm:grid-cols-4"><span>Capacity <b className="ml-1 text-foreground">{context.contextWindowTokens ?? "unknown"}</b></span><span>Reserved <b className="ml-1 text-foreground">{context.reservedOutputTokens ?? "unknown"}</b></span><span>Safety <b className="ml-1 text-foreground">{context.safetyMarginTokens ?? "unknown"}</b></span><span>Budget left <b className="ml-1 text-foreground">{telemetry.runBudget.remainingTokens ?? "unknown"}</b></span><span>Input <b className="ml-1 text-foreground">{telemetry.usage.inputTokens ?? "unknown"}</b></span><span>Output <b className="ml-1 text-foreground">{telemetry.usage.outputTokens ?? "unknown"}</b></span><span>Usage basis <b className="ml-1 text-foreground">{telemetry.usage.basis}</b></span><span>Manifest <b className="ml-1 max-w-24 truncate text-foreground" title={context.manifestDigest}>{context.manifestDigest ?? "unknown"}</b></span></div> : null}
       {modelAttempt && node.id === "model" ? <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1 text-[10px] text-muted-foreground sm:grid-cols-4"><span>Queue <b className="ml-1 text-foreground">{modelAttempt.queueMs !== undefined ? `${modelAttempt.queueMs} ms` : "unknown"}</b></span><span>First token <b className="ml-1 text-foreground">{modelAttempt.timeToFirstTokenMs !== undefined ? `${modelAttempt.timeToFirstTokenMs} ms` : "unknown"}</b></span><span>Turn <b className="ml-1 text-foreground">{telemetry.turn.elapsedMs !== undefined ? `${telemetry.turn.elapsedMs} ms` : "unknown"}</b></span><span>Attempts <b className="ml-1 text-foreground">{telemetry.attempts.length}</b></span></div> : null}
+      {memoryEvidence ? <div className="mt-3 rounded-lg border border-border/80 bg-background/50 p-2"><SectionEyebrow>Memory observatory</SectionEyebrow><div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-[10px] text-muted-foreground sm:grid-cols-4"><span>Stage <b className="ml-1 text-foreground">{memoryEvidence.kind}</b></span><span>Status <b className="ml-1 text-foreground">{memoryEvidence.status}</b></span><span>Evidence <b className="ml-1 text-foreground">{memoryEvidence.evidenceCount}</b></span><span>Revisions <b className="ml-1 text-foreground">{memoryEvidence.revisionCount}</b></span><span>Sources <b className="ml-1 text-foreground">{memoryEvidence.sourceEventCount}</b></span><span>Cursor <b className="ml-1 text-foreground">{memory?.projection?.cursor ?? memory?.cursor ?? "unknown"}</b></span><span>Redaction <b className="ml-1 text-foreground">{memory?.projection?.redaction ?? "unknown"}</b></span>{memoryEvidence.errorCode ? <span>Error <b className="ml-1 text-destructive">{memoryEvidence.errorCode}</b></span> : null}</div></div> : null}
     </section>
   </div>;
 }

@@ -2545,6 +2545,27 @@ describe("Agent Platform HTTP foundation", () => {
     await app.close();
   });
 
+  it("returns scoped memory observatory and lineage projections", async () => {
+    const listRun = vi.fn(async () => ({ organizationId: "org-1", runId: "run-1", cursor: 6, hasMore: false, nodes: [{ id: "memory-1", kind: "evidence", status: "completed" }], edges: [] }));
+    const listRevision = vi.fn(async () => ({ organizationId: "org-1", cursor: 0, hasMore: false, nodes: [{ id: "revision:revision-1", kind: "semantic_revision", status: "completed" }], edges: [] }));
+    const app = buildApp({
+      config,
+      pool: fakePool,
+      runs: { getRun: async () => ({ id: "run-1", status: "running" }) } as never,
+      memoryObservatory: { listRun, listRevision } as never,
+    });
+    const headers = { "x-organization-id": "org-1", "x-actor-id": "user-1" };
+    const runResponse = await app.inject({ method: "GET", url: "/v1/runs/run-1/memory-observatory?afterSequence=4&limit=20", headers });
+    const lineageResponse = await app.inject({ method: "GET", url: "/v1/memory/revisions/00000000-0000-4000-8000-000000000001/lineage", headers });
+    expect(runResponse.statusCode).toBe(200);
+    expect(runResponse.json()).toMatchObject({ runId: "run-1", projection: { version: "studio.memory-observatory.v1", cursor: 6, freshness: "live", redaction: "role_scoped" } });
+    expect(lineageResponse.statusCode).toBe(200);
+    expect(lineageResponse.json()).toMatchObject({ projection: { version: "studio.memory-lineage.v1", freshness: "settled", redaction: "role_scoped" } });
+    expect(listRun).toHaveBeenCalledWith({ organizationId: "org-1", runId: "run-1", afterSequence: 4, limit: 20 });
+    expect(listRevision).toHaveBeenCalledWith({ organizationId: "org-1", revisionId: "00000000-0000-4000-8000-000000000001" });
+    await app.close();
+  });
+
   it("returns an organization-scoped operational summary", async () => {
     const app = buildApp({
       config,
