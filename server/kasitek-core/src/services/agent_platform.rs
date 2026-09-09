@@ -29,6 +29,32 @@ fn new_correlation_id() -> String {
     )
 }
 
+fn known_upstream_code(code: Option<&str>) -> Option<&'static str> {
+    match code {
+        Some("google_calendar_oauth_not_configured") => {
+            Some("google_calendar_oauth_not_configured")
+        }
+        Some("google_calendar_token_exchange_failed") => {
+            Some("google_calendar_token_exchange_failed")
+        }
+        Some("google_calendar_access_token_missing") => {
+            Some("google_calendar_access_token_missing")
+        }
+        Some("mcp_oauth_not_configured") => Some("mcp_oauth_not_configured"),
+        Some("mcp_oauth_client_registration_unsupported") => {
+            Some("mcp_oauth_client_registration_unsupported")
+        }
+        Some("mcp_oauth_client_registration_failed") => {
+            Some("mcp_oauth_client_registration_failed")
+        }
+        Some("mcp_oauth_start_failed") => Some("mcp_oauth_start_failed"),
+        Some("mcp_oauth_state_incomplete") => Some("mcp_oauth_state_incomplete"),
+        Some("mcp_oauth_code_missing") => Some("mcp_oauth_code_missing"),
+        Some("mcp_oauth_connection_failed") => Some("mcp_oauth_connection_failed"),
+        _ => None,
+    }
+}
+
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct InternalClaims<'a> {
@@ -3672,6 +3698,11 @@ impl AgentPlatformClient {
             .as_ref()
             .and_then(|value| value.error.clone())
             .unwrap_or_else(|| "Agent Platform request failed".to_string());
+        if let Some(code) = known_upstream_code(code) {
+            let response_status = actix_web::http::StatusCode::from_u16(status.as_u16())
+                .unwrap_or(actix_web::http::StatusCode::BAD_GATEWAY);
+            return AppError::upstream(code, message, response_status);
+        }
         if code == Some("conversation_handoff_active") {
             return AppError::referral(
                 "conversation_handoff_active",
@@ -3700,6 +3731,7 @@ impl AgentPlatformClient {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use actix_web::ResponseError;
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
     use tokio::net::TcpListener;
     use tokio::task::JoinHandle;
@@ -3986,6 +4018,26 @@ mod tests {
             }
             other => panic!("unexpected error: {other:?}"),
         }
+        server.await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn oauth_configuration_errors_preserve_the_upstream_reason_code() {
+        let (base_url, server) = mock_agent_server(vec![
+            (503, r#"{"error":"google_calendar_oauth_not_configured","code":"google_calendar_oauth_not_configured"}"#),
+        ])
+        .await;
+        let client = test_client(&base_url);
+        let error = client
+            .start_google_calendar_oauth("org-1", "actor-1", "install-1")
+            .await
+            .expect_err("missing Google OAuth configuration should be surfaced");
+
+        assert_eq!(error.code(), "google_calendar_oauth_not_configured");
+        assert_eq!(
+            error.error_response().status(),
+            actix_web::http::StatusCode::SERVICE_UNAVAILABLE
+        );
         server.await.unwrap();
     }
 
