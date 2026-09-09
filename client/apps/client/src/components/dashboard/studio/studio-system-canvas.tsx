@@ -102,7 +102,7 @@ function nodeSize(kind: StudioGraphNode["kind"]) {
   if (kind === "model") return { width: 174, height: 92 };
   if (movableKinds.has(kind)) return { width: 112, height: 84 };
   if (kind === "router") return { width: 136, height: 78 };
-  return { width: 136, height: 76 };
+  return { width: 112, height: 76 };
 }
 
 const sectionFrames = [
@@ -212,11 +212,11 @@ function ObservatoryNode({ data, selected }: NodeProps<CanvasNode>) {
   const label = displayNodeLabel(data);
   const labelView = <span className="flex max-w-full items-center justify-center gap-1"><span className="max-w-[116px] truncate text-[9px] font-medium text-foreground">{label}</span><span className={cn("size-1.5 shrink-0 rounded-full", nodeStatusDot(data.status))} title={graphStatusLabel(data.status)} /></span>;
 
-  if (compact || trigger) {
+  if (compact || trigger || (!model && !decision)) {
     return <div className={cn("relative flex h-full w-full flex-col items-center gap-1", isMovableNode(data) && "cursor-grab active:cursor-grabbing", selected && "rounded-xl ring-2 ring-primary/35")}>
       <Handle id="target" type="target" position={Position.Left} className="!h-1.5 !w-1.5 !border-0 !bg-muted-foreground/70" />
       <Handle id="source" type="source" position={Position.Right} className="!h-1.5 !w-1.5 !border-0 !bg-muted-foreground/70" />
-      <span className={cn("flex shrink-0 items-center justify-center border shadow-[0_8px_20px_-15px_rgba(0,0,0,.9)]", trigger ? "size-11 rounded-xl" : "size-11 rounded-full", status.icon, status.border, data.status === "running" && "shadow-[0_0_22px_-8px_color-mix(in_srgb,var(--primary)_80%,transparent)]")}>{nodeIcon(data.kind)}</span>
+      <span className={cn("flex size-11 shrink-0 items-center justify-center border shadow-[0_8px_20px_-15px_rgba(0,0,0,.9)]", trigger || ["channel", "session", "context", "approval", "handoff", "output", "delivery"].includes(data.kind) ? "rounded-xl" : "rounded-full", status.icon, status.border, data.status === "running" && "shadow-[0_0_22px_-8px_color-mix(in_srgb,var(--primary)_80%,transparent)]")}>{nodeIcon(data.kind)}</span>
       {labelView}
     </div>;
   }
@@ -233,7 +233,7 @@ function ObservatoryNode({ data, selected }: NodeProps<CanvasNode>) {
   return <div className={cn("relative flex h-full w-full flex-col items-center gap-1", selected && "rounded-xl ring-2 ring-primary/35")}>
     <Handle id="target" type="target" position={Position.Left} className="!h-1.5 !w-1.5 !border-0 !bg-muted-foreground/70" />
     <Handle id="source" type="source" position={Position.Right} className="!h-1.5 !w-1.5 !border-0 !bg-muted-foreground/70" />
-    <div className={cn("flex w-full shrink-0 items-center justify-center border bg-[#f6f8fc]/95 shadow-[0_8px_24px_-18px_rgba(0,0,0,.9)] transition-all dark:bg-[#222c41]/95", model ? "h-[72px] rounded-xl" : "h-[58px] rounded-lg", status.border, data.status === "running" && "shadow-[0_0_26px_-8px_color-mix(in_srgb,var(--primary)_80%,transparent)]")}><span className={cn("flex items-center justify-center", model ? "size-9 rounded-lg" : "size-6 rounded-md", status.icon)}>{nodeIcon(data.kind)}</span></div>
+    <div className="flex h-[72px] w-full shrink-0 items-center justify-center rounded-xl border bg-[#f6f8fc]/95 shadow-[0_8px_24px_-18px_rgba(0,0,0,.9)] transition-all dark:bg-[#222c41]/95"><span className="flex size-9 items-center justify-center rounded-lg bg-primary/15 text-primary">{nodeIcon(data.kind)}</span></div>
     {labelView}
   </div>;
 }
@@ -259,7 +259,7 @@ function ObservatorySectionFrames() {
 
 function anchorPoint(position: XYPosition, kind: StudioGraphNode["kind"], anchor: EdgeAnchor) {
   const size = nodeSize(kind);
-  const surface = movableKinds.has(kind) || kind === "input"
+  const surface = kind !== "model" && kind !== "router"
     ? { width: 44, height: 44, offsetX: (size.width - 44) / 2, offsetY: 0 }
     : kind === "router"
       ? { width: 48, height: 48, offsetX: (size.width - 48) / 2, offsetY: 4 }
