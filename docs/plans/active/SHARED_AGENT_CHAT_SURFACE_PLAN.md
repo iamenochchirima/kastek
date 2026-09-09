@@ -50,6 +50,14 @@ Post-release review date: not applicable until a release is scheduled
 - [x] Migrate Studio/Playground.
 - [x] Migrate agent test panel.
 - [x] Remove duplicate renderers and unused helpers.
-- [ ] Run focused lint/type/build checks.
-- [ ] Run responsive/manual behavior checks.
+- [x] Run focused lint/type/build checks (ESLint, `tsc --noEmit`, `npm run build`, `git diff --check`).
+- [ ] Run responsive/manual behavior checks in an authenticated browser session.
+
+## Verification evidence
+
+- Focused ESLint passes for all six changed client modules.
+- Client TypeScript check passes.
+- `npm run build` passes with Next.js static generation for all routes.
+- `git diff --check` passes.
+- Browser verification remains pending because no browser tab/session is currently available in this environment.
 - [ ] Commit coherent batches without unrelated files.
