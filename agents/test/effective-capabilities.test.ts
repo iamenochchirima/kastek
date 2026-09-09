@@ -177,4 +177,36 @@ describe("effective capability discovery", () => {
     expect(snapshot.model.skillIndex).toContainEqual(expect.objectContaining({ id: "booking", readiness: "unavailable", reason: "dependency_not_ready" }));
     expect(snapshot.model.loadedSkills).toEqual([]);
   });
+
+  it("does not treat a catalogue descriptor as a registered executable dependency", () => {
+    const snapshot = createEffectiveCapabilitySnapshot({
+      scope,
+      tools: [],
+      descriptors: [{
+        id: "calendar.read",
+        name: "Calendar read",
+        description: "Catalogue metadata only",
+        kind: "connector_tool",
+        source: { kind: "connector", id: "calendar", version: "1.0.0", trust: "platform" },
+        version: "1.0.0",
+        category: "calendar",
+        tags: [],
+        toolsetIds: [],
+        runtime: { execution: "native", requiredScopes: [], credentialRequirements: [] },
+      }],
+      grantedTools: ["calendar.read"],
+      skills: [{
+        id: "booking",
+        version: "1.0.0",
+        name: "Booking",
+        published: true,
+        pinned: true,
+        requiredCapabilityIds: ["calendar.read"],
+        instructions: "Use the calendar flow.",
+        matching: { keywords: ["booking"] },
+      }],
+      message: "Help with booking",
+    });
+    expect(snapshot.studio.unavailable).toContainEqual({ id: "booking", kind: "skill", reason: "dependency_not_found" });
+  });
 });

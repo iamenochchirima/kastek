@@ -335,14 +335,15 @@ export function createEffectiveCapabilitySnapshot(input: EffectiveCapabilitySnap
     } satisfies EffectiveCapabilityConnection))
     .sort((left, right) => left.id.localeCompare(right.id));
   const connectedIds = new Set(bindingConnections.filter((connection) => connection.status === "connected").flatMap((connection) => [connection.id, ...connection.usableCapabilityIds]));
-  const knownCapabilityIds = new Set([
+  // A catalogue descriptor is metadata only. Skill dependencies require a
+  // registered executable or a connected binding, not mere catalogue presence.
+  const registeredCapabilityIds = new Set([
     ...input.tools.map((tool) => tool.name),
     ...bindingConnections.flatMap((connection) => connection.usableCapabilityIds),
-    ...(input.descriptors ?? []).map((descriptor) => descriptor.id),
   ]);
   const sourceSkills = (input.skills ?? []).map(asSkillBinding).map((skill) => {
     const missingCapability = (skill.requiredCapabilityIds ?? []).find((id) => !granted.has(id));
-    const missingCapabilityRegistration = (skill.requiredCapabilityIds ?? []).find((id) => !knownCapabilityIds.has(id));
+    const missingCapabilityRegistration = (skill.requiredCapabilityIds ?? []).find((id) => !registeredCapabilityIds.has(id));
     const missingConnector = (skill.requiredConnectorIds ?? []).find((id) => !connectedIds.has(id));
     const missingDependency = missingCapabilityRegistration || missingCapability || missingConnector;
     const dependencyReady = skill.dependencyReady !== false && !missingDependency;
