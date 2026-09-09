@@ -409,8 +409,9 @@ snapshot, approval, redaction, and durable operation contracts as native tools.
 17. [x] Add capability resolution, promotion, activation, and rollback events plus Studio-readable
     projections without exposing secrets or raw provider identifiers.
 18. [ ] Run focused tests, agent build checks, local manual KasiAi checks, promotion/rollback tests,
-    and staging smoke tests. Local focused/runtime and promotion checks are complete; local
-    browser/KasiAi and staging evidence remain release gates.
+    and staging smoke tests. Local focused/runtime, promotion, local KasiAi, and local
+    staging-equivalent checks are complete; authenticated browser checks and hosted staging
+    evidence remain release gates.
 19. [ ] Roll out the capability-aware path, compare grounding and tool-use telemetry, and remove
     temporary compatibility logic after the review window. The scoped
     `capability_awareness_enabled` control is implemented; staged enablement and post-review
@@ -418,7 +419,7 @@ snapshot, approval, redaction, and durable operation contracts as native tools.
 
 ### Implementation evidence
 
-- `pnpm test` in `agents`: 189 test files passed, 40 skipped; 1,122 tests passed, 122 skipped.
+- `pnpm test` in `agents`: 190 test files passed, 40 skipped; 1,128 tests passed, 122 skipped.
 - `pnpm build` in `agents`: passed.
 - `pnpm exec tsc --noEmit` and targeted ESLint for the changed Studio/settings/integration files:
   passed.
@@ -442,6 +443,10 @@ snapshot, approval, redaction, and durable operation contracts as native tools.
   effective snapshot for tool admission and audit. Migration 161 and command validation cover it.
 - Capability snapshot digests exclude volatile run identity, so retries and equivalent Playground/Live
   resolutions compare the same candidate state; a regression test covers different run IDs.
+- The local staging-equivalent capability smoke passed through the real registry/runtime seams with
+  one base tool, one connected connector, one MCP tool, one isolated plugin, one pinned
+  dependency-ready skill, an unavailable dependency, and an approval-gated external effect. The
+  smoke also verified that the plugin and approved effect execute only through the granted runtime.
 - The local OpenTelemetry smoke passed with structured success and handled-error events. Durable
   cross-release telemetry comparison remains a staging gate.
 
@@ -496,8 +501,9 @@ They are validation and rollout gates, not unimplemented runtime or API seams.
 - Local run inspection showing `agent.capabilities.resolved`, model tool schemas, and tool events.
 - Local deployment inspection showing the portable snapshot digest, effective Playground/Live
   snapshots, promotion manifest, binding revision, activation record, and rollback target.
-- Staging smoke test with one base tool, one connected connector, one pinned skill, one MCP tool,
-  and one approval-gated action.
+- Local staging-equivalent smoke test with one base tool, one connected connector, one pinned skill,
+  one MCP tool, one isolated plugin, and one approval-gated action.
+- Hosted staging smoke test with the same capability mix and real provider/MCP/plugin bindings.
 
 ## Release record
 
