@@ -179,7 +179,13 @@ function capabilityNode(input: {
     provider: input.provider,
     scope: input.scope,
     event: input.event,
-    data: { ...input.data, matchKeys: input.names.join(" · ") },
+    data: {
+      ...(input.evidence?.operation ? {
+        latestOperation: `${input.evidence.operation.kind} · ${input.evidence.operation.status} · ${input.evidence.operation.id}`,
+      } : {}),
+      ...input.data,
+      matchKeys: input.names.join(" · "),
+    },
     position: capabilityPosition(input.index),
     evidence: input.evidence,
   };
