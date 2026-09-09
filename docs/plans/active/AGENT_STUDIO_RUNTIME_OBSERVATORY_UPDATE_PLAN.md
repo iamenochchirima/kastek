@@ -8,7 +8,7 @@ description: Standalone Studio plan for visualising context, memory, capabilitie
 
 # Studio runtime observatory and promotion update
 
-**Status:** Planned; visual implementation follows the runtime contract work
+**Status:** UI implementation slice complete; broader runtime, memory, and promotion contract work remains
 
 **Owner:** Agent Platform and Studio
 
@@ -233,6 +233,13 @@ surface before the runtime projection is wired in:
 This slice is a preview surface, not a second execution engine. It does not create runs, infer
 events from chat text, or persist configuration from node selection.
 
+The current implementation also loads installation-scoped run history, reconstructs a selected run
+from the durable timeline endpoint, and displays the backend cursor, freshness, redaction level,
+terminal outcome, sequence gaps, and bounded capability operation evidence. Timeline items are
+deduplicated by their durable event identity before they are projected into the graph and timeline.
+Memory revision lineage, cursor-delta replay, exact/aggregated graph modes, and push-based
+reconnection remain runtime-contract follow-ups; the UI does not label those as implemented.
+
 ## Release record for the UI slice
 
 ```text
@@ -241,12 +248,12 @@ Owner: Agent Platform and Studio
 Risk: standard
 Affected services and user surfaces: client Studio/Playground observatory only
 Platform release version or release ID: not applicable (preview UI slice)
-API/schema/migration changes: not applicable
+API/schema/migration changes: timeline responses now include versioned projection metadata (cursor, freshness, redaction, observed timestamp); no migration is required
 Feature flag or rollout method: existing Studio route; graph projection is read-only and uses existing effective-config, readiness, connection, and run-journal APIs
 Analytics events and success metrics: not applicable; no new user outcome is persisted
 Logs, metrics, dashboards, and alerts: not applicable; no backend lifecycle is added
 User, API, internal, and operational documentation: this plan updated
-Validation evidence: client ESLint, TypeScript check, and production Next.js build pass; Studio projection uses effective candidate data and durable journal evidence
+Validation evidence: client ESLint, TypeScript check, and production Next.js build pass; Agents TypeScript check passes; Studio projection uses effective candidate data and durable journal evidence
 Rollback or disable plan: revert the Studio UI commit; existing run/configuration APIs are unchanged
 Post-release review date: when effective candidate projection work begins
 ```
