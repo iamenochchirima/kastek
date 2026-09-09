@@ -40,6 +40,21 @@ Studio only opens that manual client form for the explicit dynamic-registration-
 Missing platform OAuth configuration and provider registration failures remain connection errors;
 they must not be presented as a request for user-supplied OAuth credentials.
 
+## Environment callbacks
+
+OAuth callback configuration is environment-scoped. Set `MCP_OAUTH_REDIRECT_URI` to the public
+Core proxy in each environment:
+
+| Environment | Callback |
+| --- | --- |
+| Local | `https://<tunnel-host>/api/agents/integrations/mcp/oauth/callback` |
+| Staging | `https://<staging-core-host>/api/agents/integrations/mcp/oauth/callback` |
+| Production | `https://api.kasitek.co.za/api/agents/integrations/mcp/oauth/callback` |
+
+Keep OAuth state storage, credential encryption keys, and provider credentials isolated per
+environment. MCP providers with dynamic client registration can register the callback at connect
+time; providers without it need one platform-managed client registration for each environment.
+
 API-key entries write only an encrypted credential reference to the provider record. Stdio entries
 remain unavailable until a managed execution adapter exists; do not enable them by copying a
 Hermes command into the worker.

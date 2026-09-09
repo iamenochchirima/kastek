@@ -77,7 +77,10 @@ optional client secret and continues the same PKCE flow with those credentials. 
 remain in encrypted one-use OAuth state until the token exchange completes.
 
 Set `MCP_OAUTH_REDIRECT_URI` to the public Core callback URL
-(`/api/agents/integrations/mcp/oauth/callback`) and register that exact URL with the provider.
+(`/api/agents/integrations/mcp/oauth/callback`) for the environment running Agents. Use a
+separate value for local/tunnel, staging, and production. The production value is
+`https://api.kasitek.co.za/api/agents/integrations/mcp/oauth/callback`; local development must use
+the public tunnel or proxy URL, not `127.0.0.1`, when the provider requires an HTTPS callback.
 Core forwards the one-use callback to the private Agents API and returns the browser to Studio.
 `AGENT_INTEGRATIONS_RETURN_URL` is only needed when calling the private Agents callback directly.
 
