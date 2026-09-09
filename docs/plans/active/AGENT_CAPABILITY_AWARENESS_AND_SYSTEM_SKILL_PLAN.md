@@ -442,6 +442,8 @@ snapshot, approval, redaction, and durable operation contracts as native tools.
   effective snapshot for tool admission and audit. Migration 161 and command validation cover it.
 - Capability snapshot digests exclude volatile run identity, so retries and equivalent Playground/Live
   resolutions compare the same candidate state; a regression test covers different run IDs.
+- The local OpenTelemetry smoke passed with structured success and handled-error events. Durable
+  cross-release telemetry comparison remains a staging gate.
 
 The remaining unchecked items require a running local/staging environment with real KasiAi
 connections, one MCP/plugin binding, an approval-gated effect, and release telemetry comparison.
