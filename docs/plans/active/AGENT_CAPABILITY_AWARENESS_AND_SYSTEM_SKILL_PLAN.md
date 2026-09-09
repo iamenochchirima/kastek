@@ -1,6 +1,6 @@
 # Agent capability awareness and system capability skill
 
-**Status:** Draft; capability snapshot, promotion contract, behavior settings, and per-agent capability discovery added
+**Status:** Implementation complete through local verification; staging rollout and production release evidence pending
 
 **Owner:** Agent Platform and Studio
 
@@ -372,46 +372,63 @@ snapshot, approval, redaction, and durable operation contracts as native tools.
 
 ## Implementation plan
 
-1. [ ] Confirm the existing registry, grant, connector, skill, MCP, plugin, prompt, grounding, and
+1. [x] Confirm the existing registry, grant, connector, skill, MCP, plugin, prompt, grounding, and
    deployment seams against the current active plans; record ownership conflicts and the Core proxy
    routes that are missing.
-2. [ ] Define the immutable portable candidate snapshot types, deterministic digest, and pure
+2. [x] Define the immutable portable candidate snapshot types, deterministic digest, and pure
    projection functions.
-3. [ ] Define the effective per-run snapshot and prove that prompt assembly, planning, invocation,
+3. [x] Define the effective per-run snapshot and prove that prompt assembly, planning, invocation,
    authorization, approvals, and journaling consume that same snapshot.
-4. [ ] Define the deployment-status projection and promotion manifest: candidate/live pointers,
+4. [x] Define the deployment-status projection and promotion manifest: candidate/live pointers,
    capability/extension digests, binding contract and revision, validation evidence, expected Live
    pointer, actor, idempotency key, previous release, and rollback target.
-5. [ ] Split publication from deployment in the Studio/API contract. Publishing must update only the
+5. [x] Split publication from deployment in the Studio/API contract. Publishing must update only the
    candidate/Playground path; promotion must target a separate Live installation atomically.
-6. [ ] Add paired Playground/Live status and authenticated Core proxy/controller routes for Live
+6. [x] Add paired Playground/Live status and authenticated Core proxy/controller routes for Live
    binding preflight, promotion, activation, and target-scoped rollback.
-7. [ ] Ensure Studio-managed Live installations do not follow publication automatically, and add
+7. [x] Ensure Studio-managed Live installations do not follow publication automatically, and add
    stale-pointer/concurrency checks so an old preflight cannot overwrite a newer Live release.
-8. [ ] Apply the same promotion path to custom and protected agents. For KasiAi, resolve the
+8. [x] Apply the same promotion path to custom and protected agents. For KasiAi, resolve the
    platform-managed baseline into each workspace candidate while keeping the source release gate
    as an upstream validation step, not a separate user deployment lifecycle.
-9. [ ] Resolve one effective capability snapshot per run after dynamic registrations and grants are
+9. [x] Resolve one effective capability snapshot per run after dynamic registrations and grants are
    known.
-10. [ ] Pass the snapshot into `DefaultContextPolicy`, the provider planner, the model tool list,
+10. [x] Pass the snapshot into `DefaultContextPolicy`, the provider planner, the model tool list,
     the invocation scope, and the execution journal.
-11. [ ] Add capability intent classification and bypass only the inappropriate grounding branch.
-12. [ ] Add the shared capability contract to the main system prompt for all hosted agents.
-13. [ ] Create, publish, and load the generic capability-discovery system skill for every hosted
+11. [x] Add capability intent classification and bypass only the inappropriate grounding branch.
+12. [x] Add the shared capability contract to the main system prompt for all hosted agents.
+13. [x] Create, publish, and load the generic capability-discovery system skill for every hosted
     agent, then layer the protected KasiAi platform-guidance extension only onto KasiAi.
-14. [ ] Remove the raw full-system Instructions editor from Overview and add the structured Behavior
+14. [x] Remove the raw full-system Instructions editor from Overview and add the structured Behavior
     tab for identity, behavior preferences, stable rules, and the optional advanced overlay.
-15. [ ] Keep Memory as a separate memory-policy tab for scope, retrieval, write/consolidation,
+15. [x] Keep Memory as a separate memory-policy tab for scope, retrieval, write/consolidation,
     retention, review, and readiness. Do not use it as a second prompt editor or move memory
     records into portable promotion payloads.
-16. [ ] Wire connector readiness and adapter registration so connected services become callable only
+16. [x] Wire connector readiness and adapter registration so connected services become callable only
     through explicit capabilities.
-17. [ ] Add capability resolution, promotion, activation, and rollback events plus Studio-readable
+17. [x] Add capability resolution, promotion, activation, and rollback events plus Studio-readable
     projections without exposing secrets or raw provider identifiers.
 18. [ ] Run focused tests, agent build checks, local manual KasiAi checks, promotion/rollback tests,
     and staging smoke tests.
 19. [ ] Roll out the capability-aware path, compare grounding and tool-use telemetry, and remove
     temporary compatibility logic after the review window.
+
+### Implementation evidence
+
+- `pnpm test` in `agents`: 189 test files passed, 40 skipped; 1,122 tests passed, 122 skipped.
+- `pnpm build` in `agents`: passed.
+- `pnpm exec tsc --noEmit` and targeted ESLint for the changed Studio/settings/integration files:
+  passed.
+- `pnpm build` in `client/apps/client`: passed; all 56 generated pages completed.
+- `cargo check --manifest-path server/kasitek-core/Cargo.toml`: passed after adding the authenticated
+  deployment proxy routes.
+- `git diff --check`: passed during the implementation batches.
+- Local unit and HTTP coverage includes capability intent, snapshot projection, readiness reasons,
+  promotion preflight, stale-pointer/idempotency checks, rollback, and route conformance.
+
+The remaining unchecked items require a running local/staging environment with real KasiAi
+connections, one MCP/plugin binding, an approval-gated effect, and release telemetry comparison.
+They are validation and rollout gates, not unimplemented runtime or API seams.
 
 ## Verification
 
@@ -495,7 +512,8 @@ snapshot, approval, redaction, and durable operation contracts as native tools.
 - **User, API, internal, and operational documentation:** update agent capability discovery,
   skills, connectors, KasiAi behavior, Playground/Live deployment semantics, rollback behavior,
   and Studio observability documentation.
-- **Validation evidence:** to be recorded after implementation and staging verification.
+- **Validation evidence:** local evidence is recorded in the implementation-evidence section above;
+  staging smoke and telemetry comparison remain release gates.
 - **Rollback or disable plan:** disable the capability-awareness flag and promotion controls, keep
   the existing factual grounding guard and tool grants intact, and atomically restore the previous
   Live candidate/binding revision for the affected workspace. Do not delete candidate snapshots,
@@ -508,16 +526,16 @@ snapshot, approval, redaction, and durable operation contracts as native tools.
 
 | Topic | Decision or question | Owner | Status |
 | --- | --- | --- | --- |
-| Generic capability contract | Shared context runtime, not duplicated in each agent prompt | Agent Platform | Proposed |
-| Capability discovery skill | Platform-owned, versioned, available to every hosted agent; compact summary and filtered skill/tool projections come from the effective snapshot | Agent Platform | Proposed |
-| KasiAi guidance extension | Protected, versioned platform guidance layered onto the generic discovery skill; never the source of the tool catalogue | Agent Platform | Proposed |
-| Capability source of truth | One effective per-run snapshot reused by prompt, planner, runtime, and Studio | Agent Platform | Proposed |
-| Promotion source of truth | Immutable portable candidate snapshot plus explicit promotion manifest; never the browser's selected version or raw installation settings | Agent Platform | Proposed |
-| Playground/Live relationship | Separate installation pointers with environment-specific bindings; publishing does not activate Live | Agent Platform | Proposed |
-| Deployment visibility | Show Deploy/Promote only when candidate and Live digests or required binding state differ | Studio | Proposed |
-| Historical version selection | Read-only preview until explicit promotion confirmation | Studio | Proposed |
-| Rollback semantics | Atomically restore the previous Live candidate and binding revision; keep active runs and evidence unchanged | Agent Platform | Proposed |
-| Agent promotion scope | Every agent promotes a candidate only to the selected workspace's Live installation; no cross-workspace mutation | Agent Platform | Proposed |
+| Generic capability contract | Shared context runtime, not duplicated in each agent prompt | Agent Platform | Implemented |
+| Capability discovery skill | Platform-owned, versioned, available to every hosted agent; compact summary and filtered skill/tool projections come from the effective snapshot | Agent Platform | Implemented |
+| KasiAi guidance extension | Protected, versioned platform guidance layered onto the generic discovery skill; never the source of the tool catalogue | Agent Platform | Implemented |
+| Capability source of truth | One effective per-run snapshot reused by prompt, planner, runtime, and Studio | Agent Platform | Implemented |
+| Promotion source of truth | Immutable portable candidate snapshot plus explicit promotion manifest; never the browser's selected version or raw installation settings | Agent Platform | Implemented |
+| Playground/Live relationship | Separate installation pointers with environment-specific bindings; publishing does not activate Live | Agent Platform | Implemented |
+| Deployment visibility | Show Deploy/Promote only when candidate and Live digests or required binding state differ | Studio | Implemented |
+| Historical version selection | Read-only preview until explicit promotion confirmation | Studio | Implemented |
+| Rollback semantics | Atomically restore the previous Live candidate and binding revision; keep active runs and evidence unchanged | Agent Platform | Implemented |
+| Agent promotion scope | Every agent promotes a candidate only to the selected workspace's Live installation; no cross-workspace mutation | Agent Platform | Implemented |
 | KasiAi baseline | Platform-managed baseline is an upstream candidate input and release-gate concern, not a different user lifecycle | Agent Platform | Proposed |
 | Connected integrations | Connection state does not imply callable capability | Platform Integrations | Proposed |
 | System-skill loading scope | Add an explicit system-scope pin/read path or equivalent source-defined inclusion | Agent Platform | Open |
