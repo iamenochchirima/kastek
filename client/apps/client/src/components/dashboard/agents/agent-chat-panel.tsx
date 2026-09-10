@@ -103,10 +103,10 @@ export function AgentChatPanel({ installationId, active, agentName, modal = fals
   const [modelCatalogLoading, setModelCatalogLoading] = useState(false);
   const [selectedModelProvider, setSelectedModelProvider] = useState<AgentModelProvider | null>(initialModelProvider ?? null);
   const [selectedModel, setSelectedModel] = useState(initialModel ?? "");
-  const messagesEndRef = useRef<HTMLDivElement>(null);
   const streamAbort = useRef<AbortController | null>(null);
   const sendLocked = useRef(false);
   const watchedRun = useRef<string | null>(null);
+  const cancellationRequestedRun = useRef<string | null>(null);
 
   const watchRun = useCallback(async (runId: string, controller: AbortController) => {
     setActiveRunId(runId);
@@ -159,7 +159,12 @@ export function AgentChatPanel({ installationId, active, agentName, modal = fals
     }
     setMessages([...response.messages].sort((left, right) => Number(left.sequence_number) - Number(right.sequence_number)));
     const activeRun = activeConversationRun(response.activeRuns);
-    if (activeRun && watchedRun.current !== activeRun.id) {
+    if (activeRun && cancellationRequestedRun.current === activeRun.id) {
+      setActiveRunId(activeRun.id);
+      setLastRunId(activeRun.id);
+      setSending(true);
+      setRunProgress("Cancellation requested…");
+    } else if (activeRun && watchedRun.current !== activeRun.id) {
       watchedRun.current = activeRun.id;
       const controller = new AbortController();
       streamAbort.current = controller;
@@ -175,6 +180,17 @@ export function AgentChatPanel({ installationId, active, agentName, modal = fals
       }).finally(() => {
         if (watchedRun.current === activeRun.id) watchedRun.current = null;
       });
+    }
+    if (!activeRun && cancellationRequestedRun.current) {
+      const runId = cancellationRequestedRun.current;
+      const result = await getAgentRun(runId).catch(() => null);
+      if (result && testChatTerminalRunStatuses.has(result.run.status)) {
+        cancellationRequestedRun.current = null;
+        setActiveRunId(null);
+        setSending(false);
+        setLastRunId(runId);
+        setRunProgress(testChatRunProgress(result.run.status));
+      }
     }
     return response;
   }, [installationId, watchRun]);
@@ -228,10 +244,6 @@ export function AgentChatPanel({ installationId, active, agentName, modal = fals
   }, [active]);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
-  }, [messages, sending]);
-
-  useEffect(() => {
     const runId = activeRunId ?? lastRunId;
     if (!runId) {
       setRuntimeTelemetry(null);
@@ -255,6 +267,7 @@ export function AgentChatPanel({ installationId, active, agentName, modal = fals
     streamAbort.current?.abort();
     streamAbort.current = null;
     watchedRun.current = null;
+    cancellationRequestedRun.current = null;
   }, []);
 
   const pickerModels = useMemo<AgentModel[]>(() => {
@@ -284,7 +297,7 @@ export function AgentChatPanel({ installationId, active, agentName, modal = fals
 
   const send = async () => {
     const message = draft.trim();
-    if (!message || sending || !active || !conversation || sendLocked.current) return;
+    if (!message || sending || !active || !conversation || sendLocked.current || cancellationRequestedRun.current) return;
     sendLocked.current = true;
     const optimisticId = `optimistic-${crypto.randomUUID()}`;
     const optimistic: AgentMessage = { id: optimisticId, conversation_id: conversation.id, direction: "inbound", message_type: "text", content: { text: message }, sequence_number: Number.MAX_SAFE_INTEGER, created_at: new Date().toISOString() };
@@ -422,12 +435,12 @@ export function AgentChatPanel({ installationId, active, agentName, modal = fals
   };
 
   const stop = async () => {
-    if (!activeRunId) return;
+    const runId = activeRunId;
+    if (!runId || cancellationRequestedRun.current === runId) return;
+    cancellationRequestedRun.current = runId;
     setRunProgress("Cancellation requested…");
-    await cancelAgentRun(activeRunId).catch(() => undefined);
     streamAbort.current?.abort();
-    setActiveRunId(null);
-    setSending(false);
+    await cancelAgentRun(runId).catch(() => undefined);
   };
 
   return <Card className="relative h-full min-h-0 overflow-hidden border-border/80 shadow-sm">
@@ -447,6 +460,7 @@ export function AgentChatPanel({ installationId, active, agentName, modal = fals
       </header>}
       inactiveNotice={!active ? <div className="shrink-0 border-b border-border bg-status-attention-soft px-5 py-3 text-sm text-status-attention sm:px-6">Resume this installation to start testing.</div> : null}
       contentClassName="bg-secondary/10 px-4 py-6 sm:px-6"
+      autoScrollKey={`${conversation?.id ?? "new"}:${messages.length}:${messages[messages.length - 1]?.id ?? ""}:${sending ? "running" : "idle"}`}
       statusContent={<AgentChatRunStatus runId={lastRunId} progress={runProgress} events={runEvents} running={sending} className="bg-secondary/10 py-3 sm:px-6" />}
       error={error}
       composer={<AgentChatComposer
@@ -472,7 +486,6 @@ export function AgentChatPanel({ installationId, active, agentName, modal = fals
           onUiInteraction={submitUiInteraction}
           emptyState={<div className="flex min-h-[300px] flex-col items-center justify-center text-center"><div className="grid h-14 w-14 place-items-center rounded-2xl bg-primary/10 text-primary"><MessageSquare className="h-6 w-6" /></div><h3 className="mt-4 text-base font-semibold text-foreground">Start a conversation</h3><p className="mt-1 max-w-sm text-sm leading-6 text-muted-foreground">Send a message below to see how this agent responds.</p></div>}
         />
-        <div ref={messagesEndRef} />
       </div>
     </AgentChatSurface>
     <Dialog open={clearConfirmation} onOpenChange={setClearConfirmation}><DialogContent className="max-w-md"><DialogHeader><div className="flex h-11 w-11 items-center justify-center rounded-full bg-destructive/10 text-destructive"><Trash2 className="h-5 w-5" aria-hidden="true" /></div><DialogTitle>Clear test chats?</DialogTitle><DialogDescription>This clears this agent’s private chats and starts a new one. Customer and inbox conversations are not affected.</DialogDescription></DialogHeader><DialogFooter><Button type="button" variant="outline" onClick={() => setClearConfirmation(false)}>Cancel</Button><Button type="button" variant="destructive" onClick={() => void clearChats()}>Clear chats</Button></DialogFooter></DialogContent></Dialog>

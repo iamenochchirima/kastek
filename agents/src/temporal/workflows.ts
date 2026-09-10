@@ -440,11 +440,27 @@ export async function agentRunWorkflow(input: DurableRunInput): Promise<void> {
     }).waitForConversationTurn;
     if (waitForConversationTurn) {
       while (true) {
+        if (cancellation) {
+          await transition("queued", "cancelled");
+          return;
+        }
+        if (expiration) {
+          await transition("queued", "expired");
+          return;
+        }
         const admission = await waitForConversationTurn({ ...activityScope(), runId: input.runId });
         const acquired = typeof admission === "boolean" ? admission : admission.acquired;
         if (acquired) {
           sessionLease = typeof admission === "boolean" ? undefined : admission;
           break;
+        }
+        if (cancellation) {
+          await transition("queued", "cancelled");
+          return;
+        }
+        if (expiration) {
+          await transition("queued", "expired");
+          return;
         }
         // The workflow remains durable and does not hold an activity worker
         // while an earlier message in this session is still active.

@@ -212,8 +212,14 @@ does not leave a partial message behind.
 
 The Studio, Playground, and platform chat clients reconcile `activeRuns` when a conversation opens
 and while it is visible. They attach the live activity view to the existing run and expose its Stop
-action. A client-side `409 conversation_busy` is therefore a reconciliation signal: refresh the
-conversation and adopt the returned active run instead of presenting a generic send failure.
+action. After Stop is requested, the client keeps a cancellation latch until the durable run is
+terminal, so polling cannot re-attach the same run while the signal is being applied. A queued
+workflow checks cancellation before and after each conversation-lease poll and transitions to
+`cancelled` without executing the agent. Completion and failure paths release the conversation
+lease in the same transaction as their terminal write, so a finished run cannot hold the next
+turn until lease expiry. A client-side `409 conversation_busy` is therefore a reconciliation
+signal: refresh the conversation and adopt the returned active run instead of presenting a generic
+send failure.
 
 If the same platform idempotency key is retried, return the original message and run. If the
 original run is terminal and the user wants another attempt, use the retry endpoint so the new run

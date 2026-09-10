@@ -384,9 +384,7 @@ export function KasiAiChat({
   const [initialised, setInitialised] = useState(false);
   const streamAbort = useRef<AbortController | null>(null);
   const sendLocked = useRef(false);
-  const messagesEnd = useRef<HTMLDivElement | null>(null);
   const composerRef = useRef<HTMLTextAreaElement | null>(null);
-  const viewport = useRef<HTMLDivElement | null>(null);
   const resizeStart = useRef<{ x: number; width: number } | null>(null);
   const panelRef = useRef<HTMLElement | null>(null);
   const mobileNavigationPanelRef = useRef<HTMLDivElement | null>(null);
@@ -396,6 +394,7 @@ export function KasiAiChat({
   const conversationSelection = useRef(0);
   const runStatusesRef = useRef<Record<string, string>>({});
   const activeRunIdRef = useRef<string | null>(null);
+  const cancellationRequestedRun = useRef<string | null>(null);
 
   const models = home?.models ?? EMPTY_MODELS;
   const activeConversations = home?.conversations ?? [];
@@ -493,7 +492,14 @@ export function KasiAiChat({
         if (!result) return;
         recordRunStatus(result.runId, result.status);
         const active = isActiveAgentRunStatus(result.status);
-        if (
+        const cancellationRequested = cancellationRequestedRun.current === result.runId;
+        if (cancellationRequested && active) {
+          activeRunIdRef.current = result.runId;
+          setActiveRunId(result.runId);
+          setLastRunId(result.runId);
+          setRunProgress("Cancellation requested…");
+          setSending(true);
+        } else if (
           activeRunIdRef.current === result.runId ||
           (active && activeRunIdRef.current === null)
         ) {
@@ -520,6 +526,9 @@ export function KasiAiChat({
                 })),
             );
           }
+        }
+        if (cancellationRequested && !active) {
+          cancellationRequestedRun.current = null;
         }
         if (
           result.status === "awaiting_approval" &&
@@ -565,6 +574,7 @@ export function KasiAiChat({
       streamAbort.current?.abort();
       streamAbort.current = null;
       activeRunIdRef.current = null;
+      cancellationRequestedRun.current = null;
       setSending(false);
       setActiveRunId(null);
       setPendingApproval(null);
@@ -663,6 +673,7 @@ export function KasiAiChat({
     if (open) return;
     conversationSelection.current += 1;
     activeRunIdRef.current = null;
+    cancellationRequestedRun.current = null;
     setInitialised(false);
     streamAbort.current?.abort();
     setConversation(null);
@@ -734,12 +745,6 @@ export function KasiAiChat({
   useEffect(() => {
     window.localStorage.setItem(DRAFT_KEY, draft);
   }, [draft]);
-  useEffect(() => {
-    messagesEnd.current?.scrollIntoView({
-      behavior: sending ? "smooth" : "auto",
-      block: "end",
-    });
-  }, [messages, sending]);
   const polledConversationId = conversation?.id;
   useEffect(() => {
     if (!open || !polledConversationId || document.visibilityState === "hidden")
@@ -818,7 +823,7 @@ export function KasiAiChat({
     uiInteraction?: UiInteractionRequest,
   ) => {
     const text = audioFile ? "" : (suggestion ?? draft).trim();
-    if ((!text && !audioFile && !uiInteraction) || !installation || sending || sendLocked.current)
+    if ((!text && !audioFile && !uiInteraction) || !installation || sending || sendLocked.current || cancellationRequestedRun.current)
       return;
     sendLocked.current = true;
     const selection = conversationSelection.current;
@@ -1123,9 +1128,11 @@ export function KasiAiChat({
         sendLocked.current = false;
         if (!adoptedActiveRun) {
           streamAbort.current = null;
-          activeRunIdRef.current = null;
-          setActiveRunId(null);
-          setSending(false);
+          if (cancellationRequestedRun.current !== acceptedRunId) {
+            activeRunIdRef.current = null;
+            setActiveRunId(null);
+            setSending(false);
+          }
         }
       }
     }
@@ -1200,13 +1207,12 @@ export function KasiAiChat({
     composerRef.current?.focus();
   };
   const stop = async () => {
-    if (!activeRunId) return;
+    const runId = activeRunId;
+    if (!runId || cancellationRequestedRun.current === runId) return;
+    cancellationRequestedRun.current = runId;
     setRunProgress("Cancellation requested…");
-    await cancelAgentRun(activeRunId).catch(() => undefined);
     streamAbort.current?.abort();
-    activeRunIdRef.current = null;
-    setSending(false);
-    setActiveRunId(null);
+    await cancelAgentRun(runId).catch(() => undefined);
   };
   const changeModel = async (value: string) => {
     if (!conversation) return;
@@ -1555,6 +1561,7 @@ export function KasiAiChat({
               <AgentChatSurface
                 runtime={{ telemetry: runtimeTelemetry, detailsOpen: runtimeDetailsOpen, onToggleDetails: () => setRuntimeDetailsOpen((current) => !current) }}
                 contentClassName="px-4 py-5"
+                autoScrollKey={`${conversation?.id ?? "new"}:${messages.length}:${messages[messages.length - 1]?.id ?? ""}:${sending ? "running" : "idle"}`}
                 statusContent={
                   <>
                     {pendingApproval && pendingApproval.runId === lastRunId ? (
@@ -1594,7 +1601,7 @@ export function KasiAiChat({
                   ariaLabel="Message KasiAi"
                 />}
               >
-                {conversation ? <div ref={viewport} className="space-y-3">
+                {conversation ? <div className="space-y-3">
                   {hasMore ? <div className="text-center"><Button variant="outline" size="sm" onClick={() => void loadOlder()}>Load earlier messages</Button></div> : null}
                   <AgentChatMessageList
                     messages={messages}
@@ -1610,7 +1617,6 @@ export function KasiAiChat({
                     retryable={(message, status) => messageChannel(message) === "platform" && message.direction === "inbound" && ["failed", "cancelled", "expired"].includes(status ?? "")}
                     actionDisabled={sending}
                   />
-                  <div ref={messagesEnd} />
                 </div> : <NewChatHome suggestions={suggestions} onSuggestion={(suggestion) => void send(suggestion)} />}
               </AgentChatSurface>
             )

@@ -462,7 +462,10 @@ export class RunRepository {
       );
       const run = current.rows[0];
       if (!run) throw new Error("Run not found");
-      if (run.status === "completed") return run;
+      if (run.status === "completed") {
+        await this.sessionLeases.releaseForRun(client, run.organization_id, runId);
+        return run;
+      }
       assertRunTransition(run.status, "completed");
       let replySuppressed = false;
       if (run.conversation_id) {
@@ -597,6 +600,7 @@ export class RunRepository {
          WHERE run_id = $1 AND status = 'started'`,
         [runId],
       );
+      await this.sessionLeases.releaseForRun(client, run.organization_id, runId);
       await enqueueOutbox(client, buildCompletedAgentRunEvent({
         ...terminalAnalyticsInput(run, updated.rows[0]!.finished_at ?? new Date().toISOString()),
         output: persistedOutput,
@@ -743,7 +747,10 @@ export class RunRepository {
       );
       const run = current.rows[0];
       if (!run) throw new Error("Run not found");
-      if (["failed", "completed", "cancelled", "expired"].includes(run.status)) return run;
+      if (["failed", "completed", "cancelled", "expired"].includes(run.status)) {
+        await this.sessionLeases.releaseForRun(client, run.organization_id, runId);
+        return run;
+      }
       assertRunTransition(run.status, "failed");
       const userMessage = typeof error.userMessage === "string" ? error.userMessage.trim() : "";
       if (run.conversation_id && userMessage) {
@@ -815,6 +822,7 @@ export class RunRepository {
          WHERE run_id = $1 AND status = 'started'`,
         [runId, JSON.stringify(error)],
       );
+      await this.sessionLeases.releaseForRun(client, run.organization_id, runId);
       await enqueueOutbox(client, buildFailedAgentRunEvent({
         ...terminalAnalyticsInput(run, updated.rows[0]!.finished_at ?? new Date().toISOString()),
         error,
