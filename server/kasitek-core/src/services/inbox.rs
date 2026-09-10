@@ -131,6 +131,10 @@ struct EmailInboxConversationRow {
     connection_label: String,
     #[sqlx(rename = "last_message_content")]
     last_message_content: Option<String>,
+    #[sqlx(rename = "last_message_subject")]
+    last_message_subject: Option<String>,
+    #[sqlx(rename = "last_message_from")]
+    last_message_from: Option<String>,
 }
 
 #[derive(Debug, FromRow)]
@@ -308,14 +312,18 @@ pub async fn list_inbox_conversations(pool: &PgPool, org_id: &str) -> Result<Val
             c."unreadCount" AS unread_count,
             source."sourceId" AS email_connection_id,
             source."displayName" || ' · ' || COALESCE(source.handle, '') AS connection_label,
-            last_message.content AS last_message_content
+            last_message.content AS last_message_content,
+            last_message.subject AS last_message_subject,
+            last_message.from_address AS last_message_from
         FROM "Conversation" c
         JOIN "ExternalConnection" source
           ON source.id = c."externalConnectionId"
          AND source."orgId" = c."orgId"
          AND source."sourceType" = 'EMAIL'
         LEFT JOIN LATERAL (
-            SELECT m.content
+            SELECT m.content,
+                   m."providerMetadata"->>'subject' AS subject,
+                   m."providerMetadata"->>'from' AS from_address
             FROM "Message" m
             WHERE m."conversationId" = c.id
             ORDER BY m.timestamp DESC
@@ -349,6 +357,8 @@ pub async fn list_inbox_conversations(pool: &PgPool, org_id: &str) -> Result<Val
             "connectionId": row.email_connection_id,
             "connectionLabel": row.connection_label.trim_end_matches(" · "),
             "lastMessage": row.last_message_content.unwrap_or_else(|| "No messages yet".to_string()),
+            "subject": row.last_message_subject.unwrap_or_else(|| "(no subject)".to_string()),
+            "from": row.last_message_from,
         }));
     }
 

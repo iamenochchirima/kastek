@@ -13,6 +13,8 @@ type RustInboxConversation = {
   connectionId: string | null;
   connectionLabel: string | null;
   lastMessage: string;
+  subject?: string | null;
+  from?: string | null;
 };
 
 type RustEmailConnection = {
@@ -107,6 +109,8 @@ export default async function InboxPage() {
           channel: conversation.channel,
           connectionId: conversation.connectionId,
           connectionLabel: conversation.connectionLabel || conversation.phone || "Unknown number",
+          emailSubject: conversation.subject || undefined,
+          emailFrom: conversation.from || null,
           avatar:
             (conversation.customerName || conversation.phone || "?")
               .split(/\s+/)
