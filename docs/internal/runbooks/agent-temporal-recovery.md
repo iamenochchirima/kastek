@@ -210,6 +210,11 @@ retry the same provider event/message identity after the active run reaches a te
 provider identity makes a redelivery idempotent; a transaction that was rejected for backpressure
 does not leave a partial message behind.
 
+The Studio, Playground, and platform chat clients reconcile `activeRuns` when a conversation opens
+and while it is visible. They attach the live activity view to the existing run and expose its Stop
+action. A client-side `409 conversation_busy` is therefore a reconciliation signal: refresh the
+conversation and adopt the returned active run instead of presenting a generic send failure.
+
 If the same platform idempotency key is retried, return the original message and run. If the
 original run is terminal and the user wants another attempt, use the retry endpoint so the new run
 keeps `causation_id` history without duplicating the inbound transcript.
