@@ -37,6 +37,8 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   cancelAgentRun,
+  activeConversationRun,
+  isActiveAgentRunStatus,
   createPlatformConversation,
   disconnectKasiAiChannel,
   ensureKasiAi,
@@ -225,15 +227,6 @@ const terminalRunStatuses = new Set([
   "cancelled",
   "expired",
 ]);
-const activeRunStatuses = new Set([
-  "received",
-  "queued",
-  "running",
-  "awaiting_approval",
-  "awaiting_human",
-  "awaiting_external_event",
-]);
-
 function runProgressLabel(status: string) {
   if (status === "awaiting_approval") return "Waiting for approval…";
   if (status === "awaiting_human") return "Waiting for a workspace member…";
@@ -499,7 +492,7 @@ export function KasiAiChat({
       results.forEach((result) => {
         if (!result) return;
         recordRunStatus(result.runId, result.status);
-        const active = activeRunStatuses.has(result.status);
+        const active = isActiveAgentRunStatus(result.status);
         if (
           activeRunIdRef.current === result.runId ||
           (active && activeRunIdRef.current === null)
@@ -590,9 +583,7 @@ export function KasiAiChat({
         result.activeRuns?.map((run) => run.id) ?? [],
       );
       if (selection !== conversationSelection.current) return;
-      const active = refreshedRuns.find((run) =>
-        activeRunStatuses.has(run.status),
-      );
+      const active = refreshedRuns.find((run) => isActiveAgentRunStatus(run.status));
       if (active) {
         activeRunIdRef.current = active.runId;
         setActiveRunId(active.runId);
@@ -839,6 +830,7 @@ export function KasiAiChat({
     setAudioRetryJobId(null);
     setSending(true);
     let audioJobId: string | null = null;
+    let adoptedActiveRun = false;
     const optimistic: AgentMessage | null = retryRunId || uiInteraction
       ? null
       : {
@@ -1091,6 +1083,26 @@ export function KasiAiChat({
       }
     } catch (cause) {
       if (selection === conversationSelection.current) {
+        if (cause instanceof AgentRequestError && cause.status === 409 && targetConversation?.id) {
+          try {
+            const current = await getPlatformConversation(targetConversation.id);
+            const activeRun = activeConversationRun(current.activeRuns);
+            if (activeRun) {
+              setConversation(current.conversation);
+              setMessages((items) => mergeMessages(items.filter((item) => item.id !== optimistic?.id), current.messages));
+              await refreshRunStatuses(current.messages, [activeRun.id]);
+              activeRunIdRef.current = activeRun.id;
+              setActiveRunId(activeRun.id);
+              setLastRunId(activeRun.id);
+              setSending(true);
+              setRunProgress(runProgressLabel(activeRun.status));
+              adoptedActiveRun = true;
+              setError(null);
+            }
+          } catch {
+            // Preserve the original conflict when the reconciliation read also fails.
+          }
+        }
         setMessages((current) =>
           optimistic
             ? current.filter((message) => message.id !== optimistic.id)
@@ -1103,18 +1115,18 @@ export function KasiAiChat({
           }
           if (!retryRunId) setDraft(text);
           if (!audioJobId) setAudioRetryJobId(null);
-          setError(
-            formatError(cause, "KasiAi could not complete this request"),
-          );
+          if (!adoptedActiveRun) setError(formatError(cause, "KasiAi could not complete this request"));
         }
       }
     } finally {
       if (selection === conversationSelection.current) {
         sendLocked.current = false;
-        streamAbort.current = null;
-        activeRunIdRef.current = null;
-        setActiveRunId(null);
-        setSending(false);
+        if (!adoptedActiveRun) {
+          streamAbort.current = null;
+          activeRunIdRef.current = null;
+          setActiveRunId(null);
+          setSending(false);
+        }
       }
     }
   };

@@ -688,18 +688,39 @@ export type WhatsappConnectionOption = {
   phoneNumberId: string;
 };
 
-type ConversationResponse = {
+export type AgentConversationRunSummary = {
+  id: string;
+  conversation_id?: string | null;
+  status: string;
+  created_at?: string;
+  updated_at?: string;
+};
+
+export const ACTIVE_AGENT_RUN_STATUSES = new Set([
+  "received",
+  "queued",
+  "running",
+  "awaiting_approval",
+  "awaiting_human",
+  "awaiting_external_event",
+]);
+
+export function isActiveAgentRunStatus(status: string | undefined): boolean {
+  return Boolean(status && ACTIVE_AGENT_RUN_STATUSES.has(status));
+}
+
+export function activeConversationRun(
+  runs: AgentConversationRunSummary[] | undefined,
+): AgentConversationRunSummary | null {
+  return runs?.find((run) => isActiveAgentRunStatus(run.status)) ?? null;
+}
+
+export type ConversationResponse = {
   conversation: AgentConversation;
   messages: AgentMessage[];
   hasMore?: boolean;
   nextBefore?: string | null;
-  activeRuns?: Array<{
-    id: string;
-    conversation_id?: string | null;
-    status: string;
-    created_at?: string;
-    updated_at?: string;
-  }>;
+  activeRuns?: AgentConversationRunSummary[];
 };
 
 export class AgentRequestError extends Error {

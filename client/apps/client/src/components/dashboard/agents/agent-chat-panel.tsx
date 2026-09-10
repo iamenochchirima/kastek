@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/dialog";
 import {
   cancelAgentRun,
+  activeConversationRun,
   clearPlatformConversations,
   createNewPlatformConversation,
   getAgentRun,
@@ -22,6 +23,7 @@ import {
   getAgentModelCatalog,
   getPlatformConversation,
   resolvePlatformConversation,
+  AgentRequestError,
   sendPlatformMessage,
   submitAgentUiInteraction,
   streamAgentRun,
@@ -39,7 +41,6 @@ import { AgentChatRunStatus } from "./agent-chat-run-status";
 import { AgentChatSurface } from "./agent-chat-surface";
 import type { AgentUiInteraction } from "@/components/dashboard/kasiai/dynamic-ui-renderer";
 
-const testChatActiveRunStatuses = new Set(["received", "queued", "running", "awaiting_approval", "awaiting_human", "awaiting_external_event"]);
 const testChatTerminalRunStatuses = new Set(["completed", "failed", "cancelled", "expired"]);
 
 function testChatRunProgress(status: string) {
@@ -143,6 +144,8 @@ export function AgentChatPanel({ installationId, active, agentName, modal = fals
     }
     setRunProgress(testChatRunProgress(result.run.status));
     setRunEvents((current) => [...current.filter((entry) => entry.event !== `run.${result.run.status}`), { event: `run.${result.run.status}`, label: testChatRunProgress(result.run.status) }].slice(-5));
+    setActiveRunId(null);
+    setSending(false);
     if (result.run.status !== "completed") throw new Error(result.run.error?.message || `Run ${result.run.status.replaceAll("_", " ")}`);
     return result;
   }, []);
@@ -155,7 +158,7 @@ export function AgentChatPanel({ installationId, active, agentName, modal = fals
       setSelectedModel(response.conversation.model);
     }
     setMessages([...response.messages].sort((left, right) => Number(left.sequence_number) - Number(right.sequence_number)));
-    const activeRun = response.activeRuns?.find((run) => testChatActiveRunStatuses.has(run.status));
+    const activeRun = activeConversationRun(response.activeRuns);
     if (activeRun && watchedRun.current !== activeRun.id) {
       watchedRun.current = activeRun.id;
       const controller = new AbortController();
@@ -173,7 +176,25 @@ export function AgentChatPanel({ installationId, active, agentName, modal = fals
         if (watchedRun.current === activeRun.id) watchedRun.current = null;
       });
     }
+    return response;
   }, [installationId, watchRun]);
+
+  useEffect(() => {
+    if (!active || !conversation?.id) return;
+    let cancelled = false;
+    const poll = async () => {
+      try {
+        await refresh(conversation.id);
+      } catch (cause) {
+        if (!cancelled) setError(cause instanceof Error ? cause.message : "Unable to refresh the conversation");
+      }
+    };
+    const timer = window.setInterval(() => void poll(), 1_500);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [active, conversation?.id, refresh]);
 
   useEffect(() => {
     if (!active) {
@@ -275,6 +296,7 @@ export function AgentChatPanel({ installationId, active, agentName, modal = fals
     setRunEvents([]);
     setMessages((current) => [...current, optimistic]);
     let acceptedRunId: string | null = null;
+    let adoptedActiveRun = false;
     try {
       let targetConversation = conversation;
       if (selectedModelProvider && selectedModel.trim() && (conversation.model_provider !== selectedModelProvider || conversation.model !== selectedModel.trim())) {
@@ -293,18 +315,34 @@ export function AgentChatPanel({ installationId, active, agentName, modal = fals
       await watchRun(accepted.runId, controller);
       await refresh(accepted.conversation.id);
     } catch (cause) {
+      if (cause instanceof AgentRequestError && cause.status === 409) {
+        try {
+          const latest = await refresh(conversation.id);
+          if (activeConversationRun(latest.activeRuns)) {
+            adoptedActiveRun = true;
+            setDraft(message);
+            setError(null);
+          }
+        } catch {
+          // Keep the original conflict when the reconciliation read also fails.
+        }
+      }
       if (!(cause instanceof DOMException && cause.name === "AbortError")) {
         setMessages((current) => acceptedRunId ? current : current.filter((entry) => entry.id !== optimisticId));
-        setDraft(message);
-        setError(cause instanceof Error ? cause.message : "Agent test failed");
+        if (!adoptedActiveRun) {
+          setDraft(message);
+          setError(cause instanceof Error ? cause.message : "Agent test failed");
+        }
         if (acceptedRunId) setRunProgress("Run failed");
       }
     } finally {
       sendLocked.current = false;
-      streamAbort.current = null;
-      watchedRun.current = null;
-      setActiveRunId(null);
-      setSending(false);
+      if (!adoptedActiveRun) {
+        streamAbort.current = null;
+        watchedRun.current = null;
+        setActiveRunId(null);
+        setSending(false);
+      }
     }
   };
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
@@ -33,6 +33,7 @@ import {
   type AgentDeploymentStatus,
   getAgentInstallationReadiness,
   AgentRequestError,
+  activeConversationRun,
   listAgentInstallationCapabilities,
   listAgentConnectionDirectory,
   listAgentInstallationRuns,
@@ -350,6 +351,19 @@ function formatRunTime(value?: string) {
   return Number.isFinite(timestamp) ? new Date(timestamp).toISOString().slice(5, 16).replace("T", " ") : "unknown";
 }
 
+function runStatusLabel(status: string) {
+  if (status === "received" || status === "queued") return "Run accepted; waiting to start…";
+  if (status === "awaiting_approval") return "Waiting for approval…";
+  if (status === "awaiting_human") return "Waiting for a workspace member…";
+  if (status === "awaiting_external_event") return "Waiting for an external event…";
+  if (status === "running") return "Agent is working…";
+  if (status === "completed") return "Run completed";
+  if (status === "cancelled") return "Run cancelled";
+  if (status === "failed") return "Run failed";
+  if (status === "expired") return "Run expired";
+  return `Run ${status.replaceAll("_", " ")}`;
+}
+
 function SectionEyebrow({ children }: { children: ReactNode }) {
   return <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">{children}</p>;
 }
@@ -526,12 +540,58 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
   const [cancelling, setCancelling] = useState(false);
   const [retrying, setRetrying] = useState(false);
   const [runStreamState, setRunStreamState] = useState<StudioStreamState>("idle");
+  const [runProgress, setRunProgress] = useState("Ready");
   const [notice, setNotice] = useState<string | null>(null);
   const { confirm } = useConfirmationDialog();
+  const activeRunRef = useRef<string | null>(null);
+  const streamAbortRef = useRef<AbortController | null>(null);
+  const streamOwnerRef = useRef<string | null>(null);
   const showError = (message: string, remediation?: string) => {
     toast.error(message, remediation ? { description: remediation } : undefined);
   };
   const clearError = () => undefined;
+
+  const upsertConversationRun = useCallback((run: NonNullable<ReturnType<typeof activeConversationRun>>) => {
+    setRunHistory((current) => {
+      const existing = current.find((item) => item.id === run.id);
+      const next: AgentInstallationRun = {
+        ...(existing ?? {}),
+        id: run.id,
+        status: run.status,
+        organization_id: existing?.organization_id ?? "",
+        installation_id: existing?.installation_id ?? agent.installation_id ?? "",
+        conversation_id: run.conversation_id ?? existing?.conversation_id ?? null,
+        created_at: run.created_at ?? existing?.created_at,
+        updated_at: run.updated_at ?? existing?.updated_at,
+      };
+      return existing
+        ? current.map((item) => item.id === run.id ? next : item)
+        : [next, ...current].slice(0, 50);
+    });
+  }, [agent.installation_id]);
+
+  const syncConversationRun = useCallback((response: Awaited<ReturnType<typeof resolvePlatformConversation>>) => {
+    const activeRun = activeConversationRun(response.activeRuns);
+    if (activeRun) {
+      upsertConversationRun(activeRun);
+      activeRunRef.current = activeRun.id;
+      setActiveRunId(activeRun.id);
+      setSelectedRunId(activeRun.id);
+      setLastRunId(activeRun.id);
+      setRunning(true);
+      setRunProgress((current) => current === "Preparing request…" || current === "Ready"
+        ? runStatusLabel(activeRun.status)
+        : current);
+      return activeRun;
+    }
+    if (activeRunRef.current) {
+      activeRunRef.current = null;
+      setActiveRunId(null);
+      setRunning(false);
+      setRunStreamState("idle");
+    }
+    return null;
+  }, [upsertConversationRun]);
 
   const selectedVersion = versions.find((version) => version.id === selectedVersionId) ?? versions[0] ?? null;
   const playgroundReady = agent.installation_settings?.environment === "playground";
@@ -587,13 +647,16 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
   const applyConversation = useCallback((result: Awaited<ReturnType<typeof resolvePlatformConversation>>) => {
     setConversationId(result.conversation.id);
     setMessages(result.messages);
-  }, []);
+    syncConversationRun(result);
+  }, [syncConversationRun]);
 
   const refreshConversation = useCallback(async (id: string) => {
     const result = await getPlatformConversation(id);
     setConversationId(result.conversation.id);
     setMessages(result.messages);
-  }, []);
+    syncConversationRun(result);
+    return result;
+  }, [syncConversationRun]);
 
   useEffect(() => {
     const installationId = agent.installation_id;
@@ -615,6 +678,27 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
       });
     return () => { cancelled = true; };
   }, [agent.installation_id, applyConversation, canRun]);
+
+  useEffect(() => {
+    if (!canRun || !conversationId) return;
+    let cancelled = false;
+    const refreshActiveRun = async () => {
+      try {
+        const result = await getPlatformConversation(conversationId);
+        if (cancelled) return;
+        setMessages(result.messages);
+        syncConversationRun(result);
+      } catch {
+        // A transient conversation read failure should not hide an already visible run.
+      }
+    };
+    void refreshActiveRun();
+    const timer = window.setInterval(() => void refreshActiveRun(), 1_500);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [canRun, conversationId, syncConversationRun]);
 
   useEffect(() => {
     let cancelled = false;
@@ -765,8 +849,12 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
       else if (timeline.events.length) setTrace(nodesFromRunEvents(timeline.events));
     };
     void refreshRuntimeEvidence();
+    const timer = activeRunId
+      ? window.setInterval(() => void refreshRuntimeEvidence(), 1_200)
+      : undefined;
     return () => {
       cancelled = true;
+      if (timer !== undefined) window.clearInterval(timer);
     };
   }, [activeRunId, agent.installation_id, selectedRunId]);
 
@@ -810,12 +898,46 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
 
   const addTraceEvent = useCallback((event: AgentStreamEvent) => {
     const nextNode = nodeFromEvent(event);
+    if (event.event.includes("tool")) setRunProgress(typeof event.data.name === "string" ? `Tool activity: ${event.data.name}` : "Tool activity in progress…");
+    else if (event.event.includes("model")) setRunProgress("Model response in progress…");
+    else if (event.event.includes("context")) setRunProgress("Context prepared; starting model…");
+    else if (event.event.includes("approval")) setRunProgress("Waiting for approval…");
+    else if (event.event.includes("completed")) setRunProgress("Run completed");
+    else if (event.event.includes("failed")) setRunProgress("Run failed");
+    else if (event.event.includes("cancelled")) setRunProgress("Run cancelled");
     setTrace((current) => {
       const existing = current.find((node) => node.id === nextNode.id);
       if (existing) return current.map((node) => node.id === nextNode.id ? nextNode : node);
       return [...current, nextNode].sort((left, right) => left.sequence - right.sequence);
     });
   }, []);
+
+  useEffect(() => {
+    const runId = activeRunId;
+    if (!runId || streamOwnerRef.current === runId) return;
+    const controller = new AbortController();
+    streamAbortRef.current = controller;
+    streamOwnerRef.current = runId;
+    setRunStreamState("connected");
+    void streamStudioRun(runId, addTraceEvent, controller.signal, setRunStreamState)
+      .catch((cause) => {
+        if (controller.signal.aborted) return;
+        showError(cause instanceof Error ? cause.message : "Live run activity unavailable");
+      })
+      .finally(() => {
+        if (streamOwnerRef.current !== runId) return;
+        streamOwnerRef.current = null;
+        streamAbortRef.current = null;
+        setRunStreamState("idle");
+      });
+    return () => {
+      controller.abort();
+      if (streamOwnerRef.current === runId) {
+        streamOwnerRef.current = null;
+        streamAbortRef.current = null;
+      }
+    };
+  }, [activeRunId, addTraceEvent]);
 
   const runAgent = async (audioFile?: File) => {
     if (!agent.installation_id) {
@@ -834,8 +956,10 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
     setNotice(null);
     setSelectedNodeId(null);
     setTrace([{ id: "input", event: "run.received", label: "Input", detail: displayInput, status: "running", sequence: 0, data: { message: displayInput } }]);
+    let adoptedActiveRun = false;
+    let acceptedRunId: string | null = null;
+    let targetConversationId = conversationId;
     try {
-      let targetConversationId = conversationId;
       if (!targetConversationId) {
         const created = await createPlatformConversation(agent.installation_id, {
           modelProvider: effectiveModelSelection?.provider,
@@ -870,10 +994,15 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
             ...(effectiveModelSelection ? { modelProvider: effectiveModelSelection.provider, model: effectiveModelSelection.model } : {}),
             context: { route: window.location.pathname, pageTitle: document.title },
           });
+      acceptedRunId = accepted.runId;
       setMessages((current) => {
         return current.some((item) => item.id === accepted.message.id) ? current : [...current, accepted.message];
       });
       setInput("");
+      streamAbortRef.current = controller;
+      streamOwnerRef.current = accepted.runId;
+      activeRunRef.current = accepted.runId;
+      setRunProgress("Run accepted; building context…");
       setActiveRunId(accepted.runId);
       setSelectedRunId(accepted.runId);
       setLastRunId(accepted.runId);
@@ -900,14 +1029,34 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
         setNotice(`Run ${result.run.status}`);
       }
     } catch (cause) {
+      if (cause instanceof AgentRequestError && cause.status === 409 && targetConversationId) {
+        try {
+          const current = await getPlatformConversation(targetConversationId);
+          const active = syncConversationRun(current);
+          if (active) {
+            adoptedActiveRun = true;
+            setInput(message);
+            setNotice("An agent run is already in progress.");
+            setTrace((existing) => existing.filter((node) => node.id !== "input"));
+            return;
+          }
+        } catch {
+          // Preserve the original conflict when the reconciliation read also fails.
+        }
+      }
       const remediation = cause instanceof Error && "remediation" in cause && typeof cause.remediation === "string" ? cause.remediation : undefined;
       showError(cause instanceof Error ? cause.message : "Agent run failed", remediation);
       setTrace((current) => current.map((node) => node.status === "running" ? { ...node, status: "error" } : node));
     } finally {
-      setRunning(false);
-      setCancelling(false);
-      setRunStreamState("idle");
-      setActiveRunId(null);
+      if (!adoptedActiveRun) {
+        setRunning(false);
+        setCancelling(false);
+        setRunStreamState("idle");
+        if (streamOwnerRef.current === acceptedRunId) streamOwnerRef.current = null;
+        streamAbortRef.current = null;
+        activeRunRef.current = null;
+        setActiveRunId(null);
+      }
     }
   };
 
@@ -967,6 +1116,7 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
     try {
       await cancelAgentRun(activeRunId, "Cancelled from Playground");
       setNotice("Cancellation requested");
+      streamAbortRef.current?.abort();
     } catch (cause) {
       setCancelling(false);
       showError(cause instanceof Error ? cause.message : "Unable to cancel run");
@@ -1177,7 +1327,7 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
               contentClassName="space-y-3 px-4 py-5"
               statusContent={
                 <>
-                  <AgentChatRunStatus runId={lastRunId} progress={running ? "Agent is running" : notice ?? "Run completed"} events={trace.slice(-5).map((node) => ({ event: node.event, label: node.label }))} running={running} />
+                  <AgentChatRunStatus runId={lastRunId} progress={runProgress} events={trace.slice(-5).map((node) => ({ event: node.event, label: node.label }))} running={running} />
                   {notice ? <div className="mx-4 mb-3 flex shrink-0 items-center gap-2 rounded-lg border border-emerald-500/20 bg-emerald-500/5 px-3 py-2 text-xs text-emerald-700 dark:text-emerald-300"><Check className="size-3.5" />{notice}</div> : null}
                 </>
               }
