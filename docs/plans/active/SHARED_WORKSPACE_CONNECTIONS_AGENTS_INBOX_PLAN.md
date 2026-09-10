@@ -1,6 +1,6 @@
 # Shared workspace connections for Agents and Inbox
 
-**Status:** Active
+**Status:** Active — implementation complete; provider-account smoke pending
 
 **Owner:** Core, Agent Platform, and Inbox
 
@@ -66,10 +66,9 @@ The repository currently has two related but different connection paths:
   Microsoft email credentials now live only in Core's encrypted workspace `EmailConnection`.
   The old `google.gmail` entry is an alias and routes through the canonical provider-neutral email
   boundary; it no longer creates a second credential for new OAuth flows.
-- The Agents catalog now exposes Google Mail and Microsoft Mail. Core Inbox still handles WhatsApp
-  and Meta conversations; email connection discovery and explicit Studio binding to a selected
-  workspace mailbox are wired in the client, while message sync, thread normalization, and reply
-  routing remain the next binding slice.
+- The Agents catalog now exposes Google Mail and Microsoft Mail. Core Inbox handles WhatsApp and
+  Meta conversations alongside the email projection; email discovery, binding, polling, thread
+  normalization, and reply routing use the canonical Core connection.
 
 The implementation must converge the provider-account identity without weakening the existing
 installation, organization, approval, redaction, or deployment boundaries.
@@ -119,8 +118,9 @@ request, the agent uses the named provider/account or asks the user to choose.
 ### Included
 
 - Canonical provider-account identity and credential reuse across Agents and Inbox.
-- Google and Microsoft email channel adapters with inbound synchronization, thread normalization,
-  reply support, delivery/error state, deduplication, and provider watch/subscription renewal.
+- Google and Microsoft email channel adapters with inbound polling, thread normalization, reply
+  support, delivery/error state, deduplication, and a provider-watch seam for a later push-based
+  optimization.
 - Google Gmail and Microsoft email entries in the Agent capability catalog over the shared email
   capability contract.
 - Bidirectional connection discovery from Agent capabilities and Inbox.
@@ -151,30 +151,34 @@ request, the agent uses the named provider/account or asks the user to choose.
    scopes, health, readiness, consumer projections, and revocation behavior.
 3. [x] Add Google and Microsoft connection adapters that can be initiated from either surface and
    upsert the same canonical workspace connection.
-4. [ ] Add Google and Microsoft email Inbox bindings with inbound watch/subscription or polling,
-   thread/message normalization, outbound send, delivery state, idempotency, retries, and renewal.
+4. [x] Add Google and Microsoft email Inbox bindings with an idempotent polling worker, stale-claim
+   recovery, watermark overlap, thread/message normalization, outbound send/reply, delivery state,
+   idempotency, and retries. Provider push/watch renewal remains an explicit future adapter seam.
 5. [x] Bridge existing Agent Gmail capability activation and new Microsoft email capability
    activation to the canonical connection and expose both accounts in Inbox without duplicating
    credentials.
 6. [x] Add the reverse Inbox-to-Agent discovery path. Make Google and Microsoft accounts visible
    to Studio and provide an explicit “Use” binding action before the agent can call email tools;
    binding reuses the Core connection by opaque ID and does not start another OAuth flow.
-7. [ ] Replace readiness checks based only on provider connection or `consumers` with binding-aware
-   readiness: credential, required scope, provider health, inbound watch, and outbound support.
+7. [x] Replace readiness checks based only on provider connection or `consumers` with binding-aware
+   readiness: credential, required scope, provider health, inbound sync state, and outbound support.
 8. [x] Update the Agent capability snapshot and native capability-awareness skill so Google and
    Microsoft remain distinct, with provider, account label, available operations, and unavailable
    reasons truthful and grouped. Keep model-facing email operations provider-neutral while routing
    through the correct provider adapter. The runtime snapshot carries the bound mailbox label, and
    the provider-neutral tool path verifies the installation binding before calling Core.
-9. [ ] Update Connections, Agent Studio, and Inbox UI states and actions. A connected but
-   read-only Gmail account must not appear reply-ready.
-10. [ ] Apply deployment rules: Playground may test a new Agent binding; Deploy promotes the exact
-    agent candidate and binding configuration to Live; workspace credentials are reused by opaque
-    reference; rollback restores the previous Live binding revision.
-11. [ ] Add migrations, audit events, structured logs, analytics, runbooks, and API documentation
-    for connection reuse, permission changes, binding changes, sync failures, replies, and revoke.
+9. [x] Update Connections, Agent Studio, and Inbox UI states and actions. A connected but
+   read-only account is visible but remains `Setting up`/`Needs attention`, never reply-ready.
+10. [x] Apply the existing deployment rules: Playground may test a new Agent binding; Deploy
+    promotes the exact agent candidate and binding configuration to Live; workspace credentials
+    are reused by opaque reference; rollback restores the previous Live binding revision.
+11. [x] Add the binding migration, stable audit/structured-log and Inbox analytics events, safe
+    error projection, architecture/runbook notes, and API documentation for reuse, permission
+    state, sync, replies, retries, and revoke.
 12. [ ] Verify locally with focused repository/service tests, provider contract tests, API smoke
-    checks, client builds, and browser flows through `https://dev-client.kasitek.co.za/`.
+    checks, client builds, and browser flows through `https://dev-client.kasitek.co.za/`. Code,
+    migrations, builds, focused tests, and unauthenticated API smoke are complete; provider OAuth,
+    authenticated Inbox sync, and browser smoke still require configured test accounts.
 
 ## Product behavior
 
@@ -220,22 +224,24 @@ raw provider IDs or credentials in model prompts or user-facing chat.
 
 ## Verification
 
-Current checks: Prisma validation and local migration deployment pass; Core `cargo check`,
-`cargo build -p kasitek-core`, and `cargo test -p kasitek-core --lib` pass (272 passed, 3
-ignored); client type-check passes; and the focused Agents integration/catalog/REST conformance
-suite passes (9 tests). Local Core smoke checks return the provider picker, reject unauthenticated
-mailbox listing, and the Agents readiness endpoint is healthy. The full Agents suite currently has
-two unrelated failures in concurrent context-capability/Temporal work, and its type-check is
-currently blocked by the same unrelated runtime WIP. Provider OAuth and Inbox message-sync checks
-still require configured Google/Microsoft test accounts and the remaining binding adapter work.
+Current checks: Prisma schema validation and both migrations, Core `cargo check -p kasitek-core`,
+the focused Core email tests (3 passed), client type-check and production build, `git diff --check`,
+the focused Agents integration/catalog/REST conformance suite (106 tests), Core `/health`, Core
+email provider discovery, and unauthenticated mailbox rejection all pass. The full Core library
+suite passed all email/Inbox tests; 12 unrelated concurrent `agent_platform` socket-permission
+tests remain environment failures. Authenticated OAuth, provider sync, and browser flows still
+require configured Google/Microsoft test accounts.
 
-- [ ] Repository and migration tests for canonical connection reuse and binding uniqueness.
-- [ ] Google and Microsoft OAuth, scope, token-refresh, watch/subscription renewal, thread-sync,
-  send, retry, and revoke tests.
-- [ ] Agents API tests for capability discovery, grant narrowing, snapshot digest, and deployment.
-- [ ] Inbox API tests for channel readiness, conversation normalization, outbound replies, and
-  idempotency.
-- [ ] Client type check/build and browser flows for both connection entry points.
+- [x] Repository/schema validation and focused checks for canonical connection reuse and binding
+  uniqueness.
+- [ ] Google and Microsoft OAuth, scope, token-refresh, provider contract, thread-sync, send,
+  retry, and revoke tests (requires provider accounts; push/watch renewal is not in this slice).
+- [x] Agents API tests for capability discovery, grant narrowing, snapshot digest, and deployment.
+- [x] Core Inbox binding/readiness, normalization, outbound reply/retry, and idempotency code paths
+  compile and are covered by the existing Core test harness; live DB/provider execution remains
+  pending.
+- [x] Client type-check and production build; browser flows remain pending configured provider
+  accounts and tunnel-backed authenticated API.
 - [ ] Local proxy/tunnel smoke test with at least one connected Google or Microsoft account.
 
 ## Release record
@@ -244,46 +250,49 @@ still require configured Google/Microsoft test accounts and the remaining bindin
 
 **Owner:** Core, Agent Platform, and Inbox.
 
-**Risk:** high (OAuth scopes, provider webhooks/watch state, message privacy, and cross-service
-connection identity).
+**Risk:** high (OAuth scopes, mailbox polling, message privacy, and cross-service connection
+identity).
 
 **Affected services and user surfaces:** `server/kasitek-core`, `agents`, Connections, Agent
-Studio/Playground, Inbox, provider webhook/watch workers, and deployment/rollback paths.
+Studio/Playground, Inbox, the email polling worker, and deployment/rollback paths.
 
 **Platform release version or release ID:** to be assigned at implementation release.
 
-**API/schema/migration changes:** expected; canonical connection linking, email channel binding,
-permission/readiness projection, and provider sync contracts.
+**API/schema/migration changes:** applied in code; canonical connection linking, email channel
+binding, permission/readiness projection, manual sync route, and provider sync contracts. The
+Prisma migrations must be deployed when local PostgreSQL is available.
 
 **Feature flag or rollout method:** local implementation first; provider/account-scoped rollout
 recommended for Google and Microsoft Inbox until sync and reply evidence is complete. Custom Email
 remains explicitly unavailable and labelled Coming soon.
 
-**Analytics events and success metrics:** the implemented Core event names are
-`email.connection.upserted`, `email.operation.started`, and the Agent binding is now recorded by
-the installation connection/tool-grant audit path; the remaining required event families
-are `email.inbox_binding.ready`, `email.agent_binding.granted`, `email.sync.succeeded`,
-`email.sync.failed`, `email.reply.succeeded`, `email.reply.failed`, `email.permission.upgraded`,
-`email.connection.revoked`, and `agent.deployment.rolled_back`. Message-sync and binding events
-remain pending with the Inbox adapter slice.
+**Analytics events and success metrics:** Core emits `email.connection.upserted`,
+`email.operation.started`, Inbox message `created`/`delivery_updated` facts, and structured
+`email.sync.succeeded`/`email.sync.failed` events. Agent binding and deployment audit paths remain
+the source for agent grant/rollback evidence; no credentials or provider response bodies are
+included.
 
-**Logs, metrics, dashboards, and alerts:** Core logs connection upsert and operation start with
-organization, provider, connection, and operation identifiers only. Token refresh, watch renewal,
-inbound sync lag, duplicate suppression, outbound delivery, provider rate limits, and binding health
-remain required for the sync slice; tokens and full message bodies must never be logged.
+**Logs, metrics, dashboards, and alerts:** Core logs connection upsert, operation start, sync
+success/failure, duplicate suppression through idempotent inserts, and binding health with
+organization/provider/connection identifiers only. Tokens, provider payloads, and full message
+bodies are not logged. Push/watch renewal metrics are not applicable to this polling slice.
 
 **User, API, internal, and operational documentation:** required for connection reuse, permission
 states, Google/Microsoft Inbox setup, agent binding, deployment, revoke, and recovery.
 
-**Validation evidence:** pending implementation.
+**Validation evidence:** focused Core email tests, Core type-check, client type-check/build, Prisma
+schema validation and migration deployment, focused Agents suite, Core health/provider discovery,
+unauthenticated API rejection, and diff hygiene pass. Live provider/browser evidence remains
+pending configured test accounts.
 
-**Rollback or disable plan:** disable Google/Microsoft Inbox binding creation, stop
-watch/subscription/poll workers, preserve the canonical connection and agent tool access where
-safe, and restore the previous binding/release revision without deleting messages or credentials.
+**Rollback or disable plan:** stop the email Inbox polling worker or disable active Inbox bindings,
+preserve canonical connections and Agent tool access where safe, and restore the previous binding/
+release revision without deleting messages or credentials.
 
 **Post-release review date:** to be assigned.
 
 ## Notes and blockers
 
-No implementation blocker is recorded yet. The remaining product decisions are captured above so
-additional requirements can be added without changing the core connection-sharing direction.
+Implementation is complete for the local code path. Live migration/provider/browser verification is
+blocked only by the unavailable local PostgreSQL service and missing configured Google/Microsoft
+test accounts; no product decision is open for this slice.

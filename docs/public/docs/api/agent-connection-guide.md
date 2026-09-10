@@ -212,3 +212,11 @@ Native Google connections use one OAuth client and one callback per environment.
 catalog entry supplies its own scopes, so Calendar, Gmail, and Drive can be connected separately.
 The callback is
 `/api/agents/integrations/google/oauth/callback`; users do not enter OAuth client credentials.
+
+Google Mail and Microsoft Mail use the same workspace-owned mailbox connection as Inbox. A
+successful OAuth flow creates or reuses one canonical provider account; Studio's **Use** action
+binds that account to the selected Playground installation without another OAuth exchange. The
+runtime exposes provider-neutral `kasitek.email.search`, `kasitek.email.read`,
+`kasitek.email.send`, and `kasitek.email.reply` tools, while retaining the Google/Microsoft account
+label in the capability snapshot. Inbox synchronization and reply readiness are reported
+separately from connection status, so a connected mailbox may still be syncing or require access.

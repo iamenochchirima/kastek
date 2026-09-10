@@ -634,6 +634,7 @@ fn sanitize_connection_metadata(metadata: &mut Option<serde_json::Value>) {
     for key in [
         "permissions",
         "scope",
+        "scopes",
         "tasks",
         "permissionsInspected",
         "capabilityChecks",
@@ -674,7 +675,7 @@ pub async fn update_status(
     } else {
         Some(status)
     };
-    let source_type = sqlx::query_scalar::<_, String>(
+    let source = sqlx::query_as::<_, (String, String)>(
         r#"
         UPDATE "ExternalConnection"
         SET "statusOverride" = CAST($1 AS "ExternalConnectionStatus"),
@@ -683,7 +684,7 @@ pub async fn update_status(
             "healthStatus" = CASE WHEN $2 = 'CONNECTED' THEN "healthStatus" ELSE 'NEEDS_ATTENTION' END,
             "updatedAt" = NOW()
         WHERE id = $3 AND "orgId" = $4
-        RETURNING "sourceType"
+        RETURNING "sourceType", "sourceId"
         "#,
     )
     .bind(override_status)
@@ -693,7 +694,7 @@ pub async fn update_status(
     .fetch_optional(&mut *tx)
     .await?;
 
-    let Some(source_type) = source_type else {
+    let Some((source_type, source_id)) = source else {
         return Err(AppError::NotFound("Connection not found".to_string()));
     };
 
@@ -707,12 +708,64 @@ pub async fn update_status(
             r#"
             UPDATE "SocialChannelConnection"
             SET status = CAST($1 AS "SocialChannelStatus"), "updatedAt" = NOW()
-            WHERE id = (SELECT "sourceId" FROM "ExternalConnection" WHERE id = $2 AND "orgId" = $3)
+            WHERE id = $2
               AND "orgId" = $3
             "#,
         )
         .bind(provider_status)
-        .bind(id)
+        .bind(&source_id)
+        .bind(org_id)
+        .execute(&mut *tx)
+        .await?;
+    }
+
+    if source_type == "EMAIL" {
+        let provider_status = match status {
+            "CONNECTED" => "CONNECTED",
+            "DISCONNECTED" => "DISCONNECTED",
+            _ => "REVOKED",
+        };
+        sqlx::query(
+            r#"UPDATE "EmailConnection"
+               SET status = $1,
+                   "healthStatus" = CASE WHEN $1 = 'CONNECTED' THEN 'HEALTHY' ELSE 'NEEDS_ATTENTION' END,
+                   "syncStatus" = CASE WHEN $1 = 'CONNECTED' THEN 'NOT_CONFIGURED' ELSE 'BLOCKED' END,
+                   "lastError" = CASE WHEN $1 = 'CONNECTED' THEN NULL ELSE 'connection_disconnected' END,
+                   "updatedAt" = NOW()
+               WHERE id = $2 AND "orgId" = $3"#,
+        )
+        .bind(provider_status)
+        .bind(&source_id)
+        .bind(org_id)
+        .execute(&mut *tx)
+        .await?;
+        sqlx::query(
+            r#"UPDATE "EmailInboxBinding"
+               SET status = CASE WHEN $1 = 'CONNECTED' THEN 'ACTIVE' ELSE 'PAUSED' END,
+                   "inboundStatus" = CASE
+                       WHEN $1 <> 'CONNECTED' THEN 'BLOCKED'
+                       WHEN EXISTS (
+                           SELECT 1 FROM "EmailConnection" connection
+                           WHERE connection.id = $2
+                             AND ('https://www.googleapis.com/auth/gmail.readonly' = ANY(connection.scopes) OR 'Mail.Read' = ANY(connection.scopes))
+                       ) THEN 'PENDING'
+                       ELSE 'BLOCKED'
+                   END,
+                   "outboundStatus" = CASE
+                       WHEN $1 <> 'CONNECTED' THEN 'BLOCKED'
+                       WHEN EXISTS (
+                           SELECT 1 FROM "EmailConnection" connection
+                           WHERE connection.id = $2
+                             AND ('https://www.googleapis.com/auth/gmail.send' = ANY(connection.scopes) OR 'Mail.Send' = ANY(connection.scopes))
+                       ) THEN 'READY'
+                       ELSE 'BLOCKED'
+                   END,
+                   "lastError" = CASE WHEN $1 = 'CONNECTED' THEN NULL ELSE 'connection_disconnected' END,
+                   "updatedAt" = NOW()
+               WHERE "emailConnectionId" = $2 AND "orgId" = $3"#,
+        )
+        .bind(provider_status)
+        .bind(&source_id)
         .bind(org_id)
         .execute(&mut *tx)
         .await?;

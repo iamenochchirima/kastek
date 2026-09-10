@@ -59,7 +59,7 @@ export interface CoreWorkspaceConnections {
 export interface CoreEmailConnection {
   id: string;
   provider: string;
-  externalAccountId: string;
+  externalAccountId?: string;
   emailAddress: string;
   displayName: string;
   status: string;

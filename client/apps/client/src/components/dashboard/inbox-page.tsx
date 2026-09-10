@@ -203,7 +203,30 @@ type EmailConnectionView = {
   status: string;
   healthStatus: string;
   syncStatus: string;
+  inboxStatus: string;
+  inboundStatus: string;
+  outboundStatus: string;
 };
+
+function emailInboxReady(connection: EmailConnectionView) {
+  return (
+    connection.status === "CONNECTED" &&
+    connection.inboxStatus === "ACTIVE" &&
+    connection.inboundStatus === "READY"
+  );
+}
+
+function emailConnectionStatus(connection: EmailConnectionView) {
+  if (connection.status !== "CONNECTED") return "Disconnected";
+  if (connection.healthStatus !== "HEALTHY" || connection.inboundStatus === "RETRYABLE_FAILURE") {
+    return "Needs attention";
+  }
+  if (connection.inboundStatus === "SYNCING" || connection.inboundStatus === "PENDING") {
+    return "Syncing";
+  }
+  if (emailInboxReady(connection)) return "Ready";
+  return "Setting up";
+}
 
 function logCallMediaEvent(callId: string, event: string, details?: Record<string, unknown>) {
   console.info("[call-media]", {
@@ -681,6 +704,7 @@ export default function InboxPageClient({
   const appearance = useAppearance();
   const emojiTheme = resolveTheme(appearance.theme);
   const [liveConversations, setLiveConversations] = useState(conversations);
+  const [liveEmailConnections, setLiveEmailConnections] = useState(emailConnections);
   const [selectedChannel, setSelectedChannel] = useState<
     "all" | "whatsapp" | "email" | "sms" | "instagram" | "facebook"
   >("all");
@@ -737,24 +761,42 @@ export default function InboxPageClient({
   }, [conversations]);
 
   useEffect(() => {
+    setLiveEmailConnections(emailConnections);
+  }, [emailConnections]);
+
+  useEffect(() => {
     let cancelled = false;
 
     const refreshConversations = async () => {
       if (document.visibilityState === "hidden") return;
 
       try {
-        const response = await fetch(apiUrl("/api/inbox/conversations"), {
-          cache: "no-store",
-          credentials: "include",
-        });
-        if (!response.ok) return;
+        const [conversationResponse, emailResponse] = await Promise.all([
+          fetch(apiUrl("/api/inbox/conversations"), {
+            cache: "no-store",
+            credentials: "include",
+          }),
+          fetch(apiUrl("/api/email/connections"), {
+            cache: "no-store",
+            credentials: "include",
+          }),
+        ]);
+        if (cancelled) return;
 
-        const payload = (await response.json()) as {
-          conversations?: InboxConversationPayload[];
-        };
-        if (cancelled || !Array.isArray(payload.conversations)) return;
-
-        setLiveConversations(payload.conversations.map(mapInboxConversation));
+        if (conversationResponse.ok) {
+          const payload = (await conversationResponse.json()) as {
+            conversations?: InboxConversationPayload[];
+          };
+          if (Array.isArray(payload.conversations)) {
+            setLiveConversations(payload.conversations.map(mapInboxConversation));
+          }
+        }
+        if (emailResponse.ok) {
+          const payload = (await emailResponse.json()) as {
+            connections?: EmailConnectionView[];
+          };
+          if (Array.isArray(payload.connections)) setLiveEmailConnections(payload.connections);
+        }
       } catch {
         // Keep the current Inbox state if a foreground refresh fails.
       }
@@ -768,9 +810,13 @@ export default function InboxPageClient({
 
     window.addEventListener("focus", onVisibleOrFocused);
     document.addEventListener("visibilitychange", onVisibleOrFocused);
+    const refreshTimer = window.setInterval(() => {
+      void refreshConversations();
+    }, 30_000);
 
     return () => {
       cancelled = true;
+      window.clearInterval(refreshTimer);
       window.removeEventListener("focus", onVisibleOrFocused);
       document.removeEventListener("visibilitychange", onVisibleOrFocused);
     };
@@ -803,17 +849,22 @@ export default function InboxPageClient({
     }
   };
 
+  const emailConnectedConnections = liveEmailConnections.filter(
+    (connection) => connection.status === "CONNECTED" && connection.inboxStatus === "ACTIVE",
+  );
+  const emailReadyConnections = liveEmailConnections.filter(emailInboxReady);
   const emailConnectionFilters = useMemo(
     () => [
-      { id: null as string | null, label: "All mailboxes", conversationCount: liveConversations.filter((conversation) => conversation.channel === "email").length, unreadCount: liveConversations.filter((conversation) => conversation.channel === "email" && conversation.unread).length },
-      ...emailConnections.map((connection) => ({
+      { id: null as string | null, label: "All mailboxes", status: "", conversationCount: liveConversations.filter((conversation) => conversation.channel === "email").length, unreadCount: liveConversations.filter((conversation) => conversation.channel === "email" && conversation.unread).length },
+      ...liveEmailConnections.map((connection) => ({
         id: connection.id,
         label: `${connection.provider === "MICROSOFT" ? "Microsoft" : "Google"} · ${connection.emailAddress}`,
+        status: emailConnectionStatus(connection),
         conversationCount: liveConversations.filter((conversation) => conversation.channel === "email" && conversation.connectionId === connection.id).length,
         unreadCount: liveConversations.filter((conversation) => conversation.channel === "email" && conversation.connectionId === connection.id && conversation.unread).length,
       })),
     ],
-    [emailConnections, liveConversations],
+    [liveEmailConnections, liveConversations],
   );
 
   const channels = useMemo(
@@ -849,7 +900,7 @@ export default function InboxPageClient({
         count: liveConversations.filter((conversation) => conversation.channel === "email").length,
         unreadCount: liveConversations.filter((conversation) => conversation.channel === "email" && conversation.unread).length,
         disabled: false,
-        connected: channelCounts.email.connected,
+        connected: emailConnectedConnections.length > 0,
       },
       {
         id: "sms" as const,
@@ -893,7 +944,7 @@ export default function InboxPageClient({
         connected: channelCounts.facebook.connected,
       },
     ],
-    [channelCounts, liveConversations, whatsappUnreadCount],
+    [channelCounts, emailConnectedConnections.length, liveConversations, whatsappUnreadCount],
   );
 
   const whatsappConnectionFilters = useMemo(
@@ -1492,10 +1543,54 @@ export default function InboxPageClient({
             <div className="divide-y divide-border rounded-lg border border-border bg-card">
               <div className="flex items-center gap-3 px-4 py-3">
                 <Mail className="h-4 w-4 text-blue-400" />
-                <div className="min-w-0 flex-1"><p className="text-sm font-medium text-foreground">{channelCounts.email.connected ? "Email" : "No mailbox connected"}</p><p className="mt-0.5 text-xs leading-5 text-muted-foreground">{channelCounts.email.connected ? `${channelCounts.email.connectionCount} connected mailbox${channelCounts.email.connectionCount === 1 ? "" : "es"}` : "Google and Microsoft"}</p></div>
-                {channelCounts.email.connected ? <Badge variant="outline">Connected</Badge> : <Button size="sm" variant="outline" onClick={() => setShowEmailConnectDialog(true)}>Connect</Button>}
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium text-foreground">
+                    {emailConnectedConnections.length > 0 ? "Email" : "No mailbox connected"}
+                  </p>
+                  <p className="mt-0.5 text-xs leading-5 text-muted-foreground">
+                    {emailConnectedConnections.length > 0
+                      ? `${emailConnectedConnections.length} connected mailbox${emailConnectedConnections.length === 1 ? "" : "es"}`
+                      : "Google and Microsoft"}
+                  </p>
+                </div>
+                {emailConnectedConnections.length > 0 ? (
+                  <Badge variant="outline">
+                    {emailReadyConnections.length === emailConnectedConnections.length
+                      ? "Ready"
+                      : emailConnectedConnections.some((connection) => emailConnectionStatus(connection) === "Needs attention")
+                        ? "Needs attention"
+                        : "Syncing"}
+                  </Badge>
+                ) : (
+                  <Button size="sm" variant="outline" onClick={() => setShowEmailConnectDialog(true)}>Connect</Button>
+                )}
               </div>
-              {channelCounts.email.connected ? <div className="border-t border-border p-2">{emailConnectionFilters.map((connectionFilter) => <button key={connectionFilter.id || "all-email"} type="button" onClick={() => { setSelectedChannel("email"); setSelectedConnectionId(connectionFilter.id); setShowChannelPanel(false); setMobileConversationOpen(false); }} className={cn("flex min-h-9 w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm transition-colors hover:bg-secondary", selectedChannel === "email" && selectedConnectionId === connectionFilter.id && "bg-secondary text-foreground")}><span className="truncate">{connectionFilter.label}</span><span className="ml-3 shrink-0 text-xs tabular-nums text-muted-foreground">{connectionFilter.conversationCount}</span></button>)}</div> : null}
+              {emailConnectedConnections.length > 0 ? (
+                <div className="border-t border-border p-2">
+                  {emailConnectionFilters.map((connectionFilter) => (
+                    <button
+                      key={connectionFilter.id || "all-email"}
+                      type="button"
+                      onClick={() => {
+                        setSelectedChannel("email");
+                        setSelectedConnectionId(connectionFilter.id);
+                        setShowChannelPanel(false);
+                        setMobileConversationOpen(false);
+                      }}
+                      className={cn(
+                        "flex min-h-9 w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm transition-colors hover:bg-secondary",
+                        selectedChannel === "email" && selectedConnectionId === connectionFilter.id && "bg-secondary text-foreground",
+                      )}
+                    >
+                      <span className="min-w-0 truncate">{connectionFilter.label}</span>
+                      <span className="ml-3 flex shrink-0 items-center gap-2 text-xs text-muted-foreground">
+                        {connectionFilter.status ? <span>{connectionFilter.status}</span> : null}
+                        <span className="tabular-nums">{connectionFilter.conversationCount}</span>
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              ) : null}
             </div>
           </section>
 

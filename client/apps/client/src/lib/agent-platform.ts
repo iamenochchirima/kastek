@@ -1317,6 +1317,9 @@ export type WorkspaceEmailConnection = {
   status: string;
   healthStatus: string;
   syncStatus: string;
+  inboxStatus: string;
+  inboundStatus: string;
+  outboundStatus: string;
 };
 
 export function listWorkspaceEmailConnections(): Promise<{ connections: WorkspaceEmailConnection[] }> {

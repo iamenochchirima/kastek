@@ -143,6 +143,16 @@ pub async fn complete_google_oauth_callback(
     oauth_callback_redirect(config.get_ref(), &result)
 }
 
+pub async fn complete_microsoft_oauth_callback(
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+) -> Result<HttpResponse, AppError> {
+    let result = client(config.get_ref())?
+        .complete_microsoft_oauth_callback(req.query_string())
+        .await?;
+    oauth_callback_redirect(config.get_ref(), &result)
+}
+
 pub async fn ensure_kasiai(
     pool: web::Data<PgPool>,
     config: web::Data<AppConfig>,

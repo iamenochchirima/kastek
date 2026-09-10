@@ -1344,6 +1344,15 @@ impl AgentPlatformClient {
         self.request_oauth_callback(&path).await
     }
 
+    pub async fn complete_microsoft_oauth_callback(&self, query: &str) -> Result<Value, AppError> {
+        let path = if query.trim().is_empty() {
+            "/v1/integrations/microsoft/oauth/callback".to_string()
+        } else {
+            format!("/v1/integrations/microsoft/oauth/callback?{query}")
+        };
+        self.request_oauth_callback(&path).await
+    }
+
     pub async fn create_mcp_provider(
         &self,
         organization_id: &str,

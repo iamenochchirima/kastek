@@ -23,6 +23,7 @@ model Organization {
 
   socialChannelConnections       SocialChannelConnection[]
   emailConnections               EmailConnection[]
+  emailInboxBindings             EmailInboxBinding[]
   emailOAuthStates               EmailOAuthState[]
   socialPosts                    SocialPost[]
   socialPublishJobs              SocialPublishJob[]
@@ -276,6 +277,7 @@ model EmailConnection {
   metadata          Json?
 
   oauthStates EmailOAuthState[]
+  inboxBinding EmailInboxBinding?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -284,6 +286,28 @@ model EmailConnection {
   @@index([orgId, provider])
   @@index([orgId, status])
   @@index([emailAddress])
+}
+
+/// Inbox's explicit binding to a workspace email account. The account and
+/// credentials remain owned by EmailConnection; this row owns sync/readiness
+/// state for the Inbox surface only.
+model EmailInboxBinding {
+  id                String         @id @default(cuid())
+  orgId             String
+  org               Organization   @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  emailConnectionId String         @unique
+  emailConnection   EmailConnection @relation(fields: [emailConnectionId], references: [id], onDelete: Cascade)
+  status            String         @default("ACTIVE")
+  inboundStatus     String         @default("PENDING")
+  outboundStatus    String         @default("PENDING")
+  syncCursor        String?
+  lastSyncedAt      DateTime?
+  lastError         String?        @db.Text
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  @@index([orgId, status])
+  @@index([emailConnectionId, status])
 }
 
 model EmailOAuthState {

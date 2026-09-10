@@ -29,14 +29,24 @@ pub async fn providers() -> Result<HttpResponse, AppError> {
     })))
 }
 
-pub async fn list(
-    pool: web::Data<PgPool>,
-    req: HttpRequest,
-) -> Result<HttpResponse, AppError> {
+pub async fn list(pool: web::Data<PgPool>, req: HttpRequest) -> Result<HttpResponse, AppError> {
     let user = extract_user(&req, pool.get_ref()).await?;
     let org_id = resolve_active_org_id(&req, pool.get_ref(), &user.id).await?;
     let connections = email::list(pool.get_ref(), &org_id).await?;
     Ok(HttpResponse::Ok().json(serde_json::json!({ "connections": connections })))
+}
+
+pub async fn sync(
+    config: web::Data<AppConfig>,
+    pool: web::Data<PgPool>,
+    req: HttpRequest,
+    path: web::Path<String>,
+) -> Result<HttpResponse, AppError> {
+    let user = extract_user(&req, pool.get_ref()).await?;
+    let org_id = resolve_active_org_id(&req, pool.get_ref(), &user.id).await?;
+    let inserted = email::sync_connection(pool.get_ref(), config.get_ref(), &org_id, &path).await?;
+    Ok(HttpResponse::Ok()
+        .json(serde_json::json!({ "success": true, "messagesInserted": inserted })))
 }
 
 pub async fn start_oauth(
@@ -51,14 +61,9 @@ pub async fn start_oauth(
     orgs::require_admin(pool.get_ref(), &org_id, &user.id).await?;
     let provider = email::provider_config(config.get_ref(), &path)?;
     let return_path = email::safe_return_path(query.return_to.as_deref());
-    let state = email::create_oauth_state(
-        pool.get_ref(),
-        &org_id,
-        &user.id,
-        &provider,
-        &return_path,
-    )
-    .await?;
+    let state =
+        email::create_oauth_state(pool.get_ref(), &org_id, &user.id, &provider, &return_path)
+            .await?;
     Ok(HttpResponse::Ok().json(serde_json::json!({
         "provider": provider.provider,
         "authorizationUrl": email::authorization_url(&provider, &state)
@@ -71,30 +76,62 @@ pub async fn oauth_callback(
     path: web::Path<String>,
     query: web::Query<EmailOAuthCallbackQuery>,
 ) -> Result<HttpResponse, AppError> {
-    let state = query.state.as_deref().ok_or_else(|| AppError::BadRequest("Email OAuth state is missing".to_string()))?;
+    let state = query
+        .state
+        .as_deref()
+        .ok_or_else(|| AppError::BadRequest("Email OAuth state is missing".to_string()))?;
     let state_record = email::consume_oauth_state(pool.get_ref(), state).await?;
     let Some(state_record) = state_record else {
-        return Err(AppError::BadRequest("Email OAuth state is invalid or expired".to_string()));
+        return Err(AppError::BadRequest(
+            "Email OAuth state is invalid or expired".to_string(),
+        ));
     };
     let expected_provider = email::normalize_provider(&path)?;
     if state_record.provider != expected_provider {
-        return Err(AppError::BadRequest("Email OAuth provider does not match the request".to_string()));
+        return Err(AppError::BadRequest(
+            "Email OAuth provider does not match the request".to_string(),
+        ));
     }
     if let Some(error) = query.error.as_deref() {
-        let code = if error == "access_denied" { "access_denied" } else { "provider_error" };
+        let code = if error == "access_denied" {
+            "access_denied"
+        } else {
+            "provider_error"
+        };
         return Ok(HttpResponse::Found()
-            .append_header(("Location", email::frontend_redirect(config.get_ref(), &email::oauth_error_path(Some(&state_record), code))))
+            .append_header((
+                "Location",
+                email::frontend_redirect(
+                    config.get_ref(),
+                    &email::oauth_error_path(Some(&state_record), code),
+                ),
+            ))
             .finish());
     }
-    let code = query.code.as_deref().ok_or_else(|| AppError::BadRequest("Email OAuth code is missing".to_string()))?;
+    let code = query
+        .code
+        .as_deref()
+        .ok_or_else(|| AppError::BadRequest("Email OAuth code is missing".to_string()))?;
     match email::finish_oauth(pool.get_ref(), config.get_ref(), state_record.clone(), code).await {
         Ok(_) => Ok(HttpResponse::Found()
-            .append_header(("Location", email::frontend_redirect(config.get_ref(), &email::oauth_success_path(&state_record, expected_provider))))
+            .append_header((
+                "Location",
+                email::frontend_redirect(
+                    config.get_ref(),
+                    &email::oauth_success_path(&state_record, expected_provider),
+                ),
+            ))
             .finish()),
         Err(error) => {
             let code = error.code();
             Ok(HttpResponse::Found()
-                .append_header(("Location", email::frontend_redirect(config.get_ref(), &email::oauth_error_path(Some(&state_record), code))))
+                .append_header((
+                    "Location",
+                    email::frontend_redirect(
+                        config.get_ref(),
+                        &email::oauth_error_path(Some(&state_record), code),
+                    ),
+                ))
                 .finish())
         }
     }

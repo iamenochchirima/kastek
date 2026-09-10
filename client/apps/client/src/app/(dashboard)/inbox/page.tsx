@@ -23,6 +23,9 @@ type RustEmailConnection = {
   status: string;
   healthStatus: string;
   syncStatus: string;
+  inboxStatus: string;
+  inboundStatus: string;
+  outboundStatus: string;
 };
 
 type RustConnection = {
@@ -120,8 +123,8 @@ export default async function InboxPage() {
           instagram: providerCounts("INSTAGRAM"),
           facebook: providerCounts("FACEBOOK"),
           email: {
-            connected: emailConnections.some((connection) => connection.status === "CONNECTED"),
-            connectionCount: emailConnections.filter((connection) => connection.status === "CONNECTED").length,
+            connected: emailConnections.some((connection) => connection.status === "CONNECTED" && connection.inboxStatus === "ACTIVE" && connection.inboundStatus === "READY"),
+            connectionCount: emailConnections.filter((connection) => connection.status === "CONNECTED" && connection.inboxStatus === "ACTIVE").length,
             unreadCount: conversations.filter((conversation) => conversation.channel === "email").reduce((sum, conversation) => sum + Math.max(conversation.unreadCount, 0), 0),
             conversationCount: conversations.filter((conversation) => conversation.channel === "email").length,
           },
