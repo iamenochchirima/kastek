@@ -28,6 +28,7 @@ describe.skipIf(!runIntegration)("procedural skills persistence (integration)", 
       instructions: "Use the approved booking flow.",
       matching: { phrases: ["make a booking"] },
       requiredCapabilities: ["calendar.create"],
+      files: [{ path: "references/booking.md", content: "Booking reference material." }],
     });
     skillVersionId = version.id;
     await repository.publishVersion(organizationId, actorId, skill.id, version.id);
@@ -40,6 +41,12 @@ describe.skipIf(!runIntegration)("procedural skills persistence (integration)", 
     expect(loaded).toHaveLength(1);
     expect(loaded[0]).toMatchObject({ id: version.id, skill_name: "Booking flow", status: "published" });
     expect(loaded[0]!.matching.phrases).toEqual(["make a booking"]);
+    expect(await repository.listPinnedFiles(organizationId, agentVersionId, version.id)).toMatchObject([
+      { path: "references/booking.md", size: 27 },
+    ]);
+    expect(await repository.loadPinnedFile(organizationId, agentVersionId, version.id, "references/booking.md")).toMatchObject({
+      content: "Booking reference material.",
+    });
 
     const secondVersion = await repository.createVersion(organizationId, actorId, skill.id, {
       instructions: "Use the approved booking flow and confirm the time zone.",

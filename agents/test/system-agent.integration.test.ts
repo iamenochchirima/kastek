@@ -115,6 +115,7 @@ describe.skipIf(!runIntegration)("protected system agent installations (integrat
     );
     expect(guidance.rows[0]).toMatchObject({ source_count: "1", chunk_count: "6" });
     expect((await agents.listAgents(organizationOne)).map((agent) => agent.id)).toContain(agentId);
+    expect((await agents.listAgents(organizationOne, { environment: "playground" })).map((agent) => agent.id)).toContain(agentId);
     expect((await agents.listAgents(organizationWithoutInstallation)).map((agent) => agent.id)).not.toContain(agentId);
     expect(await agents.getAgent(organizationTwo, agentId)).toMatchObject({ id: agentId });
     expect(await agents.getAgent(organizationWithoutInstallation, agentId)).toBeNull();

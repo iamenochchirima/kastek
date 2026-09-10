@@ -59,5 +59,6 @@ describe("integration tool registry", () => {
     expect(registry.get("kasitek.calendar.list")?.requiresApproval).toBe(false);
     expect(registry.get("kasitek.calendar.create")?.requiresApproval).toBe(true);
     expect(registry.get("kasitek.apple.note.create")?.manifest?.requiredScope).toBe("apple.notes.write");
+    expect(registry.generation).toBeGreaterThan(0);
   });
 });

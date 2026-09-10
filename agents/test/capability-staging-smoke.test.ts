@@ -190,6 +190,7 @@ describe("capability staging smoke", () => {
     expect(snapshot.model.callableTools.find((tool) => tool.name === "mcp.calendar.search")).toMatchObject({
       catalog: { kind: "mcp_tool" },
     });
+    expect(snapshot.model.summary).toContain("Calendar -> calendar.create, calendar.list");
     expect(snapshot.model.loadedSkills.map((skill) => skill.id)).toEqual(["booking-workflow"]);
     expect(snapshot.studio.unavailable).toEqual(expect.arrayContaining([
       { id: "missing-workflow", kind: "skill", reason: "dependency_not_found" },

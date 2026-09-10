@@ -9,6 +9,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   deployAgentInstallation,
+  ensureKasiAiLive,
   getAgentDeploymentStatus,
   listAgentVersions,
   preflightAgentInstallationDeployment,
@@ -141,7 +142,12 @@ export function AgentDeploymentLifecycle({
         await deployAgentInstallation(sourceInstallationId, candidate.id, latest.playground.version?.versionId ?? undefined);
         latest = await refresh();
       }
-      const liveInstallationId = latest?.live.installationId;
+      let liveInstallationId = latest?.live.installationId;
+      if (!liveInstallationId && agent.protected) {
+        const ensured = await ensureKasiAiLive();
+        liveInstallationId = ensured.id;
+        latest = await refresh();
+      }
       const expectedVersionId = latest?.live.version?.versionId;
       if (!liveInstallationId || !expectedVersionId) throw new Error("Live is not ready for promotion");
       const nextPreflight = await preflightAgentInstallationDeployment(liveInstallationId, {
@@ -201,7 +207,7 @@ export function AgentDeploymentLifecycle({
     selectedVersion.id !== status.live.version?.versionId
     || status.playground.capabilityConfigurationDigest !== status.live.capabilityConfigurationDigest
   ));
-  const canPromote = Boolean(status?.live.installationId && candidateDiffers && selectedVersion);
+  const canPromote = Boolean((status?.live.installationId || agent.protected) && candidateDiffers && selectedVersion);
   const canRollback = Boolean(status?.rollbackTarget && status.live.installationId);
 
   const compactControls = <div className="flex items-center gap-2">
@@ -212,7 +218,7 @@ export function AgentDeploymentLifecycle({
       variant={candidateDiffers ? "default" : "outline"}
       className={!candidateDiffers ? "border-border/70 bg-muted/40 text-muted-foreground" : undefined}
       onClick={() => void preparePromotion()}
-      disabled={!candidateDiffers || !status?.live.installationId || loading || busy !== null}
+      disabled={!candidateDiffers || (!status?.live.installationId && !agent.protected) || loading || busy !== null}
       aria-label={candidateDiffers ? "Deploy changes" : "Deployed"}
     >
       {busy === "preflight" ? "Deploying…" : candidateDiffers ? "Deploy" : "Deployed"}

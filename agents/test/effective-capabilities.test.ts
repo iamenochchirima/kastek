@@ -71,6 +71,7 @@ describe("effective capability discovery", () => {
       { id: "blocked", kind: "skill", reason: "dependency_not_ready" },
     ]));
     expect(snapshot.model.callableTools.map((entry) => entry.name)).toEqual(["calendar.read"]);
+    expect(snapshot.model.summary).toContain("Work calendar -> calendar.read");
     expect(snapshot.model.skillIndex.find((entry) => entry.id === "booking")).toMatchObject({ readiness: "ready" });
     expect(snapshot.model.skillIndex.find((entry) => entry.id === "booking")).not.toHaveProperty("instructions");
     expect(snapshot.model.loadedSkills.map((entry) => entry.id)).toEqual(["booking"]);
@@ -96,6 +97,86 @@ describe("effective capability discovery", () => {
       grantedTools: ["a", "b"],
     });
     expect(first.digest).toBe(retry.digest);
+  });
+
+  it("admits provider bundles only when the connector is ready and policy grants the action", () => {
+    const calendarNames = [
+      "kasitek.calendar.list",
+      "kasitek.calendar.create",
+      "kasitek.calendar.update",
+      "kasitek.calendar.delete",
+    ] as const;
+    const calendarTools = calendarNames.map((name) => tool(name, {
+      kind: "connector_tool",
+      source: { kind: "connector", id: "calendar" },
+      toolsetIds: ["connector.internal.calendar", "connector.google.calendar", "connector.apple.tools"],
+      provider: { id: "calendar", name: "Calendar" },
+    }));
+    const snapshot = createEffectiveCapabilitySnapshot({
+      scope,
+      tools: [...calendarTools, tool("kasitek.gmail.search", {
+        kind: "connector_tool",
+        source: { kind: "connector", id: "google.gmail" },
+        toolsetIds: ["connector.google.gmail"],
+        provider: { id: "google", name: "Google" },
+      })],
+      grantedTools: [...calendarNames, "kasitek.gmail.search"],
+      connections: [
+        { id: "google.calendar", displayName: "Google Calendar", providerId: "google", status: "connected", capabilityIds: [...calendarNames] },
+        { id: "google.gmail", displayName: "Gmail", providerId: "google", status: "not_granted", capabilityIds: ["kasitek.gmail.search"] },
+      ],
+    });
+
+    expect(snapshot.execution.callableToolNames).toEqual([...calendarNames].sort());
+    expect(snapshot.execution.connections.find((connection) => connection.id === "google.calendar")).toMatchObject({
+      status: "connected",
+      usableCapabilityIds: [...calendarNames].sort(),
+    });
+    expect(snapshot.execution.connections.find((connection) => connection.id === "google.gmail")).toMatchObject({
+      status: "not_granted",
+      usableCapabilityIds: [],
+    });
+    expect(snapshot.studio.unavailable).toEqual(expect.arrayContaining([
+      { id: "kasitek.gmail.search", kind: "tool", reason: "not_granted" },
+      { id: "google.gmail", kind: "connection", reason: "not_granted" },
+    ]));
+    expect(snapshot.model.summary).toContain("Google Calendar -> kasitek.calendar.create, kasitek.calendar.delete, kasitek.calendar.list, kasitek.calendar.update");
+    expect(snapshot.model.summary).not.toContain("Gmail ->");
+  });
+
+  it("does not expose an external tool when its connector is connected in the catalog but not ready", () => {
+    const snapshot = createEffectiveCapabilitySnapshot({
+      scope,
+      tools: [tool("kasitek.gmail.search", {
+        kind: "connector_tool",
+        source: { kind: "connector", id: "google.gmail" },
+        toolsetIds: ["connector.google.gmail"],
+      })],
+      grantedTools: ["kasitek.gmail.search"],
+      connections: [{ id: "google.gmail", displayName: "Gmail", status: "not_configured", capabilityIds: ["kasitek.gmail.search"] }],
+    });
+
+    expect(snapshot.execution.callableToolNames).toEqual([]);
+    expect(snapshot.execution.unavailableTools).toContainEqual(expect.objectContaining({ name: "kasitek.gmail.search", reason: "not_configured" }));
+    expect(snapshot.model.callableTools).toEqual([]);
+  });
+
+  it("changes the digest when the scoped registry generation changes", () => {
+    const first = createEffectiveCapabilitySnapshot({
+      scope,
+      registryGeneration: 1,
+      tools: [tool("calendar.read")],
+      grantedTools: ["calendar.read"],
+    });
+    const second = createEffectiveCapabilitySnapshot({
+      scope,
+      registryGeneration: 2,
+      tools: [tool("calendar.read")],
+      grantedTools: ["calendar.read"],
+    });
+    expect(first.registryGeneration).toBe("1");
+    expect(second.registryGeneration).toBe("2");
+    expect(first.digest).not.toBe(second.digest);
   });
 
   it("reports grants for tools missing from the runtime registry without exposing a callable schema", () => {
@@ -162,7 +243,7 @@ describe("effective capability discovery", () => {
     expect(snapshot.model.summary).toContain("Capability projection");
   });
 
-  it("keeps tool admission stable while the capability-awareness rollout flag changes prompt guidance", () => {
+  it("always includes the capability contract with the admitted tool projection", () => {
     const snapshot = createEffectiveCapabilitySnapshot({
       scope,
       tools: [tool("calendar.read")],
@@ -178,18 +259,13 @@ describe("effective capability discovery", () => {
       capabilitySnapshot: snapshot,
       budget: { maxContextTokens: 20_000, reservedOutputTokens: 0 },
     } as const;
-    const enabled = buildAgentContext({ ...input, capabilityAwarenessEnabled: true });
-    const disabled = buildAgentContext({ ...input, capabilityAwarenessEnabled: false });
-    const enabledSystem = String(enabled.messages[0]?.content);
-    const disabledSystem = String(disabled.messages[0]?.content);
+    const context = buildAgentContext(input);
+    const system = String(context.messages[0]?.content);
 
-    expect(enabledSystem).toContain("Capability awareness contract (runtime-owned)");
-    expect(enabledSystem).toContain("Agent capability discovery v1.0.0");
-    expect(disabledSystem).not.toContain("Capability awareness contract (runtime-owned)");
-    expect(disabledSystem).not.toContain("Agent capability discovery v1.0.0");
-    expect(enabled.tools.map((entry) => entry.name)).toEqual(["calendar.read"]);
-    expect(disabled.tools.map((entry) => entry.name)).toEqual(["calendar.read"]);
-    expect(enabled.capabilitySnapshotDigest).toBe(disabled.capabilitySnapshotDigest);
+    expect(system).toContain("Capability awareness contract (runtime-owned)");
+    expect(system).toContain("Agent capability discovery v1.0.0");
+    expect(context.tools.map((entry) => entry.name)).toEqual(["calendar.read"]);
+    expect(context.capabilitySnapshotDigest).toBe(snapshot.digest);
   });
 
   it("does not trust an optimistic skill dependency flag over missing grants", () => {

@@ -9,7 +9,6 @@ import {
   createInstallationCredentialInputSchema,
   createInstallationInputSchema,
   deployInstallationInputSchema,
-  deployStagedVersionInputSchema,
   installationDeploymentPreflightInputSchema,
   installationPromotionInputSchema,
   installationRollbackInputSchema,
@@ -844,6 +843,31 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     }),
   });
   const toolRegistry = harness.tools;
+  const activateIntegrationBundle = async (input: {
+    organizationId: string;
+    installationId: string;
+    integration: ReturnType<typeof getIntegration>;
+    actorId: string;
+  }): Promise<string[]> => {
+    const capabilityNames = [...new Set(input.integration?.capabilityNames ?? [])]
+      .filter((name) => Boolean(toolRegistry.get(name)));
+    for (const toolName of capabilityNames) {
+      await toolGrants.grantInstallationTool({
+        organizationId: input.organizationId,
+        installationId: input.installationId,
+        toolName,
+        actorId: input.actorId,
+      });
+    }
+    return capabilityNames;
+  };
+  const requirePlaygroundInstallation = (installation: { settings?: Record<string, unknown> }): void => {
+    if (installation.settings?.environment === "playground") return;
+    throw Object.assign(
+      new Error("Capability changes must be made in Playground before they can be deployed to Live"),
+      { statusCode: 409, code: "PLAYGROUND_REQUIRED" },
+    );
+  };
   const capabilityAccess = dependencies.capabilityAccess ?? new UnknownCapabilityAccessSource();
   const connectorRegistry = dependencies.connectorRegistry ?? new ConnectorRegistry();
   if (connectorRegistry.list().length === 0) {
@@ -902,6 +926,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     catalogId: string;
     credentialReference?: string | null;
     agentVersionId?: string;
+    installationId?: string;
   }) => {
     const catalogEntry = getReviewedMcpCatalogEntry(input.catalogId);
     if (!catalogEntry || !catalogEntry.managed || !catalogEntry.endpointUrl) throw new Error("HERMES_MCP_ENTRY_NOT_CONNECTABLE");
@@ -921,8 +946,25 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     }
     const discovered = await remoteMcpProviders.discover(input.organizationId, input.actorId, provider.id);
     const published = await remoteMcpProviders.publish(input.organizationId, input.actorId, provider.id, discovered.id);
-    if (input.agentVersionId) await remoteMcpProviders.pin(input.organizationId, input.actorId, input.agentVersionId, published.id);
-    return { provider, version: published, pinned: Boolean(input.agentVersionId) };
+    let activatedCandidate: { id: string } | undefined;
+    if (input.agentVersionId && input.installationId) {
+      const target = await agents.getVersion(input.organizationId, input.agentVersionId);
+      if (target?.status === "draft") {
+        await remoteMcpProviders.pin(input.organizationId, input.actorId, input.agentVersionId, published.id);
+      } else {
+        const activated = await agents.activatePlaygroundExtension({
+          organizationId: input.organizationId,
+          actorId: input.actorId,
+          installationId: input.installationId,
+          agentVersionId: input.agentVersionId,
+          extension: { kind: "mcp", providerVersionId: published.id },
+        });
+        activatedCandidate = activated.version;
+      }
+    } else if (input.agentVersionId) {
+      await remoteMcpProviders.pin(input.organizationId, input.actorId, input.agentVersionId, published.id);
+    }
+    return { provider, version: published, pinned: Boolean(input.agentVersionId), ...(activatedCandidate ? { candidate: activatedCandidate } : {}) };
   };
   const websiteCrawler = dependencies.websiteCrawler ?? new FirecrawlClient({
     apiKey: dependencies.config.FIRECRAWL_API_KEY,
@@ -3077,6 +3119,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     requireScope(auth, dependencies.config, "agents:write");
     const installation = await agents.getInstallation(auth.organizationId, request.params.installationId);
     if (!installation) return reply.code(404).send({ error: "installation_not_found" });
+    requirePlaygroundInstallation(installation);
     const entry = getReviewedSkillCatalogEntry(request.params.catalogId);
     if (!entry) return reply.code(404).send({ error: "skill_catalog_entry_not_found" });
     const input = z.object({ agentVersionId: z.string().uuid().optional() }).strict().parse(request.body ?? {});
@@ -3108,11 +3151,14 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       }
     }
     if (!version) return reply.code(502).send({ error: "skill_catalog_version_missing" });
-    let pinned = false;
-    if (input.agentVersionId) {
-      await skills.pinVersion(auth.organizationId, auth.actorId, input.agentVersionId, version.id);
-      pinned = true;
-    }
+    await agents.activatePlaygroundExtension({
+      organizationId: auth.organizationId,
+      actorId: auth.actorId,
+      installationId: installation.id,
+      ...(input.agentVersionId ? { agentVersionId: input.agentVersionId } : {}),
+      extension: { kind: "skill", skillVersionId: version.id },
+    });
+    const pinned = true;
     return reply.code(201).send({ skill: definition, version, pinned });
   });
 
@@ -3164,7 +3210,12 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
   app.post<{ Params: { agentVersionId: string; skillVersionId: string } }>("/v1/agent-versions/:agentVersionId/skills/:skillVersionId", async (request, reply) => {
     const auth = requireAuth(request, dependencies.config);
     requireScope(auth, dependencies.config, "agents:write");
-    await skills.pinVersion(auth.organizationId, auth.actorId, request.params.agentVersionId, request.params.skillVersionId);
+    await agents.activatePlaygroundExtension({
+      organizationId: auth.organizationId,
+      actorId: auth.actorId,
+      agentVersionId: request.params.agentVersionId,
+      extension: { kind: "skill", skillVersionId: request.params.skillVersionId },
+    });
     return reply.code(204).send();
   });
 
@@ -3238,7 +3289,12 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
   app.post<{ Params: { agentVersionId: string; providerVersionId: string } }>("/v1/agent-versions/:agentVersionId/mcp-providers/:providerVersionId", async (request, reply) => {
     const auth = requireAuth(request, dependencies.config);
     requireScope(auth, dependencies.config, "agents:write");
-    await remoteMcpProviders.pin(auth.organizationId, auth.actorId, request.params.agentVersionId, request.params.providerVersionId);
+    await agents.activatePlaygroundExtension({
+      organizationId: auth.organizationId,
+      actorId: auth.actorId,
+      agentVersionId: request.params.agentVersionId,
+      extension: { kind: "mcp", providerVersionId: request.params.providerVersionId },
+    });
     return reply.code(204).send();
   });
 
@@ -3479,16 +3535,6 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     return agents.rollbackInstallation(auth.organizationId, auth.actorId, request.params.installationId, input);
   });
 
-  app.post<{ Params: { agentId: string; versionId: string } }>(
-    "/v1/agents/:agentId/versions/:versionId/deploy",
-    async (request) => {
-      const auth = requireAuth(request, dependencies.config);
-      requireScope(auth, dependencies.config, "agents:write");
-      const input = deployStagedVersionInputSchema.parse(request.body);
-      return agents.deployStagedVersion(auth.organizationId, auth.actorId, request.params.agentId, request.params.versionId, input);
-    },
-  );
-
   app.get<{ Params: { installationId: string } }>("/v1/installations/:installationId/readiness", async (request, reply) => {
     const auth = requireAuth(request, dependencies.config);
     requireScope(auth, dependencies.config, "agents:read");
@@ -3690,6 +3736,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     requireScope(auth, dependencies.config, "agents:write");
     const installation = await agents.getInstallation(auth.organizationId, request.params.installationId);
     if (!installation) return reply.code(404).send({ error: "installation_not_found" });
+    requirePlaygroundInstallation(installation);
     const entry = getReviewedPluginCatalogEntry(request.params.catalogId);
     if (!entry) return reply.code(404).send({ error: "plugin_catalog_entry_not_found" });
     const adapter = getPluginAdapter(entry);
@@ -3728,7 +3775,22 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
         .find((candidate) => candidate.package_id === entry.id && candidate.version === entry.version);
       const pkg = existing ?? await extensionSnapshots.createPackage(auth.organizationId, auth.actorId, packageInput);
       const published = pkg.status === "draft" ? await extensionSnapshots.publishPackage(auth.organizationId, auth.actorId, pkg.id) : pkg;
-      return reply.code(existing ? 200 : 201).send({ plugin: entry, package: published, installationId: installation.id });
+      const candidate = await agents.activatePlaygroundExtension({
+        organizationId: auth.organizationId,
+        actorId: auth.actorId,
+        installationId: installation.id,
+        agentVersionId: installation.agent_version_id,
+        extension: {
+          kind: "plugin",
+          package: {
+            id: published.package_id,
+            version: published.version,
+            checksum: published.checksum,
+            configuration: {},
+          },
+        },
+      });
+      return reply.code(existing ? 200 : 201).send({ plugin: entry, package: published, installationId: installation.id, ...(candidate ? { candidate: candidate.version } : {}) });
     } catch (error) {
       request.log.warn({ event: "hermes_plugin.install_failed", catalog_id: entry.id, error_code: error instanceof Error ? error.message : "unknown" }, "Hermes plugin install failed");
       return reply.code(502).send({ error: "plugin_catalog_install_failed" });
@@ -3740,6 +3802,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     requireScope(auth, dependencies.config, "agents:write");
     const installation = await agents.getInstallation(auth.organizationId, request.params.installationId);
     if (!installation) return reply.code(404).send({ error: "installation_not_found" });
+    requirePlaygroundInstallation(installation);
     const entry = getIntegration(request.params.integrationId);
     if (!entry || entry.kind !== "tool" || entry.auth !== "oauth2" || !entry.oauthProvider || entry.requiredScopes.length === 0) {
       return reply.code(400).send({ error: "oauth_integration_not_supported", code: "oauth_integration_not_supported" });
@@ -3761,6 +3824,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     requireScope(auth, dependencies.config, "agents:write");
     const installation = await agents.getInstallation(auth.organizationId, request.params.installationId);
     if (!installation) return reply.code(404).send({ error: "installation_not_found" });
+    requirePlaygroundInstallation(installation);
     const entry = getReviewedMcpCatalogEntry(request.params.catalogId);
     if (!entry || !entry.managed || !entry.endpointUrl) return reply.code(400).send({ error: "mcp_catalog_entry_not_connectable" });
     const authMode = entry.auth as string;
@@ -3774,7 +3838,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
         const credential = await integrationRepository.storeCredential({ organizationId: auth.organizationId, integrationId: entry.id, secret: input.apiKey, label: `${entry.name} MCP`, actorId: auth.actorId });
         credentialId = credential.id;
       }
-      const activated = await activateHermesMcp({ organizationId: auth.organizationId, actorId: auth.actorId, catalogId: entry.id, credentialReference: credentialId, agentVersionId: input.agentVersionId });
+      const activated = await activateHermesMcp({ organizationId: auth.organizationId, actorId: auth.actorId, catalogId: entry.id, credentialReference: credentialId, agentVersionId: input.agentVersionId ?? installation.agent_version_id, installationId: installation.id });
       return reply.code(201).send(activated);
     } catch (error) {
       if (credentialId) await integrationRepository.revokeCredential(auth.organizationId, credentialId).catch(() => undefined);
@@ -3788,6 +3852,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     requireScope(auth, dependencies.config, "agents:write");
     const installation = await agents.getInstallation(auth.organizationId, request.params.installationId);
     if (!installation) return reply.code(404).send({ error: "installation_not_found" });
+    requirePlaygroundInstallation(installation);
     const entry = getReviewedMcpCatalogEntry(request.params.catalogId);
     if (!entry || !entry.managed || entry.auth !== "oauth" || !entry.endpointUrl) return reply.code(400).send({ error: "mcp_catalog_entry_not_oauth" });
     const redirectUri = dependencies.config.MCP_OAUTH_REDIRECT_URI;
@@ -3846,6 +3911,10 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       }
       return reply.code(statusCode).send(payload);
     };
+    const callbackInstallation = await agents.getInstallation(stateRecord.organization_id, stateRecord.installation_id);
+    if (!callbackInstallation || callbackInstallation.settings?.environment !== "playground") {
+      return returnError(409, "PLAYGROUND_REQUIRED");
+    }
     if (request.query.error || !request.query.code) return returnError(400, request.query.error ?? "oauth_code_missing");
     const clientId = dependencies.config.GOOGLE_OAUTH_CLIENT_ID;
     const clientSecret = dependencies.config.GOOGLE_OAUTH_CLIENT_SECRET;
@@ -3856,6 +3925,8 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     if (!token.access_token) return returnError(502, "google_access_token_missing");
     const credential = await integrationRepository.storeCredential({ organizationId: stateRecord.organization_id, integrationId: entry.id, secret: JSON.stringify({ accessToken: token.access_token, refreshToken: token.refresh_token, expiresAt: new Date(Date.now() + (token.expires_in ?? 3_600) * 1_000).toISOString(), scope: token.scope }), label: entry.name, actorId: stateRecord.created_by });
     await integrationRepository.upsertConnection({ organizationId: stateRecord.organization_id, installationId: stateRecord.installation_id, integrationId: entry.id, credentialId: credential.id, status: "connected", configuration: entry.id === "google.calendar" ? { calendarId: "primary" } : {}, actorId: stateRecord.created_by });
+    await installationGrants.grantConnector({ organizationId: stateRecord.organization_id, installationId: stateRecord.installation_id, connectorId: entry.id, actorId: stateRecord.created_by });
+    const activatedTools = await activateIntegrationBundle({ organizationId: stateRecord.organization_id, installationId: stateRecord.installation_id, integration: entry, actorId: stateRecord.created_by });
     if (dependencies.config.AGENT_INTEGRATIONS_RETURN_URL && request.headers["x-kasitek-oauth-proxy"] !== "1") {
       const returnUrl = new URL(dependencies.config.AGENT_INTEGRATIONS_RETURN_URL);
       returnUrl.searchParams.set("integration", entry.id);
@@ -3863,7 +3934,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       returnUrl.searchParams.set("installationId", stateRecord.installation_id);
       return reply.redirect(returnUrl.toString());
     }
-    return { integration: entry.id, status: "connected", installationId: stateRecord.installation_id };
+    return { integration: entry.id, status: "connected", installationId: stateRecord.installation_id, capabilityNames: activatedTools };
   });
 
   app.get<{ Querystring: { code?: string; state?: string; error?: string; error_description?: string } }>("/v1/integrations/mcp/oauth/callback", async (request, reply) => {
@@ -3871,6 +3942,10 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     if (!state) return reply.code(400).send({ error: "oauth_state_missing" });
     const stateRecord = await integrationRepository.consumeOAuthState(createHash("sha256").update(state).digest("hex"));
     if (!stateRecord || stateRecord.flow !== "mcp") return reply.code(400).send({ error: "oauth_state_invalid_or_expired" });
+    const callbackInstallation = await agents.getInstallation(stateRecord.organization_id, stateRecord.installation_id);
+    if (!callbackInstallation || callbackInstallation.settings?.environment !== "playground") {
+      return reply.code(409).send({ error: "PLAYGROUND_REQUIRED", code: "PLAYGROUND_REQUIRED" });
+    }
     const entry = getReviewedMcpCatalogEntry(stateRecord.integration_id);
     const returnError = (code: string) => {
       if (dependencies.config.AGENT_INTEGRATIONS_RETURN_URL && request.headers["x-kasitek-oauth-proxy"] !== "1") {
@@ -3894,7 +3969,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
         environment: dependencies.config.NODE_ENV,
       });
       const credential = await integrationRepository.storeCredential({ organizationId: stateRecord.organization_id, integrationId: entry.id, secret: JSON.stringify(token), label: `${entry.name} MCP`, actorId: stateRecord.created_by });
-      const activated = await activateHermesMcp({ organizationId: stateRecord.organization_id, actorId: stateRecord.created_by, catalogId: entry.id, credentialReference: credential.id, agentVersionId: stateRecord.agent_version_id ?? undefined });
+      const activated = await activateHermesMcp({ organizationId: stateRecord.organization_id, actorId: stateRecord.created_by, catalogId: entry.id, credentialReference: credential.id, agentVersionId: stateRecord.agent_version_id ?? undefined, installationId: stateRecord.installation_id });
       if (dependencies.config.AGENT_INTEGRATIONS_RETURN_URL && request.headers["x-kasitek-oauth-proxy"] !== "1") {
         const returnUrl = new URL(dependencies.config.AGENT_INTEGRATIONS_RETURN_URL);
         returnUrl.searchParams.set("connection", entry.id);
@@ -3958,12 +4033,15 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     requireScope(auth, dependencies.config, "agents:write");
     const installation = await agents.getInstallation(auth.organizationId, request.params.installationId);
     if (!installation) return reply.code(404).send({ error: "installation_not_found" });
+    requirePlaygroundInstallation(installation);
     const integration = getIntegration(request.params.integrationId);
     if (!integration || integration.kind !== "tool" || integration.auth !== "api_key") return reply.code(400).send({ error: "integration_does_not_use_api_key" });
     const input = z.object({ apiKey: z.string().trim().min(1).max(4_000), label: z.string().trim().min(1).max(160).optional(), configuration: z.record(z.string(), z.unknown()).optional() }).parse(request.body);
     const credential = await integrationRepository.storeCredential({ organizationId: auth.organizationId, integrationId: integration.id, secret: input.apiKey, label: input.label, actorId: auth.actorId });
     const connection = await integrationRepository.upsertConnection({ organizationId: auth.organizationId, installationId: installation.id, integrationId: integration.id, credentialId: credential.id, status: "connected", configuration: input.configuration, actorId: auth.actorId });
-    return reply.code(201).send({ integration: { ...integration, status: connection.status, available: true, hasCredential: true, configuration: connection.configuration } });
+    await installationGrants.grantConnector({ organizationId: auth.organizationId, installationId: installation.id, connectorId: integration.id, actorId: auth.actorId });
+    const capabilityNames = await activateIntegrationBundle({ organizationId: auth.organizationId, installationId: installation.id, integration, actorId: auth.actorId });
+    return reply.code(201).send({ integration: { ...integration, status: connection.status, available: true, hasCredential: true, configuration: connection.configuration, capabilityNames } });
   });
 
   app.post<{ Params: { installationId: string; integrationId: string } }>("/v1/installations/:installationId/integrations/:integrationId/local-connector", async (request, reply) => {
@@ -3971,12 +4049,15 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     requireScope(auth, dependencies.config, "agents:write");
     const installation = await agents.getInstallation(auth.organizationId, request.params.installationId);
     if (!installation) return reply.code(404).send({ error: "installation_not_found" });
+    requirePlaygroundInstallation(installation);
     const integration = getIntegration(request.params.integrationId);
     if (!integration || integration.kind !== "tool" || integration.auth !== "local_connector") return reply.code(400).send({ error: "integration_does_not_use_local_connector" });
     const input = z.object({ endpoint: z.string().trim().url(), secret: z.string().trim().min(1).max(4_000), label: z.string().trim().min(1).max(160).optional() }).parse(request.body);
     const credential = await integrationRepository.storeCredential({ organizationId: auth.organizationId, integrationId: integration.id, secret: input.secret, label: input.label, actorId: auth.actorId });
     const connection = await integrationRepository.upsertConnection({ organizationId: auth.organizationId, installationId: installation.id, integrationId: integration.id, credentialId: credential.id, status: "connected", configuration: { endpoint: input.endpoint.replace(/\/$/, "") }, actorId: auth.actorId });
-    return reply.code(201).send({ integration: { ...integration, status: connection.status, available: true, hasCredential: true, configuration: connection.configuration } });
+    await installationGrants.grantConnector({ organizationId: auth.organizationId, installationId: installation.id, connectorId: integration.id, actorId: auth.actorId });
+    const capabilityNames = await activateIntegrationBundle({ organizationId: auth.organizationId, installationId: installation.id, integration, actorId: auth.actorId });
+    return reply.code(201).send({ integration: { ...integration, status: connection.status, available: true, hasCredential: true, configuration: connection.configuration, capabilityNames } });
   });
 
   app.delete<{ Params: { installationId: string; integrationId: string } }>("/v1/installations/:installationId/integrations/:integrationId", async (request, reply) => {
@@ -3985,8 +4066,13 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     const integration = getIntegration(request.params.integrationId);
     if (!integration) return reply.code(404).send({ error: "integration_not_found" });
     if (integration.kind !== "tool" || integration.auth === "internal") return reply.code(400).send({ error: "integration_cannot_be_disconnected_here" });
+    const installation = await agents.getInstallation(auth.organizationId, request.params.installationId);
+    if (!installation) return reply.code(404).send({ error: "installation_not_found" });
+    requirePlaygroundInstallation(installation);
     const connection = await integrationRepository.getConnection(auth.organizationId, request.params.installationId, integration.id);
     await integrationRepository.disconnect({ organizationId: auth.organizationId, installationId: request.params.installationId, integrationId: integration.id });
+    await installationGrants.revokeConnector({ organizationId: auth.organizationId, installationId: request.params.installationId, connectorId: integration.id });
+    await toolGrants.revokeInstallationTools({ organizationId: auth.organizationId, installationId: request.params.installationId, toolNames: integration.capabilityNames, actorId: auth.actorId });
     if (connection?.credential_id) await integrationRepository.revokeCredential(auth.organizationId, connection.credential_id);
     return reply.code(204).send();
   });

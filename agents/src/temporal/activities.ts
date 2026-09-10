@@ -107,6 +107,7 @@ import { registerIsolatedPluginTools, type PluginToolDefinitionInput } from "../
 import { agentBehaviorSettingsSchema, renderAgentBehaviorSettings } from "../domain/agent-spec";
 import { KASIAI_PLATFORM_GUIDANCE_EXTENSION } from "../system/kasiai-platform-guidance";
 import { getPluginAdapter, type PluginAdapter, type PluginAdapterCredentialState } from "../extensions/plugin-adapters";
+import { registerSkillDiscoveryTools, SKILL_DISCOVERY_TOOL_NAMES } from "../skills/runtime-tools";
 
 export interface ActivityOptions {
   gateway?: ModelGateway;
@@ -2251,6 +2252,9 @@ async function withActivityHeartbeat<T>(details: Record<string, unknown>, operat
 
 type SessionLeaseHandle = { sessionKey: string; fencingToken: string };
 
+type IntegrationReadinessRequest = Pick<import("../tools/types").ToolInvocationRequest, "name" | "context">
+  & Partial<Pick<import("../tools/types").ToolInvocationRequest, "arguments">>;
+
 /**
  * Keeps a session lease alive for the duration of a long activity and gives
  * every durable callback a single fencing assertion. Temporal heartbeat only
@@ -2407,20 +2411,36 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
   const integrationRepository = options.config ? new IntegrationRepository(pool, options.config.AGENTS_CREDENTIAL_ENCRYPTION_KEY) : undefined;
   const remoteMcpProviders = options.remoteMcpProviders ?? new RemoteMcpProviderRepository(pool, integrationRepository ? (organizationId, credentialReference) => integrationRepository.resolveCredential(organizationId, credentialReference) : undefined);
   const integrationTools = options.integrationTools ?? (integrationRepository ? new IntegrationToolService(integrationRepository, options.config) : undefined);
-  const integrationByCapability = new Map(listIntegrations().flatMap((entry) => entry.capabilityNames.map((capabilityName) => [capabilityName, entry] as const)));
-  const integrationReadinessForRequest = async (request: Pick<import("../tools/types").ToolInvocationRequest, "name" | "context">): Promise<{ status: "ready" | "not_configured"; reason?: string }> => {
-    const integration = integrationByCapability.get(request.name);
-    if (!integration) return { status: "ready" };
-    const grants = await installationGrants.effective(request.context.organizationId, request.context.installationId);
-    if (integration.auth !== "internal" && !grants.connectors.includes(integration.id)) {
-      return { status: "not_configured", reason: "CONNECTOR_NOT_GRANTED" };
+  const integrationsByCapability = new Map<string, ReturnType<typeof listIntegrations>[number][]>();
+  for (const integration of listIntegrations()) {
+    for (const capabilityName of integration.capabilityNames) {
+      const entries = integrationsByCapability.get(capabilityName) ?? [];
+      entries.push(integration);
+      integrationsByCapability.set(capabilityName, entries);
     }
-    const available = integrationTools
-      ? await integrationTools.isAvailable(request.context.organizationId, request.context.installationId, integration.id)
-      : integration.auth === "internal";
-    return available
-      ? { status: "ready" }
-      : { status: "not_configured", reason: "INTEGRATION_NOT_CONNECTED" };
+  }
+  const integrationReadinessForRequest = async (request: IntegrationReadinessRequest): Promise<{ status: "ready" | "not_configured"; reason?: string }> => {
+    const candidates = integrationsByCapability.get(request.name) ?? [];
+    if (!candidates.length) return { status: "ready" };
+    const source = typeof request.arguments?.source === "string" ? request.arguments.source.trim().toLowerCase() : undefined;
+    const sourceIntegrationId = source === "internal" ? "internal.calendar" : source === "google" ? "google.calendar" : source === "apple" ? "apple.tools" : undefined;
+    const integrations = sourceIntegrationId && candidates.some((entry) => entry.id === sourceIntegrationId)
+      ? candidates.filter((entry) => entry.id === sourceIntegrationId)
+      : candidates;
+    const grants = await installationGrants.effective(request.context.organizationId, request.context.installationId);
+    const readiness = await Promise.all(integrations.map(async (integration) => {
+      const granted = integration.auth === "internal" || grants.connectors.includes(integration.id);
+      if (!granted) return { ready: false, grantMissing: true };
+      const available = integrationTools
+        ? await integrationTools.isAvailable(request.context.organizationId, request.context.installationId, integration.id)
+        : integration.auth === "internal";
+      return { ready: available, grantMissing: false };
+    }));
+    if (readiness.some((entry) => entry.ready)) return { status: "ready" };
+    return {
+      status: "not_configured",
+      reason: readiness.every((entry) => entry.grantMissing) ? "CONNECTOR_NOT_GRANTED" : "INTEGRATION_NOT_CONNECTED",
+    };
   };
   const extensionSnapshots = new ExtensionSnapshotRepository(pool);
   type PluginExecutionGate = { adapter?: PluginAdapter; configuration: Readonly<Record<string, unknown>> };
@@ -2476,6 +2496,7 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
       : { status: "not_configured", reason: `PLUGIN_${readiness.blockers[0]?.toUpperCase() ?? "NOT_READY"}` };
   };
   const tools = options.harness?.tools ?? options.tools ?? createDefaultTools(coreClient, conversationActions, integrationTools, hostCapabilities, memoryRevisionCommands);
+  registerSkillDiscoveryTools(tools, skills, installationGrants);
   if (options.pluginExecutionEnabled === true && options.pluginTools?.length) registerIsolatedPluginTools(tools, options.pluginTools);
   if (options.childInvocationCoordinator && !tools.get("kasitek.agent.delegate")) {
     tools.register(createTemporalChildInvocationTool(options.childInvocationCoordinator));
@@ -2571,7 +2592,7 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
             options.config,
           );
         }
-        return await executeLoopForRun(run, input.resumeApprovedToolCall, input.resumeExternalEvent, input.loopStep, runs, modelCalls, contextCapabilities, providerMetadata, runBudgets, conversations, knowledge, skills, remoteMcpProviders, toolInvocations, approvals, effectReceipts, runSteps, toolGrants, installationGrants, summaries, killSwitches, controls, kasiaiPreferences, gateway, credentials, tools, harness, workflowState, workflowCheckpoints, modelPricing, creditPricing, creditBillingMode, coreClient, conversationActions, options.config?.TEMPORAL_STEP_ACTIVITIES_ENABLED === true, toolInvocationLifecycle, integrationReadinessForRequest, pluginReadinessForRequest, sessionLease, new ContextCompactionRepository(pool, run.organization_id), new ContextManifestRepository(pool, run.organization_id), new ContextAttemptBudgetRepository(pool, run.organization_id, { maxAttempts: restrictiveLimit(run.configuration.maxModelCalls, run.installation_settings?.maxModelCalls) ?? 8 }), memoryCheckpointPort, memoryRetrievalPort, sessionGuard, memoryJournalSourceCapture, options.config, memoryConsolidationJobs, integrationRepository);
+        return await executeLoopForRun(run, input.resumeApprovedToolCall, input.resumeExternalEvent, input.loopStep, runs, modelCalls, contextCapabilities, providerMetadata, runBudgets, conversations, knowledge, skills, remoteMcpProviders, toolInvocations, approvals, effectReceipts, runSteps, toolGrants, installationGrants, summaries, killSwitches, controls, kasiaiPreferences, gateway, credentials, tools, harness, workflowState, workflowCheckpoints, modelPricing, creditPricing, creditBillingMode, coreClient, conversationActions, options.config?.TEMPORAL_STEP_ACTIVITIES_ENABLED === true, toolInvocationLifecycle, integrationReadinessForRequest, pluginReadinessForRequest, sessionLease, new ContextCompactionRepository(pool, run.organization_id), new ContextManifestRepository(pool, run.organization_id), new ContextAttemptBudgetRepository(pool, run.organization_id, { maxAttempts: restrictiveLimit(run.configuration.maxModelCalls, run.installation_settings?.maxModelCalls) ?? 8 }), memoryCheckpointPort, memoryRetrievalPort, sessionGuard, memoryJournalSourceCapture, options.config, memoryConsolidationJobs, integrationRepository, integrationTools, extensionSnapshots);
       } finally {
         sessionGuard?.stop();
       }
@@ -3400,7 +3421,7 @@ async function executeLoopForRun(
   conversationActions: ConversationActionService,
   stepActivitiesEnabled: boolean,
   toolInvocationLifecycle: ReturnType<typeof createToolInvocationLifecycle>,
-  integrationReadinessForRequest: (request: Pick<import("../tools/types").ToolInvocationRequest, "name" | "context">) => Promise<{ status: "ready" | "not_configured"; reason?: string }>,
+  integrationReadinessForRequest: (request: IntegrationReadinessRequest) => Promise<{ status: "ready" | "not_configured"; reason?: string }>,
   pluginReadinessForRequest: (request: import("../tools/types").ToolInvocationRequest) => Promise<{ status: "ready" | "not_configured"; reason?: string }>,
   sessionLease?: { sessionKey: string; fencingToken: string },
   contextCompaction?: ContextCompactionRepository,
@@ -3413,6 +3434,8 @@ async function executeLoopForRun(
   appConfig?: AppConfig,
   memoryConsolidationJobs?: MemoryConsolidationJobRepository,
   integrationRepository?: IntegrationRepository,
+  integrationTools?: IntegrationToolService,
+  extensionSnapshots?: ExtensionSnapshotRepository,
 ) {
   if (run.installation_status !== "active") throw new Error("INSTALLATION_NOT_ACTIVE");
   const journal = new PostgresExecutionJournal(
@@ -3556,7 +3579,6 @@ async function executeLoopForRun(
     && run.agent_owner_type === "system"
     && run.agent_protected === true
     && run.agent_slug === "kasiai";
-  const capabilityAwarenessEnabled = await controls.isFeatureEnabled(run.organization_id, "capability_awareness_enabled", run.installation_id);
   const preference = isKasiAiInstallation
     ? await kasiaiPreferences.get(run.organization_id, run.installation_id, run.created_by)
     : null;
@@ -3573,6 +3595,29 @@ async function executeLoopForRun(
   const policyTools = new Set(
     Array.isArray(run.policy.allowedTools) ? run.policy.allowedTools.filter((value): value is string => typeof value === "string") : [],
   );
+  // A successful connection is the activation event for its declared bundle.
+  // Keep the connector grant and adapter readiness checks authoritative; the
+  // version policy does not need a hand-maintained copy of every integration
+  // tool name.
+  const installationConnectors = await installationGrants.effective(run.organization_id, run.installation_id);
+  const connectionRecords = integrationRepository
+    ? await integrationRepository.listConnections(run.organization_id, run.installation_id)
+    : [];
+  const connectionById = new Map(connectionRecords.map((connection) => [connection.integration_id, connection]));
+  const connectedIntegrationTools = new Set<string>();
+  for (const integration of listIntegrations()) {
+    if (integration.kind !== "tool" || !integration.capabilityNames.length) continue;
+    const connectorGranted = integration.auth === "internal" || installationConnectors.connectors.includes(integration.id);
+    const connected = integration.auth === "internal" || connectionById.get(integration.id)?.status === "connected";
+    if (!connectorGranted || !connected) continue;
+    const available = integrationTools
+      ? await integrationTools.isAvailable(run.organization_id, run.installation_id, integration.id)
+      : integration.auth === "internal";
+    if (!available) continue;
+    for (const capabilityName of integration.capabilityNames) {
+      if (tools.get(capabilityName)) connectedIntegrationTools.add(capabilityName);
+    }
+  }
   const childInvocation = run.input.childInvocation && typeof run.input.childInvocation === "object" && !Array.isArray(run.input.childInvocation)
     ? run.input.childInvocation as Record<string, unknown>
     : undefined;
@@ -3583,7 +3628,27 @@ async function executeLoopForRun(
     ? childInvocation.resourceGrants.filter((value): value is string => typeof value === "string")
     : undefined;
   const grantedTools = await toolGrants.effectiveTools(run.organization_id, run.agent_version_id, run.installation_id);
-  const allowedTools = new Set([...policyTools].filter((toolName) => grantedTools.has(toolName) && (!childCapabilityGrants || childCapabilityGrants.has(toolName))));
+  // Policy grants remain the default candidate allowlist. Installation-scoped
+  // activation grants are added by the Connect lifecycle, so a newly connected
+  // provider becomes callable in Playground immediately without requiring a
+  // second hand-maintained tool list. All entries still pass registry,
+  // readiness, kill-switch, approval, and dispatch-time authorization checks.
+  const allowedTools = new Set([...policyTools, ...connectedIntegrationTools, ...grantedTools]
+    .filter((toolName) => tools.get(toolName))
+    .filter((toolName) => !childCapabilityGrants || childCapabilityGrants.has(toolName)));
+  for (const toolName of SKILL_DISCOVERY_TOOL_NAMES) allowedTools.add(toolName);
+  // Pinned plugin declarations are candidate activation, not merely catalogue
+  // metadata. Add their declared adapter capabilities to this run's admission
+  // set; the per-tool readiness gate below still blocks missing credentials,
+  // connectors, adapters, or health.
+  const extensionAdmissionSnapshot = await extensionSnapshots?.getRunAdmissionSnapshot(run.organization_id, run.id);
+  for (const plugin of extensionAdmissionSnapshot?.snapshot.plugins ?? []) {
+    const declaration = plugin.declaration;
+    const adapter = getPluginAdapter({ id: declaration.id, version: declaration.version, checksum: declaration.checksum });
+    for (const toolName of adapter?.capabilityIds ?? declaration.capabilityIds ?? []) {
+      if (tools.get(toolName) && (!childCapabilityGrants || childCapabilityGrants.has(toolName))) allowedTools.add(toolName);
+    }
+  }
   for (const toolName of await remoteMcpProviders.registerPinnedTools(run.organization_id, run.agent_version_id, tools)) {
     if (!childCapabilityGrants || childCapabilityGrants.has(toolName)) allowedTools.add(toolName);
   }
@@ -3699,7 +3764,6 @@ async function executeLoopForRun(
     : undefined;
   const conversation = run.conversation_id ? await conversations.getConversation(run.organization_id, run.conversation_id) : null;
   const pinnedSkills = await skills.loadPinnedVersions(run.organization_id, run.agent_version_id);
-  const installationConnectors = await installationGrants.effective(run.organization_id, run.installation_id);
   const capabilityToolContext = toolInvocationContextFromScope(executionScope);
   const effectiveToolDefinitions = await Promise.all(tools.list().map(async (tool) => {
     const integrationReadiness = await integrationReadinessForRequest({ name: tool.name, context: capabilityToolContext });
@@ -3707,6 +3771,7 @@ async function executeLoopForRun(
       ? await pluginReadinessForRequest({ name: tool.name, arguments: {}, context: capabilityToolContext, grantedTools: allowedTools })
       : integrationReadiness;
     if (integrationReadiness.status === "ready" && pluginReadiness.status === "ready") return tool;
+    const unavailableReason = integrationReadiness.status !== "ready" ? integrationReadiness.reason : pluginReadiness.reason;
     return {
       ...tool,
       manifest: {
@@ -3719,36 +3784,34 @@ async function executeLoopForRun(
           auditClassification: "access" as const,
           redaction: [],
         }),
-        availability: "not_configured" as const,
+        availability: unavailableReason === "CONNECTOR_NOT_GRANTED" ? "not_granted" as const : "not_configured" as const,
       },
     };
   }));
-  const connectionRecords = integrationRepository
-    ? await integrationRepository.listConnections(run.organization_id, run.installation_id)
-    : [];
-  const connectionById = new Map(connectionRecords.map((connection) => [connection.integration_id, connection]));
-  const connectionBindings = installationConnectors.connectors.map((id) => {
-    const integration = listIntegrations().find((entry) => entry.id === id);
-    const connection = connectionById.get(id);
-    const status = integration?.auth === "internal"
-      ? "connected" as const
-      : connection?.status === "connected"
-        ? "connected" as const
-        : connection?.status === "unhealthy"
-          ? "unhealthy" as const
-          : connection?.status === "revoked" || connection?.status === "requires_connector"
-            ? "unsupported" as const
-            : "not_configured" as const;
-    const capabilityIds = (integration?.capabilityNames ?? [])
-      .filter((name) => effectiveToolDefinitions.some((tool) => tool.name === name && tool.manifest?.availability !== "not_configured" && tool.manifest?.availability !== "unhealthy"));
-    return {
-      id,
-      ...(integration?.provider ? { providerId: integration.provider } : {}),
-      ...(integration?.name ? { displayName: integration.name } : {}),
-      status,
-      capabilityIds,
-    };
-  });
+  const grantedConnectors = new Set(installationConnectors.connectors);
+  const connectionBindings = await Promise.all(listIntegrations()
+    .filter((integration) => integration.kind === "tool" && integration.capabilityNames.length > 0)
+    .map(async (integration) => {
+      const connection = connectionById.get(integration.id);
+      const granted = integration.auth === "internal" || grantedConnectors.has(integration.id);
+      let status: "connected" | "not_granted" | "not_configured" | "unhealthy" | "unsupported";
+      if (!granted) status = "not_granted";
+      else if (integration.auth === "internal") status = "connected";
+      else if (connection?.status === "unhealthy") status = "unhealthy";
+      else if (connection?.status === "revoked" || connection?.status === "requires_connector") status = "unsupported";
+      else if (connection?.status === "connected" && integrationTools && await integrationTools.isAvailable(run.organization_id, run.installation_id, integration.id)) status = "connected";
+      else status = "not_configured";
+      return {
+        id: integration.id,
+        ...(integration.provider ? { providerId: integration.provider } : {}),
+        ...(integration.name ? { displayName: integration.name } : {}),
+        status,
+        // Preserve the declared bundle on the binding. The effective snapshot
+        // intersects it with registered, policy-granted, ready tools before
+        // exposing usableCapabilityIds to Playground or the model.
+        capabilityIds: integration.capabilityNames,
+      };
+    }));
   const capabilitySnapshot = createEffectiveCapabilitySnapshot({
     scope: {
       organizationId: run.organization_id,
@@ -3757,6 +3820,7 @@ async function executeLoopForRun(
       agentVersionId: run.agent_version_id,
       runId: run.id,
     },
+    registryGeneration: tools.generation,
     tools: effectiveToolDefinitions,
     descriptors: tools.descriptors(),
     grantedTools: allowedTools,
@@ -3780,13 +3844,9 @@ async function executeLoopForRun(
       loadedSkillCount: capabilitySnapshot.model.loadedSkills.length,
       connectedServiceCount: capabilitySnapshot.execution.connections.filter((connection) => connection.status === "connected").length,
       unavailableCount: capabilitySnapshot.studio.unavailable.length,
-      capabilityAwarenessEnabled,
       intent: currentIntent,
     },
   });
-  const skillInstructions = capabilitySnapshot.model.loadedSkills
-    .map((skill) => `Skill ${skill.name} v${skill.version}:\n${skill.instructions ?? ""}`)
-    .join("\n\n") || undefined;
   const userAgentIdentityInstruction = run.execution_mode === "kasitek_hosted" && !isKasiAiInstallation
     ? [
       `Identity boundary (authoritative): You are the user-created agent "${run.agent_name?.trim() || "this agent"}".`,
@@ -3985,7 +4045,6 @@ async function executeLoopForRun(
       behaviorInstruction,
       preferenceInstruction,
       userAgentIdentityInstruction,
-      ...(capabilityAwarenessEnabled ? [] : [skillInstructions]),
       "Media delivery is a shared harness capability across every hosted agent and channel. Use kasitek.agent.respond for final responses containing workspace media, passing stable asset IDs and kinds. Keep provider URLs and raw bytes out of durable responses; the channel adapter resolves the appropriate preview, upload, or native attachment at delivery time.",
       "When batch social publishing tools are available and the user names multiple destinations, prepare one draft with explicit account selections and visible platform variants, preflight it before approval, request one approval, and execute one batch publish. Do not loop over single-destination publish tools. Use the batch status tool for a later PROCESSING update and report each destination state.",
     ].filter(Boolean).join("\n\n"),
@@ -4005,7 +4064,6 @@ async function executeLoopForRun(
     })),
     authorizedTools: [...capabilitySnapshot.model.callableTools],
     capabilitySnapshot,
-    capabilityAwarenessEnabled,
     dynamicContext,
     temporaryContext: run.input.context && typeof run.input.context === "object" && !Array.isArray(run.input.context)
       ? JSON.stringify(run.input.context)
@@ -4169,7 +4227,6 @@ async function executeLoopForRun(
     agentAudience: run.agent_audience,
     isSystemAgent: isKasiAiInstallation,
     evidenceCount: retrievalResult.evidence.length + (memoryRetrievalPack?.evidence.length ?? 0),
-    capabilityAwarenessEnabled,
   })) {
     await assertSessionLease();
     const response = createGroundingFallbackResponse(provider, model);

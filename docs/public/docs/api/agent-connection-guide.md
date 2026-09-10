@@ -101,10 +101,9 @@ model, runtime limits, workflows, capabilities, knowledge, schedules, and suppor
 the hosted-agent details page. Hosted installations do not receive MCP/REST machine credentials;
 external runtimes use the separate external-agent flow above.
 
-Hosted user installations follow the published version by default. Publishing and deployment are
-separate states: a pinned installation stays on its selected version until an explicit deployment,
-while a follow-published installation moves when a new version is published or rolled back. Runs
-already admitted keep the version they started with.
+Hosted user installations are pinned. Publishing and deployment are separate states: a pinned
+installation stays on its selected version until an explicit deployment. Runs already admitted keep
+the version they started with.
 
 Management clients can deploy a hosted installation explicitly with `POST
 /v1/installations/{installationId}/deploy` and `{ "versionId": "...", "expectedVersionId": "..." }`.
@@ -196,11 +195,18 @@ Plugins, MCP, and user-created tools. Connections contains native service bindin
 remote MCP servers in one searchable surface; Gateways remains reserved for agent communication
 endpoints such as Website Chat and messaging channels.
 
-Skills are installed into the organization skill/version store and can then be enabled on the next
-agent version. Plugins use reviewed declarative manifests and the extension-package lifecycle. A
-plugin is selectable only when KasiTek has a registered runtime adapter for it; external plugin code
-is not imported into the worker. Unavailable manifests remain visible as catalogue metadata so an
-operator can distinguish a missing adapter from a missing credential.
+Connecting a native provider activates its declared capability bundle for the selected Playground
+installation immediately. For example, Google Calendar exposes its list, create, update, and delete
+actions as one provider-aware bundle; readiness, grants, and approval still apply to each call.
+Plugin and MCP packages and pinned skills follow the same candidate snapshot. These changes remain
+Playground-only until an explicit Deploy promotes the tested snapshot to Live.
+
+Skills are installed into the organization skill/version store and pinned to the selected Playground
+candidate immediately. Plugins use reviewed declarative manifests and the extension-package
+lifecycle. A plugin is selectable only when KasiTek has a registered runtime adapter for it; external
+plugin code is not imported into the worker. Unavailable manifests remain visible as catalogue
+metadata so an operator can distinguish a missing adapter from a missing credential. Capability
+changes must target Playground; attempts to change a Live installation return `PLAYGROUND_REQUIRED`.
 
 Native Google connections use one OAuth client and one callback per environment. The selected
 catalog entry supplies its own scopes, so Calendar, Gmail, and Drive can be connected separately.

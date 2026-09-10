@@ -16,6 +16,49 @@ describe("foundation migration", () => {
     expect(source).toContain("is required in production");
   });
 
+  it("records the redacted capability digest for deployment evidence", async () => {
+    const sql = await readFile(new URL("../migrations/163_agent_deployment_capability_digest.sql", import.meta.url), "utf8");
+    expect(sql).toContain("capability_configuration_digest");
+    expect(sql).toContain("agent_installation_deployments");
+  });
+
+  it("backfills connected integration activation grants", async () => {
+    const sql = await readFile(new URL("../migrations/162_connected_integrations_activate_bundles.sql", import.meta.url), "utf8");
+    expect(sql).toContain("agent_installation_connector_grants");
+    expect(sql).toContain("integration_connections");
+    expect(sql).toContain("status = 'connected'");
+  });
+
+  it("stores a redacted capability snapshot for deployment rollback", async () => {
+    const sql = await readFile(new URL("../migrations/164_agent_deployment_capability_snapshot.sql", import.meta.url), "utf8");
+    expect(sql).toContain("previous_capability_configuration_snapshot");
+    expect(sql).toContain("JSONB");
+    expect(sql).toContain("opaque credential references only");
+  });
+
+  it("enforces the single pinned deployment lifecycle", async () => {
+    const sql = await readFile(new URL("../migrations/166_single_pinned_release_mode.sql", import.meta.url), "utf8");
+    expect(sql).toContain("release_mode = 'pinned'");
+    expect(sql).toContain("agent_installations_release_mode_check");
+    expect(sql).toContain("agent_installation_deployments");
+  });
+
+  it("stores linked skill files outside the progressive metadata index", async () => {
+    const sql = await readFile(new URL("../migrations/167_agent_skill_linked_files.sql", import.meta.url), "utf8");
+    expect(sql).toContain("agent_skill_version_files");
+    expect(sql).toContain("ON DELETE CASCADE");
+    expect(sql).toContain("FORCE ROW LEVEL SECURITY");
+    expect(sql).toContain("content TEXT");
+  });
+
+  it("removes obsolete capability and automatic deployment rollout controls", async () => {
+    const sql = await readFile(new URL("../migrations/168_remove_capability_rollout_modes.sql", import.meta.url), "utf8");
+    expect(sql).toContain("capability_awareness_enabled");
+    expect(sql).toContain("agent_version_deployment_enabled");
+    expect(sql).toContain("DELETE FROM agent_operator_feature_flags");
+    expect(sql).toContain("flag_key_check");
+  });
+
   it("adds a durable offer layer without widening ownership", async () => {
     const sql = await readFile(new URL("../migrations/077_consent_gated_handoff.sql", import.meta.url), "utf8");
     expect(sql).toContain("CREATE TABLE IF NOT EXISTS agent_handoff_offers");

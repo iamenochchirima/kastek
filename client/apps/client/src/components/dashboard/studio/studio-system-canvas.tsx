@@ -228,6 +228,7 @@ function displayNodeLabel(node: StudioGraphNode) {
     delivery: "Delivery",
     child: "Child run",
   };
+  if (["tool", "connector", "mcp", "skill", "child"].includes(node.kind)) return node.label;
   return labels[node.id] ?? labels[node.kind] ?? node.label.split(/\s|:|·/)[0] ?? node.label;
 }
 

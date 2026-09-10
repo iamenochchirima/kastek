@@ -27,8 +27,35 @@ export const createSkillVersionInputSchema = z.object({
   knowledgeSourceIds: z.array(z.string().trim().min(1).max(240)).max(100).default([]),
   compatibleChannels: z.array(z.string().trim().min(1).max(50)).max(20).default([]),
   compatibleAudiences: z.array(skillAudienceSchema).max(2).default([]),
-}).strict();
-export type CreateSkillVersionInput = z.infer<typeof createSkillVersionInputSchema>;
+  files: z.array(z.object({
+    path: z.string().trim().regex(/^(?!\/)(?!.*(?:^|\/)\.\.(?:\/|$))[A-Za-z0-9._-]+(?:\/[A-Za-z0-9._-]+)*$/).max(240),
+    content: z.string().max(100_000),
+  }).strict()).max(100).default([]),
+}).strict().superRefine((input, context) => {
+  const paths = new Set<string>();
+  let totalBytes = 0;
+  for (const file of input.files) {
+    if (paths.has(file.path)) {
+      context.addIssue({ code: z.ZodIssueCode.custom, path: ["files"], message: `Duplicate linked file path: ${file.path}` });
+    }
+    paths.add(file.path);
+    totalBytes += Buffer.byteLength(file.content, "utf8");
+  }
+  if (totalBytes > 1_000_000) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ["files"], message: "Linked skill files exceed the 1 MB total limit" });
+  }
+});
+export type CreateSkillVersionInput = z.input<typeof createSkillVersionInputSchema>;
+
+export interface SkillLinkedFileMetadata {
+  path: string;
+  checksum: string;
+  size: number;
+}
+
+export interface SkillLinkedFile extends SkillLinkedFileMetadata {
+  content: string;
+}
 
 export interface SkillDefinitionRecord {
   id: string;
@@ -64,7 +91,9 @@ export interface SkillVersionRecord {
   published_at: string | null;
   skill_slug?: string;
   skill_name?: string;
+  skill_description?: string | null;
   skill_status?: SkillDefinitionRecord["status"];
+  linked_files?: SkillLinkedFileMetadata[];
 }
 
 export interface MatchedSkill {

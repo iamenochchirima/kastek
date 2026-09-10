@@ -192,8 +192,8 @@ export const agentSpecSchema = z.object({
     allowed: boundedStringList(50),
   }).strict().default({ allowed: [] }),
   release: z.object({
-    mode: z.enum(["pinned", "follow_published", "staged"]).default("follow_published"),
-  }).strict().default({ mode: "follow_published" }),
+    mode: z.literal("pinned").default("pinned"),
+  }).strict().default({ mode: "pinned" }),
 }).strict();
 
 export type AgentSpec = z.infer<typeof agentSpecSchema>;

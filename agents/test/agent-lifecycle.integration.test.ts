@@ -24,11 +24,10 @@ describe.skipIf(!runIntegration)("agent lifecycle controls (integration)", () =>
     const versionOne = await agents.createVersion(organizationId, "test-user", agentId, { instructions: "one", configuration: {}, policy: { allowedTools: ["platform.current_time"] } });
     await agents.publishVersion(organizationId, "test-user", agentId, versionOne.id);
     expect((await grants.effectiveTools(organizationId, versionOne.id, randomUUID())).has("platform.current_time")).toBe(true);
-    const followPublishedInstallation = await agents.createInstallation(organizationId, "test-user", {
+    const defaultInstallation = await agents.createInstallation(organizationId, "test-user", {
       agentVersionId: versionOne.id,
       scopeType: "organization",
       scopeId: organizationId,
-      releaseMode: "follow_published",
       settings: {},
     });
     const pinnedInstallation = await agents.createInstallation(organizationId, "test-user", {
@@ -38,18 +37,10 @@ describe.skipIf(!runIntegration)("agent lifecycle controls (integration)", () =>
       releaseMode: "pinned",
       settings: {},
     });
-    const stagedInstallation = await agents.createInstallation(organizationId, "test-user", {
-      agentVersionId: versionOne.id,
-      scopeType: "business",
-      scopeId: "staged-business",
-      releaseMode: "staged",
-      settings: {},
-    });
-    expect(followPublishedInstallation.release_mode).toBe("follow_published");
+    expect(defaultInstallation.release_mode).toBe("pinned");
     expect(pinnedInstallation.release_mode).toBe("pinned");
-    expect(stagedInstallation.release_mode).toBe("staged");
     const runBeforeDeployment = await runs.createRun(organizationId, "test-user", {
-      installationId: followPublishedInstallation.id,
+      installationId: defaultInstallation.id,
       idempotencyKey: `before-deployment-${randomUUID()}`,
       input: { source: "before-deployment" },
       triggerType: "manual",
@@ -60,19 +51,15 @@ describe.skipIf(!runIntegration)("agent lifecycle controls (integration)", () =>
     await grants.revoke({ organizationId, grantId: extraGrant.id, actorId: "test-user" });
     const versionTwo = await agents.createVersion(organizationId, "test-user", agentId, { instructions: "two", configuration: {}, policy: {} });
     await agents.publishVersion(organizationId, "test-user", agentId, versionTwo.id);
-    expect((await agents.getInstallation(organizationId, followPublishedInstallation.id))?.agent_version_id).toBe(versionTwo.id);
+    expect((await agents.getInstallation(organizationId, defaultInstallation.id))?.agent_version_id).toBe(versionOne.id);
     expect((await agents.getInstallation(organizationId, pinnedInstallation.id))?.agent_version_id).toBe(versionOne.id);
-    expect((await agents.getInstallation(organizationId, stagedInstallation.id))?.agent_version_id).toBe(versionOne.id);
-    const stagedDeployment = await agents.deployStagedVersion(organizationId, "test-user", agentId, versionTwo.id, { installationIds: [stagedInstallation.id] });
-    expect(stagedDeployment).toMatchObject({ versionId: versionTwo.id, deploymentCount: 1, deployedInstallationIds: [stagedInstallation.id] });
-    expect((await agents.getInstallation(organizationId, stagedInstallation.id))?.agent_version_id).toBe(versionTwo.id);
     const runAfterDeployment = await runs.createRun(organizationId, "test-user", {
-      installationId: followPublishedInstallation.id,
+      installationId: defaultInstallation.id,
       idempotencyKey: `after-deployment-${randomUUID()}`,
       input: { source: "after-deployment" },
       triggerType: "manual",
     });
-    expect(runAfterDeployment.agent_version_id).toBe(versionTwo.id);
+    expect(runAfterDeployment.agent_version_id).toBe(versionOne.id);
     expect((await agents.deployInstallation(organizationId, "test-user", pinnedInstallation.id, {
       versionId: versionTwo.id,
       expectedVersionId: versionOne.id,
@@ -83,16 +70,16 @@ describe.skipIf(!runIntegration)("agent lifecycle controls (integration)", () =>
     })).rejects.toThrow("version changed");
     const rolledBack = await agents.rollbackVersion(organizationId, "test-user", agentId, versionOne.id);
     expect(rolledBack.id).toBe(versionOne.id);
-    expect((await agents.getInstallation(organizationId, followPublishedInstallation.id))?.agent_version_id).toBe(versionOne.id);
+    expect((await agents.getInstallation(organizationId, defaultInstallation.id))?.agent_version_id).toBe(versionOne.id);
     expect((await agents.getInstallation(organizationId, pinnedInstallation.id))?.agent_version_id).toBe(versionTwo.id);
     expect((await runs.getRunById(runBeforeDeployment.id))?.agent_version_id).toBe(versionOne.id);
     expect((await runs.getRunById(runAfterDeployment.id))?.agent_version_id).toBe(versionTwo.id);
     const deploymentHistory = await pool.query<{ action: string; trigger: string; outcome: string }>(
       `SELECT action, trigger, outcome FROM agent_installation_deployments
        WHERE organization_id = $1 AND installation_id = $2 ORDER BY created_at`,
-      [organizationId, stagedInstallation.id],
+      [organizationId, pinnedInstallation.id],
     );
-    expect(deploymentHistory.rows.at(-1)).toEqual({ action: "deployed", trigger: "canary", outcome: "success" });
+    expect(deploymentHistory.rows.at(-1)).toEqual({ action: "deployed", trigger: "manual", outcome: "success" });
     await expect(agents.deployInstallation(`other-${organizationId}`, "test-user", pinnedInstallation.id, { versionId: versionTwo.id })).rejects.toThrow("Installation not found");
     expect((await agents.listVersions(organizationId, agentId)).find((version) => version.id === versionTwo.id)?.status).toBe("retired");
     await agents.retireVersion(organizationId, "test-user", agentId, versionOne.id);

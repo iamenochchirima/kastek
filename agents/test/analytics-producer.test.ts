@@ -416,9 +416,9 @@ describe("Agent analytics producer", () => {
       agentDefinitionId: "agent-1",
       agentVersionId: "version-2",
       previousAgentVersionId: "version-1",
-      releaseMode: "staged",
+      releaseMode: "pinned",
       action: "failed",
-      trigger: "canary",
+      trigger: "manual",
       outcome: "failure",
       errorCode: "INSTALLATION VERSION CONFLICT/unsafe value",
       actorType: "human",
@@ -430,9 +430,9 @@ describe("Agent analytics producer", () => {
     });
     expect(record.envelope.data).toMatchObject({
       previous_agent_version_id: "version-1",
-      release_mode: "staged",
+      release_mode: "pinned",
       action: "failed",
-      trigger: "canary",
+      trigger: "manual",
       outcome: "failure",
       error_code: "INSTALLATION_VERSION_CONFLICT_unsafe_value",
     });

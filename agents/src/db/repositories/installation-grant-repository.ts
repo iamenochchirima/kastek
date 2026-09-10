@@ -45,6 +45,13 @@ export class InstallationGrantRepository {
     if (!result.rowCount) throw new Error("Installation not found");
   }
 
+  public async revokeConnector(input: { organizationId: string; installationId: string; connectorId: string }): Promise<void> {
+    await query(this.pool, `UPDATE agent_installation_connector_grants
+      SET revoked_at = now()
+      WHERE organization_id = $1 AND installation_id = $2 AND connector_id = $3 AND revoked_at IS NULL`,
+    [input.organizationId, input.installationId, input.connectorId.trim()]);
+  }
+
   public async effective(organizationId: string, installationId: string): Promise<{ resources: Array<{ resourceType: string; resourceId: string }>; connectors: string[] }> {
     const [resources, connectors] = await Promise.all([
       query<{ resource_type: string; resource_id: string }>(this.pool, `SELECT resource_type, resource_id FROM agent_installation_resource_grants WHERE organization_id=$1 AND installation_id=$2 AND revoked_at IS NULL`, [organizationId, installationId]),

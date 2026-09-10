@@ -31,14 +31,14 @@ export type CapabilitySnapshotScope = {
   runId?: string;
 };
 
-export type CapabilityConnectionStatus = "connected" | "not_configured" | "unhealthy" | "unsupported";
+export type CapabilityConnectionStatus = "connected" | "not_granted" | "not_configured" | "unhealthy" | "unsupported";
 
 export interface CapabilityConnectionBinding {
   id: string;
   providerId?: string;
   displayName?: string;
   status: CapabilityConnectionStatus;
-  /** Connector IDs/capabilities made usable by this binding. */
+  /** Declared connector capabilities; the effective snapshot derives usable IDs from readiness and grants. */
   capabilityIds?: readonly string[];
 }
 
@@ -135,6 +135,8 @@ export interface CapabilityStudioProjection {
 
 export interface EffectiveCapabilitySnapshot {
   readonly snapshotVersion: typeof CAPABILITY_SNAPSHOT_VERSION;
+  /** Scoped executable/catalog generation used to derive this projection. */
+  readonly registryGeneration: string;
   readonly scope: Readonly<CapabilitySnapshotScope>;
   readonly digest: string;
   readonly execution: CapabilityExecutionProjection;
@@ -144,6 +146,7 @@ export interface EffectiveCapabilitySnapshot {
 
 export interface EffectiveCapabilitySnapshotInput {
   readonly scope: CapabilitySnapshotScope;
+  readonly registryGeneration?: string | number;
   /** All executable definitions in the registry, before grant filtering. */
   readonly tools: readonly Omit<ToolDefinition, "handler">[];
   /** Optional canonical catalog metadata for source/provider projection. */
@@ -196,7 +199,7 @@ function asSkillBinding(skill: CapabilitySkillBinding | SkillVersionRecord): Cap
     id: candidate.id ?? candidate.skill_definition_id,
     version: candidate.version ?? String(candidate.version_number ?? ""),
     name: candidate.name ?? candidate.skill_name ?? candidate.skill_slug ?? candidate.id ?? candidate.skill_definition_id,
-    ...(candidate.description || candidate.skill_name ? { description: candidate.description ?? candidate.skill_name } : {}),
+    ...(candidate.description || candidate.skill_description || candidate.skill_name ? { description: candidate.description ?? candidate.skill_description ?? candidate.skill_name } : {}),
     ...(candidate.checksum ? { checksum: candidate.checksum } : {}),
     published: candidate.published ?? candidate.status === "published",
     pinned: candidate.pinned ?? true,
@@ -274,11 +277,29 @@ function sourceForTool(tool: Omit<ToolDefinition, "handler">, descriptor: Capabi
   };
 }
 
-function toolReadiness(tool: Omit<ToolDefinition, "handler">, granted: ReadonlySet<string>): CapabilityReasonCode | undefined {
+function connectorIdsForTool(tool: Omit<ToolDefinition, "handler">): string[] {
+  return sortedUnique((tool.catalog?.toolsetIds ?? [])
+    .filter((toolsetId) => toolsetId.startsWith("connector."))
+    .map((toolsetId) => toolsetId.slice("connector.".length)));
+}
+
+function toolReadiness(
+  tool: Omit<ToolDefinition, "handler">,
+  granted: ReadonlySet<string>,
+  connections: readonly CapabilityConnectionBinding[],
+): CapabilityReasonCode | undefined {
   if (!granted.has(tool.name)) return "not_granted";
+  if (tool.manifest?.availability === "not_granted") return "not_granted";
   if (tool.manifest?.availability === "not_configured") return "not_configured";
   if (tool.manifest?.availability === "unhealthy") return "unhealthy";
-  return undefined;
+  const connectorIds = connectorIdsForTool(tool);
+  if (!connectorIds.length) return undefined;
+  if (connections.some((connection) => connection.status === "connected"
+    && connectorIds.includes(connection.id)
+    && (connection.capabilityIds ?? []).includes(tool.name))) return undefined;
+  if (connections.some((connection) => connection.status === "unhealthy" && connectorIds.includes(connection.id))) return "unhealthy";
+  if (connections.some((connection) => connection.status === "not_granted" && connectorIds.includes(connection.id))) return "not_granted";
+  return "not_configured";
 }
 
 /**
@@ -287,11 +308,12 @@ function toolReadiness(tool: Omit<ToolDefinition, "handler">, granted: ReadonlyS
  * bindings so Playground/Live comparisons remain portable.
  */
 export function createEffectiveCapabilitySnapshot(input: EffectiveCapabilitySnapshotInput): EffectiveCapabilitySnapshot {
+  const registryGeneration = String(input.registryGeneration ?? "static").trim() || "static";
   const granted = asSet(input.grantedTools);
   const descriptorById = new Map((input.descriptors ?? []).map((descriptor) => [descriptor.id, descriptor]));
   const executionTools = input.tools
     .map((tool) => {
-      const reason = toolReadiness(tool, granted);
+      const reason = toolReadiness(tool, granted, input.connections ?? []);
       return {
         id: tool.name,
         name: tool.name,
@@ -331,7 +353,9 @@ export function createEffectiveCapabilitySnapshot(input: EffectiveCapabilitySnap
       ...(connection.providerId ? { providerId: connection.providerId } : {}),
       ...(connection.displayName ? { displayName: connection.displayName } : {}),
       status: connection.status,
-      usableCapabilityIds: sortedUnique(connection.status === "connected" ? connection.capabilityIds : []),
+      usableCapabilityIds: sortedUnique(connection.status === "connected"
+        ? connection.capabilityIds?.filter((capabilityId) => executionTools.some((tool) => tool.id === capabilityId && tool.readiness === "callable"))
+        : []),
     } satisfies EffectiveCapabilityConnection))
     .sort((left, right) => left.id.localeCompare(right.id));
   const connectedIds = new Set(bindingConnections.filter((connection) => connection.status === "connected").flatMap((connection) => [connection.id, ...connection.usableCapabilityIds]));
@@ -388,7 +412,7 @@ export function createEffectiveCapabilitySnapshot(input: EffectiveCapabilitySnap
     ...skillIndex.flatMap((skill) => skill.readiness === "unavailable" && skill.reason
       ? [{ id: skill.id, kind: "skill" as const, reason: skill.reason }]
       : []),
-    ...bindingConnections.filter((connection) => connection.status !== "connected").map((connection) => ({ id: connection.id, kind: "connection" as const, reason: connection.status === "not_configured" ? "not_configured" as const : connection.status === "unhealthy" ? "unhealthy" as const : "unsupported" as const })),
+    ...bindingConnections.filter((connection) => connection.status !== "connected").map((connection) => ({ id: connection.id, kind: "connection" as const, reason: connection.status === "not_granted" ? "not_granted" as const : connection.status === "not_configured" ? "not_configured" as const : connection.status === "unhealthy" ? "unhealthy" as const : "unsupported" as const })),
   ].sort((left, right) => `${left.kind}:${left.id}`.localeCompare(`${right.kind}:${right.id}`));
   const summary = renderCapabilitySummary({ callableTools, unavailableTools: executionTools.filter((tool) => tool.readiness === "unavailable"), skills: skillIndex, connections: bindingConnections });
   const digestScope = {
@@ -399,6 +423,7 @@ export function createEffectiveCapabilitySnapshot(input: EffectiveCapabilitySnap
   };
   const portable = {
     snapshotVersion: CAPABILITY_SNAPSHOT_VERSION,
+    registryGeneration,
     // A run id is execution evidence, not candidate capability state. Keeping
     // it out of the digest makes retries and Playground/Live comparisons stable.
     scope: digestScope,
@@ -408,6 +433,7 @@ export function createEffectiveCapabilitySnapshot(input: EffectiveCapabilitySnap
   };
   const snapshot: EffectiveCapabilitySnapshot = {
     snapshotVersion: CAPABILITY_SNAPSHOT_VERSION,
+    registryGeneration,
     scope: Object.freeze({ ...input.scope }),
     digest: digest(portable),
     execution: {
@@ -438,12 +464,19 @@ export function renderCapabilitySummary(input: Pick<CapabilityExecutionProjectio
   const unavailable = input.unavailableTools.length ? input.unavailableTools.map((tool) => `${tool.name} (${tool.reason ?? "unsupported"})`).join(", ") : "none";
   const readySkills = input.skills.filter((skill) => skill.readiness === "ready").map((skill) => `${skill.name} v${skill.version}`);
   const unavailableSkills = input.skills.filter((skill) => skill.readiness === "unavailable").map((skill) => `${skill.name} (${skill.reason ?? "unsupported"})`);
-  const connected = input.connections.filter((connection) => connection.status === "connected").map((connection) => connection.displayName ?? connection.id);
+  const callableById = new Set(input.callableTools.map((tool) => tool.id));
+  const connected = input.connections
+    .filter((connection) => connection.status === "connected")
+    .map((connection) => {
+      const label = connection.displayName ?? connection.providerId ?? connection.id;
+      const actions = connection.usableCapabilityIds.filter((id) => callableById.has(id));
+      return actions.length ? `${label} -> ${actions.join(", ")}` : `${label} (no callable actions)`;
+    });
   return [
     "Capability projection (authoritative for this turn):",
     `Callable tools: ${callable}.`,
     `Unavailable tools: ${unavailable}.`,
-    `Connected services: ${connected.length ? connected.join(", ") : "none"}.`,
+    `Connected services (provider -> actions): ${connected.length ? connected.join("; ") : "none"}.`,
     `Published ready skills: ${readySkills.length ? readySkills.join(", ") : "none"}.`,
     `Unavailable skills: ${unavailableSkills.length ? unavailableSkills.join(", ") : "none"}.`,
   ].join("\n");
@@ -454,7 +487,7 @@ export const CAPABILITY_AWARENESS_SYSTEM_CONTRACT = [
   "Capability awareness contract (runtime-owned):",
   "Use the current capability projection and registered tool schemas as the authority for what you can do in this turn.",
   "A catalogue entry or connected service is not callable unless its adapter is registered, healthy, and granted; skills provide instructions and never grant permissions.",
-  "Use the filtered skill index to discover relevant skills and load only matching, published, pinned, dependency-ready skill instructions.",
+  "Use the filtered skill index or skills_list to discover enabled skills, then use skill_view to load one published, pinned, dependency-ready skill body when needed.",
   "Describe unavailable, ungranted, unhealthy, unsupported, or approval-gated capabilities accurately. Never claim an effect succeeded without a trusted tool result.",
   "For account-specific or current connection state, use a trusted discovery tool when one is available; do not infer it from names or stale context.",
   "Keep credentials, raw IDs, scopes, internal policy markers, and capability implementation details out of user-facing text.",

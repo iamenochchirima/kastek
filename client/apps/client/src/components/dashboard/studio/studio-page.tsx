@@ -217,6 +217,14 @@ function normalizeTraceNodes(nodes: TraceNode[]) {
     .sort((left, right) => left.sequence - right.sequence);
 }
 
+function mergeTraceNodes(...batches: TraceNode[][]) {
+  const byEvent = new Map<string, TraceNode>();
+  for (const batch of batches) {
+    for (const node of batch) byEvent.set(node.event === "run.received" ? node.event : `${node.event}:${node.sequence}`, node);
+  }
+  return normalizeTraceNodes([...byEvent.values()]);
+}
+
 async function streamStudioRun(
   runId: string,
   onEvent: (event: AgentStreamEvent) => void,
@@ -879,7 +887,7 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
         : timeline?.items?.length
           ? nodesFromTimelineItems(timeline.items)
           : nodesFromRunEvents(result.events);
-      if (runNodes.length) setTrace(runNodes);
+      if (runNodes.length) setTrace((current) => mergeTraceNodes(current, runNodes));
       await refreshConversation(targetConversationId);
       if (result.run.status === "cancelled") {
         setNotice("Run cancelled");
@@ -933,7 +941,7 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
         : timeline?.items?.length
           ? nodesFromTimelineItems(timeline.items)
           : nodesFromRunEvents(result.events);
-      if (runNodes.length) setTrace(runNodes);
+      if (runNodes.length) setTrace((current) => mergeTraceNodes(current, runNodes));
       await refreshConversation(conversationId);
       if (result.run.status !== "completed") {
         const runError = result.run.error;
@@ -988,7 +996,7 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
         : timeline?.items?.length
           ? nodesFromTimelineItems(timeline.items)
           : nodesFromRunEvents(result.events);
-      if (runNodes.length) setTrace(runNodes);
+      if (runNodes.length) setTrace((current) => mergeTraceNodes(current, runNodes));
       await refreshConversation(accepted.conversation.id);
       if (result.run.status !== "completed") {
         const runError = result.run.error;

@@ -1,6 +1,6 @@
 ---
-id: agent-capability-awareness-staging
-title: Agent capability awareness staging
+id: agent-capability-awareness-local
+title: Agent capability awareness local verification
 sidebar_position: 20
 owner: agent-platform
 last_reviewed: 2026-09-09
@@ -8,17 +8,16 @@ last_reviewed: 2026-09-09
 
 # Agent capability awareness staging
 
-This is an optional hosted-release runbook for validating the capability-aware runtime before
-enabling it for a wider installation set. It is not required for local end-to-end acceptance.
-Use an isolated staging organization and non-production provider accounts. Never paste
-credentials, raw provider IDs, or message bodies into the release record.
+This runbook validates the capability-aware runtime locally through the existing Agent API,
+Temporal/MCP processes, and `https://dev-client.kasitek.co.za/` development proxy. It is not a
+hosted staging or production-release procedure. Never paste credentials, raw provider IDs, or
+message bodies into the local evidence record.
 
 ## Preconditions
 
-- The exact candidate artifact and migration revision are recorded.
-- Staging has separate Agent/Core databases, queues, credentials, webhook endpoints, and telemetry
-  destination as required by [Environments](../operations/environments.md).
-- A staging organization has one Playground installation and one Live installation for the same
+- The local Agent database is migrated through the current migration revision.
+- Agent API, worker, MCP gateway, and the development proxy are healthy.
+- A local organization has one Playground installation and one Live installation for the same
   agent version.
 - The staging installation has a registered connector adapter, one MCP tool, one isolated plugin,
   one pinned dependency-ready skill, and one approval-gated effect.
@@ -26,6 +25,13 @@ credentials, raw provider IDs, or message bodies into the release record.
   scopes.
 
 ## Candidate and Live checks
+
+Connection activation is installation-scoped. A successful native OAuth, API-key, or local
+connector flow grants the catalog entry's declared bundle to the Playground installation; it does
+not change Live. A disconnect revokes that installation bundle. Capability-changing requests aimed
+at a Live installation fail with `PLAYGROUND_REQUIRED`; the operator must make the change in
+Playground and deploy it. Plugin/MCP and skill changes must be present in the candidate extension
+snapshot before promotion.
 
 1. Read `GET /v1/agents/:agentId/deployment-status` and record the candidate/live version IDs,
    portable capability/extension digests, binding revision, and current rollback target.
@@ -36,34 +42,23 @@ credentials, raw provider IDs, or message bodies into the release record.
    reach the model and include the effective capability summary; the factual question must still
    use the evidence-only grounding policy.
 4. Confirm the run journal contains `agent.capabilities.resolved` with the candidate digest,
-   bounded callable/unavailable counts, `intent`, and `capabilityAwarenessEnabled`.
+   bounded callable/unavailable counts, and `intent`.
 5. Confirm the model receives the connector, MCP, and plugin schemas only when their adapter,
    registration, grant, and readiness checks pass. Confirm the pinned skill body is loaded only
    for a matching request.
 6. Invoke the approval-gated effect once. It must pause before the effect, resume only after an
    exact approval, and record durable completion evidence.
 
-## Controlled rollout
+## Runtime contract
 
-Use the operator command boundary for `capability_awareness_enabled`; do not edit the database
-directly. Enable the flag in this order:
-
-1. one staging installation;
-2. the staging organization;
-3. the remaining staging installations after the first comparison is clean.
-
-For each step, compare capability-request success, model-call admission, grounding blocks by
-intent, capability-resolution failures, unavailable reasons, tool success, approval pauses, and
-run latency against the previous flag state. The snapshot digest and callable-tool count should be
-stable for equivalent runs; a flag change may only add/remove the model-facing native guidance.
-
-If the comparison fails, clear the scoped flag through the same operator command boundary. Tool
-grants, approvals, and the effective snapshot remain enforced while the model-facing contract is
-rolled back.
+Capability awareness is always active. There is no rollout flag or alternate prompt path. A failed
+capability-resolution or readiness check must produce a typed unavailable reason; it must not remove
+the model-facing capability contract or replace a capability question with the factual grounding
+fallback.
 
 ## Promotion and rollback
 
-After the staging comparison is accepted:
+After the local checks pass:
 
 1. Re-run Live preflight with the exact candidate and expected Live pointer.
 2. Promote through `POST /v1/installations/:installationId/promote` with the Playground source,

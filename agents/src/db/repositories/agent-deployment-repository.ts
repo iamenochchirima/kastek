@@ -1,9 +1,7 @@
-import { createHash } from "node:crypto";
 import { randomUUID } from "node:crypto";
 import type { PoolClient } from "pg";
 import type {
   DeployInstallationInput,
-  DeployStagedVersionInput,
   InstallationDeploymentPreflightInput,
   InstallationPromotionInput,
   InstallationRollbackInput,
@@ -13,9 +11,8 @@ import {
   enqueueOutbox,
 } from "../../analytics";
 import { operationalLogger } from "../../telemetry/logger";
-import { recordAgentVersionDeployment } from "../../telemetry/spans";
 
-export type DeploymentTrigger = "version_published" | "version_rolled_back" | "manual" | "canary";
+export type DeploymentTrigger = "version_published" | "version_rolled_back" | "manual";
 export type DeploymentAction = "deployed" | "rolled_back" | "failed";
 
 export interface DeploymentInstallation {
@@ -31,13 +28,7 @@ export interface DeploymentInstallation {
   created_by: string;
   created_at: string;
   updated_at: string;
-  release_mode: "pinned" | "follow_published" | "staged";
-}
-
-export interface StagedDeploymentResult {
-  versionId: string;
-  deployedInstallationIds: string[];
-  deploymentCount: number;
+  release_mode: "pinned";
 }
 
 export type DeploymentPreflightBlockerCode =
@@ -71,6 +62,7 @@ export interface DeploymentPreflightResult {
   candidate: DeploymentVersionProjection | null;
   current: DeploymentVersionProjection | null;
   sourceInstallationId: string | null;
+  capabilityConfigurationDigest: string | null;
   bindingRevision: string | null;
   blockers: Array<{ code: DeploymentPreflightBlockerCode; detail: string }>;
 }
@@ -84,6 +76,7 @@ export interface DeploymentActivationResult {
     targetInstallationId: string;
     candidateVersionId: string;
     candidateDigest: string;
+    capabilityConfigurationDigest: string | null;
     extensionSnapshotChecksum: string | null;
     bindingRevision: string | null;
     expectedVersionId: string;
@@ -99,17 +92,39 @@ interface DeploymentInput {
   versionId: string;
   previousVersionId: string;
   agentDefinitionId: string;
-  releaseMode: DeploymentInstallation["release_mode"];
   trigger: DeploymentTrigger;
   action?: DeploymentAction;
   actorType?: "human" | "system";
   sourceInstallationId?: string;
   idempotencyKey?: string;
   candidateDigest?: string;
+  capabilityConfigurationDigest?: string | null;
   extensionSnapshotChecksum?: string | null;
   bindingRevision?: string | null;
+  previousCapabilityConfigurationSnapshot?: CapabilityConfigurationSnapshot | null;
   promotionId?: string;
-  pinTarget?: boolean;
+}
+
+/**
+ * Installation-scoped capability state captured with deployment evidence.
+ *
+ * This intentionally contains only opaque credential references and
+ * configuration metadata. Encrypted credential payloads never cross the
+ * Playground/Live boundary and are never written into deployment history.
+ */
+interface CapabilityConfigurationSnapshot {
+  connections: Array<{
+    integrationId: string;
+    credentialId: string | null;
+    status: string;
+    configuration: Record<string, unknown>;
+    healthMessage: string | null;
+    lastCheckedAt: string | null;
+    createdBy: string;
+  }>;
+  resourceGrants: Array<{ resourceType: string; resourceId: string; grantedBy: string }>;
+  connectorGrants: Array<{ connectorId: string; grantedBy: string }>;
+  toolGrants: Array<{ agentVersionId: string; toolName: string; grantedBy: string }>;
 }
 
 interface DeploymentVersionRow {
@@ -124,6 +139,8 @@ interface DeploymentVersionRow {
   deployment_previous_version_id?: string | null;
   deployment_idempotency_key?: string | null;
   deployment_candidate_digest?: string | null;
+  deployment_capability_configuration_digest?: string | null;
+  deployment_previous_capability_configuration_snapshot?: unknown;
   deployment_extension_snapshot_checksum?: string | null;
   deployment_binding_revision?: string | null;
 }
@@ -137,6 +154,8 @@ interface DeploymentRecord {
   source_installation_id: string | null;
   idempotency_key: string | null;
   candidate_digest: string | null;
+  capability_configuration_digest: string | null;
+  previous_capability_configuration_snapshot?: unknown;
   extension_snapshot_checksum: string | null;
   binding_revision: string | null;
 }
@@ -147,73 +166,6 @@ interface DeploymentRecord {
  * audit records, and analytics for an installation.
  */
 export class AgentDeploymentModule {
-  public async deployFollowPublishedInstallations(
-    client: PoolClient,
-    input: { organizationId: string; agentId: string; versionId: string; actorId: string; trigger: "version_published" | "version_rolled_back" },
-  ): Promise<number> {
-    await this.assertPublishedHostedVersion(client, input.organizationId, input.agentId, input.versionId);
-    const installations = await client.query<DeploymentInstallation>(
-      `SELECT * FROM agent_installations
-       WHERE organization_id = $1
-         AND agent_definition_id = $2
-         AND release_mode = 'follow_published'
-         AND status <> 'disabled'
-       FOR UPDATE`,
-      [input.organizationId, input.agentId],
-    );
-    const mismatches = installations.rows.filter((installation) => installation.agent_version_id !== input.versionId);
-    const matches = installations.rows.length - mismatches.length;
-    recordAgentVersionDeployment({ outcome: "matched", releaseMode: "follow_published", count: matches });
-    recordAgentVersionDeployment({ outcome: "mismatch", releaseMode: "follow_published", count: mismatches.length });
-    if (!mismatches.length) return 0;
-
-    const rolloutFlags = await client.query<{ scope_type: "global" | "organization" | "installation"; scope_id: string; enabled: boolean }>(
-      `SELECT scope_type, scope_id, enabled
-       FROM agent_operator_feature_flags
-       WHERE flag_key = 'agent_version_deployment_enabled'
-         AND expires_at > now()
-         AND (
-           scope_type = 'global'
-           OR (scope_type = 'organization' AND scope_id = $1)
-           OR (scope_type = 'installation' AND organization_id = $1 AND scope_id = ANY($2::text[]))
-         )`,
-      [input.organizationId, mismatches.map((installation) => installation.id)],
-    );
-    const enabledByScope = new Map(rolloutFlags.rows.map((flag) => [`${flag.scope_type}:${flag.scope_id}`, flag.enabled]));
-    const organizationEnabled = enabledByScope.get(`organization:${input.organizationId}`)
-      ?? enabledByScope.get("global:global")
-      ?? true;
-    let deployed = 0;
-    for (const installation of mismatches) {
-      const enabled = enabledByScope.get(`installation:${installation.id}`) ?? organizationEnabled;
-      if (!enabled) {
-        recordAgentVersionDeployment({ outcome: "blocked", releaseMode: "follow_published" });
-        operationalLogger.warn({
-          event: "agent.installation.deployment.blocked",
-          organization_id: input.organizationId,
-          installation_id: installation.id,
-          agent_definition_id: input.agentId,
-          target_agent_version_id: input.versionId,
-          error_code: "AGENT_VERSION_DEPLOYMENT_FLAG_DISABLED",
-        }, "Automatic agent version deployment is disabled");
-        continue;
-      }
-      await this.applyDeployment(client, {
-        organizationId: input.organizationId,
-        actorId: input.actorId,
-        installationId: installation.id,
-        versionId: input.versionId,
-        previousVersionId: installation.agent_version_id,
-        agentDefinitionId: input.agentId,
-        releaseMode: installation.release_mode,
-        trigger: input.trigger,
-      });
-      deployed += 1;
-      recordAgentVersionDeployment({ outcome: "deployed", releaseMode: "follow_published" });
-    }
-    return deployed;
-  }
-
   public async deployInstallation(
     client: PoolClient,
     organizationId: string,
@@ -239,10 +191,7 @@ export class AgentDeploymentModule {
     if (!["kasitek_hosted", "system_hosted"].includes(current.execution_mode)) {
       throw deploymentError("External-connected installations are not managed by hosted deployment", 403, "INSTALLATION_DEPLOYMENT_NOT_ALLOWED");
     }
-    // Manual deployment may intentionally select a retired immutable version
-    // so the operator can reproduce or test an earlier candidate in
-    // Playground. Automatic follow-published and staged rollouts remain
-    // published-only through assertPublishedHostedVersion.
+    // Manual deployment may select a published or retired immutable version.
     await this.assertDeployableHostedVersion(client, organizationId, current.agent_definition_id, input.versionId);
     if (current.agent_version_id === input.versionId) return current;
     return this.applyDeployment(client, {
@@ -252,9 +201,217 @@ export class AgentDeploymentModule {
       versionId: input.versionId,
       previousVersionId: current.agent_version_id,
       agentDefinitionId: current.agent_definition_id,
-      releaseMode: current.release_mode,
       trigger: "manual",
     });
+  }
+
+  private async getCapabilityConfigurationDigest(
+    client: PoolClient,
+    organizationId: string,
+    installationId: string,
+    versionId: string,
+  ): Promise<string> {
+    const result = await client.query<{ digest: string }>(
+      `SELECT md5(COALESCE(string_agg(entry, '|' ORDER BY entry), '')) AS digest
+       FROM (
+         SELECT concat('connection:', integration_id, ':', COALESCE(credential_id::text, ''), ':', status, ':', configuration::text) AS entry
+         FROM integration_connections
+         WHERE organization_id = $1 AND installation_id = $2 AND revoked_at IS NULL
+         UNION ALL
+         SELECT concat('resource:', resource_type, ':', resource_id) AS entry
+         FROM agent_installation_resource_grants
+         WHERE organization_id = $1 AND installation_id = $2 AND revoked_at IS NULL
+         UNION ALL
+         SELECT concat('connector:', connector_id) AS entry
+         FROM agent_installation_connector_grants
+         WHERE organization_id = $1 AND installation_id = $2 AND revoked_at IS NULL
+         UNION ALL
+         SELECT concat('tool:', tool_name) AS entry
+         FROM agent_tool_grants
+         WHERE organization_id = $1 AND installation_id = $2
+           AND agent_version_id = $3 AND revoked_at IS NULL
+       ) capability_entries`,
+      [organizationId, installationId, versionId],
+    );
+    return result.rows[0]?.digest ?? "d41d8cd98f00b204e9800998ecf8427e";
+  }
+
+  private async captureCapabilityConfiguration(
+    client: PoolClient,
+    organizationId: string,
+    installationId: string,
+  ): Promise<CapabilityConfigurationSnapshot> {
+    const connections = await client.query<{
+      integration_id: string;
+      credential_id: string | null;
+      status: string;
+      configuration: unknown;
+      health_message: string | null;
+      last_checked_at: string | Date | null;
+      created_by: string;
+    }>(
+      `SELECT integration_id, credential_id, status, configuration,
+              health_message, last_checked_at, created_by
+       FROM integration_connections
+       WHERE organization_id = $1 AND installation_id = $2 AND revoked_at IS NULL
+       ORDER BY integration_id`,
+      [organizationId, installationId],
+    );
+    const resourceGrants = await client.query<{
+      resource_type: string;
+      resource_id: string;
+      granted_by: string;
+    }>(
+      `SELECT resource_type, resource_id, granted_by
+       FROM agent_installation_resource_grants
+       WHERE organization_id = $1 AND installation_id = $2 AND revoked_at IS NULL
+       ORDER BY resource_type, resource_id`,
+      [organizationId, installationId],
+    );
+    const connectorGrants = await client.query<{
+      connector_id: string;
+      granted_by: string;
+    }>(
+      `SELECT connector_id, granted_by
+       FROM agent_installation_connector_grants
+       WHERE organization_id = $1 AND installation_id = $2 AND revoked_at IS NULL
+       ORDER BY connector_id`,
+      [organizationId, installationId],
+    );
+    const toolGrants = await client.query<{
+      agent_version_id: string;
+      tool_name: string;
+      granted_by: string;
+    }>(
+      `SELECT agent_version_id, tool_name, granted_by
+       FROM agent_tool_grants
+       WHERE organization_id = $1 AND installation_id = $2 AND revoked_at IS NULL
+       ORDER BY agent_version_id, tool_name`,
+      [organizationId, installationId],
+    );
+    return {
+      connections: connections.rows.map((connection) => ({
+        integrationId: connection.integration_id,
+        credentialId: connection.credential_id,
+        status: connection.status,
+        configuration: asRecord(connection.configuration),
+        healthMessage: connection.health_message,
+        lastCheckedAt: connection.last_checked_at instanceof Date
+          ? connection.last_checked_at.toISOString()
+          : connection.last_checked_at,
+        createdBy: connection.created_by,
+      })),
+      resourceGrants: resourceGrants.rows.map((grant) => ({
+        resourceType: grant.resource_type,
+        resourceId: grant.resource_id,
+        grantedBy: grant.granted_by,
+      })),
+      connectorGrants: connectorGrants.rows.map((grant) => ({
+        connectorId: grant.connector_id,
+        grantedBy: grant.granted_by,
+      })),
+      toolGrants: toolGrants.rows.map((grant) => ({
+        agentVersionId: grant.agent_version_id,
+        toolName: grant.tool_name,
+        grantedBy: grant.granted_by,
+      })),
+    };
+  }
+
+  private async restoreCapabilityConfiguration(
+    client: PoolClient,
+    organizationId: string,
+    installationId: string,
+    snapshot: CapabilityConfigurationSnapshot,
+  ): Promise<void> {
+    await client.query(
+      `UPDATE integration_connections
+       SET status = 'revoked', revoked_at = now(), updated_at = now()
+       WHERE organization_id = $1 AND installation_id = $2 AND revoked_at IS NULL`,
+      [organizationId, installationId],
+    );
+    for (const connection of snapshot.connections) {
+      await client.query(
+        `INSERT INTO integration_connections
+           (organization_id, installation_id, integration_id, credential_id, status,
+            configuration, health_message, last_checked_at, created_by)
+         VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7, $8, $9)
+         ON CONFLICT (installation_id, integration_id) DO UPDATE SET
+           credential_id = EXCLUDED.credential_id,
+           status = EXCLUDED.status,
+           configuration = EXCLUDED.configuration,
+           health_message = EXCLUDED.health_message,
+           last_checked_at = EXCLUDED.last_checked_at,
+           created_by = EXCLUDED.created_by,
+           updated_at = now(),
+           revoked_at = NULL`,
+        [
+          organizationId,
+          installationId,
+          connection.integrationId,
+          connection.credentialId,
+          connection.status,
+          JSON.stringify(connection.configuration),
+          connection.healthMessage,
+          connection.lastCheckedAt,
+          connection.createdBy,
+        ],
+      );
+    }
+
+    await client.query(
+      `UPDATE agent_installation_resource_grants
+       SET revoked_at = now()
+       WHERE organization_id = $1 AND installation_id = $2 AND revoked_at IS NULL`,
+      [organizationId, installationId],
+    );
+    for (const grant of snapshot.resourceGrants) {
+      await client.query(
+        `INSERT INTO agent_installation_resource_grants
+           (organization_id, installation_id, resource_type, resource_id, granted_by)
+         VALUES ($1, $2, $3, $4, $5)
+         ON CONFLICT (installation_id, resource_type, resource_id) DO UPDATE SET
+           granted_by = EXCLUDED.granted_by,
+           revoked_at = NULL`,
+        [organizationId, installationId, grant.resourceType, grant.resourceId, grant.grantedBy],
+      );
+    }
+
+    await client.query(
+      `UPDATE agent_installation_connector_grants
+       SET revoked_at = now()
+       WHERE organization_id = $1 AND installation_id = $2 AND revoked_at IS NULL`,
+      [organizationId, installationId],
+    );
+    for (const grant of snapshot.connectorGrants) {
+      await client.query(
+        `INSERT INTO agent_installation_connector_grants
+           (organization_id, installation_id, connector_id, granted_by)
+         VALUES ($1, $2, $3, $4)
+         ON CONFLICT (installation_id, connector_id) DO UPDATE SET
+           granted_by = EXCLUDED.granted_by,
+           revoked_at = NULL`,
+        [organizationId, installationId, grant.connectorId, grant.grantedBy],
+      );
+    }
+
+    await client.query(
+      `UPDATE agent_tool_grants
+       SET revoked_at = now()
+       WHERE organization_id = $1 AND installation_id = $2 AND revoked_at IS NULL`,
+      [organizationId, installationId],
+    );
+    for (const grant of snapshot.toolGrants) {
+      await client.query(
+        `INSERT INTO agent_tool_grants
+           (organization_id, agent_version_id, installation_id, tool_name, granted_by)
+         VALUES ($1, $2, $3, $4, $5)
+         ON CONFLICT (agent_version_id, COALESCE(installation_id, '00000000-0000-0000-0000-000000000000'::uuid), tool_name)
+           WHERE revoked_at IS NULL
+         DO UPDATE SET granted_by = EXCLUDED.granted_by`,
+        [organizationId, grant.agentVersionId, installationId, grant.toolName, grant.grantedBy],
+      );
+    }
   }
 
   /**
@@ -341,6 +498,7 @@ export class AgentDeploymentModule {
     }
 
     let sourceInstallationId: string | null = input.sourceInstallationId ?? null;
+    let capabilityConfigurationDigest: string | null = null;
     if (input.sourceInstallationId) {
       const sourceResult = await client.query<DeploymentInstallation>(
         `SELECT * FROM agent_installations
@@ -356,6 +514,9 @@ export class AgentDeploymentModule {
         if (sourceEnvironment !== "playground") blockers.push({ code: "source_installation_not_playground", detail: "Promotion evidence must come from a Playground installation." });
         if (source.agent_definition_id !== installation.agent_definition_id) blockers.push({ code: "installation_agent_mismatch", detail: "The Playground source belongs to a different agent." });
         if (source.agent_version_id !== input.versionId) blockers.push({ code: "source_candidate_mismatch", detail: "The Playground source is not pinned to the selected candidate." });
+        if (sourceEnvironment === "playground" && source.agent_definition_id === installation.agent_definition_id && source.agent_version_id === input.versionId) {
+          capabilityConfigurationDigest = await this.getCapabilityConfigurationDigest(client, organizationId, source.id, input.versionId);
+        }
       }
     }
 
@@ -368,6 +529,7 @@ export class AgentDeploymentModule {
       candidate,
       current,
       sourceInstallationId,
+      capabilityConfigurationDigest,
       bindingRevision: bindingRevision ?? null,
       blockers,
     };
@@ -418,6 +580,7 @@ export class AgentDeploymentModule {
           targetInstallationId: installationId,
           candidateVersionId: input.versionId,
           candidateDigest: prior.rows[0].candidate_digest ?? "",
+          capabilityConfigurationDigest: prior.rows[0].capability_configuration_digest ?? null,
           extensionSnapshotChecksum: prior.rows[0].extension_snapshot_checksum ?? null,
           bindingRevision: prior.rows[0].binding_revision ?? null,
           expectedVersionId: input.expectedVersionId,
@@ -440,12 +603,30 @@ export class AgentDeploymentModule {
     // only the installation-scoped connection/grant records in this
     // transaction; secret payloads, conversations, runs, and test data never
     // cross the promotion boundary.
+    const previousCapabilityConfigurationSnapshot = await this.captureCapabilityConfiguration(
+      client,
+      organizationId,
+      installationId,
+    );
     await this.mirrorPlaygroundCapabilityConfiguration(client, {
       organizationId,
       sourceInstallationId: input.sourceInstallationId,
       targetInstallationId: installationId,
       candidateVersionId: input.versionId,
     });
+    const promotedCapabilityConfigurationDigest = await this.getCapabilityConfigurationDigest(
+      client,
+      organizationId,
+      installationId,
+      input.versionId,
+    );
+    if (promotedCapabilityConfigurationDigest !== preflight.capabilityConfigurationDigest) {
+      throw deploymentError(
+        "Live capability configuration does not match the tested Playground snapshot",
+        409,
+        "PROMOTION_CAPABILITY_CONFIGURATION_MISMATCH",
+      );
+    }
 
     const installation = await this.applyDeployment(client, {
       organizationId,
@@ -454,13 +635,13 @@ export class AgentDeploymentModule {
       versionId: input.versionId,
       previousVersionId: preflight.current?.versionId ?? input.expectedVersionId,
       agentDefinitionId: preflight.agentId,
-      releaseMode: "pinned",
       trigger: "manual",
       action: "deployed",
-      pinTarget: true,
       sourceInstallationId: input.sourceInstallationId,
       idempotencyKey: input.idempotencyKey,
       candidateDigest: preflight.candidate.digest,
+      capabilityConfigurationDigest: promotedCapabilityConfigurationDigest,
+      previousCapabilityConfigurationSnapshot,
       extensionSnapshotChecksum: preflight.candidate.extensionSnapshotChecksum,
       bindingRevision: preflight.bindingRevision,
       promotionId: randomUUID(),
@@ -482,6 +663,7 @@ export class AgentDeploymentModule {
         targetInstallationId: installationId,
         candidateVersionId: input.versionId,
         candidateDigest: preflight.candidate.digest,
+        capabilityConfigurationDigest: promotedCapabilityConfigurationDigest,
         extensionSnapshotChecksum: preflight.candidate.extensionSnapshotChecksum,
         bindingRevision: preflight.bindingRevision,
         expectedVersionId: input.expectedVersionId,
@@ -681,6 +863,8 @@ export class AgentDeploymentModule {
                 deployment.previous_agent_version_id AS deployment_previous_version_id,
                 deployment.idempotency_key AS deployment_idempotency_key,
                 deployment.candidate_digest AS deployment_candidate_digest,
+                deployment.capability_configuration_digest AS deployment_capability_configuration_digest,
+                deployment.previous_capability_configuration_snapshot AS deployment_previous_capability_configuration_snapshot,
                 deployment.extension_snapshot_checksum AS deployment_extension_snapshot_checksum,
                 deployment.binding_revision AS deployment_binding_revision
          FROM agent_installation_deployments deployment
@@ -704,6 +888,7 @@ export class AgentDeploymentModule {
           targetInstallationId: installationId,
           candidateVersionId: current.agent_version_id,
           candidateDigest: target.deployment_candidate_digest ?? "",
+          capabilityConfigurationDigest: target.deployment_capability_configuration_digest ?? null,
           extensionSnapshotChecksum: target.deployment_extension_snapshot_checksum ?? null,
           bindingRevision: target.deployment_binding_revision ?? null,
           expectedVersionId: input.expectedVersionId ?? target.deployment_previous_version_id ?? current.agent_version_id,
@@ -733,6 +918,7 @@ export class AgentDeploymentModule {
           targetInstallationId: installationId,
           candidateVersionId: target.version_id,
           candidateDigest: prior.rows[0].candidate_digest ?? target.checksum,
+          capabilityConfigurationDigest: prior.rows[0].capability_configuration_digest ?? null,
           extensionSnapshotChecksum: prior.rows[0].extension_snapshot_checksum ?? target.extension_snapshot_checksum ?? null,
           bindingRevision: prior.rows[0].binding_revision ?? (typeof current.settings?.bindingRevision === "string" ? current.settings.bindingRevision : null),
           expectedVersionId: input.expectedVersionId ?? current.agent_version_id,
@@ -741,22 +927,72 @@ export class AgentDeploymentModule {
         },
       };
     }
-    if (target.version_id === current.agent_version_id) return {
-      status: "already_active",
-      promotionId: randomUUID(),
-      installation: current,
-      manifest: {
-        sourceInstallationId: null,
-        targetInstallationId: installationId,
-        candidateVersionId: target.version_id,
-        candidateDigest: target.checksum,
-        extensionSnapshotChecksum: target.extension_snapshot_checksum ?? null,
-        bindingRevision: typeof current.settings?.bindingRevision === "string" ? current.settings.bindingRevision : null,
-        expectedVersionId: input.expectedVersionId ?? current.agent_version_id,
-        previousVersionId: current.agent_version_id,
-        idempotencyKey: rollbackIdempotencyKey,
-      },
-    };
+    if (target.version_id === current.agent_version_id) {
+      const capabilityConfigurationDigest = await this.getCapabilityConfigurationDigest(
+        client,
+        organizationId,
+        installationId,
+        target.version_id,
+      );
+      return {
+        status: "already_active",
+        promotionId: randomUUID(),
+        installation: current,
+        manifest: {
+          sourceInstallationId: null,
+          targetInstallationId: installationId,
+          candidateVersionId: target.version_id,
+          candidateDigest: target.checksum,
+          capabilityConfigurationDigest,
+          extensionSnapshotChecksum: target.extension_snapshot_checksum ?? null,
+          bindingRevision: typeof current.settings?.bindingRevision === "string" ? current.settings.bindingRevision : null,
+          expectedVersionId: input.expectedVersionId ?? current.agent_version_id,
+          previousVersionId: current.agent_version_id,
+          idempotencyKey: rollbackIdempotencyKey,
+        },
+      };
+    }
+    let previousCapabilityConfigurationSnapshot = normalizeCapabilityConfigurationSnapshot(
+      target.deployment_previous_capability_configuration_snapshot,
+    );
+    if (!previousCapabilityConfigurationSnapshot) {
+      const deploymentEvidence = await client.query<{ previous_capability_configuration_snapshot: unknown }>(
+        `SELECT previous_capability_configuration_snapshot
+         FROM agent_installation_deployments
+         WHERE organization_id = $1 AND installation_id = $2
+           AND agent_version_id = $3 AND previous_agent_version_id = $4
+           AND outcome = 'success'
+         ORDER BY created_at DESC LIMIT 1`,
+        [organizationId, installationId, current.agent_version_id, target.version_id],
+      );
+      previousCapabilityConfigurationSnapshot = normalizeCapabilityConfigurationSnapshot(
+        deploymentEvidence.rows[0]?.previous_capability_configuration_snapshot,
+      );
+    }
+    if (!previousCapabilityConfigurationSnapshot) {
+      throw deploymentError(
+        "Rollback cannot restore the target capability configuration because this deployment has no capability snapshot",
+        409,
+        "ROLLBACK_CONFIGURATION_UNAVAILABLE",
+      );
+    }
+    const currentCapabilityConfigurationSnapshot = await this.captureCapabilityConfiguration(
+      client,
+      organizationId,
+      installationId,
+    );
+    await this.restoreCapabilityConfiguration(
+      client,
+      organizationId,
+      installationId,
+      previousCapabilityConfigurationSnapshot,
+    );
+    const restoredCapabilityConfigurationDigest = await this.getCapabilityConfigurationDigest(
+      client,
+      organizationId,
+      installationId,
+      target.version_id,
+    );
     const installation = await this.applyDeployment(client, {
       organizationId,
       actorId,
@@ -764,14 +1000,14 @@ export class AgentDeploymentModule {
       versionId: target.version_id,
       previousVersionId: current.agent_version_id,
       agentDefinitionId: current.agent_definition_id,
-      releaseMode: current.release_mode,
       trigger: "version_rolled_back",
       action: "rolled_back",
       idempotencyKey: rollbackIdempotencyKey,
       candidateDigest: target.checksum,
+      capabilityConfigurationDigest: restoredCapabilityConfigurationDigest,
+      previousCapabilityConfigurationSnapshot: currentCapabilityConfigurationSnapshot,
       extensionSnapshotChecksum: target.extension_snapshot_checksum,
       bindingRevision: typeof current.settings?.bindingRevision === "string" ? current.settings.bindingRevision : null,
-      pinTarget: true,
       promotionId: randomUUID(),
     });
     const deployment = await client.query<DeploymentRecord>(
@@ -790,52 +1026,13 @@ export class AgentDeploymentModule {
         targetInstallationId: installationId,
         candidateVersionId: target.version_id,
         candidateDigest: target.checksum,
+        capabilityConfigurationDigest: restoredCapabilityConfigurationDigest,
         extensionSnapshotChecksum: target.extension_snapshot_checksum ?? null,
         bindingRevision: typeof current.settings?.bindingRevision === "string" ? current.settings.bindingRevision : null,
         expectedVersionId: input.expectedVersionId ?? current.agent_version_id,
         previousVersionId: current.agent_version_id,
         idempotencyKey: rollbackIdempotencyKey,
       },
-    };
-  }
-
-  public async deployStagedVersion(
-    client: PoolClient,
-    organizationId: string,
-    actorId: string,
-    agentId: string,
-    versionId: string,
-    input: DeployStagedVersionInput,
-  ): Promise<StagedDeploymentResult> {
-    await this.assertPublishedHostedVersion(client, organizationId, agentId, versionId);
-    const candidates = await client.query<DeploymentInstallation>(
-      `SELECT * FROM agent_installations
-       WHERE organization_id = $1
-         AND agent_definition_id = $2
-         AND release_mode = 'staged'
-         AND status <> 'disabled'
-         AND agent_version_id <> $3
-       ORDER BY id
-       FOR UPDATE`,
-      [organizationId, agentId, versionId],
-    );
-    const selected = selectCanaryInstallations(candidates.rows, input);
-    for (const installation of selected) {
-      await this.applyDeployment(client, {
-        organizationId,
-        actorId,
-        installationId: installation.id,
-        versionId,
-        previousVersionId: installation.agent_version_id,
-        agentDefinitionId: agentId,
-        releaseMode: installation.release_mode,
-        trigger: "canary",
-      });
-    }
-    return {
-      versionId,
-      deployedInstallationIds: selected.map((installation) => installation.id),
-      deploymentCount: selected.length,
     };
   }
 
@@ -890,14 +1087,16 @@ export class AgentDeploymentModule {
   }
 
   private async applyDeployment(client: PoolClient, input: DeploymentInput): Promise<DeploymentInstallation> {
+    const previousCapabilityConfigurationSnapshot = input.previousCapabilityConfigurationSnapshot
+      ?? await this.captureCapabilityConfiguration(client, input.organizationId, input.installationId);
     const updated = await client.query<DeploymentInstallation>(
       `UPDATE agent_installations
        SET agent_version_id = $2,
-           release_mode = CASE WHEN $6::boolean THEN 'pinned' ELSE release_mode END,
+           release_mode = 'pinned',
            updated_at = now()
        WHERE id = $1 AND organization_id = $3 AND agent_definition_id = $4 AND agent_version_id = $5
        RETURNING *`,
-      [input.installationId, input.versionId, input.organizationId, input.agentDefinitionId, input.previousVersionId, input.pinTarget === true],
+      [input.installationId, input.versionId, input.organizationId, input.agentDefinitionId, input.previousVersionId],
     );
     const installation = updated.rows[0];
     if (!installation) {
@@ -912,22 +1111,22 @@ export class AgentDeploymentModule {
       throw deploymentError("Installation version changed before deployment", 409, "INSTALLATION_VERSION_CONFLICT");
     }
     const action = input.action ?? (input.trigger === "version_rolled_back" ? "rolled_back" : "deployed");
-    const effectiveReleaseMode = input.pinTarget ? "pinned" : input.releaseMode;
     await client.query(
       `INSERT INTO agent_installation_deployments
         (organization_id, installation_id, agent_definition_id, previous_agent_version_id,
          agent_version_id, release_mode, action, trigger, outcome, actor_type, actor_id,
          source_installation_id, idempotency_key, candidate_digest,
+         capability_configuration_digest, previous_capability_configuration_snapshot,
          extension_snapshot_checksum, binding_revision, promotion_id)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'success', $9, $10,
-               $11, $12, $13, $14, $15, $16)`,
+               $11, $12, $13, $14, $15::jsonb, $16, $17, $18)`,
       [
         input.organizationId,
         installation.id,
         input.agentDefinitionId,
         input.previousVersionId,
         input.versionId,
-        effectiveReleaseMode,
+        "pinned",
         action,
         input.trigger,
         input.actorType ?? "human",
@@ -935,6 +1134,8 @@ export class AgentDeploymentModule {
         input.sourceInstallationId ?? null,
         input.idempotencyKey ?? null,
         input.candidateDigest ?? null,
+        input.capabilityConfigurationDigest ?? null,
+        JSON.stringify(previousCapabilityConfigurationSnapshot),
         input.extensionSnapshotChecksum ?? null,
         input.bindingRevision ?? null,
         input.promotionId ?? null,
@@ -948,7 +1149,7 @@ export class AgentDeploymentModule {
         agentId: input.agentDefinitionId,
         previousVersionId: input.previousVersionId,
         versionId: input.versionId,
-        releaseMode: effectiveReleaseMode,
+        releaseMode: "pinned",
         trigger: input.trigger,
       })],
     );
@@ -958,7 +1159,7 @@ export class AgentDeploymentModule {
       agentDefinitionId: input.agentDefinitionId,
       agentVersionId: input.versionId,
       previousAgentVersionId: input.previousVersionId,
-      releaseMode: effectiveReleaseMode,
+      releaseMode: "pinned",
       action,
       trigger: input.trigger,
       outcome: "success",
@@ -967,31 +1168,6 @@ export class AgentDeploymentModule {
     }));
     return installation;
   }
-}
-
-function selectCanaryInstallations(
-  candidates: DeploymentInstallation[],
-  input: DeployStagedVersionInput,
-): DeploymentInstallation[] {
-  if (input.installationIds) {
-    const requested = new Set(input.installationIds);
-    if (requested.size !== input.installationIds.length) {
-      throw deploymentError("Duplicate staged installation IDs are not allowed", 400, "STAGED_INSTALLATION_IDS_INVALID");
-    }
-    const byId = new Map(candidates.map((candidate) => [candidate.id, candidate]));
-    const selected = input.installationIds.map((id) => byId.get(id));
-    if (selected.some((installation) => !installation)) {
-      throw deploymentError("Every staged installation must belong to this agent and organization", 409, "STAGED_INSTALLATION_NOT_ELIGIBLE");
-    }
-    return selected as DeploymentInstallation[];
-  }
-  const percentage = input.percentage!;
-  const selected = candidates.filter((candidate) => {
-    const bucket = Number.parseInt(createHash("sha256").update(candidate.id).digest("hex").slice(0, 8), 16) % 100;
-    return bucket < percentage;
-  });
-  if (selected.length === 0 && candidates.length > 0) return [candidates[0]!];
-  return selected;
 }
 
 function deploymentError(message: string, statusCode: number, code: string): Error & { statusCode: number; code: string } {
@@ -1006,5 +1182,67 @@ function projectDeploymentVersion(row: DeploymentVersionRow): DeploymentVersionP
     digest: row.checksum,
     extensionSnapshotId: row.extension_snapshot_id ?? null,
     extensionSnapshotChecksum: row.extension_snapshot_checksum ?? null,
+  };
+}
+
+function asRecord(value: unknown): Record<string, unknown> {
+  if (typeof value === "string") {
+    try {
+      return asRecord(JSON.parse(value));
+    } catch {
+      return {};
+    }
+  }
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  return value as Record<string, unknown>;
+}
+
+function normalizeCapabilityConfigurationSnapshot(value: unknown): CapabilityConfigurationSnapshot | null {
+  if (typeof value === "string") {
+    try {
+      return normalizeCapabilityConfigurationSnapshot(JSON.parse(value));
+    } catch {
+      return null;
+    }
+  }
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const record = value as Record<string, unknown>;
+  if (!Array.isArray(record.connections)
+    || !Array.isArray(record.resourceGrants)
+    || !Array.isArray(record.connectorGrants)
+    || !Array.isArray(record.toolGrants)) return null;
+  return {
+    connections: record.connections.flatMap((entry) => {
+      if (!entry || typeof entry !== "object" || Array.isArray(entry)) return [];
+      const row = entry as Record<string, unknown>;
+      if (typeof row.integrationId !== "string" || typeof row.status !== "string" || typeof row.createdBy !== "string") return [];
+      return [{
+        integrationId: row.integrationId,
+        credentialId: typeof row.credentialId === "string" ? row.credentialId : null,
+        status: row.status,
+        configuration: asRecord(row.configuration),
+        healthMessage: typeof row.healthMessage === "string" ? row.healthMessage : null,
+        lastCheckedAt: typeof row.lastCheckedAt === "string" ? row.lastCheckedAt : null,
+        createdBy: row.createdBy,
+      }];
+    }),
+    resourceGrants: record.resourceGrants.flatMap((entry) => {
+      if (!entry || typeof entry !== "object" || Array.isArray(entry)) return [];
+      const row = entry as Record<string, unknown>;
+      if (typeof row.resourceType !== "string" || typeof row.resourceId !== "string" || typeof row.grantedBy !== "string") return [];
+      return [{ resourceType: row.resourceType, resourceId: row.resourceId, grantedBy: row.grantedBy }];
+    }),
+    connectorGrants: record.connectorGrants.flatMap((entry) => {
+      if (!entry || typeof entry !== "object" || Array.isArray(entry)) return [];
+      const row = entry as Record<string, unknown>;
+      if (typeof row.connectorId !== "string" || typeof row.grantedBy !== "string") return [];
+      return [{ connectorId: row.connectorId, grantedBy: row.grantedBy }];
+    }),
+    toolGrants: record.toolGrants.flatMap((entry) => {
+      if (!entry || typeof entry !== "object" || Array.isArray(entry)) return [];
+      const row = entry as Record<string, unknown>;
+      if (typeof row.agentVersionId !== "string" || typeof row.toolName !== "string" || typeof row.grantedBy !== "string") return [];
+      return [{ agentVersionId: row.agentVersionId, toolName: row.toolName, grantedBy: row.grantedBy }];
+    }),
   };
 }

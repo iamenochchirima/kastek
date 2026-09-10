@@ -8,7 +8,6 @@ import type {
   CreateExternalAgentInput,
   CreateInstallationInput,
   DeployInstallationInput,
-  DeployStagedVersionInput,
   CreateVersionInput,
   HostedAgentCreationProfile,
   InstallationDeploymentPreflightInput,
@@ -27,7 +26,7 @@ import { KASIAI_KNOWLEDGE_CHUNKS, KASIAI_KNOWLEDGE_SOURCE_NAME, KASIAI_KNOWLEDGE
 import { KASIAI_EVALUATION_SCENARIOS, KASIAI_EVALUATION_VERSION } from "../../system/kasiai-evaluations";
 import { createInstallationCredentialInTransaction, type CreatedInstallationCredential } from "./installation-credential-repository";
 import { buildDefinitionLifecycleEvent, buildInstallationLifecycleEvent, buildVersionLifecycleEvent, enqueueOutbox, type DefinitionLifecycleAnalyticsInput, type InstallationLifecycleAnalyticsInput, type VersionLifecycleAnalyticsInput } from "../../analytics";
-import { AgentDeploymentModule, type DeploymentActivationResult, type DeploymentPreflightResult, type DeploymentVersionProjection, type StagedDeploymentResult } from "./agent-deployment-repository";
+import { AgentDeploymentModule, type DeploymentActivationResult, type DeploymentPreflightResult, type DeploymentVersionProjection } from "./agent-deployment-repository";
 import { ExtensionSnapshotRepository } from "./extension-snapshot-repository";
 import { parseAgentEnvironment, type AgentEnvironment } from "../../runtime/execution-environment";
 
@@ -84,6 +83,25 @@ export interface AgentVersionRecord {
   published_at: string | null;
 }
 
+export type PlaygroundExtensionActivation =
+  | {
+      kind: "plugin";
+      package: {
+        id: string;
+        version: string;
+        checksum: string;
+        configuration?: Record<string, unknown>;
+      };
+    }
+  | { kind: "skill"; skillVersionId: string }
+  | { kind: "mcp"; providerVersionId: string };
+
+export interface PlaygroundExtensionActivationResult {
+  installation: InstallationRecord;
+  version: AgentVersionRecord;
+  createdCandidate: boolean;
+}
+
 function canonicalizeJson(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(canonicalizeJson);
   if (value && typeof value === "object") {
@@ -94,6 +112,69 @@ function canonicalizeJson(value: unknown): unknown {
     );
   }
   return value;
+}
+
+function recordValue(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {};
+}
+
+export function addPluginPackageSelection(
+  configurationValue: unknown,
+  policyValue: unknown,
+  selection: Extract<PlaygroundExtensionActivation, { kind: "plugin" }>['package'],
+): { configuration: Record<string, unknown>; policy: Record<string, unknown>; changed: boolean } {
+  const configuration = { ...recordValue(configurationValue) };
+  const existingConfigurationExtensions = recordValue(configuration.extensions);
+  const packages = Array.isArray(existingConfigurationExtensions.packages)
+    ? existingConfigurationExtensions.packages.filter((entry): entry is Record<string, unknown> => Boolean(entry && typeof entry === "object" && !Array.isArray(entry)))
+    : [];
+  const alreadySelected = packages.some((entry) => entry.kind === "plugin" && entry.id === selection.id && entry.version === selection.version && entry.checksum === selection.checksum);
+  const nextPackages = alreadySelected
+    ? packages
+    : [...packages, {
+        kind: "plugin",
+        id: selection.id,
+        version: selection.version,
+        checksum: selection.checksum,
+        configuration: { ...(selection.configuration ?? {}) },
+      }];
+
+  const policy = { ...recordValue(policyValue) };
+  const policyExtensions = { ...recordValue(policy.extensions) };
+  const rawPolicyGrants = policyExtensions.grants;
+  const packageGrant = { kind: "plugin", id: selection.id, permissions: [] };
+  let nextPolicyGrants: unknown[];
+  let alreadyGranted = false;
+  if (Array.isArray(rawPolicyGrants)) {
+    const grants = rawPolicyGrants.filter((entry): entry is Record<string, unknown> => Boolean(entry && typeof entry === "object" && !Array.isArray(entry)));
+    alreadyGranted = grants.some((entry) => entry.kind === "plugin" && entry.id === selection.id);
+    nextPolicyGrants = alreadyGranted
+      ? grants
+      : [...grants, packageGrant];
+  } else {
+    // Legacy extension grants use an object keyed by declaration kind. Keep
+    // those IDs in the configuration projection while using the canonical
+    // package-grant array for the selected package itself.
+    const configurationGrants = recordValue(existingConfigurationExtensions.grants);
+    const legacyGrants = recordValue(rawPolicyGrants);
+    const pluginIds = [...new Set([
+      ...(Array.isArray(configurationGrants.pluginIds) ? configurationGrants.pluginIds.filter((entry): entry is string => typeof entry === "string") : []),
+      ...(Array.isArray(legacyGrants.pluginIds) ? legacyGrants.pluginIds.filter((entry): entry is string => typeof entry === "string") : []),
+      selection.id,
+    ])];
+    existingConfigurationExtensions.grants = { ...configurationGrants, ...(pluginIds.length ? { pluginIds } : {}) };
+    nextPolicyGrants = [packageGrant];
+  }
+  policyExtensions.grants = nextPolicyGrants;
+  configuration.extensions = { ...existingConfigurationExtensions, packages: nextPackages };
+  policy.extensions = policyExtensions;
+  return {
+    configuration,
+    policy,
+    changed: !alreadySelected || !alreadyGranted,
+  };
 }
 
 export function agentVersionContentMatches(
@@ -168,6 +249,7 @@ export interface AgentDeploymentStatus {
     candidateVersionId: string | null;
     previousVersionId: string | null;
     sourceInstallationId: string | null;
+    capabilityConfigurationDigest: string | null;
     bindingRevision: string | null;
     createdAt: string;
   } | null;
@@ -225,6 +307,7 @@ interface DeploymentStatusRow {
   latest_candidate_version_id: string | null;
   latest_previous_version_id: string | null;
   latest_source_installation_id: string | null;
+  latest_capability_configuration_digest: string | null;
   latest_binding_revision: string | null;
   latest_promotion_created_at: string | null;
   rollback_version_id: string | null;
@@ -873,7 +956,7 @@ export class AgentRepository {
       const installationResult = await client.query<InstallationRecord & { created_now: boolean }>(
         `INSERT INTO agent_installations
           (agent_definition_id, agent_version_id, organization_id, scope_type, scope_id, execution_mode, release_mode, settings, created_by)
-         VALUES ($1, $2, $3, 'organization', $3, 'kasitek_hosted', 'follow_published', $4::jsonb, $5)
+         VALUES ($1, $2, $3, 'organization', $3, 'kasitek_hosted', 'pinned', $4::jsonb, $5)
          ON CONFLICT (
            organization_id,
            agent_definition_id,
@@ -881,7 +964,25 @@ export class AgentRepository {
            scope_id,
            (COALESCE(settings ->> 'environment', 'live'))
          )
-         DO UPDATE SET updated_at = agent_installations.updated_at
+         DO UPDATE SET
+           updated_at = agent_installations.updated_at,
+           settings = CASE
+             WHEN COALESCE(EXCLUDED.settings ->> 'environment', 'live') = 'live'
+             THEN agent_installations.settings || jsonb_build_object(
+               'environment', 'live',
+               'bindingRevision', COALESCE(
+                 agent_installations.settings ->> 'bindingRevision',
+                 EXCLUDED.settings ->> 'bindingRevision',
+                 'system-default'
+               ),
+               'bindingStatus', COALESCE(
+                 agent_installations.settings ->> 'bindingStatus',
+                 EXCLUDED.settings ->> 'bindingStatus',
+                 'ready'
+               )
+             )
+             ELSE agent_installations.settings
+           END
          RETURNING *, (xmax = 0) AS created_now`,
         [agent.id, version.id, input.organizationId, JSON.stringify({ ...settings, templateKey: template.key, templateVersion: template.version }), input.actorId],
       );
@@ -1494,6 +1595,223 @@ export class AgentRepository {
     });
   }
 
+  /**
+   * Activate one extension on the next Playground candidate. Published
+   * versions are immutable: when the Playground still points at a published
+   * version, this clones the version, copies its pins and installation grants,
+   * applies the requested extension, materializes a fresh extension snapshot,
+   * and retargets only that Playground installation. Live remains pinned to
+   * its previous version until an explicit promotion.
+   */
+  public async activatePlaygroundExtension(
+    input: {
+      organizationId: string;
+      actorId: string;
+      installationId?: string;
+      agentVersionId?: string;
+      extension: PlaygroundExtensionActivation;
+    },
+  ): Promise<PlaygroundExtensionActivationResult> {
+    return withTransaction(this.pool, async (client) => {
+      const installationResult = await client.query<InstallationRecord>(
+        `SELECT * FROM agent_installations
+         WHERE organization_id = $1
+           AND (id = $2 OR ($2::uuid IS NULL AND agent_version_id = $3))
+           AND COALESCE(settings ->> 'environment', 'live') = 'playground'
+           AND status <> 'disabled'
+         ORDER BY updated_at DESC
+         LIMIT 1
+         FOR UPDATE`,
+        [input.organizationId, input.installationId ?? null, input.agentVersionId ?? null],
+      );
+      const installation = installationResult.rows[0];
+      if (!installation) throw new Error("PLAYGROUND_INSTALLATION_NOT_FOUND");
+      if (input.agentVersionId && installation.agent_version_id !== input.agentVersionId) {
+        throw new Error("PLAYGROUND_VERSION_NOT_ACTIVE");
+      }
+
+      const sourceResult = await client.query<AgentVersionRecord>(
+        `SELECT version.*
+         FROM agent_versions version
+         JOIN agent_definitions definition ON definition.id = version.agent_definition_id
+         WHERE version.id = $2 AND version.agent_definition_id = $3
+           AND definition.organization_id = $1
+         FOR UPDATE`,
+        [input.organizationId, installation.agent_version_id, installation.agent_definition_id],
+      );
+      const source = sourceResult.rows[0];
+      if (!source) throw new Error("PLAYGROUND_VERSION_NOT_FOUND");
+
+      let configuration = source.configuration ?? {};
+      let policy = source.policy ?? {};
+      let extensionChanged = false;
+      if (input.extension.kind === "plugin") {
+        const selected = addPluginPackageSelection(configuration, policy, input.extension.package);
+        configuration = selected.configuration;
+        policy = selected.policy;
+        extensionChanged = selected.changed;
+      }
+
+      const skillAlreadyPinned = input.extension.kind === "skill"
+        ? Boolean((await client.query(
+          `SELECT 1 FROM agent_version_skills
+           WHERE organization_id = $1 AND agent_version_id = $2 AND skill_version_id = $3`,
+          [input.organizationId, source.id, input.extension.skillVersionId],
+        )).rows[0])
+        : false;
+      const mcpAlreadyPinned = input.extension.kind === "mcp"
+        ? Boolean((await client.query(
+          `SELECT 1 FROM agent_version_mcp_providers
+           WHERE organization_id = $1 AND agent_version_id = $2 AND provider_version_id = $3`,
+          [input.organizationId, source.id, input.extension.providerVersionId],
+        )).rows[0])
+        : false;
+      extensionChanged ||= input.extension.kind === "skill" ? !skillAlreadyPinned : input.extension.kind === "mcp" ? !mcpAlreadyPinned : false;
+      if (!extensionChanged) return { installation, version: source, createdCandidate: false };
+
+      if (source.status === "draft") {
+        const updated = await client.query<AgentVersionRecord>(
+          `UPDATE agent_versions
+           SET configuration = $2::jsonb,
+               policy = $3::jsonb,
+               checksum = $4
+           WHERE id = $1
+           RETURNING *`,
+          [source.id, JSON.stringify(configuration), JSON.stringify(policy), checksumVersion({ instructions: source.instructions, configuration, policy } as CreateVersionInput, source.version_number)],
+        );
+        const version = updated.rows[0] ?? source;
+        await this.applyPlaygroundExtensionPin(client, input, version.id, installation.id);
+        return { installation, version, createdCandidate: false };
+      }
+
+      const nextNumber = await client.query<{ version_number: number }>(
+        `SELECT COALESCE(MAX(version_number), 0) + 1 AS version_number
+         FROM agent_versions WHERE agent_definition_id = $1`,
+        [source.agent_definition_id],
+      );
+      const versionNumber = Number(nextNumber.rows[0]?.version_number ?? source.version_number + 1);
+      const inserted = await client.query<AgentVersionRecord>(
+        `INSERT INTO agent_versions
+          (agent_definition_id, version_number, status, instructions, configuration, policy,
+           checksum, created_by)
+         VALUES ($1, $2, 'draft', $3, $4::jsonb, $5::jsonb, $6, $7)
+         RETURNING *`,
+        [
+          source.agent_definition_id,
+          versionNumber,
+          source.instructions,
+          JSON.stringify(configuration),
+          JSON.stringify(policy),
+          checksumVersion({ instructions: source.instructions, configuration, policy } as CreateVersionInput, versionNumber),
+          input.actorId,
+        ],
+      );
+      const candidate = inserted.rows[0];
+      if (!candidate) throw new Error("PLAYGROUND_CANDIDATE_CREATE_FAILED");
+
+      // Portable version grants and extension pins travel with the candidate.
+      await client.query(
+        `INSERT INTO agent_tool_grants
+           (organization_id, agent_version_id, installation_id, tool_name, granted_by)
+         SELECT organization_id, $2, installation_id, tool_name, granted_by
+         FROM agent_tool_grants
+         WHERE organization_id = $1 AND agent_version_id = $3 AND revoked_at IS NULL
+         ON CONFLICT (agent_version_id, COALESCE(installation_id, '00000000-0000-0000-0000-000000000000'::uuid), tool_name)
+           WHERE revoked_at IS NULL DO NOTHING`,
+        [input.organizationId, candidate.id, source.id],
+      );
+      await client.query(
+        `INSERT INTO agent_version_skills (organization_id, agent_version_id, skill_version_id, pinned_by)
+         SELECT organization_id, $2, skill_version_id, pinned_by
+         FROM agent_version_skills
+         WHERE organization_id = $1 AND agent_version_id = $3
+         ON CONFLICT (agent_version_id, skill_version_id) DO NOTHING`,
+        [input.organizationId, candidate.id, source.id],
+      );
+      await client.query(
+        `INSERT INTO agent_version_mcp_providers (organization_id, agent_version_id, provider_version_id, pinned_by)
+         SELECT organization_id, $2, provider_version_id, pinned_by
+         FROM agent_version_mcp_providers
+         WHERE organization_id = $1 AND agent_version_id = $3
+         ON CONFLICT DO NOTHING`,
+        [input.organizationId, candidate.id, source.id],
+      );
+      await this.applyPlaygroundExtensionPin(client, input, candidate.id, installation.id);
+
+      const snapshot = await this.extensionSnapshots.ensureSnapshotForVersion(client, input.organizationId, input.actorId, candidate.id);
+      const pinned = await client.query<AgentVersionRecord>(
+        `UPDATE agent_versions SET extension_snapshot_id = $2 WHERE id = $1 RETURNING *`,
+        [candidate.id, snapshot.id],
+      );
+      const retired = await client.query<AgentVersionRecord>(
+        `UPDATE agent_versions SET status = 'retired', retired_at = now()
+         WHERE id = $1 AND status = 'published' RETURNING *`,
+        [source.id],
+      );
+      const published = await client.query<AgentVersionRecord>(
+        `UPDATE agent_versions SET status = 'published', published_at = now()
+         WHERE id = $1 AND status = 'draft' RETURNING *`,
+        [candidate.id],
+      );
+      const publishedVersion = published.rows[0] ?? pinned.rows[0];
+      if (!publishedVersion) throw new Error("PLAYGROUND_CANDIDATE_PUBLISH_FAILED");
+      for (const version of retired.rows) {
+        await this.enqueueVersionLifecycle(client, input.organizationId, version, "retired", "human", new Date().toISOString());
+      }
+      await this.enqueueVersionLifecycle(client, input.organizationId, publishedVersion, "published", "human", new Date().toISOString());
+      const deployed = await this.deploymentModule.deployInstallation(client, input.organizationId, input.actorId, installation.id, {
+        versionId: publishedVersion.id,
+        expectedVersionId: source.id,
+      });
+      return { installation: deployed, version: publishedVersion, createdCandidate: true };
+    });
+  }
+
+  private async applyPlaygroundExtensionPin(
+    client: PoolClient,
+    input: { organizationId: string; actorId: string; extension: PlaygroundExtensionActivation },
+    agentVersionId: string,
+    installationId: string,
+  ): Promise<void> {
+    if (input.extension.kind === "skill") {
+      const result = await client.query(
+        `INSERT INTO agent_version_skills (organization_id, agent_version_id, skill_version_id, pinned_by)
+         SELECT $1, $2, version.id, $3
+         FROM agent_skill_versions version
+         JOIN agent_skill_definitions definition ON definition.id = version.skill_definition_id
+         WHERE version.id = $4 AND version.organization_id = $1
+           AND version.status = 'published' AND definition.status = 'published'
+           AND (definition.organization_id = $1 OR definition.owner_type = 'platform')
+         ON CONFLICT (agent_version_id, skill_version_id) DO NOTHING`,
+        [input.organizationId, agentVersionId, input.actorId, input.extension.skillVersionId],
+      );
+      if (!result.rowCount && !((await client.query("SELECT 1 FROM agent_version_skills WHERE organization_id = $1 AND agent_version_id = $2 AND skill_version_id = $3", [input.organizationId, agentVersionId, input.extension.skillVersionId])).rows[0])) {
+        throw new Error("SKILL_VERSION_NOT_FOUND_OR_NOT_PUBLISHED");
+      }
+      return;
+    }
+    if (input.extension.kind === "mcp") {
+      const result = await client.query(
+        `INSERT INTO agent_version_mcp_providers (organization_id, agent_version_id, provider_version_id, pinned_by)
+         SELECT $1, $2, provider_version.id, $3
+         FROM agent_mcp_provider_versions provider_version
+         JOIN agent_mcp_providers provider ON provider.id = provider_version.provider_id
+         WHERE provider_version.id = $4 AND provider_version.organization_id = $1
+           AND provider_version.status = 'published' AND provider.status = 'approved'
+           AND provider.health_status = 'healthy'
+         ON CONFLICT DO NOTHING`,
+        [input.organizationId, agentVersionId, input.actorId, input.extension.providerVersionId],
+      );
+      if (!result.rowCount && !((await client.query("SELECT 1 FROM agent_version_mcp_providers WHERE organization_id = $1 AND agent_version_id = $2 AND provider_version_id = $3", [input.organizationId, agentVersionId, input.extension.providerVersionId])).rows[0])) {
+        throw new Error("REMOTE_MCP_PROVIDER_VERSION_NOT_FOUND_OR_NOT_PUBLISHED_OR_UNHEALTHY");
+      }
+      return;
+    }
+    // Plugin selection is represented in the version configuration. The
+    // package itself was already validated and published by the caller.
+    void installationId;
+  }
+
   public async publishVersion(
     organizationId: string,
     actorId: string,
@@ -1542,13 +1860,6 @@ export class AgentRepository {
         await this.enqueueVersionLifecycle(client, organizationId, version, "retired", "human", lifecycleAt);
       }
       await this.enqueueVersionLifecycle(client, organizationId, publishedVersion, "published", "human", lifecycleAt);
-      await this.deploymentModule.deployFollowPublishedInstallations(client, {
-        organizationId,
-        agentId,
-        versionId,
-        actorId,
-        trigger: "version_published",
-      });
       await client.query(
         `INSERT INTO audit_records
           (organization_id, actor_type, actor_id, action, resource_type, resource_id, metadata)
@@ -1596,13 +1907,6 @@ export class AgentRepository {
       }
       if (published.rows[0]) {
         await this.enqueueVersionLifecycle(client, organizationId, published.rows[0], "rolled_back", "human", lifecycleAt);
-        await this.deploymentModule.deployFollowPublishedInstallations(client, {
-          organizationId,
-          agentId,
-          versionId,
-          actorId,
-          trigger: "version_rolled_back",
-        });
       }
       await client.query(
         `INSERT INTO audit_records
@@ -2202,6 +2506,7 @@ export class AgentRepository {
               latest.agent_version_id AS latest_candidate_version_id,
               latest.previous_agent_version_id AS latest_previous_version_id,
               latest.source_installation_id AS latest_source_installation_id,
+              latest.capability_configuration_digest AS latest_capability_configuration_digest,
               latest.binding_revision AS latest_binding_revision,
               latest.created_at AS latest_promotion_created_at,
               rollback_version.id AS rollback_version_id,
@@ -2318,6 +2623,7 @@ export class AgentRepository {
         candidateVersionId: row.latest_candidate_version_id,
         previousVersionId: row.latest_previous_version_id,
         sourceInstallationId: row.latest_source_installation_id,
+        capabilityConfigurationDigest: row.latest_capability_configuration_digest,
         bindingRevision: row.latest_binding_revision,
         createdAt: row.latest_promotion_created_at ?? "",
       } : null,
@@ -2348,16 +2654,6 @@ export class AgentRepository {
     input: InstallationRollbackInput,
   ): Promise<DeploymentActivationResult> {
     return withTransaction(this.pool, (client) => this.deploymentModule.rollbackInstallation(client, organizationId, actorId, installationId, input));
-  }
-
-  public async deployStagedVersion(
-    organizationId: string,
-    actorId: string,
-    agentId: string,
-    versionId: string,
-    input: DeployStagedVersionInput,
-  ): Promise<StagedDeploymentResult> {
-    return withTransaction(this.pool, (client) => this.deploymentModule.deployStagedVersion(client, organizationId, actorId, agentId, versionId, input));
   }
 
   public async ensureSystemInstallation(input: {

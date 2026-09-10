@@ -10,7 +10,7 @@ export type VersionStatus = z.infer<typeof versionStatusSchema>;
 export const installationStatusSchema = z.enum(["active", "paused", "disabled"]);
 export type InstallationStatus = z.infer<typeof installationStatusSchema>;
 
-export const agentReleaseModeSchema = z.enum(["pinned", "follow_published", "staged"]);
+export const agentReleaseModeSchema = z.literal("pinned");
 export type AgentReleaseMode = z.infer<typeof agentReleaseModeSchema>;
 
 export const agentExecutionModeSchema = z.enum(["system_hosted", "kasitek_hosted", "external_connected"]);
@@ -203,19 +203,6 @@ export const installationRollbackInputSchema = z.object({
   idempotencyKey: z.string().trim().min(8).max(240).optional(),
 }).strict();
 export type InstallationRollbackInput = z.infer<typeof installationRollbackInputSchema>;
-
-export const deployStagedVersionInputSchema = z.object({
-  installationIds: z.array(z.string().uuid()).min(1).max(100).optional(),
-  percentage: z.number().int().min(1).max(100).optional(),
-}).superRefine((value, context) => {
-  if (value.installationIds === undefined && value.percentage === undefined) {
-    context.addIssue({ code: z.ZodIssueCode.custom, message: "installationIds or percentage is required" });
-  }
-  if (value.installationIds !== undefined && value.percentage !== undefined) {
-    context.addIssue({ code: z.ZodIssueCode.custom, message: "Choose installationIds or percentage, not both" });
-  }
-});
-export type DeployStagedVersionInput = z.infer<typeof deployStagedVersionInputSchema>;
 
 const externalScopeSchema = z.object({
   resourceType: z.string().trim().min(1).max(120),

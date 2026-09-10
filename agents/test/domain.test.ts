@@ -38,8 +38,8 @@ describe("agent audience contract", () => {
 });
 
 describe("agent release mode contract", () => {
-  it("defaults hosted installations to following the published version", () => {
-    expect(defaultAgentReleaseMode("kasitek_hosted")).toBe("follow_published");
+  it("defaults installations to explicit deployment", () => {
+    expect(defaultAgentReleaseMode("kasitek_hosted")).toBe("pinned");
     expect(defaultAgentReleaseMode("system_hosted")).toBe("pinned");
     expect(defaultAgentReleaseMode("external_connected")).toBe("pinned");
   });
@@ -54,10 +54,8 @@ describe("agent release mode contract", () => {
     expect(() => assertAgentReleaseMode("kasitek_hosted", "pinned")).not.toThrow();
   });
 
-  it("allows staged rollout only for hosted organization installations", () => {
-    expect(() => assertAgentReleaseMode("kasitek_hosted", "staged")).not.toThrow();
-    expect(() => assertAgentReleaseMode("system_hosted", "follow_published")).toThrow(/Only hosted/);
-    expect(() => assertAgentReleaseMode("external_connected", "follow_published")).toThrow(/Only hosted/);
-    expect(() => assertAgentReleaseMode("system_hosted", "staged")).toThrow(/Only hosted/);
+  it("rejects every release mode except pinned", () => {
+    expect(() => assertAgentReleaseMode("kasitek_hosted", "follow_published" as never)).toThrow(/Only pinned/);
+    expect(() => assertAgentReleaseMode("kasitek_hosted", "staged" as never)).toThrow(/Only pinned/);
   });
 });

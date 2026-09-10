@@ -14,6 +14,5 @@ describe("agent grounding", () => {
     expect(shouldFailClosedWithoutEvidence({ message: "What is your refund policy?", agentAudience: "customer_service", evidenceCount: 0 })).toBe(true);
     expect(shouldFailClosedWithoutEvidence({ message: "What is your refund policy?", agentAudience: "customer_service", evidenceCount: 1 })).toBe(false);
     expect(classifyAgentIntent("What are the things you can help me with?")).toBe("capability_request");
-    expect(shouldFailClosedWithoutEvidence({ message: "What are the things you can help me with?", agentAudience: "customer_service", evidenceCount: 0, capabilityAwarenessEnabled: false })).toBe(true);
   });
 });

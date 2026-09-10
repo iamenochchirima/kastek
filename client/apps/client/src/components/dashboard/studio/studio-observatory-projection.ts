@@ -206,6 +206,80 @@ function labelForCapability(name: string) {
   return last.replaceAll("_", " ").replaceAll("-", " ").replace(/\b\w/g, (character) => character.toUpperCase());
 }
 
+function executionKind(item: StudioTraceItem): StudioGraphNode["kind"] {
+  const event = normalized(item.event);
+  const tokens = `${event} ${tokensForTrace(item).join(" ")}`;
+  if (event.includes("child") || event.includes("delegate")) return "child";
+  if (event.includes("connector")) return "connector";
+  if (tokens.includes("mcp")) return "mcp";
+  if (tokens.includes("skill")) return "skill";
+  if (event.includes("tool") || event.includes("operation") || event.includes("effect")) return "tool";
+  return "router";
+}
+
+function traceCapabilityName(item: StudioTraceItem) {
+  const value = [item.data.name, item.data.tool_name, item.data.tool, item.data.capability_name, item.data.capability, item.data.skill, item.data.server]
+    .find((candidate): candidate is string => typeof candidate === "string" && candidate.trim().length > 0);
+  return value?.trim();
+}
+
+function configuredNodeForTrace(item: StudioTraceItem, configuredNodes: StudioGraphNode[]) {
+  const coreMatch = Object.entries(coreEventMatchers).find(([, matcher]) => matcher(item));
+  if (coreMatch && configuredNodes.some((node) => node.id === coreMatch[0])) return coreMatch[0];
+  const capabilityMatch = configuredNodes.find((node) => {
+    const matchKeys = typeof node.data.matchKeys === "string" ? node.data.matchKeys.split(" · ") : [];
+    return node.configured && matchKeys.length > 0 && matchesCapability(item, matchKeys);
+  });
+  return capabilityMatch?.id;
+}
+
+function isRuntimeCapabilityEvent(item: StudioTraceItem) {
+  const event = normalized(item.event);
+  const tokens = tokensForTrace(item);
+  return event.includes("tool") || event.includes("connector") || event.includes("operation") || event.includes("effect") || tokens.some((token) => token.includes("mcp") || token.includes("skill"));
+}
+
+function runtimeCapabilityNodes(trace: StudioTraceItem[], configuredNodes: StudioGraphNode[], indexOffset: number) {
+  const groups = new Map<string, StudioTraceItem[]>();
+  for (const item of trace) {
+    if (configuredNodeForTrace(item, configuredNodes) || !isRuntimeCapabilityEvent(item)) continue;
+    const identity = traceCapabilityName(item) ?? item.event;
+    const key = `${executionKind(item)}:${normalized(identity)}`;
+    groups.set(key, [...(groups.get(key) ?? []), item]);
+  }
+
+  return [...groups.entries()].map(([key, items], index) => {
+    const latest = items.at(-1)!;
+    const name = traceCapabilityName(latest);
+    return capabilityNode({
+      id: `runtime:${key}`,
+      label: name ?? latest.label,
+      detail: latest.detail || latest.event,
+      kind: executionKind(latest),
+      status: statusForEvent(latest),
+      provider: typeof latest.data.provider === "string" ? latest.data.provider : undefined,
+      scope: "selected run",
+      event: latest.event,
+      data: {
+        runtime: "observed",
+        event: latest.event,
+        ...(name ? { capability: name } : {}),
+      },
+      index: indexOffset + index,
+      names: name ? [name] : [],
+      configured: false,
+      configurable: false,
+      activity: activityForTrace(items),
+      evidence: {
+        id: latest.id,
+        event: latest.event,
+        sequence: latest.sequence,
+        detail: latest.detail,
+      },
+    });
+  });
+}
+
 function capabilityNode(input: {
   id: string;
   label: string;
@@ -218,6 +292,8 @@ function capabilityNode(input: {
   data: Record<string, string>;
   index: number;
   names: string[];
+  configured?: boolean;
+  configurable?: boolean;
   activity?: StudioNodeActivity;
   evidence?: StudioGraphNode["evidence"];
 }) : StudioGraphNode {
@@ -227,8 +303,8 @@ function capabilityNode(input: {
     detail: input.detail,
     kind: input.kind,
     status: input.status,
-    configured: true,
-    configurable: true,
+    configured: input.configured ?? true,
+    configurable: input.configurable ?? true,
     provider: input.provider,
     scope: input.scope,
     event: input.event,
@@ -262,6 +338,7 @@ export function projectStudioObservatory(input: ProjectionInput): StudioObservat
     if (definition.id === "router" && effective) data.capabilities = `${effective.tools.length} tools · ${effective.skills.length} skills · ${effective.remoteMcpProviders.length} MCP`;
     const matchingTrace = coreEventMatchers[definition.id] ? input.trace.filter(coreEventMatchers[definition.id]) : [];
     const evidence = matchingTrace.at(-1);
+    const runtimeStatus = statusForCore(definition.id, input.trace);
     const memory = definition.id === "memory-read"
       ? latestMemoryEvidence(input.memory, ["retrieval_plan", "evidence"])
       : definition.id === "retrieval"
@@ -271,7 +348,7 @@ export function projectStudioObservatory(input: ProjectionInput): StudioObservat
           : undefined;
     return {
       ...definition,
-      status: configUnavailable ? "unavailable" : statusForCore(definition.id, input.trace),
+      status: runtimeStatus !== "idle" ? runtimeStatus : configUnavailable ? "unavailable" : runtimeStatus,
       label: definition.id === "model" ? effective?.model.model ?? input.modelLabel ?? definition.label : definition.label,
       data,
       ...(activityForTrace(matchingTrace) ? { activity: activityForTrace(matchingTrace) } : {}),
@@ -286,7 +363,9 @@ export function projectStudioObservatory(input: ProjectionInput): StudioObservat
   });
 
   if (!effective || configUnavailable) {
-    return { nodes: coreNodes, edges: buildEdges(coreNodes, []) };
+    const runtimeNodes = runtimeCapabilityNodes(input.trace, coreNodes, 0);
+    const nodes = [...coreNodes, ...runtimeNodes];
+    return { nodes, edges: buildEdges(nodes, runtimeNodes) };
   }
 
   const capabilityByName = new Map((input.capabilities ?? []).map((capability) => [normalized(capability.name), capability]));
@@ -395,8 +474,10 @@ export function projectStudioObservatory(input: ProjectionInput): StudioObservat
     }));
   }
 
-  const nodes = [...coreNodes, ...capabilityNodes];
-  return { nodes, edges: buildEdges(nodes, capabilityNodes) };
+  const runtimeNodes = runtimeCapabilityNodes(input.trace, [...coreNodes, ...capabilityNodes], capabilityNodes.length);
+  const allCapabilityNodes = [...capabilityNodes, ...runtimeNodes];
+  const nodes = [...coreNodes, ...allCapabilityNodes];
+  return { nodes, edges: buildEdges(nodes, allCapabilityNodes) };
 }
 
 function buildEdges(nodes: StudioGraphNode[], capabilityNodes: StudioGraphNode[]): StudioGraphEdge[] {

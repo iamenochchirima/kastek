@@ -70,9 +70,6 @@ const retrievalDuration = meter.createHistogram("kasitek.memory.retrieval.durati
   description: "Memory and knowledge retrieval duration in milliseconds",
   unit: "ms",
 });
-const agentVersionDeploymentCounter = meter.createCounter("kasitek.agent.version.deployment.count", {
-  description: "Published-versus-deployed installation rollout outcomes",
-});
 const conversationAdmissionCounter = meter.createCounter("kasitek.conversation.admission.count", {
   description: "Conversation run admission outcomes, including backpressure and idempotent replay",
 });
@@ -312,19 +309,6 @@ export function recordRetrievalScopeRejection(reason: "missing_installation" | "
 export function recordRetrievalDuration(durationMs: number): void {
   if (!Number.isFinite(durationMs) || durationMs < 0) return;
   retrievalDuration.record(durationMs);
-}
-
-export function recordAgentVersionDeployment(input: {
-  outcome: "matched" | "mismatch" | "blocked" | "deployed";
-  releaseMode: "follow_published";
-  count?: number;
-}): void {
-  const count = input.count ?? 1;
-  if (!Number.isSafeInteger(count) || count <= 0) return;
-  agentVersionDeploymentCounter.add(count, {
-    outcome: input.outcome,
-    release_mode: input.releaseMode,
-  });
 }
 
 export function recordConversationAdmission(input: {

@@ -38,10 +38,20 @@ export class ToolRegistry {
   private readonly tools = new Map<string, RegisteredTool>();
   private readonly ajv: Ajv;
   private readonly capabilityCatalog = new CapabilityCatalog();
+  private registryGeneration = 0;
 
   /** MCP and internal capability schemas use the JSON Schema 2020-12 dialect. */
   public constructor(ajv: Ajv = new Ajv2020({ allErrors: true, strict: false })) {
     this.ajv = ajv;
+  }
+
+  /**
+   * Monotonic generation for the scoped executable registry.  Model/tool
+   * projections include this value so a late MCP/plugin registration cannot
+   * reuse a stale capability snapshot on the next turn.
+   */
+  public get generation(): number {
+    return this.registryGeneration;
   }
 
   public register(definition: ToolDefinition): void {
@@ -56,6 +66,7 @@ export class ToolRegistry {
     const { handler: _handler, catalog: catalogMetadata, ...toolManifest } = definition;
     this.capabilityCatalog.registerTool(toolManifest, catalogMetadata);
     this.tools.set(definition.name, { ...definition, validateInput, validateOutput });
+    this.registryGeneration += 1;
   }
 
   public registerManifest(definition: CapabilityManifest & ToolDefinition): void {
@@ -100,6 +111,7 @@ export class ToolRegistry {
 
   public registerToolset(toolset: CapabilityToolsetDescriptor): void {
     this.capabilityCatalog.registerToolset(toolset);
+    this.registryGeneration += 1;
   }
 
   public surfaces(grantedTools?: ReadonlySet<string>): GeneratedCapabilitySurface[] {

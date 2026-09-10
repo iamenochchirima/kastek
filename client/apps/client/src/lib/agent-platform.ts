@@ -4,7 +4,7 @@ export type AgentInstallation = {
   id: string;
   status: "active" | "paused" | "disabled";
   execution_mode?: "system_hosted" | "kasitek_hosted" | "external_connected";
-  release_mode?: "pinned" | "follow_published" | "staged";
+  release_mode?: "pinned";
   agent_audience?: "personal" | "customer_service" | null;
   agent_name?: string;
   agent_slug?: string;
@@ -758,6 +758,13 @@ export function ensureKasiAiPlayground(): Promise<AgentInstallation> {
   });
 }
 
+export function ensureKasiAiLive(): Promise<AgentInstallation> {
+  return request<AgentInstallation>("/api/agents/kasiai/ensure", {
+    method: "POST",
+    body: JSON.stringify({ environment: "live" }),
+  });
+}
+
 export type AgentDefinition = {
   id: string;
   name: string;
@@ -769,7 +776,7 @@ export type AgentDefinition = {
   protected: boolean;
   owner_type: string;
   execution_mode?: "system_hosted" | "kasitek_hosted" | "external_connected" | null;
-  release_mode?: "pinned" | "follow_published" | "staged" | null;
+  release_mode?: "pinned" | null;
   created_at: string;
   installation_id?: string | null;
   installation_status?: string | null;
@@ -1017,7 +1024,7 @@ export type AgentSpecInput = {
   extensions?: { packages?: unknown[]; grants?: unknown[] };
   workflow?: { graph?: Record<string, unknown> };
   channels?: { allowed?: string[] };
-  release?: { mode?: "pinned" | "follow_published" | "staged" };
+  release?: { mode?: "pinned" };
 };
 
 export type AgentVersionCreateInput = {
@@ -1033,7 +1040,7 @@ export function createAgentVersion(agentId: string, input: AgentVersionCreateInp
   });
 }
 
-export function createAgentInstallation(agentVersionId: string, settings: Record<string, unknown> = {}, releaseMode?: "pinned" | "follow_published" | "staged"): Promise<AgentInstallation> {
+export function createAgentInstallation(agentVersionId: string, settings: Record<string, unknown> = {}, releaseMode?: "pinned"): Promise<AgentInstallation> {
   return request("/api/agents/installations", { method: "POST", body: JSON.stringify({ agentVersionId, scopeType: "organization", settings, ...(releaseMode ? { releaseMode } : {}) }) });
 }
 
@@ -1062,6 +1069,7 @@ export type AgentDeploymentStatus = {
     candidateVersionId: string | null;
     previousVersionId: string | null;
     sourceInstallationId: string | null;
+    capabilityConfigurationDigest: string | null;
     bindingRevision: string | null;
     createdAt: string;
   } | null;
@@ -1076,6 +1084,7 @@ export type AgentDeploymentPreflight = {
   candidate: AgentDeploymentVersion | null;
   current: AgentDeploymentVersion | null;
   sourceInstallationId: string | null;
+  capabilityConfigurationDigest: string | null;
   bindingRevision: string | null;
   blockers: Array<{ code: string; detail: string }>;
 };
@@ -1089,6 +1098,7 @@ export type AgentDeploymentActivation = {
     targetInstallationId: string;
     candidateVersionId: string;
     candidateDigest: string;
+    capabilityConfigurationDigest: string | null;
     extensionSnapshotChecksum: string | null;
     bindingRevision: string | null;
     expectedVersionId: string;
@@ -1115,10 +1125,6 @@ export function promoteAgentInstallation(installationId: string, input: { versio
 
 export function rollbackAgentInstallation(installationId: string, input: { expectedVersionId?: string; targetVersionId?: string; idempotencyKey?: string } = {}): Promise<AgentDeploymentActivation> {
   return request(`/api/agents/installations/${encodeURIComponent(installationId)}/rollback`, { method: "POST", body: JSON.stringify(input) });
-}
-
-export function deployStagedAgentVersion(agentId: string, versionId: string, input: { installationIds?: string[]; percentage?: number }): Promise<{ versionId: string; deployedInstallationIds: string[]; deploymentCount: number }> {
-  return request(`/api/agents/${encodeURIComponent(agentId)}/versions/${encodeURIComponent(versionId)}/deploy`, { method: "POST", body: JSON.stringify(input) });
 }
 
 export type AgentTemplate = {

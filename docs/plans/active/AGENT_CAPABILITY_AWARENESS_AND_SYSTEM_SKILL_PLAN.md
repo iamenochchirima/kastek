@@ -1,6 +1,6 @@
 # Agent capability awareness and system capability skill
 
-**Status:** Local implementation and end-to-end verification complete; Playground-to-Live capability configuration promotion is included, while hosted deployment and production release evidence remain outside this local plan
+**Status:** Superseded by [`AGENT_HERMES_ALIGNED_CAPABILITY_LIFECYCLE_PLAN.md`](./AGENT_HERMES_ALIGNED_CAPABILITY_LIFECYCLE_PLAN.md); retained as historical implementation evidence
 
 **Owner:** Agent Platform and Studio
 
@@ -17,6 +17,12 @@
 
 - Hermes Agent `/home/enoch/aworkspace/agents/hermes-agent` at `9a84bee265`
 - Waku Agent `/home/enoch/aworkspace/agents/waku-agent` at `21486b3`
+
+> This document records the first capability-awareness implementation and its verification evidence.
+> It is no longer the architectural authority. The Hermes-aligned lifecycle plan above replaces its
+> prompt/snapshot-first direction with one registry-driven activation contract for connections,
+> plugins, MCP, and skills. Do not start new implementation work from this document without first
+> reconciling it with the replacement plan.
 
 ## Objective
 
@@ -257,6 +263,41 @@ Extend the shared context policy with concise, runtime-owned guidance:
 
 This contract applies to every hosted agent. Agent Behavior settings still own identity, purpose,
 and tone, while the platform-owned discovery contract owns truthful capability awareness.
+
+### Hermes/Waku conformance decisions
+
+The local source comparison is recorded in
+[`HERMES_WAKU_CAPABILITY_AWARENESS.md`](../../research/HERMES_WAKU_CAPABILITY_AWARENESS.md). The
+implementation must follow these boundaries rather than introduce another prompt-only capability
+catalogue:
+
+- The registry and its availability checks are the authority for callable tools. The model receives
+  the exact admitted schemas; the capability summary is explanatory and must never make an absent
+  tool callable.
+- Connection metadata is a separate, typed input to admission. A connection declares its provider,
+  health, and capability mapping; it does not bypass installation grants, agent policy, approval, or
+  dispatch-time scope checks.
+- Connecting an integration in Playground should automatically select its declared capability
+  bundle for that candidate (for example, Google Calendar's list/create/update/delete tools), then
+  recompute the candidate snapshot. This is a product activation convenience, not an authorization
+  bypass. The Live installation changes only through Deploy.
+- Provider identity must remain explicit in the projection. A capability summary should group
+  callable actions under the connected service/provider (for example, `Google Calendar → list,
+  create, update, delete`) instead of presenting an unlabelled flat list of names.
+- Skills use progressive disclosure: publish a compact metadata index, match against the current
+  request and compatibility/dependency state, and load only the relevant instruction body. Large
+  linked material remains on demand. Skill instructions never grant permissions.
+- Any registry, connection, skill, or grant change must invalidate the cached capability/tool
+  projection for the next turn and produce a new digest. A run keeps its immutable snapshot while
+  in flight. This mirrors Hermes' generation-aware registry and explicit MCP refresh boundary.
+- Capability self-description is a distinct runtime intent. It must not be routed through the
+  factual-knowledge grounding fallback; when the user asks what the agent can do, answer from the
+  current snapshot and use a trusted discovery tool for account-specific state.
+
+The conformance gate for this plan is therefore: `Connect → declared capability bundle in
+Playground → admission projection → exact schemas + grouped summary → tool dispatch re-check →
+Deploy for Live`, with tests proving that a connected-but-ungranted or unhealthy provider is
+visible as unavailable and cannot be invoked.
 
 ### Capability intent and grounding
 
