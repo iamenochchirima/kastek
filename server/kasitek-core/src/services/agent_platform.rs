@@ -2085,6 +2085,29 @@ impl AgentPlatformClient {
         .await
     }
 
+    pub async fn get_agent_version_effective_config(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        agent_version_id: &str,
+        installation_id: Option<&str>,
+    ) -> Result<Value, AppError> {
+        let mut path = format!("/v1/agent-versions/{agent_version_id}/effective-config");
+        if let Some(installation_id) = installation_id.filter(|value| !value.trim().is_empty()) {
+            path.push_str("?installationId=");
+            path.push_str(&urlencoding::encode(installation_id));
+        }
+        self.request_json(
+            Method::GET,
+            &path,
+            organization_id,
+            actor_id,
+            &["agents:read"],
+            None,
+        )
+        .await
+    }
+
     pub async fn get_agent_deployment_status(
         &self,
         organization_id: &str,
@@ -2115,6 +2138,24 @@ impl AgentPlatformClient {
             organization_id,
             actor_id,
             &["agents:read"],
+            Some(body),
+        )
+        .await
+    }
+
+    pub async fn deploy_installation(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        installation_id: &str,
+        body: Value,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::POST,
+            &format!("/v1/installations/{installation_id}/deploy"),
+            organization_id,
+            actor_id,
+            &["agents:write"],
             Some(body),
         )
         .await
@@ -3243,6 +3284,37 @@ impl AgentPlatformClient {
         .await
     }
 
+    pub async fn get_run_memory_observatory(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        run_id: &str,
+        after_sequence: Option<u64>,
+        limit: Option<u32>,
+    ) -> Result<Value, AppError> {
+        let mut query = Vec::new();
+        if let Some(after_sequence) = after_sequence {
+            query.push(format!("afterSequence={after_sequence}"));
+        }
+        if let Some(limit) = limit {
+            query.push(format!("limit={limit}"));
+        }
+        let path = if query.is_empty() {
+            format!("/v1/runs/{run_id}/memory-observatory")
+        } else {
+            format!("/v1/runs/{run_id}/memory-observatory?{}", query.join("&"))
+        };
+        self.request_json(
+            Method::GET,
+            &path,
+            organization_id,
+            actor_id,
+            &["runs:read"],
+            None,
+        )
+        .await
+    }
+
     pub async fn cancel_run(
         &self,
         organization_id: &str,
@@ -3888,6 +3960,53 @@ mod tests {
             Some("text/event-stream")
         );
         assert_scoped_request(&requests[0], "agents:read");
+    }
+
+    #[tokio::test]
+    async fn studio_observability_reads_use_the_scoped_agent_boundary() {
+        let (base_url, server) = mock_agent_server(vec![
+            (200, r#"{"effective":{}}"#),
+            (200, r#"{"nodes":[],"edges":[],"cursor":4}"#),
+            (200, r#"{"id":"installation-1","status":"active"}"#),
+        ])
+        .await;
+        let client = test_client(&base_url);
+
+        client
+            .get_agent_version_effective_config(
+                "org-1",
+                "actor-1",
+                "version-1",
+                Some("installation-1"),
+            )
+            .await
+            .unwrap();
+        client
+            .get_run_memory_observatory("org-1", "actor-1", "run-1", Some(4), Some(20))
+            .await
+            .unwrap();
+        client
+            .deploy_installation(
+                "org-1",
+                "actor-1",
+                "installation-1",
+                json!({"versionId":"version-2"}),
+            )
+            .await
+            .unwrap();
+
+        let requests = server.await.unwrap();
+        assert_eq!(requests.len(), 3);
+        assert!(requests[0].starts_with(
+            "GET /v1/agent-versions/version-1/effective-config?installationId=installation-1 HTTP/1.1"
+        ));
+        assert!(requests[1].starts_with(
+            "GET /v1/runs/run-1/memory-observatory?afterSequence=4&limit=20 HTTP/1.1"
+        ));
+        assert!(requests[2].starts_with("POST /v1/installations/installation-1/deploy HTTP/1.1"));
+        assert_scoped_request(&requests[0], "agents:read");
+        assert_scoped_request(&requests[1], "runs:read");
+        assert_scoped_request(&requests[2], "agents:write");
     }
 
     #[tokio::test]

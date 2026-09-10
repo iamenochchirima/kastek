@@ -54,6 +54,19 @@ pub struct CapabilityDirectoryQuery {
     pub agent_version_id: Option<String>,
 }
 
+#[derive(Debug, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct EffectiveAgentConfigQuery {
+    pub installation_id: Option<String>,
+}
+
+#[derive(Debug, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct MemoryObservatoryQuery {
+    pub after_sequence: Option<u64>,
+    pub limit: Option<u32>,
+}
+
 fn client(config: &AppConfig) -> Result<AgentPlatformClient, AppError> {
     AgentPlatformClient::from_config(config)
 }
@@ -2834,6 +2847,25 @@ pub async fn list_agent_versions(
     Ok(HttpResponse::Ok().json(response))
 }
 
+pub async fn get_agent_version_effective_config(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    agent_version_id: web::Path<String>,
+    query: web::Query<EffectiveAgentConfigQuery>,
+) -> Result<HttpResponse, AppError> {
+    let (user, organization_id) = scope(&req, pool.get_ref()).await?;
+    let response = client(config.get_ref())?
+        .get_agent_version_effective_config(
+            &organization_id,
+            &user.id,
+            agent_version_id.trim(),
+            query.installation_id.as_deref(),
+        )
+        .await?;
+    Ok(HttpResponse::Ok().json(response))
+}
+
 pub async fn get_agent_deployment_status(
     pool: web::Data<PgPool>,
     config: web::Data<AppConfig>,
@@ -2869,6 +2901,30 @@ pub async fn preflight_installation_deployment(
             &user.id,
             installation_id.trim(),
             input,
+        )
+        .await?;
+    Ok(HttpResponse::Ok().json(response))
+}
+
+pub async fn deploy_installation(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    installation_id: web::Path<String>,
+    body: web::Json<Value>,
+) -> Result<HttpResponse, AppError> {
+    let (user, organization_id) = management_scope(&req, pool.get_ref()).await?;
+    if !body.is_object() {
+        return Err(AppError::BadRequest(
+            "Installation deploy body must be an object".to_string(),
+        ));
+    }
+    let response = client(config.get_ref())?
+        .deploy_installation(
+            &organization_id,
+            &user.id,
+            installation_id.trim(),
+            body.into_inner(),
         )
         .await?;
     Ok(HttpResponse::Ok().json(response))
@@ -3294,6 +3350,31 @@ pub async fn get_run_timeline(
     let (user, organization_id) = scope(&req, pool.get_ref()).await?;
     let response = client(config.get_ref())?
         .get_run_timeline(&organization_id, &user.id, &run_id)
+        .await?;
+    Ok(HttpResponse::Ok().json(response))
+}
+
+pub async fn get_run_memory_observatory(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    run_id: web::Path<String>,
+    query: web::Query<MemoryObservatoryQuery>,
+) -> Result<HttpResponse, AppError> {
+    let (user, organization_id) = scope(&req, pool.get_ref()).await?;
+    if query.limit.is_some_and(|limit| !(1..=200).contains(&limit)) {
+        return Err(AppError::BadRequest(
+            "Memory observatory limit must be between 1 and 200".to_string(),
+        ));
+    }
+    let response = client(config.get_ref())?
+        .get_run_memory_observatory(
+            &organization_id,
+            &user.id,
+            run_id.trim(),
+            query.after_sequence,
+            query.limit,
+        )
         .await?;
     Ok(HttpResponse::Ok().json(response))
 }

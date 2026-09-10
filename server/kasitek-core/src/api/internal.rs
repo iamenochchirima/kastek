@@ -295,6 +295,10 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                 web::post().to(agent_platform::preflight_installation_deployment),
             )
             .route(
+                "/installations/{installationId}/deploy",
+                web::post().to(agent_platform::deploy_installation),
+            )
+            .route(
                 "/installations/{installationId}/promote",
                 web::post().to(agent_platform::promote_installation),
             )
@@ -531,6 +535,10 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                 web::get().to(agent_platform::list_agent_versions),
             )
             .route(
+                "/agent-versions/{agentVersionId}/effective-config",
+                web::get().to(agent_platform::get_agent_version_effective_config),
+            )
+            .route(
                 "/{agentId}/deployment-status",
                 web::get().to(agent_platform::get_agent_deployment_status),
             )
@@ -718,6 +726,10 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
             .route(
                 "/runs/{runId}/timeline",
                 web::get().to(agent_platform::get_run_timeline),
+            )
+            .route(
+                "/runs/{runId}/memory-observatory",
+                web::get().to(agent_platform::get_run_memory_observatory),
             )
             .route(
                 "/runs/{runId}/cancel",

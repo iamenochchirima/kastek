@@ -183,6 +183,9 @@ The resulting policy is:
     `AGENT_KNOWLEDGE_GROUNDING_FIX_PLAN.md`, link this plan from the capability lifecycle plan,
     update the internal runtime/runbook documentation, and record the release fields below. Do
     not add a legacy fallback or a second execution path.
+11. [x] **Close the Core proxy seam.** Forward effective-config, memory-observatory, and
+    Playground deployment requests through the authenticated Core boundary so Studio uses the
+    same agent-platform contracts as direct local API clients.
 
 ## Verification
 
@@ -198,8 +201,11 @@ The resulting policy is:
   the expected activation responses. The temporary test agent was deleted after verification.
 - [x] Client production build and targeted lint passed for the shared chat surface, run-status and
   cancellation controls, deployment lifecycle UI, Studio integration, and platform client.
-- [ ] Browser check of Playground and Live: connect/configure, test in Playground, Deploy, test in
-  Live, edit again, confirm Live remains unchanged, then roll back and verify the old snapshot.
+- [x] Headless browser smoke against a clean production client and rebuilt local Core proxy loaded
+  Studio without the former effective-config or memory-observatory 404s. An authenticated
+  temporary agent completed Playground v1 → v2, preflight, Live promotion to v2, rollback to v1,
+  and cleanup through the browser session. External OAuth provider authorization remains a manual
+  provider-dependent check.
 - [x] `git diff --check` passed; changed internal documentation links resolve to checked-in files.
 
 ## Decisions and open questions
@@ -232,7 +238,7 @@ The resulting policy is:
 | Change | Replace pre-model phrase-based grounding short circuit with a model-first capability/tool loop and post-model evidence review. |
 | Owner | Agent Platform |
 | Risk | High: changes model admission, tool invocation, grounding, and user-visible failure semantics. |
-| Affected services and user surfaces | Agents runtime/Temporal worker, model gateway, capability registry, connection adapters, skills, Playground, Live chat, Studio execution observatory. |
+| Affected services and user surfaces | Agents runtime/Temporal worker, model gateway, capability registry, connection adapters, skills, Core agent proxy, Playground, Live chat, Studio execution observatory. |
 | Platform release version or release ID | Not applicable until the implementation is approved and released locally; assign before any hosted release. |
 | API/schema/migration changes | Prefer no migration. If event/provenance fields need persistence, use additive bounded fields and a repeatable migration; no destructive cleanup in this change. |
 | Feature flag or rollout method | No legacy or dual execution mode. Local verification through the configured development proxy/tunnel; promote the tested artifact explicitly. |
