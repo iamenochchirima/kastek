@@ -22,6 +22,8 @@ model Organization {
   invitations OrganizationInvitation[]
 
   socialChannelConnections       SocialChannelConnection[]
+  emailConnections               EmailConnection[]
+  emailOAuthStates               EmailOAuthState[]
   socialPosts                    SocialPost[]
   socialPublishJobs              SocialPublishJob[]
   socialPublishBatches           SocialPublishBatch[]
@@ -247,6 +249,62 @@ model ExternalConnectionConsumer {
 
   @@unique([connectionId, productKey])
   @@index([productKey])
+}
+
+/// Workspace-owned provider account. Product surfaces bind to the projected
+/// ExternalConnection; OAuth material is never stored in Agents or exposed to
+/// browser/model responses.
+model EmailConnection {
+  id                String   @id @default(cuid())
+  orgId             String
+  org               Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  userId            String
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider          String
+  externalAccountId String
+  emailAddress      String
+  displayName       String
+  accessToken       String   @db.Text
+  refreshToken      String?  @db.Text
+  tokenExpiresAt    DateTime?
+  scopes            String[] @default([])
+  status            String   @default("CONNECTED")
+  healthStatus      String   @default("HEALTHY")
+  syncStatus        String   @default("NOT_CONFIGURED")
+  lastSyncedAt      DateTime?
+  lastError         String?  @db.Text
+  metadata          Json?
+
+  oauthStates EmailOAuthState[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([orgId, provider, externalAccountId])
+  @@index([orgId, provider])
+  @@index([orgId, status])
+  @@index([emailAddress])
+}
+
+model EmailOAuthState {
+  id          String   @id @default(cuid())
+  orgId       String
+  org         Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider    String
+  stateHash   String   @unique
+  redirectUri String
+  returnPath  String   @default("/inbox")
+  expiresAt   DateTime
+  consumedAt  DateTime?
+  createdAt   DateTime @default(now())
+
+  emailConnectionId String?
+  emailConnection   EmailConnection? @relation(fields: [emailConnectionId], references: [id], onDelete: SetNull)
+
+  @@index([orgId, expiresAt])
+  @@index([userId, provider])
 }
 
 enum BillingInterval {
@@ -870,6 +928,8 @@ model User {
   businessProfile                BusinessProfile?
   conversations                  OnboardingConversation[]
   socialChannelConnections       SocialChannelConnection[]
+  emailConnections                EmailConnection[]
+  emailOAuthStates                EmailOAuthState[]
   socialPosts                    SocialPost[]
   socialPublishJobs              SocialPublishJob[]
   socialPublishBatches           SocialPublishBatch[]

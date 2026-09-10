@@ -37,6 +37,18 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                 web::patch().to(agent_internal::update_workspace_connection_status_by_id),
             )
             .route(
+                "/email/connections",
+                web::post().to(agent_internal::upsert_email_connection),
+            )
+            .route(
+                "/email/connections/{id}",
+                web::get().to(agent_internal::get_email_connection),
+            )
+            .route(
+                "/email/{operation}",
+                web::post().to(agent_internal::email_operation),
+            )
+            .route(
                 "/workspace/report",
                 web::get().to(agent_internal::get_workspace_report),
             )
@@ -193,6 +205,10 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
             .route(
                 "/integrations/google/oauth/callback",
                 web::get().to(agent_platform::complete_google_oauth_callback),
+            )
+            .route(
+                "/integrations/microsoft/oauth/callback",
+                web::get().to(agent_platform::complete_microsoft_oauth_callback),
             )
             .route(
                 "/capabilities",

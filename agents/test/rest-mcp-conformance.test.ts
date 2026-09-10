@@ -133,14 +133,14 @@ function isProviderWebhook(route: Route): boolean {
 }
 
 function isPublicOAuthCallback(route: Route): boolean {
-  return (route.path === "/v1/integrations/google/oauth/callback" || route.path === "/v1/integrations/mcp/oauth/callback") && route.method === "GET";
+  return (route.path === "/v1/integrations/google/oauth/callback" || route.path === "/v1/integrations/:provider/oauth/callback" || route.path === "/v1/integrations/mcp/oauth/callback") && route.method === "GET";
 }
 
 describe("Agent REST and MCP conformance matrices", () => {
   it("guards every mounted /v1 route before parsing input or touching dependencies", async () => {
     const routes = await mountedAgentRoutes();
     const protectedRoutes = routes.filter((route) => route.path.startsWith("/v1/") && route.path !== "/v1/installation-tokens/exchange" && !isPublicOAuthCallback(route));
-    expect(routes).toHaveLength(217);
+    expect(routes).toHaveLength(218);
     expect(protectedRoutes).toHaveLength(209);
 
     const app = buildApp({ config, pool: fakePool });

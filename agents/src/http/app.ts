@@ -72,7 +72,7 @@ import { agentSpecSchema, compileAgentSpec } from "../domain/agent-spec";
 import { resolveModelTarget } from "../model/policy";
 import { diffEffectiveAgentConfig, projectEffectiveAgentConfig } from "../domain/effective-agent-config";
 import { buildAgentReadiness } from "../domain/agent-readiness";
-import { KasitekCoreReadClient } from "../core/client";
+import { KasitekCoreReadClient, type CoreRequestContext } from "../core/client";
 import { KasitekCoreDeveloperApiKeyResolver, type DeveloperApiKeyResolver } from "../core/developer-api-key";
 import { ToolRegistry } from "../tools/registry";
 import { redactSensitiveValue } from "../tools/redaction";
@@ -794,7 +794,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     }
   };
   const integrationRepository = dependencies.integrationRepository ?? new IntegrationRepository(dependencies.pool, dependencies.config.AGENTS_CREDENTIAL_ENCRYPTION_KEY);
-  const integrationTools = dependencies.integrationTools ?? new IntegrationToolService(integrationRepository, dependencies.config);
+  const integrationTools = dependencies.integrationTools ?? new IntegrationToolService(integrationRepository, dependencies.config, coreClient);
   const pluginReadiness = async (organizationId: string, entry: ReturnType<typeof getReviewedPluginCatalogEntry>, installationId?: string) => {
     if (!entry) return { state: "blocked" as const, blockers: ["plugin_not_found"] };
     const adapter = getPluginAdapter(entry);
@@ -3807,15 +3807,17 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     if (!entry || entry.kind !== "tool" || entry.auth !== "oauth2" || !entry.oauthProvider || entry.requiredScopes.length === 0) {
       return reply.code(400).send({ error: "oauth_integration_not_supported", code: "oauth_integration_not_supported" });
     }
-    const clientId = dependencies.config.GOOGLE_OAUTH_CLIENT_ID;
-    const redirectUri = dependencies.config.GOOGLE_OAUTH_REDIRECT_URI;
-    if (!clientId || !dependencies.config.GOOGLE_OAUTH_CLIENT_SECRET || !redirectUri) {
-      return reply.code(503).send({ error: "google_oauth_not_configured", code: "google_oauth_not_configured" });
+    const oauthProvider = entry.oauthProvider;
+    const clientId = oauthProvider === "microsoft" ? dependencies.config.MICROSOFT_OAUTH_CLIENT_ID : dependencies.config.GOOGLE_OAUTH_CLIENT_ID;
+    const clientSecret = oauthProvider === "microsoft" ? dependencies.config.MICROSOFT_OAUTH_CLIENT_SECRET : dependencies.config.GOOGLE_OAUTH_CLIENT_SECRET;
+    const redirectUri = oauthProvider === "microsoft" ? dependencies.config.MICROSOFT_OAUTH_REDIRECT_URI : dependencies.config.GOOGLE_OAUTH_REDIRECT_URI;
+    if (!clientId || !clientSecret || !redirectUri) {
+      return reply.code(503).send({ error: `${oauthProvider}_oauth_not_configured`, code: `${oauthProvider}_oauth_not_configured` });
     }
     const state = randomBytes(32).toString("base64url");
     await integrationRepository.createOAuthState({ organizationId: auth.organizationId, installationId: installation.id, integrationId: entry.id, stateHash: createHash("sha256").update(state).digest("hex"), redirectUri, createdBy: auth.actorId, expiresAt: new Date(Date.now() + 10 * 60_000).toISOString(), flow: "native" });
-    const authorizationUrl = new URL("https://accounts.google.com/o/oauth2/v2/auth");
-    authorizationUrl.search = new URLSearchParams({ client_id: clientId, redirect_uri: redirectUri, response_type: "code", access_type: "offline", prompt: "consent", include_granted_scopes: "true", scope: entry.requiredScopes.join(" "), state }).toString();
+    const authorizationUrl = new URL(oauthProvider === "microsoft" ? "https://login.microsoftonline.com/common/oauth2/v2.0/authorize" : "https://accounts.google.com/o/oauth2/v2/auth");
+    authorizationUrl.search = new URLSearchParams({ client_id: clientId, redirect_uri: redirectUri, response_type: "code", ...(oauthProvider === "microsoft" ? { response_mode: "query" } : { access_type: "offline", prompt: "consent", include_granted_scopes: "true" }), scope: entry.requiredScopes.join(" "), state }).toString();
     return { authorizationUrl: authorizationUrl.toString() };
   });
 
@@ -3893,12 +3895,12 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     }
   });
 
-  app.get<{ Querystring: { code?: string; state?: string; error?: string } }>("/v1/integrations/google/oauth/callback", async (request, reply) => {
+  const handleNativeOAuthCallback = async (request: { params: { provider: string }; query: { code?: string; state?: string; error?: string } ; headers: Record<string, string | string[] | undefined> }, reply: any) => {
     const state = request.query.state;
     if (!state) return reply.code(400).send({ error: "oauth_state_missing" });
     const stateRecord = await integrationRepository.consumeOAuthState(createHash("sha256").update(state).digest("hex"));
     const entry = stateRecord ? getIntegration(stateRecord.integration_id) : undefined;
-    if (!stateRecord || stateRecord.flow !== "native" || !entry || entry.kind !== "tool" || entry.auth !== "oauth2" || !entry.id.startsWith("google.")) return reply.code(400).send({ error: "oauth_state_invalid_or_expired" });
+    if (!stateRecord || stateRecord.flow !== "native" || !entry || entry.kind !== "tool" || entry.auth !== "oauth2" || entry.oauthProvider !== request.params.provider) return reply.code(400).send({ error: "oauth_state_invalid_or_expired" });
     const returnError = (statusCode: number, code: string) => {
       const payload = { integration: entry.id, status: "error", error: code, installationId: stateRecord.installation_id };
       if (dependencies.config.AGENT_INTEGRATIONS_RETURN_URL && request.headers["x-kasitek-oauth-proxy"] !== "1") {
@@ -3916,15 +3918,58 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       return returnError(409, "PLAYGROUND_REQUIRED");
     }
     if (request.query.error || !request.query.code) return returnError(400, request.query.error ?? "oauth_code_missing");
-    const clientId = dependencies.config.GOOGLE_OAUTH_CLIENT_ID;
-    const clientSecret = dependencies.config.GOOGLE_OAUTH_CLIENT_SECRET;
-    if (!clientId || !clientSecret) return returnError(503, "google_oauth_not_configured");
-    const tokenResponse = await fetch("https://oauth2.googleapis.com/token", { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ code: request.query.code, client_id: clientId, client_secret: clientSecret, redirect_uri: stateRecord.redirect_uri, grant_type: "authorization_code" }), signal: AbortSignal.timeout(20_000) });
-    if (!tokenResponse.ok) return returnError(502, "google_token_exchange_failed");
+    const oauthProvider = request.params.provider;
+    const clientId = oauthProvider === "microsoft" ? dependencies.config.MICROSOFT_OAUTH_CLIENT_ID : dependencies.config.GOOGLE_OAUTH_CLIENT_ID;
+    const clientSecret = oauthProvider === "microsoft" ? dependencies.config.MICROSOFT_OAUTH_CLIENT_SECRET : dependencies.config.GOOGLE_OAUTH_CLIENT_SECRET;
+    if (!clientId || !clientSecret) return returnError(503, `${oauthProvider}_oauth_not_configured`);
+    const tokenResponse = await fetch(oauthProvider === "microsoft" ? "https://login.microsoftonline.com/common/oauth2/v2.0/token" : "https://oauth2.googleapis.com/token", { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ code: request.query.code, client_id: clientId, client_secret: clientSecret, redirect_uri: stateRecord.redirect_uri, grant_type: "authorization_code" }), signal: AbortSignal.timeout(20_000) });
+    if (!tokenResponse.ok) return returnError(502, `${oauthProvider}_token_exchange_failed`);
     const token = await tokenResponse.json() as { access_token?: string; refresh_token?: string; expires_in?: number; scope?: string };
-    if (!token.access_token) return returnError(502, "google_access_token_missing");
-    const credential = await integrationRepository.storeCredential({ organizationId: stateRecord.organization_id, integrationId: entry.id, secret: JSON.stringify({ accessToken: token.access_token, refreshToken: token.refresh_token, expiresAt: new Date(Date.now() + (token.expires_in ?? 3_600) * 1_000).toISOString(), scope: token.scope }), label: entry.name, actorId: stateRecord.created_by });
-    await integrationRepository.upsertConnection({ organizationId: stateRecord.organization_id, installationId: stateRecord.installation_id, integrationId: entry.id, credentialId: credential.id, status: "connected", configuration: entry.id === "google.calendar" ? { calendarId: "primary" } : {}, actorId: stateRecord.created_by });
+    if (!token.access_token) return returnError(502, `${oauthProvider}_access_token_missing`);
+    // The old google.gmail catalog entry is an alias only. Its OAuth flow
+    // still lands in Core's canonical workspace EmailConnection record so it
+    // can never create a second Agents-owned credential.
+    const isWorkspaceEmail = entry.id === "google.gmail" || entry.id === "google.email" || entry.id === "microsoft.email";
+    let connectionConfiguration: Record<string, unknown> = entry.id === "google.calendar" ? { calendarId: "primary" } : {};
+    let credentialId: string | null = null;
+    if (isWorkspaceEmail) {
+      const profileResponse = await fetch(oauthProvider === "microsoft" ? "https://graph.microsoft.com/v1.0/me" : "https://openidconnect.googleapis.com/v1/userinfo", {
+        headers: { authorization: `Bearer ${token.access_token}` },
+        signal: AbortSignal.timeout(20_000),
+      });
+      if (!profileResponse.ok) return returnError(502, `${oauthProvider}_profile_lookup_failed`);
+      const profile = await profileResponse.json() as { sub?: string; id?: string; email?: string; mail?: string; userPrincipalName?: string; name?: string; displayName?: string };
+      const emailAddress = oauthProvider === "microsoft" ? profile.mail ?? profile.userPrincipalName : profile.email;
+      const externalAccountId = oauthProvider === "microsoft" ? profile.id ?? emailAddress : profile.sub ?? emailAddress;
+      if (!emailAddress || !externalAccountId) return returnError(502, `${oauthProvider}_profile_incomplete`);
+      const coreConnection = await coreClient.upsertEmailConnection({
+        organizationId: stateRecord.organization_id,
+        installationId: stateRecord.installation_id,
+        actorId: stateRecord.created_by,
+        runId: `oauth:${stateRecord.id}`,
+        correlationId: `oauth:${stateRecord.id}`,
+      }, {
+        userId: stateRecord.created_by,
+        provider: oauthProvider,
+        externalAccountId,
+        emailAddress,
+        displayName: (oauthProvider === "microsoft" ? profile.displayName : profile.name) ?? emailAddress,
+        accessToken: token.access_token,
+        ...(token.refresh_token ? { refreshToken: token.refresh_token } : {}),
+        expiresAt: new Date(Date.now() + (token.expires_in ?? 3_600) * 1_000).toISOString(),
+        scopes: (token.scope ?? entry.requiredScopes.join(" ")).split(/\s+/).filter(Boolean),
+      });
+      connectionConfiguration = {
+        coreConnectionId: coreConnection.connection.id,
+        provider: oauthProvider,
+        emailAddress,
+        accountLabel: (oauthProvider === "microsoft" ? profile.displayName : profile.name) ?? emailAddress,
+      };
+    } else {
+      const credential = await integrationRepository.storeCredential({ organizationId: stateRecord.organization_id, integrationId: entry.id, secret: JSON.stringify({ accessToken: token.access_token, refreshToken: token.refresh_token, expiresAt: new Date(Date.now() + (token.expires_in ?? 3_600) * 1_000).toISOString(), scope: token.scope }), label: entry.name, actorId: stateRecord.created_by });
+      credentialId = credential.id;
+    }
+    await integrationRepository.upsertConnection({ organizationId: stateRecord.organization_id, installationId: stateRecord.installation_id, integrationId: entry.id, credentialId, status: "connected", configuration: connectionConfiguration, actorId: stateRecord.created_by });
     await installationGrants.grantConnector({ organizationId: stateRecord.organization_id, installationId: stateRecord.installation_id, connectorId: entry.id, actorId: stateRecord.created_by });
     const activatedTools = await activateIntegrationBundle({ organizationId: stateRecord.organization_id, installationId: stateRecord.installation_id, integration: entry, actorId: stateRecord.created_by });
     if (dependencies.config.AGENT_INTEGRATIONS_RETURN_URL && request.headers["x-kasitek-oauth-proxy"] !== "1") {
@@ -3935,6 +3980,56 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       return reply.redirect(returnUrl.toString());
     }
     return { integration: entry.id, status: "connected", installationId: stateRecord.installation_id, capabilityNames: activatedTools };
+  };
+  app.get<{ Params: { provider: string }; Querystring: { code?: string; state?: string; error?: string } }>("/v1/integrations/:provider/oauth/callback", handleNativeOAuthCallback);
+  // Keep the established Google callback route while the provider-neutral route
+  // supports Microsoft. Both paths execute the same canonical handler.
+  app.get<{ Querystring: { code?: string; state?: string; error?: string } }>("/v1/integrations/google/oauth/callback", async (request, reply) => handleNativeOAuthCallback({ params: { provider: "google" }, query: request.query, headers: request.headers }, reply));
+
+  app.post<{ Params: { installationId: string; integrationId: string } }>("/v1/installations/:installationId/integrations/:integrationId/workspace-email", async (request, reply) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:write");
+    const installation = await agents.getInstallation(auth.organizationId, request.params.installationId);
+    if (!installation) return reply.code(404).send({ error: "installation_not_found" });
+    requirePlaygroundInstallation(installation);
+    const integration = getIntegration(request.params.integrationId);
+    if (!integration || integration.kind !== "tool" || !["google.gmail", "google.email", "microsoft.email"].includes(integration.id)) {
+      return reply.code(400).send({ error: "integration_does_not_use_workspace_email" });
+    }
+    const input = z.object({ connectionId: z.string().trim().min(1).max(240) }).parse(request.body ?? {});
+    const expectedProvider = integration.provider === "microsoft" ? "MICROSOFT" : "GOOGLE";
+    const coreContext: CoreRequestContext = {
+      organizationId: auth.organizationId,
+      installationId: installation.id,
+      actorId: auth.actorId,
+      runId: `bind:${installation.id}:${integration.id}:${input.connectionId}`,
+      correlationId: request.id,
+    };
+    const resolved = await coreClient.getEmailConnection(coreContext, input.connectionId);
+    const emailConnection = resolved.connection;
+    if (emailConnection.provider.toUpperCase() !== expectedProvider) {
+      return reply.code(400).send({ error: "workspace_email_provider_mismatch" });
+    }
+    if (emailConnection.status.toUpperCase() !== "CONNECTED") {
+      return reply.code(409).send({ error: "workspace_email_not_connected" });
+    }
+    const connection = await integrationRepository.upsertConnection({
+      organizationId: auth.organizationId,
+      installationId: installation.id,
+      integrationId: integration.id,
+      credentialId: null,
+      status: "connected",
+      configuration: {
+        coreConnectionId: emailConnection.id,
+        provider: emailConnection.provider.toLowerCase(),
+        emailAddress: emailConnection.emailAddress,
+        accountLabel: emailConnection.displayName || emailConnection.emailAddress,
+      },
+      actorId: auth.actorId,
+    });
+    await installationGrants.grantConnector({ organizationId: auth.organizationId, installationId: installation.id, connectorId: integration.id, actorId: auth.actorId });
+    const capabilityNames = await activateIntegrationBundle({ organizationId: auth.organizationId, installationId: installation.id, integration, actorId: auth.actorId });
+    return reply.code(200).send({ integration: { ...integration, status: connection.status, available: true, hasCredential: false, configuration: connection.configuration, capabilityNames } });
   });
 
   app.get<{ Querystring: { code?: string; state?: string; error?: string; error_description?: string } }>("/v1/integrations/mcp/oauth/callback", async (request, reply) => {

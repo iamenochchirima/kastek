@@ -24,7 +24,8 @@ use crate::identity::internal_delegation;
 use crate::identity::request_context::RequestContext;
 use crate::services::whatsapp::WhatsappReplyButton;
 use crate::services::{
-    connections, content_media, credits, customers, inbox, website, whatsapp, whatsapp_inbox,
+    connections, content_media, credits, customers, email, inbox, orgs, website, whatsapp,
+    whatsapp_inbox,
 };
 
 #[derive(Debug, Default, Deserialize)]
@@ -165,6 +166,13 @@ async fn resolve_internal_agent_context(
         .map(str::trim)
         .unwrap_or("kasitek-agent-platform")
         .to_string();
+    let installation_id = req
+        .headers()
+        .get("x-installation-id")
+        .and_then(|value| value.to_str().ok())
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_string);
     let idempotency_key = req
         .headers()
         .get("idempotency-key")
@@ -182,7 +190,7 @@ async fn resolve_internal_agent_context(
         organization_id: organization_id.to_string(),
         user_id: None,
         client_id: None,
-        installation_id: None,
+        installation_id,
         effective_grants: [required_capability.to_string()].into_iter().collect(),
         api_scopes: None,
         correlation_id: None,
@@ -655,6 +663,109 @@ pub async fn update_workspace_connection_status_by_id(
     Ok(HttpResponse::Ok().json(json!({
         "connection": agent_connection_summary(&connection),
     })))
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentEmailConnectionUpsertRequest {
+    pub user_id: String,
+    pub provider: String,
+    pub external_account_id: String,
+    pub email_address: String,
+    pub display_name: String,
+    pub access_token: String,
+    pub refresh_token: Option<String>,
+    pub expires_at: Option<DateTime<Utc>>,
+    #[serde(default)]
+    pub scopes: Vec<String>,
+}
+
+/// Trusted Agent Platform bridge for OAuth callbacks. Core owns encryption and
+/// remains the only service that persists the provider tokens.
+pub async fn upsert_email_connection(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    body: web::Json<AgentEmailConnectionUpsertRequest>,
+) -> Result<HttpResponse, AppError> {
+    let context = resolve_internal_agent_context(
+        config.get_ref(),
+        &req,
+        "kasitek.core.email_connection_upsert",
+    )
+    .await?;
+    let input = body.into_inner();
+    orgs::require_member(pool.get_ref(), &context.organization_id, &input.user_id).await?;
+    let connection = email::upsert_connection_from_tokens(
+        pool.get_ref(),
+        &context.organization_id,
+        &input.user_id,
+        &input.provider,
+        &input.external_account_id,
+        &input.email_address,
+        &input.display_name,
+        &input.access_token,
+        input.refresh_token.as_deref(),
+        input.expires_at,
+        &input.scopes,
+        "agent_platform_oauth",
+    )
+    .await?;
+    Ok(HttpResponse::Ok().json(serde_json::json!({ "connection": connection })))
+}
+
+/// Resolve one canonical workspace mailbox for a trusted product binding.
+/// The projection contains provider/account metadata only; credentials remain
+/// private to Core.
+pub async fn get_email_connection(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    path: web::Path<String>,
+) -> Result<HttpResponse, AppError> {
+    let context = resolve_internal_agent_context(
+        config.get_ref(),
+        &req,
+        "kasitek.core.email_connection_read",
+    )
+    .await?;
+    let connection_id = path.into_inner();
+    let connection = email::get_connection_by_id(
+        pool.get_ref(),
+        &context.organization_id,
+        &connection_id,
+    )
+    .await?
+    .ok_or_else(|| AppError::NotFound("Email connection not found".to_string()))?;
+    Ok(HttpResponse::Ok().json(serde_json::json!({ "connection": connection })))
+}
+
+/// Provider-neutral email operation boundary. The model-facing tool selects a
+/// provider/account, while Core selects the adapter and canonical credential.
+pub async fn email_operation(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    path: web::Path<String>,
+    body: web::Json<Value>,
+) -> Result<HttpResponse, AppError> {
+    let operation = email::EmailOperation::parse(&path.into_inner())?;
+    let capability = match operation {
+        email::EmailOperation::Search => "kasitek.core.email_search",
+        email::EmailOperation::Read => "kasitek.core.email_read",
+        email::EmailOperation::Send => "kasitek.core.email_send",
+        email::EmailOperation::Reply => "kasitek.core.email_reply",
+    };
+    let context = resolve_internal_agent_context(config.get_ref(), &req, capability).await?;
+    let result = email::execute(
+        pool.get_ref(),
+        config.get_ref(),
+        &context.organization_id,
+        operation,
+        &body.into_inner(),
+    )
+    .await?;
+    Ok(HttpResponse::Ok().json(result))
 }
 
 /// Return aggregate workspace reporting data without user/session coupling or

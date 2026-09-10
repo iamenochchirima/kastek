@@ -21,7 +21,8 @@ describe("reviewed catalogues", () => {
 
   it("projects catalogue entries as selectable directory records", () => {
     const connections = listConnectionDirectory();
-    expect(connections.slice(0, 3).map((entry) => entry.id)).toEqual(["google.calendar", "google.gmail", "google.drive"]);
+    expect(connections.slice(0, 4).map((entry) => entry.id)).toEqual(["google.calendar", "google.gmail", "google.email", "google.drive"]);
+    expect(connections.find((entry) => entry.id === "microsoft.email")).toBeDefined();
     expect(connections.some((entry) => entry.id === "hermes.mcp.notion")).toBe(true);
     expect(listSkillDirectory()).toHaveLength(137);
     const plugins = listPluginDirectory();

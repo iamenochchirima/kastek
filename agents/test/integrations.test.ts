@@ -9,6 +9,8 @@ describe("integration catalog", () => {
     expect(catalog.map((entry) => entry.id)).toEqual([
       "google.calendar",
       "google.gmail",
+      "google.email",
+      "microsoft.email",
       "google.drive",
       "internal.calendar",
       "apple.tools",
@@ -24,6 +26,8 @@ describe("integration catalog", () => {
     expect(getIntegration("google.calendar")?.requiredScopes).toEqual(["https://www.googleapis.com/auth/calendar.events"]);
     expect(getIntegration("google.calendar")?.auth).toBe("oauth2");
     expect(getIntegration("google.gmail")?.requiredScopes).toEqual(["https://www.googleapis.com/auth/gmail.readonly"]);
+    expect(getIntegration("google.email")?.capabilityNames).toEqual(["kasitek.email.search", "kasitek.email.read", "kasitek.email.send", "kasitek.email.reply"]);
+    expect(getIntegration("microsoft.email")?.provider).toBe("microsoft");
     expect(getIntegration("google.drive")?.requiredScopes).toEqual(["https://www.googleapis.com/auth/drive.readonly"]);
     expect(getIntegration("internal.calendar")?.auth).toBe("internal");
     expect(getIntegration("tavily.search")?.auth).toBe("api_key");

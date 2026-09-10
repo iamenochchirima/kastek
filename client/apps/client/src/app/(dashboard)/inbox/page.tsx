@@ -4,7 +4,7 @@ import { fetchRustJson } from "@/lib/rust-server-api";
 
 type RustInboxConversation = {
   id: string;
-  channel: "whatsapp" | "facebook" | "instagram";
+  channel: "whatsapp" | "facebook" | "instagram" | "email";
   customerName: string | null;
   phone: string;
   lastMessageAt: string;
@@ -13,6 +13,16 @@ type RustInboxConversation = {
   connectionId: string | null;
   connectionLabel: string | null;
   lastMessage: string;
+};
+
+type RustEmailConnection = {
+  id: string;
+  provider: string;
+  emailAddress: string;
+  displayName: string;
+  status: string;
+  healthStatus: string;
+  syncStatus: string;
 };
 
 type RustConnection = {
@@ -40,6 +50,7 @@ export default async function InboxPage() {
     sharedConnectionsPayload,
     conversationsPayload,
     socialChannelsPayload,
+    emailConnectionsPayload,
   ] = await Promise.all([
     fetchRustJson<{ connections: RustConnection[] }>("/api/whatsapp/connections").catch(
       () => ({ connections: [] }),
@@ -53,11 +64,15 @@ export default async function InboxPage() {
     fetchRustJson<{ channels: RustSocialChannel[] }>("/api/social/channels").catch(
       () => ({ channels: [] }),
     ),
+    fetchRustJson<{ connections: RustEmailConnection[] }>("/api/email/connections").catch(
+      () => ({ connections: [] }),
+    ),
   ]);
 
   const connections = connectionsPayload.connections || [];
   const conversations = conversationsPayload.conversations || [];
   const socialChannels = socialChannelsPayload.channels || [];
+  const emailConnections = emailConnectionsPayload.connections || [];
   const providerCounts = (provider: "WHATSAPP" | "FACEBOOK" | "INSTAGRAM") => {
     const providerConnections = sharedConnectionsPayload.connections.filter(
       (connection) => connection.provider === provider && connection.consumers.includes("inbox"),
@@ -104,7 +119,14 @@ export default async function InboxPage() {
           whatsapp: providerCounts("WHATSAPP"),
           instagram: providerCounts("INSTAGRAM"),
           facebook: providerCounts("FACEBOOK"),
+          email: {
+            connected: emailConnections.some((connection) => connection.status === "CONNECTED"),
+            connectionCount: emailConnections.filter((connection) => connection.status === "CONNECTED").length,
+            unreadCount: conversations.filter((conversation) => conversation.channel === "email").reduce((sum, conversation) => sum + Math.max(conversation.unreadCount, 0), 0),
+            conversationCount: conversations.filter((conversation) => conversation.channel === "email").length,
+          },
         }}
+        emailConnections={emailConnections}
         metaConnections={{
           instagram: socialChannels
             .filter(

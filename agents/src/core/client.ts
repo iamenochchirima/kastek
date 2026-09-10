@@ -56,6 +56,30 @@ export interface CoreWorkspaceConnections {
   connections: CoreWorkspaceConnection[];
 }
 
+export interface CoreEmailConnection {
+  id: string;
+  provider: string;
+  externalAccountId: string;
+  emailAddress: string;
+  displayName: string;
+  status: string;
+  healthStatus: string;
+  syncStatus: string;
+  scopes?: string[];
+}
+
+export interface CoreEmailOperationResult {
+  [key: string]: unknown;
+  provider: string;
+  account: string;
+  messages?: unknown[];
+  message?: Record<string, unknown>;
+  nextPageToken?: string | null;
+  status?: string;
+  messageId?: string | null;
+  accounts?: unknown[];
+}
+
 export interface CoreWorkspaceReport {
   organizationId: string;
   connections: { total: number; byStatus: Array<{ status: string; count: number }> };
@@ -425,7 +449,7 @@ export interface CoreCreditUsageReconciliation {
   usageEvents: CoreCreditUsageReconciliationEvent[];
 }
 
-type CoreRequestContext = Pick<ExecutionScope, "organizationId" | "actorId" | "installationId" | "runId" | "correlationId">;
+export type CoreRequestContext = Pick<ExecutionScope, "organizationId" | "actorId" | "installationId" | "runId" | "correlationId">;
 
 export class CoreToolError extends Error {
   public constructor(public readonly code: string, message: string) {
@@ -507,6 +531,52 @@ export class KasitekCoreReadClient {
       context,
       `/api/internal/agents/v1/connections${suffix}`,
       "Workspace connections",
+    );
+  }
+
+  public async upsertEmailConnection(
+    context: CoreRequestContext,
+    input: {
+      userId: string;
+      provider: string;
+      externalAccountId: string;
+      emailAddress: string;
+      displayName: string;
+      accessToken: string;
+      refreshToken?: string;
+      expiresAt?: string;
+      scopes?: string[];
+    },
+  ): Promise<{ connection: CoreEmailConnection }> {
+    return this.requestJson<{ connection: CoreEmailConnection }>(
+      context,
+      "/api/internal/agents/v1/email/connections",
+      "Email connection upsert",
+      { method: "POST", body: JSON.stringify(input) },
+    );
+  }
+
+  public async getEmailConnection(
+    context: CoreRequestContext,
+    connectionId: string,
+  ): Promise<{ connection: CoreEmailConnection }> {
+    return this.getJson<{ connection: CoreEmailConnection }>(
+      context,
+      `/api/internal/agents/v1/email/connections/${encodeURIComponent(connectionId)}`,
+      "Email connection",
+    );
+  }
+
+  public async executeEmail(
+    context: ToolInvocationContext,
+    operation: "search" | "read" | "send" | "reply",
+    input: Record<string, unknown>,
+  ): Promise<CoreEmailOperationResult> {
+    return this.requestJson<CoreEmailOperationResult>(
+      context,
+      `/api/internal/agents/v1/email/${operation}`,
+      `Email ${operation}`,
+      { method: "POST", body: JSON.stringify(input) },
     );
   }
 
@@ -1098,6 +1168,12 @@ export class KasitekCoreReadClient {
     if (routePath.includes("workspace/report")) return "kasitek.core.workspace_report";
     if (routePath.includes("workspace/status")) return "kasitek.core.workspace_status";
     if (method === "PATCH" && routePath.includes("/connections/") && routePath.endsWith("/status")) return "kasitek.core.connection_status_update";
+    if (routePath === "/api/internal/agents/v1/email/connections") return "kasitek.core.email_connection_upsert";
+    if (routePath.startsWith("/api/internal/agents/v1/email/connections/")) return "kasitek.core.email_connection_read";
+    if (routePath.endsWith("/email/search")) return "kasitek.core.email_search";
+    if (routePath.endsWith("/email/read")) return "kasitek.core.email_read";
+    if (routePath.endsWith("/email/send")) return "kasitek.core.email_send";
+    if (routePath.endsWith("/email/reply")) return "kasitek.core.email_reply";
     if (routePath.endsWith("/connections")) return "kasitek.core.connections_list";
     if (routePath.includes("bookings/services")) return "kasitek.core.booking_services_list";
     if (routePath.includes("/bookings/") && !routePath.endsWith("/bookings/services")) return "kasitek.core.booking_get";
@@ -1137,7 +1213,7 @@ export class KasitekCoreReadClient {
   }
 
   private idempotencyKeyFor(path: string, method: string | undefined, context: CoreRequestContext, body?: BodyInit | null): string | undefined {
-    const capability = path.endsWith("/content/posts") && body ? "kasitek.core.content_post_draft" : path.includes("/content/posts/") && path.endsWith("/publish-batch") ? "kasitek.core.content_post_publish_batch" : path.includes("/content/publish-batches/") && path.endsWith("/retry") ? "kasitek.core.content_post_publish_batch_retry" : path.includes("/content/posts/") && path.endsWith("/publish") ? "kasitek.core.content_post_publish" : method === "POST" && path.includes("/content/posts/") && path.endsWith("/delete-published") ? "kasitek.core.content_post_delete_published" : path.includes("/content/posts/") && path.endsWith("/schedule") ? "kasitek.core.content_post_schedule" : path.includes("/content/posts/") && path.endsWith("/unschedule") ? "kasitek.core.content_post_unschedule" : method === "DELETE" && path.includes("/content/posts/") ? "kasitek.core.content_post_delete" : method === "DELETE" && path.includes("/content/media/") ? "kasitek.core.content_media_delete" : method === "PATCH" && path.includes("/connections/") && path.endsWith("/status") ? "kasitek.core.connection_status_update" : method === "PATCH" && path.includes("/contacts/") ? "kasitek.core.contact_update" : method === "POST" && path.includes("/inbox/conversations/") && path.endsWith("/read") ? "kasitek.core.inbox_conversation_mark_read" : method === "PATCH" && path.includes("/inbox/conversations/") ? "kasitek.core.inbox_conversation_update" : path.includes("channels/deliver") ? "kasitek.core.channel_deliver" : path.endsWith("/credits/reservations") ? "kasitek.core.credits_reserve" : path.includes("/credits/reservations/") && (path.endsWith("/capture") || path.endsWith("/release")) ? "kasitek.core.credits_settle" : undefined;
+    const capability = path.endsWith("/content/posts") && body ? "kasitek.core.content_post_draft" : path.includes("/content/posts/") && path.endsWith("/publish-batch") ? "kasitek.core.content_post_publish_batch" : path.includes("/content/publish-batches/") && path.endsWith("/retry") ? "kasitek.core.content_post_publish_batch_retry" : path.includes("/content/posts/") && path.endsWith("/publish") ? "kasitek.core.content_post_publish" : method === "POST" && path.includes("/content/posts/") && path.endsWith("/delete-published") ? "kasitek.core.content_post_delete_published" : path.includes("/content/posts/") && path.endsWith("/schedule") ? "kasitek.core.content_post_schedule" : path.includes("/content/posts/") && path.endsWith("/unschedule") ? "kasitek.core.content_post_unschedule" : method === "DELETE" && path.includes("/content/posts/") ? "kasitek.core.content_post_delete" : method === "DELETE" && path.includes("/content/media/") ? "kasitek.core.content_media_delete" : method === "PATCH" && path.includes("/connections/") && path.endsWith("/status") ? "kasitek.core.connection_status_update" : path.endsWith("/email/connections") ? "kasitek.core.email_connection_upsert" : path.endsWith("/email/search") ? "kasitek.core.email_search" : path.endsWith("/email/read") ? "kasitek.core.email_read" : path.endsWith("/email/send") ? "kasitek.core.email_send" : path.endsWith("/email/reply") ? "kasitek.core.email_reply" : method === "PATCH" && path.includes("/contacts/") ? "kasitek.core.contact_update" : method === "POST" && path.includes("/inbox/conversations/") && path.endsWith("/read") ? "kasitek.core.inbox_conversation_mark_read" : method === "PATCH" && path.includes("/inbox/conversations/") ? "kasitek.core.inbox_conversation_update" : path.includes("channels/deliver") ? "kasitek.core.channel_deliver" : path.endsWith("/credits/reservations") ? "kasitek.core.credits_reserve" : path.includes("/credits/reservations/") && (path.endsWith("/capture") || path.endsWith("/release")) ? "kasitek.core.credits_settle" : undefined;
     if (!capability) return undefined;
     const bodyText = typeof body === "string" ? body : "";
     return `${context.runId}:${capability}:${createHash("sha256").update(bodyText).digest("hex")}`;

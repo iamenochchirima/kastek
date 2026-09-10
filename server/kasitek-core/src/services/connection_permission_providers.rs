@@ -7,8 +7,8 @@
 use serde_json::Value;
 
 use super::connection_permissions::{
-    COMMENTS_MANAGE, MEDIA_PUBLISH, MESSAGING_INBOUND, MESSAGING_OUTBOUND, SOCIAL_ANALYTICS,
-    SOCIAL_POST_DELETE, SOCIAL_PUBLISH,
+    COMMENTS_MANAGE, EMAIL_INBOUND, EMAIL_OUTBOUND, EMAIL_READ, EMAIL_REPLY, MEDIA_PUBLISH,
+    MESSAGING_INBOUND, MESSAGING_OUTBOUND, SOCIAL_ANALYTICS, SOCIAL_POST_DELETE, SOCIAL_PUBLISH,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -23,6 +23,8 @@ pub(crate) enum ProviderAdapter {
     LinkedInOrganization,
     X,
     Bluesky,
+    GoogleEmail,
+    MicrosoftEmail,
     Unknown,
 }
 
@@ -78,6 +80,10 @@ const X_DM_WRITE: &[&str] = &["dm.write"];
 
 const BLUESKY_POST: &[&str] = &["repo:app.bsky.feed.post"];
 const BLUESKY_MEDIA: &[&str] = &["blob:*/*"];
+const GOOGLE_EMAIL_READ: &[&str] = &["https://www.googleapis.com/auth/gmail.readonly"];
+const GOOGLE_EMAIL_SEND: &[&str] = &["https://www.googleapis.com/auth/gmail.send"];
+const MICROSOFT_EMAIL_READ: &[&str] = &["Mail.Read"];
+const MICROSOFT_EMAIL_SEND: &[&str] = &["Mail.Send"];
 
 pub(crate) fn adapter_for(
     provider: &str,
@@ -97,6 +103,8 @@ pub(crate) fn adapter_for(
         ("LINKEDIN", _) => ProviderAdapter::LinkedInMember,
         ("X", _) => ProviderAdapter::X,
         ("BLUESKY", _) => ProviderAdapter::Bluesky,
+        ("GOOGLE", _) => ProviderAdapter::GoogleEmail,
+        ("MICROSOFT", _) => ProviderAdapter::MicrosoftEmail,
         _ => ProviderAdapter::Unknown,
     }
 }
@@ -118,6 +126,8 @@ impl ProviderAdapter {
             Self::LinkedInMember | Self::LinkedInOrganization => "linkedin_oauth",
             Self::X => "x_oauth",
             Self::Bluesky => "bluesky_oauth",
+            Self::GoogleEmail => "google_email_oauth",
+            Self::MicrosoftEmail => "microsoft_email_oauth",
             Self::Unknown => "unknown",
         }
     }
@@ -315,6 +325,16 @@ impl ProviderAdapter {
                 MEDIA_PUBLISH => rule("blob:*/*", BLUESKY_MEDIA, BLUESKY_MEDIA, true),
                 _ => unsupported(),
             },
+            Self::GoogleEmail => match key {
+                EMAIL_INBOUND | EMAIL_READ => rule("https://www.googleapis.com/auth/gmail.readonly", GOOGLE_EMAIL_READ, GOOGLE_EMAIL_READ, false),
+                EMAIL_OUTBOUND | EMAIL_REPLY => rule("https://www.googleapis.com/auth/gmail.send", GOOGLE_EMAIL_SEND, GOOGLE_EMAIL_SEND, false),
+                _ => unsupported(),
+            },
+            Self::MicrosoftEmail => match key {
+                EMAIL_INBOUND | EMAIL_READ => rule("Mail.Read", MICROSOFT_EMAIL_READ, MICROSOFT_EMAIL_READ, false),
+                EMAIL_OUTBOUND | EMAIL_REPLY => rule("Mail.Send", MICROSOFT_EMAIL_SEND, MICROSOFT_EMAIL_SEND, false),
+                _ => unsupported(),
+            },
             Self::Unknown => unsupported(),
         }
     }
@@ -376,6 +396,8 @@ impl ProviderAdapter {
             Self::LinkedInMember | Self::LinkedInOrganization => "LINKEDIN",
             Self::X => "X",
             Self::Bluesky => "BLUESKY",
+            Self::GoogleEmail => "GOOGLE",
+            Self::MicrosoftEmail => "MICROSOFT",
             Self::Unknown => "UNKNOWN",
         }
     }

@@ -49,7 +49,13 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   PageHeader,
   PageHeaderActions,
@@ -98,7 +104,7 @@ type InboxConversation = {
   time: string;
   unread: boolean;
   starred: boolean;
-  channel: "whatsapp" | "facebook" | "instagram";
+  channel: "whatsapp" | "facebook" | "instagram" | "email";
   connectionId: string | null;
   connectionLabel: string;
   avatar: string;
@@ -108,7 +114,7 @@ type InboxConversation = {
 
 type InboxConversationPayload = {
   id: string;
-  channel: "whatsapp" | "facebook" | "instagram";
+  channel: "whatsapp" | "facebook" | "instagram" | "email";
   customerName: string | null;
   phone: string;
   lastMessage: string;
@@ -181,6 +187,22 @@ type ChannelCounts = {
     unreadCount: number;
     conversationCount: number;
   };
+  email: {
+    connected: boolean;
+    connectionCount: number;
+    unreadCount: number;
+    conversationCount: number;
+  };
+};
+
+type EmailConnectionView = {
+  id: string;
+  provider: "GOOGLE" | "MICROSOFT" | string;
+  emailAddress: string;
+  displayName: string;
+  status: string;
+  healthStatus: string;
+  syncStatus: string;
 };
 
 function logCallMediaEvent(callId: string, event: string, details?: Record<string, unknown>) {
@@ -646,11 +668,13 @@ export default function InboxPageClient({
   conversations,
   channelCounts,
   metaConnections,
+  emailConnections,
 }: {
   whatsappConnections: WhatsappConnectionView[];
   conversations: InboxConversation[];
   channelCounts: ChannelCounts;
   metaConnections: MetaConnections;
+  emailConnections: EmailConnectionView[];
 }) {
   const searchParams = useSearchParams();
   const { confirm } = useConfirmationDialog();
@@ -680,6 +704,9 @@ export default function InboxPageClient({
   const [reactionPicker, setReactionPicker] = useState<ReactionPickerState | null>(null);
   const [selfReactionOverridesByMessageId, setSelfReactionOverridesByMessageId] = useState<Record<string, string>>({});
   const [showChannelPanel, setShowChannelPanel] = useState(false);
+  const [showEmailConnectDialog, setShowEmailConnectDialog] = useState(false);
+  const [emailConnectProvider, setEmailConnectProvider] = useState<"google" | "microsoft" | null>(null);
+  const [emailConnectError, setEmailConnectError] = useState<string | null>(null);
   const [mobileConversationOpen, setMobileConversationOpen] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [lightbox, setLightbox] = useState<MediaLightboxState | null>(null);
@@ -757,6 +784,38 @@ export default function InboxPageClient({
     [liveConversations],
   );
 
+  const startEmailConnection = async (provider: "google" | "microsoft") => {
+    setEmailConnectProvider(provider);
+    setEmailConnectError(null);
+    try {
+      const response = await fetch(apiUrl(`/api/email/oauth/${provider}/start?returnTo=/inbox`), {
+        credentials: "include",
+        cache: "no-store",
+      });
+      const payload = (await response.json().catch(() => ({}))) as { authorizationUrl?: string; error?: string };
+      if (!response.ok || !payload.authorizationUrl) {
+        throw new Error(payload.error || `Unable to connect ${provider === "google" ? "Google" : "Microsoft"}`);
+      }
+      window.location.assign(payload.authorizationUrl);
+    } catch (error) {
+      setEmailConnectError(error instanceof Error ? error.message : "Unable to start email connection");
+      setEmailConnectProvider(null);
+    }
+  };
+
+  const emailConnectionFilters = useMemo(
+    () => [
+      { id: null as string | null, label: "All mailboxes", conversationCount: liveConversations.filter((conversation) => conversation.channel === "email").length, unreadCount: liveConversations.filter((conversation) => conversation.channel === "email" && conversation.unread).length },
+      ...emailConnections.map((connection) => ({
+        id: connection.id,
+        label: `${connection.provider === "MICROSOFT" ? "Microsoft" : "Google"} · ${connection.emailAddress}`,
+        conversationCount: liveConversations.filter((conversation) => conversation.channel === "email" && conversation.connectionId === connection.id).length,
+        unreadCount: liveConversations.filter((conversation) => conversation.channel === "email" && conversation.connectionId === connection.id && conversation.unread).length,
+      })),
+    ],
+    [emailConnections, liveConversations],
+  );
+
   const channels = useMemo(
     () => [
       {
@@ -785,12 +844,12 @@ export default function InboxPageClient({
         id: "email" as const,
         name: "Email",
         icon: Mail,
-        color: "text-muted-foreground",
-        bgColor: "bg-secondary",
-        count: 0,
-        unreadCount: 0,
-        disabled: true,
-        connected: false,
+        color: "text-blue-400",
+        bgColor: "bg-blue-500/10",
+        count: liveConversations.filter((conversation) => conversation.channel === "email").length,
+        unreadCount: liveConversations.filter((conversation) => conversation.channel === "email" && conversation.unread).length,
+        disabled: false,
+        connected: channelCounts.email.connected,
       },
       {
         id: "sms" as const,
@@ -916,6 +975,8 @@ export default function InboxPageClient({
         ? metaConnectionFilters.instagram
         : selectedChannel === "facebook"
           ? metaConnectionFilters.facebook
+          : selectedChannel === "email"
+            ? emailConnectionFilters
           : [];
   const selectedConnectionFilter =
     activeConnectionFilters.find((connection) => connection.id === selectedConnectionId) ??
@@ -923,7 +984,8 @@ export default function InboxPageClient({
   const supportsConnectionFilter =
     selectedChannel === "whatsapp" ||
     selectedChannel === "instagram" ||
-    selectedChannel === "facebook";
+    selectedChannel === "facebook" ||
+    selectedChannel === "email";
 
   const filteredConversations = liveConversations.filter((conversation) => {
     const channelMatch = selectedChannel === "all" || conversation.channel === selectedChannel;
@@ -941,13 +1003,11 @@ export default function InboxPageClient({
   const selectedChannelConversationCount =
     selectedChannel === "all"
       ? liveConversations.length
-      : selectedChannel === "email" || selectedChannel === "sms"
-        ? 0
-        : liveConversations.filter((conversation) => conversation.channel === selectedChannel).length;
+      : liveConversations.filter((conversation) => conversation.channel === selectedChannel).length;
   const selectedChannelConnected =
     selectedChannel === "all"
       ? true
-      : selectedChannel === "email" || selectedChannel === "sms"
+      : selectedChannel === "sms"
         ? false
         : channelCounts[selectedChannel].connected;
   const emptyConversationCopy =
@@ -971,7 +1031,12 @@ export default function InboxPageClient({
                 ? "New messages will appear here after someone messages a connected Facebook Page."
                 : "No Messenger conversations match this filter.",
           }
-        : selectedChannel === "whatsapp"
+      : selectedChannel === "email"
+          ? {
+              title: "No email conversations yet",
+              description: filter === "all" ? "Connect Google or Microsoft to receive email here." : "No email conversations match this filter.",
+            }
+      : selectedChannel === "whatsapp"
           ? {
               title: selectedConnectionId
                 ? `No conversations for ${selectedConnectionFilter?.label || "this number"}`
@@ -1423,16 +1488,20 @@ export default function InboxPageClient({
           </section>
 
           <section>
-            <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Available next</p>
+            <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Email</p>
             <div className="divide-y divide-border rounded-lg border border-border bg-card">
-              {[
-                { label: "Email", description: "Bring shared inboxes into the same conversation view", icon: Mail },
-                { label: "SMS", description: "Manage text-message conversations alongside WhatsApp", icon: MessageCircle },
-              ].map((channel) => {
-                const Icon = channel.icon;
-                return <div key={channel.label} className="flex items-start gap-3 px-4 py-3 opacity-70"><Icon className="mt-0.5 h-4 w-4 text-muted-foreground" /><div><p className="text-sm font-medium text-foreground">{channel.label}</p><p className="mt-0.5 text-xs leading-5 text-muted-foreground">{channel.description}</p></div></div>;
-              })}
+              <div className="flex items-center gap-3 px-4 py-3">
+                <Mail className="h-4 w-4 text-blue-400" />
+                <div className="min-w-0 flex-1"><p className="text-sm font-medium text-foreground">{channelCounts.email.connected ? "Email" : "No mailbox connected"}</p><p className="mt-0.5 text-xs leading-5 text-muted-foreground">{channelCounts.email.connected ? `${channelCounts.email.connectionCount} connected mailbox${channelCounts.email.connectionCount === 1 ? "" : "es"}` : "Google and Microsoft"}</p></div>
+                {channelCounts.email.connected ? <Badge variant="outline">Connected</Badge> : <Button size="sm" variant="outline" onClick={() => setShowEmailConnectDialog(true)}>Connect</Button>}
+              </div>
+              {channelCounts.email.connected ? <div className="border-t border-border p-2">{emailConnectionFilters.map((connectionFilter) => <button key={connectionFilter.id || "all-email"} type="button" onClick={() => { setSelectedChannel("email"); setSelectedConnectionId(connectionFilter.id); setShowChannelPanel(false); setMobileConversationOpen(false); }} className={cn("flex min-h-9 w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm transition-colors hover:bg-secondary", selectedChannel === "email" && selectedConnectionId === connectionFilter.id && "bg-secondary text-foreground")}><span className="truncate">{connectionFilter.label}</span><span className="ml-3 shrink-0 text-xs tabular-nums text-muted-foreground">{connectionFilter.conversationCount}</span></button>)}</div> : null}
             </div>
+          </section>
+
+          <section>
+            <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Available next</p>
+            <div className="divide-y divide-border rounded-lg border border-border bg-card"><div className="flex items-start gap-3 px-4 py-3 opacity-70"><MessageCircle className="mt-0.5 h-4 w-4 text-muted-foreground" /><div><p className="text-sm font-medium text-foreground">SMS</p><p className="mt-0.5 text-xs leading-5 text-muted-foreground">Manage text-message conversations alongside WhatsApp</p></div></div></div>
           </section>
         </div>
       </ScrollArea>
@@ -2470,10 +2539,35 @@ export default function InboxPageClient({
     <TooltipProvider>
       <div className="relative flex h-[calc(100dvh-4rem)] min-h-0 flex-col overflow-hidden bg-background lg:h-[100dvh]">
         <Sheet open={showChannelPanel} onOpenChange={setShowChannelPanel}>
-          <SheetContent side="left" className="flex w-[min(360px,100vw)] flex-col p-0">
+        <SheetContent side="left" className="flex w-[min(360px,100vw)] flex-col p-0">
             {renderChannelPanelContent()}
           </SheetContent>
         </Sheet>
+
+        <Dialog open={showEmailConnectDialog} onOpenChange={(open) => { setShowEmailConnectDialog(open); if (!open) { setEmailConnectError(null); setEmailConnectProvider(null); } }}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Connect email</DialogTitle>
+              <DialogDescription>Choose a mailbox provider.</DialogDescription>
+            </DialogHeader>
+            <div className="space-y-2">
+              {[
+                { id: "google" as const, name: "Google", description: "Gmail and Google Workspace mail" },
+                { id: "microsoft" as const, name: "Microsoft", description: "Outlook and Microsoft 365 mail" },
+              ].map((provider) => (
+                <Button key={provider.id} type="button" variant="outline" className="h-auto w-full justify-between px-4 py-3 text-left" onClick={() => void startEmailConnection(provider.id)} disabled={Boolean(emailConnectProvider)}>
+                  <span><span className="block font-medium">{provider.name}</span><span className="mt-0.5 block text-xs text-muted-foreground">{provider.description}</span></span>
+                  {emailConnectProvider === provider.id ? <span className="text-xs text-muted-foreground">Opening…</span> : null}
+                </Button>
+              ))}
+              <div className="flex items-center justify-between rounded-md border border-dashed border-border px-4 py-3 text-left opacity-60">
+                <span><span className="block text-sm font-medium">Custom Email</span><span className="mt-0.5 block text-xs text-muted-foreground">IMAP/SMTP</span></span>
+                <Badge variant="outline">Coming soon</Badge>
+              </div>
+            </div>
+            {emailConnectError ? <p className="text-sm text-destructive" role="alert">{emailConnectError}</p> : null}
+          </DialogContent>
+        </Dialog>
 
         <header className="shrink-0 border-b border-border bg-card px-4 pt-4 sm:px-6 sm:pt-5">
           <PageHeader className="items-center">
@@ -2633,6 +2727,11 @@ export default function InboxPageClient({
                   <p className="mt-1 max-w-[260px] text-xs leading-5 text-muted-foreground">
                     {emptyConversationCopy.description}
                   </p>
+                  {selectedChannel === "email" && !selectedChannelConnected ? (
+                    <Button variant="outline" size="sm" className="mt-4" onClick={() => setShowEmailConnectDialog(true)}>
+                      Connect email
+                    </Button>
+                  ) : null}
                   {selectedChannelConversationCount === 0 &&
                   (selectedChannel === "instagram" || selectedChannel === "facebook") ? (
                     <Button asChild variant="outline" size="sm" className="mt-4">

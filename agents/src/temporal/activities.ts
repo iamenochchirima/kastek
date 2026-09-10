@@ -2413,7 +2413,7 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
   const handoffs = new HandoffRepository(pool);
   const integrationRepository = options.config ? new IntegrationRepository(pool, options.config.AGENTS_CREDENTIAL_ENCRYPTION_KEY) : undefined;
   const remoteMcpProviders = options.remoteMcpProviders ?? new RemoteMcpProviderRepository(pool, integrationRepository ? (organizationId, credentialReference) => integrationRepository.resolveCredential(organizationId, credentialReference) : undefined);
-  const integrationTools = options.integrationTools ?? (integrationRepository ? new IntegrationToolService(integrationRepository, options.config) : undefined);
+  const integrationTools = options.integrationTools ?? (integrationRepository ? new IntegrationToolService(integrationRepository, options.config, coreClient) : undefined);
   const integrationsByCapability = new Map<string, ReturnType<typeof listIntegrations>[number][]>();
   for (const integration of listIntegrations()) {
     for (const capabilityName of integration.capabilityNames) {
@@ -3807,7 +3807,16 @@ async function executeLoopForRun(
       return {
         id: integration.id,
         ...(integration.provider ? { providerId: integration.provider } : {}),
-        ...(integration.name ? { displayName: integration.name } : {}),
+        ...(integration.name ? {
+          displayName: (() => {
+            const accountLabel = connection?.configuration && typeof connection.configuration.accountLabel === "string"
+              ? connection.configuration.accountLabel.trim()
+              : connection?.configuration && typeof connection.configuration.emailAddress === "string"
+                ? connection.configuration.emailAddress.trim()
+                : "";
+            return accountLabel ? `${integration.name} · ${accountLabel}` : integration.name;
+          })(),
+        } : {}),
         status,
         // Preserve the declared bundle on the binding. The effective snapshot
         // intersects it with registered, policy-granted, ready tools before

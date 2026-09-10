@@ -51,12 +51,14 @@ import {
   listAgentExtensionPackages,
   listAgentPluginDirectory,
   listAgentInstallationCapabilities,
+  listWorkspaceEmailConnections,
   listAgentMcpProviders,
   listAgentMcpProviderVersions,
   listAgentSkillDirectory,
   listAgentVersionMcpProviders,
   listAgentVersionSkills,
   connectAgentMcpCatalog,
+  bindAgentWorkspaceEmail,
   installAgentPluginCatalog,
   installAgentSkillCatalog,
   startAgentMcpCatalogOAuth,
@@ -84,6 +86,7 @@ import {
   type AgentSkillDirectoryEntry,
   type AgentSkillVersion,
   type AgentVersion,
+  type WorkspaceEmailConnection,
   AgentRequestError,
 } from "@/lib/agent-platform";
 import { cn } from "@/lib/utils";
@@ -523,6 +526,7 @@ type CapabilityData = {
   connections: AgentConnectionDirectoryEntry[];
   skillDirectory: AgentSkillDirectoryEntry[];
   pluginDirectory: AgentPluginDirectoryEntry[];
+  emailConnections: WorkspaceEmailConnection[];
 };
 
 const emptyCapabilityData: CapabilityData = {
@@ -539,10 +543,11 @@ const emptyCapabilityData: CapabilityData = {
   connections: [],
   skillDirectory: [],
   pluginDirectory: [],
+  emailConnections: [],
 };
 
 async function loadCapabilityData(installationId: string | null, versionId: string | null): Promise<CapabilityData> {
-  const [directoryResult, catalogResult, packagesResult, providersResult, installationResult, readinessResult, pinnedSkillsResult, pinnedMcpResult, connectionsResult, skillDirectoryResult, pluginDirectoryResult] = await Promise.all([
+  const [directoryResult, catalogResult, packagesResult, providersResult, installationResult, readinessResult, pinnedSkillsResult, pinnedMcpResult, connectionsResult, skillDirectoryResult, pluginDirectoryResult, emailConnectionsResult] = await Promise.all([
     listAgentCapabilityDirectory(),
     listAgentCapabilities(),
     listAgentExtensionPackages(),
@@ -554,6 +559,7 @@ async function loadCapabilityData(installationId: string | null, versionId: stri
     installationId ? listAgentConnectionDirectory(installationId) : Promise.resolve({ connections: [] }),
     listAgentSkillDirectory(versionId ?? undefined),
     listAgentPluginDirectory(installationId ?? undefined),
+    listWorkspaceEmailConnections(),
   ]);
   const mcpVersionsEntries = await Promise.all(providersResult.providers.map(async (provider) => {
     const result = await listAgentMcpProviderVersions(provider.id);
@@ -573,6 +579,7 @@ async function loadCapabilityData(installationId: string | null, versionId: stri
     connections: connectionsResult.connections,
     skillDirectory: skillDirectoryResult.skills,
     pluginDirectory: pluginDirectoryResult.plugins,
+    emailConnections: emailConnectionsResult.connections,
   };
 }
 
@@ -631,7 +638,7 @@ function CapabilitiesSection({ installationId, versionId, draft, onDraftChange }
       </TabsList>
       <TabsContent value={activeTab} className="rounded-2xl border border-border bg-card p-4 shadow-sm sm:p-5">
         <div className="mb-4 flex items-center justify-between gap-3"><div><p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Capabilities</p><h4 className="mt-1 text-sm font-semibold text-foreground">{activeTabLabel}</h4></div>{loading ? <span className="text-[11px] text-muted-foreground">Loading…</span> : null}</div>
-        {activeTab === "tools" ? <ToolsPanel tools={directoryTools} toolsets={data.toolsets} draft={draft} onDraftChange={onDraftChange} /> : null}{activeTab === "skills" ? <SkillsPanel directory={directorySkills} pinnedSkills={data.pinnedSkills} installationId={installationId} versionId={versionId} draft={draft} onDraftChange={onDraftChange} onRefresh={refresh} /> : null}{activeTab === "plugins" ? <PluginsPanel directory={directoryPlugins} packages={plugins} installationId={installationId} draft={draft} onDraftChange={onDraftChange} onRefresh={refresh} /> : null}{activeTab === "connections" ? <ConnectionCapabilitiesPanel installationId={installationId} connectionDirectory={directoryConnections} providers={data.mcpProviders} pinnedProviders={data.pinnedMcpProviders} versions={data.mcpVersions} versionId={versionId} draft={draft} onDraftChange={onDraftChange} onRefresh={refresh} /> : null}{activeTab === "user_tools" ? <UserToolsPanel tools={directoryUserTools} draft={draft} onDraftChange={onDraftChange} /> : null}
+        {activeTab === "tools" ? <ToolsPanel tools={directoryTools} toolsets={data.toolsets} draft={draft} onDraftChange={onDraftChange} /> : null}{activeTab === "skills" ? <SkillsPanel directory={directorySkills} pinnedSkills={data.pinnedSkills} installationId={installationId} versionId={versionId} draft={draft} onDraftChange={onDraftChange} onRefresh={refresh} /> : null}{activeTab === "plugins" ? <PluginsPanel directory={directoryPlugins} packages={plugins} installationId={installationId} draft={draft} onDraftChange={onDraftChange} onRefresh={refresh} /> : null}{activeTab === "connections" ? <ConnectionCapabilitiesPanel installationId={installationId} connectionDirectory={directoryConnections} emailConnections={data.emailConnections} providers={data.mcpProviders} pinnedProviders={data.pinnedMcpProviders} versions={data.mcpVersions} versionId={versionId} draft={draft} onDraftChange={onDraftChange} onRefresh={refresh} /> : null}{activeTab === "user_tools" ? <UserToolsPanel tools={directoryUserTools} draft={draft} onDraftChange={onDraftChange} /> : null}
       </TabsContent>
     </Tabs>
   </div>;
@@ -793,7 +800,7 @@ function connectionErrorMessage(cause: unknown): string {
   return cause instanceof Error ? cause.message : "Unable to connect";
 }
 
-function ConnectionCataloguePanel({ installationId, versionId, directory, providers, pinnedProviders, versions, draft, onDraftChange, onRefresh }: { installationId: string; versionId: string | null; directory: AgentConnectionDirectoryEntry[]; providers: AgentMcpProvider[]; pinnedProviders: AgentMcpProviderVersion[]; versions: Record<string, AgentMcpProviderVersion[]>; draft: StudioCapabilityDraft; onDraftChange: (value: StudioCapabilityDraft | ((current: StudioCapabilityDraft) => StudioCapabilityDraft)) => void; onRefresh: () => void }) {
+function ConnectionCataloguePanel({ installationId, versionId, directory, emailConnections, providers, pinnedProviders, versions, draft, onDraftChange, onRefresh }: { installationId: string; versionId: string | null; directory: AgentConnectionDirectoryEntry[]; emailConnections: WorkspaceEmailConnection[]; providers: AgentMcpProvider[]; pinnedProviders: AgentMcpProviderVersion[]; versions: Record<string, AgentMcpProviderVersion[]>; draft: StudioCapabilityDraft; onDraftChange: (value: StudioCapabilityDraft | ((current: StudioCapabilityDraft) => StudioCapabilityDraft)) => void; onRefresh: () => void }) {
   const [integrations, setIntegrations] = useState<AgentIntegration[]>([]);
   const [query, setQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
@@ -867,8 +874,25 @@ function ConnectionCataloguePanel({ installationId, versionId, directory, provid
   const customVersion = (entry: AgentConnectionDirectoryEntry) => entry.source === "custom" && entry.providerId
     ? (versions[entry.providerId] ?? []).filter((version) => version.status === "published").sort((left, right) => right.revision - left.revision)[0]
     : undefined;
-  const isConnected = (entry: AgentConnectionDirectoryEntry, integration?: AgentIntegration) => entry.source === "custom"
-    ? Boolean(customVersion(entry) && pinnedMcpVersionIds.has(customVersion(entry)!.id))
+  const emailProviderForEntry = (entry: AgentConnectionDirectoryEntry): string | null => {
+    if (entry.id === "google.email") return "google";
+    if (entry.id === "microsoft.email") return "microsoft";
+    return null;
+  };
+  const isWorkspaceEmailConnected = (entry: AgentConnectionDirectoryEntry) => {
+    const provider = emailProviderForEntry(entry);
+    return Boolean(provider && emailConnections.some((connection) => connection.provider.toLowerCase() === provider && connection.status.toLowerCase() === "connected"));
+  };
+  const isWorkspaceEmailBound = (entry: AgentConnectionDirectoryEntry, integration?: AgentIntegration) => {
+    const provider = emailProviderForEntry(entry);
+    if (!provider || integration?.status !== "connected") return false;
+    const coreConnectionId = typeof integration.configuration.coreConnectionId === "string" ? integration.configuration.coreConnectionId : "";
+    return Boolean(coreConnectionId && emailConnections.some((connection) => connection.id === coreConnectionId && connection.provider.toLowerCase() === provider && connection.status.toLowerCase() === "connected"));
+  };
+  const isConnected = (entry: AgentConnectionDirectoryEntry, integration?: AgentIntegration) => isWorkspaceEmailConnected(entry) || entry.source === "custom"
+    ? entry.source === "custom"
+      ? Boolean(customVersion(entry) && pinnedMcpVersionIds.has(customVersion(entry)!.id))
+      : isWorkspaceEmailBound(entry, integration)
     : entry.kind === "native"
       ? integration?.status === "connected" && integration.available || entry.status === "ready"
       : entry.status === "connected" || entry.status === "ready";
@@ -893,6 +917,21 @@ function ConnectionCataloguePanel({ installationId, versionId, directory, provid
   const connect = async (entry: AgentConnectionDirectoryEntry, integration?: AgentIntegration) => {
     setBusyId(entry.id);
     try {
+      const workspaceProvider = emailProviderForEntry(entry);
+      const workspaceMailboxes = workspaceProvider
+        ? emailConnections.filter((connection) => connection.provider.toLowerCase() === workspaceProvider && connection.status.toLowerCase() === "connected")
+        : [];
+      if (workspaceProvider && workspaceMailboxes.length > 0) {
+        if (workspaceMailboxes.length !== 1) {
+          toast.error("Choose a mailbox above");
+          return;
+        }
+        await bindAgentWorkspaceEmail(installationId, entry.id, workspaceMailboxes[0]!.id);
+        toast.success("Mailbox added to agent");
+        await refresh();
+        onRefresh();
+        return;
+      }
       if (entry.kind === "mcp") {
         if (entry.auth === "oauth") {
           const result = await startAgentMcpCatalogOAuth(installationId, entry.id, {
@@ -988,6 +1027,7 @@ function ConnectionCataloguePanel({ installationId, versionId, directory, provid
       : !oauthClientId.trim();
 
   return <div className="space-y-4">
+    {emailConnections.length ? <section className="rounded-xl border border-border bg-muted/20 p-3"><div className="flex items-center justify-between gap-3"><div><p className="text-xs font-medium text-foreground">Workspace mailboxes</p><p className="mt-1 text-[11px] text-muted-foreground">Shared with Inbox</p></div><span className="text-[10px] text-muted-foreground">{emailConnections.length}</span></div><div className="mt-3 grid gap-2 sm:grid-cols-2">{emailConnections.map((connection) => { const provider = connection.provider.toLowerCase(); const integrationId = provider === "microsoft" ? "microsoft.email" : "google.email"; const integration = liveById.get(integrationId); const bound = integration?.status === "connected" && integration.configuration.coreConnectionId === connection.id; return <div key={connection.id} className="flex items-center gap-2 rounded-lg border border-border bg-background/40 px-2.5 py-2"><span className="size-1.5 shrink-0 rounded-full bg-emerald-500" /><div className="min-w-0 flex-1"><p className="truncate text-[11px] font-medium text-foreground">{connection.emailAddress}</p><p className="truncate text-[10px] text-muted-foreground">{connection.provider} · Connected</p></div><Button type="button" size="sm" variant={bound ? "outline" : "secondary"} className="h-7 px-2 text-[10px]" disabled={bound || busyId === connection.id} onClick={() => { setBusyId(connection.id); void bindAgentWorkspaceEmail(installationId, integrationId, connection.id).then(async () => { toast.success("Mailbox added to agent"); await refresh(); onRefresh(); }).catch((cause) => toast.error(connectionErrorMessage(cause))).finally(() => setBusyId(null)); }}>{bound ? "Bound" : busyId === connection.id ? "…" : "Use"}</Button></div>; })}</div></section> : null}
     <div className="flex justify-end"><Button type="button" size="sm" onClick={() => setCustomOpen(true)}><Plus className="mr-1.5 size-3.5" />Add</Button></div>
     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
       <div className="flex flex-wrap items-center gap-2">
@@ -1040,8 +1080,8 @@ function ConnectionCataloguePanel({ installationId, versionId, directory, provid
   </div>;
 }
 
-function ConnectionCapabilitiesPanel({ installationId, connectionDirectory, providers, pinnedProviders, versions, versionId, draft, onDraftChange, onRefresh }: { installationId: string | null; connectionDirectory: AgentConnectionDirectoryEntry[]; providers: AgentMcpProvider[]; pinnedProviders: AgentMcpProviderVersion[]; versions: Record<string, AgentMcpProviderVersion[]>; versionId: string | null; draft: StudioCapabilityDraft; onDraftChange: (value: StudioCapabilityDraft | ((current: StudioCapabilityDraft) => StudioCapabilityDraft)) => void; onRefresh: () => void }) {
-  return installationId ? <ConnectionCataloguePanel installationId={installationId} versionId={versionId} directory={connectionDirectory} providers={providers} pinnedProviders={pinnedProviders} versions={versions} draft={draft} onDraftChange={onDraftChange} onRefresh={onRefresh} /> : null;
+function ConnectionCapabilitiesPanel({ installationId, connectionDirectory, emailConnections, providers, pinnedProviders, versions, versionId, draft, onDraftChange, onRefresh }: { installationId: string | null; connectionDirectory: AgentConnectionDirectoryEntry[]; emailConnections: WorkspaceEmailConnection[]; providers: AgentMcpProvider[]; pinnedProviders: AgentMcpProviderVersion[]; versions: Record<string, AgentMcpProviderVersion[]>; versionId: string | null; draft: StudioCapabilityDraft; onDraftChange: (value: StudioCapabilityDraft | ((current: StudioCapabilityDraft) => StudioCapabilityDraft)) => void; onRefresh: () => void }) {
+  return installationId ? <ConnectionCataloguePanel installationId={installationId} versionId={versionId} directory={connectionDirectory} emailConnections={emailConnections} providers={providers} pinnedProviders={pinnedProviders} versions={versions} draft={draft} onDraftChange={onDraftChange} onRefresh={onRefresh} /> : null;
 }
 
 function UserToolsPanel({ tools, draft, onDraftChange }: { tools: AgentCapabilityDirectoryEntry[]; draft: StudioCapabilityDraft; onDraftChange: (value: StudioCapabilityDraft | ((current: StudioCapabilityDraft) => StudioCapabilityDraft)) => void }) {

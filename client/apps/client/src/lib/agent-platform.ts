@@ -1309,6 +1309,20 @@ export type AgentConnectionDirectoryEntry = {
   providerId?: string | null;
 };
 
+export type WorkspaceEmailConnection = {
+  id: string;
+  provider: string;
+  emailAddress: string;
+  displayName: string;
+  status: string;
+  healthStatus: string;
+  syncStatus: string;
+};
+
+export function listWorkspaceEmailConnections(): Promise<{ connections: WorkspaceEmailConnection[] }> {
+  return request("/api/email/connections");
+}
+
 export function listAgentConnectionDirectory(installationId: string): Promise<{ installationId: string; connections: AgentConnectionDirectoryEntry[] }> {
   return request(`/api/agents/installations/${encodeURIComponent(installationId)}/connection-directory`);
 }
@@ -1644,6 +1658,13 @@ export function saveAgentIntegrationLocalConnector(installationId: string, integ
 
 export function startAgentIntegrationOAuth(installationId: string, integrationId: string): Promise<{ authorizationUrl: string }> {
   return request(`/api/agents/installations/${encodeURIComponent(installationId)}/integrations/${encodeURIComponent(integrationId)}/oauth/start`);
+}
+
+export function bindAgentWorkspaceEmail(installationId: string, integrationId: string, connectionId: string): Promise<{ integration: AgentIntegration }> {
+  return request(`/api/agents/installations/${encodeURIComponent(installationId)}/integrations/${encodeURIComponent(integrationId)}/workspace-email`, {
+    method: "POST",
+    body: JSON.stringify({ connectionId }),
+  });
 }
 
 export function disconnectAgentIntegration(installationId: string, integrationId: string): Promise<unknown> {
