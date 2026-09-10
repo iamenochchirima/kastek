@@ -11,16 +11,23 @@ const casualPhrases = new Set(["hi", "hello", "hey", "thanks", "thank you", "ok"
 export type AgentIntent = "capability_request" | "knowledge_request" | "memory_request" | "effect_request" | "casual";
 
 function isCapabilityRequestMessage(normalized: string): boolean {
-  const tokens = tokensFor(normalized).map((token) => token.replace(/\?$/u, ""));
-  const asksForConnectedData = tokens.some((token) => connectedDataTerms.has(token))
-    && /\b(?:what|which|show|list|find|search|check|look\s+up|tell\s+me|give\s+me)\b/u.test(normalized);
-  if (asksForConnectedData) return true;
+  if (isConnectedDataRequestMessage(normalized)) return true;
   return /\b(?:what|which|tell me about)\s+(?:can|could|do)\s+you\s+(?:do|help(?:\s+with)?|support)\b/u.test(normalized)
     || /\bwhat\s+(?:are\s+)?(?:the\s+)?(?:other\s+)?things?(?:\s+you)?\s+can(?:\s+you)?\s+(?:do|help(?:\s+with)?)\b/u.test(normalized)
     || /\b(?:what|which)\s+(?:tools?|capabilities?|integrations?|connections?|skills?|services?)\b/u.test(normalized)
     || /\b(?:available|supported|callable)\s+(?:tools?|capabilities?|integrations?|connections?|skills?)\b/u.test(normalized)
     || /\bwhat(?:'s| is)\s+(?:connected|available|supported)\b/u.test(normalized)
     || /\b(?:full|complete|entire)\s+(?:list|range)\b.*\b(?:tools?|capabilities?|integrations?|skills?)\b/u.test(normalized);
+}
+
+/**
+ * A non-authoritative safety hint for current connected data. It is intentionally
+ * evaluated only after the model/tool loop, never as a pre-model admission gate.
+ */
+function isConnectedDataRequestMessage(normalized: string): boolean {
+  const tokens = tokensFor(normalized).map((token) => token.replace(/\?$/u, ""));
+  return tokens.some((token) => connectedDataTerms.has(token))
+    && /\b(?:what|which|show|list|find|search|check|look\s+up|tell\s+me|give\s+me)\b/u.test(normalized);
 }
 
 function tokensFor(message: string): string[] {
@@ -73,6 +80,38 @@ export function shouldFailClosedWithoutEvidence(input: {
   return input.evidenceCount <= 0
     && (input.agentAudience === "customer_service" || input.isSystemAgent === true)
     && intent === "knowledge_request";
+}
+
+export type GroundingReviewResult =
+  | { decision: "accept"; reason: "trusted_evidence" | "tool_evidence" | "status_not_completed" | "not_required" }
+  | { decision: "replace"; reason: "no_trusted_evidence" };
+
+/**
+ * Reviews a completed model turn after model/tool selection has had a chance to run.
+ * This is deliberately not an admission gate: tool calls and model usage must be
+ * observable before a protected no-evidence response is substituted.
+ */
+export function reviewGroundingResult(input: {
+  status: string;
+  message: string;
+  agentAudience?: "personal" | "customer_service";
+  isSystemAgent?: boolean;
+  evidenceCount: number;
+  toolCalls: number;
+}): GroundingReviewResult {
+  if (input.status !== "completed") return { decision: "accept", reason: "status_not_completed" };
+  if (input.toolCalls > 0) return { decision: "accept", reason: "tool_evidence" };
+  if (input.evidenceCount > 0) return { decision: "accept", reason: "trusted_evidence" };
+  const normalized = input.message.trim().toLocaleLowerCase().replace(/\s+/gu, " ");
+  const protectedAgent = input.agentAudience === "customer_service" || input.isSystemAgent === true;
+  if (protectedAgent && isConnectedDataRequestMessage(normalized)) return { decision: "replace", reason: "no_trusted_evidence" };
+  if (shouldFailClosedWithoutEvidence({
+    message: input.message,
+    agentAudience: input.agentAudience,
+    isSystemAgent: input.isSystemAgent,
+    evidenceCount: input.evidenceCount,
+  })) return { decision: "replace", reason: "no_trusted_evidence" };
+  return { decision: "accept", reason: "not_required" };
 }
 
 export const NO_APPROVED_KNOWLEDGE_RESPONSE = "I don’t have enough approved information to answer that yet.";

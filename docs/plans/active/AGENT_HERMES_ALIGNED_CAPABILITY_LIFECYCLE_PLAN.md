@@ -24,6 +24,7 @@ claimed as complete: it needs the local browser flow through the dev-client prox
 - [`AGENT_CAPABILITY_REGISTRY_AND_EXTENSION_SURFACES_IMPLEMENTATION_PLAN.md`](./AGENT_CAPABILITY_REGISTRY_AND_EXTENSION_SURFACES_IMPLEMENTATION_PLAN.md)
 - [`AGENT_PLATFORM_HERMES_GAP_CLOSURE_PLAN.md`](./AGENT_PLATFORM_HERMES_GAP_CLOSURE_PLAN.md)
 - [`AGENT_PLATFORM_EXECUTION_OBSERVATORY_AND_CONTROL_PLANE_PLAN.md`](./AGENT_PLATFORM_EXECUTION_OBSERVATORY_AND_CONTROL_PLANE_PLAN.md)
+- [`AGENT_MODEL_FIRST_GROUNDING_ARCHITECTURE_PLAN.md`](./AGENT_MODEL_FIRST_GROUNDING_ARCHITECTURE_PLAN.md)
 - [`HERMES_WAKU_CAPABILITY_AWARENESS.md`](../../research/HERMES_WAKU_CAPABILITY_AWARENESS.md)
 
 ## Objective
@@ -281,7 +282,8 @@ until the user confirms Deploy.
    index and loaded on demand; current `knowledge_source_ids` remain metadata only.
 8. [x] Ensure capability-request intent reaches the model and uses the current snapshot instead of
    the factual grounding fallback. Keep the generic platform system skill shared by every agent;
-   layer protected KasiAi guidance without creating a separate mechanism.
+   layer protected KasiAi guidance without creating a separate mechanism. The remaining grounding
+   review is post-model and is owned by the linked model-first architecture plan.
 9. [x] Connect registry generations and candidate digests to the existing Playground run bootstrap.
    A changed connection/plugin/skill affects the next run; an in-flight run keeps its original
    snapshot.

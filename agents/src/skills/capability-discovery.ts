@@ -18,6 +18,7 @@ export const CAPABILITY_DISCOVERY_SKILL = Object.freeze({
     "A ready skill contributes instructions only; it never authorizes a tool. Do not list a blocked skill as usable, and explain the limitation without exposing internal identifiers.",
     "Use skills_list for the compact enabled-skill index and skill_view to load one skill's full instructions when the current task needs it.",
     "For a broad capability question, summarize the callable tools and ready skills. For an account-specific question, use the trusted connection-discovery capability when it is listed.",
+    "For current connected records such as calendar events, messages, files, or contacts, call the matching supplied tool before answering; never infer live data from the connection name.",
     "Use a tool only when its current schema is supplied and the request is within its scope. Approval-gated actions still require approval and durable completion evidence.",
   ].join("\n"),
 });

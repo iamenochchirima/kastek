@@ -222,6 +222,7 @@ describe("effective capability discovery", () => {
     expect(context.capabilitySnapshotDigest).toBe(snapshot.digest);
     expect(system).toContain("Capability awareness contract (runtime-owned)");
     expect(system).toContain("Agent capability discovery v1.0.0");
+    expect(system).toContain("current connected records such as calendar events");
     expect(system).toContain("Callable tools: calendar.read");
     expect(context.tools.map((entry) => entry.name)).toContain("calendar.read");
     expect(context.tools.map((entry) => entry.name)).not.toContain("calendar.write");

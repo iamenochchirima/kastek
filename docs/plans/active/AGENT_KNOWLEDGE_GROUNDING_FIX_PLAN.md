@@ -1,6 +1,6 @@
 # Agent knowledge grounding fix
 
-**Status:** Implementation complete; release pending
+**Status:** Superseded for runtime admission by [model-first capability and grounding architecture](./AGENT_MODEL_FIRST_GROUNDING_ARCHITECTURE_PLAN.md); retrieval work remains active
 
 **Owner:** agent-platform
 
@@ -11,6 +11,10 @@
 Make agent knowledge usable for all hosted customer-facing agents. Existing and newly ingested
 knowledge must be searchable, and an agent must not invent an answer when no trusted evidence is
 available.
+
+The runtime no-evidence decision is now owned by the post-model review in the linked plan. This
+document does not authorize a pre-model phrase gate: retrieval misses must not prevent an admitted
+model turn from selecting a connected tool.
 
 ## Scope
 

@@ -16,7 +16,7 @@ import { actualModelCallCredits, estimateModelCallCredits, estimatePromptTokens,
 import { buildAgentContext } from "../runtime/context";
 import { assertSameAgentEnvironment } from "../runtime/execution-environment";
 import { runtimeExecutionScopeFromRun } from "../runtime/execution-scope";
-import { classifyAgentIntent, createGroundingFallbackResponse, shouldFailClosedWithoutEvidence } from "../runtime/grounding";
+import { classifyAgentIntent, createGroundingFallbackResponse, reviewGroundingResult } from "../runtime/grounding";
 import { createEffectiveCapabilitySnapshot } from "../runtime/effective-capabilities";
 import { createAgentBudgetLedger, type AgentBudgetLedger } from "../runtime/budget";
 import { hashToolArguments, ToolRegistry } from "../tools/registry";
@@ -4246,60 +4246,87 @@ async function executeLoopForRun(
     toolContext: modelToolContext,
     budgetLedger,
   };
-  if (shouldFailClosedWithoutEvidence({
-    message: currentMessage,
-    agentAudience: run.agent_audience,
-    isSystemAgent: isKasiAiInstallation,
-    evidenceCount: retrievalResult.evidence.length + (memoryRetrievalPack?.evidence.length ?? 0),
-  })) {
+  const reviewGroundingAfterLoop = async (
+    loopResult: AgentLoopResult,
+    completedTools: ReadonlySet<string>,
+    usedTools: ReadonlySet<string>,
+    unavailableTools: ReadonlySet<string>,
+  ): Promise<AgentLoopResult> => {
+    const evidenceCount = retrievalResult.evidence.length + (memoryRetrievalPack?.evidence.length ?? 0);
+    const review = reviewGroundingResult({
+      status: loopResult.status,
+      message: currentMessage,
+      agentAudience: run.agent_audience,
+      isSystemAgent: isKasiAiInstallation,
+      evidenceCount,
+      toolCalls: completedTools.size,
+    });
     await assertSessionLease();
-    const response = createGroundingFallbackResponse(provider, model);
-    const usage = {
-      inputTokens: response.usage.inputTokens,
-      outputTokens: response.usage.outputTokens,
-      totalTokens: response.usage.totalTokens,
-      estimatedCostUsd: response.usage.estimatedCostUsd ?? 0,
+    const reviewPayload = {
+      decision: review.reason,
+      phase: "post_model",
+      retrievalRequested,
+      knowledgeMatchCount: retrievalResult.evidence.filter((entry) => entry.sourceType === "knowledge").length,
+      memoryEvidenceCount: memoryRetrievalPack?.evidence.length ?? 0,
+      modelIterations: loopResult.iterations,
+      toolCalls: loopResult.toolCalls,
+      completedToolCount: completedTools.size,
+      usedToolCount: usedTools.size,
+      unavailableToolCount: unavailableTools.size,
+      intent: currentIntent,
     };
-    const groundingStep = await runSteps.startStep({
-      runId: run.id,
-      organizationId: run.organization_id,
-      stepType: "policy",
-      input: { policy: "grounding", decision: "no_trusted_evidence" },
-    });
-    await runSteps.finishStep({
-      stepId: groundingStep.id,
-      status: "completed",
-      output: { decision: "no_trusted_evidence", modelCallSkipped: true },
-    });
     await runs.appendEvent({
       organizationId: run.organization_id,
       runId: run.id,
       installationId: run.installation_id,
-      eventType: "agent.grounding.blocked",
-      payload: {
-        reason: "no_trusted_evidence",
-        retrievalRequested,
-        knowledgeMatchCount: retrievalResult.evidence.filter((entry) => entry.sourceType === "knowledge").length,
-        memoryEvidenceCount: memoryRetrievalPack?.evidence.length ?? 0,
-        intent: currentIntent,
+      eventType: "agent.grounding.reviewed",
+      payload: reviewPayload,
+    });
+    if (review.decision !== "replace") return loopResult;
+
+    const response = createGroundingFallbackResponse(loopResult.response?.provider ?? provider, loopResult.response?.model ?? model);
+    const groundingStep = await runSteps.startStep({
+      runId: run.id,
+      organizationId: run.organization_id,
+      stepType: "policy",
+      input: { policy: "grounding", decision: review.reason, phase: "post_model" },
+    });
+    await runSteps.finishStep({
+      stepId: groundingStep.id,
+      status: "completed",
+      output: {
+        decision: review.reason,
+        phase: "post_model",
+        modelCallSkipped: false,
+        modelIterations: loopResult.iterations,
+        toolCalls: loopResult.toolCalls,
       },
     });
-    const groundingResult: AgentLoopResult = {
-      status: "completed",
-      messages: [response.message],
+    const messages = [...loopResult.messages];
+    let lastAssistantIndex = -1;
+    for (let index = messages.length - 1; index >= 0; index -= 1) {
+      if (messages[index]?.role === "assistant") {
+        lastAssistantIndex = index;
+        break;
+      }
+    }
+    if (lastAssistantIndex >= 0) messages[lastAssistantIndex] = response.message;
+    else messages.push(response.message);
+    return {
+      ...loopResult,
+      messages,
       response,
-      usage,
-      iterations: 0,
-      toolCalls: 0,
+      completionMessage: response.message.content,
+      ...(loopResult.completionResponse ? { completionResponse: { ...loopResult.completionResponse, text: response.message.content } } : {}),
       provenance: buildGroundingProvenance({
         authorizedTools: allowedTools,
-        usedTools: [],
+        usedTools,
+        unavailableTools,
         retrievalRequested,
         knowledgeMatchCount: retrievalResult.evidence.filter((entry) => entry.sourceType === "knowledge").length,
       }),
     };
-    return groundingResult;
-  }
+  };
   const approvedResourceSnapshot = resumeApprovedToolCall?.approval.resourceSnapshot
     ?? (resumeApprovedToolCall ? (await approvals.getForRun(run.organization_id, run.id))?.resource_snapshot : undefined);
   const toolSteps = new Map<string, string>();
@@ -4658,7 +4685,10 @@ async function executeLoopForRun(
       },
       graphStepActivitiesEnabled: stepActivitiesEnabled,
     });
-    return { ...workflowResult, usage: await modelCalls.usageForRun(run.organization_id, run.id) };
+    const workflowUsageResult = { ...workflowResult, usage: await modelCalls.usageForRun(run.organization_id, run.id) };
+    const workflowUsedTools = new Set(workflowUsageResult.provenance?.toolEvidence.used ?? []);
+    const reviewedWorkflowResult = await reviewGroundingAfterLoop(workflowUsageResult, workflowUsedTools, workflowUsedTools, new Set());
+    return reviewedWorkflowResult;
   }
   {
   const approvedResourceSnapshot = resumeApprovedToolCall?.approval.resourceSnapshot
@@ -4666,6 +4696,7 @@ async function executeLoopForRun(
   const toolSteps = new Map<string, string>();
   const startedExternalEffects = new Set<string>();
   const usedTools = new Set<string>();
+  const completedTools = new Set<string>();
   const unavailableTools = new Set<string>();
   const loopResult = await withActivityHeartbeat({ phase: "agent.loop" }, async () => {
     await assertSessionLease();
@@ -4854,6 +4885,7 @@ async function executeLoopForRun(
     },
     onToolCompleted: async (result) => {
       await assertSessionLease();
+      completedTools.add(result.name);
       await toolInvocations.recordCompleted({
         runId: run.id,
         providerToolCallId: result.toolCallId,
@@ -4929,16 +4961,17 @@ async function executeLoopForRun(
     knowledgeMatchCount: knowledgeMatches.length,
   });
   loopResult.usage = await modelCalls.usageForRun(run.organization_id, run.id);
+  const reviewedLoopResult = await reviewGroundingAfterLoop(loopResult, completedTools, usedTools, unavailableTools);
   if (stepExecutionEnabled) {
-    const shouldContinue = loopResult.status === "limited"
-      && loopResult.iterations > 0
-      && loopResult.messages.at(-1)?.role === "tool";
-    const shouldPause = loopResult.status === "awaiting_approval"
-      || loopResult.status === "awaiting_human"
-      || loopResult.status === "awaiting_external_event";
+    const shouldContinue = reviewedLoopResult.status === "limited"
+      && reviewedLoopResult.iterations > 0
+      && reviewedLoopResult.messages.at(-1)?.role === "tool";
+    const shouldPause = reviewedLoopResult.status === "awaiting_approval"
+      || reviewedLoopResult.status === "awaiting_human"
+      || reviewedLoopResult.status === "awaiting_external_event";
     const nextState = { ...(storedWorkflowState?.state ?? {}) };
     if (shouldContinue || shouldPause) {
-      nextState.__agentLoop = durableAgentLoopCheckpoint(loopResult, loopCheckpoint, { stepIndex: activeLoopStep });
+      nextState.__agentLoop = durableAgentLoopCheckpoint(reviewedLoopResult, loopCheckpoint, { stepIndex: activeLoopStep });
     } else if (Object.prototype.hasOwnProperty.call(nextState, "__agentLoop")) {
       delete nextState.__agentLoop;
     }
@@ -4949,7 +4982,7 @@ async function executeLoopForRun(
         expectedRevision: storedWorkflowState?.revision,
         state: nextState,
       });
-      return { ...loopResult, checkpointed: true };
+      return { ...reviewedLoopResult, checkpointed: true };
     }
     if (shouldPause || loopCheckpoint) {
       await workflowState.put({
@@ -4960,7 +4993,7 @@ async function executeLoopForRun(
       });
     }
   }
-  return loopResult;
+  return reviewedLoopResult;
   }
 }
 

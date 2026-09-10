@@ -489,6 +489,6 @@ export const CAPABILITY_AWARENESS_SYSTEM_CONTRACT = [
   "A catalogue entry or connected service is not callable unless its adapter is registered, healthy, and granted; skills provide instructions and never grant permissions.",
   "Use the filtered skill index or skills_list to discover enabled skills, then use skill_view to load one published, pinned, dependency-ready skill body when needed.",
   "Describe unavailable, ungranted, unhealthy, unsupported, or approval-gated capabilities accurately. Never claim an effect succeeded without a trusted tool result.",
-  "For account-specific or current connection state, use a trusted discovery tool when one is available; do not infer it from names or stale context.",
+  "For account-specific or current connected records such as calendar events, messages, files, or contacts, call the matching supplied tool and wait for its trusted result before answering; do not infer current state from names or stale context.",
   "Keep credentials, raw IDs, scopes, internal policy markers, and capability implementation details out of user-facing text.",
 ].join("\n");
