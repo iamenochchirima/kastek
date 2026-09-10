@@ -172,6 +172,9 @@ request, the agent uses the named provider/account or asks the user to choose.
    Email uses a dedicated full-width mailbox layout: the message list fills the workspace until a
    message is opened, then the reading view fills the workspace with an explicit back action;
    the chat/social split-pane shell is not reused for email.
+   Inbox channel tabs remain selectable when a provider is not connected and expose the provider
+   connect action in the channel empty state; connection setup does not require first navigating
+   to the global Connections page.
 10. [x] Apply the existing deployment rules: Playground may test a new Agent binding; Deploy
     promotes the exact agent candidate and binding configuration to Live; workspace credentials
     are reused by opaque reference; rollback restores the previous Live binding revision.

@@ -855,6 +855,14 @@ export default function InboxPageClient({
     }
   };
 
+  const startSocialConnection = (provider: "facebook" | "instagram") => {
+    const path =
+      provider === "facebook"
+        ? "/api/social/oauth/meta/start?target=facebook"
+        : "/api/social/oauth/instagram/start";
+    window.location.assign(apiUrl(path));
+  };
+
   const emailConnectedConnections = liveEmailConnections.filter(
     (connection) => connection.status === "CONNECTED" && connection.inboxStatus === "ACTIVE",
   );
@@ -937,7 +945,7 @@ export default function InboxPageClient({
         unreadCount: liveConversations.filter(
           (conversation) => conversation.channel === "instagram" && conversation.unread,
         ).length,
-        disabled: !instagramInboxConnected,
+        disabled: false,
         connected: instagramInboxConnected,
       },
       {
@@ -950,7 +958,7 @@ export default function InboxPageClient({
         unreadCount: liveConversations.filter(
           (conversation) => conversation.channel === "facebook" && conversation.unread,
         ).length,
-        disabled: !facebookInboxConnected,
+        disabled: false,
         connected: facebookInboxConnected,
       },
     ],
@@ -1550,7 +1558,17 @@ export default function InboxPageClient({
                           : "Not connected"}
                       </p>
                     </div>
-                    {state.connected ? <Badge variant="outline">Connected</Badge> : null}
+                    {state.connected ? (
+                      <Badge variant="outline">Connected</Badge>
+                    ) : (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => startSocialConnection(channel.key)}
+                      >
+                        Connect
+                      </Button>
+                    )}
                   </div>
                 );
               })}
@@ -2906,8 +2924,36 @@ export default function InboxPageClient({
                     {(() => { const Icon = inboxChannelIcon(selectedChannel); return <Icon className={`h-6 w-6 ${inboxChannelIconClass(selectedChannel)}`} />; })()}
                   </div>
                   <p className="text-sm text-foreground">
-                    Connect {selectedChannel === "facebook" ? "Facebook" : selectedChannel} to start using inbox
+                    {selectedChannel === "email"
+                      ? "Connect email to start using inbox"
+                      : selectedChannel === "instagram"
+                        ? "Connect Instagram to start using inbox"
+                        : selectedChannel === "facebook"
+                          ? "Connect Facebook to start using inbox"
+                          : selectedChannel === "whatsapp"
+                            ? "Connect WhatsApp to start using inbox"
+                            : "Connect this channel to start using inbox"}
                   </p>
+                  {selectedChannel === "email" ? (
+                    <Button variant="outline" size="sm" className="mt-4" onClick={() => setShowEmailConnectDialog(true)}>
+                      Connect email
+                    </Button>
+                  ) : null}
+                  {selectedChannel === "instagram" || selectedChannel === "facebook" ? (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="mt-4"
+                      onClick={() => startSocialConnection(selectedChannel)}
+                    >
+                      {selectedChannel === "instagram" ? "Connect Instagram" : "Connect Facebook"}
+                    </Button>
+                  ) : null}
+                  {selectedChannel === "whatsapp" ? (
+                    <Button asChild variant="outline" size="sm" className="mt-4">
+                      <Link href="/connections#whatsapp-setup">Connect WhatsApp</Link>
+                    </Button>
+                  ) : null}
                 </div>
               ) : filteredConversations.length === 0 ? (
                 <div className="flex flex-col items-center justify-center px-4 py-12 text-center">
