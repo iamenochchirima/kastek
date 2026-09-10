@@ -201,6 +201,8 @@ The resulting policy is:
   the expected activation responses. The temporary test agent was deleted after verification.
 - [x] Client production build and targeted lint passed for the shared chat surface, run-status and
   cancellation controls, deployment lifecycle UI, Studio integration, and platform client.
+- [x] Core proxy adapter tests and the complete Core library suite passed (272 passed, 3 ignored),
+  including the new scoped effective-config, memory-observatory, and Playground deploy forwards.
 - [x] Headless browser smoke against a clean production client and rebuilt local Core proxy loaded
   Studio without the former effective-config or memory-observatory 404s. An authenticated
   temporary agent completed Playground v1 → v2, preflight, Live promotion to v2, rollback to v1,
