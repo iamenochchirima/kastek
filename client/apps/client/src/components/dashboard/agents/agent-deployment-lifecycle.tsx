@@ -197,7 +197,10 @@ export function AgentDeploymentLifecycle({
     }
   };
 
-  const candidateDiffers = Boolean(status && selectedVersion && selectedVersion.id !== status.live.version?.versionId);
+  const candidateDiffers = Boolean(status && selectedVersion && (
+    selectedVersion.id !== status.live.version?.versionId
+    || status.playground.capabilityConfigurationDigest !== status.live.capabilityConfigurationDigest
+  ));
   const canPromote = Boolean(status?.live.installationId && candidateDiffers && selectedVersion);
   const canRollback = Boolean(status?.rollbackTarget && status.live.installationId);
 

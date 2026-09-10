@@ -1054,8 +1054,8 @@ export type AgentDeploymentStatus = {
   agentId: string;
   state: "pending" | "ready" | "blocked" | "deployed" | "rollback_available";
   status: "pending" | "ready" | "blocked" | "deployed" | "rollback_available";
-  playground: { installationId: string | null; status: string | null; version: AgentDeploymentVersion | null };
-  live: { installationId: string | null; status: string | null; version: AgentDeploymentVersion | null };
+  playground: { installationId: string | null; status: string | null; version: AgentDeploymentVersion | null; capabilityConfigurationDigest: string | null };
+  live: { installationId: string | null; status: string | null; version: AgentDeploymentVersion | null; capabilityConfigurationDigest: string | null };
   rollbackTarget: AgentDeploymentVersion | null;
   latestPromotion: {
     id: string;

@@ -434,6 +434,19 @@ export class AgentDeploymentModule {
         { preflight },
       );
     }
+
+    // Playground is the source of truth for the candidate's configured
+    // capabilities. Keep the existing opaque credential references and copy
+    // only the installation-scoped connection/grant records in this
+    // transaction; secret payloads, conversations, runs, and test data never
+    // cross the promotion boundary.
+    await this.mirrorPlaygroundCapabilityConfiguration(client, {
+      organizationId,
+      sourceInstallationId: input.sourceInstallationId,
+      targetInstallationId: installationId,
+      candidateVersionId: input.versionId,
+    });
+
     const installation = await this.applyDeployment(client, {
       organizationId,
       actorId,
@@ -476,6 +489,154 @@ export class AgentDeploymentModule {
         idempotencyKey: input.idempotencyKey,
       },
     };
+  }
+
+  private async mirrorPlaygroundCapabilityConfiguration(
+    client: PoolClient,
+    input: {
+      organizationId: string;
+      sourceInstallationId: string;
+      targetInstallationId: string;
+      candidateVersionId: string;
+    },
+  ): Promise<void> {
+    // Connections reference organization-scoped encrypted credentials. The
+    // reference is reused; the encrypted secret is never selected or copied.
+    await client.query(
+      `UPDATE integration_connections target_connection
+       SET status = 'revoked', revoked_at = now(), updated_at = now()
+       WHERE target_connection.organization_id = $1
+         AND target_connection.installation_id = $2
+         AND target_connection.revoked_at IS NULL
+         AND NOT EXISTS (
+           SELECT 1 FROM integration_connections source_connection
+           WHERE source_connection.organization_id = $1
+             AND source_connection.installation_id = $3
+             AND source_connection.integration_id = target_connection.integration_id
+             AND source_connection.revoked_at IS NULL
+         )`,
+      [input.organizationId, input.targetInstallationId, input.sourceInstallationId],
+    );
+    await client.query(
+      `INSERT INTO integration_connections
+         (organization_id, installation_id, integration_id, credential_id, status,
+          configuration, health_message, last_checked_at, created_by)
+       SELECT source_connection.organization_id, $2, source_connection.integration_id,
+              source_connection.credential_id, source_connection.status,
+              source_connection.configuration, source_connection.health_message,
+              source_connection.last_checked_at, source_connection.created_by
+       FROM integration_connections source_connection
+       WHERE source_connection.organization_id = $1
+         AND source_connection.installation_id = $3
+         AND source_connection.revoked_at IS NULL
+       ON CONFLICT (installation_id, integration_id) DO UPDATE SET
+         credential_id = EXCLUDED.credential_id,
+         status = EXCLUDED.status,
+         configuration = EXCLUDED.configuration,
+         health_message = EXCLUDED.health_message,
+         last_checked_at = EXCLUDED.last_checked_at,
+         updated_at = now(),
+         revoked_at = NULL`,
+      [input.organizationId, input.targetInstallationId, input.sourceInstallationId],
+    );
+
+    // Resource and connector grants are installation-scoped. Mirror the
+    // active Playground set exactly so removed Playground grants do not remain
+    // callable in Live after promotion.
+    await client.query(
+      `UPDATE agent_installation_resource_grants target_grant
+       SET revoked_at = now()
+       WHERE target_grant.organization_id = $1
+         AND target_grant.installation_id = $2
+         AND target_grant.revoked_at IS NULL
+         AND NOT EXISTS (
+           SELECT 1 FROM agent_installation_resource_grants source_grant
+           WHERE source_grant.organization_id = $1
+             AND source_grant.installation_id = $3
+             AND source_grant.resource_type = target_grant.resource_type
+             AND source_grant.resource_id = target_grant.resource_id
+             AND source_grant.revoked_at IS NULL
+         )`,
+      [input.organizationId, input.targetInstallationId, input.sourceInstallationId],
+    );
+    await client.query(
+      `INSERT INTO agent_installation_resource_grants
+         (organization_id, installation_id, resource_type, resource_id, granted_by)
+       SELECT source_grant.organization_id, $2, source_grant.resource_type,
+              source_grant.resource_id, source_grant.granted_by
+       FROM agent_installation_resource_grants source_grant
+       WHERE source_grant.organization_id = $1
+         AND source_grant.installation_id = $3
+         AND source_grant.revoked_at IS NULL
+       ON CONFLICT (installation_id, resource_type, resource_id) DO UPDATE SET
+         granted_by = EXCLUDED.granted_by,
+         revoked_at = NULL`,
+      [input.organizationId, input.targetInstallationId, input.sourceInstallationId],
+    );
+    await client.query(
+      `UPDATE agent_installation_connector_grants target_grant
+       SET revoked_at = now()
+       WHERE target_grant.organization_id = $1
+         AND target_grant.installation_id = $2
+         AND target_grant.revoked_at IS NULL
+         AND NOT EXISTS (
+           SELECT 1 FROM agent_installation_connector_grants source_grant
+           WHERE source_grant.organization_id = $1
+             AND source_grant.installation_id = $3
+             AND source_grant.connector_id = target_grant.connector_id
+             AND source_grant.revoked_at IS NULL
+         )`,
+      [input.organizationId, input.targetInstallationId, input.sourceInstallationId],
+    );
+    await client.query(
+      `INSERT INTO agent_installation_connector_grants
+         (organization_id, installation_id, connector_id, granted_by)
+       SELECT source_grant.organization_id, $2, source_grant.connector_id,
+              source_grant.granted_by
+       FROM agent_installation_connector_grants source_grant
+       WHERE source_grant.organization_id = $1
+         AND source_grant.installation_id = $3
+         AND source_grant.revoked_at IS NULL
+       ON CONFLICT (installation_id, connector_id) DO UPDATE SET
+         granted_by = EXCLUDED.granted_by,
+         revoked_at = NULL`,
+      [input.organizationId, input.targetInstallationId, input.sourceInstallationId],
+    );
+
+    // Version-level grants travel with the immutable candidate. Only
+    // installation-specific grants need to be mirrored here.
+    await client.query(
+      `UPDATE agent_tool_grants target_grant
+       SET revoked_at = now()
+       WHERE target_grant.organization_id = $1
+         AND target_grant.installation_id = $2
+         AND target_grant.agent_version_id = $3
+         AND target_grant.revoked_at IS NULL
+         AND NOT EXISTS (
+           SELECT 1 FROM agent_tool_grants source_grant
+           WHERE source_grant.organization_id = $1
+             AND source_grant.installation_id = $4
+             AND source_grant.agent_version_id = $3
+             AND source_grant.tool_name = target_grant.tool_name
+             AND source_grant.revoked_at IS NULL
+         )`,
+      [input.organizationId, input.targetInstallationId, input.candidateVersionId, input.sourceInstallationId],
+    );
+    await client.query(
+      `INSERT INTO agent_tool_grants
+         (organization_id, agent_version_id, installation_id, tool_name, granted_by)
+       SELECT source_grant.organization_id, source_grant.agent_version_id, $2,
+              source_grant.tool_name, source_grant.granted_by
+       FROM agent_tool_grants source_grant
+       WHERE source_grant.organization_id = $1
+         AND source_grant.installation_id = $3
+         AND source_grant.agent_version_id = $4
+         AND source_grant.revoked_at IS NULL
+       ON CONFLICT (agent_version_id, COALESCE(installation_id, '00000000-0000-0000-0000-000000000000'::uuid), tool_name)
+         WHERE revoked_at IS NULL
+       DO UPDATE SET granted_by = EXCLUDED.granted_by`,
+      [input.organizationId, input.targetInstallationId, input.sourceInstallationId, input.candidateVersionId],
+    );
   }
 
   /**

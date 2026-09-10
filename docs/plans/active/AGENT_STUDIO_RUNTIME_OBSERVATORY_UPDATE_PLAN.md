@@ -242,8 +242,10 @@ stream from its last durable cursor, consumes a versioned unified timeline-item 
 retry/resume/cancel/approval commands through existing durable APIs, and can open a bounded memory
 revision-lineage summary. Exact execution items now retain their configured-stage link, represent
 child executions explicitly, expose bounded effect receipt/reconciliation metadata, and show the
-current Live candidate identity alongside the Playground candidate. Richer promotion evidence, full
-lineage controls, and manual environment proof remain runtime-contract follow-ups.
+current Live candidate identity alongside the Playground candidate. The existing promotion path
+also mirrors the tested Playground capability connections and grants to Live without copying secret
+payloads. Richer promotion evidence, full lineage controls, and manual runtime proof remain
+follow-ups; a separate environment-binding management system is intentionally out of scope.
 
 ## Release record for the UI slice
 

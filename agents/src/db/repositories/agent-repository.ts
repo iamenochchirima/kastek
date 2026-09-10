@@ -154,11 +154,13 @@ export interface AgentDeploymentStatus {
     installationId: string | null;
     status: string | null;
     version: DeploymentVersionProjection | null;
+    capabilityConfigurationDigest: string | null;
   };
   live: {
     installationId: string | null;
     status: string | null;
     version: DeploymentVersionProjection | null;
+    capabilityConfigurationDigest: string | null;
   };
   rollbackTarget: DeploymentVersionProjection | null;
   latestPromotion: {
@@ -2144,6 +2146,38 @@ export class AgentRepository {
     return withTransaction(this.pool, (client) => this.deploymentModule.deployInstallation(client, organizationId, actorId, installationId, input));
   }
 
+  private async getCapabilityConfigurationDigest(
+    organizationId: string,
+    installationId: string | null,
+    versionId: string | null,
+  ): Promise<string | null> {
+    if (!installationId) return null;
+    const result = await query<{ digest: string }>(
+      this.pool,
+      `SELECT md5(COALESCE(string_agg(entry, '|' ORDER BY entry), '')) AS digest
+       FROM (
+         SELECT concat('connection:', integration_id, ':', COALESCE(credential_id::text, ''), ':', status, ':', configuration::text) AS entry
+         FROM integration_connections
+         WHERE organization_id = $1 AND installation_id = $2 AND revoked_at IS NULL
+         UNION ALL
+         SELECT concat('resource:', resource_type, ':', resource_id) AS entry
+         FROM agent_installation_resource_grants
+         WHERE organization_id = $1 AND installation_id = $2 AND revoked_at IS NULL
+         UNION ALL
+         SELECT concat('connector:', connector_id) AS entry
+         FROM agent_installation_connector_grants
+         WHERE organization_id = $1 AND installation_id = $2 AND revoked_at IS NULL
+         UNION ALL
+         SELECT concat('tool:', tool_name) AS entry
+         FROM agent_tool_grants
+         WHERE organization_id = $1 AND installation_id = $2
+           AND agent_version_id = $3 AND revoked_at IS NULL
+       ) capability_entries`,
+      [organizationId, installationId, versionId],
+    );
+    return result.rows[0]?.digest ?? null;
+  }
+
   public async getDeploymentStatus(organizationId: string, agentId: string): Promise<AgentDeploymentStatus | null> {
     const result = await query<DeploymentStatusRow>(
       this.pool,
@@ -2220,6 +2254,10 @@ export class AgentRepository {
     );
     const row = result.rows[0];
     if (!row) return null;
+    const [playgroundCapabilityConfigurationDigest, liveCapabilityConfigurationDigest] = await Promise.all([
+      this.getCapabilityConfigurationDigest(organizationId, row.playground_installation_id, row.playground_version_id),
+      this.getCapabilityConfigurationDigest(organizationId, row.live_installation_id, row.live_version_id),
+    ]);
     const playground = row.playground_version_id ? projectDeploymentVersionRow({
       version_id: row.playground_version_id,
       version_number: row.playground_version_number,
@@ -2249,6 +2287,7 @@ export class AgentRepository {
     const differs = Boolean(playground && live && (
       playground.versionId !== live.versionId
       || playground.extensionSnapshotChecksum !== live.extensionSnapshotChecksum
+      || playgroundCapabilityConfigurationDigest !== liveCapabilityConfigurationDigest
     ));
     const state = blocked
       ? "blocked"
@@ -2261,8 +2300,18 @@ export class AgentRepository {
       agentId: row.agent_id,
       state,
       status: state,
-      playground: { installationId: row.playground_installation_id, status: row.playground_status, version: playground },
-      live: { installationId: row.live_installation_id, status: row.live_status, version: live },
+      playground: {
+        installationId: row.playground_installation_id,
+        status: row.playground_status,
+        version: playground,
+        capabilityConfigurationDigest: playgroundCapabilityConfigurationDigest,
+      },
+      live: {
+        installationId: row.live_installation_id,
+        status: row.live_status,
+        version: live,
+        capabilityConfigurationDigest: liveCapabilityConfigurationDigest,
+      },
       rollbackTarget,
       latestPromotion: row.latest_promotion_id ? {
         id: row.latest_promotion_id,

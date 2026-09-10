@@ -26,6 +26,20 @@ description: Third Agent Platform implementation chunk for real Playground execu
 
 **Studio visual contract:** [`Studio runtime observatory and promotion update`](./AGENT_STUDIO_RUNTIME_OBSERVATORY_UPDATE_PLAN.md)
 
+## Current deployment decision
+
+The product does not add a second user-managed test/live credential workflow. Users configure and
+test capability connections in Playground; Deploy promotes the exact immutable candidate plus its
+installation-scoped capability connections and grants to Live. The existing promotion transaction
+reuses opaque organization-scoped credential references and never copies secret payloads,
+conversations, memory, test data, or provider side effects.
+
+The `EnvironmentBindingResolver` and binding-snapshot registry described in the earlier planning
+sections are deferred. Playground and Live remain distinct runtime installations for traffic,
+history, and safety policy, but the current implementation source of truth for deployable capability
+configuration is the Playground installation. Do not introduce another environment-management
+surface unless this decision is explicitly revisited.
+
 ## Objective
 
 Build the Agent Playground as a real Agent Platform environment. Users configure an agent, execute
@@ -86,9 +100,10 @@ The first implementation slice is now available for local testing:
   kind, effect receipts expose bounded reconciliation metadata, and Studio shows the active Live
   candidate identity without copying or displaying credentials.
 
-This is a usable entry point, not completion of this chunk. Separate resource and credential
-bindings, promotion manifests, live activation, deeper aggregated graph relationships, and full
-manual validation remain unchecked until their backend contracts and evidence exist.
+This is a usable entry point, not completion of this chunk. Promotion manifests, the atomic
+Playground capability-configuration mirror, deeper aggregated graph relationships, and full manual
+validation remain runtime follow-ups; a separate user-managed environment-binding workflow is not
+part of the current implementation.
 
 ## Studio-owned creation flow
 
@@ -131,8 +146,8 @@ The implementation uses the existing AgentSpec and immutable AgentVersion bounda
   repository, then pins the selected provider version to the draft;
 - plugin selection writes canonical package references and grants to `spec.extensions`; package
   contents remain declarative and are resolved by the extension snapshot repository;
-- credentials and connected services remain installation-scoped, so Playground credentials cannot
-  be copied into Live by saving a draft.
+- credentials and connected services remain installation-scoped; promotion mirrors their opaque
+  connection references and grants from Playground to Live without exposing or copying secrets.
 
 The browser does not become a second runtime, package resolver, or approval system. It only edits
 the draft contract and shows readiness/health data returned by the platform. The execution graph
@@ -266,10 +281,10 @@ approver, destination, required binding contract, live binding revision, and rel
 activation changes the target's version pointer atomically; active runs remain pinned to their old
 version and binding snapshot. Editing the draft after promotion creates a new candidate.
 
-Promotion never copies secrets, Playground conversations, memories, provider side effects, or test
-data into live. It promotes portable agent configuration and required resource declarations, then
-resolves them against separately managed live bindings. Rollback activates the previous tested
-candidate and binding revision while preserving all execution evidence.
+Promotion never copies secret payloads, Playground conversations, memories, provider side effects,
+or test data into Live. It activates the exact candidate and mirrors the configured Playground
+capability connections and grants needed by that candidate. Rollback activates the previous tested
+candidate while preserving all execution evidence.
 
 ## Playground/live parity contract
 
@@ -283,42 +298,38 @@ The platform must enforce one execution contract across environments:
 | Context and memory logic | Real context engine and policies | Same logic and policies | Only bound data namespace differs |
 | Tool/provider execution | Real adapters and provider requests | Same adapters and request contracts | Adapter revision must match |
 | Channels | Real Playground account, endpoint, number, inbox, or test identity | Live channel identity | Same ingress, webhook, receipt, and delivery path |
-| Credentials/resources | Playground binding revision | Live binding revision | Same binding contract; different secret/resource values |
+| Credentials/resources | Configured Playground connections and grants | Promoted connection references and grants | Same configured capability contract; secret payloads remain in the credential vault |
 | Effects | Real effects within constrained targets | Real effects within live authority | Same operation/idempotency/reconciliation semantics |
 | Limits | Lower Playground quota, budget, and concurrency | Live operational limits | Limits are environment policy, not runtime branches |
 | Evidence | Full journal, telemetry, receipts, and evaluations | Same evidence model | Same event and projection schemas |
 
-### Environment binding seam
+### Runtime environment seam
 
-Environment selection must be handled behind one small runtime interface rather than repeated
-`if playground` checks:
+Environment selection remains behind the existing runtime installation scope rather than repeated
+`if playground` checks. The larger binding-snapshot resolver is deferred; promotion mirrors the
+selected Playground capability configuration into the Live installation:
 
 ```text
-EnvironmentBindingResolver.resolve(
-  executionScope,
-  candidateVersion,
-  requiredResourceDeclarations
-) -> immutable EnvironmentBindingSnapshot
+Playground installation + candidate + configured connections/grants
+    -> atomic Live installation promotion
 ```
 
-The snapshot identifies the environment, organization, installation, credentials by opaque
-reference, provider account/resource identifiers, data namespace, channel identity, destination
-policy, quotas, budgets, approval requirements, adapter revisions, and expiry. `AgentHarness`,
-capabilities, gateways, and Temporal activities consume this snapshot. Host adapters may narrow its
-authority but may never replace or broaden it.
+The runtime continues to identify the environment, organization, installation, and candidate. The
+existing capability resolver consumes the target installation's promoted connections and grants;
+host adapters may narrow authority but may never replace or broaden it.
 
-`environmentId`, `candidateVersionId`, `extensionSnapshotId`, and `environmentBindingRevision` are
-part of `ExecutionScope`, run identity, operation evidence, and audit records. A run must fail
-readiness before model/tool execution when required bindings are missing, unhealthy, expired, or
-incompatible.
+`environmentId`, `candidateVersionId`, and `extensionSnapshotId` remain part of `ExecutionScope`,
+run identity, operation evidence, and audit records. A run must fail readiness before model/tool
+execution when its promoted connections or grants are missing, unhealthy, expired, or incompatible.
 
 ### Portable configuration and environment-owned bindings
 
-| Promoted with the candidate | Resolved separately per environment | Never promoted |
+| Promoted with the candidate | Kept installation-local or runtime-only | Never promoted |
 | --- | --- | --- |
-| Instructions and model policy | Credential references and OAuth grants | Secret values |
+| Instructions and model policy | Runtime health and destination policy | Secret values |
 | Skill/plugin/MCP/tool manifests and pinned versions | Provider accounts, projects, numbers, pages, inboxes, and endpoints | Playground conversations and memories |
-| Capability grants requested by the agent | Environment-specific granted authority | Test messages, posts, emails, bookings, or other effects |
+| Configured capability connections and installation grants | Platform safety limits and approval authority | Test messages, posts, emails, bookings, or other effects |
+| Capability grants requested by the agent | Provider health and runtime state | Playground conversations and memories |
 | Knowledge source declarations and approved immutable revisions | Environment data namespace and permitted source bindings | Unapproved Playground data |
 | Context, memory, approval, budget, and delivery policy | Concrete limits, allowlists, approvers, and destinations | Runtime journals or telemetry |
 | Channel and resource requirements | Concrete channel/resource identities and health state | Provider tokens and refresh credentials |
@@ -345,7 +356,8 @@ testing, traces, and deployment across unrelated screens.
 
 - Edit the agent profile: instructions, model policy, capabilities, skills, plugins, MCP servers,
   knowledge, memory policy, approvals, budgets, limits, and declared channels.
-- Manage Playground resource bindings separately from the portable profile.
+- Configure capability connections and grants in Playground; Deploy mirrors the selected configuration
+  to Live without exposing credential payloads.
 - Show effective configuration, pinned extension versions, requested versus granted capabilities,
   unresolved resources, and validation errors before creating a candidate.
 - Create an immutable candidate from the draft. Further edits return to a new draft revision.
@@ -382,13 +394,15 @@ mistake a Playground action for a live action.
 Promotion is complete only when all of these steps succeed:
 
 1. Freeze the draft into an immutable candidate and extension snapshot with content digests.
-2. Resolve a Playground binding snapshot and execute required real scenarios and channels.
+2. Resolve the Playground installation's configured connections/grants and execute required real
+   scenarios and channels.
 3. Attach deterministic checks, evaluations, receipts, manual verification, and approval to that
    candidate. Evidence from another digest does not count.
 4. Generate a promotion manifest containing the source candidate, runtime and schema revisions,
    evidence IDs, required resources, target installation/channels, approver, and rollback target.
-5. Resolve live bindings by declaration, verify health and minimum required authority, and compare
-   adapter/channel compatibility. Do not copy Playground binding values.
+5. Mirror the configured Playground connections/grants into the target Live installation inside the
+   activation transaction, reusing only opaque credential references and never copying secret
+   payloads. Verify health and minimum required authority before activation.
 6. Recheck that the runtime artifact, candidate, extensions, adapters, and evidence schemas have
    not drifted since validation.
 7. Atomically activate the release pointer for the selected target. If activation cannot be
@@ -608,10 +622,10 @@ control must explain the bounded reason in the operation detail, not silently do
   redaction rules, and role visibility rules.
 - Define `playground` and `live` environment identities and add the environment, candidate,
   extension, and binding revision to execution scope and evidence contracts.
-- Define the portable candidate schema, required resource declarations, immutable environment
-  binding snapshot, promotion manifest, activation record, and rollback record.
-- Define the narrow `EnvironmentBindingResolver` seam and prohibit environment-specific branches
-  in the harness, capability implementations, and gateways.
+- Define the portable candidate schema, promotion manifest, activation record, and rollback record.
+  Defer a separate immutable environment-binding snapshot until the product decision requires it.
+- Keep environment selection behind the existing installation/runtime scope; do not add a second
+  user-managed binding resolver or credential-management surface in this chunk.
 - Classify every existing credential, provider resource, data source, channel identity, destination
   policy, quota, budget, and approval rule as portable configuration or environment-owned binding.
 - Define the read-model interfaces for run summary, timeline, graph, operation detail, and command
@@ -665,9 +679,8 @@ control must explain the bounded reason in the operation detail, not silently do
 
 - Add draft configuration for instructions, model policy, skills/plugins/connectors/MCP, knowledge,
   memory, channels, safety, budgets, and limits.
-- Add environment binding management for opaque credential references, provider resources, data
-  namespaces, channel identities, destination allowlists, quotas, budgets, concurrency, approvers,
-  and adapter revisions.
+- Use the existing installation connection, grant, and readiness routes for Playground
+  configuration; promotion mirrors the selected capability configuration to Live atomically.
 - Add validation that resolves the effective extension and environment binding snapshots and
   reports readiness, permissions, missing/unhealthy connections, incompatible adapter revisions,
   expired credentials, and real-effect destinations before execution or promotion.
@@ -719,10 +732,10 @@ not sufficient evidence for a runtime or data contract.
 - [ ] Confirm the second-chunk journal and cursor contract is stable for this UI.
 - [ ] Define `playground` and `live` environment identity in `ExecutionScope`, run identity,
   operation evidence, authorization, telemetry, and audit contracts.
-- [ ] Define portable candidate, required resource declaration, environment binding snapshot,
-  promotion manifest, activation, and rollback schemas.
-- [ ] Define one `EnvironmentBindingResolver` interface and prove runtime modules do not select
-  credentials/resources or branch on Playground themselves.
+- [ ] Define portable candidate, promotion manifest, activation, and rollback schemas. A separate
+  environment-binding snapshot is deferred by the current product decision.
+- [ ] Keep runtime modules installation-scoped and prevent browser code from selecting credentials
+  or resources directly; do not add a new environment-binding resolver in this chunk.
 - [ ] Classify all current agent configuration as portable candidate data, environment-owned
   binding data, or runtime evidence.
 - [ ] Define versioned observatory read models for run summary, timeline, graph, operation detail,
@@ -741,8 +754,8 @@ not sufficient evidence for a runtime or data contract.
   MCP, knowledge, memory, channels, safety, budgets, and limits.
 - [ ] Build effective-configuration preview showing the exact candidate digest, extension snapshot,
   required resources, and safe environment-binding metadata.
-- [ ] Build separate Playground bindings for credentials, provider resources, data namespaces,
-  channel identities, destinations, quotas, budgets, concurrency, approvers, and adapter revisions.
+- [ ] Use existing Playground connection/grant configuration and verify Deploy mirrors it to Live
+  without exposing or copying credential payloads.
 - [ ] Enforce default denial of live credentials, live data, live channel identities, and
   unrestricted destinations from Playground.
 - [ ] Execute Playground runs through the real AgentHarness, Temporal workflows, context engine,
@@ -754,7 +767,8 @@ not sufficient evidence for a runtime or data contract.
 - [ ] Record successful real Playground runs, evaluations, approvals, and channel evidence against
   the exact candidate and binding revisions.
 - [ ] Generate a promotion manifest for the exact tested candidate and extension digests.
-- [ ] Resolve and validate required live bindings without copying Playground secrets or data.
+- [ ] Validate the promoted Live connections/grants without copying Playground secrets, memories,
+  conversations, or test data.
 - [ ] Atomically activate a validated release for a selected live installation or channel.
 - [ ] Keep active runs pinned to the version and binding snapshot with which they started.
 - [ ] Roll back by activating the previous tested release while preserving execution evidence.
@@ -958,9 +972,9 @@ This chunk is complete when:
 | Decision | Why it matters | Default for this chunk |
 | --- | --- | --- |
 | Initial environments | Determines scope and terminology | Implement `playground` and `live`; leave `staging` as a compatible later environment |
-| Environment ownership | Prevents special-case runtime logic | One `EnvironmentBindingResolver`; runtime modules consume immutable bindings |
+| Environment ownership | Prevents special-case runtime logic | Existing installation/runtime scope; a separate binding resolver is deferred |
 | Promotion unit | Determines whether tested behavior is preserved | Candidate version + extension snapshot + portable policies, identified by digest |
-| Environment-owned state | Prevents secret/data leakage | Credentials, concrete resources, destinations, and limits remain separate bindings |
+| Environment-owned state | Prevents secret/data leakage | Connections/grants are promoted from Playground by opaque reference; secret values and runtime data remain protected |
 | Promotion evidence | Prevents untested releases | Require real Playground run/evaluation IDs and per-channel proof in a promotion manifest |
 | Activation semantics | Prevents partially updated traffic | Atomic target pointer update; active runs remain pinned |
 | Providers without test isolation | Avoids false confidence | Controlled allowlisted real test plus explicit limitation and post-activation smoke |
@@ -985,11 +999,11 @@ dependency changes are authorized by this document alone.
 | Risk | High once implementation begins; planning-only at this stage. |
 | Affected services and surfaces | Agents API and worker, AgentHarness, Temporal, environment/resource bindings, credentials, PostgreSQL, projections, event subscriptions, operator console, customer agent builder, gateways/channels, promotion/activation, and tenant authorization. |
 | Platform release version or ID | Not applicable until an implementation package is released. |
-| API/schema/migration changes | Expected for environment identity, candidate/resource declarations, immutable binding snapshots, promotion manifests, activation, read models, cursors, subscriptions, commands, and audit evidence; exact revisions belong to implementation. |
-| Feature flag or rollout | Planning only. Implementation begins locally with separate Playground/live bindings; activation is target-scoped and reversible. No Railway or Vercel deployment is part of this chunk's current local workflow. |
+| API/schema/migration changes | Existing promotion routes now mirror installation-scoped capability connections/grants transactionally; no new migration is required for this slice. |
+| Feature flag or rollout | Existing promotion controls remain target-scoped and reversible. No Railway or Vercel deployment is part of this chunk's current local workflow. |
 | Analytics | Required for Playground execution, readiness failures, validation evidence, promotion/activation/rollback, run inspection, reconnects, command outcomes, and user-visible recovery outcomes. |
 | Logs, metrics, dashboards, and alerts | Required for binding health, isolation violations, promotion drift, artifact mismatch, channel certification, projection lag, event gaps, subscription disconnects, command failures, redaction violations, and rebuild failures. |
 | Documentation | Update internal architecture, API, runbook, supported behavior, and operator documentation with implementation. |
 | Validation | Contract, real-resource integration, artifact parity, environment isolation, gateway, projection, browser, accessibility, failure-injection, promotion, manual, and rollback evidence. |
-| Rollback | Atomically reactivate the previous tested candidate and binding revision, disable unsafe controls if needed, and preserve all journals and promotion evidence. Never copy Playground data or delete execution evidence during rollback. |
+| Rollback | Atomically reactivate the previous tested candidate and preserve all journals and promotion evidence. Never copy Playground data or delete execution evidence during rollback. |
 | Post-release review | Required after each high-risk implementation phase. |

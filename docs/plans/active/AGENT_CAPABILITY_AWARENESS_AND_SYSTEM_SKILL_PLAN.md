@@ -1,6 +1,6 @@
 # Agent capability awareness and system capability skill
 
-**Status:** Local implementation and end-to-end verification complete; hosted deployment and production release evidence are outside this local plan
+**Status:** Local implementation and end-to-end verification complete; Playground-to-Live capability configuration promotion is included, while hosted deployment and production release evidence remain outside this local plan
 
 **Owner:** Agent Platform and Studio
 
@@ -173,15 +173,16 @@ extension snapshot.
 ### Playground-to-Live promotion contract
 
 Capability configuration is edited and tested in Playground first. Deployment is an explicit
-promotion to a separate Live installation; it is not publication, renaming the Playground
-installation, or copying Playground state.
+promotion to a separate Live installation. The selected immutable candidate and its configured
+capability connections/grants are promoted together; this is not a second environment-management
+workflow that asks the user to configure the same capability again in Live.
 
 ```text
 Draft edit
     -> immutable candidate + portable capability snapshot
     -> Playground installation and effective run snapshot
     -> real test runs/evaluations
-    -> Live binding preflight
+    -> configured capability promotion
     -> promotion manifest and explicit confirmation
     -> atomic Live version/snapshot activation
 ```
@@ -189,9 +190,9 @@ Draft edit
 The deployment status projection consumed by Studio and the Agents page must compare the current
 Playground candidate with the active Live release and report at least:
 
-- candidate/version ID and portable capability/extension digest;
+- candidate/version ID, portable capability/extension digest, and the redacted capability-configuration digest;
 - active Live version/digest and previous rollback target;
-- required Live resources and binding health without credential values;
+- promoted capability connections/grants and readiness without credential values;
 - validation/evaluation evidence for the exact candidate;
 - `pending`, `ready`, `blocked`, `deploying`, `deployed`, or `rollback_available` state.
 
@@ -205,10 +206,19 @@ revision, actor, timestamp, expected current Live pointer, previous release, and
 Activation must atomically change only the selected Live installation. Runs already in progress
 remain pinned to their original version, effective snapshot, and binding revision.
 
-Portable configuration and declarations move forward. Playground credentials, conversations,
-memory records, test data, provider side effects, and secret values do not. Memory and knowledge
-policy are portable; their environment-local records are not. Missing, unhealthy, expired, or
-incompatible Live bindings block promotion with a remediation reason.
+Portable configuration and declarations move forward. Installation-scoped capability connections,
+configuration, and grants are mirrored from Playground to Live inside the promotion transaction,
+while organization-scoped credential references are reused without reading or copying secret
+payloads. Conversations, memory records, test data, provider side effects, and secret values do
+not move. Memory and knowledge policy are portable; their environment-local records are not.
+Missing, unhealthy, expired, or incompatible configured connections can block promotion with a
+remediation reason.
+
+There is deliberately no additional `EnvironmentBindingResolver`, binding-snapshot registry, or
+user-managed test/live credential workflow in this implementation chunk. The Playground
+installation is the configuration source, and Deploy promotes that exact tested configuration to
+the selected Live installation. Existing installation settings remain the authoritative readiness
+record; promotion does not expose or duplicate secret values.
 
 Every agent uses the same workspace-scoped promotion lifecycle: a Playground candidate is tested
 and then promoted only to that workspace's Live installation. KasiAi has one additional upstream
@@ -230,6 +240,7 @@ The following corrections are part of this plan, not optional UI polish:
 | KasiAi deploy is hidden because the agent is protected; system rollout can affect many installations | Expose the same authorized Deploy/Promote contract for every agent. Treat KasiAi's protected baseline as an upstream candidate input and change only the current workspace's Live target. |
 | Existing rollback changes publication state and follow-published targets | Roll back the selected Live pointer and binding revision without rewriting Playground, active runs, or evidence. |
 | Extension snapshots are not joined to promotion evidence | Require the portable snapshot digest and binding contract in readiness, audit, observability, and rollback records. |
+| Playground connections/grants are installation-scoped | Mirror the source capability connections and installation grants during the atomic promotion transaction, reusing only opaque credential references. |
 
 ### Shared capability contract
 
@@ -391,28 +402,30 @@ snapshot, approval, redaction, and durable operation contracts as native tools.
 8. [x] Apply the same promotion path to custom and protected agents. For KasiAi, resolve the
    platform-managed baseline into each workspace candidate while keeping the source release gate
    as an upstream validation step, not a separate user deployment lifecycle.
-9. [x] Resolve one effective capability snapshot per run after dynamic registrations and grants are
+9. [x] Promote the selected Playground capability connections and installation grants with the
+   immutable candidate; never copy credential payloads, conversations, memory, or test data.
+10. [x] Resolve one effective capability snapshot per run after dynamic registrations and grants are
    known.
-10. [x] Pass the snapshot into `DefaultContextPolicy`, the provider planner, the model tool list,
+11. [x] Pass the snapshot into `DefaultContextPolicy`, the provider planner, the model tool list,
     the invocation scope, and the execution journal.
-11. [x] Add capability intent classification and bypass only the inappropriate grounding branch.
-12. [x] Add the shared capability contract to the main system prompt for all hosted agents.
-13. [x] Create, publish, and load the generic capability-discovery system skill for every hosted
+12. [x] Add capability intent classification and bypass only the inappropriate grounding branch.
+13. [x] Add the shared capability contract to the main system prompt for all hosted agents.
+14. [x] Create, publish, and load the generic capability-discovery system skill for every hosted
     agent, then layer the protected KasiAi platform-guidance extension only onto KasiAi.
-14. [x] Remove the raw full-system Instructions editor from Overview and add the structured Behavior
+15. [x] Remove the raw full-system Instructions editor from Overview and add the structured Behavior
     tab for identity, behavior preferences, stable rules, and the optional advanced overlay.
-15. [x] Keep Memory as a separate memory-policy tab for scope, retrieval, write/consolidation,
+16. [x] Keep Memory as a separate memory-policy tab for scope, retrieval, write/consolidation,
     retention, review, and readiness. Do not use it as a second prompt editor or move memory
     records into portable promotion payloads.
-16. [x] Wire connector readiness and adapter registration so connected services become callable only
+17. [x] Wire connector readiness and adapter registration so connected services become callable only
     through explicit capabilities.
-17. [x] Add capability resolution, promotion, activation, and rollback events plus Studio-readable
+18. [x] Add capability resolution, promotion, activation, and rollback events plus Studio-readable
     projections without exposing secrets or raw provider identifiers.
-18. [x] Run focused tests, agent build checks, local manual KasiAi checks, promotion/rollback
+19. [x] Run focused tests, agent build checks, local manual KasiAi checks, promotion/rollback
     tests, and local staging-equivalent smoke tests. Local runtime, API, worker, gateway,
     promotion/rollback, telemetry, and live KasiAi checks are complete. Hosted staging is an
     optional release follow-up, not a local acceptance gate.
-19. [x] Roll out the capability-aware path locally and compare grounding and tool-use telemetry.
+20. [x] Roll out the capability-aware path locally and compare grounding and tool-use telemetry.
     The scoped `capability_awareness_enabled` control is implemented, its local regression
     coverage is green, and the tested disable path remains available as a local rollback
     control. Removing that control after a hosted review window is outside this plan.
@@ -602,11 +615,11 @@ do not block local end-to-end testing.
 | Capability discovery skill | Platform-owned, versioned, available to every hosted agent; compact summary and filtered skill/tool projections come from the effective snapshot | Agent Platform | Implemented |
 | KasiAi guidance extension | Protected, versioned platform guidance layered onto the generic discovery skill; never the source of the tool catalogue | Agent Platform | Implemented |
 | Capability source of truth | One effective per-run snapshot reused by prompt, planner, runtime, and Studio | Agent Platform | Implemented |
-| Promotion source of truth | Immutable portable candidate snapshot plus explicit promotion manifest; never the browser's selected version or raw installation settings | Agent Platform | Implemented |
-| Playground/Live relationship | Separate installation pointers with environment-specific bindings; publishing does not activate Live | Agent Platform | Implemented |
-| Deployment visibility | Show Deploy/Promote only when candidate and Live digests or required binding state differ | Studio | Implemented |
+| Promotion source of truth | Immutable candidate plus the configured Playground connections/grants mirrored by the explicit promotion transaction; never the browser's selected version alone | Agent Platform | Implemented |
+| Playground/Live relationship | Separate installation pointers; publishing does not activate Live, and Deploy mirrors the selected Playground capability configuration to Live | Agent Platform | Implemented |
+| Deployment visibility | Show Deploy/Promote when candidate, extension, or redacted capability-configuration digests differ | Studio | Implemented |
 | Historical version selection | Read-only preview until explicit promotion confirmation | Studio | Implemented |
-| Rollback semantics | Atomically restore the previous Live candidate and binding revision; keep active runs and evidence unchanged | Agent Platform | Implemented |
+| Rollback semantics | Atomically restore the previous Live candidate; keep active runs, capability credentials, and evidence unchanged | Agent Platform | Implemented |
 | Agent promotion scope | Every agent promotes a candidate only to the selected workspace's Live installation; no cross-workspace mutation | Agent Platform | Implemented |
 | KasiAi baseline | Platform-managed baseline is an upstream candidate input and release-gate concern, not a different user lifecycle | Agent Platform | Implemented |
 | Connected integrations | Connection state does not imply callable capability | Platform Integrations | Implemented |
