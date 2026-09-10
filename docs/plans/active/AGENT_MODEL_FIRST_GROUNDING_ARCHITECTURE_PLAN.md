@@ -193,6 +193,11 @@ The resulting policy is:
   smoke covered credential exchange, discovery, idempotent REST execution, MCP negotiation, and
   durable REST/MCP completion. Browser Calendar verification through the existing proxy remains a
   follow-up because this change has no browser-test harness.
+- [x] Local deployment lifecycle smoke passed against the running API: Playground v1 → v2,
+  preflight, Live promotion to v2, and rollback to the pinned v1 snapshot all completed with
+  the expected activation responses. The temporary test agent was deleted after verification.
+- [x] Client production build and targeted lint passed for the shared chat surface, run-status and
+  cancellation controls, deployment lifecycle UI, Studio integration, and platform client.
 - [ ] Browser check of Playground and Live: connect/configure, test in Playground, Deploy, test in
   Live, edit again, confirm Live remains unchanged, then roll back and verify the old snapshot.
 - [x] `git diff --check` passed; changed internal documentation links resolve to checked-in files.
