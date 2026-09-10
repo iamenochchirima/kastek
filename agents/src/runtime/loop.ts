@@ -46,7 +46,7 @@ export interface AgentLoopLimits {
 }
 
 export interface AgentLoopEvent {
-  type: "loop.started" | "context.capability_resolved" | "context.planned" | "context.recovery" | "model.started" | "model.first_token" | "model.completed" | "model.failed" | "tool.proposed" | "tool.completed" | "loop.paused" | "loop.completed" | "loop.failed" | "loop.limited" | "memory_retrieval_requested" | "memory_retrieval_completed" | "memory_retrieval_blocked";
+  type: "loop.started" | "context.capability_resolved" | "context.planned" | "context.recovery" | "model.started" | "model.first_token" | "model.completed" | "model.failed" | "route.selected" | "tool.proposed" | "tool.started" | "tool.completed" | "tool.failed" | "loop.paused" | "loop.completed" | "loop.failed" | "loop.limited" | "memory_retrieval_requested" | "memory_retrieval_completed" | "memory_retrieval_blocked";
   iteration: number;
   payload: Record<string, unknown>;
 }
@@ -334,6 +334,17 @@ export async function runBoundedAgentLoop(input: AgentLoopInput): Promise<AgentL
         sequenceNumber: 1,
       });
       if (!replayed) await input.consumeRunToolCall?.({ parallelLeaseId: input.parallelLeaseId });
+      await emit(input, { type: "route.selected", iteration: 0, payload: { sourceStageId: "model", targetStageId: `capability:${resumed.name}`, operationId: resumed.id } });
+      await emit(input, {
+        type: "tool.started",
+        iteration: 0,
+        payload: {
+          toolCallId: resumed.id,
+          name: resumed.name,
+          startedAt: new Date().toISOString(),
+          ...(replayed ? { replayed: true } : {}),
+        },
+      });
       const result = replayed ?? await input.tools.invoke({
           name: resumed.name,
           arguments: resumed.arguments,
@@ -376,6 +387,7 @@ export async function runBoundedAgentLoop(input: AgentLoopInput): Promise<AgentL
         type: "tool.completed",
         iteration: 0,
         payload: {
+          toolCallId: resumed.id,
           name: resumed.name,
           resumed: true,
           latencyMs: result.latencyMs,
@@ -405,8 +417,18 @@ export async function runBoundedAgentLoop(input: AgentLoopInput): Promise<AgentL
         ...normalized,
         userMessage: buildApprovedToolFailureMessage(input.resumeApprovedToolCall.name, error, input.resumeApprovedToolCall.arguments),
       };
-      await emit(input, { type: "loop.failed", iteration: 0, payload: failure });
+      await emit(input, {
+        type: "tool.failed",
+        iteration: 0,
+        payload: {
+          toolCallId: input.resumeApprovedToolCall.id,
+          name: input.resumeApprovedToolCall.name,
+          error: normalized,
+          failedAt: new Date().toISOString(),
+        },
+      });
       await input.onToolFailed?.({ toolCallId: input.resumeApprovedToolCall.id, name: input.resumeApprovedToolCall.name, argumentsHash: hashToolArguments(input.resumeApprovedToolCall.arguments), error: normalized });
+      await emit(input, { type: "loop.failed", iteration: 0, payload: failure });
       return { status: "failed", messages, usage, iterations: 0, toolCalls, error: failure };
     }
   }
@@ -1205,7 +1227,8 @@ export async function runBoundedAgentLoop(input: AgentLoopInput): Promise<AgentL
             throw new ToolPolicyError("TOOL_REPLAY_SCOPE_CONFLICT", "A durable tool outcome did not match the provider tool call");
           }
           if (!replayed) {
-            await emit(input, { type: "tool.proposed", iteration, payload: { name: toolCall.name, argumentsHash } });
+            await emit(input, { type: "route.selected", iteration, payload: { sourceStageId: "model", targetStageId: `capability:${toolCall.name}`, operationId: toolCall.id } });
+            await emit(input, { type: "tool.proposed", iteration, payload: { toolCallId: toolCall.id, name: toolCall.name, argumentsHash } });
             await input.onToolProposed?.({
               toolCallId: toolCall.id,
               name: toolCall.name,
@@ -1219,6 +1242,16 @@ export async function runBoundedAgentLoop(input: AgentLoopInput): Promise<AgentL
           }
           if (!replayed) await input.consumeRunToolCall?.({ parallelLeaseId: input.parallelLeaseId });
           budget.consume("tool");
+          await emit(input, {
+            type: "tool.started",
+            iteration,
+            payload: {
+              toolCallId: toolCall.id,
+              name: toolCall.name,
+              startedAt: new Date().toISOString(),
+              ...(replayed ? { replayed: true } : {}),
+            },
+          });
           const result = replayed ?? await input.tools.invoke({
             name: toolCall.name,
             arguments: toolCall.arguments,
@@ -1255,6 +1288,7 @@ export async function runBoundedAgentLoop(input: AgentLoopInput): Promise<AgentL
             type: "tool.completed",
             iteration,
             payload: {
+              toolCallId: toolCall.id,
               name: toolCall.name,
               latencyMs: result.latencyMs,
               ...(replayed ? { replayed: true } : {}),
@@ -1304,6 +1338,16 @@ export async function runBoundedAgentLoop(input: AgentLoopInput): Promise<AgentL
           const normalized = error instanceof ToolPolicyError
             ? { code: error.code, message: error.message }
             : { code: "TOOL_FAILED", message: error instanceof Error ? error.message : "Tool failed" };
+          await emit(input, {
+            type: "tool.failed",
+            iteration,
+            payload: {
+              toolCallId: toolCall.id,
+              name: toolCall.name,
+              error: normalized,
+              failedAt: new Date().toISOString(),
+            },
+          });
           await input.onToolFailed?.({ toolCallId: toolCall.id, name: toolCall.name, argumentsHash, error: normalized });
           throw error;
         }

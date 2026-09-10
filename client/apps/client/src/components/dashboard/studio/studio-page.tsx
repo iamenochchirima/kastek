@@ -47,7 +47,6 @@ import {
   streamAgentRun,
   type AgentMessage,
   type AgentDefinition,
-  type AgentJournalEvent,
   type AgentModel,
   type AgentModelCatalog,
   type AgentModelProvider,
@@ -77,6 +76,8 @@ import { AgentDeploymentLifecycle } from "@/components/dashboard/agents/agent-de
 import { StudioSettingsPrototype, type StudioSettingsDraft } from "@/components/dashboard/studio/studio-settings-prototype";
 import { StudioSystemCanvas, type StudioGraphNode } from "@/components/dashboard/studio/studio-system-canvas";
 import { projectStudioObservatory } from "@/components/dashboard/studio/studio-observatory-projection";
+import { executionEventFromStream } from "@/components/dashboard/studio/studio-execution-events";
+import { applyExecutionStageEvent, createExecutionObservatoryState, type ExecutionObservatoryState, type ExecutionStageEvent } from "@/components/dashboard/studio/studio-execution-reducer";
 import type { AgentUiInteraction } from "@/components/dashboard/kasiai/dynamic-ui-renderer";
 
 type StudioPageProps = {
@@ -90,9 +91,7 @@ type TraceStatus = "pending" | "running" | "complete" | "error";
 
 type TraceNode = {
   id: string;
-  eventId?: string;
-  journalSequence?: number;
-  snapshotRevision?: number;
+  stageId?: string;
   event: string;
   label: string;
   detail: string;
@@ -100,8 +99,6 @@ type TraceNode = {
   sequence: number;
   data: Record<string, unknown>;
 };
-
-type StudioTimelineItem = NonNullable<AgentRunTimeline["items"]>[number];
 
 type StudioStreamState = "idle" | "connected" | "replaying" | "delayed" | "disconnected" | "unavailable";
 
@@ -134,96 +131,47 @@ async function waitForStudioAudioTranscriptionJob(
   throw new Error("Audio transcription is taking longer than expected");
 }
 
-function eventLabel(event: string, data: Record<string, unknown>) {
-  const name = typeof data.name === "string" ? data.name : "";
-  if (event === "run.received") return "Input";
-  if (event.includes("context")) return "Context";
-  if (event.includes("model")) return "Model";
-  if (event.includes("tool")) return name ? `Tool: ${name}` : "Tool";
-  if (event.includes("approval")) return "Approval";
-  if (event.includes("human") || event.includes("handoff")) return "Handoff";
-  if (event.includes("completed")) return "Completed";
-  if (event.includes("cancelled")) return "Cancelled";
-  if (event.includes("expired")) return "Expired";
-  if (event.includes("failed")) return "Failed";
-  return event.replace(/^run\./, "").replace(/^agent\./, "").replaceAll("_", " ");
+function stageLabel(stageId?: string) {
+  if (stageId === "input") return "Input";
+  if (stageId === "context") return "Context";
+  if (stageId === "memory-read") return "Memory";
+  if (stageId === "model") return "Model";
+  if (stageId === "response") return "Response";
+  if (stageId === "approval") return "Approval";
+  if (stageId === "handoff") return "Handoff";
+  if (stageId === "session") return "Session";
+  if (stageId?.startsWith("capability:")) return stageId.slice("capability:".length);
+  return stageId ?? "Execution";
 }
 
-function eventDetail(event: string, data: Record<string, unknown>) {
-  const name = typeof data.name === "string" ? data.name : "";
-  if (event.includes("tool") && name) return name;
-  if (event.includes("approval")) return "Waiting for a decision";
-  if (event.includes("context")) return "State and workspace context";
-  if (event.includes("model")) return "Model turn";
-  return event;
-}
-
-function eventStatus(event: string): TraceStatus {
-  if (event.includes("failed") || event.includes("error")) return "error";
-  if (event.includes("completed") || event.includes("delivered") || event.includes("cancelled") || event.includes("expired")) return "complete";
-  if (event.includes("prepared") || event.includes("assembled") || event.includes("resolved") || event.includes("selected") || event.includes("accepted") || event.includes("recorded") || event.includes("retrieved")) return "complete";
-  if (event.includes("waiting") || event === "approval.requested" || event.includes("paused")) return "running";
-  return "running";
-}
-
-function journalEventType(kind: string, data: Record<string, unknown>) {
-  const rawType = typeof data.type === "string" ? data.type : "";
-  if (rawType) {
-    if (rawType === "loop_started") return "run.started";
-    if (rawType === "loop_completed") return "run.completed";
-    if (rawType === "loop_failed") return "run.failed";
-    if (rawType.startsWith("context_")) return `agent.context.${rawType.slice("context_".length).replaceAll("_", ".")}`;
-    if (rawType.startsWith("model_")) return `agent.model.${rawType.slice("model_".length).replaceAll("_", ".")}`;
-    if (rawType.startsWith("tool_")) return `agent.tool.${rawType.slice("tool_".length).replaceAll("_", ".")}`;
-    if (rawType.startsWith("memory_retrieval_")) return `memory.retrieval.${rawType.slice("memory_retrieval_".length).replaceAll("_", ".")}`;
-    return rawType.replaceAll("_", ".");
-  }
-  if (kind === "run.transition") return typeof data.to === "string" ? `run.${data.to}` : kind;
-  if (kind === "context.assembled") return "agent.context.prepared";
-  if (kind === "context.compaction") return "agent.context.compaction";
-  if (kind === "model.completed") return "agent.model.completed";
-  if (kind === "tool.invoked") {
-    const outcome = typeof data.outcome === "string" ? data.outcome : "completed";
-    return outcome === "awaiting_approval" ? "approval.requested" : `agent.tool.${outcome}`;
-  }
-  if (kind === "operation.waiting") return data.reason === "approval" ? "approval.requested" : "operation.waiting";
-  if (kind === "effect.uncertain") return "agent.effect.uncertain";
-  if (kind === "delivery.obligation") return data.status === "sent" ? "message.delivered" : `delivery.${String(data.status ?? "queued")}`;
-  if (kind === "memory.integration") return typeof data.type === "string" ? `memory.${data.type.replaceAll("_", ".")}` : kind;
-  return kind;
-}
-
-function nodeFromEvent(event: AgentStreamEvent): TraceNode {
-  const sequence = Number(event.data.sequence_number);
-  const safeSequence = Number.isSafeInteger(sequence) ? sequence : Date.now();
+function traceNodeFromExecution(event: ExecutionStageEvent): TraceNode {
+  const status: TraceStatus = event.type === "stage.failed" || event.type === "run.failed" ? "error" : event.type === "stage.waiting" ? "running" : event.type === "stage.started" || event.type === "stage.queued" || event.type === "run.admitted" ? "running" : "complete";
+  const detail = event.error?.message ?? event.type;
   return {
-    id: `${event.event}-${safeSequence}`,
-    event: event.event,
-    label: eventLabel(event.event, event.data),
-    detail: eventDetail(event.event, event.data),
-    status: eventStatus(event.event),
-    sequence: safeSequence,
-    data: event.data,
+    id: event.eventId,
+    ...(event.stageId ? { stageId: event.stageId } : {}),
+    event: event.type,
+    label: stageLabel(event.stageId),
+    detail,
+    status,
+    sequence: event.cursor,
+    data: event.data ?? {},
   };
 }
 
-function normalizeTraceNodes(nodes: TraceNode[]) {
-  const seen = new Set<string>();
-  return nodes
-    .filter((node) => {
-      if (seen.has(node.id)) return false;
-      seen.add(node.id);
-      return true;
-    })
-    .sort((left, right) => left.sequence - right.sequence);
-}
-
-function mergeTraceNodes(...batches: TraceNode[][]) {
-  const byEvent = new Map<string, TraceNode>();
-  for (const batch of batches) {
-    for (const node of batch) byEvent.set(node.event === "run.received" ? node.event : `${node.event}:${node.sequence}`, node);
-  }
-  return normalizeTraceNodes([...byEvent.values()]);
+function executionEventFromRecord(
+  runId: string,
+  event: { id?: string; event_type?: string; payload?: Record<string, unknown>; sequence_number?: number | string },
+) {
+  return executionEventFromStream({
+    event: event.event_type ?? "agent.event",
+    data: {
+      event_id: event.id,
+      run_id: runId,
+      sequence_number: event.sequence_number,
+      payload: event.payload ?? {},
+    },
+  });
 }
 
 async function streamStudioRun(
@@ -270,67 +218,6 @@ async function streamStudioRun(
   }
 }
 
-function nodesFromJournalEvents(events: AgentJournalEvent[], snapshotRevision?: number) {
-  return normalizeTraceNodes(events
-    .map((event) => {
-      const rawData = event.event?.data ?? {};
-      const rawPayload = rawData.payload;
-      const payload = isRecord(rawPayload) ? rawPayload : rawData;
-      const eventType = journalEventType(event.event?.kind ?? "event", rawData);
-      const node = nodeFromEvent({ event: eventType, data: { ...payload, sequence_number: event.sequence } });
-      return {
-        ...node,
-        id: event.id,
-        eventId: event.id,
-        journalSequence: event.sequence,
-        snapshotRevision,
-        data: {
-          ...node.data,
-          event_id: event.id,
-          event_kind: event.event?.kind,
-          journal_sequence: event.sequence,
-          snapshot_revision: snapshotRevision,
-          occurred_at: event.occurredAt,
-        },
-      };
-    })
-  );
-}
-
-function nodesFromRunEvents(events: Array<{ event_type?: string; payload?: Record<string, unknown>; sequence_number?: number | string }>) {
-  return normalizeTraceNodes(events
-    .map((event) => nodeFromEvent({
-      event: event.event_type ?? "event",
-      data: { ...(event.payload ?? {}), sequence_number: event.sequence_number },
-    }))
-  );
-}
-
-function nodesFromTimelineItems(items: StudioTimelineItem[]) {
-  return normalizeTraceNodes(items.map((item) => {
-    const payload = isRecord(item.data.payload) ? item.data.payload : item.data;
-    const node = nodeFromEvent({
-      event: item.event ?? `${item.kind}.recorded`,
-      data: {
-        ...payload,
-        sequence_number: item.sequence,
-        event_id: item.id,
-        operation_id: item.operationId,
-        attempt_id: item.attemptId,
-        occurred_at: item.occurredAt,
-        status: item.status,
-      },
-    });
-    return {
-      ...node,
-      id: item.id,
-      eventId: item.id,
-      journalSequence: item.sequence,
-      data: { ...node.data, event_id: item.id, occurred_at: item.occurredAt },
-    };
-  }));
-}
-
 function statusLabel(status: string) {
   if (status === "active") return "Active";
   if (status === "paused") return "Paused";
@@ -349,19 +236,6 @@ function formatRunTime(value?: string) {
   if (!value) return "unknown";
   const timestamp = Date.parse(value);
   return Number.isFinite(timestamp) ? new Date(timestamp).toISOString().slice(5, 16).replace("T", " ") : "unknown";
-}
-
-function runStatusLabel(status: string) {
-  if (status === "received" || status === "queued") return "Run accepted; waiting to start…";
-  if (status === "awaiting_approval") return "Waiting for approval…";
-  if (status === "awaiting_human") return "Waiting for a workspace member…";
-  if (status === "awaiting_external_event") return "Waiting for an external event…";
-  if (status === "running") return "Agent is working…";
-  if (status === "completed") return "Run completed";
-  if (status === "cancelled") return "Run cancelled";
-  if (status === "failed") return "Run failed";
-  if (status === "expired") return "Run expired";
-  return `Run ${status.replaceAll("_", " ")}`;
 }
 
 function SectionEyebrow({ children }: { children: ReactNode }) {
@@ -509,6 +383,7 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
   const [modelCatalogLoading, setModelCatalogLoading] = useState(true);
   const [modelSelection, setModelSelection] = useState<ModelSelection | null>(null);
   const [trace, setTrace] = useState<TraceNode[]>([]);
+  const [execution, setExecution] = useState<ExecutionObservatoryState>(() => createExecutionObservatoryState());
   const [runHistory, setRunHistory] = useState<AgentInstallationRun[]>([]);
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
   const [timelineProjection, setTimelineProjection] = useState<AgentRunTimeline["projection"] | null>(null);
@@ -516,7 +391,6 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
   const [memoryLineage, setMemoryLineage] = useState<AgentMemoryObservatoryGraph | null>(null);
   const [approval, setApproval] = useState<AgentApproval | null>(null);
   const [canApprove, setCanApprove] = useState(false);
-  const [operationEvidence, setOperationEvidence] = useState<Array<Record<string, unknown>>>([]);
   const [deploymentStatus, setDeploymentStatus] = useState<AgentDeploymentStatus | null>(null);
   const [effectiveConfig, setEffectiveConfig] = useState<AgentEffectiveConfigProjection | null>(null);
   const [effectiveCapabilities, setEffectiveCapabilities] = useState<AgentCapability[]>([]);
@@ -540,7 +414,6 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
   const [cancelling, setCancelling] = useState(false);
   const [retrying, setRetrying] = useState(false);
   const [runStreamState, setRunStreamState] = useState<StudioStreamState>("idle");
-  const [runProgress, setRunProgress] = useState("Ready");
   const [notice, setNotice] = useState<string | null>(null);
   const { confirm } = useConfirmationDialog();
   const activeRunRef = useRef<string | null>(null);
@@ -549,7 +422,6 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
   const showError = (message: string, remediation?: string) => {
     toast.error(message, remediation ? { description: remediation } : undefined);
   };
-  const clearError = () => undefined;
 
   const upsertConversationRun = useCallback((run: NonNullable<ReturnType<typeof activeConversationRun>>) => {
     setRunHistory((current) => {
@@ -579,9 +451,6 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
       setSelectedRunId(activeRun.id);
       setLastRunId(activeRun.id);
       setRunning(true);
-      setRunProgress((current) => current === "Preparing request…" || current === "Ready"
-        ? runStatusLabel(activeRun.status)
-        : current);
       return activeRun;
     }
     if (activeRunRef.current) {
@@ -607,6 +476,15 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
   const effectiveModelSelection = selectedModelEntry
     ? { provider: selectedModelEntry.provider, model: selectedModelEntry.model }
     : modelSelection;
+  const runProgress = useMemo(() => {
+    if (execution.runStatus === "failed") return "Run failed";
+    if (execution.runStatus === "cancelled") return "Run cancelled";
+    if (execution.runStatus === "expired") return "Run expired";
+    if (execution.runStatus === "completed") return "Run completed";
+    const activeStage = Object.values(execution.topology).find((stage) => stage.status === "running" || stage.status === "waiting");
+    if (activeStage) return `${activeStage.status === "waiting" ? "Waiting" : "Running"}: ${activeStage.label}`;
+    return running ? "Agent is running" : "Ready";
+  }, [execution, running]);
 
   useEffect(() => {
     if (agent.installation_id || !agent.published_version_id) return;
@@ -630,14 +508,13 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
       effectiveConfig,
       capabilities: effectiveCapabilities,
       connections: effectiveConnections,
-      readiness: installationReadiness,
       modelLabel: selectedModelEntry?.label ?? selectedModelEntry?.model ?? "Primary model",
-      trace,
-      operations: operationEvidence,
+      execution,
       memory: memoryObservatory,
       configurationState: effectiveConfigLoading ? "loading" : effectiveConfigError ? "unavailable" : "ready",
+      handoffEnabled: agent.agent_audience === "customer_service",
     }),
-    [effectiveCapabilities, effectiveConfig, effectiveConfigError, effectiveConfigLoading, effectiveConnections, installationReadiness, memoryObservatory, operationEvidence, selectedModelEntry?.label, selectedModelEntry?.model, trace],
+    [agent.agent_audience, effectiveCapabilities, effectiveConfig, effectiveConfigError, effectiveConfigLoading, effectiveConnections, execution, memoryObservatory, selectedModelEntry?.label, selectedModelEntry?.model],
   );
   const studioGraphNodes = studioProjection.nodes;
   const studioGraphEdges = studioProjection.edges;
@@ -828,7 +705,6 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
       // authorization and only hide the control when a route explicitly says
       // this actor cannot approve.
       setCanApprove(detail ? detail.canApprove !== false : false);
-      setOperationEvidence([...timeline.toolCalls, ...timeline.effects, ...timeline.steps]);
       setRunHistory((current) => {
         const existing = current.find((run) => run.id === observedRunId);
         const nextRun: AgentInstallationRun = {
@@ -841,12 +717,18 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
           ? current.map((run) => run.id === observedRunId ? nextRun : run)
           : [nextRun, ...current].slice(0, 50);
       });
-      if (timeline.journal?.length) {
-        const journalNodes = nodesFromJournalEvents(timeline.journal, timeline.telemetry?.revision);
-        if (journalNodes.length) setTrace(journalNodes);
+      if (timeline.events.length && activeRunId !== observedRunId) {
+        const historicalEvents = timeline.events
+          .map((event) => executionEventFromRecord(observedRunId, event))
+          .filter((event): event is ExecutionStageEvent => Boolean(event))
+          .sort((left, right) => left.cursor - right.cursor);
+        const historicalState = historicalEvents.reduce(
+          (current, event) => applyExecutionStageEvent(current, event),
+          createExecutionObservatoryState(),
+        );
+        setExecution(historicalState);
+        setTrace(historicalEvents.map(traceNodeFromExecution));
       }
-      else if (timeline.items?.length) setTrace(nodesFromTimelineItems(timeline.items));
-      else if (timeline.events.length) setTrace(nodesFromRunEvents(timeline.events));
     };
     void refreshRuntimeEvidence();
     const timer = activeRunId
@@ -864,6 +746,7 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
     setInstructions(nextVersion?.instructions ?? "");
     setModelSelection(modelSelectionFromVersion(nextVersion));
     setTrace([]);
+    setExecution(createExecutionObservatoryState());
     setSelectedNodeId(null);
     setTelemetry(null);
     setRunStreamState("idle");
@@ -872,7 +755,6 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
     setApproval(null);
     setCanApprove(false);
     setTimelineProjection(null);
-    setOperationEvidence([]);
     setTelemetryDetailsOpen(false);
     setLastRunId(null);
     setSelectedRunId(null);
@@ -884,6 +766,7 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
     setSelectedRunId(runId || null);
     setLastRunId(runId || null);
     setTrace([]);
+    setExecution(createExecutionObservatoryState());
     setTelemetry(null);
     setRunStreamState("idle");
     setMemoryObservatory(null);
@@ -891,20 +774,15 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
     setApproval(null);
     setCanApprove(false);
     setTimelineProjection(null);
-    setOperationEvidence([]);
     setSelectedNodeId(null);
     setNotice(null);
   };
 
   const addTraceEvent = useCallback((event: AgentStreamEvent) => {
-    const nextNode = nodeFromEvent(event);
-    if (event.event.includes("tool")) setRunProgress(typeof event.data.name === "string" ? `Tool activity: ${event.data.name}` : "Tool activity in progress…");
-    else if (event.event.includes("model")) setRunProgress("Model response in progress…");
-    else if (event.event.includes("context")) setRunProgress("Context prepared; starting model…");
-    else if (event.event.includes("approval")) setRunProgress("Waiting for approval…");
-    else if (event.event.includes("completed")) setRunProgress("Run completed");
-    else if (event.event.includes("failed")) setRunProgress("Run failed");
-    else if (event.event.includes("cancelled")) setRunProgress("Run cancelled");
+    const executionEvent = executionEventFromStream(event);
+    if (!executionEvent) return;
+    setExecution((current) => applyExecutionStageEvent(current, executionEvent));
+    const nextNode = traceNodeFromExecution(executionEvent);
     setTrace((current) => {
       const existing = current.find((node) => node.id === nextNode.id);
       if (existing) return current.map((node) => node.id === nextNode.id ? nextNode : node);
@@ -950,12 +828,11 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
     }
     const message = input.trim();
     if ((!message && !audioFile) || running || conversationLoading) return;
-    const displayInput = message || "Audio message";
     setRunning(true);
-    clearError();
     setNotice(null);
     setSelectedNodeId(null);
-    setTrace([{ id: "input", event: "run.received", label: "Input", detail: displayInput, status: "running", sequence: 0, data: { message: displayInput } }]);
+    setTrace([]);
+    setExecution(createExecutionObservatoryState());
     let adoptedActiveRun = false;
     let acceptedRunId: string | null = null;
     let targetConversationId = conversationId;
@@ -1002,21 +879,13 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
       streamAbortRef.current = controller;
       streamOwnerRef.current = accepted.runId;
       activeRunRef.current = accepted.runId;
-      setRunProgress("Run accepted; building context…");
       setActiveRunId(accepted.runId);
       setSelectedRunId(accepted.runId);
       setLastRunId(accepted.runId);
-      addTraceEvent({ event: "run.received", data: { sequence_number: 1, run_id: accepted.runId } });
       await streamStudioRun(accepted.runId, addTraceEvent, controller.signal, setRunStreamState);
       const result = await getAgentRun(accepted.runId);
       const timeline = await getAgentRunTimeline(accepted.runId).catch(() => null);
       setTelemetry(timeline?.telemetry ?? null);
-        const runNodes = timeline?.journal?.length
-        ? nodesFromJournalEvents(timeline.journal, timeline.telemetry?.revision)
-        : timeline?.items?.length
-          ? nodesFromTimelineItems(timeline.items)
-          : nodesFromRunEvents(result.events);
-      if (runNodes.length) setTrace((current) => mergeTraceNodes(current, runNodes));
       await refreshConversation(targetConversationId);
       if (result.run.status === "cancelled") {
         setNotice("Run cancelled");
@@ -1037,7 +906,6 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
             adoptedActiveRun = true;
             setInput(message);
             setNotice("An agent run is already in progress.");
-            setTrace((existing) => existing.filter((node) => node.id !== "input"));
             return;
           }
         } catch {
@@ -1046,7 +914,6 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
       }
       const remediation = cause instanceof Error && "remediation" in cause && typeof cause.remediation === "string" ? cause.remediation : undefined;
       showError(cause instanceof Error ? cause.message : "Agent run failed", remediation);
-      setTrace((current) => current.map((node) => node.status === "running" ? { ...node, status: "error" } : node));
     } finally {
       if (!adoptedActiveRun) {
         setRunning(false);
@@ -1063,8 +930,9 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
   const submitUiInteraction = async (message: AgentMessage, interaction: AgentUiInteraction) => {
     if (!agent.installation_id || !conversationId || running) return;
     setRunning(true);
-    clearError();
     setNotice(null);
+    setTrace([]);
+    setExecution(createExecutionObservatoryState());
     const controller = new AbortController();
     try {
       const accepted = await submitAgentUiInteraction(agent.installation_id, {
@@ -1080,17 +948,10 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
       setActiveRunId(accepted.runId);
       setSelectedRunId(accepted.runId);
       setLastRunId(accepted.runId);
-      setTrace((current) => [...current, { id: `ui-${accepted.runId}`, event: "run.received", label: "Input", detail: "Interactive result action", status: "running", sequence: current.length, data: { run_id: accepted.runId, action_id: interaction.actionId } }]);
       await streamStudioRun(accepted.runId, addTraceEvent, controller.signal, setRunStreamState);
       const result = await getAgentRun(accepted.runId);
       const timeline = await getAgentRunTimeline(accepted.runId).catch(() => null);
       setTelemetry(timeline?.telemetry ?? null);
-      const runNodes = timeline?.journal?.length
-        ? nodesFromJournalEvents(timeline.journal, timeline.telemetry?.revision)
-        : timeline?.items?.length
-          ? nodesFromTimelineItems(timeline.items)
-          : nodesFromRunEvents(result.events);
-      if (runNodes.length) setTrace((current) => mergeTraceNodes(current, runNodes));
       await refreshConversation(conversationId);
       if (result.run.status !== "completed") {
         const runError = result.run.error;
@@ -1099,7 +960,6 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
       setNotice(`Run ${result.run.status}`);
     } catch (cause) {
       showError(cause instanceof Error ? cause.message : "Unable to submit this action");
-      setTrace((current) => current.map((node) => node.status === "running" ? { ...node, status: "error" } : node));
     } finally {
       setRunning(false);
       setCancelling(false);
@@ -1112,7 +972,6 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
     if (!activeRunId || cancelling) return;
     if (!await confirm({ title: "Cancel run?", description: "The durable run will be marked cancelled.", confirmLabel: "Cancel run", variant: "destructive" })) return;
     setCancelling(true);
-    clearError();
     try {
       await cancelAgentRun(activeRunId, "Cancelled from Playground");
       setNotice("Cancellation requested");
@@ -1129,6 +988,7 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
     setNotice(null);
     setSelectedNodeId(null);
     setTrace([]);
+    setExecution(createExecutionObservatoryState());
     try {
       const accepted = await retryAgentRun(selectedRunId);
       setConversationId(accepted.conversation.id);
@@ -1136,17 +996,9 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
       setActiveRunId(accepted.runId);
       setSelectedRunId(accepted.runId);
       setLastRunId(accepted.runId);
-      setTrace([{ id: "input", event: "run.received", label: "Retry", detail: "Retried from the selected run", status: "running", sequence: 0, data: { run_id: accepted.runId } }]);
       const controller = new AbortController();
       await streamStudioRun(accepted.runId, addTraceEvent, controller.signal, setRunStreamState);
       const result = await getAgentRun(accepted.runId);
-      const timeline = await getAgentRunTimeline(accepted.runId).catch(() => null);
-      const runNodes = timeline?.journal?.length
-        ? nodesFromJournalEvents(timeline.journal, timeline.telemetry?.revision)
-        : timeline?.items?.length
-          ? nodesFromTimelineItems(timeline.items)
-          : nodesFromRunEvents(result.events);
-      if (runNodes.length) setTrace((current) => mergeTraceNodes(current, runNodes));
       await refreshConversation(accepted.conversation.id);
       if (result.run.status !== "completed") {
         const runError = result.run.error;
@@ -1155,7 +1007,6 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
       setNotice("Run completed");
     } catch (cause) {
       showError(cause instanceof Error ? cause.message : "Unable to retry run");
-      setTrace((current) => current.map((node) => node.status === "running" ? { ...node, status: "error" } : node));
     } finally {
       setRetrying(false);
       setRunStreamState("idle");
@@ -1165,7 +1016,6 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
 
   const saveDraft = async (settingsDraft?: StudioSettingsDraft): Promise<AgentVersion | null> => {
     setSaving(true);
-    clearError();
     setNotice(null);
     try {
       const capabilityDraft = settingsDraft?.capabilities;
@@ -1325,6 +1175,7 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
               header={<div className="flex shrink-0 items-center justify-between gap-3 border-b border-border px-4 py-3"><div><SectionEyebrow>Conversation</SectionEyebrow><h1 className="mt-1 text-sm font-semibold text-foreground">{agent.name}</h1></div><span className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground"><MessageCircle className="size-3.5" />{conversationId ? "Ready" : conversationLoading ? "Loading" : "New"}</span></div>}
               runtime={{ telemetry, model: selectedModelEntry, detailsOpen: telemetryDetailsOpen, onToggleDetails: () => setTelemetryDetailsOpen((current) => !current) }}
               contentClassName="space-y-3 px-4 py-5"
+              autoScrollKey={`${messages.length}:${running ? "running" : "idle"}`}
               statusContent={
                 <>
                   <AgentChatRunStatus runId={lastRunId} progress={runProgress} events={trace.slice(-5).map((node) => ({ event: node.event, label: node.label }))} running={running} />
@@ -1390,7 +1241,7 @@ function StudioExecutionActivity({ trace, nodes, projection, run, streamState, o
     {failure ? <p className="mt-2 truncate text-[10px] text-destructive">{failure}</p> : null}
     {trace.length ? <div className="mt-2 flex max-h-24 gap-2 overflow-x-auto pb-1">
       {trace.map((item) => {
-        const target = nodes.find((node) => node.evidence?.id === item.id) ?? nodes.find((node) => node.event === item.event);
+        const target = item.stageId ? nodes.find((node) => node.id === item.stageId) : undefined;
         return <button key={item.id} type="button" onClick={() => { if (target) onSelectNode(target.id); }} disabled={!target} className="group min-w-40 max-w-56 shrink-0 rounded-lg border border-border/80 bg-background/60 px-2.5 py-2 text-left transition-colors hover:border-primary/50 disabled:cursor-default disabled:opacity-70">
           <span className="flex items-center gap-2"><span className={cn("size-1.5 shrink-0 rounded-full", item.status === "error" ? "bg-destructive" : item.status === "running" ? "animate-pulse bg-primary" : "bg-emerald-500")} /><span className="truncate text-[10px] font-medium text-foreground">{item.label}</span><span className="ml-auto text-[9px] text-muted-foreground">#{item.sequence}</span></span>
           <span className="mt-1 block truncate text-[10px] text-muted-foreground">{item.detail}</span>

@@ -119,7 +119,7 @@ export interface DeliveryObligationEvent {
 export interface HarnessTurnEvent {
   readonly kind: "harness.turn";
   readonly data: {
-    readonly type: "loop.started" | "context.capability_resolved" | "context.planned" | "context.recovery" | "model.started" | "model.first_token" | "model.completed" | "model.failed" | "tool.proposed" | "tool.completed" | "loop.paused" | "loop.completed" | "loop.failed" | "loop.limited" | "compaction_attempted" | "compaction_candidate_created" | "compaction_committed" | "compaction_replayed" | "compaction_deferred" | "compaction_ineffective" | "compaction_cancelled" | "compaction_timed_out" | "compaction_failed" | "compaction_terminal";
+    readonly type: "loop.started" | "context.capability_resolved" | "context.planned" | "context.recovery" | "model.started" | "model.first_token" | "model.completed" | "model.failed" | "route.selected" | "tool.proposed" | "tool.started" | "tool.completed" | "tool.failed" | "loop.paused" | "loop.completed" | "loop.failed" | "loop.limited" | "compaction_attempted" | "compaction_candidate_created" | "compaction_committed" | "compaction_replayed" | "compaction_deferred" | "compaction_ineffective" | "compaction_cancelled" | "compaction_timed_out" | "compaction_failed" | "compaction_terminal";
     readonly iteration: number;
     readonly payload: Record<string, unknown>;
   };

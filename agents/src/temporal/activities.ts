@@ -76,6 +76,7 @@ import { SkillRepository } from "../db/repositories/skill-repository";
 import { RemoteMcpProviderRepository } from "../db/repositories/remote-mcp-provider-repository";
 import { CoreHostAdapter, HostCapabilityRouter, NativeHostAdapter } from "../hosts/capabilities";
 import { createAgentHarness, type AgentHarness } from "../runtime/harness";
+import { executionMetadataForLoopEvent } from "../runtime/execution-observability";
 import { resourceAccessFromExecutionScope } from "../runtime/scope-projections";
 import { PostgresExecutionJournal, RunRepositoryExecutionJournalStore } from "../journal";
 import { PostgresDeliveryObligationCoordinator } from "../delivery";
@@ -191,12 +192,14 @@ function journalHarnessEvent(event: AgentLoopEvent) {
       },
     };
   }
+  const execution = executionMetadataForLoopEvent(event);
   return {
     kind: "harness.turn" as const,
     data: {
       type: event.type,
       iteration: event.iteration,
       payload: event.payload,
+      ...(execution ? { execution } : {}),
     },
   };
 }
@@ -4120,6 +4123,21 @@ async function executeLoopForRun(
     stepType: "context",
     input: { messageCount: durableMessages.length },
   });
+  await runs.appendEvent({
+    organizationId: run.organization_id,
+    runId: run.id,
+    installationId: run.installation_id,
+    eventType: "agent.context.started",
+    operationId: contextStep.id,
+    payload: {
+      execution: {
+        stageId: "context",
+        lifecycle: "stage.started",
+        operationId: contextStep.id,
+        occurrence: 1,
+      },
+    },
+  });
   await runSteps.finishStep({
     stepId: contextStep.id,
     status: "completed",
@@ -4149,6 +4167,12 @@ async function executeLoopForRun(
       omittedToolCount: context.omittedToolCount,
       budget: context.budget,
       decision: context.decision,
+      execution: {
+        stageId: "context",
+        lifecycle: "stage.completed",
+        operationId: contextStep.id,
+        occurrence: 1,
+      },
     },
   });
   await journal.append({
@@ -4732,6 +4756,7 @@ async function executeLoopForRun(
     onEvent: async (event) => {
       await assertSessionLease();
       activityHeartbeat({ phase: event.type, iteration: event.iteration });
+      const execution = executionMetadataForLoopEvent(event);
       await journal.append({
         scope: executionScope,
         event: journalHarnessEvent(event),
@@ -4741,7 +4766,10 @@ async function executeLoopForRun(
         runId: run.id,
         installationId: run.installation_id,
         eventType: `agent.${event.type}`,
-        payload: event.payload,
+        payload: {
+          ...event.payload,
+          ...(execution ? { execution } : {}),
+        },
       });
     },
     onToolProposed: async (proposal) => {

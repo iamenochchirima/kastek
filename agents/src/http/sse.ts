@@ -32,7 +32,14 @@ export function toPublicEvent(event: Record<string, unknown>): Record<string, un
   const payload = event.payload && typeof event.payload === "object" && !Array.isArray(event.payload)
     ? Object.fromEntries(Object.entries(event.payload as Record<string, unknown>).filter(([key]) => PUBLIC_PAYLOAD_FIELDS.has(key)))
     : {};
-  return { sequence_number: event.sequence_number, event_type: type, payload, created_at: event.created_at };
+  return {
+    ...(typeof event.id === "string" ? { event_id: event.id } : {}),
+    ...(typeof event.run_id === "string" ? { run_id: event.run_id } : {}),
+    sequence_number: event.sequence_number,
+    event_type: type,
+    payload,
+    created_at: event.created_at,
+  };
 }
 
 const PUBLIC_PAYLOAD_FIELDS = new Set([
@@ -43,6 +50,7 @@ const PUBLIC_PAYLOAD_FIELDS = new Set([
   "agentVersionId", "runId", "channelType", "priority", "actorType", "conversationState",
   "messageId", "deliveryStatus", "resolution", "resolutionCode",
   "authorizationRequired",
+  "execution",
 ]);
 
 export function formatSseComment(value: string): string {

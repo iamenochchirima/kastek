@@ -4,34 +4,18 @@ import type {
   AgentEffectiveConfigProjection,
   AgentMemoryObservatoryGraph,
 } from "@/lib/agent-platform";
-import type { StudioGraphEdge, StudioGraphNode, StudioGraphStatus, StudioNodeActivity } from "@/components/dashboard/studio/studio-system-canvas";
-
-export type StudioTraceItem = {
-  id: string;
-  event: string;
-  label: string;
-  detail: string;
-  status: "pending" | "running" | "complete" | "error";
-  sequence: number;
-  data: Record<string, unknown>;
-};
-
-export type StudioReadinessSnapshot = {
-  ready?: boolean;
-  status?: string;
-  blockers?: Array<{ code?: string; title?: string; detail?: string; capability?: string; connection?: string }>;
-};
+import type { ExecutionObservatoryState, ExecutionStageState } from "./studio-execution-reducer";
+import type { StudioGraphEdge, StudioGraphNode, StudioGraphStatus, StudioNodeActivity } from "./studio-system-canvas";
 
 type ProjectionInput = {
   effectiveConfig: AgentEffectiveConfigProjection | null;
   capabilities?: AgentCapability[];
   connections?: AgentConnectionDirectoryEntry[];
-  readiness?: StudioReadinessSnapshot | null;
   modelLabel?: string;
-  trace: StudioTraceItem[];
-  operations?: Array<Record<string, unknown>>;
+  execution?: ExecutionObservatoryState;
   memory?: AgentMemoryObservatoryGraph | null;
   configurationState?: "loading" | "ready" | "unavailable";
+  handoffEnabled?: boolean;
 };
 
 export type StudioObservatoryProjection = {
@@ -39,7 +23,9 @@ export type StudioObservatoryProjection = {
   edges: StudioGraphEdge[];
 };
 
-const coreDefinitions: Array<Pick<StudioGraphNode, "id" | "label" | "detail" | "kind" | "configured" | "configurable" | "scope" | "event"> & { data: Record<string, string> }> = [
+type CoreDefinition = Pick<StudioGraphNode, "id" | "label" | "detail" | "kind" | "configured" | "configurable" | "scope" | "event"> & { data: Record<string, string> };
+
+const coreDefinitions: CoreDefinition[] = [
   { id: "input", label: "Message input", detail: "Inbound message or interaction", kind: "input", configured: true, scope: "channel", event: "run.received", data: { source: "conversation or gateway", mode: "inbound" } },
   { id: "channel", label: "Channel gateway", detail: "Normalize and authenticate", kind: "channel", configured: true, configurable: true, scope: "workspace", event: "channel.accepted", data: { channels: "configured channels", auth: "workspace binding" } },
   { id: "session", label: "Session", detail: "Durable run and conversation", kind: "session", configured: true, scope: "tenant / conversation", event: "run.started", data: { state: "durable", retries: "journal-backed" } },
@@ -55,55 +41,60 @@ const coreDefinitions: Array<Pick<StudioGraphNode, "id" | "label" | "detail" | "
   { id: "delivery", label: "Delivery", detail: "Send and record the result", kind: "delivery", configured: true, configurable: true, scope: "channel", event: "message.delivered", data: { receipts: "durable delivery evidence" } },
 ];
 
-const coreEventMatchers: Record<string, (event: StudioTraceItem) => boolean> = {
-  input: (item) => item.event === "run.received",
-  channel: (item) => item.event === "channel.accepted" || item.event.startsWith("channel."),
-  session: (item) => item.event === "run.started" || item.event === "run.queued",
-  context: (item) => item.event.startsWith("agent.context."),
-  "memory-read": (item) => item.event.startsWith("memory.retrieval.") || item.event === "memory.read.completed",
-  retrieval: (item) => item.event.startsWith("context.retrieval."),
-  model: (item) => item.event.startsWith("agent.model."),
-  router: (item) => item.event === "agent.route.selected" || item.event.startsWith("agent.capability."),
-  approval: (item) => item.event.startsWith("approval."),
-  handoff: (item) => item.event.startsWith("handoff.") || item.event.startsWith("human.handoff."),
-  "memory-write": (item) => item.event.startsWith("memory.write.") || item.event.startsWith("memory.persist."),
-  output: (item) => item.event.startsWith("run.output.") || item.event === "run.completed",
-  delivery: (item) => item.event.startsWith("message.delivered") || item.event.startsWith("delivery."),
-};
-
-function normalized(value: unknown) {
-  return typeof value === "string" ? value.trim().toLowerCase().replaceAll("_", ".") : "";
+function statusFromExecution(stage?: ExecutionStageState): StudioGraphStatus | undefined {
+  if (!stage) return undefined;
+  if (stage.status === "running") return "running";
+  if (stage.status === "waiting") return "waiting";
+  if (stage.status === "error") return "error";
+  if (stage.status === "complete") return "complete";
+  if (stage.status === "skipped") return "skipped";
+  if (stage.status === "queued") return "ready";
+  return "idle";
 }
 
-function statusForEvent(item: StudioTraceItem): StudioGraphStatus {
-  if (item.status === "error") return "error";
-  if (item.event === "approval.requested" || item.event === "operation.waiting" || item.event.includes("paused")) return "waiting";
-  if (item.status === "running") return "running";
-  return "complete";
+function traceStatus(status: StudioGraphStatus): "pending" | "running" | "complete" | "error" {
+  if (status === "running" || status === "waiting") return "running";
+  if (status === "error") return "error";
+  if (status === "complete" || status === "skipped") return "complete";
+  return "pending";
 }
 
-function statusForCore(id: string, trace: StudioTraceItem[]): StudioGraphStatus {
-  const matching = trace.filter(coreEventMatchers[id]);
-  const latest = matching.at(-1);
-  return latest ? statusForEvent(latest) : "idle";
-}
-
-function activityForTrace(items: StudioTraceItem[]): StudioNodeActivity | undefined {
-  const latest = items.at(-1);
-  if (!latest) return undefined;
+function activityForExecution(stage?: ExecutionStageState, execution?: ExecutionObservatoryState): StudioNodeActivity | undefined {
+  if (!stage || stage.operationCount === 0) return undefined;
+  const latest = stage.latestOperationId ? execution?.operations[stage.latestOperationId] : undefined;
+  const status = statusFromExecution(stage) ?? "idle";
   return {
-    count: items.length,
-    running: items.filter((item) => item.status === "running").length,
-    complete: items.filter((item) => item.status === "complete").length,
-    waiting: items.filter((item) => item.event === "approval.requested" || item.event === "operation.waiting" || item.event.includes("paused")).length,
-    errors: items.filter((item) => item.status === "error").length,
+    count: stage.operationCount,
+    running: stage.activeOperationIds.length,
+    complete: stage.completedCount,
+    waiting: status === "waiting" ? 1 : 0,
+    errors: stage.errorCount,
     latest: {
-      id: latest.id,
-      event: latest.event,
-      label: latest.label,
-      detail: latest.detail,
-      status: latest.status,
-      sequence: latest.sequence,
+      id: latest?.operationId ?? stage.stageId,
+      event: latest?.status === "error" ? "stage.failed" : latest?.status === "running" ? "stage.started" : "stage.completed",
+      label: stage.label,
+      detail: latest?.error?.message ?? stage.label,
+      status: traceStatus(status),
+      sequence: latest?.cursor ?? execution?.cursor ?? 0,
+    },
+  };
+}
+
+function executionEvidence(stage?: ExecutionStageState, execution?: ExecutionObservatoryState): StudioGraphNode["evidence"] | undefined {
+  if (!stage?.latestOperationId) return undefined;
+  const operation = execution?.operations[stage.latestOperationId];
+  if (!operation) return undefined;
+  return {
+    id: operation.operationId,
+    event: operation.status === "error" ? "stage.failed" : operation.status === "running" ? "stage.started" : "stage.completed",
+    sequence: operation.cursor,
+    detail: operation.error?.message ?? `${stage.label} · ${operation.status}`,
+    operation: {
+      id: operation.operationId,
+      kind: stage.kind,
+      status: operation.status,
+      ...(operation.attemptId ? { attemptId: operation.attemptId } : {}),
+      ...(operation.error?.code ? { errorCode: operation.error.code } : {}),
     },
   };
 }
@@ -123,82 +114,8 @@ function connectionStatus(connection?: AgentConnectionDirectoryEntry): StudioGra
   return "unavailable";
 }
 
-function tokensForTrace(item: StudioTraceItem) {
-  const values = [
-    item.event,
-    item.label,
-    item.detail,
-    item.data.name,
-    item.data.capability,
-    item.data.capability_name,
-    item.data.tool,
-    item.data.tool_name,
-    item.data.provider,
-    item.data.operation,
-    item.data.operation_key,
-    item.data.server,
-    item.data.skill,
-  ];
-  return values.map(normalized).filter(Boolean);
-}
-
-function matchesCapability(item: StudioTraceItem, names: string[]) {
-  const eventTokens = tokensForTrace(item);
-  const capabilityTokens = names.map(normalized).filter(Boolean);
-  return capabilityTokens.some((capability) => eventTokens.some((eventToken) => eventToken === capability || eventToken.endsWith(`.${capability}`) || eventToken.includes(capability)));
-}
-
-function overlayCapabilityStatus(base: StudioGraphStatus, trace: StudioTraceItem[], names: string[]) {
-  const latest = trace.filter((item) => matchesCapability(item, names)).at(-1);
-  return latest ? statusForEvent(latest) : base;
-}
-
-function latestCapabilityEvidence(trace: StudioTraceItem[], names: string[], operations: Array<Record<string, unknown>> = []) {
-  const latest = trace.filter((item) => matchesCapability(item, names)).at(-1);
-  const operationNames = names.map(normalized).filter(Boolean);
-  const operation = operations.filter((record) => {
-    const values = [record.capability, record.name, record.tool_name, record.toolName, record.provider_tool_call_id, record.providerToolCallId];
-    return values.map(normalized).some((value) => operationNames.some((name) => value === name || value.endsWith(`.${name}`) || value.includes(name)));
-  }).at(-1);
-  const operationId = operation && [operation.id, operation.provider_tool_call_id, operation.providerToolCallId, operation.step_id, operation.stepId].find((value): value is string => typeof value === "string" && value.length > 0);
-  const operationStatus = operation && [operation.status, operation.outcome, operation.state].find((value): value is string => typeof value === "string" && value.length > 0);
-  const operationKind = operation && [operation.kind, operation.operation_kind, operation.operationKind].find((value): value is string => typeof value === "string" && value.length > 0);
-  const attemptId = operation && [operation.attempt_id, operation.attemptId].find((value): value is string => typeof value === "string" && value.length > 0);
-  const errorRecord = operation && operation.error && typeof operation.error === "object" && !Array.isArray(operation.error) ? operation.error as Record<string, unknown> : undefined;
-  const errorCode = operation && [operation.error_code, operation.errorCode, errorRecord?.code].find((value): value is string => typeof value === "string" && value.length > 0);
-  const reconciliationRequired = operation?.reconciliation_required === true || operation?.reconciliationRequired === true;
-  const receipt = operation && operation.provider_receipt !== undefined && operation.provider_receipt !== null ? "recorded" as const : "missing" as const;
-  if (!latest && !operationId) return undefined;
-  return {
-    id: latest?.id ?? operationId ?? "operation",
-    event: latest?.event ?? "operation.evidence",
-    sequence: latest?.sequence ?? 0,
-    detail: latest?.detail ?? "Redacted operation evidence available",
-    ...(operationId ? { operation: { id: operationId, kind: operationKind ?? "capability", status: operationStatus ?? "recorded", ...(attemptId ? { attemptId } : {}), ...(errorCode ? { errorCode } : {}), ...(reconciliationRequired ? { reconciliationRequired: true } : {}), ...(operation ? { receipt } : {}) } } : {}),
-  };
-}
-
-function latestMemoryEvidence(graph: AgentMemoryObservatoryGraph | null | undefined, kinds: string[]) {
-  const kindSet = new Set(kinds);
-  const node = graph?.nodes.filter((candidate) => kindSet.has(candidate.kind)).at(-1);
-  if (!node) return undefined;
-  return {
-    id: node.id,
-    kind: node.kind,
-    status: node.status,
-    sequence: node.sequence ?? 0,
-    evidenceCount: node.evidenceIds.length,
-    revisionCount: node.revisionIds.length,
-    sourceEventCount: node.sourceEventIds.length,
-    revisionIds: node.revisionIds.slice(0, 8),
-    sourceEventIds: node.sourceEventIds.slice(0, 8),
-    evidenceIds: node.evidenceIds.slice(0, 8),
-    ...(node.errorCode ? { errorCode: node.errorCode } : {}),
-  };
-}
-
-function capabilityPosition(index: number) {
-  return { x: 48 + (index % 4) * 132, y: 560 + Math.floor(index / 4) * 104 };
+function normalized(value: unknown) {
+  return typeof value === "string" ? value.trim().toLowerCase() : "";
 }
 
 function labelForCapability(name: string) {
@@ -206,78 +123,12 @@ function labelForCapability(name: string) {
   return last.replaceAll("_", " ").replaceAll("-", " ").replace(/\b\w/g, (character) => character.toUpperCase());
 }
 
-function executionKind(item: StudioTraceItem): StudioGraphNode["kind"] {
-  const event = normalized(item.event);
-  const tokens = `${event} ${tokensForTrace(item).join(" ")}`;
-  if (event.includes("child") || event.includes("delegate")) return "child";
-  if (event.includes("connector")) return "connector";
-  if (tokens.includes("mcp")) return "mcp";
-  if (tokens.includes("skill")) return "skill";
-  if (event.includes("tool") || event.includes("operation") || event.includes("effect")) return "tool";
-  return "router";
+function capabilityPosition(index: number) {
+  return { x: 48 + (index % 4) * 132, y: 560 + Math.floor(index / 4) * 104 };
 }
 
-function traceCapabilityName(item: StudioTraceItem) {
-  const value = [item.data.name, item.data.tool_name, item.data.tool, item.data.capability_name, item.data.capability, item.data.skill, item.data.server]
-    .find((candidate): candidate is string => typeof candidate === "string" && candidate.trim().length > 0);
-  return value?.trim();
-}
-
-function configuredNodeForTrace(item: StudioTraceItem, configuredNodes: StudioGraphNode[]) {
-  const coreMatch = Object.entries(coreEventMatchers).find(([, matcher]) => matcher(item));
-  if (coreMatch && configuredNodes.some((node) => node.id === coreMatch[0])) return coreMatch[0];
-  const capabilityMatch = configuredNodes.find((node) => {
-    const matchKeys = typeof node.data.matchKeys === "string" ? node.data.matchKeys.split(" · ") : [];
-    return node.configured && matchKeys.length > 0 && matchesCapability(item, matchKeys);
-  });
-  return capabilityMatch?.id;
-}
-
-function isRuntimeCapabilityEvent(item: StudioTraceItem) {
-  const event = normalized(item.event);
-  const tokens = tokensForTrace(item);
-  return event.includes("tool") || event.includes("connector") || event.includes("operation") || event.includes("effect") || tokens.some((token) => token.includes("mcp") || token.includes("skill"));
-}
-
-function runtimeCapabilityNodes(trace: StudioTraceItem[], configuredNodes: StudioGraphNode[], indexOffset: number) {
-  const groups = new Map<string, StudioTraceItem[]>();
-  for (const item of trace) {
-    if (configuredNodeForTrace(item, configuredNodes) || !isRuntimeCapabilityEvent(item)) continue;
-    const identity = traceCapabilityName(item) ?? item.event;
-    const key = `${executionKind(item)}:${normalized(identity)}`;
-    groups.set(key, [...(groups.get(key) ?? []), item]);
-  }
-
-  return [...groups.entries()].map(([key, items], index) => {
-    const latest = items.at(-1)!;
-    const name = traceCapabilityName(latest);
-    return capabilityNode({
-      id: `runtime:${key}`,
-      label: name ?? latest.label,
-      detail: latest.detail || latest.event,
-      kind: executionKind(latest),
-      status: statusForEvent(latest),
-      provider: typeof latest.data.provider === "string" ? latest.data.provider : undefined,
-      scope: "selected run",
-      event: latest.event,
-      data: {
-        runtime: "observed",
-        event: latest.event,
-        ...(name ? { capability: name } : {}),
-      },
-      index: indexOffset + index,
-      names: name ? [name] : [],
-      configured: false,
-      configurable: false,
-      activity: activityForTrace(items),
-      evidence: {
-        id: latest.id,
-        event: latest.event,
-        sequence: latest.sequence,
-        detail: latest.detail,
-      },
-    });
-  });
+function stageForCapability(execution: ExecutionObservatoryState | undefined, name: string) {
+  return execution?.topology[`capability:${name}`];
 }
 
 function capabilityNode(input: {
@@ -291,198 +142,38 @@ function capabilityNode(input: {
   event: string;
   data: Record<string, string>;
   index: number;
-  names: string[];
-  configured?: boolean;
-  configurable?: boolean;
-  activity?: StudioNodeActivity;
-  evidence?: StudioGraphNode["evidence"];
-}) : StudioGraphNode {
+  configured: boolean;
+  configurable: boolean;
+  stage?: ExecutionStageState;
+  execution?: ExecutionObservatoryState;
+}): StudioGraphNode {
+  const executionStatus = statusFromExecution(input.stage);
+  const activity = activityForExecution(input.stage, input.execution);
   return {
     id: input.id,
     label: input.label,
     detail: input.detail,
     kind: input.kind,
-    status: input.status,
-    configured: input.configured ?? true,
-    configurable: input.configurable ?? true,
+    status: executionStatus ?? input.status,
+    configured: input.configured,
+    configurable: input.configurable,
     provider: input.provider,
     scope: input.scope,
     event: input.event,
-    data: {
-      ...(input.evidence?.operation ? {
-        latestOperation: `${input.evidence.operation.kind} · ${input.evidence.operation.status} · ${input.evidence.operation.id}`,
-      } : {}),
-      ...input.data,
-      matchKeys: input.names.join(" · "),
-    },
+    data: input.data,
     position: capabilityPosition(input.index),
-    ...(input.activity ? { activity: input.activity } : {}),
-    evidence: input.evidence,
+    ...(activity ? { activity } : {}),
+    evidence: executionEvidence(input.stage, input.execution),
   };
 }
 
-export function projectStudioObservatory(input: ProjectionInput): StudioObservatoryProjection {
-  const effective = input.effectiveConfig;
-  const configUnavailable = input.configurationState === "unavailable";
-  const coreNodes = coreDefinitions.map((definition) => {
-    const data = { ...definition.data };
-    if (definition.id === "channel" && effective?.channels.length) data.channels = effective.channels.join(" · ");
-    if (definition.id === "context" && effective) data.sources = `${effective.knowledge.sourceIds.length} knowledge · ${effective.memory.mode ? `memory ${String(effective.memory.mode)}` : "memory configured"}`;
-    if (definition.id === "memory-read" && effective) data.mode = typeof effective.memory.mode === "string" ? effective.memory.mode : "configured";
-    if (definition.id === "retrieval" && effective) data.sources = effective.knowledge.sourceIds.length ? effective.knowledge.sourceIds.join(" · ") : "none configured";
-    if (definition.id === "model" && effective) {
-      data.provider = effective.model.provider ?? "unresolved";
-      data.model = effective.model.model ?? "unresolved";
-      if (effective.model.error) data.error = effective.model.error;
-    }
-    if (definition.id === "router" && effective) data.capabilities = `${effective.tools.length} tools · ${effective.skills.length} skills · ${effective.remoteMcpProviders.length} MCP`;
-    const matchingTrace = coreEventMatchers[definition.id] ? input.trace.filter(coreEventMatchers[definition.id]) : [];
-    const evidence = matchingTrace.at(-1);
-    const runtimeStatus = statusForCore(definition.id, input.trace);
-    const memory = definition.id === "memory-read"
-      ? latestMemoryEvidence(input.memory, ["retrieval_plan", "evidence"])
-      : definition.id === "retrieval"
-        ? latestMemoryEvidence(input.memory, ["retrieval_plan", "evidence"])
-        : definition.id === "memory-write"
-          ? latestMemoryEvidence(input.memory, ["capture", "semantic_revision", "episodic_revision", "projection", "deletion"])
-          : undefined;
-    return {
-      ...definition,
-      status: runtimeStatus !== "idle" ? runtimeStatus : configUnavailable ? "unavailable" : runtimeStatus,
-      label: definition.id === "model" ? effective?.model.model ?? input.modelLabel ?? definition.label : definition.label,
-      data,
-      ...(activityForTrace(matchingTrace) ? { activity: activityForTrace(matchingTrace) } : {}),
-      evidence: evidence || memory ? {
-        id: evidence?.id ?? memory?.id ?? "memory",
-        event: evidence?.event ?? "memory.observatory",
-        sequence: evidence?.sequence ?? memory?.sequence ?? 0,
-        detail: evidence?.detail ?? `${memory?.kind ?? "memory"} · ${memory?.status ?? "recorded"}`,
-        ...(memory ? { memory } : {}),
-      } : undefined,
-    } satisfies StudioGraphNode;
-  });
-
-  if (!effective || configUnavailable) {
-    const runtimeNodes = runtimeCapabilityNodes(input.trace, coreNodes, 0);
-    const nodes = [...coreNodes, ...runtimeNodes];
-    return { nodes, edges: buildEdges(nodes, runtimeNodes) };
-  }
-
-  const capabilityByName = new Map((input.capabilities ?? []).map((capability) => [normalized(capability.name), capability]));
-  const connectionByName = new Map((input.connections ?? []).flatMap((connection) => [
-    [normalized(connection.id), connection] as const,
-    [normalized(connection.name), connection] as const,
-  ]));
-  const capabilityNodes: StudioGraphNode[] = [];
-  let index = 0;
-
-  for (const tool of effective.tools) {
-    const metadata = capabilityByName.get(normalized(tool));
-    const provider = metadata?.catalog?.provider?.name;
-    const activity = activityForTrace(input.trace.filter((item) => matchesCapability(item, [tool, metadata?.name ?? ""])));
-    capabilityNodes.push(capabilityNode({
-      id: `tool:${tool}`,
-      label: labelForCapability(tool),
-      detail: metadata?.description || "Configured tool capability",
-      kind: metadata?.catalog?.kind === "mcp_tool" ? "mcp" : "tool",
-      status: overlayCapabilityStatus(capabilityStatus(metadata), input.trace, [tool, metadata?.name ?? ""]),
-      provider,
-      scope: "installation grant",
-      event: "agent.tool.completed",
-      data: {
-        capability: tool,
-        version: metadata?.version ?? "registry",
-        readiness: metadata?.availability ?? "declared",
-        ...(metadata?.requiresApproval ? { approval: "required" } : {}),
-      },
-      index: index++,
-      names: [tool, metadata?.name ?? ""],
-      activity,
-      evidence: latestCapabilityEvidence(input.trace, [tool, metadata?.name ?? ""], input.operations),
-    }));
-  }
-
-  for (const connector of effective.connectors) {
-    const metadata = connectionByName.get(normalized(connector));
-    const activity = activityForTrace(input.trace.filter((item) => matchesCapability(item, [connector, metadata?.id ?? "", metadata?.name ?? ""])));
-    capabilityNodes.push(capabilityNode({
-      id: `connector:${connector}`,
-      label: metadata?.name ?? labelForCapability(connector),
-      detail: metadata?.description || "Configured connection",
-      kind: "connector",
-      status: overlayCapabilityStatus(connectionStatus(metadata), input.trace, [connector, metadata?.id ?? "", metadata?.name ?? ""]),
-      provider: metadata?.provider ?? metadata?.oauthProvider,
-      scope: "installation connection",
-      event: "agent.connector.completed",
-      data: { connection: connector, readiness: metadata?.status ?? "declared", auth: metadata?.auth ?? "managed" },
-      index: index++,
-      names: [connector, metadata?.id ?? "", metadata?.name ?? ""],
-      activity,
-      evidence: latestCapabilityEvidence(input.trace, [connector, metadata?.id ?? "", metadata?.name ?? ""], input.operations),
-    }));
-  }
-
-  for (const skill of effective.skills) {
-    const activity = activityForTrace(input.trace.filter((item) => matchesCapability(item, [skill.id, skill.name, skill.slug])));
-    capabilityNodes.push(capabilityNode({
-      id: `skill:${skill.id}`,
-      label: skill.name || skill.slug,
-      detail: `Skill v${skill.versionNumber}`,
-      kind: "skill",
-      status: overlayCapabilityStatus(skill.status === "published" ? "ready" : "blocked", input.trace, [skill.id, skill.name, skill.slug]),
-      scope: "agent version",
-      event: "agent.skill.completed",
-      data: { skill: skill.slug, version: String(skill.versionNumber), checksum: skill.checksum, required: `${skill.requiredCapabilities.length} capabilities` },
-      index: index++,
-      names: [skill.id, skill.name, skill.slug],
-      activity,
-      evidence: latestCapabilityEvidence(input.trace, [skill.id, skill.name, skill.slug], input.operations),
-    }));
-  }
-
-  for (const provider of effective.remoteMcpProviders) {
-    const activity = activityForTrace(input.trace.filter((item) => matchesCapability(item, [provider.id, provider.providerName])));
-    capabilityNodes.push(capabilityNode({
-      id: `mcp:${provider.id}`,
-      label: provider.providerName,
-      detail: `${provider.toolCount} MCP tools · ${provider.protocolVersion}`,
-      kind: "mcp",
-      status: overlayCapabilityStatus(provider.status === "published" && provider.healthStatus === "healthy" ? "ready" : "blocked", input.trace, [provider.id, provider.providerName]),
-      provider: provider.providerName,
-      scope: "agent version",
-      event: "agent.mcp.tool.completed",
-      data: { provider: provider.providerName, revision: String(provider.revision), tools: String(provider.toolCount), checksum: provider.checksum },
-      index: index++,
-      names: [provider.id, provider.providerName],
-      activity,
-      evidence: latestCapabilityEvidence(input.trace, [provider.id, provider.providerName], input.operations),
-    }));
-  }
-
-  if (input.readiness && input.readiness.ready === false && !capabilityNodes.length) {
-    capabilityNodes.push(capabilityNode({
-      id: "readiness:blocker",
-      label: "Readiness blocker",
-      detail: input.readiness.blockers?.[0]?.detail || "Installation is not ready",
-      kind: "tool",
-      status: "blocked",
-      scope: "installation",
-      event: "installation.readiness",
-      data: { reason: input.readiness.blockers?.[0]?.code || input.readiness.status || "blocked" },
-      index: 0,
-      names: [],
-    }));
-  }
-
-  const runtimeNodes = runtimeCapabilityNodes(input.trace, [...coreNodes, ...capabilityNodes], capabilityNodes.length);
-  const allCapabilityNodes = [...capabilityNodes, ...runtimeNodes];
-  const nodes = [...coreNodes, ...allCapabilityNodes];
-  return { nodes, edges: buildEdges(nodes, allCapabilityNodes) };
+function coreStageId(id: string) {
+  return id === "output" ? "response" : id;
 }
 
-function buildEdges(nodes: StudioGraphNode[], capabilityNodes: StudioGraphNode[]): StudioGraphEdge[] {
+function buildEdges(nodes: StudioGraphNode[], execution?: ExecutionObservatoryState): StudioGraphEdge[] {
   const nodeIds = new Set(nodes.map((node) => node.id));
-  const edges: StudioGraphEdge[] = [
+  const definitions: StudioGraphEdge[] = [
     { id: "input-channel", source: "input", target: "channel", sourceAnchor: "bottom", targetAnchor: "top" },
     { id: "channel-session", source: "channel", target: "session", sourceAnchor: "bottom", targetAnchor: "top" },
     { id: "session-context", source: "session", target: "context", sourceAnchor: "right", targetAnchor: "left" },
@@ -500,9 +191,178 @@ function buildEdges(nodes: StudioGraphNode[], capabilityNodes: StudioGraphNode[]
     { id: "output-delivery", source: "output", target: "delivery", sourceAnchor: "bottom", targetAnchor: "top" },
     { id: "delivery-session", source: "delivery", target: "session", sourceAnchor: "left", targetAnchor: "right", dashed: true },
   ];
-  for (const node of capabilityNodes) {
-    edges.push({ id: `router-${node.id}`, source: "router", target: node.id, sourceAnchor: "bottom", targetAnchor: "top" });
-    edges.push({ id: `${node.id}-model`, source: node.id, target: "model", sourceAnchor: "top", targetAnchor: "bottom", dashed: true });
+  for (const node of nodes.filter((candidate) => ["tool", "connector", "mcp", "skill", "child"].includes(candidate.kind))) {
+    definitions.push({ id: `router-${node.id}`, source: "router", target: node.id, sourceAnchor: "bottom", targetAnchor: "top" });
+    definitions.push({ id: `${node.id}-model`, source: node.id, target: "model", sourceAnchor: "top", targetAnchor: "bottom", dashed: true });
   }
-  return edges.filter((edge) => nodeIds.has(edge.source) && nodeIds.has(edge.target));
+  const activeRoute = execution?.activeRoute;
+  return definitions
+    .filter((edge) => nodeIds.has(edge.source) && nodeIds.has(edge.target))
+    .map((edge) => ({
+      ...edge,
+      ...(activeRoute && activeRoute.sourceStageId === edge.source && activeRoute.targetStageId === edge.target
+        ? {
+            status: execution?.topology[edge.target]?.status === "error"
+              ? "failed" as const
+              : execution?.topology[edge.target]?.status === "complete"
+                ? "complete" as const
+                : "active" as const,
+          }
+        : {}),
+    }));
+}
+
+export function projectStudioObservatory(input: ProjectionInput): StudioObservatoryProjection {
+  const effective = input.effectiveConfig;
+  const execution = input.execution;
+  const configUnavailable = input.configurationState === "unavailable";
+  const definitions = coreDefinitions.filter((definition) => definition.id !== "handoff" || input.handoffEnabled === true);
+  const coreNodes = definitions.map((definition) => {
+    const data = { ...definition.data };
+    if (definition.id === "channel" && effective?.channels.length) data.channels = effective.channels.join(" · ");
+    if (definition.id === "context" && effective) data.sources = `${effective.knowledge.sourceIds.length} knowledge · ${effective.memory.mode ? `memory ${String(effective.memory.mode)}` : "memory configured"}`;
+    if (definition.id === "memory-read" && effective) data.mode = typeof effective.memory.mode === "string" ? effective.memory.mode : "configured";
+    if (definition.id === "retrieval" && effective) data.sources = effective.knowledge.sourceIds.length ? effective.knowledge.sourceIds.join(" · ") : "none configured";
+    if (definition.id === "model" && effective) {
+      data.provider = effective.model.provider ?? "unresolved";
+      data.model = effective.model.model ?? "unresolved";
+      if (effective.model.error) data.error = effective.model.error;
+    }
+    if (definition.id === "router" && effective) data.capabilities = `${effective.tools.length} tools · ${effective.skills.length} skills · ${effective.remoteMcpProviders.length} MCP`;
+    const stage = execution?.topology[coreStageId(definition.id)];
+    const memory = definition.id === "memory-read" || definition.id === "retrieval"
+      ? input.memory?.nodes.filter((candidate) => ["retrieval_plan", "evidence"].includes(candidate.kind)).at(-1)
+      : definition.id === "memory-write"
+        ? input.memory?.nodes.filter((candidate) => ["capture", "semantic_revision", "episodic_revision", "projection", "deletion"].includes(candidate.kind)).at(-1)
+        : undefined;
+    const status = statusFromExecution(stage) ?? (configUnavailable ? "unavailable" : "idle");
+    return {
+      ...definition,
+      status,
+      label: definition.id === "model" ? effective?.model.model ?? input.modelLabel ?? definition.label : definition.label,
+      data,
+      ...(activityForExecution(stage, execution) ? { activity: activityForExecution(stage, execution) } : {}),
+      evidence: executionEvidence(stage, execution) ?? (memory ? {
+        id: memory.id,
+        event: "memory.observatory",
+        sequence: memory.sequence ?? 0,
+        detail: `${memory.kind} · ${memory.status}`,
+        memory: {
+          id: memory.id,
+          kind: memory.kind,
+          status: memory.status,
+          sequence: memory.sequence ?? 0,
+          evidenceCount: memory.evidenceIds.length,
+          revisionCount: memory.revisionIds.length,
+          sourceEventCount: memory.sourceEventIds.length,
+          revisionIds: memory.revisionIds.slice(0, 8),
+          sourceEventIds: memory.sourceEventIds.slice(0, 8),
+          evidenceIds: memory.evidenceIds.slice(0, 8),
+          ...(memory.errorCode ? { errorCode: memory.errorCode } : {}),
+        },
+      } : undefined),
+    } satisfies StudioGraphNode;
+  });
+
+  const capabilityByName = new Map((input.capabilities ?? []).map((capability) => [normalized(capability.name), capability]));
+  const connectionByName = new Map((input.connections ?? []).flatMap((connection) => [[normalized(connection.id), connection] as const, [normalized(connection.name), connection] as const]));
+  const capabilityNodes: StudioGraphNode[] = [];
+  let index = 0;
+  if (effective) {
+    for (const tool of effective.tools) {
+      const metadata = capabilityByName.get(normalized(tool));
+      capabilityNodes.push(capabilityNode({
+        id: `capability:${tool}`,
+        label: labelForCapability(tool),
+        detail: metadata?.description || "Configured tool capability",
+        kind: metadata?.catalog?.kind === "mcp_tool" ? "mcp" : "tool",
+        status: capabilityStatus(metadata),
+        provider: metadata?.catalog?.provider?.name,
+        scope: "installation grant",
+        event: "agent.tool.completed",
+        data: { capability: tool, version: metadata?.version ?? "registry", readiness: metadata?.availability ?? "declared", ...(metadata?.requiresApproval ? { approval: "required" } : {}) },
+        index: index++,
+        configured: true,
+        configurable: true,
+        stage: stageForCapability(execution, tool),
+        execution,
+      }));
+    }
+    for (const connector of effective.connectors) {
+      const metadata = connectionByName.get(normalized(connector));
+      capabilityNodes.push(capabilityNode({
+        id: `capability:${connector}`,
+        label: metadata?.name ?? labelForCapability(connector),
+        detail: metadata?.description || "Configured connection",
+        kind: "connector",
+        status: connectionStatus(metadata),
+        provider: metadata?.provider ?? metadata?.oauthProvider,
+        scope: "installation connection",
+        event: "agent.connector.completed",
+        data: { connection: connector, readiness: metadata?.status ?? "declared", auth: metadata?.auth ?? "managed" },
+        index: index++,
+        configured: true,
+        configurable: true,
+        stage: stageForCapability(execution, connector),
+        execution,
+      }));
+    }
+    for (const skill of effective.skills) {
+      const name = skill.id || skill.slug;
+      capabilityNodes.push(capabilityNode({
+        id: `capability:${name}`,
+        label: skill.name || skill.slug,
+        detail: `Skill v${skill.versionNumber}`,
+        kind: "skill",
+        status: skill.status === "published" ? "ready" : "blocked",
+        scope: "agent version",
+        event: "agent.skill.completed",
+        data: { skill: skill.slug, version: String(skill.versionNumber), checksum: skill.checksum, required: `${skill.requiredCapabilities.length} capabilities` },
+        index: index++,
+        configured: true,
+        configurable: true,
+        stage: stageForCapability(execution, name) ?? stageForCapability(execution, skill.slug),
+        execution,
+      }));
+    }
+    for (const provider of effective.remoteMcpProviders) {
+      capabilityNodes.push(capabilityNode({
+        id: `capability:${provider.id}`,
+        label: provider.providerName,
+        detail: `${provider.toolCount} MCP tools · ${provider.protocolVersion}`,
+        kind: "mcp",
+        status: provider.status === "published" && provider.healthStatus === "healthy" ? "ready" : "blocked",
+        provider: provider.providerName,
+        scope: "agent version",
+        event: "agent.mcp.tool.completed",
+        data: { provider: provider.providerName, revision: String(provider.revision), tools: String(provider.toolCount), checksum: provider.checksum },
+        index: index++,
+        configured: true,
+        configurable: true,
+        stage: stageForCapability(execution, provider.id),
+        execution,
+      }));
+    }
+  }
+
+  const declaredStageIds = new Set([...coreNodes, ...capabilityNodes].map((node) => node.id));
+  const observedNodes = Object.values(execution?.topology ?? {})
+    .filter((stage) => stage.stageId.startsWith("capability:") && !declaredStageIds.has(stage.stageId))
+    .map((stage) => capabilityNode({
+      id: stage.stageId,
+      label: stage.label,
+      detail: "Observed capability not declared in this configuration",
+      kind: "tool",
+      status: "unavailable",
+      scope: "runtime observation",
+      event: "agent.tool.completed",
+      data: { capability: stage.stageId.slice("capability:".length), availability: "observed", configuration: "unresolved" },
+      index: index++,
+      configured: false,
+      configurable: false,
+      stage,
+      execution,
+    }));
+  const nodes = [...coreNodes, ...capabilityNodes, ...observedNodes];
+  return { nodes, edges: buildEdges(nodes, execution) };
 }

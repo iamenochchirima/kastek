@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { executionMetadataForRunAdmission, executionMetadataForTerminalRun } from "../../runtime/execution-observability";
 import type { Pool, PoolClient } from "pg";
 import { query, withTransaction } from "../pool";
 import { assertRunTransition, type RunStatus, type StartRunInput } from "../../domain/types";
@@ -294,7 +295,10 @@ export class RunRepository {
       await client.query(
         `INSERT INTO agent_events (organization_id, run_id, installation_id, event_type, payload, actor_id, correlation_id)
          VALUES ($1, $2, $3, 'run.received', $4::jsonb, $5, $6)`,
-        [organizationId, run.id, input.installationId, JSON.stringify({ triggerType: input.triggerType }), actorId, run.correlation_id],
+        [organizationId, run.id, input.installationId, JSON.stringify({
+          triggerType: input.triggerType,
+          execution: executionMetadataForRunAdmission(run.id),
+        }), actorId, run.correlation_id],
       );
       return { ...run, created: true, admission };
     });
@@ -434,7 +438,14 @@ export class RunRepository {
         `INSERT INTO agent_events
           (organization_id, run_id, installation_id, event_type, payload, correlation_id)
          VALUES ($1, $2, $3, $4, $5::jsonb, $6)`,
-        [run.organization_id, runId, run.installation_id, `run.${nextStatus}`, JSON.stringify(payload), run.correlation_id],
+        [
+          run.organization_id,
+          runId,
+          run.installation_id,
+          `run.${nextStatus}`,
+          JSON.stringify(terminal ? { ...payload, execution: executionMetadataForTerminalRun(nextStatus as "completed" | "failed" | "cancelled" | "expired", payload) } : payload),
+          run.correlation_id,
+        ],
       );
       if (terminal) {
         const attemptStatus = nextStatus === "cancelled" ? "cancelled" : nextStatus === "failed" ? "failed" : "completed";
@@ -593,7 +604,7 @@ export class RunRepository {
       await client.query(
         `INSERT INTO agent_events (organization_id, run_id, installation_id, event_type, payload, correlation_id)
          VALUES ($1, $2, $3, 'run.completed', $4::jsonb, $5)`,
-        [run.organization_id, runId, run.installation_id, JSON.stringify(persistedOutput), run.correlation_id],
+        [run.organization_id, runId, run.installation_id, JSON.stringify({ ...persistedOutput, execution: executionMetadataForTerminalRun("completed") }), run.correlation_id],
       );
       await client.query(
         `UPDATE run_attempts SET status = 'completed', finished_at = now()
@@ -815,7 +826,7 @@ export class RunRepository {
       await client.query(
         `INSERT INTO agent_events (organization_id, run_id, installation_id, event_type, payload, correlation_id)
          VALUES ($1, $2, $3, 'run.failed', $4::jsonb, $5)`,
-        [run.organization_id, runId, run.installation_id, JSON.stringify(error), run.correlation_id],
+        [run.organization_id, runId, run.installation_id, JSON.stringify({ ...error, execution: executionMetadataForTerminalRun("failed", error) }), run.correlation_id],
       );
       await client.query(
         `UPDATE run_attempts SET status = 'failed', error = $2::jsonb, finished_at = now()

@@ -11,6 +11,7 @@ import type { RunRecord } from "./run-repository";
 import { ConversationHandoffService } from "../../handoff/service";
 import { HANDOFF_ACKNOWLEDGEMENT_TEXT } from "../../handoff/messages";
 import { recordConversationAdmission } from "../../telemetry/spans";
+import { executionMetadataForRunAdmission } from "../../runtime/execution-observability";
 import { purgeMemoryRecords } from "./legacy-memory-cleanup";
 
 export interface PlatformConversation {
@@ -360,7 +361,7 @@ export class PlatformChatRepository {
         `INSERT INTO agent_events
           (organization_id, run_id, installation_id, event_type, payload, actor_id, correlation_id)
          VALUES ($1, $2, $3, 'run.received', $4::jsonb, $5, $6)`,
-        [input.organizationId, run.id, input.installationId, JSON.stringify({ triggerType: "message" }), input.actorId, run.correlation_id],
+        [input.organizationId, run.id, input.installationId, JSON.stringify({ triggerType: "message", execution: executionMetadataForRunAdmission(run.id) }), input.actorId, run.correlation_id],
       );
       await client.query(
         `UPDATE conversations
@@ -506,7 +507,7 @@ export class PlatformChatRepository {
           input.organizationId,
           run.id,
           source.installation_id,
-          JSON.stringify({ triggerType: "message", retryOfRunId: lockedSource.id }),
+          JSON.stringify({ triggerType: "message", retryOfRunId: lockedSource.id, execution: executionMetadataForRunAdmission(run.id) }),
           input.actorId,
           run.correlation_id,
         ],
@@ -953,7 +954,7 @@ export class PlatformChatRepository {
           input.organizationId,
           run.id,
           route.installation_id,
-          JSON.stringify({ triggerType: "message", sourceChannel: input.channelType }),
+          JSON.stringify({ triggerType: "message", sourceChannel: input.channelType, execution: executionMetadataForRunAdmission(run.id) }),
           runActorId,
           run.correlation_id,
         ],

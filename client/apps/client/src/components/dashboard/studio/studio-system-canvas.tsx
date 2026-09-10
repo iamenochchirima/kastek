@@ -83,7 +83,7 @@ export type StudioGraphNode = {
   };
 };
 
-export type StudioGraphEdge = { id: string; source: string; target: string; sourceAnchor: EdgeAnchor; targetAnchor: EdgeAnchor; dashed?: boolean; routeY?: number; relation?: string };
+export type StudioGraphEdge = { id: string; source: string; target: string; sourceAnchor: EdgeAnchor; targetAnchor: EdgeAnchor; dashed?: boolean; routeY?: number; relation?: string; status?: "idle" | "active" | "failed" | "complete" };
 
 type StudioCanvasProps = {
   nodes: StudioGraphNode[];
@@ -342,9 +342,9 @@ function ObservatoryLinks({ nodes, positions, edges }: { nodes: StudioGraphNode[
         const source = nodeById.get(definition.source);
         const target = nodeById.get(definition.target);
         if (!source || !target) return null;
-        const live = source.status === "running" || target.status === "running";
-        const failed = source.status === "error" || target.status === "error";
-        const completed = source.status === "complete" && target.status === "complete";
+        const live = definition.status === "active";
+        const failed = definition.status === "failed";
+        const completed = definition.status === "complete";
         const start = anchorPoint(sourcePosition, source.kind, definition.sourceAnchor);
         const end = anchorPoint(targetPosition, target.kind, definition.targetAnchor);
         const color = failed ? "#f87171" : live ? "#a78bfa" : completed ? "#34d399" : "#8b98b2";
