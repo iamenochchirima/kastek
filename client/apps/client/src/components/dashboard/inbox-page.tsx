@@ -1110,6 +1110,7 @@ export default function InboxPageClient({
 
   const selectedConversation =
     filteredConversations.find((conversation) => conversation.id === selectedConversationId) ?? null;
+  const emailConversationOpen = selectedChannel === "email" && selectedConversation !== null;
 
   useEffect(() => {
     if (selectedConversation?.channel === "whatsapp") return;
@@ -2730,9 +2731,13 @@ export default function InboxPageClient({
         <div
           className={cn(
             "min-h-0 shrink-0 flex-col border-r border-border bg-card",
-            mobileConversationOpen ? "hidden md:flex" : "flex w-full",
+            emailConversationOpen
+              ? "hidden"
+              : mobileConversationOpen
+                ? "hidden md:flex"
+                : "flex w-full",
             selectedChannel === "email"
-              ? "md:w-[680px] lg:w-[760px]"
+              ? "w-full"
               : "md:w-[340px] lg:w-[380px]",
           )}
         >
@@ -3144,7 +3149,11 @@ export default function InboxPageClient({
         <div
           className={cn(
             "min-h-0 flex flex-1 flex-col bg-background",
-            mobileConversationOpen ? "flex" : "hidden md:flex",
+            emailConversationOpen
+              ? "flex w-full"
+              : mobileConversationOpen
+                ? "flex"
+                : "hidden md:flex",
           )}
         >
           <div
@@ -3159,8 +3168,16 @@ export default function InboxPageClient({
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-9 w-9 shrink-0 text-muted-foreground md:hidden"
-                    onClick={() => setMobileConversationOpen(false)}
+                    className={cn(
+                      "h-9 w-9 shrink-0 text-muted-foreground",
+                      selectedConversation.channel === "email" ? "inline-flex" : "md:hidden",
+                    )}
+                    onClick={() => {
+                      if (selectedConversation.channel === "email") {
+                        setSelectedConversationId(null);
+                      }
+                      setMobileConversationOpen(false);
+                    }}
                   >
                     <ArrowLeft className="h-4 w-4" />
                   </Button>

@@ -169,6 +169,9 @@ request, the agent uses the named provider/account or asks the user to choose.
    the provider-neutral tool path verifies the installation binding before calling Core.
 9. [x] Update Connections, Agent Studio, and Inbox UI states and actions. A connected but
    read-only account is visible but remains `Setting up`/`Needs attention`, never reply-ready.
+   Email uses a dedicated full-width mailbox layout: the message list fills the workspace until a
+   message is opened, then the reading view fills the workspace with an explicit back action;
+   the chat/social split-pane shell is not reused for email.
 10. [x] Apply the existing deployment rules: Playground may test a new Agent binding; Deploy
     promotes the exact agent candidate and binding configuration to Live; workspace credentials
     are reused by opaque reference; rollback restores the previous Live binding revision.
