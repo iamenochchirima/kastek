@@ -4,7 +4,7 @@ import type {
   AgentEffectiveConfigProjection,
   AgentMemoryObservatoryGraph,
 } from "@/lib/agent-platform";
-import type { StudioGraphEdge, StudioGraphNode, StudioGraphStatus } from "@/components/dashboard/studio/studio-system-canvas";
+import type { StudioGraphEdge, StudioGraphNode, StudioGraphStatus, StudioNodeActivity } from "@/components/dashboard/studio/studio-system-canvas";
 
 export type StudioTraceItem = {
   id: string;
@@ -37,8 +37,6 @@ type ProjectionInput = {
 export type StudioObservatoryProjection = {
   nodes: StudioGraphNode[];
   edges: StudioGraphEdge[];
-  executionNodes: StudioGraphNode[];
-  executionEdges: StudioGraphEdge[];
 };
 
 const coreDefinitions: Array<Pick<StudioGraphNode, "id" | "label" | "detail" | "kind" | "configured" | "configurable" | "scope" | "event"> & { data: Record<string, string> }> = [
@@ -88,6 +86,26 @@ function statusForCore(id: string, trace: StudioTraceItem[]): StudioGraphStatus 
   const matching = trace.filter(coreEventMatchers[id]);
   const latest = matching.at(-1);
   return latest ? statusForEvent(latest) : "idle";
+}
+
+function activityForTrace(items: StudioTraceItem[]): StudioNodeActivity | undefined {
+  const latest = items.at(-1);
+  if (!latest) return undefined;
+  return {
+    count: items.length,
+    running: items.filter((item) => item.status === "running").length,
+    complete: items.filter((item) => item.status === "complete").length,
+    waiting: items.filter((item) => item.event === "approval.requested" || item.event === "operation.waiting" || item.event.includes("paused")).length,
+    errors: items.filter((item) => item.status === "error").length,
+    latest: {
+      id: latest.id,
+      event: latest.event,
+      label: latest.label,
+      detail: latest.detail,
+      status: latest.status,
+      sequence: latest.sequence,
+    },
+  };
 }
 
 function capabilityStatus(capability?: AgentCapability, configured = true): StudioGraphStatus {
@@ -183,122 +201,6 @@ function capabilityPosition(index: number) {
   return { x: 48 + (index % 4) * 132, y: 560 + Math.floor(index / 4) * 104 };
 }
 
-function executionKind(item: StudioTraceItem): StudioGraphNode["kind"] {
-  const event = normalized(item.event);
-  const tokens = `${event} ${tokensForTrace(item).join(" ")}`;
-  if (event === "run.received" || event.includes("input")) return "input";
-  if (event.includes("channel")) return "channel";
-  if (event.includes("session") || event === "run.started" || event === "run.queued") return "session";
-  if (event.includes("child") || event.includes("delegate")) return "child";
-  if (event.includes("context")) return "context";
-  if (event.includes("memory")) return "memory";
-  if (event.includes("retrieval")) return "retrieval";
-  if (event.includes("model")) return "model";
-  if (event.includes("approval")) return "approval";
-  if (event.includes("handoff") || event.includes("human")) return "handoff";
-  if (event.includes("delivery") || event.includes("delivered")) return "delivery";
-  if (event.includes("output") || event === "run.completed") return "output";
-  if (tokens.includes("mcp")) return "mcp";
-  if (tokens.includes("skill")) return "skill";
-  if (event.includes("tool") || event.includes("operation") || event.includes("effect")) return "tool";
-  return "router";
-}
-
-function safeExecutionData(item: StudioTraceItem): Record<string, string> {
-  const allowed = new Set(["status", "reason", "code", "provider", "model", "name", "iteration", "attemptId", "operationId", "turnId", "runId", "retryCount", "latencyMs", "parentOperationId", "parentEventId", "parentRunId", "causationId", "correlationId", "branchId", "parallelGroup", "childRunId", "sequence_number", "run_id", "turn_id", "operation_id", "attempt_id", "event_id", "journal_sequence", "occurred_at", "parent_operation_id", "parent_event_id", "parent_run_id", "causation_id", "correlation_id", "branch_id", "parallel_group", "child_run_id"]);
-  const data: Record<string, string> = { event: item.event, sequence: String(item.sequence) };
-  for (const [key, value] of Object.entries(item.data)) {
-    if (!allowed.has(key) || value === null || value === undefined) continue;
-    const text = typeof value === "string" ? value : typeof value === "number" || typeof value === "boolean" ? String(value) : "";
-    if (text) data[key] = text.slice(0, 160);
-  }
-  return data;
-}
-
-function executionDataValue(item: StudioTraceItem, keys: string[]) {
-  return keys.map((key) => item.data[key]).find((value): value is string => typeof value === "string" && value.length > 0);
-}
-
-function executionIdentity(item: StudioTraceItem) {
-  return [
-    item.id,
-    executionDataValue(item, ["operationId", "operation_id", "event_id", "eventId", "journal_sequence"]),
-  ].filter((value): value is string => Boolean(value));
-}
-
-function configuredNodeForTrace(item: StudioTraceItem, configuredNodes: StudioGraphNode[]) {
-  const coreMatch = Object.entries(coreEventMatchers).find(([, matcher]) => matcher(item));
-  if (coreMatch && configuredNodes.some((node) => node.id === coreMatch[0])) return coreMatch[0];
-  const capabilityMatch = configuredNodes.find((node) => {
-    const matchKeys = typeof node.data.matchKeys === "string" ? node.data.matchKeys.split(" · ") : [];
-    return matchKeys.length > 0 && matchesCapability(item, matchKeys);
-  });
-  if (capabilityMatch) return capabilityMatch.id;
-  const kind = executionKind(item);
-  return configuredNodes.find((node) => node.kind === kind && node.configured)?.id;
-}
-
-function projectExecutionGraph(trace: StudioTraceItem[], configuredNodes: StudioGraphNode[] = []): { nodes: StudioGraphNode[]; edges: StudioGraphEdge[] } {
-  const nodes = trace.map((item, index) => ({
-    id: `execution:${item.id}`,
-    label: item.label,
-    detail: item.detail,
-    kind: executionKind(item),
-    status: statusForEvent(item),
-    configured: false,
-    scope: "selected run",
-    event: item.event,
-    configuredNodeId: configuredNodeForTrace(item, configuredNodes),
-    data: safeExecutionData(item),
-    position: { x: 44 + (index % 6) * 154, y: 84 + Math.floor(index / 6) * 112 },
-    evidence: { id: item.id, event: item.event, sequence: item.sequence, detail: item.detail },
-  } satisfies StudioGraphNode));
-  const edges: StudioGraphEdge[] = [];
-  const edgeKeys = new Set<string>();
-  const addEdge = (source: string, target: string, relation: string, dashed = false) => {
-    if (source === target) return;
-    const key = `${source}:${target}:${relation}`;
-    if (edgeKeys.has(key)) return;
-    edgeKeys.add(key);
-    edges.push({
-      id: `execution:${key}`,
-      source,
-      target,
-      sourceAnchor: "right",
-      targetAnchor: "left",
-      dashed,
-      relation,
-    });
-  };
-  for (let index = 0; index < nodes.length; index += 1) {
-    const node = nodes[index]!;
-    const item = trace[index]!;
-    const previous = nodes[index - 1];
-    if (previous) addEdge(previous.id, node.id, "sequence", node.status === "waiting" || node.status === "error");
-
-    const causationReference = executionDataValue(item, ["causationId", "causation_id"]);
-    const parentReference = executionDataValue(item, ["parentOperationId", "parent_operation_id", "parentEventId", "parent_event_id"]) ?? causationReference;
-    if (parentReference) {
-      const parentIndex = trace.slice(0, index).findLastIndex((candidate) => executionIdentity(candidate).includes(parentReference));
-      if (parentIndex >= 0) addEdge(nodes[parentIndex]!.id, node.id, causationReference === parentReference ? "causation" : "parent", true);
-    }
-
-    const operationId = executionDataValue(item, ["operationId", "operation_id"]);
-    const retryCount = executionDataValue(item, ["retryCount", "retry_count"]);
-    if (operationId && (item.event.includes("retry") || Number(retryCount) > 0)) {
-      const retryIndex = trace.slice(0, index).findLastIndex((candidate) => executionDataValue(candidate, ["operationId", "operation_id"]) === operationId);
-      if (retryIndex >= 0) addEdge(nodes[retryIndex]!.id, node.id, "retry", true);
-    }
-
-    const branchReference = executionDataValue(item, ["branchId", "branch_id", "parallelGroup", "parallel_group"]);
-    if (branchReference) {
-      const branchIndex = trace.slice(0, index).findLastIndex((candidate) => executionDataValue(candidate, ["branchId", "branch_id", "parallelGroup", "parallel_group"]) === branchReference);
-      if (branchIndex >= 0 && branchIndex !== index - 1) addEdge(nodes[branchIndex]!.id, node.id, "parallel", true);
-    }
-  }
-  return { nodes, edges };
-}
-
 function labelForCapability(name: string) {
   const last = name.split(/[.:/]/).at(-1) ?? name;
   return last.replaceAll("_", " ").replaceAll("-", " ").replace(/\b\w/g, (character) => character.toUpperCase());
@@ -316,6 +218,7 @@ function capabilityNode(input: {
   data: Record<string, string>;
   index: number;
   names: string[];
+  activity?: StudioNodeActivity;
   evidence?: StudioGraphNode["evidence"];
 }) : StudioGraphNode {
   return {
@@ -337,6 +240,7 @@ function capabilityNode(input: {
       matchKeys: input.names.join(" · "),
     },
     position: capabilityPosition(input.index),
+    ...(input.activity ? { activity: input.activity } : {}),
     evidence: input.evidence,
   };
 }
@@ -356,7 +260,8 @@ export function projectStudioObservatory(input: ProjectionInput): StudioObservat
       if (effective.model.error) data.error = effective.model.error;
     }
     if (definition.id === "router" && effective) data.capabilities = `${effective.tools.length} tools · ${effective.skills.length} skills · ${effective.remoteMcpProviders.length} MCP`;
-    const evidence = coreEventMatchers[definition.id] ? input.trace.filter(coreEventMatchers[definition.id]).at(-1) : undefined;
+    const matchingTrace = coreEventMatchers[definition.id] ? input.trace.filter(coreEventMatchers[definition.id]) : [];
+    const evidence = matchingTrace.at(-1);
     const memory = definition.id === "memory-read"
       ? latestMemoryEvidence(input.memory, ["retrieval_plan", "evidence"])
       : definition.id === "retrieval"
@@ -369,6 +274,7 @@ export function projectStudioObservatory(input: ProjectionInput): StudioObservat
       status: configUnavailable ? "unavailable" : statusForCore(definition.id, input.trace),
       label: definition.id === "model" ? effective?.model.model ?? input.modelLabel ?? definition.label : definition.label,
       data,
+      ...(activityForTrace(matchingTrace) ? { activity: activityForTrace(matchingTrace) } : {}),
       evidence: evidence || memory ? {
         id: evidence?.id ?? memory?.id ?? "memory",
         event: evidence?.event ?? "memory.observatory",
@@ -380,8 +286,7 @@ export function projectStudioObservatory(input: ProjectionInput): StudioObservat
   });
 
   if (!effective || configUnavailable) {
-    const execution = projectExecutionGraph(input.trace, coreNodes);
-    return { nodes: coreNodes, edges: buildEdges(coreNodes, []), executionNodes: execution.nodes, executionEdges: execution.edges };
+    return { nodes: coreNodes, edges: buildEdges(coreNodes, []) };
   }
 
   const capabilityByName = new Map((input.capabilities ?? []).map((capability) => [normalized(capability.name), capability]));
@@ -395,6 +300,7 @@ export function projectStudioObservatory(input: ProjectionInput): StudioObservat
   for (const tool of effective.tools) {
     const metadata = capabilityByName.get(normalized(tool));
     const provider = metadata?.catalog?.provider?.name;
+    const activity = activityForTrace(input.trace.filter((item) => matchesCapability(item, [tool, metadata?.name ?? ""])));
     capabilityNodes.push(capabilityNode({
       id: `tool:${tool}`,
       label: labelForCapability(tool),
@@ -412,12 +318,14 @@ export function projectStudioObservatory(input: ProjectionInput): StudioObservat
       },
       index: index++,
       names: [tool, metadata?.name ?? ""],
+      activity,
       evidence: latestCapabilityEvidence(input.trace, [tool, metadata?.name ?? ""], input.operations),
     }));
   }
 
   for (const connector of effective.connectors) {
     const metadata = connectionByName.get(normalized(connector));
+    const activity = activityForTrace(input.trace.filter((item) => matchesCapability(item, [connector, metadata?.id ?? "", metadata?.name ?? ""])));
     capabilityNodes.push(capabilityNode({
       id: `connector:${connector}`,
       label: metadata?.name ?? labelForCapability(connector),
@@ -430,11 +338,13 @@ export function projectStudioObservatory(input: ProjectionInput): StudioObservat
       data: { connection: connector, readiness: metadata?.status ?? "declared", auth: metadata?.auth ?? "managed" },
       index: index++,
       names: [connector, metadata?.id ?? "", metadata?.name ?? ""],
+      activity,
       evidence: latestCapabilityEvidence(input.trace, [connector, metadata?.id ?? "", metadata?.name ?? ""], input.operations),
     }));
   }
 
   for (const skill of effective.skills) {
+    const activity = activityForTrace(input.trace.filter((item) => matchesCapability(item, [skill.id, skill.name, skill.slug])));
     capabilityNodes.push(capabilityNode({
       id: `skill:${skill.id}`,
       label: skill.name || skill.slug,
@@ -446,11 +356,13 @@ export function projectStudioObservatory(input: ProjectionInput): StudioObservat
       data: { skill: skill.slug, version: String(skill.versionNumber), checksum: skill.checksum, required: `${skill.requiredCapabilities.length} capabilities` },
       index: index++,
       names: [skill.id, skill.name, skill.slug],
+      activity,
       evidence: latestCapabilityEvidence(input.trace, [skill.id, skill.name, skill.slug], input.operations),
     }));
   }
 
   for (const provider of effective.remoteMcpProviders) {
+    const activity = activityForTrace(input.trace.filter((item) => matchesCapability(item, [provider.id, provider.providerName])));
     capabilityNodes.push(capabilityNode({
       id: `mcp:${provider.id}`,
       label: provider.providerName,
@@ -463,6 +375,7 @@ export function projectStudioObservatory(input: ProjectionInput): StudioObservat
       data: { provider: provider.providerName, revision: String(provider.revision), tools: String(provider.toolCount), checksum: provider.checksum },
       index: index++,
       names: [provider.id, provider.providerName],
+      activity,
       evidence: latestCapabilityEvidence(input.trace, [provider.id, provider.providerName], input.operations),
     }));
   }
@@ -483,8 +396,7 @@ export function projectStudioObservatory(input: ProjectionInput): StudioObservat
   }
 
   const nodes = [...coreNodes, ...capabilityNodes];
-  const execution = projectExecutionGraph(input.trace, nodes);
-  return { nodes, edges: buildEdges(nodes, capabilityNodes), executionNodes: execution.nodes, executionEdges: execution.edges };
+  return { nodes, edges: buildEdges(nodes, capabilityNodes) };
 }
 
 function buildEdges(nodes: StudioGraphNode[], capabilityNodes: StudioGraphNode[]): StudioGraphEdge[] {

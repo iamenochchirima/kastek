@@ -8,7 +8,7 @@ description: Standalone Studio plan for visualising context, memory, capabilitie
 
 # Studio runtime observatory and promotion update
 
-**Status:** Observatory UI, runtime evidence links, recovery controls, and Live identity slice implemented; broader promotion and runtime proof work remains
+**Status:** Observatory UI and runtime evidence links implemented; persistent live execution overlay is being corrected; broader promotion and runtime proof work remains
 
 **Owner:** Agent Platform and Studio
 
@@ -229,6 +229,23 @@ surface before the runtime projection is wired in:
 - [x] Replace the representative graph with the effective candidate and extension snapshot.
 - [x] Attach timeline items and operation evidence from durable journal records, with scoped memory observatory and selected-revision lineage summaries.
 - [x] Add readiness states and the existing authorized configuration recovery action from backend contracts.
+
+### UI correction: persistent topology with live execution overlay
+
+The graph is the primary execution surface. It remains mounted while a run is active and shows
+the configured base stages plus the selected agent's capabilities. Runtime evidence changes node
+state in place and records repeated visits to the same stage as activity counts and ordered run
+items. The UI must not replace the base graph with a second "Run" graph or require a graph-mode
+button to inspect live work.
+
+- [x] Remove the topology/run graph switch from the observatory header.
+- [x] Keep the configured core and capability nodes mounted before, during, and after a run.
+- [x] Overlay live status and repeated-stage counts on configured nodes, including repeated context,
+  memory, retrieval, model, tool, and connector work.
+- [x] Keep the ordered run activity view as a compact Waku-style receipt linked to graph nodes;
+  raw journal metadata remains secondary evidence rather than the hero surface.
+- [ ] Add richer backend-projected wave timing and parallel-branch grouping when the runtime
+  projection exposes those measurements consistently.
 
 This slice is a preview surface, not a second execution engine. It does not create runs, infer
 events from chat text, or persist configuration from node selection.

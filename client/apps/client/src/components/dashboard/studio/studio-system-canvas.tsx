@@ -42,6 +42,22 @@ import { cn } from "@/lib/utils";
 
 export type StudioGraphStatus = "idle" | "ready" | "running" | "complete" | "error" | "waiting" | "blocked" | "unavailable" | "skipped";
 
+export type StudioNodeActivity = {
+  count: number;
+  running: number;
+  complete: number;
+  waiting: number;
+  errors: number;
+  latest: {
+    id: string;
+    event: string;
+    label: string;
+    detail: string;
+    status: "pending" | "running" | "complete" | "error";
+    sequence: number;
+  };
+};
+
 export type StudioGraphNode = {
   id: string;
   label: string;
@@ -56,6 +72,7 @@ export type StudioGraphNode = {
   configuredNodeId?: string;
   data: Record<string, string>;
   position?: XYPosition;
+  activity?: StudioNodeActivity;
   evidence?: {
     id: string;
     event: string;
@@ -76,7 +93,6 @@ type StudioCanvasProps = {
   traceCount: number;
   edges?: StudioGraphEdge[];
   storageKey?: string;
-  graphMode?: "topology" | "execution";
 };
 
 type CanvasNodeData = StudioGraphNode & Record<string, unknown>;
@@ -232,10 +248,14 @@ function ObservatoryNode({ data, selected }: NodeProps<CanvasNode>) {
   const trigger = data.kind === "input";
   const decision = data.kind === "router";
   const label = displayNodeLabel(data);
+  const activity = data.activity;
+  const showActivityBadge = Boolean(activity && (activity.count > 1 || activity.latest.status === "running" || activity.latest.status === "error"));
+  const activityBadge = showActivityBadge ? <span className={cn("inline-flex min-w-5 items-center justify-center rounded-full border px-1 py-0.5 text-[8px] font-semibold shadow-lg", activity?.latest.status === "error" ? "border-destructive/50 bg-destructive/15 text-destructive" : activity?.latest.status === "running" ? "border-primary/50 bg-primary/15 text-primary" : "border-emerald-500/50 bg-emerald-500/15 text-emerald-500")} title={`${activity?.count} observed execution ${activity?.count === 1 ? "item" : "items"}`}>×{activity?.count}</span> : null;
   const labelView = <span className="flex max-w-full items-center justify-center gap-1"><span className="max-w-[116px] truncate text-[9px] font-medium text-foreground">{label}</span><span className={cn("size-1.5 shrink-0 rounded-full", nodeStatusDot(data.status))} title={graphStatusLabel(data.status)} /></span>;
 
   if (compact || trigger || (!model && !decision)) {
     return <div className={cn("relative flex h-full w-full flex-col items-center gap-1", isMovableNode(data) && "cursor-grab active:cursor-grabbing", selected && "rounded-xl ring-2 ring-primary/35")}>
+      {activityBadge ? <span className="absolute -right-2 -top-2 z-20">{activityBadge}</span> : null}
       <span className={cn("flex size-11 shrink-0 items-center justify-center border shadow-[0_8px_20px_-15px_rgba(0,0,0,.9)]", trigger || ["channel", "session", "context", "approval", "handoff", "output", "delivery"].includes(data.kind) ? "rounded-xl" : "rounded-full", status.icon, status.border, data.status === "running" && "shadow-[0_0_22px_-8px_color-mix(in_srgb,var(--primary)_80%,transparent)]")}>{nodeIcon(data.kind)}</span>
       {labelView}
     </div>;
@@ -243,12 +263,14 @@ function ObservatoryNode({ data, selected }: NodeProps<CanvasNode>) {
 
   if (decision) {
     return <div className={cn("relative h-full w-full", selected && "rounded-xl ring-2 ring-primary/35")}>
+      {activityBadge ? <span className="absolute right-2 top-0 z-20">{activityBadge}</span> : null}
       <span className={cn("absolute left-1/2 top-[37%] flex size-10 -translate-x-1/2 -translate-y-1/2 rotate-45 items-center justify-center rounded-lg border bg-[#222c41]/95", status.border, status.icon)}><span className="-rotate-45">{nodeIcon(data.kind)}</span></span>
       <span className="absolute inset-x-0 bottom-0">{labelView}</span>
     </div>;
   }
 
   return <div className={cn("relative flex h-full w-full flex-col items-center gap-1", selected && "rounded-xl ring-2 ring-primary/35")}>
+    {activityBadge ? <span className="absolute -right-2 -top-2 z-20">{activityBadge}</span> : null}
     <div className="flex h-[72px] w-full shrink-0 items-center justify-center rounded-xl border bg-[#f6f8fc]/95 shadow-[0_8px_24px_-18px_rgba(0,0,0,.9)] transition-all dark:bg-[#222c41]/95"><span className="flex size-9 items-center justify-center rounded-lg bg-primary/15 text-primary">{nodeIcon(data.kind)}</span></div>
     {labelView}
   </div>;
@@ -260,10 +282,8 @@ function createCanvasNodes(nodes: StudioGraphNode[], selectedNodeId: string | nu
   ];
 }
 
-function ObservatorySectionFrames({ graphMode }: { graphMode: "topology" | "execution" }) {
-  const frames = graphMode === "execution"
-    ? [{ id: "execution", title: "DURABLE EXECUTION", detail: "Journal items and causal relationships", x: 32, y: 40, width: 960, height: 720 }]
-    : sectionFrames;
+function ObservatorySectionFrames() {
+  const frames = sectionFrames;
   return <ViewportPortal>
     <svg aria-hidden="true" className="pointer-events-none absolute left-0 top-0 z-0 overflow-visible" width="1000" height="760" viewBox="0 0 1000 760">
       {frames.map((section) => <g key={section.id}>
@@ -335,7 +355,7 @@ function ObservatoryLinks({ nodes, positions, edges }: { nodes: StudioGraphNode[
 
 const observatoryNodeTypes = { observatory: ObservatoryNode };
 
-export function StudioSystemCanvas({ nodes, selectedNodeId, onSelect, running, traceCount, edges = edgeDefinitions, storageKey, graphMode = "topology" }: StudioCanvasProps) {
+export function StudioSystemCanvas({ nodes, selectedNodeId, onSelect, running, traceCount, edges = edgeDefinitions, storageKey }: StudioCanvasProps) {
   const layoutStorageKey = storageKey ? `${storageKey}:compact-v1` : undefined;
   const [positions, setPositions] = useState<Record<string, XYPosition>>(() => Object.fromEntries(nodes.map((node) => [node.id, node.position ?? nodePositions[node.id] ?? { x: 0, y: 0 }])));
   const [positionsLoaded, setPositionsLoaded] = useState(!layoutStorageKey);
@@ -409,7 +429,7 @@ export function StudioSystemCanvas({ nodes, selectedNodeId, onSelect, running, t
   }
   return <div className="relative h-full min-h-[560px] w-full overflow-hidden bg-[#141a29] [&_.react-flow__attribution]:bg-transparent [&_.react-flow__attribution]:text-muted-foreground/50 [&_.react-flow__controls]:overflow-hidden [&_.react-flow__controls]:rounded-lg [&_.react-flow__controls]:border-border/70 [&_.react-flow__controls-button]:border-border/70 [&_.react-flow__controls-button]:bg-card/90 [&_.react-flow__controls-button]:fill-muted-foreground [&_.react-flow__minimap]:overflow-hidden [&_.react-flow__minimap]:rounded-lg [&_.react-flow__minimap]:border [&_.react-flow__minimap]:border-border/70 [&_.react-flow__minimap]:bg-card/90">
     <ReactFlow nodes={canvasNodes} edges={[]} nodeTypes={observatoryNodeTypes} onNodesChange={handleNodesChange} onNodeClick={(_, node) => onSelect(node.id)} fitView fitViewOptions={{ padding: 0.08, minZoom: 0.62, maxZoom: 0.92 }} minZoom={0.45} maxZoom={1.6} nodesDraggable nodesConnectable={false} elementsSelectable panOnScroll zoomOnScroll zoomOnPinch selectionOnDrag={false}>
-      <ObservatorySectionFrames graphMode={graphMode} />
+      <ObservatorySectionFrames />
       <ObservatoryLinks nodes={nodes} positions={positions} edges={edges} />
       <Controls
         showInteractive={false}
@@ -435,7 +455,7 @@ export function StudioSystemCanvas({ nodes, selectedNodeId, onSelect, running, t
         position="bottom-right"
       />
       <Panel position="top-left" className="!m-4 flex items-center gap-3 rounded-lg border border-border/70 bg-card/90 px-3 py-2 text-[10px] text-muted-foreground shadow-lg backdrop-blur">
-        <span className="inline-flex items-center gap-1.5 font-semibold text-foreground"><Workflow className="size-3.5 text-primary" />{graphMode === "execution" ? "Generated execution" : "System topology"}</span>
+        <span className="inline-flex items-center gap-1.5 font-semibold text-foreground"><Workflow className="size-3.5 text-primary" />System topology</span>
         <span>{nodes.length} nodes</span>
         <span className="text-border">•</span>
         <span>{traceCount ? `${traceCount} events` : "Ready"}</span>
