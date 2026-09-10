@@ -2732,10 +2732,68 @@ export default function InboxPageClient({
             "min-h-0 shrink-0 flex-col border-r border-border bg-card",
             mobileConversationOpen ? "hidden md:flex" : "flex w-full",
             selectedChannel === "email"
-              ? "md:w-[440px] lg:w-[500px]"
+              ? "md:w-[680px] lg:w-[760px]"
               : "md:w-[340px] lg:w-[380px]",
           )}
         >
+          <div className="flex min-h-0 flex-1">
+            {selectedChannel === "email" ? (
+              <aside className="hidden w-40 shrink-0 flex-col border-r border-border bg-background/30 p-2 md:flex">
+                <p className="px-2 py-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                  Mailbox
+                </p>
+                {[
+                  { id: "all", label: "Inbox", count: liveConversations.filter((conversation) => conversation.channel === "email").length },
+                  { id: "unread", label: "Unread", count: liveConversations.filter((conversation) => conversation.channel === "email" && conversation.unread).length },
+                  { id: "starred", label: "Starred", count: liveConversations.filter((conversation) => conversation.channel === "email" && conversation.starred).length },
+                ].map((folder) => (
+                  <button
+                    key={folder.id}
+                    type="button"
+                    onClick={() => {
+                      setFilter(folder.id);
+                      setSelectedConversationId(null);
+                      setMobileConversationOpen(false);
+                    }}
+                    className={cn(
+                      "flex items-center justify-between rounded-md px-2 py-2 text-left text-xs transition-colors",
+                      filter === folder.id
+                        ? "bg-secondary font-medium text-foreground"
+                        : "text-muted-foreground hover:bg-secondary hover:text-foreground",
+                    )}
+                  >
+                    <span>{folder.label}</span>
+                    {folder.count > 0 ? <span className="tabular-nums">{folder.count}</span> : null}
+                  </button>
+                ))}
+                <div className="mt-4 border-t border-border pt-3">
+                  <p className="px-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                    Mailboxes
+                  </p>
+                  <div className="mt-2 space-y-1">
+                    {emailConnectedConnections.map((connection) => (
+                      <button
+                        key={connection.id}
+                        type="button"
+                        onClick={() => {
+                          setSelectedConnectionId(connection.id);
+                          setSelectedConversationId(null);
+                          setMobileConversationOpen(false);
+                        }}
+                        className={cn(
+                          "w-full truncate rounded-md px-2 py-1.5 text-left text-[11px] text-muted-foreground hover:bg-secondary hover:text-foreground",
+                          selectedConnectionId === connection.id && "bg-secondary text-foreground",
+                        )}
+                        title={connection.emailAddress}
+                      >
+                        {connection.emailAddress}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </aside>
+            ) : null}
+            <div className="flex min-w-0 flex-1 flex-col">
           <div className="border-b border-border p-3 sm:p-4">
             <div className="mb-3 flex items-center justify-between gap-3">
               <p className="text-sm font-semibold text-foreground">
@@ -2782,12 +2840,18 @@ export default function InboxPageClient({
             <div className="relative">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
-                placeholder="Search conversations..."
+                placeholder={selectedChannel === "email" ? "Search mail..." : "Search conversations..."}
                 className="border-border bg-secondary pl-9"
               />
             </div>
 
-            <div className="mt-3 flex items-center gap-1 overflow-x-auto" aria-label="Conversation filters">
+            <div
+              className={cn(
+                "mt-3 flex items-center gap-1 overflow-x-auto",
+                selectedChannel === "email" && "md:hidden",
+              )}
+              aria-label="Conversation filters"
+            >
               {[
                 { id: "all", label: selectedChannel === "email" ? "Inbox" : "All" },
                 { id: "unread", label: "Unread" },
@@ -2853,57 +2917,46 @@ export default function InboxPageClient({
 
                   if (conversation.channel === "email") {
                     return (
-                      <button
+                      <div
                         key={conversation.id}
-                        type="button"
-                        onClick={() => openConversation(conversation.id)}
                         className={cn(
-                          "group flex w-full items-start gap-3 border-b border-border/70 px-3 py-3.5 text-left transition-colors",
+                          "group flex w-full items-center gap-2 border-b border-border/70 px-2.5 py-2 text-left transition-colors",
                           selectedConversation?.id === conversation.id
                             ? "bg-primary/10"
                             : "hover:bg-secondary/70",
                         )}
                       >
-                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border bg-secondary text-muted-foreground">
-                          <Mail className="h-4 w-4" />
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-2">
-                            <span
-                              className={cn(
-                                "min-w-0 flex-1 truncate text-sm",
-                                conversation.unread
-                                  ? "font-semibold text-foreground"
-                                  : "text-foreground",
-                              )}
-                            >
-                              {conversation.emailFrom || conversation.name}
-                            </span>
-                            <span className="shrink-0 text-[11px] text-muted-foreground">
-                              {formatConversationTime(conversation.time)}
-                            </span>
-                          </div>
-                          <p
+                        <span className="h-4 w-4 shrink-0 rounded border border-muted-foreground/50" />
+                        <span
+                          aria-hidden="true"
+                          className="shrink-0 rounded p-1 text-muted-foreground"
+                        >
+                          <Star className={cn("h-4 w-4", conversation.starred && "fill-primary text-primary")} />
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => openConversation(conversation.id)}
+                          className="flex min-w-0 flex-1 items-center gap-2 text-left"
+                        >
+                          <span
                             className={cn(
-                              "mt-1 truncate text-sm",
-                              conversation.unread
-                                ? "font-semibold text-foreground"
-                                : "text-foreground",
+                              "w-[30%] min-w-[110px] truncate text-sm",
+                              conversation.unread ? "font-semibold text-foreground" : "text-foreground",
                             )}
                           >
-                            {conversation.emailSubject || "(no subject)"}
-                          </p>
-                          <p className="mt-0.5 truncate text-xs text-muted-foreground">
-                            {conversation.lastMessage}
-                          </p>
-                          <div className="mt-1 flex items-center gap-2 text-[10px] text-muted-foreground">
-                            <span className="truncate">{conversation.connectionLabel}</span>
-                            {conversation.unread ? (
-                              <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />
-                            ) : null}
-                          </div>
-                        </div>
-                      </button>
+                            {conversation.emailFrom || conversation.name}
+                          </span>
+                          <span className="min-w-0 flex-1 truncate text-sm">
+                            <span className={conversation.unread ? "font-semibold text-foreground" : "text-foreground"}>
+                              {conversation.emailSubject || "(no subject)"}
+                            </span>
+                            <span className="text-muted-foreground"> — {conversation.lastMessage}</span>
+                          </span>
+                          <span className="shrink-0 text-[11px] text-muted-foreground">
+                            {formatConversationTime(conversation.time)}
+                          </span>
+                        </button>
+                      </div>
                     );
                   }
 
@@ -3084,6 +3137,8 @@ export default function InboxPageClient({
               )}
             </div>
           </ScrollArea>
+            </div>
+          </div>
         </div>
 
         <div
