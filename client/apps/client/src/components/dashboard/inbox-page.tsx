@@ -858,6 +858,14 @@ export default function InboxPageClient({
   const emailConnectedConnections = liveEmailConnections.filter(
     (connection) => connection.status === "CONNECTED" && connection.inboxStatus === "ACTIVE",
   );
+  const instagramInboxConnected =
+    channelCounts.instagram.connected ||
+    metaConnections.instagram.length > 0 ||
+    liveConversations.some((conversation) => conversation.channel === "instagram");
+  const facebookInboxConnected =
+    channelCounts.facebook.connected ||
+    metaConnections.facebook.length > 0 ||
+    liveConversations.some((conversation) => conversation.channel === "facebook");
   const emailReadyConnections = liveEmailConnections.filter(emailInboxReady);
   const emailConnectionFilters = useMemo(
     () => [
@@ -929,10 +937,8 @@ export default function InboxPageClient({
         unreadCount: liveConversations.filter(
           (conversation) => conversation.channel === "instagram" && conversation.unread,
         ).length,
-        disabled:
-          !channelCounts.instagram.connected &&
-          !liveConversations.some((conversation) => conversation.channel === "instagram"),
-        connected: channelCounts.instagram.connected,
+        disabled: !instagramInboxConnected,
+        connected: instagramInboxConnected,
       },
       {
         id: "facebook" as const,
@@ -944,13 +950,18 @@ export default function InboxPageClient({
         unreadCount: liveConversations.filter(
           (conversation) => conversation.channel === "facebook" && conversation.unread,
         ).length,
-        disabled:
-          !channelCounts.facebook.connected &&
-          !liveConversations.some((conversation) => conversation.channel === "facebook"),
-        connected: channelCounts.facebook.connected,
+        disabled: !facebookInboxConnected,
+        connected: facebookInboxConnected,
       },
     ],
-    [channelCounts, emailConnectedConnections.length, liveConversations, whatsappUnreadCount],
+    [
+      channelCounts,
+      emailConnectedConnections.length,
+      facebookInboxConnected,
+      instagramInboxConnected,
+      liveConversations,
+      whatsappUnreadCount,
+    ],
   );
 
   const whatsappConnectionFilters = useMemo(
@@ -1066,6 +1077,10 @@ export default function InboxPageClient({
       ? true
       : selectedChannel === "sms"
         ? false
+        : selectedChannel === "instagram"
+          ? instagramInboxConnected
+          : selectedChannel === "facebook"
+            ? facebookInboxConnected
         : channelCounts[selectedChannel].connected;
   const emptyConversationCopy =
     selectedChannel === "instagram"
