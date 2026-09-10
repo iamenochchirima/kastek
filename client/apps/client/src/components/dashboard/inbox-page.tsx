@@ -1558,17 +1558,16 @@ export default function InboxPageClient({
                           : "Not connected"}
                       </p>
                     </div>
-                    {state.connected ? (
-                      <Badge variant="outline">Connected</Badge>
-                    ) : (
+                    <div className="flex items-center gap-2">
+                      {state.connected ? <Badge variant="outline">Connected</Badge> : null}
                       <Button
                         size="sm"
                         variant="outline"
                         onClick={() => startSocialConnection(channel.key)}
                       >
-                        Connect
+                        {state.connected ? "Add" : "Connect"}
                       </Button>
-                    )}
+                    </div>
                   </div>
                 );
               })}
@@ -1593,17 +1592,20 @@ export default function InboxPageClient({
                       : "Google and Microsoft"}
                   </p>
                 </div>
-                {emailConnectedConnections.length > 0 ? (
-                  <Badge variant="outline">
-                    {emailReadyConnections.length === emailConnectedConnections.length
-                      ? "Ready"
-                      : emailConnectedConnections.some((connection) => emailConnectionStatus(connection) === "Needs attention")
-                        ? "Needs attention"
-                        : "Syncing"}
-                  </Badge>
-                ) : (
-                  <Button size="sm" variant="outline" onClick={() => setShowEmailConnectDialog(true)}>Connect</Button>
-                )}
+                <div className="flex items-center gap-2">
+                  {emailConnectedConnections.length > 0 ? (
+                    <Badge variant="outline">
+                      {emailReadyConnections.length === emailConnectedConnections.length
+                        ? "Ready"
+                        : emailConnectedConnections.some((connection) => emailConnectionStatus(connection) === "Needs attention")
+                          ? "Needs attention"
+                          : "Syncing"}
+                    </Badge>
+                  ) : null}
+                  <Button size="sm" variant="outline" onClick={() => setShowEmailConnectDialog(true)}>
+                    {emailConnectedConnections.length > 0 ? "Add" : "Connect"}
+                  </Button>
+                </div>
               </div>
               {emailConnectedConnections.length > 0 ? (
                 <div className="border-t border-border p-2">
