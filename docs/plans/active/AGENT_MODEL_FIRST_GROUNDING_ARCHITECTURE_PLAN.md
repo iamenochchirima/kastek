@@ -201,13 +201,13 @@ The resulting policy is:
 
 | Topic | Decision or question | Owner | Status |
 | --- | --- | --- | --- |
-| Model admission | An admitted run reaches the model; grounding is not a pre-model router. | Agent Platform | Proposed |
-| Callable authority | One scoped registry and immutable effective snapshot own schemas, readiness, and dispatch admission. | Agent Platform | Existing direction; confirm |
-| Live data | The model must use an authorized live-data tool when current connected state is required; postflight rejects unsupported answers. | Agent Platform | Proposed |
-| Grounding fallback | Keep a bounded no-evidence response only as post-model safety for protected factual requests. | Product/Safety | Approval required |
-| Intent heuristics | Keyword sets may inform retrieval/review telemetry but cannot block model/tool selection. | Agent Platform | Proposed |
-| Skills | Native capability-awareness skill is shared by all agents; bodies load progressively and never grant permissions. | Agent Platform | Existing direction; confirm |
-| Deploy lifecycle | Playground changes become Live only through explicit Deploy; versions are pinned and rollback restores the prior snapshot. | Studio/Agent Platform | Existing direction; confirm |
+| Model admission | An admitted run reaches the model; grounding is not a pre-model router. | Agent Platform | Implemented |
+| Callable authority | One scoped registry and immutable effective snapshot own schemas, readiness, and dispatch admission. | Agent Platform | Implemented |
+| Live data | The model must use an authorized live-data tool when current connected state is required; postflight rejects unsupported answers. | Agent Platform | Implemented |
+| Grounding fallback | Keep a bounded no-evidence response only as post-model safety for protected factual requests. | Product/Safety | Implemented |
+| Intent heuristics | Keyword sets may inform retrieval/review telemetry but cannot block model/tool selection. | Agent Platform | Implemented |
+| Skills | Native capability-awareness skill is shared by all agents; bodies load progressively and never grant permissions. | Agent Platform | Implemented |
+| Deploy lifecycle | Playground changes become Live only through explicit Deploy; versions are pinned and rollback restores the prior snapshot. | Studio/Agent Platform | Implemented locally |
 | Rollout | Local-only verification through the existing proxy/tunnel; no hosted staging work in this plan. | Release owner | Decided |
 
 ## Notes and blockers
@@ -234,6 +234,6 @@ The resulting policy is:
 | Analytics events and success metrics | Track `model_call_started/completed`, tool proposal/execution outcomes, post-model grounding review, live-data tool routing, and generic pre-model block count. Success: Calendar requests have model/tool activity; pre-model block count is zero for admitted turns; unsupported factual answers remain bounded. |
 | Logs, metrics, dashboards, and alerts | Structured run/correlation/install/snapshot identifiers, provider/tool names, bounded reason codes, token/latency/status metrics; never log secrets, full messages, or raw provider payloads. Alert on repeated tool failures, loop/limit exits, stale snapshots, and unexpected pre-model skips. |
 | User, API, internal, and operational documentation | Update this plan, the capability lifecycle plan, grounding/runtime runbook, local proxy smoke instructions, and public connection/capability behavior where user-visible. |
-| Validation evidence | To be recorded after approval: focused tests, agent build, local proxy smoke, browser Playground/Live/rollback check, and diff/documentation checks. |
+| Validation evidence | Focused runtime/safety tests, Agent Platform build, local API/Temporal/MCP smoke, and diff/documentation checks passed. Browser Playground/Live/rollback evidence remains a manual follow-up because no browser surface was available in this run. |
 | Rollback or disable plan | Revert the exact runtime release and restore the previous pinned Live candidate if a release is made. Preserve run evidence and never mutate in-flight snapshots. |
 | Post-release review date | Set when the local release ID is assigned. |

@@ -41,9 +41,11 @@ selected evidence into the untrusted context section. Oversized candidates are t
 needed to fit an otherwise empty budget; later candidates are skipped when they would exceed the
 remaining budget. Run-step evidence records counts and ranked IDs/scores without recording the
 retrieved text there. Knowledge retrieval is enabled for factual questions even when conversational
-memory is disabled. Customer-facing factual questions with no selected trusted evidence are stopped
-before the model call, return a deterministic limitation response, and append an
-`agent.grounding.blocked` run event.
+memory is disabled. Retrieval evidence is assembled before the model call, but it does not decide
+whether an otherwise-admitted turn reaches the model. After the shared model/tool loop, the
+grounding review may replace a protected no-evidence factual answer with a deterministic
+limitation response and append an `agent.grounding.reviewed` run event. Tool-backed current-data
+requests are accepted when the trusted tool result is present.
 
 When `EMBEDDINGS_ENABLED=true`, retrieval also uses the released pgvector path. The application
 calls the configured OpenAI-compatible embedding endpoint once for the query, then runs lexical
