@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { applyExecutionStageEvent, createExecutionObservatoryState, type ExecutionStageDescriptor } from "./studio-execution-reducer";
+import { executionEventFromStream } from "./studio-execution-events";
 
 const stages: ExecutionStageDescriptor[] = [
   { stageId: "input", label: "Input", kind: "input", availability: "ready", configured: true },
@@ -27,5 +28,23 @@ assert.equal(state.topology["tool:calendar"].latestError?.code, "CALENDAR_AUTH_E
 
 const replayed = applyExecutionStageEvent(state, { eventId: "e7", cursor: 7, runId: "run-1", type: "stage.failed", stageId: "tool:calendar", operationId: "tool-1" });
 assert.equal(replayed, state);
+
+const timelineReplay = executionEventFromStream({
+  event: "agent.model.started",
+  data: {
+    event_id: "evt-string-cursor",
+    run_id: "run-1",
+    sequence_number: "8",
+    payload: {
+      execution: {
+        stageId: "model",
+        lifecycle: "stage.started",
+        operationId: "model:1",
+      },
+    },
+  },
+});
+assert.equal(timelineReplay?.cursor, 8);
+assert.equal(timelineReplay?.stageId, "model");
 
 console.log("studio execution reducer: ok");

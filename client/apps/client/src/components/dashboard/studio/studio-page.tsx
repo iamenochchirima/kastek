@@ -557,7 +557,7 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
   }, [agent.installation_id, applyConversation, canRun]);
 
   useEffect(() => {
-    if (!canRun || !conversationId) return;
+    if (!canRun || !conversationId || !activeRunId) return;
     let cancelled = false;
     const refreshActiveRun = async () => {
       try {
@@ -575,7 +575,7 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
       cancelled = true;
       window.clearInterval(timer);
     };
-  }, [canRun, conversationId, syncConversationRun]);
+  }, [activeRunId, canRun, conversationId, syncConversationRun]);
 
   useEffect(() => {
     let cancelled = false;

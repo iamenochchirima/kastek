@@ -5,11 +5,16 @@ const knowledgeTerms = new Set([
   "account", "available", "availability", "billing", "contact", "cost", "delivery", "details", "feature", "features", "help", "hours", "information", "location", "offer", "offers", "policy", "policies", "price", "pricing", "product", "products", "refund", "return", "services", "shipping", "support", "warranty",
 ]);
 const effectTerms = new Set(["book", "connect", "create", "delete", "draft", "post", "publish", "retry", "schedule", "send", "update", "upload"]);
+const connectedDataTerms = new Set(["calendar", "calender", "email", "emails", "inbox", "mail", "drive", "file", "files", "document", "documents", "contact", "contacts", "event", "events"]);
 const casualPhrases = new Set(["hi", "hello", "hey", "thanks", "thank you", "ok", "okay", "good morning", "good afternoon", "good evening", "how are you", "how is it going", "what's up"]);
 
 export type AgentIntent = "capability_request" | "knowledge_request" | "memory_request" | "effect_request" | "casual";
 
 function isCapabilityRequestMessage(normalized: string): boolean {
+  const tokens = tokensFor(normalized).map((token) => token.replace(/\?$/u, ""));
+  const asksForConnectedData = tokens.some((token) => connectedDataTerms.has(token))
+    && /\b(?:what|which|show|list|find|search|check|look\s+up|tell\s+me|give\s+me)\b/u.test(normalized);
+  if (asksForConnectedData) return true;
   return /\b(?:what|which|tell me about)\s+(?:can|could|do)\s+you\s+(?:do|help(?:\s+with)?|support)\b/u.test(normalized)
     || /\bwhat\s+(?:are\s+)?(?:the\s+)?(?:other\s+)?things?(?:\s+you)?\s+can(?:\s+you)?\s+(?:do|help(?:\s+with)?)\b/u.test(normalized)
     || /\b(?:what|which)\s+(?:tools?|capabilities?|integrations?|connections?|skills?|services?)\b/u.test(normalized)
