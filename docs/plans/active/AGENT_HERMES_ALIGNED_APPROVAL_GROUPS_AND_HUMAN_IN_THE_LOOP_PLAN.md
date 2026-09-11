@@ -11,8 +11,9 @@
 **Implementation status:** In progress. The durable group schema, repository, batch formation,
 Temporal group signal, group decision API, expiry sweep, and initial Studio/activity controls are
 implemented. The group contract now also covers selected-operation controls, channel approval
-delivery, signal retry, and duplicate-call ordering. PostgreSQL-backed and real-provider verification
-still require the repository's integration database and sandbox credentials.
+delivery, signal retry, duplicate-call ordering, and PostgreSQL-backed 18-operation/concurrent
+decision checks. Real-provider verification still requires sandbox credentials; the remaining scale,
+worker-loss, expiry, and guided Studio checks are listed below.
 
 **Related plans:**
 
@@ -303,15 +304,15 @@ durable fan-out, joins, retries, and result ordering.
 
 ### Unit and repository checks
 
-- [ ] Create one group for 18 distinct calls and verify all 18 exact operation records are attached.
+- [x] Create one group for 18 distinct calls and verify all 18 exact operation records are attached.
 - [ ] Verify a group digest changes when any argument, resource snapshot, capability version, or
       policy revision changes.
 - [ ] Verify approve, reject, expire, cancel, consume, and invalidation transitions reject illegal
       repeats.
-- [ ] Verify concurrent approve requests produce one accepted decision and idempotent responses for
+- [x] Verify concurrent approve requests produce one accepted decision and idempotent responses for
       all duplicates.
 - [ ] Verify stale UI decisions cannot authorize a different group or operation.
-- [ ] Verify selected approval executes only selected operation IDs and returns typed rejection
+- [x] Verify selected approval executes only selected operation IDs and returns typed rejection
       outcomes for the remainder.
 - [ ] Verify credentials, tokens, and unredacted arguments never appear in previews, digests, logs,
       or analytics payloads.
