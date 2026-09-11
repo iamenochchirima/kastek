@@ -25,6 +25,7 @@ own exact identity, authorization, effect receipt, and terminal outcome.
 - `a8e12de3 fix(agents): persist terminal approval outcomes`
 - `846bec0a test(agents): cover approval cancellation outcomes`
 - `de1cde6e test(agents): cover approval group terminal transitions`
+- `373cc46a test(agents): cover approval group rejection API`
 - `5bae705a fix(agents): revalidate approval resources before decision` (also contains unrelated
   pre-staged context changes; do not treat this as an approval-only cherry-pick)
 - `e20f5e10 test(agents): harden approval group decision boundaries`
@@ -96,7 +97,7 @@ session context and compaction in the same worktree.
 - Client build passed after the group client changes.
 - PostgreSQL integration passed: 92/92 tests across approval groups and migration tests, including
   rejected terminal/idempotent decisions and 32/64/128/256-operation persistence/listing.
-- API approval-group tests passed: 9/9, including tenant isolation, stale digest/resource
+- API approval-group tests passed: 10/10, including approval and rejection, tenant isolation, stale digest/resource
   conflicts, expired/cancelled/already-signalled outcomes, 256-operation run-detail history, and
   lifecycle event assertions.
 - The full deterministic Temporal tool-execution suite passed: 21/21, including the
