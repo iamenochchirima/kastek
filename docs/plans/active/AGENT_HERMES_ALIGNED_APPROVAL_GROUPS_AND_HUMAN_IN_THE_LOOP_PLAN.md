@@ -14,10 +14,10 @@ controls are implemented. The group contract now also covers selected-operation 
 approval delivery, signal retry, duplicate-call ordering, historical group summaries, decision-time
 resource revalidation, terminal typed outcomes, lifecycle conflict/resume events, repository scale
 checks, deterministic worker replacement, historical per-operation outcome projections, and
-32/64/128/256-operation Temporal barriers, and bounded approval evidence in public run-event/SSE
-projections, including idempotent group-consumed evidence after durable batch commit. Real-provider verification still requires sandbox
-credentials; lifecycle metrics, migration-state evidence, compatibility cleanup, and guided Studio
-checks remain open.
+32/64/128/256-operation Temporal barriers, bounded approval evidence in public run-event/SSE
+projections, idempotent group-consumed evidence after durable batch commit, and approval lifecycle
+OpenTelemetry metric instruments. Real-provider verification still requires sandbox credentials;
+durable dashboard provisioning, compatibility cleanup, and guided Studio checks remain open.
 
 **Verification boundary:** On 2026-09-11, the real-model Temporal smoke test reached the local
 worker but stopped in the separate context-compaction implementation with
@@ -25,7 +25,9 @@ worker but stopped in the separate context-compaction implementation with
 context-plan blocker, not as approval-group evidence. Approval-specific verification currently
 includes a passing Agents build, 92/92 PostgreSQL approval/migration tests, 9/9 API tests, a
 21/21 full deterministic Temporal suite, including worker replacement while a group was pending and
-32/64/128/256-operation group barriers.
+32/64/128/256-operation group barriers. A disposable fresh database applied all 168 migrations
+through 176. A disposable database seeded with a legacy pending approval row applied 173–176 and
+preserved that row with no approval-group link and no synthetic group.
 
 **Related plans:**
 
@@ -300,15 +302,18 @@ durable fan-out, joins, retries, and result ordering.
 
 Decision-conflict, invalidation, resumed, and idempotently consumed group run events are now
 emitted at the API or durable batch boundary and covered by API/repository tests. The remaining
-release work is lifecycle metadata consistency, metrics, dashboards, and migration evidence.
+release work is lifecycle metadata consistency, durable dashboard/alert provisioning, and hosted
+real-use evidence.
 
 - [x] Emit lifecycle events for group requested, displayed, approved, partially approved, rejected,
       expired, cancelled, invalidated, resumed, consumed, and decision conflict.
 - [ ] Include group ID, run ID, batch ID, plan digest, operation count, selected count, actor,
       policy revision, duration, and bounded error code. Redact arguments and resource data.
-- [ ] Add metrics for approval wait duration, approval-group size, approval decision latency,
-      stale decisions, duplicate decisions, expiry rate, partial approvals, and post-approval
-      provider failures.
+- [x] Add OpenTelemetry metrics for approval wait duration, approval-group size, approval decision
+      latency, stale decisions, duplicate decisions, expiry rate, partial approvals, and
+      post-approval provider failures. The provider-neutral dashboard and alert contract is in
+      [`Agent approval-group observability`](../../internal/operations/agent-approval-observability.md);
+      durable backend provisioning remains a release-environment gate.
 - [x] Update the Temporal recovery runbook with approval-group restart, expiry, stale-plan, and
       partial-success handling.
 - [x] Update the internal execution architecture document and the supported API documentation if
@@ -335,8 +340,9 @@ release work is lifecycle metadata consistency, metrics, dashboards, and migrati
 
 ### PostgreSQL and API integration
 
-- [ ] Apply the additive migration to a fresh database and a database containing legacy approval
-      rows.
+- [x] Apply the additive migration to a fresh database and a database containing legacy approval
+      rows. Both disposable audits reached migration 176; the legacy pending row remained
+      ungrouped after migration 173.
 - [x] Verify active-group uniqueness, complete operation listing, expiry scanning, tenant isolation,
       and decision idempotency under concurrent requests.
 - [x] Verify the run-detail endpoint returns every pending operation, not the newest row only.
@@ -437,15 +443,17 @@ Feature flag or rollout method: Temporal Workflow patch/version gate plus staged
 Analytics events and success metrics: approval-group lifecycle events; success is one accepted group
   decision, zero stale-identity mismatches, one execution per selected operation, and durable resume
   after worker restart
-Logs, metrics, dashboards, and alerts: required for group size, wait duration, stale decisions,
-  expiry, duplicate decisions, partial outcomes, provider failures, and unknown effects; redact all
-  credentials and sensitive arguments
+Logs, metrics, dashboards, and alerts: OpenTelemetry instruments and a provider-neutral dashboard /
+  alert specification are checked in; durable backend provisioning, retention, notification
+  ownership, and hosted signal validation remain release-environment gates. Redact all credentials
+  and sensitive arguments.
 User, API, internal, and operational documentation: update Studio/API approval documentation,
   internal execution architecture, Temporal recovery runbook, and migration/rollback runbook
 Validation evidence: completed unit/redaction/SSE, PostgreSQL concurrency and 32/64/128/256
-  persistence, idempotent consumed-event evidence, 9/9 API, local Temporal 21/21, worker-replacement, expiry, stale-plan, partial
-  provider failure, later-group, and 18-operation checks; real-tool, live Studio scale/reconnect,
-  fresh/legacy migration-state, and guided Studio checks remain pending
+  persistence, idempotent consumed-event evidence, 9/9 API, local Temporal 21/21, worker-replacement,
+  expiry, stale-plan, partial provider failure, later-group, and 18-operation checks; fresh and
+  legacy migration-state audits reached 176. Real-tool, live Studio scale/reconnect, durable
+  telemetry backend, and guided Studio checks remain pending.
 Rollback or disable plan: stop admitting new group-version runs, preserve and drain already-approved
   groups, roll back only at a Temporal-compatible Workflow boundary, and never reopen consumed groups
 Post-release review date: TBD at release time

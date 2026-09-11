@@ -36,6 +36,7 @@ own exact identity, authorization, effect receipt, and terminal outcome.
 - `1901fe5d test(agents): preserve approval sibling failures`
 - `e7c15aa9 test(agents): isolate approval groups across model turns`
 - `331a6cef fix(agents): persist approval group consumed evidence`
+- `1f91e213 feat(agents): instrument approval group lifecycle`
 
 The current branch is `rewrite`. Do not stage all changes: another agent is actively implementing
 session context and compaction in the same worktree.
@@ -71,6 +72,11 @@ session context and compaction in the same worktree.
 - Durable batch commit now carries the approval-group identity on every result and emits one bounded,
   idempotent `agent.approval.group.consumed` run event after the group reaches `consumed`, including
   operation counts, selected IDs, decision actor, expiry, and measured wait duration.
+- Approval lifecycle instrumentation now records bounded requested/displayed/decided/resumed,
+  cancelled/invalidated/expired/consumed counts, group and selected-operation size, wait duration,
+  decision latency, stale/duplicate/conflict outcomes, and post-approval failed/unknown provider
+  outcomes. It does not use group, run, organization, resource, or provider request IDs as metric
+  labels. See [`Agent approval-group observability`](../../internal/operations/agent-approval-observability.md).
 
 ### API, channel, and Studio surface
 
@@ -94,6 +100,9 @@ session context and compaction in the same worktree.
   partial provider failure, and fresh groups on later model turns.
 - `pnpm --dir agents build` passed after the decision-time invalidation and lifecycle changes.
 - Resource-revalidation unit tests passed.
+- Fresh disposable migration audit passed through migration 176 with 168 applied migrations.
+- Legacy disposable migration audit passed through migration 176: a pre-173 pending approval row
+  remained pending with `approval_group_id` null and no synthetic approval group was created.
 
 The real-provider Temporal smoke test reached the local worker but stopped in the separate context
 compaction work with `ContextCompactionError(code=no_progress)` before tool-batch preparation.
@@ -116,14 +125,15 @@ another one. The worker-replacement case is in the same test file and can be sel
 
 ## Immediate next work
 
-1. Complete lifecycle observability: consistent metadata across every group event, metrics,
-   dashboards, and bounded structured logging for wait duration, group size, decision latency,
-   duplicates, expiry, and provider failures. Group-level consumed evidence is implemented and
-   idempotency-tested.
+1. Complete lifecycle observability: make metadata consistent across every group event, provision
+   the documented dashboards/alerts in a durable backend, and validate bounded structured logging
+   and signal delivery in a hosted environment. Metric instruments and group-level consumed evidence
+   are implemented and locally verified.
 2. Run the real-provider/sandbox and guided Studio tracks, including refresh/reconnect, duplicate
    approval clicks, partial provider failure, and provider-state reconciliation.
-3. Add fresh-database, legacy-row, migration, and rollback evidence. Do not remove the legacy
-   single-operation reader until the open Temporal history compatibility window is drained.
+3. Preserve the fresh-database and legacy-row migration evidence, run the rollback drill, and do
+   not remove the legacy single-operation reader until the open Temporal history compatibility
+   window is drained.
 4. Complete the remaining scale evidence at the live Studio surface; API historical projection and
    Temporal barrier handling now pass at 32, 64, 128, and 256 proposals.
 5. Cover remaining approval races and later-barrier behavior: group creation versus decision,
