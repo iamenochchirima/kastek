@@ -28,7 +28,7 @@ runtime/context evidence only, not approval-group evidence, because the fixture 
 approval-free read capability. Approval-specific verification currently includes a passing Agents
 build, 92/92 PostgreSQL approval/migration tests, 10/10 API tests, a 21/21 full deterministic
 Temporal suite, including worker replacement while a group was pending and 32/64/128/256-operation
-group barriers, and a 1/1 opt-in real-provider approval orchestration test using a synthetic
+group barriers, 11/11 API approval-group tests including installation binding, and a 1/1 opt-in real-provider approval orchestration test using a synthetic
 external-effect capability through the actual HTTP decision endpoint. A disposable fresh database applied all 168 migrations through 176. A disposable
 database seeded with a legacy pending approval row applied 173–176 and preserved that row with no
 approval-group link and no synthetic group.

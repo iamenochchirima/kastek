@@ -1147,6 +1147,14 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     if (!active || active.group.run_id !== input.runId) {
       throw Object.assign(new Error("approval_group_not_found"), { statusCode: 404, code: "approval_group_not_found" });
     }
+    const run = await runs.getRun(input.organizationId, input.runId);
+    if (!run) throw Object.assign(new Error("run_not_found"), { statusCode: 404, code: "run_not_found" });
+    // A group is bound to the installation that created its proposals. Keep
+    // the mismatch indistinguishable from a missing group so a caller cannot
+    // use a known group id to probe another installation's run state.
+    if (run.installation_id !== active.group.installation_id) {
+      throw Object.assign(new Error("approval_group_not_found"), { statusCode: 404, code: "approval_group_not_found" });
+    }
     const groupEventPayload = (actor: string, options: {
       selectedCount?: number;
       durationMs?: number;
@@ -1213,8 +1221,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
           decisionLatencyMs: performance.now() - decisionStartedAt,
         });
       }
-      const currentRun = await runs.getRun(input.organizationId, input.runId);
-      if (currentRun?.status === "awaiting_approval") {
+      if (run.status === "awaiting_approval") {
         if (!dependencies.signalApprovalGroup) {
           throw Object.assign(new Error("temporal_not_configured"), { statusCode: 503, code: "temporal_not_configured" });
         }
@@ -1229,8 +1236,6 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       }
       return recordedDecision;
     }
-    const run = await runs.getRun(input.organizationId, input.runId);
-    if (!run) throw Object.assign(new Error("run_not_found"), { statusCode: 404, code: "run_not_found" });
     if (active.group.status === "pending") {
       if (run.status !== "awaiting_approval") {
         throw Object.assign(new Error("run_not_awaiting_approval"), { statusCode: 409, code: "run_not_awaiting_approval" });
@@ -1381,8 +1386,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       // The database decision may commit before the first Temporal signal is
       // delivered. A retry while the run is still paused must resend the same
       // durable command without creating another decision or effect.
-      const currentRun = await runs.getRun(input.organizationId, input.runId);
-      if (currentRun?.status === "awaiting_approval") await signalDecision();
+      if (run.status === "awaiting_approval") await signalDecision();
       recordApprovalGroupDecision({
         outcome: "duplicate",
         operationCount: decision.approvals.length,
