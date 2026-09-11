@@ -170,19 +170,18 @@ describe.skipIf(!runIntegration)("real model approval group through HTTP and Tem
       signalApprovalGroup: (runId, signal) => handle.signal(approvalGroupSignal, signal),
     });
     try {
-      const response = await app.inject({
+      const request = {
         method: "POST",
         url: `/v1/runs/${run.id}/approval-group`,
-        headers: { "x-organization-id": organizationId, "x-actor-id": "approval-operator" },
+        headers: { "x-organization-id": organizationId, "x-actor-id": "approval-operator", "idempotency-key": "real-approval-duplicate" },
         payload: { groupId: active.group.id, planDigest: active.group.plan_digest, decision: "approved" },
-      });
-      expect(response.statusCode).toBe(202);
-      expect(response.json()).toMatchObject({
-        runId: run.id,
-        groupId: active.group.id,
-        status: "approval_group_signalled",
-        decision: "approved",
-      });
+      } as const;
+      const responses = await Promise.all([app.inject(request), app.inject(request)]);
+      expect(responses.map((response) => response.statusCode).sort()).toEqual([200, 202]);
+      expect(responses.map((response) => response.json())).toEqual(expect.arrayContaining([
+        expect.objectContaining({ runId: run.id, groupId: active.group.id, status: "approval_group_signalled", decision: "approved" }),
+        expect.objectContaining({ runId: run.id, groupId: active.group.id, status: "approval_group_already_signalled", decision: "approved" }),
+      ]));
     } finally {
       await app.close();
     }
