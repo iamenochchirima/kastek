@@ -190,8 +190,24 @@ describe("approval-group API", () => {
       expect(response.json()).toMatchObject({ runId, groupId, status: "approval_group_signalled", decision: "approved" });
       expect(fixture.decideGroup).toHaveBeenCalledTimes(1);
       expect(fixture.signalApprovalGroup).toHaveBeenCalledWith(runId, expect.objectContaining({ groupId, planDigest, decision: "approved" }));
-      expect(fixture.appendEvent).toHaveBeenCalledWith(expect.objectContaining({ eventType: "agent.approval.group.approved" }));
-      expect(fixture.appendEvent).toHaveBeenCalledWith(expect.objectContaining({ eventType: "agent.approval.group.resumed" }));
+      expect(fixture.appendEvent).toHaveBeenCalledWith(expect.objectContaining({
+        eventType: "agent.approval.group.approved",
+        payload: expect.objectContaining({
+          approvalGroupId: groupId,
+          runId,
+          batchId: `${runId}:batch:1`,
+          planDigest,
+          policyRevision: "v1",
+          operationCount: 1,
+          selectedCount: 1,
+          actor: "operator-1",
+          approvedBy: "operator-1",
+        }),
+      }));
+      expect(fixture.appendEvent).toHaveBeenCalledWith(expect.objectContaining({
+        eventType: "agent.approval.group.resumed",
+        payload: expect.objectContaining({ operationCount: 1, selectedCount: 1, actor: "operator-1" }),
+      }));
     } finally {
       await fixture.app.close();
     }

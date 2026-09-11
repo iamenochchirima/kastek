@@ -1428,7 +1428,10 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
           ? "agent.approval.group.partially_approved"
           : "agent.approval.group.approved",
         payload: {
-          ...groupEventPayload(decision.group.decided_by ?? input.approvedBy, { durationMs: waitDurationMs }),
+          ...groupEventPayload(decision.group.decided_by ?? input.approvedBy, {
+            selectedCount: decision.group.selected_operation_ids.length,
+            durationMs: waitDurationMs,
+          }),
           selectedOperationIds: decision.group.selected_operation_ids,
           approvedBy: decision.group.decided_by ?? input.approvedBy,
           decision: decision.group.decision,
@@ -1441,7 +1444,10 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       installationId: decision.group.installation_id,
       eventType: "agent.approval.group.resumed",
       payload: {
-        ...groupEventPayload(decision.group.decided_by ?? input.approvedBy, { durationMs: waitDurationMs }),
+        ...groupEventPayload(decision.group.decided_by ?? input.approvedBy, {
+          selectedCount: decision.group.selected_operation_ids.length,
+          durationMs: waitDurationMs,
+        }),
         decision: decision.group.decision,
         selectedOperationIds: decision.group.selected_operation_ids,
       },
