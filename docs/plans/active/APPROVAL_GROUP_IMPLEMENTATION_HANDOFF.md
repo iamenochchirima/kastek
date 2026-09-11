@@ -128,7 +128,7 @@ session context and compaction in the same worktree.
   was aligned with the durable approval-group signal and approval-required operation identity.
   This confirms the approval fan-out/recovery seam locally; it does not replace hosted Studio,
   provider-state, or canonical transcript Track B evidence.
-- The full deterministic Agents suite passed: 1,213 tests in 199 files; 172 integration tests
+- The full deterministic Agents suite passed: 1,215 tests in 199 files; 173 integration tests
   were skipped because their optional service flags were not enabled.
 - `pnpm --dir agents build` passed after the decision-time invalidation and lifecycle changes.
 - Resource-revalidation unit tests passed.
