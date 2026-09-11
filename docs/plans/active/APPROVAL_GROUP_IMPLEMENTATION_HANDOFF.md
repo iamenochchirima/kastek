@@ -113,10 +113,10 @@ session context and compaction in the same worktree.
 - PostgreSQL integration passed: 93/93 tests across approval groups and migration tests, including
   rejected terminal/idempotent decisions, concurrent group creation replay, and
   32/64/128/256-operation persistence/listing.
-- API approval-group tests passed: 14/14, including approval and rejection, tenant isolation,
+- API approval-group tests passed: 15/15, including approval and rejection, tenant isolation,
   installation/run binding, missing-scope rejection, completed-run rejection, stale digest/resource
-  conflicts, expired/cancelled/already-signalled outcomes, 256-operation run-detail history, and
-  lifecycle event assertions.
+  conflicts, expired/cancelled/already-signalled outcomes, group-creation race not-ready handling,
+  256-operation run-detail history, and lifecycle event assertions.
 - Opt-in real-provider approval integration passed: 1/1 through a real configured model, durable
   group creation, the actual HTTP group-decision endpoint, Temporal signal/resume, and one
   synthetic external-effect invocation. It also submits two concurrent decisions and verifies one
@@ -196,8 +196,8 @@ another one. The worker-replacement case is in the same test file and can be sel
    window is drained.
 4. Complete the remaining scale evidence at the live Studio surface; API historical projection and
    Temporal barrier handling now pass at 32, 64, 128, and 256 proposals.
-5. Cover remaining approval races and later-barrier behavior: group creation versus decision,
-   second approval-required segments, later model turns, and approval after completed runs.
+5. Implement and verify bounded session grants only if the policy decision remains in scope; preserve
+   the completed group-creation race, second-segment, later-turn, and completed-run evidence above.
 
 Primary plan:
 `docs/plans/active/AGENT_HERMES_ALIGNED_APPROVAL_GROUPS_AND_HUMAN_IN_THE_LOOP_PLAN.md`
