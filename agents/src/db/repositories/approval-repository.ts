@@ -264,10 +264,25 @@ export class ApprovalRepository {
         `INSERT INTO agent_approval_groups
           (organization_id, installation_id, run_id, batch_id, turn_key, plan_digest, policy_revision, status, expires_at)
          VALUES ($1,$2,$3,$4,$5,$6,$7,'pending',$8)
+         ON CONFLICT (run_id, batch_id, turn_key) DO NOTHING
          RETURNING *`,
         [input.organizationId, input.installationId, input.runId, input.batchId, input.turnKey, planDigest, input.policyRevision, input.expiresAt],
       );
-      const group = normalizeGroup(inserted.rows[0]!);
+      const groupRow = inserted.rows[0] ?? (await client.query<ApprovalGroupRecord>(
+        `SELECT * FROM agent_approval_groups
+         WHERE organization_id = $1 AND run_id = $2 AND batch_id = $3 AND turn_key = $4
+         FOR UPDATE`,
+        [input.organizationId, input.runId, input.batchId, input.turnKey],
+      )).rows[0];
+      if (!groupRow) throw new Error("Approval group conflicts with another active run barrier");
+      const group = normalizeGroup(groupRow);
+      if (!inserted.rows[0]) {
+        if (group.plan_digest !== planDigest || group.policy_revision !== input.policyRevision) {
+          throw new Error("Approval group proposal is stale or conflicts with an existing group");
+        }
+        const approvals = await this.listGroupOperationsWithClient(client, input.organizationId, group.id);
+        return { group, approvals };
+      }
       const approvals: ApprovalRecord[] = [];
       for (const proposal of input.proposals) {
         const result = await client.query<ApprovalRecord>(

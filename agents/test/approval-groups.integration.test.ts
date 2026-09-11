@@ -226,6 +226,26 @@ describe.skipIf(!runIntegration)("durable approval groups (PostgreSQL integratio
     expect((await approvals.getGroup(organizationId, created.group.id))?.selected_operation_ids).toHaveLength(18);
   });
 
+  it("replays one complete group when creation races concurrently", async () => {
+    const runId = await createRun(`create-race-${randomUUID()}`);
+    const input = proposals(18, "create-race");
+    const create = () => approvals.createGroup({
+      organizationId,
+      installationId,
+      runId,
+      batchId: `${runId}:batch:1`,
+      turnKey: "model-turn:1",
+      policyRevision: "v1",
+      expiresAt: new Date(Date.now() + 60_000).toISOString(),
+      proposals: input,
+    });
+    const [first, second] = await Promise.all([create(), create()]);
+    expect(first.group.id).toBe(second.group.id);
+    expect(first.approvals).toHaveLength(18);
+    expect(second.approvals).toHaveLength(18);
+    expect(await approvals.listGroupOperations(organizationId, first.group.id)).toHaveLength(18);
+  });
+
   it("makes rejection terminal and returns an idempotent result for the same decision", async () => {
     const runId = await createRun(`reject-terminal-${randomUUID()}`);
     const created = await approvals.createGroup({
