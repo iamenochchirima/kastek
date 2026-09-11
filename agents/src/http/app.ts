@@ -3048,11 +3048,18 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     requireApiScope(auth, "api:read");
     const run = await runs.getRun(auth.organizationId, request.params.runId);
     if (!run || run.installation_id !== auth.installationId) return reply.code(404).send({ error: "operation_not_found" });
-    const [events, approval] = await Promise.all([
+    const [events, approval, approvalGroup] = await Promise.all([
       runs.listEvents(auth.organizationId, run.id),
       approvals.getForRun(auth.organizationId, run.id),
+      approvals.getActiveGroup(auth.organizationId, run.id),
     ]);
-    return { operationId: run.id, run, approval: publicApprovalStatus(approval), events: events.map(toPublicEvent) };
+    return {
+      operationId: run.id,
+      run,
+      approval: publicApprovalStatus(approval),
+      approvalGroup: publicApprovalGroup(approvalGroup?.group ?? null, approvalGroup?.approvals ?? []),
+      events: events.map(toPublicEvent),
+    };
   });
 
   app.get<{ Params: { installationId: string; runId: string }; Querystring: { after?: string } }>("/v1/installations/:installationId/operations/:runId/events", async (request, reply) => {
@@ -5921,12 +5928,19 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     requireScope(auth, dependencies.config, "runs:read");
     const run = await runs.getRun(auth.organizationId, request.params.runId);
     if (!run) return reply.code(404).send({ error: "run_not_found" });
-    const [events, approval, approvalGroup] = await Promise.all([
+    const [events, approval, approvalGroup, approvalGroups] = await Promise.all([
       runs.listEvents(auth.organizationId, run.id),
       approvals.getForRun(auth.organizationId, run.id),
       approvals.getActiveGroup(auth.organizationId, run.id),
+      approvals.listGroups(auth.organizationId, run.id),
     ]);
-    return { run, approval: publicApprovalStatus(approval), approvalGroup: publicApprovalGroup(approvalGroup?.group ?? null, approvalGroup?.approvals ?? []), events };
+    return {
+      run,
+      approval: publicApprovalStatus(approval),
+      approvalGroup: publicApprovalGroup(approvalGroup?.group ?? null, approvalGroup?.approvals ?? []),
+      approvalGroups: approvalGroups.map((group) => publicApprovalGroup(group)),
+      events,
+    };
   });
 
   app.get<{ Params: { runId: string } }>("/v1/runs/:runId/timeline", async (request, reply) => {

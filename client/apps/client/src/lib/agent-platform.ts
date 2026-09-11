@@ -654,7 +654,7 @@ export function listAgentOperationRuns(limit = 50): Promise<{ runs: AgentOperati
   return request(`/api/agents/operations/runs?limit=${encodeURIComponent(String(limit))}`);
 }
 
-export function getAgentRun(runId: string): Promise<{ run: AgentRun; canApprove?: boolean; approval?: AgentApproval | null; approvalGroup?: AgentApprovalGroup | null; events: AgentOperationEvent[] }> {
+export function getAgentRun(runId: string): Promise<{ run: AgentRun; canApprove?: boolean; approval?: AgentApproval | null; approvalGroup?: AgentApprovalGroup | null; approvalGroups?: AgentApprovalGroup[]; events: AgentOperationEvent[] }> {
   return request(`/api/agents/runs/${encodeURIComponent(runId)}`);
 }
 
@@ -681,9 +681,11 @@ export function decideAgentRunApproval(runId: string, approval: Pick<AgentApprov
   });
 }
 
-export function decideAgentRunApprovalGroup(runId: string, group: Pick<AgentApprovalGroup, "id" | "planDigest">, decision: "approved" | "rejected", selectedOperationIds?: string[]): Promise<{ runId: string; groupId: string; status: string }> {
+export function decideAgentRunApprovalGroup(runId: string, group: Pick<AgentApprovalGroup, "id" | "planDigest">, decision: "approved" | "rejected", selectedOperationIds?: string[], idempotencyKey?: string): Promise<{ runId: string; groupId: string; status: string }> {
+  const decisionKey = idempotencyKey ?? (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function" ? crypto.randomUUID() : `${group.id}:${decision}:${Date.now()}`);
   return request(`/api/agents/runs/${encodeURIComponent(runId)}/approval-group`, {
     method: "POST",
+    headers: { "Idempotency-Key": decisionKey },
     body: JSON.stringify({ groupId: group.id, planDigest: group.planDigest, decision, ...(selectedOperationIds ? { selectedOperationIds } : {}) }),
   });
 }

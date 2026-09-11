@@ -188,6 +188,17 @@ export class ApprovalRepository {
     return { group: normalizeGroup(row), approvals: await this.listGroupOperations(organizationId, row.id) };
   }
 
+  public async listGroups(organizationId: string, runId: string): Promise<ApprovalGroupRecord[]> {
+    const result = await query<ApprovalGroupRecord>(
+      this.pool,
+      `SELECT * FROM agent_approval_groups
+       WHERE organization_id = $1 AND run_id = $2
+       ORDER BY created_at DESC, id DESC`,
+      [organizationId, runId],
+    );
+    return result.rows.map(normalizeGroup);
+  }
+
   public async listGroupOperations(organizationId: string, groupId: string): Promise<ApprovalRecord[]> {
     const result = await query<ApprovalRecord>(
       this.pool,

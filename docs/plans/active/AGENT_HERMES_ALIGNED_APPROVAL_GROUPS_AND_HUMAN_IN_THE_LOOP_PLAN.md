@@ -9,11 +9,12 @@
 **Risk:** High
 
 **Implementation status:** In progress. The durable group schema, repository, batch formation,
-Temporal group signal, group decision API, expiry sweep, and initial Studio/activity controls are
-implemented. The group contract now also covers selected-operation controls, channel approval
-delivery, signal retry, duplicate-call ordering, and PostgreSQL-backed 18-operation/concurrent
-decision checks. Real-provider verification still requires sandbox credentials; the remaining scale,
-worker-loss, expiry, and guided Studio checks are listed below.
+Temporal group signal, group decision API, expiry/invalidation transitions, and Studio/activity
+controls are implemented. The group contract now also covers selected-operation controls, channel
+approval delivery, signal retry, duplicate-call ordering, historical group summaries, and
+PostgreSQL-backed 18-operation/concurrent-decision checks. Real-provider verification still
+requires sandbox credentials; the remaining scale, worker-loss, resource-revalidation, and guided
+Studio checks are listed below.
 
 **Verification boundary:** On 2026-09-11, the real-model Temporal smoke test reached the local
 worker but stopped in the separate context-compaction implementation with
@@ -207,7 +208,7 @@ durable fan-out, joins, retries, and result ordering.
       operation” wording must become “one approval group containing exact per-operation records.”
 - [x] Preserve the existing batch, segment, and runtime operation identities introduced by the
       parallel execution work.
-- [ ] Define the approval state machine and allowed transitions:
+- [x] Define the approval state machine and allowed transitions:
       `pending -> approved | partially_approved | rejected | expired | cancelled | invalidated`,
       followed by `consumed` only after all selected operations have terminal outcomes.
 - [x] Define the compatibility boundary for open Temporal runs before changing the Workflow command
@@ -277,9 +278,9 @@ durable fan-out, joins, retries, and result ordering.
 - [x] Add `POST /v1/runs/:runId/approval-group` with a group decision contract carrying
       `approvalGroupId`, decision scope, expected `planDigest`, selected operation IDs when needed,
       and an idempotency key.
-- [ ] Keep tenant authorization and `runs:approve` enforcement at the group endpoint. Validate that
+- [x] Keep tenant authorization and `runs:approve` enforcement at the group endpoint. Validate that
       the actor can approve the run before accepting the decision.
-- [ ] Return explicit outcomes for approved, already-decided, expired, stale-digest, unauthorized,
+- [x] Return explicit outcomes for approved, already-decided, expired, stale-digest, unauthorized,
       and invalidated requests. A duplicate click must never create a second decision or execution.
 - [x] Build one compact approval card showing the logical action, operation count, affected
       resources, expiry, and expandable per-operation details.
@@ -311,8 +312,8 @@ durable fan-out, joins, retries, and result ordering.
 ### Unit and repository checks
 
 - [x] Create one group for 18 distinct calls and verify all 18 exact operation records are attached.
-- [ ] Verify a group digest changes when any argument, resource snapshot, capability version, or
-      policy revision changes.
+- [x] Verify a group digest changes when reviewed identity or policy revision changes. Resource
+      snapshot and capability-version coverage remains part of the resource-revalidation tests.
 - [ ] Verify approve, reject, expire, cancel, consume, and invalidation transitions reject illegal
       repeats.
 - [x] Verify concurrent approve requests produce one accepted decision and idempotent responses for

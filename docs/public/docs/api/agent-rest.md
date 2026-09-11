@@ -170,8 +170,9 @@ event fields. Persist the cursor and resume from it after reconnecting.
 ### Approval groups
 
 When one model turn proposes multiple approval-required effects, the run pauses with one immutable
-approval group. `GET /v1/installations/{installationId}/operations/{runId}` exposes the complete
-group and its exact child operations. Approve or reject the current group through the Agent
+approval group. `GET /v1/installations/{installationId}/operations/{runId}` exposes the active
+complete group and its exact child operations; the internal run-detail projection also includes
+historical group summaries. Approve or reject the current group through the Agent
 Platform approval endpoint with the expected plan digest and an `Idempotency-Key`; approving a group
 never approves effects proposed by a later model turn.
 
