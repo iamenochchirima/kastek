@@ -436,6 +436,70 @@ describe.skipIf(!runIntegration)("Temporal tool execution reliability (integrati
     expect(transitions).toContain("expired");
   }, 30_000);
 
+  it("commits typed cancelled outcomes for every operation before terminating the run", async () => {
+    const taskQueue = `agent-approval-cancelled-${randomUUID()}`;
+    const workflowId = `agent-run-${randomUUID()}`;
+    const groupId = randomUUID();
+    const planDigest = "c".repeat(64);
+    const calls = Array.from({ length: 4 }, (_, index) => ({
+      ...call(`cancelled-${index + 1}`),
+      name: "records.delete",
+      sequenceNumber: index + 1,
+      approvalGroupId: groupId,
+      approvalPlanDigest: planDigest,
+    }));
+    let paused = false;
+    let cancelledApprovals = 0;
+    const committed: DurableToolCallResult[] = [];
+    const transitions: string[] = [];
+    const activities: AgentRunActivities = {
+      transitionRun: async ({ nextStatus }) => { transitions.push(nextStatus); },
+      waitForConversationTurn: async () => true,
+      getContentPublishBatchStatus: async () => ({ status: "UNAVAILABLE" }),
+      executeLoop: async () => { throw new Error("legacy executeLoop must not run for a new execution"); },
+      executeModelStep: async () => pendingBatchResult(calls),
+      prepareToolBatch: async ({ calls: prepared }) => prepared.map((current) => ({
+        kind: "sequential" as const,
+        segmentId: `batch:segment:${current.id}`,
+        calls: [current],
+      })),
+      executeToolCall: async () => { throw new Error("cancelled approval must not reach the tool Activity"); },
+      commitToolBatch: async ({ results }) => {
+        committed.push(...results);
+        return { status: "committed", toolCalls: results.length };
+      },
+      pauseRun: async () => { paused = true; },
+      deliverApprovalPrompt: async () => undefined,
+      cancelPendingApproval: async () => { cancelledApprovals += 1; },
+      cancelApprovalGroup: async () => undefined,
+      cancelHandoff: async () => undefined,
+      completeRun: async () => undefined,
+      generateConversationTitle: async () => undefined,
+      deliverRunReply: async () => undefined,
+      failRun: async ({ error }) => { throw new Error(String(error.message ?? "workflow failed")); },
+    };
+    const client = await startWorker(taskQueue, activities);
+    const handle = await client.workflow.start(agentRunWorkflow, { taskQueue, workflowId, args: [{ runId: workflowId }] });
+    await new Promise<void>((resolve, reject) => {
+      const deadline = setTimeout(() => reject(new Error("workflow did not pause for cancellable approval group")), 10_000);
+      const timer = setInterval(() => {
+        if (paused) {
+          clearTimeout(deadline);
+          clearInterval(timer);
+          resolve();
+        }
+      }, 50);
+    });
+    await handle.signal(cancellationSignal, { reason: "operator cancelled approval" });
+    await handle.result();
+
+    expect(cancelledApprovals).toBe(4);
+    expect(committed).toHaveLength(4);
+    expect(committed.map((result) => result.id)).toEqual(calls.map((current) => current.id));
+    expect(committed.every((result) => result.status === "blocked" && result.error?.code === "APPROVAL_CANCELLED")).toBe(true);
+    expect(transitions).toContain("cancelled");
+  }, 30_000);
+
   it("commits an unknown post-effect outcome without retrying or replaying the provider call", async () => {
     const taskQueue = `agent-tool-unknown-${randomUUID()}`;
     const workflowId = `agent-run-${randomUUID()}`;
