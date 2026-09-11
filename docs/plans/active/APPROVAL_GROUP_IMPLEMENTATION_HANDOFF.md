@@ -47,6 +47,7 @@ own exact identity, authorization, effect receipt, and terminal outcome.
 - `7a16d52b docs(agents): record installation binding evidence`
 - `e241005f test(agents): cover completed-run approval boundary`
 - `2bbc6e84 test(agents): exercise concurrent approval clicks`
+- `d059da0f docs(agents): record approval race evidence`
 
 The current branch is `rewrite`. Do not stage all changes: another agent is actively implementing
 session context and compaction in the same worktree.
@@ -119,6 +120,10 @@ session context and compaction in the same worktree.
   18-operation group, rejection, invalidation, expiry, cancellation, retry/failure matrix,
   replay, cancellation, history, worker replacement, 32/64/128/256-operation approval groups,
   partial provider failure, and fresh groups on later model turns.
+- The local Temporal recovery and worker-loss matrices passed 19/19 after the recovery fixture
+  was aligned with the durable approval-group signal and approval-required operation identity.
+  This confirms the approval fan-out/recovery seam locally; it does not replace hosted Studio,
+  provider-state, or canonical transcript Track B evidence.
 - The full deterministic Agents suite passed: 1,213 tests in 199 files; 172 integration tests
   were skipped because their optional service flags were not enabled.
 - `pnpm --dir agents build` passed after the decision-time invalidation and lifecycle changes.
