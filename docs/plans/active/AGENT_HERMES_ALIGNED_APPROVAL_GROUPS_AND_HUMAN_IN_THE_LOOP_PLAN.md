@@ -40,6 +40,10 @@ A disposable database seeded with a legacy pending approval row applied 173–17
 row with no approval-group link and no synthetic group. The final local approval/migration run on
 2026-09-12 passed 115/115 tests: 17 PostgreSQL approval-group tests, 17 API tests, 2 pure
 session-grant tests, and 79 migration tests.
+On the same date, the configured-model approval orchestration test passed 1/1 against the local
+Temporal server with duplicate HTTP decisions and one synthetic effect invocation; the companion
+configured-model read-only Temporal test passed 1/1. These tests do not prove state reconciliation
+against a real external provider resource.
 
 **Related plans:**
 
