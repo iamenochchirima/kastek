@@ -28,7 +28,7 @@ an already-fit active projection, and the same real-provider read-only smoke tes
 through local Temporal, model dispatch, durable prepare/execute/commit, and continuation. This is
 runtime/context evidence only, not approval-group evidence, because the fixture uses an
 approval-free read capability. Approval-specific verification currently includes a passing Agents
-build, 93/93 PostgreSQL approval/migration tests, 14/14 API tests, a 22/22 full deterministic
+build, 93/93 PostgreSQL approval/migration tests, 14/14 API tests, a 23/23 full deterministic
 Temporal suite, including worker replacement while a group was pending and 32/64/128/256-operation
 group barriers, 14/14 API approval-group tests including installation/run binding, missing-scope
 rejection, and completed-run rejection, and a 1/1 opt-in
@@ -258,8 +258,10 @@ durable fan-out, joins, retries, and result ordering.
       effect executes.
 - [x] Create one group for the current approval barrier, preserving model order and exact operation
       IDs. Do not create a separate user prompt for every sibling call.
-- [ ] Allow approval-free reads to execute according to the parallel execution plan, but never let
-      an approval-required effect cross its boundary before the group decision.
+- [x] Allow approval-free reads to execute according to the parallel execution plan, but never let
+      an approval-required effect cross its boundary before the group decision. The mixed-batch
+      Temporal regression commits the read before the approval pause and executes the gated effect
+      only after the group decision.
 - [x] Support group approval, group rejection, and approve-selected with explicit operation IDs.
       Unselected operations receive a typed rejected result and cannot execute.
 - [x] Revalidate resources, capability version, policy revision, and arguments at decision and
@@ -412,8 +414,10 @@ open.
 - [x] Verify a later model turn creates a new group and cannot reuse the prior approval.
 - [ ] Verify a bounded session grant matches only its declared capability/resource scope and stops
       matching after expiry.
-- [ ] Verify approval-free read tools execute without a group, while write, external-effect, and
-      privileged tools create a group according to their manifest and policy.
+- [x] Verify approval-free read tools execute without a group, while write, external-effect, and
+      privileged tools create a group according to their manifest and policy. Manifest discovery,
+      installation acceptance, and the mixed Temporal batch boundary cover this locally; the
+      real-provider sandbox remains a release gate.
 - [x] Ensure channel approval prompts address the durable group rather than selecting the newest
       child approval row; channel tokens resolve group IDs and preserve the existing channel security
       binding.
@@ -463,7 +467,7 @@ Logs, metrics, dashboards, and alerts: OpenTelemetry instruments and a provider-
 User, API, internal, and operational documentation: update Studio/API approval documentation,
   internal execution architecture, Temporal recovery runbook, and migration/rollback runbook
 Validation evidence: completed unit/redaction/SSE, PostgreSQL concurrency and 32/64/128/256
-  persistence, idempotent consumed-event evidence, 14/14 API, local Temporal 22/22,
+  persistence, idempotent consumed-event evidence, 14/14 API, local Temporal 23/23,
   local recovery/worker-loss 19/19, worker-replacement,
   expiry, stale-plan, partial provider failure, later-group, 18-operation, and 1/1 synthetic
   real-provider approval-orchestration checks; fresh and legacy migration-state audits reached 176.
