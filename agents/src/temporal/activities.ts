@@ -5741,7 +5741,12 @@ async function executeLoopForRun(
         arguments: proposal.arguments,
         requiresApproval: proposal.requiresApproval,
       });
-      if (proposal.requiresApproval) {
+      // The decomposed Temporal path creates one durable approval group in
+      // prepareToolBatch. Keep the legacy per-operation row only for the
+      // non-decomposed loop; inserting it here would occupy the same
+      // (run_id, runtime_operation_id) identity and make group creation look
+      // like a persistence failure.
+      if (proposal.requiresApproval && !stepExecutionEnabled) {
         await approvals.createPending({
           organizationId: run.organization_id,
           installationId: run.installation_id,
