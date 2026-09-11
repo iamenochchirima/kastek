@@ -101,6 +101,8 @@ export interface DurableToolCall {
   approvalGroupId?: string;
   /** Digest of the exact approval plan reviewed by the human. */
   approvalPlanDigest?: string;
+  /** Bounded reusable approval matched during durable batch preparation. */
+  sessionGrantId?: string;
 }
 
 export interface DurableToolCallResult {

@@ -188,12 +188,18 @@ Content-Type: application/json
   "groupId": "approval-group-uuid",
   "planDigest": "sha256-digest",
   "decision": "approved",
-  "selectedOperationIds": ["runtime-operation-1"]
+  "selectedOperationIds": ["runtime-operation-1"],
+  "grantScope": "once"
 }
 ```
 
 Omit `selectedOperationIds` to approve every operation in the current group. A selected decision
 authorizes only the listed operation IDs; every other child receives a durable denied outcome.
+`grantScope` defaults to `once`. Set it to `session` only when every selected operation has an
+exact resource selector and the run is bound to a conversation. This creates a reusable grant for
+the same actor, installation, capability version, policy revision, and selected resource until its
+bounded expiry; it never authorizes a different resource or a later unscoped action. Session reuse
+is rejected for unscoped operations, non-conversation runs, or rejected decisions.
 The decision is bound to the digest, installation, capability version, arguments hash, and resource
 snapshot. A stale, expired, changed, or unauthorized request fails closed. A changed resource
 invalidates the group before the decision is accepted and returns `409 approval_group_invalidated`;

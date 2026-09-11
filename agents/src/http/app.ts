@@ -179,6 +179,7 @@ import { RuntimeTelemetryAccumulator } from "../runtime/runtime-telemetry";
 import type { PersistedExecutionJournalEvent } from "../journal/contracts";
 import { executionScopeFromRun } from "../runtime/execution-scope";
 import { toolInvocationContextFromScope } from "../tools/types";
+import { approvalSessionKey, type ApprovalSessionResourceSelector } from "../approval/session-grants";
 import { recordApprovalGroupDecision, recordApprovalGroupLifecycle } from "../telemetry/spans";
 
 export interface AppDependencies {
@@ -471,7 +472,7 @@ async function requireHostedResourceScope(
   }
 }
 
-function publicApprovalStatus(approval: { status: string; provider_tool_call_id: string; runtime_operation_id?: string; capability: string; arguments_hash: string; resource_snapshot?: Record<string, unknown>; preview_revision?: string; expires_at: string } | null) {
+function publicApprovalStatus(approval: { status: string; provider_tool_call_id: string; runtime_operation_id?: string; capability: string; arguments_hash: string; resource_snapshot?: Record<string, unknown>; resource_selector?: ApprovalSessionResourceSelector | null; preview_revision?: string; expires_at: string } | null) {
   if (!approval) return null;
   return {
     status: approval.status,
@@ -480,6 +481,7 @@ function publicApprovalStatus(approval: { status: string; provider_tool_call_id:
     capability: approval.capability,
     argumentsHash: approval.arguments_hash,
     resourceSnapshot: approval.resource_snapshot ?? {},
+    ...(approval.resource_selector ? { resourceSelector: approval.resource_selector } : {}),
     previewRevision: approval.preview_revision ?? null,
     expiresAt: approval.expires_at,
   };
@@ -1136,6 +1138,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     planDigest: string;
     decision: "approved" | "rejected";
     selectedOperationIds?: string[];
+    grantScope?: "once" | "session";
     idempotencyKey?: string;
     approvedBy: string;
     rateLimitKey: string;
@@ -1200,6 +1203,13 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     if (active.group.plan_digest !== input.planDigest) {
       await appendDecisionConflict("plan_digest_mismatch");
       throw Object.assign(new Error("approval_group_digest_mismatch"), { statusCode: 409, code: "approval_group_digest_mismatch" });
+    }
+    if (input.grantScope === "session" && input.decision !== "approved") {
+      throw Object.assign(new Error("approval_session_grant_requires_approval"), {
+        statusCode: 409,
+        code: "approval_session_grant_requires_approval",
+        detail: "Session approval reuse is available only for approved operations",
+      });
     }
     // A decision is durable before the Temporal signal is delivered. Once the
     // group is no longer pending, a repeated click must return that recorded
@@ -1356,6 +1366,38 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     }
     let decision;
     try {
+      const sessionGrant = input.grantScope === "session"
+        ? (() => {
+          if (!run.conversation_id) {
+            throw Object.assign(new Error("approval_session_grant_session_required"), {
+              statusCode: 409,
+              code: "approval_session_grant_session_required",
+              detail: "Session approval reuse requires a conversation-bound run",
+            });
+          }
+          const selectedOperationIds = input.selectedOperationIds ?? active.approvals.map((approval) => approval.runtime_operation_id);
+          const selectedApprovals = selectedOperationIds.map((operationId) => active.approvals.find((approval) => approval.runtime_operation_id === operationId));
+          if (selectedApprovals.some((approval) => !approval)) {
+            throw Object.assign(new Error("approval_group_operation_not_found"), { statusCode: 409, code: "approval_group_operation_not_found" });
+          }
+          const selectedRecords = selectedApprovals.filter((approval): approval is ApprovalRecord => Boolean(approval));
+          if (selectedRecords.some((approval) => !approval.resource_selector)) {
+            throw Object.assign(new Error("approval_session_grant_resource_scope_required"), {
+              statusCode: 409,
+              code: "approval_session_grant_resource_scope_required",
+              detail: "Session approval reuse requires an exact resource selector on every selected operation",
+            });
+          }
+          return {
+            sessionKey: approvalSessionKey(active.group.installation_id, run.conversation_id),
+            conversationId: run.conversation_id,
+            actorId: run.created_by,
+            grantedBy: input.approvedBy,
+            expiresAt: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
+            grants: selectedRecords.map((approval) => ({ operationId: approval.runtime_operation_id, resourceSelector: approval.resource_selector! })),
+          };
+        })()
+        : undefined;
       decision = await approvals.decideGroup({
         organizationId: input.organizationId,
         runId: input.runId,
@@ -1365,6 +1407,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
         selectedOperationIds: input.selectedOperationIds,
         approvedBy: input.approvedBy,
         idempotencyKey: input.idempotencyKey,
+        ...(sessionGrant ? { sessionGrant } : {}),
       });
     } catch (error) {
       const code = error instanceof Error ? error.message : "approval_group_not_pending";
@@ -6939,6 +6982,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       planDigest: z.string().length(64),
       decision: z.enum(["approved", "rejected"]),
       selectedOperationIds: z.array(z.string().trim().min(1).max(240)).max(256).optional(),
+      grantScope: z.enum(["once", "session"]).optional().default("once"),
     }).parse(request.body);
     try {
       const result = await decideApprovalGroup({
@@ -6955,6 +6999,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
         status: result.accepted ? "approval_group_signalled" : "approval_group_already_signalled",
         decision: result.group.decision,
         selectedOperationIds: result.group.selected_operation_ids,
+        grantScope: input.grantScope,
         expiresAt: result.group.expires_at,
       });
     } catch (error) {

@@ -8,6 +8,11 @@ import {
   type EffectAnalyticsInput,
 } from "../../analytics";
 import { query, withTransaction } from "../pool";
+import {
+  approvalSessionKey,
+  approvalSessionResourceSelectorsEqual,
+  type ApprovalSessionResourceSelector,
+} from "../../approval/session-grants";
 
 export interface ApprovalRecord {
   id: string;
@@ -15,6 +20,7 @@ export interface ApprovalRecord {
   installation_id: string;
   run_id: string;
   approval_group_id?: string | null;
+  resource_selector?: ApprovalSessionResourceSelector | null;
   provider_tool_call_id: string;
   runtime_operation_id: string;
   capability: string;
@@ -60,6 +66,18 @@ export interface ApprovalGroupDecisionResult {
   accepted: boolean;
 }
 
+interface ApprovalSessionGrantRequest {
+  sessionKey: string;
+  conversationId: string;
+  actorId: string;
+  grantedBy: string;
+  expiresAt: string;
+  grants: Array<{
+    operationId: string;
+    resourceSelector: ApprovalSessionResourceSelector;
+  }>;
+}
+
 export interface ApprovalGroupProposal {
   providerToolCallId: string;
   runtimeOperationId: string;
@@ -70,6 +88,7 @@ export interface ApprovalGroupProposal {
   previewRevision: string;
   policyRevision: string;
   permittedEffectKey: string;
+  resourceSelector?: ApprovalSessionResourceSelector | null;
 }
 
 export interface ApprovalDecisionResult {
@@ -107,6 +126,7 @@ function approvalPlanDigest(proposals: ApprovalGroupProposal[], policyRevision: 
       previewRevision: proposal.previewRevision,
       policyRevision: proposal.policyRevision,
       permittedEffectKey: proposal.permittedEffectKey,
+      ...(proposal.resourceSelector ? { resourceSelector: canonicalize(proposal.resourceSelector) } : {}),
     }))
     // Model order is part of the reviewed batch contract. Keep object keys
     // canonicalized above, but do not sort proposals: a reordered batch must
@@ -287,13 +307,13 @@ export class ApprovalRepository {
       for (const proposal of input.proposals) {
         const result = await client.query<ApprovalRecord>(
           `INSERT INTO agent_approval_records
-            (organization_id, installation_id, run_id, approval_group_id, provider_tool_call_id, runtime_operation_id, capability,
+          (organization_id, installation_id, run_id, approval_group_id, provider_tool_call_id, runtime_operation_id, capability,
              capability_version, arguments_hash, resource_snapshot, preview_revision, policy_revision,
-             permitted_effect_key, status, expires_at)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::jsonb,$11,$12,$13,'pending',$14)
+             permitted_effect_key, resource_selector, status, expires_at)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::jsonb,$11,$12,$13,$14::jsonb,'pending',$15)
            ON CONFLICT (run_id, runtime_operation_id) DO NOTHING
            RETURNING *`,
-          [input.organizationId, input.installationId, input.runId, group.id, proposal.providerToolCallId, proposal.runtimeOperationId, proposal.capability, proposal.capabilityVersion, proposal.argumentsHash, JSON.stringify(proposal.resourceSnapshot), proposal.previewRevision, proposal.policyRevision, proposal.permittedEffectKey, input.expiresAt],
+          [input.organizationId, input.installationId, input.runId, group.id, proposal.providerToolCallId, proposal.runtimeOperationId, proposal.capability, proposal.capabilityVersion, proposal.argumentsHash, JSON.stringify(proposal.resourceSnapshot), proposal.previewRevision, proposal.policyRevision, proposal.permittedEffectKey, proposal.resourceSelector ? JSON.stringify(proposal.resourceSelector) : null, input.expiresAt],
         );
         const record = result.rows[0];
         if (!record) throw new Error("Approval group operation was not persisted");
@@ -317,6 +337,7 @@ export class ApprovalRepository {
     selectedOperationIds?: string[];
     approvedBy: string;
     idempotencyKey?: string;
+    sessionGrant?: ApprovalSessionGrantRequest;
   }): Promise<ApprovalGroupDecisionResult> {
     let expired = false;
     const result = await withTransaction(this.pool, async (client) => {
@@ -330,6 +351,9 @@ export class ApprovalRepository {
       if (!current) throw new Error("APPROVAL_GROUP_NOT_FOUND");
       const group = normalizeGroup(current);
       if (group.plan_digest !== input.planDigest) throw new Error("APPROVAL_GROUP_DIGEST_MISMATCH");
+      if (input.sessionGrant && input.decision !== "approved") {
+        throw new Error("APPROVAL_SESSION_GRANT_REQUIRES_APPROVAL");
+      }
       const approvals = await this.listGroupOperationsWithClient(client, input.organizationId, group.id);
       const allOperationIds = approvals.map((approval) => approval.runtime_operation_id);
       if (input.decision === "rejected" && input.selectedOperationIds?.length) {
@@ -405,10 +429,20 @@ export class ApprovalRepository {
         const analyticsRow = await this.getAnalyticsRow(client, record.id);
         await enqueueOutbox(client, buildApprovalLifecycleEvent(this.analyticsInput(analyticsRow, operationStatus === "approved" ? "approved" : "denied", "human", input.approvedBy, analyticsRow.decided_at ?? analyticsRow.created_at)));
       }
+      if (input.sessionGrant) {
+        await this.createSessionGrantsWithClient(client, {
+          organizationId: input.organizationId,
+          installationId: group.installation_id,
+          runId: input.runId,
+          group: updatedGroup,
+          selectedOperationIds: selected,
+          request: input.sessionGrant,
+        }, approvals);
+      }
       await client.query(
         `INSERT INTO audit_records (organization_id, actor_type, actor_id, action, resource_type, resource_id, metadata)
          VALUES ($1, 'human', $2, $3, 'agent_approval_group', $4, $5::jsonb)`,
-        [input.organizationId, input.approvedBy, `agent_approval_group.${expectedDecision}`, group.id, JSON.stringify({ runId: input.runId, planDigest: input.planDigest, selectedOperationIds: selected })],
+        [input.organizationId, input.approvedBy, `agent_approval_group.${expectedDecision}`, group.id, JSON.stringify({ runId: input.runId, planDigest: input.planDigest, selectedOperationIds: selected, ...(input.sessionGrant ? { grantScope: "session" } : {}) })],
       );
       return { group: updatedGroup, approvals: await this.listGroupOperationsWithClient(client, input.organizationId, group.id), accepted: true };
     });
@@ -440,6 +474,84 @@ export class ApprovalRepository {
       }
       return groups.rows.map(normalizeGroup);
     });
+  }
+
+  private async createSessionGrantsWithClient(
+    client: PoolClient,
+    input: {
+      organizationId: string;
+      installationId: string;
+      runId: string;
+      group: ApprovalGroupRecord;
+      selectedOperationIds: string[];
+      request: ApprovalSessionGrantRequest;
+    },
+    approvals: ApprovalRecord[],
+  ): Promise<void> {
+    if (input.request.grantedBy !== input.group.decided_by) throw new Error("APPROVAL_SESSION_GRANT_GRANTOR_MISMATCH");
+    const run = await client.query<{ installation_id: string; conversation_id: string | null }>(
+      `SELECT installation_id, conversation_id
+       FROM agent_runs
+       WHERE organization_id = $1 AND id = $2
+       FOR SHARE`,
+      [input.organizationId, input.runId],
+    );
+    const runScope = run.rows[0];
+    if (!runScope || runScope.installation_id !== input.installationId || runScope.conversation_id !== input.request.conversationId) {
+      throw new Error("APPROVAL_SESSION_GRANT_SCOPE_MISMATCH");
+    }
+    if (input.request.sessionKey !== approvalSessionKey(input.installationId, input.request.conversationId)) {
+      throw new Error("APPROVAL_SESSION_GRANT_SESSION_MISMATCH");
+    }
+    const expiresAtMs = Date.parse(input.request.expiresAt);
+    const now = Date.now();
+    if (!Number.isFinite(expiresAtMs) || expiresAtMs <= now || expiresAtMs > now + 30 * 60 * 1000) {
+      throw new Error("APPROVAL_SESSION_GRANT_EXPIRY_INVALID");
+    }
+    if (new Set(input.request.grants.map((grant) => grant.operationId)).size !== input.request.grants.length) {
+      throw new Error("APPROVAL_SESSION_GRANT_OPERATION_DUPLICATE");
+    }
+    if (input.request.grants.length !== input.selectedOperationIds.length) {
+      throw new Error("APPROVAL_SESSION_GRANT_OPERATION_SET_MISMATCH");
+    }
+    const selected = new Set(input.selectedOperationIds);
+    const approvalsByOperation = new Map(approvals.map((approval) => [approval.runtime_operation_id, approval]));
+    for (const grant of input.request.grants) {
+      if (!selected.has(grant.operationId)) throw new Error("APPROVAL_SESSION_GRANT_OPERATION_NOT_SELECTED");
+      const approval = approvalsByOperation.get(grant.operationId);
+      if (!approval || approval.status !== "pending" && approval.status !== "approved") throw new Error("APPROVAL_SESSION_GRANT_OPERATION_NOT_APPROVED");
+      if (!approval.resource_selector || !approvalSessionResourceSelectorsEqual(approval.resource_selector, grant.resourceSelector)) {
+        throw new Error("APPROVAL_SESSION_GRANT_RESOURCE_SCOPE_MISMATCH");
+      }
+      await client.query(
+        `INSERT INTO agent_approval_session_grants
+         (organization_id, installation_id, conversation_id, session_key, actor_id,
+           capability, capability_version, policy_revision, resource_type, resource_argument,
+           resource_value, granted_by, expires_at)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+         ON CONFLICT (
+           organization_id, session_key, actor_id, capability, capability_version,
+           policy_revision, resource_type, resource_argument, resource_value
+         ) DO UPDATE SET expires_at = GREATEST(agent_approval_session_grants.expires_at, EXCLUDED.expires_at),
+                         granted_by = EXCLUDED.granted_by,
+                         revoked_at = NULL`,
+        [
+          input.organizationId,
+          input.installationId,
+          input.request.conversationId,
+          input.request.sessionKey,
+          input.request.actorId,
+          approval.capability,
+          approval.capability_version,
+          approval.policy_revision,
+          grant.resourceSelector.type,
+          grant.resourceSelector.argument,
+          grant.resourceSelector.value,
+          input.request.grantedBy,
+          input.request.expiresAt,
+        ],
+      );
+    }
   }
 
   /**

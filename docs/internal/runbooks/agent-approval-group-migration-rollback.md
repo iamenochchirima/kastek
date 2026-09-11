@@ -7,25 +7,30 @@ last_reviewed: 2026-09-11
 # Agent approval-group migration and rollback
 
 This runbook covers the additive durable approval-group schema and the Temporal rollout gate.
-It applies to Agent Platform deployments that include migration `173_durable_approval_groups.sql`.
+It applies to Agent Platform deployments that include migrations `173_durable_approval_groups.sql`
+and `177_bounded_approval_session_grants.sql`.
 
 ## Migration
 
 Migration 173 adds `agent_approval_groups`, links existing approval rows through the nullable
 `approval_group_id`, and adds indexes, row-level security, and the one-active-group constraint.
+Migration 177 adds exact resource selectors to child approval records and the bounded
+`agent_approval_session_grants` table. Session grants are scoped to one conversation, installation,
+actor, capability/version, policy revision, and resource selector, and expire within 30 minutes.
 The migration runner applies files in lexical version order and records each applied file in
 `schema_migrations`.
 
 Before rollout:
 
-1. Confirm the release artifact contains migration 173 and the matching approval repository,
+1. Confirm the release artifact contains migrations 173 and 177 and the matching approval repository,
    API, Activity, and Workflow code.
 2. Take the normal database backup and record the backup identifier in the release record.
 3. Check for existing rows in `agent_approval_records` and open Temporal runs that are waiting on
    the legacy per-operation approval path. Do not regroup those rows in place.
 4. Apply the migration with the restricted migration database URL in the deployment environment.
-5. Verify the migration entry, the group table, the nullable child link, the partial unique active
-   index, and the row-level-security policy before admitting new group-version runs.
+5. Verify both migration entries, the group table, the nullable child link, the session-grant table,
+   the partial unique active index, and the row-level-security policies before admitting new
+   group-version runs.
 
 The migration is additive. Existing approval rows remain valid child evidence and continue through
 the compatibility Workflow path. New decomposed runs create one group for the current model-turn
@@ -55,6 +60,7 @@ Confirm that:
 
 - no new group-version run is waiting without a compatible worker;
 - pending legacy approvals are still visible through the compatibility projection;
+- session grants remain bounded and are not extended or recreated by rollback;
 - consumed, cancelled, expired, and invalidated groups retain their terminal evidence;
 - stale or duplicate decisions fail closed; and
 - the recovery sweep reports no unexplained executing or unknown effect receipts.

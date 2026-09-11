@@ -9,6 +9,7 @@ const organizationId = "org-approval-api";
 const installationId = "install-approval-api";
 const runId = "run-approval-api";
 const groupId = randomUUID();
+const conversationId = randomUUID();
 const planDigest = "a".repeat(64);
 const capability = "test.approval_effect";
 const argumentsValue = { postId: "resource-1" };
@@ -69,6 +70,7 @@ function operation(index = 1) {
     capability_version: "1.0.0",
     arguments_hash: "b".repeat(64),
     resource_snapshot: resourceSnapshot,
+    resource_selector: { type: "post", argument: "postId", value: "resource-1" },
     preview_revision: "preview-1",
     approved_by: null,
     policy_revision: "v1",
@@ -81,7 +83,7 @@ function operation(index = 1) {
   };
 }
 
-function buildFixture(currentSnapshot = resourceSnapshot, options: { status?: FixtureGroupStatus; expiresAt?: string; runStatus?: string; decideError?: string; operationCount?: number; runInstallationId?: string; authMode?: "headers" | "token"; missingGroup?: boolean } = {}) {
+function buildFixture(currentSnapshot = resourceSnapshot, options: { status?: FixtureGroupStatus; expiresAt?: string; runStatus?: string; decideError?: string; operationCount?: number; runInstallationId?: string; conversationId?: string | null; authMode?: "headers" | "token"; missingGroup?: boolean } = {}) {
   const currentGroup = group(options.status, options.expiresAt);
   const currentOperations = Array.from({ length: options.operationCount ?? 1 }, (_, index) => ({
     ...operation(index + 1),
@@ -146,7 +148,7 @@ function buildFixture(currentSnapshot = resourceSnapshot, options: { status?: Fi
     pool: fakePool,
     agents: { getInstallation: async () => ({ id: installationId, organization_id: organizationId, agent_definition_id: "agent-1", agent_version_id: "version-1", status: "active" }) } as never,
     runs: {
-      getRun: async (organization: string) => organization === organizationId ? ({ id: runId, organization_id: organizationId, installation_id: options.runInstallationId ?? installationId, agent_definition_id: "agent-1", agent_version_id: "version-1", conversation_id: null, trigger_type: "manual", status: options.runStatus ?? "awaiting_approval", input: {}, output: null, error: null, correlation_id: randomUUID(), causation_id: null, created_by: "user-1", created_at: new Date().toISOString(), started_at: null, finished_at: null, updated_at: new Date().toISOString() }) : null,
+      getRun: async (organization: string) => organization === organizationId ? ({ id: runId, organization_id: organizationId, installation_id: options.runInstallationId ?? installationId, agent_definition_id: "agent-1", agent_version_id: "version-1", conversation_id: options.conversationId ?? null, trigger_type: "manual", status: options.runStatus ?? "awaiting_approval", input: {}, output: null, error: null, correlation_id: randomUUID(), causation_id: null, created_by: "user-1", created_at: new Date().toISOString(), started_at: null, finished_at: null, updated_at: new Date().toISOString() }) : null,
       listEvents: async () => [],
       appendEvent,
     } as never,
@@ -223,6 +225,47 @@ describe("approval-group API", () => {
         eventType: "agent.approval.group.resumed",
         payload: expect.objectContaining({ operationCount: 1, selectedCount: 1, actor: "operator-1" }),
       }));
+    } finally {
+      await fixture.app.close();
+    }
+  });
+
+  it("passes a bounded session grant only for a conversation-scoped approval", async () => {
+    const fixture = buildFixture(resourceSnapshot, { conversationId });
+    try {
+      const response = await fixture.app.inject({
+        method: "POST",
+        url: `/v1/runs/${runId}/approval-group`,
+        headers: { "x-organization-id": organizationId, "x-actor-id": "operator-1" },
+        payload: { groupId, planDigest, decision: "approved", grantScope: "session" },
+      });
+      expect(response.statusCode).toBe(202);
+      expect(response.json()).toMatchObject({ grantScope: "session" });
+      expect(fixture.decideGroup).toHaveBeenCalledWith(expect.objectContaining({
+        sessionGrant: expect.objectContaining({
+          conversationId,
+          actorId: "user-1",
+          grantedBy: "operator-1",
+          grants: [{ operationId: "operation-1", resourceSelector: { type: "post", argument: "postId", value: "resource-1" } }],
+        }),
+      }));
+    } finally {
+      await fixture.app.close();
+    }
+  });
+
+  it("rejects session reuse when the run has no conversation scope", async () => {
+    const fixture = buildFixture();
+    try {
+      const response = await fixture.app.inject({
+        method: "POST",
+        url: `/v1/runs/${runId}/approval-group`,
+        headers: { "x-organization-id": organizationId, "x-actor-id": "operator-1" },
+        payload: { groupId, planDigest, decision: "approved", grantScope: "session" },
+      });
+      expect(response.statusCode).toBe(409);
+      expect(response.json()).toMatchObject({ error: "approval_session_grant_session_required" });
+      expect(fixture.decideGroup).not.toHaveBeenCalled();
     } finally {
       await fixture.app.close();
     }

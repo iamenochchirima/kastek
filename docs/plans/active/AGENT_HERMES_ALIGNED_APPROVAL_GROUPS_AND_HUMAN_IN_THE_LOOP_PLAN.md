@@ -267,9 +267,9 @@ durable fan-out, joins, retries, and result ordering.
       Unselected operations receive a typed rejected result and cannot execute.
 - [x] Revalidate resources, capability version, policy revision, and arguments at decision and
       execution time. Stale plans become `invalidated` and require a new model proposal.
-- [ ] Add bounded session grants only after the group path works. Match them against capability,
-      resource selector, installation, actor/session, policy revision, and expiry. Do not implement a
-      blanket future approval.
+- [x] Add bounded session grants only after the group path works. The implementation matches exact
+      capability/version, resource selector, installation, conversation session, actor, policy
+      revision, and expiry; it rejects unscoped resources and never creates a blanket future grant.
 
 ### Phase 4 — Replace the Temporal per-call wait with a group wait
 
@@ -415,8 +415,9 @@ open.
 - [x] Force one provider failure after group approval and confirm sibling outcomes remain durable and
       the failure is reported as a tool execution failure.
 - [x] Verify a later model turn creates a new group and cannot reuse the prior approval.
-- [ ] Verify a bounded session grant matches only its declared capability/resource scope and stops
-      matching after expiry.
+- [x] Verify a bounded session grant matches only its declared capability/resource scope and stops
+      matching after expiry. Pure matcher tests, API session-scope tests, and PostgreSQL persistence
+      coverage pass; the client exposes the explicit session action only for resource-scoped groups.
 - [x] Verify approval-free read tools execute without a group, while write, external-effect, and
       privileged tools create a group according to their manifest and policy. Manifest discovery,
       installation acceptance, and the mixed Temporal batch boundary cover this locally; the
@@ -457,8 +458,8 @@ Affected services and user surfaces: agents runtime, Temporal Workflows and Acti
   approval API, Studio chat, capability tools, provider adapters, execution observability
 Platform release version or release ID: TBD at release time
 API/schema/migration changes: additive approval-group schema and group decision endpoint; existing
-  per-operation records remain as child authorization evidence; legacy reader removal follows the
-  open-run compatibility window
+  per-operation records remain as child authorization evidence; migration 177 adds bounded,
+  resource-scoped session grants; legacy reader removal follows the open-run compatibility window
 Feature flag or rollout method: Temporal Workflow patch/version gate plus staged rollout; no blanket
   approval bypass flag
 Analytics events and success metrics: approval-group lifecycle events; success is one accepted group
@@ -471,10 +472,12 @@ Logs, metrics, dashboards, and alerts: OpenTelemetry instruments and a provider-
 User, API, internal, and operational documentation: update Studio/API approval documentation,
   internal execution architecture, Temporal recovery runbook, and migration/rollback runbook
 Validation evidence: completed unit/redaction/SSE, PostgreSQL concurrency and 32/64/128/256
-  persistence, idempotent consumed-event evidence, 15/15 API, local Temporal 23/23,
+  persistence, bounded session-grant persistence, idempotent consumed-event evidence, 19/19 API,
+  local Temporal 23/23,
   local recovery/worker-loss 19/19, worker-replacement,
   expiry, stale-plan, partial provider failure, later-group, 18-operation, and 1/1 synthetic
-  real-provider approval-orchestration checks; fresh and legacy migration-state audits reached 176.
+  real-provider approval-orchestration checks; the local migration runner applied migration 177
+  after the fresh and legacy migration-state audits reached 176.
   Real provider sandbox/state reconciliation, live Studio scale/reconnect, durable
   telemetry backend, and guided Studio checks remain pending.
 Rollback or disable plan: stop admitting new group-version runs, preserve and drain already-approved

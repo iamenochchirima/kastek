@@ -2,6 +2,8 @@ import { randomUUID } from "node:crypto";
 import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { ApprovalRepository, type ApprovalGroupProposal } from "../src/db/repositories/approval-repository";
+import { SessionApprovalGrantRepository } from "../src/db/repositories/session-approval-grant-repository";
+import { approvalSessionKey } from "../src/approval/session-grants";
 import { RunRepository } from "../src/db/repositories/run-repository";
 
 const databaseUrl = process.env.AGENTS_DATABASE_URL;
@@ -11,6 +13,7 @@ describe.skipIf(!runIntegration)("durable approval groups (PostgreSQL integratio
   const pool = new Pool({ connectionString: databaseUrl, max: 1 });
   const runs = new RunRepository(pool);
   const approvals = new ApprovalRepository(pool);
+  const sessionGrants = new SessionApprovalGrantRepository(pool);
   const organizationId = `approval-group-test-${randomUUID()}`;
   const agentId = randomUUID();
   const versionId = randomUUID();
@@ -48,15 +51,88 @@ describe.skipIf(!runIntegration)("durable approval groups (PostgreSQL integratio
     }));
   }
 
-  async function createRun(idempotencyKey: string) {
+  async function createConversation() {
+    const conversationId = randomUUID();
+    await pool.query(
+      `INSERT INTO conversations (id, installation_id, organization_id, channel_type, channel_key)
+       VALUES ($1, $2, $3, 'platform', $4)`,
+      [conversationId, installationId, organizationId, `approval-${conversationId}`],
+    );
+    return conversationId;
+  }
+
+  async function createRun(idempotencyKey: string, conversationId?: string) {
     const run = await runs.createRun(organizationId, "test-user", {
       installationId,
       idempotencyKey,
+      ...(conversationId ? { conversationId } : {}),
       input: { message: "approval group integration" },
       triggerType: "manual",
     });
     return run.id;
   }
+
+  it("persists an exact, bounded session grant from selected approved operations", async () => {
+    const conversationId = await createConversation();
+    const runId = await createRun(`session-grant-${randomUUID()}`, conversationId);
+    const resourceSelector = { type: "event", argument: "eventId", value: "event-1" } as const;
+    const created = await approvals.createGroup({
+      organizationId,
+      installationId,
+      runId,
+      batchId: `${runId}:batch:1`,
+      turnKey: "model-turn:1",
+      policyRevision: "v1",
+      expiresAt: new Date(Date.now() + 60_000).toISOString(),
+      proposals: [{ ...proposals(1, "session-grant")[0]!, resourceSelector }],
+    });
+    const decision = await approvals.decideGroup({
+      organizationId,
+      runId,
+      groupId: created.group.id,
+      planDigest: created.group.plan_digest,
+      decision: "approved",
+      approvedBy: "operator-1",
+      sessionGrant: {
+        sessionKey: approvalSessionKey(installationId, conversationId),
+        conversationId,
+        actorId: "test-user",
+        grantedBy: "operator-1",
+        expiresAt: new Date(Date.now() + 10 * 60_000).toISOString(),
+        grants: [{ operationId: created.approvals[0]!.runtime_operation_id, resourceSelector }],
+      },
+    });
+    expect(decision.accepted).toBe(true);
+    const found = await sessionGrants.findMatching({
+      organizationId,
+      installationId,
+      conversationId,
+      sessionKey: approvalSessionKey(installationId, conversationId),
+      actorId: "test-user",
+      capability: created.approvals[0]!.capability,
+      capabilityVersion: created.approvals[0]!.capability_version,
+      policyRevision: "v1",
+      resourceSelector,
+    });
+    expect(found).toMatchObject({ grantedBy: "operator-1", resourceSelector });
+    expect(found?.expiresAt && Date.parse(found.expiresAt)).toBeGreaterThan(Date.now());
+    await expect(approvals.decideGroup({
+      organizationId,
+      runId,
+      groupId: created.group.id,
+      planDigest: created.group.plan_digest,
+      decision: "rejected",
+      approvedBy: "operator-1",
+      sessionGrant: {
+        sessionKey: approvalSessionKey(installationId, conversationId),
+        conversationId,
+        actorId: "test-user",
+        grantedBy: "operator-1",
+        expiresAt: new Date(Date.now() + 10 * 60_000).toISOString(),
+        grants: [{ operationId: created.approvals[0]!.runtime_operation_id, resourceSelector }],
+      },
+    })).rejects.toThrow("APPROVAL_SESSION_GRANT_REQUIRES_APPROVAL");
+  });
 
   it("persists and consumes an 18-operation group with selected approval", async () => {
     const runId = await createRun(`group-18-${randomUUID()}`);

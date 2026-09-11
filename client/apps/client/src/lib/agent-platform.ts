@@ -598,6 +598,7 @@ export type AgentApproval = {
   capability: string;
   argumentsHash: string;
   resourceSnapshot?: Record<string, unknown>;
+  resourceSelector?: { type: string; argument: string; value: string };
   previewRevision?: string | null;
   expiresAt: string;
 };
@@ -681,12 +682,12 @@ export function decideAgentRunApproval(runId: string, approval: Pick<AgentApprov
   });
 }
 
-export function decideAgentRunApprovalGroup(runId: string, group: Pick<AgentApprovalGroup, "id" | "planDigest">, decision: "approved" | "rejected", selectedOperationIds?: string[], idempotencyKey?: string): Promise<{ runId: string; groupId: string; status: string }> {
+export function decideAgentRunApprovalGroup(runId: string, group: Pick<AgentApprovalGroup, "id" | "planDigest">, decision: "approved" | "rejected", selectedOperationIds?: string[], idempotencyKey?: string, grantScope?: "once" | "session"): Promise<{ runId: string; groupId: string; status: string }> {
   const decisionKey = idempotencyKey ?? (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function" ? crypto.randomUUID() : `${group.id}:${decision}:${Date.now()}`);
   return request(`/api/agents/runs/${encodeURIComponent(runId)}/approval-group`, {
     method: "POST",
     headers: { "Idempotency-Key": decisionKey },
-    body: JSON.stringify({ groupId: group.id, planDigest: group.planDigest, decision, ...(selectedOperationIds ? { selectedOperationIds } : {}) }),
+    body: JSON.stringify({ groupId: group.id, planDigest: group.planDigest, decision, ...(selectedOperationIds ? { selectedOperationIds } : {}), ...(grantScope ? { grantScope } : {}) }),
   });
 }
 

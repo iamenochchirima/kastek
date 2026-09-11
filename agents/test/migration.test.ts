@@ -111,6 +111,16 @@ describe("foundation migration", () => {
     expect(sql).toContain("source_projection_identity_check");
   });
 
+  it("adds bounded resource-scoped approval session grants", async () => {
+    const sql = await readFile(new URL("../migrations/177_bounded_approval_session_grants.sql", import.meta.url), "utf8");
+    expect(sql).toContain("resource_selector JSONB");
+    expect(sql).toContain("CREATE TABLE IF NOT EXISTS agent_approval_session_grants");
+    expect(sql).toContain("session_key = 'conversation:'");
+    expect(sql).toContain("expires_at <= created_at + interval '30 minutes'");
+    expect(sql).toContain("agent_approval_session_grants_agents_scope");
+    expect(sql).toContain("FORCE ROW LEVEL SECURITY");
+  });
+
   it("adds a durable offer layer without widening ownership", async () => {
     const sql = await readFile(new URL("../migrations/077_consent_gated_handoff.sql", import.meta.url), "utf8");
     expect(sql).toContain("CREATE TABLE IF NOT EXISTS agent_handoff_offers");

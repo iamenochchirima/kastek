@@ -37,6 +37,8 @@ import { DiscordBotClient } from "../channels/discord-client";
 import { KasiAiPreferenceRepository } from "../db/repositories/kasiai-preference-repository";
 import { EffectReceiptRepository } from "../db/repositories/effect-receipt-repository";
 import { ApprovalRepository, type ApprovalGroupProposal } from "../db/repositories/approval-repository";
+import { SessionApprovalGrantRepository } from "../db/repositories/session-approval-grant-repository";
+import { approvalSessionKey, approvalSessionResourceSelector, type ApprovalSessionGrantRecord } from "../approval/session-grants";
 import { InstallationGrantRepository } from "../db/repositories/installation-grant-repository";
 import { authorizeInstallationCapability } from "../capabilities/authorization";
 import { createCapabilityRuntime, type CapabilityRuntime } from "../capabilities/runtime";
@@ -2416,6 +2418,7 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
   const kasiaiPreferences = new KasiAiPreferenceRepository(pool);
   const effectReceipts = new EffectReceiptRepository(pool);
   const approvals = new ApprovalRepository(pool);
+  const sessionGrants = new SessionApprovalGrantRepository(pool);
   const installationGrants = new InstallationGrantRepository(pool);
   const workflowState = new WorkflowStateRepository(pool);
   const workflowCheckpoints = new WorkflowCheckpointRepository(pool);
@@ -2660,6 +2663,38 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
           calls: segment.calls.map(({ index }) => ({ ...calls[index]!, batchId: input.batchId, segmentId })),
         };
       });
+      const sessionGrantIds = new Map<string, string>();
+      if (run.conversation_id) {
+        const sessionKey = approvalSessionKey(run.installation_id, run.conversation_id);
+        await Promise.all(calls
+          .filter((call) => !call.deduplicatedFrom && tools.get(call.name)?.requiresApproval)
+          .map(async (call) => {
+            const manifest = tools.get(call.name);
+            const resourceSelector = approvalSessionResourceSelector(manifest?.manifest, call.arguments);
+            if (!manifest || !resourceSelector) return;
+            const grant = await sessionGrants.findMatching({
+              organizationId: run.organization_id,
+              installationId: run.installation_id,
+              conversationId: run.conversation_id!,
+              sessionKey,
+              actorId: run.created_by,
+              capability: call.name,
+              capabilityVersion: manifest.version,
+              policyRevision: "v1",
+              resourceSelector,
+            });
+            if (grant) sessionGrantIds.set(call.id, grant.id);
+          }));
+        if (sessionGrantIds.size) {
+          segments = segments.map((segment) => ({
+            ...segment,
+            calls: segment.calls.map((call) => {
+              const sessionGrantId = sessionGrantIds.get(call.id);
+              return sessionGrantId ? { ...call, sessionGrantId } : call;
+            }),
+          }));
+        }
+      }
       for (const call of calls) {
         if (identities.has(call.id)) throw new Error("TOOL_BATCH_DUPLICATE_OPERATION");
         identities.add(call.id);
@@ -2681,7 +2716,7 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
           segmentId: segment?.segmentId,
         });
       }
-      const approvalCalls = calls.filter((call) => !call.deduplicatedFrom && tools.get(call.name)?.requiresApproval);
+      const approvalCalls = calls.filter((call) => !call.deduplicatedFrom && !sessionGrantIds.has(call.id) && tools.get(call.name)?.requiresApproval);
       let approvalGroup: { id: string; planDigest: string; expiresAt: string } | undefined;
       if (approvalCalls.length) {
         const expiresAt = new Date(Date.now() + 30 * 60 * 1000).toISOString();
@@ -2699,6 +2734,7 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
             previewRevision: call.argumentsHash,
             policyRevision: "v1",
             permittedEffectKey: `${run.id}:${call.id}`,
+            resourceSelector: approvalSessionResourceSelector(manifest.manifest, call.arguments),
           });
         }
         const created = await approvals.createGroup({
@@ -2897,6 +2933,39 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
       }
       const approvalGroupId = callApprovalGroupId;
       let resolvedApproval = input.approval;
+      let sessionGrant: ApprovalSessionGrantRecord | undefined;
+      if (manifest.requiresApproval && !resolvedApproval && !approvalGroupId) {
+        const resourceSelector = approvalSessionResourceSelector(manifest.manifest, call.arguments);
+        if (run.conversation_id && resourceSelector) {
+          const sessionKey = approvalSessionKey(run.installation_id, run.conversation_id);
+          const match = {
+            organizationId: run.organization_id,
+            installationId: run.installation_id,
+            conversationId: run.conversation_id,
+            sessionKey,
+            actorId: run.created_by,
+            capability: call.name,
+            capabilityVersion: manifest.version,
+            policyRevision: "v1",
+            resourceSelector,
+          };
+          sessionGrant = call.sessionGrantId
+            ? (await sessionGrants.getUsable(call.sessionGrantId, match)) ?? undefined
+            : (await sessionGrants.findMatching(match)) ?? undefined;
+          if (call.sessionGrantId && !sessionGrant) {
+            return failure({ code: "APPROVAL_SESSION_GRANT_EXPIRED", message: "The reusable approval is no longer valid for this session" }, "blocked");
+          }
+          if (sessionGrant) {
+            resolvedApproval = {
+              approvedBy: sessionGrant.grantedBy,
+              argumentsHash: call.argumentsHash,
+              expiresAt: sessionGrant.expiresAt,
+            };
+          }
+        } else if (call.sessionGrantId) {
+          return failure({ code: "APPROVAL_SESSION_GRANT_SCOPE_MISMATCH", message: "The reusable approval is not bound to a conversation-scoped resource" }, "blocked");
+        }
+      }
       if (manifest.requiresApproval && approvalGroupId && resolvedApproval) {
         const persistedApproval = await approvals.getApprovedOperation({
           organizationId: run.organization_id,
@@ -2946,7 +3015,7 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
         if (!(await controls.isFeatureEnabled(run.organization_id, "effect_execution_enabled", run.installation_id))) return failure({ code: "AGENT_EFFECT_FLAG_DISABLED", message: "External effects are disabled" }, "blocked");
         if (await controls.isHeld({ organizationId: run.organization_id, installationId: run.installation_id, runId: run.id, holdType: "effects" })) return failure({ code: "AGENT_EFFECT_HOLD_ACTIVE", message: "External effects are temporarily held" }, "blocked");
       }
-      if (manifest.requiresApproval && manifest.riskClass !== "external-effect" && resolvedApproval) {
+      if (manifest.requiresApproval && manifest.riskClass !== "external-effect" && resolvedApproval && !sessionGrant) {
         await approvals.consume({
           organizationId: run.organization_id,
           installationId: run.installation_id,
@@ -2982,7 +3051,7 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
             sequenceNumber: call.sequenceNumber,
             lifecycle: toolInvocationLifecycle,
             beforeEffect: manifest.riskClass === "external-effect" ? async () => {
-              if (manifest.requiresApproval && resolvedApproval) {
+              if (manifest.requiresApproval && resolvedApproval && !sessionGrant) {
                 await approvals.consumeAndStartEffect({
                   organizationId: run.organization_id,
                   installationId: run.installation_id,
