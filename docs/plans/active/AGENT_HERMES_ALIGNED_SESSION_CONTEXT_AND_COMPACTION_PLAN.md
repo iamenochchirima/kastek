@@ -481,8 +481,9 @@ whole autonomous path is finished.
       and provider capacity as bounded evidence.
 - [x] Add an assertion that every manifest identifies the transcript cursor/generation it was built
       from and that the cursor advances after a committed user, assistant, or tool entry.
-- [ ] Remove the old path that assembles model context from `conversationSummary` and incomplete
-      display rows after the new projection is verified.
+- [x] Remove the old path that assembles model context from `conversationSummary` and incomplete
+      display rows after the new projection is verified. The only retained display-row reader is
+      the bounded generation-1 bootstrap described in Phase 5.
 
 ### Phase 4 — Make compaction active, pair-safe, and replayable
 
@@ -543,14 +544,15 @@ whole autonomous path is finished.
       with deterministic provider fixtures for exact transcript assertions.
 - [ ] Inject worker loss before and after user append, assistant-call append, tool-result append,
       compaction activation, model dispatch, and final response append.
-- [ ] Test concurrent requests for one session and verify lease fencing prevents interleaved turns.
+- [x] Test concurrent requests for one session and verify lease fencing prevents interleaved turns.
 - [ ] Test provider retry, Temporal retry, approval wait/resume, cancellation, timeout, and
       unknown external-effect outcomes.
 - [ ] Test large tool outputs, provider byte limits, small context limits, and output reservation.
 - [ ] Verify the display conversation, activity panel, and observability consume the same runtime
       evidence without becoming context sources.
-- [ ] Run the relevant agents build, lint/typecheck, focused tests, PostgreSQL migration tests,
-      Temporal recovery tests, and a guided browser check.
+- [x] Run the relevant agents build, lint/typecheck, focused tests, PostgreSQL migration tests,
+      and Temporal recovery tests. Guided browser and real-provider checks remain release-gate
+      work owned by the live runtime integration track.
 
 ## Removal gates
 
