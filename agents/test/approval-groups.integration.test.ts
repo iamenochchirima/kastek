@@ -157,6 +157,67 @@ describe.skipIf(!runIntegration)("durable approval groups (PostgreSQL integratio
     expect((await approvals.getGroup(organizationId, created.group.id))?.selected_operation_ids).toHaveLength(18);
   });
 
+  it("makes rejection terminal and returns an idempotent result for the same decision", async () => {
+    const runId = await createRun(`reject-terminal-${randomUUID()}`);
+    const created = await approvals.createGroup({
+      organizationId,
+      installationId,
+      runId,
+      batchId: `${runId}:batch:1`,
+      turnKey: "model-turn:1",
+      policyRevision: "v1",
+      expiresAt: new Date(Date.now() + 60_000).toISOString(),
+      proposals: proposals(4, "reject-terminal"),
+    });
+
+    const rejected = await approvals.decideGroup({
+      organizationId,
+      runId,
+      groupId: created.group.id,
+      planDigest: created.group.plan_digest,
+      decision: "rejected",
+      approvedBy: "operator-1",
+    });
+    expect(rejected.accepted).toBe(true);
+    expect(rejected.group.status).toBe("rejected");
+    expect(rejected.approvals.every((approval) => approval.status === "denied")).toBe(true);
+
+    const replay = await approvals.decideGroup({
+      organizationId,
+      runId,
+      groupId: created.group.id,
+      planDigest: created.group.plan_digest,
+      decision: "rejected",
+      approvedBy: "operator-1",
+    });
+    expect(replay.accepted).toBe(false);
+    await expect(approvals.decideGroup({
+      organizationId,
+      runId,
+      groupId: created.group.id,
+      planDigest: created.group.plan_digest,
+      decision: "approved",
+      approvedBy: "operator-2",
+    })).rejects.toThrow("APPROVAL_GROUP_NOT_PENDING");
+  });
+
+  it.each([32, 64, 128, 256])("persists and lists a %d-operation approval group", async (count) => {
+    const runId = await createRun(`scale-${count}-${randomUUID()}`);
+    const created = await approvals.createGroup({
+      organizationId,
+      installationId,
+      runId,
+      batchId: `${runId}:batch:1`,
+      turnKey: "model-turn:1",
+      policyRevision: "v1",
+      expiresAt: new Date(Date.now() + 60_000).toISOString(),
+      proposals: proposals(count, `scale-${count}`),
+    });
+
+    expect(created.approvals).toHaveLength(count);
+    expect(await approvals.listGroupOperations(organizationId, created.group.id)).toHaveLength(count);
+  });
+
   it("changes the plan digest when reviewed identity or policy changes", async () => {
     const firstRunId = await createRun(`digest-first-${randomUUID()}`);
     const first = await approvals.createGroup({

@@ -108,6 +108,15 @@ describe.skipIf(!runIntegration)("Temporal tool execution reliability (integrati
     return new Client({ connection, namespace: "default" });
   }
 
+  async function stopLatestWorker(): Promise<void> {
+    const worker = workers.pop();
+    const run = runs.pop();
+    const connection = connections.pop();
+    if (worker && (worker.getState() === "INITIALIZED" || worker.getState() === "RUNNING")) worker.shutdown();
+    if (run) await run;
+    if (connection) await connection.close();
+  }
+
   it("retries a retryable tool Activity before the ordered join and invokes the provider once successfully", async () => {
     const taskQueue = `agent-tool-retry-${randomUUID()}`;
     const workflowId = `agent-run-${randomUUID()}`;
@@ -298,6 +307,86 @@ describe.skipIf(!runIntegration)("Temporal tool execution reliability (integrati
     await handle.result();
     expect(approvals).toEqual(calls.map((current) => ({ id: current.id, groupId, approvedBy: "approver" })));
     expect(approvals).toHaveLength(18);
+    expect(modelSteps).toBe(2);
+  }, 30_000);
+
+  it("resumes the pending approval group after the Temporal worker is replaced", async () => {
+    const taskQueue = `agent-approval-worker-restart-${randomUUID()}`;
+    const workflowId = `agent-run-${randomUUID()}`;
+    const groupId = randomUUID();
+    const planDigest = "r".repeat(64);
+    const toolCall = {
+      ...call("restart-approval"),
+      name: "records.delete",
+      approvalGroupId: groupId,
+      approvalPlanDigest: planDigest,
+    };
+    let modelSteps = 0;
+    let paused = false;
+    const executed: string[] = [];
+    const activities: AgentRunActivities = {
+      transitionRun: async () => undefined,
+      waitForConversationTurn: async () => true,
+      getContentPublishBatchStatus: async () => ({ status: "UNAVAILABLE" }),
+      executeLoop: async () => { throw new Error("legacy executeLoop must not run for a new execution"); },
+      executeModelStep: async () => {
+        modelSteps += 1;
+        return modelSteps === 1 ? pendingBatchResult([toolCall]) : completedResult("The approval survived worker replacement.");
+      },
+      prepareToolBatch: async ({ calls: prepared }) => prepared.map((current) => ({
+        kind: "sequential" as const,
+        segmentId: `batch:segment:${current.id}`,
+        calls: [current],
+      })),
+      executeToolCall: async ({ call: current }) => {
+        executed.push(current.id);
+        return {
+          id: current.id,
+          providerToolCallId: current.providerToolCallId!,
+          name: current.name,
+          argumentsHash: current.argumentsHash,
+          status: "completed",
+          output: { ok: true },
+        } satisfies DurableToolCallResult;
+      },
+      commitToolBatch: async ({ results }) => ({ status: "committed", toolCalls: results.length }),
+      pauseRun: async () => { paused = true; },
+      deliverApprovalPrompt: async () => undefined,
+      cancelPendingApproval: async () => undefined,
+      cancelHandoff: async () => undefined,
+      completeRun: async () => undefined,
+      generateConversationTitle: async () => undefined,
+      deliverRunReply: async () => undefined,
+      failRun: async ({ error }) => { throw new Error(String(error.message ?? "workflow failed")); },
+    };
+
+    const client = await startWorker(taskQueue, activities);
+    await client.workflow.start(agentRunWorkflow, { taskQueue, workflowId, args: [{ runId: workflowId }] });
+    await new Promise<void>((resolve, reject) => {
+      const deadline = setTimeout(() => reject(new Error("workflow did not pause before worker replacement")), 10_000);
+      const timer = setInterval(() => {
+        if (paused) {
+          clearTimeout(deadline);
+          clearInterval(timer);
+          resolve();
+        }
+      }, 50);
+    });
+
+    await stopLatestWorker();
+    const replacementClient = await startWorker(taskQueue, activities);
+    const handle = replacementClient.workflow.getHandle(workflowId);
+    await handle.signal(approvalGroupSignal, {
+      groupId,
+      planDigest,
+      decision: "approved",
+      approvedBy: "approver",
+      selectedOperationIds: [toolCall.id],
+      expiresAt: new Date(Date.now() + 60_000).toISOString(),
+    });
+    await handle.result();
+
+    expect(executed).toEqual([toolCall.id]);
     expect(modelSteps).toBe(2);
   }, 30_000);
 
