@@ -764,6 +764,10 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                 web::post().to(agent_platform::approve_run),
             )
             .route(
+                "/runs/{runId}/approval-group",
+                web::post().to(agent_platform::approve_run_group),
+            )
+            .route(
                 "/runs/{runId}/events/stream",
                 web::get().to(agent_platform::stream_run),
             ),

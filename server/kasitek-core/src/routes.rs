@@ -122,6 +122,7 @@ mod tests {
             (Method::GET, "/api/agents/knowledge/sources/source-1"),
             (Method::GET, "/api/developers"),
             (Method::POST, "/api/agents/runs/run-1/retry"),
+            (Method::POST, "/api/agents/runs/run-1/approval-group"),
             (Method::GET, "/api/admin/me"),
             (Method::GET, "/api/admin/operations/webhooks/deliveries"),
             (Method::POST, "/api/admin/operations/webhooks/replays"),

@@ -163,6 +163,26 @@ describe.skipIf(!runIntegration)("real model approval group through HTTP and Tem
       () => approvals.getActiveGroup(organizationId, run.id),
       (value) => value?.group.status === "pending",
     );
+    await waitFor(
+      async () => {
+        const result = await pool.query<{ count: string }>(
+          `SELECT count(*)::text AS count
+           FROM agent_events
+           WHERE run_id = $1
+             AND event_type IN ('agent.approval.prompt_skipped', 'agent.approval.group.displayed')`,
+          [run.id],
+        );
+        return Number(result.rows[0]?.count ?? 0);
+      },
+      (value) => value > 0,
+    );
+    // Approval waits may outlive the ten-minute conversation lease. The
+    // resumed workflow must reacquire the lease instead of reusing this
+    // expired fencing token.
+    await pool.query(
+      "UPDATE agent_session_leases SET expires_at = now() - interval '1 second' WHERE run_id = $1",
+      [run.id],
+    );
     const app = buildApp({
       config,
       pool,

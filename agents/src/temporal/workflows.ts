@@ -641,6 +641,11 @@ export async function agentRunWorkflow(input: DurableRunInput): Promise<void> {
             });
             await activities.deliverApprovalPrompt({ ...activityScope(), runId: input.runId });
             status = "awaiting_approval";
+            // Human approval can take longer than the conversation lease. Do
+            // not carry a lease captured before the wait across the approval
+            // barrier; the next model/tool activity reacquires the lease for
+            // this run before it performs any session-owned writes.
+            sessionLease = undefined;
             await condition(() => approvalGroup?.groupId === groupId || cancellation !== undefined || expiration !== undefined);
             if (cancellation) {
               if (batchActivities.cancelApprovalGroup) await batchActivities.cancelApprovalGroup({ ...activityScope(), runId: input.runId, groupId, reason: (cancellation as CancellationSignal).reason });

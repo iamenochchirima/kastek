@@ -43,7 +43,10 @@ session-grant tests, and 79 migration tests.
 On the same date, the configured-model approval orchestration test passed 1/1 against the local
 Temporal server with duplicate HTTP decisions and one synthetic effect invocation; the companion
 configured-model read-only Temporal test passed 1/1. These tests do not prove state reconciliation
-against a real external provider resource.
+against a real external provider resource. The browser-facing Core proxy now also forwards the
+group-decision route; the authenticated Studio flow returned 202 after reload and custom approval
+confirmation. The real-model approval test additionally expires the conversation lease before the
+decision and passes 1/1, confirming that a long approval wait reacquires the lease before resuming.
 
 **Related plans:**
 
