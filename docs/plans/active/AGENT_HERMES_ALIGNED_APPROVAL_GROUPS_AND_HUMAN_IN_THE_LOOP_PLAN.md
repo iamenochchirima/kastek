@@ -14,7 +14,8 @@ controls are implemented. The group contract now also covers selected-operation 
 approval delivery, signal retry, duplicate-call ordering, historical group summaries, decision-time
 resource revalidation, terminal typed outcomes, lifecycle conflict/resume events, repository scale
 checks, deterministic worker replacement, historical per-operation outcome projections, and
-32/64/128/256-operation Temporal barriers. Real-provider verification still requires sandbox
+32/64/128/256-operation Temporal barriers, and bounded approval evidence in public run-event/SSE
+projections. Real-provider verification still requires sandbox
 credentials; lifecycle metrics, migration-state evidence, compatibility cleanup, and guided Studio
 checks remain open.
 

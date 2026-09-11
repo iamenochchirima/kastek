@@ -32,6 +32,7 @@ own exact identity, authorization, effect receipt, and terminal outcome.
 - `7363bb95 feat(agents): record approval group lifecycle events`
 - `02424475 test(agents): cover approval group scale and restart`
 - `6a0ee146 test(agents): harden approval group scale boundaries`
+- `c21529ca fix(agents): expose safe approval group event evidence`
 
 The current branch is `rewrite`. Do not stage all changes: another agent is actively implementing
 session context and compaction in the same worktree.
@@ -62,6 +63,8 @@ session context and compaction in the same worktree.
   `executeToolCall`; stale resources invalidate the group before approval is accepted.
 - Historical run projections and the activity timeline expose each terminal child outcome, including
   partial execution and provider/tool failures. Approved decisions reject an empty selected set.
+- Public run-event and SSE projections expose bounded group identifiers, digests, counts, decisions,
+  and operation IDs while continuing to filter arguments, resources, credentials, and tokens.
 
 ### API, channel, and Studio surface
 
