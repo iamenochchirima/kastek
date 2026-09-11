@@ -101,7 +101,8 @@ describe.skipIf(!runIntegration)("durable approval groups (PostgreSQL integratio
     });
     expect(duplicate.accepted).toBe(false);
 
-    for (const approval of decision.approvals.filter((candidate) => candidate.status === "approved")) {
+    const approvedOperations = decision.approvals.filter((candidate) => candidate.status === "approved");
+    for (const approval of approvedOperations) {
       await approvals.consume({
         organizationId,
         installationId,
@@ -118,6 +119,21 @@ describe.skipIf(!runIntegration)("durable approval groups (PostgreSQL integratio
       });
     }
     expect((await approvals.getGroup(organizationId, created.group.id))?.status).toBe("consumed");
+    const consumed = approvedOperations[0]!;
+    await expect(approvals.consume({
+      organizationId,
+      installationId,
+      runId,
+      providerToolCallId: consumed.provider_tool_call_id,
+      runtimeOperationId: consumed.runtime_operation_id,
+      argumentsHash: consumed.arguments_hash,
+      capability: consumed.capability,
+      capabilityVersion: consumed.capability_version,
+      resourceSnapshot: consumed.resource_snapshot,
+      previewRevision: consumed.preview_revision,
+      policyRevision: consumed.policy_revision,
+      permittedEffectKey: consumed.permitted_effect_key,
+    })).rejects.toThrow("already consumed");
   });
 
   it("serializes concurrent group decisions into one accepted decision", async () => {
@@ -222,5 +238,52 @@ describe.skipIf(!runIntegration)("durable approval groups (PostgreSQL integratio
       approvedBy: "operator-1",
     })).rejects.toThrow("APPROVAL_GROUP_NOT_PENDING");
     expect((await approvals.invalidateGroup(organizationId, runId, created.group.id, "repeat"))?.status).toBe("invalidated");
+  });
+
+  it("cancels a pending group and rejects later approval without changing terminal evidence", async () => {
+    const runId = await createRun(`cancel-${randomUUID()}`);
+    const created = await approvals.createGroup({
+      organizationId,
+      installationId,
+      runId,
+      batchId: `${runId}:batch:1`,
+      turnKey: "model-turn:1",
+      policyRevision: "v1",
+      expiresAt: new Date(Date.now() + 60_000).toISOString(),
+      proposals: proposals(4, "cancel"),
+    });
+    await approvals.cancelGroup(organizationId, runId, created.group.id);
+    expect((await approvals.getGroup(organizationId, created.group.id))?.status).toBe("cancelled");
+    expect((await approvals.listGroupOperations(organizationId, created.group.id)).every((approval) => approval.status === "cancelled")).toBe(true);
+    await expect(approvals.decideGroup({
+      organizationId,
+      runId,
+      groupId: created.group.id,
+      planDigest: created.group.plan_digest,
+      decision: "approved",
+      approvedBy: "operator-1",
+    })).rejects.toThrow("APPROVAL_GROUP_NOT_PENDING");
+    await approvals.cancelGroup(organizationId, runId, created.group.id);
+    expect((await approvals.getGroup(organizationId, created.group.id))?.status).toBe("cancelled");
+  });
+
+  it("expires pending groups and every child operation exactly once", async () => {
+    const runId = await createRun(`expire-sweep-${randomUUID()}`);
+    const created = await approvals.createGroup({
+      organizationId,
+      installationId,
+      runId,
+      batchId: `${runId}:batch:1`,
+      turnKey: "model-turn:1",
+      policyRevision: "v1",
+      expiresAt: new Date(Date.now() + 60_000).toISOString(),
+      proposals: proposals(4, "expire-sweep"),
+    });
+    await pool.query("UPDATE agent_approval_groups SET expires_at = now() - interval '1 second' WHERE id = $1", [created.group.id]);
+    const expired = await approvals.expireGroups();
+    expect(expired.map((group) => group.id)).toContain(created.group.id);
+    expect((await approvals.getGroup(organizationId, created.group.id))?.status).toBe("expired");
+    expect((await approvals.listGroupOperations(organizationId, created.group.id)).every((approval) => approval.status === "expired")).toBe(true);
+    expect(await approvals.expireGroups()).toEqual([]);
   });
 });
