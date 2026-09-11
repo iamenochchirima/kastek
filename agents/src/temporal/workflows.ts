@@ -598,7 +598,23 @@ export async function agentRunWorkflow(input: DurableRunInput): Promise<void> {
             return committed;
           };
           let batchTerminal = false;
+          let finishAfterApprovalGroup = false;
           let activeApprovalGroup: ApprovalGroupSignal | undefined;
+          let terminalApprovalOutcome: {
+            groupId: string;
+            code: string;
+            message: string;
+            failureClass: "blocked" | "interrupted";
+          } | undefined;
+          const blockedApprovalResult = (call: DurableToolCall, outcome: NonNullable<typeof terminalApprovalOutcome>): DurableToolCallResult => ({
+            id: call.id,
+            providerToolCallId: call.providerToolCallId ?? call.id,
+            name: call.name,
+            argumentsHash: call.argumentsHash,
+            status: "blocked",
+            failureClass: outcome.failureClass,
+            error: { code: outcome.code, message: outcome.message },
+          });
           const waitForApproval = async (waitingCall: (typeof calls)[number]): Promise<ApprovalGroupSignal | undefined> => {
             const groupId = waitingCall.approvalGroupId;
             if (!groupId) {
@@ -635,8 +651,21 @@ export async function agentRunWorkflow(input: DurableRunInput): Promise<void> {
                 reason: (cancellation as CancellationSignal).reason,
               });
               await transition("awaiting_approval", "cancelled");
-              batchTerminal = true;
-              return undefined;
+              finishAfterApprovalGroup = true;
+              terminalApprovalOutcome = {
+                groupId,
+                code: "APPROVAL_CANCELLED",
+                message: (cancellation as CancellationSignal).reason ?? "The approval group was cancelled before execution",
+                failureClass: "interrupted",
+              };
+              return {
+                groupId,
+                planDigest: waitingCall.approvalPlanDigest ?? "",
+                decision: "rejected",
+                approvedBy: "system",
+                selectedOperationIds: [],
+                expiresAt: new Date(0).toISOString(),
+              };
             }
             if (expiration) {
               if (batchActivities.cancelApprovalGroup) await batchActivities.cancelApprovalGroup({ ...activityScope(), runId: input.runId, groupId, reason: (expiration as ExpirationSignal).reason ?? "The approval group expired before execution" });
@@ -649,8 +678,21 @@ export async function agentRunWorkflow(input: DurableRunInput): Promise<void> {
                 outcome: "expired",
               });
               await transition("awaiting_approval", "expired");
-              batchTerminal = true;
-              return undefined;
+              finishAfterApprovalGroup = true;
+              terminalApprovalOutcome = {
+                groupId,
+                code: "APPROVAL_EXPIRED",
+                message: (expiration as ExpirationSignal).reason ?? "The approval group expired before execution",
+                failureClass: "blocked",
+              };
+              return {
+                groupId,
+                planDigest: waitingCall.approvalPlanDigest ?? "",
+                decision: "rejected",
+                approvedBy: "system",
+                selectedOperationIds: [],
+                expiresAt: new Date(0).toISOString(),
+              };
             }
             const decision = approvalGroup;
             approvalGroup = undefined;
@@ -664,6 +706,14 @@ export async function agentRunWorkflow(input: DurableRunInput): Promise<void> {
               return undefined;
             }
             await transition("awaiting_approval", "running");
+            if (decision.decision === "rejected") {
+              terminalApprovalOutcome = {
+                groupId,
+                code: "APPROVAL_REJECTED",
+                message: "The approval group was rejected before execution",
+                failureClass: "blocked",
+              };
+            }
             return decision;
           };
           const settleSegment = async (segment: (typeof segments)[number]): Promise<DurableToolCallResult | undefined> => {
@@ -674,6 +724,25 @@ export async function agentRunWorkflow(input: DurableRunInput): Promise<void> {
               const groupId = call.approvalGroupId;
               const currentApprovalGroup = activeApprovalGroup;
               if (groupId && currentApprovalGroup?.groupId !== groupId) return undefined;
+              if (groupId && currentApprovalGroup?.groupId === groupId) {
+                if (terminalApprovalOutcome?.groupId === groupId) return blockedApprovalResult(call, terminalApprovalOutcome);
+                if (currentApprovalGroup.decision === "rejected") {
+                  return blockedApprovalResult(call, {
+                    groupId,
+                    code: "APPROVAL_REJECTED",
+                    message: "The approval group was rejected before execution",
+                    failureClass: "blocked",
+                  });
+                }
+                if (!currentApprovalGroup.selectedOperationIds.includes(call.id)) {
+                  return blockedApprovalResult(call, {
+                    groupId,
+                    code: "APPROVAL_OPERATION_NOT_SELECTED",
+                    message: "This operation was not selected in the approval decision",
+                    failureClass: "blocked",
+                  });
+                }
+              }
               const groupApproval = groupId && currentApprovalGroup?.groupId === groupId
                 ? {
                     approvedBy: currentApprovalGroup.approvedBy,
@@ -735,6 +804,7 @@ export async function agentRunWorkflow(input: DurableRunInput): Promise<void> {
               break;
             }
           }
+          if (finishAfterApprovalGroup) return;
           activeApprovalGroup = undefined;
           if (handoffResult) {
             await transition("running", "awaiting_human");
