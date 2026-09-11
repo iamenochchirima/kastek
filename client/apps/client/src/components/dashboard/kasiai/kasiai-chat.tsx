@@ -64,6 +64,7 @@ import {
   updateKasiAiPreferences,
   AgentRequestError,
   type AgentApproval,
+  type AgentApprovalGroup,
   type AgentChannelBinding,
   type AgentConversation,
   type AgentInstallation,
@@ -75,6 +76,7 @@ import {
   type WhatsappConnectionOption,
 } from "@/lib/agent-platform";
 import { AgentApprovalPreview } from "@/components/dashboard/agents/agent-approval-preview";
+import { AgentApprovalGroupActions } from "@/components/dashboard/agents/agent-approval-group-actions";
 import { AgentChatComposer } from "@/components/dashboard/agents/agent-chat-composer";
 import { AgentChatMessageList, channelLabel, messageChannel, messageText } from "@/components/dashboard/agents/agent-chat-message-list";
 import { AgentChatRunStatus } from "@/components/dashboard/agents/agent-chat-run-status";
@@ -356,7 +358,8 @@ export function KasiAiChat({
   const [runStatuses, setRunStatuses] = useState<Record<string, string>>({});
   const [pendingApproval, setPendingApproval] = useState<{
     runId: string;
-    approval: AgentApproval;
+    approval?: AgentApproval;
+    approvalGroup?: AgentApprovalGroup;
     canApprove: boolean;
   } | null>(null);
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
@@ -480,6 +483,7 @@ export function KasiAiChat({
               runId,
               status: result.run.status,
               approval: result.approval,
+              approvalGroup: result.approvalGroup,
               canApprove: result.canApprove !== false,
               events: result.events,
             };
@@ -532,11 +536,12 @@ export function KasiAiChat({
         }
         if (
           result.status === "awaiting_approval" &&
-          result.approval?.status === "pending"
+          (result.approvalGroup?.status === "pending" || result.approval?.status === "pending")
         ) {
           setPendingApproval({
             runId: result.runId,
-            approval: result.approval,
+            ...(result.approval ? { approval: result.approval } : {}),
+            ...(result.approvalGroup ? { approvalGroup: result.approvalGroup } : {}),
             canApprove: result.canApprove,
           });
         } else if (result.status !== "awaiting_approval") {
@@ -1018,11 +1023,12 @@ export function KasiAiChat({
                     recordDisplayedRunStatus(accepted.runId, result.run.status);
                     if (
                       result.run.status === "awaiting_approval" &&
-                      result.approval?.status === "pending"
+                      (result.approvalGroup?.status === "pending" || result.approval?.status === "pending")
                     ) {
                       setPendingApproval({
                         runId: accepted.runId,
-                        approval: result.approval,
+                        ...(result.approval ? { approval: result.approval } : {}),
+                        ...(result.approvalGroup ? { approvalGroup: result.approvalGroup } : {}),
                         canApprove: result.canApprove !== false,
                       });
                     }
@@ -1568,6 +1574,7 @@ export function KasiAiChat({
                       <KasiAiApprovalPrompt
                         runId={pendingApproval.runId}
                         approval={pendingApproval.approval}
+                        approvalGroup={pendingApproval.approvalGroup}
                         canApprove={pendingApproval.canApprove}
                         onDecision={(decision) => {
                           setPendingApproval(null);
@@ -1630,16 +1637,22 @@ export function KasiAiChat({
 function KasiAiApprovalPrompt({
   runId,
   approval,
+  approvalGroup,
   canApprove,
   onDecision,
 }: {
   runId: string;
-  approval: AgentApproval;
+  approval?: AgentApproval;
+  approvalGroup?: AgentApprovalGroup;
   canApprove: boolean;
   onDecision: (decision: "approved" | "rejected") => void;
 }) {
   const [busy, setBusy] = useState<"approved" | "rejected" | null>(null);
   const [error, setError] = useState<string | null>(null);
+  if (approvalGroup) {
+    return <div className="mx-auto mt-4 max-w-3xl rounded-lg border border-status-attention/40 bg-status-attention-soft/40 px-3 py-3 text-xs" role="status" aria-live="polite"><div className="flex items-start justify-between gap-3"><div><p className="font-semibold text-foreground">Approval required</p><p className="mt-1 text-muted-foreground">Review {approvalGroup.operations.length} proposed actions as one group.</p></div><span className="shrink-0 rounded-full border border-status-attention/40 px-2 py-0.5 text-[10px] font-medium text-status-attention">Pending</span></div><div className="mt-3 space-y-1.5">{approvalGroup.operations.map((operation) => <div key={operation.runtimeOperationId ?? operation.providerToolCallId} className="rounded-md border border-border/70 bg-background/30 px-3 py-2"><p className="font-medium text-foreground">{operation.capability}</p><p className="mt-1 text-[10px] text-muted-foreground">{operation.status}</p></div>)}</div><div className="mt-3 flex flex-wrap items-center gap-2">{canApprove ? <AgentApprovalGroupActions runId={runId} group={approvalGroup} onDecided={onDecision} /> : <p className="text-muted-foreground">Approval is required from an authorized operator.</p>}<Link href={`/agents/activity/${encodeURIComponent(runId)}`} className="ml-auto text-muted-foreground hover:text-foreground">View details</Link></div></div>;
+  }
+  if (!approval) return null;
   const decide = async (decision: "approved" | "rejected") => {
     if (busy) return;
     setBusy(decision);

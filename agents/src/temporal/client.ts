@@ -1,7 +1,7 @@
 import { Client, Connection, WorkflowExecutionAlreadyStartedError } from "@temporalio/client";
 import type { AppConfig } from "../config";
 import type { DurableRunInput } from "./contracts";
-import type { ApprovalSignal, CancellationSignal, ExternalEventSignal } from "./contracts";
+import type { ApprovalGroupSignal, ApprovalSignal, CancellationSignal, ExternalEventSignal } from "./contracts";
 import { agentRunWorkflow } from "./workflows";
 import { temporalClientInterceptor } from "../telemetry/temporal";
 
@@ -40,6 +40,10 @@ export async function startDurableRun(
 
 export async function signalRunApproval(client: Client, runId: string, signal: ApprovalSignal): Promise<void> {
   await client.workflow.getHandle(`agent-run-${runId}`).signal("agent.approval", signal);
+}
+
+export async function signalRunApprovalGroup(client: Client, runId: string, signal: ApprovalGroupSignal): Promise<void> {
+  await client.workflow.getHandle(`agent-run-${runId}`).signal("agent.approval-group", signal);
 }
 
 export async function signalRunCancellation(client: Client, runId: string, signal: CancellationSignal = {}): Promise<void> {

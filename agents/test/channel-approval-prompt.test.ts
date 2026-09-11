@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildChannelApprovalPrompt } from "../src/approval/channel-prompt";
+import { buildChannelApprovalGroupPrompt, buildChannelApprovalPrompt } from "../src/approval/channel-prompt";
 
 describe("channel approval prompts", () => {
   it("describes a publish using product language and safe resource details", () => {
@@ -63,5 +63,13 @@ describe("channel approval prompts", () => {
 
   it("never exposes an unknown internal capability", () => {
     expect(buildChannelApprovalPrompt("internal.system.operation")).toBe("Approve this action?");
+  });
+
+  it("describes one durable group without exposing operation arguments", () => {
+    expect(buildChannelApprovalGroupPrompt([
+      { capability: "kasitek.calendar.delete" },
+      { capability: "kasitek.calendar.delete" },
+      { capability: "kasitek.calendar.create" },
+    ])).toBe("Approve all 3 requested actions (kasitek.calendar.delete and kasitek.calendar.create)?");
   });
 });

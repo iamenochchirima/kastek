@@ -6,7 +6,7 @@ import { ConversationRepository } from "../db/repositories/conversation-reposito
 import { retrieveKnowledge } from "../memory/retrieval";
 import { memoryPolicyFromAgentPolicy } from "../memory/policy";
 import { KnowledgeRepository } from "../db/repositories/knowledge-repository";
-import type { AgentRunActivities } from "./contracts";
+import type { AgentRunActivities, DurableToolCallResult, DurableToolBatchSegment } from "./contracts";
 import { ModelGateway } from "../model/gateway";
 import { EnvironmentCredentialResolver, VaultCredentialResolver, type CredentialResolver } from "../model/credentials";
 import type { ModelPricing, ModelProvider } from "../model/types";
@@ -36,7 +36,7 @@ import { TelegramBotClient } from "../channels/telegram-client";
 import { DiscordBotClient } from "../channels/discord-client";
 import { KasiAiPreferenceRepository } from "../db/repositories/kasiai-preference-repository";
 import { EffectReceiptRepository } from "../db/repositories/effect-receipt-repository";
-import { ApprovalRepository } from "../db/repositories/approval-repository";
+import { ApprovalRepository, type ApprovalGroupProposal } from "../db/repositories/approval-repository";
 import { InstallationGrantRepository } from "../db/repositories/installation-grant-repository";
 import { authorizeInstallationCapability } from "../capabilities/authorization";
 import { createCapabilityRuntime, type CapabilityRuntime } from "../capabilities/runtime";
@@ -47,7 +47,7 @@ import { WorkflowStateRepository } from "../db/repositories/workflow-state-repos
 import { WorkflowCheckpointRepository } from "../db/repositories/workflow-checkpoint-repository";
 import { redactSensitiveValue, redactToolOutput } from "../tools/redaction";
 import { ModelProviderError, type ModelCredentials, type ModelMessage, type ModelRequest, type ModelResponse, type ModelToolCall } from "../model/types";
-import { activityInfo, cancellationSignal, heartbeat } from "@temporalio/activity";
+import { activityInfo, ApplicationFailure, cancellationSignal, heartbeat } from "@temporalio/activity";
 import { buildGroundingProvenance } from "../runtime/provenance";
 import { approvalSnapshotHashFromResource, toolInvocationContextFromScope, type ToolInvocationContext } from "../tools/types";
 import type { CoreContentPost, CoreContentPosts, CoreContentPublishBatch, CoreContentPublishBatchPreflight, CoreWorkspaceConnections, CoreWorkspaceStatus } from "../core/client";
@@ -58,7 +58,7 @@ import { HandoffRepository } from "../db/repositories/handoff-repository";
 import { ExtensionSnapshotRepository } from "../db/repositories/extension-snapshot-repository";
 import { authorizationRemediationText } from "../channels/authorization";
 import { createChannelApprovalActionToken } from "../approval/channel-action";
-import { buildChannelApprovalPrompt } from "../approval/channel-prompt";
+import { buildChannelApprovalGroupPrompt, buildChannelApprovalPrompt } from "../approval/channel-prompt";
 import { IntegrationRepository } from "../integrations/repository";
 import { IntegrationToolService } from "../integrations/service";
 import { registerIntegrationTools } from "../integrations/tools";
@@ -82,6 +82,7 @@ import { PostgresExecutionJournal, RunRepositoryExecutionJournalStore } from "..
 import { PostgresDeliveryObligationCoordinator } from "../delivery";
 import { compactDurableContext } from "../runtime/context-compaction";
 import { ContextCompactionRepository } from "../db/repositories/context-compaction-repository";
+import { archiveThroughSequenceForCompaction, SessionTranscriptRepository, type SessionTranscriptProjection } from "../db/repositories/session-transcript-repository";
 import { ContextManifestRepository, type ContextManifestRecordInput } from "../db/repositories/context-manifest-repository";
 import { ContextAttemptBudgetRepository } from "../db/repositories/context-attempt-budget-repository";
 import { MemoryCheckpointRepository } from "../db/repositories/memory-checkpoint-repository";
@@ -109,6 +110,9 @@ import { agentBehaviorSettingsSchema, renderAgentBehaviorSettings } from "../dom
 import { KASIAI_PLATFORM_GUIDANCE_EXTENSION } from "../system/kasiai-platform-guidance";
 import { getPluginAdapter, type PluginAdapter, type PluginAdapterCredentialState } from "../extensions/plugin-adapters";
 import { registerSkillDiscoveryTools, SKILL_DISCOVERY_TOOL_NAMES } from "../skills/runtime-tools";
+import { markDuplicateToolCalls, planToolBatch } from "../runtime/tool-batch";
+import { transcriptDigest } from "../runtime/transcript";
+import { classifyToolFailure, type ToolFailureClass } from "../runtime/tool-failure";
 
 export interface ActivityOptions {
   gateway?: ModelGateway;
@@ -405,7 +409,7 @@ async function reserveRunModelBudget(input: {
   };
 }
 
-async function consumeRunToolBudget(repository: RunBudgetRepository, input: { organizationId: string; runId: string; parallelLeaseId?: string }): Promise<void> {
+async function consumeRunToolBudget(repository: RunBudgetRepository, input: { organizationId: string; runId: string; operationKey?: string; parallelLeaseId?: string }): Promise<void> {
   try {
     await repository.consumeToolCallWithParallelLease(input);
   } catch (error) {
@@ -2242,6 +2246,16 @@ function activityHeartbeat(details: Record<string, unknown>): void {
   }
 }
 
+const maxToolActivityAttempts = 5;
+
+function currentActivityAttempt(): number {
+  try {
+    return activityInfo().attempt;
+  } catch {
+    return 1;
+  }
+}
+
 async function withActivityHeartbeat<T>(details: Record<string, unknown>, operation: () => Promise<T>): Promise<T> {
   activityHeartbeat(details);
   const timer = setInterval(() => activityHeartbeat(details), 5_000);
@@ -2384,6 +2398,7 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
   const runSteps = new RunStepRepository(pool);
   const toolGrants = new ToolGrantRepository(pool);
   const summaries = new SummaryRepository(pool);
+  const sessionTranscripts = new SessionTranscriptRepository(pool);
   const killSwitches = new KillSwitchRepository(pool);
   const controls = new OperatorControlRepository(pool);
   const channels = new ChannelRepository(pool);
@@ -2542,6 +2557,54 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
     });
     if (!current) throw new Error("SESSION_LEASE_FENCED");
   };
+  const executeModelStepActivity = async (input: Parameters<AgentRunActivities["executeLoop"]>[0]) => {
+    const run = await runs.getRuntimeRunById(input.runId);
+    if (!run) throw new Error("Run not found");
+    // Runtime execution must never infer a missing environment as live.
+    // The installation settings are the authoritative product boundary.
+    runtimeExecutionScopeFromRun(run);
+    await assertRunEnvironmentBoundary(run, runs);
+    const admission = await runs.acquireConversationTurn(run.organization_id, run.id);
+    if (!admission.acquired) {
+      throw new Error("SESSION_LEASE_LOST");
+    }
+    if (input.sessionLease?.fencingToken !== undefined && input.sessionLease.fencingToken !== admission.fencingToken) {
+      throw new Error("SESSION_LEASE_FENCED");
+    }
+    const sessionLease = admission.sessionKey && admission.fencingToken
+      ? { sessionKey: admission.sessionKey, fencingToken: admission.fencingToken }
+      : undefined;
+    const sessionGuard = sessionLease
+      ? new SessionLeaseGuard(runs, run.organization_id, run.id, sessionLease)
+      : undefined;
+    sessionGuard?.start();
+    try {
+      if (isMcpToolRun(run.input)) {
+        return await executeMcpToolRun(
+          run,
+          input.resumeApprovedToolCall,
+          runs,
+          runBudgets,
+          toolInvocations,
+          approvals,
+          effectReceipts,
+          runSteps,
+          toolGrants,
+          killSwitches,
+          controls,
+          harness.capabilities,
+          coreClient,
+          toolInvocationLifecycle,
+          sessionLease,
+          sessionGuard,
+          options.config,
+        );
+      }
+      return await executeLoopForRun(run, input.resumeApprovedToolCall, input.resumeExternalEvent, input.loopStep, runs, modelCalls, contextCapabilities, providerMetadata, runBudgets, conversations, knowledge, skills, remoteMcpProviders, toolInvocations, approvals, effectReceipts, runSteps, toolGrants, installationGrants, summaries, sessionTranscripts, killSwitches, controls, kasiaiPreferences, gateway, credentials, tools, harness, workflowState, workflowCheckpoints, modelPricing, creditPricing, creditBillingMode, coreClient, conversationActions, true, toolInvocationLifecycle, integrationReadinessForRequest, pluginReadinessForRequest, sessionLease, new ContextCompactionRepository(pool, run.organization_id), new ContextManifestRepository(pool, run.organization_id), new ContextAttemptBudgetRepository(pool, run.organization_id, { maxAttempts: restrictiveLimit(run.configuration.maxModelCalls, run.installation_settings?.maxModelCalls) ?? 8 }), memoryCheckpointPort, memoryRetrievalPort, sessionGuard, memoryJournalSourceCapture, options.config, memoryConsolidationJobs, integrationRepository, integrationTools, extensionSnapshots);
+    } finally {
+      sessionGuard?.stop();
+    }
+  };
   const activities: AgentRunActivities = {
     async transitionRun(input) {
       await assertCurrentSessionLease(input);
@@ -2553,52 +2616,444 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
       return runs.acquireConversationTurn(run.organization_id, run.id);
     },
     async executeLoop(input) {
+      return executeModelStepActivity(input);
+    },
+    async executeModelStep(input) {
+      return executeModelStepActivity(input);
+    },
+    async prepareToolBatch(input) {
       const run = await runs.getRuntimeRunById(input.runId);
       if (!run) throw new Error("Run not found");
-      // Runtime execution must never infer a missing environment as live.
-      // The installation settings are the authoritative product boundary.
-      runtimeExecutionScopeFromRun(run);
+      const executionScope = runtimeExecutionScopeFromRun(run, input.sessionLease ? { sessionKey: input.sessionLease.sessionKey, fencingToken: input.sessionLease.fencingToken } : undefined);
       await assertRunEnvironmentBoundary(run, runs);
-      const admission = await runs.acquireConversationTurn(run.organization_id, run.id);
-      if (!admission.acquired) {
-        throw new Error("SESSION_LEASE_LOST");
+      await assertCurrentSessionLease({ organizationId: run.organization_id, runId: run.id, sessionLease: input.sessionLease });
+      const state = await workflowState.get(run.organization_id, run.id);
+      const checkpoint = readDurableAgentLoopCheckpoint(state?.state?.__agentLoop);
+      const authorizedToolNames = checkpoint?.authorizedToolNames;
+      if (!authorizedToolNames?.length) throw new Error("TOOL_AUTHORIZATION_SNAPSHOT_MISSING");
+      const sortedCalls = [...input.calls].sort((left, right) => left.sequenceNumber - right.sequenceNumber);
+      const calls = markDuplicateToolCalls(sortedCalls);
+      const identities = new Set<string>();
+      const planned = planToolBatch(
+        calls.map((call) => ({
+          id: call.providerToolCallId ?? call.id,
+          runtimeOperationId: call.id,
+          name: call.name,
+          arguments: call.arguments,
+        })),
+        (name) => tools.get(name),
+      );
+      let segments: DurableToolBatchSegment[] = planned.map((segment, segmentIndex) => {
+        const segmentId = `${input.batchId}:segment:${segmentIndex + 1}`;
+        return {
+          kind: segment.kind,
+          segmentId,
+          calls: segment.calls.map(({ index }) => ({ ...calls[index]!, batchId: input.batchId, segmentId })),
+        };
+      });
+      for (const call of calls) {
+        if (identities.has(call.id)) throw new Error("TOOL_BATCH_DUPLICATE_OPERATION");
+        identities.add(call.id);
+        const manifest = tools.get(call.name);
+        const segment = segments.find((candidate) => candidate.calls.some((candidateCall) => candidateCall.id === call.id));
+        await toolInvocations.recordProposal({
+          organizationId: run.organization_id,
+          runId: run.id,
+          providerToolCallId: call.providerToolCallId ?? call.id,
+          runtimeOperationId: call.id,
+          sequenceNumber: call.sequenceNumber,
+          toolName: call.name,
+          toolVersion: manifest?.version ?? "unknown",
+          riskClass: manifest?.riskClass ?? "privileged",
+          argumentsHash: call.argumentsHash,
+          arguments: call.arguments,
+          requiresApproval: manifest?.requiresApproval ?? false,
+          batchId: input.batchId,
+          segmentId: segment?.segmentId,
+        });
       }
-      if (input.sessionLease?.fencingToken !== undefined && input.sessionLease.fencingToken !== admission.fencingToken) {
-        throw new Error("SESSION_LEASE_FENCED");
-      }
-      const sessionLease = admission.sessionKey && admission.fencingToken
-        ? { sessionKey: admission.sessionKey, fencingToken: admission.fencingToken }
-        : undefined;
-      const sessionGuard = sessionLease
-        ? new SessionLeaseGuard(runs, run.organization_id, run.id, sessionLease)
-        : undefined;
-      sessionGuard?.start();
-      try {
-        if (isMcpToolRun(run.input)) {
-          return await executeMcpToolRun(
-            run,
-            input.resumeApprovedToolCall,
-            runs,
-            runBudgets,
-            toolInvocations,
-            approvals,
-            effectReceipts,
-            runSteps,
-            toolGrants,
-            killSwitches,
-            controls,
-            harness.capabilities,
-            coreClient,
-            toolInvocationLifecycle,
-            sessionLease,
-            sessionGuard,
-            options.config,
-          );
+      const approvalCalls = calls.filter((call) => !call.deduplicatedFrom && tools.get(call.name)?.requiresApproval);
+      let approvalGroup: { id: string; planDigest: string; expiresAt: string } | undefined;
+      if (approvalCalls.length) {
+        const expiresAt = new Date(Date.now() + 30 * 60 * 1000).toISOString();
+        const proposals: ApprovalGroupProposal[] = [];
+        for (const call of approvalCalls) {
+          const manifest = tools.get(call.name);
+          if (!manifest) throw new Error(`TOOL_NOT_FOUND:${call.name}`);
+          proposals.push({
+            providerToolCallId: call.providerToolCallId ?? call.id,
+            runtimeOperationId: call.id,
+            capability: call.name,
+            capabilityVersion: manifest.version,
+            argumentsHash: call.argumentsHash,
+            resourceSnapshot: await buildApprovalResourceSnapshotFromCore(coreClient, toolInvocationContextFromScope(executionScope), call.name, call.arguments),
+            previewRevision: call.argumentsHash,
+            policyRevision: "v1",
+            permittedEffectKey: `${run.id}:${call.id}`,
+          });
         }
-        return await executeLoopForRun(run, input.resumeApprovedToolCall, input.resumeExternalEvent, input.loopStep, runs, modelCalls, contextCapabilities, providerMetadata, runBudgets, conversations, knowledge, skills, remoteMcpProviders, toolInvocations, approvals, effectReceipts, runSteps, toolGrants, installationGrants, summaries, killSwitches, controls, kasiaiPreferences, gateway, credentials, tools, harness, workflowState, workflowCheckpoints, modelPricing, creditPricing, creditBillingMode, coreClient, conversationActions, options.config?.TEMPORAL_STEP_ACTIVITIES_ENABLED === true, toolInvocationLifecycle, integrationReadinessForRequest, pluginReadinessForRequest, sessionLease, new ContextCompactionRepository(pool, run.organization_id), new ContextManifestRepository(pool, run.organization_id), new ContextAttemptBudgetRepository(pool, run.organization_id, { maxAttempts: restrictiveLimit(run.configuration.maxModelCalls, run.installation_settings?.maxModelCalls) ?? 8 }), memoryCheckpointPort, memoryRetrievalPort, sessionGuard, memoryJournalSourceCapture, options.config, memoryConsolidationJobs, integrationRepository, integrationTools, extensionSnapshots);
-      } finally {
-        sessionGuard?.stop();
+        const created = await approvals.createGroup({
+          organizationId: run.organization_id,
+          installationId: run.installation_id,
+          runId: run.id,
+          batchId: input.batchId,
+          turnKey: `model-turn:${input.batchId}`,
+          policyRevision: "v1",
+          expiresAt,
+          proposals,
+        });
+        approvalGroup = { id: created.group.id, planDigest: created.group.plan_digest, expiresAt: created.group.expires_at };
+        await runs.appendEvent({
+          organizationId: run.organization_id,
+          runId: run.id,
+          installationId: run.installation_id,
+          eventType: "agent.approval.group.requested",
+          payload: {
+            approvalGroupId: created.group.id,
+            batchId: input.batchId,
+            planDigest: created.group.plan_digest,
+            operationCount: created.approvals.length,
+            expiresAt: created.group.expires_at,
+          },
+        });
+        const approvalOperationIds = new Set(created.approvals.map((approval) => approval.runtime_operation_id));
+        segments = segments.map((segment) => ({
+          ...segment,
+          calls: segment.calls.map((call) => approvalOperationIds.has(call.id)
+            ? { ...call, approvalGroupId: approvalGroup!.id, approvalPlanDigest: approvalGroup!.planDigest }
+            : call),
+        }));
       }
+      await runs.appendEvent({
+        organizationId: run.organization_id,
+        runId: run.id,
+        installationId: run.installation_id,
+        eventType: "agent.tool_batch.prepared",
+        payload: {
+          batchId: input.batchId,
+          ...(approvalGroup ? { approvalGroupId: approvalGroup.id, approvalPlanDigest: approvalGroup.planDigest, approvalExpiresAt: approvalGroup.expiresAt } : {}),
+          calls: calls.map((call) => ({ operationId: call.id, providerToolCallId: call.providerToolCallId ?? call.id, name: call.name, sequenceNumber: call.sequenceNumber })),
+          segments: segments.map((segment) => ({ kind: segment.kind, operationIds: segment.calls.map((call) => call.id) })),
+        },
+      });
+      return segments;
+    },
+    async executeToolCall(input) {
+      const run = await runs.getRuntimeRunById(input.runId);
+      if (!run) throw new Error("Run not found");
+      const lease = input.sessionLease
+        ? { sessionKey: input.sessionLease.sessionKey, fencingToken: input.sessionLease.fencingToken }
+        : undefined;
+      const executionScope = runtimeExecutionScopeFromRun(run, lease);
+      await assertRunEnvironmentBoundary(run, runs);
+      await assertCurrentSessionLease({ organizationId: run.organization_id, runId: run.id, sessionLease: input.sessionLease });
+      if (run.installation_status !== "active") throw new Error("INSTALLATION_NOT_ACTIVE");
+      const call = input.call;
+      const providerToolCallId = call.providerToolCallId ?? call.id;
+      const manifest = tools.get(call.name);
+      const state = await workflowState.get(run.organization_id, run.id);
+      const checkpoint = readDurableAgentLoopCheckpoint(state?.state?.__agentLoop);
+      const authorizedToolNames = checkpoint?.authorizedToolNames;
+      let effectOutcomeRecorded = false;
+      const failure = async (
+        error: { code: string; message: string },
+        status: DurableToolCallResult["status"] = "failed",
+        failureClass: ToolFailureClass = classifyToolFailure({ code: error.code, message: error.message, effectStarted: status === "unknown" }),
+      ): Promise<DurableToolCallResult> => {
+        const durableStatus = failureClass === "unknown" ? "unknown" : status;
+        const durableError = { ...error, failureClass };
+        if (durableStatus !== "waiting") {
+          if (manifest?.riskClass === "external-effect" && !effectOutcomeRecorded) {
+            if (durableStatus === "unknown") await effectReceipts.markUnknownByKey(run.organization_id, `${run.id}:${call.name}:${call.argumentsHash}`, durableError);
+            else await effectReceipts.markNotExecutedByKey(run.organization_id, `${run.id}:${call.name}:${call.argumentsHash}`, durableError);
+            effectOutcomeRecorded = true;
+          }
+          await toolInvocations.recordFailed({ runId: run.id, providerToolCallId, runtimeOperationId: call.id, error: durableError, status: durableStatus === "unknown" ? "unknown" : "failed" });
+          const step = await runSteps.findStartedToolStep(run.id, call.id);
+          if (step) await runSteps.finishStep({ stepId: step.id, status: "failed", error: durableError });
+        }
+        await runs.appendEvent({
+          organizationId: run.organization_id,
+          runId: run.id,
+          installationId: run.installation_id,
+          eventType: durableStatus === "waiting" ? "agent.tool.waiting" : durableStatus === "unknown" ? "agent.tool.unknown" : "agent.tool.failed",
+          operationId: call.id,
+          payload: { batchId: input.batchId, toolCallId: providerToolCallId, operationId: call.id, name: call.name, error: durableError, failureClass },
+        });
+        return { id: call.id, providerToolCallId, name: call.name, argumentsHash: call.argumentsHash, status: durableStatus, failureClass, error: durableError };
+      };
+      if (!manifest) return failure({ code: "TOOL_NOT_FOUND", message: `Tool is not registered: ${call.name}` }, "blocked");
+      if (!authorizedToolNames?.length) return failure({ code: "TOOL_AUTHORIZATION_SNAPSHOT_MISSING", message: "The deferred tool batch has no pinned authorization snapshot" }, "blocked");
+      const authorizedTools = new Set(authorizedToolNames);
+      if (!authorizedTools.has(call.name)) return failure({ code: "TOOL_NOT_GRANTED", message: `Tool is not in the pinned capability snapshot: ${call.name}` }, "blocked");
+      const temporalActivityId = (() => {
+        try { return activityInfo().activityId; } catch { return undefined; }
+      })();
+      await toolInvocations.recordActivityIdentity({
+        runId: run.id,
+        runtimeOperationId: call.id,
+        batchId: call.batchId ?? input.batchId,
+        segmentId: call.segmentId,
+        temporalActivityId,
+      });
+      const replayed = await toolInvocations.getCompleted({
+        organizationId: run.organization_id,
+        runId: run.id,
+        providerToolCallId,
+        runtimeOperationId: call.id,
+        toolName: call.name,
+        argumentsHash: call.argumentsHash,
+      });
+      if (replayed) {
+        return {
+          id: call.id,
+          providerToolCallId,
+          name: call.name,
+          argumentsHash: call.argumentsHash,
+          status: "completed",
+          output: redactToolOutput(replayed.output, manifest.manifest?.redaction ?? []),
+          ...(replayed.effectId ? { effectId: replayed.effectId } : {}),
+          ...(replayed.control ? { control: replayed.control } : {}),
+          latencyMs: replayed.latencyMs,
+        };
+      }
+      if (call.deduplicatedFrom) {
+        const canonical = await toolInvocations.getCompleted({
+          organizationId: run.organization_id,
+          runId: run.id,
+          providerToolCallId: call.deduplicatedFrom,
+          runtimeOperationId: call.deduplicatedFrom,
+          toolName: call.name,
+          argumentsHash: call.argumentsHash,
+        });
+        if (!canonical) return failure({ code: "TOOL_DEDUPLICATE_SOURCE_INCOMPLETE", message: "The canonical operation for this duplicate call has not completed" });
+        const durableOutput = redactToolOutput(canonical.output, manifest.manifest?.redaction ?? []);
+        await toolInvocations.recordCompleted({
+          runId: run.id,
+          providerToolCallId,
+          runtimeOperationId: call.id,
+          output: durableOutput,
+          latencyMs: canonical.latencyMs,
+          effectId: canonical.effectId,
+        });
+        const step = await runSteps.findStartedToolStep(run.id, call.id);
+        if (step) await runSteps.finishStep({ stepId: step.id, status: "completed", output: { latencyMs: canonical.latencyMs, deduplicatedFrom: call.deduplicatedFrom } });
+        await runs.appendEvent({
+          organizationId: run.organization_id,
+          runId: run.id,
+          installationId: run.installation_id,
+          eventType: "agent.tool.completed",
+          operationId: call.id,
+          payload: { batchId: input.batchId, toolCallId: providerToolCallId, operationId: call.id, name: call.name, replayed: true, deduplicatedFrom: call.deduplicatedFrom },
+        });
+        return {
+          id: call.id,
+          providerToolCallId,
+          name: call.name,
+          argumentsHash: call.argumentsHash,
+          status: "completed",
+          output: durableOutput,
+          ...(canonical.effectId ? { effectId: canonical.effectId } : {}),
+          ...(canonical.control ? { control: canonical.control } : {}),
+          latencyMs: canonical.latencyMs,
+        };
+      }
+      const approvalGroupId = input.approvalGroupId ?? input.approval?.approvalGroupId ?? call.approvalGroupId;
+      let resolvedApproval = input.approval;
+      if (manifest.requiresApproval && approvalGroupId && resolvedApproval) {
+        const persistedApproval = await approvals.getApprovedOperation({
+          organizationId: run.organization_id,
+          runId: run.id,
+          groupId: approvalGroupId,
+          runtimeOperationId: call.id,
+          argumentsHash: call.argumentsHash,
+        });
+        if (!persistedApproval) {
+          return failure({ code: "APPROVAL_GROUP_OPERATION_NOT_APPROVED", message: "This operation was not approved in the active approval group" }, "blocked");
+        }
+        resolvedApproval = {
+          ...resolvedApproval,
+          approvalGroupId,
+          expiresAt: persistedApproval.expires_at,
+          resourceSnapshot: persistedApproval.resource_snapshot,
+        };
+      }
+      if (manifest.requiresApproval && !resolvedApproval) {
+        return failure({ code: "APPROVAL_REQUIRED", message: "This tool call is waiting for approval" }, "waiting");
+      }
+      if (resolvedApproval && resolvedApproval.argumentsHash !== call.argumentsHash) {
+        return failure({ code: "APPROVAL_ARGUMENTS_MISMATCH", message: "The approval does not match the tool arguments" }, "blocked");
+      }
+      if (await killSwitches.isBlocked({ organizationId: run.organization_id, agentId: run.agent_definition_id, installationId: run.installation_id, toolNames: [call.name] })) {
+        return failure({ code: "AGENT_KILL_SWITCH_ACTIVE", message: "Tool execution is blocked by the agent kill switch" }, "blocked");
+      }
+      const resourceSnapshot = resolvedApproval?.resourceSnapshot
+        ?? await buildApprovalResourceSnapshotFromCore(coreClient, toolInvocationContextFromScope(executionScope), call.name, call.arguments);
+      const toolExecutionScope = { ...executionScope, capabilityGrants: [...authorizedTools] };
+      const signal = currentActivitySignal();
+      let effectTransitioned = false;
+      const effectIdempotencyKey = `${run.id}:${call.name}:${call.argumentsHash}`;
+      try {
+      if (manifest.riskClass === "external-effect") {
+        if (!(await controls.isFeatureEnabled(run.organization_id, "effect_execution_enabled", run.installation_id))) return failure({ code: "AGENT_EFFECT_FLAG_DISABLED", message: "External effects are disabled" }, "blocked");
+        if (await controls.isHeld({ organizationId: run.organization_id, installationId: run.installation_id, runId: run.id, holdType: "effects" })) return failure({ code: "AGENT_EFFECT_HOLD_ACTIVE", message: "External effects are temporarily held" }, "blocked");
+      }
+      if (manifest.requiresApproval && manifest.riskClass !== "external-effect" && resolvedApproval) {
+        await approvals.consume({
+          organizationId: run.organization_id,
+          installationId: run.installation_id,
+          runId: run.id,
+          providerToolCallId,
+          runtimeOperationId: call.id,
+          capability: call.name,
+          capabilityVersion: manifest.version,
+          argumentsHash: call.argumentsHash,
+          resourceSnapshot,
+          previewRevision: call.argumentsHash,
+          policyRevision: "v1",
+          permittedEffectKey: `${run.id}:${call.id}`,
+        });
+      }
+      await consumeRunToolBudget(runBudgets, { organizationId: run.organization_id, runId: run.id, operationKey: call.id });
+        const result = await withActivityHeartbeat(
+          { phase: "agent.tool.running", runId: run.id, batchId: input.batchId, operationId: call.id, tool: call.name },
+          () => harness.capabilities.invoke({
+            name: call.name,
+            arguments: call.arguments,
+            grantedTools: authorizedTools,
+            approval: resolvedApproval,
+            signal,
+            context: toolInvocationContextFromScope(toolExecutionScope, {
+              ...(resolvedApproval?.resourceSnapshot ? { approvalSnapshotHash: approvalSnapshotHashFromResource(resourceSnapshot) } : {}),
+              ...(checkpoint?.capabilitySnapshotDigest ? { capabilitySnapshotDigest: checkpoint.capabilitySnapshotDigest } : {}),
+              ...(signal ? { signal } : {}),
+              operationId: call.id,
+            }),
+            operationId: call.id,
+            sequenceNumber: call.sequenceNumber,
+            lifecycle: toolInvocationLifecycle,
+            beforeEffect: manifest.riskClass === "external-effect" ? async () => {
+              if (manifest.requiresApproval && resolvedApproval) {
+                await approvals.consumeAndStartEffect({
+                  organizationId: run.organization_id,
+                  installationId: run.installation_id,
+                  runId: run.id,
+                  providerToolCallId,
+                  runtimeOperationId: call.id,
+                  capability: call.name,
+                  capabilityVersion: manifest.version,
+                  argumentsHash: call.argumentsHash,
+                  resourceSnapshot,
+                  previewRevision: call.argumentsHash,
+                  policyRevision: "v1",
+                  permittedEffectKey: `${run.id}:${call.id}`,
+                  effectIdempotencyKey,
+                });
+              } else {
+                await effectReceipts.markExecutingByKey(run.organization_id, effectIdempotencyKey);
+              }
+              effectTransitioned = true;
+            } : undefined,
+          }),
+        );
+        const durableOutput = redactToolOutput(result.output, manifest.manifest?.redaction ?? []);
+        await toolInvocations.recordCompleted({ runId: run.id, providerToolCallId, runtimeOperationId: call.id, output: durableOutput, latencyMs: result.latencyMs, effectId: result.effectId });
+        if (result.effectId) await effectReceipts.markSucceededByKey(run.organization_id, effectIdempotencyKey, durableOutput);
+        const step = await runSteps.findStartedToolStep(run.id, call.id);
+        if (step) await runSteps.finishStep({ stepId: step.id, status: "completed", output: { latencyMs: result.latencyMs } });
+        await runs.appendEvent({
+          organizationId: run.organization_id,
+          runId: run.id,
+          installationId: run.installation_id,
+          eventType: "agent.tool.completed",
+          operationId: call.id,
+          payload: { batchId: input.batchId, toolCallId: providerToolCallId, operationId: call.id, name: call.name, latencyMs: result.latencyMs },
+        });
+        const outputRecord = durableOutput && typeof durableOutput === "object" && !Array.isArray(durableOutput) ? durableOutput as Record<string, unknown> : undefined;
+        return {
+          id: call.id,
+          providerToolCallId,
+          name: call.name,
+          argumentsHash: call.argumentsHash,
+          status: "completed",
+          output: durableOutput,
+          ...(result.effectId ? { effectId: result.effectId } : {}),
+          ...(result.control ? { control: result.control } : {}),
+          ...(result.control === "awaiting_human" && typeof outputRecord?.handoffRequestId === "string" ? { waitingFor: outputRecord.handoffRequestId } : {}),
+          latencyMs: result.latencyMs,
+        } satisfies DurableToolCallResult;
+      } catch (error) {
+        const normalized = { code: error instanceof Error && "code" in error && typeof error.code === "string" ? error.code : "TOOL_FAILED", message: error instanceof Error ? error.message : "Tool failed" };
+        const failureClass = classifyToolFailure({ code: normalized.code, message: normalized.message, effectStarted: effectTransitioned });
+        if (failureClass === "retryable" && !effectTransitioned && currentActivityAttempt() < maxToolActivityAttempts) {
+          await runs.appendEvent({
+            organizationId: run.organization_id,
+            runId: run.id,
+            installationId: run.installation_id,
+            eventType: "agent.tool.retrying",
+            operationId: call.id,
+            payload: { batchId: input.batchId, toolCallId: providerToolCallId, operationId: call.id, name: call.name, error: normalized, attempt: currentActivityAttempt(), maxAttempts: maxToolActivityAttempts, failureClass },
+          });
+          throw ApplicationFailure.retryable(normalized.message, normalized.code);
+        }
+        if (failureClass === "unknown") {
+          await effectReceipts.markUnknownByKey(run.organization_id, effectIdempotencyKey, normalized);
+          effectOutcomeRecorded = true;
+        }
+        return failure(normalized, failureClass === "unknown" ? "unknown" : "failed", failureClass);
+      }
+    },
+    async commitToolBatch(input) {
+      const run = await runs.getRuntimeRunById(input.runId);
+      if (!run) throw new Error("Run not found");
+      await assertCurrentSessionLease({ organizationId: run.organization_id, runId: run.id, sessionLease: input.sessionLease });
+      const state = await workflowState.get(run.organization_id, run.id);
+      const checkpoint = readDurableAgentLoopCheckpoint(state?.state?.__agentLoop);
+      if (!checkpoint?.toolBatchPending || !checkpoint.pendingToolCalls?.length) {
+        return { status: "replayed", toolCalls: input.results.length };
+      }
+      const byId = new Map(input.results.map((result) => [result.id, result]));
+      const committedIds = new Set<string>();
+      const messages = [...checkpoint.messages];
+      for (const call of checkpoint.pendingToolCalls) {
+        const result = byId.get(call.id);
+        if (!result) continue;
+        messages.push({
+          role: "tool",
+          name: result.name,
+          toolCallId: result.providerToolCallId,
+          runtimeOperationId: result.id,
+          content: JSON.stringify(result.status === "completed" ? result.output : { ok: false, error: result.error ?? { code: "TOOL_FAILED", message: "Tool failed" } }),
+        });
+        committedIds.add(call.id);
+      }
+      const remaining = input.remainingCalls ?? checkpoint.pendingToolCalls.filter((call) => !committedIds.has(call.id)).map((call, index) => ({ ...call, sequenceNumber: index + 1 }));
+      const nextCheckpoint = {
+        ...checkpoint,
+        messages,
+        toolCalls: checkpoint.toolCalls + committedIds.size,
+        transcriptCursor: messages.length,
+        transcriptDigest: transcriptDigest(messages),
+        ...(remaining.length ? { pendingToolCalls: remaining, toolBatchPending: true } : { pendingToolCalls: undefined, toolBatchPending: undefined }),
+      };
+      const nextState = { ...(state?.state ?? {}), __agentLoop: nextCheckpoint };
+      if (!remaining.length) delete (nextState.__agentLoop as Record<string, unknown>).toolBatchPending;
+      await workflowState.put({ organizationId: run.organization_id, runId: run.id, expectedRevision: state?.revision, state: nextState });
+      await runs.appendEvent({
+        organizationId: run.organization_id,
+        runId: run.id,
+        installationId: run.installation_id,
+        eventType: "agent.tool_batch.committed",
+        payload: { batchId: input.batchId, committedOperationIds: [...committedIds], remainingOperationIds: remaining.map((call) => call.id) },
+      });
+      const control = input.results.find((result) => result.control)?.control;
+      const waitingFor = input.results.find((result) => result.waitingFor)?.waitingFor;
+      return {
+        status: "committed" as const,
+        toolCalls: committedIds.size,
+        ...(control ? { control } : {}),
+        ...(waitingFor ? { waitingFor } : {}),
+      };
     },
     async getContentPublishBatchStatus(input) {
       const run = await runs.getRuntimeRunById(input.runId);
@@ -2647,9 +3102,11 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
         });
         return;
       }
-      const approval = await approvals.getForRun(run.organization_id, run.id);
+      const approvalGroup = await approvals.getActiveGroup(run.organization_id, run.id);
+      const approval = approvalGroup?.approvals[0] ?? await approvals.getForRun(run.organization_id, run.id);
       const secret = options.config?.INTERNAL_AUTH_SECRET?.trim();
-      if (!approval || approval.status !== "pending" || !secret) {
+      const groupPending = approvalGroup?.group.status === "pending";
+      if (!approval || (!groupPending && approval.status !== "pending") || !secret) {
         await runs.appendEvent({
           organizationId: run.organization_id,
           runId: run.id,
@@ -2659,8 +3116,9 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
         });
         return;
       }
+      const channelApprovalId = approvalGroup?.group.id ?? approval.id;
       const approve = createChannelApprovalActionToken({
-        approvalId: approval.id,
+        approvalId: channelApprovalId,
         organizationId: target.organization_id,
         installationId: target.installation_id,
         runId: target.run_id,
@@ -2671,10 +3129,10 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
         externalIdentity: target.external_identity,
         externalConversationId: target.external_conversation_id,
         decision: "approved",
-        expiresAt: approval.expires_at,
+        expiresAt: approvalGroup?.group.expires_at ?? approval.expires_at,
       }, secret);
       const reject = createChannelApprovalActionToken({
-        approvalId: approval.id,
+        approvalId: channelApprovalId,
         organizationId: target.organization_id,
         installationId: target.installation_id,
         runId: target.run_id,
@@ -2685,12 +3143,15 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
         externalIdentity: target.external_identity,
         externalConversationId: target.external_conversation_id,
         decision: "rejected",
-        expiresAt: approval.expires_at,
+        expiresAt: approvalGroup?.group.expires_at ?? approval.expires_at,
       }, secret);
-      const prompt = buildChannelApprovalPrompt(approval.capability, approval.resource_snapshot);
+      const prompt = approvalGroup
+        ? buildChannelApprovalGroupPrompt(approvalGroup.approvals.map((operation) => ({ capability: operation.capability })))
+        : buildChannelApprovalPrompt(approval.capability, approval.resource_snapshot);
+      const obligationId = approvalGroup?.group.id ?? approval.id;
       const obligation = await deliveryObligations.create({
-        id: approval.id,
-        idempotencyKey: `approval-prompt:${approval.id}`,
+        id: obligationId,
+        idempotencyKey: `approval-prompt:${obligationId}`,
         scope: {
           organizationId: run.organization_id,
           installationId: run.installation_id,
@@ -2699,9 +3160,9 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
           correlationId: run.correlation_id,
         },
         channel: `approval:${target.channel_type}`,
-        payloadRef: approval.id,
+        payloadRef: obligationId,
       });
-      const obligationClaimId = `approval-prompt:${approval.id}`;
+      const obligationClaimId = `approval-prompt:${obligationId}`;
       let claimed = false;
       try {
         const claim = await deliveryObligations.claim({ obligationId: obligation.id, claimId: obligationClaimId, workerId: "temporal:agent-approval" });
@@ -2740,15 +3201,24 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
         } else {
           throw new Error(`Unsupported approval prompt channel: ${target.channel_type}`);
         }
-        const completion = await deliveryObligations.complete({ obligationId: obligation.id, claimId: obligationClaimId, receiptRef: approval.id });
+        const completion = await deliveryObligations.complete({ obligationId: obligation.id, claimId: obligationClaimId, receiptRef: obligationId });
         if (completion.status !== "applied" && completion.status !== "idempotent") throw new Error(`DELIVERY_OBLIGATION_${completion.status.toUpperCase()}`);
         await runs.appendEvent({
           organizationId: run.organization_id,
           runId: run.id,
           installationId: run.installation_id,
           eventType: "agent.approval.prompt_delivered",
-          payload: { channelType: target.channel_type, bindingId: target.binding_id },
+          payload: { channelType: target.channel_type, bindingId: target.binding_id, ...(approvalGroup ? { approvalGroupId: approvalGroup.group.id } : {}) },
         });
+        if (approvalGroup) {
+          await runs.appendEvent({
+            organizationId: run.organization_id,
+            runId: run.id,
+            installationId: run.installation_id,
+            eventType: "agent.approval.group.displayed",
+            payload: { approvalGroupId: approvalGroup.group.id, operationCount: approvalGroup.approvals.length, channelType: target.channel_type },
+          });
+        }
       } catch (error) {
         const reason = error instanceof Error ? error.message : "approval_prompt_failed";
         if (claimed) {
@@ -2772,17 +3242,30 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
       await assertCurrentSessionLease(input);
       const run = await runs.getRuntimeRunById(input.runId);
       if (!run) throw new Error("Run not found");
-      await approvals.cancel(run.organization_id, run.id, input.providerToolCallId);
+      await approvals.cancel(run.organization_id, run.id, input.providerToolCallId, input.runtimeOperationId);
       await effectReceipts.markNotExecuted(run.organization_id, run.id, input.providerToolCallId, {
         code: "RUN_CANCELLED",
         message: input.reason ?? "The run was cancelled before the approved effect began",
-      });
+      }, input.runtimeOperationId);
       await runs.appendEvent({
         organizationId: run.organization_id,
         runId: run.id,
         installationId: run.installation_id,
         eventType: input.outcome === "expired" ? "agent.approval.expired" : "agent.approval.cancelled",
         payload: { providerToolCallId: input.providerToolCallId },
+      });
+    },
+    async cancelApprovalGroup(input) {
+      const run = await runs.getRuntimeRunById(input.runId);
+      if (!run) throw new Error("Run not found");
+      await assertCurrentSessionLease(input);
+      await approvals.cancelGroup(run.organization_id, run.id, input.groupId);
+      await runs.appendEvent({
+        organizationId: run.organization_id,
+        runId: run.id,
+        installationId: run.installation_id,
+        eventType: "agent.approval.group.cancelled",
+        payload: { approvalGroupId: input.groupId, reason: input.reason ?? "run_cancelled" },
       });
     },
     async cancelHandoff(input) {
@@ -2798,6 +3281,21 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
     },
     async completeRun(input) {
       await assertCurrentSessionLease(input);
+      const runtimeRun = await runs.getRuntimeRunById(input.runId);
+      if (runtimeRun?.conversation_id) {
+        const response = parseAgentResponse(input.output.response ?? { text: typeof input.output.message === "string" ? input.output.message : "" });
+        await sessionTranscripts.append({
+          organizationId: runtimeRun.organization_id,
+          installationId: runtimeRun.installation_id,
+          conversationId: runtimeRun.conversation_id,
+          turnId: `${runtimeRun.id}:turn`,
+          runId: runtimeRun.id,
+          kind: "assistant_response",
+          message: { role: "assistant", content: response.text },
+          metadata: { source: "run_completion" },
+          idempotencyKey: `run-final:${runtimeRun.id}`,
+        });
+      }
       const completed = await runs.completeRun(input.runId, input.output);
       if (completed.conversation_id) {
         try {
@@ -3112,6 +3610,7 @@ function durableConversationMessageToModelMessage(message: {
     role,
     content: text,
     ...(typeof content.toolCallId === "string" ? { toolCallId: content.toolCallId } : {}),
+    ...(typeof content.runtimeOperationId === "string" ? { runtimeOperationId: content.runtimeOperationId } : {}),
     ...(typeof content.name === "string" ? { name: content.name } : {}),
     ...(toolCalls?.length ? { toolCalls } : {}),
   };
@@ -3408,6 +3907,7 @@ async function executeLoopForRun(
   toolGrants: ToolGrantRepository,
   installationGrants: InstallationGrantRepository,
   summaries: SummaryRepository,
+  sessionTranscripts: SessionTranscriptRepository,
   killSwitches: KillSwitchRepository,
   controls: OperatorControlRepository,
   kasiaiPreferences: KasiAiPreferenceRepository,
@@ -3545,6 +4045,10 @@ async function executeLoopForRun(
         usage,
         iterations: loopCheckpoint.iterations,
         toolCalls: loopCheckpoint.toolCalls,
+        ...(loopCheckpoint.pendingToolCalls ? { pendingToolCalls: loopCheckpoint.pendingToolCalls } : {}),
+        ...(loopCheckpoint.toolBatchPending ? { toolBatchPending: true } : {}),
+        ...(loopCheckpoint.authorizedToolNames ? { authorizedToolNames: loopCheckpoint.authorizedToolNames } : {}),
+        ...(loopCheckpoint.capabilitySnapshotDigest ? { capabilitySnapshotDigest: loopCheckpoint.capabilitySnapshotDigest } : {}),
         ...(loopCheckpoint.ui ? { ui: loopCheckpoint.ui } : {}),
         checkpointed: true,
       };
@@ -3559,6 +4063,9 @@ async function executeLoopForRun(
       iterations: loopCheckpoint.iterations,
       toolCalls: loopCheckpoint.toolCalls,
       ...(loopCheckpoint.pendingToolCalls ? { pendingToolCalls: loopCheckpoint.pendingToolCalls } : {}),
+      ...(loopCheckpoint.toolBatchPending ? { toolBatchPending: true } : {}),
+      ...(loopCheckpoint.authorizedToolNames ? { authorizedToolNames: loopCheckpoint.authorizedToolNames } : {}),
+      ...(loopCheckpoint.capabilitySnapshotDigest ? { capabilitySnapshotDigest: loopCheckpoint.capabilitySnapshotDigest } : {}),
       ...(loopCheckpoint.waitingFor ? { waitingFor: loopCheckpoint.waitingFor } : {}),
       ...(loopCheckpoint.ui ? { ui: loopCheckpoint.ui } : {}),
     };
@@ -3883,21 +4390,75 @@ async function executeLoopForRun(
       preference.response_detail ? `Aim for ${preference.response_detail} response detail.` : null,
     ].filter((value): value is string => Boolean(value)).join(" ")
     : "";
-  const durableMessages = run.conversation_id
-    ? (await conversations.listMessages(run.organization_id, run.conversation_id))
-      .filter((message) => message.run_id !== run.id)
-      .filter((message) => {
-        if (isKasiAiInstallation || message.direction !== "outbound") return true;
-        const text = typeof message.content?.text === "string" ? message.content.text : "";
-        return !/KasiTek workspace assistant/i.test(text);
-      })
+  const allConversationMessages = run.conversation_id
+    ? await conversations.listMessages(run.organization_id, run.conversation_id)
     : [];
-  const conversationSummary = run.conversation_id ? await summaries.getSummary(run.organization_id, run.conversation_id) : null;
+  const durableMessages = allConversationMessages
+    .filter((message) => message.run_id !== run.id)
+    .filter((message) => {
+      if (isKasiAiInstallation || message.direction !== "outbound") return true;
+      const text = typeof message.content?.text === "string" ? message.content.text : "";
+      return !/KasiTek workspace assistant/i.test(text);
+    });
+  let conversationSummary: Awaited<ReturnType<SummaryRepository["getSummary"]>> = null;
   const contextCompactionOperationId = `context:${run.id}:${activeLoopStep}`;
   const contextCompactionId = run.conversation_id ?? run.id;
   const memoryScope = memoryScopeFromRun(run);
-  const memorySourceMessages = durableMessages.map(durableConversationMessageToModelMessage);
-  const memorySourceEventIds = durableMessages.map((message) => message.id);
+  let sessionProjection: SessionTranscriptProjection | undefined;
+  if (run.conversation_id) {
+    const transcriptScope = {
+      organizationId: run.organization_id,
+      installationId: run.installation_id,
+      conversationId: run.conversation_id,
+    };
+    // Existing display rows are a one-time conservative bootstrap. New
+    // requests thereafter read only the canonical session projection. The
+    // display row id makes retries and worker replays idempotent.
+    for (const message of durableMessages) {
+      const modelMessage = durableConversationMessageToModelMessage(message);
+      const kind = modelMessage.role === "user"
+        ? "user" as const
+        : modelMessage.role === "tool"
+          ? "tool_result" as const
+          : modelMessage.role === "system"
+            ? "error" as const
+            : modelMessage.toolCalls?.length
+              ? "assistant_tool_call" as const
+              : "assistant_response" as const;
+      const isRunFinal = message.direction === "outbound" && Boolean(message.run_id);
+      await sessionTranscripts.append({
+        ...transcriptScope,
+        turnId: message.run_id ? `${message.run_id}:turn` : `legacy:${message.id}`,
+        ...(message.run_id ? { runId: message.run_id } : {}),
+        kind,
+        message: modelMessage,
+        metadata: isRunFinal ? { source: "run_completion" } : { source: "legacy_display", displayMessageId: message.id },
+        idempotencyKey: isRunFinal ? `run-final:${message.run_id}` : `display-message:${message.id}`,
+      });
+    }
+    const currentDisplayMessage = allConversationMessages.find((message) => message.run_id === run.id && message.direction === "inbound")
+      ?? (run.causation_id ? allConversationMessages.find((message) => message.run_id === run.causation_id && message.direction === "inbound") : undefined);
+    const currentModelMessage = currentDisplayMessage
+      ? durableConversationMessageToModelMessage(currentDisplayMessage)
+      : { role: "user" as const, content: currentMessage };
+    await sessionTranscripts.append({
+      ...transcriptScope,
+      turnId: `${run.id}:turn`,
+      runId: run.id,
+      kind: "user",
+      message: currentModelMessage,
+      metadata: { source: currentDisplayMessage ? "display_admission" : "run_admission" },
+      idempotencyKey: currentDisplayMessage ? `display-message:${currentDisplayMessage.id}` : `run-user:${run.id}`,
+    });
+    sessionProjection = await sessionTranscripts.readActive(transcriptScope);
+  }
+  // The summary table remains a display compatibility fallback only. A
+  // conversation with a canonical session never reads it for model context.
+  if (!sessionProjection && run.conversation_id) {
+    conversationSummary = await summaries.getSummary(run.organization_id, run.conversation_id);
+  }
+  let memorySourceMessages = sessionProjection?.messages ?? durableMessages.map(durableConversationMessageToModelMessage);
+  let memorySourceEventIds = sessionProjection?.entries.map((entry) => entry.id) ?? durableMessages.map((message) => message.id);
   const memorySourceBoundary = sourceEventBoundaryFromMessages(memorySourceMessages, memorySourceEventIds);
   const memoryDirectEvidence = directEvidenceEnvelopeFromMessages(memorySourceMessages, memorySourceEventIds);
   if (memoryConsolidationJobs && run.conversation_id && memorySourceMessages.length > 0) {
@@ -3992,11 +4553,47 @@ async function executeLoopForRun(
       },
     },
   });
+  let activeSessionProjection = sessionProjection;
+  if (sessionProjection && compacted.diagnostics.omittedMessageCount > 0) {
+    const archiveThroughSequence = archiveThroughSequenceForCompaction(
+      sessionProjection,
+      Math.max(1, restrictiveLimit(configuration.maxContextMessages, installationSettings.maxContextMessages) ?? 20),
+    );
+    if (archiveThroughSequence !== undefined) {
+      const activated = await sessionTranscripts.activateCompaction({
+        organizationId: run.organization_id,
+        installationId: run.installation_id,
+        conversationId: run.conversation_id!,
+        generation: sessionProjection.context.generation,
+        operationId: contextCompactionOperationId,
+        turnId: `${run.id}:turn:${activeLoopStep}`,
+        runId: run.id,
+        checkpointMessage: {
+          role: "system",
+          content: `<untrusted-data source="durable-context-summary">\n${compacted.summary}\n</untrusted-data>`,
+        },
+        checkpointMetadata: {
+          sourceDigest: compacted.diagnostics.sourceDigest,
+          source: compacted.diagnostics.source,
+          omittedMessageCount: compacted.diagnostics.omittedMessageCount,
+          retainedMessageCount: compacted.diagnostics.retainedMessageCount,
+        },
+        archiveThroughSequence,
+        expectedHead: {
+          sequence: sessionProjection.sourceCursor,
+          digest: sessionProjection.sourceDigest,
+        },
+      });
+      activeSessionProjection = activated.projection;
+      memorySourceMessages = activeSessionProjection.messages;
+      memorySourceEventIds = activeSessionProjection.entries.map((entry) => entry.id);
+    }
+  }
   // Durable compaction is an evidence/checkpoint artifact. It must not become
   // a second fixed-count prompt assembler: the shared provider-aware planner
   // below needs the complete durable transcript so it can make the final,
   // capability-specific selection and account for the exact request.
-  const compactedSummary = conversationSummary?.summary?.trim() || undefined;
+  const compactedSummary = activeSessionProjection ? undefined : conversationSummary?.summary?.trim() || undefined;
   const retrievalGate = appConfig?.MEMORY_RETRIEVAL_GATE_ENABLED
     ? createModelRetrievalGate(gateway, {
       provider,
@@ -4068,12 +4665,18 @@ async function executeLoopForRun(
     retrievalDecision,
     summary: compactedSummary,
     longTermMemory: longTermMemory || undefined,
-    recentMessages: memorySourceMessages.filter((message) => message.role !== "system").map((message, index) => ({
-      direction: message.role === "user" ? "inbound" : message.role === "tool" ? "system" : "outbound",
-      messageType: message.role,
-      content: { text: message.content, ...(message.toolCallId ? { toolCallId: message.toolCallId } : {}), ...(message.name ? { name: message.name } : {}), ...(message.toolCalls ? { toolCalls: message.toolCalls } : {}) },
-      createdAt: durableMessages[index]?.created_at ?? new Date().toISOString(),
-    })),
+    ...(activeSessionProjection ? {
+      modelHistory: activeSessionProjection.messages,
+      includeCurrentMessage: false,
+      recentMessages: [],
+    } : {
+      recentMessages: memorySourceMessages.filter((message) => message.role !== "system").map((message, index) => ({
+        direction: message.role === "user" ? "inbound" : message.role === "tool" ? "system" : "outbound",
+        messageType: message.role,
+        content: { text: message.content, ...(message.toolCallId ? { toolCallId: message.toolCallId } : {}), ...(message.runtimeOperationId ? { runtimeOperationId: message.runtimeOperationId } : {}), ...(message.name ? { name: message.name } : {}), ...(message.toolCalls ? { toolCalls: message.toolCalls } : {}) },
+        createdAt: durableMessages[index]?.created_at ?? new Date().toISOString(),
+      })),
+    }),
     authorizedTools: [...capabilitySnapshot.model.callableTools],
     capabilitySnapshot,
     dynamicContext,
@@ -4268,7 +4871,10 @@ async function executeLoopForRun(
       agentAudience: run.agent_audience,
       isSystemAgent: isKasiAiInstallation,
       evidenceCount,
-      toolCalls: completedTools.size,
+      // A failed tool is still trusted execution evidence for this turn. The
+      // model received its typed error result and must be allowed to explain
+      // the failure instead of being replaced by the generic knowledge gate.
+      toolCalls: loopResult.toolCalls,
     });
     await assertSessionLease();
     const reviewPayload = {
@@ -4383,10 +4989,11 @@ async function executeLoopForRun(
       },
       reserveRunBudget: async ({ request, reservationKey, parallelLeaseId, estimatedInputTokens, reservedOutputTokens, contextManifestDigest }) => reserveRunModelBudget({ repository: runBudgets, organizationId: run.organization_id, runId: run.id, reservationKey, parallelLeaseId, gateway, request, estimatedInputTokens, reservedOutputTokens, contextManifestDigest }),
       consumeRunToolCall: ({ parallelLeaseId } = {}) => consumeRunToolBudget(runBudgets, { organizationId: run.organization_id, runId: run.id, parallelLeaseId }),
-      replayToolInvocation: async ({ toolCallId, name, argumentsHash }) => (await toolInvocations.getCompleted({
+      replayToolInvocation: async ({ toolCallId, runtimeOperationId, name, argumentsHash }) => (await toolInvocations.getCompleted({
         organizationId: run.organization_id,
         runId: run.id,
         providerToolCallId: toolCallId,
+        runtimeOperationId,
         toolName: name,
         argumentsHash,
       })) ?? undefined,
@@ -4447,6 +5054,7 @@ async function executeLoopForRun(
         if (manifest?.requiresApproval && !invocation.approved) return;
       },
       resumeApprovedToolCall,
+      deferToolExecution: stepExecutionEnabled,
       onEvent: async (event) => {
         await assertSessionLease();
         activityHeartbeat({ phase: event.type, iteration: event.iteration });
@@ -4472,13 +5080,14 @@ async function executeLoopForRun(
             installationId: run.installation_id,
             runId: run.id,
             providerToolCallId: proposal.toolCallId,
+            runtimeOperationId: proposal.runtimeOperationId,
             capability: proposal.name,
             capabilityVersion: proposal.version,
             argumentsHash: proposal.argumentsHash,
             resourceSnapshot,
             previewRevision: proposal.argumentsHash,
             policyRevision: "v1",
-            permittedEffectKey: `${run.id}:${proposal.toolCallId}`,
+            permittedEffectKey: `${run.id}:${proposal.runtimeOperationId}`,
             expiresAt: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
           });
         }
@@ -4488,14 +5097,15 @@ async function executeLoopForRun(
             installationId: run.installation_id,
             runId: run.id,
             providerToolCallId: proposal.toolCallId,
+            runtimeOperationId: proposal.runtimeOperationId,
             capability: proposal.name,
             capabilityVersion: proposal.version,
             argumentsHash: proposal.argumentsHash,
             idempotencyKey: `${run.id}:${proposal.name}:${proposal.argumentsHash}`,
           });
         }
-        const step = await runSteps.startStep({ runId: run.id, organizationId: run.organization_id, stepType: "tool", input: { toolCallId: proposal.toolCallId, name: proposal.name, argumentsHash: proposal.argumentsHash } });
-        toolSteps.set(proposal.toolCallId, step.id);
+        const step = await runSteps.startStep({ runId: run.id, organizationId: run.organization_id, stepType: "tool", input: { toolCallId: proposal.toolCallId, operationId: proposal.runtimeOperationId, name: proposal.name, argumentsHash: proposal.argumentsHash } });
+        toolSteps.set(proposal.runtimeOperationId, step.id);
       },
       onToolExecuting: async (execution) => {
         await assertSessionLease();
@@ -4514,19 +5124,20 @@ async function executeLoopForRun(
             installationId: run.installation_id,
             runId: run.id,
             providerToolCallId: execution.toolCallId,
+            runtimeOperationId: execution.runtimeOperationId,
             capability: execution.name,
             capabilityVersion: execution.version,
             argumentsHash: execution.argumentsHash,
             resourceSnapshot,
             previewRevision: execution.argumentsHash,
             policyRevision: "v1",
-            permittedEffectKey: `${run.id}:${execution.toolCallId}`,
+            permittedEffectKey: `${run.id}:${execution.runtimeOperationId}`,
             effectIdempotencyKey: `${run.id}:${execution.name}:${execution.argumentsHash}`,
           });
         } else {
           await effectReceipts.markExecutingByKey(run.organization_id, `${run.id}:${execution.name}:${execution.argumentsHash}`);
         }
-        startedExternalEffects.add(execution.toolCallId);
+        startedExternalEffects.add(execution.runtimeOperationId);
       },
       onToolCompleted: async (result) => {
         await assertSessionLease();
@@ -4536,8 +5147,10 @@ async function executeLoopForRun(
           runId: run.id,
           installationId: run.installation_id,
           eventType: "agent.tool.completed",
-          operationId: result.toolCallId,
+          operationId: result.runtimeOperationId,
           payload: {
+            toolCallId: result.toolCallId,
+            operationId: result.runtimeOperationId,
             name: result.name,
             argumentsHash: result.argumentsHash,
             latencyMs: result.latencyMs,
@@ -4545,7 +5158,7 @@ async function executeLoopForRun(
           },
         });
         if (result.effectId) await effectReceipts.markSucceededByKey(run.organization_id, `${run.id}:${result.name}:${result.argumentsHash}`, result.output);
-        const stepId = toolSteps.get(result.toolCallId);
+        const stepId = toolSteps.get(result.runtimeOperationId);
         if (stepId) await runSteps.finishStep({ stepId, status: "completed", output: { latencyMs: result.latencyMs } });
       },
       onToolFailed: async (failure) => {
@@ -4556,19 +5169,19 @@ async function executeLoopForRun(
           runId: run.id,
           installationId: run.installation_id,
           eventType: "agent.tool.failed",
-          operationId: failure.toolCallId,
-          payload: { name: failure.name, argumentsHash: failure.argumentsHash, error: failure.error },
+          operationId: failure.runtimeOperationId,
+          payload: { toolCallId: failure.toolCallId, operationId: failure.runtimeOperationId, name: failure.name, argumentsHash: failure.argumentsHash, error: failure.error },
         });
         const failedTool = tools.get(failure.name);
         if (failedTool?.riskClass === "external-effect" && failure.argumentsHash) {
           const effectKey = `${run.id}:${failure.name}:${failure.argumentsHash}`;
-          if (startedExternalEffects.has(failure.toolCallId)) {
+          if (startedExternalEffects.has(failure.runtimeOperationId)) {
             await effectReceipts.markUnknownByKey(run.organization_id, effectKey, failure.error);
           } else {
             await effectReceipts.markNotExecutedByKey(run.organization_id, effectKey, failure.error);
           }
         }
-        const stepId = toolSteps.get(failure.toolCallId);
+        const stepId = toolSteps.get(failure.runtimeOperationId);
         if (stepId) await runSteps.finishStep({ stepId, status: "failed", error: failure.error });
       },
       onModelResponse: async (response, attempt, operationKey) => {
@@ -4793,6 +5406,7 @@ async function executeLoopForRun(
       if (manifest?.requiresApproval && !invocation.approved) return;
     },
     resumeApprovedToolCall,
+    deferToolExecution: stepExecutionEnabled,
     onEvent: async (event) => {
       await assertSessionLease();
       activityHeartbeat({ phase: event.type, iteration: event.iteration });
@@ -4822,6 +5436,7 @@ async function executeLoopForRun(
         organizationId: run.organization_id,
         runId: run.id,
         providerToolCallId: proposal.toolCallId,
+        runtimeOperationId: proposal.runtimeOperationId,
         sequenceNumber: proposal.sequenceNumber,
         toolName: proposal.name,
         toolVersion: proposal.version,
@@ -4836,13 +5451,14 @@ async function executeLoopForRun(
           installationId: run.installation_id,
           runId: run.id,
           providerToolCallId: proposal.toolCallId,
+          runtimeOperationId: proposal.runtimeOperationId,
           capability: proposal.name,
           capabilityVersion: proposal.version,
           argumentsHash: proposal.argumentsHash,
           resourceSnapshot,
           previewRevision: proposal.argumentsHash,
           policyRevision: "v1",
-          permittedEffectKey: `${run.id}:${proposal.toolCallId}`,
+          permittedEffectKey: `${run.id}:${proposal.runtimeOperationId}`,
           expiresAt: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
         });
       }
@@ -4852,14 +5468,15 @@ async function executeLoopForRun(
           installationId: run.installation_id,
           runId: run.id,
           providerToolCallId: proposal.toolCallId,
+          runtimeOperationId: proposal.runtimeOperationId,
           capability: proposal.name,
           capabilityVersion: proposal.version,
           argumentsHash: proposal.argumentsHash,
           idempotencyKey: `${run.id}:${proposal.name}:${proposal.argumentsHash}`,
         });
       }
-      const step = await runSteps.startStep({ runId: run.id, organizationId: run.organization_id, stepType: "tool", input: { toolCallId: proposal.toolCallId, name: proposal.name, argumentsHash: proposal.argumentsHash } });
-      toolSteps.set(proposal.toolCallId, step.id);
+      const step = await runSteps.startStep({ runId: run.id, organizationId: run.organization_id, stepType: "tool", input: { toolCallId: proposal.toolCallId, operationId: proposal.runtimeOperationId, name: proposal.name, argumentsHash: proposal.argumentsHash } });
+      toolSteps.set(proposal.runtimeOperationId, step.id);
     },
     onToolExecuting: async (execution) => {
       await assertSessionLease();
@@ -4878,19 +5495,20 @@ async function executeLoopForRun(
           installationId: run.installation_id,
           runId: run.id,
           providerToolCallId: execution.toolCallId,
+          runtimeOperationId: execution.runtimeOperationId,
           capability: execution.name,
           capabilityVersion: execution.version,
           argumentsHash: execution.argumentsHash,
           resourceSnapshot,
           previewRevision: execution.argumentsHash,
           policyRevision: "v1",
-          permittedEffectKey: `${run.id}:${execution.toolCallId}`,
+          permittedEffectKey: `${run.id}:${execution.runtimeOperationId}`,
           effectIdempotencyKey: `${run.id}:${execution.name}:${execution.argumentsHash}`,
         });
       } else {
         await effectReceipts.markExecutingByKey(run.organization_id, `${run.id}:${execution.name}:${execution.argumentsHash}`);
       }
-      startedExternalEffects.add(execution.toolCallId);
+      startedExternalEffects.add(execution.runtimeOperationId);
     },
     onToolCompleted: async (result) => {
       await assertSessionLease();
@@ -4898,12 +5516,13 @@ async function executeLoopForRun(
       await toolInvocations.recordCompleted({
         runId: run.id,
         providerToolCallId: result.toolCallId,
+        runtimeOperationId: result.runtimeOperationId,
         output: result.output,
         latencyMs: result.latencyMs,
         effectId: result.effectId,
       });
       if (result.effectId) await effectReceipts.markSucceededByKey(run.organization_id, `${run.id}:${result.name}:${result.argumentsHash}`, result.output);
-      const stepId = toolSteps.get(result.toolCallId);
+      const stepId = toolSteps.get(result.runtimeOperationId);
       if (stepId) await runSteps.finishStep({ stepId, status: "completed", output: { latencyMs: result.latencyMs } });
     },
     onToolFailed: async (failure) => {
@@ -4912,18 +5531,19 @@ async function executeLoopForRun(
       await toolInvocations.recordFailed({
         runId: run.id,
         providerToolCallId: failure.toolCallId,
+        runtimeOperationId: failure.runtimeOperationId,
         error: failure.error,
       });
       const failedTool = tools.get(failure.name);
       if (failedTool?.riskClass === "external-effect" && failure.argumentsHash) {
         const effectKey = `${run.id}:${failure.name}:${failure.argumentsHash}`;
-        if (startedExternalEffects.has(failure.toolCallId)) {
+        if (startedExternalEffects.has(failure.runtimeOperationId)) {
           await effectReceipts.markUnknownByKey(run.organization_id, effectKey, failure.error);
         } else {
           await effectReceipts.markNotExecutedByKey(run.organization_id, effectKey, failure.error);
         }
       }
-      const stepId = toolSteps.get(failure.toolCallId);
+      const stepId = toolSteps.get(failure.runtimeOperationId);
       if (stepId) await runSteps.finishStep({ stepId, status: "failed", error: failure.error });
     },
     onModelResponse: async (response, attempt, operationKey) => {
@@ -4974,13 +5594,21 @@ async function executeLoopForRun(
   if (stepExecutionEnabled) {
     const shouldContinue = reviewedLoopResult.status === "limited"
       && reviewedLoopResult.iterations > 0
-      && reviewedLoopResult.messages.at(-1)?.role === "tool";
+      && (
+        reviewedLoopResult.toolBatchPending === true
+        || reviewedLoopResult.messages.at(-1)?.role === "tool"
+        || reviewedLoopResult.error?.code === "EMPTY_ASSISTANT_RESPONSE"
+      );
     const shouldPause = reviewedLoopResult.status === "awaiting_approval"
       || reviewedLoopResult.status === "awaiting_human"
       || reviewedLoopResult.status === "awaiting_external_event";
     const nextState = { ...(storedWorkflowState?.state ?? {}) };
     if (shouldContinue || shouldPause) {
-      nextState.__agentLoop = durableAgentLoopCheckpoint(reviewedLoopResult, loopCheckpoint, { stepIndex: activeLoopStep });
+      nextState.__agentLoop = durableAgentLoopCheckpoint(reviewedLoopResult, loopCheckpoint, {
+        stepIndex: activeLoopStep,
+        turnId: `${run.id}:turn:${activeLoopStep}`,
+        compactionGeneration: compacted.diagnostics.generation,
+      });
     } else if (Object.prototype.hasOwnProperty.call(nextState, "__agentLoop")) {
       delete nextState.__agentLoop;
     }
@@ -5307,9 +5935,10 @@ async function executeConfiguredWorkflow(input: {
     if (!manifest) return { status: "failed", messages: [], usage: workflowUsage(result.usage), iterations: result.trace.length, toolCalls: result.usage.toolCalls, error: { code: "WORKFLOW_TOOL_NOT_FOUND", message: `Workflow tool is not registered: ${pending.name}` } };
     const approvalAlreadyRecorded = executionGraph.nodes.find((node) => node.id === result.pausedAt)?.type === "agent_loop";
     if (!approvalAlreadyRecorded) {
-      await input.toolInvocations.recordProposal({ organizationId: input.run.organization_id, runId: input.run.id, providerToolCallId: pending.id, sequenceNumber: toolSequence.value + 1, toolName: pending.name, toolVersion: manifest.version, riskClass: manifest.riskClass, argumentsHash: pending.argumentsHash, arguments: pending.arguments, requiresApproval: true });
-      await input.approvals.createPending({ organizationId: input.run.organization_id, installationId: input.run.installation_id, runId: input.run.id, providerToolCallId: pending.id, capability: pending.name, capabilityVersion: manifest.version, argumentsHash: pending.argumentsHash, resourceSnapshot: await buildApprovalResourceSnapshotFromCore(input.coreClient, input.modelToolContext, pending.name, pending.arguments), previewRevision: pending.argumentsHash, policyRevision: "v1", permittedEffectKey: `${input.run.id}:${pending.id}`, expiresAt: new Date(Date.now() + 30 * 60 * 1000).toISOString() });
-      if (manifest.riskClass === "external-effect") await input.effectReceipts.reserve({ organizationId: input.run.organization_id, installationId: input.run.installation_id, runId: input.run.id, providerToolCallId: pending.id, capability: pending.name, capabilityVersion: manifest.version, argumentsHash: pending.argumentsHash, idempotencyKey: `${input.run.id}:${pending.name}:${pending.argumentsHash}` });
+      const pendingProviderToolCallId = pending.id;
+      await input.toolInvocations.recordProposal({ organizationId: input.run.organization_id, runId: input.run.id, providerToolCallId: pendingProviderToolCallId, runtimeOperationId: pending.id, sequenceNumber: toolSequence.value + 1, toolName: pending.name, toolVersion: manifest.version, riskClass: manifest.riskClass, argumentsHash: pending.argumentsHash, arguments: pending.arguments, requiresApproval: true });
+      await input.approvals.createPending({ organizationId: input.run.organization_id, installationId: input.run.installation_id, runId: input.run.id, providerToolCallId: pendingProviderToolCallId, runtimeOperationId: pending.id, capability: pending.name, capabilityVersion: manifest.version, argumentsHash: pending.argumentsHash, resourceSnapshot: await buildApprovalResourceSnapshotFromCore(input.coreClient, input.modelToolContext, pending.name, pending.arguments), previewRevision: pending.argumentsHash, policyRevision: "v1", permittedEffectKey: `${input.run.id}:${pending.id}`, expiresAt: new Date(Date.now() + 30 * 60 * 1000).toISOString() });
+      if (manifest.riskClass === "external-effect") await input.effectReceipts.reserve({ organizationId: input.run.organization_id, installationId: input.run.installation_id, runId: input.run.id, providerToolCallId: pendingProviderToolCallId, runtimeOperationId: pending.id, capability: pending.name, capabilityVersion: manifest.version, argumentsHash: pending.argumentsHash, idempotencyKey: `${input.run.id}:${pending.name}:${pending.argumentsHash}` });
     }
     await input.workflowState.put({ organizationId: input.run.organization_id, runId: input.run.id, expectedRevision: persisted?.revision, state: { __workflowNodeId: result.pausedAt, __workflowState: result.state } });
     await workflowJournal.append({ scope: workflowJournalScope, event: { kind: "operation.waiting", data: { reason: "approval", resumeKey: pending.id } } });

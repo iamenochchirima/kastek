@@ -115,6 +115,8 @@ export interface ToolApproval {
   approvedBy: string;
   argumentsHash: string;
   expiresAt: string;
+  /** Durable group identity when this proof came from a multi-operation barrier. */
+  approvalGroupId?: string;
   /** The exact resource projection the approver reviewed, when available. */
   resourceSnapshot?: Record<string, unknown>;
 }
@@ -124,6 +126,8 @@ export interface ToolDefinition {
   version: string;
   description: string;
   riskClass: ToolRiskClass;
+  /** Explicit opt-in for safe overlap when the capability is not a read. */
+  parallelSafe?: boolean;
   requiresApproval: boolean;
   timeoutMs: number;
   inputSchema: Record<string, unknown>;

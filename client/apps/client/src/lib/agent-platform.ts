@@ -594,11 +594,28 @@ export type AgentMemoryObservatoryGraph = {
 export type AgentApproval = {
   status: "pending" | "approved" | "denied" | "expired" | "consumed" | "cancelled" | string;
   providerToolCallId: string;
+  runtimeOperationId?: string;
   capability: string;
   argumentsHash: string;
   resourceSnapshot?: Record<string, unknown>;
   previewRevision?: string | null;
   expiresAt: string;
+};
+
+export type AgentApprovalGroup = {
+  id: string;
+  batchId: string;
+  turnKey: string;
+  planDigest: string;
+  policyRevision: string;
+  status: string;
+  decision?: string | null;
+  selectedOperationIds: string[];
+  decidedBy?: string | null;
+  expiresAt: string;
+  createdAt: string;
+  decidedAt?: string | null;
+  operations: AgentApproval[];
 };
 
 export type AgentOperationRun = AgentRun & {
@@ -637,7 +654,7 @@ export function listAgentOperationRuns(limit = 50): Promise<{ runs: AgentOperati
   return request(`/api/agents/operations/runs?limit=${encodeURIComponent(String(limit))}`);
 }
 
-export function getAgentRun(runId: string): Promise<{ run: AgentRun; canApprove?: boolean; approval?: AgentApproval | null; events: AgentOperationEvent[] }> {
+export function getAgentRun(runId: string): Promise<{ run: AgentRun; canApprove?: boolean; approval?: AgentApproval | null; approvalGroup?: AgentApprovalGroup | null; events: AgentOperationEvent[] }> {
   return request(`/api/agents/runs/${encodeURIComponent(runId)}`);
 }
 
@@ -661,6 +678,13 @@ export function decideAgentRunApproval(runId: string, approval: Pick<AgentApprov
   return request(`/api/agents/runs/${encodeURIComponent(runId)}/approval`, {
     method: "POST",
     body: JSON.stringify({ decision, providerToolCallId: approval.providerToolCallId, argumentsHash: approval.argumentsHash }),
+  });
+}
+
+export function decideAgentRunApprovalGroup(runId: string, group: Pick<AgentApprovalGroup, "id" | "planDigest">, decision: "approved" | "rejected", selectedOperationIds?: string[]): Promise<{ runId: string; groupId: string; status: string }> {
+  return request(`/api/agents/runs/${encodeURIComponent(runId)}/approval-group`, {
+    method: "POST",
+    body: JSON.stringify({ groupId: group.id, planDigest: group.planDigest, decision, ...(selectedOperationIds ? { selectedOperationIds } : {}) }),
   });
 }
 

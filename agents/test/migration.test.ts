@@ -59,6 +59,45 @@ describe("foundation migration", () => {
     expect(sql).toContain("flag_key_check");
   });
 
+  it("separates provider wire ids from runtime operation identity", async () => {
+    const sql = await readFile(new URL("../migrations/169_runtime_operation_identity.sql", import.meta.url), "utf8");
+    expect(sql).toContain("runtime_operation_id");
+    expect(sql).toContain("tool_invocations_run_runtime_operation_uidx");
+    expect(sql).toContain("agent_approval_records_run_runtime_operation_uidx");
+    expect(sql).toContain("agent_effect_receipts_run_runtime_operation_uidx");
+    expect(sql).toContain("DROP CONSTRAINT IF EXISTS");
+  });
+
+  it("adds tenant-scoped durable approval groups without removing child evidence", async () => {
+    const sql = await readFile(new URL("../migrations/173_durable_approval_groups.sql", import.meta.url), "utf8");
+    expect(sql).toContain("CREATE TABLE IF NOT EXISTS agent_approval_groups");
+    expect(sql).toContain("approval_group_id");
+    expect(sql).toContain("plan_digest");
+    expect(sql).toContain("agent_approval_groups_one_active_run_idx");
+    expect(sql).toContain("agent_approval_groups_agents_scope");
+    expect(sql).toContain("FORCE ROW LEVEL SECURITY");
+  });
+
+  it("records durable batch, segment, and Temporal activity identity", async () => {
+    const sql = await readFile(new URL("../migrations/170_durable_tool_batch_identity.sql", import.meta.url), "utf8");
+    expect(sql).toContain("batch_id");
+    expect(sql).toContain("segment_id");
+    expect(sql).toContain("temporal_activity_id");
+    expect(sql).toContain("tool_invocations_run_batch_idx");
+  });
+
+  it("defines the canonical durable session transcript and active compaction pointer", async () => {
+    const sql = await readFile(new URL("../migrations/174_agent_session_transcript.sql", import.meta.url), "utf8");
+    expect(sql).toContain("CREATE TABLE IF NOT EXISTS agent_session_contexts");
+    expect(sql).toContain("CREATE TABLE IF NOT EXISTS agent_session_transcript_entries");
+    expect(sql).toContain("active_checkpoint_sequence");
+    expect(sql).toContain("payload_digest");
+    expect(sql).toContain("UNIQUE (context_id, idempotency_key)");
+    expect(sql).toContain("kasitek_validate_session_transcript_entry_scope");
+    expect(sql).toContain("ALTER TABLE agent_session_contexts FORCE ROW LEVEL SECURITY");
+    expect(sql).toContain("ALTER TABLE agent_session_transcript_entries FORCE ROW LEVEL SECURITY");
+  });
+
   it("adds a durable offer layer without widening ownership", async () => {
     const sql = await readFile(new URL("../migrations/077_consent_gated_handoff.sql", import.meta.url), "utf8");
     expect(sql).toContain("CREATE TABLE IF NOT EXISTS agent_handoff_offers");

@@ -1,6 +1,7 @@
 import {
   CancellationScope,
   ChildWorkflowCancellationType,
+  ContinueAsNew,
   condition,
   defineQuery,
   defineSignal,
@@ -10,6 +11,8 @@ import {
   proxyActivities,
   setHandler,
   sleep,
+  continueAsNew,
+  patched,
   workflowInfo,
 } from "@temporalio/workflow";
 import type { RunStatus } from "../domain/types";
@@ -32,10 +35,13 @@ import {
 } from "../children/temporal-activation";
 import type {
   AgentRunActivities,
+  ApprovalGroupSignal,
   ApprovalSignal,
   CancellationSignal,
   ContentPublishBatchStatusActivityResult,
   DurableRunInput,
+  DurableToolCall,
+  DurableToolCallResult,
   ExpirationSignal,
   ExternalEventSignal,
   ResumeApprovedToolCall,
@@ -96,6 +102,7 @@ function unconfirmedBatchMessage(title?: string): string {
 }
 
 export const approvalSignal = defineSignal<[ApprovalSignal]>("agent.approval");
+export const approvalGroupSignal = defineSignal<[ApprovalGroupSignal]>("agent.approval-group");
 export const cancellationSignal = defineSignal<[CancellationSignal]>("agent.cancel");
 export const expirationSignal = defineSignal<[ExpirationSignal]>("agent.expire");
 export const externalEventSignal = defineSignal<[ExternalEventSignal]>("agent.external-event");
@@ -105,6 +112,8 @@ export const runStatusQuery = defineQuery<RunStatus>("agent.status");
 const childProgressLimit = 256;
 const childActivationBatchSize = 4;
 const childActivationQueueLimit = 32;
+const maxParallelToolActivities = 8;
+const maxWorkflowHistoryBeforeContinueAsNew = 2_000;
 
 function childEvidence(
   input: TemporalChildWorkflowInput,
@@ -323,24 +332,48 @@ export async function agentChildWorkflow(input: TemporalChildWorkflowInput): Pro
  * disappear while a run waits and another worker can resume the exact durable state.
  */
 export async function agentRunWorkflow(input: DurableRunInput): Promise<void> {
+  // New executions use the decomposed model → prepare → tool → commit command
+  // sequence. The patch gate keeps already-running histories on their recorded
+  // command sequence until they finish; it must be removed only after that
+  // migration window has elapsed.
+  const useDecomposedToolActivities = patched("agent-parallel-tool-activities-v1");
   let status: RunStatus = "received";
   let approval: ApprovalSignal | undefined;
+  let approvalGroup: ApprovalGroupSignal | undefined;
   let cancellation: CancellationSignal | undefined;
   let expiration: ExpirationSignal | undefined;
   let externalEvent: ExternalEventSignal | undefined;
   let sessionLease: SessionLeaseAdmission | undefined;
   const pendingChildActivations: ChildActivationRequest[] = [];
   let cancelActiveChildren: (() => void) | undefined;
+  const activeActivityScopes = new Set<CancellationScope>();
+  const cancelActiveActivities = (): void => {
+    for (const scope of activeActivityScopes) scope.cancel();
+  };
+  const runCancellableActivity = async <T>(operation: () => Promise<T>): Promise<T> => {
+    const scope = new CancellationScope();
+    activeActivityScopes.add(scope);
+    try {
+      return await scope.run(operation);
+    } finally {
+      activeActivityScopes.delete(scope);
+    }
+  };
   setHandler(runStatusQuery, () => status);
   setHandler(approvalSignal, (value) => {
     approval = value;
   });
+  setHandler(approvalGroupSignal, (value) => {
+    approvalGroup = value;
+  });
   setHandler(cancellationSignal, (value) => {
     cancellation = value;
+    cancelActiveActivities();
     cancelActiveChildren?.();
   });
   setHandler(expirationSignal, (value) => {
     expiration = value;
+    cancelActiveActivities();
     cancelActiveChildren?.();
   });
   setHandler(externalEventSignal, (value) => {
@@ -354,6 +387,22 @@ export async function agentRunWorkflow(input: DurableRunInput): Promise<void> {
     ...(input.actorId ? { actorId: input.actorId } : {}),
     ...(sessionLease ? { sessionLease } : {}),
   });
+
+  const modelStepActivity = useDecomposedToolActivities
+    ? (activities as unknown as { executeModelStep: NonNullable<AgentRunActivities["executeModelStep"]> }).executeModelStep
+    : activities.executeLoop;
+  if (!modelStepActivity) throw new Error("MODEL_STEP_ACTIVITY_NOT_REGISTERED");
+  const maybeContinueAsNewAtBatchBoundary = async (nextLoopStep: number): Promise<void> => {
+    const info = workflowInfo();
+    const historyThreshold = input.continueAsNewHistoryThreshold ?? maxWorkflowHistoryBeforeContinueAsNew;
+    if (!info.continueAsNewSuggested && info.historyLength < historyThreshold) return;
+    await continueAsNew<typeof agentRunWorkflow>({
+      ...input,
+      loopStep: nextLoopStep,
+      resumeApprovedToolCall: undefined,
+      resumeExternalEvent: undefined,
+    });
+  };
 
   const drainChildActivations = async (): Promise<void> => {
     while (pendingChildActivations.length > 0 && !cancellation && !expiration) {
@@ -430,6 +479,10 @@ export async function agentRunWorkflow(input: DurableRunInput): Promise<void> {
       },
     });
     status = "failed";
+    // failRun releases the conversation lease with the terminal transition;
+    // delivery is an idempotent post-terminal operation and must not reuse the
+    // released fencing token.
+    sessionLease = undefined;
     await activities.deliverRunReply({ ...activityScope(), runId: input.runId });
   };
 
@@ -482,7 +535,7 @@ export async function agentRunWorkflow(input: DurableRunInput): Promise<void> {
         await transition("running", "expired");
         return;
       }
-      const result = await activities.executeLoop({ ...activityScope(), runId: input.runId, loopStep, resumeApprovedToolCall, resumeExternalEvent, sessionLease });
+      const result = await runCancellableActivity(() => modelStepActivity({ ...activityScope(), runId: input.runId, loopStep, resumeApprovedToolCall, resumeExternalEvent, sessionLease }));
       resumeApprovedToolCall = undefined;
       resumeExternalEvent = undefined;
       // Temporal delivers signals between activity completions. This check makes a
@@ -509,6 +562,206 @@ export async function agentRunWorkflow(input: DurableRunInput): Promise<void> {
         return;
       }
       if (result.checkpointed) {
+        if (result.toolBatchPending && result.pendingToolCalls?.length) {
+          const batchActivities = activities as unknown as AgentRunActivities & {
+            prepareToolBatch: NonNullable<AgentRunActivities["prepareToolBatch"]>;
+            executeToolCall: NonNullable<AgentRunActivities["executeToolCall"]>;
+            commitToolBatch: NonNullable<AgentRunActivities["commitToolBatch"]>;
+            cancelApprovalGroup?: NonNullable<AgentRunActivities["cancelApprovalGroup"]>;
+          };
+          const batchId = `${input.runId}:batch:${loopStep}`;
+          const calls: DurableToolCall[] = result.pendingToolCalls.map((call, index) => ({
+            ...call,
+            sequenceNumber: index + 1,
+          }));
+          const segments = await runCancellableActivity(() => batchActivities.prepareToolBatch({
+            ...activityScope(),
+            runId: input.runId,
+            batchId,
+            calls,
+            sessionLease,
+          }));
+          const committedOperationIds = new Set<string>();
+          const commit = async (results: DurableToolCallResult[]) => {
+            const orderedResults = [...results].sort((left, right) => calls.findIndex((call) => call.id === left.id) - calls.findIndex((call) => call.id === right.id));
+            const committingIds = new Set(orderedResults.map((result) => result.id));
+            const remainingCalls = calls.filter((call) => !committedOperationIds.has(call.id) && !committingIds.has(call.id));
+            const committed = await runCancellableActivity(() => batchActivities.commitToolBatch({
+              ...activityScope(),
+              runId: input.runId,
+              batchId,
+              results: orderedResults,
+              remainingCalls,
+              sessionLease,
+            }));
+            for (const result of orderedResults) committedOperationIds.add(result.id);
+            return committed;
+          };
+          let batchTerminal = false;
+          let activeApprovalGroup: ApprovalGroupSignal | undefined;
+          const waitForApproval = async (waitingCall: (typeof calls)[number]): Promise<ApprovalGroupSignal | undefined> => {
+            const groupId = waitingCall.approvalGroupId;
+            if (!groupId) {
+              await failAndDeliver({
+                code: "APPROVAL_GROUP_MISSING",
+                message: "The tool proposal did not have a durable approval group",
+                userMessage: "I couldn't safely continue because the approval request was incomplete. Please try again.",
+              });
+              batchTerminal = true;
+              return undefined;
+            }
+            const groupCalls = calls.filter((call) => call.approvalGroupId === groupId);
+            await activities.pauseRun({
+              ...activityScope(),
+              runId: input.runId,
+              status: "awaiting_approval",
+              output: {
+                status: "awaiting_approval",
+                approvalGroupId: groupId,
+                approvalPlanDigest: waitingCall.approvalPlanDigest,
+                pendingToolCalls: groupCalls.map((call) => ({ id: call.id, providerToolCallId: call.providerToolCallId, name: call.name, arguments: call.arguments, argumentsHash: call.argumentsHash })),
+              },
+            });
+            await activities.deliverApprovalPrompt({ ...activityScope(), runId: input.runId });
+            status = "awaiting_approval";
+            await condition(() => approvalGroup?.groupId === groupId || cancellation !== undefined || expiration !== undefined);
+            if (cancellation) {
+              if (batchActivities.cancelApprovalGroup) await batchActivities.cancelApprovalGroup({ ...activityScope(), runId: input.runId, groupId, reason: (cancellation as CancellationSignal).reason });
+              for (const call of groupCalls) await activities.cancelPendingApproval({
+                ...activityScope(),
+                runId: input.runId,
+                providerToolCallId: call.providerToolCallId ?? call.id,
+                runtimeOperationId: call.id,
+                reason: (cancellation as CancellationSignal).reason,
+              });
+              await transition("awaiting_approval", "cancelled");
+              batchTerminal = true;
+              return undefined;
+            }
+            if (expiration) {
+              if (batchActivities.cancelApprovalGroup) await batchActivities.cancelApprovalGroup({ ...activityScope(), runId: input.runId, groupId, reason: (expiration as ExpirationSignal).reason ?? "The approval group expired before execution" });
+              for (const call of groupCalls) await activities.cancelPendingApproval({
+                ...activityScope(),
+                runId: input.runId,
+                providerToolCallId: call.providerToolCallId ?? call.id,
+                runtimeOperationId: call.id,
+                reason: (expiration as ExpirationSignal).reason ?? "The approval expired before execution",
+                outcome: "expired",
+              });
+              await transition("awaiting_approval", "expired");
+              batchTerminal = true;
+              return undefined;
+            }
+            const decision = approvalGroup;
+            approvalGroup = undefined;
+            if (!decision || decision.planDigest !== waitingCall.approvalPlanDigest) {
+              await failAndDeliver({
+                code: "APPROVAL_GROUP_STALE",
+                message: "The approval group no longer matches the prepared tool plan",
+                userMessage: "I couldn't apply that approval because the requested actions changed. Please try again.",
+              });
+              batchTerminal = true;
+              return undefined;
+            }
+            await transition("awaiting_approval", "running");
+            return decision;
+          };
+          const settleSegment = async (segment: (typeof segments)[number]): Promise<DurableToolCallResult | undefined> => {
+            const segmentResults: DurableToolCallResult[] = [];
+            const canonicalCalls = segment.calls.filter((call) => !call.deduplicatedFrom);
+            const duplicateCalls = segment.calls.filter((call) => Boolean(call.deduplicatedFrom));
+            const execute = async (call: (typeof calls)[number]): Promise<DurableToolCallResult | undefined> => {
+              const groupId = call.approvalGroupId;
+              const currentApprovalGroup = activeApprovalGroup;
+              if (groupId && currentApprovalGroup?.groupId !== groupId) return undefined;
+              const groupApproval = groupId && currentApprovalGroup?.groupId === groupId
+                ? {
+                    approvedBy: currentApprovalGroup.approvedBy,
+                    argumentsHash: call.argumentsHash,
+                    expiresAt: currentApprovalGroup.expiresAt,
+                    approvalGroupId: groupId,
+                  }
+                : undefined;
+              return runCancellableActivity(() => batchActivities.executeToolCall({
+                ...activityScope(),
+                runId: input.runId,
+                batchId,
+                call,
+                ...(groupApproval ? { approval: groupApproval, approvalGroupId: groupId } : {}),
+                sessionLease,
+              }));
+            };
+            if (segment.kind === "parallel") {
+              for (let offset = 0; offset < canonicalCalls.length; offset += maxParallelToolActivities) {
+                const wave = canonicalCalls.slice(offset, offset + maxParallelToolActivities);
+                segmentResults.push(...(await Promise.all(wave.map(execute))).filter((result): result is DurableToolCallResult => Boolean(result)));
+              }
+            } else {
+              const sequentialCall = canonicalCalls[0];
+              if (sequentialCall) {
+                const result = await execute(sequentialCall);
+                if (result) segmentResults.push(result);
+              }
+            }
+            const waitingCall = canonicalCalls.find((call) => call.approvalGroupId && activeApprovalGroup?.groupId !== call.approvalGroupId);
+            if (waitingCall) {
+              // Do not settle aliases before their canonical operation has
+              // crossed the approval barrier. Otherwise a duplicate of an
+              // approval-required call can be durably recorded as incomplete
+              // and cannot be repaired by the later group decision.
+              if (segmentResults.length) await commit(segmentResults);
+              const decision = await waitForApproval(waitingCall);
+              if (!decision) return undefined;
+              activeApprovalGroup = decision;
+              return settleSegment(segment);
+            }
+            // Identical calls are durable aliases, not a second provider/effect
+            // invocation. The canonical operation is complete before the alias
+            // Activity reads and records its result, so every model call still
+            // receives its own paired result message.
+            for (const call of duplicateCalls) {
+              const result = await execute(call);
+              if (result) segmentResults.push(result);
+            }
+            if (segmentResults.length) await commit(segmentResults);
+            return segmentResults.find((item) => item.control);
+          };
+          let handoffResult: DurableToolCallResult | undefined;
+          for (const segment of segments) {
+            const resultForSegment = await settleSegment(segment);
+            if (batchTerminal) return;
+            if (resultForSegment?.control === "awaiting_human") {
+              handoffResult = resultForSegment;
+              break;
+            }
+          }
+          activeApprovalGroup = undefined;
+          if (handoffResult) {
+            await transition("running", "awaiting_human");
+            status = "awaiting_human";
+            await condition(() => externalEvent !== undefined || cancellation !== undefined || expiration !== undefined);
+            if (cancellation) {
+              await activities.cancelHandoff({ ...activityScope(), runId: input.runId, reason: (cancellation as CancellationSignal).reason });
+              await transition("awaiting_human", "cancelled");
+              return;
+            }
+            if (expiration) {
+              await transition("awaiting_human", "expired");
+              return;
+            }
+            const event = externalEvent;
+            externalEvent = undefined;
+            if (!event) {
+              await failAndDeliver({ code: "HANDOFF_EVENT_MISSING", message: "Handoff resolution was not available" });
+              return;
+            }
+            await transition("awaiting_human", "running");
+            resumeExternalEvent = event;
+          }
+          loopStep += 1;
+          await maybeContinueAsNewAtBatchBoundary(loopStep);
+          continue;
+        }
         // The activity completed one bounded model/tool slice and persisted its continuation.
         // Schedule the next slice without treating the internal checkpoint as a terminal limit.
         loopStep += 1;
@@ -538,7 +791,8 @@ export async function agentRunWorkflow(input: DurableRunInput): Promise<void> {
             await activities.cancelPendingApproval({
               ...activityScope(),
               runId: input.runId,
-              providerToolCallId: pending.id,
+              providerToolCallId: pending.providerToolCallId ?? pending.id,
+              runtimeOperationId: pending.id,
               reason: cancellationReason,
             });
           }
@@ -550,7 +804,8 @@ export async function agentRunWorkflow(input: DurableRunInput): Promise<void> {
             await activities.cancelPendingApproval({
               ...activityScope(),
               runId: input.runId,
-              providerToolCallId: pending.id,
+              providerToolCallId: pending.providerToolCallId ?? pending.id,
+              runtimeOperationId: pending.id,
               reason: (expiration as ExpirationSignal).reason ?? "The approval expired before execution",
               outcome: "expired",
             });
@@ -560,7 +815,11 @@ export async function agentRunWorkflow(input: DurableRunInput): Promise<void> {
         }
         const decision = approval;
         approval = undefined;
-        if (!pending || !decision || decision.decision !== "approved" || decision.providerToolCallId !== pending.id || decision.argumentsHash !== pending.argumentsHash) {
+        const decisionOperationMatches = decision && pending
+          && (decision.runtimeOperationId !== undefined
+            ? decision.runtimeOperationId === pending.id
+            : decision.providerToolCallId === (pending.providerToolCallId ?? pending.id));
+        if (!pending || !decision || decision.decision !== "approved" || !decisionOperationMatches || decision.argumentsHash !== pending.argumentsHash) {
           await failAndDeliver({
             code: "APPROVAL_REJECTED",
             message: "Approval was rejected or did not match the pending arguments",
@@ -571,6 +830,7 @@ export async function agentRunWorkflow(input: DurableRunInput): Promise<void> {
         await transition("awaiting_approval", "running");
         resumeApprovedToolCall = {
           id: pending.id,
+          ...(pending.providerToolCallId ? { providerToolCallId: pending.providerToolCallId } : {}),
           name: pending.name,
           arguments: pending.arguments,
           approval: {
@@ -703,11 +963,34 @@ export async function agentRunWorkflow(input: DurableRunInput): Promise<void> {
         },
       });
       status = "completed";
+      // completeRun releases the conversation lease. Title generation and
+      // delivery happen after terminal persistence and therefore must run
+      // without the stale fencing token.
+      sessionLease = undefined;
       await activities.generateConversationTitle({ ...activityScope(), runId: input.runId });
       await activities.deliverRunReply({ ...activityScope(), runId: input.runId });
       return;
     }
   } catch (error) {
+    // Continue-As-New is Temporal control flow, not a failed Activity or run.
+    // Let the SDK record the continuation command without publishing a false
+    // failure or retrying failRun against the execution being replaced.
+    if (error instanceof ContinueAsNew) throw error;
+    if (cancellation || expiration) {
+      try {
+        await activities.transitionRun({
+          ...activityScope(),
+          runId: input.runId,
+          expectedStatus: "running",
+          nextStatus: cancellation ? "cancelled" : "expired",
+        });
+        status = cancellation ? "cancelled" : "expired";
+      } catch {
+        // Preserve the original cancellation/expiration outcome if the status
+        // write races with another durable transition.
+      }
+      return;
+    }
     try {
       await failAndDeliver({
         code: "WORKFLOW_ACTIVITY_FAILED",

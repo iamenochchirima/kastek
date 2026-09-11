@@ -53,7 +53,7 @@ import { OperatorControlRepository } from "../db/repositories/operator-control-r
 import { RetentionRepository } from "../db/repositories/retention-repository";
 import { parseCanonicalMessageContent } from "../channels/messages";
 import { authenticateRequest, type AuthContext } from "./auth";
-import type { ApprovalSignal, CancellationSignal, ExternalEventSignal } from "../temporal/contracts";
+import type { ApprovalGroupSignal, ApprovalSignal, CancellationSignal, ExternalEventSignal } from "../temporal/contracts";
 import { advanceSseCursor, formatSseComment, formatSseEvent, toPublicEvent } from "./sse";
 import { KASIAI_SLUG } from "../system/kasiai";
 import { PlatformChatRepository, type AcceptedExternalMessage, type HandoffAcknowledgement } from "../db/repositories/platform-chat-repository";
@@ -133,7 +133,7 @@ function projectRuntimeTelemetry(
 }
 import { ConnectorRegistry } from "../connectors";
 import { EffectReceiptRepository } from "../db/repositories/effect-receipt-repository";
-import { ApprovalRepository } from "../db/repositories/approval-repository";
+import { ApprovalRepository, type ApprovalGroupRecord, type ApprovalRecord } from "../db/repositories/approval-repository";
 import { InstallationCapabilityError, InstallationCapabilityInvocationService } from "../invocation/installation-capability";
 import { InstallationImmediateReadService } from "../invocation/immediate-read";
 import { authorizeInstallationCapability } from "../capabilities/authorization";
@@ -243,6 +243,7 @@ export interface AppDependencies {
   draftEvaluator?: DraftEvaluationRunner;
   startWorkflow?: (runId: string) => Promise<void>;
   signalApproval?: (runId: string, signal: ApprovalSignal) => Promise<void>;
+  signalApprovalGroup?: (runId: string, signal: ApprovalGroupSignal) => Promise<void>;
   signalCancellation?: (runId: string, signal: CancellationSignal) => Promise<void>;
   signalExternalEvent?: (runId: string, signal: ExternalEventSignal) => Promise<void>;
   eventNotifications?: ConversationEventNotifications;
@@ -466,16 +467,36 @@ async function requireHostedResourceScope(
   }
 }
 
-function publicApprovalStatus(approval: { status: string; provider_tool_call_id: string; capability: string; arguments_hash: string; resource_snapshot?: Record<string, unknown>; preview_revision?: string; expires_at: string } | null) {
+function publicApprovalStatus(approval: { status: string; provider_tool_call_id: string; runtime_operation_id?: string; capability: string; arguments_hash: string; resource_snapshot?: Record<string, unknown>; preview_revision?: string; expires_at: string } | null) {
   if (!approval) return null;
   return {
     status: approval.status,
     providerToolCallId: approval.provider_tool_call_id,
+    ...(approval.runtime_operation_id ? { runtimeOperationId: approval.runtime_operation_id } : {}),
     capability: approval.capability,
     argumentsHash: approval.arguments_hash,
     resourceSnapshot: approval.resource_snapshot ?? {},
     previewRevision: approval.preview_revision ?? null,
     expiresAt: approval.expires_at,
+  };
+}
+
+function publicApprovalGroup(group: ApprovalGroupRecord | null, approvals: ApprovalRecord[] = []) {
+  if (!group) return null;
+  return {
+    id: group.id,
+    batchId: group.batch_id,
+    turnKey: group.turn_key,
+    planDigest: group.plan_digest,
+    policyRevision: group.policy_revision,
+    status: group.status,
+    decision: group.decision,
+    selectedOperationIds: group.selected_operation_ids,
+    decidedBy: group.decided_by,
+    expiresAt: group.expires_at,
+    createdAt: group.created_at,
+    decidedAt: group.decided_at,
+    operations: approvals.map((approval) => publicApprovalStatus(approval)),
   };
 }
 
@@ -1002,6 +1023,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     organizationId: string;
     runId: string;
     providerToolCallId: string;
+    runtimeOperationId?: string;
     argumentsHash: string;
     decision: ChannelApprovalDecision;
     approvedBy: string;
@@ -1013,6 +1035,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     const recordedDecision = input.decision === "approved" ? ["approved", "consumed"] : ["denied"];
     if (approvalRecord
       && approvalRecord.provider_tool_call_id === input.providerToolCallId
+      && (input.runtimeOperationId === undefined || approvalRecord.runtime_operation_id === input.runtimeOperationId)
       && approvalRecord.arguments_hash === input.argumentsHash
       && approvalRecord.installation_id === run.installation_id
       && recordedDecision.includes(approvalRecord.status)
@@ -1025,14 +1048,14 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     if (!dependencies.signalApproval) {
       throw Object.assign(new Error("temporal_not_configured"), { statusCode: 503, code: "temporal_not_configured" });
     }
-    if (!approvalRecord || approvalRecord.provider_tool_call_id !== input.providerToolCallId || approvalRecord.arguments_hash !== input.argumentsHash || approvalRecord.installation_id !== run.installation_id) {
+    if (!approvalRecord || approvalRecord.provider_tool_call_id !== input.providerToolCallId || (input.runtimeOperationId !== undefined && approvalRecord.runtime_operation_id !== input.runtimeOperationId) || approvalRecord.arguments_hash !== input.argumentsHash || approvalRecord.installation_id !== run.installation_id) {
       throw Object.assign(new Error("approval_not_found"), { statusCode: 404, code: "approval_not_found" });
     }
     const installation = await agents.getInstallation(input.organizationId, run.installation_id);
     if (!installation || installation.status !== "active") {
       throw Object.assign(new Error("installation_not_active"), { statusCode: 403, code: "installation_not_active" });
     }
-    const proposal = await toolInvocations.getProposal(input.organizationId, input.runId, input.providerToolCallId);
+    const proposal = await toolInvocations.getProposal(input.organizationId, input.runId, input.providerToolCallId, input.runtimeOperationId);
     if (!proposal || proposal.toolName !== approvalRecord.capability || proposal.toolVersion !== approvalRecord.capability_version || proposal.argumentsHash !== input.argumentsHash) {
       throw Object.assign(new Error("approval_proposal_mismatch"), { statusCode: 409, code: "approval_proposal_mismatch" });
     }
@@ -1069,6 +1092,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       decision = await approvals.decide({
         decision: input.decision,
         providerToolCallId: input.providerToolCallId,
+        runtimeOperationId: input.runtimeOperationId,
         argumentsHash: input.argumentsHash,
         organizationId: input.organizationId,
         runId: input.runId,
@@ -1087,17 +1111,149 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       await effectReceipts.markNotExecuted(input.organizationId, input.runId, input.providerToolCallId, {
         code: "APPROVAL_REJECTED",
         message: "The requested effect was denied before execution",
-      });
+      }, approval.runtime_operation_id);
     }
     await dependencies.signalApproval(input.runId, {
       decision: input.decision,
       providerToolCallId: input.providerToolCallId,
+      runtimeOperationId: approval.runtime_operation_id,
       argumentsHash: input.argumentsHash,
       approvedBy: input.approvedBy,
       expiresAt: approval.expires_at,
       resourceSnapshot: approval.resource_snapshot,
     });
     return { accepted: true, approval };
+  };
+
+  const decideApprovalGroup = async (input: {
+    organizationId: string;
+    runId: string;
+    groupId: string;
+    planDigest: string;
+    decision: "approved" | "rejected";
+    selectedOperationIds?: string[];
+    idempotencyKey?: string;
+    approvedBy: string;
+    rateLimitKey: string;
+  }) => {
+    const group = await approvals.getGroup(input.organizationId, input.groupId);
+    const operations = group ? await approvals.listGroupOperations(input.organizationId, group.id) : [];
+    const active = group ? { group, approvals: operations } : null;
+    if (!active || active.group.run_id !== input.runId) {
+      throw Object.assign(new Error("approval_group_not_found"), { statusCode: 404, code: "approval_group_not_found" });
+    }
+    if (active.group.plan_digest !== input.planDigest) {
+      throw Object.assign(new Error("approval_group_digest_mismatch"), { statusCode: 409, code: "approval_group_digest_mismatch" });
+    }
+    if (active.group.status === "pending") {
+      const run = await runs.getRun(input.organizationId, input.runId);
+      if (!run) throw Object.assign(new Error("run_not_found"), { statusCode: 404, code: "run_not_found" });
+      if (run.status !== "awaiting_approval") {
+        throw Object.assign(new Error("run_not_awaiting_approval"), { statusCode: 409, code: "run_not_awaiting_approval" });
+      }
+    }
+    if (!dependencies.signalApprovalGroup) {
+      throw Object.assign(new Error("temporal_not_configured"), { statusCode: 503, code: "temporal_not_configured" });
+    }
+    const installation = await agents.getInstallation(input.organizationId, active.group.installation_id);
+    if (!installation || installation.status !== "active") {
+      throw Object.assign(new Error("installation_not_active"), { statusCode: 403, code: "installation_not_active" });
+    }
+    const grantedTools = await toolGrants.effectiveTools(input.organizationId, installation.agent_version_id, installation.id);
+    for (const approval of active.approvals) {
+      const proposal = await toolInvocations.getProposal(input.organizationId, input.runId, approval.provider_tool_call_id, approval.runtime_operation_id);
+      if (!proposal || proposal.toolName !== approval.capability || proposal.toolVersion !== approval.capability_version || proposal.argumentsHash !== approval.arguments_hash) {
+        throw Object.assign(new Error("approval_proposal_mismatch"), { statusCode: 409, code: "approval_proposal_mismatch" });
+      }
+      try {
+        await authorizeInstallationCapability({
+          organizationId: input.organizationId,
+          installationId: installation.id,
+          name: approval.capability,
+          argumentsValue: proposal.arguments,
+          grantedTools,
+          tools: toolRegistry,
+          installationGrants,
+          approved: false,
+          enforceApproval: false,
+        });
+      } catch (error) {
+        throw Object.assign(new Error("approval_policy_changed"), {
+          statusCode: 403,
+          code: "approval_policy_changed",
+          detail: error instanceof Error ? error.message : "CAPABILITY_NOT_GRANTED",
+        });
+      }
+    }
+    const rateLimit = approvalDecisionRateLimiter.consume(input.rateLimitKey);
+    if (!rateLimit.allowed) {
+      throw Object.assign(new Error("approval_rate_limited"), {
+        statusCode: 429,
+        code: "approval_rate_limited",
+        retryAfterSeconds: rateLimit.retryAfterSeconds,
+      });
+    }
+    let decision;
+    try {
+      decision = await approvals.decideGroup({
+        organizationId: input.organizationId,
+        runId: input.runId,
+        groupId: input.groupId,
+        planDigest: input.planDigest,
+        decision: input.decision,
+        selectedOperationIds: input.selectedOperationIds,
+        approvedBy: input.approvedBy,
+        idempotencyKey: input.idempotencyKey,
+      });
+    } catch (error) {
+      const code = error instanceof Error ? error.message : "approval_group_not_pending";
+      const statusCode = code === "APPROVAL_GROUP_EXPIRED" ? 409 : 409;
+      throw Object.assign(new Error(code), { statusCode, code: code.toLowerCase() });
+    }
+    const signalDecision = async (): Promise<void> => {
+      await dependencies.signalApprovalGroup!(input.runId, {
+        groupId: decision.group.id,
+        planDigest: decision.group.plan_digest,
+        decision: decision.group.decision ?? "rejected",
+        approvedBy: decision.group.decided_by ?? input.approvedBy,
+        selectedOperationIds: decision.group.selected_operation_ids,
+        expiresAt: decision.group.expires_at,
+      });
+    };
+    if (!decision.accepted) {
+      // The database decision may commit before the first Temporal signal is
+      // delivered. A retry while the run is still paused must resend the same
+      // durable command without creating another decision or effect.
+      const currentRun = await runs.getRun(input.organizationId, input.runId);
+      if (currentRun?.status === "awaiting_approval") await signalDecision();
+      return decision;
+    }
+    if (input.decision === "rejected") {
+      await Promise.all(active.approvals.map((approval) => effectReceipts.markNotExecuted(input.organizationId, input.runId, approval.provider_tool_call_id, {
+        code: "APPROVAL_REJECTED",
+        message: "The requested effect was denied before execution",
+      }, approval.runtime_operation_id)));
+    }
+    await runs.appendEvent({
+      organizationId: input.organizationId,
+      runId: input.runId,
+      installationId: decision.group.installation_id,
+      eventType: input.decision === "rejected"
+        ? "agent.approval.group.rejected"
+        : decision.group.status === "partially_approved"
+          ? "agent.approval.group.partially_approved"
+          : "agent.approval.group.approved",
+      payload: {
+        approvalGroupId: decision.group.id,
+        planDigest: decision.group.plan_digest,
+        selectedOperationIds: decision.group.selected_operation_ids,
+        operationCount: decision.approvals.length,
+        selectedCount: decision.group.selected_operation_ids.length,
+        approvedBy: decision.group.decided_by ?? input.approvedBy,
+      },
+    });
+    await signalDecision();
+    return decision;
   };
 
   /**
@@ -1587,19 +1743,35 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
         const claims = verifyChannelApprovalActionToken(event.approvalAction.token, dependencies.config.INTERNAL_AUTH_SECRET ?? "");
         decision = claims.decision;
         const approval = await approvals.getById(connection.organization_id, claims.approvalId);
-        const target = approval ? await channels.getApprovalPromptTarget(approval.run_id) : null;
-        if (!approval || !target || target.channel_type !== "telegram" || target.external_identity !== event.externalIdentity || target.external_conversation_id !== event.externalConversationId || target.channel_connection_id !== connection.id || target.owner_actor_id === null || target.owner_actor_id === undefined) {
+        const group = approval ? null : await approvals.getGroup(connection.organization_id, claims.approvalId);
+        const target = approval
+          ? await channels.getApprovalPromptTarget(approval.run_id)
+          : group
+            ? await channels.getApprovalPromptTarget(group.run_id)
+            : null;
+        if ((!approval && !group) || !target || target.channel_type !== "telegram" || target.external_identity !== event.externalIdentity || target.external_conversation_id !== event.externalConversationId || target.channel_connection_id !== connection.id || target.owner_actor_id === null || target.owner_actor_id === undefined) {
           throw new Error("channel_approval_not_authorized");
         }
-        result = await decideApproval({
-          organizationId: connection.organization_id,
-          runId: approval.run_id,
-          providerToolCallId: approval.provider_tool_call_id,
-          argumentsHash: approval.arguments_hash,
-          decision: claims.decision,
-          approvedBy: target.owner_actor_id,
-          rateLimitKey: `${connection.organization_id}:channel:${target.owner_actor_id}`,
-        });
+        result = group
+          ? await decideApprovalGroup({
+              organizationId: connection.organization_id,
+              runId: group.run_id,
+              groupId: group.id,
+              planDigest: group.plan_digest,
+              decision: claims.decision,
+              approvedBy: target.owner_actor_id,
+              rateLimitKey: `${connection.organization_id}:channel:${target.owner_actor_id}`,
+            })
+          : await decideApproval({
+              organizationId: connection.organization_id,
+              runId: approval!.run_id,
+              providerToolCallId: approval!.provider_tool_call_id,
+              runtimeOperationId: approval!.runtime_operation_id,
+              argumentsHash: approval!.arguments_hash,
+              decision: claims.decision,
+              approvedBy: target.owner_actor_id,
+              rateLimitKey: `${connection.organization_id}:channel:${target.owner_actor_id}`,
+            });
       } catch (error) {
         request.log.warn({ error: error instanceof Error ? error.message : "channel approval failed" }, "Telegram channel approval failed");
       }
@@ -1805,19 +1977,35 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
         const claims = verifyChannelApprovalActionToken(event.approvalAction.token, dependencies.config.INTERNAL_AUTH_SECRET ?? "");
         decision = claims.decision;
         const approval = await approvals.getById(connection.organization_id, claims.approvalId);
-        const target = approval ? await channels.getApprovalPromptTarget(approval.run_id) : null;
-        if (!approval || !target || target.channel_type !== "discord" || target.external_identity !== event.externalIdentity || target.external_conversation_id !== event.externalConversationId || target.channel_connection_id !== connection.id || target.owner_actor_id === null || target.owner_actor_id === undefined) {
+        const group = approval ? null : await approvals.getGroup(connection.organization_id, claims.approvalId);
+        const target = approval
+          ? await channels.getApprovalPromptTarget(approval.run_id)
+          : group
+            ? await channels.getApprovalPromptTarget(group.run_id)
+            : null;
+        if ((!approval && !group) || !target || target.channel_type !== "discord" || target.external_identity !== event.externalIdentity || target.external_conversation_id !== event.externalConversationId || target.channel_connection_id !== connection.id || target.owner_actor_id === null || target.owner_actor_id === undefined) {
           throw new Error("channel_approval_not_authorized");
         }
-        result = await decideApproval({
-          organizationId: connection.organization_id,
-          runId: approval.run_id,
-          providerToolCallId: approval.provider_tool_call_id,
-          argumentsHash: approval.arguments_hash,
-          decision: claims.decision,
-          approvedBy: target.owner_actor_id,
-          rateLimitKey: `${connection.organization_id}:channel:${target.owner_actor_id}`,
-        });
+        result = group
+          ? await decideApprovalGroup({
+              organizationId: connection.organization_id,
+              runId: group.run_id,
+              groupId: group.id,
+              planDigest: group.plan_digest,
+              decision: claims.decision,
+              approvedBy: target.owner_actor_id,
+              rateLimitKey: `${connection.organization_id}:channel:${target.owner_actor_id}`,
+            })
+          : await decideApproval({
+              organizationId: connection.organization_id,
+              runId: approval!.run_id,
+              providerToolCallId: approval!.provider_tool_call_id,
+              runtimeOperationId: approval!.runtime_operation_id,
+              argumentsHash: approval!.arguments_hash,
+              decision: claims.decision,
+              approvedBy: target.owner_actor_id,
+              rateLimitKey: `${connection.organization_id}:channel:${target.owner_actor_id}`,
+            });
       } catch (error) {
         request.log.warn({ error: error instanceof Error ? error.message : "channel approval failed" }, "Discord channel approval failed");
       }
@@ -5695,11 +5883,12 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     requireScope(auth, dependencies.config, "runs:read");
     const run = await runs.getRun(auth.organizationId, request.params.runId);
     if (!run) return reply.code(404).send({ error: "run_not_found" });
-    const [events, approval] = await Promise.all([
+    const [events, approval, approvalGroup] = await Promise.all([
       runs.listEvents(auth.organizationId, run.id),
       approvals.getForRun(auth.organizationId, run.id),
+      approvals.getActiveGroup(auth.organizationId, run.id),
     ]);
-    return { run, approval: publicApprovalStatus(approval), events };
+    return { run, approval: publicApprovalStatus(approval), approvalGroup: publicApprovalGroup(approvalGroup?.group ?? null, approvalGroup?.approvals ?? []), events };
   });
 
   app.get<{ Params: { runId: string } }>("/v1/runs/:runId/timeline", async (request, reply) => {
@@ -6476,7 +6665,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
   app.post<{ Params: { runId: string } }>("/v1/runs/:runId/approval", async (request, reply) => {
     const auth = requireAuth(request, dependencies.config);
     requireScope(auth, dependencies.config, "runs:approve");
-    const input = z.object({ decision: z.enum(["approved", "rejected"]), providerToolCallId: z.string().trim().min(1).max(240), argumentsHash: z.string().length(64) }).parse(request.body);
+    const input = z.object({ decision: z.enum(["approved", "rejected"]), providerToolCallId: z.string().trim().min(1).max(240), runtimeOperationId: z.string().trim().min(1).max(240).optional(), argumentsHash: z.string().length(64) }).parse(request.body);
     try {
       const result = await decideApproval({
         organizationId: auth.organizationId,
@@ -6495,6 +6684,43 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
         });
       }
       return reply.code(202).send({ runId: request.params.runId, status: "approval_signalled" });
+    } catch (error) {
+      const typed = error as { statusCode?: number; code?: string; detail?: string; retryAfterSeconds?: number };
+      if (typed.code === "approval_rate_limited" && typed.retryAfterSeconds) reply.header("retry-after", String(typed.retryAfterSeconds));
+      return reply.code(typed.statusCode ?? 500).send({
+        error: typed.code ?? "internal_error",
+        ...(typed.detail ? { detail: typed.detail } : {}),
+        ...(typed.retryAfterSeconds ? { retryAfterSeconds: typed.retryAfterSeconds } : {}),
+      });
+    }
+  });
+
+  app.post<{ Params: { runId: string } }>("/v1/runs/:runId/approval-group", async (request, reply) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "runs:approve");
+    const input = z.object({
+      groupId: z.string().uuid(),
+      planDigest: z.string().length(64),
+      decision: z.enum(["approved", "rejected"]),
+      selectedOperationIds: z.array(z.string().trim().min(1).max(240)).max(256).optional(),
+    }).parse(request.body);
+    try {
+      const result = await decideApprovalGroup({
+        organizationId: auth.organizationId,
+        runId: request.params.runId,
+        ...input,
+        approvedBy: auth.actorId,
+        idempotencyKey: headerValue(request, "idempotency-key"),
+        rateLimitKey: `${auth.organizationId}:${request.params.runId}:${auth.actorId}:group:${input.groupId}`,
+      });
+      return reply.code(result.accepted ? 202 : 200).send({
+        runId: request.params.runId,
+        groupId: result.group.id,
+        status: result.accepted ? "approval_group_signalled" : "approval_group_already_signalled",
+        decision: result.group.decision,
+        selectedOperationIds: result.group.selected_operation_ids,
+        expiresAt: result.group.expires_at,
+      });
     } catch (error) {
       const typed = error as { statusCode?: number; code?: string; detail?: string; retryAfterSeconds?: number };
       if (typed.code === "approval_rate_limited" && typed.retryAfterSeconds) reply.header("retry-after", String(typed.retryAfterSeconds));
@@ -6533,6 +6759,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
         organizationId: auth.organizationId,
         runId: approval.run_id,
         providerToolCallId: approval.provider_tool_call_id,
+        runtimeOperationId: approval.runtime_operation_id,
         argumentsHash: approval.arguments_hash,
         decision: claims.decision,
         approvedBy: target.owner_actor_id,

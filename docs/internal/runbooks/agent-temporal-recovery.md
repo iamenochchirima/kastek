@@ -16,7 +16,11 @@ reconciliation. It applies to the Agents API and Agents Worker in every environm
 | Activity | Work enclosed | Remote or durable boundary | Retry posture |
 | --- | --- | --- | --- |
 | `transitionRun` | Run status transition | Agents PostgreSQL | Idempotent state transition |
-| `executeLoop` | Context, retrieval, model calls, tools, checkpoints, and completion decision | PostgreSQL, model providers, Core, channel/tool adapters | Still a large activity; completed model and tool outcomes plus opt-in loop-slice and eligible linear graph results are replayable when recorded |
+| `executeModelStep` | One bounded context/retrieval/model slice for new autonomous runs; tool effects are deferred | PostgreSQL and model providers | Retryable model outcomes use the stable loop-step checkpoint; no provider tool effect is launched here |
+| `prepareToolBatch` | Validate, authorize, segment, and persist one complete model tool batch | PostgreSQL and the pinned capability snapshot | Idempotent by batch/runtime operation identity; blocked siblings remain in the batch as typed outcomes |
+| `executeToolCall` | Execute exactly one tool operation, including approval, effect receipt, retry, and replay | PostgreSQL, Core, provider/tool adapter | One Temporal Activity per call; retryable failures retry, terminal failures return typed results, unknown effects reconcile |
+| `commitToolBatch` | Persist the ordered result round and next continuation checkpoint | PostgreSQL | Ordered/idempotent join; the next model Activity is not scheduled before commit |
+| `executeLoop` | Legacy bounded loop boundary for histories created before the command-sequence migration | PostgreSQL, model providers, Core, channel/tool adapters | Patch-gated compatibility only; new autonomous runs do not use it |
 | `pauseRun` | Persist waiting state and output | Agents PostgreSQL | Idempotent run transition |
 | `deliverApprovalPrompt` | Resolve credentials and send the approval prompt | Telegram, Discord, or Core | Delivery failures are recorded; external sends require provider-safe handling |
 | `cancelPendingApproval` | Cancel approval and mark its effect not executed | PostgreSQL | Idempotent by approval/effect state |
@@ -26,15 +30,17 @@ reconciliation. It applies to the Agents API and Agents Worker in every environm
 | `deliverRunReply` | Resolve media and send the final reply | Telegram, Discord, or Core | Delivery attempt and unknown outcome are durable |
 | `failRun` | Persist terminal failure | PostgreSQL | Terminal run transition is guarded |
 
-`executeLoop` remains the P0.3 decomposition boundary. It must eventually be split into
-retry-safe activities for context, one model operation, one tool operation, checkpoint, and
-completion. Until then, the operation ledger and checkpoints are the safety boundary for retries.
-When `TEMPORAL_STEP_ACTIVITIES_ENABLED=true`, each ordinary hosted loop slice carries a
+`executeModelStep` is the model/context slice boundary for new autonomous runs. Autonomous tool
+batches leave that Activity as one Temporal Activity per call plus an ordered commit. The model
+request and context assembly remain inside `executeModelStep`; the tool fan-out is never hidden
+inside that Activity. The operation ledger, pinned capability snapshot, and checkpoints remain the
+safety boundary for retries. `executeLoop` is only the patch-gated path for already-open histories.
+Each ordinary hosted loop slice carries a
 deterministic step index. A checkpoint records the bounded message history, cumulative counters,
 and the result status required by the workflow. If the same activity is retried with that step
 index, the worker returns the recorded result for `limited` or a pause instead of rerunning the
 model/tool slice. Approval and external-event resumes intentionally include their resume input and
-continue from the checkpointed messages. For a configured graph, the same flag stops a linear graph
+continue from the checkpointed messages. For a configured graph, the same durable step boundary stops a linear graph
 after one completed node and schedules the next node from its durable checkpoint. The graph
 checkpoint includes edge/node iteration counters and the cumulative step/usage metadata. This
 continuation mode does not apply to fan-out or `agent_loop` graphs, which remain on the existing
@@ -53,19 +59,28 @@ pnpm --dir agents exec vitest run test/temporal-worker-loss-matrix.integration.t
 ```
 
 This matrix proves workflow replacement, pause/resume, and terminal activity idempotency. The
-decomposed path additionally has targeted activity replay coverage in
-`agents/test/decomposed-activities.test.ts`; the matrix still needs to be run with the decomposed
-flag enabled before production rollout. The rollout flag is
-`TEMPORAL_DECOMPOSED_ACTIVITIES_ENABLED`; it is disabled by default and should first be enabled
-only for an isolated worker/task queue or tightly scoped canary. MCP and configured graph runs use
-the compatibility activity even when the flag is true.
+autonomous batch path additionally has Temporal fan-out/join, approval, 18/32/64/128/256-call
+scale, PostgreSQL replay, retryable/terminal/unknown outcomes, Continue-As-New, and ordered
+continuation coverage in `agents/test/temporal-recovery.integration.test.ts`,
+`agents/test/temporal-tool-execution.integration.test.ts`, and `agents/test/run.integration.test.ts`.
+
+Approval-required operations now pause on an immutable approval group. Inspect the group through
+`GET /v1/runs/:runId` and submit one decision to
+`POST /v1/runs/:runId/approval-group` with the group ID, expected plan digest, decision, and an
+`Idempotency-Key` header. The group contains every exact operation waiting at that barrier. If a
+worker is replaced while the run is waiting, do not create another run or approve a child record
+directly; the same Temporal Workflow resumes from the group signal. A stale digest, expired group,
+or operation not selected by the decision must remain blocked and requires a new model proposal.
 
 The inner-loop fault boundary is covered without making production failure injection available:
 `agents/test/temporal-fault-injection.test.ts` simulates a retryable provider failure, a database
 failure after model response persistence, and a database failure after a tool outcome is durable.
 The expected outcomes are fallback on a retryable provider error, model replay without a second
-provider request, and tool replay without a second handler invocation. These tests validate the
-current bundled activity's safety net; they do not claim that the activity has already been split.
+provider request, and tool replay without a second handler invocation. The decomposed path also
+has `agents/test/temporal-tool-execution.integration.test.ts`, which retries the model step, batch
+preparation, and ordered commit around one real Temporal tool batch and verifies one tool
+execution. These tests cover the persistence and retry boundaries without exposing failure
+injection controls in production.
 
 ## Timeout and retry contract
 
@@ -75,6 +90,12 @@ The workflow proxy currently uses:
 - start-to-close: 5 minutes;
 - heartbeat timeout: 20 seconds;
 - maximum activity attempts: 5, with exponential backoff up to 30 seconds.
+
+The production Worker sets both `maxHeartbeatThrottleInterval` and
+`defaultHeartbeatThrottleInterval` to five seconds. This is required for long-running provider
+and tool Activities: Temporal delivers Activity cancellation through heartbeat processing, so the
+workflow's application cancellation signal must not be allowed to wait for the SDK's larger default
+heartbeat throttle window.
 
 Provider, tool, and configured graph execution adapters must receive the activity cancellation
 signal. Graph execution checks cancellation before starting a node and after an awaited provider or
@@ -168,7 +189,9 @@ Before an ordinary hosted tool handler runs, the worker records the provider too
 argument hash in `tool_invocations`. On a retry, a completed row with the same run, tool-call ID,
 tool name, and argument hash is returned as the durable redacted outcome. The retry then rebuilds
 the model-visible tool message without invoking the handler, consuming another tool allowance,
-creating another proposal/step, or consuming approval. Configured graph tools perform the same
+creating another proposal/step, or consuming approval. The allowance claim is keyed by the durable
+runtime operation and committed atomically with the budget counter, so a transient provider retry
+cannot consume the same logical call twice. Configured graph tools perform the same
 lookup before resource preview, proposal, approval, budget, or effect work.
 
 If the stored tool name or argument hash differs, recovery fails closed with

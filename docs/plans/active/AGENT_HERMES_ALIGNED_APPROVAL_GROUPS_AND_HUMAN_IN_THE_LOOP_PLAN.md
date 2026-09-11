@@ -10,8 +10,9 @@
 
 **Implementation status:** In progress. The durable group schema, repository, batch formation,
 Temporal group signal, group decision API, expiry sweep, and initial Studio/activity controls are
-implemented. Compatibility cleanup, selected-operation UI, lifecycle projections, and full local
-Temporal/real-provider verification remain.
+implemented. The group contract now also covers selected-operation controls, channel approval
+delivery, signal retry, and duplicate-call ordering. PostgreSQL-backed and real-provider verification
+still require the repository's integration database and sandbox credentials.
 
 **Related plans:**
 
@@ -202,7 +203,7 @@ durable fan-out, joins, retries, and result ordering.
 - [ ] Define the approval state machine and allowed transitions:
       `pending -> approved | partially_approved | rejected | expired | cancelled | invalidated`,
       followed by `consumed` only after all selected operations have terminal outcomes.
-- [ ] Define the compatibility boundary for open Temporal runs before changing the Workflow command
+- [x] Define the compatibility boundary for open Temporal runs before changing the Workflow command
       sequence. No new approval behavior may be deployed against an open history without Temporal
       patching/versioning.
 
@@ -250,16 +251,16 @@ durable fan-out, joins, retries, and result ordering.
       record if the existing client integration requires it.
 - [x] Have the Workflow create or load the group, set the run to `awaiting_approval`, and wait on
       the active group ID rather than a single call or the latest database row.
-- [ ] Resume the same Workflow and same model turn after approval. Do not create a new user message,
+- [x] Resume the same Workflow and same model turn after approval. Do not create a new user message,
       new model turn, or replacement run to continue an approval.
 - [x] Pass a validated per-operation authorization proof into each tool Activity. The Activity must
       recheck identity and consume authorization atomically before the external effect.
 - [ ] On rejection, expiry, cancellation, or invalidation, record typed results for every unexecuted
       proposal, release pending effect reservations, and continue or finish the model turn according
       to the existing runtime contract.
-- [ ] Preserve partial success: completed siblings remain completed, failed siblings remain failed,
+- [x] Preserve partial success: completed siblings remain completed, failed siblings remain failed,
       and unexecuted siblings remain rejected, expired, or cancelled.
-- [ ] Add Temporal patch/version handling and a removal condition for the old per-operation wait.
+- [x] Add Temporal patch/version handling and a removal condition for the old per-operation wait.
       Remove the old path after no open runs depend on it; do not keep it as an indefinite fallback.
 
 ### Phase 5 — Replace the API and Studio approval surface
@@ -275,7 +276,7 @@ durable fan-out, joins, retries, and result ordering.
       and invalidated requests. A duplicate click must never create a second decision or execution.
 - [x] Build one compact approval card showing the logical action, operation count, affected
       resources, expiry, and expandable per-operation details.
-- [ ] Provide `Approve all`, `Approve selected`, and `Reject` for the current group. Label “all” as
+- [x] Provide `Approve all`, `Approve selected`, and `Reject` for the current group. Label “all” as
       the current group only; never imply approval of future actions.
 - [ ] Show partial execution and per-operation failures after resume. Do not collapse them into a
       generic approval error.
@@ -374,6 +375,11 @@ durable fan-out, joins, retries, and result ordering.
       matching after expiry.
 - [ ] Verify approval-free read tools execute without a group, while write, external-effect, and
       privileged tools create a group according to their manifest and policy.
+- [x] Ensure channel approval prompts address the durable group rather than selecting the newest
+      child approval row; channel tokens resolve group IDs and preserve the existing channel security
+      binding.
+- [x] Ensure duplicate tool calls wait behind the canonical operation when that operation requires
+      approval, so an incomplete alias cannot be committed before the group decision.
 - [ ] Verify an approval request racing with group creation cannot be accepted against a partial
       proposal set. The API must return a typed not-ready or stale-group result and the user must see
       the complete group before deciding.

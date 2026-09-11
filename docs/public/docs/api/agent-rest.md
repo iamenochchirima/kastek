@@ -167,6 +167,35 @@ For polling clients, use `GET /v1/installations/{installationId}/operations/{run
 The response includes `nextAfter`, the current status, a terminal flag, and only redacted public
 event fields. Persist the cursor and resume from it after reconnecting.
 
+### Approval groups
+
+When one model turn proposes multiple approval-required effects, the run pauses with one immutable
+approval group. `GET /v1/installations/{installationId}/operations/{runId}` exposes the complete
+group and its exact child operations. Approve or reject the current group through the Agent
+Platform approval endpoint with the expected plan digest and an `Idempotency-Key`; approving a group
+never approves effects proposed by a later model turn.
+
+```http
+POST /v1/runs/{runId}/approval-group
+Authorization: Bearer <organization-session>
+Idempotency-Key: approval-decision-123
+Content-Type: application/json
+```
+
+```json
+{
+  "groupId": "approval-group-uuid",
+  "planDigest": "sha256-digest",
+  "decision": "approved",
+  "selectedOperationIds": ["runtime-operation-1"]
+}
+```
+
+Omit `selectedOperationIds` to approve every operation in the current group. A selected decision
+authorizes only the listed operation IDs; every other child receives a durable denied outcome.
+The decision is bound to the digest, installation, capability version, arguments hash, and resource
+snapshot. A stale, expired, changed, or unauthorized request fails closed.
+
 ## Cancel an operation
 
 ```http

@@ -115,6 +115,26 @@ async function main(): Promise<void> {
             },
           })));
           recordBudgetReconciliationRequired(staleModelReservations.length);
+          const expiredGroups = await approvals.expireGroups();
+          await Promise.all(expiredGroups.map(async (group) => {
+            const operations = await approvals.listGroupOperations(group.organization_id, group.id);
+            await runs.appendEvent({
+              organizationId: group.organization_id,
+              runId: group.run_id,
+              installationId: group.installation_id,
+              eventType: "agent.approval.group.expired",
+              payload: { approvalGroupId: group.id, operationIds: operations.map((operation) => operation.runtime_operation_id) },
+            });
+            await Promise.all(operations.map((approval) => effectReceipts.markNotExecuted(group.organization_id, group.run_id, approval.provider_tool_call_id, {
+              code: "APPROVAL_EXPIRED",
+              message: "The approval group expired before the effect began",
+            }, approval.runtime_operation_id)));
+            try {
+              await client.workflow.getHandle(`agent-run-${group.run_id}`).signal("agent.expire", { reason: "Approval group expired" });
+            } catch (error) {
+              operationalLogger.warn({ err: error, event: "approval.group.expiry.signal.failed", run_id: group.run_id, approval_group_id: group.id }, "Could not signal expired approval group");
+            }
+          }));
           const expired = await approvals.expirePending();
           await Promise.all(expired.map(async (approval) => {
             await runs.appendEvent({
@@ -127,7 +147,7 @@ async function main(): Promise<void> {
             await effectReceipts.markNotExecuted(approval.organization_id, approval.run_id, approval.provider_tool_call_id, {
               code: "APPROVAL_EXPIRED",
               message: "The approval expired before the effect began",
-            });
+            }, approval.runtime_operation_id);
             try {
               await client.workflow.getHandle(`agent-run-${approval.run_id}`).signal("agent.expire", { reason: "Approval expired" });
             } catch (error) {
@@ -136,6 +156,7 @@ async function main(): Promise<void> {
           }));
           if (stale.length) operationalLogger.warn({ event: "effect.reconciliation.required", count: stale.length }, "Provider outcomes require reconciliation");
           if (staleModelReservations.length) operationalLogger.warn({ event: "model.reconciliation.required", count: staleModelReservations.length }, "Model outcomes require reconciliation");
+          if (expiredGroups.length) operationalLogger.warn({ event: "approval.group.expired", count: expiredGroups.length }, "Approval groups expired");
           if (expired.length) operationalLogger.warn({ event: "approval.expired", count: expired.length }, "Approvals expired");
         } catch (error) {
           operationalLogger.error({ err: error, event: "agent.recovery.sweep.failed" }, "Agent recovery sweep failed");
@@ -162,6 +183,12 @@ async function main(): Promise<void> {
     },
     maxConcurrentActivityTaskExecutions: 20,
     maxConcurrentWorkflowTaskExecutions: 100,
+    // Long-running model/tool Activities heartbeat for cancellation and
+    // recovery. Bound SDK heartbeat throttling so an application cancellation
+    // reaches a provider-backed Activity promptly instead of waiting for the
+    // worker's default throttle window.
+    maxHeartbeatThrottleInterval: "5 seconds",
+    defaultHeartbeatThrottleInterval: "5 seconds",
   });
   const audioTranscriptionWorker = new AudioTranscriptionWorker({
     pool,

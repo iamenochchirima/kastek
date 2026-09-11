@@ -43,6 +43,7 @@ import {
   resolvePlatformConversation,
   sendPlatformAudio,
   sendPlatformMessage,
+  updateKasiAiConversation,
   submitAgentUiInteraction,
   streamAgentRun,
   type AgentMessage,
@@ -55,6 +56,7 @@ import {
   type AgentInstallationRun,
   type AgentMemoryObservatoryGraph,
   type AgentApproval,
+  type AgentApprovalGroup,
   type AgentEffectReceipt,
   type AgentEffectiveConfigProjection,
   type AgentCapability,
@@ -67,6 +69,7 @@ import {
 import { cn } from "@/lib/utils";
 import { AgentChatComposer } from "@/components/dashboard/agents/agent-chat-composer";
 import { AgentApprovalActions } from "@/components/dashboard/agents/agent-approval-actions";
+import { AgentApprovalGroupActions } from "@/components/dashboard/agents/agent-approval-group-actions";
 import { AgentReconciliationActions } from "@/components/dashboard/agents/agent-reconciliation-actions";
 import { AgentRunActions } from "@/components/dashboard/agents/agent-run-actions";
 import { AgentChatMessageList } from "@/components/dashboard/agents/agent-chat-message-list";
@@ -283,6 +286,11 @@ function modelSelectionFromVersion(version: AgentVersion | null | undefined): Mo
   return { provider, model: model.trim() };
 }
 
+function modelSelectionFromConversation(conversation: { model_provider?: AgentModelProvider | null; model?: string | null }): ModelSelection | null {
+  if (!conversation.model_provider || !conversation.model?.trim()) return null;
+  return { provider: conversation.model_provider, model: conversation.model.trim() };
+}
+
 export function StudioPage({ initialAgents, initialAgentId, agentsUnavailable = false, surface = "studio" }: StudioPageProps) {
   const router = useRouter();
   const agents = useMemo(() => initialAgents, [initialAgents]);
@@ -381,7 +389,11 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
   const [instructions, setInstructions] = useState("");
   const [modelCatalog, setModelCatalog] = useState<AgentModelCatalog | null>(null);
   const [modelCatalogLoading, setModelCatalogLoading] = useState(true);
-  const [modelSelection, setModelSelection] = useState<ModelSelection | null>(null);
+  // Version policy supplies the default for a new conversation. Once a
+  // Playground conversation exists, its persisted model is authoritative.
+  const [versionModelSelection, setVersionModelSelection] = useState<ModelSelection | null>(null);
+  const [conversationModelSelection, setConversationModelSelection] = useState<ModelSelection | null>(null);
+  const [modelChangePending, setModelChangePending] = useState(false);
   const [trace, setTrace] = useState<TraceNode[]>([]);
   const [execution, setExecution] = useState<ExecutionObservatoryState>(() => createExecutionObservatoryState());
   const [runHistory, setRunHistory] = useState<AgentInstallationRun[]>([]);
@@ -390,6 +402,7 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
   const [memoryObservatory, setMemoryObservatory] = useState<AgentMemoryObservatoryGraph | null>(null);
   const [memoryLineage, setMemoryLineage] = useState<AgentMemoryObservatoryGraph | null>(null);
   const [approval, setApproval] = useState<AgentApproval | null>(null);
+  const [approvalGroup, setApprovalGroup] = useState<AgentApprovalGroup | null>(null);
   const [canApprove, setCanApprove] = useState(false);
   const [deploymentStatus, setDeploymentStatus] = useState<AgentDeploymentStatus | null>(null);
   const [effectiveConfig, setEffectiveConfig] = useState<AgentEffectiveConfigProjection | null>(null);
@@ -421,6 +434,26 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
   const streamOwnerRef = useRef<string | null>(null);
   const showError = (message: string, remediation?: string) => {
     toast.error(message, remediation ? { description: remediation } : undefined);
+  };
+
+  const changeModel = async (model: string, provider: AgentModelProvider) => {
+    const nextSelection = { model, provider };
+    const previousSelection = conversationModelSelection;
+    if (!conversationId) {
+      showError("The Playground conversation is still loading.");
+      return;
+    }
+    setModelChangePending(true);
+    setConversationModelSelection(nextSelection);
+    try {
+      const updated = await updateKasiAiConversation(conversationId, { modelProvider: provider, model });
+      setConversationModelSelection(modelSelectionFromConversation(updated) ?? nextSelection);
+    } catch (cause) {
+      setConversationModelSelection(previousSelection);
+      showError(cause instanceof Error ? cause.message : "Unable to change this chat's model");
+    } finally {
+      setModelChangePending(false);
+    }
   };
 
   const upsertConversationRun = useCallback((run: NonNullable<ReturnType<typeof activeConversationRun>>) => {
@@ -465,17 +498,18 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
   const selectedVersion = versions.find((version) => version.id === selectedVersionId) ?? versions[0] ?? null;
   const playgroundReady = agent.installation_settings?.environment === "playground";
   const canRun = Boolean(agent.installation_id && playgroundReady);
+  const activeModelSelection = conversationModelSelection ?? versionModelSelection;
   const pickerModels = useMemo<AgentModel[]>(() => {
     const available = modelCatalog?.models ?? [];
-    if (!modelSelection || available.some((model) => model.provider === modelSelection.provider && model.model === modelSelection.model)) return available;
-    return [{ provider: modelSelection.provider, model: modelSelection.model, label: modelSelection.model, description: "Saved model is not in the current catalog.", tier: "balanced" }, ...available];
-  }, [modelCatalog, modelSelection]);
-  const selectedModelEntry = pickerModels.find((model) => model.provider === modelSelection?.provider && model.model === modelSelection.model)
+    if (!activeModelSelection || available.some((model) => model.provider === activeModelSelection.provider && model.model === activeModelSelection.model)) return available;
+    return [{ provider: activeModelSelection.provider, model: activeModelSelection.model, label: activeModelSelection.model, description: "Saved model is not in the current catalog.", tier: "balanced" }, ...available];
+  }, [activeModelSelection, modelCatalog]);
+  const selectedModelEntry = pickerModels.find((model) => model.provider === activeModelSelection?.provider && model.model === activeModelSelection.model)
     ?? pickerModels.find((model) => model.isWorkspaceDefault)
     ?? pickerModels[0];
   const effectiveModelSelection = selectedModelEntry
     ? { provider: selectedModelEntry.provider, model: selectedModelEntry.model }
-    : modelSelection;
+    : activeModelSelection;
   const runProgress = useMemo(() => {
     if (execution.runStatus === "failed") return "Run failed";
     if (execution.runStatus === "cancelled") return "Run cancelled";
@@ -524,6 +558,7 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
   const applyConversation = useCallback((result: Awaited<ReturnType<typeof resolvePlatformConversation>>) => {
     setConversationId(result.conversation.id);
     setMessages(result.messages);
+    setConversationModelSelection(modelSelectionFromConversation(result.conversation));
     syncConversationRun(result);
   }, [syncConversationRun]);
 
@@ -531,6 +566,7 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
     const result = await getPlatformConversation(id);
     setConversationId(result.conversation.id);
     setMessages(result.messages);
+    setConversationModelSelection(modelSelectionFromConversation(result.conversation));
     syncConversationRun(result);
     return result;
   }, [syncConversationRun]);
@@ -564,6 +600,7 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
         const result = await getPlatformConversation(conversationId);
         if (cancelled) return;
         setMessages(result.messages);
+        setConversationModelSelection(modelSelectionFromConversation(result.conversation));
         syncConversationRun(result);
       } catch {
         // A transient conversation read failure should not hide an already visible run.
@@ -590,7 +627,7 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
           ?? null;
         setSelectedVersionId(preferred?.id ?? null);
         setInstructions(preferred?.instructions ?? "");
-        setModelSelection(modelSelectionFromVersion(preferred));
+        setVersionModelSelection(modelSelectionFromVersion(preferred));
       })
       .catch((cause) => {
         if (!cancelled) showError(cause instanceof Error ? cause.message : "Unable to load agent versions");
@@ -700,6 +737,7 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
       setTimelineProjection(timeline.projection ?? null);
       setMemoryObservatory(memory);
       setApproval(detail?.approval ?? null);
+      setApprovalGroup(detail?.approvalGroup ?? null);
       // The standard run detail route returns the approval record but does not
       // advertise a separate capability flag. Let the durable command enforce
       // authorization and only hide the control when a route explicitly says
@@ -744,7 +782,7 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
     const nextVersion = versions.find((version) => version.id === versionId) ?? null;
     setSelectedVersionId(versionId);
     setInstructions(nextVersion?.instructions ?? "");
-    setModelSelection(modelSelectionFromVersion(nextVersion));
+    setVersionModelSelection(modelSelectionFromVersion(nextVersion));
     setTrace([]);
     setExecution(createExecutionObservatoryState());
     setSelectedNodeId(null);
@@ -827,7 +865,7 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
       return;
     }
     const message = input.trim();
-    if ((!message && !audioFile) || running || conversationLoading) return;
+    if ((!message && !audioFile) || running || conversationLoading || modelChangePending) return;
     setRunning(true);
     setNotice(null);
     setSelectedNodeId(null);
@@ -868,7 +906,6 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
             message,
             conversationId: targetConversationId,
             idempotencyKey: crypto.randomUUID(),
-            ...(effectiveModelSelection ? { modelProvider: effectiveModelSelection.provider, model: effectiveModelSelection.model } : {}),
             context: { route: window.location.pathname, pageTitle: document.title },
           });
       acceptedRunId = accepted.runId;
@@ -1064,7 +1101,7 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
               } : {}),
             },
             ...(memoryPolicy ? { memory: { ...((configuredSpec as AgentSpecInput).memory ?? {}), ...memoryPolicy } } : {}),
-            ...(modelSelection ? { model: { ...(configuredSpec as AgentSpecInput).model, primary: modelSelection } } : {}),
+            ...(versionModelSelection ? { model: { ...(configuredSpec as AgentSpecInput).model, primary: versionModelSelection } } : {}),
             ...(capabilityDraft ? {
               capabilities: {
                 ...((configuredSpec as AgentSpecInput).capabilities ?? {}),
@@ -1087,7 +1124,7 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
           instructions: behaviorInstructions,
           configuration: {
             ...(selectedVersion?.configuration ?? {}),
-            ...(modelSelection ? { provider: modelSelection.provider, model: modelSelection.model } : {}),
+            ...(versionModelSelection ? { provider: versionModelSelection.provider, model: versionModelSelection.model } : {}),
             ...(behaviorDraft ? { behavior: { ...behaviorDraft, rules: behaviorDraft.rules } } : {}),
             ...(memoryPolicy ? { memory: memoryPolicy } : {}),
           },
@@ -1104,19 +1141,20 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
                 grants: capabilityDraft.extensionGrants,
               },
             } : {}),
-            ...(modelSelection ? {
+            ...(versionModelSelection ? {
               modelPolicy: {
                 ...(isRecord(selectedVersion?.policy?.modelPolicy) ? selectedVersion.policy.modelPolicy : {}),
                 version: isRecord(selectedVersion?.policy?.modelPolicy) && typeof selectedVersion.policy.modelPolicy.version === "string"
                   ? selectedVersion.policy.modelPolicy.version
                   : "hosted-agent-v1",
-                primary: modelSelection,
+                primary: versionModelSelection,
               },
             } : {}),
           },
         });
       setVersions((current) => [next, ...current]);
       setSelectedVersionId(next.id);
+      setVersionModelSelection(modelSelectionFromVersion(next));
       setNotice("Draft saved");
       return next;
     } catch (cause) {
@@ -1188,9 +1226,9 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
                 onSubmit={() => void runAgent()}
                 model={selectedModelEntry}
                 models={pickerModels}
-                onModelChange={(model, provider) => setModelSelection({ model, provider })}
-                modelDisabled={modelCatalogLoading || !pickerModels.length}
-                disabled={!canRun || conversationLoading}
+                onModelChange={(model, provider) => void changeModel(model, provider)}
+                modelDisabled={modelCatalogLoading || !pickerModels.length || !conversationId || modelChangePending}
+                disabled={!canRun || conversationLoading || modelChangePending}
                 sending={running}
                 onStop={() => void cancelRun()}
                 onAudioReady={(file) => void runAgent(file)}
@@ -1213,13 +1251,13 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-3"><div><SectionEyebrow>Execution observatory</SectionEyebrow><h1 className="mt-1 text-sm font-semibold text-foreground">System map</h1></div><div className="flex flex-wrap items-center justify-end gap-2"><span className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground"><CircleDot className={cn("size-3", running ? "animate-pulse text-primary" : "text-muted-foreground")} />{running ? "Live execution" : trace.length ? "Execution observed" : effectiveConfigLoading ? "Loading config" : effectiveConfigError ? "Config unavailable" : "Ready"}</span></div></div>
             <div className="relative min-h-[560px] min-w-0 flex-1 overflow-auto bg-[radial-gradient(circle_at_50%_45%,color-mix(in_srgb,var(--brand)_7%,transparent),transparent_58%)] xl:min-h-0">
               <StudioSystemCanvas nodes={visibleGraphNodes} edges={visibleGraphEdges} selectedNodeId={selectedNodeId} onSelect={setSelectedNodeId} running={running} traceCount={trace.length} storageKey={`kasitek:studio-layout:${agent.id}:${selectedVersionId ?? "default"}`} />
-              {selectedGraphNode ? <div className="absolute bottom-4 left-4 right-4 z-10 max-h-72 overflow-auto rounded-xl border border-border bg-card/95 shadow-xl backdrop-blur"><button type="button" aria-label="Close node details" onClick={() => setSelectedNodeId(null)} className="absolute right-3 top-3 z-10 rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"><X className="size-4" /></button><StudioGraphInspector node={selectedGraphNode} telemetry={telemetry} memory={memoryObservatory} lineage={memoryLineage} approval={approval} canApprove={canApprove} runId={observedRunId} onApprovalDecided={(decision) => { setApproval((current) => current ? { ...current, status: decision } : current); setNotice(`Approval ${decision}`); }} onConfigure={() => setConfigurationOpen(true)} /></div> : null}
+              {selectedGraphNode ? <div className="absolute bottom-4 left-4 right-4 z-10 max-h-72 overflow-auto rounded-xl border border-border bg-card/95 shadow-xl backdrop-blur"><button type="button" aria-label="Close node details" onClick={() => setSelectedNodeId(null)} className="absolute right-3 top-3 z-10 rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"><X className="size-4" /></button><StudioGraphInspector node={selectedGraphNode} telemetry={telemetry} memory={memoryObservatory} lineage={memoryLineage} approval={approval} approvalGroup={approvalGroup} canApprove={canApprove} runId={observedRunId} onApprovalDecided={(decision) => { setApproval((current) => current ? { ...current, status: decision } : current); setApprovalGroup((current) => current ? { ...current, status: decision, decision } : current); setNotice(`Approval ${decision}`); }} onConfigure={() => setConfigurationOpen(true)} /></div> : null}
             </div>
             <StudioExecutionActivity trace={trace} nodes={visibleGraphNodes} projection={timelineProjection} run={runHistory.find((run) => run.id === (activeRunId ?? selectedRunId)) ?? null} streamState={runStreamState} onSelectNode={setSelectedNodeId} />
           </section>
         </div>
       </div>
-      {configurationOpen ? <div className="fixed inset-0 z-50" role="presentation"><button type="button" aria-label="Close settings" className="absolute inset-0 bg-black/50" onClick={() => setConfigurationOpen(false)} /><aside role="dialog" aria-modal="true" aria-labelledby="configuration-title" className="absolute inset-3 overflow-hidden rounded-2xl border border-border bg-card shadow-2xl sm:inset-6 lg:inset-10"><StudioSettingsPrototype key={selectedVersion?.id ?? "new-version"} agent={agent} version={selectedVersion} installationId={agent.installation_id ?? null} instructions={instructions} setInstructions={setInstructions} onSave={saveDraft} saving={saving} modelCatalog={modelCatalog} modelCatalogLoading={modelCatalogLoading} modelSelection={modelSelection} setModelSelection={setModelSelection} onClose={() => setConfigurationOpen(false)} /></aside></div> : null}
+      {configurationOpen ? <div className="fixed inset-0 z-50" role="presentation"><button type="button" aria-label="Close settings" className="absolute inset-0 bg-black/50" onClick={() => setConfigurationOpen(false)} /><aside role="dialog" aria-modal="true" aria-labelledby="configuration-title" className="absolute inset-3 overflow-hidden rounded-2xl border border-border bg-card shadow-2xl sm:inset-6 lg:inset-10"><StudioSettingsPrototype key={selectedVersion?.id ?? "new-version"} agent={agent} version={selectedVersion} installationId={agent.installation_id ?? null} instructions={instructions} setInstructions={setInstructions} onSave={saveDraft} saving={saving} modelCatalog={modelCatalog} modelCatalogLoading={modelCatalogLoading} modelSelection={versionModelSelection} setModelSelection={setVersionModelSelection} onClose={() => setConfigurationOpen(false)} /></aside></div> : null}
     </div>
   );
 }
@@ -1251,7 +1289,7 @@ function StudioExecutionActivity({ trace, nodes, projection, run, streamState, o
   </div>;
 }
 
-function StudioGraphInspector({ node, telemetry, memory, lineage, approval, canApprove, runId, onApprovalDecided, onConfigure }: { node: StudioGraphNode; telemetry: AgentRuntimeTelemetry | null; memory: AgentMemoryObservatoryGraph | null; lineage: AgentMemoryObservatoryGraph | null; approval: AgentApproval | null; canApprove: boolean; runId: string | null; onApprovalDecided?: (decision: "approved" | "rejected") => void; onConfigure: () => void }) {
+function StudioGraphInspector({ node, telemetry, memory, lineage, approval, approvalGroup, canApprove, runId, onApprovalDecided, onConfigure }: { node: StudioGraphNode; telemetry: AgentRuntimeTelemetry | null; memory: AgentMemoryObservatoryGraph | null; lineage: AgentMemoryObservatoryGraph | null; approval: AgentApproval | null; approvalGroup: AgentApprovalGroup | null; canApprove: boolean; runId: string | null; onApprovalDecided?: (decision: "approved" | "rejected") => void; onConfigure: () => void }) {
   const context = telemetry?.context;
   const modelAttempt = telemetry?.modelAttempt;
   const sourceEventId = node.data.event_id ?? node.evidence?.id;
@@ -1260,7 +1298,7 @@ function StudioGraphInspector({ node, telemetry, memory, lineage, approval, canA
   const operation = node.evidence?.operation;
   return <div>
     <StudioGraphInspectorBase node={node} telemetry={telemetry} onConfigure={onConfigure} />
-    {approval && runId ? <section className="border-t border-border px-4 py-3"><SectionEyebrow>Approval</SectionEyebrow><div className="mt-2 flex flex-wrap items-center justify-between gap-3"><div className="min-w-0"><p className="text-xs font-medium text-foreground">{approval.capability}</p><p className="mt-1 text-[10px] text-muted-foreground">{approval.status === "pending" ? `Expires ${approval.expiresAt}` : `Decision: ${approval.status}`}</p></div>{approval.status === "pending" && canApprove ? <AgentApprovalActions runId={runId} approval={approval} onDecided={(decision) => { onApprovalDecided?.(decision); }} /> : null}</div>{approval.status === "pending" && !canApprove ? <p className="mt-2 text-[10px] text-muted-foreground">Approval is required from an authorized operator.</p> : null}</section> : null}
+    {approvalGroup && runId ? <section className="border-t border-border px-4 py-3"><SectionEyebrow>Approval group</SectionEyebrow><p className="mt-2 text-xs text-muted-foreground">{approvalGroup.operations.length} actions are waiting for one decision.</p>{approvalGroup.status === "pending" && canApprove ? <div className="mt-3"><AgentApprovalGroupActions runId={runId} group={approvalGroup} onDecided={(decision) => { onApprovalDecided?.(decision); }} /></div> : null}{approvalGroup.status === "pending" && !canApprove ? <p className="mt-2 text-[10px] text-muted-foreground">Approval is required from an authorized operator.</p> : null}</section> : approval && runId ? <section className="border-t border-border px-4 py-3"><SectionEyebrow>Approval</SectionEyebrow><div className="mt-2 flex flex-wrap items-center justify-between gap-3"><div className="min-w-0"><p className="text-xs font-medium text-foreground">{approval.capability}</p><p className="mt-1 text-[10px] text-muted-foreground">{approval.status === "pending" ? `Expires ${approval.expiresAt}` : `Decision: ${approval.status}`}</p></div>{approval.status === "pending" && canApprove ? <AgentApprovalActions runId={runId} approval={approval} onDecided={(decision) => { onApprovalDecided?.(decision); }} /> : null}</div>{approval.status === "pending" && !canApprove ? <p className="mt-2 text-[10px] text-muted-foreground">Approval is required from an authorized operator.</p> : null}</section> : null}
     <section className="border-t border-border px-4 py-3">
       <SectionEyebrow>Durable evidence</SectionEyebrow>
       <dl className="mt-2 grid gap-x-4 gap-y-1 text-[10px] text-muted-foreground sm:grid-cols-2">
