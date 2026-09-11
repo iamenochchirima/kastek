@@ -46,7 +46,7 @@ export interface ApprovalSignal {
 export interface ApprovalGroupSignal {
   groupId: string;
   planDigest: string;
-  decision: "approved" | "partially_approved" | "rejected";
+  decision: "approved" | "partially_approved" | "rejected" | "invalidated";
   approvedBy: string;
   selectedOperationIds: string[];
   expiresAt: string;

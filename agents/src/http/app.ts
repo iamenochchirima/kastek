@@ -1233,6 +1233,21 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
         }, approval.capability, proposal.arguments);
       } catch (error) {
         await approvals.invalidateGroup(input.organizationId, input.runId, input.groupId, "resource_revalidation_unavailable");
+        await dependencies.signalApprovalGroup?.(input.runId, {
+          groupId: input.groupId,
+          planDigest: active.group.plan_digest,
+          decision: "invalidated",
+          approvedBy: "system",
+          selectedOperationIds: [],
+          expiresAt: active.group.expires_at,
+        });
+        await runs.appendEvent({
+          organizationId: input.organizationId,
+          runId: input.runId,
+          installationId: active.group.installation_id,
+          eventType: "agent.approval.group.invalidated",
+          payload: { approvalGroupId: input.groupId, reason: "resource_revalidation_unavailable" },
+        });
         throw Object.assign(new Error("approval_group_invalidated"), {
           statusCode: 409,
           code: "approval_group_invalidated",
@@ -1241,6 +1256,21 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       }
       if (!approvalResourceSnapshotsEqual(approval.resource_snapshot, currentResourceSnapshot)) {
         await approvals.invalidateGroup(input.organizationId, input.runId, input.groupId, "resource_snapshot_changed");
+        await dependencies.signalApprovalGroup?.(input.runId, {
+          groupId: input.groupId,
+          planDigest: active.group.plan_digest,
+          decision: "invalidated",
+          approvedBy: "system",
+          selectedOperationIds: [],
+          expiresAt: active.group.expires_at,
+        });
+        await runs.appendEvent({
+          organizationId: input.organizationId,
+          runId: input.runId,
+          installationId: active.group.installation_id,
+          eventType: "agent.approval.group.invalidated",
+          payload: { approvalGroupId: input.groupId, reason: "resource_snapshot_changed" },
+        });
         throw Object.assign(new Error("approval_group_invalidated"), {
           statusCode: 409,
           code: "approval_group_invalidated",

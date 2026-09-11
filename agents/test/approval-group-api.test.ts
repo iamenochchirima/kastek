@@ -164,8 +164,9 @@ describe("approval-group API", () => {
       expect(response.statusCode).toBe(409);
       expect(response.json()).toMatchObject({ error: "approval_group_invalidated" });
       expect(fixture.invalidateGroup).toHaveBeenCalledWith(organizationId, runId, groupId, "resource_snapshot_changed");
+      expect(fixture.signalApprovalGroup).toHaveBeenCalledWith(runId, expect.objectContaining({ groupId, decision: "invalidated" }));
+      expect(fixture.appendEvent).toHaveBeenCalledWith(expect.objectContaining({ eventType: "agent.approval.group.invalidated" }));
       expect(fixture.decideGroup).not.toHaveBeenCalled();
-      expect(fixture.signalApprovalGroup).not.toHaveBeenCalled();
     } finally {
       await fixture.app.close();
     }

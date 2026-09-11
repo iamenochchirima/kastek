@@ -372,6 +372,77 @@ describe.skipIf(!runIntegration)("Temporal tool execution reliability (integrati
     expect(modelSteps).toBe(2);
   }, 30_000);
 
+  it("commits typed invalidated outcomes and resumes after a stale resource decision", async () => {
+    const taskQueue = `agent-approval-invalidated-${randomUUID()}`;
+    const workflowId = `agent-run-${randomUUID()}`;
+    const groupId = randomUUID();
+    const planDigest = "i".repeat(64);
+    const calls = Array.from({ length: 3 }, (_, index) => ({
+      ...call(`invalidated-${index + 1}`),
+      name: "records.delete",
+      sequenceNumber: index + 1,
+      approvalGroupId: groupId,
+      approvalPlanDigest: planDigest,
+    }));
+    let modelSteps = 0;
+    let paused = false;
+    const committed: DurableToolCallResult[] = [];
+    const activities: AgentRunActivities = {
+      transitionRun: async () => undefined,
+      waitForConversationTurn: async () => true,
+      getContentPublishBatchStatus: async () => ({ status: "UNAVAILABLE" }),
+      executeLoop: async () => { throw new Error("legacy executeLoop must not run for a new execution"); },
+      executeModelStep: async () => {
+        modelSteps += 1;
+        return modelSteps === 1 ? pendingBatchResult(calls) : completedResult("The stale approval was recorded.");
+      },
+      prepareToolBatch: async ({ calls: prepared }) => prepared.map((current) => ({
+        kind: "sequential" as const,
+        segmentId: `batch:segment:${current.id}`,
+        calls: [current],
+      })),
+      executeToolCall: async () => { throw new Error("invalidated approval must not reach the tool Activity"); },
+      commitToolBatch: async ({ results }) => {
+        committed.push(...results);
+        return { status: "committed", toolCalls: results.length };
+      },
+      pauseRun: async () => { paused = true; },
+      deliverApprovalPrompt: async () => undefined,
+      cancelPendingApproval: async () => undefined,
+      cancelHandoff: async () => undefined,
+      completeRun: async () => undefined,
+      generateConversationTitle: async () => undefined,
+      deliverRunReply: async () => undefined,
+      failRun: async ({ error }) => { throw new Error(String(error.message ?? "workflow failed")); },
+    };
+    const client = await startWorker(taskQueue, activities);
+    const handle = await client.workflow.start(agentRunWorkflow, { taskQueue, workflowId, args: [{ runId: workflowId }] });
+    await new Promise<void>((resolve, reject) => {
+      const deadline = setTimeout(() => reject(new Error("workflow did not pause for invalidated approval group")), 10_000);
+      const timer = setInterval(() => {
+        if (paused) {
+          clearTimeout(deadline);
+          clearInterval(timer);
+          resolve();
+        }
+      }, 50);
+    });
+    await handle.signal(approvalGroupSignal, {
+      groupId,
+      planDigest,
+      decision: "invalidated",
+      approvedBy: "system",
+      selectedOperationIds: [],
+      expiresAt: new Date(Date.now() + 60_000).toISOString(),
+    });
+    await handle.result();
+
+    expect(committed).toHaveLength(3);
+    expect(committed.map((result) => result.id)).toEqual(calls.map((current) => current.id));
+    expect(committed.every((result) => result.status === "blocked" && result.error?.code === "APPROVAL_GROUP_INVALIDATED")).toBe(true);
+    expect(modelSteps).toBe(2);
+  }, 30_000);
+
   it("commits typed expired outcomes for every operation before terminating the run", async () => {
     const taskQueue = `agent-approval-expired-${randomUUID()}`;
     const workflowId = `agent-run-${randomUUID()}`;

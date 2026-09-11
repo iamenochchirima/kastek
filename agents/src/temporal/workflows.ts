@@ -714,6 +714,14 @@ export async function agentRunWorkflow(input: DurableRunInput): Promise<void> {
                 failureClass: "blocked",
               };
             }
+            if (decision.decision === "invalidated") {
+              terminalApprovalOutcome = {
+                groupId,
+                code: "APPROVAL_GROUP_INVALIDATED",
+                message: "The reviewed approval group changed before execution",
+                failureClass: "blocked",
+              };
+            }
             return decision;
           };
           const settleSegment = async (segment: (typeof segments)[number]): Promise<DurableToolCallResult | undefined> => {
