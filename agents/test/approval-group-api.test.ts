@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
 import { buildApp } from "../src/http/app";
 import type { AppConfig } from "../src/config";
+import { signInternalToken } from "../src/http/auth";
 import { ToolRegistry } from "../src/tools/registry";
 
 const organizationId = "org-approval-api";
@@ -80,7 +81,7 @@ function operation(index = 1) {
   };
 }
 
-function buildFixture(currentSnapshot = resourceSnapshot, options: { status?: FixtureGroupStatus; expiresAt?: string; runStatus?: string; decideError?: string; operationCount?: number; runInstallationId?: string } = {}) {
+function buildFixture(currentSnapshot = resourceSnapshot, options: { status?: FixtureGroupStatus; expiresAt?: string; runStatus?: string; decideError?: string; operationCount?: number; runInstallationId?: string; authMode?: "headers" | "token" } = {}) {
   const currentGroup = group(options.status, options.expiresAt);
   const currentOperations = Array.from({ length: options.operationCount ?? 1 }, (_, index) => ({
     ...operation(index + 1),
@@ -137,8 +138,11 @@ function buildFixture(currentSnapshot = resourceSnapshot, options: { status?: Fi
       redaction: [],
     },
   });
+  const fixtureConfig: AppConfig = options.authMode === "token"
+    ? { ...config, AUTH_MODE: "token", INTERNAL_AUTH_SECRET: "approval-api-secret" }
+    : config;
   const app = buildApp({
-    config,
+    config: fixtureConfig,
     pool: fakePool,
     agents: { getInstallation: async () => ({ id: installationId, organization_id: organizationId, agent_definition_id: "agent-1", agent_version_id: "version-1", status: "active" }) } as never,
     runs: {
@@ -164,7 +168,7 @@ function buildFixture(currentSnapshot = resourceSnapshot, options: { status?: Fi
     effectReceipts: { markNotExecuted: async () => undefined } as never,
     signalApprovalGroup,
   });
-  return { app, getGroup, listGroupOperations, decideGroup, invalidateGroup, signalApprovalGroup, appendEvent };
+  return { app, config: fixtureConfig, getGroup, listGroupOperations, decideGroup, invalidateGroup, signalApprovalGroup, appendEvent };
 }
 
 describe("approval-group API", () => {
@@ -387,6 +391,49 @@ describe("approval-group API", () => {
       });
       expect(response.statusCode).toBe(404);
       expect(response.json()).toMatchObject({ error: "approval_group_not_found" });
+      expect(fixture.decideGroup).not.toHaveBeenCalled();
+      expect(fixture.signalApprovalGroup).not.toHaveBeenCalled();
+    } finally {
+      await fixture.app.close();
+    }
+  });
+
+  it("does not expose a group through a different run id", async () => {
+    const fixture = buildFixture();
+    try {
+      const response = await fixture.app.inject({
+        method: "POST",
+        url: "/v1/runs/other-run/approval-group",
+        headers: { "x-organization-id": organizationId, "x-actor-id": "operator-1" },
+        payload: { groupId, planDigest, decision: "approved" },
+      });
+      expect(response.statusCode).toBe(404);
+      expect(response.json()).toMatchObject({ error: "approval_group_not_found" });
+      expect(fixture.decideGroup).not.toHaveBeenCalled();
+      expect(fixture.signalApprovalGroup).not.toHaveBeenCalled();
+    } finally {
+      await fixture.app.close();
+    }
+  });
+
+  it("requires the approval scope for token-authenticated callers", async () => {
+    const fixture = buildFixture(resourceSnapshot, { authMode: "token" });
+    const token = signInternalToken({
+      organizationId,
+      actorId: "operator-without-approval-scope",
+      audience: fixture.config.INTERNAL_AUTH_AUDIENCE,
+      expiresAt: Math.floor(Date.now() / 1000) + 60,
+      scopes: [],
+    }, fixture.config.INTERNAL_AUTH_SECRET!);
+    try {
+      const response = await fixture.app.inject({
+        method: "POST",
+        url: `/v1/runs/${runId}/approval-group`,
+        headers: { authorization: `Bearer ${token}` },
+        payload: { groupId, planDigest, decision: "approved" },
+      });
+      expect(response.statusCode).toBe(403);
+      expect(response.json()).toMatchObject({ error: "Missing internal scope: runs:approve" });
       expect(fixture.decideGroup).not.toHaveBeenCalled();
       expect(fixture.signalApprovalGroup).not.toHaveBeenCalled();
     } finally {
