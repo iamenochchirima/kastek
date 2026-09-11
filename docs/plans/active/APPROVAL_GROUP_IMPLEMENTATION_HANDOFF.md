@@ -35,6 +35,7 @@ own exact identity, authorization, effect receipt, and terminal outcome.
 - `c21529ca fix(agents): expose safe approval group event evidence`
 - `1901fe5d test(agents): preserve approval sibling failures`
 - `e7c15aa9 test(agents): isolate approval groups across model turns`
+- `331a6cef fix(agents): persist approval group consumed evidence`
 
 The current branch is `rewrite`. Do not stage all changes: another agent is actively implementing
 session context and compaction in the same worktree.
@@ -67,6 +68,9 @@ session context and compaction in the same worktree.
   partial execution and provider/tool failures. Approved decisions reject an empty selected set.
 - Public run-event and SSE projections expose bounded group identifiers, digests, counts, decisions,
   and operation IDs while continuing to filter arguments, resources, credentials, and tokens.
+- Durable batch commit now carries the approval-group identity on every result and emits one bounded,
+  idempotent `agent.approval.group.consumed` run event after the group reaches `consumed`, including
+  operation counts, selected IDs, decision actor, expiry, and measured wait duration.
 
 ### API, channel, and Studio surface
 
@@ -79,7 +83,7 @@ session context and compaction in the same worktree.
 
 - `pnpm --dir agents build` passed.
 - Client build passed after the group client changes.
-- PostgreSQL integration passed: 91/91 tests across approval groups and migration tests, including
+- PostgreSQL integration passed: 92/92 tests across approval groups and migration tests, including
   rejected terminal/idempotent decisions and 32/64/128/256-operation persistence/listing.
 - API approval-group tests passed: 9/9, including tenant isolation, stale digest/resource
   conflicts, expired/cancelled/already-signalled outcomes, 256-operation run-detail history, and
@@ -112,9 +116,10 @@ another one. The worker-replacement case is in the same test file and can be sel
 
 ## Immediate next work
 
-1. Complete lifecycle observability: group-level consumed evidence, metrics, dashboards, and
-   bounded structured logging for wait duration, group size, decision latency, duplicates,
-   expiry, and provider failures.
+1. Complete lifecycle observability: consistent metadata across every group event, metrics,
+   dashboards, and bounded structured logging for wait duration, group size, decision latency,
+   duplicates, expiry, and provider failures. Group-level consumed evidence is implemented and
+   idempotency-tested.
 2. Run the real-provider/sandbox and guided Studio tracks, including refresh/reconnect, duplicate
    approval clicks, partial provider failure, and provider-state reconciliation.
 3. Add fresh-database, legacy-row, migration, and rollback evidence. Do not remove the legacy

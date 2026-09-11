@@ -15,7 +15,7 @@ approval delivery, signal retry, duplicate-call ordering, historical group summa
 resource revalidation, terminal typed outcomes, lifecycle conflict/resume events, repository scale
 checks, deterministic worker replacement, historical per-operation outcome projections, and
 32/64/128/256-operation Temporal barriers, and bounded approval evidence in public run-event/SSE
-projections. Real-provider verification still requires sandbox
+projections, including idempotent group-consumed evidence after durable batch commit. Real-provider verification still requires sandbox
 credentials; lifecycle metrics, migration-state evidence, compatibility cleanup, and guided Studio
 checks remain open.
 
@@ -23,7 +23,7 @@ checks remain open.
 worker but stopped in the separate context-compaction implementation with
 `ContextCompactionError(code=no_progress)` before tool-batch preparation. This is recorded as a
 context-plan blocker, not as approval-group evidence. Approval-specific verification currently
-includes a passing Agents build, 91/91 PostgreSQL approval/migration tests, 9/9 API tests, a
+includes a passing Agents build, 92/92 PostgreSQL approval/migration tests, 9/9 API tests, a
 21/21 full deterministic Temporal suite, including worker replacement while a group was pending and
 32/64/128/256-operation group barriers.
 
@@ -298,11 +298,11 @@ durable fan-out, joins, retries, and result ordering.
 
 ### Phase 6 — Observability, audit, and operational recovery
 
-Decision-conflict, invalidation, and resumed group run events are now emitted by the approval
-endpoint and covered by API tests. The complete lifecycle-event contract, metrics, dashboards,
-and migration/rollback evidence are still release work and remain unchecked below.
+Decision-conflict, invalidation, resumed, and idempotently consumed group run events are now
+emitted at the API or durable batch boundary and covered by API/repository tests. The remaining
+release work is lifecycle metadata consistency, metrics, dashboards, and migration evidence.
 
-- [ ] Emit lifecycle events for group requested, displayed, approved, partially approved, rejected,
+- [x] Emit lifecycle events for group requested, displayed, approved, partially approved, rejected,
       expired, cancelled, invalidated, resumed, consumed, and decision conflict.
 - [ ] Include group ID, run ID, batch ID, plan digest, operation count, selected count, actor,
       policy revision, duration, and bounded error code. Redact arguments and resource data.
@@ -443,7 +443,7 @@ Logs, metrics, dashboards, and alerts: required for group size, wait duration, s
 User, API, internal, and operational documentation: update Studio/API approval documentation,
   internal execution architecture, Temporal recovery runbook, and migration/rollback runbook
 Validation evidence: completed unit/redaction/SSE, PostgreSQL concurrency and 32/64/128/256
-  persistence, 9/9 API, local Temporal 21/21, worker-replacement, expiry, stale-plan, partial
+  persistence, idempotent consumed-event evidence, 9/9 API, local Temporal 21/21, worker-replacement, expiry, stale-plan, partial
   provider failure, later-group, and 18-operation checks; real-tool, live Studio scale/reconnect,
   fresh/legacy migration-state, and guided Studio checks remain pending
 Rollback or disable plan: stop admitting new group-version runs, preserve and drain already-approved
