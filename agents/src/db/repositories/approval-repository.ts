@@ -425,7 +425,7 @@ export class ApprovalRepository {
           (organization_id, installation_id, run_id, approval_group_id, provider_tool_call_id, runtime_operation_id, capability,
            capability_version, arguments_hash, resource_snapshot, preview_revision,
            policy_revision, permitted_effect_key, status, expires_at)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::jsonb,$11,$12,$13,$14,'pending',$15)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::jsonb,$11,$12,$13,'pending',$14)
          ON CONFLICT (run_id, runtime_operation_id) DO NOTHING
          RETURNING *`,
         [input.organizationId, input.installationId, input.runId, input.approvalGroupId ?? null, input.providerToolCallId, runtimeOperationId, input.capability, input.capabilityVersion, input.argumentsHash, JSON.stringify(input.resourceSnapshot), input.previewRevision, input.policyRevision, input.permittedEffectKey, input.expiresAt],
