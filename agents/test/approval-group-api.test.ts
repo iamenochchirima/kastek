@@ -88,7 +88,7 @@ function buildFixture(currentSnapshot = resourceSnapshot, options: { status?: Fi
   }));
   const getGroup = vi.fn(async (organization: string) => organization === organizationId ? currentGroup : null);
   const listGroupOperations = vi.fn(async () => currentOperations);
-  const decideGroup = vi.fn(async (input: { approvedBy: string }) => {
+  const decideGroup = vi.fn(async (input: { approvedBy: string; decision: "approved" | "rejected" }) => {
     if (options.decideError) throw new Error(options.decideError);
     if (currentGroup.status !== "pending") {
       return {
@@ -97,10 +97,21 @@ function buildFixture(currentSnapshot = resourceSnapshot, options: { status?: Fi
         approvals: currentOperations.map((operation) => ({ ...operation, status: currentGroup.status === "approved" ? "approved" : "denied", approved_by: currentGroup.decided_by })),
       };
     }
+    const approved = input.decision === "approved";
     return {
       accepted: true,
-      group: { ...currentGroup, status: "approved", decision: "approved", decided_by: input.approvedBy, selected_operation_ids: ["operation-1"] },
-      approvals: currentOperations.map((operation) => ({ ...operation, status: "approved", approved_by: input.approvedBy })),
+      group: {
+        ...currentGroup,
+        status: approved ? "approved" : "rejected",
+        decision: input.decision,
+        decided_by: input.approvedBy,
+        selected_operation_ids: approved ? ["operation-1"] : [],
+      },
+      approvals: currentOperations.map((operation) => ({
+        ...operation,
+        status: approved ? "approved" : "denied",
+        approved_by: input.approvedBy,
+      })),
     };
   });
   const invalidateGroup = vi.fn(async () => ({ ...currentGroup, status: "invalidated", decision: "rejected" }));
@@ -207,6 +218,34 @@ describe("approval-group API", () => {
       expect(fixture.appendEvent).toHaveBeenCalledWith(expect.objectContaining({
         eventType: "agent.approval.group.resumed",
         payload: expect.objectContaining({ operationCount: 1, selectedCount: 1, actor: "operator-1" }),
+      }));
+    } finally {
+      await fixture.app.close();
+    }
+  });
+
+  it("accepts a rejected group decision and signals every operation as denied", async () => {
+    const fixture = buildFixture();
+    try {
+      const response = await fixture.app.inject({
+        method: "POST",
+        url: `/v1/runs/${runId}/approval-group`,
+        headers: { "x-organization-id": organizationId, "x-actor-id": "operator-1" },
+        payload: { groupId, planDigest, decision: "rejected" },
+      });
+      expect(response.statusCode).toBe(202);
+      expect(response.json()).toMatchObject({
+        runId,
+        groupId,
+        status: "approval_group_signalled",
+        decision: "rejected",
+        selectedOperationIds: [],
+      });
+      expect(fixture.decideGroup).toHaveBeenCalledWith(expect.objectContaining({ decision: "rejected" }));
+      expect(fixture.signalApprovalGroup).toHaveBeenCalledWith(runId, expect.objectContaining({ decision: "rejected", selectedOperationIds: [] }));
+      expect(fixture.appendEvent).toHaveBeenCalledWith(expect.objectContaining({
+        eventType: "agent.approval.group.rejected",
+        payload: expect.objectContaining({ selectedCount: 0, actor: "operator-1" }),
       }));
     } finally {
       await fixture.app.close();
