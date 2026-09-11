@@ -27,10 +27,10 @@ an already-fit active projection, and the same real-provider read-only smoke tes
 through local Temporal, model dispatch, durable prepare/execute/commit, and continuation. This is
 runtime/context evidence only, not approval-group evidence, because the fixture uses an
 approval-free read capability. Approval-specific verification currently includes a passing Agents
-build, 92/92 PostgreSQL approval/migration tests, 12/12 API tests, a 21/21 full deterministic
+build, 92/92 PostgreSQL approval/migration tests, 14/14 API tests, a 21/21 full deterministic
 Temporal suite, including worker replacement while a group was pending and 32/64/128/256-operation
-group barriers, 12/12 API approval-group tests including installation binding and completed-run
-rejection, and a 1/1 opt-in
+group barriers, 14/14 API approval-group tests including installation/run binding, missing-scope
+rejection, and completed-run rejection, and a 1/1 opt-in
 real-provider approval orchestration test using a synthetic external-effect capability through the
 actual HTTP decision endpoint, including concurrent duplicate-decision handling. A disposable
 fresh database applied all 168 migrations through 176.
@@ -421,7 +421,7 @@ open.
 - [ ] Verify an approval request racing with group creation cannot be accepted against a partial
       proposal set. The API must return a typed not-ready or stale-group result and the user must see
       the complete group before deciding.
-- [ ] Verify a decision submitted by another organization, installation, run, or unauthorized actor
+- [x] Verify a decision submitted by another organization, installation, run, or unauthorized actor
       cannot approve the group, even when the caller knows the group ID and digest.
 - [x] Verify selection tampering, operation duplication, reordered operation IDs, and changed
       arguments are rejected by digest and exact identity validation.
@@ -460,7 +460,7 @@ Logs, metrics, dashboards, and alerts: OpenTelemetry instruments and a provider-
 User, API, internal, and operational documentation: update Studio/API approval documentation,
   internal execution architecture, Temporal recovery runbook, and migration/rollback runbook
 Validation evidence: completed unit/redaction/SSE, PostgreSQL concurrency and 32/64/128/256
-  persistence, idempotent consumed-event evidence, 12/12 API, local Temporal 21/21,
+  persistence, idempotent consumed-event evidence, 14/14 API, local Temporal 21/21,
   local recovery/worker-loss 19/19, worker-replacement,
   expiry, stale-plan, partial provider failure, later-group, 18-operation, and 1/1 synthetic
   real-provider approval-orchestration checks; fresh and legacy migration-state audits reached 176.
