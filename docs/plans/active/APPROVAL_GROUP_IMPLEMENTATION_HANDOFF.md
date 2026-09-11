@@ -41,6 +41,7 @@ own exact identity, authorization, effect receipt, and terminal outcome.
 - `1f91e213 feat(agents): instrument approval group lifecycle`
 - `642e8cf9 feat(agents): standardize approval lifecycle evidence`
 - `c43608b5 test(agents): verify approval event metadata`
+- `abd27653 docs(agents): record real approval orchestration evidence`
 
 The current branch is `rewrite`. Do not stage all changes: another agent is actively implementing
 session context and compaction in the same worktree.
@@ -112,6 +113,8 @@ session context and compaction in the same worktree.
   18-operation group, rejection, invalidation, expiry, cancellation, retry/failure matrix,
   replay, cancellation, history, worker replacement, 32/64/128/256-operation approval groups,
   partial provider failure, and fresh groups on later model turns.
+- The full deterministic Agents suite passed: 1,211 tests in 199 files; 172 integration tests
+  were skipped because their optional service flags were not enabled.
 - `pnpm --dir agents build` passed after the decision-time invalidation and lifecycle changes.
 - Resource-revalidation unit tests passed.
 - Fresh disposable migration audit passed through migration 176 with 168 applied migrations.
@@ -139,6 +142,21 @@ pnpm --dir agents build
 RUN_TEMPORAL_INTEGRATION_TESTS=true \
 TEMPORAL_TEST_ADDRESS=127.0.0.1:7233 \
 pnpm --dir agents exec vitest run test/temporal-tool-execution.integration.test.ts --reporter=dot
+```
+
+Run the opt-in real-provider approval orchestration test (the local Temporal server and the
+configured `agents/.env` provider credentials must already be available):
+
+```sh
+set -a
+source agents/.env
+set +a
+RUN_REAL_MODEL_INTEGRATION_TESTS=true \
+RUN_AGENTS_DB_INTEGRATION_TESTS=true \
+RUN_TEMPORAL_INTEGRATION_TESTS=true \
+TEMPORAL_TEST_ADDRESS=127.0.0.1:7233 \
+TEMPORAL_NAMESPACE=default \
+pnpm --dir agents exec vitest run test/temporal-real-approval.integration.test.ts --reporter=dot
 ```
 
 The local Temporal dev server should already be running on `127.0.0.1:7233`; verify before starting
