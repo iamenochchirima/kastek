@@ -51,6 +51,8 @@ const PUBLIC_PAYLOAD_FIELDS = new Set([
   "messageId", "deliveryStatus", "resolution", "resolutionCode",
   "authorizationRequired",
   "execution",
+  "approvalGroupId", "batchId", "planDigest", "operationCount", "selectedCount",
+  "selectedOperationIds", "operationIds", "approvedBy", "decision", "expiresAt",
 ]);
 
 export function formatSseComment(value: string): string {
