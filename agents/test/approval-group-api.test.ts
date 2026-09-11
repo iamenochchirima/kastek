@@ -55,15 +55,15 @@ function group(status: FixtureGroupStatus = "pending", expiresAt = new Date(Date
   };
 }
 
-function operation() {
+function operation(index = 1) {
   return {
-    id: "approval-1",
+    id: `approval-${index}`,
     organization_id: organizationId,
     installation_id: installationId,
     run_id: runId,
     approval_group_id: groupId,
-    provider_tool_call_id: "provider-1",
-    runtime_operation_id: "operation-1",
+    provider_tool_call_id: `provider-${index}`,
+    runtime_operation_id: `operation-${index}`,
     capability,
     capability_version: "1.0.0",
     arguments_hash: "b".repeat(64),
@@ -80,24 +80,27 @@ function operation() {
   };
 }
 
-function buildFixture(currentSnapshot = resourceSnapshot, options: { status?: FixtureGroupStatus; expiresAt?: string; runStatus?: string; decideError?: string } = {}) {
+function buildFixture(currentSnapshot = resourceSnapshot, options: { status?: FixtureGroupStatus; expiresAt?: string; runStatus?: string; decideError?: string; operationCount?: number } = {}) {
   const currentGroup = group(options.status, options.expiresAt);
-  const currentOperation = { ...operation(), resource_snapshot: currentSnapshot };
+  const currentOperations = Array.from({ length: options.operationCount ?? 1 }, (_, index) => ({
+    ...operation(index + 1),
+    resource_snapshot: index === 0 ? currentSnapshot : { ...resourceSnapshot, operationId: index + 1 },
+  }));
   const getGroup = vi.fn(async (organization: string) => organization === organizationId ? currentGroup : null);
-  const listGroupOperations = vi.fn(async () => [currentOperation]);
+  const listGroupOperations = vi.fn(async () => currentOperations);
   const decideGroup = vi.fn(async (input: { approvedBy: string }) => {
     if (options.decideError) throw new Error(options.decideError);
     if (currentGroup.status !== "pending") {
       return {
         accepted: false,
         group: currentGroup,
-        approvals: [{ ...currentOperation, status: currentGroup.status === "approved" ? "approved" : "denied", approved_by: currentGroup.decided_by }],
+        approvals: currentOperations.map((operation) => ({ ...operation, status: currentGroup.status === "approved" ? "approved" : "denied", approved_by: currentGroup.decided_by })),
       };
     }
     return {
       accepted: true,
       group: { ...currentGroup, status: "approved", decision: "approved", decided_by: input.approvedBy, selected_operation_ids: ["operation-1"] },
-      approvals: [{ ...currentOperation, status: "approved", approved_by: input.approvedBy }],
+      approvals: currentOperations.map((operation) => ({ ...operation, status: "approved", approved_by: input.approvedBy })),
     };
   });
   const invalidateGroup = vi.fn(async () => ({ ...currentGroup, status: "invalidated", decision: "rejected" }));
@@ -136,7 +139,9 @@ function buildFixture(currentSnapshot = resourceSnapshot, options: { status?: Fi
       getGroup,
       listGroupOperations,
       getForRun: async () => null,
-      getActiveGroup: async () => ({ group: currentGroup, approvals: [currentOperation] }),
+      getActiveGroup: async () => ["pending", "approved", "partially_approved"].includes(currentGroup.status)
+        ? { group: currentGroup, approvals: currentOperations }
+        : null,
       listGroups: async () => [currentGroup],
       decideGroup,
       invalidateGroup,
@@ -278,6 +283,22 @@ describe("approval-group API", () => {
         approvalGroup: { id: groupId, operations: [{ runtimeOperationId: "operation-1" }] },
         approvalGroups: [{ id: groupId, operations: [{ runtimeOperationId: "operation-1" }] }],
       });
+    } finally {
+      await fixture.app.close();
+    }
+  });
+
+  it("projects all operations in a large historical group", async () => {
+    const fixture = buildFixture(resourceSnapshot, { status: "consumed", runStatus: "completed", operationCount: 256 });
+    try {
+      const response = await fixture.app.inject({
+        method: "GET",
+        url: `/v1/runs/${runId}`,
+        headers: { "x-organization-id": organizationId, "x-actor-id": "operator-1" },
+      });
+      expect(response.statusCode).toBe(200);
+      expect(response.json()).toMatchObject({ approvalGroup: null, approvalGroups: [{ id: groupId, operations: expect.any(Array) }] });
+      expect(response.json().approvalGroups[0].operations).toHaveLength(256);
     } finally {
       await fixture.app.close();
     }

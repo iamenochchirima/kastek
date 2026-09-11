@@ -13,16 +13,18 @@ Temporal group signal, group decision API, expiry/invalidation transitions, and 
 controls are implemented. The group contract now also covers selected-operation controls, channel
 approval delivery, signal retry, duplicate-call ordering, historical group summaries, decision-time
 resource revalidation, terminal typed outcomes, lifecycle conflict/resume events, repository scale
-checks, and deterministic worker replacement. Real-provider verification still requires sandbox
-credentials; lifecycle metrics, migration rollback evidence, compatibility cleanup, and guided
-Studio checks remain open.
+checks, deterministic worker replacement, historical per-operation outcome projections, and
+32/64/128/256-operation Temporal barriers. Real-provider verification still requires sandbox
+credentials; lifecycle metrics, migration-state evidence, compatibility cleanup, and guided Studio
+checks remain open.
 
 **Verification boundary:** On 2026-09-11, the real-model Temporal smoke test reached the local
 worker but stopped in the separate context-compaction implementation with
 `ContextCompactionError(code=no_progress)` before tool-batch preparation. This is recorded as a
 context-plan blocker, not as approval-group evidence. Approval-specific verification currently
-includes a passing Agents build, 91/91 PostgreSQL approval/migration tests, 8/8 API tests, a
-15/15 full deterministic Temporal suite, including worker replacement while a group was pending.
+includes a passing Agents build, 91/91 PostgreSQL approval/migration tests, 9/9 API tests, a
+19/19 full deterministic Temporal suite, including worker replacement while a group was pending and
+32/64/128/256-operation group barriers.
 
 **Related plans:**
 
@@ -288,7 +290,7 @@ durable fan-out, joins, retries, and result ordering.
       resources, expiry, and expandable per-operation details.
 - [x] Provide `Approve all`, `Approve selected`, and `Reject` for the current group. Label “all” as
       the current group only; never imply approval of future actions.
-- [ ] Show partial execution and per-operation failures after resume. Do not collapse them into a
+- [x] Show partial execution and per-operation failures after resume. Do not collapse them into a
       generic approval error.
 - [ ] Remove the single-approval state, latest-row projection, and dead mismatch error path after
       the compatibility window.
@@ -306,11 +308,11 @@ and migration/rollback evidence are still release work and remain unchecked belo
 - [ ] Add metrics for approval wait duration, approval-group size, approval decision latency,
       stale decisions, duplicate decisions, expiry rate, partial approvals, and post-approval
       provider failures.
-- [ ] Update the Temporal recovery runbook with approval-group restart, expiry, stale-plan, and
+- [x] Update the Temporal recovery runbook with approval-group restart, expiry, stale-plan, and
       partial-success handling.
-- [ ] Update the internal execution architecture document and the supported API documentation if
+- [x] Update the internal execution architecture document and the supported API documentation if
       the group endpoint is exposed outside the Studio client.
-- [ ] Add a migration and rollback runbook. Rollback must not replay an already-approved external
+- [x] Add a migration and rollback runbook. Rollback must not replay an already-approved external
       effect or reopen a consumed group.
 
 ## Verification matrix
@@ -327,7 +329,7 @@ and migration/rollback evidence are still release work and remain unchecked belo
 - [x] Verify stale UI decisions cannot authorize a different group or operation.
 - [x] Verify selected approval executes only selected operation IDs and returns typed rejection
       outcomes for the remainder.
-- [ ] Verify credentials, tokens, and unredacted arguments never appear in previews, digests, logs,
+- [x] Verify credentials, tokens, and unredacted arguments never appear in previews, digests, logs,
       or analytics payloads.
 
 ### PostgreSQL and API integration
@@ -371,8 +373,9 @@ and migration/rollback evidence are still release work and remain unchecked belo
 
 ### Temporal and real-tool verification
 
-The PostgreSQL scale test now covers 32, 64, 128, and 256 persisted proposals. End-to-end API/UI
-projection and Temporal history checks at those sizes remain open.
+The PostgreSQL persistence, API historical projection, and deterministic Temporal barrier checks now
+cover 32, 64, 128, and 256 proposals. A live Studio rendering/reconnect check at those sizes remains
+open.
 
 - [x] Run an 18-operation approval-required scenario through local Temporal with one group approval
       and confirm all 18 distinct calls execute exactly once. The test uses a deterministic provider

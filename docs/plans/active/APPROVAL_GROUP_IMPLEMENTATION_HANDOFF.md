@@ -31,6 +31,7 @@ own exact identity, authorization, effect receipt, and terminal outcome.
 - `20c790de fix(agents): resume invalidated approval groups`
 - `7363bb95 feat(agents): record approval group lifecycle events`
 - `02424475 test(agents): cover approval group scale and restart`
+- `6a0ee146 test(agents): harden approval group scale boundaries`
 
 The current branch is `rewrite`. Do not stage all changes: another agent is actively implementing
 session context and compaction in the same worktree.
@@ -59,6 +60,8 @@ session context and compaction in the same worktree.
   `APPROVAL_GROUP_INVALIDATED` outcomes before resuming the model turn.
 - Exact operation authorization and resource revalidation occur at both decision time and in
   `executeToolCall`; stale resources invalidate the group before approval is accepted.
+- Historical run projections and the activity timeline expose each terminal child outcome, including
+  partial execution and provider/tool failures. Approved decisions reject an empty selected set.
 
 ### API, channel, and Studio surface
 
@@ -73,12 +76,12 @@ session context and compaction in the same worktree.
 - Client build passed after the group client changes.
 - PostgreSQL integration passed: 91/91 tests across approval groups and migration tests, including
   rejected terminal/idempotent decisions and 32/64/128/256-operation persistence/listing.
-- API approval-group tests passed: 8/8, including tenant isolation, stale digest/resource
-  conflicts, expired/cancelled/already-signalled outcomes, run-detail history, and lifecycle
-  event assertions.
-- The full deterministic Temporal tool-execution suite passed: 15/15, including the
+- API approval-group tests passed: 9/9, including tenant isolation, stale digest/resource
+  conflicts, expired/cancelled/already-signalled outcomes, 256-operation run-detail history, and
+  lifecycle event assertions.
+- The full deterministic Temporal tool-execution suite passed: 19/19, including the
   18-operation group, rejection, invalidation, expiry, cancellation, retry/failure matrix,
-  replay, cancellation, history, and worker-replacement cases.
+  replay, cancellation, history, worker replacement, and 32/64/128/256-operation approval groups.
 - `pnpm --dir agents build` passed after the decision-time invalidation and lifecycle changes.
 - Resource-revalidation unit tests passed.
 
@@ -110,8 +113,8 @@ another one. The worker-replacement case is in the same test file and can be sel
    approval clicks, partial provider failure, and provider-state reconciliation.
 3. Add fresh-database, legacy-row, migration, and rollback evidence. Do not remove the legacy
    single-operation reader until the open Temporal history compatibility window is drained.
-4. Extend scale verification from PostgreSQL persistence to end-to-end API/UI projection and
-   Temporal history handling at 32, 64, 128, and 256 proposals.
+4. Complete the remaining scale evidence at the live Studio surface; API historical projection and
+   Temporal barrier handling now pass at 32, 64, 128, and 256 proposals.
 5. Cover remaining approval races and later-barrier behavior: group creation versus decision,
    second approval-required segments, later model turns, and approval after completed runs.
 
