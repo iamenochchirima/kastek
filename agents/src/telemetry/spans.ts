@@ -98,6 +98,31 @@ const skillSelectionCounter = meter.createCounter("kasitek.agent.skill.selection
 const hostCapabilityOutcomeCounter = meter.createCounter("kasitek.agent.host_capability.outcome.count", {
   description: "Host capability outcomes by adapter and bounded result status",
 });
+const approvalGroupLifecycleCounter = meter.createCounter("kasitek.approval.group.lifecycle.count", {
+  description: "Approval-group lifecycle events by bounded action",
+});
+const approvalGroupDecisionCounter = meter.createCounter("kasitek.approval.group.decision.count", {
+  description: "Approval-group decision outcomes, including stale and duplicate attempts",
+});
+const approvalGroupSize = meter.createHistogram("kasitek.approval.group.size", {
+  description: "Number of operations in an approval group",
+  unit: "1",
+});
+const approvalGroupSelectedSize = meter.createHistogram("kasitek.approval.group.selected_size", {
+  description: "Number of selected operations in an approval-group decision",
+  unit: "1",
+});
+const approvalGroupWaitDuration = meter.createHistogram("kasitek.approval.group.wait_duration", {
+  description: "Time from approval-group creation to a terminal human decision",
+  unit: "ms",
+});
+const approvalGroupDecisionLatency = meter.createHistogram("kasitek.approval.group.decision_latency", {
+  description: "Time spent accepting an approval-group decision",
+  unit: "ms",
+});
+const approvalGroupProviderFailureCounter = meter.createCounter("kasitek.approval.group.provider_failure.count", {
+  description: "Provider failures after an approved operation crossed the group barrier",
+});
 
 export function boundedAttribute(value: unknown, maxLength = 128): string {
   return String(value ?? "unknown").slice(0, maxLength);
@@ -328,5 +353,84 @@ export function recordDynamicUiInteraction(input: {
   dynamicUiInteractionCounter.add(1, {
     outcome: input.outcome,
     action: boundedAttribute(input.action, 40),
+  });
+}
+
+export type ApprovalGroupLifecycleAction =
+  | "requested"
+  | "displayed"
+  | "approved"
+  | "partially_approved"
+  | "rejected"
+  | "expired"
+  | "cancelled"
+  | "invalidated"
+  | "resumed"
+  | "consumed";
+
+export function recordApprovalGroupLifecycle(input: {
+  action: ApprovalGroupLifecycleAction;
+  operationCount?: number;
+  selectedCount?: number;
+  durationMs?: number;
+  errorCode?: string;
+}): void {
+  approvalGroupLifecycleCounter.add(1, {
+    action: input.action,
+    ...(input.errorCode ? { error_code: boundedAttribute(input.errorCode) } : {}),
+  });
+  if (Number.isSafeInteger(input.operationCount) && input.operationCount! >= 0) {
+    approvalGroupSize.record(input.operationCount!, { action: input.action });
+  }
+  if (Number.isSafeInteger(input.selectedCount) && input.selectedCount! >= 0) {
+    approvalGroupSelectedSize.record(input.selectedCount!, { action: input.action });
+  }
+  if (input.durationMs !== undefined && Number.isFinite(input.durationMs) && input.durationMs >= 0) {
+    approvalGroupWaitDuration.record(input.durationMs, { action: input.action });
+  }
+}
+
+export type ApprovalGroupDecisionOutcome =
+  | "approved"
+  | "partially_approved"
+  | "rejected"
+  | "expired"
+  | "stale"
+  | "duplicate"
+  | "conflict";
+
+export function recordApprovalGroupDecision(input: {
+  outcome: ApprovalGroupDecisionOutcome;
+  operationCount?: number;
+  selectedCount?: number;
+  waitDurationMs?: number;
+  decisionLatencyMs?: number;
+  errorCode?: string;
+}): void {
+  approvalGroupDecisionCounter.add(1, {
+    outcome: input.outcome,
+    ...(input.errorCode ? { error_code: boundedAttribute(input.errorCode) } : {}),
+  });
+  if (Number.isSafeInteger(input.operationCount) && input.operationCount! >= 0) {
+    approvalGroupSize.record(input.operationCount!, { outcome: input.outcome });
+  }
+  if (Number.isSafeInteger(input.selectedCount) && input.selectedCount! >= 0) {
+    approvalGroupSelectedSize.record(input.selectedCount!, { outcome: input.outcome });
+  }
+  if (input.waitDurationMs !== undefined && Number.isFinite(input.waitDurationMs) && input.waitDurationMs >= 0) {
+    approvalGroupWaitDuration.record(input.waitDurationMs, { outcome: input.outcome });
+  }
+  if (input.decisionLatencyMs !== undefined && Number.isFinite(input.decisionLatencyMs) && input.decisionLatencyMs >= 0) {
+    approvalGroupDecisionLatency.record(input.decisionLatencyMs, { outcome: input.outcome });
+  }
+}
+
+export function recordApprovalGroupProviderFailure(input: {
+  outcome: "failed" | "unknown";
+  errorCode?: string;
+}): void {
+  approvalGroupProviderFailureCounter.add(1, {
+    outcome: input.outcome,
+    ...(input.errorCode ? { error_code: boundedAttribute(input.errorCode) } : {}),
   });
 }

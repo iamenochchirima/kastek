@@ -65,7 +65,14 @@ import { IntegrationToolService } from "../integrations/service";
 import { registerIntegrationTools } from "../integrations/tools";
 import { listIntegrations } from "../integrations/catalog";
 import { registerIntegrationSources } from "../capabilities/source-adapters";
-import { recordBudgetExhaustion, recordRetrievalResult, recordTemporalActivityAttempt, withSpan } from "../telemetry/spans";
+import {
+  recordApprovalGroupLifecycle,
+  recordApprovalGroupProviderFailure,
+  recordBudgetExhaustion,
+  recordRetrievalResult,
+  recordTemporalActivityAttempt,
+  withSpan,
+} from "../telemetry/spans";
 import { operationalLogger } from "../telemetry/logger";
 import { AGENT_MEDIA_HARNESS_TOOLS, agentResponseSchema, agentResponseToolInputSchema, findAuthorizationRequirement, parseAgentResponse } from "../media/contracts";
 import { buildChannelMediaText, buildChannelUiFallback, channelUiNavigationButtons, type ResolvedAgentMedia } from "../media/delivery";
@@ -2718,6 +2725,11 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
             expiresAt: created.group.expires_at,
           },
         });
+        recordApprovalGroupLifecycle({
+          action: "requested",
+          operationCount: created.approvals.length,
+          selectedCount: 0,
+        });
         const approvalOperationIds = new Set(created.approvals.map((approval) => approval.runtime_operation_id));
         segments = segments.map((segment) => ({
           ...segment,
@@ -2758,6 +2770,7 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
       const checkpoint = readDurableAgentLoopCheckpoint(state?.state?.__agentLoop);
       const authorizedToolNames = checkpoint?.authorizedToolNames;
       let effectOutcomeRecorded = false;
+      let providerInvocationStarted = false;
       const failure = async (
         error: { code: string; message: string },
         status: DurableToolCallResult["status"] = "failed",
@@ -2783,6 +2796,12 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
           operationId: call.id,
           payload: { batchId: input.batchId, toolCallId: providerToolCallId, operationId: call.id, name: call.name, error: durableError, failureClass },
         });
+        if (callApprovalGroupId && providerInvocationStarted && (durableStatus === "failed" || durableStatus === "unknown")) {
+          recordApprovalGroupProviderFailure({
+            outcome: durableStatus === "unknown" ? "unknown" : "failed",
+            errorCode: error.code,
+          });
+        }
         return {
           id: call.id,
           providerToolCallId,
@@ -2940,6 +2959,7 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
         });
       }
       await consumeRunToolBudget(runBudgets, { organizationId: run.organization_id, runId: run.id, operationKey: call.id });
+        providerInvocationStarted = true;
         const result = await withActivityHeartbeat(
           { phase: "agent.tool.running", runId: run.id, batchId: input.batchId, operationId: call.id, tool: call.name },
           () => harness.capabilities.invoke({
@@ -3045,7 +3065,7 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
           const durationMs = Number.isFinite(createdAt) && Number.isFinite(consumedAt) && consumedAt >= createdAt
             ? consumedAt - createdAt
             : undefined;
-          await runs.appendEventOnce({
+          const appended = await runs.appendEventOnce({
             organizationId: run.organization_id,
             runId: run.id,
             installationId: run.installation_id,
@@ -3066,6 +3086,14 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
               ...(durationMs !== undefined ? { durationMs } : {}),
             },
           });
+          if (appended) {
+            recordApprovalGroupLifecycle({
+              action: "consumed",
+              operationCount: operations.length,
+              selectedCount: group.selected_operation_ids.length,
+              ...(durationMs !== undefined ? { durationMs } : {}),
+            });
+          }
         }
       };
       if (!checkpoint?.toolBatchPending || !checkpoint.pendingToolCalls?.length) {
@@ -3280,6 +3308,7 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
             eventType: "agent.approval.group.displayed",
             payload: { approvalGroupId: approvalGroup.group.id, operationCount: approvalGroup.approvals.length, channelType: target.channel_type },
           });
+          recordApprovalGroupLifecycle({ action: "displayed", operationCount: approvalGroup.approvals.length, selectedCount: 0 });
         }
       } catch (error) {
         const reason = error instanceof Error ? error.message : "approval_prompt_failed";
@@ -3329,6 +3358,7 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
         eventType: "agent.approval.group.cancelled",
         payload: { approvalGroupId: input.groupId, reason: input.reason ?? "run_cancelled" },
       });
+      recordApprovalGroupLifecycle({ action: "cancelled", errorCode: "RUN_CANCELLED" });
     },
     async cancelHandoff(input) {
       await assertCurrentSessionLease(input);

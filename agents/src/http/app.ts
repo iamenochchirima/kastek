@@ -179,6 +179,7 @@ import { RuntimeTelemetryAccumulator } from "../runtime/runtime-telemetry";
 import type { PersistedExecutionJournalEvent } from "../journal/contracts";
 import { executionScopeFromRun } from "../runtime/execution-scope";
 import { toolInvocationContextFromScope } from "../tools/types";
+import { recordApprovalGroupDecision, recordApprovalGroupLifecycle } from "../telemetry/spans";
 
 export interface AppDependencies {
   config: AppConfig;
@@ -1139,6 +1140,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     approvedBy: string;
     rateLimitKey: string;
   }) => {
+    const decisionStartedAt = performance.now();
     const group = await approvals.getGroup(input.organizationId, input.groupId);
     const operations = group ? await approvals.listGroupOperations(input.organizationId, group.id) : [];
     const active = group ? { group, approvals: operations } : null;
@@ -1146,6 +1148,8 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       throw Object.assign(new Error("approval_group_not_found"), { statusCode: 404, code: "approval_group_not_found" });
     }
     const appendDecisionConflict = async (reason: string): Promise<void> => {
+      const outcome = /digest|stale|mismatch|changed/i.test(reason) ? "stale" as const : "conflict" as const;
+      recordApprovalGroupDecision({ outcome, operationCount: operations.length, errorCode: reason });
       await runs.appendEvent({
         organizationId: input.organizationId,
         runId: input.runId,
@@ -1179,6 +1183,14 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       } catch (error) {
         const code = error instanceof Error ? error.message : "approval_group_not_pending";
         throw Object.assign(new Error(code), { statusCode: code === "APPROVAL_GROUP_NOT_FOUND" ? 404 : 409, code: code.toLowerCase() });
+      }
+      if (!recordedDecision.accepted) {
+        recordApprovalGroupDecision({
+          outcome: "duplicate",
+          operationCount: recordedDecision.approvals.length,
+          selectedCount: recordedDecision.group.selected_operation_ids.length,
+          decisionLatencyMs: performance.now() - decisionStartedAt,
+        });
       }
       const currentRun = await runs.getRun(input.organizationId, input.runId);
       if (currentRun?.status === "awaiting_approval") {
@@ -1214,6 +1226,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     for (const approval of active.approvals) {
       const proposal = await toolInvocations.getProposal(input.organizationId, input.runId, approval.provider_tool_call_id, approval.runtime_operation_id);
       if (!proposal || proposal.toolName !== approval.capability || proposal.toolVersion !== approval.capability_version || proposal.argumentsHash !== approval.arguments_hash) {
+        recordApprovalGroupDecision({ outcome: "stale", operationCount: operations.length, errorCode: "approval_proposal_mismatch" });
         throw Object.assign(new Error("approval_proposal_mismatch"), { statusCode: 409, code: "approval_proposal_mismatch" });
       }
       try {
@@ -1229,6 +1242,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
           enforceApproval: false,
         });
       } catch (error) {
+        recordApprovalGroupDecision({ outcome: "stale", operationCount: operations.length, errorCode: "approval_policy_changed" });
         throw Object.assign(new Error("approval_policy_changed"), {
           statusCode: 403,
           code: "approval_policy_changed",
@@ -1258,6 +1272,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
           eventType: "agent.approval.group.invalidated",
           payload: { approvalGroupId: input.groupId, reason: "resource_revalidation_unavailable" },
         });
+        recordApprovalGroupLifecycle({ action: "invalidated", operationCount: operations.length, selectedCount: 0, errorCode: "resource_revalidation_unavailable" });
         throw Object.assign(new Error("approval_group_invalidated"), {
           statusCode: 409,
           code: "approval_group_invalidated",
@@ -1281,6 +1296,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
           eventType: "agent.approval.group.invalidated",
           payload: { approvalGroupId: input.groupId, reason: "resource_snapshot_changed" },
         });
+        recordApprovalGroupLifecycle({ action: "invalidated", operationCount: operations.length, selectedCount: 0, errorCode: "resource_snapshot_changed" });
         throw Object.assign(new Error("approval_group_invalidated"), {
           statusCode: 409,
           code: "approval_group_invalidated",
@@ -1310,6 +1326,16 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       });
     } catch (error) {
       const code = error instanceof Error ? error.message : "approval_group_not_pending";
+      if (code === "APPROVAL_GROUP_EXPIRED") {
+        recordApprovalGroupDecision({
+          outcome: "expired",
+          operationCount: operations.length,
+          selectedCount: 0,
+          decisionLatencyMs: performance.now() - decisionStartedAt,
+          errorCode: code,
+        });
+        recordApprovalGroupLifecycle({ action: "expired", operationCount: operations.length, selectedCount: 0, errorCode: code });
+      }
       if (code !== "APPROVAL_GROUP_EXPIRED") await appendDecisionConflict(code.toLowerCase());
       const statusCode = code === "APPROVAL_GROUP_EXPIRED" ? 409 : 409;
       throw Object.assign(new Error(code), { statusCode, code: code.toLowerCase() });
@@ -1330,8 +1356,35 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       // durable command without creating another decision or effect.
       const currentRun = await runs.getRun(input.organizationId, input.runId);
       if (currentRun?.status === "awaiting_approval") await signalDecision();
+      recordApprovalGroupDecision({
+        outcome: "duplicate",
+        operationCount: decision.approvals.length,
+        selectedCount: decision.group.selected_operation_ids.length,
+        decisionLatencyMs: performance.now() - decisionStartedAt,
+      });
       return decision;
     }
+    const waitStartedAt = Date.parse(decision.group.created_at);
+    const waitFinishedAt = decision.group.decided_at ? Date.parse(decision.group.decided_at) : Number.NaN;
+    const waitDurationMs = Number.isFinite(waitStartedAt) && Number.isFinite(waitFinishedAt) && waitFinishedAt >= waitStartedAt
+      ? waitFinishedAt - waitStartedAt
+      : undefined;
+    const decisionOutcome = input.decision === "rejected"
+      ? "rejected" as const
+      : decision.group.status === "partially_approved" ? "partially_approved" as const : "approved" as const;
+    recordApprovalGroupDecision({
+      outcome: decisionOutcome,
+      operationCount: decision.approvals.length,
+      selectedCount: decision.group.selected_operation_ids.length,
+      ...(waitDurationMs !== undefined ? { waitDurationMs } : {}),
+      decisionLatencyMs: performance.now() - decisionStartedAt,
+    });
+    recordApprovalGroupLifecycle({
+      action: decisionOutcome,
+      operationCount: decision.approvals.length,
+      selectedCount: decision.group.selected_operation_ids.length,
+      ...(waitDurationMs !== undefined ? { durationMs: waitDurationMs } : {}),
+    });
     if (input.decision === "rejected") {
       await Promise.all(active.approvals.map((approval) => effectReceipts.markNotExecuted(input.organizationId, input.runId, approval.provider_tool_call_id, {
         code: "APPROVAL_REJECTED",
@@ -1369,6 +1422,11 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
         selectedOperationIds: decision.group.selected_operation_ids,
         operationCount: decision.approvals.length,
       },
+    });
+    recordApprovalGroupLifecycle({
+      action: "resumed",
+      operationCount: decision.approvals.length,
+      selectedCount: decision.group.selected_operation_ids.length,
     });
     return decision;
   };

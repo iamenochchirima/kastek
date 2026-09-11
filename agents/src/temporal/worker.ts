@@ -17,7 +17,7 @@ import { ChannelCredentialRepository } from "../db/repositories/channel-credenti
 import { ChannelRepository } from "../db/repositories/channel-repository";
 import { TelegramBotClient } from "../channels/telegram-client";
 import { DiscordBotClient } from "../channels/discord-client";
-import { recordBudgetReconciliationRequired } from "../telemetry/spans";
+import { recordApprovalGroupLifecycle, recordBudgetReconciliationRequired } from "../telemetry/spans";
 import { MemoryRevisionConsolidationWorker } from "../memory/revision-consolidation-worker";
 import { MemoryDeletionWorker } from "../memory/deletion-worker";
 import { MemoryRetentionWorker } from "../memory/retention-worker";
@@ -125,6 +125,7 @@ async function main(): Promise<void> {
               eventType: "agent.approval.group.expired",
               payload: { approvalGroupId: group.id, operationIds: operations.map((operation) => operation.runtime_operation_id) },
             });
+            recordApprovalGroupLifecycle({ action: "expired", operationCount: operations.length, selectedCount: 0, errorCode: "APPROVAL_EXPIRED" });
             await Promise.all(operations.map((approval) => effectReceipts.markNotExecuted(group.organization_id, group.run_id, approval.provider_tool_call_id, {
               code: "APPROVAL_EXPIRED",
               message: "The approval group expired before the effect began",
