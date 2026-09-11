@@ -19,7 +19,9 @@ projections, idempotent group-consumed evidence after durable batch commit, and 
 OpenTelemetry metric instruments, and concurrent group creation now replays one complete group.
 Real-provider sandbox/state verification still requires a
 disposable provider fixture;
-durable dashboard provisioning, compatibility cleanup, and guided Studio checks remain open.
+durable dashboard provisioning, compatibility cleanup, and guided Studio checks remain open. The
+legacy per-run approval reader now returns only ungrouped rows; grouped approvals must use the
+group projection until the open-run compatibility window closes.
 
 **Verification boundary:** On 2026-09-11, the real-model Temporal smoke test initially stopped in
 the separate context-compaction implementation with `ContextCompactionError(code=no_progress)`
@@ -28,7 +30,7 @@ an already-fit active projection, and the same real-provider read-only smoke tes
 through local Temporal, model dispatch, durable prepare/execute/commit, and continuation. This is
 runtime/context evidence only, not approval-group evidence, because the fixture uses an
 approval-free read capability. Approval-specific verification currently includes a passing Agents
- build, 16 PostgreSQL approval-group tests, 79 migration tests, 17 API approval-group tests plus
+ build, 17 PostgreSQL approval-group tests, 79 migration tests, 17 API approval-group tests plus
 2 pure session-grant tests, a 23/23 full deterministic Temporal suite including worker replacement
 while a group was pending and 32/64/128/256-operation group barriers, and a 1/1 opt-in
 real-provider approval orchestration test using a synthetic external-effect capability through the
@@ -36,7 +38,7 @@ actual HTTP decision endpoint, including concurrent duplicate-decision handling.
 fresh database applied all 168 migrations through 176.
 A disposable database seeded with a legacy pending approval row applied 173–176 and preserved that
 row with no approval-group link and no synthetic group. The final local approval/migration run on
-2026-09-12 passed 114/114 tests: 16 PostgreSQL approval-group tests, 17 API tests, 2 pure
+2026-09-12 passed 115/115 tests: 17 PostgreSQL approval-group tests, 17 API tests, 2 pure
 session-grant tests, and 79 migration tests.
 
 **Related plans:**
