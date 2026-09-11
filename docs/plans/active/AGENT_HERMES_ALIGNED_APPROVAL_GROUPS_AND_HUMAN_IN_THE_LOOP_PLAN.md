@@ -30,7 +30,7 @@ runtime/context evidence only, not approval-group evidence, because the fixture 
 approval-free read capability. Approval-specific verification currently includes a passing Agents
 build, 93/93 PostgreSQL approval/migration tests, 15/15 API tests, a 23/23 full deterministic
 Temporal suite, including worker replacement while a group was pending and 32/64/128/256-operation
-group barriers, 14/14 API approval-group tests including installation/run binding, missing-scope
+group barriers, 15/15 API approval-group tests including installation/run binding, missing-scope
 rejection, and completed-run rejection, and a 1/1 opt-in
 real-provider approval orchestration test using a synthetic external-effect capability through the
 actual HTTP decision endpoint, including concurrent duplicate-decision handling. A disposable
