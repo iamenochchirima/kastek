@@ -397,6 +397,95 @@ describe.skipIf(!runIntegration)("Temporal tool execution reliability (integrati
     expect(committed.find((result) => result.id === "approval-failure")?.error).toMatchObject({ code: "PROVIDER_FAILED" });
   }, 30_000);
 
+  it("preserves distinct timeout, retry-exhausted, and unknown outcomes after group approval", async () => {
+    const taskQueue = `agent-approval-failure-matrix-${randomUUID()}`;
+    const workflowId = `agent-run-${randomUUID()}`;
+    const groupId = randomUUID();
+    const planDigest = "m".repeat(64);
+    const calls = [
+      call("approval-timeout"),
+      call("approval-retry-exhausted"),
+      call("approval-unknown"),
+      call("approval-success"),
+    ].map((current, index) => ({
+      ...current,
+      name: "records.delete",
+      sequenceNumber: index + 1,
+      approvalGroupId: groupId,
+      approvalPlanDigest: planDigest,
+    }));
+    let paused = false;
+    let committed: DurableToolCallResult[] = [];
+    const attempts = new Map<string, number>();
+    const activities: AgentRunActivities = {
+      transitionRun: async () => undefined,
+      waitForConversationTurn: async () => true,
+      getContentPublishBatchStatus: async () => ({ status: "UNAVAILABLE" }),
+      executeLoop: async () => { throw new Error("legacy executeLoop must not run for a new execution"); },
+      executeModelStep: async () => paused ? completedResult("The approved failure matrix was recorded.") : pendingBatchResult(calls),
+      prepareToolBatch: async ({ calls: prepared }) => [{ kind: "parallel" as const, segmentId: "batch:segment:approval-failure-matrix", calls: prepared }],
+      executeToolCall: async ({ call: current, approvalGroupId: currentGroupId }) => {
+        attempts.set(current.id, (attempts.get(current.id) ?? 0) + 1);
+        const base = {
+          id: current.id,
+          providerToolCallId: current.providerToolCallId!,
+          name: current.name,
+          argumentsHash: current.argumentsHash,
+          approvalGroupId: currentGroupId,
+        };
+        if (current.id === "approval-timeout") return { ...base, status: "failed", failureClass: "terminal", error: { code: "TOOL_TIMEOUT", message: "The approved tool timed out" } } satisfies DurableToolCallResult;
+        if (current.id === "approval-retry-exhausted") return { ...base, status: "failed", failureClass: "retryable", error: { code: "TOOL_RETRY_EXHAUSTED", message: "The approved tool exhausted its retry budget" } } satisfies DurableToolCallResult;
+        if (current.id === "approval-unknown") return { ...base, status: "unknown", failureClass: "unknown", error: { code: "PROVIDER_OUTCOME_UNKNOWN", message: "The approved provider outcome is unknown" } } satisfies DurableToolCallResult;
+        return { ...base, status: "completed", output: { ok: true } } satisfies DurableToolCallResult;
+      },
+      commitToolBatch: async ({ results }) => {
+        committed = results;
+        return { status: "committed", toolCalls: results.length };
+      },
+      pauseRun: async () => { paused = true; },
+      deliverApprovalPrompt: async () => undefined,
+      cancelPendingApproval: async () => undefined,
+      cancelApprovalGroup: async () => undefined,
+      cancelHandoff: async () => undefined,
+      completeRun: async () => undefined,
+      generateConversationTitle: async () => undefined,
+      deliverRunReply: async () => undefined,
+      failRun: async ({ error }) => { throw new Error(String(error.message ?? "workflow failed")); },
+    };
+    const client = await startWorker(taskQueue, activities);
+    const handle = await client.workflow.start(agentRunWorkflow, { taskQueue, workflowId, args: [{ runId: workflowId }] });
+    await new Promise<void>((resolve, reject) => {
+      const deadline = setTimeout(() => reject(new Error("workflow did not pause for approval failure matrix")), 10_000);
+      const timer = setInterval(() => {
+        if (paused) {
+          clearTimeout(deadline);
+          clearInterval(timer);
+          resolve();
+        }
+      }, 50);
+    });
+    await handle.signal(approvalGroupSignal, {
+      groupId,
+      planDigest,
+      decision: "approved",
+      approvedBy: "approver",
+      selectedOperationIds: calls.map((current) => current.id),
+      expiresAt: new Date(Date.now() + 60_000).toISOString(),
+    });
+    await handle.result();
+
+    expect(new Map(committed.map((result) => [result.id, result.status]))).toEqual(new Map([
+      ["approval-timeout", "failed"],
+      ["approval-retry-exhausted", "failed"],
+      ["approval-unknown", "unknown"],
+      ["approval-success", "completed"],
+    ]));
+    expect(committed.find((result) => result.id === "approval-timeout")?.error).toMatchObject({ code: "TOOL_TIMEOUT" });
+    expect(committed.find((result) => result.id === "approval-retry-exhausted")?.error).toMatchObject({ code: "TOOL_RETRY_EXHAUSTED" });
+    expect(committed.find((result) => result.id === "approval-unknown")?.error).toMatchObject({ code: "PROVIDER_OUTCOME_UNKNOWN" });
+    expect([...attempts.values()]).toEqual([1, 1, 1, 1]);
+  }, 30_000);
+
   it("requires a new approval group for a later model turn", async () => {
     const taskQueue = `agent-approval-later-group-${randomUUID()}`;
     const workflowId = `agent-run-${randomUUID()}`;
