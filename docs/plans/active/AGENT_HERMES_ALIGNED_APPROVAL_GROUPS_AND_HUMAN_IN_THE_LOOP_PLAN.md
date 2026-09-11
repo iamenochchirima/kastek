@@ -19,7 +19,7 @@ projections, idempotent group-consumed evidence after durable batch commit, and 
 OpenTelemetry metric instruments, and concurrent group creation now replays one complete group.
 Real-provider sandbox/state verification still requires a
 disposable provider fixture;
-durable dashboard provisioning, compatibility cleanup, and guided Studio checks remain open. The
+durable dashboard provisioning, compatibility cleanup, and end-to-end guided Studio checks remain open. The
 legacy per-run approval reader now returns only ungrouped rows; grouped approvals must use the
 group projection until the open-run compatibility window closes.
 
@@ -402,8 +402,10 @@ real-use evidence.
 ### Temporal and real-tool verification
 
 The PostgreSQL persistence, API historical projection, and deterministic Temporal barrier checks now
-cover 32, 64, 128, and 256 proposals. A live Studio rendering/reconnect check at those sizes remains
-open.
+cover 32, 64, 128, and 256 proposals. On 2026-09-12, an authenticated local Studio check rendered
+all four disposable group sizes, preserved every operation after reload, and had no horizontal
+overflow at 390px mobile width. The fixtures were cancelled after verification and left no pending
+operations.
 
 - [x] Run an 18-operation approval-required scenario through local Temporal with one group approval
       and confirm all 18 distinct calls execute exactly once. The test uses a deterministic provider
@@ -411,7 +413,7 @@ open.
 - [x] Repeat with 32, 64, 128, and 256 proposals across PostgreSQL, the API historical projection,
       and the local Temporal barrier. These checks confirm complete operation sets, bounded history,
       and one approval barrier rather than per-call prompts.
-- [ ] Complete the corresponding live Studio rendering and reconnect check at those sizes.
+- [x] Complete the corresponding live Studio rendering and reconnect check at those sizes.
 - [x] Restart or replace the worker while the group is pending; approve afterward and confirm the
       original Workflow resumes without duplicate effects.
 - [x] Submit two approval decisions concurrently and confirm one decision, one resume, and one
@@ -486,7 +488,7 @@ Validation evidence: completed unit/redaction/SSE, PostgreSQL concurrency and 32
   expiry, stale-plan, partial provider failure, later-group, 18-operation, and 1/1 synthetic
   real-provider approval-orchestration checks; the local migration runner applied migration 177
   after the fresh and legacy migration-state audits reached 176.
-  Real provider sandbox/state reconciliation, live Studio scale/reconnect, durable
+  Real provider sandbox/state reconciliation, end-to-end guided Studio action/reconnect, durable
   telemetry backend, and guided Studio checks remain pending.
 Rollback or disable plan: stop admitting new group-version runs, preserve and drain already-approved
   groups, roll back only at a Temporal-compatible Workflow boundary, and never reopen consumed groups
