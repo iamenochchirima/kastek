@@ -310,6 +310,93 @@ describe.skipIf(!runIntegration)("Temporal tool execution reliability (integrati
     expect(modelSteps).toBe(2);
   }, 30_000);
 
+  it("preserves sibling outcomes when one approved provider operation fails", async () => {
+    const taskQueue = `agent-approval-provider-failure-${randomUUID()}`;
+    const workflowId = `agent-run-${randomUUID()}`;
+    const groupId = randomUUID();
+    const planDigest = "p".repeat(64);
+    const calls = [call("approval-success-1"), call("approval-failure"), call("approval-success-2")].map((current, index) => ({
+      ...current,
+      name: "records.delete",
+      sequenceNumber: index + 1,
+      approvalGroupId: groupId,
+      approvalPlanDigest: planDigest,
+    }));
+    let modelSteps = 0;
+    let paused = false;
+    let committed: DurableToolCallResult[] = [];
+    const activities: AgentRunActivities = {
+      transitionRun: async () => undefined,
+      waitForConversationTurn: async () => true,
+      getContentPublishBatchStatus: async () => ({ status: "UNAVAILABLE" }),
+      executeLoop: async () => { throw new Error("legacy executeLoop must not run for a new execution"); },
+      executeModelStep: async () => {
+        modelSteps += 1;
+        return modelSteps === 1 ? pendingBatchResult(calls) : completedResult("The approved group reported one provider failure.");
+      },
+      prepareToolBatch: async ({ calls: prepared }) => [{ kind: "parallel" as const, segmentId: "batch:segment:provider-failure", calls: prepared }],
+      executeToolCall: async ({ call: current }) => {
+        const base = {
+          id: current.id,
+          providerToolCallId: current.providerToolCallId!,
+          name: current.name,
+          argumentsHash: current.argumentsHash,
+        };
+        if (current.id === "approval-failure") {
+          return {
+            ...base,
+            status: "failed",
+            failureClass: "provider",
+            error: { code: "PROVIDER_FAILED", message: "The provider rejected this operation" },
+          } satisfies DurableToolCallResult;
+        }
+        return { ...base, status: "completed", output: { ok: true, operationId: current.id } } satisfies DurableToolCallResult;
+      },
+      commitToolBatch: async ({ results }) => {
+        committed = results;
+        return { status: "committed", toolCalls: results.length };
+      },
+      pauseRun: async () => { paused = true; },
+      deliverApprovalPrompt: async () => undefined,
+      cancelPendingApproval: async () => undefined,
+      cancelHandoff: async () => undefined,
+      completeRun: async () => undefined,
+      generateConversationTitle: async () => undefined,
+      deliverRunReply: async () => undefined,
+      failRun: async ({ error }) => { throw new Error(String(error.message ?? "workflow failed")); },
+    };
+    const client = await startWorker(taskQueue, activities);
+    const handle = await client.workflow.start(agentRunWorkflow, { taskQueue, workflowId, args: [{ runId: workflowId }] });
+    await new Promise<void>((resolve, reject) => {
+      const deadline = setTimeout(() => reject(new Error("workflow did not pause for provider-failure approval group")), 10_000);
+      const timer = setInterval(() => {
+        if (paused) {
+          clearTimeout(deadline);
+          clearInterval(timer);
+          resolve();
+        }
+      }, 50);
+    });
+    await handle.signal(approvalGroupSignal, {
+      groupId,
+      planDigest,
+      decision: "approved",
+      approvedBy: "approver",
+      selectedOperationIds: calls.map((current) => current.id),
+      expiresAt: new Date(Date.now() + 60_000).toISOString(),
+    });
+    await handle.result();
+
+    expect(modelSteps).toBe(2);
+    expect(committed).toHaveLength(3);
+    expect(new Map(committed.map((result) => [result.id, result.status]))).toEqual(new Map([
+      ["approval-success-1", "completed"],
+      ["approval-failure", "failed"],
+      ["approval-success-2", "completed"],
+    ]));
+    expect(committed.find((result) => result.id === "approval-failure")?.error).toMatchObject({ code: "PROVIDER_FAILED" });
+  }, 30_000);
+
   it("resumes the pending approval group after the Temporal worker is replaced", async () => {
     const taskQueue = `agent-approval-worker-restart-${randomUUID()}`;
     const workflowId = `agent-run-${randomUUID()}`;

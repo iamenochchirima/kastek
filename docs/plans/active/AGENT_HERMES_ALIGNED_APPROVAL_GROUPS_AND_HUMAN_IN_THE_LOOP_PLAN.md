@@ -390,7 +390,7 @@ open.
 - [x] Let the group expire and confirm no effect executes, all unexecuted operations are typed as
       expired, and the run does not report an approval identity mismatch.
 - [x] Change a resource or policy revision before approval and confirm the plan invalidates safely.
-- [ ] Force one provider failure after group approval and confirm sibling outcomes remain durable and
+- [x] Force one provider failure after group approval and confirm sibling outcomes remain durable and
       the failure is reported as a tool execution failure.
 - [ ] Verify a later model turn creates a new group and cannot reuse the prior approval.
 - [ ] Verify a bounded session grant matches only its declared capability/resource scope and stops
