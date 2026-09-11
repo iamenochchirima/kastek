@@ -1013,7 +1013,10 @@ describe("Agent Platform HTTP foundation", () => {
       config: { ...mcpConfig, TEMPORAL_ENABLED: true },
       pool: fakePool,
       runs,
-      approvals: { getForRun: async () => ({ status: "approved", provider_tool_call_id: "call-api", capability: "test.effect", expires_at: "2026-08-13T12:00:00.000Z" }) } as never,
+      approvals: {
+        getForRun: async () => ({ status: "approved", provider_tool_call_id: "call-api", capability: "test.effect", expires_at: "2026-08-13T12:00:00.000Z" }),
+        getActiveGroup: async () => undefined,
+      } as never,
       signalCancellation,
       agents: { getInstallation: async () => ({ id: "install-1", organization_id: "org-1", agent_version_id: "version-1", status: "active", ...externalInstallationIdentity }) } as unknown as AgentRepository,
       installationCredentials: { getActiveForToken: async () => mcpCredential() } as never,

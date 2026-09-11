@@ -109,9 +109,13 @@ session context and compaction in the same worktree.
 - Legacy disposable migration audit passed through migration 176: a pre-173 pending approval row
   remained pending with `approval_group_id` null and no synthetic approval group was created.
 
-The real-provider Temporal smoke test reached the local worker but stopped in the separate context
-compaction work with `ContextCompactionError(code=no_progress)` before tool-batch preparation.
-That is not approval evidence and belongs to the session-context plan.
+The real-provider Temporal smoke test initially reached the local worker but stopped in the separate
+context-compaction work with `ContextCompactionError(code=no_progress)` before tool-batch preparation.
+The context caller was then corrected to skip redundant compaction when an active projection already
+fits its retained-unit policy. The same real-provider test now passes 1/1 through local Temporal,
+real model dispatch, a connected read capability, durable prepare/execute/commit, and continuation
+after the active checkpoint. This is context/runtime evidence only: it does not prove the approval
+group path, because the fixture intentionally uses an approval-free read tool.
 
 ## Reproduction commands
 

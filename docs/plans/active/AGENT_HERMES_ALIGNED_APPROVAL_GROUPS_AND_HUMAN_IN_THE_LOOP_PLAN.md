@@ -19,15 +19,18 @@ projections, idempotent group-consumed evidence after durable batch commit, and 
 OpenTelemetry metric instruments. Real-provider verification still requires sandbox credentials;
 durable dashboard provisioning, compatibility cleanup, and guided Studio checks remain open.
 
-**Verification boundary:** On 2026-09-11, the real-model Temporal smoke test reached the local
-worker but stopped in the separate context-compaction implementation with
-`ContextCompactionError(code=no_progress)` before tool-batch preparation. This is recorded as a
-context-plan blocker, not as approval-group evidence. Approval-specific verification currently
-includes a passing Agents build, 92/92 PostgreSQL approval/migration tests, 9/9 API tests, a
-21/21 full deterministic Temporal suite, including worker replacement while a group was pending and
-32/64/128/256-operation group barriers. A disposable fresh database applied all 168 migrations
-through 176. A disposable database seeded with a legacy pending approval row applied 173–176 and
-preserved that row with no approval-group link and no synthetic group.
+**Verification boundary:** On 2026-09-11, the real-model Temporal smoke test initially stopped in
+the separate context-compaction implementation with `ContextCompactionError(code=no_progress)`
+before tool-batch preparation. The context caller was corrected to skip redundant compaction for
+an already-fit active projection, and the same real-provider read-only smoke test now passes 1/1
+through local Temporal, model dispatch, durable prepare/execute/commit, and continuation. This is
+runtime/context evidence only, not approval-group evidence, because the fixture uses an
+approval-free read capability. Approval-specific verification currently includes a passing Agents
+build, 92/92 PostgreSQL approval/migration tests, 9/9 API tests, a 21/21 full deterministic
+Temporal suite, including worker replacement while a group was pending and 32/64/128/256-operation
+group barriers. A disposable fresh database applied all 168 migrations through 176. A disposable
+database seeded with a legacy pending approval row applied 173–176 and preserved that row with no
+approval-group link and no synthetic group.
 
 **Related plans:**
 
