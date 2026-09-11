@@ -1144,6 +1144,16 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     const group = await approvals.getGroup(input.organizationId, input.groupId);
     const operations = group ? await approvals.listGroupOperations(input.organizationId, group.id) : [];
     const active = group ? { group, approvals: operations } : null;
+    if (!active) {
+      const awaitingRun = await runs.getRun(input.organizationId, input.runId);
+      if (awaitingRun?.id === input.runId && awaitingRun.status === "awaiting_approval") {
+        throw Object.assign(new Error("approval_group_not_ready"), {
+          statusCode: 409,
+          code: "approval_group_not_ready",
+          detail: "The approval group is still being assembled; retry after it is visible",
+        });
+      }
+    }
     if (!active || active.group.run_id !== input.runId) {
       throw Object.assign(new Error("approval_group_not_found"), { statusCode: 404, code: "approval_group_not_found" });
     }
