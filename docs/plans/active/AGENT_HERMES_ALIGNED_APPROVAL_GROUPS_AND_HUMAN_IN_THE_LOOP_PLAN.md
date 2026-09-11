@@ -16,7 +16,8 @@ resource revalidation, terminal typed outcomes, lifecycle conflict/resume events
 checks, deterministic worker replacement, historical per-operation outcome projections, and
 32/64/128/256-operation Temporal barriers, bounded approval evidence in public run-event/SSE
 projections, idempotent group-consumed evidence after durable batch commit, and approval lifecycle
-OpenTelemetry metric instruments. Real-provider verification still requires sandbox credentials;
+OpenTelemetry metric instruments. Real-provider sandbox/state verification still requires a
+disposable provider fixture;
 durable dashboard provisioning, compatibility cleanup, and guided Studio checks remain open.
 
 **Verification boundary:** On 2026-09-11, the real-model Temporal smoke test initially stopped in
@@ -26,7 +27,7 @@ an already-fit active projection, and the same real-provider read-only smoke tes
 through local Temporal, model dispatch, durable prepare/execute/commit, and continuation. This is
 runtime/context evidence only, not approval-group evidence, because the fixture uses an
 approval-free read capability. Approval-specific verification currently includes a passing Agents
-build, 92/92 PostgreSQL approval/migration tests, 10/10 API tests, a 21/21 full deterministic
+build, 92/92 PostgreSQL approval/migration tests, 12/12 API tests, a 21/21 full deterministic
 Temporal suite, including worker replacement while a group was pending and 32/64/128/256-operation
 group barriers, 12/12 API approval-group tests including installation binding and completed-run
 rejection, and a 1/1 opt-in
@@ -400,7 +401,7 @@ open.
       Temporal history handling, and no per-call approval prompt explosion.
 - [x] Restart or replace the worker while the group is pending; approve afterward and confirm the
       original Workflow resumes without duplicate effects.
-- [ ] Submit two approval decisions concurrently and confirm one decision, one resume, and one
+- [x] Submit two approval decisions concurrently and confirm one decision, one resume, and one
       execution per operation.
 - [x] Let the group expire and confirm no effect executes, all unexecuted operations are typed as
       expired, and the run does not report an approval identity mismatch.
@@ -424,13 +425,13 @@ open.
       cannot approve the group, even when the caller knows the group ID and digest.
 - [x] Verify selection tampering, operation duplication, reordered operation IDs, and changed
       arguments are rejected by digest and exact identity validation.
-- [ ] Verify cancellation while the approval card is open, approval after cancellation, approval
+- [x] Verify cancellation while the approval card is open, approval after cancellation, approval
       after expiry, and approval after the run has already completed.
 - [ ] Verify a provider failure, timeout, retry exhaustion, and unknown external effect after group
       approval produce distinct operation outcomes and do not reopen or duplicate the approval.
-- [ ] Verify a second approval-required segment in the same run creates a new group only after the
+- [x] Verify a second approval-required segment in the same run creates a new group only after the
       first group has been consumed, with no interleaved approval prompts.
-- [ ] Run the existing focused parallel-tool, recovery, worker-loss, and real-provider suites to
+- [x] Run the existing focused parallel-tool, recovery, worker-loss, and real-provider suites to
       prove that the approval change does not regress durable fan-out or continuation behavior.
 - [ ] Perform the guided Studio test with one user action producing many deletes, including approval,
       refresh/reconnect, partial failure, and final conversation response.
@@ -459,7 +460,8 @@ Logs, metrics, dashboards, and alerts: OpenTelemetry instruments and a provider-
 User, API, internal, and operational documentation: update Studio/API approval documentation,
   internal execution architecture, Temporal recovery runbook, and migration/rollback runbook
 Validation evidence: completed unit/redaction/SSE, PostgreSQL concurrency and 32/64/128/256
-  persistence, idempotent consumed-event evidence, 10/10 API, local Temporal 21/21, worker-replacement,
+  persistence, idempotent consumed-event evidence, 12/12 API, local Temporal 21/21,
+  local recovery/worker-loss 19/19, worker-replacement,
   expiry, stale-plan, partial provider failure, later-group, 18-operation, and 1/1 synthetic
   real-provider approval-orchestration checks; fresh and legacy migration-state audits reached 176.
   Real provider sandbox/state reconciliation, live Studio scale/reconnect, durable
