@@ -310,6 +310,93 @@ describe.skipIf(!runIntegration)("Temporal tool execution reliability (integrati
     expect(modelSteps).toBe(2);
   }, 30_000);
 
+  it("commits approval-free reads before waiting on a gated effect", async () => {
+    const taskQueue = `agent-approval-read-boundary-${randomUUID()}`;
+    const workflowId = `agent-run-${randomUUID()}`;
+    const groupId = randomUUID();
+    const planDigest = "r".repeat(64);
+    const readCall = call("approval-free-read");
+    const effectCall = {
+      ...call("approval-bound-effect"),
+      name: "records.delete",
+      approvalGroupId: groupId,
+      approvalPlanDigest: planDigest,
+      sequenceNumber: 2,
+    };
+    const calls = [readCall, effectCall];
+    let paused = false;
+    let modelSteps = 0;
+    const executed: string[] = [];
+    const committed: string[][] = [];
+    const activities: AgentRunActivities = {
+      transitionRun: async () => undefined,
+      waitForConversationTurn: async () => true,
+      getContentPublishBatchStatus: async () => ({ status: "UNAVAILABLE" }),
+      executeLoop: async () => { throw new Error("legacy executeLoop must not run for a new execution"); },
+      executeModelStep: async () => {
+        modelSteps += 1;
+        return modelSteps === 1 ? pendingBatchResult(calls) : completedResult("The read completed and the approved effect ran.");
+      },
+      prepareToolBatch: async () => [
+        { kind: "parallel" as const, segmentId: "batch:segment:read", calls: [readCall] },
+        { kind: "sequential" as const, segmentId: "batch:segment:effect", calls: [effectCall] },
+      ],
+      executeToolCall: async ({ call: current, approvalGroupId: currentGroupId }) => {
+        executed.push(current.id);
+        return {
+          id: current.id,
+          providerToolCallId: current.providerToolCallId!,
+          name: current.name,
+          argumentsHash: current.argumentsHash,
+          ...(currentGroupId ? { approvalGroupId: currentGroupId } : {}),
+          status: "completed",
+          output: { ok: true },
+        } satisfies DurableToolCallResult;
+      },
+      commitToolBatch: async ({ results }) => {
+        committed.push(results.map((result) => result.id));
+        return { status: "committed", toolCalls: results.length };
+      },
+      pauseRun: async () => { paused = true; },
+      deliverApprovalPrompt: async () => undefined,
+      cancelPendingApproval: async () => undefined,
+      cancelApprovalGroup: async () => undefined,
+      cancelHandoff: async () => undefined,
+      completeRun: async () => undefined,
+      generateConversationTitle: async () => undefined,
+      deliverRunReply: async () => undefined,
+      failRun: async ({ error }) => { throw new Error(String(error.message ?? "workflow failed")); },
+    };
+    const client = await startWorker(taskQueue, activities);
+    const handle = await client.workflow.start(agentRunWorkflow, { taskQueue, workflowId, args: [{ runId: workflowId }] });
+    await new Promise<void>((resolve, reject) => {
+      const deadline = setTimeout(() => reject(new Error("workflow did not pause at the approval boundary")), 10_000);
+      const timer = setInterval(() => {
+        if (paused) {
+          clearTimeout(deadline);
+          clearInterval(timer);
+          resolve();
+        }
+      }, 50);
+    });
+
+    expect(executed).toEqual([readCall.id]);
+    expect(committed).toEqual([[readCall.id]]);
+
+    await handle.signal(approvalGroupSignal, {
+      groupId,
+      planDigest,
+      decision: "approved",
+      approvedBy: "approver",
+      selectedOperationIds: [effectCall.id],
+      expiresAt: new Date(Date.now() + 60_000).toISOString(),
+    });
+    await handle.result();
+
+    expect(executed).toEqual([readCall.id, effectCall.id]);
+    expect(committed).toEqual([[readCall.id], [effectCall.id]]);
+  }, 30_000);
+
   it("preserves sibling outcomes when one approved provider operation fails", async () => {
     const taskQueue = `agent-approval-provider-failure-${randomUUID()}`;
     const workflowId = `agent-run-${randomUUID()}`;
