@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import type { ModelMessage, ModelToolDefinition } from "../model/types";
+import { buildTranscriptUnits, validateModelTranscript, type ModelTranscriptUnit } from "./transcript";
 
 /**
  * A provider-aware request planner for model-facing context.
@@ -45,7 +46,9 @@ export type ContextPlanRejection =
   | "invalid_provider_profile"
   | "system_context_exceeds_input_budget"
   | "current_message_cannot_fit"
-  | "request_payload_exceeds_byte_budget";
+  | "active_turn_cannot_fit"
+  | "request_payload_exceeds_byte_budget"
+  | "transcript_projection_invalid";
 
 export interface ProviderContextProfile {
   /** Provider identifier used for diagnostics and provider-specific limits. */
@@ -83,7 +86,7 @@ export interface ContextPlanningPolicy {
   readonly maxMessageUnits?: number;
   /** Independent serialized request limit for providers/routes with byte caps. */
   readonly maxRequestBytes?: number;
-  /** Usable-input maintenance threshold; defaults to 80% of the hard input limit. */
+  /** Usable-input maintenance threshold; defaults to Hermes-aligned 50%/75% pressure. */
   readonly softThresholdTokens?: number;
 }
 
@@ -132,6 +135,12 @@ export interface ContextRequestIdentity {
   readonly requestManifestId?: string;
   readonly modelAttemptId?: string;
   readonly compactionGeneration?: number;
+  /** Canonical transcript head sequence used to build this request. */
+  readonly sourceCursor?: number;
+  /** Canonical transcript generation used to build this request. */
+  readonly sourceGeneration?: number;
+  /** Digest of the canonical active projection before provider selection. */
+  readonly sourceProjectionDigest?: string;
   readonly sourceEventBoundaryDigest?: string;
   /** Provider-assigned identity, when the adapter exposes one. */
   readonly providerRequestId?: string;
@@ -145,6 +154,9 @@ export interface ContextRequestManifest {
     readonly requestManifestId: string;
     readonly modelAttemptId?: string;
     readonly compactionGeneration?: number;
+    readonly sourceCursor?: number;
+    readonly sourceGeneration?: number;
+    readonly sourceProjectionDigest?: string;
     readonly sourceEventBoundaryDigest: string;
     readonly providerRequestId?: string;
   };
@@ -256,6 +268,8 @@ const DEFAULT_SAFETY_MARGIN_TOKENS = 256;
 const DEFAULT_MAX_TOOL_SCHEMA_TOKENS = 2_000;
 const DEFAULT_MAX_TOOL_RESULT_TOKENS = 1_500;
 const MINIMUM_MESSAGE_TOKENS = 1;
+const MINIMUM_CONTEXT_LENGTH_TOKENS = 64_000;
+const MINIMUM_CONTEXT_TRIGGER_RATIO = 0.85;
 
 export function planProviderRequest(input: ContextPlanInput): ContextPlan {
   const profile = normalizeProfile(input.profile);
@@ -292,6 +306,15 @@ export function planProviderRequest(input: ContextPlanInput): ContextPlan {
     ...overrides,
   });
 
+  const transcriptIssues = validateModelTranscript(normalizedMessages.messages.filter((message) => message.role !== "system"));
+  if (transcriptIssues.length > 0) {
+    reasons.push("transcript_projection_invalid");
+    return rejectedPlan(input.profile, tools.selected, systemMessages, emptyDiagnostics({ reasons }), {
+      code: "transcript_projection_invalid",
+      message: "The active model transcript is incomplete or out of order; no provider call was dispatched.",
+    }, charsPerToken, systemTokens, 0, 0, 0, toolSchemaTokens, outputReservation, policy.softThresholdTokens, input.identity);
+  }
+
   if (!profile.valid) {
     return rejectedPlan(input.profile, tools.selected, [], emptyDiagnostics(), {
       code: "invalid_provider_profile",
@@ -307,7 +330,7 @@ export function planProviderRequest(input: ContextPlanInput): ContextPlan {
     }, charsPerToken, systemTokens, 0, 0, 0, toolSchemaTokens, outputReservation, policy.softThresholdTokens, input.identity);
   }
 
-  const units = buildMessageUnits(bodyMessages);
+  const units = buildTranscriptUnits(bodyMessages);
   const selectedUnits = selectRecentUnits({
     units,
     systemTokens,
@@ -669,35 +692,8 @@ function boundedToolResultReference(content: string, maxTokens: number, charsPer
   return `${marker} ${content.slice(0, remaining)}`;
 }
 
-interface MessageUnit {
-  readonly messages: ModelMessage[];
-  readonly protectedPair: boolean;
-}
-
-function buildMessageUnits(messages: readonly ModelMessage[]): MessageUnit[] {
-  const units: MessageUnit[] = [];
-  for (let index = 0; index < messages.length;) {
-    const message = messages[index]!;
-    if (message.role !== "assistant" || !message.toolCalls?.length) {
-      units.push({ messages: [message], protectedPair: false });
-      index += 1;
-      continue;
-    }
-    const expected = new Set(message.toolCalls.map((call) => call.id));
-    const pair: ModelMessage[] = [message];
-    let cursor = index + 1;
-    while (cursor < messages.length && messages[cursor]?.role === "tool" && expected.has(messages[cursor]?.toolCallId ?? "")) {
-      pair.push(messages[cursor]!);
-      cursor += 1;
-    }
-    units.push({ messages: pair, protectedPair: pair.length > 1 });
-    index = cursor;
-  }
-  return units;
-}
-
 function selectRecentUnits(input: {
-  units: readonly MessageUnit[];
+  units: readonly ModelTranscriptUnit[];
   systemMessages: readonly ModelMessage[];
   systemTokens: number;
   toolSchemaTokens: number;
@@ -709,36 +705,41 @@ function selectRecentUnits(input: {
   tools: readonly ModelToolDefinition[];
   maxRequestBytes: number;
   requestBytesEstimator: ContextRequestBytesEstimator | undefined;
-}): { status: "selected"; units: MessageUnit[]; protectedPairCount: number } | { status: "rejected"; code: "current_message_cannot_fit" | "request_payload_exceeds_byte_budget"; message: string; units: MessageUnit[]; protectedPairCount: number } {
+}): { status: "selected"; units: ModelTranscriptUnit[]; protectedPairCount: number } | { status: "rejected"; code: "current_message_cannot_fit" | "active_turn_cannot_fit" | "request_payload_exceeds_byte_budget"; message: string; units: ModelTranscriptUnit[]; protectedPairCount: number } {
   const available = input.inputBudgetTokens - input.systemTokens - input.toolSchemaTokens;
-  const selected: MessageUnit[] = [];
+  const selected: ModelTranscriptUnit[] = [];
   let usedTokens = 0;
   let protectedPairCount = 0;
   let selectedUnits = 0;
   for (let index = input.units.length - 1; index >= 0; index -= 1) {
-    if (selectedUnits >= input.maxMessageUnits) break;
-    // An explicit current-message index is authoritative. Do not spend the
-    // tail budget on rows after it and then accidentally omit the turn the
-    // caller marked as current.
-    if (input.currentMessageIndex >= 0 && index > input.currentMessageIndex) continue;
     const unit = input.units[index]!;
+    const containsCurrentMessage = input.currentMessageIndex >= 0
+      && unit.startIndex <= input.currentMessageIndex
+      && unit.endIndex >= input.currentMessageIndex;
+    const isActiveTurnTail = input.currentMessageIndex >= 0 && unit.startIndex > input.currentMessageIndex;
+    // The active turn is newer than the current user message. It is not
+    // historical context and must remain eligible for the next model call.
+    // The message-unit allowance still bounds older history, while the
+    // current user and active tail remain protected structural units.
+    if (selectedUnits >= input.maxMessageUnits && !containsCurrentMessage && !isActiveTurnTail) break;
     const unitTokens = sumMessages(unit.messages, input.charsPerToken, input.messageOverheadTokens);
     if (usedTokens + unitTokens > available) {
-      if (selected.length === 0 && input.currentMessageIndex >= 0 && input.currentMessageIndex === index) {
+      if (containsCurrentMessage && unit.messages.length === 1 && unit.messages[0]?.role === "user") {
         const room = Math.max(0, available - usedTokens);
-        const current = unit.messages.length === 1 && unit.messages[0]?.role === "user"
-          ? { ...unit.messages[0], content: truncateText(unit.messages[0].content, room, input.charsPerToken) }
-          : undefined;
+        const current = { ...unit.messages[0], content: truncateText(unit.messages[0].content, room, input.charsPerToken) };
         if (current && sumMessages([current], input.charsPerToken, input.messageOverheadTokens) <= room && current.content.length > 0) {
           if (input.requestBytesEstimator && measureRequestBytes([...input.systemMessages, current], input.tools, input.requestBytesEstimator) > input.maxRequestBytes) {
             return { status: "rejected", code: "request_payload_exceeds_byte_budget", message: "The serialized model request exceeds the provider payload byte budget.", units: [], protectedPairCount: 0 };
           }
-          selected.push({ messages: [current], protectedPair: false });
+          selected.push({ messages: [current], protectedPair: false, startIndex: unit.startIndex, endIndex: unit.endIndex });
           selectedUnits += 1;
           usedTokens += sumMessages([current], input.charsPerToken, input.messageOverheadTokens);
           break;
         }
         return { status: "rejected", code: "current_message_cannot_fit", message: "The current user message cannot fit after provider overhead and safety margin.", units: [], protectedPairCount: 0 };
+      }
+      if (isActiveTurnTail) {
+        return { status: "rejected", code: "active_turn_cannot_fit", message: "The active tool round cannot fit after provider overhead and safety margin.", units: [], protectedPairCount: 0 };
       }
       break;
     }
@@ -800,7 +801,7 @@ function createAccounting(categories: ContextBudgetCategories, profile: Normaliz
   const withReservation: ContextBudgetCategories = { ...categories, output_reservation: outputReservation, safety_margin: profile.safetyMarginTokens };
   const estimatedInputTokens = categories.system + categories.history + categories.current_message + categories.tool_results + categories.tool_schemas;
   const hardLimitTokens = profile.contextWindowTokens - outputReservation - profile.safetyMarginTokens;
-  const softLimit = resolveSoftThreshold(hardLimitTokens, softThresholdTokens);
+  const softLimit = resolveContextSoftThreshold(hardLimitTokens, softThresholdTokens, profile.providerContextWindowTokens);
   return {
     policyVersion: "v1",
     method: "approximate_characters",
@@ -846,7 +847,7 @@ function rejectedPlan(
   };
   const estimatedInputTokens = systemTokens + historyTokens + currentMessageTokens + toolResultTokens + toolSchemaTokens;
   const hardLimitTokens = normalized.contextWindowTokens - outputReservation - normalized.safetyMarginTokens;
-  const softLimit = resolveSoftThreshold(hardLimitTokens, softThresholdTokens);
+  const softLimit = resolveContextSoftThreshold(hardLimitTokens, softThresholdTokens, normalized.providerContextWindowTokens);
   return {
     provider: profile.provider,
     model: profile.model,
@@ -896,10 +897,62 @@ function rejectedPlan(
   };
 }
 
-function resolveSoftThreshold(hardLimitTokens: number, requested: number | undefined): number {
-  const fallback = Math.floor(Math.max(0, hardLimitTokens) * 0.8);
-  if (requested === undefined || requested < 0 || !Number.isFinite(requested)) return fallback;
-  return Math.max(0, Math.min(Math.max(0, hardLimitTokens), Math.floor(requested)));
+export function resolveContextSoftThreshold(hardLimitTokens: number, requested: number | undefined, providerContextWindowTokens: number): number {
+  const fallbackRatio = providerContextWindowTokens >= 512_000 ? 0.5 : 0.75;
+  const effectiveInputBudget = Math.max(0, hardLimitTokens);
+  const percentageThreshold = Math.floor(effectiveInputBudget * fallbackRatio);
+  const minimumFloorThreshold = Math.max(percentageThreshold, MINIMUM_CONTEXT_LENGTH_TOKENS);
+  const triggerCap = Math.floor(effectiveInputBudget * MINIMUM_CONTEXT_TRIGGER_RATIO);
+  // Hermes uses a minimum context floor for normal-sized models, but caps the
+  // floor when it would make the trigger unreachable on a small window.
+  const fallback = minimumFloorThreshold > percentageThreshold && minimumFloorThreshold > triggerCap
+    ? Math.max(percentageThreshold, triggerCap)
+    : minimumFloorThreshold;
+  const reachableFallback = effectiveInputBudget > 0 && fallback >= effectiveInputBudget
+    ? Math.max(1, Math.min(triggerCap, effectiveInputBudget - 1))
+    : fallback;
+  if (requested === undefined || requested < 0 || !Number.isFinite(requested)) return reachableFallback;
+  return Math.max(0, Math.min(effectiveInputBudget, Math.floor(requested)));
+}
+
+/**
+ * Resolve the durable compactor's unit ceiling from the same provider-relative
+ * pressure policy used by the request planner. The compactor still preserves
+ * whole transcript units; this only chooses how many newest units form the
+ * retained tail before a checkpoint is created.
+ */
+export function resolveContextRetainedMessageUnitLimit(input: {
+  readonly messages: readonly ModelMessage[];
+  readonly hardLimitTokens: number;
+  readonly providerContextWindowTokens: number;
+  readonly configuredMaxUnits?: number;
+  readonly charsPerToken?: number;
+  readonly messageOverheadTokens?: number;
+}): number {
+  const configuredMaxUnits = Number.isSafeInteger(input.configuredMaxUnits) && (input.configuredMaxUnits ?? 0) > 0
+    ? input.configuredMaxUnits!
+    : 20;
+  const bodyMessages = input.messages.filter((message) => message.role !== "system");
+  const units = buildTranscriptUnits(bodyMessages);
+  if (units.length === 0) return Math.max(1, configuredMaxUnits);
+  const charsPerToken = Number.isFinite(input.charsPerToken) && (input.charsPerToken ?? 0) > 0 ? input.charsPerToken! : DEFAULT_CHARS_PER_TOKEN;
+  const messageOverheadTokens = Number.isFinite(input.messageOverheadTokens) && (input.messageOverheadTokens ?? 0) >= 0
+    ? input.messageOverheadTokens!
+    : DEFAULT_MESSAGE_OVERHEAD_TOKENS;
+  const sourceTokens = sumMessages(bodyMessages, charsPerToken, messageOverheadTokens);
+  const softThresholdTokens = resolveContextSoftThreshold(input.hardLimitTokens, undefined, input.providerContextWindowTokens);
+  if (sourceTokens < softThresholdTokens) return configuredMaxUnits;
+  const retainedTailTargetTokens = Math.max(MINIMUM_MESSAGE_TOKENS, Math.floor(softThresholdTokens * 0.2));
+  let retainedUnits = 0;
+  let retainedTokens = 0;
+  for (let index = units.length - 1; index >= 0 && retainedUnits < configuredMaxUnits; index -= 1) {
+    const unit = units[index]!;
+    const unitTokens = sumMessages(unit.messages, charsPerToken, messageOverheadTokens);
+    if (retainedUnits > 0 && retainedTokens + unitTokens > retainedTailTargetTokens) break;
+    retainedUnits += 1;
+    retainedTokens += unitTokens;
+  }
+  return Math.max(1, retainedUnits);
 }
 
 function pressureFor(estimatedInputTokens: number, softThresholdTokens: number, hardLimitTokens: number): ContextPressure {
@@ -937,6 +990,9 @@ function createManifest(input: {
       requestManifestId: identity?.requestManifestId ?? `context-manifest:${identity?.modelAttemptId ?? "request"}:${digest}`,
       ...(identity?.modelAttemptId ? { modelAttemptId: identity.modelAttemptId } : {}),
       ...(identity?.compactionGeneration === undefined ? {} : { compactionGeneration: identity.compactionGeneration }),
+      ...(identity?.sourceCursor === undefined ? {} : { sourceCursor: identity.sourceCursor }),
+      ...(identity?.sourceGeneration === undefined ? {} : { sourceGeneration: identity.sourceGeneration }),
+      ...(identity?.sourceProjectionDigest ? { sourceProjectionDigest: identity.sourceProjectionDigest } : {}),
       sourceEventBoundaryDigest: identity?.sourceEventBoundaryDigest ?? sourceDigest,
       ...(identity?.providerRequestId ? { providerRequestId: identity.providerRequestId } : {}),
     },

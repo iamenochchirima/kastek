@@ -20,6 +20,9 @@ export interface ContextManifestRecordInput {
   readonly providerRequestId?: string;
   readonly schemaVersion?: "v1";
   readonly compactionGeneration?: number;
+  readonly sourceCursor?: number;
+  readonly sourceGeneration?: number;
+  readonly sourceProjectionDigest?: string;
   readonly sourceBoundaryDigest: string;
   readonly sourceDigest: string;
   readonly manifestDigest: string;
@@ -57,6 +60,9 @@ interface ContextManifestRow {
   provider_request_id: string | null;
   schema_version: "v1";
   compaction_generation: number;
+  source_cursor: number | string | null;
+  source_generation: number | string | null;
+  source_projection_digest: string | null;
   source_boundary_digest: string;
   source_digest: string;
   manifest_digest: string;
@@ -89,6 +95,8 @@ const COMPONENT_KINDS: readonly ContextManifestComponentKind[] = [
 
 const columns = `organization_id, request_manifest_id, run_id, turn_id,
   model_attempt_id, provider_request_id, schema_version, compaction_generation,
+  source_cursor, source_generation,
+  source_projection_digest,
   source_boundary_digest, source_digest, manifest_digest, source_message_count,
   selected_message_count, source_tool_count, selected_tool_count,
   estimated_input_tokens, reserved_output_tokens, safety_margin_tokens,
@@ -143,6 +151,14 @@ function validate(input: ContextManifestRecordInput): ContextManifestComponentAc
   validateText(input.providerRequestId, "CONTEXT_MANIFEST_PROVIDER_REQUEST_ID_INVALID", true);
   if (input.schemaVersion !== undefined && input.schemaVersion !== "v1") throw new Error("CONTEXT_MANIFEST_SCHEMA_VERSION_INVALID");
   validateCount(input.compactionGeneration ?? 0, "CONTEXT_MANIFEST_GENERATION_INVALID");
+  if ((input.sourceCursor === undefined) !== (input.sourceGeneration === undefined)) throw new Error("CONTEXT_MANIFEST_SOURCE_IDENTITY_INVALID");
+  if (input.sourceCursor !== undefined) validateCount(input.sourceCursor, "CONTEXT_MANIFEST_SOURCE_CURSOR_INVALID");
+  if (input.sourceGeneration !== undefined) {
+    if (!Number.isSafeInteger(input.sourceGeneration) || input.sourceGeneration <= 0) throw new Error("CONTEXT_MANIFEST_SOURCE_GENERATION_INVALID");
+  }
+  if (input.sourceProjectionDigest !== undefined) validateDigest(input.sourceProjectionDigest, "CONTEXT_MANIFEST_SOURCE_PROJECTION_DIGEST_INVALID");
+  if (input.sourceCursor !== undefined && input.sourceProjectionDigest === undefined) throw new Error("CONTEXT_MANIFEST_SOURCE_IDENTITY_INVALID");
+  if (input.sourceCursor === undefined && input.sourceProjectionDigest !== undefined) throw new Error("CONTEXT_MANIFEST_SOURCE_IDENTITY_INVALID");
   validateDigest(input.sourceBoundaryDigest, "CONTEXT_MANIFEST_SOURCE_BOUNDARY_DIGEST_INVALID");
   validateDigest(input.sourceDigest, "CONTEXT_MANIFEST_SOURCE_DIGEST_INVALID");
   validateDigest(input.manifestDigest, "CONTEXT_MANIFEST_DIGEST_INVALID");
@@ -176,6 +192,9 @@ function map(row: ContextManifestRow): ContextManifestRecord {
     ...(row.provider_request_id ? { providerRequestId: row.provider_request_id } : {}),
     schemaVersion: row.schema_version,
     compactionGeneration: row.compaction_generation,
+    ...(row.source_cursor === null || row.source_cursor === undefined ? {} : { sourceCursor: Number(row.source_cursor) }),
+    ...(row.source_generation === null || row.source_generation === undefined ? {} : { sourceGeneration: Number(row.source_generation) }),
+    ...(row.source_projection_digest ? { sourceProjectionDigest: row.source_projection_digest } : {}),
     sourceBoundaryDigest: row.source_boundary_digest,
     sourceDigest: row.source_digest,
     manifestDigest: row.manifest_digest,
@@ -215,13 +234,15 @@ export class ContextManifestRepository {
         `INSERT INTO agent_context_request_manifests (
            organization_id, request_manifest_id, run_id, turn_id,
            model_attempt_id, provider_request_id, schema_version, compaction_generation,
+           source_cursor, source_generation,
+           source_projection_digest,
            source_boundary_digest, source_digest, manifest_digest,
            source_message_count, selected_message_count, source_tool_count, selected_tool_count,
            estimated_input_tokens, reserved_output_tokens, safety_margin_tokens,
            provider_context_window_tokens, input_budget_tokens, soft_threshold_tokens,
            hard_limit_tokens, estimated_request_bytes, component_accounting,
            fit_decision, status
-         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24::jsonb,$25,$26)
+         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27::jsonb,$28,$29)
          ON CONFLICT (organization_id, request_manifest_id) DO NOTHING
          RETURNING ${columns}`,
         [
@@ -233,6 +254,9 @@ export class ContextManifestRepository {
           input.providerRequestId ?? null,
           input.schemaVersion ?? "v1",
           input.compactionGeneration ?? 0,
+          input.sourceCursor ?? null,
+          input.sourceGeneration ?? null,
+          input.sourceProjectionDigest ?? null,
           input.sourceBoundaryDigest,
           input.sourceDigest,
           input.manifestDigest,

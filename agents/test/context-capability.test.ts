@@ -538,7 +538,7 @@ describe("context capability resolution", () => {
 
   it("does not let malformed explicit capacity poison an otherwise valid provider source", async () => {
     const { store } = createCapabilityStore(new Map());
-    const providerMetadata = vi.fn().mockResolvedValue(catalogEntry({ contextWindowTokens: 96_000, source: "provider_metadata", expiresAt: "2026-09-10T00:00:00.000Z" }));
+    const providerMetadata = vi.fn().mockResolvedValue(catalogEntry({ contextWindowTokens: 96_000, source: "provider_metadata", expiresAt: new Date(Date.now() + 60 * 60 * 1000).toISOString() }));
     const resolver = new DurableContextCapabilityResolver(store, 60_000, { providerMetadata });
 
     const resolved = await resolver.resolve({

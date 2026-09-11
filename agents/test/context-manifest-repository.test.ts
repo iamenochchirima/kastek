@@ -11,6 +11,9 @@ function input(overrides: Partial<Parameters<ContextManifestRepository["record"]
     runId: "run-1",
     turnId: "turn-1",
     modelAttemptId: "attempt-1",
+    sourceCursor: 42,
+    sourceGeneration: 3,
+    sourceProjectionDigest: digest("d"),
     sourceBoundaryDigest: digest("a"),
     sourceDigest: digest("b"),
     manifestDigest: digest("c"),
@@ -72,6 +75,9 @@ function databaseRow(record: ContextManifestRecord): Record<string, unknown> {
     provider_request_id: record.providerRequestId ?? null,
     schema_version: record.schemaVersion,
     compaction_generation: record.compactionGeneration,
+    source_cursor: record.sourceCursor ?? null,
+    source_generation: record.sourceGeneration ?? null,
+    source_projection_digest: record.sourceProjectionDigest ?? null,
     source_boundary_digest: record.sourceBoundaryDigest,
     source_digest: record.sourceDigest,
     manifest_digest: record.manifestDigest,
@@ -111,9 +117,11 @@ describe("ContextManifestRepository", () => {
 
     expect(result).toEqual({ status: "created", manifest: expected });
     expect(clientQuery.mock.calls[1]?.[0]).toContain("agent_context_request_manifests");
-    expect(insertValues?.[23]).toBe(JSON.stringify(expected.components));
-    expect(String(insertValues?.[23])).not.toContain("secret prompt");
-    expect(String(insertValues?.[23])).not.toContain("credential");
+    expect(insertValues?.[8]).toBe(42);
+    expect(insertValues?.[9]).toBe(3);
+    expect(insertValues?.[26]).toBe(JSON.stringify(expected.components));
+    expect(String(insertValues?.[26])).not.toContain("secret prompt");
+    expect(String(insertValues?.[26])).not.toContain("credential");
   });
 
   it("replays the same manifest id only when its digest is unchanged", async () => {
@@ -154,6 +162,19 @@ describe("ContextManifestRepository", () => {
     expect(pool.connect).not.toHaveBeenCalled();
   });
 
+  it("requires canonical transcript cursor and generation to be supplied together", async () => {
+    const pool = { connect: vi.fn(), query: vi.fn() };
+    const repository = new ContextManifestRepository(pool as never, organizationId);
+
+    await expect(repository.record(input({ sourceGeneration: undefined })))
+      .rejects.toThrow("CONTEXT_MANIFEST_SOURCE_IDENTITY_INVALID");
+    await expect(repository.record(input({ sourceCursor: undefined })))
+      .rejects.toThrow("CONTEXT_MANIFEST_SOURCE_IDENTITY_INVALID");
+    await expect(repository.record(input({ sourceProjectionDigest: undefined })))
+      .rejects.toThrow("CONTEXT_MANIFEST_SOURCE_IDENTITY_INVALID");
+    expect(pool.connect).not.toHaveBeenCalled();
+  });
+
   it("defines a tenant-protected bounded read model without content columns", async () => {
     const migration = await readFile(new URL("../migrations/145_context_request_manifests.sql", import.meta.url), "utf8");
 
@@ -163,5 +184,13 @@ describe("ContextManifestRepository", () => {
     expect(migration).toContain("FORCE ROW LEVEL SECURITY");
     const ddl = migration.replace(/^\s*--.*$/gm, "");
     expect(ddl).not.toMatch(/prompt|tool_output|credential|tool_schema\b/i);
+  });
+
+  it("defines additive transcript identity columns", async () => {
+    const migration = await readFile(new URL("../migrations/175_context_manifest_transcript_identity.sql", import.meta.url), "utf8");
+
+    expect(migration).toContain("source_cursor");
+    expect(migration).toContain("source_generation");
+    expect(migration).toContain("source_identity_pair_check");
   });
 });

@@ -1,4 +1,4 @@
-import type { ModelMessage } from "../model/types";
+import type { ModelMessage, ModelToolCall } from "../model/types";
 import type { ToolDefinition } from "../tools/types";
 import { decideMemoryRetrieval, type RetrievalDecision } from "../memory/retrieval";
 import type { ExecutionScope } from "./execution-scope";
@@ -13,6 +13,7 @@ import {
 } from "./effective-capabilities";
 import { classifyAgentIntent } from "./grounding";
 import { loadCapabilityDiscoveryInstructions, capabilityDiscoverySkillIndex } from "../skills/capability-discovery";
+import { cloneModelMessage } from "./transcript";
 
 export interface DurableContextMessage {
   direction: "inbound" | "outbound" | "system";
@@ -42,6 +43,10 @@ export interface ContextBuildInput {
   summary?: string;
   longTermMemory?: string;
   currentMessage: string;
+  /** Canonical model-visible session history. When present it supersedes the display projection. */
+  modelHistory?: readonly ModelMessage[];
+  /** Defaults to true for compatibility callers. Canonical session callers append the user durably first. */
+  includeCurrentMessage?: boolean;
   recentMessages: DurableContextMessage[];
   authorizedTools: Array<Omit<ToolDefinition, "handler">>;
   /** One resolved per-run projection shared by prompt, planner, and invocation. */
@@ -164,6 +169,38 @@ function asUntrusted(label: string, content: string): string {
   return `<untrusted-data source="${label}">\n${content}\n</untrusted-data>`;
 }
 
+function durableContextMessageToModelMessage(message: DurableContextMessage): ModelMessage {
+  const content = message.content;
+  const isToolResult = message.messageType === "tool" || typeof content.toolCallId === "string";
+  const role: ModelMessage["role"] = isToolResult
+    ? "tool"
+    : message.direction === "outbound"
+      ? "assistant"
+      : message.direction === "system"
+        ? "system"
+        : "user";
+  const toolCalls = Array.isArray(content.toolCalls)
+    ? content.toolCalls.filter((value): value is ModelToolCall => Boolean(
+      value
+        && typeof value === "object"
+        && !Array.isArray(value)
+        && typeof (value as Record<string, unknown>).id === "string"
+        && typeof (value as Record<string, unknown>).name === "string"
+        && (value as Record<string, unknown>).arguments
+        && typeof (value as Record<string, unknown>).arguments === "object"
+        && !Array.isArray((value as Record<string, unknown>).arguments),
+    ))
+    : undefined;
+  return {
+    role,
+    content: asUntrusted(`conversation-${message.messageType}`, contentText(content)),
+    ...(typeof content.toolCallId === "string" ? { toolCallId: content.toolCallId } : {}),
+    ...(typeof content.runtimeOperationId === "string" ? { runtimeOperationId: content.runtimeOperationId } : {}),
+    ...(typeof content.name === "string" ? { name: content.name } : {}),
+    ...(toolCalls?.length ? { toolCalls } : {}),
+  };
+}
+
 export { sanitizeAssistantResponse } from "./sanitize";
 
 export class DefaultContextPolicy implements ContextPolicy {
@@ -225,11 +262,15 @@ export class DefaultContextPolicy implements ContextPolicy {
     // the complete durable input here so the same provider-aware fit gate can
     // account for message units, tool pairs, output reservation, and byte
     // pressure without a hidden pre-pruner.
-    for (const durable of input.recentMessages) {
-      const role = durable.direction === "outbound" ? "assistant" : durable.direction === "system" ? "system" : "user";
-      messages.push({ role, content: asUntrusted(`conversation-${durable.messageType}`, contentText(durable.content)) });
+    if (input.modelHistory) {
+      for (const historyMessage of input.modelHistory) messages.push(cloneModelMessage(historyMessage));
+    } else {
+      for (const durable of input.recentMessages) {
+        messages.push(durableContextMessageToModelMessage(durable));
+      }
     }
-    messages.push({ role: "user", content: asUntrusted("current-user-message", input.currentMessage) });
+    const includeCurrentMessage = input.includeCurrentMessage !== false;
+    if (includeCurrentMessage) messages.push({ role: "user", content: asUntrusted("current-user-message", input.currentMessage) });
     const sourceMessages = [...messages];
 
     const profile: ProviderContextProfile = {
@@ -254,7 +295,9 @@ export class DefaultContextPolicy implements ContextPolicy {
       },
       messages,
       tools: projectedTools.map(({ name, description, inputSchema }) => ({ name, description, inputSchema })),
-      currentMessageIndex: messages.length - 1,
+      currentMessageIndex: includeCurrentMessage
+        ? messages.length - 1
+        : [...messages].map((message, index) => ({ message, index })).reverse().find(({ message }) => message.role === "user")?.index,
     });
 
     const selectedToolNames = new Set(plan.tools.map((tool) => tool.name));

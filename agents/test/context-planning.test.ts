@@ -3,6 +3,8 @@ import {
   accountProviderUsage,
   estimateApproximateTokens,
   planProviderRequest,
+  resolveContextSoftThreshold,
+  resolveContextRetainedMessageUnitLimit,
   type ProviderContextProfile,
 } from "../src/runtime/context-planning";
 
@@ -34,6 +36,20 @@ describe("provider context planning", () => {
     expect(plan.accounting.capabilitySource).toBe("unknown");
   });
 
+  it("rejects an incomplete tool round before provider admission", () => {
+    const plan = planProviderRequest({
+      profile,
+      policy,
+      messages: [
+        { role: "user", content: "look it up" },
+        { role: "assistant", content: "", toolCalls: [{ id: "provider-call", runtimeOperationId: "runtime-call", name: "records.lookup", arguments: {} }] },
+      ],
+    });
+
+    expect(plan).toMatchObject({ status: "rejected", decision: "cannot_fit", rejection: { code: "transcript_projection_invalid" } });
+    expect(plan.diagnostics.reasons).toContain("transcript_projection_invalid");
+  });
+
   it("plans against provider capacity and exposes approximate accounting", () => {
     const plan = planProviderRequest({
       profile,
@@ -59,7 +75,7 @@ describe("provider context planning", () => {
     expect(plan.accounting.reservedRequestTokens).toBeLessThanOrEqual(1_000);
     expect(plan.accounting).toMatchObject({
       hardLimitTokens: 750,
-      softThresholdTokens: 600,
+      softThresholdTokens: 637,
       pressure: "normal",
     });
     expect(plan.manifest).toMatchObject({
@@ -135,6 +151,53 @@ describe("provider context planning", () => {
     expect(plan.accounting).toMatchObject({ hardLimitTokens: 900, softThresholdTokens: 200, pressure: "soft" });
   });
 
+  it("uses the Hermes-aligned default pressure threshold by provider capacity", () => {
+    const large = planProviderRequest({
+      profile: { ...profile, contextWindowTokens: 600_000, maxOutputTokens: 1_000, safetyMarginTokens: 100 },
+      policy: { ...policy, requestedOutputTokens: 1_000 },
+      messages: [{ role: "user", content: "small" }],
+    });
+    const small = planProviderRequest({
+      profile: { ...profile, contextWindowTokens: 100_000, maxOutputTokens: 1_000, safetyMarginTokens: 100 },
+      policy: { ...policy, requestedOutputTokens: 1_000 },
+      messages: [{ role: "user", content: "small" }],
+    });
+    expect(large.accounting.softThresholdTokens).toBe(Math.floor(598_900 * 0.5));
+    expect(small.accounting.softThresholdTokens).toBe(Math.floor(98_900 * 0.75));
+  });
+
+  it("caps the minimum-floor threshold before it becomes unreachable", () => {
+    expect(resolveContextSoftThreshold(64_000, undefined, 64_000)).toBe(54_400);
+    expect(resolveContextSoftThreshold(10_000, undefined, 10_000)).toBe(8_500);
+  });
+
+  it("carries canonical transcript cursor and generation into the manifest identity", () => {
+    const plan = planProviderRequest({
+      profile: { provider: "test", model: "small", contextWindowTokens: 8_192 },
+      policy: { requestedOutputTokens: 256, maxToolSchemaTokens: 100, maxToolResultTokens: 100 },
+      messages: [{ role: "user", content: "hello" }],
+      identity: { sourceCursor: 42, sourceGeneration: 3, sourceEventBoundaryDigest: "a".repeat(64) },
+    });
+
+    expect(plan.manifest.identity).toMatchObject({ sourceCursor: 42, sourceGeneration: 3 });
+  });
+
+  it("tightens the durable retained tail for token pressure even below the unit ceiling", () => {
+    const retained = resolveContextRetainedMessageUnitLimit({
+      messages: [
+        { role: "user", content: "x".repeat(1_000) },
+        { role: "assistant", content: "y".repeat(1_000) },
+        { role: "user", content: "z".repeat(1_000) },
+        { role: "assistant", content: "w".repeat(1_000) },
+      ],
+      hardLimitTokens: 1_000,
+      providerContextWindowTokens: 10_000,
+      configuredMaxUnits: 20,
+    });
+
+    expect(retained).toBe(1);
+  });
+
   it("rejects serialized payload pressure independently from token pressure", () => {
     const plan = planProviderRequest({
       profile,
@@ -193,7 +256,12 @@ describe("provider context planning", () => {
         { name: "first", description: "x".repeat(100), inputSchema: { type: "object" } },
         { name: "second", description: "y".repeat(100), inputSchema: { type: "object" } },
       ],
-      messages: [{ role: "system", content: "policy" }, { role: "tool", name: "first", toolCallId: "call-1", content: "result ".repeat(20) }, { role: "user", content: "current" }],
+      messages: [
+        { role: "system", content: "policy" },
+        { role: "assistant", content: "", toolCalls: [{ id: "call-1", name: "first", arguments: {} }] },
+        { role: "tool", name: "first", toolCallId: "call-1", content: "result ".repeat(20) },
+        { role: "user", content: "current" },
+      ],
     });
 
     expect(plan.tools).toHaveLength(0);
@@ -206,6 +274,7 @@ describe("provider context planning", () => {
   it("uses bounded digest references for oversized tool results without mutating the source transcript", () => {
     const sourceMessages = [
       { role: "system" as const, content: "policy" },
+      { role: "assistant" as const, content: "", toolCalls: [{ id: "call-1", name: "lookup", arguments: {} }] },
       { role: "tool" as const, name: "lookup", toolCallId: "call-1", content: "result ".repeat(20) },
       { role: "user" as const, content: "current" },
     ];
@@ -220,7 +289,7 @@ describe("provider context planning", () => {
     expect(plan.messages.find((message) => message.role === "tool")?.content).toMatch(/^\[ref:/);
     expect(plan.messages.find((message) => message.role === "tool")?.content.length).toBeLessThanOrEqual(16);
     expect(plan.manifest.sourceMessageCount).toBe(sourceMessages.length);
-    expect(sourceMessages[1]?.content).toBe("result ".repeat(20));
+    expect(sourceMessages[2]?.content).toBe("result ".repeat(20));
   });
 
   it("keeps the newest duplicate tool result and references only the older copy", () => {
@@ -229,6 +298,10 @@ describe("provider context planning", () => {
       profile,
       policy: { ...policy, maxToolResultTokens: 40 },
       messages: [
+        { role: "assistant", content: "", toolCalls: [
+          { id: "call-old", name: "lookup", arguments: {} },
+          { id: "call-new", name: "lookup", arguments: {} },
+        ] },
         { role: "tool", name: "lookup", toolCallId: "call-old", content: duplicate },
         { role: "tool", name: "lookup", toolCallId: "call-new", content: duplicate },
         { role: "user", content: "current" },
@@ -267,11 +340,12 @@ describe("provider context planning", () => {
     const plan = planProviderRequest({
       profile,
       policy,
-      currentMessageIndex: 4,
+      currentMessageIndex: 5,
       messages: [
         { role: "user", content: "old" },
         { role: "assistant", content: "" },
         { role: "assistant", content: JSON.stringify({ text: "old answer", reasoning: "stale" }) },
+        { role: "assistant", content: "", toolCalls: [{ id: "call-1", name: "lookup", arguments: {} }] },
         { role: "tool", name: "lookup", toolCallId: "call-1", content: "result" },
         { role: "user", content: "the active task" },
       ],

@@ -25,7 +25,7 @@ reconciliation. It applies to the Agents API and Agents Worker in every environm
 | `deliverApprovalPrompt` | Resolve credentials and send the approval prompt | Telegram, Discord, or Core | Delivery failures are recorded; external sends require provider-safe handling |
 | `cancelPendingApproval` | Cancel approval and mark its effect not executed | PostgreSQL | Idempotent by approval/effect state |
 | `cancelHandoff` | Cancel the active handoff | PostgreSQL | Idempotent by handoff state |
-| `completeRun` | Persist terminal output and rebuild the summary | PostgreSQL | Terminal run transition is guarded |
+| `completeRun` | Persist the canonical assistant entry, terminal output, and rebuild the display summary | PostgreSQL | Transcript append and terminal run transition are idempotent |
 | `generateConversationTitle` | Optional decorative title model call | Model provider and PostgreSQL | Failure is swallowed after the main run completes |
 | `deliverRunReply` | Resolve media and send the final reply | Telegram, Discord, or Core | Delivery attempt and unknown outcome are durable |
 | `failRun` | Persist terminal failure | PostgreSQL | Terminal run transition is guarded |
@@ -35,6 +35,15 @@ batches leave that Activity as one Temporal Activity per call plus an ordered co
 request and context assembly remain inside `executeModelStep`; the tool fan-out is never hidden
 inside that Activity. The operation ledger, pinned capability snapshot, and checkpoints remain the
 safety boundary for retries. `executeLoop` is only the patch-gated path for already-open histories.
+Before model dispatch, the activity loads the canonical session projection from
+`agent_session_contexts` and `agent_session_transcript_entries`. Existing display rows are only a
+conservative bootstrap for sessions that have no canonical entries. The per-run loop checkpoint
+can accelerate an in-flight slice, but it is not the cross-request context source. A committed
+compaction checkpoint is selected through the session's active pointer; the old rows remain for
+audit and recovery. Request manifests carry the transcript cursor, generation, and active-projection
+digest; a mismatch is terminal before provider dispatch. If legacy tool rows cannot be correlated
+exactly, recovery leaves them in display/audit storage and records an interrupted boundary instead
+of fabricating a result.
 Each ordinary hosted loop slice carries a
 deterministic step index. A checkpoint records the bounded message history, cumulative counters,
 and the result status required by the workflow. If the same activity is retried with that step

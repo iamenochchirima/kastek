@@ -98,6 +98,19 @@ describe("foundation migration", () => {
     expect(sql).toContain("ALTER TABLE agent_session_transcript_entries FORCE ROW LEVEL SECURITY");
   });
 
+  it("adds transcript identity fields to request manifests", async () => {
+    const sql = await readFile(new URL("../migrations/175_context_manifest_transcript_identity.sql", import.meta.url), "utf8");
+    expect(sql).toContain("source_cursor");
+    expect(sql).toContain("source_generation");
+    expect(sql).toContain("source_identity_pair_check");
+  });
+
+  it("adds the canonical active projection digest to request manifests", async () => {
+    const sql = await readFile(new URL("../migrations/176_context_manifest_projection_digest.sql", import.meta.url), "utf8");
+    expect(sql).toContain("source_projection_digest");
+    expect(sql).toContain("source_projection_identity_check");
+  });
+
   it("adds a durable offer layer without widening ownership", async () => {
     const sql = await readFile(new URL("../migrations/077_consent_gated_handoff.sql", import.meta.url), "utf8");
     expect(sql).toContain("CREATE TABLE IF NOT EXISTS agent_handoff_offers");

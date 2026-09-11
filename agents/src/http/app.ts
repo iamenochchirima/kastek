@@ -66,7 +66,7 @@ import { MODEL_PROVIDERS } from "../model/types";
 import { modelProviderEnvironmentKey } from "../model/providers";
 import { installationTokenJwks, issueInstallationToken, readClientAssertionSubject, verifyClientAssertion, verifyInstallationToken } from "../auth/installation-token";
 import { createHash, createPublicKey } from "node:crypto";
-import { createDefaultTools } from "../temporal/activities";
+import { buildApprovalResourceSnapshotFromCore, createDefaultTools } from "../temporal/activities";
 import { validateVersionWorkflow } from "../workflows/graph";
 import { agentSpecSchema, compileAgentSpec } from "../domain/agent-spec";
 import { resolveModelTarget } from "../model/policy";
@@ -134,6 +134,7 @@ function projectRuntimeTelemetry(
 import { ConnectorRegistry } from "../connectors";
 import { EffectReceiptRepository } from "../db/repositories/effect-receipt-repository";
 import { ApprovalRepository, type ApprovalGroupRecord, type ApprovalRecord } from "../db/repositories/approval-repository";
+import { approvalResourceSnapshotsEqual } from "../approval/resource-revalidation";
 import { InstallationCapabilityError, InstallationCapabilityInvocationService } from "../invocation/installation-capability";
 import { InstallationImmediateReadService } from "../invocation/immediate-read";
 import { authorizeInstallationCapability } from "../capabilities/authorization";
@@ -176,6 +177,8 @@ import { registerIntegrationSources, registerMcpSources, registerPluginSources, 
 import { PostgresDeliveryObligationCoordinator, type DeliveryObligationCoordinator } from "../delivery";
 import { RuntimeTelemetryAccumulator } from "../runtime/runtime-telemetry";
 import type { PersistedExecutionJournalEvent } from "../journal/contracts";
+import { executionScopeFromRun } from "../runtime/execution-scope";
+import { toolInvocationContextFromScope } from "../tools/types";
 
 export interface AppDependencies {
   config: AppConfig;
@@ -1183,9 +1186,9 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       }
       return recordedDecision;
     }
+    const run = await runs.getRun(input.organizationId, input.runId);
+    if (!run) throw Object.assign(new Error("run_not_found"), { statusCode: 404, code: "run_not_found" });
     if (active.group.status === "pending") {
-      const run = await runs.getRun(input.organizationId, input.runId);
-      if (!run) throw Object.assign(new Error("run_not_found"), { statusCode: 404, code: "run_not_found" });
       if (run.status !== "awaiting_approval") {
         throw Object.assign(new Error("run_not_awaiting_approval"), { statusCode: 409, code: "run_not_awaiting_approval" });
       }
@@ -1220,6 +1223,28 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
           statusCode: 403,
           code: "approval_policy_changed",
           detail: error instanceof Error ? error.message : "CAPABILITY_NOT_GRANTED",
+        });
+      }
+      let currentResourceSnapshot: Record<string, unknown>;
+      try {
+        currentResourceSnapshot = await buildApprovalResourceSnapshotFromCore(coreClient, {
+          ...toolInvocationContextFromScope(executionScopeFromRun(run)),
+          actorId: input.approvedBy,
+        }, approval.capability, proposal.arguments);
+      } catch (error) {
+        await approvals.invalidateGroup(input.organizationId, input.runId, input.groupId, "resource_revalidation_unavailable");
+        throw Object.assign(new Error("approval_group_invalidated"), {
+          statusCode: 409,
+          code: "approval_group_invalidated",
+          detail: error instanceof Error ? error.message : "RESOURCE_REVALIDATION_UNAVAILABLE",
+        });
+      }
+      if (!approvalResourceSnapshotsEqual(approval.resource_snapshot, currentResourceSnapshot)) {
+        await approvals.invalidateGroup(input.organizationId, input.runId, input.groupId, "resource_snapshot_changed");
+        throw Object.assign(new Error("approval_group_invalidated"), {
+          statusCode: 409,
+          code: "approval_group_invalidated",
+          detail: "The reviewed resource changed before approval",
         });
       }
     }

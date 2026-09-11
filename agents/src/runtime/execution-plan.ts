@@ -41,6 +41,12 @@ export interface AgentExecutionPlan {
   readonly memoryRetrievalPackBoundaryDigest?: AgentLoopInput["memoryRetrievalPackBoundaryDigest"];
   /** Durable compaction generation used to invalidate stale usage anchors. */
   readonly contextCompactionGeneration?: number;
+  /** Canonical transcript head sequence used by this turn's model requests. */
+  readonly contextSourceCursor?: number;
+  /** Canonical transcript generation used by this turn's model requests. */
+  readonly contextSourceGeneration?: number;
+  /** Digest of the canonical active projection used by this turn's model requests. */
+  readonly contextSourceProjectionDigest?: string;
   readonly contextPlanningPolicy?: Partial<ContextPlanningPolicy>;
   readonly toolContext: ToolInvocationContext;
   readonly budgetLedger?: AgentBudgetLedger;

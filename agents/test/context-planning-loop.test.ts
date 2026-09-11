@@ -26,6 +26,67 @@ function adapterWithText(calls: ModelRequest[]): ModelAdapter {
 }
 
 describe("context planner at the model boundary", () => {
+  it("keeps the active assistant tool round in the next model request", async () => {
+    const requests: ModelRequest[] = [];
+    let invocations = 0;
+    const tools = new ToolRegistry();
+    tools.register({
+      name: "kasitek.calendar.list",
+      version: "1.0.0",
+      description: "List calendar events",
+      riskClass: "read",
+      requiresApproval: false,
+      timeoutMs: 1_000,
+      inputSchema: { type: "object" },
+      outputSchema: { type: "object" },
+      handler: async () => {
+        invocations += 1;
+        return { events: [{ title: "Planning" }] };
+      },
+    });
+    const adapter: ModelAdapter = {
+      provider: "openai",
+      capabilities: { toolCalling: true, structuredOutput: true, streaming: false, vision: false },
+      complete: async (request) => {
+        requests.push(request);
+        const hasCalendarResult = request.messages.some((message) => message.role === "tool" && message.toolCallId === "calendar-call-1");
+        const toolCalls = hasCalendarResult ? [] : [{ id: "calendar-call-1", name: "kasitek.calendar.list", arguments: {} }];
+        return {
+          provider: "openai",
+          model: request.model,
+          message: { role: "assistant", content: hasCalendarResult ? "You have one planning event." : "", ...(toolCalls.length ? { toolCalls } : {}) },
+          toolCalls,
+          finishReason: toolCalls.length ? "tool_calls" : "stop",
+          usage: { inputTokens: 10, outputTokens: 4, totalTokens: 14 },
+          latencyMs: 1,
+        };
+      },
+    };
+
+    const result = await runBoundedAgentLoop({
+      model: { provider: "openai", model: "test-model" },
+      messages: [{ role: "user", content: "What is on my calendar?" }],
+      credentials,
+      gateway: new ModelGateway([adapter]),
+      tools,
+      toolContext: { organizationId: "org", installationId: "installation", runId: "run" },
+      grantedTools: new Set(["kasitek.calendar.list"]),
+      contextProfile: { provider: "openai", model: "test-model", contextWindowTokens: 2_000, maxOutputTokens: 128, safetyMarginTokens: 10, capabilitySource: "configured_override" },
+      limits: { maxIterations: 4, maxToolCalls: 4, maxTotalTokens: 10_000, maxWallTimeMs: 10_000 },
+    });
+
+    expect(result.status).toBe("completed");
+    expect(invocations).toBe(1);
+    expect(requests).toHaveLength(2);
+    const runtimeOperationId = requests[1]?.messages.find((message) => message.role === "assistant")?.toolCalls?.[0]?.runtimeOperationId;
+    expect(runtimeOperationId).toBe("model:1:0:tool:1");
+    expect(requests[1]?.messages.slice(-3)).toEqual([
+      { role: "user", content: "What is on my calendar?" },
+      { role: "assistant", content: "", toolCalls: [{ id: "calendar-call-1", name: "kasitek.calendar.list", arguments: {}, runtimeOperationId }] },
+      { role: "tool", name: "kasitek.calendar.list", toolCallId: "calendar-call-1", runtimeOperationId, content: JSON.stringify({ events: [{ title: "Planning" }] }) },
+    ]);
+  });
+
   it("compacts history before dispatch and leaves the current request intact", async () => {
     const requests: ModelRequest[] = [];
     const events: Array<{ type: string; payload: Record<string, unknown> }> = [];

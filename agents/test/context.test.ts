@@ -14,6 +14,77 @@ const scope: ExecutionScope = {
 };
 
 describe("Waku-derived context builder", () => {
+  it("preserves structured assistant tool calls and tool results in durable history", () => {
+    const context = buildAgentContext({
+      instructions: "Policy",
+      scope,
+      currentMessage: "Continue",
+      recentMessages: [
+        {
+          direction: "outbound",
+          messageType: "assistant",
+          content: {
+            text: "",
+            toolCalls: [{ id: "call-1", name: "records.search", arguments: { query: "record" } }],
+          },
+          createdAt: new Date().toISOString(),
+        },
+        {
+          direction: "system",
+          messageType: "tool",
+          content: { text: '{"id":"record-1"}', name: "records.search", toolCallId: "call-1" },
+          createdAt: new Date().toISOString(),
+        },
+      ],
+      authorizedTools: [],
+    });
+
+    expect(context.sourceMessages).toEqual([
+      expect.objectContaining({
+        role: "system",
+      }),
+      {
+        role: "assistant",
+        content: expect.stringContaining("<untrusted-data"),
+        toolCalls: [{ id: "call-1", name: "records.search", arguments: { query: "record" } }],
+      },
+      {
+        role: "tool",
+        name: "records.search",
+        toolCallId: "call-1",
+        content: expect.stringContaining("{\"id\":\"record-1\"}"),
+      },
+      expect.objectContaining({ role: "user" }),
+    ]);
+  });
+
+  it("uses canonical model history without appending the current user twice", () => {
+    const history = [
+      { role: "user" as const, content: "What is on my calendar?" },
+      {
+        role: "assistant" as const,
+        content: "",
+        toolCalls: [{ id: "call-1", runtimeOperationId: "runtime-1", name: "calendar.list", arguments: {} }],
+      },
+      { role: "tool" as const, name: "calendar.list", toolCallId: "call-1", runtimeOperationId: "runtime-1", content: '{"events":[]}' },
+    ];
+    const context = buildAgentContext({
+      instructions: "Policy",
+      scope,
+      currentMessage: "What is on my calendar?",
+      modelHistory: history,
+      includeCurrentMessage: false,
+      recentMessages: [],
+      authorizedTools: [],
+    });
+
+    expect(context.sourceMessages.filter((message) => message.role === "user")).toEqual([
+      { role: "user", content: "What is on my calendar?" },
+    ]);
+    expect(context.sourceMessages.at(-1)).toEqual(history.at(-1));
+    expect(context.sourceMessages.find((message) => message.role === "assistant")?.toolCalls?.[0]?.runtimeOperationId).toBe("runtime-1");
+  });
+
   it("keeps the system policy separate and marks durable content untrusted", () => {
     const context = buildAgentContext({
       instructions: "Follow platform policy.",

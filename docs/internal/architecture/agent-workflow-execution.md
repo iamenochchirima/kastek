@@ -157,6 +157,33 @@ throughput, and the context measurement basis in the same durable read model. Th
 current context occupancy, cumulative provider usage, and the configured run-token budget as
 separate values; the Playground does not substitute one for another.
 
+## Durable session transcript
+
+Conversation display rows are not the model-context source of truth. The Agents worker creates one
+organization-, installation-, and conversation-scoped session context with a monotonic generation,
+ordered transcript head, idempotent entry keys, and an active compaction pointer. The transcript
+stores structured model messages so assistant tool calls, provider tool IDs, runtime operation IDs,
+and tool results are not flattened into the final customer reply.
+
+On a new turn, legacy display history is imported conservatively, the admitted user message is
+appended, and the active transcript projection is passed to the context policy. The summary table
+remains a display compatibility projection and is not read to assemble a canonical model prompt.
+The final assistant message is appended before terminal run persistence. Live tool-call and approval
+boundaries must append their structured entries through the same seam; their dispatch and effect
+state machines remain owned by the tool execution runtime.
+
+Compaction archives the replaced active rows without deleting them, writes a validated checkpoint,
+and advances the active pointer atomically. Subsequent requests load the checkpoint followed by the
+uncompacted tail. A retry of an already committed append replays the entry; a stale head cursor or
+digest fails closed. An explicit Clear/New operation starts a new generation; retries, worker
+replacement, approval resume, and Temporal recovery do not reset session context.
+
+Each provider request manifest records the canonical transcript cursor, transcript generation, and
+active-projection digest alongside its bounded source and fit accounting. The request is not
+admitted if that identity does not match the active session projection that was loaded for the
+turn. Provider-relative soft pressure selects the durable retained tail; the final provider planner
+still owns the exact token and byte fit gate.
+
 Fan-out admission uses `run_budget_parallel_leases`. Before branch promises are launched, the
 executor identifies the first possible model and tool operation in each branch and atomically
 leases those capacities under the run budget row lock. The first operation consumes its matching
