@@ -42,6 +42,10 @@ own exact identity, authorization, effect receipt, and terminal outcome.
 - `642e8cf9 feat(agents): standardize approval lifecycle evidence`
 - `c43608b5 test(agents): verify approval event metadata`
 - `abd27653 docs(agents): record real approval orchestration evidence`
+- `90f367b6 docs(agents): record final approval verification`
+- `0dfebebe fix(agents): bind approval groups to run installations`
+- `7a16d52b docs(agents): record installation binding evidence`
+- `e241005f test(agents): cover completed-run approval boundary`
 
 The current branch is `rewrite`. Do not stage all changes: another agent is actively implementing
 session context and compaction in the same worktree.
@@ -102,7 +106,7 @@ session context and compaction in the same worktree.
 - Client build passed after the group client changes.
 - PostgreSQL integration passed: 92/92 tests across approval groups and migration tests, including
   rejected terminal/idempotent decisions and 32/64/128/256-operation persistence/listing.
-- API approval-group tests passed: 11/11, including approval and rejection, tenant isolation, installation binding, stale digest/resource
+- API approval-group tests passed: 12/12, including approval and rejection, tenant isolation, installation binding, completed-run rejection, stale digest/resource
   conflicts, expired/cancelled/already-signalled outcomes, 256-operation run-detail history, and
   lifecycle event assertions.
 - Opt-in real-provider approval integration passed: 1/1 through a real configured model, durable
@@ -113,7 +117,7 @@ session context and compaction in the same worktree.
   18-operation group, rejection, invalidation, expiry, cancellation, retry/failure matrix,
   replay, cancellation, history, worker replacement, 32/64/128/256-operation approval groups,
   partial provider failure, and fresh groups on later model turns.
-- The full deterministic Agents suite passed: 1,212 tests in 199 files; 172 integration tests
+- The full deterministic Agents suite passed: 1,213 tests in 199 files; 172 integration tests
   were skipped because their optional service flags were not enabled.
 - `pnpm --dir agents build` passed after the decision-time invalidation and lifecycle changes.
 - Resource-revalidation unit tests passed.
