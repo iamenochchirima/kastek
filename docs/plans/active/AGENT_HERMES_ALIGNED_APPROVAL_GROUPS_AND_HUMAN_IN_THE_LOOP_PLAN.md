@@ -24,7 +24,7 @@ worker but stopped in the separate context-compaction implementation with
 `ContextCompactionError(code=no_progress)` before tool-batch preparation. This is recorded as a
 context-plan blocker, not as approval-group evidence. Approval-specific verification currently
 includes a passing Agents build, 91/91 PostgreSQL approval/migration tests, 9/9 API tests, a
-19/19 full deterministic Temporal suite, including worker replacement while a group was pending and
+21/21 full deterministic Temporal suite, including worker replacement while a group was pending and
 32/64/128/256-operation group barriers.
 
 **Related plans:**

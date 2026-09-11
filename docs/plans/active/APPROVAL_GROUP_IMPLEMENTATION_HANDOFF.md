@@ -33,6 +33,8 @@ own exact identity, authorization, effect receipt, and terminal outcome.
 - `02424475 test(agents): cover approval group scale and restart`
 - `6a0ee146 test(agents): harden approval group scale boundaries`
 - `c21529ca fix(agents): expose safe approval group event evidence`
+- `1901fe5d test(agents): preserve approval sibling failures`
+- `e7c15aa9 test(agents): isolate approval groups across model turns`
 
 The current branch is `rewrite`. Do not stage all changes: another agent is actively implementing
 session context and compaction in the same worktree.
@@ -82,9 +84,10 @@ session context and compaction in the same worktree.
 - API approval-group tests passed: 9/9, including tenant isolation, stale digest/resource
   conflicts, expired/cancelled/already-signalled outcomes, 256-operation run-detail history, and
   lifecycle event assertions.
-- The full deterministic Temporal tool-execution suite passed: 19/19, including the
+- The full deterministic Temporal tool-execution suite passed: 21/21, including the
   18-operation group, rejection, invalidation, expiry, cancellation, retry/failure matrix,
-  replay, cancellation, history, worker replacement, and 32/64/128/256-operation approval groups.
+  replay, cancellation, history, worker replacement, 32/64/128/256-operation approval groups,
+  partial provider failure, and fresh groups on later model turns.
 - `pnpm --dir agents build` passed after the decision-time invalidation and lifecycle changes.
 - Resource-revalidation unit tests passed.
 
