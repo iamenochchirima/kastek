@@ -393,4 +393,22 @@ describe("approval-group API", () => {
       await fixture.app.close();
     }
   });
+
+  it("does not approve a pending group after its run has completed", async () => {
+    const fixture = buildFixture(resourceSnapshot, { runStatus: "completed" });
+    try {
+      const response = await fixture.app.inject({
+        method: "POST",
+        url: `/v1/runs/${runId}/approval-group`,
+        headers: { "x-organization-id": organizationId, "x-actor-id": "operator-1" },
+        payload: { groupId, planDigest, decision: "approved" },
+      });
+      expect(response.statusCode).toBe(409);
+      expect(response.json()).toMatchObject({ error: "run_not_awaiting_approval" });
+      expect(fixture.decideGroup).not.toHaveBeenCalled();
+      expect(fixture.signalApprovalGroup).not.toHaveBeenCalled();
+    } finally {
+      await fixture.app.close();
+    }
+  });
 });
