@@ -6750,25 +6750,40 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       return reply.code(401).send({ error: "invalid_channel_approval" });
     }
     const approval = await approvals.getById(auth.organizationId, claims.approvalId);
-    const target = approval ? await channels.getApprovalPromptTarget(approval.run_id) : null;
-    if (!approval || !target || target.channel_type !== input.channelType || target.external_identity !== input.externalIdentity || (input.externalConversationId && target.external_conversation_id !== input.externalConversationId) || (input.channelConnectionId && target.channel_connection_id !== input.channelConnectionId) || target.owner_actor_id !== auth.actorId) {
+    const group = approval ? null : await approvals.getGroup(auth.organizationId, claims.approvalId);
+    const target = approval
+      ? await channels.getApprovalPromptTarget(approval.run_id)
+      : group
+        ? await channels.getApprovalPromptTarget(group.run_id)
+        : null;
+    if ((!approval && !group) || !target || target.channel_type !== input.channelType || target.external_identity !== input.externalIdentity || (input.externalConversationId && target.external_conversation_id !== input.externalConversationId) || (input.channelConnectionId && target.channel_connection_id !== input.channelConnectionId) || target.owner_actor_id !== auth.actorId) {
       return reply.code(403).send({ error: "channel_approval_not_authorized" });
     }
     try {
-      const result = await decideApproval({
-        organizationId: auth.organizationId,
-        runId: approval.run_id,
-        providerToolCallId: approval.provider_tool_call_id,
-        runtimeOperationId: approval.runtime_operation_id,
-        argumentsHash: approval.arguments_hash,
-        decision: claims.decision,
-        approvedBy: target.owner_actor_id,
-        rateLimitKey: `${auth.organizationId}:channel:${target.owner_actor_id}`,
-      });
+      const result = group
+        ? await decideApprovalGroup({
+            organizationId: auth.organizationId,
+            runId: group.run_id,
+            groupId: group.id,
+            planDigest: group.plan_digest,
+            decision: claims.decision,
+            approvedBy: target.owner_actor_id,
+            rateLimitKey: `${auth.organizationId}:channel:${target.owner_actor_id}`,
+          })
+        : await decideApproval({
+            organizationId: auth.organizationId,
+            runId: approval!.run_id,
+            providerToolCallId: approval!.provider_tool_call_id,
+            runtimeOperationId: approval!.runtime_operation_id,
+            argumentsHash: approval!.arguments_hash,
+            decision: claims.decision,
+            approvedBy: target.owner_actor_id,
+            rateLimitKey: `${auth.organizationId}:channel:${target.owner_actor_id}`,
+          });
       return reply.code(result.accepted ? 202 : 200).send({
-        runId: approval.run_id,
+        runId: group?.run_id ?? approval!.run_id,
         decision: claims.decision,
-        status: result.accepted ? "approval_signalled" : "approval_already_signalled",
+        status: result.accepted ? group ? "approval_group_signalled" : "approval_signalled" : "approval_already_signalled",
       });
     } catch (error) {
       const typed = error as { statusCode?: number; code?: string; detail?: string; retryAfterSeconds?: number };
