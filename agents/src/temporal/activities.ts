@@ -52,6 +52,7 @@ import { buildGroundingProvenance } from "../runtime/provenance";
 import { approvalSnapshotHashFromResource, toolInvocationContextFromScope, type ToolInvocationContext } from "../tools/types";
 import type { CoreContentPost, CoreContentPosts, CoreContentPublishBatch, CoreContentPublishBatchPreflight, CoreWorkspaceConnections, CoreWorkspaceStatus } from "../core/client";
 import { buildDomainApprovalSnapshot, projectBookingApprovalResource, projectCampaignApprovalResource } from "../approval/domain-preview";
+import { approvalResourceSnapshotsEqual } from "../approval/resource-revalidation";
 import { ConversationActionService } from "../actions/conversation-actions";
 import type { OfferHandoffArguments } from "../actions/conversation-actions";
 import { HandoffRepository } from "../db/repositories/handoff-repository";
@@ -2870,6 +2871,17 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
         });
         if (!persistedApproval) {
           return failure({ code: "APPROVAL_GROUP_OPERATION_NOT_APPROVED", message: "This operation was not approved in the active approval group" }, "blocked");
+        }
+        let currentResourceSnapshot: Record<string, unknown>;
+        try {
+          currentResourceSnapshot = await buildApprovalResourceSnapshotFromCore(coreClient, toolInvocationContextFromScope(executionScope), call.name, call.arguments);
+        } catch {
+          await approvals.invalidateGroup(run.organization_id, run.id, approvalGroupId, "resource_revalidation_unavailable");
+          return failure({ code: "APPROVAL_GROUP_INVALIDATED", message: "The reviewed resource could not be revalidated before execution" }, "blocked");
+        }
+        if (!approvalResourceSnapshotsEqual(persistedApproval.resource_snapshot, currentResourceSnapshot)) {
+          await approvals.invalidateGroup(run.organization_id, run.id, approvalGroupId, "resource_snapshot_changed");
+          return failure({ code: "APPROVAL_GROUP_INVALIDATED", message: "The reviewed resource changed after approval" }, "blocked");
         }
         resolvedApproval = {
           ...resolvedApproval,
