@@ -52,6 +52,11 @@ own exact identity, authorization, effect receipt, and terminal outcome.
 - `a60a954f fix(agents): replay racing approval group creation`
 - `e5a3ac18 test(agents): preserve approval failure outcomes`
 - `fc9a5bc2 test(agents): verify approval read boundary`
+- `c3dc2c7b test(agents): cover approval run and scope isolation`
+- `d6a367af fix(agents): report approval group readiness race`
+- `64f02c03 docs(agents): record approval creation readiness`
+- `7433e220 docs(agents): refresh aggregate approval evidence`
+- `9d11472f docs(agents): align approval API counts`
 
 The current branch is `rewrite`. Do not stage all changes: another agent is actively implementing
 session context and compaction in the same worktree.
@@ -136,6 +141,10 @@ session context and compaction in the same worktree.
 - The full deterministic Agents suite passed: 1,216 tests in 199 files; 175 integration tests
   were skipped because their optional service flags were not enabled.
 - `pnpm --dir agents build` passed after the decision-time invalidation and lifecycle changes.
+- The approval API boundary suite passed 15/15 after the installation, organization, run, scope,
+  stale-resource, and group-creation-readiness checks were added.
+- The deterministic Temporal suite passed 23/23 after the terminal approval-cancellation and
+  distinct post-approval failure-outcome checks were added.
 - Resource-revalidation unit tests passed.
 - Fresh disposable migration audit passed through migration 176 with 168 applied migrations.
 - Legacy disposable migration audit passed through migration 176: a pre-173 pending approval row

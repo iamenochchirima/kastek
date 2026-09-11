@@ -251,9 +251,10 @@ durable fan-out, joins, retries, and result ordering.
 
 ### Phase 3 — Build policy and approval-group formation
 
-- [ ] Keep capability manifests as the policy input for whether a call needs approval. Reads remain
+- [x] Keep capability manifests as the policy input for whether a call needs approval. Reads remain
       approval-free when policy permits; controlled writes, external effects, and privileged calls
-      remain gated.
+      remain gated. Manifest discovery, capability-policy, entrypoint, and mixed-batch tests cover
+      the boundary; real-provider capability selection remains part of the hosted sandbox gate.
 - [x] Collect all approval-required proposals in the current model-emitted batch before any such
       effect executes.
 - [x] Create one group for the current approval barrier, preserving model order and exact operation
@@ -400,8 +401,10 @@ open.
 - [x] Run an 18-operation approval-required scenario through local Temporal with one group approval
       and confirm all 18 distinct calls execute exactly once. The test uses a deterministic provider
       fixture; destructive calendar verification remains in the real-use sandbox track below.
-- [ ] Repeat with 32, 64, 128, and 256 proposals to verify group persistence, UI/API projection,
-      Temporal history handling, and no per-call approval prompt explosion.
+- [x] Repeat with 32, 64, 128, and 256 proposals across PostgreSQL, the API historical projection,
+      and the local Temporal barrier. These checks confirm complete operation sets, bounded history,
+      and one approval barrier rather than per-call prompts.
+- [ ] Complete the corresponding live Studio rendering and reconnect check at those sizes.
 - [x] Restart or replace the worker while the group is pending; approve afterward and confirm the
       original Workflow resumes without duplicate effects.
 - [x] Submit two approval decisions concurrently and confirm one decision, one resume, and one
