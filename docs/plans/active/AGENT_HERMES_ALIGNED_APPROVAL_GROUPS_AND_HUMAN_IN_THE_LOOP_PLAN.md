@@ -47,6 +47,11 @@ against a real external provider resource. The browser-facing Core proxy now als
 group-decision route; the authenticated Studio flow returned 202 after reload and custom approval
 confirmation. The real-model approval test additionally expires the conversation lease before the
 decision and passes 1/1, confirming that a long approval wait reacquires the lease before resuming.
+An opt-in configured-model sandbox test also passed 1/1 through the platform message endpoint, the
+default `kasitek.calendar.delete` capability schema and handler, the run projection, concurrent group
+decisions, a replaced local Temporal worker, and PostgreSQL state reconciliation for four uniquely
+labelled internal-calendar fixtures. This is real local capability-adapter evidence; external-provider
+sandbox reconciliation and the guided browser action remain release gates.
 
 **Related plans:**
 
@@ -489,7 +494,9 @@ Validation evidence: completed unit/redaction/SSE, PostgreSQL concurrency and 32
   local Temporal 23/23,
   local recovery/worker-loss 19/19, worker-replacement,
   expiry, stale-plan, partial provider failure, later-group, 18-operation, and 1/1 synthetic
-  real-provider approval-orchestration checks; the local migration runner applied migration 177
+  real-provider approval-orchestration checks; 1/1 configured-model local-calendar capability run
+  through the platform message and HTTP group-decision routes, including a replaced worker and
+  four-operation provider-state reconciliation; the local migration runner applied migration 177
   after the fresh and legacy migration-state audits reached 176.
   Real provider sandbox/state reconciliation, end-to-end guided Studio action/reconnect, durable
   telemetry backend, and guided Studio checks remain pending.
