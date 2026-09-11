@@ -389,9 +389,13 @@ whole autonomous path is finished.
 - [x] Unit coverage verifies continuity, structured tool pairs, compaction replay/failure
       preservation, generation reset, digest/cursor rejection, manifest identity, and provider
       model-relative thresholds. TypeScript build and focused context suites pass.
-- [ ] PostgreSQL-backed integration and local Temporal/real-provider evidence remain pending until
-      the configured integration services and test database are available. This is verification
-      evidence, not a Track B tool/approval implementation dependency.
+- [x] PostgreSQL-backed context runtime integration passes 2/2 tests, and local Temporal
+      context-compaction recovery passes 2/2 worker-loss cases (before and after persistence)
+      against the configured local services. This confirms the context durability seam; it is
+      not evidence that the Track B tool/approval path is complete.
+- [ ] Real-provider and browser evidence remain pending. The wider local Temporal recovery run
+      passed 22/23 tests; its single failure is the approval-batch scenario owned by the separate
+      tool-calling workstream.
 
 ### Phase ownership map
 
@@ -596,11 +600,13 @@ and guided browser verification.
 
 **Track A verification record (2026-09-11):** TypeScript build, typecheck, diff checks, migration
 tests, transcript repository tests, context planner/builder/compaction tests, manifest tests, and
-loop context-boundary tests pass. The broader agents suite reports 193 passing files, 43 skipped
-files, and four failing suites/three failed tests: two sandboxed listener tests, one dependent
-remote-MCP hook failure, and one unrelated HTTP fixture. PostgreSQL runtime
-integration is skipped because no integration database variables are configured; local Temporal,
-real-provider, and browser evidence remain release-gate work. These gaps do not block Track A's
+loop context-boundary tests pass. PostgreSQL context runtime integration passes 2/2 tests against
+the local agents database. Local Temporal context-compaction recovery passes 2/2 worker-loss
+cases. The wider local Temporal recovery run passes 22/23 tests; the remaining failure is the
+approval-batch scenario owned by the separate tool-calling workstream. The broader agents suite
+reports 193 passing files, 43 skipped files, and four failing suites/three failed tests: two
+sandboxed listener tests, one dependent remote-MCP hook failure, and one unrelated HTTP fixture.
+Real-provider and browser evidence remain release-gate work. These gaps do not block Track A's
 deterministic context foundation and are not evidence that Track B tool/approval behavior is done.
 
 **Rollback or disable plan:** Stop admitting new autonomous turns to the canary, preserve durable
