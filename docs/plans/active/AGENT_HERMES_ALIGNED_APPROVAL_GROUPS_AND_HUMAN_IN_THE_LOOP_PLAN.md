@@ -28,9 +28,9 @@ an already-fit active projection, and the same real-provider read-only smoke tes
 through local Temporal, model dispatch, durable prepare/execute/commit, and continuation. This is
 runtime/context evidence only, not approval-group evidence, because the fixture uses an
 approval-free read capability. Approval-specific verification currently includes a passing Agents
-build, 93/93 PostgreSQL approval/migration tests, 15/15 API tests, a 23/23 full deterministic
+ build, 94/94 PostgreSQL approval/migration tests, 17/17 API tests plus 2 pure session-grant tests, a 23/23 full deterministic
 Temporal suite, including worker replacement while a group was pending and 32/64/128/256-operation
-group barriers, 15/15 API approval-group tests including installation/run binding, missing-scope
+ group barriers, 17/17 API approval-group tests including installation/run binding, missing-scope
 rejection, and completed-run rejection, and a 1/1 opt-in
 real-provider approval orchestration test using a synthetic external-effect capability through the
 actual HTTP decision endpoint, including concurrent duplicate-decision handling. A disposable
@@ -472,7 +472,8 @@ Logs, metrics, dashboards, and alerts: OpenTelemetry instruments and a provider-
 User, API, internal, and operational documentation: update Studio/API approval documentation,
   internal execution architecture, Temporal recovery runbook, and migration/rollback runbook
 Validation evidence: completed unit/redaction/SSE, PostgreSQL concurrency and 32/64/128/256
-  persistence, bounded session-grant persistence, idempotent consumed-event evidence, 19/19 API,
+  persistence, bounded session-grant persistence, idempotent consumed-event evidence, 17/17 API
+  plus 2 pure session-grant tests,
   local Temporal 23/23,
   local recovery/worker-loss 19/19, worker-replacement,
   expiry, stale-plan, partial provider failure, later-group, 18-operation, and 1/1 synthetic
