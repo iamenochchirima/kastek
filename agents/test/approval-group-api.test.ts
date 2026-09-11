@@ -276,7 +276,7 @@ describe("approval-group API", () => {
       expect(response.statusCode).toBe(200);
       expect(response.json()).toMatchObject({
         approvalGroup: { id: groupId, operations: [{ runtimeOperationId: "operation-1" }] },
-        approvalGroups: [{ id: groupId }],
+        approvalGroups: [{ id: groupId, operations: [{ runtimeOperationId: "operation-1" }] }],
       });
     } finally {
       await fixture.app.close();

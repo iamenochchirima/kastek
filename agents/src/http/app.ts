@@ -6013,11 +6013,15 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       approvals.getActiveGroup(auth.organizationId, run.id),
       approvals.listGroups(auth.organizationId, run.id),
     ]);
+    const approvalGroupHistory = await Promise.all(approvalGroups.map(async (group) => publicApprovalGroup(
+      group,
+      await approvals.listGroupOperations(auth.organizationId, group.id),
+    )));
     return {
       run,
       approval: publicApprovalStatus(approval),
       approvalGroup: publicApprovalGroup(approvalGroup?.group ?? null, approvalGroup?.approvals ?? []),
-      approvalGroups: approvalGroups.map((group) => publicApprovalGroup(group)),
+      approvalGroups: approvalGroupHistory,
       events,
     };
   });
