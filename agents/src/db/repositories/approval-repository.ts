@@ -178,7 +178,7 @@ export class ApprovalRepository {
     const result = await query<ApprovalRecord>(
       this.pool,
       `SELECT * FROM agent_approval_records
-       WHERE organization_id = $1 AND run_id = $2
+       WHERE organization_id = $1 AND run_id = $2 AND approval_group_id IS NULL
        ORDER BY created_at DESC
        LIMIT 1`,
       [organizationId, runId],

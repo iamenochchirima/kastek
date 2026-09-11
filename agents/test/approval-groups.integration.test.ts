@@ -212,6 +212,22 @@ describe.skipIf(!runIntegration)("durable approval groups (PostgreSQL integratio
     })).rejects.toThrow("already consumed");
   });
 
+  it("does not expose grouped operations through the legacy per-run reader", async () => {
+    const runId = await createRun(`grouped-reader-${randomUUID()}`);
+    await approvals.createGroup({
+      organizationId,
+      installationId,
+      runId,
+      batchId: `${runId}:batch:1`,
+      turnKey: "model-turn:1",
+      policyRevision: "v1",
+      expiresAt: new Date(Date.now() + 60_000).toISOString(),
+      proposals: proposals(2, "grouped-reader"),
+    });
+
+    expect(await approvals.getForRun(organizationId, runId)).toBeNull();
+  });
+
   it("appends consumed group evidence idempotently across activity retries", async () => {
     const runId = await createRun(`consumed-event-${randomUUID()}`);
     const created = await approvals.createGroup({
