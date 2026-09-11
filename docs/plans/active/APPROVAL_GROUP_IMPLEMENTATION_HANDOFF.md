@@ -49,6 +49,7 @@ own exact identity, authorization, effect receipt, and terminal outcome.
 - `2bbc6e84 test(agents): exercise concurrent approval clicks`
 - `d059da0f docs(agents): record approval race evidence`
 - `c3dc2c7b test(agents): cover approval run and scope isolation`
+- `a60a954f fix(agents): replay racing approval group creation`
 
 The current branch is `rewrite`. Do not stage all changes: another agent is actively implementing
 session context and compaction in the same worktree.
@@ -107,8 +108,9 @@ session context and compaction in the same worktree.
 
 - `pnpm --dir agents build` passed.
 - Client build passed after the group client changes.
-- PostgreSQL integration passed: 92/92 tests across approval groups and migration tests, including
-  rejected terminal/idempotent decisions and 32/64/128/256-operation persistence/listing.
+- PostgreSQL integration passed: 93/93 tests across approval groups and migration tests, including
+  rejected terminal/idempotent decisions, concurrent group creation replay, and
+  32/64/128/256-operation persistence/listing.
 - API approval-group tests passed: 14/14, including approval and rejection, tenant isolation,
   installation/run binding, missing-scope rejection, completed-run rejection, stale digest/resource
   conflicts, expired/cancelled/already-signalled outcomes, 256-operation run-detail history, and

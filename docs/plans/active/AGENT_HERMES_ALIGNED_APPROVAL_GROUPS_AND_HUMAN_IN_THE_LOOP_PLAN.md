@@ -16,7 +16,8 @@ resource revalidation, terminal typed outcomes, lifecycle conflict/resume events
 checks, deterministic worker replacement, historical per-operation outcome projections, and
 32/64/128/256-operation Temporal barriers, bounded approval evidence in public run-event/SSE
 projections, idempotent group-consumed evidence after durable batch commit, and approval lifecycle
-OpenTelemetry metric instruments. Real-provider sandbox/state verification still requires a
+OpenTelemetry metric instruments, and concurrent group creation now replays one complete group.
+Real-provider sandbox/state verification still requires a
 disposable provider fixture;
 durable dashboard provisioning, compatibility cleanup, and guided Studio checks remain open.
 
@@ -27,7 +28,7 @@ an already-fit active projection, and the same real-provider read-only smoke tes
 through local Temporal, model dispatch, durable prepare/execute/commit, and continuation. This is
 runtime/context evidence only, not approval-group evidence, because the fixture uses an
 approval-free read capability. Approval-specific verification currently includes a passing Agents
-build, 92/92 PostgreSQL approval/migration tests, 14/14 API tests, a 21/21 full deterministic
+build, 93/93 PostgreSQL approval/migration tests, 14/14 API tests, a 21/21 full deterministic
 Temporal suite, including worker replacement while a group was pending and 32/64/128/256-operation
 group barriers, 14/14 API approval-group tests including installation/run binding, missing-scope
 rejection, and completed-run rejection, and a 1/1 opt-in
