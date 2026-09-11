@@ -108,7 +108,9 @@ function approvalPlanDigest(proposals: ApprovalGroupProposal[], policyRevision: 
       policyRevision: proposal.policyRevision,
       permittedEffectKey: proposal.permittedEffectKey,
     }))
-    .sort((left, right) => left.runtimeOperationId.localeCompare(right.runtimeOperationId));
+    // Model order is part of the reviewed batch contract. Keep object keys
+    // canonicalized above, but do not sort proposals: a reordered batch must
+    // produce a fresh digest and cannot reuse an existing approval barrier.
   return createHash("sha256").update(JSON.stringify({ policyRevision, proposals: payload })).digest("hex");
 }
 
@@ -315,10 +317,23 @@ export class ApprovalRepository {
       if (group.plan_digest !== input.planDigest) throw new Error("APPROVAL_GROUP_DIGEST_MISMATCH");
       const approvals = await this.listGroupOperationsWithClient(client, input.organizationId, group.id);
       const allOperationIds = approvals.map((approval) => approval.runtime_operation_id);
-      const selected = input.decision === "approved"
-        ? [...new Set(input.selectedOperationIds ?? allOperationIds)]
+      if (input.decision === "rejected" && input.selectedOperationIds?.length) {
+        throw new Error("APPROVAL_GROUP_SELECTION_NOT_ALLOWED");
+      }
+      const requestedSelected = input.decision === "approved"
+        ? input.selectedOperationIds ?? allOperationIds
         : [];
-      if (selected.some((operationId) => !allOperationIds.includes(operationId))) throw new Error("APPROVAL_GROUP_OPERATION_NOT_FOUND");
+      if (new Set(requestedSelected).size !== requestedSelected.length) {
+        throw new Error("APPROVAL_GROUP_SELECTION_DUPLICATE");
+      }
+      if (requestedSelected.some((operationId) => !allOperationIds.includes(operationId))) {
+        throw new Error("APPROVAL_GROUP_OPERATION_NOT_FOUND");
+      }
+      // Selection order is presentation input, not authorization meaning.
+      // Persist it in the immutable proposal order so an equivalent retry with
+      // reordered selected IDs remains idempotent.
+      const selectedSet = new Set(requestedSelected);
+      const selected = allOperationIds.filter((operationId) => selectedSet.has(operationId));
       const requestedStatus = input.decision === "rejected" ? "rejected" : selected.length === allOperationIds.length ? "approved" : "partially_approved";
       const expectedDecision = requestedStatus === "rejected" ? "rejected" : requestedStatus;
       if (group.status !== "pending") {

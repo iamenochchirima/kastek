@@ -30,7 +30,10 @@ const config: AppConfig = {
 
 const fakePool = { query: async () => ({ rows: [] }) } as never;
 
-function group(status: "pending" | "approved" = "pending") {
+type FixtureGroupStatus = "pending" | "approved" | "partially_approved" | "rejected" | "expired" | "cancelled" | "invalidated" | "consumed";
+
+function group(status: FixtureGroupStatus = "pending", expiresAt = new Date(Date.now() + 60_000).toISOString()) {
+  const decided = status !== "pending";
   return {
     id: groupId,
     organization_id: organizationId,
@@ -42,12 +45,12 @@ function group(status: "pending" | "approved" = "pending") {
     policy_revision: "v1",
     status,
     selected_operation_ids: status === "approved" ? ["operation-1"] : [],
-    decision: status === "approved" ? "approved" : null,
-    decided_by: status === "approved" ? "operator-1" : null,
+    decision: status === "approved" ? "approved" : decided ? "rejected" : null,
+    decided_by: decided ? "operator-1" : null,
     decision_idempotency_key: null,
-    expires_at: new Date(Date.now() + 60_000).toISOString(),
+    expires_at: expiresAt,
     created_at: new Date().toISOString(),
-    decided_at: null,
+    decided_at: decided ? new Date().toISOString() : null,
     consumed_at: null,
   };
 }
@@ -77,16 +80,26 @@ function operation() {
   };
 }
 
-function buildFixture(currentSnapshot = resourceSnapshot) {
-  const currentGroup = group();
+function buildFixture(currentSnapshot = resourceSnapshot, options: { status?: FixtureGroupStatus; expiresAt?: string; runStatus?: string; decideError?: string } = {}) {
+  const currentGroup = group(options.status, options.expiresAt);
   const currentOperation = { ...operation(), resource_snapshot: currentSnapshot };
   const getGroup = vi.fn(async (organization: string) => organization === organizationId ? currentGroup : null);
   const listGroupOperations = vi.fn(async () => [currentOperation]);
-  const decideGroup = vi.fn(async (input: { approvedBy: string }) => ({
-    accepted: true,
-    group: { ...currentGroup, status: "approved", decision: "approved", decided_by: input.approvedBy, selected_operation_ids: ["operation-1"] },
-    approvals: [{ ...currentOperation, status: "approved", approved_by: input.approvedBy }],
-  }));
+  const decideGroup = vi.fn(async (input: { approvedBy: string }) => {
+    if (options.decideError) throw new Error(options.decideError);
+    if (currentGroup.status !== "pending") {
+      return {
+        accepted: false,
+        group: currentGroup,
+        approvals: [{ ...currentOperation, status: currentGroup.status === "approved" ? "approved" : "denied", approved_by: currentGroup.decided_by }],
+      };
+    }
+    return {
+      accepted: true,
+      group: { ...currentGroup, status: "approved", decision: "approved", decided_by: input.approvedBy, selected_operation_ids: ["operation-1"] },
+      approvals: [{ ...currentOperation, status: "approved", approved_by: input.approvedBy }],
+    };
+  });
   const invalidateGroup = vi.fn(async () => ({ ...currentGroup, status: "invalidated", decision: "rejected" }));
   const signalApprovalGroup = vi.fn(async () => undefined);
   const appendEvent = vi.fn(async () => undefined);
@@ -115,10 +128,19 @@ function buildFixture(currentSnapshot = resourceSnapshot) {
     pool: fakePool,
     agents: { getInstallation: async () => ({ id: installationId, organization_id: organizationId, agent_definition_id: "agent-1", agent_version_id: "version-1", status: "active" }) } as never,
     runs: {
-      getRun: async () => ({ id: runId, organization_id: organizationId, installation_id: installationId, agent_definition_id: "agent-1", agent_version_id: "version-1", conversation_id: null, trigger_type: "manual", status: "awaiting_approval", input: {}, output: null, error: null, correlation_id: randomUUID(), causation_id: null, created_by: "user-1", created_at: new Date().toISOString(), started_at: null, finished_at: null, updated_at: new Date().toISOString() }),
+      getRun: async () => ({ id: runId, organization_id: organizationId, installation_id: installationId, agent_definition_id: "agent-1", agent_version_id: "version-1", conversation_id: null, trigger_type: "manual", status: options.runStatus ?? "awaiting_approval", input: {}, output: null, error: null, correlation_id: randomUUID(), causation_id: null, created_by: "user-1", created_at: new Date().toISOString(), started_at: null, finished_at: null, updated_at: new Date().toISOString() }),
+      listEvents: async () => [],
       appendEvent,
     } as never,
-    approvals: { getGroup, listGroupOperations, decideGroup, invalidateGroup } as never,
+    approvals: {
+      getGroup,
+      listGroupOperations,
+      getForRun: async () => null,
+      getActiveGroup: async () => ({ group: currentGroup, approvals: [currentOperation] }),
+      listGroups: async () => [currentGroup],
+      decideGroup,
+      invalidateGroup,
+    } as never,
     toolInvocations: { getProposal: async () => ({ organizationId, runId, providerToolCallId: "provider-1", runtimeOperationId: "operation-1", sequenceNumber: 1, toolName: capability, toolVersion: "1.0.0", riskClass: "external-effect", argumentsHash: "b".repeat(64), arguments: argumentsValue, requiresApproval: true }) } as never,
     toolGrants: { effectiveTools: async () => new Set([capability]) } as never,
     installationGrants: { effective: async () => ({ resources: [], connectors: [] }) } as never,
@@ -163,6 +185,79 @@ describe("approval-group API", () => {
       expect(fixture.decideGroup).toHaveBeenCalledTimes(1);
       expect(fixture.signalApprovalGroup).toHaveBeenCalledWith(runId, expect.objectContaining({ groupId, planDigest, decision: "approved" }));
       expect(fixture.appendEvent).toHaveBeenCalledWith(expect.objectContaining({ eventType: "agent.approval.group.approved" }));
+    } finally {
+      await fixture.app.close();
+    }
+  });
+
+  it("returns an idempotent already-signalled response without creating another decision", async () => {
+    const fixture = buildFixture(resourceSnapshot, { status: "approved" });
+    try {
+      const response = await fixture.app.inject({
+        method: "POST",
+        url: `/v1/runs/${runId}/approval-group`,
+        headers: { "x-organization-id": organizationId, "x-actor-id": "operator-1" },
+        payload: { groupId, planDigest, decision: "approved", selectedOperationIds: ["operation-1"] },
+      });
+      expect(response.statusCode).toBe(200);
+      expect(response.json()).toMatchObject({ status: "approval_group_already_signalled", decision: "approved" });
+      expect(fixture.decideGroup).toHaveBeenCalledTimes(1);
+      expect(fixture.signalApprovalGroup).toHaveBeenCalledTimes(1);
+    } finally {
+      await fixture.app.close();
+    }
+  });
+
+  it("returns an explicit expired outcome from a late decision", async () => {
+    const fixture = buildFixture(resourceSnapshot, {
+      expiresAt: new Date(Date.now() - 1_000).toISOString(),
+      decideError: "APPROVAL_GROUP_EXPIRED",
+    });
+    try {
+      const response = await fixture.app.inject({
+        method: "POST",
+        url: `/v1/runs/${runId}/approval-group`,
+        headers: { "x-organization-id": organizationId, "x-actor-id": "operator-1" },
+        payload: { groupId, planDigest, decision: "approved" },
+      });
+      expect(response.statusCode).toBe(409);
+      expect(response.json()).toMatchObject({ error: "approval_group_expired" });
+      expect(fixture.signalApprovalGroup).not.toHaveBeenCalled();
+    } finally {
+      await fixture.app.close();
+    }
+  });
+
+  it("rejects a decision after cancellation as a terminal conflict", async () => {
+    const fixture = buildFixture(resourceSnapshot, { status: "cancelled", decideError: "APPROVAL_GROUP_NOT_PENDING" });
+    try {
+      const response = await fixture.app.inject({
+        method: "POST",
+        url: `/v1/runs/${runId}/approval-group`,
+        headers: { "x-organization-id": organizationId, "x-actor-id": "operator-1" },
+        payload: { groupId, planDigest, decision: "approved" },
+      });
+      expect(response.statusCode).toBe(409);
+      expect(response.json()).toMatchObject({ error: "approval_group_not_pending" });
+      expect(fixture.signalApprovalGroup).not.toHaveBeenCalled();
+    } finally {
+      await fixture.app.close();
+    }
+  });
+
+  it("projects the complete active group and historical group summaries in run detail", async () => {
+    const fixture = buildFixture();
+    try {
+      const response = await fixture.app.inject({
+        method: "GET",
+        url: `/v1/runs/${runId}`,
+        headers: { "x-organization-id": organizationId, "x-actor-id": "operator-1" },
+      });
+      expect(response.statusCode).toBe(200);
+      expect(response.json()).toMatchObject({
+        approvalGroup: { id: groupId, operations: [{ runtimeOperationId: "operation-1" }] },
+        approvalGroups: [{ id: groupId }],
+      });
     } finally {
       await fixture.app.close();
     }

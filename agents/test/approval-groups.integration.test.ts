@@ -188,6 +188,52 @@ describe.skipIf(!runIntegration)("durable approval groups (PostgreSQL integratio
     expect(second.group.plan_digest).not.toBe(first.group.plan_digest);
   });
 
+  it("rejects a reordered replay and tampered operation selections", async () => {
+    const runId = await createRun(`selection-integrity-${randomUUID()}`);
+    const input = proposals(3, "selection-integrity");
+    const created = await approvals.createGroup({
+      organizationId,
+      installationId,
+      runId,
+      batchId: `${runId}:batch:1`,
+      turnKey: "model-turn:1",
+      policyRevision: "v1",
+      expiresAt: new Date(Date.now() + 60_000).toISOString(),
+      proposals: input,
+    });
+
+    await expect(approvals.createGroup({
+      organizationId,
+      installationId,
+      runId,
+      batchId: `${runId}:batch:1`,
+      turnKey: "model-turn:1",
+      policyRevision: "v1",
+      expiresAt: new Date(Date.now() + 60_000).toISOString(),
+      proposals: [...input].reverse(),
+    })).rejects.toThrow("stale or conflicts");
+
+    await expect(approvals.decideGroup({
+      organizationId,
+      runId,
+      groupId: created.group.id,
+      planDigest: created.group.plan_digest,
+      decision: "approved",
+      selectedOperationIds: [created.approvals[0]!.runtime_operation_id, created.approvals[0]!.runtime_operation_id],
+      approvedBy: "operator-1",
+    })).rejects.toThrow("APPROVAL_GROUP_SELECTION_DUPLICATE");
+
+    await expect(approvals.decideGroup({
+      organizationId,
+      runId,
+      groupId: created.group.id,
+      planDigest: created.group.plan_digest,
+      decision: "approved",
+      selectedOperationIds: ["not-in-group"],
+      approvedBy: "operator-1",
+    })).rejects.toThrow("APPROVAL_GROUP_OPERATION_NOT_FOUND");
+  });
+
   it("materializes expiration before rejecting a late decision", async () => {
     const runId = await createRun(`expire-late-${randomUUID()}`);
     const created = await approvals.createGroup({
