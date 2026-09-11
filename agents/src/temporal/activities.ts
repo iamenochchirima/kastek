@@ -100,7 +100,7 @@ import { MemoryConsolidationJobRepository } from "../db/repositories/memory-cons
 import { MemoryJournalSourceCapture, type MemoryJournalScope } from "../memory/journal-source-capture";
 import { ModelCapabilityRepository } from "../db/repositories/model-capability-repository";
 import { DurableContextCapabilityResolver, type ContextCapabilityCatalogResolver } from "../runtime/context-capability";
-import type { ProviderContextProfile } from "../runtime/context-planning";
+import { resolveContextRetainedMessageUnitLimit, type ProviderContextProfile } from "../runtime/context-planning";
 import { getKasiAiModelCatalog } from "../system/kasiai-models";
 import type { ModelCapabilityRoute } from "../model/model-capability-catalog";
 import { ProviderMetadataClient } from "../model/provider-metadata";
@@ -112,7 +112,7 @@ import { KASIAI_PLATFORM_GUIDANCE_EXTENSION } from "../system/kasiai-platform-gu
 import { getPluginAdapter, type PluginAdapter, type PluginAdapterCredentialState } from "../extensions/plugin-adapters";
 import { registerSkillDiscoveryTools, SKILL_DISCOVERY_TOOL_NAMES } from "../skills/runtime-tools";
 import { markDuplicateToolCalls, planToolBatch } from "../runtime/tool-batch";
-import { transcriptDigest } from "../runtime/transcript";
+import { toolOperationIdentity, transcriptDigest } from "../runtime/transcript";
 import { classifyToolFailure, type ToolFailureClass } from "../runtime/tool-failure";
 
 export interface ActivityOptions {
@@ -3628,6 +3628,72 @@ function durableConversationMessageToModelMessage(message: {
   };
 }
 
+interface LegacyTranscriptBoundary {
+  readonly id: string;
+  readonly skippedDisplayMessageIds: readonly string[];
+  readonly toolCallIds: readonly string[];
+}
+
+/**
+ * Legacy display rows are not a reliable tool transcript. Import a historical
+ * tool round only when every call has one exact, ordered result; otherwise
+ * preserve the display rows and expose an explicit interrupted boundary in the
+ * canonical projection rather than fabricating a result.
+ */
+function legacyTranscriptBoundaryPlan(messages: readonly {
+  id: string;
+  direction: string;
+  message_type: string;
+  content: Record<string, unknown>;
+}[]): { skipIds: ReadonlySet<string>; boundaries: readonly LegacyTranscriptBoundary[] } {
+  const validToolResultIndexes = new Set<number>();
+  const skipIds = new Set<string>();
+  const boundaries: LegacyTranscriptBoundary[] = [];
+  for (let index = 0; index < messages.length; index += 1) {
+    const modelMessage = durableConversationMessageToModelMessage(messages[index]!);
+    if (modelMessage.role !== "assistant" || !modelMessage.toolCalls?.length) continue;
+    const expectedIdentities = modelMessage.toolCalls.map((call) => toolOperationIdentity(call));
+    const expected = new Set(expectedIdentities.filter((value): value is string => Boolean(value)));
+    const resultIndexes: number[] = [];
+    const resultIdentityList: (string | undefined)[] = [];
+    const resultIdentities = new Set<string>();
+    for (let resultIndex = index + 1; resultIndex < messages.length; resultIndex += 1) {
+      const result = durableConversationMessageToModelMessage(messages[resultIndex]!);
+      if (result.role !== "tool") break;
+      resultIndexes.push(resultIndex);
+      const identity = toolOperationIdentity(result);
+      resultIdentityList.push(identity);
+      if (identity) resultIdentities.add(identity);
+    }
+    const exactRound = expected.size === modelMessage.toolCalls.length
+      && resultIndexes.length === expected.size
+      && resultIdentities.size === expected.size
+      && expectedIdentities.every((identity, resultIndex) => identity !== undefined && identity === resultIdentityList[resultIndex]);
+    if (exactRound) {
+      for (const resultIndex of resultIndexes) validToolResultIndexes.add(resultIndex);
+      continue;
+    }
+    const skippedIndexes = [index, ...resultIndexes];
+    for (const skippedIndex of skippedIndexes) skipIds.add(messages[skippedIndex]!.id);
+    boundaries.push({
+      id: messages[index]!.id,
+      skippedDisplayMessageIds: skippedIndexes.map((skippedIndex) => messages[skippedIndex]!.id),
+      toolCallIds: modelMessage.toolCalls.map((call) => toolOperationIdentity(call) ?? "unknown"),
+    });
+  }
+  for (let index = 0; index < messages.length; index += 1) {
+    const modelMessage = durableConversationMessageToModelMessage(messages[index]!);
+    if (modelMessage.role !== "tool" || validToolResultIndexes.has(index) || skipIds.has(messages[index]!.id)) continue;
+    skipIds.add(messages[index]!.id);
+    boundaries.push({
+      id: messages[index]!.id,
+      skippedDisplayMessageIds: [messages[index]!.id],
+      toolCallIds: [toolOperationIdentity(modelMessage) ?? "unknown"],
+    });
+  }
+  return { skipIds, boundaries };
+}
+
 function memoryRolloutFlagForTool(name: string): "memory_v2_retrieval_enabled" | "memory_v2_writes_enabled" | undefined {
   if (name === "kasitek.agent.memory_search") return "memory_v2_retrieval_enabled";
   if (name === "kasitek.agent.memory_remember" || name === "kasitek.agent.memory_correct" || name === "kasitek.agent.memory_forget") {
@@ -4006,6 +4072,13 @@ async function executeLoopForRun(
   }): Promise<void> => {
     if (!contextManifests) return;
     const identity = input.manifest.identity;
+    if (activeSessionProjection) {
+      if (identity.sourceCursor !== activeSessionProjection.sourceCursor
+        || identity.sourceGeneration !== activeSessionProjection.context.generation
+        || identity.sourceProjectionDigest !== activeSessionProjection.activeProjectionDigest) {
+        throw new Error("CONTEXT_MANIFEST_TRANSCRIPT_IDENTITY_MISMATCH");
+      }
+    }
     const record: ContextManifestRecordInput = {
       requestManifestId: identity.requestManifestId,
       runId: run.id,
@@ -4013,6 +4086,9 @@ async function executeLoopForRun(
       ...(identity.modelAttemptId ? { modelAttemptId: identity.modelAttemptId } : {}),
       ...(identity.providerRequestId ? { providerRequestId: identity.providerRequestId } : {}),
       compactionGeneration: identity.compactionGeneration ?? 0,
+      ...(identity.sourceCursor === undefined ? {} : { sourceCursor: identity.sourceCursor }),
+      ...(identity.sourceGeneration === undefined ? {} : { sourceGeneration: identity.sourceGeneration }),
+      ...(identity.sourceProjectionDigest ? { sourceProjectionDigest: identity.sourceProjectionDigest } : {}),
       sourceBoundaryDigest: identity.sourceEventBoundaryDigest,
       sourceDigest: input.manifest.sourceDigest,
       manifestDigest: input.manifest.digest,
@@ -4426,7 +4502,28 @@ async function executeLoopForRun(
     // Existing display rows are a one-time conservative bootstrap. New
     // requests thereafter read only the canonical session projection. The
     // display row id makes retries and worker replays idempotent.
+    const legacyBoundaryPlan = legacyTranscriptBoundaryPlan(durableMessages);
+    const legacyBoundaryById = new Map(legacyBoundaryPlan.boundaries.map((boundary) => [boundary.id, boundary]));
     for (const message of durableMessages) {
+      const boundary = legacyBoundaryById.get(message.id);
+      if (boundary) {
+        await sessionTranscripts.append({
+          ...transcriptScope,
+          turnId: `legacy:${boundary.id}:turn`,
+          kind: "interruption",
+          message: {
+            role: "system",
+            content: `<untrusted-data source="legacy-transcript-boundary">Historical tool evidence was not imported because its call/result correlation was incomplete. Display message IDs: ${boundary.skippedDisplayMessageIds.join(", ")}; operation IDs: ${boundary.toolCallIds.join(", ")}.</untrusted-data>`,
+          },
+          metadata: {
+            source: "legacy_boundary",
+            skippedDisplayMessageIds: boundary.skippedDisplayMessageIds,
+            toolCallIds: boundary.toolCallIds,
+          },
+          idempotencyKey: `legacy-boundary:${boundary.id}`,
+        });
+      }
+      if (legacyBoundaryPlan.skipIds.has(message.id)) continue;
       const modelMessage = durableConversationMessageToModelMessage(message);
       const kind = modelMessage.role === "user"
         ? "user" as const
@@ -4438,13 +4535,18 @@ async function executeLoopForRun(
               ? "assistant_tool_call" as const
               : "assistant_response" as const;
       const isRunFinal = message.direction === "outbound" && Boolean(message.run_id);
+      const bootstrapMetadata = message.direction === "inbound" && message.run_id
+        ? { source: "display_admission" }
+        : isRunFinal
+          ? { source: "run_completion" }
+          : { source: "legacy_display", displayMessageId: message.id };
       await sessionTranscripts.append({
         ...transcriptScope,
         turnId: message.run_id ? `${message.run_id}:turn` : `legacy:${message.id}`,
         ...(message.run_id ? { runId: message.run_id } : {}),
         kind,
         message: modelMessage,
-        metadata: isRunFinal ? { source: "run_completion" } : { source: "legacy_display", displayMessageId: message.id },
+        metadata: bootstrapMetadata,
         idempotencyKey: isRunFinal ? `run-final:${message.run_id}` : `display-message:${message.id}`,
       });
     }
@@ -4489,6 +4591,16 @@ async function executeLoopForRun(
       });
     }
   }
+  const configuredMaxContextUnits = Math.max(1, restrictiveLimit(configuration.maxContextMessages, installationSettings.maxContextMessages) ?? 20);
+  const compactionContextWindowTokens = contextBudgetTokens > 0 ? contextBudgetTokens : providerContextWindowTokens;
+  const compactionOutputReservation = Math.max(1, Math.min(primaryContextCapability.maxOutputTokens ?? 2_048, 2_048));
+  const compactionHardLimitTokens = Math.max(0, compactionContextWindowTokens - compactionOutputReservation - 256);
+  const maxRetainedMessageUnits = resolveContextRetainedMessageUnitLimit({
+    messages: memorySourceMessages,
+    hardLimitTokens: compactionHardLimitTokens,
+    providerContextWindowTokens,
+    configuredMaxUnits: configuredMaxContextUnits,
+  });
   let compacted;
   try {
     compacted = await compactDurableContext({
@@ -4498,7 +4610,7 @@ async function executeLoopForRun(
       fenceToken: sessionLease?.fencingToken,
       messages: memorySourceMessages,
       policy: {
-        maxRetainedMessageUnits: Math.max(1, restrictiveLimit(configuration.maxContextMessages, installationSettings.maxContextMessages) ?? 20),
+        maxRetainedMessageUnits,
         maxSummaryTokens: 512,
       },
       adapter: contextCompaction,
@@ -4569,7 +4681,7 @@ async function executeLoopForRun(
   if (sessionProjection && compacted.diagnostics.omittedMessageCount > 0) {
     const archiveThroughSequence = archiveThroughSequenceForCompaction(
       sessionProjection,
-      Math.max(1, restrictiveLimit(configuration.maxContextMessages, installationSettings.maxContextMessages) ?? 20),
+      maxRetainedMessageUnits,
     );
     if (archiveThroughSequence !== undefined) {
       const activated = await sessionTranscripts.activateCompaction({
@@ -4853,6 +4965,11 @@ async function executeLoopForRun(
     contextCapabilityResolver: resolveAttemptContextCapability,
     recordContextCapabilityCorrection: async ({ provider: attemptProvider, model: attemptModel, profile, credentialRouteId, correction }: { provider: ModelProvider; model: string; profile: ProviderContextProfile; credentialRouteId?: string; correction: { contextWindowTokens?: number; maxOutputTokens?: number } }) => contextCapabilities.recordCorrection({ organizationId: run.organization_id, profile: { ...profile, provider: attemptProvider, model: attemptModel }, credentialRouteId, runtimeEnvironment: process.env.NODE_ENV ?? "development", correction }),
     contextCompactionGeneration: compacted.diagnostics.generation,
+    ...(activeSessionProjection ? {
+      contextSourceCursor: activeSessionProjection.sourceCursor,
+      contextSourceGeneration: activeSessionProjection.context.generation,
+      contextSourceProjectionDigest: activeSessionProjection.activeProjectionDigest,
+    } : {}),
     ...(memoryIntent && memoryRetrievalPort && memoryV2RetrievalEnabled ? {
       memoryRetrievalPort,
       memoryScope,

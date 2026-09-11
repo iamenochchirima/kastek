@@ -81,6 +81,12 @@ export interface AgentLoopInput {
   streamModel?: boolean;
   /** Durable generation of the context projection used by this turn. */
   contextCompactionGeneration?: number;
+  /** Canonical transcript head sequence used by this turn's model requests. */
+  contextSourceCursor?: number;
+  /** Canonical transcript generation used by this turn's model requests. */
+  contextSourceGeneration?: number;
+  /** Digest of the canonical active projection used by this turn's model requests. */
+  contextSourceProjectionDigest?: string;
   /** Durable run admission time, separate from harness execution start. */
   admittedAt?: string;
   /** Stable turn identity shared with memory and context journal events. */
@@ -543,18 +549,9 @@ export async function runBoundedAgentLoop(input: AgentLoopInput): Promise<AgentL
           const tools = input.modelTools ?? input.tools.list(input.grantedTools);
           operationKey = `${input.operationKeyPrefix ?? "model"}:${iteration}:${attemptIndex}`;
           lastModelOperationKey = operationKey;
-          const preparedMessages = prepareModelMessages({ messages });
-          if (preparedMessages.repairedPairCount > 0) {
-            messages.splice(0, messages.length, ...preparedMessages.messages);
-            await emit(input, {
-              type: "loop.started",
-              iteration,
-              payload: {
-                phase: "iteration",
-                repairedPairCount: preparedMessages.repairedPairCount,
-              },
-            });
-          }
+          // Structural validation is the only responsibility at this seam;
+          // history selection belongs to the provider-aware planner below.
+          prepareModelMessages({ messages });
           const isPrimaryModel = attempt.model.provider === input.model.provider && attempt.model.model === input.model.model;
           const profileForAttempt: ProviderContextProfile | undefined = input.contextProfile
             ? {
@@ -658,6 +655,9 @@ export async function runBoundedAgentLoop(input: AgentLoopInput): Promise<AgentL
                     turnId: input.turnId ?? input.toolContext.runId,
                     modelAttemptId: operationKey,
                     compactionGeneration: input.contextCompactionGeneration ?? 0,
+                    ...(input.contextSourceCursor === undefined ? {} : { sourceCursor: input.contextSourceCursor }),
+                    ...(input.contextSourceGeneration === undefined ? {} : { sourceGeneration: input.contextSourceGeneration }),
+                    ...(input.contextSourceProjectionDigest ? { sourceProjectionDigest: input.contextSourceProjectionDigest } : {}),
                     sourceEventBoundaryDigest: sourceEventBoundaryFromMessages(messages, input.memorySourceEventIds ?? []).digest,
                   },
                   requestBytesEstimator: ({ messages: candidateMessages, tools: candidateTools }) => input.gateway.estimateRequestBytes({
