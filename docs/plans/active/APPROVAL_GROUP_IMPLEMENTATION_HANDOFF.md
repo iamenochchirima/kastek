@@ -50,6 +50,7 @@ own exact identity, authorization, effect receipt, and terminal outcome.
 - `d059da0f docs(agents): record approval race evidence`
 - `c3dc2c7b test(agents): cover approval run and scope isolation`
 - `a60a954f fix(agents): replay racing approval group creation`
+- `e5a3ac18 test(agents): preserve approval failure outcomes`
 
 The current branch is `rewrite`. Do not stage all changes: another agent is actively implementing
 session context and compaction in the same worktree.
@@ -120,10 +121,12 @@ session context and compaction in the same worktree.
   synthetic external-effect invocation. It also submits two concurrent decisions and verifies one
   accepted response plus one idempotent response. This validates orchestration only; it is not provider
   sandbox/state-reconciliation or Studio evidence.
-- The full deterministic Temporal tool-execution suite passed: 21/21, including the
+- The full deterministic Temporal tool-execution suite passed: 22/22, including the
   18-operation group, rejection, invalidation, expiry, cancellation, retry/failure matrix,
   replay, cancellation, history, worker replacement, 32/64/128/256-operation approval groups,
-  partial provider failure, and fresh groups on later model turns.
+  partial provider failure, distinct timeout/retry-exhausted/unknown outcomes after group
+  approval, and fresh groups on later model turns. The new failure matrix is deterministic and
+  preserves one attempt per operation; real provider state reconciliation remains a release gate.
 - The local Temporal recovery and worker-loss matrices passed 19/19 after the recovery fixture
   was aligned with the durable approval-group signal and approval-required operation identity.
   This confirms the approval fan-out/recovery seam locally; it does not replace hosted Studio,
