@@ -37,6 +37,8 @@ own exact identity, authorization, effect receipt, and terminal outcome.
 - `e7c15aa9 test(agents): isolate approval groups across model turns`
 - `331a6cef fix(agents): persist approval group consumed evidence`
 - `1f91e213 feat(agents): instrument approval group lifecycle`
+- `642e8cf9 feat(agents): standardize approval lifecycle evidence`
+- `c43608b5 test(agents): verify approval event metadata`
 
 The current branch is `rewrite`. Do not stage all changes: another agent is actively implementing
 session context and compaction in the same worktree.
@@ -77,6 +79,9 @@ session context and compaction in the same worktree.
   decision latency, stale/duplicate/conflict outcomes, and post-approval failed/unknown provider
   outcomes. It does not use group, run, organization, resource, or provider request IDs as metric
   labels. See [`Agent approval-group observability`](../../internal/operations/agent-approval-observability.md).
+- Group lifecycle run events now carry the same bounded group/run/batch/plan/policy/count/actor
+  metadata, with applicable terminal duration and error code fields. Event metadata coverage is
+  asserted at the API boundary.
 
 ### API, channel, and Studio surface
 
@@ -125,10 +130,10 @@ another one. The worker-replacement case is in the same test file and can be sel
 
 ## Immediate next work
 
-1. Complete lifecycle observability: make metadata consistent across every group event, provision
-   the documented dashboards/alerts in a durable backend, and validate bounded structured logging
-   and signal delivery in a hosted environment. Metric instruments and group-level consumed evidence
-   are implemented and locally verified.
+1. Complete lifecycle observability: provision the documented dashboards/alerts in a durable
+   backend, and validate bounded structured logging and signal delivery in a hosted environment.
+   Metric instruments, consistent event metadata, and group-level consumed evidence are implemented
+   and locally verified.
 2. Run the real-provider/sandbox and guided Studio tracks, including refresh/reconnect, duplicate
    approval clicks, partial provider failure, and provider-state reconciliation.
 3. Preserve the fresh-database and legacy-row migration evidence, run the rollback drill, and do
