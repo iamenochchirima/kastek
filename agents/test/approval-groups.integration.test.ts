@@ -280,6 +280,16 @@ describe.skipIf(!runIntegration)("durable approval groups (PostgreSQL integratio
       groupId: created.group.id,
       planDigest: created.group.plan_digest,
       decision: "approved",
+      selectedOperationIds: [],
+      approvedBy: "operator-1",
+    })).rejects.toThrow("APPROVAL_GROUP_SELECTION_EMPTY");
+
+    await expect(approvals.decideGroup({
+      organizationId,
+      runId,
+      groupId: created.group.id,
+      planDigest: created.group.plan_digest,
+      decision: "approved",
       selectedOperationIds: [created.approvals[0]!.runtime_operation_id, created.approvals[0]!.runtime_operation_id],
       approvedBy: "operator-1",
     })).rejects.toThrow("APPROVAL_GROUP_SELECTION_DUPLICATE");

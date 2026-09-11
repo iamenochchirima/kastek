@@ -390,6 +390,87 @@ describe.skipIf(!runIntegration)("Temporal tool execution reliability (integrati
     expect(modelSteps).toBe(2);
   }, 30_000);
 
+  it.each([32, 64, 128, 256])("executes a %d-operation approval group through one Temporal barrier", async (count) => {
+    const taskQueue = `agent-approval-scale-${count}-${randomUUID()}`;
+    const workflowId = `agent-run-${randomUUID()}`;
+    const groupId = randomUUID();
+    const planDigest = "s".repeat(64);
+    const calls = Array.from({ length: count }, (_, index) => ({
+      ...call(`scale-${count}-${index + 1}`),
+      name: "records.delete",
+      sequenceNumber: index + 1,
+    }));
+    let modelSteps = 0;
+    let pauses = 0;
+    const executed: string[] = [];
+    const committed: DurableToolCallResult[] = [];
+    const activities: AgentRunActivities = {
+      transitionRun: async () => undefined,
+      waitForConversationTurn: async () => true,
+      getContentPublishBatchStatus: async () => ({ status: "UNAVAILABLE" }),
+      executeLoop: async () => { throw new Error("legacy executeLoop must not run for a new execution"); },
+      executeModelStep: async () => {
+        modelSteps += 1;
+        return modelSteps === 1 ? pendingBatchResult(calls) : completedResult(`The ${count}-operation group completed.`);
+      },
+      prepareToolBatch: async ({ calls: prepared }) => [{
+        kind: "parallel" as const,
+        segmentId: "batch:segment:scale",
+        calls: prepared.map((current) => ({ ...current, approvalGroupId: groupId, approvalPlanDigest: planDigest })),
+      }],
+      executeToolCall: async ({ call: current }) => {
+        executed.push(current.id);
+        return {
+          id: current.id,
+          providerToolCallId: current.providerToolCallId!,
+          name: current.name,
+          argumentsHash: current.argumentsHash,
+          status: "completed",
+          output: { ok: true },
+        } satisfies DurableToolCallResult;
+      },
+      commitToolBatch: async ({ results }) => {
+        committed.push(...results);
+        return { status: "committed", toolCalls: results.length };
+      },
+      pauseRun: async () => { pauses += 1; },
+      deliverApprovalPrompt: async () => undefined,
+      cancelPendingApproval: async () => undefined,
+      cancelHandoff: async () => undefined,
+      completeRun: async () => undefined,
+      generateConversationTitle: async () => undefined,
+      deliverRunReply: async () => undefined,
+      failRun: async ({ error }) => { throw new Error(String(error.message ?? "workflow failed")); },
+    };
+    const client = await startWorker(taskQueue, activities);
+    const handle = await client.workflow.start(agentRunWorkflow, { taskQueue, workflowId, args: [{ runId: workflowId }] });
+    await new Promise<void>((resolve, reject) => {
+      const deadline = setTimeout(() => reject(new Error(`workflow did not pause for ${count}-operation approval group`)), 10_000);
+      const timer = setInterval(() => {
+        if (pauses > 0) {
+          clearTimeout(deadline);
+          clearInterval(timer);
+          resolve();
+        }
+      }, 50);
+    });
+    await handle.signal(approvalGroupSignal, {
+      groupId,
+      planDigest,
+      decision: "approved",
+      approvedBy: "approver",
+      selectedOperationIds: calls.map((current) => current.id),
+      expiresAt: new Date(Date.now() + 60_000).toISOString(),
+    });
+    await handle.result();
+
+    expect(pauses).toBe(1);
+    expect(executed).toHaveLength(count);
+    expect(new Set(executed).size).toBe(count);
+    expect(committed).toHaveLength(count);
+    expect(modelSteps).toBe(2);
+  }, 30_000);
+
   it("commits typed rejected outcomes and resumes the same model turn", async () => {
     const taskQueue = `agent-approval-rejected-${randomUUID()}`;
     const workflowId = `agent-run-${randomUUID()}`;

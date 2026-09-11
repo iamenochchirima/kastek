@@ -323,6 +323,9 @@ export class ApprovalRepository {
       const requestedSelected = input.decision === "approved"
         ? input.selectedOperationIds ?? allOperationIds
         : [];
+      if (input.decision === "approved" && requestedSelected.length === 0) {
+        throw new Error("APPROVAL_GROUP_SELECTION_EMPTY");
+      }
       if (new Set(requestedSelected).size !== requestedSelected.length) {
         throw new Error("APPROVAL_GROUP_SELECTION_DUPLICATE");
       }
