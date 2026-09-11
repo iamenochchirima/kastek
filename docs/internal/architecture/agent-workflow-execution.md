@@ -82,8 +82,12 @@ exact runtime operation, provider call, arguments hash, capability revision, and
 that the reviewer saw. `Approve all` authorizes only that group, never a later model turn. The
 Temporal Workflow waits on the group decision, then each `executeToolCall` Activity re-reads and
 consumes its selected child authorization before an effect. A stale digest, unselected operation,
-expired group, or changed resource fails closed. Group approval does not change the parallel-tool
-safety segmentation; it only opens the existing durable execution barrier.
+expired group, or changed resource fails closed. The HTTP decision path revalidates the reviewed
+resource snapshot before accepting a decision; a mismatch durably invalidates the group, signals
+the waiting Workflow, and commits a typed blocked result for every child. Rejection, expiry,
+cancellation, invalidation, provider failure, and unknown effects remain distinct operation
+outcomes. Group approval does not change the parallel-tool safety segmentation; it only opens the
+existing durable execution barrier.
 
 ## Execution boundary
 
@@ -165,12 +169,15 @@ ordered transcript head, idempotent entry keys, and an active compaction pointer
 stores structured model messages so assistant tool calls, provider tool IDs, runtime operation IDs,
 and tool results are not flattened into the final customer reply.
 
-On a new turn, legacy display history is imported conservatively, the admitted user message is
-appended, and the active transcript projection is passed to the context policy. The summary table
-remains a display compatibility projection and is not read to assemble a canonical model prompt.
-The final assistant message is appended before terminal run persistence. Live tool-call and approval
-boundaries must append their structured entries through the same seam; their dispatch and effect
-state machines remain owned by the tool execution runtime.
+On a new generation-1 turn, legacy display history is imported conservatively once, the admitted user
+message is appended, and the active transcript projection is passed to the context policy. Later
+turns read the canonical session before admitting only the new user entry. During the bounded
+bootstrap window, the runtime compares legacy and canonical entry keys, ordering, content digests,
+and bounded counts; it emits no message bodies. The summary table remains a display compatibility
+projection and is not read to assemble a canonical model prompt. The final assistant message is
+appended before terminal run persistence. Live tool-call and approval boundaries must append their
+structured entries through the same seam; their dispatch and effect state machines remain owned by
+the tool execution runtime.
 
 Compaction archives the replaced active rows without deleting them, writes a validated checkpoint,
 and advances the active pointer atomically. Subsequent requests load the checkpoint followed by the

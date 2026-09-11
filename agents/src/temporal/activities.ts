@@ -114,6 +114,7 @@ import { registerSkillDiscoveryTools, SKILL_DISCOVERY_TOOL_NAMES } from "../skil
 import { markDuplicateToolCalls, planToolBatch } from "../runtime/tool-batch";
 import { toolOperationIdentity, transcriptDigest } from "../runtime/transcript";
 import { classifyToolFailure, type ToolFailureClass } from "../runtime/tool-failure";
+import { compareSessionTranscriptShadow, type SessionTranscriptShadowEntry } from "../runtime/session-transcript-shadow";
 
 export interface ActivityOptions {
   gateway?: ModelGateway;
@@ -4488,40 +4489,47 @@ async function executeLoopForRun(
       const text = typeof message.content?.text === "string" ? message.content.text : "";
       return !/KasiTek workspace assistant/i.test(text);
     });
-  let conversationSummary: Awaited<ReturnType<SummaryRepository["getSummary"]>> = null;
   const contextCompactionOperationId = `context:${run.id}:${activeLoopStep}`;
   const contextCompactionId = run.conversation_id ?? run.id;
   const memoryScope = memoryScopeFromRun(run);
   let sessionProjection: SessionTranscriptProjection | undefined;
+  let legacyShadowEntries: SessionTranscriptShadowEntry[] = [];
   if (run.conversation_id) {
     const transcriptScope = {
       organizationId: run.organization_id,
       installationId: run.installation_id,
       conversationId: run.conversation_id,
     };
-    // Existing display rows are a one-time conservative bootstrap. New
-    // requests thereafter read only the canonical session projection. The
-    // display row id makes retries and worker replays idempotent.
+    const existingSessionProjection = await sessionTranscripts.readActive(transcriptScope);
+    const shouldBootstrapLegacy = existingSessionProjection.context.generation === 1 && existingSessionProjection.sourceCursor === 0;
+    // Existing display rows are a one-time conservative bootstrap for a new
+    // generation-1 session. New requests thereafter read only the canonical
+    // session projection. The display row id makes retries and worker replays
+    // idempotent without replaying the legacy history on every turn.
     const legacyBoundaryPlan = legacyTranscriptBoundaryPlan(durableMessages);
     const legacyBoundaryById = new Map(legacyBoundaryPlan.boundaries.map((boundary) => [boundary.id, boundary]));
     for (const message of durableMessages) {
       const boundary = legacyBoundaryById.get(message.id);
       if (boundary) {
-        await sessionTranscripts.append({
-          ...transcriptScope,
-          turnId: `legacy:${boundary.id}:turn`,
-          kind: "interruption",
-          message: {
-            role: "system",
-            content: `<untrusted-data source="legacy-transcript-boundary">Historical tool evidence was not imported because its call/result correlation was incomplete. Display message IDs: ${boundary.skippedDisplayMessageIds.join(", ")}; operation IDs: ${boundary.toolCallIds.join(", ")}.</untrusted-data>`,
-          },
-          metadata: {
-            source: "legacy_boundary",
-            skippedDisplayMessageIds: boundary.skippedDisplayMessageIds,
-            toolCallIds: boundary.toolCallIds,
-          },
-          idempotencyKey: `legacy-boundary:${boundary.id}`,
-        });
+        const boundaryMessage = {
+          role: "system" as const,
+          content: `<untrusted-data source="legacy-transcript-boundary">Historical tool evidence was not imported because its call/result correlation was incomplete. Display message IDs: ${boundary.skippedDisplayMessageIds.join(", ")}; operation IDs: ${boundary.toolCallIds.join(", ")}.</untrusted-data>`,
+        };
+        if (shouldBootstrapLegacy) {
+          await sessionTranscripts.append({
+            ...transcriptScope,
+            turnId: `legacy:${boundary.id}:turn`,
+            kind: "interruption",
+            message: boundaryMessage,
+            metadata: {
+              source: "legacy_boundary",
+              skippedDisplayMessageIds: boundary.skippedDisplayMessageIds,
+              toolCallIds: boundary.toolCallIds,
+            },
+            idempotencyKey: `legacy-boundary:${boundary.id}`,
+          });
+        }
+        legacyShadowEntries.push({ idempotencyKey: `legacy-boundary:${boundary.id}`, message: boundaryMessage, kind: "interruption" });
       }
       if (legacyBoundaryPlan.skipIds.has(message.id)) continue;
       const modelMessage = durableConversationMessageToModelMessage(message);
@@ -4540,21 +4548,26 @@ async function executeLoopForRun(
         : isRunFinal
           ? { source: "run_completion" }
           : { source: "legacy_display", displayMessageId: message.id };
-      await sessionTranscripts.append({
-        ...transcriptScope,
-        turnId: message.run_id ? `${message.run_id}:turn` : `legacy:${message.id}`,
-        ...(message.run_id ? { runId: message.run_id } : {}),
-        kind,
-        message: modelMessage,
-        metadata: bootstrapMetadata,
-        idempotencyKey: isRunFinal ? `run-final:${message.run_id}` : `display-message:${message.id}`,
-      });
+      const idempotencyKey = isRunFinal ? `run-final:${message.run_id}` : `display-message:${message.id}`;
+      if (shouldBootstrapLegacy) {
+        await sessionTranscripts.append({
+          ...transcriptScope,
+          turnId: message.run_id ? `${message.run_id}:turn` : `legacy:${message.id}`,
+          ...(message.run_id ? { runId: message.run_id } : {}),
+          kind,
+          message: modelMessage,
+          metadata: bootstrapMetadata,
+          idempotencyKey,
+        });
+      }
+      legacyShadowEntries.push({ idempotencyKey, message: modelMessage, kind });
     }
     const currentDisplayMessage = allConversationMessages.find((message) => message.run_id === run.id && message.direction === "inbound")
       ?? (run.causation_id ? allConversationMessages.find((message) => message.run_id === run.causation_id && message.direction === "inbound") : undefined);
     const currentModelMessage = currentDisplayMessage
       ? durableConversationMessageToModelMessage(currentDisplayMessage)
       : { role: "user" as const, content: currentMessage };
+    const currentIdempotencyKey = currentDisplayMessage ? `display-message:${currentDisplayMessage.id}` : `run-user:${run.id}`;
     await sessionTranscripts.append({
       ...transcriptScope,
       turnId: `${run.id}:turn`,
@@ -4562,14 +4575,49 @@ async function executeLoopForRun(
       kind: "user",
       message: currentModelMessage,
       metadata: { source: currentDisplayMessage ? "display_admission" : "run_admission" },
-      idempotencyKey: currentDisplayMessage ? `display-message:${currentDisplayMessage.id}` : `run-user:${run.id}`,
+      idempotencyKey: currentIdempotencyKey,
     });
     sessionProjection = await sessionTranscripts.readActive(transcriptScope);
-  }
-  // The summary table remains a display compatibility fallback only. A
-  // conversation with a canonical session never reads it for model context.
-  if (!sessionProjection && run.conversation_id) {
-    conversationSummary = await summaries.getSummary(run.organization_id, run.conversation_id);
+    if (!legacyShadowEntries.some((entry) => entry.idempotencyKey === currentIdempotencyKey)) {
+      legacyShadowEntries.push({ idempotencyKey: currentIdempotencyKey, message: currentModelMessage, kind: "user" });
+    }
+    if (sessionProjection.context.activeCheckpointSequence === null) {
+      const shadow = compareSessionTranscriptShadow({
+        expected: legacyShadowEntries,
+        canonical: sessionProjection.entries.map((entry) => ({ idempotencyKey: entry.idempotencyKey, message: entry.message, kind: entry.kind })),
+      });
+      operationalLogger.info({
+        event: "context.transcript.shadow_comparison",
+        organization_id: run.organization_id,
+        installation_id: run.installation_id,
+        conversation_id: run.conversation_id,
+        run_id: run.id,
+        generation: sessionProjection.context.generation,
+        source_cursor: sessionProjection.sourceCursor,
+        status: shadow.status,
+        expected_count: shadow.expectedCount,
+        canonical_count: shadow.canonicalCount,
+        missing_count: shadow.missingCount,
+        canonical_only_count: shadow.canonicalOnlyCount,
+        content_mismatch_count: shadow.contentMismatchCount,
+        order_matches: shadow.orderMatches,
+        ...(shadow.reason ? { reason: shadow.reason } : {}),
+      }, "Compared bounded canonical session transcript with legacy bootstrap projection");
+    } else {
+      operationalLogger.info({
+        event: "context.transcript.shadow_comparison",
+        organization_id: run.organization_id,
+        installation_id: run.installation_id,
+        conversation_id: run.conversation_id,
+        run_id: run.id,
+        generation: sessionProjection.context.generation,
+        source_cursor: sessionProjection.sourceCursor,
+        status: "skipped",
+        reason: "canonical_compacted",
+        expected_count: legacyShadowEntries.length,
+        canonical_count: sessionProjection.entries.length,
+      }, "Skipped legacy shadow comparison because historical rows are archived behind the canonical checkpoint");
+    }
   }
   let memorySourceMessages = sessionProjection?.messages ?? durableMessages.map(durableConversationMessageToModelMessage);
   let memorySourceEventIds = sessionProjection?.entries.map((entry) => entry.id) ?? durableMessages.map((message) => message.id);
@@ -4717,7 +4765,6 @@ async function executeLoopForRun(
   // a second fixed-count prompt assembler: the shared provider-aware planner
   // below needs the complete durable transcript so it can make the final,
   // capability-specific selection and account for the exact request.
-  const compactedSummary = activeSessionProjection ? undefined : conversationSummary?.summary?.trim() || undefined;
   const retrievalGate = appConfig?.MEMORY_RETRIEVAL_GATE_ENABLED
     ? createModelRetrievalGate(gateway, {
       provider,
@@ -4787,7 +4834,6 @@ async function executeLoopForRun(
     currentMessage,
     alwaysRetrieveKnowledge: run.installation_settings?.profile === "general",
     retrievalDecision,
-    summary: compactedSummary,
     longTermMemory: longTermMemory || undefined,
     ...(activeSessionProjection ? {
       modelHistory: activeSessionProjection.messages,

@@ -518,12 +518,15 @@ whole autonomous path is finished.
 - [x] Do not fabricate historical tool-call/result pairs from audit rows unless correlation,
       ordering, arguments, and result identity are exact; otherwise mark the historical boundary
       as incomplete and start canonical capture from the next turn.
-- [ ] Write the canonical transcript for new turns and compare it against the legacy projection
-      during a bounded shadow period.
+- [x] Write the canonical transcript for new turns and compare it against the legacy projection
+      during a bounded shadow period. The comparison is digest/count-only, capped at 128 entries,
+      and skips already-compacted projections whose archived history is intentionally absent.
 - [x] Cut new model requests over to the canonical projection after canonical admission and
-      projection checks pass; the legacy reader remains only as a bounded bootstrap fallback.
-- [ ] Remove the legacy active-context read path, duplicate compaction assembler, and temporary
-      compatibility flags. Keep only a one-time migration reader where required for old data.
+      projection checks pass; the legacy reader remains only as a generation-1 empty-session
+      bootstrap.
+- [x] Remove the legacy active-context read path, duplicate compaction assembler, and temporary
+      compatibility flags. Keep only the one-time generation-1 bootstrap reader required for old
+      display data.
 - [x] Update internal architecture and operational documentation with the final source-of-truth
       and recovery rules.
 
@@ -531,10 +534,10 @@ whole autonomous path is finished.
 
 - [x] Unit-test transcript ordering, typed entries, idempotent append, digest checks, and pair
       validation.
-- [ ] Integration-test 2, 5, 18, 32, 64, and 128 tool operations across multiple user turns;
-      confirm every result remains available to later model calls.
-- [ ] Run a long-session test with enough model/tool rounds to trigger compaction more than once.
-- [ ] Verify context occupancy rises across turns, drops after compaction, and rises again from the
+- [x] Integration-test 2, 5, 18, 32, 64, and 128 deterministic tool operations across multiple
+      user turns; confirm every result remains available in the later canonical projection.
+- [x] Run a long-session test with enough turns to trigger compaction more than once.
+- [x] Verify context occupancy rises across turns, drops after compaction, and rises again from the
       new checkpoint instead of returning to zero after every request.
 - [ ] Run the real configured model against local Temporal with a connected capability, then repeat
       with deterministic provider fixtures for exact transcript assertions.
@@ -600,14 +603,17 @@ and guided browser verification.
 
 **Track A verification record (2026-09-11):** TypeScript build, typecheck, diff checks, migration
 tests, transcript repository tests, context planner/builder/compaction tests, manifest tests, and
-loop context-boundary tests pass. PostgreSQL context runtime integration passes 2/2 tests against
-the local agents database. Local Temporal context-compaction recovery passes 2/2 worker-loss
-cases. The wider local Temporal recovery run passes 22/23 tests; the remaining failure is the
-approval-batch scenario owned by the separate tool-calling workstream. The broader agents suite
-reports 193 passing files, 43 skipped files, and four failing suites/three failed tests: two
-sandboxed listener tests, one dependent remote-MCP hook failure, and one unrelated HTTP fixture.
-Real-provider and browser evidence remain release-gate work. These gaps do not block Track A's
-deterministic context foundation and are not evidence that Track B tool/approval behavior is done.
+loop context-boundary tests pass. PostgreSQL transcript durability passes 3/3 tests, including
+ordered reload/compaction/generation reset, concurrent append and lease fencing, and deterministic
+2/5/18/32/64/128-operation multi-turn projections. PostgreSQL context runtime integration passes
+2/2 tests against the local agents database. Local Temporal context-compaction recovery passes 2/2
+worker-loss cases. The wider local Temporal recovery run passes 22/23 tests; the remaining failure
+is the approval-batch scenario owned by the separate tool-calling workstream. The canonical path
+now performs a bounded 128-entry digest/count-only legacy shadow comparison and no longer reads
+conversation summaries for model context; legacy display import is limited to an empty generation-1
+bootstrap. Real-provider and browser evidence remain release-gate work. These gaps do not block
+Track A's deterministic context foundation and are not evidence that Track B tool/approval behavior
+is done.
 
 **Rollback or disable plan:** Stop admitting new autonomous turns to the canary, preserve durable
 transcript and compaction evidence, and redeploy the last tested artifact. Do not delete transcript

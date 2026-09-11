@@ -347,6 +347,16 @@ async function selectProjection(client: PoolClient, row: ContextRow, verifyStore
      ORDER BY sequence ASC`,
     [context.id, context.generation, context.activeCheckpointSourceSequence],
   );
+  const checkpointSequenceResult = await client.query<{ sequence: string | number }>(
+    `SELECT sequence
+     FROM agent_session_transcript_entries
+     WHERE context_id = $1 AND generation = $2
+       AND entry_kind = 'compaction_checkpoint'
+       AND sequence > $3 AND sequence <= $4
+     ORDER BY sequence ASC`,
+    [context.id, context.generation, context.activeCheckpointSourceSequence, context.headSequence],
+  );
+  const checkpointSequences = new Set(checkpointSequenceResult.rows.map((entry) => Number(entry.sequence)));
   const checkpoint = checkpointResult.rows[0] ? mapEntry(checkpointResult.rows[0]) : undefined;
   if (context.activeCheckpointSequence !== null && !checkpoint) throw new Error("SESSION_TRANSCRIPT_CHECKPOINT_MISSING");
   if (context.activeCheckpointSequence === null && context.activeCheckpointSourceSequence !== 0) {
@@ -361,13 +371,13 @@ async function selectProjection(client: PoolClient, row: ContextRow, verifyStore
   ];
   const expectedTailStart = context.activeCheckpointSourceSequence + 1;
   let expectedSequence = expectedTailStart;
-  const expectedTailEnd = context.activeCheckpointSequence === null ? context.headSequence : context.headSequence - 1;
   for (const entry of entries.filter((candidate) => candidate.kind !== "compaction_checkpoint")) {
-    if (expectedSequence === context.activeCheckpointSequence) expectedSequence += 1;
+    while (checkpointSequences.has(expectedSequence)) expectedSequence += 1;
     if (entry.sequence !== expectedSequence) throw new Error("SESSION_TRANSCRIPT_SEQUENCE_GAP");
     expectedSequence += 1;
   }
-  if (expectedSequence - 1 !== expectedTailEnd) throw new Error("SESSION_TRANSCRIPT_SEQUENCE_GAP");
+  while (checkpointSequences.has(expectedSequence)) expectedSequence += 1;
+  if (expectedSequence - 1 !== context.headSequence) throw new Error("SESSION_TRANSCRIPT_SEQUENCE_GAP");
   const messages = entries.map((entry) => cloneModelMessage(entry.message));
   if (verifyStoredDigest) {
     const issues = validateModelTranscript(messages.filter((message) => message.role !== "system"));

@@ -44,6 +44,16 @@ function databasePool() {
       const found = entries.find((entry) => entry.context_id === values[0] && entry.idempotency_key === values[1]);
       return { rows: found ? [found] : [], rowCount: found ? 1 : 0 };
     }
+    if (sql.includes("SELECT sequence") && sql.includes("entry_kind = 'compaction_checkpoint'")) {
+      const found = entries.filter((entry) => entry.context_id === values[0]
+        && entry.generation === values[1]
+        && entry.entry_kind === "compaction_checkpoint"
+        && Number(entry.sequence) > Number(values[2])
+        && Number(entry.sequence) <= Number(values[3]))
+        .sort((left, right) => Number(left.sequence) - Number(right.sequence))
+        .map((entry) => ({ sequence: entry.sequence }));
+      return { rows: found, rowCount: found.length };
+    }
     if (sql.includes("UPDATE agent_session_transcript_entries") && sql.includes("is_active = false")) {
       for (const entry of entries) {
         const through = Number(values[2]);
@@ -289,6 +299,66 @@ describe("SessionTranscriptRepository", () => {
       expectedHead: { sequence: beforeFailedActivation.sourceCursor - 1, digest: beforeFailedActivation.sourceDigest },
     })).rejects.toThrow("SESSION_TRANSCRIPT_HEAD_CONFLICT");
     await expect(repository.readActive(scope)).resolves.toMatchObject({ sourceCursor: beforeFailedActivation.sourceCursor, sourceDigest: beforeFailedActivation.sourceDigest });
+  });
+
+  it("keeps cursor lineage while occupancy grows, compacts, and grows again", async () => {
+    const { pool } = databasePool();
+    const repository = new SessionTranscriptRepository(pool as never);
+    const observedOccupancy: number[] = [];
+    const compactedOccupancy: number[] = [];
+    const sourceCursors: number[] = [];
+    let compactionCount = 0;
+
+    for (let turn = 1; turn <= 18; turn += 1) {
+      await repository.append({
+        ...scope,
+        turnId: `long-turn-${turn}`,
+        kind: "user",
+        message: { role: "user", content: `Long-session request ${turn}` },
+        idempotencyKey: `long-turn-${turn}:user`,
+      });
+      await repository.append({
+        ...scope,
+        turnId: `long-turn-${turn}`,
+        kind: "assistant_response",
+        message: { role: "assistant", content: `Long-session response ${turn}` },
+        idempotencyKey: `long-turn-${turn}:assistant`,
+      });
+
+      const beforeCompaction = await repository.readActive(scope);
+      const bodyOccupancy = beforeCompaction.messages.filter((message) => message.role !== "system").length;
+      observedOccupancy.push(bodyOccupancy);
+      const archiveThroughSequence = archiveThroughSequenceForCompaction(beforeCompaction, 4);
+      if (archiveThroughSequence === undefined) {
+        sourceCursors.push(beforeCompaction.sourceCursor);
+        continue;
+      }
+
+      const activated = await repository.activateCompaction({
+        ...scope,
+        turnId: `long-turn-${turn}`,
+        operationId: `long-compaction-${turn}`,
+        checkpointMessage: { role: "system", content: `Long-session checkpoint through turn ${turn - 1}.` },
+        archiveThroughSequence,
+        expectedHead: { sequence: beforeCompaction.sourceCursor, digest: beforeCompaction.sourceDigest },
+      });
+      compactionCount += 1;
+      const activeBodyOccupancy = activated.projection.messages.filter((message) => message.role !== "system").length;
+      compactedOccupancy.push(activeBodyOccupancy);
+      sourceCursors.push(activated.projection.sourceCursor);
+      expect(activeBodyOccupancy).toBeLessThan(bodyOccupancy);
+      expect(activated.projection.context.activeCheckpointSourceSequence).toBe(archiveThroughSequence);
+      expect(activated.projection.activeProjectionDigest).toMatch(/^[a-f0-9]{64}$/);
+    }
+
+    const finalProjection = await repository.readActive(scope);
+    expect(compactionCount).toBeGreaterThanOrEqual(2);
+    expect(Math.max(...observedOccupancy)).toBeGreaterThan(Math.max(...compactedOccupancy));
+    expect(observedOccupancy.some((occupancy) => occupancy > 4)).toBe(true);
+    expect(compactedOccupancy.every((occupancy) => occupancy === 4)).toBe(true);
+    expect(sourceCursors.every((cursor, index) => index === 0 || cursor > sourceCursors[index - 1]!)).toBe(true);
+    expect(finalProjection.messages.some((message) => message.content === "Long-session request 18")).toBe(true);
+    expect(finalProjection.context.generation).toBe(1);
   });
 
   it("starts a new generation without deleting the prior transcript", async () => {
