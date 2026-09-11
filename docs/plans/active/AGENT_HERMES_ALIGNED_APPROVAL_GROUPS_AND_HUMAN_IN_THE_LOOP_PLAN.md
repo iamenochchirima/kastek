@@ -4,7 +4,7 @@
 
 **Owner:** Agent Platform
 
-**Last updated:** 2026-09-11
+**Last updated:** 2026-09-12
 
 **Risk:** High
 
@@ -28,15 +28,16 @@ an already-fit active projection, and the same real-provider read-only smoke tes
 through local Temporal, model dispatch, durable prepare/execute/commit, and continuation. This is
 runtime/context evidence only, not approval-group evidence, because the fixture uses an
 approval-free read capability. Approval-specific verification currently includes a passing Agents
- build, 94/94 PostgreSQL approval/migration tests, 17/17 API tests plus 2 pure session-grant tests, a 23/23 full deterministic
-Temporal suite, including worker replacement while a group was pending and 32/64/128/256-operation
- group barriers, 17/17 API approval-group tests including installation/run binding, missing-scope
-rejection, and completed-run rejection, and a 1/1 opt-in
+ build, 16 PostgreSQL approval-group tests, 79 migration tests, 17 API approval-group tests plus
+2 pure session-grant tests, a 23/23 full deterministic Temporal suite including worker replacement
+while a group was pending and 32/64/128/256-operation group barriers, and a 1/1 opt-in
 real-provider approval orchestration test using a synthetic external-effect capability through the
 actual HTTP decision endpoint, including concurrent duplicate-decision handling. A disposable
 fresh database applied all 168 migrations through 176.
 A disposable database seeded with a legacy pending approval row applied 173–176 and preserved that
-row with no approval-group link and no synthetic group.
+row with no approval-group link and no synthetic group. The final local approval/migration run on
+2026-09-12 passed 114/114 tests: 16 PostgreSQL approval-group tests, 17 API tests, 2 pure
+session-grant tests, and 79 migration tests.
 
 **Related plans:**
 
