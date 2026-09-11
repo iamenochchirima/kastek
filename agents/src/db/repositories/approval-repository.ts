@@ -401,7 +401,7 @@ export class ApprovalRepository {
     return result;
   }
 
-  public async expireGroups(limit = 100): Promise<Array<Pick<ApprovalGroupRecord, "id" | "organization_id" | "installation_id" | "run_id">>> {
+  public async expireGroups(limit = 100): Promise<ApprovalGroupRecord[]> {
     return withTransaction(this.pool, async (client) => {
       const groups = await client.query<ApprovalGroupRecord>(
         `WITH expired AS (
@@ -423,7 +423,7 @@ export class ApprovalRepository {
           [group.organization_id, group.id],
         );
       }
-      return groups.rows.map(({ id, organization_id, installation_id, run_id }) => ({ id, organization_id, installation_id, run_id }));
+      return groups.rows.map(normalizeGroup);
     });
   }
 

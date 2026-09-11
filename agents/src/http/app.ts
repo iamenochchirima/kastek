@@ -1147,6 +1147,27 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     if (!active || active.group.run_id !== input.runId) {
       throw Object.assign(new Error("approval_group_not_found"), { statusCode: 404, code: "approval_group_not_found" });
     }
+    const groupEventPayload = (actor: string, options: {
+      selectedCount?: number;
+      durationMs?: number;
+      errorCode?: string;
+    } = {}): Record<string, unknown> => ({
+      approvalGroupId: active.group.id,
+      runId: active.group.run_id,
+      batchId: active.group.batch_id,
+      planDigest: active.group.plan_digest,
+      policyRevision: active.group.policy_revision,
+      operationCount: operations.length,
+      selectedCount: options.selectedCount ?? active.group.selected_operation_ids.length,
+      actor,
+      ...(options.durationMs !== undefined ? { durationMs: options.durationMs } : {}),
+      ...(options.errorCode ? { errorCode: options.errorCode } : {}),
+    });
+    const groupAgeMs = (): number | undefined => {
+      const createdAt = Date.parse(active.group.created_at);
+      const age = Date.now() - createdAt;
+      return Number.isFinite(createdAt) && age >= 0 ? age : undefined;
+    };
     const appendDecisionConflict = async (reason: string): Promise<void> => {
       const outcome = /digest|stale|mismatch|changed/i.test(reason) ? "stale" as const : "conflict" as const;
       recordApprovalGroupDecision({ outcome, operationCount: operations.length, errorCode: reason });
@@ -1155,7 +1176,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
         runId: input.runId,
         installationId: active.group.installation_id,
         eventType: "agent.approval.group.decision_conflict",
-        payload: { approvalGroupId: input.groupId, planDigest: input.planDigest, reason },
+        payload: { ...groupEventPayload(input.approvedBy, { errorCode: reason }), reason },
       });
     };
     if (active.group.plan_digest !== input.planDigest) {
@@ -1270,7 +1291,10 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
           runId: input.runId,
           installationId: active.group.installation_id,
           eventType: "agent.approval.group.invalidated",
-          payload: { approvalGroupId: input.groupId, reason: "resource_revalidation_unavailable" },
+        payload: {
+          ...groupEventPayload("system", { selectedCount: 0, errorCode: "resource_revalidation_unavailable", durationMs: groupAgeMs() }),
+          reason: "resource_revalidation_unavailable",
+        },
         });
         recordApprovalGroupLifecycle({ action: "invalidated", operationCount: operations.length, selectedCount: 0, errorCode: "resource_revalidation_unavailable" });
         throw Object.assign(new Error("approval_group_invalidated"), {
@@ -1294,7 +1318,10 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
           runId: input.runId,
           installationId: active.group.installation_id,
           eventType: "agent.approval.group.invalidated",
-          payload: { approvalGroupId: input.groupId, reason: "resource_snapshot_changed" },
+        payload: {
+          ...groupEventPayload("system", { selectedCount: 0, errorCode: "resource_snapshot_changed", durationMs: groupAgeMs() }),
+          reason: "resource_snapshot_changed",
+        },
         });
         recordApprovalGroupLifecycle({ action: "invalidated", operationCount: operations.length, selectedCount: 0, errorCode: "resource_snapshot_changed" });
         throw Object.assign(new Error("approval_group_invalidated"), {
@@ -1400,14 +1427,12 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
         : decision.group.status === "partially_approved"
           ? "agent.approval.group.partially_approved"
           : "agent.approval.group.approved",
-      payload: {
-        approvalGroupId: decision.group.id,
-        planDigest: decision.group.plan_digest,
-        selectedOperationIds: decision.group.selected_operation_ids,
-        operationCount: decision.approvals.length,
-        selectedCount: decision.group.selected_operation_ids.length,
-        approvedBy: decision.group.decided_by ?? input.approvedBy,
-      },
+        payload: {
+          ...groupEventPayload(decision.group.decided_by ?? input.approvedBy, { durationMs: waitDurationMs }),
+          selectedOperationIds: decision.group.selected_operation_ids,
+          approvedBy: decision.group.decided_by ?? input.approvedBy,
+          decision: decision.group.decision,
+        },
     });
     await signalDecision();
     await runs.appendEvent({
@@ -1416,11 +1441,9 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       installationId: decision.group.installation_id,
       eventType: "agent.approval.group.resumed",
       payload: {
-        approvalGroupId: decision.group.id,
-        planDigest: decision.group.plan_digest,
+        ...groupEventPayload(decision.group.decided_by ?? input.approvedBy, { durationMs: waitDurationMs }),
         decision: decision.group.decision,
         selectedOperationIds: decision.group.selected_operation_ids,
-        operationCount: decision.approvals.length,
       },
     });
     recordApprovalGroupLifecycle({

@@ -2719,9 +2719,13 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
           eventType: "agent.approval.group.requested",
           payload: {
             approvalGroupId: created.group.id,
+            runId: run.id,
             batchId: input.batchId,
             planDigest: created.group.plan_digest,
+            policyRevision: created.group.policy_revision,
             operationCount: created.approvals.length,
+            selectedCount: 0,
+            actor: "agent-runtime",
             expiresAt: created.group.expires_at,
           },
         });
@@ -3073,13 +3077,16 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
             idempotencyKey: `approval-group-consumed:${group.id}`,
             payload: {
               approvalGroupId: group.id,
+              runId: group.run_id,
               batchId: group.batch_id,
               planDigest: group.plan_digest,
+              policyRevision: group.policy_revision,
               operationCount: operations.length,
               selectedCount: group.selected_operation_ids.length,
               selectedOperationIds: group.selected_operation_ids,
               operationIds: operations.map((operation) => operation.runtime_operation_id),
               decision: group.decision,
+              actor: group.decided_by ?? "agent-runtime",
               approvedBy: group.decided_by,
               expiresAt: group.expires_at,
               ...(group.consumed_at ? { consumedAt: group.consumed_at } : {}),
@@ -3306,7 +3313,18 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
             runId: run.id,
             installationId: run.installation_id,
             eventType: "agent.approval.group.displayed",
-            payload: { approvalGroupId: approvalGroup.group.id, operationCount: approvalGroup.approvals.length, channelType: target.channel_type },
+            payload: {
+              approvalGroupId: approvalGroup.group.id,
+              runId: approvalGroup.group.run_id,
+              batchId: approvalGroup.group.batch_id,
+              planDigest: approvalGroup.group.plan_digest,
+              policyRevision: approvalGroup.group.policy_revision,
+              operationCount: approvalGroup.approvals.length,
+              selectedCount: 0,
+              actor: "agent-runtime",
+              channelType: target.channel_type,
+              expiresAt: approvalGroup.group.expires_at,
+            },
           });
           recordApprovalGroupLifecycle({ action: "displayed", operationCount: approvalGroup.approvals.length, selectedCount: 0 });
         }
@@ -3350,13 +3368,37 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
       const run = await runs.getRuntimeRunById(input.runId);
       if (!run) throw new Error("Run not found");
       await assertCurrentSessionLease(input);
+      const before = await approvals.getGroup(run.organization_id, input.groupId);
+      const operationCount = before ? (await approvals.listGroupOperations(run.organization_id, input.groupId)).length : 0;
       await approvals.cancelGroup(run.organization_id, run.id, input.groupId);
+      const cancelled = await approvals.getGroup(run.organization_id, input.groupId);
+      const group = cancelled ?? before;
+      const createdAt = group ? Date.parse(group.created_at) : Number.NaN;
+      const decidedAt = group?.decided_at ? Date.parse(group.decided_at) : Number.NaN;
+      const durationMs = Number.isFinite(createdAt) && Number.isFinite(decidedAt) && decidedAt >= createdAt
+        ? decidedAt - createdAt
+        : undefined;
       await runs.appendEvent({
         organizationId: run.organization_id,
         runId: run.id,
         installationId: run.installation_id,
         eventType: "agent.approval.group.cancelled",
-        payload: { approvalGroupId: input.groupId, reason: input.reason ?? "run_cancelled" },
+        payload: {
+          approvalGroupId: input.groupId,
+          runId: run.id,
+          ...(group ? {
+            batchId: group.batch_id,
+            planDigest: group.plan_digest,
+            policyRevision: group.policy_revision,
+            expiresAt: group.expires_at,
+          } : {}),
+          operationCount,
+          selectedCount: 0,
+          actor: "system",
+          errorCode: "RUN_CANCELLED",
+          reason: input.reason ?? "run_cancelled",
+          ...(durationMs !== undefined ? { durationMs } : {}),
+        },
       });
       recordApprovalGroupLifecycle({ action: "cancelled", errorCode: "RUN_CANCELLED" });
     },

@@ -118,12 +118,30 @@ async function main(): Promise<void> {
           const expiredGroups = await approvals.expireGroups();
           await Promise.all(expiredGroups.map(async (group) => {
             const operations = await approvals.listGroupOperations(group.organization_id, group.id);
+            const createdAt = Date.parse(group.created_at);
+            const decidedAt = group.decided_at ? Date.parse(group.decided_at) : Number.NaN;
+            const durationMs = Number.isFinite(createdAt) && Number.isFinite(decidedAt) && decidedAt >= createdAt
+              ? decidedAt - createdAt
+              : undefined;
             await runs.appendEvent({
               organizationId: group.organization_id,
               runId: group.run_id,
               installationId: group.installation_id,
               eventType: "agent.approval.group.expired",
-              payload: { approvalGroupId: group.id, operationIds: operations.map((operation) => operation.runtime_operation_id) },
+              payload: {
+                approvalGroupId: group.id,
+                runId: group.run_id,
+                batchId: group.batch_id,
+                planDigest: group.plan_digest,
+                policyRevision: group.policy_revision,
+                operationCount: operations.length,
+                selectedCount: 0,
+                actor: "system",
+                errorCode: "APPROVAL_EXPIRED",
+                operationIds: operations.map((operation) => operation.runtime_operation_id),
+                expiresAt: group.expires_at,
+                ...(durationMs !== undefined ? { durationMs } : {}),
+              },
             });
             recordApprovalGroupLifecycle({ action: "expired", operationCount: operations.length, selectedCount: 0, errorCode: "APPROVAL_EXPIRED" });
             await Promise.all(operations.map((approval) => effectReceipts.markNotExecuted(group.organization_id, group.run_id, approval.provider_tool_call_id, {

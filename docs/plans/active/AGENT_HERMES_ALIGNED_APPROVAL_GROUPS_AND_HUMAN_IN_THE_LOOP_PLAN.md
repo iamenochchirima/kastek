@@ -307,8 +307,10 @@ real-use evidence.
 
 - [x] Emit lifecycle events for group requested, displayed, approved, partially approved, rejected,
       expired, cancelled, invalidated, resumed, consumed, and decision conflict.
-- [ ] Include group ID, run ID, batch ID, plan digest, operation count, selected count, actor,
-      policy revision, duration, and bounded error code. Redact arguments and resource data.
+- [x] Include group ID, run ID, batch ID, plan digest, operation count, selected count, actor,
+      policy revision, applicable terminal duration, and bounded error code. Redact arguments and
+      resource data. The event contract uses the same bounded metadata for every group lifecycle
+      event; error code and duration are omitted only when not applicable.
 - [x] Add OpenTelemetry metrics for approval wait duration, approval-group size, approval decision
       latency, stale decisions, duplicate decisions, expiry rate, partial approvals, and
       post-approval provider failures. The provider-neutral dashboard and alert contract is in
