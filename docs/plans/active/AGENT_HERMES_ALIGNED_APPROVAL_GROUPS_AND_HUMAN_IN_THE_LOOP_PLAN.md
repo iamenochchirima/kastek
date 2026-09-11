@@ -31,7 +31,8 @@ Temporal suite, including worker replacement while a group was pending and 32/64
 group barriers, 12/12 API approval-group tests including installation binding and completed-run
 rejection, and a 1/1 opt-in
 real-provider approval orchestration test using a synthetic external-effect capability through the
-actual HTTP decision endpoint. A disposable fresh database applied all 168 migrations through 176.
+actual HTTP decision endpoint, including concurrent duplicate-decision handling. A disposable
+fresh database applied all 168 migrations through 176.
 A disposable database seeded with a legacy pending approval row applied 173–176 and preserved that
 row with no approval-group link and no synthetic group.
 

@@ -46,6 +46,7 @@ own exact identity, authorization, effect receipt, and terminal outcome.
 - `0dfebebe fix(agents): bind approval groups to run installations`
 - `7a16d52b docs(agents): record installation binding evidence`
 - `e241005f test(agents): cover completed-run approval boundary`
+- `2bbc6e84 test(agents): exercise concurrent approval clicks`
 
 The current branch is `rewrite`. Do not stage all changes: another agent is actively implementing
 session context and compaction in the same worktree.
@@ -111,7 +112,8 @@ session context and compaction in the same worktree.
   lifecycle event assertions.
 - Opt-in real-provider approval integration passed: 1/1 through a real configured model, durable
   group creation, the actual HTTP group-decision endpoint, Temporal signal/resume, and one
-  synthetic external-effect invocation. This validates orchestration only; it is not provider
+  synthetic external-effect invocation. It also submits two concurrent decisions and verifies one
+  accepted response plus one idempotent response. This validates orchestration only; it is not provider
   sandbox/state-reconciliation or Studio evidence.
 - The full deterministic Temporal tool-execution suite passed: 21/21, including the
   18-operation group, rejection, invalidation, expiry, cancellation, retry/failure matrix,
@@ -133,9 +135,9 @@ real model dispatch, a connected read capability, durable prepare/execute/commit
 after the active checkpoint. This is context/runtime evidence only: it does not prove the approval
 group path, because the fixture intentionally uses an approval-free read tool.
 The separate opt-in approval fixture now passes 1/1 through the real model, grouped proposal
-creation, the actual HTTP approval endpoint, Temporal group resume, and one synthetic external
-effect. It does not prove a real provider sandbox mutation or before/after provider-state
-reconciliation.
+creation, two concurrent requests to the actual HTTP approval endpoint (one accepted and one
+idempotent), Temporal group resume, and one synthetic external effect. It does not prove a real
+provider sandbox mutation or before/after provider-state reconciliation.
 
 ## Reproduction commands
 
