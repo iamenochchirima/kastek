@@ -397,6 +397,103 @@ describe.skipIf(!runIntegration)("Temporal tool execution reliability (integrati
     expect(committed.find((result) => result.id === "approval-failure")?.error).toMatchObject({ code: "PROVIDER_FAILED" });
   }, 30_000);
 
+  it("requires a new approval group for a later model turn", async () => {
+    const taskQueue = `agent-approval-later-group-${randomUUID()}`;
+    const workflowId = `agent-run-${randomUUID()}`;
+    const firstGroupId = randomUUID();
+    const secondGroupId = randomUUID();
+    const firstDigest = "f".repeat(64);
+    const secondDigest = "s".repeat(64);
+    const firstCall = { ...call("approval-first-turn"), name: "records.delete", sequenceNumber: 1 };
+    const secondCall = { ...call("approval-second-turn"), name: "records.delete", sequenceNumber: 1 };
+    let modelSteps = 0;
+    let pauses = 0;
+    const executed: Array<{ id: string; groupId?: string }> = [];
+    const activities: AgentRunActivities = {
+      transitionRun: async () => undefined,
+      waitForConversationTurn: async () => true,
+      getContentPublishBatchStatus: async () => ({ status: "UNAVAILABLE" }),
+      executeLoop: async () => { throw new Error("legacy executeLoop must not run for a new execution"); },
+      executeModelStep: async () => {
+        modelSteps += 1;
+        if (modelSteps === 1) return pendingBatchResult([firstCall]);
+        if (modelSteps === 2) return pendingBatchResult([secondCall]);
+        return completedResult("Both approval groups completed.");
+      },
+      prepareToolBatch: async ({ calls: prepared }) => {
+        const first = prepared[0]!.id === firstCall.id;
+        return [{
+          kind: "sequential" as const,
+          segmentId: `batch:segment:${first ? "first" : "second"}`,
+          calls: prepared.map((current) => ({
+            ...current,
+            approvalGroupId: first ? firstGroupId : secondGroupId,
+            approvalPlanDigest: first ? firstDigest : secondDigest,
+          })),
+        }];
+      },
+      executeToolCall: async ({ call: current, approvalGroupId }) => {
+        executed.push({ id: current.id, groupId: approvalGroupId });
+        return {
+          id: current.id,
+          providerToolCallId: current.providerToolCallId!,
+          name: current.name,
+          argumentsHash: current.argumentsHash,
+          status: "completed",
+          output: { ok: true },
+        } satisfies DurableToolCallResult;
+      },
+      commitToolBatch: async ({ results }) => ({ status: "committed", toolCalls: results.length }),
+      pauseRun: async () => { pauses += 1; },
+      deliverApprovalPrompt: async () => undefined,
+      cancelPendingApproval: async () => undefined,
+      cancelHandoff: async () => undefined,
+      completeRun: async () => undefined,
+      generateConversationTitle: async () => undefined,
+      deliverRunReply: async () => undefined,
+      failRun: async ({ error }) => { throw new Error(String(error.message ?? "workflow failed")); },
+    };
+    const client = await startWorker(taskQueue, activities);
+    const handle = await client.workflow.start(agentRunWorkflow, { taskQueue, workflowId, args: [{ runId: workflowId }] });
+    const waitForPause = async (expected: number): Promise<void> => {
+      await new Promise<void>((resolve, reject) => {
+        const deadline = setTimeout(() => reject(new Error(`workflow did not reach approval pause ${expected}`)), 10_000);
+        const timer = setInterval(() => {
+          if (pauses >= expected) {
+            clearTimeout(deadline);
+            clearInterval(timer);
+            resolve();
+          }
+        }, 50);
+      });
+    };
+    await waitForPause(1);
+    await handle.signal(approvalGroupSignal, {
+      groupId: firstGroupId,
+      planDigest: firstDigest,
+      decision: "approved",
+      approvedBy: "approver",
+      selectedOperationIds: [firstCall.id],
+      expiresAt: new Date(Date.now() + 60_000).toISOString(),
+    });
+    await waitForPause(2);
+    await handle.signal(approvalGroupSignal, {
+      groupId: secondGroupId,
+      planDigest: secondDigest,
+      decision: "approved",
+      approvedBy: "approver",
+      selectedOperationIds: [secondCall.id],
+      expiresAt: new Date(Date.now() + 60_000).toISOString(),
+    });
+    await handle.result();
+
+    expect(modelSteps).toBe(3);
+    expect(executed).toEqual([
+      { id: firstCall.id, groupId: firstGroupId },
+      { id: secondCall.id, groupId: secondGroupId },
+    ]);
+  }, 30_000);
+
   it("resumes the pending approval group after the Temporal worker is replaced", async () => {
     const taskQueue = `agent-approval-worker-restart-${randomUUID()}`;
     const workflowId = `agent-run-${randomUUID()}`;
