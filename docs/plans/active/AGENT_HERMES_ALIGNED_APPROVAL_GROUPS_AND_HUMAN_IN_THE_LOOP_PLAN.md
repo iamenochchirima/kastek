@@ -15,6 +15,12 @@ delivery, signal retry, duplicate-call ordering, and PostgreSQL-backed 18-operat
 decision checks. Real-provider verification still requires sandbox credentials; the remaining scale,
 worker-loss, expiry, and guided Studio checks are listed below.
 
+**Verification boundary:** On 2026-09-11, the real-model Temporal smoke test reached the local
+worker but stopped in the separate context-compaction implementation with
+`ContextCompactionError(code=no_progress)` before tool-batch preparation. This is recorded as a
+context-plan blocker, not as approval-group evidence; the deterministic approval and PostgreSQL
+tests passed independently.
+
 **Related plans:**
 
 - [`Hermes-aligned parallel tool execution`](./AGENT_HERMES_ALIGNED_PARALLEL_TOOL_EXECUTION_PLAN.md)
