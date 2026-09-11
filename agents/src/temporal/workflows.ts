@@ -611,6 +611,7 @@ export async function agentRunWorkflow(input: DurableRunInput): Promise<void> {
             providerToolCallId: call.providerToolCallId ?? call.id,
             name: call.name,
             argumentsHash: call.argumentsHash,
+            approvalGroupId: outcome.groupId,
             status: "blocked",
             failureClass: outcome.failureClass,
             error: { code: outcome.code, message: outcome.message },

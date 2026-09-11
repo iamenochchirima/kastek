@@ -89,6 +89,15 @@ export interface InstallationOperationRecord extends RunRecord {
   approval_status: string | null;
 }
 
+interface RunEventInput {
+  organizationId: string;
+  runId: string;
+  installationId: string;
+  eventType: string;
+  operationId?: string;
+  payload: Record<string, unknown>;
+}
+
 export class RunRepository {
   private readonly extensionSnapshots: ExtensionSnapshotRepository;
   private readonly sessionLeases: SessionLeaseRepository;
@@ -986,53 +995,79 @@ export class RunRepository {
     return result.rows as Array<Record<string, unknown>>;
   }
 
-  public async appendEvent(input: {
-    organizationId: string;
-    runId: string;
-    installationId: string;
-    eventType: string;
-    operationId?: string;
-    payload: Record<string, unknown>;
-  }): Promise<void> {
-    await withTransaction(this.pool, async (client) => {
-      const runResult = await client.query<Pick<RunRecord, "id" | "organization_id" | "agent_definition_id" | "agent_version_id" | "installation_id" | "conversation_id" | "created_by" | "correlation_id" | "causation_id">>(
-        `SELECT id, organization_id, agent_definition_id, agent_version_id, installation_id,
-                conversation_id, created_by, correlation_id, causation_id
+  public async appendEvent(input: RunEventInput): Promise<void> {
+    await withTransaction(this.pool, (client) => this.appendEventWithClient(client, input));
+  }
+
+  /**
+   * Append a run event once for a stable internal key. The run row lock makes
+   * the check and both durable projections atomic with competing retries.
+   */
+  public async appendEventOnce(input: RunEventInput & { idempotencyKey: string }): Promise<boolean> {
+    return withTransaction(this.pool, async (client) => {
+      const run = await client.query<{ id: string }>(
+        `SELECT id
          FROM agent_runs
          WHERE organization_id = $1 AND id = $2 AND installation_id = $3
          FOR UPDATE`,
         [input.organizationId, input.runId, input.installationId],
       );
-      const run = runResult.rows[0];
-      if (!run) return;
-      const scope = executionScopeFromRun(run);
-      const event = createScopedAgentEvent({
-        scope,
-        type: input.eventType,
-        ...(input.operationId ? { operationId: input.operationId } : {}),
-        data: input.payload,
-      });
-      await client.query(
-        `INSERT INTO agent_events
-          (organization_id, run_id, installation_id, event_type, payload, spec_version, source, subject, data_content_type, correlation_id)
-         SELECT $1, $2, $3, $4, $5::jsonb, $6, $7, $8, $9, agent_runs.correlation_id
-         FROM agent_runs
-         WHERE agent_runs.id = $2 AND agent_runs.organization_id = $1 AND agent_runs.installation_id = $3`,
-        [input.organizationId, input.runId, input.installationId, input.eventType, JSON.stringify(event.data), event.specversion, event.source, event.subject, event.datacontenttype],
+      if (!run.rows[0]) return false;
+      const existing = await client.query<{ id: string }>(
+        `SELECT id
+         FROM agent_events
+         WHERE organization_id = $1 AND run_id = $2 AND event_type = $3
+           AND payload->>'_idempotencyKey' = $4
+         LIMIT 1`,
+        [input.organizationId, input.runId, input.eventType, input.idempotencyKey],
       );
-      await this.appendJournalEventWithClient(client, {
-        id: randomUUID(),
-        scope: {
-          ...scope,
-          ...(input.operationId ? { operationId: input.operationId } : {}),
-        },
-        event: {
-          kind: "runtime.fact",
-          data: { type: input.eventType, payload: input.payload },
-        },
-        occurredAt: new Date().toISOString(),
+      if (existing.rows[0]) return false;
+      return this.appendEventWithClient(client, {
+        ...input,
+        payload: { ...input.payload, _idempotencyKey: input.idempotencyKey },
       });
     });
+  }
+
+  private async appendEventWithClient(client: PoolClient, input: RunEventInput): Promise<boolean> {
+    const runResult = await client.query<Pick<RunRecord, "id" | "organization_id" | "agent_definition_id" | "agent_version_id" | "installation_id" | "conversation_id" | "created_by" | "correlation_id" | "causation_id">>(
+      `SELECT id, organization_id, agent_definition_id, agent_version_id, installation_id,
+              conversation_id, created_by, correlation_id, causation_id
+       FROM agent_runs
+       WHERE organization_id = $1 AND id = $2 AND installation_id = $3
+       FOR UPDATE`,
+      [input.organizationId, input.runId, input.installationId],
+    );
+    const run = runResult.rows[0];
+    if (!run) return false;
+    const scope = executionScopeFromRun(run);
+    const event = createScopedAgentEvent({
+      scope,
+      type: input.eventType,
+      ...(input.operationId ? { operationId: input.operationId } : {}),
+      data: input.payload,
+    });
+    await client.query(
+      `INSERT INTO agent_events
+        (organization_id, run_id, installation_id, event_type, payload, spec_version, source, subject, data_content_type, correlation_id)
+       SELECT $1, $2, $3, $4, $5::jsonb, $6, $7, $8, $9, agent_runs.correlation_id
+       FROM agent_runs
+       WHERE agent_runs.id = $2 AND agent_runs.organization_id = $1 AND agent_runs.installation_id = $3`,
+      [input.organizationId, input.runId, input.installationId, input.eventType, JSON.stringify(event.data), event.specversion, event.source, event.subject, event.datacontenttype],
+    );
+    await this.appendJournalEventWithClient(client, {
+      id: randomUUID(),
+      scope: {
+        ...scope,
+        ...(input.operationId ? { operationId: input.operationId } : {}),
+      },
+      event: {
+        kind: "runtime.fact",
+        data: { type: input.eventType, payload: input.payload },
+      },
+      occurredAt: new Date().toISOString(),
+    });
+    return true;
   }
 
   /** Persist one canonical typed execution fact with a run-scoped cursor. */

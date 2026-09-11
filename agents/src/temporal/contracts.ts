@@ -108,6 +108,8 @@ export interface DurableToolCallResult {
   providerToolCallId: string;
   name: string;
   argumentsHash: string;
+  /** Approval group identity retained through commit/replay for lifecycle evidence. */
+  approvalGroupId?: string;
   status: "completed" | "failed" | "waiting" | "blocked" | "unknown";
   failureClass?: "retryable" | "terminal" | "waiting" | "blocked" | "interrupted" | "unknown";
   output?: unknown;

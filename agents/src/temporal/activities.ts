@@ -2752,6 +2752,7 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
       if (run.installation_status !== "active") throw new Error("INSTALLATION_NOT_ACTIVE");
       const call = input.call;
       const providerToolCallId = call.providerToolCallId ?? call.id;
+      const callApprovalGroupId = input.approvalGroupId ?? input.approval?.approvalGroupId ?? call.approvalGroupId;
       const manifest = tools.get(call.name);
       const state = await workflowState.get(run.organization_id, run.id);
       const checkpoint = readDurableAgentLoopCheckpoint(state?.state?.__agentLoop);
@@ -2782,7 +2783,16 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
           operationId: call.id,
           payload: { batchId: input.batchId, toolCallId: providerToolCallId, operationId: call.id, name: call.name, error: durableError, failureClass },
         });
-        return { id: call.id, providerToolCallId, name: call.name, argumentsHash: call.argumentsHash, status: durableStatus, failureClass, error: durableError };
+        return {
+          id: call.id,
+          providerToolCallId,
+          name: call.name,
+          argumentsHash: call.argumentsHash,
+          ...(callApprovalGroupId ? { approvalGroupId: callApprovalGroupId } : {}),
+          status: durableStatus,
+          failureClass,
+          error: durableError,
+        };
       };
       if (!manifest) return failure({ code: "TOOL_NOT_FOUND", message: `Tool is not registered: ${call.name}` }, "blocked");
       if (!authorizedToolNames?.length) return failure({ code: "TOOL_AUTHORIZATION_SNAPSHOT_MISSING", message: "The deferred tool batch has no pinned authorization snapshot" }, "blocked");
@@ -2812,6 +2822,7 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
           providerToolCallId,
           name: call.name,
           argumentsHash: call.argumentsHash,
+          ...(callApprovalGroupId ? { approvalGroupId: callApprovalGroupId } : {}),
           status: "completed",
           output: redactToolOutput(replayed.output, manifest.manifest?.redaction ?? []),
           ...(replayed.effectId ? { effectId: replayed.effectId } : {}),
@@ -2853,6 +2864,7 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
           providerToolCallId,
           name: call.name,
           argumentsHash: call.argumentsHash,
+          ...(callApprovalGroupId ? { approvalGroupId: callApprovalGroupId } : {}),
           status: "completed",
           output: durableOutput,
           ...(canonical.effectId ? { effectId: canonical.effectId } : {}),
@@ -2860,7 +2872,7 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
           latencyMs: canonical.latencyMs,
         };
       }
-      const approvalGroupId = input.approvalGroupId ?? input.approval?.approvalGroupId ?? call.approvalGroupId;
+      const approvalGroupId = callApprovalGroupId;
       let resolvedApproval = input.approval;
       if (manifest.requiresApproval && approvalGroupId && resolvedApproval) {
         const persistedApproval = await approvals.getApprovedOperation({
@@ -2988,6 +3000,7 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
           providerToolCallId,
           name: call.name,
           argumentsHash: call.argumentsHash,
+          ...(callApprovalGroupId ? { approvalGroupId: callApprovalGroupId } : {}),
           status: "completed",
           output: durableOutput,
           ...(result.effectId ? { effectId: result.effectId } : {}),
@@ -3022,10 +3035,45 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
       await assertCurrentSessionLease({ organizationId: run.organization_id, runId: run.id, sessionLease: input.sessionLease });
       const state = await workflowState.get(run.organization_id, run.id);
       const checkpoint = readDurableAgentLoopCheckpoint(state?.state?.__agentLoop);
+      const emitConsumedGroupEvidence = async (groupIds: Iterable<string>): Promise<void> => {
+        for (const groupId of new Set(groupIds)) {
+          const group = await approvals.getGroup(run.organization_id, groupId);
+          if (!group || group.status !== "consumed") continue;
+          const operations = await approvals.listGroupOperations(run.organization_id, group.id);
+          const createdAt = new Date(group.created_at).getTime();
+          const consumedAt = group.consumed_at ? new Date(group.consumed_at).getTime() : NaN;
+          const durationMs = Number.isFinite(createdAt) && Number.isFinite(consumedAt) && consumedAt >= createdAt
+            ? consumedAt - createdAt
+            : undefined;
+          await runs.appendEventOnce({
+            organizationId: run.organization_id,
+            runId: run.id,
+            installationId: run.installation_id,
+            eventType: "agent.approval.group.consumed",
+            idempotencyKey: `approval-group-consumed:${group.id}`,
+            payload: {
+              approvalGroupId: group.id,
+              batchId: group.batch_id,
+              planDigest: group.plan_digest,
+              operationCount: operations.length,
+              selectedCount: group.selected_operation_ids.length,
+              selectedOperationIds: group.selected_operation_ids,
+              operationIds: operations.map((operation) => operation.runtime_operation_id),
+              decision: group.decision,
+              approvedBy: group.decided_by,
+              expiresAt: group.expires_at,
+              ...(group.consumed_at ? { consumedAt: group.consumed_at } : {}),
+              ...(durationMs !== undefined ? { durationMs } : {}),
+            },
+          });
+        }
+      };
       if (!checkpoint?.toolBatchPending || !checkpoint.pendingToolCalls?.length) {
+        await emitConsumedGroupEvidence(input.results.flatMap((result) => result.approvalGroupId ? [result.approvalGroupId] : []));
         return { status: "replayed", toolCalls: input.results.length };
       }
       const byId = new Map(input.results.map((result) => [result.id, result]));
+      const committedGroupIds = input.results.flatMap((result) => result.approvalGroupId ? [result.approvalGroupId] : []);
       const committedIds = new Set<string>();
       const messages = [...checkpoint.messages];
       for (const call of checkpoint.pendingToolCalls) {
@@ -3059,6 +3107,7 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
         eventType: "agent.tool_batch.committed",
         payload: { batchId: input.batchId, committedOperationIds: [...committedIds], remainingOperationIds: remaining.map((call) => call.id) },
       });
+      await emitConsumedGroupEvidence(committedGroupIds);
       const control = input.results.find((result) => result.control)?.control;
       const waitingFor = input.results.find((result) => result.waitingFor)?.waitingFor;
       return {

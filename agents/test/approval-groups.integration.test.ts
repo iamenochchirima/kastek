@@ -136,6 +136,75 @@ describe.skipIf(!runIntegration)("durable approval groups (PostgreSQL integratio
     })).rejects.toThrow("already consumed");
   });
 
+  it("appends consumed group evidence idempotently across activity retries", async () => {
+    const runId = await createRun(`consumed-event-${randomUUID()}`);
+    const created = await approvals.createGroup({
+      organizationId,
+      installationId,
+      runId,
+      batchId: `${runId}:batch:1`,
+      turnKey: "model-turn:1",
+      policyRevision: "v1",
+      expiresAt: new Date(Date.now() + 60_000).toISOString(),
+      proposals: proposals(2, "consumed-event"),
+    });
+    const decision = await approvals.decideGroup({
+      organizationId,
+      runId,
+      groupId: created.group.id,
+      planDigest: created.group.plan_digest,
+      decision: "approved",
+      approvedBy: "operator-1",
+    });
+    for (const approval of decision.approvals.filter((candidate) => candidate.status === "approved")) {
+      await approvals.consume({
+        organizationId,
+        installationId,
+        runId,
+        providerToolCallId: approval.provider_tool_call_id,
+        runtimeOperationId: approval.runtime_operation_id,
+        argumentsHash: approval.arguments_hash,
+        capability: approval.capability,
+        capabilityVersion: approval.capability_version,
+        resourceSnapshot: approval.resource_snapshot,
+        previewRevision: approval.preview_revision,
+        policyRevision: approval.policy_revision,
+        permittedEffectKey: approval.permitted_effect_key,
+      });
+    }
+
+    const group = await approvals.getGroup(organizationId, created.group.id);
+    expect(group?.status).toBe("consumed");
+    const event = {
+      organizationId,
+      runId,
+      installationId,
+      eventType: "agent.approval.group.consumed",
+      idempotencyKey: `approval-group-consumed:${created.group.id}`,
+      payload: {
+        approvalGroupId: created.group.id,
+        batchId: group!.batch_id,
+        planDigest: group!.plan_digest,
+        operationCount: decision.approvals.length,
+        selectedCount: group!.selected_operation_ids.length,
+        selectedOperationIds: group!.selected_operation_ids,
+        operationIds: decision.approvals.map((approval) => approval.runtime_operation_id),
+        decision: group!.decision,
+        approvedBy: group!.decided_by,
+      },
+    };
+    expect(await runs.appendEventOnce(event)).toBe(true);
+    expect(await runs.appendEventOnce(event)).toBe(false);
+    const persisted = await pool.query<{ count: string }>(
+      `SELECT COUNT(*)::text AS count
+       FROM agent_events
+       WHERE organization_id = $1 AND run_id = $2 AND event_type = $3
+         AND payload->>'_idempotencyKey' = $4`,
+      [organizationId, runId, event.eventType, event.idempotencyKey],
+    );
+    expect(persisted.rows[0]?.count).toBe("1");
+  });
+
   it("serializes concurrent group decisions into one accepted decision", async () => {
     const runId = await createRun(`concurrent-${randomUUID()}`);
     const created = await approvals.createGroup({
