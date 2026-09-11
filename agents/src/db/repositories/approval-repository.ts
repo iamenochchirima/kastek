@@ -290,7 +290,8 @@ export class ApprovalRepository {
     approvedBy: string;
     idempotencyKey?: string;
   }): Promise<ApprovalGroupDecisionResult> {
-    return withTransaction(this.pool, async (client) => {
+    let expired = false;
+    const result = await withTransaction(this.pool, async (client) => {
       const locked = await client.query<ApprovalGroupRecord>(
         `SELECT * FROM agent_approval_groups
          WHERE organization_id = $1 AND run_id = $2 AND id = $3
@@ -316,7 +317,27 @@ export class ApprovalRepository {
         if (sameDecision) return { group, approvals, accepted: false };
         throw new Error("APPROVAL_GROUP_NOT_PENDING");
       }
-      if (new Date(group.expires_at).getTime() <= Date.now()) throw new Error("APPROVAL_GROUP_EXPIRED");
+      if (new Date(group.expires_at).getTime() <= Date.now()) {
+        await client.query(
+          `UPDATE agent_approval_groups
+           SET status = 'expired', decision = 'rejected', selected_operation_ids = '[]'::jsonb, decided_at = now()
+           WHERE organization_id = $1 AND run_id = $2 AND id = $3 AND status = 'pending'`,
+          [input.organizationId, input.runId, input.groupId],
+        );
+        await client.query(
+          `UPDATE agent_approval_records SET status = 'expired', decided_at = now()
+           WHERE organization_id = $1 AND run_id = $2 AND approval_group_id = $3 AND status = 'pending'`,
+          [input.organizationId, input.runId, input.groupId],
+        );
+        expired = true;
+        const expiredGroup = await this.getGroupWithClient(client, input.organizationId, input.groupId);
+        const expiredApprovals = await this.listGroupOperationsWithClient(client, input.organizationId, input.groupId);
+        return {
+          group: expiredGroup ?? { ...group, status: "expired", decision: "rejected", selected_operation_ids: [] },
+          approvals: expiredApprovals,
+          accepted: false,
+        };
+      }
       const updated = await client.query<ApprovalGroupRecord>(
         `UPDATE agent_approval_groups
          SET status = $4, decision = $5, selected_operation_ids = $6::jsonb,
@@ -347,6 +368,8 @@ export class ApprovalRepository {
       );
       return { group: updatedGroup, approvals: await this.listGroupOperationsWithClient(client, input.organizationId, group.id), accepted: true };
     });
+    if (expired) throw new Error("APPROVAL_GROUP_EXPIRED");
+    return result;
   }
 
   public async expireGroups(limit = 100): Promise<Array<Pick<ApprovalGroupRecord, "id" | "organization_id" | "installation_id" | "run_id">>> {
@@ -372,6 +395,45 @@ export class ApprovalRepository {
         );
       }
       return groups.rows.map(({ id, organization_id, installation_id, run_id }) => ({ id, organization_id, installation_id, run_id }));
+    });
+  }
+
+  /**
+   * Invalidates a prepared group when its reviewed resource, capability
+   * version, or policy no longer matches the execution request. Invalidated
+   * groups cannot be approved or resumed; their child records remain as
+   * audit evidence and are cancelled so no effect can consume them.
+   */
+  public async invalidateGroup(organizationId: string, runId: string, groupId: string, reason?: string): Promise<ApprovalGroupRecord | null> {
+    return withTransaction(this.pool, async (client) => {
+      const updated = await client.query<ApprovalGroupRecord>(
+        `UPDATE agent_approval_groups
+         SET status = 'invalidated', decision = 'rejected', selected_operation_ids = '[]'::jsonb, decided_at = now()
+         WHERE organization_id = $1 AND run_id = $2 AND id = $3
+           AND status IN ('pending', 'approved', 'partially_approved')
+         RETURNING *`,
+        [organizationId, runId, groupId],
+      );
+      const group = updated.rows[0];
+      if (!group) return this.getGroupWithClient(client, organizationId, groupId);
+      const operations = await this.listGroupOperationsWithClient(client, organizationId, groupId);
+      for (const approval of operations) {
+        const child = await client.query<ApprovalRecord>(
+          `UPDATE agent_approval_records SET status = 'cancelled', decided_at = now()
+           WHERE organization_id = $1 AND run_id = $2 AND id = $3 AND status IN ('pending', 'approved')
+           RETURNING *`,
+          [organizationId, runId, approval.id],
+        );
+        const record = child.rows[0] ?? approval;
+        const analyticsRow = await this.getAnalyticsRow(client, record.id);
+        await enqueueOutbox(client, buildApprovalLifecycleEvent(this.analyticsInput(analyticsRow, "cancelled", "system", null, analyticsRow.decided_at ?? analyticsRow.created_at)));
+      }
+      await client.query(
+        `INSERT INTO audit_records (organization_id, actor_type, actor_id, action, resource_type, resource_id, metadata)
+         VALUES ($1, 'system', 'approval-runtime', 'agent_approval_group.invalidated', 'agent_approval_group', $2, $3::jsonb)`,
+        [organizationId, groupId, JSON.stringify({ runId, reason: reason ?? "approval_plan_changed" })],
+      );
+      return normalizeGroup(group);
     });
   }
 
@@ -620,6 +682,14 @@ export class ApprovalRepository {
       [organizationId, groupId],
     );
     return result.rows;
+  }
+
+  private async getGroupWithClient(client: PoolClient, organizationId: string, groupId: string): Promise<ApprovalGroupRecord | null> {
+    const result = await client.query<ApprovalGroupRecord>(
+      `SELECT * FROM agent_approval_groups WHERE organization_id = $1 AND id = $2 LIMIT 1`,
+      [organizationId, groupId],
+    );
+    return result.rows[0] ? normalizeGroup(result.rows[0]) : null;
   }
 
   private async markGroupConsumedIfSettled(client: PoolClient, groupId: string | null | undefined): Promise<void> {

@@ -140,4 +140,87 @@ describe.skipIf(!runIntegration)("durable approval groups (PostgreSQL integratio
     expect(results.filter((result) => !result.accepted)).toHaveLength(1);
     expect((await approvals.getGroup(organizationId, created.group.id))?.selected_operation_ids).toHaveLength(18);
   });
+
+  it("changes the plan digest when reviewed identity or policy changes", async () => {
+    const firstRunId = await createRun(`digest-first-${randomUUID()}`);
+    const first = await approvals.createGroup({
+      organizationId,
+      installationId,
+      runId: firstRunId,
+      batchId: `${firstRunId}:batch:1`,
+      turnKey: "model-turn:1",
+      policyRevision: "v1",
+      expiresAt: new Date(Date.now() + 60_000).toISOString(),
+      proposals: proposals(1, "digest-first"),
+    });
+    const secondRunId = await createRun(`digest-second-${randomUUID()}`);
+    const changed = proposals(1, "digest-second").map((proposal) => ({
+      ...proposal,
+      argumentsHash: "f".repeat(64),
+      policyRevision: "v2",
+    }));
+    const second = await approvals.createGroup({
+      organizationId,
+      installationId,
+      runId: secondRunId,
+      batchId: `${secondRunId}:batch:1`,
+      turnKey: "model-turn:1",
+      policyRevision: "v2",
+      expiresAt: new Date(Date.now() + 60_000).toISOString(),
+      proposals: changed,
+    });
+    expect(second.group.plan_digest).not.toBe(first.group.plan_digest);
+  });
+
+  it("materializes expiration before rejecting a late decision", async () => {
+    const runId = await createRun(`expire-late-${randomUUID()}`);
+    const created = await approvals.createGroup({
+      organizationId,
+      installationId,
+      runId,
+      batchId: `${runId}:batch:1`,
+      turnKey: "model-turn:1",
+      policyRevision: "v1",
+      expiresAt: new Date(Date.now() + 60_000).toISOString(),
+      proposals: proposals(3, "expire-late"),
+    });
+    await pool.query("UPDATE agent_approval_groups SET expires_at = now() - interval '1 second' WHERE id = $1", [created.group.id]);
+
+    await expect(approvals.decideGroup({
+      organizationId,
+      runId,
+      groupId: created.group.id,
+      planDigest: created.group.plan_digest,
+      decision: "approved",
+      approvedBy: "operator-1",
+    })).rejects.toThrow("APPROVAL_GROUP_EXPIRED");
+    expect((await approvals.getGroup(organizationId, created.group.id))?.status).toBe("expired");
+    expect((await approvals.listGroupOperations(organizationId, created.group.id)).every((approval) => approval.status === "expired")).toBe(true);
+  });
+
+  it("invalidates a changed plan and cancels every unexecuted child", async () => {
+    const runId = await createRun(`invalidate-${randomUUID()}`);
+    const created = await approvals.createGroup({
+      organizationId,
+      installationId,
+      runId,
+      batchId: `${runId}:batch:1`,
+      turnKey: "model-turn:1",
+      policyRevision: "v1",
+      expiresAt: new Date(Date.now() + 60_000).toISOString(),
+      proposals: proposals(4, "invalidate"),
+    });
+    const invalidated = await approvals.invalidateGroup(organizationId, runId, created.group.id, "resource_changed");
+    expect(invalidated?.status).toBe("invalidated");
+    expect((await approvals.listGroupOperations(organizationId, created.group.id)).every((approval) => approval.status === "cancelled")).toBe(true);
+    await expect(approvals.decideGroup({
+      organizationId,
+      runId,
+      groupId: created.group.id,
+      planDigest: created.group.plan_digest,
+      decision: "approved",
+      approvedBy: "operator-1",
+    })).rejects.toThrow("APPROVAL_GROUP_NOT_PENDING");
+    expect((await approvals.invalidateGroup(organizationId, runId, created.group.id, "repeat"))?.status).toBe("invalidated");
+  });
 });

@@ -1145,6 +1145,44 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     if (active.group.plan_digest !== input.planDigest) {
       throw Object.assign(new Error("approval_group_digest_mismatch"), { statusCode: 409, code: "approval_group_digest_mismatch" });
     }
+    // A decision is durable before the Temporal signal is delivered. Once the
+    // group is no longer pending, a repeated click must return that recorded
+    // decision without re-running capability/policy checks that could have
+    // changed after the original approval. If the Workflow is still waiting,
+    // resend only the same durable command.
+    if (active.group.status !== "pending") {
+      let recordedDecision;
+      try {
+        recordedDecision = await approvals.decideGroup({
+          organizationId: input.organizationId,
+          runId: input.runId,
+          groupId: input.groupId,
+          planDigest: input.planDigest,
+          decision: input.decision,
+          selectedOperationIds: input.selectedOperationIds,
+          approvedBy: input.approvedBy,
+          idempotencyKey: input.idempotencyKey,
+        });
+      } catch (error) {
+        const code = error instanceof Error ? error.message : "approval_group_not_pending";
+        throw Object.assign(new Error(code), { statusCode: code === "APPROVAL_GROUP_NOT_FOUND" ? 404 : 409, code: code.toLowerCase() });
+      }
+      const currentRun = await runs.getRun(input.organizationId, input.runId);
+      if (currentRun?.status === "awaiting_approval") {
+        if (!dependencies.signalApprovalGroup) {
+          throw Object.assign(new Error("temporal_not_configured"), { statusCode: 503, code: "temporal_not_configured" });
+        }
+        await dependencies.signalApprovalGroup(input.runId, {
+          groupId: recordedDecision.group.id,
+          planDigest: recordedDecision.group.plan_digest,
+          decision: recordedDecision.group.decision ?? "rejected",
+          approvedBy: recordedDecision.group.decided_by ?? input.approvedBy,
+          selectedOperationIds: recordedDecision.group.selected_operation_ids,
+          expiresAt: recordedDecision.group.expires_at,
+        });
+      }
+      return recordedDecision;
+    }
     if (active.group.status === "pending") {
       const run = await runs.getRun(input.organizationId, input.runId);
       if (!run) throw Object.assign(new Error("run_not_found"), { statusCode: 404, code: "run_not_found" });
