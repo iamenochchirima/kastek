@@ -1145,7 +1145,17 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     if (!active || active.group.run_id !== input.runId) {
       throw Object.assign(new Error("approval_group_not_found"), { statusCode: 404, code: "approval_group_not_found" });
     }
+    const appendDecisionConflict = async (reason: string): Promise<void> => {
+      await runs.appendEvent({
+        organizationId: input.organizationId,
+        runId: input.runId,
+        installationId: active.group.installation_id,
+        eventType: "agent.approval.group.decision_conflict",
+        payload: { approvalGroupId: input.groupId, planDigest: input.planDigest, reason },
+      });
+    };
     if (active.group.plan_digest !== input.planDigest) {
+      await appendDecisionConflict("plan_digest_mismatch");
       throw Object.assign(new Error("approval_group_digest_mismatch"), { statusCode: 409, code: "approval_group_digest_mismatch" });
     }
     // A decision is durable before the Temporal signal is delivered. Once the
@@ -1300,6 +1310,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       });
     } catch (error) {
       const code = error instanceof Error ? error.message : "approval_group_not_pending";
+      if (code !== "APPROVAL_GROUP_EXPIRED") await appendDecisionConflict(code.toLowerCase());
       const statusCode = code === "APPROVAL_GROUP_EXPIRED" ? 409 : 409;
       throw Object.assign(new Error(code), { statusCode, code: code.toLowerCase() });
     }
@@ -1346,6 +1357,19 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       },
     });
     await signalDecision();
+    await runs.appendEvent({
+      organizationId: input.organizationId,
+      runId: input.runId,
+      installationId: decision.group.installation_id,
+      eventType: "agent.approval.group.resumed",
+      payload: {
+        approvalGroupId: decision.group.id,
+        planDigest: decision.group.plan_digest,
+        decision: decision.group.decision,
+        selectedOperationIds: decision.group.selected_operation_ids,
+        operationCount: decision.approvals.length,
+      },
+    });
     return decision;
   };
 

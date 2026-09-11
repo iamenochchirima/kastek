@@ -186,6 +186,25 @@ describe("approval-group API", () => {
       expect(fixture.decideGroup).toHaveBeenCalledTimes(1);
       expect(fixture.signalApprovalGroup).toHaveBeenCalledWith(runId, expect.objectContaining({ groupId, planDigest, decision: "approved" }));
       expect(fixture.appendEvent).toHaveBeenCalledWith(expect.objectContaining({ eventType: "agent.approval.group.approved" }));
+      expect(fixture.appendEvent).toHaveBeenCalledWith(expect.objectContaining({ eventType: "agent.approval.group.resumed" }));
+    } finally {
+      await fixture.app.close();
+    }
+  });
+
+  it("records a stale digest decision conflict without signaling the workflow", async () => {
+    const fixture = buildFixture();
+    try {
+      const response = await fixture.app.inject({
+        method: "POST",
+        url: `/v1/runs/${runId}/approval-group`,
+        headers: { "x-organization-id": organizationId, "x-actor-id": "operator-1" },
+        payload: { groupId, planDigest: "c".repeat(64), decision: "approved" },
+      });
+      expect(response.statusCode).toBe(409);
+      expect(response.json()).toMatchObject({ error: "approval_group_digest_mismatch" });
+      expect(fixture.appendEvent).toHaveBeenCalledWith(expect.objectContaining({ eventType: "agent.approval.group.decision_conflict" }));
+      expect(fixture.signalApprovalGroup).not.toHaveBeenCalled();
     } finally {
       await fixture.app.close();
     }
