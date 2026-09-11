@@ -442,9 +442,10 @@ Logs, metrics, dashboards, and alerts: required for group size, wait duration, s
   credentials and sensitive arguments
 User, API, internal, and operational documentation: update Studio/API approval documentation,
   internal execution architecture, Temporal recovery runbook, and migration/rollback runbook
-Validation evidence: completed unit, PostgreSQL concurrency and 32/64/128/256 persistence, API,
-  local Temporal, worker-replacement, expiry, stale-plan, and 18-operation checks; real-tool,
-  full end-to-end scale, migration/rollback, and guided Studio checks remain pending
+Validation evidence: completed unit/redaction/SSE, PostgreSQL concurrency and 32/64/128/256
+  persistence, 9/9 API, local Temporal 21/21, worker-replacement, expiry, stale-plan, partial
+  provider failure, later-group, and 18-operation checks; real-tool, live Studio scale/reconnect,
+  fresh/legacy migration-state, and guided Studio checks remain pending
 Rollback or disable plan: stop admitting new group-version runs, preserve and drain already-approved
   groups, roll back only at a Temporal-compatible Workflow boundary, and never reopen consumed groups
 Post-release review date: TBD at release time
