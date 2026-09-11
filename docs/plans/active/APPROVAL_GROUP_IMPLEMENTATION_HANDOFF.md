@@ -23,6 +23,14 @@ own exact identity, authorization, effect receipt, and terminal outcome.
 - `81fb012d feat(agents): expose approval group history`
 - `3fcb2986 fix(agents): invalidate stale approval resources`
 - `a8e12de3 fix(agents): persist terminal approval outcomes`
+- `846bec0a test(agents): cover approval cancellation outcomes`
+- `de1cde6e test(agents): cover approval group terminal transitions`
+- `5bae705a fix(agents): revalidate approval resources before decision` (also contains unrelated
+  pre-staged context changes; do not treat this as an approval-only cherry-pick)
+- `e20f5e10 test(agents): harden approval group decision boundaries`
+- `20c790de fix(agents): resume invalidated approval groups`
+- `7363bb95 feat(agents): record approval group lifecycle events`
+- `02424475 test(agents): cover approval group scale and restart`
 
 The current branch is `rewrite`. Do not stage all changes: another agent is actively implementing
 session context and compaction in the same worktree.
@@ -47,8 +55,10 @@ session context and compaction in the same worktree.
 - Group approval executes selected operations, rejects unselected operations with typed results,
   preserves partial outcomes, and resumes the same model turn.
 - Rejection, expiry, and cancellation now commit a typed result for every unexecuted operation
-  before the workflow terminates.
-- Exact operation authorization and resource revalidation occur in `executeToolCall`.
+  before the workflow terminates. Invalidation now uses the same durable signal path and commits
+  `APPROVAL_GROUP_INVALIDATED` outcomes before resuming the model turn.
+- Exact operation authorization and resource revalidation occur at both decision time and in
+  `executeToolCall`; stale resources invalidate the group before approval is accepted.
 
 ### API, channel, and Studio surface
 
@@ -61,25 +71,24 @@ session context and compaction in the same worktree.
 
 - `pnpm --dir agents build` passed.
 - Client build passed after the group client changes.
-- PostgreSQL integration passed: 83 tests across approval groups and migration tests.
-- Temporal deterministic suite has passed the 18-operation group, rejection path, retry/failure
-  matrix, replay, cancellation, and history cases.
-- The new expiry case passed in isolation and now verifies all four unexecuted operations become
-  `APPROVAL_EXPIRED`.
+- PostgreSQL integration passed: 91/91 tests across approval groups and migration tests, including
+  rejected terminal/idempotent decisions and 32/64/128/256-operation persistence/listing.
+- API approval-group tests passed: 8/8, including tenant isolation, stale digest/resource
+  conflicts, expired/cancelled/already-signalled outcomes, run-detail history, and lifecycle
+  event assertions.
+- The full deterministic Temporal tool-execution suite passed: 15/15, including the
+  18-operation group, rejection, invalidation, expiry, cancellation, retry/failure matrix,
+  replay, cancellation, history, and worker-replacement cases.
+- `pnpm --dir agents build` passed after the decision-time invalidation and lifecycle changes.
 - Resource-revalidation unit tests passed.
 
 The real-provider Temporal smoke test reached the local worker but stopped in the separate context
 compaction work with `ContextCompactionError(code=no_progress)` before tool-batch preparation.
 That is not approval evidence and belongs to the session-context plan.
 
-## Most recent test detail
+## Reproduction commands
 
-The full Temporal command previously reported 11 passing and one test-harness failure because the
-new expiry test omitted the `expirationSignal` import. That was fixed. The focused expiry test then
-passed. The expiry test also needed a `cancelApprovalGroup` stub because Temporal proxy activity
-properties are always truthy; the production worker must register that Activity.
-
-Run the full deterministic suite again:
+Run the deterministic Temporal suite:
 
 ```sh
 pnpm --dir agents build
@@ -88,25 +97,23 @@ TEMPORAL_TEST_ADDRESS=127.0.0.1:7233 \
 pnpm --dir agents exec vitest run test/temporal-tool-execution.integration.test.ts --reporter=dot
 ```
 
-The local Temporal dev server should already be running on `127.0.0.1:7233`; verify before
-starting another one.
+The local Temporal dev server should already be running on `127.0.0.1:7233`; verify before starting
+another one. The worker-replacement case is in the same test file and can be selected with
+`-t 'worker is replaced'`.
 
 ## Immediate next work
 
-1. Run the full Temporal suite and commit only approval-related changes if anything remains.
-2. Add an approval-cancellation integration case mirroring the expiry case; assert every operation
-   is committed as `APPROVAL_CANCELLED`, no tool Activity runs, and the group is cancelled.
-3. Add repository transition tests for cancel, expire, consume, invalidation, illegal repeats, and
-   stale selected-operation/digest decisions.
-4. Add HTTP/API integration coverage for tenant authorization, explicit expired/stale/already-
-   decided responses, run-detail history, and duplicate approval clicks.
-5. Complete decision-time resource revalidation. Current API rechecks proposal identity and
-   installation policy; current resource snapshot revalidation is at execution time in the
-   Temporal Activity. Do not mark the plan complete until this distinction is resolved.
-6. Add lifecycle/audit/metrics coverage for requested, displayed, approved, partially approved,
-   rejected, expired, cancelled, invalidated, resumed, consumed, and decision-conflict events.
-7. Add scale tests for 32, 64, 128, and 256 proposals and a worker-restart-while-waiting test.
-8. Update the approval plan checkboxes only when the behavior is actually implemented and tested.
+1. Complete lifecycle observability: group-level consumed evidence, metrics, dashboards, and
+   bounded structured logging for wait duration, group size, decision latency, duplicates,
+   expiry, and provider failures.
+2. Run the real-provider/sandbox and guided Studio tracks, including refresh/reconnect, duplicate
+   approval clicks, partial provider failure, and provider-state reconciliation.
+3. Add fresh-database, legacy-row, migration, and rollback evidence. Do not remove the legacy
+   single-operation reader until the open Temporal history compatibility window is drained.
+4. Extend scale verification from PostgreSQL persistence to end-to-end API/UI projection and
+   Temporal history handling at 32, 64, 128, and 256 proposals.
+5. Cover remaining approval races and later-barrier behavior: group creation versus decision,
+   second approval-required segments, later model turns, and approval after completed runs.
 
 Primary plan:
 `docs/plans/active/AGENT_HERMES_ALIGNED_APPROVAL_GROUPS_AND_HUMAN_IN_THE_LOOP_PLAN.md`

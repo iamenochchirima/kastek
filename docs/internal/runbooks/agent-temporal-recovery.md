@@ -80,6 +80,11 @@ Approval-required operations now pause on an immutable approval group. Inspect t
 worker is replaced while the run is waiting, do not create another run or approve a child record
 directly; the same Temporal Workflow resumes from the group signal. A stale digest, expired group,
 or operation not selected by the decision must remain blocked and requires a new model proposal.
+At decision time, the API also re-reads the reviewed resource snapshot. If the resource is no
+longer equivalent, the group is durably marked `invalidated`, the waiting Workflow receives the
+invalidated decision, and each child is committed as `APPROVAL_GROUP_INVALIDATED`; no provider
+effect is started. The endpoint records bounded `decision_conflict` and `resumed` run events for
+operator diagnosis without storing tool arguments in those event payloads.
 
 The inner-loop fault boundary is covered without making production failure injection available:
 `agents/test/temporal-fault-injection.test.ts` simulates a retryable provider failure, a database

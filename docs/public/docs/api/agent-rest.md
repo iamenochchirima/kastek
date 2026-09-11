@@ -195,7 +195,11 @@ Content-Type: application/json
 Omit `selectedOperationIds` to approve every operation in the current group. A selected decision
 authorizes only the listed operation IDs; every other child receives a durable denied outcome.
 The decision is bound to the digest, installation, capability version, arguments hash, and resource
-snapshot. A stale, expired, changed, or unauthorized request fails closed.
+snapshot. A stale, expired, changed, or unauthorized request fails closed. A changed resource
+invalidates the group before the decision is accepted and returns `409 approval_group_invalidated`;
+the waiting run records a typed blocked outcome for each child and requires a new proposal. A
+repeated matching decision returns the durable prior outcome and does not signal or execute the
+group again.
 
 ## Cancel an operation
 

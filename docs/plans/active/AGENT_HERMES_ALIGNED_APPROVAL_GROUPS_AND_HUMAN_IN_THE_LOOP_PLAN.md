@@ -11,16 +11,18 @@
 **Implementation status:** In progress. The durable group schema, repository, batch formation,
 Temporal group signal, group decision API, expiry/invalidation transitions, and Studio/activity
 controls are implemented. The group contract now also covers selected-operation controls, channel
-approval delivery, signal retry, duplicate-call ordering, historical group summaries, and
-PostgreSQL-backed 18-operation/concurrent-decision checks. Real-provider verification still
-requires sandbox credentials; the remaining scale, worker-loss, resource-revalidation, and guided
-Studio checks are listed below.
+approval delivery, signal retry, duplicate-call ordering, historical group summaries, decision-time
+resource revalidation, terminal typed outcomes, lifecycle conflict/resume events, repository scale
+checks, and deterministic worker replacement. Real-provider verification still requires sandbox
+credentials; lifecycle metrics, migration rollback evidence, compatibility cleanup, and guided
+Studio checks remain open.
 
 **Verification boundary:** On 2026-09-11, the real-model Temporal smoke test reached the local
 worker but stopped in the separate context-compaction implementation with
 `ContextCompactionError(code=no_progress)` before tool-batch preparation. This is recorded as a
-context-plan blocker, not as approval-group evidence; the deterministic approval and PostgreSQL
-tests passed independently.
+context-plan blocker, not as approval-group evidence. Approval-specific verification currently
+includes a passing Agents build, 91/91 PostgreSQL approval/migration tests, 8/8 API tests, a
+15/15 full deterministic Temporal suite, including worker replacement while a group was pending.
 
 **Related plans:**
 
@@ -246,7 +248,7 @@ durable fan-out, joins, retries, and result ordering.
       an approval-required effect cross its boundary before the group decision.
 - [x] Support group approval, group rejection, and approve-selected with explicit operation IDs.
       Unselected operations receive a typed rejected result and cannot execute.
-- [ ] Revalidate resources, capability version, policy revision, and arguments at decision and
+- [x] Revalidate resources, capability version, policy revision, and arguments at decision and
       execution time. Stale plans become `invalidated` and require a new model proposal.
 - [ ] Add bounded session grants only after the group path works. Match them against capability,
       resource selector, installation, actor/session, policy revision, and expiry. Do not implement a
@@ -263,7 +265,7 @@ durable fan-out, joins, retries, and result ordering.
       new model turn, or replacement run to continue an approval.
 - [x] Pass a validated per-operation authorization proof into each tool Activity. The Activity must
       recheck identity and consume authorization atomically before the external effect.
-- [ ] On rejection, expiry, cancellation, or invalidation, record typed results for every unexecuted
+- [x] On rejection, expiry, cancellation, or invalidation, record typed results for every unexecuted
       proposal, release pending effect reservations, and continue or finish the model turn according
       to the existing runtime contract.
 - [x] Preserve partial success: completed siblings remain completed, failed siblings remain failed,
@@ -293,6 +295,10 @@ durable fan-out, joins, retries, and result ordering.
 
 ### Phase 6 — Observability, audit, and operational recovery
 
+Decision-conflict, invalidation, and resumed group run events are now emitted by the approval
+endpoint and covered by API tests. The complete lifecycle-event contract, metrics, dashboards,
+and migration/rollback evidence are still release work and remain unchecked below.
+
 - [ ] Emit lifecycle events for group requested, displayed, approved, partially approved, rejected,
       expired, cancelled, invalidated, resumed, consumed, and decision conflict.
 - [ ] Include group ID, run ID, batch ID, plan digest, operation count, selected count, actor,
@@ -314,11 +320,11 @@ durable fan-out, joins, retries, and result ordering.
 - [x] Create one group for 18 distinct calls and verify all 18 exact operation records are attached.
 - [x] Verify a group digest changes when reviewed identity or policy revision changes. Resource
       snapshot and capability-version coverage remains part of the resource-revalidation tests.
-- [ ] Verify approve, reject, expire, cancel, consume, and invalidation transitions reject illegal
+- [x] Verify approve, reject, expire, cancel, consume, and invalidation transitions reject illegal
       repeats.
 - [x] Verify concurrent approve requests produce one accepted decision and idempotent responses for
       all duplicates.
-- [ ] Verify stale UI decisions cannot authorize a different group or operation.
+- [x] Verify stale UI decisions cannot authorize a different group or operation.
 - [x] Verify selected approval executes only selected operation IDs and returns typed rejection
       outcomes for the remainder.
 - [ ] Verify credentials, tokens, and unredacted arguments never appear in previews, digests, logs,
@@ -328,10 +334,10 @@ durable fan-out, joins, retries, and result ordering.
 
 - [ ] Apply the additive migration to a fresh database and a database containing legacy approval
       rows.
-- [ ] Verify active-group uniqueness, complete operation listing, expiry scanning, tenant isolation,
+- [x] Verify active-group uniqueness, complete operation listing, expiry scanning, tenant isolation,
       and decision idempotency under concurrent requests.
-- [ ] Verify the run-detail endpoint returns every pending operation, not the newest row only.
-- [ ] Verify the decision endpoint returns explicit stale, expired, unauthorized, and already-decided
+- [x] Verify the run-detail endpoint returns every pending operation, not the newest row only.
+- [x] Verify the decision endpoint returns explicit stale, expired, unauthorized, and already-decided
       results.
 
 ### Real-use test harness requirements
@@ -365,18 +371,21 @@ durable fan-out, joins, retries, and result ordering.
 
 ### Temporal and real-tool verification
 
+The PostgreSQL scale test now covers 32, 64, 128, and 256 persisted proposals. End-to-end API/UI
+projection and Temporal history checks at those sizes remain open.
+
 - [x] Run an 18-operation approval-required scenario through local Temporal with one group approval
       and confirm all 18 distinct calls execute exactly once. The test uses a deterministic provider
       fixture; destructive calendar verification remains in the real-use sandbox track below.
 - [ ] Repeat with 32, 64, 128, and 256 proposals to verify group persistence, UI/API projection,
       Temporal history handling, and no per-call approval prompt explosion.
-- [ ] Restart or replace the worker while the group is pending; approve afterward and confirm the
+- [x] Restart or replace the worker while the group is pending; approve afterward and confirm the
       original Workflow resumes without duplicate effects.
 - [ ] Submit two approval decisions concurrently and confirm one decision, one resume, and one
       execution per operation.
-- [ ] Let the group expire and confirm no effect executes, all unexecuted operations are typed as
+- [x] Let the group expire and confirm no effect executes, all unexecuted operations are typed as
       expired, and the run does not report an approval identity mismatch.
-- [ ] Change a resource or policy revision before approval and confirm the plan invalidates safely.
+- [x] Change a resource or policy revision before approval and confirm the plan invalidates safely.
 - [ ] Force one provider failure after group approval and confirm sibling outcomes remain durable and
       the failure is reported as a tool execution failure.
 - [ ] Verify a later model turn creates a new group and cannot reuse the prior approval.
@@ -394,7 +403,7 @@ durable fan-out, joins, retries, and result ordering.
       the complete group before deciding.
 - [ ] Verify a decision submitted by another organization, installation, run, or unauthorized actor
       cannot approve the group, even when the caller knows the group ID and digest.
-- [ ] Verify selection tampering, operation duplication, reordered operation IDs, and changed
+- [x] Verify selection tampering, operation duplication, reordered operation IDs, and changed
       arguments are rejected by digest and exact identity validation.
 - [ ] Verify cancellation while the approval card is open, approval after cancellation, approval
       after expiry, and approval after the run has already completed.
@@ -429,8 +438,9 @@ Logs, metrics, dashboards, and alerts: required for group size, wait duration, s
   credentials and sensitive arguments
 User, API, internal, and operational documentation: update Studio/API approval documentation,
   internal execution architecture, Temporal recovery runbook, and migration/rollback runbook
-Validation evidence: unit, PostgreSQL concurrency, API, local Temporal, worker-loss, restart,
-  expiry, stale-plan, 18/32/64/128/256 proposal, real-tool, and guided Studio checks
+Validation evidence: completed unit, PostgreSQL concurrency and 32/64/128/256 persistence, API,
+  local Temporal, worker-replacement, expiry, stale-plan, and 18-operation checks; real-tool,
+  full end-to-end scale, migration/rollback, and guided Studio checks remain pending
 Rollback or disable plan: stop admitting new group-version runs, preserve and drain already-approved
   groups, roll back only at a Temporal-compatible Workflow boundary, and never reopen consumed groups
 Post-release review date: TBD at release time
