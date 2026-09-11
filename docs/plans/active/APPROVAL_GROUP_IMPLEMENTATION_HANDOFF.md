@@ -26,6 +26,7 @@ own exact identity, authorization, effect receipt, and terminal outcome.
 - `846bec0a test(agents): cover approval cancellation outcomes`
 - `de1cde6e test(agents): cover approval group terminal transitions`
 - `373cc46a test(agents): cover approval group rejection API`
+- `41ba363d fix(agents): avoid legacy approval rows in grouped batches`
 - `5bae705a fix(agents): revalidate approval resources before decision` (also contains unrelated
   pre-staged context changes; do not treat this as an approval-only cherry-pick)
 - `e20f5e10 test(agents): harden approval group decision boundaries`
@@ -68,6 +69,9 @@ session context and compaction in the same worktree.
   `APPROVAL_GROUP_INVALIDATED` outcomes before resuming the model turn.
 - Exact operation authorization and resource revalidation occur at both decision time and in
   `executeToolCall`; stale resources invalidate the group before approval is accepted.
+- The decomposed Temporal path no longer inserts a legacy per-operation approval row during model
+  proposal; `prepareToolBatch` owns grouped approval records, while effect-receipt reservation
+  remains unchanged.
 - Historical run projections and the activity timeline expose each terminal child outcome, including
   partial execution and provider/tool failures. Approved decisions reject an empty selected set.
 - Public run-event and SSE projections expose bounded group identifiers, digests, counts, decisions,
@@ -100,6 +104,10 @@ session context and compaction in the same worktree.
 - API approval-group tests passed: 10/10, including approval and rejection, tenant isolation, stale digest/resource
   conflicts, expired/cancelled/already-signalled outcomes, 256-operation run-detail history, and
   lifecycle event assertions.
+- Opt-in real-provider approval integration passed: 1/1 through a real configured model, durable
+  group creation, the actual HTTP group-decision endpoint, Temporal signal/resume, and one
+  synthetic external-effect invocation. This validates orchestration only; it is not provider
+  sandbox/state-reconciliation or Studio evidence.
 - The full deterministic Temporal tool-execution suite passed: 21/21, including the
   18-operation group, rejection, invalidation, expiry, cancellation, retry/failure matrix,
   replay, cancellation, history, worker replacement, 32/64/128/256-operation approval groups,
@@ -117,6 +125,10 @@ fits its retained-unit policy. The same real-provider test now passes 1/1 throug
 real model dispatch, a connected read capability, durable prepare/execute/commit, and continuation
 after the active checkpoint. This is context/runtime evidence only: it does not prove the approval
 group path, because the fixture intentionally uses an approval-free read tool.
+The separate opt-in approval fixture now passes 1/1 through the real model, grouped proposal
+creation, the actual HTTP approval endpoint, Temporal group resume, and one synthetic external
+effect. It does not prove a real provider sandbox mutation or before/after provider-state
+reconciliation.
 
 ## Reproduction commands
 

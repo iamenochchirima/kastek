@@ -28,7 +28,8 @@ runtime/context evidence only, not approval-group evidence, because the fixture 
 approval-free read capability. Approval-specific verification currently includes a passing Agents
 build, 92/92 PostgreSQL approval/migration tests, 10/10 API tests, a 21/21 full deterministic
 Temporal suite, including worker replacement while a group was pending and 32/64/128/256-operation
-group barriers. A disposable fresh database applied all 168 migrations through 176. A disposable
+group barriers, and a 1/1 opt-in real-provider approval orchestration test using a synthetic
+external-effect capability through the actual HTTP decision endpoint. A disposable fresh database applied all 168 migrations through 176. A disposable
 database seeded with a legacy pending approval row applied 173–176 and preserved that row with no
 approval-group link and no synthetic group.
 
@@ -456,8 +457,9 @@ User, API, internal, and operational documentation: update Studio/API approval d
   internal execution architecture, Temporal recovery runbook, and migration/rollback runbook
 Validation evidence: completed unit/redaction/SSE, PostgreSQL concurrency and 32/64/128/256
   persistence, idempotent consumed-event evidence, 10/10 API, local Temporal 21/21, worker-replacement,
-  expiry, stale-plan, partial provider failure, later-group, and 18-operation checks; fresh and
-  legacy migration-state audits reached 176. Real-tool, live Studio scale/reconnect, durable
+  expiry, stale-plan, partial provider failure, later-group, 18-operation, and 1/1 synthetic
+  real-provider approval-orchestration checks; fresh and legacy migration-state audits reached 176.
+  Real provider sandbox/state reconciliation, live Studio scale/reconnect, durable
   telemetry backend, and guided Studio checks remain pending.
 Rollback or disable plan: stop admitting new group-version runs, preserve and drain already-approved
   groups, roll back only at a Temporal-compatible Workflow boundary, and never reopen consumed groups
