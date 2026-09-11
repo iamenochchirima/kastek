@@ -230,7 +230,7 @@ describe.skipIf(!runIntegration)("Temporal tool execution reliability (integrati
     const workflowId = `agent-run-${randomUUID()}`;
     const groupId = randomUUID();
     const planDigest = "d".repeat(64);
-    const calls = [call("approval-1"), call("approval-2")].map((current, index) => ({
+    const calls = Array.from({ length: 18 }, (_, index) => call(`approval-${index + 1}`)).map((current, index) => ({
       ...current,
       sequenceNumber: index + 1,
       name: "records.delete",
@@ -296,10 +296,8 @@ describe.skipIf(!runIntegration)("Temporal tool execution reliability (integrati
       expiresAt: new Date(Date.now() + 60_000).toISOString(),
     });
     await handle.result();
-    expect(approvals).toEqual([
-      { id: "approval-1", groupId, approvedBy: "approver" },
-      { id: "approval-2", groupId, approvedBy: "approver" },
-    ]);
+    expect(approvals).toEqual(calls.map((current) => ({ id: current.id, groupId, approvedBy: "approver" })));
+    expect(approvals).toHaveLength(18);
     expect(modelSteps).toBe(2);
   }, 30_000);
 

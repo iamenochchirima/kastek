@@ -364,8 +364,9 @@ durable fan-out, joins, retries, and result ordering.
 
 ### Temporal and real-tool verification
 
-- [ ] Run the 18-calendar-delete scenario through local Temporal with one group approval and confirm
-      all 18 distinct calls execute exactly once.
+- [x] Run an 18-operation approval-required scenario through local Temporal with one group approval
+      and confirm all 18 distinct calls execute exactly once. The test uses a deterministic provider
+      fixture; destructive calendar verification remains in the real-use sandbox track below.
 - [ ] Repeat with 32, 64, 128, and 256 proposals to verify group persistence, UI/API projection,
       Temporal history handling, and no per-call approval prompt explosion.
 - [ ] Restart or replace the worker while the group is pending; approve afterward and confirm the
