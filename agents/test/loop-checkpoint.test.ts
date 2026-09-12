@@ -23,7 +23,7 @@ describe("durable agent loop checkpoints", () => {
 
   it("rejects malformed or oversized checkpoint state", () => {
     expect(readDurableAgentLoopCheckpoint({ version: 1, messages: [{ role: "developer", content: "unsafe" }], iterations: 0, toolCalls: 0 })).toBeUndefined();
-    expect(readDurableAgentLoopCheckpoint({ version: 1, messages: Array.from({ length: 129 }, () => ({ role: "user", content: "x" })), iterations: 0, toolCalls: 0 })).toBeUndefined();
+    expect(readDurableAgentLoopCheckpoint({ version: 1, messages: Array.from({ length: 2_049 }, () => ({ role: "user", content: "x" })), iterations: 0, toolCalls: 0 })).toBeUndefined();
     expect(readDurableAgentLoopCheckpoint({ version: 1, messages: [], iterations: -1, toolCalls: 0 })).toBeUndefined();
     expect(readDurableAgentLoopCheckpoint({ version: 1, messages: [], iterations: 0, toolCalls: 0, stepIndex: -1 })).toBeUndefined();
     expect(readDurableAgentLoopCheckpoint({ version: 1, messages: [], iterations: 0, toolCalls: 0, status: "unknown" })).toBeUndefined();
