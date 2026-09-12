@@ -583,6 +583,8 @@ export async function agentRunWorkflow(input: DurableRunInput): Promise<void> {
             runId: input.runId,
             batchId,
             calls,
+            assistantMessage: result.response?.message ?? result.messages.at(-1),
+            ...(result.transcriptSource ? { transcriptSource: result.transcriptSource } : {}),
             sessionLease,
           }));
           const committedOperationIds = new Set<string>();

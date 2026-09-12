@@ -1,5 +1,7 @@
 import type { RunStatus } from "../domain/types";
 import type { AgentLoopResult } from "../runtime/loop";
+import type { TranscriptSourceIdentity } from "../runtime/tool-transcript";
+import type { ModelMessage } from "../model/types";
 import type { ToolApproval } from "../tools/types";
 
 export type DurableAgentLoopResult = AgentLoopResult & {
@@ -137,6 +139,10 @@ export interface PrepareToolBatchActivityInput extends ActivityScope {
   runId: string;
   batchId: string;
   calls: DurableToolCall[];
+  /** Exact provider assistant message that produced this deferred batch. */
+  assistantMessage?: ModelMessage;
+  /** Canonical projection identity used to admit the model request. */
+  transcriptSource?: TranscriptSourceIdentity;
   sessionLease?: SessionLeaseAdmission;
 }
 

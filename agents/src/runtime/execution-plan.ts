@@ -47,6 +47,8 @@ export interface AgentExecutionPlan {
   readonly contextSourceGeneration?: number;
   /** Digest of the canonical active projection used by this turn's model requests. */
   readonly contextSourceProjectionDigest?: string;
+  /** Digest of the canonical transcript head used by this turn's model requests. */
+  readonly contextSourceHeadDigest?: string;
   readonly contextPlanningPolicy?: Partial<ContextPlanningPolicy>;
   readonly toolContext: ToolInvocationContext;
   readonly budgetLedger?: AgentBudgetLedger;
