@@ -60,6 +60,23 @@ describe("tool transcript projection", () => {
     });
   });
 
+  it.each([
+    ["waiting", "APPROVAL_REQUIRED"],
+    ["blocked", "APPROVAL_REJECTED"],
+    ["unknown", "EFFECT_OUTCOME_UNKNOWN"],
+  ] as const)("keeps %s outcomes explicit in the durable transcript", (status, code) => {
+    const outcome = result({
+      status,
+      error: { code, message: `${status} outcome` },
+    });
+
+    expect(durableToolResultMessage(outcome)).toMatchObject({
+      role: "tool",
+      runtimeOperationId: "runtime-1",
+      content: JSON.stringify({ ok: false, error: outcome.error }),
+    });
+  });
+
   it("keeps large canonical evidence separate from the bounded checkpoint projection", () => {
     const large = result({ output: { payload: "x".repeat(20_000) } });
     const canonical = durableToolResultMessage(large);
