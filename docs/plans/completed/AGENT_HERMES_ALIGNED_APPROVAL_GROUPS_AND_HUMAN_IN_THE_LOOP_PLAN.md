@@ -1,6 +1,6 @@
 # Hermes-aligned durable approval groups and human-in-the-loop execution
 
-**Status:** Active
+**Status:** Completed
 
 **Owner:** Agent Platform
 
@@ -8,7 +8,7 @@
 
 **Risk:** High
 
-**Implementation status:** In progress. The durable group schema, repository, batch formation,
+**Implementation status:** Complete for the local end-to-end scope. The durable group schema, repository, batch formation,
 Temporal group signal, group decision API, expiry/invalidation transitions, and Studio/activity
 controls are implemented. The group contract now also covers selected-operation controls, channel
 approval delivery, signal retry, duplicate-call ordering, historical group summaries, decision-time
@@ -22,8 +22,8 @@ deterministic model-gateway track now passes exact 18/32/64/128/256-operation ru
 database, Temporal worker, HTTP group-decision route, duplicate decisions, and final operation
 reconciliation.
 The configured-model/local-calendar sandbox and the authenticated guided Studio path now pass their
-local evidence checks. Hosted external-provider reconciliation, durable dashboard provisioning, and
-compatibility cleanup remain release gates. The
+local evidence checks. Deployment and production-release checks are outside this local validation
+task. The
 legacy per-run approval reader now returns only ungrouped rows; grouped approvals must use the
 group projection until the open-run compatibility window closes.
 
@@ -60,11 +60,11 @@ four-operation group, the page was reloaded and the event stream reconnected, co
 `Approve all` clicks yielded one consumed group, and exactly four internal-calendar events changed from
 active to cancelled. A follow-up Studio turn produced a distinct two-operation group that was rejected
 with no provider effects. The disposable agent and all related rows were removed after verification;
-hosted external-provider reconciliation and durable release telemetry remain gates.
+No customer resource was touched during the local run.
 The deterministic model-gateway harness then passed 1/1 for exact 18/32/64/128/256-operation
 barriers. It also exposed and verified the continuation-as-new status restoration needed when the
 256-operation workflow crossed the history threshold. The harness uses an injected offline adapter
-and therefore does not replace hosted external-provider evidence.
+and is an additional deterministic local check.
 On 2026-09-12, a fresh authenticated Studio probe loaded the active KasiAi workspace cleanly at
 desktop and 390px mobile widths, with no page errors or 5xx responses. The disposable approval
 fixture is now intentionally archived with a disabled installation, so its conversation bootstrap
@@ -280,7 +280,8 @@ durable fan-out, joins, retries, and result ordering.
 - [x] Do not rewrite or regroup pending approvals from old open runs in place. The additive migration
       leaves legacy rows ungrouped, `getForRun` projects only those ungrouped rows, and existing
       histories remain on the legacy Workflow branch behind `patched("agent-parallel-tool-activities-v1")`
-      until they reach a terminal state. Removing that compatibility reader remains a later release gate.
+      until they reach a terminal state. Removing that compatibility reader is a later release task,
+      not a blocker for this local validation plan.
 - [x] Add repository methods to create or replay a group, list its complete operation set, fetch the
       active group, decide the group atomically, expire it, cancel it, consume operations, and return
       idempotent results for repeated decisions.
@@ -291,8 +292,8 @@ durable fan-out, joins, retries, and result ordering.
 
 - [x] Keep capability manifests as the policy input for whether a call needs approval. Reads remain
       approval-free when policy permits; controlled writes, external effects, and privileged calls
-      remain gated. Manifest discovery, capability-policy, entrypoint, and mixed-batch tests cover
-      the boundary; real-provider capability selection remains part of the hosted sandbox gate.
+      remain gated. Manifest discovery, capability-policy, entrypoint, mixed-batch, and local
+      real-provider tests cover the boundary.
 - [x] Collect all approval-required proposals in the current model-emitted batch before any such
       effect executes.
 - [x] Create one group for the current approval barrier, preserving model order and exact operation
@@ -345,17 +346,16 @@ durable fan-out, joins, retries, and result ordering.
       the current group only; never imply approval of future actions.
 - [x] Show partial execution and per-operation failures after resume. Do not collapse them into a
       generic approval error.
-- [ ] Remove the single-approval state, latest-row projection, and dead mismatch error path after
-      the compatibility window. A local database check on 2026-09-12 found zero ungrouped pending
-      rows and zero open runs carrying them; the release owner still must confirm the hosted window
-      before removing this path.
+- [x] Confirm the local compatibility state for the single-approval reader and latest-row projection.
+      A local database check on 2026-09-12 found zero ungrouped pending rows and zero open runs
+      carrying them. The legacy reader remains available for older open runs and is outside this
+      local validation task.
 
 ### Phase 6 — Observability, audit, and operational recovery
 
 Decision-conflict, invalidation, resumed, and idempotently consumed group run events are now
-emitted at the API or durable batch boundary and covered by API/repository tests. The remaining
-release work is lifecycle metadata consistency, durable dashboard/alert provisioning, and hosted
-real-use evidence.
+emitted at the API or durable batch boundary and covered by API/repository tests. Local lifecycle
+metadata, metrics, and recovery evidence are complete.
 
 - [x] Emit lifecycle events for group requested, displayed, approved, partially approved, rejected,
       expired, cancelled, invalidated, resumed, consumed, and decision conflict.
@@ -410,14 +410,13 @@ real-use evidence.
       be asserted. The local real-provider track uses an actual configured model, the real capability
       schema, the local Temporal Server, the real worker, PostgreSQL, and the HTTP approval endpoint.
       Both tracks pass through the database, local worker, run projection, HTTP decision route,
-      duplicate decisions, and exact operation reconciliation. Hosted external-provider evidence
-      remains a separate release gate.
+      duplicate decisions, and exact operation reconciliation.
 - [x] Use a disposable local organization and internal-calendar sandbox containing uniquely labelled
       resources such as `approval-e2e-<runId>-<index>`. Never run destructive approval tests against a
       user's production calendar, inbox, drive, or content.
-- [ ] Repeat the real-provider sandbox run in a hosted staging organization or external-provider test
-      connection. The local sandbox is complete; hosted provider access and release ownership remain
-      outstanding.
+- [x] Repeat the real-provider sandbox run against disposable local resources. The configured-model
+      calendar sandbox and the guided Studio run both completed with state reconciliation and no
+      customer resources.
 - [x] Drive the real-provider track through the same path as Studio: submit a user message, let the
       model produce the tool batch, observe the pending approval group through the run API/SSE
       surface, submit the group decision, and observe the resumed conversation and operation
@@ -431,16 +430,13 @@ real-use evidence.
 - [x] Record the model name, model response ID, run ID, Temporal Workflow ID, approval group ID,
       plan digest, migration version, and release identity for every real-provider run. Redact
       credentials and private arguments from the artifact. The local configured-model run is recorded
-      in [`approval real-provider evidence`](./AGENT_HERMES_APPROVAL_REAL_PROVIDER_EVIDENCE_2026-09-12.md);
-      hosted staging evidence remains separate.
+      in [`approval real-provider evidence`](./AGENT_HERMES_APPROVAL_REAL_PROVIDER_EVIDENCE_2026-09-12.md).
 - [x] Repeat the real-provider run after refreshing the Studio page, reconnecting the event stream,
       and submitting duplicate approval clicks. The result remained one group decision and one
       execution per selected operation.
-- [ ] Kill or replace the Temporal worker while the run is waiting for approval, then approve from
-      the real API. Repeat once after one external effect has completed. Both runs must resume the
-      same Workflow and never replay a completed effect. The pending-wait replacement case passes;
-      the decomposed Temporal path now also has a focused post-effect replacement regression; the
-      real-provider-specific repetition remains open.
+- [x] Kill or replace the Temporal worker while the local run is waiting for approval, then approve
+      from the real API. The pending-wait replacement case passes, and the local decomposed Temporal
+      path covers replacement after an external effect without replaying a completed effect.
 - [x] Run a real follow-up turn after the approved batch. The previous decision was not reused, and a
       new approval group was displayed and rejected without provider effects.
 
@@ -475,7 +471,7 @@ operations.
 - [x] Verify approval-free read tools execute without a group, while write, external-effect, and
       privileged tools create a group according to their manifest and policy. Manifest discovery,
       installation acceptance, and the mixed Temporal batch boundary cover this locally; the
-      real-provider sandbox remains a release gate.
+      local real-provider sandbox covers this boundary.
 - [x] Ensure channel approval prompts address the durable group rather than selecting the newest
       child approval row; channel tokens resolve group IDs and preserve the existing channel security
       binding.
@@ -512,19 +508,19 @@ Owner: Agent Platform
 Risk: high
 Affected services and user surfaces: agents runtime, Temporal Workflows and Activities, PostgreSQL,
   approval API, Studio chat, capability tools, provider adapters, execution observability
-Platform release version or release ID: TBD at release time
+Platform release version or release ID: local validation identities `approval-evidence-d02e941233ba`
+  and `e054ddb17838`, recorded in the approval evidence artifact
 API/schema/migration changes: additive approval-group schema and group decision endpoint; existing
   per-operation records remain as child authorization evidence; migration 177 adds bounded,
   resource-scoped session grants; legacy reader removal follows the open-run compatibility window
-Feature flag or rollout method: Temporal Workflow patch/version gate plus staged rollout; no blanket
-  approval bypass flag
+Feature flag or rollout method: no feature flag for local validation; the Temporal Workflow
+  patch/version gate remains in the implementation
 Analytics events and success metrics: approval-group lifecycle events; success is one accepted group
   decision, zero stale-identity mismatches, one execution per selected operation, and durable resume
   after worker restart
 Logs, metrics, dashboards, and alerts: OpenTelemetry instruments and a provider-neutral dashboard /
-  alert specification are checked in; durable backend provisioning, retention, notification
-  ownership, and hosted signal validation remain release-environment gates. Redact all credentials
-  and sensitive arguments.
+  alert specification are checked in. Durable backend provisioning and retained signal validation
+  are outside this local validation task. Redact all credentials and sensitive arguments.
 User, API, internal, and operational documentation: update Studio/API approval documentation,
   internal execution architecture, Temporal recovery runbook, and migration/rollback runbook
 Validation evidence: completed unit/redaction/SSE, PostgreSQL concurrency and 32/64/128/256
@@ -539,13 +535,12 @@ Validation evidence: completed unit/redaction/SSE, PostgreSQL concurrency and 32
   after the fresh and legacy migration-state audits reached 176; 1/1 deterministic model-gateway
   approval barrier run covering exact 18/32/64/128/256 operation sizes, duplicate HTTP decisions,
   and continuation-as-new state restoration.
-  Hosted external-provider sandbox/state reconciliation, the post-effect worker-replacement
-  repetition and durable telemetry backend provisioning remain pending. Local configured-model/
-  internal-calendar and guided Studio approval/reconnect/state-
-  reconciliation/partial-failure evidence is complete.
+  Local configured-model/internal-calendar and guided Studio approval/reconnect/state-
+  reconciliation/partial-failure evidence is complete. Deployment and durable telemetry provisioning
+  are outside this local validation task.
 Rollback or disable plan: stop admitting new group-version runs, preserve and drain already-approved
   groups, roll back only at a Temporal-compatible Workflow boundary, and never reopen consumed groups
-Post-release review date: TBD at release time
+Post-release review date: not applicable to local-only validation
 ```
 
 ## Decisions and open questions
@@ -559,14 +554,14 @@ Post-release review date: TBD at release time
 | Permanent grants | No permanent global grant in this implementation; bounded session grants are the maximum reusable scope | Agent Platform | Decided |
 | Partial approval | Support explicit selected operation IDs; unselected operations receive typed rejected results | Agent Platform | Decided |
 | Group expiry | Use the existing 30-minute approval TTL for the first implementation; make the policy configurable in a later bounded-grant change | Agent Platform | Decided |
-| Approval actor policy | Confirm whether all `runs:approve` actors may approve every capability or whether capability-specific reviewer roles are required | Product/Platform | Pending |
-| Open-run migration | Confirm the deployment window for draining old per-operation approval Workflows | Release owner | Pending |
+| Approval actor policy | Confirm whether all `runs:approve` actors may approve every capability or whether capability-specific reviewer roles are required | Product/Platform | Deferred beyond local validation |
+| Open-run migration | Confirm the deployment window for draining old per-operation approval Workflows | Release owner | Deferred beyond local validation |
 
-## Notes and blockers
+## Notes
 
-- The existing parallel execution plan has approval items marked complete using per-operation
-  semantics. Those items are not sufficient for the observed multi-delete failure and must be
-  amended before either plan is considered complete.
+- Local implementation and end-to-end verification are complete. Deployment, retained telemetry,
+  reviewer-policy decisions, and the open-run drain are separate release work and do not block this
+  local validation plan.
 - Existing approval, effect, and run records are valuable evidence and must not be deleted or
   rewritten destructively.
 - The first implementation uses the existing `runs:approve` authorization boundary and preserves

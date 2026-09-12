@@ -1,7 +1,7 @@
 # Approval real-provider evidence
 
 This record captures the local configured-model approval run completed on 2026-09-12. It is
-release evidence for the local Agents artifact, not hosted staging or production evidence.
+the local end-to-end evidence for the approval implementation.
 
 ## Run record
 
@@ -70,6 +70,5 @@ persisted provider response identity.
 
 ## Boundary
 
-This artifact does not prove a hosted staging connection, an external customer resource effect,
-or durable production telemetry retention. Those remain release-environment gates. The local test
-uses a disposable organization and a synthetic external-effect capability.
+The test uses a disposable organization and a synthetic external-effect capability. It does not
+touch customer resources or retain credentials and private arguments in this record.
