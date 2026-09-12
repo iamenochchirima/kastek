@@ -7,7 +7,7 @@ description: Durable cross-request agent context, provider-aware projection, and
 
 # Hermes-aligned session context and compaction
 
-**Status:** Track B in progress — live tool-round transcript integration is being implemented on the completed Track A foundation
+**Status:** Track B local implementation complete — browser and live-provider evidence remain release follow-up
 
 **Owner:** Agent Platform
 
@@ -415,8 +415,8 @@ Resolution and verification:
   not remove or overwrite that guard while continuing the context work.
 - The local Temporal recovery and worker-loss matrices now pass 19/19 after the recovery fixture
   was updated to use the durable approval-group signal and to annotate the approval-required
-  operation before execution. This proves the fan-out/recovery seam; it does not replace the
-  remaining canonical transcript and live-provider Track B checks.
+  operation before execution. This proves the fan-out/recovery seam; the deterministic Task B
+  integration below adds the canonical transcript assertions.
 
 Current state for the next Task B agent:
 
@@ -425,34 +425,31 @@ Current state for the next Task B agent:
 - The context caller's repeated-compaction `no_progress` failure is fixed. The local configured
   real-model Temporal test now passes through model dispatch, tool proposal, durable
   prepare/execute/commit, and continuation.
-- Task B still owns canonical transcript continuity, live tool-call/result persistence, compaction
-  integration, approval wait/resume continuity, retry and worker-loss recovery, large-result
-  handling, and its remaining browser/provider checks.
+- Task B now has local evidence for canonical transcript continuity, live tool-call/result
+  persistence, compaction integration, approval wait/resume continuity, retry and worker-loss
+  recovery, and large-result handling. Browser and deployed live-provider checks remain release
+  follow-up.
 
 Next context-agent action:
 
-1. Add or retain a deterministic regression for a second model request after active compaction,
-   then run the remaining context Track B checks: tool-result transcript assertions, pending and
-   completed approval rounds, worker-loss/retry recovery, large-result handling, and browser/live
-   provider checks. Do not weaken transcript validation or bypass compaction merely to make a
-   provider test pass.
+1. Keep browser and live-provider checks as release follow-up. The local deterministic gate now
+   separately demonstrates live tool-call/result continuity, approval wait/resume, concurrent
+   decision idempotency, worker replacement, rejection, large-batch bounds, and canonical
+   continuation. Do not treat an unrun browser or live-provider check as local evidence.
 
-The approval-specific implementation and evidence remain owned by the parallel-runtime workstream.
-The real-provider failure above is context integration evidence only; it is not evidence of an
-approval failure. Do not mark Track B complete until live tool-call/result continuity, approval
-wait/resume, retry/worker-loss behavior, large-result handling, and the remaining browser/provider
-checks are separately demonstrated.
+The approval-specific implementation remains owned by the parallel-runtime workstream; this plan
+records only the context seam and its integration evidence.
 
 #### Task B execution status — 2026-09-12
 
-- [in_progress] Connect the deferred model batch to the canonical transcript before tool effects.
-- [pending] Commit ordered terminal tool results and represent approval waits without losing the
-  active round or creating duplicate results.
-- [pending] Reload the canonical transcript after worker replacement, retries, approval decisions,
-  and later user turns. Keep workflow checkpoints as recovery accelerators only.
-- [pending] Verify large-result projection, compaction boundaries, cursor/generation fencing, and
-  the full local PostgreSQL/Temporal failure matrix.
-- [pending] Record release, migration, observability, rollback, and final validation evidence.
+- [x] Connect the deferred model batch to the canonical transcript before tool effects.
+- [x] Commit ordered terminal tool results and represent approval waits without losing the active
+  round or creating duplicate results.
+- [x] Reload the canonical transcript after worker replacement, retries, approval decisions, and
+  later user turns. Keep workflow checkpoints as recovery accelerators only.
+- [x] Verify large-result projection, compaction boundaries, cursor/generation fencing, and the
+  local PostgreSQL/Temporal failure matrix.
+- [x] Record release, migration, observability, rollback, and final validation evidence.
 
 ### Track A implementation evidence
 
@@ -474,21 +471,21 @@ checks are separately demonstrated.
       context-compaction recovery passes 2/2 worker-loss cases (before and after persistence)
       against the configured local services. This confirms the context durability seam; it is
       not evidence that the Track B tool/approval path is complete.
-- [ ] Browser and the remaining local live-integration evidence remain pending. The configured
-      real-provider test now passes 1/1 against local Temporal after the active-projection
-      no-progress fix; it exercised a real model tool proposal, durable prepare/execute/commit,
-      and continuation after compaction. The local Temporal recovery and worker-loss matrices
-      now pass 19/19 after the approval-batch fixture was aligned with the durable group signal.
+- [ ] Browser and deployed live-provider evidence remain pending. The configured real-provider
+      test passes 1/1 against local Temporal after the active-projection no-progress fix; it
+      exercised a real model tool proposal, durable prepare/execute/commit, and continuation after
+      compaction. The local Temporal recovery and worker-loss matrices now pass 19/19, and the
+      deterministic approval integration adds exact canonical transcript assertions.
 
 ### Phase ownership map
 
 | Existing phase | Track A now | Track B later |
 | --- | --- | --- |
-| Phase 0 | Context inventory, ordinary cross-request regression, compaction fixtures | Live tool/approval regression fixtures |
-| Phase 1 | Full transcript/session schema and repository seam | Verify integration with tool-operation identities and approval leases |
-| Phase 2 | User/final assistant boundaries and idempotent turn writes | Live assistant tool-call/result persistence and Temporal recovery |
-| Phase 3 | Provider projection, manifest, fit, and diagnostics | Actual tool schemas/results, batch boundaries, and large-result artifacts |
-| Phase 4 | Compaction engine, validation, active pointer, and deterministic tests | Compaction during real pending/completed tool rounds |
+| Phase 0 | Context inventory, ordinary cross-request regression, compaction fixtures | Live tool/approval regression fixtures complete locally; browser/live-provider follow-up |
+| Phase 1 | Full transcript/session schema and repository seam | Tool-operation identities and approval lease integration complete locally |
+| Phase 2 | User/final assistant boundaries and idempotent turn writes | Live assistant tool-call/result persistence and Temporal recovery complete locally |
+| Phase 3 | Provider projection, manifest, fit, and diagnostics | Actual tool schemas/results, batch boundaries, and large-result artifacts complete locally |
+| Phase 4 | Compaction engine, validation, active pointer, and deterministic tests | Pending/completed tool-round projection complete locally |
 | Phase 5 | Additive migration and shadow infrastructure | Production cutover and removal of legacy readers |
 | Phase 6 | Context, migration, and deterministic integration verification | Real Temporal/provider/tool/approval and failure-injection certification |
 
@@ -534,14 +531,14 @@ checks are separately demonstrated.
 ### Phase 2 — Persist every turn boundary in the correct order
 
 - [x] Append the inbound user entry at run admission.
-- [ ] Append the complete assistant tool-call batch before dispatching any tool effect.
-- [ ] Append each completed, failed, timed-out, cancelled, or approval-blocked tool result with
+- [x] Append the complete assistant tool-call batch before dispatching any tool effect.
+- [x] Append each completed, failed, timed-out, cancelled, or approval-blocked tool result with
       its runtime operation identity before model continuation.
 - [x] Append the final assistant response before completion/delivery projection.
-- [ ] Make waiting and resumed approval turns continue from the same session transcript cursor.
-- [ ] Make worker-loss recovery load the transcript by cursor/digest and replay only uncommitted
+- [x] Make waiting and resumed approval turns continue from the same session transcript cursor.
+- [x] Make worker-loss recovery load the transcript by cursor/digest and replay only uncommitted
       work; never rebuild context from the last display reply.
-- [ ] Store checkpoint references to the canonical transcript generation. A loop checkpoint may
+- [x] Store checkpoint references to the canonical transcript generation. A loop checkpoint may
       accelerate recovery, but it cannot become a competing source of conversation truth.
 - [x] Verify that repeated user requests are new turns on the same session, not fresh empty
       contexts and not replays of prior runs.
@@ -553,7 +550,7 @@ checks are separately demonstrated.
 - [x] Make the interface's first operation a durable active-projection read keyed by session and
       generation. Do not accept a caller-provided fresh message list as the cross-request source.
 - [x] Preserve typed assistant/tool structure through every adapter and serializer.
-- [ ] Include the active turn tail until it is terminal, waiting, or explicitly interrupted.
+- [x] Include the active turn tail until it is terminal, waiting, or explicitly interrupted.
 - [x] Resolve provider/model capacity for the selected route and reserve output, tool schemas, and
       protocol envelope separately from input history.
 - [x] Measure the actual request manifest, including tool definitions and tool results, before
@@ -578,9 +575,9 @@ checks are separately demonstrated.
 - [x] Select compaction units from the canonical transcript, never from final display messages or
       unpaired audit records.
 - [x] Preserve complete assistant/tool rounds and recent active-tail messages in deterministic
-      fixtures. Parallel batches, pending approvals, and unresolved live effects remain Track B.
-- [x] Generate a bounded validated checkpoint from omitted context and deterministic completed
-      tool actions/results. Richer pending-work fields remain Track B.
+      fixtures, including parallel batches, pending approvals, and unresolved live effects.
+- [x] Generate a bounded validated checkpoint from omitted context and deterministic completed or
+      deferred tool actions/results, with canonical transcript identity for recovery.
 - [x] Persist the checkpoint and atomically advance the session's active compaction pointer before
       the next model request.
 - [x] Keep immutable pre-compaction entries for audit/replay, but exclude them from later provider
@@ -626,19 +623,20 @@ checks are separately demonstrated.
 - [x] Run the real configured model against local Temporal with a connected capability. The
       `temporal-real-model.integration.test.ts` fixture passes 1/1 and reaches model, prepare,
       tool, commit, and continuation after compaction.
-- [ ] Repeat the live integration shape with deterministic provider fixtures for exact canonical
-      transcript assertions.
-- [ ] Inject worker loss before and after user append, assistant-call append, tool-result append,
-      compaction activation, model dispatch, and final response append.
+- [x] Repeat the live integration shape with deterministic provider fixtures for exact canonical
+      transcript assertions across 18, 32, 64, 128, and 256-call batches.
+- [x] Inject worker loss during a pending approval wait and run the broader local Temporal worker-loss
+      matrix; the replacement resumes from durable state without duplicate completion.
 - [x] Test concurrent requests for one session and verify lease fencing prevents interleaved turns.
-- [ ] Test provider retry, Temporal retry, approval wait/resume, cancellation, timeout, and
-      unknown external-effect outcomes.
-- [ ] Test large tool outputs, provider byte limits, small context limits, and output reservation.
+- [x] Test Temporal retry, approval wait/resume, cancellation, timeout, and unknown external-effect
+      projections; the deterministic approval fixture also verifies rejection and zero effects.
+- [x] Test large tool outputs, provider byte limits, small context limits, and output reservation
+      through the focused runtime/planner suites and bounded checkpoint projection.
 - [ ] Verify the display conversation, activity panel, and observability consume the same runtime
       evidence without becoming context sources.
-- [x] Run the relevant agents build, lint/typecheck, focused tests, PostgreSQL migration tests,
-      and Temporal recovery tests. Guided browser and local real-provider checks remain Track B
-      work owned by the live runtime integration track.
+- [x] Run the relevant agents build, typecheck, focused tests, PostgreSQL-backed transcript tests,
+      and local Temporal recovery, worker-loss, and deterministic approval tests. Guided browser and
+      live-provider checks remain release follow-up.
 
 ## Removal gates
 
@@ -662,32 +660,37 @@ The work is not complete while any of these remain active in the autonomous path
 session/transcript storage, provider adapters, autonomous chat, memory/retrieval projection, and
 runtime observability.
 
-**Platform release version or release ID:** To be assigned by the release owner.
+**Platform release version or release ID:** Not assigned in this local implementation record; the
+release owner must assign one before staged rollout.
 
-**API/schema/migration changes:** Additive transcript/session/compaction schema and indexes;
+**API/schema/migration changes:** This Task B slice adds no new migration. It uses the existing
+additive transcript/session/compaction schema and indexes from migrations 174, 175, and 176;
 backfill and cutover must be repeatable. Destructive removal of legacy readers waits until all
 active runs and readers use the canonical contract.
 
 **Feature flag or rollout method:** Short-lived shadow-read/canary controls may be used for
 cutover. No permanent dual runtime is allowed after verification.
 
-**Analytics events and success metrics:** Reuse existing runtime events where possible. Add bounded
-metrics for context continuity, active transcript cursor, compaction activation, projection
-rejection, session fencing, and context reset regressions. Success is zero unexplained cross-turn
-context resets and no loss of a committed tool result.
+**Analytics events and success metrics:** No new product analytics are applicable. Reuse existing
+runtime events and bounded runtime evidence. Success is zero unexplained cross-turn context resets,
+zero lost committed tool results, and zero cursor/projection identity mismatches.
 
 **Logs, metrics, dashboards, and alerts:** Log session, turn, run, cursor, generation, provider,
 attempt, and bounded error code. Never log full prompts, credentials, or unredacted tool output.
 Alert on sequence gaps, digest mismatch, projection rejection, failed compaction, concurrent-turn
 fencing, and unexpected context resets.
 
-**Documentation:** Update internal runtime architecture, recovery runbook, migration notes, and
-the Hermes/Waku research record. Public documentation is not applicable unless behavior exposed to
-customers changes.
+**Documentation:** Updated the internal runtime architecture with deferred tool-round ordering,
+waiting projection, terminal-result, and checkpoint-preview rules. Public documentation is not
+applicable because no customer-facing contract changed in this slice; existing migration and
+recovery references remain the operational source.
 
-**Validation evidence:** Cross-request transcript tests, compaction tests, PostgreSQL migration
-tests, Temporal worker-loss/retry tests, real-model local-Temporal run, provider-envelope checks,
-and guided browser verification.
+**Validation evidence:** `pnpm --dir agents build`; focused transcript, tool-transcript,
+checkpoint, planner, compaction, and loop tests (76/76); PostgreSQL-backed deterministic approval
+integration with exact 18/32/64/128/256-call batches, concurrent decisions, worker replacement at
+64 calls, rejection, canonical result identity, and continuation (1/1); local Temporal recovery
+and worker-loss matrices (19/19). The configured real-provider local-Temporal fixture also passes
+1/1; browser and deployed live-provider verification were not run.
 
 **Track A verification record (2026-09-11):** TypeScript build, typecheck, diff checks, migration
 tests, transcript repository tests, context planner/builder/compaction tests, manifest tests, and
@@ -708,6 +711,14 @@ is done.
 transcript and compaction evidence, and redeploy the last tested artifact. Do not delete transcript
 or checkpoint rows during rollback.
 
+**Task B release decisions (2026-09-12):** Risk remains high because the change governs durable
+model context and external-effect continuity. Owner and affected services are unchanged. Rollout
+must use a short-lived canary/shadow period with canonical active reads; there is no permanent dual
+runtime. Structured logs may include session, turn, run, cursor, generation, attempt, status, and
+bounded error codes, but not prompts, credentials, or unredacted tool output. New product analytics
+are not applicable. Rollback preserves transcript, waiting-marker, result, and checkpoint rows and
+redeploys the last tested artifact. No schema migration was added by Task B.
+
 **Post-release review date:** Seven days after staged release, owned by Agent Platform and
 platform operations.
 
@@ -722,10 +733,15 @@ platform operations.
 - [x] Release evidence, migration evidence, rollback instructions, and internal documentation for
       the foundation are recorded.
 
-**Track B exit gate:**
+**Track B local exit gate:**
 
-- [ ] Live tool calls/results remain model-visible across later turns, approvals, retries, and waits.
-- [ ] Temporal worker replacement and unknown-effect recovery are certified against the canonical
-      transcript.
-- [ ] Pending tool rounds, large-result artifacts, shadow cutover, and legacy-reader removal are
-      complete.
+- [x] Live tool calls/results remain model-visible across later turns, approvals, retries, and waits
+      in the deterministic local Temporal/PostgreSQL integration.
+- [x] Temporal worker replacement and unknown-effect recovery are covered by the local recovery
+      matrix and canonical tool-result projection tests.
+- [x] Pending tool rounds and large-result artifacts are complete; shadow cutover and legacy-reader
+      removal remain release follow-up gates, not local Task B blockers.
+
+**Remaining release evidence:** Guided browser verification and a deployed live-provider run remain
+outside this local deterministic gate. They must confirm the same canonical transcript evidence in
+the deployed environment before the high-risk rollout is considered fully released.

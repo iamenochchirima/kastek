@@ -179,6 +179,21 @@ appended before terminal run persistence. Live tool-call and approval boundaries
 structured entries through the same seam; their dispatch and effect state machines remain owned by
 the tool execution runtime.
 
+For a deferred model batch, the assistant tool-call message is appended before any tool activity
+or approval decision. The entry retains both the provider call ID and the runtime operation ID and
+is idempotent by batch. The runtime then appends a typed waiting marker containing the ordered
+pending operation IDs. While that marker has unresolved operations, normal provider projections
+retain the audit entries but omit the incomplete assistant/tool round; a recovery read may inspect
+the incomplete state explicitly. This prevents a retry or approval wait from sending an unanswered
+assistant tool call back to a model.
+
+Each terminal batch result—completed, failed, timed out, cancelled, blocked, waiting, or unknown
+effect—is appended as a tool message keyed by its runtime operation ID before continuation. The
+canonical transcript keeps the complete redacted result. The workflow checkpoint may carry only a
+bounded preview with a retrieval handle for large output, so checkpoint size cannot replace or
+truncate canonical context. Once all operation IDs have results, the waiting marker is skipped by
+the active provider projection and the complete assistant/tool round becomes model-visible.
+
 Compaction archives the replaced active rows without deleting them, writes a validated checkpoint,
 and advances the active pointer atomically. Subsequent requests load the checkpoint followed by the
 uncompacted tail. A retry of an already committed append replays the entry; a stale head cursor or
