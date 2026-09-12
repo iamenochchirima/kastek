@@ -30,6 +30,27 @@ The run used one synthetic approval-required effect. Concurrent HTTP decisions r
 accepted response and one already-signalled response. The effect invocation count was exactly
 one, and the durable invocation finished with `completed` status.
 
+## Local calendar capability run
+
+The same commit also passed the four-event configured-model calendar sandbox through the platform
+message endpoint and the default `kasitek.calendar.delete` capability. The test replaced the
+Temporal worker while the group was pending, then submitted concurrent duplicate decisions. The
+group consumed exactly four selected operations, and each disposable internal-calendar event
+changed from `active` to `cancelled` once before the fixture cleanup removed it.
+
+| Field | Value |
+| --- | --- |
+| Test | `temporal-real-approval.integration.test.ts`, `drives the real calendar capability through the Studio message and group decision path` |
+| Run ID | `495093f5-074c-45ed-a236-4cd77495c124` |
+| Temporal Workflow ID | `agent-run-495093f5-074c-45ed-a236-4cd77495c124` |
+| Approval group ID | `81716e5a-a079-48cc-8fbc-604a2cd15676` |
+| Plan digest | `41b1c588262b5ec045a742dbf79cdf46c16bc38035da21f25170b77e1c2c6489` |
+| Provider response IDs | `gen-1789177157-oUuic2178T1eklBFLAJM`, `gen-1789177162-6LH3I8WWG0t7qtytgUFS` |
+| Final run/group state | `completed` / `consumed` |
+
+The event rows were deleted by the test's disposable-fixture cleanup after the before-and-after
+assertions passed. No customer calendar or external provider resource was used.
+
 ## Verification command
 
 The command ran against the local Temporal server and PostgreSQL database with the API key loaded
