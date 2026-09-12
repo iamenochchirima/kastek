@@ -64,7 +64,7 @@ hosted external-provider reconciliation and durable release telemetry remain gat
 The deterministic model-gateway harness then passed 1/1 for exact 18/32/64/128/256-operation
 barriers. It also exposed and verified the continuation-as-new status restoration needed when the
 256-operation workflow crossed the history threshold. The harness uses an injected offline adapter
-and therefore does not replace hosted external-provider evidence or the guided partial-failure case.
+and therefore does not replace hosted external-provider evidence.
 On 2026-09-12, a fresh authenticated Studio probe loaded the active KasiAi workspace cleanly at
 desktop and 390px mobile widths, with no page errors or 5xx responses. The disposable approval
 fixture is now intentionally archived with a disabled installation, so its conversation bootstrap
@@ -72,7 +72,8 @@ correctly cannot start another run; its historical run still exposes the approve
 group but is not new guided-run evidence. The Studio agent list now disables archived or disabled
 installation launches; targeted lint/build and a headless interaction check passed. A fresh
 disposable fixture then completed the local guided approval, reconnect, duplicate-decision, provider
-state, and follow-up checks; its rows were removed after verification.
+state, follow-up, and partial-failure checks; the UI reported three of four deletions completed and
+identified the stale event as failed. Its rows were removed after verification.
 
 **Related plans:**
 
@@ -494,10 +495,10 @@ operations.
       first group has been consumed, with no interleaved approval prompts.
 - [x] Run the existing focused parallel-tool, recovery, worker-loss, and real-provider suites to
       prove that the approval change does not regress durable fan-out or continuation behavior.
-- [ ] Perform the guided Studio test with one user action producing many deletes, including approval,
-      refresh/reconnect, partial failure, and final conversation response. Approval, refresh/reconnect,
-      duplicate-click handling, and the final conversation response pass in the local guided run;
-      the guided partial-failure case is still open.
+- [x] Perform the guided Studio test with one user action producing many deletes, including approval,
+      refresh/reconnect, partial failure, and final conversation response. The local guided run reported
+      three of four deletions completed, identified the stale event as failed, and returned the final
+      conversation response without a generic approval error.
 
 ## Release record
 
@@ -535,9 +536,9 @@ Validation evidence: completed unit/redaction/SSE, PostgreSQL concurrency and 32
   approval barrier run covering exact 18/32/64/128/256 operation sizes, duplicate HTTP decisions,
   and continuation-as-new state restoration.
   Hosted external-provider sandbox/state reconciliation, complete model/release-identity artifacts,
-  the post-effect worker-replacement repetition, guided Studio partial-failure evidence, and durable
-  telemetry backend provisioning remain pending. Local configured-model/internal-calendar and guided
-  Studio approval/reconnect/state-reconciliation evidence is complete.
+  the post-effect worker-replacement repetition and durable telemetry backend provisioning remain
+  pending. Local configured-model/internal-calendar and guided Studio approval/reconnect/state-
+  reconciliation/partial-failure evidence is complete.
 Rollback or disable plan: stop admitting new group-version runs, preserve and drain already-approved
   groups, roll back only at a Temporal-compatible Workflow boundary, and never reopen consumed groups
 Post-release review date: TBD at release time
