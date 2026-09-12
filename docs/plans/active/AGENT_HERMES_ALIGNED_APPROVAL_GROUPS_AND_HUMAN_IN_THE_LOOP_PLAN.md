@@ -22,8 +22,8 @@ deterministic model-gateway track now passes exact 18/32/64/128/256-operation ru
 database, Temporal worker, HTTP group-decision route, duplicate decisions, and final operation
 reconciliation.
 The configured-model/local-calendar sandbox and the authenticated guided Studio path now pass their
-local evidence checks. Hosted external-provider reconciliation, durable dashboard provisioning,
-compatibility cleanup, and the guided partial-failure case remain release gates. The
+local evidence checks. Hosted external-provider reconciliation, durable dashboard provisioning, and
+compatibility cleanup remain release gates. The
 legacy per-run approval reader now returns only ungrouped rows; grouped approvals must use the
 group projection until the open-run compatibility window closes.
 
@@ -424,7 +424,8 @@ real-use evidence.
       pass condition is one and only one provider effect per selected operation, zero effects for
       rejected or expired operations, and durable evidence that reconciles with provider state. The
       local run changed exactly four uniquely labelled events from active to cancelled; the rejected
-      follow-up changed none.
+      follow-up changed none, and the guided partial-failure run recorded one unknown/stale outcome
+      with three cancelled events.
 - [ ] Record the model name, model response ID, run ID, Temporal Workflow ID, approval group ID,
       plan digest, migration version, and release identity for every real-provider run. Redact
       credentials and private arguments from the artifact. Run/group IDs and migration evidence were
