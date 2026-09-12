@@ -290,6 +290,11 @@ describe.skipIf(!runIntegration)("deterministic model-gateway approval barriers 
             (entry) => entry.idempotencyKey === `tool-batch:${pendingBatchId}:assistant`,
           );
           expect(pendingAssistantToolCall?.kind).toBe("assistant_tool_call");
+          const pendingMarker = pendingProjection.entries.find(
+            (entry) => entry.idempotencyKey === `tool-batch:${pendingBatchId}:waiting`,
+          );
+          expect(pendingMarker?.kind).toBe("waiting");
+          expect(pendingMarker?.metadata.pendingOperationIds).toHaveLength(size);
           expect(pendingProjection.entries.filter(
             (entry) => entry.idempotencyKey.startsWith(`tool-batch:${pendingBatchId}:result:`),
           )).toHaveLength(0);
