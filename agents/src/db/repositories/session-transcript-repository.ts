@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import type { Pool, PoolClient } from "pg";
 import { withTransaction } from "../pool";
 import type { ModelMessage } from "../../model/types";
-import { buildTranscriptUnits, cloneModelMessage, transcriptDigest, validateModelTranscript } from "../../runtime/transcript";
+import { buildTranscriptUnits, cloneModelMessage, toolOperationIdentity, transcriptDigest, validateModelTranscript } from "../../runtime/transcript";
 
 const ZERO_DIGEST = "0".repeat(64);
 
@@ -292,6 +292,50 @@ function projectionDigest(messages: readonly ModelMessage[]): string {
   return messages.length === 0 ? ZERO_DIGEST : transcriptDigest(messages);
 }
 
+interface PendingWaitingRound {
+  entry: SessionTranscriptEntry;
+  operationIds: Set<string>;
+}
+
+function pendingWaitingRounds(entries: readonly SessionTranscriptEntry[]): PendingWaitingRound[] {
+  const completedOperationIds = new Set(
+    entries
+      .filter((entry) => entry.kind === "tool_result")
+      .map((entry) => toolOperationIdentity(entry.message))
+      .filter((value): value is string => Boolean(value)),
+  );
+  return entries
+    .filter((entry) => entry.kind === "waiting")
+    .map((entry) => {
+      const rawIds = entry.metadata.pendingOperationIds;
+      const operationIds = new Set(
+        Array.isArray(rawIds)
+          ? rawIds.filter((value): value is string => typeof value === "string" && value.trim().length > 0)
+          : [],
+      );
+      return { entry, operationIds };
+    })
+    .filter(({ operationIds }) => operationIds.size > 0 && [...operationIds].some((id) => !completedOperationIds.has(id)));
+}
+
+/**
+ * Project only complete provider-facing rounds. A pending approval keeps its
+ * audit entries, but its assistant call and any partial results stay out of
+ * the next model request until every operation has a terminal result.
+ */
+function projectTranscriptMessages(entries: readonly SessionTranscriptEntry[]): ModelMessage[] {
+  const pendingOperationIds = new Set(pendingWaitingRounds(entries).flatMap(({ operationIds }) => [...operationIds]));
+  const messages: ModelMessage[] = [];
+  for (const entry of entries) {
+    if (entry.kind === "waiting") continue;
+    if (entry.kind === "assistant_tool_call"
+      && entry.message.toolCalls?.some((call) => pendingOperationIds.has(toolOperationIdentity(call) ?? ""))) continue;
+    if (entry.kind === "tool_result" && pendingOperationIds.has(toolOperationIdentity(entry.message) ?? "")) continue;
+    messages.push(cloneModelMessage(entry.message));
+  }
+  return messages;
+}
+
 function assertExpectedHead(context: SessionTranscriptContext, expectedHead: { sequence: number; digest: string } | undefined): void {
   if (!expectedHead) return;
   if (!Number.isSafeInteger(expectedHead.sequence) || expectedHead.sequence < 0 || !/^[0-9a-f]{64}$/i.test(expectedHead.digest)) {
@@ -396,11 +440,13 @@ async function selectProjection(
   }
   while (checkpointSequences.has(expectedSequence)) expectedSequence += 1;
   if (expectedSequence - 1 !== context.headSequence) throw new Error("SESSION_TRANSCRIPT_SEQUENCE_GAP");
-  const messages = entries.map((entry) => cloneModelMessage(entry.message));
+  const waitingRounds = pendingWaitingRounds(entries);
+  const messages = projectTranscriptMessages(entries);
   if (verifyStoredDigest) {
     const issues = validateModelTranscript(messages.filter((message) => message.role !== "system"));
     const onlyMissingResults = issues.length > 0 && issues.every((issue) => issue.code === "missing_tool_result");
     if (issues.length > 0 && !(allowIncomplete && onlyMissingResults)) throw new Error("SESSION_TRANSCRIPT_PROJECTION_INVALID");
+    if (waitingRounds.length > 0 && !allowIncomplete) throw new Error("SESSION_TRANSCRIPT_PROJECTION_PENDING");
   }
   const computedProjectionDigest = projectionDigest(messages);
   if (context.activeProjectionDigest !== computedProjectionDigest) {
@@ -460,7 +506,7 @@ export class SessionTranscriptRepository {
       }
       if (generation !== undefined && context.generation !== generation) throw new Error("SESSION_TRANSCRIPT_GENERATION_CONFLICT");
       assertExpectedHead(context, input.expectedHead);
-      const currentProjection = await selectProjection(client, contextRow, false);
+      const currentProjection = await selectProjection(client, contextRow, false, input.kind === "waiting");
       const nextSequence = context.headSequence + 1;
       const nextEntryDigest = entryDigest({
         previousDigest: context.headDigest,
@@ -495,6 +541,10 @@ export class SessionTranscriptRepository {
       );
       const row = inserted.rows[0];
       if (!row) throw new Error("SESSION_TRANSCRIPT_APPEND_FAILED");
+      const nextMessages = projectTranscriptMessages([
+        ...currentProjection.entries,
+        mapEntry(row),
+      ]);
       const updated = await client.query<ContextRow>(
         `UPDATE agent_session_contexts
          SET head_sequence = $4,
@@ -503,7 +553,7 @@ export class SessionTranscriptRepository {
              updated_at = now()
          WHERE id = $1 AND organization_id = $2 AND generation = $3
          RETURNING *`,
-        [context.id, scope.organizationId, context.generation, nextSequence, nextEntryDigest, projectionDigest([...currentProjection.messages, message])],
+        [context.id, scope.organizationId, context.generation, nextSequence, nextEntryDigest, projectionDigest(nextMessages)],
       );
       if (!updated.rows[0]) throw new Error("SESSION_TRANSCRIPT_HEAD_UPDATE_FAILED");
       return { outcome: "created", context: mapContext(updated.rows[0]), entry: mapEntry(row) };

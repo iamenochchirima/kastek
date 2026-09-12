@@ -277,6 +277,62 @@ describe("SessionTranscriptRepository", () => {
     });
   });
 
+  it("keeps an approval-waiting tool round out of the provider projection until results settle", async () => {
+    const { pool } = databasePool();
+    const repository = new SessionTranscriptRepository(pool as never);
+    await repository.append({
+      ...scope,
+      turnId: "waiting-turn",
+      kind: "user",
+      message: { role: "user", content: "Check my calendar." },
+      idempotencyKey: "waiting-user",
+    });
+    await repository.append({
+      ...scope,
+      turnId: "waiting-turn",
+      kind: "assistant_tool_call",
+      message: assistantCall(),
+      idempotencyKey: "waiting-call",
+    });
+    await repository.append({
+      ...scope,
+      turnId: "waiting-turn",
+      kind: "waiting",
+      message: { role: "system", content: "A durable tool batch is waiting for terminal results." },
+      metadata: { pendingOperationIds: ["runtime-call-1"] },
+      idempotencyKey: "waiting-marker",
+    });
+
+    await expect(repository.readActive(scope)).rejects.toThrow("SESSION_TRANSCRIPT_PROJECTION_PENDING");
+    const pendingProjection = await repository.readActive(scope, { allowIncomplete: true });
+    expect(pendingProjection.messages).toEqual([{ role: "user", content: "Check my calendar." }]);
+    expect(pendingProjection.entries).toEqual(expect.arrayContaining([
+      expect.objectContaining({ kind: "assistant_tool_call" }),
+      expect.objectContaining({ kind: "waiting", metadata: { pendingOperationIds: ["runtime-call-1"] } }),
+    ]));
+
+    await repository.append({
+      ...scope,
+      turnId: "waiting-turn",
+      kind: "tool_result",
+      message: {
+        role: "tool",
+        name: "calendar.list",
+        toolCallId: "provider-call-1",
+        runtimeOperationId: "runtime-call-1",
+        content: '{"events":[]}',
+      },
+      idempotencyKey: "waiting-result",
+    });
+    await expect(repository.readActive(scope)).resolves.toMatchObject({
+      messages: [
+        { role: "user", content: "Check my calendar." },
+        { role: "assistant", toolCalls: [{ runtimeOperationId: "runtime-call-1" }] },
+        { role: "tool", runtimeOperationId: "runtime-call-1" },
+      ],
+    });
+  });
+
   it("does not compact through an incomplete tool round", async () => {
     const { pool } = databasePool();
     const repository = new SessionTranscriptRepository(pool as never);
