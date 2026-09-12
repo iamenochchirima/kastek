@@ -276,9 +276,10 @@ durable fan-out, joins, retries, and result ordering.
       operation for exact authorization and audit.
 - [x] Add constraints and indexes for one active group per run, group operation ordering, pending
       expiry scans, and idempotent decision keys.
-- [ ] Do not rewrite or regroup pending approvals from old open runs in place. Represent them through
-      a bounded compatibility projection and let their versioned Workflow path reach a terminal
-      state before removing the old reader.
+- [x] Do not rewrite or regroup pending approvals from old open runs in place. The additive migration
+      leaves legacy rows ungrouped, `getForRun` projects only those ungrouped rows, and existing
+      histories remain on the legacy Workflow branch behind `patched("agent-parallel-tool-activities-v1")`
+      until they reach a terminal state. Removing that compatibility reader remains a later release gate.
 - [x] Add repository methods to create or replay a group, list its complete operation set, fetch the
       active group, decide the group atomically, expire it, cancel it, consume operations, and return
       idempotent results for repeated decisions.
