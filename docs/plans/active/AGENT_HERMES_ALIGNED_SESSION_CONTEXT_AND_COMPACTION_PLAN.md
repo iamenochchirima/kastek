@@ -11,7 +11,7 @@ description: Durable cross-request agent context, provider-aware projection, and
 
 **Owner:** Agent Platform
 
-**Last updated:** 2026-09-11
+**Last updated:** 2026-09-12
 
 **Risk:** High
 
@@ -373,6 +373,76 @@ user requests, approvals, retries, worker replacement, and compaction. Until the
 foundation should remain behind a controlled integration boundary rather than pretending the
 whole autonomous path is finished.
 
+#### Task B handoff checkpoint — 2026-09-11
+
+The parallel-runtime agent resumed the live integration gate after the approval work reached its
+handoff checkpoint. The local Temporal server and configured real provider were reachable when the
+test was forced to `127.0.0.1:7233` and namespace `default`; the run did not reach model tool-batch
+preparation because the context boundary failed first with `ContextCompactionError` / `no_progress`.
+The failing fixture is `agents/test/temporal-real-model.integration.test.ts`, which seeds 24
+conversation messages and then exercises the real model through the decomposed Temporal runtime.
+
+Observed evidence:
+
+- The canonical transcript shadow comparison first matched at source cursor 25.
+- On the subsequent current-user append, the shadow comparison correctly skipped with
+  `canonical_compacted`; the active projection contained a checkpoint plus a 21-message tail.
+- `executeLoopForRun` then called `compactDurableContext` again on that already-compacted active
+  projection. The compactor selected zero omitted units and raised `no_progress` after retries,
+  so model dispatch and tool-batch preparation were never exercised.
+- The direct compaction contract still intentionally rejects a genuinely zero-omission request;
+  the caller must avoid treating an already-fit active projection as a new compaction failure.
+- A context-unit regression was added locally for a one-message omission replaced by one bounded
+  summary. It passes with the focused context tests, but it does not fix the repeated-compaction
+  caller case above.
+
+Resolution and verification:
+
+- The runtime caller now computes whether the active canonical projection actually needs another
+  lossy rewrite. If it already fits the retained-unit policy, it skips the direct compactor and
+  carries forward the active session generation; the independent Memory V2 checkpoint path remains
+  enabled when required.
+- The caller change builds successfully and the focused context, transcript, and planning tests
+  pass 31/31.
+- The configured real-provider test now passes 1/1 against the local Temporal server. It exercised
+  model dispatch, a real `test.real_read` tool proposal, durable prepare/execute/commit, and the
+  continuation after the active checkpoint. The earlier `no_progress` failure is resolved.
+- Shared-worktree note: the caller change is currently visible in `agents/src/temporal/activities.ts`
+  alongside the context agent's existing edits and is intentionally not independently staged;
+  preserve that file and the related context test changes when Task B resumes. The same file also
+  contains the approval-runtime guard that skips the legacy per-operation approval insert when
+  `stepExecutionEnabled` is true; grouped `prepareToolBatch` owns those approval records, so do
+  not remove or overwrite that guard while continuing the context work.
+- The local Temporal recovery and worker-loss matrices now pass 19/19 after the recovery fixture
+  was updated to use the durable approval-group signal and to annotate the approval-required
+  operation before execution. This proves the fan-out/recovery seam; it does not replace the
+  remaining canonical transcript and live-provider Track B checks.
+
+Current state for the next Task B agent:
+
+- The approval-group implementation is complete for the local end-to-end scope. Its plan and local
+  evidence record are now in `docs/plans/completed/`; hosted deployment is outside that task.
+- The context caller's repeated-compaction `no_progress` failure is fixed. The local configured
+  real-model Temporal test now passes through model dispatch, tool proposal, durable
+  prepare/execute/commit, and continuation.
+- Task B still owns canonical transcript continuity, live tool-call/result persistence, compaction
+  integration, approval wait/resume continuity, retry and worker-loss recovery, large-result
+  handling, and its remaining browser/provider checks.
+
+Next context-agent action:
+
+1. Add or retain a deterministic regression for a second model request after active compaction,
+   then run the remaining context Track B checks: tool-result transcript assertions, pending and
+   completed approval rounds, worker-loss/retry recovery, large-result handling, and browser/live
+   provider checks. Do not weaken transcript validation or bypass compaction merely to make a
+   provider test pass.
+
+The approval-specific implementation and evidence remain owned by the parallel-runtime workstream.
+The real-provider failure above is context integration evidence only; it is not evidence of an
+approval failure. Do not mark Track B complete until live tool-call/result continuity, approval
+wait/resume, retry/worker-loss behavior, large-result handling, and the remaining browser/provider
+checks are separately demonstrated.
+
 ### Track A implementation evidence
 
 - [x] PostgreSQL session/transcript schema, tenant scope, forced RLS, ordered append, idempotency,
@@ -393,9 +463,11 @@ whole autonomous path is finished.
       context-compaction recovery passes 2/2 worker-loss cases (before and after persistence)
       against the configured local services. This confirms the context durability seam; it is
       not evidence that the Track B tool/approval path is complete.
-- [ ] Real-provider and browser evidence remain pending. The wider local Temporal recovery run
-      passed 22/23 tests; its single failure is the approval-batch scenario owned by the separate
-      tool-calling workstream.
+- [ ] Browser and the remaining local live-integration evidence remain pending. The configured
+      real-provider test now passes 1/1 against local Temporal after the active-projection
+      no-progress fix; it exercised a real model tool proposal, durable prepare/execute/commit,
+      and continuation after compaction. The local Temporal recovery and worker-loss matrices
+      now pass 19/19 after the approval-batch fixture was aligned with the durable group signal.
 
 ### Phase ownership map
 
@@ -540,8 +612,11 @@ whole autonomous path is finished.
 - [x] Run a long-session test with enough turns to trigger compaction more than once.
 - [x] Verify context occupancy rises across turns, drops after compaction, and rises again from the
       new checkpoint instead of returning to zero after every request.
-- [ ] Run the real configured model against local Temporal with a connected capability, then repeat
-      with deterministic provider fixtures for exact transcript assertions.
+- [x] Run the real configured model against local Temporal with a connected capability. The
+      `temporal-real-model.integration.test.ts` fixture passes 1/1 and reaches model, prepare,
+      tool, commit, and continuation after compaction.
+- [ ] Repeat the live integration shape with deterministic provider fixtures for exact canonical
+      transcript assertions.
 - [ ] Inject worker loss before and after user append, assistant-call append, tool-result append,
       compaction activation, model dispatch, and final response append.
 - [x] Test concurrent requests for one session and verify lease fencing prevents interleaved turns.
@@ -551,7 +626,7 @@ whole autonomous path is finished.
 - [ ] Verify the display conversation, activity panel, and observability consume the same runtime
       evidence without becoming context sources.
 - [x] Run the relevant agents build, lint/typecheck, focused tests, PostgreSQL migration tests,
-      and Temporal recovery tests. Guided browser and real-provider checks remain release-gate
+      and Temporal recovery tests. Guided browser and local real-provider checks remain Track B
       work owned by the live runtime integration track.
 
 ## Removal gates
@@ -609,11 +684,12 @@ loop context-boundary tests pass. PostgreSQL transcript durability passes 3/3 te
 ordered reload/compaction/generation reset, concurrent append and lease fencing, and deterministic
 2/5/18/32/64/128-operation multi-turn projections. PostgreSQL context runtime integration passes
 2/2 tests against the local agents database. Local Temporal context-compaction recovery passes 2/2
-worker-loss cases. The wider local Temporal recovery run passes 22/23 tests; the remaining failure
-is the approval-batch scenario owned by the separate tool-calling workstream. The canonical path
+worker-loss cases. The broader local Temporal recovery and worker-loss matrices now pass 19/19
+after the approval-batch fixture was aligned with the durable group signal; this is local seam
+evidence and does not replace Track B transcript or live-provider checks. The canonical path
 now performs a bounded 128-entry digest/count-only legacy shadow comparison and no longer reads
 conversation summaries for model context; legacy display import is limited to an empty generation-1
-bootstrap. Real-provider and browser evidence remain release-gate work. These gaps do not block
+bootstrap. Real-provider and browser evidence remain Track B work. These gaps do not block
 Track A's deterministic context foundation and are not evidence that Track B tool/approval behavior
 is done.
 
