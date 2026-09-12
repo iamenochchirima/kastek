@@ -360,7 +360,7 @@ function StudioAgentList({
                 <button
                   key={agent.id}
                   type="button"
-                  disabled={agent.status !== "active" || Boolean(agent.installation_id && agent.installation_status !== "active")}
+                  disabled={agent.status !== "active" || Boolean(agent.installation_id && agent.installation_status !== undefined && agent.installation_status !== "active")}
                   onClick={() => onSelect(agent.id)}
                   className="group flex w-full items-center gap-4 px-4 py-4 text-left transition-colors hover:bg-muted/50 disabled:cursor-not-allowed disabled:opacity-70 disabled:hover:bg-transparent sm:px-5"
                 >
