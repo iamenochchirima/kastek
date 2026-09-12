@@ -2,6 +2,7 @@ import type { ModelAdapter, ModelCredentials, ModelProvider, ModelRequest, Model
 import { ModelProviderError } from "./types";
 
 interface AnthropicResponse {
+  id?: string;
   content?: Array<{ type?: string; text?: string; id?: string; name?: string; input?: Record<string, unknown> }>;
   stop_reason?: string | null;
   usage?: { input_tokens?: number; output_tokens?: number };
@@ -114,6 +115,7 @@ export class AnthropicAdapter implements ModelAdapter {
     return {
       provider: this.provider,
       model: request.model,
+      ...(body.id?.trim() ? { providerResponseId: body.id.trim() } : {}),
       message: { role: "assistant", content: text, ...(toolCalls.length ? { toolCalls } : {}) },
       toolCalls,
       finishReason: body.stop_reason ?? null,

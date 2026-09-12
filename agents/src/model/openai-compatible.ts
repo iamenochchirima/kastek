@@ -11,6 +11,7 @@ import type {
 import { ModelProviderError, type ModelProvider } from "./types";
 
 interface OpenAICompatibleResponse {
+  id?: string;
   choices?: Array<{
     message?: {
       role?: string;
@@ -181,6 +182,7 @@ export class OpenAICompatibleAdapter implements ModelAdapter {
     return {
       provider: this.provider,
       model: request.model,
+      ...(body.id?.trim() ? { providerResponseId: body.id.trim() } : {}),
       message: { role: "assistant", content: choice.message.content ?? "", ...(toolCalls.length ? { toolCalls } : {}) },
       toolCalls,
       finishReason: choice.finish_reason ?? null,
@@ -231,6 +233,7 @@ export class OpenAICompatibleAdapter implements ModelAdapter {
     let outputTokensReported = false;
     let totalTokensReported = false;
     let providerCostUsd: number | undefined;
+    let providerResponseId: string | undefined;
     let deltaCount = 0;
     const toolCalls: ModelToolCall[] = [];
     const toolArgumentBuffers = new Map<number, string>();
@@ -238,8 +241,9 @@ export class OpenAICompatibleAdapter implements ModelAdapter {
       if (!line.startsWith("data:")) return;
       const payload = line.slice(5).trim();
       if (!payload || payload === "[DONE]") return;
-      let chunk: { choices?: Array<{ delta?: { content?: string | null; tool_calls?: Array<{ index?: number; id?: string; function?: { name?: string; arguments?: string } }> }; finish_reason?: string | null }>; usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number; cost?: number | string } };
+      let chunk: { id?: string; choices?: Array<{ delta?: { content?: string | null; tool_calls?: Array<{ index?: number; id?: string; function?: { name?: string; arguments?: string } }> }; finish_reason?: string | null }>; usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number; cost?: number | string } };
       try { chunk = JSON.parse(payload) as typeof chunk; } catch { return; }
+      if (chunk.id?.trim()) providerResponseId = chunk.id.trim();
       const choice = chunk.choices?.[0];
       const text = choice?.delta?.content ?? "";
       if (text) { content += text; deltaCount += 1; await onDelta({ type: "text_delta", text }); }
@@ -277,6 +281,7 @@ export class OpenAICompatibleAdapter implements ModelAdapter {
     return {
       provider: this.provider,
       model: request.model,
+      ...(providerResponseId ? { providerResponseId } : {}),
       message: { role: "assistant", content, ...(toolCalls.length ? { toolCalls } : {}) },
       toolCalls,
       finishReason,

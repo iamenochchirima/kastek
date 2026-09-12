@@ -85,6 +85,8 @@ export interface ModelUsage {
 export interface ModelResponse {
   provider: ModelProvider;
   model: string;
+  /** Provider-assigned response identity, when the provider returns one. */
+  providerResponseId?: string;
   message: ModelMessage;
   toolCalls: ModelToolCall[];
   finishReason: string | null;

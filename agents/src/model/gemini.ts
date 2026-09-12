@@ -2,6 +2,7 @@ import type { ModelAdapter, ModelCredentials, ModelRequest, ModelResponse } from
 import { ModelProviderError } from "./types";
 
 interface GeminiResponse {
+  responseId?: string;
   candidates?: Array<{
     content?: { parts?: Array<{ text?: string; functionCall?: { name?: string; args?: Record<string, unknown> } }> };
     finishReason?: string;
@@ -114,6 +115,7 @@ export class GeminiAdapter implements ModelAdapter {
     return {
       provider: this.provider,
       model: request.model,
+      ...(body.responseId?.trim() ? { providerResponseId: body.responseId.trim() } : {}),
       message: { role: "assistant", content: text, ...(toolCalls.length ? { toolCalls } : {}) },
       toolCalls,
       finishReason: body.candidates?.[0]?.finishReason ?? null,
