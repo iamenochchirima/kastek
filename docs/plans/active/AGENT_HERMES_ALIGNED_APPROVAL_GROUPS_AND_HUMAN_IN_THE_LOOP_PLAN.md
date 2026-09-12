@@ -21,9 +21,9 @@ continuation-as-new restores the durable running state at a settled batch bounda
 deterministic model-gateway track now passes exact 18/32/64/128/256-operation runs through the
 database, Temporal worker, HTTP group-decision route, duplicate decisions, and final operation
 reconciliation.
-Real-provider sandbox/state verification still requires a
-disposable provider fixture;
-durable dashboard provisioning, compatibility cleanup, and end-to-end guided Studio checks remain open. The
+The configured-model/local-calendar sandbox and the authenticated guided Studio path now pass their
+local evidence checks. Hosted external-provider reconciliation, durable dashboard provisioning,
+compatibility cleanup, and the guided partial-failure case remain release gates. The
 legacy per-run approval reader now returns only ungrouped rows; grouped approvals must use the
 group projection until the open-run compatibility window closes.
 
@@ -54,8 +54,13 @@ decision and passes 1/1, confirming that a long approval wait reacquires the lea
 An opt-in configured-model sandbox test also passed 1/1 through the platform message endpoint, the
 default `kasitek.calendar.delete` capability schema and handler, the run projection, concurrent group
 decisions, a replaced local Temporal worker, and PostgreSQL state reconciliation for four uniquely
-labelled internal-calendar fixtures. This is real local capability-adapter evidence; external-provider
-sandbox reconciliation and the guided browser action remain release gates.
+labelled internal-calendar fixtures. This is real local capability-adapter evidence. On the same date,
+a fresh disposable fixture was driven through the authenticated Studio path: one message produced a
+four-operation group, the page was reloaded and the event stream reconnected, concurrent duplicate
+`Approve all` clicks yielded one consumed group, and exactly four internal-calendar events changed from
+active to cancelled. A follow-up Studio turn produced a distinct two-operation group that was rejected
+with no provider effects. The disposable agent and all related rows were removed after verification;
+hosted external-provider reconciliation and durable release telemetry remain gates.
 The deterministic model-gateway harness then passed 1/1 for exact 18/32/64/128/256-operation
 barriers. It also exposed and verified the continuation-as-new status restoration needed when the
 256-operation workflow crossed the history threshold. The harness uses an injected offline adapter
@@ -65,8 +70,9 @@ desktop and 390px mobile widths, with no page errors or 5xx responses. The dispo
 fixture is now intentionally archived with a disabled installation, so its conversation bootstrap
 correctly cannot start another run; its historical run still exposes the approved four-operation
 group but is not new guided-run evidence. The Studio agent list now disables archived or disabled
-installation launches; targeted lint/build and a headless interaction check passed. A new
-disposable fixture is required for the remaining guided Studio gate.
+installation launches; targeted lint/build and a headless interaction check passed. A fresh
+disposable fixture then completed the local guided approval, reconnect, duplicate-decision, provider
+state, and follow-up checks; its rows were removed after verification.
 
 **Related plans:**
 
@@ -395,35 +401,41 @@ real-use evidence.
 
 ### Real-use test harness requirements
 
-- [ ] Run two complementary test tracks. The deterministic track must use a model-gateway fixture
+- [x] Run two complementary test tracks. The deterministic track uses a model-gateway fixture
       that emits an exact 18/32/64/128/256-call response so every operation identity and outcome can
-      be asserted. The real-provider track must use an actual configured model, the real capability
+      be asserted. The local real-provider track uses an actual configured model, the real capability
       schema, the local Temporal Server, the real worker, PostgreSQL, and the HTTP approval endpoint.
-      The deterministic half passes through the database, local worker, run projection, HTTP
-      decision route, duplicate decisions, and exact operation reconciliation; the real-provider
-      half remains pending.
-- [ ] Use a disposable staging organization and a sandbox or test connection containing uniquely
-      labelled resources such as `approval-e2e-<runId>-<index>`. Never run destructive approval tests
-      against a user's production calendar, inbox, drive, or content.
-- [ ] Drive the real-provider track through the same path as Studio: submit a user message, let the
+      Both tracks pass through the database, local worker, run projection, HTTP decision route,
+      duplicate decisions, and exact operation reconciliation. Hosted external-provider evidence
+      remains a separate release gate.
+- [x] Use a disposable local organization and internal-calendar sandbox containing uniquely labelled
+      resources such as `approval-e2e-<runId>-<index>`. Never run destructive approval tests against a
+      user's production calendar, inbox, drive, or content.
+- [ ] Repeat the real-provider sandbox run in a hosted staging organization or external-provider test
+      connection. The local sandbox is complete; hosted provider access and release ownership remain
+      outstanding.
+- [x] Drive the real-provider track through the same path as Studio: submit a user message, let the
       model produce the tool batch, observe the pending approval group through the run API/SSE
       surface, submit the group decision, and observe the resumed conversation and operation
-      outcomes. Do not call repository methods directly as the only proof.
-- [ ] Capture before-and-after provider state and compare it with the selected operation IDs. The
+      outcomes. The guided Studio run completed this path without repository-only calls.
+- [x] Capture before-and-after provider state and compare it with the selected operation IDs. The
       pass condition is one and only one provider effect per selected operation, zero effects for
-      rejected or expired operations, and durable evidence that reconciles with provider state.
+      rejected or expired operations, and durable evidence that reconciles with provider state. The
+      local run changed exactly four uniquely labelled events from active to cancelled; the rejected
+      follow-up changed none.
 - [ ] Record the model name, model response ID, run ID, Temporal Workflow ID, approval group ID,
       plan digest, migration version, and release identity for every real-provider run. Redact
-      credentials and private arguments from the artifact.
-- [ ] Repeat the real-provider run after refreshing the Studio page, reconnecting the event stream,
-      and submitting a duplicate approval click. The result must remain one group decision and one
+      credentials and private arguments from the artifact. Run/group IDs and migration evidence were
+      inspected locally, but a complete model-response/release-identity artifact was not captured.
+- [x] Repeat the real-provider run after refreshing the Studio page, reconnecting the event stream,
+      and submitting duplicate approval clicks. The result remained one group decision and one
       execution per selected operation.
 - [ ] Kill or replace the Temporal worker while the run is waiting for approval, then approve from
       the real API. Repeat once after one external effect has completed. Both runs must resume the
-      same Workflow and never replay a completed effect.
-- [ ] Run a real follow-up turn after the approved batch. Confirm that the previous decision is not
-      reused for a new side effect and that a new approval group is displayed when policy requires
-      it.
+      same Workflow and never replay a completed effect. The pending-wait replacement case passes;
+      the post-effect replacement repetition remains open.
+- [x] Run a real follow-up turn after the approved batch. The previous decision was not reused, and a
+      new approval group was displayed and rejected without provider effects.
 
 ### Temporal and real-tool verification
 
@@ -481,7 +493,9 @@ operations.
 - [x] Run the existing focused parallel-tool, recovery, worker-loss, and real-provider suites to
       prove that the approval change does not regress durable fan-out or continuation behavior.
 - [ ] Perform the guided Studio test with one user action producing many deletes, including approval,
-      refresh/reconnect, partial failure, and final conversation response.
+      refresh/reconnect, partial failure, and final conversation response. Approval, refresh/reconnect,
+      duplicate-click handling, and the final conversation response pass in the local guided run;
+      the guided partial-failure case is still open.
 
 ## Release record
 
@@ -518,8 +532,10 @@ Validation evidence: completed unit/redaction/SSE, PostgreSQL concurrency and 32
   after the fresh and legacy migration-state audits reached 176; 1/1 deterministic model-gateway
   approval barrier run covering exact 18/32/64/128/256 operation sizes, duplicate HTTP decisions,
   and continuation-as-new state restoration.
-  Real provider sandbox/state reconciliation, end-to-end guided Studio action/reconnect, durable
-  telemetry backend, and guided Studio checks remain pending.
+  Hosted external-provider sandbox/state reconciliation, complete model/release-identity artifacts,
+  the post-effect worker-replacement repetition, guided Studio partial-failure evidence, and durable
+  telemetry backend provisioning remain pending. Local configured-model/internal-calendar and guided
+  Studio approval/reconnect/state-reconciliation evidence is complete.
 Rollback or disable plan: stop admitting new group-version runs, preserve and drain already-approved
   groups, roll back only at a Temporal-compatible Workflow boundary, and never reopen consumed groups
 Post-release review date: TBD at release time
