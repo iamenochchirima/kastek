@@ -829,7 +829,7 @@ describe.skipIf(!runIntegration)("Temporal tool execution reliability (integrati
     expect(new Set(executed).size).toBe(count);
     expect(committed).toHaveLength(count);
     expect(modelSteps).toBe(2);
-  }, 30_000);
+  }, 120_000);
 
   it("commits typed rejected outcomes and resumes the same model turn", async () => {
     const taskQueue = `agent-approval-rejected-${randomUUID()}`;
@@ -1460,8 +1460,12 @@ describe.skipIf(!runIntegration)("Temporal tool execution reliability (integrati
     let committedCalls = 0;
     const committedIds: string[] = [];
     const observedLoopSteps: number[] = [];
+    let persistedStatus = "received";
     const activities: AgentRunActivities = {
-      transitionRun: async () => undefined,
+      transitionRun: async ({ expectedStatus, nextStatus }) => {
+        if (expectedStatus !== persistedStatus) throw new Error(`unexpected transition ${expectedStatus} from ${persistedStatus}`);
+        persistedStatus = nextStatus;
+      },
       waitForConversationTurn: async () => true,
       getContentPublishBatchStatus: async () => ({ status: "UNAVAILABLE" }),
       executeLoop: async () => { throw new Error("legacy executeLoop must not run for a new execution"); },

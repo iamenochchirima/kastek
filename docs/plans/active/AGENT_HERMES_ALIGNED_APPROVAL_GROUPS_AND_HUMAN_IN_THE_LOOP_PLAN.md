@@ -16,7 +16,11 @@ resource revalidation, terminal typed outcomes, lifecycle conflict/resume events
 checks, deterministic worker replacement, historical per-operation outcome projections, and
 32/64/128/256-operation Temporal barriers, bounded approval evidence in public run-event/SSE
 projections, idempotent group-consumed evidence after durable batch commit, and approval lifecycle
-OpenTelemetry metric instruments, and concurrent group creation now replays one complete group.
+OpenTelemetry metric instruments, concurrent group creation now replays one complete group, and
+continuation-as-new restores the durable running state at a settled batch boundary. The offline
+deterministic model-gateway track now passes exact 18/32/64/128/256-operation runs through the
+database, Temporal worker, HTTP group-decision route, duplicate decisions, and final operation
+reconciliation.
 Real-provider sandbox/state verification still requires a
 disposable provider fixture;
 durable dashboard provisioning, compatibility cleanup, and end-to-end guided Studio checks remain open. The
@@ -52,6 +56,10 @@ default `kasitek.calendar.delete` capability schema and handler, the run project
 decisions, a replaced local Temporal worker, and PostgreSQL state reconciliation for four uniquely
 labelled internal-calendar fixtures. This is real local capability-adapter evidence; external-provider
 sandbox reconciliation and the guided browser action remain release gates.
+The deterministic model-gateway harness then passed 1/1 for exact 18/32/64/128/256-operation
+barriers. It also exposed and verified the continuation-as-new status restoration needed when the
+256-operation workflow crossed the history threshold. The harness uses an injected offline adapter
+and therefore does not replace the pending actual-provider and guided-Studio checks.
 
 **Related plans:**
 
@@ -384,6 +392,9 @@ real-use evidence.
       that emits an exact 18/32/64/128/256-call response so every operation identity and outcome can
       be asserted. The real-provider track must use an actual configured model, the real capability
       schema, the local Temporal Server, the real worker, PostgreSQL, and the HTTP approval endpoint.
+      The deterministic half passes through the database, local worker, run projection, HTTP
+      decision route, duplicate decisions, and exact operation reconciliation; the real-provider
+      half remains pending.
 - [ ] Use a disposable staging organization and a sandbox or test connection containing uniquely
       labelled resources such as `approval-e2e-<runId>-<index>`. Never run destructive approval tests
       against a user's production calendar, inbox, drive, or content.
@@ -497,7 +508,9 @@ Validation evidence: completed unit/redaction/SSE, PostgreSQL concurrency and 32
   real-provider approval-orchestration checks; 1/1 configured-model local-calendar capability run
   through the platform message and HTTP group-decision routes, including a replaced worker and
   four-operation provider-state reconciliation; the local migration runner applied migration 177
-  after the fresh and legacy migration-state audits reached 176.
+  after the fresh and legacy migration-state audits reached 176; 1/1 deterministic model-gateway
+  approval barrier run covering exact 18/32/64/128/256 operation sizes, duplicate HTTP decisions,
+  and continuation-as-new state restoration.
   Real provider sandbox/state reconciliation, end-to-end guided Studio action/reconnect, durable
   telemetry backend, and guided Studio checks remain pending.
 Rollback or disable plan: stop admitting new group-version runs, preserve and drain already-approved

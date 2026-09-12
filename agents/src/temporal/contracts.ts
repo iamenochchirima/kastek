@@ -75,6 +75,8 @@ export interface ActivityScope {
 
 export interface DurableRunInput extends ActivityScope {
   runId: string;
+  /** Durable run status to restore when a workflow continues as new. */
+  workflowStatus?: RunStatus;
   /** Deterministic bounded-loop slice number used to make activity retries idempotent. */
   loopStep?: number;
   /** Internal rollout/test limit; production runs use the workflow default when omitted. */

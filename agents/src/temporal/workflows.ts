@@ -337,7 +337,10 @@ export async function agentRunWorkflow(input: DurableRunInput): Promise<void> {
   // command sequence until they finish; it must be removed only after that
   // migration window has elapsed.
   const useDecomposedToolActivities = patched("agent-parallel-tool-activities-v1");
-  let status: RunStatus = "received";
+  // Continue-as-new inputs produced before workflowStatus was added carry a
+  // non-zero loop step. Treat those histories as already running while the
+  // compatibility window drains instead of replaying the initial transitions.
+  let status: RunStatus = input.workflowStatus ?? (input.loopStep && input.loopStep > 0 ? "running" : "received");
   let approval: ApprovalSignal | undefined;
   let approvalGroup: ApprovalGroupSignal | undefined;
   let cancellation: CancellationSignal | undefined;
@@ -399,6 +402,7 @@ export async function agentRunWorkflow(input: DurableRunInput): Promise<void> {
     await continueAsNew<typeof agentRunWorkflow>({
       ...input,
       loopStep: nextLoopStep,
+      workflowStatus: "running",
       resumeApprovedToolCall: undefined,
       resumeExternalEvent: undefined,
     });
@@ -487,18 +491,18 @@ export async function agentRunWorkflow(input: DurableRunInput): Promise<void> {
   };
 
   try {
-    await transition("received", "queued");
+    if (status === "received") await transition("received", "queued");
     const waitForConversationTurn = (activities as unknown as {
       waitForConversationTurn?: (input: { runId: string; organizationId?: string; actorId?: string }) => Promise<boolean | SessionLeaseAdmission>;
     }).waitForConversationTurn;
     if (waitForConversationTurn) {
       while (true) {
         if (cancellation) {
-          await transition("queued", "cancelled");
+          await transition(status === "running" ? "running" : "queued", "cancelled");
           return;
         }
         if (expiration) {
-          await transition("queued", "expired");
+          await transition(status === "running" ? "running" : "queued", "expired");
           return;
         }
         const admission = await waitForConversationTurn({ ...activityScope(), runId: input.runId });
@@ -508,11 +512,11 @@ export async function agentRunWorkflow(input: DurableRunInput): Promise<void> {
           break;
         }
         if (cancellation) {
-          await transition("queued", "cancelled");
+          await transition(status === "running" ? "running" : "queued", "cancelled");
           return;
         }
         if (expiration) {
-          await transition("queued", "expired");
+          await transition(status === "running" ? "running" : "queued", "expired");
           return;
         }
         // The workflow remains durable and does not hold an activity worker
@@ -520,7 +524,7 @@ export async function agentRunWorkflow(input: DurableRunInput): Promise<void> {
         await sleep("1 second");
       }
     }
-    await transition("queued", "running");
+    if (status === "queued") await transition("queued", "running");
     let resumeApprovedToolCall: ResumeApprovedToolCall | undefined = input.resumeApprovedToolCall;
     let resumeExternalEvent: ExternalEventSignal | undefined = input.resumeExternalEvent;
     let loopStep = input.loopStep ?? 0;
