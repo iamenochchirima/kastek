@@ -122,11 +122,22 @@ import { getPluginAdapter, type PluginAdapter, type PluginAdapterCredentialState
 import { registerSkillDiscoveryTools, SKILL_DISCOVERY_TOOL_NAMES } from "../skills/runtime-tools";
 import { markDuplicateToolCalls, planToolBatch } from "../runtime/tool-batch";
 import { toolOperationIdentity, transcriptDigest } from "../runtime/transcript";
+import {
+  assistantToolCallIdempotencyKey,
+  assistantToolCallMessage,
+  assertTranscriptSource,
+  checkpointToolResultMessage,
+  durableToolResultMessage,
+  toolResultIdempotencyKey,
+  toolTranscriptMetadata,
+  transcriptSourceIdentity,
+} from "../runtime/tool-transcript";
 import { classifyToolFailure, type ToolFailureClass } from "../runtime/tool-failure";
 import { compareSessionTranscriptShadow, type SessionTranscriptShadowEntry } from "../runtime/session-transcript-shadow";
 
 export interface ActivityOptions {
   gateway?: ModelGateway;
+  providerMetadata?: ProviderMetadataClient;
   credentials?: CredentialResolver;
   tools?: ToolRegistry;
   coreClient?: KasitekCoreReadClient;
@@ -2377,7 +2388,7 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
     60_000,
     catalogResolver ? { catalogResolver } : undefined,
   );
-  const providerMetadata = new ProviderMetadataClient();
+  const providerMetadata = options.providerMetadata ?? new ProviderMetadataClient();
   const runBudgets = new RunBudgetRepository(pool);
   const conversations = new ConversationRepository(pool);
   const memoryV2Enabled = options.config?.MEMORY_V2_ENABLED ?? true;
@@ -2645,6 +2656,71 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
       if (!authorizedToolNames?.length) throw new Error("TOOL_AUTHORIZATION_SNAPSHOT_MISSING");
       const sortedCalls = [...input.calls].sort((left, right) => left.sequenceNumber - right.sequenceNumber);
       const calls = markDuplicateToolCalls(sortedCalls);
+      if (run.conversation_id) {
+        const transcriptScope = {
+          organizationId: run.organization_id,
+          installationId: run.installation_id,
+          conversationId: run.conversation_id,
+        };
+        const projection = await sessionTranscripts.readActive(transcriptScope, { allowIncomplete: true });
+        const assistantMessage = assistantToolCallMessage({ assistantMessage: input.assistantMessage, calls: sortedCalls });
+        const assistantKey = assistantToolCallIdempotencyKey(input.batchId);
+        const existingAssistant = projection.entries.find((entry) => entry.idempotencyKey === assistantKey);
+        if (!existingAssistant) {
+          assertTranscriptSource(projection, input.transcriptSource);
+          await sessionTranscripts.append({
+            ...transcriptScope,
+            turnId: `model-turn:${input.batchId}`,
+            runId: run.id,
+            kind: "assistant_tool_call",
+            message: assistantMessage,
+            metadata: {
+              source: "deferred_model_response",
+              batchId: input.batchId,
+              toolCallCount: sortedCalls.length,
+              sourceCursor: projection.sourceCursor,
+              sourceGeneration: projection.context.generation,
+              sourceHeadDigest: projection.sourceDigest,
+              sourceProjectionDigest: projection.activeProjectionDigest,
+            },
+            idempotencyKey: assistantKey,
+            expectedHead: {
+              sequence: projection.sourceCursor,
+              digest: projection.sourceDigest,
+            },
+          });
+        } else if (existingAssistant.kind !== "assistant_tool_call"
+          || transcriptDigest([existingAssistant.message]) !== transcriptDigest([assistantMessage])) {
+          throw new Error("SESSION_TRANSCRIPT_TOOL_CALL_BATCH_CONFLICT");
+        } else if (input.transcriptSource
+          && (projection.context.generation !== input.transcriptSource.generation
+            || existingAssistant.sequence !== input.transcriptSource.cursor + 1
+            || existingAssistant.previousDigest !== input.transcriptSource.headDigest
+            || existingAssistant.metadata.sourceProjectionDigest !== input.transcriptSource.projectionDigest)) {
+          throw new Error("SESSION_TRANSCRIPT_SOURCE_CONFLICT");
+        }
+        const afterAssistant = await sessionTranscripts.readActive(transcriptScope, { allowIncomplete: true });
+        await sessionTranscripts.append({
+          ...transcriptScope,
+          turnId: `model-turn:${input.batchId}`,
+          runId: run.id,
+          kind: "waiting",
+          message: {
+            role: "system",
+            content: "A durable tool batch is waiting for terminal results.",
+          },
+          metadata: {
+            source: "deferred_model_response",
+            batchId: input.batchId,
+            pendingOperationIds: sortedCalls.map((call) => call.id),
+          },
+          idempotencyKey: `tool-batch:${input.batchId}:waiting`,
+          expectedHead: {
+            sequence: afterAssistant.sourceCursor,
+            digest: afterAssistant.sourceDigest,
+          },
+        });
+      }
       const identities = new Set<string>();
       const planned = planToolBatch(
         calls.map((call) => ({
@@ -3176,29 +3252,89 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
         await emitConsumedGroupEvidence(input.results.flatMap((result) => result.approvalGroupId ? [result.approvalGroupId] : []));
         return { status: "replayed", toolCalls: input.results.length };
       }
+      const pendingIds = new Set(checkpoint.pendingToolCalls.map((call) => call.id));
+      const resultIds = new Set<string>();
+      for (const result of input.results) {
+        if (!pendingIds.has(result.id) || resultIds.has(result.id)) throw new Error("SESSION_TRANSCRIPT_TOOL_RESULT_CONFLICT");
+        resultIds.add(result.id);
+      }
       const byId = new Map(input.results.map((result) => [result.id, result]));
       const committedGroupIds = input.results.flatMap((result) => result.approvalGroupId ? [result.approvalGroupId] : []);
       const committedIds = new Set<string>();
       const messages = [...checkpoint.messages];
-      for (const call of checkpoint.pendingToolCalls) {
+      const transcriptScope = run.conversation_id
+        ? {
+            organizationId: run.organization_id,
+            installationId: run.installation_id,
+            conversationId: run.conversation_id,
+          }
+        : undefined;
+      let transcriptProjection = transcriptScope
+        ? await sessionTranscripts.readActive(transcriptScope, { allowIncomplete: true })
+        : undefined;
+      for (const [index, call] of checkpoint.pendingToolCalls.entries()) {
         const result = byId.get(call.id);
         if (!result) continue;
-        messages.push({
-          role: "tool",
-          name: result.name,
-          toolCallId: result.providerToolCallId,
-          runtimeOperationId: result.id,
-          content: JSON.stringify(result.status === "completed" ? result.output : { ok: false, error: result.error ?? { code: "TOOL_FAILED", message: "Tool failed" } }),
-        });
+        if (result.name !== call.name || result.providerToolCallId !== (call.providerToolCallId ?? call.id)) {
+          throw new Error("SESSION_TRANSCRIPT_TOOL_RESULT_CONFLICT");
+        }
+        const resultMessage = durableToolResultMessage(result);
+        const checkpointResultMessage = checkpointToolResultMessage(result);
+        if (transcriptScope && transcriptProjection) {
+          const resultKey = toolResultIdempotencyKey(input.batchId, result.id);
+          const existingResult = transcriptProjection.entries.find((entry) => entry.idempotencyKey === resultKey);
+          if (existingResult && (existingResult.kind !== "tool_result"
+            || transcriptDigest([existingResult.message]) !== transcriptDigest([resultMessage]))) {
+            throw new Error("SESSION_TRANSCRIPT_TOOL_RESULT_CONFLICT");
+          }
+          if (!existingResult) {
+            await sessionTranscripts.append({
+              ...transcriptScope,
+              turnId: `model-turn:${input.batchId}`,
+              runId: run.id,
+              kind: "tool_result",
+              message: resultMessage,
+              metadata: toolTranscriptMetadata({
+                batchId: input.batchId,
+                sequenceNumber: index + 1,
+                status: result.status,
+                failureClass: result.failureClass,
+                approvalGroupId: result.approvalGroupId,
+                effectId: result.effectId,
+              }),
+              idempotencyKey: resultKey,
+              expectedHead: {
+                sequence: transcriptProjection.sourceCursor,
+                digest: transcriptProjection.sourceDigest,
+              },
+            });
+          }
+          transcriptProjection = await sessionTranscripts.readActive(transcriptScope, { allowIncomplete: true });
+        }
+        const existingMessage = messages.find((message) => message.role === "tool" && message.runtimeOperationId === result.id);
+        if (existingMessage
+          && transcriptDigest([existingMessage]) !== transcriptDigest([checkpointResultMessage])
+          && transcriptDigest([existingMessage]) !== transcriptDigest([resultMessage])) {
+          throw new Error("SESSION_TRANSCRIPT_TOOL_RESULT_CONFLICT");
+        }
+        if (!existingMessage) messages.push(checkpointResultMessage);
         committedIds.add(call.id);
       }
-      const remaining = input.remainingCalls ?? checkpoint.pendingToolCalls.filter((call) => !committedIds.has(call.id)).map((call, index) => ({ ...call, sequenceNumber: index + 1 }));
+      const remaining = checkpoint.pendingToolCalls
+        .filter((call) => !committedIds.has(call.id))
+        .map((call, index) => ({ ...call, sequenceNumber: index + 1 }));
+      if (input.remainingCalls) {
+        const expectedRemaining = remaining.map((call) => `${call.id}:${call.providerToolCallId ?? ""}:${call.name}:${call.argumentsHash}`);
+        const actualRemaining = input.remainingCalls.map((call) => `${call.id}:${call.providerToolCallId ?? ""}:${call.name}:${call.argumentsHash}`);
+        if (JSON.stringify(actualRemaining) !== JSON.stringify(expectedRemaining)) throw new Error("SESSION_TRANSCRIPT_TOOL_BATCH_CONFLICT");
+      }
       const nextCheckpoint = {
         ...checkpoint,
         messages,
         toolCalls: checkpoint.toolCalls + committedIds.size,
         transcriptCursor: messages.length,
         transcriptDigest: transcriptDigest(messages),
+        ...(transcriptProjection ? { transcriptSource: transcriptSourceIdentity(transcriptProjection) } : {}),
         ...(remaining.length ? { pendingToolCalls: remaining, toolBatchPending: true } : { pendingToolCalls: undefined, toolBatchPending: undefined }),
       };
       const nextState = { ...(state?.state ?? {}), __agentLoop: nextCheckpoint };
@@ -3209,7 +3345,16 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
         runId: run.id,
         installationId: run.installation_id,
         eventType: "agent.tool_batch.committed",
-        payload: { batchId: input.batchId, committedOperationIds: [...committedIds], remainingOperationIds: remaining.map((call) => call.id) },
+        payload: {
+          batchId: input.batchId,
+          committedOperationIds: [...committedIds],
+          remainingOperationIds: remaining.map((call) => call.id),
+          ...(transcriptProjection ? {
+            transcriptCursor: transcriptProjection.sourceCursor,
+            transcriptGeneration: transcriptProjection.context.generation,
+            transcriptProjectionDigest: transcriptProjection.activeProjectionDigest,
+          } : {}),
+        },
       });
       await emitConsumedGroupEvidence(committedGroupIds);
       const control = input.results.find((result) => result.control)?.control;
@@ -4328,6 +4473,7 @@ async function executeLoopForRun(
         ...(loopCheckpoint.toolBatchPending ? { toolBatchPending: true } : {}),
         ...(loopCheckpoint.authorizedToolNames ? { authorizedToolNames: loopCheckpoint.authorizedToolNames } : {}),
         ...(loopCheckpoint.capabilitySnapshotDigest ? { capabilitySnapshotDigest: loopCheckpoint.capabilitySnapshotDigest } : {}),
+        ...(loopCheckpoint.transcriptSource ? { transcriptSource: loopCheckpoint.transcriptSource } : {}),
         ...(loopCheckpoint.ui ? { ui: loopCheckpoint.ui } : {}),
         checkpointed: true,
       };
@@ -4345,6 +4491,7 @@ async function executeLoopForRun(
       ...(loopCheckpoint.toolBatchPending ? { toolBatchPending: true } : {}),
       ...(loopCheckpoint.authorizedToolNames ? { authorizedToolNames: loopCheckpoint.authorizedToolNames } : {}),
       ...(loopCheckpoint.capabilitySnapshotDigest ? { capabilitySnapshotDigest: loopCheckpoint.capabilitySnapshotDigest } : {}),
+      ...(loopCheckpoint.transcriptSource ? { transcriptSource: loopCheckpoint.transcriptSource } : {}),
       ...(loopCheckpoint.waitingFor ? { waitingFor: loopCheckpoint.waitingFor } : {}),
       ...(loopCheckpoint.ui ? { ui: loopCheckpoint.ui } : {}),
     };
@@ -5205,6 +5352,7 @@ async function executeLoopForRun(
       contextSourceCursor: activeSessionProjection.sourceCursor,
       contextSourceGeneration: activeSessionProjection.context.generation,
       contextSourceProjectionDigest: activeSessionProjection.activeProjectionDigest,
+      contextSourceHeadDigest: activeSessionProjection.sourceDigest,
     } : {}),
     ...(memoryIntent && memoryRetrievalPort && memoryV2RetrievalEnabled ? {
       memoryRetrievalPort,
@@ -5687,11 +5835,17 @@ async function executeLoopForRun(
   const unavailableTools = new Set<string>();
   const loopResult = await withActivityHeartbeat({ phase: "agent.loop" }, async () => {
     await assertSessionLease();
+    // The canonical session transcript is the recovery source for conversation
+    // turns. The workflow checkpoint remains a bounded execution envelope for
+    // non-conversation runs and for replaying an in-flight activity, but it
+    // must not hide a committed result or bypass a newly activated compaction
+    // checkpoint.
+    const modelMessages = activeSessionProjection?.messages ?? loopCheckpoint?.messages ?? context.sourceMessages;
     return harness.runTurn({
-    plan: executionPlan,
-    messages: resumeExternalEvent
-      ? [...(loopCheckpoint?.messages ?? context.sourceMessages), { role: "user" as const, content: JSON.stringify({ externalEvent: resumeExternalEvent }) }]
-      : loopCheckpoint?.messages ?? context.sourceMessages,
+      plan: executionPlan,
+      messages: resumeExternalEvent
+      ? [...modelMessages, { role: "user" as const, content: JSON.stringify({ externalEvent: resumeExternalEvent }) }]
+      : modelMessages,
     uiChannel: run.reply_channel_type === "website" ? "website" : "platform",
     dynamicUiEnabled,
     toolLifecycle: toolInvocationLifecycle,

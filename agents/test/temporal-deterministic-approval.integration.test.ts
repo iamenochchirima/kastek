@@ -225,18 +225,22 @@ describe.skipIf(!runIntegration)("deterministic model-gateway approval barriers 
     const connection = await NativeConnection.connect({ address: temporalAddress! });
     connections.push(connection);
     const activities = createActivities(pool, { config, tools, gateway, credentials, providerMetadata });
-    const worker = await Worker.create({
-      connection,
-      namespace: config.TEMPORAL_NAMESPACE,
-      taskQueue,
-      workflowsPath: new URL("../src/temporal/workflows.ts", import.meta.url).pathname,
-      activities,
-      maxConcurrentActivityTaskExecutions: 64,
-      maxHeartbeatThrottleInterval: "100ms",
-      defaultHeartbeatThrottleInterval: "100ms",
-    });
-    workers.push(worker);
-    workerRunners.push(worker.run());
+    const startWorker = async (): Promise<Worker> => {
+      const worker = await Worker.create({
+        connection,
+        namespace: config.TEMPORAL_NAMESPACE,
+        taskQueue,
+        workflowsPath: new URL("../src/temporal/workflows.ts", import.meta.url).pathname,
+        activities,
+        maxConcurrentActivityTaskExecutions: 64,
+        maxHeartbeatThrottleInterval: "100ms",
+        defaultHeartbeatThrottleInterval: "100ms",
+      });
+      workers.push(worker);
+      workerRunners.push(worker.run());
+      return worker;
+    };
+    let activeWorker = await startWorker();
     const client = new Client({ connection, namespace: config.TEMPORAL_NAMESPACE });
     const app = buildApp({
       config,
@@ -290,6 +294,12 @@ describe.skipIf(!runIntegration)("deterministic model-gateway approval barriers 
             (entry) => entry.idempotencyKey.startsWith(`tool-batch:${pendingBatchId}:result:`),
           )).toHaveLength(0);
           expect(effectIds.slice(effectCountBefore)).toHaveLength(0);
+          if (size === 64) {
+            await activeWorker.shutdown();
+            const workerIndex = workers.indexOf(activeWorker);
+            if (workerIndex >= 0) workers.splice(workerIndex, 1);
+            activeWorker = await startWorker();
+          }
           expect(active.approvals).toHaveLength(size);
           expect(new Set(active.approvals.map((approval) => approval.runtime_operation_id)).size).toBe(size);
 
@@ -362,8 +372,47 @@ describe.skipIf(!runIntegration)("deterministic model-gateway approval barriers 
         }
       }
 
-      expect(modelRequests.filter((request) => currentTurnMessages(request).some((message) => message.role === "tool"))).toHaveLength(operationSizes.length);
-      expect(modelRequests.filter((request) => !currentTurnMessages(request).some((message) => message.role === "tool")).map((request) => fixtureResponse(request).toolCalls.length)).toEqual([...operationSizes]);
+      const blockedSize = 3;
+      const blockedEffectCountBefore = effectIds.length;
+      const blockedRun = await runs.createRun(organizationId, "deterministic-approval-test", {
+        installationId,
+        triggerType: "manual",
+        idempotencyKey: `deterministic-approval-blocked-${randomUUID()}`,
+        input: { message: `Run deterministic approval fixture blocked size=${blockedSize}.` },
+        conversationId: conversation.id,
+      });
+      const blockedHandle = await client.workflow.start(agentRunWorkflow, {
+        taskQueue,
+        workflowId: `agent-run-${blockedRun.id}`,
+        args: [{ runId: blockedRun.id, organizationId, actorId: "deterministic-approval-test" }],
+      });
+      handles.set(blockedRun.id, blockedHandle);
+      const blockedActive = await waitFor(
+        () => approvals.getActiveGroup(organizationId, blockedRun.id),
+        (value) => value?.group.status === "pending",
+      );
+      if (!blockedActive) throw new Error("Blocked approval fixture did not create an approval group");
+      await blockedHandle.signal(approvalGroupSignal, {
+        groupId: blockedActive.group.id,
+        planDigest: blockedActive.group.plan_digest,
+        decision: "rejected",
+        approvedBy: "deterministic-approval-test",
+        selectedOperationIds: [],
+        expiresAt: blockedActive.group.expires_at,
+      });
+      await blockedHandle.result();
+      const blockedTranscript = await sessionTranscripts.readActive({ organizationId, installationId, conversationId: conversation.id });
+      const blockedBatchId = `${blockedRun.id}:batch:0`;
+      const blockedResults = blockedTranscript.entries.filter(
+        (entry) => entry.idempotencyKey.startsWith(`tool-batch:${blockedBatchId}:result:`),
+      );
+      expect(blockedResults).toHaveLength(blockedSize);
+      expect(blockedResults.every((entry) => entry.metadata.status === "blocked")).toBe(true);
+      expect(blockedResults.every((entry) => entry.message.content.includes("APPROVAL_REJECTED"))).toBe(true);
+      expect(effectIds.slice(blockedEffectCountBefore)).toHaveLength(0);
+
+      expect(modelRequests.filter((request) => currentTurnMessages(request).some((message) => message.role === "tool"))).toHaveLength(operationSizes.length + 1);
+      expect(modelRequests.filter((request) => !currentTurnMessages(request).some((message) => message.role === "tool")).map((request) => fixtureResponse(request).toolCalls.length)).toEqual([...operationSizes, blockedSize]);
     } finally {
       await app.close();
     }
