@@ -426,10 +426,11 @@ real-use evidence.
       local run changed exactly four uniquely labelled events from active to cancelled; the rejected
       follow-up changed none, and the guided partial-failure run recorded one unknown/stale outcome
       with three cancelled events.
-- [ ] Record the model name, model response ID, run ID, Temporal Workflow ID, approval group ID,
+- [x] Record the model name, model response ID, run ID, Temporal Workflow ID, approval group ID,
       plan digest, migration version, and release identity for every real-provider run. Redact
-      credentials and private arguments from the artifact. Run/group IDs and migration evidence were
-      inspected locally, but a complete model-response/release-identity artifact was not captured.
+      credentials and private arguments from the artifact. The local configured-model run is recorded
+      in [`approval real-provider evidence`](./AGENT_HERMES_APPROVAL_REAL_PROVIDER_EVIDENCE_2026-09-12.md);
+      hosted staging evidence remains separate.
 - [x] Repeat the real-provider run after refreshing the Studio page, reconnecting the event stream,
       and submitting duplicate approval clicks. The result remained one group decision and one
       execution per selected operation.
@@ -536,9 +537,9 @@ Validation evidence: completed unit/redaction/SSE, PostgreSQL concurrency and 32
   after the fresh and legacy migration-state audits reached 176; 1/1 deterministic model-gateway
   approval barrier run covering exact 18/32/64/128/256 operation sizes, duplicate HTTP decisions,
   and continuation-as-new state restoration.
-  Hosted external-provider sandbox/state reconciliation, complete model/release-identity artifacts,
-  the post-effect worker-replacement repetition and durable telemetry backend provisioning remain
-  pending. Local configured-model/internal-calendar and guided Studio approval/reconnect/state-
+  Hosted external-provider sandbox/state reconciliation, the post-effect worker-replacement
+  repetition and durable telemetry backend provisioning remain pending. Local configured-model/
+  internal-calendar and guided Studio approval/reconnect/state-
   reconciliation/partial-failure evidence is complete.
 Rollback or disable plan: stop admitting new group-version runs, preserve and drain already-approved
   groups, roll back only at a Temporal-compatible Workflow boundary, and never reopen consumed groups
