@@ -346,7 +346,9 @@ durable fan-out, joins, retries, and result ordering.
 - [x] Show partial execution and per-operation failures after resume. Do not collapse them into a
       generic approval error.
 - [ ] Remove the single-approval state, latest-row projection, and dead mismatch error path after
-      the compatibility window.
+      the compatibility window. A local database check on 2026-09-12 found zero ungrouped pending
+      rows and zero open runs carrying them; the release owner still must confirm the hosted window
+      before removing this path.
 
 ### Phase 6 — Observability, audit, and operational recovery
 
