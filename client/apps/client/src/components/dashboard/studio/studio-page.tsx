@@ -357,7 +357,13 @@ function StudioAgentList({
           {agents.length ? (
             <div className="mt-3 divide-y divide-border overflow-hidden rounded-xl border border-border bg-card">
               {agents.map((agent) => (
-                <button key={agent.id} type="button" onClick={() => onSelect(agent.id)} className="group flex w-full items-center gap-4 px-4 py-4 text-left transition-colors hover:bg-muted/50 sm:px-5">
+                <button
+                  key={agent.id}
+                  type="button"
+                  disabled={agent.status !== "active" || Boolean(agent.installation_id && agent.installation_status !== "active")}
+                  onClick={() => onSelect(agent.id)}
+                  className="group flex w-full items-center gap-4 px-4 py-4 text-left transition-colors hover:bg-muted/50 disabled:cursor-not-allowed disabled:opacity-70 disabled:hover:bg-transparent sm:px-5"
+                >
                   <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary"><Bot className="size-5" /></span>
                   <span className="min-w-0 flex-1">
                   <span className="flex flex-wrap items-center gap-2"><span className="truncate text-sm font-semibold text-foreground">{agent.name}</span><span className={cn("rounded-full px-2 py-0.5 text-[10px] font-medium", statusClass(agent.status))}>{statusLabel(agent.status)}</span>{agent.protected ? <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary">Default</span> : null}</span>
