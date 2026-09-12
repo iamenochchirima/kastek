@@ -404,9 +404,18 @@ describe.skipIf(!runIntegration)("real model approval group through HTTP and Tem
       const completedRun = await runs.getRunById(runId);
       const invocations = await toolInvocations.list(organizationId, runId);
       const group = await approvals.getGroup(organizationId, active.group.id);
+      const modelCalls = await pool.query<{ response: { providerResponseId?: string } | null }>(
+        `SELECT response
+         FROM model_calls
+         WHERE organization_id = $1 AND run_id = $2 AND status = 'completed'
+         ORDER BY created_at ASC`,
+        [organizationId, runId],
+      );
       expect(completedRun?.status).toBe("completed");
       expect(completedRun?.output).toEqual(expect.objectContaining({ message: expect.any(String) }));
       expect(group?.status).toBe("consumed");
+      expect(modelCalls.rows.length).toBeGreaterThan(0);
+      expect(modelCalls.rows.every((call) => typeof call.response?.providerResponseId === "string" && call.response.providerResponseId.length > 0)).toBe(true);
       expect(invocations.filter((entry) => entry.tool_name === "kasitek.calendar.delete")).toHaveLength(eventIds.length);
       expect(invocations.filter((entry) => entry.tool_name === "kasitek.calendar.delete").every((entry) => entry.status === "completed")).toBe(true);
     } finally {
