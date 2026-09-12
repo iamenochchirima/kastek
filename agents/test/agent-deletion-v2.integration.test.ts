@@ -35,6 +35,7 @@ describe.skipIf(!runIntegration)("agent deletion and memory v2 cutover (integrat
   const versionId = randomUUID();
   const installationId = randomUUID();
   const runId = randomUUID();
+  const approvalGroupId = randomUUID();
   const actorId = "agent-delete-v2-test";
   const workspaceId = `workspace-${randomUUID()}`;
 
@@ -60,6 +61,12 @@ describe.skipIf(!runIntegration)("agent deletion and memory v2 cutover (integrat
        (id, organization_id, agent_definition_id, agent_version_id, installation_id, trigger_type, status, correlation_id, created_by)
        VALUES ($1, $2, $3, $4, $5, 'manual', 'completed', $6, $7)`,
       [runId, organizationId, agentId, versionId, installationId, randomUUID(), actorId],
+    );
+    await pool.query(
+      `INSERT INTO agent_approval_groups
+       (id, organization_id, installation_id, run_id, batch_id, turn_key, plan_digest, policy_revision, status, decision, decided_by, expires_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, 'v1', 'consumed', 'approved', $8, now() + interval '1 hour')`,
+      [approvalGroupId, organizationId, installationId, runId, `${runId}:batch:1`, "turn:1", "a".repeat(64), actorId],
     );
   });
 
@@ -185,6 +192,8 @@ describe.skipIf(!runIntegration)("agent deletion and memory v2 cutover (integrat
     await pool.query("DELETE FROM agent_memory_revision_sources WHERE organization_id = $1", [organizationId]);
     await pool.query("DELETE FROM agent_memory_revisions WHERE organization_id = $1", [organizationId]);
     await pool.query("DELETE FROM agent_memory_facts WHERE organization_id = $1", [organizationId]);
+    await pool.query("DELETE FROM agent_approval_records WHERE organization_id = $1", [organizationId]);
+    await pool.query("DELETE FROM agent_approval_groups WHERE organization_id = $1", [organizationId]);
     await pool.query("DELETE FROM agent_runs WHERE organization_id = $1", [organizationId]);
     await pool.query("DELETE FROM agent_installations WHERE organization_id = $1", [organizationId]);
     await pool.query("DELETE FROM agent_versions WHERE agent_definition_id = $1", [agentId]);

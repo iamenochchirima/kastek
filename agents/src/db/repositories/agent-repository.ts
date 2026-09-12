@@ -2266,6 +2266,8 @@ export class AgentRepository {
 
       await client.query("DELETE FROM agent_operator_run_assignments WHERE run_id IN (SELECT id FROM _agent_delete_runs)");
       await client.query("DELETE FROM agent_approval_records WHERE run_id IN (SELECT id FROM _agent_delete_runs)");
+      await client.query("DELETE FROM agent_approval_groups WHERE run_id IN (SELECT id FROM _agent_delete_runs)");
+      await client.query("DELETE FROM agent_session_transcript_entries WHERE run_id IN (SELECT id FROM _agent_delete_runs)");
       await client.query("DELETE FROM agent_effect_receipts WHERE run_id IN (SELECT id FROM _agent_delete_runs)");
       await client.query("DELETE FROM memory_consolidation_jobs WHERE trigger_run_id IN (SELECT id FROM _agent_delete_runs)");
       await client.query("DELETE FROM tool_invocations WHERE run_id IN (SELECT id FROM _agent_delete_runs)");
@@ -2280,6 +2282,9 @@ export class AgentRepository {
       await client.query("DELETE FROM agent_runs WHERE id IN (SELECT id FROM _agent_delete_runs)");
       await client.query("DELETE FROM evaluation_scenarios WHERE agent_definition_id = $1", [agentId]);
 
+      await client.query("DELETE FROM agent_approval_session_grants WHERE installation_id IN (SELECT id FROM _agent_delete_installations)");
+      await client.query("DELETE FROM agent_session_transcript_entries WHERE installation_id IN (SELECT id FROM _agent_delete_installations)");
+      await client.query("DELETE FROM agent_session_contexts WHERE installation_id IN (SELECT id FROM _agent_delete_installations)");
       await client.query("DELETE FROM delivery_attempts WHERE conversation_id IN (SELECT id FROM _agent_delete_conversations)");
       await client.query("DELETE FROM conversation_summaries WHERE conversation_id IN (SELECT id FROM _agent_delete_conversations)");
       await client.query("DELETE FROM messages WHERE conversation_id IN (SELECT id FROM _agent_delete_conversations)");

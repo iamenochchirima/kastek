@@ -106,7 +106,7 @@ async function purgeRevisionFacts(
         ? "SELECT id::text AS id FROM agent_memory_facts WHERE organization_id = $1 AND conversation_id::text = ANY($2::text[])"
         : input.all
           ? "SELECT id::text AS id FROM agent_memory_facts WHERE organization_id = $1"
-          : "SELECT id::text AS id FROM agent_memory_facts WHERE false",
+          : "SELECT id::text AS id FROM agent_memory_facts WHERE organization_id = $1 AND FALSE",
       input.conversationIds?.length ? [input.organizationId, [...new Set(input.conversationIds)]] : [input.organizationId],
     );
   // A conversation may have source events but no derived fact yet.  Continue
@@ -120,7 +120,7 @@ async function purgeRevisionFacts(
       ? "SELECT id::text AS id FROM agent_memory_revisions WHERE organization_id = $1 AND fact_id::text = ANY($2::text[])"
       : input.all
         ? "SELECT id::text AS id FROM agent_memory_revisions WHERE organization_id = $1"
-        : "SELECT id::text AS id FROM agent_memory_revisions WHERE false",
+        : "SELECT id::text AS id FROM agent_memory_revisions WHERE organization_id = $1 AND FALSE",
     factIds.length ? [input.organizationId, factIds] : [input.organizationId],
   );
   const sourceEventIds = revisionIds.length
