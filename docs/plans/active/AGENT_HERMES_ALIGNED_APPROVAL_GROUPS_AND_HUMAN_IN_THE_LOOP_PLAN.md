@@ -35,7 +35,7 @@ through local Temporal, model dispatch, durable prepare/execute/commit, and cont
 runtime/context evidence only, not approval-group evidence, because the fixture uses an
 approval-free read capability. Approval-specific verification currently includes a passing Agents
  build, 17 PostgreSQL approval-group tests, 79 migration tests, 17 API approval-group tests plus
-2 pure session-grant tests, a 23/23 full deterministic Temporal suite including worker replacement
+2 pure session-grant tests, a 24/24 full deterministic Temporal suite including worker replacement
 while a group was pending and 32/64/128/256-operation group barriers, and a 1/1 opt-in
 real-provider approval orchestration test using a synthetic external-effect capability through the
 actual HTTP decision endpoint, including concurrent duplicate-decision handling. A disposable
@@ -525,7 +525,7 @@ User, API, internal, and operational documentation: update Studio/API approval d
 Validation evidence: completed unit/redaction/SSE, PostgreSQL concurrency and 32/64/128/256
   persistence, bounded session-grant persistence, idempotent consumed-event evidence, 17/17 API
   plus 2 pure session-grant tests,
-  local Temporal 23/23,
+  local Temporal 24/24,
   local recovery/worker-loss 19/19, worker-replacement,
   expiry, stale-plan, partial provider failure, later-group, 18-operation, and 1/1 synthetic
   real-provider approval-orchestration checks; 1/1 configured-model local-calendar capability run
