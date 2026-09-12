@@ -72,6 +72,14 @@ export interface SessionTranscriptProjection {
   activeProjectionDigest: string;
 }
 
+export interface ReadActiveTranscriptOptions {
+  /**
+   * Batch recovery may inspect an assistant tool-call entry before all results
+   * have committed. Normal context reads must continue to reject that state.
+   */
+  allowIncomplete?: boolean;
+}
+
 /**
  * Resolve the historical sequence boundary for the same tail policy used by
  * the context compactor. Tool-call batches are kept atomic, so the boundary
@@ -327,7 +335,12 @@ async function selectEntryByIdempotency(client: PoolClient, contextId: string, i
   return result.rows[0];
 }
 
-async function selectProjection(client: PoolClient, row: ContextRow, verifyStoredDigest = true): Promise<SessionTranscriptProjection> {
+async function selectProjection(
+  client: PoolClient,
+  row: ContextRow,
+  verifyStoredDigest = true,
+  allowIncomplete = false,
+): Promise<SessionTranscriptProjection> {
   const context = mapContext(row);
   const checkpointResult = context.activeCheckpointSequence === null
     ? { rows: [] as EntryRow[] }
@@ -381,7 +394,8 @@ async function selectProjection(client: PoolClient, row: ContextRow, verifyStore
   const messages = entries.map((entry) => cloneModelMessage(entry.message));
   if (verifyStoredDigest) {
     const issues = validateModelTranscript(messages.filter((message) => message.role !== "system"));
-    if (issues.length > 0) throw new Error("SESSION_TRANSCRIPT_PROJECTION_INVALID");
+    const onlyMissingResults = issues.length > 0 && issues.every((issue) => issue.code === "missing_tool_result");
+    if (issues.length > 0 && !(allowIncomplete && onlyMissingResults)) throw new Error("SESSION_TRANSCRIPT_PROJECTION_INVALID");
   }
   const computedProjectionDigest = projectionDigest(messages);
   if (context.activeProjectionDigest !== computedProjectionDigest) {
@@ -405,15 +419,18 @@ export class SessionTranscriptRepository {
     return withTransaction(this.pool, async (client) => mapContext(await ensureContext(client, scope)));
   }
 
-  public async readActive(input: SessionTranscriptScope): Promise<SessionTranscriptProjection> {
+  public async readActive(
+    input: SessionTranscriptScope,
+    options: ReadActiveTranscriptOptions = {},
+  ): Promise<SessionTranscriptProjection> {
     const scope = normalizeScope(input);
     return withTransaction(this.pool, async (client) => {
       const context = await selectContext(client, scope);
       if (!context) {
         const created = await ensureContext(client, scope);
-        return selectProjection(client, created);
+        return selectProjection(client, created, true, options.allowIncomplete === true);
       }
-      return selectProjection(client, context);
+      return selectProjection(client, context, true, options.allowIncomplete === true);
     });
   }
 

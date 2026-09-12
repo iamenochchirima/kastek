@@ -7,7 +7,7 @@ description: Durable cross-request agent context, provider-aware projection, and
 
 # Hermes-aligned session context and compaction
 
-**Status:** Track A complete — canonical context foundation implemented; Track B runtime integration remains gated on tool/approval contracts
+**Status:** Track B in progress — live tool-round transcript integration is being implemented on the completed Track A foundation
 
 **Owner:** Agent Platform
 
@@ -442,6 +442,17 @@ The real-provider failure above is context integration evidence only; it is not 
 approval failure. Do not mark Track B complete until live tool-call/result continuity, approval
 wait/resume, retry/worker-loss behavior, large-result handling, and the remaining browser/provider
 checks are separately demonstrated.
+
+#### Task B execution status — 2026-09-12
+
+- [in_progress] Connect the deferred model batch to the canonical transcript before tool effects.
+- [pending] Commit ordered terminal tool results and represent approval waits without losing the
+  active round or creating duplicate results.
+- [pending] Reload the canonical transcript after worker replacement, retries, approval decisions,
+  and later user turns. Keep workflow checkpoints as recovery accelerators only.
+- [pending] Verify large-result projection, compaction boundaries, cursor/generation fencing, and
+  the full local PostgreSQL/Temporal failure matrix.
+- [pending] Record release, migration, observability, rollback, and final validation evidence.
 
 ### Track A implementation evidence
 

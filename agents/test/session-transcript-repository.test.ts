@@ -249,6 +249,33 @@ describe("SessionTranscriptRepository", () => {
     expect(switchedModel.messages.at(-1)).toEqual({ role: "user", content: "What time is it?" });
   });
 
+  it("requires an explicit recovery read for an incomplete tool round", async () => {
+    const { pool } = databasePool();
+    const repository = new SessionTranscriptRepository(pool as never);
+    await repository.append({
+      ...scope,
+      turnId: "pending-turn",
+      kind: "user",
+      message: { role: "user", content: "Check my calendar." },
+      idempotencyKey: "pending-user",
+    });
+    await repository.append({
+      ...scope,
+      turnId: "pending-turn",
+      kind: "assistant_tool_call",
+      message: assistantCall(),
+      idempotencyKey: "pending-call",
+    });
+
+    await expect(repository.readActive(scope)).rejects.toThrow("SESSION_TRANSCRIPT_PROJECTION_INVALID");
+    await expect(repository.readActive(scope, { allowIncomplete: true })).resolves.toMatchObject({
+      messages: [
+        { role: "user", content: "Check my calendar." },
+        { role: "assistant", toolCalls: [{ runtimeOperationId: "runtime-call-1" }] },
+      ],
+    });
+  });
+
   it("keeps a tool round intact when the active projection is compacted", async () => {
     const { pool, entries } = databasePool();
     const repository = new SessionTranscriptRepository(pool as never);
