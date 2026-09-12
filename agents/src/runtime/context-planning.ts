@@ -141,6 +141,8 @@ export interface ContextRequestIdentity {
   readonly sourceGeneration?: number;
   /** Digest of the canonical active projection before provider selection. */
   readonly sourceProjectionDigest?: string;
+  /** Digest of the canonical append-only transcript head before selection. */
+  readonly sourceHeadDigest?: string;
   readonly sourceEventBoundaryDigest?: string;
   /** Provider-assigned identity, when the adapter exposes one. */
   readonly providerRequestId?: string;
@@ -157,6 +159,7 @@ export interface ContextRequestManifest {
     readonly sourceCursor?: number;
     readonly sourceGeneration?: number;
     readonly sourceProjectionDigest?: string;
+    readonly sourceHeadDigest?: string;
     readonly sourceEventBoundaryDigest: string;
     readonly providerRequestId?: string;
   };
@@ -993,6 +996,7 @@ function createManifest(input: {
       ...(identity?.sourceCursor === undefined ? {} : { sourceCursor: identity.sourceCursor }),
       ...(identity?.sourceGeneration === undefined ? {} : { sourceGeneration: identity.sourceGeneration }),
       ...(identity?.sourceProjectionDigest ? { sourceProjectionDigest: identity.sourceProjectionDigest } : {}),
+      ...(identity?.sourceHeadDigest ? { sourceHeadDigest: identity.sourceHeadDigest } : {}),
       sourceEventBoundaryDigest: identity?.sourceEventBoundaryDigest ?? sourceDigest,
       ...(identity?.providerRequestId ? { providerRequestId: identity.providerRequestId } : {}),
     },

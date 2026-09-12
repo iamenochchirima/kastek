@@ -93,7 +93,12 @@ export function archiveThroughSequenceForCompaction(
     throw new Error("SESSION_TRANSCRIPT_RETAINED_UNITS_INVALID");
   }
   const bodyEntries = projection.entries.filter((entry) => entry.kind !== "compaction_checkpoint" && entry.message.role !== "system");
-  const units = buildTranscriptUnits(bodyEntries.map((entry) => entry.message));
+  const bodyMessages = bodyEntries.map((entry) => entry.message);
+  // A pending tool round is one atomic unit whose assistant call must remain
+  // visible until every result is committed. Do not archive an incomplete
+  // assistant call merely because the retained-unit limit was reached.
+  if (validateModelTranscript(bodyMessages).length > 0) return undefined;
+  const units = buildTranscriptUnits(bodyMessages);
   if (units.length <= maxRetainedMessageUnits) return undefined;
   const retainedIndexes = new Set<number>();
   for (let index = Math.max(0, units.length - maxRetainedMessageUnits); index < units.length; index += 1) retainedIndexes.add(index);

@@ -229,6 +229,7 @@ describe("SessionTranscriptRepository", () => {
         sourceCursor: projection.sourceCursor,
         sourceGeneration: projection.context.generation,
         sourceProjectionDigest: projection.activeProjectionDigest,
+        sourceHeadDigest: projection.sourceDigest,
       },
     } as const;
     const firstModel = planProviderRequest({
@@ -243,7 +244,7 @@ describe("SessionTranscriptRepository", () => {
     expect(firstModel.status).toBe("fits");
     expect(switchedModel.status).toBe("fits");
     expect(firstModel.manifest.sourceDigest).toBe(switchedModel.manifest.sourceDigest);
-    expect(switchedModel.manifest.identity).toMatchObject({ sourceCursor: 5, sourceGeneration: 1, sourceProjectionDigest: projection.activeProjectionDigest });
+    expect(switchedModel.manifest.identity).toMatchObject({ sourceCursor: 5, sourceGeneration: 1, sourceProjectionDigest: projection.activeProjectionDigest, sourceHeadDigest: projection.sourceDigest });
     expect(switchedModel.messages).toEqual(projection.messages);
     expect(switchedModel.messages).toContainEqual({ role: "tool", name: "calendar.list", toolCallId: "provider-call-1", runtimeOperationId: "runtime-call-1", content: '{"events":[{"title":"Planning"}]}' });
     expect(switchedModel.messages.at(-1)).toEqual({ role: "user", content: "What time is it?" });
@@ -274,6 +275,28 @@ describe("SessionTranscriptRepository", () => {
         { role: "assistant", toolCalls: [{ runtimeOperationId: "runtime-call-1" }] },
       ],
     });
+  });
+
+  it("does not compact through an incomplete tool round", async () => {
+    const { pool } = databasePool();
+    const repository = new SessionTranscriptRepository(pool as never);
+    await repository.append({
+      ...scope,
+      turnId: "pending-compaction-turn",
+      kind: "user",
+      message: { role: "user", content: "Check before compacting." },
+      idempotencyKey: "pending-compaction-user",
+    });
+    await repository.append({
+      ...scope,
+      turnId: "pending-compaction-turn",
+      kind: "assistant_tool_call",
+      message: assistantCall(),
+      idempotencyKey: "pending-compaction-call",
+    });
+
+    const projection = await repository.readActive(scope, { allowIncomplete: true });
+    expect(archiveThroughSequenceForCompaction(projection, 1)).toBeUndefined();
   });
 
   it("keeps a tool round intact when the active projection is compacted", async () => {

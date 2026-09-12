@@ -9,6 +9,7 @@ import { ApprovalRepository } from "../src/db/repositories/approval-repository";
 import { ConversationRepository } from "../src/db/repositories/conversation-repository";
 import { RunRepository } from "../src/db/repositories/run-repository";
 import { ToolInvocationRepository } from "../src/db/repositories/tool-invocation-repository";
+import { SessionTranscriptRepository } from "../src/db/repositories/session-transcript-repository";
 import { ModelGateway } from "../src/model/gateway";
 import type { CredentialResolver } from "../src/model/credentials";
 import { ProviderMetadataClient } from "../src/model/provider-metadata";
@@ -46,6 +47,11 @@ function operationIds(size: number): string[] {
   return Array.from({ length: size }, (_, index) => `deterministic-operation-${size}-${index + 1}`);
 }
 
+function currentTurnMessages(request: ModelRequest): ModelMessage[] {
+  const lastUserIndex = request.messages.findLastIndex((message) => message.role === "user");
+  return lastUserIndex < 0 ? [] : request.messages.slice(lastUserIndex + 1);
+}
+
 function fixtureResponse(request: ModelRequest): ModelResponse {
   const userMessage = [...request.messages]
     .reverse()
@@ -54,7 +60,11 @@ function fixtureResponse(request: ModelRequest): ModelResponse {
   if (!match) throw new Error("Deterministic model fixture could not identify the operation size");
   const size = Number(match[1]);
   const ids = operationIds(size);
-  const hasToolResults = request.messages.some((message) => message.role === "tool");
+  // Earlier approved turns remain in the same canonical session. Only tool
+  // results after the current user message belong to this fixture response;
+  // otherwise the next size would be mistaken for a continuation of the first
+  // tool batch and no approval group would be created.
+  const hasToolResults = currentTurnMessages(request).some((message) => message.role === "tool");
   if (hasToolResults) {
     return {
       provider: "openrouter",
@@ -88,6 +98,7 @@ describe.skipIf(!runIntegration)("deterministic model-gateway approval barriers 
   const conversations = new ConversationRepository(pool);
   const approvals = new ApprovalRepository(pool);
   const toolInvocations = new ToolInvocationRepository(pool);
+  const sessionTranscripts = new SessionTranscriptRepository(pool);
   const organizationId = `deterministic-approval-test-${randomUUID()}`;
   const agentId = randomUUID();
   const versionId = randomUUID();
@@ -245,6 +256,7 @@ describe.skipIf(!runIntegration)("deterministic model-gateway approval barriers 
 
     try {
       for (const size of operationSizes) {
+        const effectCountBefore = effectIds.length;
         const run = await runs.createRun(organizationId, "deterministic-approval-test", {
           installationId,
           triggerType: "manual",
@@ -265,6 +277,19 @@ describe.skipIf(!runIntegration)("deterministic model-gateway approval barriers 
             (value) => value?.group.status === "pending",
           );
           await waitFor(() => runs.getRunById(run.id), (value) => value?.status === "awaiting_approval");
+          const pendingProjection = await sessionTranscripts.readActive(
+            { organizationId, installationId, conversationId: conversation.id },
+            { allowIncomplete: true },
+          );
+          const pendingBatchId = `${run.id}:batch:0`;
+          const pendingAssistantToolCall = pendingProjection.entries.find(
+            (entry) => entry.idempotencyKey === `tool-batch:${pendingBatchId}:assistant`,
+          );
+          expect(pendingAssistantToolCall?.kind).toBe("assistant_tool_call");
+          expect(pendingProjection.entries.filter(
+            (entry) => entry.idempotencyKey.startsWith(`tool-batch:${pendingBatchId}:result:`),
+          )).toHaveLength(0);
+          expect(effectIds.slice(effectCountBefore)).toHaveLength(0);
           expect(active.approvals).toHaveLength(size);
           expect(new Set(active.approvals.map((approval) => approval.runtime_operation_id)).size).toBe(size);
 
@@ -299,7 +324,11 @@ describe.skipIf(!runIntegration)("deterministic model-gateway approval barriers 
           const group = await approvals.getGroup(organizationId, active.group.id);
           const operations = await approvals.listGroupOperations(organizationId, active.group.id);
           const invocations = await toolInvocations.list(organizationId, run.id);
+          const transcript = await sessionTranscripts.readActive({ organizationId, installationId, conversationId: conversation.id });
           const expectedIds = operationIds(size);
+          const batchId = `${run.id}:batch:0`;
+          const assistantToolCall = transcript.entries.find((entry) => entry.idempotencyKey === `tool-batch:${batchId}:assistant`);
+          const toolResults = transcript.entries.filter((entry) => entry.idempotencyKey.startsWith(`tool-batch:${batchId}:result:`));
           expect(completedRun?.status).toBe("completed");
           expect(group?.status).toBe("consumed");
           expect(operations).toHaveLength(size);
@@ -309,13 +338,32 @@ describe.skipIf(!runIntegration)("deterministic model-gateway approval barriers 
           expect(completedInvocations).toHaveLength(size);
           expect(completedInvocations.every((entry) => entry.status === "completed")).toBe(true);
           expect(completedInvocations.map((entry) => (entry.arguments as { resourceId: string }).resourceId).sort()).toEqual(expectedIds.slice().sort());
+          expect(assistantToolCall).toMatchObject({ kind: "assistant_tool_call", runId: run.id });
+          expect(assistantToolCall?.message.role).toBe("assistant");
+          expect(assistantToolCall?.message.toolCalls).toHaveLength(size);
+          expect(toolResults).toHaveLength(size);
+          expect(toolResults.map((entry) => entry.message.runtimeOperationId)).toEqual(
+            assistantToolCall?.message.toolCalls?.map((call) => call.runtimeOperationId),
+          );
+          const continuationRequest = [...modelRequests].reverse().find((request) => {
+            return request.messages.some((message) => message.role === "user" && message.content.includes(`size=${size}`))
+              && currentTurnMessages(request).some((message) => message.role === "tool");
+          });
+          const continuationMessages = continuationRequest ? currentTurnMessages(continuationRequest) : [];
+          expect(continuationMessages).toContainEqual(expect.objectContaining({
+            role: "assistant",
+            toolCalls: expect.arrayContaining([
+              expect.objectContaining({ name: "test.deterministic_approval_effect", arguments: { resourceId: expectedIds[0] } }),
+            ]),
+          }));
+          expect(continuationMessages.filter((message) => message.role === "tool")).toHaveLength(size);
         } finally {
           handles.delete(run.id);
         }
       }
 
-      expect(modelRequests.filter((request) => request.messages.some((message) => message.role === "tool"))).toHaveLength(operationSizes.length);
-      expect(modelRequests.filter((request) => !request.messages.some((message) => message.role === "tool")).map((request) => fixtureResponse(request).toolCalls.length)).toEqual([...operationSizes]);
+      expect(modelRequests.filter((request) => currentTurnMessages(request).some((message) => message.role === "tool"))).toHaveLength(operationSizes.length);
+      expect(modelRequests.filter((request) => !currentTurnMessages(request).some((message) => message.role === "tool")).map((request) => fixtureResponse(request).toolCalls.length)).toEqual([...operationSizes]);
     } finally {
       await app.close();
     }
