@@ -18,7 +18,11 @@ export interface DurableAgentLoopCheckpoint {
   ui?: AgentUi;
 }
 
-const MAX_CHECKPOINT_MESSAGES = 128;
+// A checkpoint must retain the complete tool-result transcript for one
+// deferred batch. The approval contract is verified through 256-operation
+// barriers, and the run may already contain several model turns, so the limit
+// needs room for the batch and its surrounding messages.
+const MAX_CHECKPOINT_MESSAGES = 2_048;
 const MAX_CHECKPOINT_CHARACTERS = 256_000;
 
 /**
