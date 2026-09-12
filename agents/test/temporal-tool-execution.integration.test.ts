@@ -750,6 +750,112 @@ describe.skipIf(!runIntegration)("Temporal tool execution reliability (integrati
     expect(modelSteps).toBe(2);
   }, 30_000);
 
+  it("does not replay a completed effect when the worker is replaced during the approved batch", async () => {
+    const taskQueue = `agent-approval-worker-after-effect-${randomUUID()}`;
+    const workflowId = `agent-run-${randomUUID()}`;
+    const groupId = randomUUID();
+    const planDigest = "e".repeat(64);
+    const calls = Array.from({ length: 4 }, (_, index) => ({
+      ...call(`restart-after-effect-${index + 1}`),
+      name: "records.delete",
+      sequenceNumber: index + 1,
+      approvalGroupId: groupId,
+      approvalPlanDigest: planDigest,
+    }));
+    let modelSteps = 0;
+    let paused = false;
+    let firstCommitStarted = false;
+    let releaseFirstCommit!: () => void;
+    const firstCommitReleased = new Promise<void>((resolve) => { releaseFirstCommit = resolve; });
+    const executed: string[] = [];
+    const committed = new Set<string>();
+    const activities: AgentRunActivities = {
+      transitionRun: async () => undefined,
+      waitForConversationTurn: async () => true,
+      getContentPublishBatchStatus: async () => ({ status: "UNAVAILABLE" }),
+      executeLoop: async () => { throw new Error("legacy executeLoop must not run for a new execution"); },
+      executeModelStep: async () => {
+        modelSteps += 1;
+        return modelSteps === 1 ? pendingBatchResult(calls) : completedResult("The worker-replaced approved batch completed.");
+      },
+      prepareToolBatch: async ({ calls: prepared }) => prepared.map((current) => ({
+        kind: "sequential" as const,
+        segmentId: `batch:segment:${current.id}`,
+        calls: [current],
+      })),
+      executeToolCall: async ({ call: current }) => {
+        executed.push(current.id);
+        return {
+          id: current.id,
+          providerToolCallId: current.providerToolCallId!,
+          name: current.name,
+          argumentsHash: current.argumentsHash,
+          status: "completed",
+          output: { ok: true, id: current.id },
+        } satisfies DurableToolCallResult;
+      },
+      commitToolBatch: async ({ results }) => {
+        if (results.some((result) => result.id === calls[0]!.id) && !firstCommitStarted) {
+          firstCommitStarted = true;
+          await firstCommitReleased;
+        }
+        for (const result of results) committed.add(result.id);
+        return { status: "committed", toolCalls: results.length };
+      },
+      pauseRun: async () => { paused = true; },
+      deliverApprovalPrompt: async () => undefined,
+      cancelPendingApproval: async () => undefined,
+      cancelApprovalGroup: async () => undefined,
+      cancelHandoff: async () => undefined,
+      completeRun: async () => undefined,
+      generateConversationTitle: async () => undefined,
+      deliverRunReply: async () => undefined,
+      failRun: async ({ error }) => { throw new Error(String(error.message ?? "workflow failed")); },
+    };
+    const client = await startWorker(taskQueue, activities);
+    const handle = await client.workflow.start(agentRunWorkflow, { taskQueue, workflowId, args: [{ runId: workflowId }] });
+    await new Promise<void>((resolve, reject) => {
+      const deadline = setTimeout(() => reject(new Error("workflow did not pause before post-effect worker replacement")), 10_000);
+      const timer = setInterval(() => {
+        if (paused) {
+          clearTimeout(deadline);
+          clearInterval(timer);
+          resolve();
+        }
+      }, 50);
+    });
+    await handle.signal(approvalGroupSignal, {
+      groupId,
+      planDigest,
+      decision: "approved",
+      approvedBy: "approver",
+      selectedOperationIds: calls.map((current) => current.id),
+      expiresAt: new Date(Date.now() + 60_000).toISOString(),
+    });
+    await new Promise<void>((resolve, reject) => {
+      const deadline = setTimeout(() => reject(new Error("first approved effect did not reach the durable commit boundary")), 10_000);
+      const timer = setInterval(() => {
+        if (firstCommitStarted) {
+          clearTimeout(deadline);
+          clearInterval(timer);
+          resolve();
+        }
+      }, 25);
+    });
+
+    const oldWorkerShutdown = stopLatestWorker();
+    const replacementClient = await startWorker(taskQueue, activities);
+    const replacementHandle = replacementClient.workflow.getHandle(workflowId);
+    releaseFirstCommit();
+    await oldWorkerShutdown;
+    await replacementHandle.result();
+
+    expect(modelSteps).toBe(2);
+    expect(executed).toEqual(calls.map((current) => current.id));
+    expect(new Set(executed).size).toBe(calls.length);
+    expect(committed).toEqual(new Set(calls.map((current) => current.id)));
+  }, 45_000);
+
   it.each([32, 64, 128, 256])("executes a %d-operation approval group through one Temporal barrier", async (count) => {
     const taskQueue = `agent-approval-scale-${count}-${randomUUID()}`;
     const workflowId = `agent-run-${randomUUID()}`;
