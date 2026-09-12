@@ -64,7 +64,7 @@ hosted external-provider reconciliation and durable release telemetry remain gat
 The deterministic model-gateway harness then passed 1/1 for exact 18/32/64/128/256-operation
 barriers. It also exposed and verified the continuation-as-new status restoration needed when the
 256-operation workflow crossed the history threshold. The harness uses an injected offline adapter
-and therefore does not replace the pending actual-provider and guided-Studio checks.
+and therefore does not replace hosted external-provider evidence or the guided partial-failure case.
 On 2026-09-12, a fresh authenticated Studio probe loaded the active KasiAi workspace cleanly at
 desktop and 390px mobile widths, with no page errors or 5xx responses. The disposable approval
 fixture is now intentionally archived with a disabled installation, so its conversation bootstrap
