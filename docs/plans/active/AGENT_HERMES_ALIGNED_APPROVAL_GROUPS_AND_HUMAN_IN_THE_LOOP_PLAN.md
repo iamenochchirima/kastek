@@ -434,7 +434,8 @@ real-use evidence.
 - [ ] Kill or replace the Temporal worker while the run is waiting for approval, then approve from
       the real API. Repeat once after one external effect has completed. Both runs must resume the
       same Workflow and never replay a completed effect. The pending-wait replacement case passes;
-      the post-effect replacement repetition remains open.
+      the decomposed Temporal path now also has a focused post-effect replacement regression; the
+      real-provider-specific repetition remains open.
 - [x] Run a real follow-up turn after the approved batch. The previous decision was not reused, and a
       new approval group was displayed and rejected without provider effects.
 
