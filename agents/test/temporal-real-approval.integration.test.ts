@@ -215,9 +215,18 @@ describe.skipIf(!runIntegration)("real model approval group through HTTP and Tem
     const completedRun = await runs.getRunById(run.id);
     const invocations = await toolInvocations.list(organizationId, run.id);
     const group = await approvals.getGroup(organizationId, active.group.id);
+    const modelCalls = await pool.query<{ provider: string; model: string; response: { providerResponseId?: string } | null }>(
+      `SELECT provider, model, response
+       FROM model_calls
+       WHERE organization_id = $1 AND run_id = $2 AND status = 'completed'
+       ORDER BY created_at ASC`,
+      [organizationId, run.id],
+    );
     expect(completedRun?.status).toBe("completed");
     expect(effectInvocations).toBe(1);
     expect(group?.status).toBe("consumed");
+    expect(modelCalls.rows.length).toBeGreaterThan(0);
+    expect(modelCalls.rows.every((call) => typeof call.response?.providerResponseId === "string" && call.response.providerResponseId.length > 0)).toBe(true);
     expect(invocations).toEqual([
       expect.objectContaining({
         tool_name: "test.real_approval_effect",
