@@ -655,7 +655,7 @@ export function listAgentOperationRuns(limit = 50): Promise<{ runs: AgentOperati
   return request(`/api/agents/operations/runs?limit=${encodeURIComponent(String(limit))}`);
 }
 
-export function getAgentRun(runId: string): Promise<{ run: AgentRun; canApprove?: boolean; approval?: AgentApproval | null; approvalGroup?: AgentApprovalGroup | null; approvalGroups?: AgentApprovalGroup[]; events: AgentOperationEvent[] }> {
+export function getAgentRun(runId: string): Promise<{ run: AgentRun; canApprove?: boolean; approvalGroup?: AgentApprovalGroup | null; approvalGroups?: AgentApprovalGroup[]; events: AgentOperationEvent[] }> {
   return request(`/api/agents/runs/${encodeURIComponent(runId)}`);
 }
 
@@ -673,13 +673,6 @@ export function getAgentRunMemoryObservatory(runId: string, options: { afterSequ
 
 export function getAgentMemoryLineage(revisionId: string): Promise<AgentMemoryObservatoryGraph> {
   return request(`/api/agents/memory/revisions/${encodeURIComponent(revisionId)}/lineage`);
-}
-
-export function decideAgentRunApproval(runId: string, approval: Pick<AgentApproval, "providerToolCallId" | "argumentsHash">, decision: "approved" | "rejected"): Promise<{ runId: string; status: string }> {
-  return request(`/api/agents/runs/${encodeURIComponent(runId)}/approval`, {
-    method: "POST",
-    body: JSON.stringify({ decision, providerToolCallId: approval.providerToolCallId, argumentsHash: approval.argumentsHash }),
-  });
 }
 
 export function decideAgentRunApprovalGroup(runId: string, group: Pick<AgentApprovalGroup, "id" | "planDigest">, decision: "approved" | "rejected", selectedOperationIds?: string[], idempotencyKey?: string, grantScope?: "once" | "session"): Promise<{ runId: string; groupId: string; status: string }> {

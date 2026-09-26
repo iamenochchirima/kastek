@@ -30,6 +30,20 @@ function numberValue(value: unknown): number | undefined {
   return Number.isFinite(parsed) ? parsed : undefined;
 }
 
+/**
+ * Check the durable event cursor before projecting events into the visual
+ * execution trace. The trace intentionally omits informational event types,
+ * so comparing its cursors would report false gaps.
+ */
+export function hasExecutionSequenceGap(sequences: readonly (number | string | undefined)[]): boolean {
+  const ordered = [...new Set(
+    sequences
+      .map((value) => numberValue(value))
+      .filter((value): value is number => value !== undefined && Number.isSafeInteger(value)),
+  )].sort((left, right) => left - right);
+  return ordered.some((sequence, index) => index > 0 && sequence > ordered[index - 1]! + 1);
+}
+
 function descriptor(value: unknown): ExecutionStageDescriptor | undefined {
   if (!isRecord(value)) return undefined;
   const stageId = stringValue(value.stageId);
