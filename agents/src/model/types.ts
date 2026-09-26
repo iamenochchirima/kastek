@@ -24,6 +24,8 @@ export interface ModelMessage {
   role: MessageRole;
   content: string;
   toolCallId?: string;
+  /** KasiTek runtime identity for a tool result; provider wire IDs stay in toolCallId. */
+  runtimeOperationId?: string;
   name?: string;
   toolCalls?: ModelToolCall[];
 }
@@ -67,6 +69,8 @@ export interface ModelToolCall {
   id: string;
   name: string;
   arguments: Record<string, unknown>;
+  /** Durable KasiTek identity, assigned after the model operation is admitted. */
+  runtimeOperationId?: string;
 }
 
 export interface ModelUsage {

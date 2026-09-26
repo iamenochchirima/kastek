@@ -85,6 +85,26 @@ describe("durable context compaction", () => {
     expect(first.messages.at(-1)).toEqual(baseMessages.at(-1));
   });
 
+  it("accepts a one-message omission when the bounded summary replaces it", async () => {
+    const messages: ModelMessage[] = [
+      { role: "user", content: "first durable message" },
+      { role: "assistant", content: "second durable message" },
+      { role: "user", content: "latest request" },
+    ];
+    const result = await compactDurableContext({
+      operationId: "single-omission-summary-1",
+      contextId: "conversation-single-omission",
+      revision: 1,
+      messages,
+      policy: { maxRetainedMessageUnits: 2, maxSummaryTokens: 40 },
+    });
+
+    expect(result.diagnostics.omittedMessageCount).toBe(1);
+    expect(result.messages).toHaveLength(messages.length);
+    expect(result.messages.some((message) => message.content.includes("Durable history excerpts"))).toBe(true);
+    expect(result.messages.at(-1)).toEqual(messages.at(-1));
+  });
+
   it("falls back when the optional provider fails and passes stable operation identity", async () => {
     const calls: string[] = [];
     const provider: ContextSummaryProvider = {

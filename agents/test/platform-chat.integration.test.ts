@@ -158,6 +158,42 @@ describe.skipIf(!runIntegration)("platform chat durability (integration)", () =>
     expect(restored).toMatchObject({ status: "active", is_primary: false });
   });
 
+  it("keeps the persisted conversation model when an old client sends an override", async () => {
+    const first = await platformChat.acceptMessage({
+      organizationId,
+      installationId,
+      actorId: "model-override-owner",
+      idempotencyKey: "model-override-first",
+      message: "Use the initial model",
+      createNew: true,
+      modelProvider: "openrouter",
+      model: "initial-model",
+    });
+    await runs.transitionRun(first.run.id, "received", "queued");
+    await runs.transitionRun(first.run.id, "queued", "running");
+    await runs.completeRun(first.run.id, { message: "Initial response" });
+
+    const second = await platformChat.acceptMessage({
+      organizationId,
+      installationId,
+      actorId: "model-override-owner",
+      idempotencyKey: "model-override-second",
+      message: "Use the selected model",
+      conversationId: first.conversation.id,
+      modelProvider: "openai",
+      model: "selected-model",
+    });
+
+    expect(second.run).toMatchObject({
+      resolved_model_provider: "openrouter",
+      resolved_model: "initial-model",
+    });
+    expect(second.conversation).toMatchObject({
+      model_provider: "openrouter",
+      model: "initial-model",
+    });
+  });
+
   it("keeps a new web chat independent while another chat is still running", async () => {
     const first = await platformChat.acceptMessage({
       organizationId,

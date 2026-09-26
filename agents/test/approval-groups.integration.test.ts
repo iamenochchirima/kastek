@@ -212,7 +212,7 @@ describe.skipIf(!runIntegration)("durable approval groups (PostgreSQL integratio
     })).rejects.toThrow("already consumed");
   });
 
-  it("does not expose grouped operations through the legacy per-run reader", async () => {
+  it("exposes the active approval group with all proposed operations", async () => {
     const runId = await createRun(`grouped-reader-${randomUUID()}`);
     await approvals.createGroup({
       organizationId,
@@ -225,7 +225,9 @@ describe.skipIf(!runIntegration)("durable approval groups (PostgreSQL integratio
       proposals: proposals(2, "grouped-reader"),
     });
 
-    expect(await approvals.getForRun(organizationId, runId)).toBeNull();
+    const active = await approvals.getActiveGroup(organizationId, runId);
+    expect(active?.group.status).toBe("pending");
+    expect(active?.approvals).toHaveLength(2);
   });
 
   it("appends consumed group evidence idempotently across activity retries", async () => {

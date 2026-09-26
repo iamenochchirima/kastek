@@ -157,6 +157,34 @@ describe("provider adapters", () => {
     vi.unstubAllGlobals();
   });
 
+  it("restores a uniquely truncated provider alias", async () => {
+    const fetchMock = vi.fn().mockImplementation(async (_url: string, options: RequestInit) => {
+      const requestBody = JSON.parse(String(options.body)) as Record<string, unknown>;
+      const sentToolName = ((requestBody.tools as Array<{ function: { name: string } }>)[0]!).function.name;
+      return new Response(JSON.stringify({
+        choices: [{
+          message: {
+            role: "assistant",
+            content: "",
+            tool_calls: [{ id: "call-truncated", function: { name: sentToolName.slice(0, -1), arguments: "{}" } }],
+          },
+          finish_reason: "tool_calls",
+        }],
+        usage: { prompt_tokens: 2, completion_tokens: 3, total_tokens: 5 },
+      }), { status: 200, headers: { "content-type": "application/json" } });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const adapter = new OpenAICompatibleAdapter({ provider: "openrouter", baseUrl: "https://example.test/v1" });
+    const result = await adapter.complete({
+      provider: "openrouter",
+      model: "test",
+      messages: [{ role: "user", content: "call the tool" }],
+      tools: [{ name: "test.real_read", description: "Read", inputSchema: { type: "object" } }],
+    }, credentials);
+    expect(result.toolCalls[0]).toMatchObject({ name: "test.real_read", arguments: {} });
+    vi.unstubAllGlobals();
+  });
+
   it("validates structured output against the requested JSON schema", async () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
       choices: [{ message: { role: "assistant", content: '{"answer":"ok"}' }, finish_reason: "stop" }],
@@ -188,6 +216,34 @@ describe("provider adapters", () => {
     const result = await new ModelGateway([adapter]).stream({ provider: "openai", model: "test", messages: [{ role: "user", content: "hi" }] }, credentials, (delta) => { if (delta.type === "text_delta") deltas.push(delta.text); });
     expect(deltas).toEqual(["hel", "lo"]);
     expect(result).toMatchObject({ deltas: 2, response: { message: { content: "hello" }, finishReason: "stop", usage: { totalTokens: 4, providerCostUsd: 0.004 } } });
+    vi.unstubAllGlobals();
+  });
+
+  it("streams OpenAI-compatible tool deltas without exposing runtime identities", async () => {
+    const body = [
+      'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"stream-call-1","function":{"name":"echo","arguments":"{\\"value\\":"}}]}}]}\n\n',
+      'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":"\\"ok\\"}"}}]},"finish_reason":"tool_calls"}]}\n\n',
+      "data: [DONE]\n\n",
+    ].join("");
+    const stream = new ReadableStream<Uint8Array>({ start(controller) { controller.enqueue(new TextEncoder().encode(body)); controller.close(); } });
+    const fetchMock = vi.fn().mockResolvedValue(new Response(stream, { status: 200, headers: { "content-type": "text/event-stream" } }));
+    vi.stubGlobal("fetch", fetchMock);
+    const adapter = new OpenAICompatibleAdapter({ provider: "openai", baseUrl: "https://example.test/v1" });
+    const deltas: Array<{ type: string; id?: string; name?: string; argumentsDelta?: string }> = [];
+    const result = await adapter.stream({
+      provider: "openai",
+      model: "test",
+      messages: [{ role: "user", content: "echo" }],
+      tools: [{ name: "echo", description: "Echo", inputSchema: { type: "object" } }],
+    }, credentials, delta => {
+      if (delta.type === "tool_call_delta") deltas.push(delta);
+    });
+    expect(deltas).toEqual([
+      { type: "tool_call_delta", index: 0, id: "stream-call-1", name: "echo", argumentsDelta: '{"value":' },
+      { type: "tool_call_delta", index: 0, argumentsDelta: '"ok"}' },
+    ]);
+    expect(result.toolCalls).toEqual([{ id: "stream-call-1", name: "echo", arguments: { value: "ok" } }]);
+    expect(JSON.stringify(fetchMock.mock.calls[0]?.[1]?.body)).not.toContain("runtimeOperationId");
     vi.unstubAllGlobals();
   });
 
@@ -227,6 +283,68 @@ describe("provider adapters", () => {
     }), { status: 200 })));
     const result = await new GeminiAdapter().complete({ provider: "gemini", model: "gemini-test", messages: [{ role: "user", content: "hi" }] }, credentials);
     expect(result.toolCalls[0]).toMatchObject({ name: "echo", arguments: { value: "ok" } });
+    vi.unstubAllGlobals();
+  });
+
+  it("keeps runtime identities out of provider envelopes while preserving provider correlation", async () => {
+    const messages = [
+      { role: "user" as const, content: "Run both lookups" },
+      {
+        role: "assistant" as const,
+        content: "",
+        toolCalls: [
+          { id: "provider-call-1", runtimeOperationId: "run-1:op-1", name: "records_lookup", arguments: { id: "1" } },
+          { id: "provider-call-2", runtimeOperationId: "run-1:op-2", name: "records_lookup", arguments: { id: "2" } },
+        ],
+      },
+      { role: "tool" as const, name: "records_lookup", toolCallId: "provider-call-1", runtimeOperationId: "run-1:op-1", content: JSON.stringify({ id: "1" }) },
+      { role: "tool" as const, name: "records_lookup", toolCallId: "provider-call-2", runtimeOperationId: "run-1:op-2", content: JSON.stringify({ error: { code: "TOOL_FAILED", message: "unavailable" } }) },
+    ];
+    const request = { provider: "openai" as const, model: "test", messages };
+
+    let openAiBody: Record<string, unknown> | undefined;
+    vi.stubGlobal("fetch", vi.fn().mockImplementation(async (_url: string, init: RequestInit) => {
+      openAiBody = JSON.parse(String(init.body)) as Record<string, unknown>;
+      return new Response(JSON.stringify({ choices: [{ message: { role: "assistant", content: "done" }, finish_reason: "stop" }] }), { status: 200 });
+    }));
+    await new OpenAICompatibleAdapter({ provider: "openai", baseUrl: "https://example.test/v1" }).complete(request, credentials);
+    const openAiMessages = openAiBody!.messages as Array<Record<string, unknown>>;
+    expect(openAiMessages[1]?.tool_calls).toEqual([
+      { id: "provider-call-1", type: "function", function: { name: "records_lookup", arguments: '{"id":"1"}' } },
+      { id: "provider-call-2", type: "function", function: { name: "records_lookup", arguments: '{"id":"2"}' } },
+    ]);
+    expect(openAiMessages.slice(2).map((message) => message.tool_call_id)).toEqual(["provider-call-1", "provider-call-2"]);
+    expect(JSON.stringify(openAiBody)).not.toContain("run-1:op-");
+    vi.unstubAllGlobals();
+
+    let anthropicBody: Record<string, unknown> | undefined;
+    vi.stubGlobal("fetch", vi.fn().mockImplementation(async (_url: string, init: RequestInit) => {
+      anthropicBody = JSON.parse(String(init.body)) as Record<string, unknown>;
+      return new Response(JSON.stringify({ content: [{ type: "text", text: "done" }], stop_reason: "end_turn" }), { status: 200 });
+    }));
+    await new AnthropicAdapter().complete({ ...request, provider: "anthropic" }, credentials);
+    const anthropicMessages = anthropicBody!.messages as Array<Record<string, unknown>>;
+    expect(anthropicMessages[1]?.content).toEqual([
+      { type: "tool_use", id: "provider-call-1", name: "records_lookup", input: { id: "1" } },
+      { type: "tool_use", id: "provider-call-2", name: "records_lookup", input: { id: "2" } },
+    ]);
+    expect((anthropicMessages[2]?.content as Array<Record<string, unknown>>)[0]).toMatchObject({ type: "tool_result", tool_use_id: "provider-call-1" });
+    expect(JSON.stringify(anthropicBody)).not.toContain("run-1:op-");
+    vi.unstubAllGlobals();
+
+    let geminiBody: Record<string, unknown> | undefined;
+    vi.stubGlobal("fetch", vi.fn().mockImplementation(async (_url: string, init: RequestInit) => {
+      geminiBody = JSON.parse(String(init.body)) as Record<string, unknown>;
+      return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: "done" }] }, finishReason: "STOP" }] }), { status: 200 });
+    }));
+    await new GeminiAdapter().complete({ ...request, provider: "gemini" }, credentials);
+    const geminiContents = geminiBody!.contents as Array<Record<string, unknown>>;
+    expect((geminiContents[1]?.parts as Array<Record<string, unknown>>)).toEqual([
+      { functionCall: { name: "records_lookup", args: { id: "1" } } },
+      { functionCall: { name: "records_lookup", args: { id: "2" } } },
+    ]);
+    expect((geminiContents[3]?.parts as Array<Record<string, unknown>>)[0]).toMatchObject({ functionResponse: { name: "records_lookup", response: { error: { code: "TOOL_FAILED", message: "unavailable" } } } });
+    expect(JSON.stringify(geminiBody)).not.toContain("run-1:op-");
     vi.unstubAllGlobals();
   });
 });

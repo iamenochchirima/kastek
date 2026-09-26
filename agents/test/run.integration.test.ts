@@ -14,6 +14,8 @@ import { createActivities } from "../src/temporal/activities";
 import { ToolRegistry } from "../src/tools/registry";
 import { RunBudgetRepository } from "../src/db/repositories/run-budget-repository";
 import { OperatorControlRepository } from "../src/db/repositories/operator-control-repository";
+import { hashToolArguments } from "../src/tools/registry";
+import { durableAgentLoopCheckpoint, readDurableAgentLoopCheckpoint } from "../src/runtime/loop-checkpoint";
 
 const databaseUrl = process.env.AGENTS_DATABASE_URL;
 const runIntegration = Boolean(databaseUrl && process.env.RUN_AGENTS_DB_INTEGRATION_TESTS === "true");
@@ -274,31 +276,81 @@ describe.skipIf(!runIntegration)("durable run invariants (integration)", () => {
       toolName: "analytics.read",
       argumentsHash: "b".repeat(64),
     })).rejects.toMatchObject({ code: "TOOL_REPLAY_SCOPE_CONFLICT" });
+    const reusedProviderToolCallId = "provider-id-reused-across-rounds";
+    await toolInvocations.recordProposal({
+      organizationId,
+      runId: completedAnalyticsRun.id,
+      providerToolCallId: reusedProviderToolCallId,
+      runtimeOperationId: "runtime-round-1",
+      sequenceNumber: 2,
+      toolName: "analytics.read",
+      toolVersion: "1.0.0",
+      riskClass: "read",
+      argumentsHash: "1".repeat(64),
+      arguments: { round: 1 },
+      requiresApproval: false,
+    });
+    await toolInvocations.recordProposal({
+      organizationId,
+      runId: completedAnalyticsRun.id,
+      providerToolCallId: reusedProviderToolCallId,
+      runtimeOperationId: "runtime-round-2",
+      sequenceNumber: 3,
+      toolName: "analytics.read",
+      toolVersion: "1.0.0",
+      riskClass: "read",
+      argumentsHash: "2".repeat(64),
+      arguments: { round: 2 },
+      requiresApproval: false,
+    });
+    await toolInvocations.recordCompleted({ runId: completedAnalyticsRun.id, providerToolCallId: reusedProviderToolCallId, runtimeOperationId: "runtime-round-1", output: { round: 1 }, latencyMs: 1 });
+    await toolInvocations.recordCompleted({ runId: completedAnalyticsRun.id, providerToolCallId: reusedProviderToolCallId, runtimeOperationId: "runtime-round-2", output: { round: 2 }, latencyMs: 1 });
+    expect((await toolInvocations.list(organizationId, completedAnalyticsRun.id)).filter((entry) => entry.provider_tool_call_id === reusedProviderToolCallId)).toHaveLength(2);
     await pool.query("INSERT INTO model_calls (organization_id, run_id, provider, model, funding_source, total_tokens, estimated_cost_usd, status) VALUES ($1, $2, 'openai', 'test', 'kasitek', 10, 0.25, 'completed')", [organizationId, runId]);
     await expect(modelCalls.assertRunBudget({ organizationId, runId, maxRequests: 1 })).rejects.toThrow("REQUEST_BUDGET");
     const decisionCallId = "idempotent-decision-call";
     const decisionHash = "c".repeat(64);
-    await approvals.createPending({
+    const decisionGroup = await approvals.createGroup({
+      organizationId,
+      installationId,
+      runId,
+      batchId: `${runId}:decision-group`,
+      turnKey: decisionCallId,
+      policyRevision: "v1",
+      expiresAt: new Date(Date.now() + 60_000).toISOString(),
+      proposals: [{
+        providerToolCallId: decisionCallId,
+        runtimeOperationId: decisionCallId,
+        capability: "test.publish",
+        capabilityVersion: "1.0.0",
+        argumentsHash: decisionHash,
+        resourceSnapshot: {},
+        previewRevision: decisionHash,
+        policyRevision: "v1",
+        permittedEffectKey: `${runId}:${decisionCallId}`,
+      }],
+    });
+    const decisions = await Promise.all([
+      approvals.decideGroup({ organizationId, runId, groupId: decisionGroup.group.id, planDigest: decisionGroup.group.plan_digest, decision: "approved", approvedBy: "user-1" }),
+      approvals.decideGroup({ organizationId, runId, groupId: decisionGroup.group.id, planDigest: decisionGroup.group.plan_digest, decision: "approved", approvedBy: "user-1" }),
+    ]);
+    expect(decisions.filter((entry) => entry.accepted)).toHaveLength(1);
+    expect(decisions.filter((entry) => !entry.accepted)).toHaveLength(1);
+    expect(decisions.map((entry) => entry.group.status)).toEqual(["approved", "approved"]);
+    await approvals.consume({
       organizationId,
       installationId,
       runId,
       providerToolCallId: decisionCallId,
+      runtimeOperationId: decisionCallId,
+      argumentsHash: decisionHash,
       capability: "test.publish",
       capabilityVersion: "1.0.0",
-      argumentsHash: decisionHash,
       resourceSnapshot: {},
       previewRevision: decisionHash,
       policyRevision: "v1",
       permittedEffectKey: `${runId}:${decisionCallId}`,
-      expiresAt: new Date(Date.now() + 60_000).toISOString(),
     });
-    const decisions = await Promise.all([
-      approvals.decide({ organizationId, runId, providerToolCallId: decisionCallId, argumentsHash: decisionHash, decision: "approved", approvedBy: "user-1" }),
-      approvals.decide({ organizationId, runId, providerToolCallId: decisionCallId, argumentsHash: decisionHash, decision: "approved", approvedBy: "user-1" }),
-    ]);
-    expect(decisions.filter((entry) => entry.accepted)).toHaveLength(1);
-    expect(decisions.filter((entry) => !entry.accepted)).toHaveLength(1);
-    expect(decisions.map((entry) => entry.approval.status)).toEqual(["approved", "approved"]);
 
     const effectCallId = "atomic-effect-call";
     const effectHash = "d".repeat(64);
@@ -313,21 +365,27 @@ describe.skipIf(!runIntegration)("durable run invariants (integration)", () => {
       argumentsHash: effectHash,
       idempotencyKey: effectKey,
     });
-    await approvals.createPending({
+    const effectGroup = await approvals.createGroup({
       organizationId,
       installationId,
       runId,
-      providerToolCallId: effectCallId,
-      capability: "test.publish",
-      capabilityVersion: "1.0.0",
-      argumentsHash: effectHash,
-      resourceSnapshot: {},
-      previewRevision: effectHash,
+      batchId: `${runId}:effect-group`,
+      turnKey: effectCallId,
       policyRevision: "v1",
-      permittedEffectKey: `${runId}:${effectCallId}`,
       expiresAt: new Date(Date.now() + 60_000).toISOString(),
+      proposals: [{
+        providerToolCallId: effectCallId,
+        runtimeOperationId: effectCallId,
+        capability: "test.publish",
+        capabilityVersion: "1.0.0",
+        argumentsHash: effectHash,
+        resourceSnapshot: {},
+        previewRevision: effectHash,
+        policyRevision: "v1",
+        permittedEffectKey: `${runId}:${effectCallId}`,
+      }],
     });
-    await approvals.decide({ organizationId, runId, providerToolCallId: effectCallId, argumentsHash: effectHash, decision: "approved", approvedBy: "user-1" });
+    await approvals.decideGroup({ organizationId, runId, groupId: effectGroup.group.id, planDigest: effectGroup.group.plan_digest, decision: "approved", approvedBy: "user-1" });
     await expect(approvals.consumeAndStartEffect({
       organizationId,
       installationId,
@@ -394,16 +452,29 @@ describe.skipIf(!runIntegration)("durable run invariants (integration)", () => {
       argumentsHash: expiringHash,
       idempotencyKey: `${runId}:test.publish:${expiringHash}`,
     });
-    await pool.query(
-      `INSERT INTO agent_approval_records
-       (organization_id, installation_id, run_id, provider_tool_call_id, capability,
-        capability_version, arguments_hash, resource_snapshot, preview_revision,
-        policy_revision, permitted_effect_key, status, expires_at)
-       VALUES ($1,$2,$3,$4,'test.publish','1.0.0',$5,'{}'::jsonb,$5,'v1',$6,'pending',now() - interval '1 minute')`,
-      [organizationId, installationId, runId, expiringCallId, expiringHash, `${runId}:${expiringCallId}`],
-    );
-    const expired = await approvals.expirePending();
-    expect(expired).toEqual([expect.objectContaining({ run_id: runId, provider_tool_call_id: expiringCallId })]);
+    const expiringGroup = await approvals.createGroup({
+      organizationId,
+      installationId,
+      runId,
+      batchId: `${runId}:expiring-group`,
+      turnKey: expiringCallId,
+      policyRevision: "v1",
+      expiresAt: new Date(Date.now() + 60_000).toISOString(),
+      proposals: [{
+        providerToolCallId: expiringCallId,
+        runtimeOperationId: expiringCallId,
+        capability: "test.publish",
+        capabilityVersion: "1.0.0",
+        argumentsHash: expiringHash,
+        resourceSnapshot: {},
+        previewRevision: expiringHash,
+        policyRevision: "v1",
+        permittedEffectKey: `${runId}:${expiringCallId}`,
+      }],
+    });
+    await pool.query("UPDATE agent_approval_groups SET expires_at = now() - interval '1 minute' WHERE id = $1", [expiringGroup.group.id]);
+    const expired = await approvals.expireGroups();
+    expect(expired).toEqual([expect.objectContaining({ run_id: runId, id: expiringGroup.group.id })]);
     await effectReceipts.markNotExecuted(organizationId, runId, expiringCallId, { code: "APPROVAL_EXPIRED" });
     expect((await effectReceipts.listForRun(organizationId, runId)).find((entry) => entry.id === effect.id)).toMatchObject({ status: "failed", reconciliation_required: false });
 
@@ -425,21 +496,27 @@ describe.skipIf(!runIntegration)("durable run invariants (integration)", () => {
       status: "reserved",
       reconciliation_required: false,
     });
-    await approvals.createPending({
+    const waitingGroup = await approvals.createGroup({
       organizationId,
       installationId,
       runId,
-      providerToolCallId: waitingCallId,
-      capability: "test.publish",
-      capabilityVersion: "1.0.0",
-      argumentsHash: waitingHash,
-      resourceSnapshot: {},
-      previewRevision: waitingHash,
+      batchId: `${runId}:waiting-group`,
+      turnKey: waitingCallId,
       policyRevision: "v1",
-      permittedEffectKey: `${runId}:${waitingCallId}`,
       expiresAt: new Date(Date.now() + 60_000).toISOString(),
+      proposals: [{
+        providerToolCallId: waitingCallId,
+        runtimeOperationId: waitingCallId,
+        capability: "test.publish",
+        capabilityVersion: "1.0.0",
+        argumentsHash: waitingHash,
+        resourceSnapshot: {},
+        previewRevision: waitingHash,
+        policyRevision: "v1",
+        permittedEffectKey: `${runId}:${waitingCallId}`,
+      }],
     });
-    await approvals.decide({ organizationId, runId, providerToolCallId: waitingCallId, argumentsHash: waitingHash, decision: "rejected", approvedBy: "user-1" });
+    await approvals.decideGroup({ organizationId, runId, groupId: waitingGroup.group.id, planDigest: waitingGroup.group.plan_digest, decision: "rejected", approvedBy: "user-1" });
     await effectReceipts.markNotExecuted(organizationId, runId, waitingCallId, { code: "APPROVAL_DENIED" });
     expect((await effectReceipts.listForRun(organizationId, runId)).find((entry) => entry.id === waiting.id)).toMatchObject({
       status: "failed",
@@ -577,12 +654,13 @@ describe.skipIf(!runIntegration)("durable run invariants (integration)", () => {
     const proposed = await activities.executeLoop({ runId: firstRun.id });
     expect(proposed.status).toBe("awaiting_approval");
     const argumentsHash = proposed.pendingToolCalls![0]!.argumentsHash;
-    await approvals.decide({
+    await approvals.decideGroup({
       organizationId,
       runId: firstRun.id,
-      providerToolCallId: "effect-post-start-failure-call",
-      argumentsHash,
+      groupId: proposed.pendingToolCalls![0]!.approvalGroupId!,
+      planDigest: proposed.pendingToolCalls![0]!.approvalPlanDigest!,
       decision: "approved",
+      selectedOperationIds: [proposed.pendingToolCalls![0]!.id],
       approvedBy: "approver",
     });
     const result = await activities.executeLoop({
@@ -591,7 +669,7 @@ describe.skipIf(!runIntegration)("durable run invariants (integration)", () => {
         id: "effect-post-start-failure-call",
         name: "test.external_effect",
         arguments: argumentsValue,
-        approval: { approvedBy: "approver", argumentsHash, expiresAt: new Date(Date.now() + 60_000).toISOString() },
+        approval: { approvedBy: "approver", argumentsHash, expiresAt: new Date(Date.now() + 60_000).toISOString(), approvalGroupId: proposed.pendingToolCalls![0]!.approvalGroupId! },
       },
     });
     expect(result.status).toBe("failed");
@@ -606,7 +684,7 @@ describe.skipIf(!runIntegration)("durable run invariants (integration)", () => {
         id: "effect-post-start-failure-call",
         name: "test.external_effect",
         arguments: argumentsValue,
-        approval: { approvedBy: "approver", argumentsHash, expiresAt: new Date(Date.now() + 60_000).toISOString() },
+        approval: { approvedBy: "approver", argumentsHash, expiresAt: new Date(Date.now() + 60_000).toISOString(), approvalGroupId: proposed.pendingToolCalls![0]!.approvalGroupId! },
       },
     });
     expect(duplicateResume.status).toBe("failed");
@@ -621,12 +699,13 @@ describe.skipIf(!runIntegration)("durable run invariants (integration)", () => {
     });
     const revokedProposed = await activities.executeLoop({ runId: revokedRun.id });
     const revokedHash = revokedProposed.pendingToolCalls![0]!.argumentsHash;
-    await approvals.decide({
+    await approvals.decideGroup({
       organizationId,
       runId: revokedRun.id,
-      providerToolCallId: "effect-grant-revoked-call",
-      argumentsHash: revokedHash,
+      groupId: revokedProposed.pendingToolCalls![0]!.approvalGroupId!,
+      planDigest: revokedProposed.pendingToolCalls![0]!.approvalPlanDigest!,
       decision: "approved",
+      selectedOperationIds: [revokedProposed.pendingToolCalls![0]!.id],
       approvedBy: "approver",
     });
     await pool.query(
@@ -640,7 +719,7 @@ describe.skipIf(!runIntegration)("durable run invariants (integration)", () => {
         id: "effect-grant-revoked-call",
         name: "test.external_effect",
         arguments: revokedArguments,
-        approval: { approvedBy: "approver", argumentsHash: revokedHash, expiresAt: new Date(Date.now() + 60_000).toISOString() },
+        approval: { approvedBy: "approver", argumentsHash: revokedHash, expiresAt: new Date(Date.now() + 60_000).toISOString(), approvalGroupId: revokedProposed.pendingToolCalls![0]!.approvalGroupId! },
       },
     });
     expect(revokedResult.status).toBe("failed");
@@ -668,12 +747,13 @@ describe.skipIf(!runIntegration)("durable run invariants (integration)", () => {
     });
     const blockedProposed = await activities.executeLoop({ runId: blockedRun.id });
     const blockedHash = blockedProposed.pendingToolCalls![0]!.argumentsHash;
-    await approvals.decide({
+    await approvals.decideGroup({
       organizationId,
       runId: blockedRun.id,
-      providerToolCallId: "effect-kill-switch-call",
-      argumentsHash: blockedHash,
+      groupId: blockedProposed.pendingToolCalls![0]!.approvalGroupId!,
+      planDigest: blockedProposed.pendingToolCalls![0]!.approvalPlanDigest!,
       decision: "approved",
+      selectedOperationIds: [blockedProposed.pendingToolCalls![0]!.id],
       approvedBy: "approver",
     });
     const killSwitch = await killSwitches.set({
@@ -689,7 +769,7 @@ describe.skipIf(!runIntegration)("durable run invariants (integration)", () => {
         id: "effect-kill-switch-call",
         name: "test.external_effect",
         arguments: blockedArguments,
-        approval: { approvedBy: "approver", argumentsHash: blockedHash, expiresAt: new Date(Date.now() + 60_000).toISOString() },
+        approval: { approvedBy: "approver", argumentsHash: blockedHash, expiresAt: new Date(Date.now() + 60_000).toISOString(), approvalGroupId: blockedProposed.pendingToolCalls![0]!.approvalGroupId! },
       },
     });
     expect(blockedResult.status).toBe("failed");
@@ -709,12 +789,13 @@ describe.skipIf(!runIntegration)("durable run invariants (integration)", () => {
     });
     const suspendedProposed = await activities.executeLoop({ runId: suspendedRun.id });
     const suspendedHash = suspendedProposed.pendingToolCalls![0]!.argumentsHash;
-    await approvals.decide({
+    await approvals.decideGroup({
       organizationId,
       runId: suspendedRun.id,
-      providerToolCallId: "effect-installation-suspended-call",
-      argumentsHash: suspendedHash,
+      groupId: suspendedProposed.pendingToolCalls![0]!.approvalGroupId!,
+      planDigest: suspendedProposed.pendingToolCalls![0]!.approvalPlanDigest!,
       decision: "approved",
+      selectedOperationIds: [suspendedProposed.pendingToolCalls![0]!.id],
       approvedBy: "approver",
     });
     await pool.query("UPDATE agent_installations SET status = 'disabled' WHERE id = $1", [installationId]);
@@ -724,7 +805,7 @@ describe.skipIf(!runIntegration)("durable run invariants (integration)", () => {
         id: "effect-installation-suspended-call",
         name: "test.external_effect",
         arguments: suspendedArguments,
-        approval: { approvedBy: "approver", argumentsHash: suspendedHash, expiresAt: new Date(Date.now() + 60_000).toISOString() },
+        approval: { approvedBy: "approver", argumentsHash: suspendedHash, expiresAt: new Date(Date.now() + 60_000).toISOString(), approvalGroupId: suspendedProposed.pendingToolCalls![0]!.approvalGroupId! },
       },
     });
     expect(suspendedResult.status).toBe("failed");
@@ -755,6 +836,223 @@ describe.skipIf(!runIntegration)("durable run invariants (integration)", () => {
       deployment_surface: "external_operation",
     });
     expect(JSON.stringify(failedAnalytics.rows[0]?.envelope)).not.toContain("provider detail");
+  });
+
+  it("executes and replays a deferred batch through the real Activities and PostgreSQL evidence", async () => {
+    const tools = new ToolRegistry();
+    let providerCalls = 0;
+    tools.register({
+      name: "test.batch_read",
+      version: "1.0.0",
+      description: "Controlled read fixture for deferred batch execution.",
+      riskClass: "read",
+      requiresApproval: false,
+      timeoutMs: 1_000,
+      inputSchema: {
+        type: "object",
+        properties: { value: { type: "string" } },
+        required: ["value"],
+        additionalProperties: false,
+      },
+      outputSchema: { type: "object", properties: { value: { type: "string" } }, required: ["value"], additionalProperties: false },
+      handler: async (context, argumentsValue) => {
+        providerCalls += 1;
+        return { value: argumentsValue.value };
+      },
+    });
+    await pool.query(
+      `INSERT INTO agent_tool_grants (organization_id, agent_version_id, installation_id, tool_name, granted_by)
+       VALUES ($1, $2, $3, 'test.batch_read', 'test')`,
+      [organizationId, versionId, installationId],
+    );
+    const activities = createActivities(pool, { tools });
+    const batchRun = await runs.createRun(organizationId, "test-user", {
+      installationId,
+      triggerType: "manual",
+      idempotencyKey: `deferred-batch-${randomUUID()}`,
+      input: { message: "read the value twice" },
+    });
+    await runBudgets.ensure({ organizationId, runId: batchRun.id }, { maxModelCalls: 2, maxToolCalls: 8, maxTotalTokens: 1_000, maxEstimatedCostUsd: 1 });
+    const argumentsValue = { value: "fixture" };
+    const argumentsHash = hashToolArguments(argumentsValue);
+    const pendingCalls = [
+      { id: "runtime-batch-1", providerToolCallId: "provider-batch-1", name: "test.batch_read", arguments: argumentsValue, argumentsHash },
+      { id: "runtime-batch-2", providerToolCallId: "provider-batch-2", name: "test.batch_read", arguments: argumentsValue, argumentsHash },
+    ];
+    const checkpoint = durableAgentLoopCheckpoint({
+      messages: [{ role: "user", content: "read the value twice" }, { role: "assistant", content: "", toolCalls: pendingCalls.map((call) => ({ id: call.providerToolCallId, runtimeOperationId: call.id, name: call.name, arguments: call.arguments })) }],
+      iterations: 1,
+      toolCalls: 0,
+      status: "limited",
+      toolBatchPending: true,
+      authorizedToolNames: ["test.batch_read"],
+      capabilitySnapshotDigest: "batch-capability-digest",
+      pendingToolCalls: pendingCalls,
+    }, undefined, { stepIndex: 0 });
+    await workflowState.put({ organizationId, runId: batchRun.id, state: { __agentLoop: checkpoint } });
+    expect(readDurableAgentLoopCheckpoint((await workflowState.get(organizationId, batchRun.id))?.state.__agentLoop)?.authorizedToolNames).toEqual(["test.batch_read"]);
+    const prepared = await activities.prepareToolBatch({
+      runId: batchRun.id,
+      batchId: `${batchRun.id}:batch:0`,
+      calls: pendingCalls.map((call, index) => ({ ...call, sequenceNumber: index + 1 })),
+    });
+    expect(prepared).toHaveLength(1);
+    expect(prepared[0]?.calls[1]?.deduplicatedFrom).toBe("runtime-batch-1");
+    const first = await activities.executeToolCall({ runId: batchRun.id, batchId: `${batchRun.id}:batch:0`, call: prepared[0]!.calls[0]! });
+    const duplicate = await activities.executeToolCall({ runId: batchRun.id, batchId: `${batchRun.id}:batch:0`, call: prepared[0]!.calls[1]! });
+    expect(first.status).toBe("completed");
+    expect(duplicate.status).toBe("completed");
+    expect(providerCalls).toBe(1);
+    const replay = await activities.executeToolCall({ runId: batchRun.id, batchId: `${batchRun.id}:batch:0`, call: prepared[0]!.calls[0]! });
+    expect(replay.status).toBe("completed");
+    expect(providerCalls).toBe(1);
+    await activities.commitToolBatch({
+      runId: batchRun.id,
+      batchId: `${batchRun.id}:batch:0`,
+      results: [first, duplicate],
+      remainingCalls: [],
+    });
+    const persistedCheckpoint = readDurableAgentLoopCheckpoint((await workflowState.get(organizationId, batchRun.id))?.state.__agentLoop);
+    expect(persistedCheckpoint?.toolBatchPending).toBeUndefined();
+    expect(persistedCheckpoint?.messages.filter((message) => message.role === "tool")).toHaveLength(2);
+    const persistedInvocation = (await toolInvocations.list(organizationId, batchRun.id)).find((entry) => entry.runtime_operation_id === "runtime-batch-2");
+    expect(persistedInvocation).toMatchObject({ batch_id: `${batchRun.id}:batch:0`, segment_id: `${batchRun.id}:batch:0:segment:1`, status: "completed" });
+  });
+
+  it("keeps an unauthorized sibling as a blocked result without discarding valid calls", async () => {
+    const tools = new ToolRegistry();
+    let providerCalls = 0;
+    for (const name of ["test.batch_read_partial", "test.batch_blocked"]) {
+      tools.register({
+        name,
+        version: "1.0.0",
+        description: "Controlled partial-batch fixture.",
+        riskClass: "read",
+        requiresApproval: false,
+        timeoutMs: 1_000,
+        inputSchema: { type: "object", additionalProperties: false },
+        outputSchema: { type: "object", properties: { ok: { type: "boolean" } }, required: ["ok"], additionalProperties: false },
+        handler: async () => {
+          providerCalls += 1;
+          return { ok: true };
+        },
+      });
+    }
+    await pool.query(
+      `INSERT INTO agent_tool_grants (organization_id, agent_version_id, installation_id, tool_name, granted_by)
+       VALUES ($1, $2, $3, 'test.batch_read_partial', 'test')`,
+      [organizationId, versionId, installationId],
+    );
+    const activities = createActivities(pool, { tools });
+    const batchRun = await runs.createRun(organizationId, "test-user", {
+      installationId,
+      triggerType: "manual",
+      idempotencyKey: `partial-batch-${randomUUID()}`,
+      input: { message: "read and then handle the blocked sibling" },
+    });
+    await runBudgets.ensure({ organizationId, runId: batchRun.id }, { maxModelCalls: 2, maxToolCalls: 8, maxTotalTokens: 1_000, maxEstimatedCostUsd: 1 });
+    const pendingCalls = [
+      { id: "runtime-partial-read", providerToolCallId: "provider-partial-read", name: "test.batch_read_partial", arguments: {}, argumentsHash: hashToolArguments({}) },
+      { id: "runtime-partial-blocked", providerToolCallId: "provider-partial-blocked", name: "test.batch_blocked", arguments: {}, argumentsHash: hashToolArguments({}) },
+    ];
+    const checkpoint = durableAgentLoopCheckpoint({
+      messages: [{ role: "user", content: "read and then handle the blocked sibling" }, { role: "assistant", content: "", toolCalls: pendingCalls.map((call) => ({ id: call.providerToolCallId, runtimeOperationId: call.id, name: call.name, arguments: call.arguments })) }],
+      iterations: 1,
+      toolCalls: 0,
+      status: "limited",
+      toolBatchPending: true,
+      authorizedToolNames: ["test.batch_read_partial"],
+      capabilitySnapshotDigest: "partial-batch-capability-digest",
+      pendingToolCalls: pendingCalls,
+    }, undefined, { stepIndex: 0 });
+    await workflowState.put({ organizationId, runId: batchRun.id, state: { __agentLoop: checkpoint } });
+
+    const prepared = await activities.prepareToolBatch({
+      runId: batchRun.id,
+      batchId: `${batchRun.id}:batch:0`,
+      calls: pendingCalls.map((call, index) => ({ ...call, sequenceNumber: index + 1 })),
+    });
+    expect(prepared.flatMap((segment) => segment.calls.map((call) => call.name))).toEqual(["test.batch_read_partial", "test.batch_blocked"]);
+    const results = await Promise.all(prepared.map(async (segment) => Promise.all(segment.calls.map((call) => activities.executeToolCall({
+      runId: batchRun.id,
+      batchId: `${batchRun.id}:batch:0`,
+      call,
+    }))))) .then((segments) => segments.flat());
+    expect(results.map((result) => result.status)).toEqual(["completed", "blocked"]);
+    expect(providerCalls).toBe(1);
+    await activities.commitToolBatch({ runId: batchRun.id, batchId: `${batchRun.id}:batch:0`, results, remainingCalls: [] });
+    const persistedCheckpoint = readDurableAgentLoopCheckpoint((await workflowState.get(organizationId, batchRun.id))?.state.__agentLoop);
+    expect(persistedCheckpoint?.toolBatchPending).toBeUndefined();
+    expect(persistedCheckpoint?.messages.filter((message) => message.role === "tool")).toHaveLength(2);
+    expect((await toolInvocations.list(organizationId, batchRun.id)).map((entry) => entry.status).sort()).toEqual(["completed", "failed"]);
+  });
+
+  it("charges a retrying tool operation once instead of once per provider attempt", async () => {
+    const tools = new ToolRegistry();
+    let providerCalls = 0;
+    tools.register({
+      name: "test.retryable_budget",
+      version: "1.0.0",
+      description: "Retryable tool fixture for operation-budget idempotency.",
+      riskClass: "read",
+      requiresApproval: false,
+      timeoutMs: 1_000,
+      inputSchema: { type: "object", additionalProperties: false },
+      outputSchema: { type: "object", properties: { ok: { type: "boolean" } }, required: ["ok"], additionalProperties: false },
+      handler: async () => {
+        providerCalls += 1;
+        if (providerCalls === 1) {
+          const error = new Error("provider temporarily unavailable");
+          Object.assign(error, { code: "PROVIDER_UNAVAILABLE" });
+          throw error;
+        }
+        return { ok: true };
+      },
+    });
+    await pool.query(
+      `INSERT INTO agent_tool_grants (organization_id, agent_version_id, installation_id, tool_name, granted_by)
+       VALUES ($1, $2, $3, 'test.retryable_budget', 'test')`,
+      [organizationId, versionId, installationId],
+    );
+    const activities = createActivities(pool, { tools });
+    const budgetRun = await runs.createRun(organizationId, "test-user", {
+      installationId,
+      triggerType: "manual",
+      idempotencyKey: `retryable-budget-${randomUUID()}`,
+      input: { message: "retry the read" },
+    });
+    await runBudgets.ensure({ organizationId, runId: budgetRun.id }, { maxModelCalls: 1, maxToolCalls: 1, maxTotalTokens: 1_000, maxEstimatedCostUsd: 1 });
+    const pendingCall = {
+      id: "runtime-retryable-budget",
+      providerToolCallId: "provider-retryable-budget",
+      name: "test.retryable_budget",
+      arguments: {},
+      argumentsHash: hashToolArguments({}),
+      sequenceNumber: 1,
+    };
+    const checkpoint = durableAgentLoopCheckpoint({
+      messages: [{ role: "user", content: "retry the read" }, { role: "assistant", content: "", toolCalls: [{ id: pendingCall.providerToolCallId, runtimeOperationId: pendingCall.id, name: pendingCall.name, arguments: pendingCall.arguments }] }],
+      iterations: 1,
+      toolCalls: 0,
+      status: "limited",
+      toolBatchPending: true,
+      authorizedToolNames: [pendingCall.name],
+      pendingToolCalls: [pendingCall],
+    }, undefined, { stepIndex: 0 });
+    await workflowState.put({ organizationId, runId: budgetRun.id, state: { __agentLoop: checkpoint } });
+    const batchId = `${budgetRun.id}:batch:0`;
+    const prepared = await activities.prepareToolBatch({ runId: budgetRun.id, batchId, calls: [pendingCall] });
+    const call = prepared[0]!.calls[0]!;
+
+    await expect(activities.executeToolCall({ runId: budgetRun.id, batchId, call })).rejects.toThrow("provider temporarily unavailable");
+    const completed = await activities.executeToolCall({ runId: budgetRun.id, batchId, call });
+
+    expect(completed.status).toBe("completed");
+    expect(providerCalls).toBe(2);
+    await expect(pool.query<{ captured_tool_calls: number }>(
+      "SELECT captured_tool_calls FROM run_budgets WHERE run_id = $1",
+      [budgetRun.id],
+    )).resolves.toMatchObject({ rows: [{ captured_tool_calls: 1 }] });
   });
 
   it("enforces and then exercises scoped v2 memory rollout through the real activity path", async () => {
@@ -793,8 +1091,8 @@ describe.skipIf(!runIntegration)("durable run invariants (integration)", () => {
     expect(proposed.status).toBe("awaiting_approval");
     const pending = proposed.pendingToolCalls?.[0];
     expect(pending).toBeDefined();
-    await approvals.decide({ organizationId, runId: writeRun.id, providerToolCallId: pending!.id, argumentsHash: pending!.argumentsHash, decision: "approved", approvedBy: "test-operator" });
-    const written = await activities.executeLoop({ runId: writeRun.id, resumeApprovedToolCall: { ...pending!, approval: { approvedBy: "test-operator", argumentsHash: pending!.argumentsHash, expiresAt } } });
+    await approvals.decideGroup({ organizationId, runId: writeRun.id, groupId: pending!.approvalGroupId!, planDigest: pending!.approvalPlanDigest!, decision: "approved", selectedOperationIds: [pending!.id], approvedBy: "test-operator" });
+    const written = await activities.executeLoop({ runId: writeRun.id, resumeApprovedToolCall: { ...pending!, approval: { approvedBy: "test-operator", argumentsHash: pending!.argumentsHash, expiresAt, approvalGroupId: pending!.approvalGroupId! } } });
     expect(written.status).toBe("completed");
     expect(written.directToolResult).toMatchObject({ output: { memory: { namespace: "organization_shared", memoryType: "semantic" } } });
   });
@@ -817,8 +1115,24 @@ describe.skipIf(!runIntegration)("durable run invariants (integration)", () => {
       policyRevision: "policy-1",
       permittedEffectKey: `${bindingRunId}:${providerToolCallId}`,
     };
-    await approvals.createPending({ ...base, expiresAt: new Date(Date.now() + 60_000).toISOString() });
-    await approvals.decide({ organizationId, runId: bindingRunId, providerToolCallId, argumentsHash, decision: "approved", approvedBy: "user-1" });
+    const bindingGroup = await approvals.createGroup({
+      ...base,
+      batchId: `${bindingRunId}:binding-group`,
+      turnKey: providerToolCallId,
+      expiresAt: new Date(Date.now() + 60_000).toISOString(),
+      proposals: [{
+        providerToolCallId,
+        runtimeOperationId: providerToolCallId,
+        capability: base.capability,
+        capabilityVersion: base.capabilityVersion,
+        argumentsHash,
+        resourceSnapshot: base.resourceSnapshot,
+        previewRevision: base.previewRevision,
+        policyRevision: base.policyRevision,
+        permittedEffectKey: base.permittedEffectKey,
+      }],
+    });
+    await approvals.decideGroup({ organizationId, runId: bindingRunId, groupId: bindingGroup.group.id, planDigest: bindingGroup.group.plan_digest, decision: "approved", selectedOperationIds: [providerToolCallId], approvedBy: "user-1" });
     const mismatches = [
       { organizationId: "other-org" },
       { installationId: randomUUID() },
@@ -836,7 +1150,7 @@ describe.skipIf(!runIntegration)("durable run invariants (integration)", () => {
       await expect(approvals.consume({ ...base, ...mismatch })).rejects.toThrow("Approval is missing, expired, changed, or already consumed");
     }
     await approvals.consume(base);
-    expect((await approvals.getForRun(organizationId, bindingRunId))?.status).toBe("consumed");
+    expect((await approvals.getGroup(organizationId, bindingGroup.group.id))?.status).toBe("consumed");
   });
 
   afterAll(async () => {
@@ -847,13 +1161,14 @@ describe.skipIf(!runIntegration)("durable run invariants (integration)", () => {
     await pool.query("DELETE FROM model_calls WHERE organization_id = $1", [organizationId]);
     await pool.query("DELETE FROM tool_invocations WHERE organization_id = $1", [organizationId]);
     await pool.query("DELETE FROM agent_approval_records WHERE organization_id = $1", [organizationId]);
+    await pool.query("DELETE FROM agent_approval_groups WHERE organization_id = $1", [organizationId]);
     await pool.query("DELETE FROM agent_effect_receipts WHERE organization_id = $1", [organizationId]);
     await pool.query("DELETE FROM run_attempts WHERE organization_id = $1", [organizationId]);
     await pool.query("DELETE FROM agent_events WHERE organization_id = $1", [organizationId]);
     await pool.query("DELETE FROM agent_kill_switches WHERE organization_id = $1", [organizationId]);
     await pool.query("DELETE FROM agent_runs WHERE organization_id = $1", [organizationId]);
-    await pool.query("DELETE FROM agent_installations WHERE organization_id = $1", [organizationId]);
     await pool.query("DELETE FROM agent_tool_grants WHERE agent_version_id = $1", [versionId]);
+    await pool.query("DELETE FROM agent_installations WHERE organization_id = $1", [organizationId]);
     await pool.query("DELETE FROM agent_versions WHERE agent_definition_id = $1", [agentId]);
     await pool.query("DELETE FROM agent_definitions WHERE id = $1", [agentId]);
     await pool.end();

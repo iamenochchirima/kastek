@@ -230,4 +230,67 @@ describe("capability staging smoke", () => {
       context: { ...context, scope: { ...scope, capabilityGrants: ["booking.read"] } },
     })).resolves.toMatchObject({ name: "plugin.booking.lookup", output: { ok: true } });
   });
+
+  it("routes connector, MCP, plugin, skill-backed, and native calls through one lifecycle", async () => {
+    const registry = new ToolRegistry();
+    const families = [
+      { name: "platform.current_time", kind: "builtin_tool" as const, source: { kind: "builtin" as const, id: "platform" } },
+      { name: "google.calendar.list", kind: "connector_tool" as const, source: { kind: "connector" as const, id: "google.calendar" } },
+      { name: "google.gmail.search", kind: "connector_tool" as const, source: { kind: "connector" as const, id: "google.gmail" } },
+      { name: "google.drive.search", kind: "connector_tool" as const, source: { kind: "connector" as const, id: "google.drive" } },
+      { name: "remote_mcp.notes.search", kind: "mcp_tool" as const, source: { kind: "mcp" as const, id: "notes" } },
+      { name: "plugin.web.search", kind: "plugin_tool" as const, source: { kind: "plugin" as const, id: "web" } },
+      { name: "skill.booking.lookup", kind: "builtin_tool" as const, source: { kind: "skill" as const, id: "booking" } },
+    ];
+    const handlerCalls: string[] = [];
+    for (const family of families) {
+      registry.register({
+        ...baseTool({
+          name: family.name,
+          description: `${family.name} dispatch fixture`,
+          catalog: { kind: family.kind, source: { ...family.source, version: "1.0.0" } },
+        }),
+        handler: async () => {
+          handlerCalls.push(family.name);
+          return { ok: true };
+        },
+      });
+    }
+    const lifecycle = {
+      propose: vi.fn(async () => undefined),
+      prepare: vi.fn(async () => ({ status: "new" as const })),
+      complete: vi.fn(async () => undefined),
+      fail: vi.fn(async () => undefined),
+    };
+    const runtime = createCapabilityRuntime({ registry, requireLifecycle: true });
+    const context = {
+      scope,
+      organizationId: scope.organizationId,
+      agentId: scope.agentDefinitionId,
+      agentVersionId: scope.agentVersionId,
+      installationId: scope.installationId,
+      runId: scope.runId,
+      correlationId: scope.correlationId,
+    };
+
+    for (const family of families) {
+      await expect(runtime.invoke({
+        name: family.name,
+        arguments: {},
+        grantedTools: new Set([family.name]),
+        context,
+        lifecycle,
+        operationId: `operation:${family.name}`,
+      })).resolves.toMatchObject({ name: family.name, output: { ok: true } });
+    }
+
+    expect(handlerCalls).toEqual(families.map((family) => family.name));
+    expect(lifecycle.propose).toHaveBeenCalledTimes(families.length);
+    expect(lifecycle.prepare).toHaveBeenCalledTimes(families.length);
+    expect(lifecycle.complete).toHaveBeenCalledTimes(families.length);
+    expect(lifecycle.fail).not.toHaveBeenCalled();
+    expect(registry.descriptors().map((descriptor) => descriptor.source.kind).sort()).toEqual([
+      "builtin", "connector", "connector", "connector", "mcp", "plugin", "skill",
+    ]);
+  });
 });

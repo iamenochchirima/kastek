@@ -61,7 +61,7 @@ export interface GraphAgentLoopResult {
   status: "completed" | "awaiting_approval" | "awaiting_human" | "awaiting_external_event" | "limited" | "failed";
   response?: ModelResponse;
   output?: unknown;
-  pendingToolCalls?: Array<{ id: string; name: string; arguments: Record<string, unknown>; argumentsHash: string }>;
+  pendingToolCalls?: Array<{ id: string; providerToolCallId?: string; name: string; arguments: Record<string, unknown>; argumentsHash: string; approvalGroupId?: string; approvalPlanDigest?: string }>;
   waitingFor?: string;
   error?: string | { message?: string };
   usage?: Partial<GraphExecutionUsage>;
@@ -133,7 +133,7 @@ export interface GraphExecutionResult {
   state: Record<string, unknown>;
   trace: Array<{ nodeId: string; type: string; status: string }>;
   pausedAt?: string;
-  pendingToolCalls?: Array<{ id: string; name: string; arguments: Record<string, unknown>; argumentsHash: string }>;
+  pendingToolCalls?: Array<{ id: string; providerToolCallId?: string; name: string; arguments: Record<string, unknown>; argumentsHash: string; approvalGroupId?: string; approvalPlanDigest?: string }>;
   waitingFor?: string;
   error?: string;
   usage: GraphExecutionUsage;

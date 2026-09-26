@@ -355,6 +355,53 @@ describe("SessionTranscriptRepository", () => {
     expect(archiveThroughSequenceForCompaction(projection, 1)).toBeUndefined();
   });
 
+  it("stores the canonical digest when compaction activates over a waiting tail", async () => {
+    const { pool } = databasePool();
+    const repository = new SessionTranscriptRepository(pool as never);
+    await repository.append({
+      ...scope,
+      turnId: "compaction-waiting-turn",
+      kind: "user",
+      message: { role: "user", content: "Check my calendar before the retry." },
+      idempotencyKey: "compaction-waiting-user",
+    });
+    await repository.append({
+      ...scope,
+      turnId: "compaction-waiting-turn",
+      kind: "assistant_tool_call",
+      message: assistantCall(),
+      idempotencyKey: "compaction-waiting-call",
+    });
+    await repository.append({
+      ...scope,
+      turnId: "compaction-waiting-turn",
+      kind: "waiting",
+      message: { role: "system", content: "Waiting for approval." },
+      metadata: { pendingOperationIds: ["runtime-call-1"] },
+      idempotencyKey: "compaction-waiting-marker",
+    });
+
+    const before = await repository.readActive(scope, { allowIncomplete: true });
+    const activation = await repository.activateCompaction({
+      ...scope,
+      turnId: "compaction-waiting-turn",
+      operationId: "compaction-waiting-operation",
+      checkpointMessage: { role: "system", content: "The calendar retry is awaiting approval." },
+      archiveThroughSequence: 1,
+      expectedHead: { sequence: before.sourceCursor, digest: before.sourceDigest },
+    });
+
+    expect(activation.outcome).toBe("created");
+    expect(activation.projection.messages).toEqual([
+      { role: "system", content: "The calendar retry is awaiting approval." },
+    ]);
+    await expect(repository.readActive(scope)).rejects.toThrow("SESSION_TRANSCRIPT_PROJECTION_PENDING");
+    await expect(repository.readActive(scope, { allowIncomplete: true })).resolves.toMatchObject({
+      activeProjectionDigest: activation.projection.activeProjectionDigest,
+      messages: [{ role: "system", content: "The calendar retry is awaiting approval." }],
+    });
+  });
+
   it("keeps a tool round intact when the active projection is compacted", async () => {
     const { pool, entries } = databasePool();
     const repository = new SessionTranscriptRepository(pool as never);

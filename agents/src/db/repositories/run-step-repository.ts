@@ -61,6 +61,19 @@ export class RunStepRepository {
     );
   }
 
+  public async findStartedToolStep(runId: string, runtimeOperationId: string): Promise<RunStepRecord | null> {
+    const result = await query<RunStepRecord>(
+      this.pool,
+      `SELECT * FROM run_steps
+       WHERE run_id = $1 AND step_type = 'tool' AND status = 'started'
+         AND input ->> 'operationId' = $2
+       ORDER BY sequence_number ASC
+       LIMIT 1`,
+      [runId, runtimeOperationId],
+    );
+    return result.rows[0] ?? null;
+  }
+
   public async listSteps(organizationId: string, runId: string): Promise<RunStepRecord[]> {
     const result = await query<RunStepRecord>(
       this.pool,

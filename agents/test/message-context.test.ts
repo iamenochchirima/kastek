@@ -1,13 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { prepareModelMessages } from "../src/runtime/message-context";
+import { prepareModelMessages, TranscriptProjectionError } from "../src/runtime/message-context";
 
 describe("model message context preparation", () => {
-  it("repairs an interrupted assistant tool call with a typed tool result", () => {
-    const prepared = prepareModelMessages({
+  it("rejects an interrupted assistant tool call before provider projection", () => {
+    expect(() => prepareModelMessages({
       messages: [{ role: "assistant", content: "", toolCalls: [{ id: "call-1", name: "lookup", arguments: {} }] }],
-    });
-    expect(prepared.repairedPairCount).toBe(1);
-    expect(prepared.messages.at(-1)).toMatchObject({ role: "tool", toolCallId: "call-1" });
+    })).toThrowError(TranscriptProjectionError);
   });
 
   it("leaves history selection to the provider-aware context planner", () => {
@@ -25,31 +23,23 @@ describe("model message context preparation", () => {
     expect(prepared.messages.some((message) => message.role === "tool" && message.toolCallId === "call-2")).toBe(true);
   });
 
-  it("repairs pairs without applying a token compactor", () => {
-    const prepared = prepareModelMessages({
+  it("rejects incomplete pairs without applying a token compactor", () => {
+    expect(() => prepareModelMessages({
       messages: [
         { role: "system", content: "policy" },
         ...Array.from({ length: 40 }, (_, index) => ({ role: "user" as const, content: `history-${index}` })),
         { role: "assistant", content: "", toolCalls: [{ id: "call-3", name: "lookup", arguments: {} }] },
       ],
-    });
-    expect(prepared.messages).toHaveLength(43);
-    expect(prepared.repairedPairCount).toBe(1);
+    })).toThrowError(TranscriptProjectionError);
   });
 
-  it("drops orphan tool results instead of exposing an invalid model transcript", () => {
-    const prepared = prepareModelMessages({
+  it("rejects orphan tool results instead of exposing an invalid model transcript", () => {
+    expect(() => prepareModelMessages({
       messages: [
         { role: "tool", name: "lookup", toolCallId: "call-1", content: "arrived before its call" },
         { role: "assistant", content: "", toolCalls: [{ id: "call-1", name: "lookup", arguments: {} }] },
         { role: "tool", name: "lookup", toolCallId: "call-1", content: "valid result" },
       ],
-    });
-
-    expect(prepared.messages).toEqual([
-      { role: "assistant", content: "", toolCalls: [{ id: "call-1", name: "lookup", arguments: {} }] },
-      { role: "tool", name: "lookup", toolCallId: "call-1", content: "valid result" },
-    ]);
-    expect(prepared.repairedPairCount).toBe(1);
+    })).toThrowError(TranscriptProjectionError);
   });
 });

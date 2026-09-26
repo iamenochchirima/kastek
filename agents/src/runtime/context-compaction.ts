@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import type { ModelMessage, ModelToolCall } from "../model/types";
+import { buildTranscriptUnits, toolOperationIdentity, validateModelTranscript } from "./transcript";
 import {
   directEvidenceEnvelopeFromMessages,
   sourceEventBoundaryFromMessages,
@@ -246,7 +247,8 @@ export type ContextCompactionErrorCode =
   | "attempt_budget_exhausted"
   | "cancelled"
   | "candidate_invalid"
-  | "no_progress";
+  | "no_progress"
+  | "transcript_invalid";
 
 export class ContextCompactionError extends Error {
   public constructor(
@@ -264,11 +266,6 @@ interface NormalizedPolicy {
   readonly maxRetainedMessageUnits: number;
   readonly providerTimeoutMs: number;
   readonly charsPerToken: number;
-}
-
-interface MessageUnit {
-  readonly messages: ModelMessage[];
-  readonly protectedPair: boolean;
 }
 
 interface Projection {
@@ -558,7 +555,7 @@ function validateCompactionCandidate(input: {
   // summary message. The hard progress invariant is therefore structural:
   // candidates must omit an eligible range and retain a bounded projection;
   // request-fit progress is validated by the next provider-aware planner.
-  if (!input.allowNoProgress && input.projection.omittedMessageCount === 0 && input.projectedMessages.length >= input.messages.length) {
+  if (!input.allowNoProgress && input.projection.omittedMessageCount === 0) {
     throw new ContextCompactionError("The context compaction candidate makes no material progress.", "no_progress", input.operationId);
   }
 }
@@ -567,12 +564,16 @@ function hasCompleteToolPairs(messages: readonly ModelMessage[]): boolean {
   const pending = new Set<string>();
   for (const message of messages) {
     if (message.role === "assistant" && message.toolCalls?.length) {
-      for (const call of message.toolCalls) pending.add(call.id);
+      for (const call of message.toolCalls) {
+        const identity = toolOperationIdentity(call);
+        if (identity) pending.add(identity);
+      }
       continue;
     }
     if (message.role === "tool") {
-      if (!message.toolCallId || !pending.has(message.toolCallId)) return false;
-      pending.delete(message.toolCallId);
+      const identity = toolOperationIdentity(message);
+      if (!identity || !pending.has(identity)) return false;
+      pending.delete(identity);
     }
   }
   return pending.size === 0;
@@ -916,7 +917,10 @@ function resultFromRecord(
 function selectProjection(messages: readonly ModelMessage[], maxRetainedMessageUnits: number): Projection {
   const systemMessages = messages.filter((message) => message.role === "system").map(cloneMessage);
   const bodyMessages = messages.filter((message) => message.role !== "system");
-  const units = buildMessageUnits(bodyMessages);
+  if (validateModelTranscript(bodyMessages).length > 0) {
+    throw new ContextCompactionError("Context compaction cannot split or repair an incomplete tool round.", "transcript_invalid");
+  }
+  const units = buildTranscriptUnits(bodyMessages, { clone: true });
   const retainedIndexes = new Set<number>();
   for (let index = Math.max(0, units.length - maxRetainedMessageUnits); index < units.length; index += 1) retainedIndexes.add(index);
   // A tail-only slice is not sufficient when an external event or an
@@ -951,28 +955,6 @@ function applySummary(projection: Projection, summary: string): ModelMessage[] {
     content: `<untrusted-data source="${SUMMARY_SOURCE_MARKER}">\n${summary}\n</untrusted-data>`,
   };
   return [...system, summaryMessage, ...retained];
-}
-
-function buildMessageUnits(messages: readonly ModelMessage[]): MessageUnit[] {
-  const units: MessageUnit[] = [];
-  for (let index = 0; index < messages.length;) {
-    const message = messages[index]!;
-    if (message.role !== "assistant" || !message.toolCalls?.length) {
-      units.push({ messages: [cloneMessage(message)], protectedPair: false });
-      index += 1;
-      continue;
-    }
-    const expected = new Set(message.toolCalls.map((call) => call.id));
-    const pair: ModelMessage[] = [cloneMessage(message)];
-    let cursor = index + 1;
-    while (cursor < messages.length && messages[cursor]?.role === "tool" && expected.has(messages[cursor]?.toolCallId ?? "")) {
-      pair.push(cloneMessage(messages[cursor]!));
-      cursor += 1;
-    }
-    units.push({ messages: pair, protectedPair: pair.length > 1 });
-    index = cursor;
-  }
-  return units;
 }
 
 function messageExcerpt(message: ModelMessage): string {

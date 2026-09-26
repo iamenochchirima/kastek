@@ -154,29 +154,9 @@ async function main(): Promise<void> {
               operationalLogger.warn({ err: error, event: "approval.group.expiry.signal.failed", run_id: group.run_id, approval_group_id: group.id }, "Could not signal expired approval group");
             }
           }));
-          const expired = await approvals.expirePending();
-          await Promise.all(expired.map(async (approval) => {
-            await runs.appendEvent({
-              organizationId: approval.organization_id,
-              runId: approval.run_id,
-              installationId: approval.installation_id,
-              eventType: "agent.approval.expired",
-              payload: { approvalId: approval.id, providerToolCallId: approval.provider_tool_call_id },
-            });
-            await effectReceipts.markNotExecuted(approval.organization_id, approval.run_id, approval.provider_tool_call_id, {
-              code: "APPROVAL_EXPIRED",
-              message: "The approval expired before the effect began",
-            }, approval.runtime_operation_id);
-            try {
-              await client.workflow.getHandle(`agent-run-${approval.run_id}`).signal("agent.expire", { reason: "Approval expired" });
-            } catch (error) {
-              operationalLogger.warn({ err: error, event: "approval.expiry.signal.failed", run_id: approval.run_id }, "Could not signal expired approval");
-            }
-          }));
           if (stale.length) operationalLogger.warn({ event: "effect.reconciliation.required", count: stale.length }, "Provider outcomes require reconciliation");
           if (staleModelReservations.length) operationalLogger.warn({ event: "model.reconciliation.required", count: staleModelReservations.length }, "Model outcomes require reconciliation");
           if (expiredGroups.length) operationalLogger.warn({ event: "approval.group.expired", count: expiredGroups.length }, "Approval groups expired");
-          if (expired.length) operationalLogger.warn({ event: "approval.expired", count: expired.length }, "Approvals expired");
         } catch (error) {
           operationalLogger.error({ err: error, event: "agent.recovery.sweep.failed" }, "Agent recovery sweep failed");
         } finally {

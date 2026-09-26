@@ -1,5 +1,5 @@
 import { ModelGateway } from "../model/gateway";
-import type { ModelCredentials, ModelMessage, ModelRequest, ModelResponse, ModelToolDefinition } from "../model/types";
+import type { ModelCredentials, ModelMessage, ModelRequest, ModelResponse, ModelToolCall, ModelToolDefinition } from "../model/types";
 import { ModelProviderError } from "../model/types";
 import { estimatePromptTokens } from "../model/credit-pricing";
 import { approvalSnapshotHashFromResource, ToolPolicyError, type CapabilityPresentationMetadata, type ToolApproval, type ToolDefinition, type ToolInvocationContext, type ToolInvocationLifecycle, type ToolInvocationResult } from "../tools/types";
@@ -13,6 +13,7 @@ import { agentResponseSchema, findAuthorizationRequirement, type AgentAuthorizat
 import { projectCapabilityResultUi } from "../media/dynamic-ui";
 import { prepareModelMessages } from "./message-context";
 import { createAgentBudgetLedger, type AgentBudgetLedger } from "./budget";
+import { mapBounded, planToolBatch } from "./tool-batch";
 import {
   accountProviderUsage,
   planProviderRequest,
@@ -27,6 +28,7 @@ import type {
   ContextAttemptBudgetReceipt,
 } from "./context-attempt-budget";
 import type { EffectiveCapabilitySnapshot } from "./effective-capabilities";
+import type { TranscriptSourceIdentity } from "./tool-transcript";
 import {
   memoryEvidencePrompt,
   sourceEventBoundaryFromMessages,
@@ -87,6 +89,8 @@ export interface AgentLoopInput {
   contextSourceGeneration?: number;
   /** Digest of the canonical active projection used by this turn's model requests. */
   contextSourceProjectionDigest?: string;
+  /** Digest of the canonical transcript head used by this turn's model requests. */
+  contextSourceHeadDigest?: string;
   /** Durable run admission time, separate from harness execution start. */
   admittedAt?: string;
   /** Stable turn identity shared with memory and context journal events. */
@@ -101,6 +105,10 @@ export interface AgentLoopInput {
   /** Optional typed preflight result. The loop consumes it once when its source boundary matches. */
   memoryRetrievalPack?: MemoryEvidencePack;
   memoryRetrievalPackBoundaryDigest?: string;
+  /** Maximum number of parallel-safe capability calls in flight for one batch segment. */
+  maxParallelToolCalls?: number;
+  /** Return a durable batch checkpoint instead of invoking tools in this loop Activity. */
+  deferToolExecution?: boolean;
   /** Per-agent limits for tool schemas/results and response reservation. */
   contextPlanningPolicy?: Partial<ContextPlanningPolicy>;
   budgetLedger?: AgentBudgetLedger;
@@ -160,6 +168,7 @@ export interface AgentLoopInput {
   /** Replays a completed tool outcome after a worker retry without invoking the handler again. */
   replayToolInvocation?: (input: {
     toolCallId: string;
+    runtimeOperationId: string;
     name: string;
     argumentsHash: string;
   }) => Promise<ToolInvocationResult | undefined>;
@@ -172,12 +181,14 @@ export interface AgentLoopInput {
   beforeModelCall?: () => Promise<void> | void;
   beforeToolInvoke?: (input: {
     toolCallId: string;
+    runtimeOperationId: string;
     name: string;
     arguments: Record<string, unknown>;
     approved: boolean;
   }) => Promise<void> | void;
   onToolProposed?: (input: {
     toolCallId: string;
+    runtimeOperationId: string;
     name: string;
     version: string;
     riskClass: string;
@@ -188,6 +199,7 @@ export interface AgentLoopInput {
   }) => Promise<void> | void;
   onToolExecuting?: (input: {
     toolCallId: string;
+    runtimeOperationId: string;
     name: string;
     version: string;
     arguments: Record<string, unknown>;
@@ -196,6 +208,7 @@ export interface AgentLoopInput {
   }) => Promise<void> | void;
   onToolCompleted?: (input: {
     toolCallId: string;
+    runtimeOperationId: string;
     name: string;
     argumentsHash: string;
     output: unknown;
@@ -203,9 +216,10 @@ export interface AgentLoopInput {
     effectId?: string;
     approval?: ToolApproval;
   }) => Promise<void> | void;
-  onToolFailed?: (input: { toolCallId: string; name: string; argumentsHash?: string; error: { code: string; message: string } }) => Promise<void> | void;
+  onToolFailed?: (input: { toolCallId: string; runtimeOperationId: string; name: string; argumentsHash?: string; error: { code: string; message: string } }) => Promise<void> | void;
   resumeApprovedToolCall?: {
     id: string;
+    providerToolCallId?: string;
     name: string;
     arguments: Record<string, unknown>;
     approval: ToolApproval;
@@ -242,7 +256,15 @@ export interface AgentLoopResult {
     batchId: string;
     title?: string;
   };
-  pendingToolCalls?: Array<{ id: string; name: string; arguments: Record<string, unknown>; argumentsHash: string }>;
+  pendingToolCalls?: Array<{ id: string; providerToolCallId?: string; name: string; arguments: Record<string, unknown>; argumentsHash: string; approvalGroupId?: string; approvalPlanDigest?: string }>;
+  /** The model response is persisted and must be executed by the durable host before continuation. */
+  toolBatchPending?: boolean;
+  /** Immutable authorization projection pinned when the model emitted the deferred batch. */
+  authorizedToolNames?: string[];
+  /** Digest of the effective capability projection used for the deferred batch. */
+  capabilitySnapshotDigest?: string;
+  /** Canonical transcript identity used by the deferred model request. */
+  transcriptSource?: TranscriptSourceIdentity;
   usage: { inputTokens: number; outputTokens: number; totalTokens: number; estimatedCostUsd: number };
   iterations: number;
   toolCalls: number;
@@ -288,12 +310,32 @@ async function emit(input: AgentLoopInput, event: AgentLoopEvent): Promise<void>
   await input.onEvent?.(event);
 }
 
+function runtimeOperationIdForToolCall(operationKey: string, index: number): string {
+  return `${operationKey}:tool:${index + 1}`;
+}
+
+function attachRuntimeOperationIds(response: ModelResponse, operationKey: string): ModelResponse {
+  const toolCalls = response.toolCalls.map((call, index) => ({
+    ...call,
+    runtimeOperationId: call.runtimeOperationId ?? runtimeOperationIdForToolCall(operationKey, index),
+  }));
+  return {
+    ...response,
+    toolCalls,
+    message: {
+      ...response.message,
+      ...(toolCalls.length ? { toolCalls } : {}),
+    },
+  };
+}
+
 export async function runBoundedAgentLoop(input: AgentLoopInput): Promise<AgentLoopResult> {
   const limits = { ...defaultLimits, ...input.limits };
   const budget = input.budgetLedger ?? createAgentBudgetLedger({ contextTokens: limits.maxTotalTokens, modelTokens: limits.maxTotalTokens, toolCalls: limits.maxToolCalls, wallTimeMs: limits.maxWallTimeMs });
   const messages = [...input.messages];
   const usage = { inputTokens: 0, outputTokens: 0, totalTokens: 0, estimatedCostUsd: 0 };
   let toolCalls = 0;
+  const identicalToolCallCounts = new Map<string, number>();
   let authorizationRequired: AgentAuthorizationRequirement | undefined;
   let lastToolUi: AgentResponse["ui"] | undefined = input.dynamicUiEnabled === false ? undefined : input.resumeUi;
   let lastModelAttempt: { model: AgentLoopInput["model"]; credentials: ModelCredentials } = { model: input.model, credentials: input.credentials };
@@ -317,20 +359,24 @@ export async function runBoundedAgentLoop(input: AgentLoopInput): Promise<AgentL
   if (input.resumeApprovedToolCall) {
   try {
       const resumed = input.resumeApprovedToolCall;
+      const resumedProviderToolCallId = resumed.providerToolCallId ?? resumed.id;
+      const resumedRuntimeOperationId = resumed.id;
       const resumedManifest = input.tools.get(resumed.name);
       await input.beforeToolInvoke?.({
-        toolCallId: resumed.id,
+        toolCallId: resumedProviderToolCallId,
+        runtimeOperationId: resumedRuntimeOperationId,
         name: resumed.name,
         arguments: resumed.arguments,
         approved: true,
       });
       const resumedArgumentsHash = hashToolArguments(resumed.arguments);
-      const replayed = await input.replayToolInvocation?.({ toolCallId: resumed.id, name: resumed.name, argumentsHash: resumedArgumentsHash });
+      const replayed = await input.replayToolInvocation?.({ toolCallId: resumedProviderToolCallId, runtimeOperationId: resumedRuntimeOperationId, name: resumed.name, argumentsHash: resumedArgumentsHash });
       if (replayed && (replayed.name !== resumed.name || replayed.argumentsHash !== resumedArgumentsHash)) {
         throw new ToolPolicyError("TOOL_REPLAY_SCOPE_CONFLICT", "A durable tool outcome did not match the approved tool call");
       }
       if (!replayed) await input.onToolProposed?.({
-        toolCallId: resumed.id,
+        toolCallId: resumedProviderToolCallId,
+        runtimeOperationId: resumedRuntimeOperationId,
         name: resumed.name,
         version: resumedManifest?.version ?? "unknown",
         riskClass: resumedManifest?.riskClass ?? "privileged",
@@ -340,12 +386,13 @@ export async function runBoundedAgentLoop(input: AgentLoopInput): Promise<AgentL
         sequenceNumber: 1,
       });
       if (!replayed) await input.consumeRunToolCall?.({ parallelLeaseId: input.parallelLeaseId });
-      await emit(input, { type: "route.selected", iteration: 0, payload: { sourceStageId: "model", targetStageId: `capability:${resumed.name}`, operationId: resumed.id } });
+      await emit(input, { type: "route.selected", iteration: 0, payload: { sourceStageId: "model", targetStageId: `capability:${resumed.name}`, operationId: resumedRuntimeOperationId, toolCallId: resumedProviderToolCallId } });
       await emit(input, {
         type: "tool.started",
         iteration: 0,
         payload: {
-          toolCallId: resumed.id,
+          toolCallId: resumedProviderToolCallId,
+          operationId: resumedRuntimeOperationId,
           name: resumed.name,
           startedAt: new Date().toISOString(),
           ...(replayed ? { replayed: true } : {}),
@@ -363,13 +410,14 @@ export async function runBoundedAgentLoop(input: AgentLoopInput): Promise<AgentL
           },
           signal: input.signal,
           grantedTools: input.grantedTools,
-          operationId: resumed.id,
+          operationId: resumedRuntimeOperationId,
           sequenceNumber: 1,
           lifecycle: input.toolLifecycle,
           approval: resumed.approval,
           beforeEffect: resumedManifest?.riskClass === "external-effect" ? async () => {
             await input.onToolExecuting?.({
-              toolCallId: resumed.id,
+              toolCallId: resumedProviderToolCallId,
+              runtimeOperationId: resumedRuntimeOperationId,
               name: resumed.name,
               version: resumedManifest.version,
               arguments: resumed.arguments,
@@ -378,7 +426,7 @@ export async function runBoundedAgentLoop(input: AgentLoopInput): Promise<AgentL
             });
           } : undefined,
         });
-      messages.push({ role: "assistant", content: "", toolCalls: [{ id: resumed.id, name: resumed.name, arguments: resumed.arguments }] });
+      messages.push({ role: "assistant", content: "", toolCalls: [{ id: resumedProviderToolCallId, name: resumed.name, arguments: resumed.arguments, runtimeOperationId: resumedRuntimeOperationId }] });
       const authorization = findAuthorizationRequirement(result.output);
       const safeOutput = redactSensitiveValue(result.output);
       const pendingBatch = pendingBatchFromOutput(resumed.name, safeOutput);
@@ -386,14 +434,15 @@ export async function runBoundedAgentLoop(input: AgentLoopInput): Promise<AgentL
       const resumedUi = input.dynamicUiEnabled === false ? undefined : projectCapabilityResultUi({ presentation: resumedManifest?.manifest?.presentation, output: durableOutput, channel: input.uiChannel ?? "platform" });
       if (resumedUi || resumedManifest?.manifest?.presentation) lastToolUi = resumedUi;
       authorizationRequired = authorization;
-      messages.push({ role: "tool", name: resumed.name, toolCallId: resumed.id, content: JSON.stringify(safeOutput) });
+      messages.push({ role: "tool", name: resumed.name, toolCallId: resumedProviderToolCallId, runtimeOperationId: resumedRuntimeOperationId, content: JSON.stringify(safeOutput) });
       toolCalls += 1;
-      if (!replayed) await input.onToolCompleted?.({ toolCallId: resumed.id, name: resumed.name, argumentsHash: resumedArgumentsHash, output: durableOutput, latencyMs: result.latencyMs, effectId: result.effectId, approval: resumed.approval });
+      if (!replayed) await input.onToolCompleted?.({ toolCallId: resumedProviderToolCallId, runtimeOperationId: resumedRuntimeOperationId, name: resumed.name, argumentsHash: resumedArgumentsHash, output: durableOutput, latencyMs: result.latencyMs, effectId: result.effectId, approval: resumed.approval });
       await emit(input, {
         type: "tool.completed",
         iteration: 0,
         payload: {
-          toolCallId: resumed.id,
+          toolCallId: resumedProviderToolCallId,
+          operationId: resumedRuntimeOperationId,
           name: resumed.name,
           resumed: true,
           latencyMs: result.latencyMs,
@@ -427,13 +476,14 @@ export async function runBoundedAgentLoop(input: AgentLoopInput): Promise<AgentL
         type: "tool.failed",
         iteration: 0,
         payload: {
-          toolCallId: input.resumeApprovedToolCall.id,
+          toolCallId: input.resumeApprovedToolCall.providerToolCallId ?? input.resumeApprovedToolCall.id,
+          operationId: input.resumeApprovedToolCall.id,
           name: input.resumeApprovedToolCall.name,
           error: normalized,
           failedAt: new Date().toISOString(),
         },
       });
-      await input.onToolFailed?.({ toolCallId: input.resumeApprovedToolCall.id, name: input.resumeApprovedToolCall.name, argumentsHash: hashToolArguments(input.resumeApprovedToolCall.arguments), error: normalized });
+      await input.onToolFailed?.({ toolCallId: input.resumeApprovedToolCall.providerToolCallId ?? input.resumeApprovedToolCall.id, runtimeOperationId: input.resumeApprovedToolCall.id, name: input.resumeApprovedToolCall.name, argumentsHash: hashToolArguments(input.resumeApprovedToolCall.arguments), error: normalized });
       await emit(input, { type: "loop.failed", iteration: 0, payload: failure });
       return { status: "failed", messages, usage, iterations: 0, toolCalls, error: failure };
     }
@@ -658,6 +708,7 @@ export async function runBoundedAgentLoop(input: AgentLoopInput): Promise<AgentL
                     ...(input.contextSourceCursor === undefined ? {} : { sourceCursor: input.contextSourceCursor }),
                     ...(input.contextSourceGeneration === undefined ? {} : { sourceGeneration: input.contextSourceGeneration }),
                     ...(input.contextSourceProjectionDigest ? { sourceProjectionDigest: input.contextSourceProjectionDigest } : {}),
+                    ...(input.contextSourceHeadDigest ? { sourceHeadDigest: input.contextSourceHeadDigest } : {}),
                     sourceEventBoundaryDigest: sourceEventBoundaryFromMessages(messages, input.memorySourceEventIds ?? []).digest,
                   },
                   requestBytesEstimator: ({ messages: candidateMessages, tools: candidateTools }) => input.gateway.estimateRequestBytes({
@@ -964,8 +1015,9 @@ export async function runBoundedAgentLoop(input: AgentLoopInput): Promise<AgentL
             } else {
               response = await input.gateway.complete(request, attempt.credentials);
             }
-            await input.persistModelResponse?.({ operationKey, response, attempt });
           }
+          response = attachRuntimeOperationIds(response, operationKey);
+          if (prepared?.status !== "completed") await input.persistModelResponse?.({ operationKey, response, attempt });
           if (runBudgetReservation) {
             try {
               await runBudgetReservation.capture(response);
@@ -1092,6 +1144,7 @@ export async function runBoundedAgentLoop(input: AgentLoopInput): Promise<AgentL
       }
       if (!response) throw lastError ?? new Error("Model gateway returned no response");
       await input.onModelResponse?.(response, lastModelAttempt, lastModelOperationKey);
+      const hadDurableToolResult = messages.at(-1)?.role === "tool";
           messages.push(response.message);
           budget.consume("model", response.usage.totalTokens);
       usage.inputTokens += response.usage.inputTokens;
@@ -1153,6 +1206,24 @@ export async function runBoundedAgentLoop(input: AgentLoopInput): Promise<AgentL
       });
       if (response.toolCalls.length === 0) {
         if (!response.message.content.trim()) {
+          // Decomposed Temporal runs intentionally execute one model slice per
+          // Activity. If the provider returns an empty final response, let the
+          // next Activity retry the same durable model turn. Adding an internal
+          // repair message here would hide the transcript boundary from the
+          // durable host, causing the slice to be reported as a generic limit
+          // instead of a resumable continuation.
+          if (input.deferToolExecution) {
+            messages.pop();
+            const error = {
+              code: "EMPTY_ASSISTANT_RESPONSE",
+              message: hadDurableToolResult
+                ? "The model returned no assistant text after a durable tool result"
+                : "The model returned no assistant text for the current turn",
+              failureClass: "retryable" as const,
+            };
+            await emit(input, { type: "loop.limited", iteration, payload: { reason: "empty_response_slice", code: error.code } });
+            return { status: "limited", messages, response, usage, iterations: iteration, toolCalls, error, ...(lastToolUi ? { ui: lastToolUi } : {}) };
+          }
           if (emptyResponseRetries < limits.maxEmptyResponseRetries) {
             emptyResponseRetries += 1;
             messages.push({
@@ -1199,158 +1270,224 @@ export async function runBoundedAgentLoop(input: AgentLoopInput): Promise<AgentL
           toolCalls,
         };
       }
-      if (response.toolCalls.length > Math.max(0, limits.maxToolCalls - toolCalls)) {
-        // A provider may return several calls in one assistant message. Do not execute a
-        // prefix when the remaining budget cannot admit the whole message: the resulting
-        // assistant/tool sequence would be incomplete and unsafe to checkpoint.
-        toolCalls += response.toolCalls.length;
-        await emit(input, { type: "loop.limited", iteration, payload: { reason: "tool_calls" } });
-        return { status: "limited", messages, response, usage, iterations: iteration, toolCalls, ...(lastToolUi ? { ui: lastToolUi } : {}) };
-      }
-      for (const toolCall of response.toolCalls) {
-        toolCalls += 1;
-        if (toolCalls > limits.maxToolCalls) {
-          await emit(input, { type: "loop.limited", iteration, payload: { reason: "tool_calls" } });
-          return { status: "limited", messages, response, usage, iterations: iteration, toolCalls, ...(lastToolUi ? { ui: lastToolUi } : {}) };
-        }
-        const argumentsHash = hashToolArguments(toolCall.arguments);
-        const manifest = input.tools.get(toolCall.name);
-        try {
-          await input.beforeToolInvoke?.({
-            toolCallId: toolCall.id,
+      type ToolExecutionOutcome = {
+        runtimeOperationId: string;
+        toolCallId: string;
+        name: string;
+        sequenceNumber: number;
+        message?: ModelMessage;
+        authorization?: AgentAuthorizationRequirement;
+        ui?: AgentResponse["ui"];
+        control?: "final_response" | "awaiting_human";
+        completionResponse?: AgentResponse;
+        waitingFor?: string;
+        pendingToolCall?: NonNullable<AgentLoopResult["pendingToolCalls"]>[number];
+        budgetExhausted?: boolean;
+      };
+
+      if (input.deferToolExecution) {
+        const pendingToolCalls = response.toolCalls.map((toolCall, index) => {
+          const runtimeOperationId = toolCall.runtimeOperationId ?? runtimeOperationIdForToolCall(lastModelOperationKey ?? `${input.operationKeyPrefix ?? "model"}:${iteration}:response`, index);
+          return {
+            id: runtimeOperationId,
+            providerToolCallId: toolCall.id,
             name: toolCall.name,
             arguments: toolCall.arguments,
-            approved: false,
-          });
-          const replayed = await input.replayToolInvocation?.({ toolCallId: toolCall.id, name: toolCall.name, argumentsHash });
-          if (replayed && (replayed.name !== toolCall.name || replayed.argumentsHash !== argumentsHash)) {
-            throw new ToolPolicyError("TOOL_REPLAY_SCOPE_CONFLICT", "A durable tool outcome did not match the provider tool call");
-          }
-          if (!replayed) {
-            await emit(input, { type: "route.selected", iteration, payload: { sourceStageId: "model", targetStageId: `capability:${toolCall.name}`, operationId: toolCall.id } });
-            await emit(input, { type: "tool.proposed", iteration, payload: { toolCallId: toolCall.id, name: toolCall.name, argumentsHash } });
-            await input.onToolProposed?.({
-              toolCallId: toolCall.id,
-              name: toolCall.name,
-              version: manifest?.version ?? "unknown",
-              riskClass: manifest?.riskClass ?? "privileged",
-              arguments: toolCall.arguments,
-              argumentsHash,
-              requiresApproval: manifest?.requiresApproval ?? false,
-              sequenceNumber: toolCalls,
-            });
-          }
-          if (!replayed) await input.consumeRunToolCall?.({ parallelLeaseId: input.parallelLeaseId });
-          budget.consume("tool");
+            argumentsHash: hashToolArguments(toolCall.arguments),
+          };
+        });
+        for (const [index, toolCall] of response.toolCalls.entries()) {
+          const pending = pendingToolCalls[index]!;
+          const manifest = input.tools.get(toolCall.name);
           await emit(input, {
-            type: "tool.started",
+            type: "route.selected",
             iteration,
             payload: {
+              sourceStageId: "model",
+              targetStageId: `capability:${toolCall.name}`,
+              operationId: pending.id,
               toolCallId: toolCall.id,
-              name: toolCall.name,
-              startedAt: new Date().toISOString(),
-              ...(replayed ? { replayed: true } : {}),
             },
           });
+          await emit(input, {
+            type: "tool.proposed",
+            iteration,
+            payload: { toolCallId: toolCall.id, operationId: pending.id, name: toolCall.name, argumentsHash: pending.argumentsHash },
+          });
+          await input.onToolProposed?.({
+            toolCallId: toolCall.id,
+            runtimeOperationId: pending.id,
+            name: toolCall.name,
+            version: manifest?.version ?? "unknown",
+            riskClass: manifest?.riskClass ?? "privileged",
+            arguments: toolCall.arguments,
+            argumentsHash: pending.argumentsHash,
+            requiresApproval: manifest?.requiresApproval ?? false,
+            sequenceNumber: index + 1,
+          });
+        }
+        await emit(input, {
+          type: "loop.limited",
+          iteration,
+          payload: { reason: "tool_batch_pending", toolCalls: pendingToolCalls.length },
+        });
+        return {
+          status: "limited",
+          messages,
+          response,
+          pendingToolCalls,
+          toolBatchPending: true,
+          authorizedToolNames: [...input.grantedTools].sort(),
+          ...(input.capabilitySnapshot?.digest ? { capabilitySnapshotDigest: input.capabilitySnapshot.digest } : {}),
+          ...(input.contextSourceCursor !== undefined
+            && input.contextSourceGeneration !== undefined
+            && input.contextSourceHeadDigest
+            && input.contextSourceProjectionDigest
+            ? {
+                transcriptSource: {
+                  generation: input.contextSourceGeneration,
+                  cursor: input.contextSourceCursor,
+                  headDigest: input.contextSourceHeadDigest,
+                  projectionDigest: input.contextSourceProjectionDigest,
+                },
+              }
+            : {}),
+          usage,
+          iterations: iteration,
+          toolCalls,
+        };
+      }
+
+      const executeToolCall = async (toolCall: ModelToolCall, toolIndex: number, sequenceNumber: number): Promise<ToolExecutionOutcome> => {
+        const runtimeOperationId = toolCall.runtimeOperationId ?? runtimeOperationIdForToolCall(lastModelOperationKey ?? `${input.operationKeyPrefix ?? "model"}:${iteration}:response`, toolIndex);
+        const argumentsHash = hashToolArguments(toolCall.arguments);
+        const repetitionKey = `${toolCall.name}:${argumentsHash}`;
+        const repetitionCount = (identicalToolCallCounts.get(repetitionKey) ?? 0) + 1;
+        identicalToolCallCounts.set(repetitionKey, repetitionCount);
+        if (repetitionCount > 2) {
+          const repetitionError = new ToolPolicyError("TOOL_REPETITION_GUARD", "The same tool operation was proposed repeatedly without making progress");
+          await emit(input, { type: "tool.failed", iteration, payload: { toolCallId: toolCall.id, operationId: runtimeOperationId, name: toolCall.name, error: { code: repetitionError.code, message: repetitionError.message }, failedAt: new Date().toISOString(), repetitionCount } });
+          throw repetitionError;
+        }
+        const manifest = input.tools.get(toolCall.name);
+        let toolInvocationBoundaryEntered = false;
+        let toolResultAvailable = false;
+        try {
+          await input.beforeToolInvoke?.({ toolCallId: toolCall.id, runtimeOperationId, name: toolCall.name, arguments: toolCall.arguments, approved: false });
+          const replayed = await input.replayToolInvocation?.({ toolCallId: toolCall.id, runtimeOperationId, name: toolCall.name, argumentsHash });
+          if (replayed && (replayed.name !== toolCall.name || replayed.argumentsHash !== argumentsHash)) throw new ToolPolicyError("TOOL_REPLAY_SCOPE_CONFLICT", "A durable tool outcome did not match the provider tool call");
+          if (!replayed) {
+            await emit(input, { type: "route.selected", iteration, payload: { sourceStageId: "model", targetStageId: `capability:${toolCall.name}`, operationId: runtimeOperationId, toolCallId: toolCall.id } });
+            await emit(input, { type: "tool.proposed", iteration, payload: { toolCallId: toolCall.id, operationId: runtimeOperationId, name: toolCall.name, argumentsHash } });
+            await input.onToolProposed?.({ toolCallId: toolCall.id, runtimeOperationId, name: toolCall.name, version: manifest?.version ?? "unknown", riskClass: manifest?.riskClass ?? "privileged", arguments: toolCall.arguments, argumentsHash, requiresApproval: manifest?.requiresApproval ?? false, sequenceNumber });
+          }
+          const budgetFailure = async (code: string, message: string): Promise<ToolExecutionOutcome> => {
+            const error = { code, message };
+            await emit(input, { type: "tool.failed", iteration, payload: { toolCallId: toolCall.id, operationId: runtimeOperationId, name: toolCall.name, error, failedAt: new Date().toISOString() } });
+            await input.onToolFailed?.({ toolCallId: toolCall.id, runtimeOperationId, name: toolCall.name, argumentsHash, error });
+            return {
+              runtimeOperationId,
+              toolCallId: toolCall.id,
+              name: toolCall.name,
+              sequenceNumber,
+              budgetExhausted: true,
+              message: { role: "tool", name: toolCall.name, toolCallId: toolCall.id, runtimeOperationId, content: JSON.stringify({ ok: false, error }) },
+            };
+          };
+          if (!replayed && !budget.admit("tool")) return budgetFailure("TOOL_CALL_BUDGET_EXCEEDED", "The run tool-operation budget was exhausted before this call could start");
+          // Claim the local slot before the first awaited host callback. This
+          // makes parallel workers observe one atomic in-process budget state.
+          if (!replayed) budget.consume("tool");
+          if (!replayed) {
+            try {
+              await input.consumeRunToolCall?.({ parallelLeaseId: input.parallelLeaseId });
+            } catch (error) {
+              const code = error instanceof Error ? error.message : "";
+              if (code === "TOOL_CALL_BUDGET_EXCEEDED" || code === "PARALLEL_TOOL_CAPACITY_EXCEEDED") return budgetFailure(code, "The run tool-operation budget was exhausted before this call could start");
+              throw error;
+            }
+          }
+          await emit(input, { type: "tool.started", iteration, payload: { toolCallId: toolCall.id, operationId: runtimeOperationId, name: toolCall.name, startedAt: new Date().toISOString(), ...(replayed ? { replayed: true } : {}) } });
+          toolInvocationBoundaryEntered = true;
           const result = replayed ?? await input.tools.invoke({
             name: toolCall.name,
             arguments: toolCall.arguments,
             context: input.signal ? { ...input.toolContext, signal: input.signal } : input.toolContext,
             signal: input.signal,
             grantedTools: input.grantedTools,
-            operationId: toolCall.id,
-            sequenceNumber: toolCalls,
+            operationId: runtimeOperationId,
+            sequenceNumber,
             lifecycle: input.toolLifecycle,
-            beforeEffect: manifest?.riskClass === "external-effect" ? async () => {
-              await input.onToolExecuting?.({
-                toolCallId: toolCall.id,
-                name: toolCall.name,
-                version: manifest.version,
-                arguments: toolCall.arguments,
-                argumentsHash,
-                requiresApproval: manifest.requiresApproval,
-              });
-            } : undefined,
+            beforeEffect: manifest?.riskClass === "external-effect" ? async () => input.onToolExecuting?.({ toolCallId: toolCall.id, runtimeOperationId, name: toolCall.name, version: manifest.version, arguments: toolCall.arguments, argumentsHash, requiresApproval: manifest.requiresApproval }) : undefined,
           });
+          toolResultAvailable = true;
           const toolAuthorization = findAuthorizationRequirement(result.output);
           const safeOutput = redactSensitiveValue(result.output);
           const durableOutput = redactToolOutput(result.output, manifest?.manifest?.redaction ?? []);
           const toolUi = input.dynamicUiEnabled === false ? undefined : projectCapabilityResultUi({ presentation: manifest?.manifest?.presentation, output: durableOutput, channel: input.uiChannel ?? "platform" });
-          if (toolUi || manifest?.manifest?.presentation) lastToolUi = toolUi;
-          messages.push({
-            role: "tool",
-            name: toolCall.name,
+          await emit(input, { type: "tool.completed", iteration, payload: { toolCallId: toolCall.id, operationId: runtimeOperationId, name: toolCall.name, latencyMs: result.latencyMs, ...(replayed ? { replayed: true } : {}), ...(toolAuthorization ? { authorizationRequired: toolAuthorization } : {}) } });
+          if (!replayed) await input.onToolCompleted?.({ toolCallId: toolCall.id, runtimeOperationId, name: toolCall.name, argumentsHash, output: durableOutput, latencyMs: result.latencyMs, effectId: result.effectId });
+          const outcome: ToolExecutionOutcome = {
+            runtimeOperationId,
             toolCallId: toolCall.id,
-            content: JSON.stringify(safeOutput),
-          });
-          if (toolAuthorization) authorizationRequired = toolAuthorization;
-          await emit(input, {
-            type: "tool.completed",
-            iteration,
-            payload: {
-              toolCallId: toolCall.id,
-              name: toolCall.name,
-              latencyMs: result.latencyMs,
-              ...(replayed ? { replayed: true } : {}),
-              ...(toolAuthorization ? { authorizationRequired: toolAuthorization } : {}),
-            },
-          });
-          if (!replayed) await input.onToolCompleted?.({ toolCallId: toolCall.id, name: toolCall.name, argumentsHash, output: durableOutput, latencyMs: result.latencyMs, effectId: result.effectId });
+            name: toolCall.name,
+            sequenceNumber,
+            message: { role: "tool", name: toolCall.name, toolCallId: toolCall.id, runtimeOperationId, content: JSON.stringify(safeOutput) },
+            authorization: toolAuthorization,
+            ui: toolUi,
+          };
           if (result.control === "final_response") {
             const agentResponse = (safeOutput as { response: AgentResponse }).response;
-            const completionResponse = agentResponseSchema.parse({
-              ...agentResponse,
-              ...(authorizationRequired ? { authorizationRequired } : {}),
-              ...(lastToolUi ? { ui: lastToolUi } : {}),
-            });
-            await emit(input, { type: "loop.completed", iteration, payload: { toolCalls, totalTokens: usage.totalTokens, responseFormat: "agent-response.v1" } });
-            return { status: "completed", messages, response, completionMessage: completionResponse.text, completionResponse, usage, iterations: iteration, toolCalls };
-          }
-          if (result.control === "awaiting_human") {
-            await emit(input, { type: "loop.paused", iteration, payload: { reason: "handoff", name: toolCall.name } });
+            outcome.control = "final_response";
+            outcome.completionResponse = agentResponseSchema.parse({ ...agentResponse, ...(toolAuthorization ? { authorizationRequired: toolAuthorization } : {}), ...(toolUi ? { ui: toolUi } : {}) });
+          } else if (result.control === "awaiting_human") {
             const safeOutputRecord = safeOutput && typeof safeOutput === "object" ? safeOutput as Record<string, unknown> : undefined;
-            const handoffRequestId = safeOutputRecord && typeof safeOutputRecord.handoffRequestId === "string"
-              ? safeOutputRecord.handoffRequestId
-              : undefined;
-            return {
-              status: "awaiting_human",
-              messages,
-              response,
-              usage,
-              iterations: iteration,
-              toolCalls,
-              waitingFor: handoffRequestId,
-            };
+            outcome.control = "awaiting_human";
+            outcome.waitingFor = safeOutputRecord && typeof safeOutputRecord.handoffRequestId === "string" ? safeOutputRecord.handoffRequestId : undefined;
           }
+          return outcome;
         } catch (error) {
           if (error instanceof ToolPolicyError && error.code === "APPROVAL_REQUIRED") {
             await emit(input, { type: "loop.paused", iteration, payload: { reason: "approval", name: toolCall.name } });
-            return {
-              status: "awaiting_approval",
-              messages,
-              response,
-              pendingToolCalls: [{ ...toolCall, argumentsHash: hashToolArguments(toolCall.arguments) }],
-              usage,
-              iterations: iteration,
-              toolCalls,
-            };
+            return { runtimeOperationId, toolCallId: toolCall.id, name: toolCall.name, sequenceNumber, pendingToolCall: { id: runtimeOperationId, providerToolCallId: toolCall.id, name: toolCall.name, arguments: toolCall.arguments, argumentsHash } };
           }
-          const normalized = error instanceof ToolPolicyError
-            ? { code: error.code, message: error.message }
-            : { code: "TOOL_FAILED", message: error instanceof Error ? error.message : "Tool failed" };
-          await emit(input, {
-            type: "tool.failed",
-            iteration,
-            payload: {
-              toolCallId: toolCall.id,
-              name: toolCall.name,
-              error: normalized,
-              failedAt: new Date().toISOString(),
-            },
-          });
-          await input.onToolFailed?.({ toolCallId: toolCall.id, name: toolCall.name, argumentsHash, error: normalized });
-          throw error;
+          if (!toolInvocationBoundaryEntered || toolResultAvailable) throw error;
+          const normalized = error instanceof ToolPolicyError ? { code: error.code, message: error.message } : { code: "TOOL_FAILED", message: error instanceof Error ? error.message : "Tool failed" };
+          await emit(input, { type: "tool.failed", iteration, payload: { toolCallId: toolCall.id, operationId: runtimeOperationId, name: toolCall.name, error: normalized, failedAt: new Date().toISOString() } });
+          await input.onToolFailed?.({ toolCallId: toolCall.id, runtimeOperationId, name: toolCall.name, argumentsHash, error: normalized });
+          if (normalized.code === "TOOL_REPLAY_SCOPE_CONFLICT" || normalized.code === "CAPABILITY_OUTCOME_UNKNOWN" || normalized.code === "EFFECT_OUTCOME_UNKNOWN") throw error;
+          return { runtimeOperationId, toolCallId: toolCall.id, name: toolCall.name, sequenceNumber, message: { role: "tool", name: toolCall.name, toolCallId: toolCall.id, runtimeOperationId, content: JSON.stringify({ ok: false, error: normalized }) } };
         }
+      };
+
+      const segments = planToolBatch(response.toolCalls, (name) => input.tools.get(name));
+      let budgetExhausted = false;
+      for (const segment of segments) {
+        const outcomes = segment.kind === "parallel"
+          ? await mapBounded(segment.calls, ({ call, index }) => executeToolCall(call, index, toolCalls + index + 1), input.maxParallelToolCalls ?? 8)
+          : [await executeToolCall(segment.calls[0]!.call, segment.calls[0]!.index, toolCalls + 1)];
+        toolCalls += outcomes.length;
+        for (const outcome of outcomes) {
+          if (outcome.message) messages.push(outcome.message);
+          if (outcome.budgetExhausted) budgetExhausted = true;
+          if (outcome.authorization) authorizationRequired = outcome.authorization;
+          if (outcome.ui) lastToolUi = outcome.ui;
+          if (outcome.pendingToolCall) {
+            return { status: "awaiting_approval", messages, response, pendingToolCalls: [outcome.pendingToolCall], usage, iterations: iteration, toolCalls };
+          }
+          if (outcome.control === "final_response" && outcome.completionResponse) {
+            await emit(input, { type: "loop.completed", iteration, payload: { toolCalls, totalTokens: usage.totalTokens, responseFormat: "agent-response.v1" } });
+            return { status: "completed", messages, response, completionMessage: outcome.completionResponse.text, completionResponse: outcome.completionResponse, usage, iterations: iteration, toolCalls };
+          }
+          if (outcome.control === "awaiting_human") {
+            await emit(input, { type: "loop.paused", iteration, payload: { reason: "handoff", name: outcome.name } });
+            return { status: "awaiting_human", messages, response, usage, iterations: iteration, toolCalls, waitingFor: outcome.waitingFor };
+          }
+        }
+      }
+      if (budgetExhausted) {
+        await emit(input, { type: "loop.limited", iteration, payload: { reason: "tool_calls" } });
+        return { status: "limited", messages, response, usage, iterations: iteration, toolCalls, ...(lastToolUi ? { ui: lastToolUi } : {}) };
       }
     } catch (error) {
       const codedError = error instanceof Error

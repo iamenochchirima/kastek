@@ -155,7 +155,6 @@ function buildFixture(currentSnapshot = resourceSnapshot, options: { status?: Fi
     approvals: {
       getGroup,
       listGroupOperations,
-      getForRun: async () => null,
       getActiveGroup: async () => ["pending", "approved", "partially_approved"].includes(currentGroup.status)
         ? { group: currentGroup, approvals: currentOperations }
         : null,

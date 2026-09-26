@@ -65,7 +65,7 @@ export interface ToolInvocationAnalyticsInput extends AgentRuntimeFactInput {
   toolVersion: string;
   riskClass: "read" | "draft" | "controlled-write" | "external-effect" | "privileged";
   action: "proposed" | "completed" | "failed";
-  status: "proposed" | "awaiting_approval" | "approved" | "rejected" | "executing" | "completed" | "failed";
+  status: "proposed" | "awaiting_approval" | "approved" | "rejected" | "executing" | "completed" | "failed" | "unknown";
   sequenceNumber: number;
   requiresApproval: boolean;
   latencyMs?: number | null;

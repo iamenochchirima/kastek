@@ -91,12 +91,6 @@ export interface ApprovalGroupProposal {
   resourceSelector?: ApprovalSessionResourceSelector | null;
 }
 
-export interface ApprovalDecisionResult {
-  approval: ApprovalRecord;
-  /** True only for the request that atomically moved pending state to a decision. */
-  accepted: boolean;
-}
-
 function normalizeGroup(row: ApprovalGroupRecord): ApprovalGroupRecord {
   const selected = Array.isArray(row.selected_operation_ids)
     ? row.selected_operation_ids.filter((value): value is string => typeof value === "string")
@@ -174,18 +168,6 @@ export class ApprovalRepository {
     return result.rows[0] ?? null;
   }
 
-  public async getForRun(organizationId: string, runId: string): Promise<ApprovalRecord | null> {
-    const result = await query<ApprovalRecord>(
-      this.pool,
-      `SELECT * FROM agent_approval_records
-       WHERE organization_id = $1 AND run_id = $2 AND approval_group_id IS NULL
-       ORDER BY created_at DESC
-       LIMIT 1`,
-      [organizationId, runId],
-    );
-    return result.rows[0] ?? null;
-  }
-
   public async getGroup(organizationId: string, groupId: string): Promise<ApprovalGroupRecord | null> {
     const result = await query<ApprovalGroupRecord>(
       this.pool,
@@ -245,6 +227,25 @@ export class ApprovalRepository {
        WHERE organization_id = $1 AND run_id = $2 AND approval_group_id = $3
          AND runtime_operation_id = $4 AND arguments_hash = $5
          AND status = 'approved' AND expires_at > now()
+       LIMIT 1`,
+      [input.organizationId, input.runId, input.groupId, input.runtimeOperationId, input.argumentsHash],
+    );
+    return result.rows[0] ?? null;
+  }
+
+  /** Read the exact persisted group operation when hydrating a resumed request. */
+  public async getGroupOperation(input: {
+    organizationId: string;
+    runId: string;
+    groupId: string;
+    runtimeOperationId: string;
+    argumentsHash: string;
+  }): Promise<ApprovalRecord | null> {
+    const result = await query<ApprovalRecord>(
+      this.pool,
+      `SELECT * FROM agent_approval_records
+       WHERE organization_id = $1 AND run_id = $2 AND approval_group_id = $3
+         AND runtime_operation_id = $4 AND arguments_hash = $5
        LIMIT 1`,
       [input.organizationId, input.runId, input.groupId, input.runtimeOperationId, input.argumentsHash],
     );
@@ -466,11 +467,16 @@ export class ApprovalRepository {
         [Math.max(1, Math.min(limit, 500))],
       );
       for (const group of groups.rows) {
-        await client.query(
+        const expiredOperations = await client.query<ApprovalRecord>(
           `UPDATE agent_approval_records SET status = 'expired', decided_at = now()
-           WHERE organization_id = $1 AND approval_group_id = $2 AND status = 'pending'`,
+           WHERE organization_id = $1 AND approval_group_id = $2 AND status = 'pending'
+           RETURNING *`,
           [group.organization_id, group.id],
         );
+        for (const operation of expiredOperations.rows) {
+          const analyticsRow = await this.getAnalyticsRow(client, operation.id);
+          await enqueueOutbox(client, buildApprovalLifecycleEvent(this.analyticsInput(analyticsRow, "expired", "system", null, analyticsRow.decided_at ?? analyticsRow.created_at)));
+        }
       }
       return groups.rows.map(normalizeGroup);
     });
@@ -619,106 +625,6 @@ export class ApprovalRepository {
     });
   }
 
-  public async createPending(input: {
-    organizationId: string;
-    installationId: string;
-    runId: string;
-    providerToolCallId: string;
-    runtimeOperationId?: string;
-    capability: string;
-    capabilityVersion: string;
-    argumentsHash: string;
-    resourceSnapshot: Record<string, unknown>;
-    previewRevision: string;
-    policyRevision: string;
-    permittedEffectKey: string;
-    expiresAt: string;
-    approvalGroupId?: string;
-  }): Promise<ApprovalRecord> {
-    if (new Date(input.expiresAt).getTime() <= Date.now()) throw new Error("Approval expiry must be in the future");
-    const runtimeOperationId = input.runtimeOperationId ?? input.providerToolCallId;
-    return withTransaction(this.pool, async (client) => {
-      const inserted = await client.query<ApprovalRecord>(
-        `INSERT INTO agent_approval_records
-          (organization_id, installation_id, run_id, approval_group_id, provider_tool_call_id, runtime_operation_id, capability,
-           capability_version, arguments_hash, resource_snapshot, preview_revision,
-           policy_revision, permitted_effect_key, status, expires_at)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::jsonb,$11,$12,$13,'pending',$14)
-         ON CONFLICT (run_id, runtime_operation_id) DO NOTHING
-         RETURNING *`,
-        [input.organizationId, input.installationId, input.runId, input.approvalGroupId ?? null, input.providerToolCallId, runtimeOperationId, input.capability, input.capabilityVersion, input.argumentsHash, JSON.stringify(input.resourceSnapshot), input.previewRevision, input.policyRevision, input.permittedEffectKey, input.expiresAt],
-      );
-      if (inserted.rows[0]) {
-        const record = inserted.rows[0];
-        const analyticsRow = await this.getAnalyticsRow(client, record.id);
-        await enqueueOutbox(client, buildApprovalLifecycleEvent(this.analyticsInput(analyticsRow, "requested", "system", null, analyticsRow.created_at)));
-        return record;
-      }
-      const existing = await client.query<ApprovalRecord>(
-        `SELECT * FROM agent_approval_records WHERE organization_id = $1 AND run_id = $2 AND runtime_operation_id = $3 FOR UPDATE`,
-        [input.organizationId, input.runId, runtimeOperationId],
-      );
-      const record = existing.rows[0];
-      if (!record || record.arguments_hash !== input.argumentsHash || record.capability !== input.capability || record.capability_version !== input.capabilityVersion || record.preview_revision !== input.previewRevision || record.policy_revision !== input.policyRevision || record.permitted_effect_key !== input.permittedEffectKey) {
-        throw new Error("Approval proposal is stale or conflicts with an existing approval");
-      }
-      return record;
-    });
-  }
-
-  public async decide(input: {
-    organizationId: string;
-    runId: string;
-    providerToolCallId: string;
-    runtimeOperationId?: string;
-    argumentsHash: string;
-    decision: "approved" | "rejected";
-    approvedBy: string;
-  }): Promise<ApprovalDecisionResult> {
-    return withTransaction(this.pool, async (client) => {
-      const status = input.decision === "approved" ? "approved" : "denied";
-      const result = await client.query<ApprovalRecord>(
-        `UPDATE agent_approval_records
-         SET status = $5, approved_by = $6, decided_at = now()
-         WHERE organization_id = $1 AND run_id = $2 AND provider_tool_call_id = $3
-           AND runtime_operation_id = COALESCE($4, runtime_operation_id)
-           AND arguments_hash = $7 AND status = 'pending' AND expires_at > now()
-           RETURNING *`,
-        [input.organizationId, input.runId, input.providerToolCallId, input.runtimeOperationId ?? null, status, input.approvedBy, input.argumentsHash],
-      );
-      const approval = result.rows[0];
-      if (!approval) {
-        const existing = await client.query<ApprovalRecord>(
-          `SELECT * FROM agent_approval_records
-           WHERE organization_id = $1 AND run_id = $2 AND provider_tool_call_id = $3
-             AND runtime_operation_id = COALESCE($4, runtime_operation_id)
-             AND arguments_hash = $5
-           FOR UPDATE`,
-          [input.organizationId, input.runId, input.providerToolCallId, input.runtimeOperationId ?? null, input.argumentsHash],
-        );
-        const recorded = existing.rows[0];
-        if (recorded && recorded.status === status && recorded.approved_by === input.approvedBy) {
-          return { approval: recorded, accepted: false };
-        }
-        throw new Error("Approval action is stale, expired, or conflicts with the recorded decision");
-      }
-      const analyticsRow = await this.getAnalyticsRow(client, approval.id);
-      await enqueueOutbox(client, buildApprovalLifecycleEvent(this.analyticsInput(
-        analyticsRow,
-        input.decision === "approved" ? "approved" : "denied",
-        "human",
-        input.approvedBy,
-        analyticsRow.decided_at ?? analyticsRow.created_at,
-      )));
-      await client.query(
-        `INSERT INTO audit_records (organization_id, actor_type, actor_id, action, resource_type, resource_id, metadata)
-         VALUES ($1, 'human', $2, $3, 'agent_approval', $4, $5::jsonb)`,
-        [input.organizationId, input.approvedBy, `agent_approval.${input.decision}`, approval.id, JSON.stringify({ runId: input.runId, installationId: approval.installation_id, providerToolCallId: input.providerToolCallId, capability: approval.capability, argumentsHash: approval.arguments_hash })],
-      );
-      return { approval, accepted: true };
-    });
-  }
-
   public async consume(input: {
     organizationId: string;
     installationId: string;
@@ -791,42 +697,6 @@ export class ApprovalRepository {
       await enqueueOutbox(client, buildEffectLifecycleEvent(this.effectInput(analyticsEffect, "executing")));
       await this.markGroupConsumedIfSettled(client, record.approval_group_id);
       return record;
-    });
-  }
-
-  public async cancel(organizationId: string, runId: string, providerToolCallId: string, runtimeOperationId?: string): Promise<void> {
-    await withTransaction(this.pool, async (client) => {
-      const result = await client.query<ApprovalRecord>(`UPDATE agent_approval_records SET status = 'cancelled', decided_at = now() WHERE organization_id = $1 AND run_id = $2 AND provider_tool_call_id = $3 AND runtime_operation_id = COALESCE($4, provider_tool_call_id) AND status IN ('pending', 'approved') RETURNING *`, [organizationId, runId, providerToolCallId, runtimeOperationId ?? null]);
-      const record = result.rows[0];
-      if (!record) return;
-      const analyticsRow = await this.getAnalyticsRow(client, record.id);
-      await enqueueOutbox(client, buildApprovalLifecycleEvent(this.analyticsInput(analyticsRow, "cancelled", "system", null, analyticsRow.decided_at ?? analyticsRow.created_at)));
-    });
-  }
-
-  public async expirePending(limit = 100): Promise<Array<Pick<ApprovalRecord, "id" | "organization_id" | "installation_id" | "run_id" | "provider_tool_call_id" | "runtime_operation_id">>> {
-    return withTransaction(this.pool, async (client) => {
-      const result = await client.query<ApprovalRecord>(
-        `WITH expired AS (
-           SELECT id
-           FROM agent_approval_records
-           WHERE status = 'pending' AND expires_at <= now()
-           ORDER BY expires_at ASC
-           LIMIT $1
-           FOR UPDATE SKIP LOCKED
-         )
-         UPDATE agent_approval_records AS approval
-         SET status = 'expired', decided_at = now()
-         FROM expired
-         WHERE approval.id = expired.id AND approval.status = 'pending'
-         RETURNING approval.*`,
-        [Math.max(1, Math.min(limit, 500))],
-      );
-      for (const record of result.rows) {
-        const analyticsRow = await this.getAnalyticsRow(client, record.id);
-        await enqueueOutbox(client, buildApprovalLifecycleEvent(this.analyticsInput(analyticsRow, "expired", "system", null, analyticsRow.decided_at ?? analyticsRow.created_at)));
-      }
-      return result.rows.map(({ id, organization_id, installation_id, run_id, provider_tool_call_id, runtime_operation_id }) => ({ id, organization_id, installation_id, run_id, provider_tool_call_id, runtime_operation_id }));
     });
   }
 

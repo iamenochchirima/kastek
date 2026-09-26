@@ -17,6 +17,7 @@ describe("KasiAi release gate", () => {
     } as AppConfig);
 
     expect(version.configuration.maxTotalTokens).toBe(32_000);
+    expect(version.configuration.maxToolCalls).toBeGreaterThanOrEqual(32);
     expect(version.policy.modelPolicy.maxTokensPerRun).toBe(32_000);
   });
 

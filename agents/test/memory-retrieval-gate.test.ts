@@ -41,4 +41,18 @@ describe("memory retrieval gate", () => {
     expect(result.metadata.source).toBe("bounded_fallback");
     expect(result.metadata.errorCode).toBe("Error");
   });
+
+  it("keeps fallback telemetry safe when an adapter error has a non-string name", async () => {
+    const gate: RetrievalGateClassifier = {
+      model: "test-small",
+      classify: async () => {
+        const error = new Error("provider unavailable");
+        (error as unknown as { name: unknown }).name = { provider: "openrouter" };
+        throw error;
+      },
+    };
+    const result = await decideMemoryRetrievalWithGate("Please take care of this when you can", { classifier: gate });
+    expect(result.metadata.source).toBe("bounded_fallback");
+    expect(result.metadata.errorCode).toBe("[object Object]");
+  });
 });

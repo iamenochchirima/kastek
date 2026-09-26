@@ -60,7 +60,17 @@ function toolNameMaps(tools: ModelRequest["tools"]): {
   }
   return {
     toProvider: (name) => canonicalToProvider.get(name) ?? providerToolName(name),
-    toCanonical: (name) => providerToCanonical.get(name) ?? name,
+    toCanonical: (name) => {
+      const exact = providerToCanonical.get(name);
+      if (exact) return exact;
+      // Some OpenAI-compatible model/provider combinations return a valid
+      // function name with the final character truncated. Restore only a
+      // unique, sufficiently long alias prefix; short or ambiguous names
+      // remain unknown and are rejected by the capability boundary.
+      const prefixMatches = [...providerToCanonical.entries()]
+        .filter(([providerName]) => name.length >= 16 && providerName.startsWith(name));
+      return prefixMatches.length === 1 ? prefixMatches[0]![1] : name;
+    },
   };
 }
 

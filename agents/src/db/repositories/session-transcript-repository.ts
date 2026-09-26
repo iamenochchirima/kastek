@@ -640,7 +640,14 @@ export class SessionTranscriptRepository {
          ORDER BY sequence ASC`,
         [context.id, context.generation, input.archiveThroughSequence],
       );
-      const activeMessages = [message, ...tailResult.rows.map((row) => row.model_message)];
+      // Build the digest through the same projection as readActive(). The
+      // active tail can contain waiting markers or an incomplete tool round;
+      // hashing raw rows here makes the just-activated checkpoint fail its
+      // own integrity check on the first retry.
+      const activeMessages = projectTranscriptMessages([
+        mapEntry(checkpointRow),
+        ...tailResult.rows.map(mapEntry),
+      ]);
       const activeDigest = projectionDigest(activeMessages);
       const updated = await client.query<ContextRow>(
         `UPDATE agent_session_contexts
@@ -657,7 +664,11 @@ export class SessionTranscriptRepository {
       if (!updated.rows[0]) throw new Error("SESSION_TRANSCRIPT_COMPACTION_ACTIVATION_FAILED");
       return {
         outcome: "created",
-        projection: await selectProjection(client, updated.rows[0]),
+        // Activation may happen while a waiting marker or incomplete tool
+        // round remains in the active tail. The stored digest is still based
+        // on the canonical provider projection; return that recovery view so
+        // the next read can enforce the normal completeness boundary.
+        projection: await selectProjection(client, updated.rows[0], true, true),
         checkpoint: mapEntry(checkpointRow),
       };
     });

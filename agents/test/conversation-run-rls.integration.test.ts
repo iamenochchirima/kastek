@@ -141,8 +141,8 @@ describe.skipIf(!runIntegration)("conversation and durable-run RLS (integration)
       [modelCallA, organizationA, runA, `model-${modelCallA}`, modelCallB, organizationB, runB, `model-${modelCallB}`],
     );
     await adminPool.query(
-      `INSERT INTO tool_invocations (id, run_id, organization_id, provider_tool_call_id, sequence_number, tool_name, tool_version, risk_class, arguments_hash, status)
-       VALUES ($1, $2, $3, $4, 1, 'test', '1', 'read', 'hash', 'completed'), ($5, $6, $7, $8, 1, 'test', '1', 'read', 'hash', 'completed')`,
+      `INSERT INTO tool_invocations (id, run_id, organization_id, provider_tool_call_id, runtime_operation_id, sequence_number, tool_name, tool_version, risk_class, arguments_hash, status)
+       VALUES ($1, $2, $3, $4, $4, 1, 'test', '1', 'read', 'hash', 'completed'), ($5, $6, $7, $8, $8, 1, 'test', '1', 'read', 'hash', 'completed')`,
       [toolInvocationA, runA, organizationA, `tool-${toolInvocationA}`, toolInvocationB, runB, organizationB, `tool-${toolInvocationB}`],
     );
     await adminPool.query(

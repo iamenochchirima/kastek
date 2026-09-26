@@ -501,14 +501,41 @@ export class RunBudgetRepository {
     });
   }
 
-  public async consumeToolCall(input: { organizationId: string; runId: string }): Promise<void> {
+  /**
+   * Charges one logical tool operation. When operationKey is supplied, the
+   * tool invocation row is the idempotency ledger and the marker plus budget
+   * counter are updated in one transaction. Temporal retries therefore do not
+   * turn one provider operation into multiple budget charges.
+   */
+  public async consumeToolCall(input: { organizationId: string; runId: string; operationKey?: string }): Promise<void> {
     await this.consumeToolCallWithParallelLease(input);
   }
 
-  public async consumeToolCallWithParallelLease(input: { organizationId: string; runId: string; parallelLeaseId?: string }): Promise<void> {
+  public async consumeToolCallWithParallelLease(input: { organizationId: string; runId: string; operationKey?: string; parallelLeaseId?: string }): Promise<void> {
     await withTransaction(this.pool, async (client) => {
       await client.query("SELECT run_id FROM run_budgets WHERE run_id = $1 AND organization_id = $2 FOR UPDATE", [input.runId, input.organizationId]);
       if (input.parallelLeaseId) await this.consumeParallelBranchSlotInTransaction(client, { organizationId: input.organizationId, runId: input.runId, leaseId: input.parallelLeaseId, slot: "tool" });
+      if (input.operationKey) {
+        const claimed = await client.query(
+          `UPDATE tool_invocations
+           SET tool_budget_consumed_at = now()
+           WHERE run_id = $1 AND organization_id = $2 AND runtime_operation_id = $3
+             AND tool_budget_consumed_at IS NULL
+           RETURNING runtime_operation_id`,
+          [input.runId, input.organizationId, input.operationKey],
+        );
+        if (!claimed.rowCount) {
+          const existing = await client.query(
+            `SELECT 1
+             FROM tool_invocations
+             WHERE run_id = $1 AND organization_id = $2 AND runtime_operation_id = $3
+             LIMIT 1`,
+            [input.runId, input.organizationId, input.operationKey],
+          );
+          if (!existing.rowCount) throw new Error("TOOL_INVOCATION_NOT_FOUND");
+          return;
+        }
+      }
       const active = await client.query<{ tool_slots: string }>(
         `SELECT COUNT(*)::text AS tool_slots
          FROM run_budget_parallel_leases

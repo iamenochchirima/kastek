@@ -61,4 +61,9 @@ describe("agent runtime configuration", () => {
     });
     expect(disabled.MEMORY_V2_ENABLED).toBe(false);
   });
+
+  it("enables credit settlement by default", () => {
+    const config = loadConfig({ AGENTS_DATABASE_URL: "postgres://localhost/agents" });
+    expect(config.CREDIT_BILLING_MODE).toBe("enforced");
+  });
 });

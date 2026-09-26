@@ -52,7 +52,11 @@ function capabilityMetadata(
 ): ExecutionStageMetadata | undefined {
   const name = typeof payload.name === "string" ? payload.name.trim() : "";
   if (!name) return undefined;
-  const operationId = typeof payload.toolCallId === "string" ? payload.toolCallId : undefined;
+  const operationId = typeof payload.operationId === "string"
+    ? payload.operationId
+    : typeof payload.toolCallId === "string"
+      ? payload.toolCallId
+      : undefined;
   const stageId = `capability:${name}`;
   const startedAt = typeof payload.startedAt === "string" ? payload.startedAt : undefined;
   const finishedAt = typeof payload.completedAt === "string"

@@ -7,7 +7,7 @@ import { ExtensionSnapshotRepository } from "../db/repositories/extension-snapsh
 import { RunRepository } from "../db/repositories/run-repository";
 import { buildApp } from "./app";
 import { synchronizeKasiAi } from "../system/kasiai";
-import { connectTemporal, signalRunApproval, signalRunApprovalGroup, signalRunCancellation, signalRunExternalEvent, startDurableRun } from "../temporal/client";
+import { connectTemporal, signalRunApprovalGroup, signalRunCancellation, signalRunExternalEvent, startDurableRun } from "../temporal/client";
 import { operationalLogger } from "../telemetry/logger";
 import { runWithRequiredDatabaseContext } from "../db/context";
 
@@ -55,9 +55,6 @@ async function main(): Promise<void> {
           actorId: run.created_by,
         });
       }
-      : undefined,
-    signalApproval: temporalConnection
-      ? (runId, signal) => signalRunApproval(temporalConnection!.client, runId, signal)
       : undefined,
     signalApprovalGroup: temporalConnection
       ? (runId, signal) => signalRunApprovalGroup(temporalConnection!.client, runId, signal)

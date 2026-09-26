@@ -270,6 +270,15 @@ export class PlatformChatRepository {
       }
 
       const installation = await this.getActiveInstallation(client, input.organizationId, input.installationId);
+      // An existing conversation owns its model. The message payload may come
+      // from an older client that still sends a per-message override, but it
+      // must not be allowed to fork the run away from the persisted chat
+      // selection. New conversations have already copied their requested
+      // model into the conversation above. A legacy conversation without a
+      // persisted selection deliberately leaves these null so the runtime can
+      // use the version policy instead of treating a message as model policy.
+      const runModelProvider = resolved.conversation.model_provider;
+      const runModel = resolved.conversation.model;
       const createdRun = await client.query<RunRecord>(
         `INSERT INTO agent_runs
           (organization_id, agent_definition_id, agent_version_id, installation_id,
@@ -288,8 +297,8 @@ export class PlatformChatRepository {
           input.correlationId ?? null,
           input.actorId,
           input.idempotencyKey,
-          resolved.conversation.model_provider,
-          resolved.conversation.model,
+          runModelProvider,
+          runModel,
         ],
       );
       if (!createdRun.rows[0]) {

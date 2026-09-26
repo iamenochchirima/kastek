@@ -661,7 +661,37 @@ describe("Agent Platform HTTP foundation", () => {
       config: mcpConfig,
       pool: fakePool,
       runs: { getRun: async () => ({ id: "run-mcp-approval", organization_id: "org-1", installation_id: "install-1", status: "awaiting_approval" }) } as unknown as RunRepository,
-      approvals: { getForRun: async () => ({ status: "pending", provider_tool_call_id: "call-approval", capability: "kasitek.core.content_post_publish", expires_at: "2026-08-13T12:00:00.000Z" }) } as never,
+      approvals: { getActiveGroup: async () => ({
+        group: {
+          id: "approval-group-1",
+          batch_id: "run-mcp-approval:batch:1",
+          turn_key: "model-turn:1",
+          plan_digest: "a".repeat(64),
+          policy_revision: "v1",
+          status: "pending",
+          decision: null,
+          selected_operation_ids: [],
+          decided_by: null,
+          expires_at: "2026-08-13T12:00:00.000Z",
+          created_at: "2026-08-13T11:00:00.000Z",
+          decided_at: null,
+          organization_id: "org-1",
+          installation_id: "install-1",
+          run_id: "run-mcp-approval",
+          decision_idempotency_key: null,
+          consumed_at: null,
+        },
+        approvals: [{
+          status: "pending",
+          provider_tool_call_id: "call-approval",
+          runtime_operation_id: "operation-1",
+          capability: "kasitek.core.content_post_publish",
+          arguments_hash: "b".repeat(64),
+          resource_snapshot: {},
+          preview_revision: "preview-1",
+          expires_at: "2026-08-13T12:00:00.000Z",
+        }],
+      }) } as never,
       agents: { getInstallation: async () => ({ id: "install-1", organization_id: "org-1", agent_version_id: "version-1", status: "active", ...externalInstallationIdentity }) } as unknown as AgentRepository,
       installationCredentials: { getActiveForToken: async () => mcpCredential() } as never,
     });
@@ -678,7 +708,7 @@ describe("Agent Platform HTTP foundation", () => {
           runId: "run-mcp-approval",
           status: "awaiting_approval",
           terminal: false,
-          approval: { status: "pending", providerToolCallId: "call-approval" },
+          approvalGroup: { status: "pending", operations: [{ status: "pending", providerToolCallId: "call-approval" }] },
         },
       },
     });
@@ -1013,17 +1043,14 @@ describe("Agent Platform HTTP foundation", () => {
       config: { ...mcpConfig, TEMPORAL_ENABLED: true },
       pool: fakePool,
       runs,
-      approvals: {
-        getForRun: async () => ({ status: "approved", provider_tool_call_id: "call-api", capability: "test.effect", expires_at: "2026-08-13T12:00:00.000Z" }),
-        getActiveGroup: async () => undefined,
-      } as never,
+      approvals: { getActiveGroup: async () => undefined } as never,
       signalCancellation,
       agents: { getInstallation: async () => ({ id: "install-1", organization_id: "org-1", agent_version_id: "version-1", status: "active", ...externalInstallationIdentity }) } as unknown as AgentRepository,
       installationCredentials: { getActiveForToken: async () => mcpCredential() } as never,
     });
     const status = await app.inject({ method: "GET", url: "/v1/installations/install-1/operations/run-api-1", headers: { authorization: `Bearer ${publicApiToken()}` } });
     expect(status.statusCode).toBe(200);
-    expect(status.json()).toMatchObject({ operationId: "run-api-1", run: { id: "run-api-1" }, approval: { status: "approved", providerToolCallId: "call-api" }, events: [{ event_type: "run.started" }] });
+    expect(status.json()).toMatchObject({ operationId: "run-api-1", run: { id: "run-api-1" }, approvalGroup: null, events: [{ event_type: "run.started" }] });
     const events = await app.inject({ method: "GET", url: "/v1/installations/install-1/operations/run-api-1/events?after=1", headers: { authorization: `Bearer ${publicApiToken()}` } });
     expect(events.statusCode).toBe(200);
     expect(events.json()).toMatchObject({ operationId: "run-api-1", nextAfter: 2, events: [{ event_type: "tool.completed", payload: { message: "safe" } }] });
@@ -2141,213 +2168,18 @@ describe("Agent Platform HTTP foundation", () => {
     await app.close();
   });
 
-  it("signals approval and cancellation without handling either in process memory", async () => {
-    const signals: Array<{ type: string; value: unknown }> = [];
-    const runs = {
-      getRun: async (_organizationId: string, runId: string) => ({
-        id: runId,
-        organization_id: "org-1",
-        installation_id: "install-1",
-        status: runId === "approval-run" ? "awaiting_approval" : "running",
-      }),
-    } as unknown as RunRepository;
-    const app = buildApp({
-      config,
-      pool: fakePool,
-      runs,
-      agents: { getInstallation: async () => ({ id: "install-1", status: "active", ...externalInstallationIdentity, agent_version_id: "version-1" }) } as never,
-      approvals: {
-        getForRun: async () => ({ installation_id: "install-1", provider_tool_call_id: "approval-call", arguments_hash: "a".repeat(64), capability: "kasitek.core.content_post_draft", capability_version: "1.0.0", status: "pending", resource_snapshot: { capability: "kasitek.core.content_post_draft", request: { postId: "post-1" } } }),
-        decide: async () => ({ approval: { expires_at: new Date(Date.now() + 60_000).toISOString(), resource_snapshot: { capability: "kasitek.core.content_post_draft", request: { postId: "post-1" } } }, accepted: true }),
-      } as never,
-      toolInvocations: { getProposal: async () => ({ organizationId: "org-1", runId: "approval-run", providerToolCallId: "approval-call", toolName: "kasitek.core.content_post_draft", toolVersion: "1.0.0", argumentsHash: "a".repeat(64), arguments: { content: "draft", channels: ["threads"] } }) } as never,
-      toolGrants: { effectiveTools: async () => new Set(["kasitek.core.content_post_draft"]) } as never,
-      installationGrants: { effective: async () => ({ resources: [], connectors: [] }) } as never,
-      signalApproval: async (runId, value) => signals.push({ type: `approval:${runId}`, value }),
-      signalCancellation: async (runId, value) => signals.push({ type: `cancel:${runId}`, value }),
-    });
-    const approval = await app.inject({
+  it("removed single-operation approval endpoint is unavailable", async () => {
+    const app = buildApp({ config, pool: fakePool });
+    const response = await app.inject({
       method: "POST",
       url: "/v1/runs/approval-run/approval",
       headers: { "x-organization-id": "org-1", "x-actor-id": "user-1" },
       payload: { decision: "approved", providerToolCallId: "approval-call", argumentsHash: "a".repeat(64) },
     });
-    const cancellation = await app.inject({
-      method: "POST",
-      url: "/v1/runs/running-run/cancel",
-      headers: { "x-organization-id": "org-1", "x-actor-id": "user-1" },
-      payload: { reason: "operator stop" },
-    });
-    expect(approval.statusCode).toBe(202);
-    expect(cancellation.statusCode).toBe(202);
-    expect(signals).toEqual([
-      { type: "approval:approval-run", value: expect.objectContaining({ decision: "approved", providerToolCallId: "approval-call", argumentsHash: "a".repeat(64), approvedBy: "user-1", resourceSnapshot: { capability: "kasitek.core.content_post_draft", request: { postId: "post-1" } } }) },
-      { type: "cancel:running-run", value: { reason: "user-1: operator stop" } },
-    ]);
-    await app.close();
-  });
-
-  it("requires runs:approve before a request can signal a workflow approval", async () => {
-    const signals: unknown[] = [];
-    const hmacConfig = { ...config, AUTH_MODE: "hmac" as const, INTERNAL_AUTH_SECRET: "test-secret" };
-    const app = buildApp({
-      config: hmacConfig,
-      pool: fakePool,
-      runs: { getRun: async () => ({ id: "approval-run", organization_id: "org-1", installation_id: "install-1", status: "awaiting_approval" }) } as unknown as RunRepository,
-      agents: { getInstallation: async () => ({ id: "install-1", status: "active", ...externalInstallationIdentity, agent_version_id: "version-1" }) } as never,
-      approvals: { getForRun: async () => ({ installation_id: "install-1", provider_tool_call_id: "approval-call", arguments_hash: "a".repeat(64), capability: "kasitek.core.content_post_draft", capability_version: "1.0.0", status: "pending" }), decide: async () => ({ approval: { expires_at: new Date(Date.now() + 60_000).toISOString() }, accepted: true }) } as never,
-      toolInvocations: { getProposal: async () => ({ organizationId: "org-1", runId: "approval-run", providerToolCallId: "approval-call", toolName: "kasitek.core.content_post_draft", toolVersion: "1.0.0", argumentsHash: "a".repeat(64), arguments: { content: "draft", channels: ["threads"] } }) } as never,
-      toolGrants: { effectiveTools: async () => new Set(["kasitek.core.content_post_draft"]) } as never,
-      installationGrants: { effective: async () => ({ resources: [], connectors: [] }) } as never,
-      signalApproval: async (_runId, signal) => signals.push(signal),
-    });
-    const noScope = signInternalToken({ organizationId: "org-1", actorId: "user-1", audience: "test", expiresAt: Math.floor(Date.now() / 1000) + 60, scopes: [] }, "test-secret");
-    const approved = signInternalToken({ organizationId: "org-1", actorId: "user-1", audience: "test", expiresAt: Math.floor(Date.now() / 1000) + 60, scopes: ["runs:approve"] }, "test-secret");
-    const denied = await app.inject({
-      method: "POST",
-      url: "/v1/runs/approval-run/approval",
-      headers: { authorization: `Bearer ${noScope}` },
-      payload: { decision: "approved", providerToolCallId: "approval-call", argumentsHash: "a".repeat(64) },
-    });
-    expect(denied.statusCode).toBe(403);
-    expect(signals).toEqual([]);
-    const accepted = await app.inject({
-      method: "POST",
-      url: "/v1/runs/approval-run/approval",
-      headers: { authorization: `Bearer ${approved}` },
-      payload: { decision: "approved", providerToolCallId: "approval-call", argumentsHash: "a".repeat(64) },
-    });
-    expect(accepted.statusCode).toBe(202);
-    expect(signals).toEqual([expect.objectContaining({ decision: "approved", providerToolCallId: "approval-call", argumentsHash: "a".repeat(64), approvedBy: "user-1" })]);
-    await app.close();
-  });
-
-  it("rejects an approval when its installation grant was revoked after proposal", async () => {
-    const signalApproval = vi.fn();
-    const token = signInternalToken({ organizationId: "org-1", actorId: "user-1", audience: "test", expiresAt: Math.floor(Date.now() / 1000) + 60, scopes: ["runs:approve"] }, "test-secret");
-    const app = buildApp({
-      config: { ...config, AUTH_MODE: "hmac" as const, INTERNAL_AUTH_SECRET: "test-secret" },
-      pool: fakePool,
-      runs: { getRun: async () => ({ id: "approval-run", organization_id: "org-1", installation_id: "install-1", status: "awaiting_approval" }) } as unknown as RunRepository,
-      agents: { getInstallation: async () => ({ id: "install-1", status: "active", ...externalInstallationIdentity, agent_version_id: "version-1" }) } as never,
-      approvals: { getForRun: async () => ({ installation_id: "install-1", provider_tool_call_id: "call-1", arguments_hash: "a".repeat(64), capability: "test.effect", capability_version: "1.0.0", status: "pending" }), decide: vi.fn() } as never,
-      toolInvocations: { getProposal: async () => ({ organizationId: "org-1", runId: "approval-run", providerToolCallId: "call-1", toolName: "test.effect", toolVersion: "1.0.0", argumentsHash: "a".repeat(64), arguments: {} }) } as never,
-      toolGrants: { effectiveTools: async () => new Set<string>() } as never,
-      signalApproval,
-    });
-    const response = await app.inject({ method: "POST", url: "/v1/runs/approval-run/approval", headers: { authorization: `Bearer ${token}` }, payload: { decision: "approved", providerToolCallId: "call-1", argumentsHash: "a".repeat(64) } });
-    expect(response.statusCode).toBe(403);
-    expect(signalApproval).not.toHaveBeenCalled();
-    await app.close();
-  });
-
-  it("allows an authorized initiator to approve their own exact pending effect", async () => {
-    const decide = vi.fn().mockResolvedValue({
-      approval: { expires_at: new Date(Date.now() + 60_000).toISOString(), resource_snapshot: { capability: "kasitek.core.content_post_draft" } },
-      accepted: true,
-    });
-    const signalApproval = vi.fn();
-    const hmacConfig = { ...config, AUTH_MODE: "hmac" as const, INTERNAL_AUTH_SECRET: "test-secret" };
-    const token = signInternalToken({ organizationId: "org-1", actorId: "user-1", audience: "test", expiresAt: Math.floor(Date.now() / 1000) + 60, scopes: ["runs:approve"] }, "test-secret");
-    const app = buildApp({
-      config: hmacConfig,
-      pool: fakePool,
-      runs: { getRun: async () => ({ id: "approval-run", organization_id: "org-1", installation_id: "install-1", status: "awaiting_approval", created_by: "user-1" }) } as unknown as RunRepository,
-      agents: { getInstallation: async () => ({ id: "install-1", organization_id: "org-1", agent_version_id: "version-1", status: "active", ...externalInstallationIdentity }) } as never,
-      approvals: { getForRun: async () => ({ installation_id: "install-1", provider_tool_call_id: "approval-call", arguments_hash: "a".repeat(64), capability: "kasitek.core.content_post_draft", capability_version: "1.0.0", status: "pending" }), decide } as never,
-      toolInvocations: { getProposal: async () => ({ organizationId: "org-1", runId: "approval-run", providerToolCallId: "approval-call", toolName: "kasitek.core.content_post_draft", toolVersion: "1.0.0", argumentsHash: "a".repeat(64), arguments: { content: "draft", channels: ["bluesky"] } }) } as never,
-      toolGrants: { effectiveTools: async () => new Set(["kasitek.core.content_post_draft"]) } as never,
-      installationGrants: { effective: async () => ({ resources: [], connectors: [] }) } as never,
-      signalApproval,
-    });
-    const response = await app.inject({ method: "POST", url: "/v1/runs/approval-run/approval", headers: { authorization: `Bearer ${token}` }, payload: { decision: "approved", providerToolCallId: "approval-call", argumentsHash: "a".repeat(64) } });
-    expect(response.statusCode).toBe(202);
-    expect(response.json()).toMatchObject({ runId: "approval-run", status: "approval_signalled" });
-    expect(decide).toHaveBeenCalledWith(expect.objectContaining({ organizationId: "org-1", runId: "approval-run", approvedBy: "user-1" }));
-    expect(signalApproval).toHaveBeenCalledWith("approval-run", expect.objectContaining({ decision: "approved", approvedBy: "user-1" }));
-    await app.close();
-  });
-
-  it("returns an existing approval decision without signalling Temporal twice", async () => {
-    const signals: unknown[] = [];
-    const expiresAt = new Date(Date.now() + 60_000).toISOString();
-    const decide = vi
-      .fn()
-      .mockResolvedValueOnce({ approval: { expires_at: expiresAt, approved_by: "user-1" }, accepted: true })
-      .mockResolvedValueOnce({ approval: { expires_at: expiresAt, approved_by: "user-1" }, accepted: false });
-    const hmacConfig = { ...config, AUTH_MODE: "hmac" as const, INTERNAL_AUTH_SECRET: "test-secret" };
-    const token = signInternalToken({ organizationId: "org-1", actorId: "user-1", audience: "test", expiresAt: Math.floor(Date.now() / 1000) + 60, scopes: ["runs:approve"] }, "test-secret");
-    const app = buildApp({
-      config: hmacConfig,
-      pool: fakePool,
-      runs: { getRun: async () => ({ id: "approval-run", organization_id: "org-1", installation_id: "install-1", status: "awaiting_approval" }) } as unknown as RunRepository,
-      agents: { getInstallation: async () => ({ id: "install-1", status: "active", ...externalInstallationIdentity, agent_version_id: "version-1" }) } as never,
-      approvals: { getForRun: async () => ({ installation_id: "install-1", provider_tool_call_id: "approval-call", arguments_hash: "a".repeat(64), capability: "kasitek.core.content_post_draft", capability_version: "1.0.0", status: "pending" }), decide } as never,
-      toolInvocations: { getProposal: async () => ({ organizationId: "org-1", runId: "approval-run", providerToolCallId: "approval-call", toolName: "kasitek.core.content_post_draft", toolVersion: "1.0.0", argumentsHash: "a".repeat(64), arguments: { content: "draft", channels: ["threads"] } }) } as never,
-      toolGrants: { effectiveTools: async () => new Set(["kasitek.core.content_post_draft"]) } as never,
-      installationGrants: { effective: async () => ({ resources: [], connectors: [] }) } as never,
-      signalApproval: async (_runId, signal) => signals.push(signal),
-    });
-    const request = {
-      method: "POST" as const,
-      url: "/v1/runs/approval-run/approval",
-      headers: { authorization: `Bearer ${token}` },
-      payload: { decision: "approved", providerToolCallId: "approval-call", argumentsHash: "a".repeat(64) },
-    };
-
-    const first = await app.inject(request);
-    const retry = await app.inject(request);
-
-    expect(first.statusCode).toBe(202);
-    expect(retry.statusCode).toBe(200);
-    expect(retry.json()).toMatchObject({ status: "approval_already_signalled", decision: "approved", approvedBy: "user-1", expiresAt });
-    expect(decide).toHaveBeenCalledTimes(2);
-    expect(signals).toEqual([expect.objectContaining({ decision: "approved", approvedBy: "user-1" })]);
-    await app.close();
-  });
-
-  it("rate limits repeated approval decisions before the durable state transition", async () => {
-    const decide = vi.fn().mockResolvedValue({ approval: { expires_at: new Date(Date.now() + 60_000).toISOString() }, accepted: true });
-    const app = buildApp({
-      config: { ...mcpConfig, APPROVAL_DECISION_RATE_LIMIT_PER_WINDOW: 1 },
-      pool: fakePool,
-      runs: { getRun: async () => ({ id: "approval-rate-run", organization_id: "org-1", installation_id: "install-1", status: "awaiting_approval" }) } as unknown as RunRepository,
-      agents: { getInstallation: async () => ({ id: "install-1", organization_id: "org-1", agent_version_id: "version-1", status: "active", ...externalInstallationIdentity }) } as unknown as AgentRepository,
-      approvals: { getForRun: async () => ({ installation_id: "install-1", provider_tool_call_id: "approval-call", arguments_hash: "a".repeat(64), capability: "kasitek.core.content_post_draft", capability_version: "1.0.0", status: "pending" }), decide } as never,
-      toolInvocations: { getProposal: async () => ({ organizationId: "org-1", runId: "approval-rate-run", providerToolCallId: "approval-call", toolName: "kasitek.core.content_post_draft", toolVersion: "1.0.0", argumentsHash: "a".repeat(64), arguments: { content: "draft", channels: ["threads"] } }) } as never,
-      toolGrants: { effectiveTools: async () => new Set(["kasitek.core.content_post_draft"]) } as never,
-      installationGrants: { effective: async () => ({ resources: [] }) } as never,
-      toolRegistry: { get: () => ({ name: "kasitek.core.content_post_draft", version: "1.0.0", requiresApproval: false, manifest: { availability: "available" } }) } as never,
-      signalApproval: vi.fn(),
-    });
-    const request = { method: "POST" as const, url: "/v1/runs/approval-rate-run/approval", headers: { "x-organization-id": "org-1", "x-actor-id": "user-1" }, payload: { decision: "approved", providerToolCallId: "approval-call", argumentsHash: "a".repeat(64) } };
-    const first = await app.inject(request);
-    const second = await app.inject(request);
-    expect(first.statusCode).toBe(202);
-    expect(second.statusCode).toBe(429);
-    expect(second.headers["retry-after"]).toBeDefined();
-    expect(second.json()).toMatchObject({ error: "approval_rate_limited" });
-    expect(decide).toHaveBeenCalledTimes(1);
-    await app.close();
-  });
-
-  it("does not reveal cross-organization approval run ids", async () => {
-    const hmacConfig = { ...config, AUTH_MODE: "hmac" as const, INTERNAL_AUTH_SECRET: "test-secret" };
-    const token = signInternalToken({ organizationId: "org-2", actorId: "user-2", audience: "test", expiresAt: Math.floor(Date.now() / 1000) + 60, scopes: ["runs:approve"] }, "test-secret");
-    const getRun = vi.fn(async (organizationId: string) => organizationId === "org-1" ? { id: "cross-org-run", organization_id: "org-1", installation_id: "install-1", status: "awaiting_approval" } : null);
-    const app = buildApp({
-      config: hmacConfig,
-      pool: fakePool,
-      runs: { getRun } as never,
-      approvals: { getForRun: vi.fn() } as never,
-      signalApproval: vi.fn(),
-    });
-    const response = await app.inject({ method: "POST", url: "/v1/runs/cross-org-run/approval", headers: { authorization: `Bearer ${token}` }, payload: { decision: "approved", providerToolCallId: "call-1", argumentsHash: "a".repeat(64) } });
     expect(response.statusCode).toBe(404);
-    expect(response.json()).toEqual({ error: "run_not_found" });
-    expect(getRun).toHaveBeenCalledWith("org-2", "cross-org-run");
     await app.close();
   });
+
 
   it("returns the resolved durable effect outcome after reconciliation", async () => {
     const reconcile = vi.fn();

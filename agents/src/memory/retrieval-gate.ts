@@ -115,7 +115,10 @@ export async function decideMemoryRetrievalWithGate(
         source: "bounded_fallback",
         model: options.classifier.model,
         latencyMs: Math.max(0, Math.round(performance.now() - started)),
-        errorCode: code.slice(0, 120),
+        // Provider errors can cross an adapter/bundle boundary with a non-string
+        // `name`/`code`. The retrieval gate is a fallback boundary, so its
+        // telemetry must never throw while recording the original failure.
+        errorCode: String(code).slice(0, 120),
       },
     };
   } finally {

@@ -35,16 +35,6 @@ export interface ContentPublishBatchStatusActivityResult {
   batch?: Record<string, unknown>;
 }
 
-export interface ApprovalSignal {
-  decision: "approved" | "rejected";
-  approvedBy: string;
-  argumentsHash: string;
-  providerToolCallId: string;
-  runtimeOperationId?: string;
-  expiresAt: string;
-  resourceSnapshot?: Record<string, unknown>;
-}
-
 export interface ApprovalGroupSignal {
   groupId: string;
   planDigest: string;
@@ -197,7 +187,6 @@ export interface AgentRunActivities {
   getContentPublishBatchStatus(input: ActivityScope & { runId: string; batchId: string }): Promise<ContentPublishBatchStatusActivityResult>;
   pauseRun(input: ActivityScope & { runId: string; status: "awaiting_approval" | "awaiting_human" | "awaiting_external_event"; output: Record<string, unknown> }): Promise<void>;
   deliverApprovalPrompt(input: ActivityScope & { runId: string }): Promise<void>;
-  cancelPendingApproval(input: ActivityScope & { runId: string; providerToolCallId: string; runtimeOperationId?: string; reason?: string; outcome?: "cancelled" | "expired" }): Promise<void>;
   cancelApprovalGroup?(input: ActivityScope & { runId: string; groupId: string; reason?: string }): Promise<void>;
   cancelHandoff(input: ActivityScope & { runId: string; reason?: string }): Promise<void>;
   completeRun(input: ActivityScope & { runId: string; output: Record<string, unknown> }): Promise<void>;

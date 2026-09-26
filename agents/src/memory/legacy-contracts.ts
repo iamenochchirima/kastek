@@ -25,7 +25,7 @@ export interface MemoryRecord {
   superseded_at: string | null;
   status: string;
   expires_at: string | null;
-  created_at: string;
+  created_at: string | Date;
   updated_at: string;
   embedding_vector?: number[] | null;
   embedding_model?: string | null;

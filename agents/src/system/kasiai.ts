@@ -44,7 +44,10 @@ export function kasiaiInitialVersion(config: AppConfig) {
       model: config.KASIAI_MODEL,
       temperature: 0.2,
       maxIterations: 6,
-      maxToolCalls: 4,
+      // The runtime dispatches one model-emitted batch as individual durable
+      // operations. Keep the run bounded, but allow an approved batch such as
+      // a multi-occurrence calendar action to finish in the same run.
+      maxToolCalls: 32,
       maxModelCalls: 6,
       maxTotalTokens: 32_000,
       maxContextMessages: 30,

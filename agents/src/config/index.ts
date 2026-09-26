@@ -21,9 +21,6 @@ const envSchema = z.object({
   TEMPORAL_ADDRESS: z.string().default("localhost:7233"),
   TEMPORAL_NAMESPACE: z.string().default("default"),
   TEMPORAL_TASK_QUEUE: z.string().default("kasitek-agents-interactive"),
-  // Splits hosted loop progress at a durable activity boundary. Keep opt-in until production
-  // evidence covers continuation, approval, cancellation, and provider reconciliation.
-  TEMPORAL_STEP_ACTIVITIES_ENABLED: z.string().default("false").transform((value) => value.toLowerCase() === "true"),
   // The 2026 stateless path is enabled by default in development/test so it is
   // exercised locally, but remains opt-in in production until staging/client
   // evidence has been recorded. The pre-2026 compatibility path is always
@@ -72,7 +69,7 @@ const envSchema = z.object({
   MCP_OAUTH_CLIENT_NAME: z.string().trim().min(1).max(120).default("KasiTek Agent Platform"),
   AGENT_INTEGRATIONS_RETURN_URL: z.string().url().optional(),
   MODEL_PRICING_JSON: z.string().optional(),
-  CREDIT_BILLING_MODE: z.enum(["disabled", "shadow", "enforced"]).default("disabled"),
+  CREDIT_BILLING_MODE: z.enum(["disabled", "shadow", "enforced"]).default("enforced"),
   CREDIT_USD_TO_CREDITS: z.coerce.number().positive().default(1000),
   CREDIT_PRICING_VERSION: z.string().trim().min(1).max(80).default("model-cost-v1"),
   AGENTS_CREDENTIAL_ENCRYPTION_KEY: z.string().optional(),

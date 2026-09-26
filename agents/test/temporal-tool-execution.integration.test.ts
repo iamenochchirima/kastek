@@ -153,8 +153,7 @@ describe.skipIf(!runIntegration)("Temporal tool execution reliability (integrati
         return { status: "committed", toolCalls: results.length };
       },
       pauseRun: async () => undefined,
-      deliverApprovalPrompt: async () => undefined,
-      cancelPendingApproval: async () => undefined,
+     deliverApprovalPrompt: async () => undefined,
       cancelHandoff: async () => undefined,
       completeRun: async () => undefined,
       generateConversationTitle: async () => undefined,
@@ -214,8 +213,7 @@ describe.skipIf(!runIntegration)("Temporal tool execution reliability (integrati
         return { status: "committed", toolCalls: results.length };
       },
       pauseRun: async () => undefined,
-      deliverApprovalPrompt: async () => undefined,
-      cancelPendingApproval: async () => undefined,
+     deliverApprovalPrompt: async () => undefined,
       cancelHandoff: async () => undefined,
       completeRun: async () => undefined,
       generateConversationTitle: async () => undefined,
@@ -276,8 +274,7 @@ describe.skipIf(!runIntegration)("Temporal tool execution reliability (integrati
       },
       commitToolBatch: async ({ results }) => ({ status: "committed", toolCalls: results.length }),
       pauseRun: async () => { paused = true; },
-      deliverApprovalPrompt: async () => undefined,
-      cancelPendingApproval: async () => undefined,
+     deliverApprovalPrompt: async () => undefined,
       cancelHandoff: async () => undefined,
       completeRun: async () => undefined,
       generateConversationTitle: async () => undefined,
@@ -358,8 +355,7 @@ describe.skipIf(!runIntegration)("Temporal tool execution reliability (integrati
         return { status: "committed", toolCalls: results.length };
       },
       pauseRun: async () => { paused = true; },
-      deliverApprovalPrompt: async () => undefined,
-      cancelPendingApproval: async () => undefined,
+     deliverApprovalPrompt: async () => undefined,
       cancelApprovalGroup: async () => undefined,
       cancelHandoff: async () => undefined,
       completeRun: async () => undefined,
@@ -444,8 +440,7 @@ describe.skipIf(!runIntegration)("Temporal tool execution reliability (integrati
         return { status: "committed", toolCalls: results.length };
       },
       pauseRun: async () => { paused = true; },
-      deliverApprovalPrompt: async () => undefined,
-      cancelPendingApproval: async () => undefined,
+     deliverApprovalPrompt: async () => undefined,
       cancelHandoff: async () => undefined,
       completeRun: async () => undefined,
       generateConversationTitle: async () => undefined,
@@ -530,8 +525,7 @@ describe.skipIf(!runIntegration)("Temporal tool execution reliability (integrati
         return { status: "committed", toolCalls: results.length };
       },
       pauseRun: async () => { paused = true; },
-      deliverApprovalPrompt: async () => undefined,
-      cancelPendingApproval: async () => undefined,
+     deliverApprovalPrompt: async () => undefined,
       cancelApprovalGroup: async () => undefined,
       cancelHandoff: async () => undefined,
       completeRun: async () => undefined,
@@ -621,8 +615,7 @@ describe.skipIf(!runIntegration)("Temporal tool execution reliability (integrati
       },
       commitToolBatch: async ({ results }) => ({ status: "committed", toolCalls: results.length }),
       pauseRun: async () => { pauses += 1; },
-      deliverApprovalPrompt: async () => undefined,
-      cancelPendingApproval: async () => undefined,
+     deliverApprovalPrompt: async () => undefined,
       cancelHandoff: async () => undefined,
       completeRun: async () => undefined,
       generateConversationTitle: async () => undefined,
@@ -711,8 +704,7 @@ describe.skipIf(!runIntegration)("Temporal tool execution reliability (integrati
       },
       commitToolBatch: async ({ results }) => ({ status: "committed", toolCalls: results.length }),
       pauseRun: async () => { paused = true; },
-      deliverApprovalPrompt: async () => undefined,
-      cancelPendingApproval: async () => undefined,
+     deliverApprovalPrompt: async () => undefined,
       cancelHandoff: async () => undefined,
       completeRun: async () => undefined,
       generateConversationTitle: async () => undefined,
@@ -803,8 +795,7 @@ describe.skipIf(!runIntegration)("Temporal tool execution reliability (integrati
         return { status: "committed", toolCalls: results.length };
       },
       pauseRun: async () => { paused = true; },
-      deliverApprovalPrompt: async () => undefined,
-      cancelPendingApproval: async () => undefined,
+     deliverApprovalPrompt: async () => undefined,
       cancelApprovalGroup: async () => undefined,
       cancelHandoff: async () => undefined,
       completeRun: async () => undefined,
@@ -900,8 +891,7 @@ describe.skipIf(!runIntegration)("Temporal tool execution reliability (integrati
         return { status: "committed", toolCalls: results.length };
       },
       pauseRun: async () => { pauses += 1; },
-      deliverApprovalPrompt: async () => undefined,
-      cancelPendingApproval: async () => undefined,
+     deliverApprovalPrompt: async () => undefined,
       cancelHandoff: async () => undefined,
       completeRun: async () => undefined,
       generateConversationTitle: async () => undefined,
@@ -972,8 +962,7 @@ describe.skipIf(!runIntegration)("Temporal tool execution reliability (integrati
         return { status: "committed", toolCalls: results.length };
       },
       pauseRun: async () => { paused = true; },
-      deliverApprovalPrompt: async () => undefined,
-      cancelPendingApproval: async () => undefined,
+     deliverApprovalPrompt: async () => undefined,
       cancelHandoff: async () => undefined,
       completeRun: async () => undefined,
       generateConversationTitle: async () => undefined,
@@ -1043,8 +1032,7 @@ describe.skipIf(!runIntegration)("Temporal tool execution reliability (integrati
         return { status: "committed", toolCalls: results.length };
       },
       pauseRun: async () => { paused = true; },
-      deliverApprovalPrompt: async () => undefined,
-      cancelPendingApproval: async () => undefined,
+     deliverApprovalPrompt: async () => undefined,
       cancelHandoff: async () => undefined,
       completeRun: async () => undefined,
       generateConversationTitle: async () => undefined,
@@ -1092,7 +1080,7 @@ describe.skipIf(!runIntegration)("Temporal tool execution reliability (integrati
       approvalPlanDigest: planDigest,
     }));
     let paused = false;
-    let cancelledApprovals = 0;
+    let cancelledGroups = 0;
     const committed: DurableToolCallResult[] = [];
     const transitions: string[] = [];
     const activities: AgentRunActivities = {
@@ -1113,8 +1101,7 @@ describe.skipIf(!runIntegration)("Temporal tool execution reliability (integrati
       },
       pauseRun: async () => { paused = true; },
       deliverApprovalPrompt: async () => undefined,
-      cancelPendingApproval: async () => { cancelledApprovals += 1; },
-      cancelApprovalGroup: async () => undefined,
+      cancelApprovalGroup: async () => { cancelledGroups += 1; },
       cancelHandoff: async () => undefined,
       completeRun: async () => undefined,
       generateConversationTitle: async () => undefined,
@@ -1136,7 +1123,7 @@ describe.skipIf(!runIntegration)("Temporal tool execution reliability (integrati
     await handle.signal(expirationSignal, { reason: "approval deadline reached" });
     await handle.result();
 
-    expect(cancelledApprovals).toBe(4);
+    expect(cancelledGroups).toBe(1);
     expect(committed).toHaveLength(4);
     expect(committed.map((result) => result.id)).toEqual(calls.map((current) => current.id));
     expect(committed.every((result) => result.status === "blocked" && result.error?.code === "APPROVAL_EXPIRED")).toBe(true);
@@ -1156,7 +1143,7 @@ describe.skipIf(!runIntegration)("Temporal tool execution reliability (integrati
       approvalPlanDigest: planDigest,
     }));
     let paused = false;
-    let cancelledApprovals = 0;
+    let cancelledGroups = 0;
     const committed: DurableToolCallResult[] = [];
     const transitions: string[] = [];
     const activities: AgentRunActivities = {
@@ -1177,8 +1164,7 @@ describe.skipIf(!runIntegration)("Temporal tool execution reliability (integrati
       },
       pauseRun: async () => { paused = true; },
       deliverApprovalPrompt: async () => undefined,
-      cancelPendingApproval: async () => { cancelledApprovals += 1; },
-      cancelApprovalGroup: async () => undefined,
+      cancelApprovalGroup: async () => { cancelledGroups += 1; },
       cancelHandoff: async () => undefined,
       completeRun: async () => undefined,
       generateConversationTitle: async () => undefined,
@@ -1200,7 +1186,7 @@ describe.skipIf(!runIntegration)("Temporal tool execution reliability (integrati
     await handle.signal(cancellationSignal, { reason: "operator cancelled approval" });
     await handle.result();
 
-    expect(cancelledApprovals).toBe(4);
+    expect(cancelledGroups).toBe(1);
     expect(committed).toHaveLength(4);
     expect(committed.map((result) => result.id)).toEqual(calls.map((current) => current.id));
     expect(committed.every((result) => result.status === "blocked" && result.error?.code === "APPROVAL_CANCELLED")).toBe(true);
@@ -1241,8 +1227,7 @@ describe.skipIf(!runIntegration)("Temporal tool execution reliability (integrati
         return { status: "committed", toolCalls: results.length };
       },
       pauseRun: async () => undefined,
-      deliverApprovalPrompt: async () => undefined,
-      cancelPendingApproval: async () => undefined,
+     deliverApprovalPrompt: async () => undefined,
       cancelHandoff: async () => undefined,
       completeRun: async () => undefined,
       generateConversationTitle: async () => undefined,
@@ -1294,8 +1279,7 @@ describe.skipIf(!runIntegration)("Temporal tool execution reliability (integrati
         return { status: "committed", toolCalls: results.length };
       },
       pauseRun: async () => undefined,
-      deliverApprovalPrompt: async () => undefined,
-      cancelPendingApproval: async () => undefined,
+     deliverApprovalPrompt: async () => undefined,
       cancelHandoff: async () => undefined,
       completeRun: async () => undefined,
       generateConversationTitle: async () => undefined,
@@ -1349,8 +1333,7 @@ describe.skipIf(!runIntegration)("Temporal tool execution reliability (integrati
         return { status: "committed", toolCalls: results.length };
       },
       pauseRun: async () => undefined,
-      deliverApprovalPrompt: async () => undefined,
-      cancelPendingApproval: async () => undefined,
+     deliverApprovalPrompt: async () => undefined,
       cancelHandoff: async () => undefined,
       completeRun: async () => undefined,
       generateConversationTitle: async () => undefined,
@@ -1411,8 +1394,7 @@ describe.skipIf(!runIntegration)("Temporal tool execution reliability (integrati
         return { status: "committed", toolCalls: results.length };
       },
       pauseRun: async () => undefined,
-      deliverApprovalPrompt: async () => undefined,
-      cancelPendingApproval: async () => undefined,
+     deliverApprovalPrompt: async () => undefined,
       cancelHandoff: async () => undefined,
       completeRun: async () => undefined,
       generateConversationTitle: async () => undefined,
@@ -1460,8 +1442,7 @@ describe.skipIf(!runIntegration)("Temporal tool execution reliability (integrati
       } satisfies DurableToolCallResult),
       commitToolBatch: async ({ results }) => ({ status: "committed", toolCalls: results.length }),
       pauseRun: async () => undefined,
-      deliverApprovalPrompt: async () => undefined,
-      cancelPendingApproval: async () => undefined,
+     deliverApprovalPrompt: async () => undefined,
       cancelHandoff: async () => undefined,
       completeRun: async () => undefined,
       generateConversationTitle: async () => undefined,
@@ -1525,8 +1506,7 @@ describe.skipIf(!runIntegration)("Temporal tool execution reliability (integrati
       },
       commitToolBatch: async () => ({ status: "committed", toolCalls: 1 }),
       pauseRun: async () => undefined,
-      deliverApprovalPrompt: async () => undefined,
-      cancelPendingApproval: async () => undefined,
+     deliverApprovalPrompt: async () => undefined,
       cancelHandoff: async () => undefined,
       completeRun: async () => { transitions.push("complete"); },
       generateConversationTitle: async () => undefined,
@@ -1615,8 +1595,7 @@ describe.skipIf(!runIntegration)("Temporal tool execution reliability (integrati
         return { status: "committed", toolCalls: results.length };
       },
       pauseRun: async () => undefined,
-      deliverApprovalPrompt: async () => undefined,
-      cancelPendingApproval: async () => undefined,
+     deliverApprovalPrompt: async () => undefined,
       cancelHandoff: async () => undefined,
       completeRun: async () => undefined,
       generateConversationTitle: async () => undefined,

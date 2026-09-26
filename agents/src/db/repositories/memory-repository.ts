@@ -1,5 +1,6 @@
 import type { Pool } from "pg";
 import { query, withTransaction } from "../pool";
+import { compareDatabaseTimestampsDesc } from "../timestamps";
 import { assessMemorySafety, type MemorySourceTrust, type MemorySafetyStatus } from "../../memory/poisoning";
 import { recordMemoryDeletion, recordMemoryLifecycleDecision, recordMemoryReviewOutcome, recordMemorySafetyAssessment } from "../../telemetry/spans";
 import { createEnvironmentEmbeddingProvider, embedSafely, formatPgVector, MIN_VECTOR_SIMILARITY, type EmbeddingProvider } from "../../memory/embeddings";
@@ -328,7 +329,7 @@ export class MemoryRepository {
         const vectorScore = Number(row.vector_score ?? 0);
         return { ...row, relevance_score: vectorText ? lexicalScore * 0.55 + vectorScore * 0.45 : lexicalScore };
       })
-      .sort((left, right) => (right.relevance_score ?? 0) - (left.relevance_score ?? 0) || right.created_at.localeCompare(left.created_at));
+      .sort((left, right) => (right.relevance_score ?? 0) - (left.relevance_score ?? 0) || compareDatabaseTimestampsDesc(left.created_at, right.created_at));
   }
 
   public async countWritesForRun(scope: MemoryScope): Promise<number> {

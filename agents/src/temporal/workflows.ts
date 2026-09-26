@@ -12,7 +12,6 @@ import {
   setHandler,
   sleep,
   continueAsNew,
-  patched,
   workflowInfo,
 } from "@temporalio/workflow";
 import type { RunStatus } from "../domain/types";
@@ -36,7 +35,6 @@ import {
 import type {
   AgentRunActivities,
   ApprovalGroupSignal,
-  ApprovalSignal,
   CancellationSignal,
   ContentPublishBatchStatusActivityResult,
   DurableRunInput,
@@ -101,7 +99,6 @@ function unconfirmedBatchMessage(title?: string): string {
   return `The batch publish for ${target} is still processing or could not be refreshed. I couldn't confirm the final destination results; ask me to check the batch status before retrying.`;
 }
 
-export const approvalSignal = defineSignal<[ApprovalSignal]>("agent.approval");
 export const approvalGroupSignal = defineSignal<[ApprovalGroupSignal]>("agent.approval-group");
 export const cancellationSignal = defineSignal<[CancellationSignal]>("agent.cancel");
 export const expirationSignal = defineSignal<[ExpirationSignal]>("agent.expire");
@@ -332,16 +329,9 @@ export async function agentChildWorkflow(input: TemporalChildWorkflowInput): Pro
  * disappear while a run waits and another worker can resume the exact durable state.
  */
 export async function agentRunWorkflow(input: DurableRunInput): Promise<void> {
-  // New executions use the decomposed model → prepare → tool → commit command
-  // sequence. The patch gate keeps already-running histories on their recorded
-  // command sequence until they finish; it must be removed only after that
-  // migration window has elapsed.
-  const useDecomposedToolActivities = patched("agent-parallel-tool-activities-v1");
-  // Continue-as-new inputs produced before workflowStatus was added carry a
-  // non-zero loop step. Treat those histories as already running while the
-  // compatibility window drains instead of replaying the initial transitions.
+  // Every run uses the durable model → prepare → tool → commit command
+  // sequence. There is one approval contract: a persisted approval group.
   let status: RunStatus = input.workflowStatus ?? (input.loopStep && input.loopStep > 0 ? "running" : "received");
-  let approval: ApprovalSignal | undefined;
   let approvalGroup: ApprovalGroupSignal | undefined;
   let cancellation: CancellationSignal | undefined;
   let expiration: ExpirationSignal | undefined;
@@ -363,9 +353,6 @@ export async function agentRunWorkflow(input: DurableRunInput): Promise<void> {
     }
   };
   setHandler(runStatusQuery, () => status);
-  setHandler(approvalSignal, (value) => {
-    approval = value;
-  });
   setHandler(approvalGroupSignal, (value) => {
     approvalGroup = value;
   });
@@ -391,9 +378,7 @@ export async function agentRunWorkflow(input: DurableRunInput): Promise<void> {
     ...(sessionLease ? { sessionLease } : {}),
   });
 
-  const modelStepActivity = useDecomposedToolActivities
-    ? (activities as unknown as { executeModelStep: NonNullable<AgentRunActivities["executeModelStep"]> }).executeModelStep
-    : activities.executeLoop;
+  const modelStepActivity = (activities as unknown as { executeModelStep: NonNullable<AgentRunActivities["executeModelStep"]> }).executeModelStep;
   if (!modelStepActivity) throw new Error("MODEL_STEP_ACTIVITY_NOT_REGISTERED");
   const maybeContinueAsNewAtBatchBoundary = async (nextLoopStep: number): Promise<void> => {
     const info = workflowInfo();
@@ -655,13 +640,6 @@ export async function agentRunWorkflow(input: DurableRunInput): Promise<void> {
             await condition(() => approvalGroup?.groupId === groupId || cancellation !== undefined || expiration !== undefined);
             if (cancellation) {
               if (batchActivities.cancelApprovalGroup) await batchActivities.cancelApprovalGroup({ ...activityScope(), runId: input.runId, groupId, reason: (cancellation as CancellationSignal).reason });
-              for (const call of groupCalls) await activities.cancelPendingApproval({
-                ...activityScope(),
-                runId: input.runId,
-                providerToolCallId: call.providerToolCallId ?? call.id,
-                runtimeOperationId: call.id,
-                reason: (cancellation as CancellationSignal).reason,
-              });
               await transition("awaiting_approval", "cancelled");
               finishAfterApprovalGroup = true;
               terminalApprovalOutcome = {
@@ -681,14 +659,6 @@ export async function agentRunWorkflow(input: DurableRunInput): Promise<void> {
             }
             if (expiration) {
               if (batchActivities.cancelApprovalGroup) await batchActivities.cancelApprovalGroup({ ...activityScope(), runId: input.runId, groupId, reason: (expiration as ExpirationSignal).reason ?? "The approval group expired before execution" });
-              for (const call of groupCalls) await activities.cancelPendingApproval({
-                ...activityScope(),
-                runId: input.runId,
-                providerToolCallId: call.providerToolCallId ?? call.id,
-                runtimeOperationId: call.id,
-                reason: (expiration as ExpirationSignal).reason ?? "The approval expired before execution",
-                outcome: "expired",
-              });
               await transition("awaiting_approval", "expired");
               finishAfterApprovalGroup = true;
               terminalApprovalOutcome = {
@@ -858,13 +828,26 @@ export async function agentRunWorkflow(input: DurableRunInput): Promise<void> {
         continue;
       }
       if (result.status === "awaiting_approval") {
+        const pending = result.pendingToolCalls?.[0];
+        const groupId = pending?.approvalGroupId;
+        const planDigest = pending?.approvalPlanDigest;
+        if (!pending || !groupId || !planDigest) {
+          await failAndDeliver({
+            code: "APPROVAL_GROUP_MISSING",
+            message: "The approval pause did not have a durable approval group",
+            userMessage: "I couldn't safely continue because the approval request was incomplete. Please try again.",
+          });
+          return;
+        }
         await activities.pauseRun({
           ...activityScope(),
           runId: input.runId,
           status: "awaiting_approval",
           output: {
             status: result.status,
-            pendingToolCalls: result.pendingToolCalls ?? [],
+            approvalGroupId: groupId,
+            approvalPlanDigest: planDigest,
+            pendingToolCalls: result.pendingToolCalls,
             usage: result.usage,
             iterations: result.iterations,
             toolCalls: result.toolCalls,
@@ -873,47 +856,28 @@ export async function agentRunWorkflow(input: DurableRunInput): Promise<void> {
         });
         await activities.deliverApprovalPrompt({ ...activityScope(), runId: input.runId });
         status = "awaiting_approval";
-        await condition(() => approval !== undefined || cancellation !== undefined || expiration !== undefined);
-        const pending = result.pendingToolCalls?.[0];
+        await condition(() => approvalGroup?.groupId === groupId || cancellation !== undefined || expiration !== undefined);
         if (cancellation) {
           const cancellationReason = (cancellation as CancellationSignal).reason;
-          if (pending) {
-            await activities.cancelPendingApproval({
-              ...activityScope(),
-              runId: input.runId,
-              providerToolCallId: pending.providerToolCallId ?? pending.id,
-              runtimeOperationId: pending.id,
-              reason: cancellationReason,
-            });
-          }
+          const cancelApprovalGroup = (activities as unknown as { cancelApprovalGroup?: (input: { organizationId?: string; actorId?: string; runId: string; groupId: string; reason?: string }) => Promise<void> }).cancelApprovalGroup;
+          if (cancelApprovalGroup) await cancelApprovalGroup({ ...activityScope(), runId: input.runId, groupId, reason: cancellationReason });
           await transition("awaiting_approval", "cancelled");
           return;
         }
         if (expiration) {
-          if (pending) {
-            await activities.cancelPendingApproval({
-              ...activityScope(),
-              runId: input.runId,
-              providerToolCallId: pending.providerToolCallId ?? pending.id,
-              runtimeOperationId: pending.id,
-              reason: (expiration as ExpirationSignal).reason ?? "The approval expired before execution",
-              outcome: "expired",
-            });
-          }
+          const reason = (expiration as ExpirationSignal).reason ?? "The approval expired before execution";
+          const cancelApprovalGroup = (activities as unknown as { cancelApprovalGroup?: (input: { organizationId?: string; actorId?: string; runId: string; groupId: string; reason?: string }) => Promise<void> }).cancelApprovalGroup;
+          if (cancelApprovalGroup) await cancelApprovalGroup({ ...activityScope(), runId: input.runId, groupId, reason });
           await transition("awaiting_approval", "expired");
           return;
         }
-        const decision = approval;
-        approval = undefined;
-        const decisionOperationMatches = decision && pending
-          && (decision.runtimeOperationId !== undefined
-            ? decision.runtimeOperationId === pending.id
-            : decision.providerToolCallId === (pending.providerToolCallId ?? pending.id));
-        if (!pending || !decision || decision.decision !== "approved" || !decisionOperationMatches || decision.argumentsHash !== pending.argumentsHash) {
+        const decision = approvalGroup;
+        approvalGroup = undefined;
+        if (!decision || decision.groupId !== groupId || decision.planDigest !== planDigest || decision.decision !== "approved" || !decision.selectedOperationIds.includes(pending.id)) {
           await failAndDeliver({
-            code: "APPROVAL_REJECTED",
-            message: "Approval was rejected or did not match the pending arguments",
-            userMessage: "I couldn't apply that approval because it no longer matches the pending action. Please try again.",
+            code: decision?.decision === "rejected" ? "APPROVAL_REJECTED" : "APPROVAL_GROUP_STALE",
+            message: decision?.decision === "rejected" ? "The approval group was rejected before execution" : "The approval group no longer matches the prepared tool plan",
+            userMessage: decision?.decision === "rejected" ? "The requested action was not approved." : "I couldn't apply that approval because the requested actions changed. Please try again.",
           });
           return;
         }
@@ -925,9 +889,9 @@ export async function agentRunWorkflow(input: DurableRunInput): Promise<void> {
           arguments: pending.arguments,
           approval: {
             approvedBy: decision.approvedBy,
-            argumentsHash: decision.argumentsHash,
+            argumentsHash: pending.argumentsHash,
             expiresAt: decision.expiresAt,
-            resourceSnapshot: decision.resourceSnapshot,
+            approvalGroupId: groupId,
           },
         };
         continue;
