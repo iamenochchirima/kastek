@@ -730,13 +730,10 @@ pub async fn get_email_connection(
     )
     .await?;
     let connection_id = path.into_inner();
-    let connection = email::get_connection_by_id(
-        pool.get_ref(),
-        &context.organization_id,
-        &connection_id,
-    )
-    .await?
-    .ok_or_else(|| AppError::NotFound("Email connection not found".to_string()))?;
+    let connection =
+        email::get_connection_by_id(pool.get_ref(), &context.organization_id, &connection_id)
+            .await?
+            .ok_or_else(|| AppError::NotFound("Email connection not found".to_string()))?;
     Ok(HttpResponse::Ok().json(serde_json::json!({ "connection": connection })))
 }
 

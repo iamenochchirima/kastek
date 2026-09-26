@@ -760,10 +760,6 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                 web::post().to(agent_platform::signal_external_event),
             )
             .route(
-                "/runs/{runId}/approval",
-                web::post().to(agent_platform::approve_run),
-            )
-            .route(
                 "/runs/{runId}/approval-group",
                 web::post().to(agent_platform::approve_run_group),
             )

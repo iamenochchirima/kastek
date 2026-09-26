@@ -326,13 +326,33 @@ impl ProviderAdapter {
                 _ => unsupported(),
             },
             Self::GoogleEmail => match key {
-                EMAIL_INBOUND | EMAIL_READ => rule("https://www.googleapis.com/auth/gmail.readonly", GOOGLE_EMAIL_READ, GOOGLE_EMAIL_READ, false),
-                EMAIL_OUTBOUND | EMAIL_REPLY => rule("https://www.googleapis.com/auth/gmail.send", GOOGLE_EMAIL_SEND, GOOGLE_EMAIL_SEND, false),
+                EMAIL_INBOUND | EMAIL_READ => rule(
+                    "https://www.googleapis.com/auth/gmail.readonly",
+                    GOOGLE_EMAIL_READ,
+                    GOOGLE_EMAIL_READ,
+                    false,
+                ),
+                EMAIL_OUTBOUND | EMAIL_REPLY => rule(
+                    "https://www.googleapis.com/auth/gmail.send",
+                    GOOGLE_EMAIL_SEND,
+                    GOOGLE_EMAIL_SEND,
+                    false,
+                ),
                 _ => unsupported(),
             },
             Self::MicrosoftEmail => match key {
-                EMAIL_INBOUND | EMAIL_READ => rule("Mail.Read", MICROSOFT_EMAIL_READ, MICROSOFT_EMAIL_READ, false),
-                EMAIL_OUTBOUND | EMAIL_REPLY => rule("Mail.Send", MICROSOFT_EMAIL_SEND, MICROSOFT_EMAIL_SEND, false),
+                EMAIL_INBOUND | EMAIL_READ => rule(
+                    "Mail.Read",
+                    MICROSOFT_EMAIL_READ,
+                    MICROSOFT_EMAIL_READ,
+                    false,
+                ),
+                EMAIL_OUTBOUND | EMAIL_REPLY => rule(
+                    "Mail.Send",
+                    MICROSOFT_EMAIL_SEND,
+                    MICROSOFT_EMAIL_SEND,
+                    false,
+                ),
                 _ => unsupported(),
             },
             Self::Unknown => unsupported(),

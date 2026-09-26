@@ -3377,24 +3377,6 @@ impl AgentPlatformClient {
         .await
     }
 
-    pub async fn approve_run(
-        &self,
-        organization_id: &str,
-        actor_id: &str,
-        run_id: &str,
-        body: Value,
-    ) -> Result<Value, AppError> {
-        self.request_json(
-            Method::POST,
-            &format!("/v1/runs/{run_id}/approval"),
-            organization_id,
-            actor_id,
-            &["runs:approve"],
-            Some(body),
-        )
-        .await
-    }
-
     pub async fn approve_run_group(
         &self,
         organization_id: &str,
@@ -4846,10 +4828,6 @@ mod tests {
             .await
             .unwrap();
         client
-            .approve_run("org-1", "actor-1", "run-1", body)
-            .await
-            .unwrap();
-        client
             .approve_run_group("org-1", "actor-1", "run-1", json!({ "groupId": "group-1" }))
             .await
             .unwrap();
@@ -4859,7 +4837,7 @@ mod tests {
             .unwrap();
 
         let requests = server.await.unwrap();
-        assert_eq!(requests.len(), 81);
+        assert_eq!(requests.len(), 80);
         let expected_paths = [
             "POST /v1/system-agents/kasiai/installation HTTP/1.1",
             "GET /v1/agents HTTP/1.1",
@@ -4939,7 +4917,6 @@ mod tests {
             "POST /v1/runs/run-1/cancel HTTP/1.1",
             "POST /v1/runs/run-1/retry HTTP/1.1",
             "POST /v1/runs/run-1/external-event HTTP/1.1",
-            "POST /v1/runs/run-1/approval HTTP/1.1",
             "POST /v1/runs/run-1/approval-group HTTP/1.1",
             "GET /v1/runs/run-1/events/stream?after=3 HTTP/1.1",
         ];
@@ -5029,7 +5006,6 @@ mod tests {
             "runs:cancel",     // cancel_run
             "chat:write",      // retry_run
             "runs:write",      // signal_external_event
-            "runs:approve",    // approve_run
             "runs:approve",    // approve_run_group
             "runs:read",       // stream_run_events
         ];
