@@ -15,16 +15,16 @@ It is a scoped package plan, not a second Agent Platform roadmap.
 
 The visual integration of memory, context, capabilities, extensions, durable execution, and
 Playground-to-Live promotion has its focused plan in
-[`AGENT_STUDIO_RUNTIME_OBSERVATORY_UPDATE_PLAN.md`](../active/AGENT_STUDIO_RUNTIME_OBSERVATORY_UPDATE_PLAN.md).
+[`AGENT_STUDIO_RUNTIME_OBSERVATORY_UPDATE_PLAN.md`](../completed/AGENT_STUDIO_RUNTIME_OBSERVATORY_UPDATE_PLAN.md).
 It consumes the runtime contracts and does not replace their ownership.
 
 The canonical capability directory and managed extension work has its focused implementation plan
-in [`AGENT_CAPABILITY_REGISTRY_AND_EXTENSION_SURFACES_IMPLEMENTATION_PLAN.md`](../active/AGENT_CAPABILITY_REGISTRY_AND_EXTENSION_SURFACES_IMPLEMENTATION_PLAN.md).
+in [`AGENT_CAPABILITY_REGISTRY_AND_EXTENSION_SURFACES_IMPLEMENTATION_PLAN.md`](../completed/AGENT_CAPABILITY_REGISTRY_AND_EXTENSION_SURFACES_IMPLEMENTATION_PLAN.md).
 It covers built-in tools, external connectors, skills, plugins, MCP servers, and user-created tools
 without creating a second runtime or telemetry system.
 
 The Hermes-aligned capability activation and Playground-to-Live lifecycle has its focused execution
-plan in [`AGENT_HERMES_ALIGNED_CAPABILITY_LIFECYCLE_PLAN.md`](../active/AGENT_HERMES_ALIGNED_CAPABILITY_LIFECYCLE_PLAN.md).
+plan in [`AGENT_HERMES_ALIGNED_CAPABILITY_LIFECYCLE_PLAN.md`](../completed/AGENT_HERMES_ALIGNED_CAPABILITY_LIFECYCLE_PLAN.md).
 It owns registry-driven activation, progressive skill discovery, connection/plugin/MCP refresh, and
 promotion of the tested capability snapshot to Live.
 

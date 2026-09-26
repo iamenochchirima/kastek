@@ -6,6 +6,7 @@ const sidebars = {
     "development/local-development",
     "development/repository-structure",
     "architecture/kasitek-technical-blueprint",
+    "architecture/credit-billing-coverage",
     "architecture/action-platform-technical-design",
     "architecture/calls-core-consolidation",
     "architecture/client-database-migration-baseline",

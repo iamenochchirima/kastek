@@ -352,7 +352,7 @@ more integrations, graph features, or customer-configured multi-agent behavior.
 
 ### First chunk — Host boundary and runtime restructure
 
-[`Agent Platform Runtime Foundation and Host Composition Rewrite`](../active/AGENT_PLATFORM_HOST_BOUNDARY_RESTRUCTURE_PLAN.md)
+[`Agent Platform Runtime Foundation and Host Composition Rewrite`](../completed/AGENT_PLATFORM_HOST_BOUNDARY_RESTRUCTURE_PLAN.md)
 
 Establishes Core as a first-party host adapter, adds a tenant-host conformance path, moves
 construction into composition roots, and proves one Core-backed, one hostless, and one test-host
@@ -360,7 +360,7 @@ slice through the same runtime boundary.
 
 ### Second chunk — Hermes-aligned runtime reliability
 
-[`Agent Platform Hermes-Aligned Runtime Reliability`](../active/AGENT_PLATFORM_HERMES_ALIGNED_RUNTIME_RELIABILITY_PLAN.md)
+[`Agent Platform Hermes-Aligned Runtime Reliability`](../completed/AGENT_PLATFORM_HERMES_ALIGNED_RUNTIME_RELIABILITY_PLAN.md)
 
 Adopts the useful Hermes runtime patterns across context management, model/tool loops, configured
 graphs, capability execution, durable recovery, delivery, observability, custom-agent profiles,
@@ -370,15 +370,15 @@ dependency or enable unrestricted multi-agent execution.
 
 The second chunk is a cross-cutting implementation slice over P01, P03, P05, P08, P09, P09B, P10,
 and P14. The local implementation is complete. The remaining Hermes gap work is tracked in the
-active [`Agent Platform Hermes Gap Closure and Runtime Rework`](../active/AGENT_PLATFORM_HERMES_GAP_CLOSURE_PLAN.md)
+completed [`Agent Platform Hermes Gap Closure and Runtime Rework`](../completed/AGENT_PLATFORM_HERMES_GAP_CLOSURE_PLAN.md)
 plan, beginning with the context and token execution kernel.
 
 ### Third chunk — Agent Playground and execution observatory
 
-[`Agent Platform Execution Observatory and Visual Control Plane`](../active/AGENT_PLATFORM_EXECUTION_OBSERVATORY_AND_CONTROL_PLANE_PLAN.md)
+[`Agent Platform Execution Observatory and Visual Control Plane`](../completed/AGENT_PLATFORM_EXECUTION_OBSERVATORY_AND_CONTROL_PLANE_PLAN.md)
 
 The focused Studio visual contract is maintained in [`Studio runtime observatory and promotion
-update`](../active/AGENT_STUDIO_RUNTIME_OBSERVATORY_UPDATE_PLAN.md). It covers the composition of
+update`](../completed/AGENT_STUDIO_RUNTIME_OBSERVATORY_UPDATE_PLAN.md). It covers the composition of
 context, memory, tools, skills, plugins, MCP, approvals, child runs, delivery, telemetry, and
 Playground-to-Live promotion without moving ownership of those runtime contracts into the client.
 
@@ -750,9 +750,9 @@ outcome rule, and P01 through P06 can implement against stable version-one contr
 
 **Depends on:** P00
 
-**First implementation chunk:** [`Agent Platform Runtime Foundation and Host Composition Rewrite`](../active/AGENT_PLATFORM_HOST_BOUNDARY_RESTRUCTURE_PLAN.md)
+**First implementation chunk:** [`Agent Platform Runtime Foundation and Host Composition Rewrite`](../completed/AGENT_PLATFORM_HOST_BOUNDARY_RESTRUCTURE_PLAN.md)
 
-**Next implementation chunk:** [`Agent Platform Hermes-Aligned Runtime Reliability`](../active/AGENT_PLATFORM_HERMES_ALIGNED_RUNTIME_RELIABILITY_PLAN.md)
+**Next implementation chunk:** [`Agent Platform Hermes-Aligned Runtime Reliability`](../completed/AGENT_PLATFORM_HERMES_ALIGNED_RUNTIME_RELIABILITY_PLAN.md)
 
 **Goal:** Restructure the code incrementally so the new contracts live in deep modules rather than
 adding more policy to current entry points or wrapping them in permanent forwarding layers.
@@ -824,7 +824,7 @@ inbound message through run completion and delivery using one correlation chain.
 
 **Depends on:** P00
 
-**First implementation chunk:** [`Agent Platform Runtime Foundation and Host Composition Rewrite`](../active/AGENT_PLATFORM_HOST_BOUNDARY_RESTRUCTURE_PLAN.md)
+**First implementation chunk:** [`Agent Platform Runtime Foundation and Host Composition Rewrite`](../completed/AGENT_PLATFORM_HOST_BOUNDARY_RESTRUCTURE_PLAN.md)
 
 **Can run with:** P01 and P03
 
@@ -1344,7 +1344,7 @@ cannot use live authority or escape their destination and resource constraints.
 
 **Depends on:** P01 and the event-producing capability packages
 
-**Studio implementation plan:** [`Studio runtime observatory and promotion update`](../active/AGENT_STUDIO_RUNTIME_OBSERVATORY_UPDATE_PLAN.md)
+**Studio implementation plan:** [`Studio runtime observatory and promotion update`](../completed/AGENT_STUDIO_RUNTIME_OBSERVATORY_UPDATE_PLAN.md)
 
 **Goal:** Turn the thin P01 visualizer into the shared execution observatory and, where needed, an
 optional workflow builder. The observatory is available to every agent; the builder is only needed
@@ -1544,7 +1544,7 @@ The architecture program is complete only when:
 - `docs/plans/agents/AGENT_MULTI_AGENT_ORCHESTRATION_RESEARCH.md`
 - `docs/plans/agents/AGENT_PLATFORM_COMPARISON_RESEARCH.md`
 - `docs/plans/agents/AGENT_HERMES_ARCHITECTURE_RESEARCH.md`
-- `docs/plans/active/AGENT_TOOL_ACTION_READINESS_PLAN.md`
-- `docs/plans/active/AGENT_BATCH_PUBLISHING_PLAN.md`
-- `docs/plans/active/AGENT_KNOWLEDGE_GROUNDING_FIX_PLAN.md`
+- `docs/plans/completed/AGENT_TOOL_ACTION_READINESS_PLAN.md`
+- `docs/plans/completed/AGENT_BATCH_PUBLISHING_PLAN.md`
+- `docs/plans/completed/AGENT_KNOWLEDGE_GROUNDING_FIX_PLAN.md`
 - [Release process](/operations/release-process)

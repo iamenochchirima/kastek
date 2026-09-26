@@ -20,7 +20,7 @@ description: Canonical architecture and implementation plan for durable, scoped,
 
 **Related packages:** P08 context, knowledge, and memory; P14 full Agent Canvas and Execution Observatory
 
-**Execution checklist:** [`Agent memory architecture implementation checklist`](../active/AGENT_MEMORY_ARCHITECTURE_IMPLEMENTATION_CHECKLIST.md)
+**Execution checklist:** [`Agent memory architecture implementation checklist`](../completed/AGENT_MEMORY_ARCHITECTURE_IMPLEMENTATION_CHECKLIST.md)
 
 ## Implementation status
 
@@ -534,7 +534,7 @@ can return the forgotten content after completion.
 **Outcome for this memory upgrade:** The runtime emits the complete, durable event and projection
 contract that Studio will render. This memory upgrade does not own the Studio canvas, timeline,
 inspector, or visual styling. The visual work is tracked in the standalone [`Studio runtime
-observatory and promotion update`](../active/AGENT_STUDIO_RUNTIME_OBSERVATORY_UPDATE_PLAN.md),
+observatory and promotion update`](../completed/AGENT_STUDIO_RUNTIME_OBSERVATORY_UPDATE_PLAN.md),
 which joins memory with context telemetry, tools, skills, plugins, MCP, approvals, child runs,
 delivery, and Playground-to-Live promotion.
 

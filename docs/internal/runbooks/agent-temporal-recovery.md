@@ -23,7 +23,7 @@ reconciliation. It applies to the Agents API and Agents Worker in every environm
 | `executeLoop` | Legacy bounded loop boundary for histories created before the command-sequence migration | PostgreSQL, model providers, Core, channel/tool adapters | Patch-gated compatibility only; new autonomous runs do not use it |
 | `pauseRun` | Persist waiting state and output | Agents PostgreSQL | Idempotent run transition |
 | `deliverApprovalPrompt` | Resolve credentials and send the approval prompt | Telegram, Discord, or Core | Delivery failures are recorded; external sends require provider-safe handling |
-| `cancelPendingApproval` | Cancel approval and mark its effect not executed | PostgreSQL | Idempotent by approval/effect state |
+| `cancelApprovalGroup` | Cancel the approval group and mark its effects not executed | PostgreSQL | Idempotent by group/operation state |
 | `cancelHandoff` | Cancel the active handoff | PostgreSQL | Idempotent by handoff state |
 | `completeRun` | Persist the canonical assistant entry, terminal output, and rebuild the display summary | PostgreSQL | Transcript append and terminal run transition are idempotent |
 | `generateConversationTitle` | Optional decorative title model call | Model provider and PostgreSQL | Failure is swallowed after the main run completes |

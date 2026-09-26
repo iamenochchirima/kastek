@@ -82,9 +82,9 @@ uses only Agent Platform-native or another approved host's capabilities.
   an analytics outbox. The plan extends these modules rather than proposing a wholesale rewrite.
 - The current architecture audit identifies oversized workflow activity boundaries, incomplete
   provider-effect reconciliation, and incomplete provider-adapter conformance as material risks.
-- `docs/plans/active/AGENT_TOOL_ACTION_READINESS_PLAN.md` defines the initial readiness vocabulary.
+- `docs/plans/completed/AGENT_TOOL_ACTION_READINESS_PLAN.md` defines the initial readiness vocabulary.
   This plan treats that readiness result as the front door to every provider-backed action.
-- `docs/plans/active/AGENT_BATCH_PUBLISHING_PLAN.md` defines per-destination status and one approval
+- `docs/plans/completed/AGENT_BATCH_PUBLISHING_PLAN.md` defines per-destination status and one approval
   for a fixed batch. This plan generalizes that model to all external effects.
 - The active batch publishing, tool-action readiness, and knowledge-grounding plans are upcoming
   capability slices. Their deployed or tested behavior is a baseline to preserve and revalidate,
@@ -1237,8 +1237,8 @@ staged runtime evidence:
 - [Action platform technical design](../../internal/architecture/action-platform-technical-design.md)
 - [Calls Core consolidation](../../internal/architecture/calls-core-consolidation.md)
 - [Agent workflow execution](../../internal/architecture/agent-workflow-execution.md)
-- [Agent tool action readiness plan](../active/AGENT_TOOL_ACTION_READINESS_PLAN.md)
-- [Agent batch publishing plan](../active/AGENT_BATCH_PUBLISHING_PLAN.md)
+- [Agent tool action readiness plan](../completed/AGENT_TOOL_ACTION_READINESS_PLAN.md)
+- [Agent batch publishing plan](../completed/AGENT_BATCH_PUBLISHING_PLAN.md)
 - [Agent platform comparison research](./AGENT_PLATFORM_COMPARISON_RESEARCH.md)
 - [Multi-agent orchestration research](./AGENT_MULTI_AGENT_ORCHESTRATION_RESEARCH.md)
 - [Agent execution, communication, and scaling architecture](./AGENT_EXECUTION_SCALING_AND_SESSION_ARCHITECTURE_PLAN.md)

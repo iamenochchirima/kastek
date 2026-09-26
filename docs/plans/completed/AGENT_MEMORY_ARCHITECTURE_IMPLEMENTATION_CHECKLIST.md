@@ -630,7 +630,7 @@ external release approval remain open.
 
 - [~] Record platform release ID, commit SHA, migration versions, worker artifact, agent version,
       feature-flag configuration, and provider configuration revision. The pre-release record is
-      captured in `docs/plans/active/AGENT_MEMORY_ARCHITECTURE_RELEASE_RECORD.md`, including the
+      captured in `docs/plans/completed/AGENT_MEMORY_ARCHITECTURE_RELEASE_RECORD.md`, including the
       current base SHA, migrations through 158, registry checksum, flags, validation evidence, and
       explicit `not assigned`/`not applicable` decisions. The local manifest is verified with
       `pnpm --dir agents release:memory:verify`; a clean tagged artifact and staging provider

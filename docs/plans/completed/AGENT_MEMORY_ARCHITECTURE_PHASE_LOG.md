@@ -833,7 +833,7 @@ Pre-direct-tool verification refresh (2026-09-08):
 - Deletion-focused verification passed: 2 unit files (11 tests) passed and the DB-backed deletion
   and agent-delete/provider-confirmation paths passed in the 210-file/1,152-test suite. The local
   Temporal worker was resumed after the isolated run.
-- Pre-release record: `docs/plans/active/AGENT_MEMORY_ARCHITECTURE_RELEASE_RECORD.md` now captures
+- Pre-release record: `docs/plans/completed/AGENT_MEMORY_ARCHITECTURE_RELEASE_RECORD.md` now captures
   the base commit, migrations through `153`, agent package version, scoped rollout flags, analytics
   registry checksum, validation evidence, rollback switch, and explicit gaps for a clean tagged
   artifact, staging provider configuration, and release-owner approval.
