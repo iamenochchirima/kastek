@@ -1,14 +1,13 @@
 # Current repository architecture
 
-This document describes code that exists in this checkout. It is not a declaration that every
-current component belongs in the future Growth product.
+This document describes code and integrations that remain in this checkout during the repository
+split. Presence in Growth does not make a component Growth-owned.
 
 ## Product direction
 
-The owner is refocusing this repository as a standalone KasiTek Growth product. The code has not
-yet been split to match that boundary. Keep the current monorepo intact unless a separately
-approved issue describes a component move, its destination, and the contracts that must remain
-working.
+This repository is being separated into standalone product repositories. The source-split issues
+identify what moves and what Growth-side integration code remains. Do not retain a second service
+implementation as a fallback when an integration is temporarily disconnected.
 
 ## Current component map
 
@@ -17,15 +16,18 @@ working.
 | `client/apps/client/` | Main Next.js client, including campaigns, contacts, inbox, content, calendar, bookings, analytics, workspace, billing, and agent-facing routes. | Growth-facing routes and agent-facing routes coexist. Final ownership is not fully mapped. |
 | `client/apps/admin/` | Next.js admin application with agency, lead, outreach, quotation, invoice, operations, analytics, and access routes. | Present in the repo. Long-term product/repo ownership is not recorded here. |
 | `client/apps/labs/` | Separate Next.js app package. | Present in the repo. Product boundary is not recorded here. |
-| `client/apps/tenant-portal/` | Next.js portal package for the white-label business product. | The owner intends this product to be separate from Growth. Its code remains here until a separately approved extraction. |
 | `client/packages/` | Shared client packages, including database and API-client packages. | Consumers and extraction constraints must be checked before moving a package. |
 | `agents/` | TypeScript Agent Platform API, gateway, workers, runtime, migrations, tests, and Temporal integration. | The owner intends Agents to be a separate product. Its code remains here until a separately approved extraction. |
 | `server/kasitek-core/` | Rust Core service. | Service boundary exists in code; final product/repository ownership is not decided here. |
 | `server/kasitek-analytics/` | Rust Analytics API, workers, migrations, and reporting code. | Present in the shared Rust workspace. Future product boundary is not recorded here. |
-| `server/kasitek-tenants/` | Rust service and migrations supporting the white-label business product. | The product is intended to be separate from Growth. Its code remains here until a separately approved extraction. |
 | `server/crates/` | Rust crates shared by server workspace members. | Check dependencies and ownership before extraction. |
 | `scripts/`, `infra/` | Local development, verification, and infrastructure support. | Some scripts may span several services; check their consumers before moving them. |
 | `docs/` | User, internal, and temporary planning documents. | Existing documents have not been reconciled by this setup. Use the new entry points linked from the root README and `AGENTS.md`. |
+
+Agency PR #5 moves the API and portal source into `Kasitek-Labs/kasitek-agency` under
+`server/kasitek-tenants/` and `client/apps/tenant-portal/`. Growth retains the Admin-side
+provisioning client in `client/apps/admin/` for later integration work; it does not retain the
+Agency service or portal implementation.
 
 ## Runtime and dependency notes
 

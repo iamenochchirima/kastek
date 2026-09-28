@@ -1,9 +1,8 @@
 # Feature map
 
-This is the index of user-facing routes currently present in the repository. It is a map of the
-checkout, not a final product-boundary decision. The repository is being refocused on Growth, but
-Agent Platform and the white-label business product still have code here. Do not treat their
-presence as approval to move or delete them.
+This is the index of user-facing routes that remain in the Growth repository. Agent Platform
+routes are still awaiting the separate source-removal issue; Agency PR #5 moves the tenant portal
+to `Kasitek-Labs/kasitek-agency`, so it is not part of this feature map.
 
 For local startup, environment, and test commands, use [Local Development](../internal/development/local-development.md).
 The main client runs on port `3000`; the other app ports and service prerequisites are listed in
@@ -38,8 +37,6 @@ Admin belongs in Growth or another product/repository.
 
 - `client/apps/labs/` is a separate app package. Its user-facing feature inventory has not yet
   been confirmed in this setup.
-- `client/apps/tenant-portal/` is a separate app package. Its routes and workflows are not
-  included in the Growth feature list above.
 
 ## Map rules
 

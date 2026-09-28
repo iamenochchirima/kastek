@@ -40,7 +40,7 @@ Growth repository
   server/kasitek-core/src/actions/
 
 Agency repository
-  server/kasitek-tenants/src/actions/
+  Kasitek-Labs/kasitek-agency/server/kasitek-tenants/src/actions/
 
 Agents repository
   gateway adapters for REST, MCP, and A2A
@@ -193,7 +193,7 @@ The direct runtime owns:
 - direct database migrations;
 - direct audit and outbox integration.
 
-### 5.5 Agency repository: `server/kasitek-tenants/src/actions`
+### 5.5 Agency repository: `Kasitek-Labs/kasitek-agency/server/kasitek-tenants/src/actions`
 
 The white-label runtime owns:
 
