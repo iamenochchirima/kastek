@@ -131,4 +131,7 @@ Growth and Agents CI continue to test their own telemetry SDKs and their behavio
 disabled. The production template documents generic OTLP queue and retry settings. Do not deploy
 it until a durable destination is approved.
 
+For local operational guidance and failure handling, see the
+[Collector runbook](../../../docs/otel-collector-runbook.md).
+
 Railway IaC reference: [Infrastructure as Code](https://docs.railway.com/infrastructure-as-code).
