@@ -5,8 +5,9 @@ products.
 
 ## OpenTelemetry Collector
 
-The Collector image, local profiles, staging profile, and Railway service configuration live in
-[`infra/observability/otel-collector`](infra/observability/otel-collector/README.md).
+The Collector image, local profiles, and staging profile live in
+[`infra/observability/otel-collector`](infra/observability/otel-collector/README.md). Railway's
+service declaration is the named `otel-collector` partial in [`.railway/railway.ts`](.railway/railway.ts).
 
 Run it locally from the repository root:
 

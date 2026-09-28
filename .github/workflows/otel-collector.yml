@@ -5,6 +5,7 @@ on:
     paths:
       - ".github/workflows/otel-collector.yml"
       - "README.md"
+      - ".railway/**"
       - "infra/observability/otel-collector/**"
       - "scripts/verify_otel_collector.py"
   push:
@@ -12,6 +13,7 @@ on:
     paths:
       - ".github/workflows/otel-collector.yml"
       - "README.md"
+      - ".railway/**"
       - "infra/observability/otel-collector/**"
       - "scripts/verify_otel_collector.py"
 
@@ -29,8 +31,18 @@ jobs:
       - name: Validate Compose shape
         run: docker compose -f infra/observability/otel-collector/compose.yaml config --quiet
 
-      - name: Validate Railway service definition
-        run: python3 -m json.tool infra/observability/otel-collector/railway.json >/dev/null
+      - name: Set up Node for Railway IaC typecheck
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: .railway/package-lock.json
+
+      - name: Install Railway IaC dependencies
+        run: npm ci --prefix .railway
+
+      - name: Typecheck Railway service partial
+        run: npm --prefix .railway run typecheck
 
       - name: Validate Collector profiles
         env:
@@ -55,10 +67,9 @@ jobs:
           set -euo pipefail
           docker run -d --name kasitek-otel-collector-staging-ci \
             -e PORT=13133 \
-            -p 13134:13133 \
+            -p 13134:13133 -p 14318:4318 \
             kasitek-otel-collector:ci \
             --config=/etc/otelcol/config.staging.yaml
-          trap 'docker rm -f kasitek-otel-collector-staging-ci >/dev/null 2>&1 || true' EXIT
           for attempt in $(seq 1 30); do
             if curl --fail --silent http://127.0.0.1:13134/ >/dev/null; then
               exit 0
@@ -66,6 +77,25 @@ jobs:
             sleep 1
           done
           docker logs kasitek-otel-collector-staging-ci
+          exit 1
+
+      - name: Send log, metric, and trace smoke signals to staging profile
+        run: python3 scripts/verify_otel_collector.py --endpoint http://127.0.0.1:14318
+
+      - name: Verify staging profile received all three signals
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 20); do
+            docker logs kasitek-otel-collector-staging-ci > staging-collector.log 2>&1 || true
+            if grep -Fq '"otelcol.signal": "logs"' staging-collector.log \
+              && grep -Fq '"otelcol.signal": "metrics"' staging-collector.log \
+              && grep -Fq '"otelcol.signal": "traces"' staging-collector.log; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat staging-collector.log
+          echo 'Staging profile did not export every smoke signal before the timeout.'
           exit 1
 
       - name: Start local Collector
@@ -97,6 +127,11 @@ jobs:
               && grep -Fq 'signal.kind: Str(logs)' collector.log \
               && grep -Fq 'kasitek.otel.smoke.count' collector.log \
               && grep -Fq 'kasitek-otel-smoke-span' collector.log; then
+              if grep -Fq 'kasitek-otel-redaction-sentinel' collector.log; then
+                echo 'Collector exported an attribute that its redaction processor should remove.'
+                cat collector.log
+                exit 1
+              fi
               exit 0
             fi
             sleep 1
@@ -107,4 +142,8 @@ jobs:
 
       - name: Stop local Collector
         if: always()
-        run: docker rm -f kasitek-otel-collector-local-ci
+        run: docker rm -f kasitek-otel-collector-local-ci || true
+
+      - name: Stop staging Collector
+        if: always()
+        run: docker rm -f kasitek-otel-collector-staging-ci || true

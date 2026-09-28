@@ -20,11 +20,11 @@ instructions.
 
 The local endpoints are:
 
-| Purpose | Endpoint |
-| --- | --- |
-| OTLP gRPC | `http://127.0.0.1:4317` |
-| OTLP HTTP/protobuf | `http://127.0.0.1:4318` |
-| Health | `http://127.0.0.1:13133/` |
+| Purpose            | Endpoint                  |
+| ------------------ | ------------------------- |
+| OTLP gRPC          | `http://127.0.0.1:4317`   |
+| OTLP HTTP/protobuf | `http://127.0.0.1:4318`   |
+| Health             | `http://127.0.0.1:13133/` |
 
 Application services should use the standard OpenTelemetry variables for local export. The exact
 SDK setup is added by each service's instrumentation change:
@@ -39,42 +39,66 @@ OTEL_RESOURCE_ATTRIBUTES=deployment.environment.name=local
 Do not put provider credentials in local configuration. Stop the Collector with `Ctrl-C` when the
 test is complete.
 
-## Railway deployment shape
+## Railway staging service
 
-Use one persistent `otel-collector` service in each Railway environment that needs it. Keep the
-service in the same Railway project and environment as the applications, without a public domain.
+The named `otel-collector` partial in `.railway/railway.ts` declares one Railway service from
+`Kasitek-Labs/kasitek-labs`, rooted at `infra/observability/otel-collector`. It uses the checked-in
+Dockerfile, health check, restart policy, and staging config. The declaration does not add a public
+domain or TCP proxy.
 
-For each Railway environment that needs the Collector:
+Pull requests that change `.railway/` get a read-only plan comment from the `Railway IaC plan`
+workflow. Set the repository Actions secret `RAILWAY_TOKEN` to a Railway project token scoped to
+the `staging` environment. The workflow does not apply changes.
 
-1. Add a service from the `Kasitek-Labs/kasitek-labs` GitHub repository.
-2. Set the service root directory to `/infra/observability/otel-collector`.
-3. Let Railway use the checked-in `railway.json`, which selects the pinned `Dockerfile`, health
-   check, and restart policy.
-4. Configure resource limits appropriate to the environment; sizing is not encoded in this
-   provider-neutral service definition.
-5. For the staging service only, set the Custom Start Command to
-   `/otelcol-contrib --config=/etc/otelcol/config.staging.yaml`. Keep the production service on
-   its current source and configuration during this migration. Do not deploy the production
-   template until its destination, retention, and access controls are approved.
-6. Set each application service's OTLP endpoint to the Collector's private address, for example:
+Before applying the partial:
+
+1. Confirm the linked Railway project and environment are isolated staging. Check their current
+   IDs and names with `railway status --json` and `railway environment list --json`. A project
+   label alone does not prove the environment is safe to change.
+2. Link the CLI to the confirmed project and environment, then run
+   `railway config plan --file .railway/railway.ts`.
+3. Inspect the plan. It must affect only the `otel-collector` service in the confirmed staging
+   environment. Stop if it proposes changes to another service, a production environment, or
+   project-wide settings.
+4. Apply only after the target and plan are confirmed. Set resource limits appropriate to the
+   environment; sizing is intentionally not encoded in this provider-neutral service declaration.
+5. Keep the production Collector source, configuration, and application endpoints unchanged.
+   Do not deploy the production template until its destination, retention, and access controls are
+   approved.
+6. After staging verification, configure a staging application service to use the Collector's
+   private address, for example:
 
    ```text
    OTEL_EXPORTER_OTLP_ENDPOINT=http://${{otel-collector.RAILWAY_PRIVATE_DOMAIN}}:4318
    OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
    ```
 
-7. Keep staging and production Collector services and variables separate.
+7. Keep staging and production Collector services and variables separate. Keep OTLP ports `4317`
+   and `4318` private; do not add public domains or TCP proxies.
 
-Railway services in the same environment can communicate through private DNS. The Collector
-should listen on OTLP ports `4317` and `4318` internally; those ports do not need public domains.
+Railway's TypeScript IaC is generally available. CI typechecks `.railway/railway.ts`, but does not
+apply it. Before a staging change, run `railway config plan` against the isolated `staging`
+environment and check that it proposes only the intended Collector change.
+
+## Staging rollback
+
+Before changing a staging producer endpoint, record the previous endpoint and the running Growth
+Collector deployment/config revision. Do not record secret values. If staging export or health
+checks fail, restore the producer's previous OTLP endpoint and redeploy that producer if needed.
+Keep the Growth Collector available until the separate Growth cleanup issue is complete. This
+rollback changes staging only; leave production untouched.
 
 ## Configuration policy
 
 - Pin the Collector image version and update it deliberately.
 - Keep `debug` as the local/staging verification exporter until a durable backend is approved.
+- The `attributes/redact` processor removes matching telemetry attributes only. It does not inspect
+  or redact `LogRecord.body`, free-form strings, span names, or event names. Producers must not
+  export prompts, message bodies, credentials, or raw provider responses in those fields. Treat
+  this Collector as a transport and attribute filter, not a general-purpose privacy scrubber.
 - Add a future backend exporter in environment-specific configuration, not in application code.
-- Do not add backend credentials, tenant data, message bodies, authorization material, or raw
-  provider responses to this directory.
+- Do not add backend credentials, tenant data, authorization material, or raw provider responses
+  to this directory.
 - Keep the Collector optional to application availability: an application must continue serving
   requests and health checks when export is disabled or the Collector is unavailable.
 
@@ -104,3 +128,5 @@ Confirm the Collector output contains `kasitek-otel-smoke` and the log, metric, 
 Growth and Agents CI continue to test their own telemetry SDKs and their behavior when export is
 disabled. The production template documents generic OTLP queue and retry settings. Do not deploy
 it until a durable destination is approved.
+
+Railway IaC reference: [Infrastructure as Code](https://docs.railway.com/infrastructure-as-code).

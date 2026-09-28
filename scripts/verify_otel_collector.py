@@ -57,7 +57,10 @@ def main() -> None:
     }
 
     def marker(signal: str) -> list[dict[str, object]]:
-        return [string_attribute("signal.kind", signal)]
+        return [
+            string_attribute("signal.kind", signal),
+            string_attribute("prompt", f"kasitek-otel-redaction-sentinel-{signal}"),
+        ]
 
     send_signal(
         endpoint,
