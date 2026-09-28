@@ -72,6 +72,18 @@ describe.skipIf(!runIntegration)("protected system agent installations (integrat
       actorId: "user-one",
       systemSlug: slug,
     });
+    const playgroundInstallation = await agents.ensureSystemInstallation({
+      organizationId: organizationOne,
+      actorId: "user-one",
+      systemSlug: slug,
+      settings: { environment: "playground" },
+    });
+    const repeatedPlaygroundInstallation = await agents.ensureSystemInstallation({
+      organizationId: organizationOne,
+      actorId: "user-one",
+      systemSlug: slug,
+      settings: { environment: "playground" },
+    });
     const secondOrganizationInstallation = await agents.ensureSystemInstallation({
       organizationId: organizationTwo,
       actorId: "user-two",
@@ -81,6 +93,11 @@ describe.skipIf(!runIntegration)("protected system agent installations (integrat
     expect(firstInstallation.created).toBe(true);
     expect(repeatedInstallation.created).toBe(false);
     expect(repeatedInstallation.id).toBe(firstInstallation.id);
+    expect(playgroundInstallation.created).toBe(true);
+    expect(playgroundInstallation.id).not.toBe(firstInstallation.id);
+    expect(playgroundInstallation.settings).toMatchObject({ environment: "playground" });
+    expect(repeatedPlaygroundInstallation.created).toBe(false);
+    expect(repeatedPlaygroundInstallation.id).toBe(playgroundInstallation.id);
     expect(secondOrganizationInstallation.id).not.toBe(firstInstallation.id);
     expect(firstInstallation).toMatchObject({
       organization_id: organizationOne,
@@ -98,12 +115,17 @@ describe.skipIf(!runIntegration)("protected system agent installations (integrat
     );
     expect(guidance.rows[0]).toMatchObject({ source_count: "1", chunk_count: "6" });
     expect((await agents.listAgents(organizationOne)).map((agent) => agent.id)).toContain(agentId);
+    expect((await agents.listAgents(organizationOne, { environment: "playground" })).map((agent) => agent.id)).toContain(agentId);
     expect((await agents.listAgents(organizationWithoutInstallation)).map((agent) => agent.id)).not.toContain(agentId);
     expect(await agents.getAgent(organizationTwo, agentId)).toMatchObject({ id: agentId });
     expect(await agents.getAgent(organizationWithoutInstallation, agentId)).toBeNull();
     expect(await agents.getInstallation(organizationTwo, firstInstallation.id)).toBeNull();
     expect(await agents.getSystemInstallation({ organizationId: organizationOne, systemSlug: slug })).toMatchObject({
       id: firstInstallation.id,
+      created: false,
+    });
+    expect(await agents.getSystemInstallation({ organizationId: organizationOne, systemSlug: slug, environment: "playground" })).toMatchObject({
+      id: playgroundInstallation.id,
       created: false,
     });
 

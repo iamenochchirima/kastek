@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { agentSpecSchema, compileAgentSpec } from "../src/domain/agent-spec";
+import { agentSpecSchema, compileAgentSpec, renderAgentBehaviorSettings } from "../src/domain/agent-spec";
 import { createVersionInputSchema } from "../src/domain/types";
 
 const spec = {
@@ -71,5 +71,25 @@ describe("AgentSpec", () => {
       configuration: {},
       policy: {},
     });
+  });
+
+  it("keeps behavior preferences typed and renders them as a separate prompt layer", () => {
+    const parsed = agentSpecSchema.parse({
+      ...spec,
+      behavior: {
+        instructions: spec.behavior.instructions,
+        tone: "direct",
+        responseLength: "short",
+        initiative: "proactive",
+        language: "en-ZA",
+        formatting: "structured",
+        rules: ["Confirm before optional external effects."],
+        advancedInstructions: "Prefer concrete next steps.",
+      },
+    });
+
+    expect(renderAgentBehaviorSettings(parsed.behavior)).toContain("Tone: direct.");
+    expect(renderAgentBehaviorSettings(parsed.behavior)).toContain("- Confirm before optional external effects.");
+    expect(renderAgentBehaviorSettings(parsed.behavior)).toContain("Advanced behavior overlay:");
   });
 });

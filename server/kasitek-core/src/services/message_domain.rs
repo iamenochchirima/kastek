@@ -26,6 +26,16 @@ pub fn channel_capabilities(channel: &str) -> Value {
             "deliveryReceipts": true,
             "readReceipts": true,
         }),
+        "email" => json!({
+            "version": 1,
+            "text": true,
+            "reply": true,
+            "reaction": false,
+            "attachments": { "image": false, "video": false, "audio": false, "document": false, "sticker": false },
+            "providerDelete": false,
+            "deliveryReceipts": false,
+            "readReceipts": false,
+        }),
         _ => json!({
             "version": 1,
             "text": false,

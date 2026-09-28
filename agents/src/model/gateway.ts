@@ -69,6 +69,24 @@ export class ModelGateway {
     return this.adapters.get(provider)?.capabilities;
   }
 
+  /**
+   * Returns the provider-envelope size without credentials or prompt content
+   * leaving the caller's process. The context planner uses this as its final
+   * byte-pressure measurement when the adapter exposes the provider shape.
+   */
+  public estimateRequestBytes(request: ModelRequest): number {
+    const adapter = this.adapters.get(request.provider);
+    if (adapter?.estimateRequestBytes) return adapter.estimateRequestBytes(request);
+    return Buffer.byteLength(JSON.stringify({
+      model: request.model,
+      messages: request.messages,
+      tools: request.tools,
+      temperature: request.temperature,
+      max_tokens: request.maxTokens,
+      response_format: request.responseFormat,
+    }), "utf8");
+  }
+
   public async complete(request: ModelRequest, credentials: ModelCredentials): Promise<ModelResponse> {
     const adapter = this.adapters.get(request.provider);
     if (!adapter) throw new Error(`No model adapter configured for provider ${request.provider}`);
@@ -103,7 +121,9 @@ export class ModelGateway {
           }
           response.structuredOutput = structured;
         }
-        if (response.usage.estimatedCostUsd === undefined) {
+        if (response.usage.estimatedCostUsd === undefined
+          && response.usage.inputTokensReported !== false
+          && response.usage.outputTokensReported !== false) {
           response.usage.estimatedCostUsd = response.usage.providerCostUsd
             ?? this.estimateCost(response.provider, response.model, response.usage.inputTokens, response.usage.outputTokens);
         }
@@ -146,7 +166,9 @@ export class ModelGateway {
       throw error;
     }
     this.recordCircuitSuccess(request, credentials);
-    if (response.usage.estimatedCostUsd === undefined) {
+    if (response.usage.estimatedCostUsd === undefined
+      && response.usage.inputTokensReported !== false
+      && response.usage.outputTokensReported !== false) {
       response.usage.estimatedCostUsd = response.usage.providerCostUsd
         ?? this.estimateCost(response.provider, response.model, response.usage.inputTokens, response.usage.outputTokens);
     }

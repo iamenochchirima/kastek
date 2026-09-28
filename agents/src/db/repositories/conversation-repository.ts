@@ -5,7 +5,7 @@ import {
   enqueueAgentConversationMessage,
   loadAgentConversationAnalyticsContext,
 } from "../../analytics";
-import { purgeMemoryRecords } from "./memory-repository";
+import { purgeMemoryRecords } from "./legacy-memory-cleanup";
 
 export interface ConversationRecord {
   id: string;

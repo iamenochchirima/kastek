@@ -11,6 +11,7 @@ import type {
 import { ModelProviderError, type ModelProvider } from "./types";
 
 interface OpenAICompatibleResponse {
+  id?: string;
   choices?: Array<{
     message?: {
       role?: string;
@@ -59,7 +60,17 @@ function toolNameMaps(tools: ModelRequest["tools"]): {
   }
   return {
     toProvider: (name) => canonicalToProvider.get(name) ?? providerToolName(name),
-    toCanonical: (name) => providerToCanonical.get(name) ?? name,
+    toCanonical: (name) => {
+      const exact = providerToCanonical.get(name);
+      if (exact) return exact;
+      // Some OpenAI-compatible model/provider combinations return a valid
+      // function name with the final character truncated. Restore only a
+      // unique, sufficiently long alias prefix; short or ambiguous names
+      // remain unknown and are rejected by the capability boundary.
+      const prefixMatches = [...providerToCanonical.entries()]
+        .filter(([providerName]) => name.length >= 16 && providerName.startsWith(name));
+      return prefixMatches.length === 1 ? prefixMatches[0]![1] : name;
+    },
   };
 }
 
@@ -69,6 +80,30 @@ export class OpenAICompatibleAdapter implements ModelAdapter {
 
   public constructor(private readonly options: OpenAICompatibleAdapterOptions) {
     this.provider = options.provider;
+  }
+
+  public estimateRequestBytes(request: ModelRequest): number {
+    const names = toolNameMaps(request.tools);
+    return Buffer.byteLength(JSON.stringify({
+      model: request.model,
+      messages: request.messages.map((message) => ({
+        role: message.role,
+        content: message.content,
+        ...(message.toolCallId ? { tool_call_id: message.toolCallId } : {}),
+        ...(message.name ? { name: names.toProvider(message.name) } : {}),
+        ...(message.toolCalls?.length
+          ? { tool_calls: message.toolCalls.map((toolCall) => ({ id: toolCall.id, type: "function", function: { name: names.toProvider(toolCall.name), arguments: JSON.stringify(toolCall.arguments) } })) }
+          : {}),
+      })),
+      ...(request.tools?.length
+        ? { tools: request.tools.map((tool) => ({ type: "function", function: { name: names.toProvider(tool.name), description: tool.description, parameters: tool.inputSchema } })) }
+        : {}),
+      ...(request.temperature === undefined ? {} : { temperature: request.temperature }),
+      ...(request.maxTokens === undefined ? {} : { max_tokens: request.maxTokens }),
+      ...(request.responseFormat
+        ? { response_format: { type: "json_schema", json_schema: { name: request.responseFormat.name, strict: true, schema: request.responseFormat.schema } } }
+        : {}),
+    }), "utf8");
   }
 
   public async complete(request: ModelRequest, credentials: ModelCredentials): Promise<ModelResponse> {
@@ -142,15 +177,22 @@ export class OpenAICompatibleAdapter implements ModelAdapter {
       };
     });
     const providerCostUsd = finiteNonNegativeCost(body.usage?.cost);
+    const inputTokensReported = body.usage?.prompt_tokens !== undefined;
+    const outputTokensReported = body.usage?.completion_tokens !== undefined;
+    const totalTokensReported = body.usage?.total_tokens !== undefined;
     const usage: ModelUsage = {
       inputTokens: body.usage?.prompt_tokens ?? 0,
       outputTokens: body.usage?.completion_tokens ?? 0,
       totalTokens: body.usage?.total_tokens ?? (body.usage?.prompt_tokens ?? 0) + (body.usage?.completion_tokens ?? 0),
+      inputTokensReported,
+      outputTokensReported,
+      totalTokensReported,
       ...(providerCostUsd === undefined ? {} : { providerCostUsd }),
     };
     return {
       provider: this.provider,
       model: request.model,
+      ...(body.id?.trim() ? { providerResponseId: body.id.trim() } : {}),
       message: { role: "assistant", content: choice.message.content ?? "", ...(toolCalls.length ? { toolCalls } : {}) },
       toolCalls,
       finishReason: choice.finish_reason ?? null,
@@ -196,7 +238,12 @@ export class OpenAICompatibleAdapter implements ModelAdapter {
     let finishReason: string | null = null;
     let inputTokens = 0;
     let outputTokens = 0;
+    let totalTokens = 0;
+    let inputTokensReported = false;
+    let outputTokensReported = false;
+    let totalTokensReported = false;
     let providerCostUsd: number | undefined;
+    let providerResponseId: string | undefined;
     let deltaCount = 0;
     const toolCalls: ModelToolCall[] = [];
     const toolArgumentBuffers = new Map<number, string>();
@@ -204,8 +251,9 @@ export class OpenAICompatibleAdapter implements ModelAdapter {
       if (!line.startsWith("data:")) return;
       const payload = line.slice(5).trim();
       if (!payload || payload === "[DONE]") return;
-      let chunk: { choices?: Array<{ delta?: { content?: string | null; tool_calls?: Array<{ index?: number; id?: string; function?: { name?: string; arguments?: string } }> }; finish_reason?: string | null }>; usage?: { prompt_tokens?: number; completion_tokens?: number; cost?: number | string } };
+      let chunk: { id?: string; choices?: Array<{ delta?: { content?: string | null; tool_calls?: Array<{ index?: number; id?: string; function?: { name?: string; arguments?: string } }> }; finish_reason?: string | null }>; usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number; cost?: number | string } };
       try { chunk = JSON.parse(payload) as typeof chunk; } catch { return; }
+      if (chunk.id?.trim()) providerResponseId = chunk.id.trim();
       const choice = chunk.choices?.[0];
       const text = choice?.delta?.content ?? "";
       if (text) { content += text; deltaCount += 1; await onDelta({ type: "text_delta", text }); }
@@ -225,8 +273,9 @@ export class OpenAICompatibleAdapter implements ModelAdapter {
         await onDelta({ type: "tool_call_delta", index, id: call.id, name: call.function?.name ? names.toCanonical(call.function.name) : undefined, argumentsDelta: argumentsText });
       }
       if (choice?.finish_reason) finishReason = choice.finish_reason;
-      inputTokens = chunk.usage?.prompt_tokens ?? inputTokens;
-      outputTokens = chunk.usage?.completion_tokens ?? outputTokens;
+      if (chunk.usage?.prompt_tokens !== undefined) { inputTokens = chunk.usage.prompt_tokens; inputTokensReported = true; }
+      if (chunk.usage?.completion_tokens !== undefined) { outputTokens = chunk.usage.completion_tokens; outputTokensReported = true; }
+      if (chunk.usage?.total_tokens !== undefined) { totalTokens = chunk.usage.total_tokens; totalTokensReported = true; }
       const cost = finiteNonNegativeCost(chunk.usage?.cost);
       if (cost !== undefined) providerCostUsd = cost;
     };
@@ -239,7 +288,24 @@ export class OpenAICompatibleAdapter implements ModelAdapter {
       if (next.done) break;
     }
     if (buffer) await emitLine(buffer);
-    return { provider: this.provider, model: request.model, message: { role: "assistant", content, ...(toolCalls.length ? { toolCalls } : {}) }, toolCalls, finishReason, usage: { inputTokens, outputTokens, totalTokens: inputTokens + outputTokens, ...(providerCostUsd === undefined ? {} : { providerCostUsd }) }, latencyMs: Date.now() - startedAt };
+    return {
+      provider: this.provider,
+      model: request.model,
+      ...(providerResponseId ? { providerResponseId } : {}),
+      message: { role: "assistant", content, ...(toolCalls.length ? { toolCalls } : {}) },
+      toolCalls,
+      finishReason,
+      usage: {
+        inputTokens,
+        outputTokens,
+        totalTokens: totalTokensReported ? totalTokens : inputTokens + outputTokens,
+        inputTokensReported,
+        outputTokensReported,
+        totalTokensReported,
+        ...(providerCostUsd === undefined ? {} : { providerCostUsd }),
+      },
+      latencyMs: Date.now() - startedAt,
+    };
   }
 }
 

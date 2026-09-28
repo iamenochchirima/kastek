@@ -32,6 +32,11 @@ fn spawn_background_workers(pool: sqlx::PgPool, config: AppConfig) {
     ));
     tokio::spawn(observability::in_span(
         "worker",
+        "email_inbox",
+        workers::email_inbox::run(pool.clone(), config.clone()),
+    ));
+    tokio::spawn(observability::in_span(
+        "worker",
         "social_publishing",
         workers::social_publishing::run(pool.clone()),
     ));
@@ -120,6 +125,16 @@ async fn main() -> std::io::Result<()> {
             .await;
             return Ok(());
         }
+        Some("email-inbox-worker") => {
+            observability::tracing::info!(event = "worker.started", worker = "email_inbox");
+            observability::in_span(
+                "worker",
+                "email_inbox",
+                workers::email_inbox::run(db_pool, config),
+            )
+            .await;
+            return Ok(());
+        }
         Some("billing-reconciliation-worker") => {
             observability::tracing::info!(
                 event = "worker.started",
@@ -176,6 +191,11 @@ async fn main() -> std::io::Result<()> {
                     "worker",
                     "whatsapp_inbox",
                     workers::whatsapp_inbox::run(db_pool.clone())
+                ),
+                observability::in_span(
+                    "worker",
+                    "email_inbox",
+                    workers::email_inbox::run(db_pool.clone(), config.clone())
                 ),
                 observability::in_span(
                     "worker",

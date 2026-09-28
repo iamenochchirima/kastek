@@ -23,6 +23,7 @@ pub mod connections;
 pub mod customers;
 pub mod developers;
 pub mod early_access;
+pub mod email;
 pub mod health;
 pub mod inbox;
 pub mod notifications;

@@ -1,12 +1,10 @@
 const DEFAULT_API_BASE_URL = "http://localhost:4000";
 
 export function getApiBaseUrl() {
-  // Production browser requests go directly to Core. The proxy is a local-development option.
-  if (
-    typeof window !== "undefined" &&
-    process.env.NODE_ENV !== "production" &&
-    process.env.NEXT_PUBLIC_USE_API_PROXY === "true"
-  ) {
+  // Browser requests stay on the app origin so the session and active-workspace
+  // cookies reach the authenticated Core proxy. Direct browser-to-Core requests
+  // are an opt-out for hosts that do not ship the Next API proxy.
+  if (typeof window !== "undefined" && process.env.NEXT_PUBLIC_USE_API_PROXY !== "false") {
     return "";
   }
 

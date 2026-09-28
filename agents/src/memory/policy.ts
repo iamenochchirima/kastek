@@ -1,6 +1,18 @@
-import type { MemoryNamespace, MemoryType } from "../db/repositories/memory-repository";
+import type { MemoryNamespace, MemoryType } from "./legacy-contracts";
 
 export type MemoryPolicyMode = "disabled" | "explicit" | "reviewed" | "automatic";
+
+/**
+ * An external projection is an opt-in policy decision, not a property of a
+ * memory candidate.  Keeping the contract here means consolidation can only
+ * request a provider projection after the agent policy has explicitly named
+ * the provider and projection contract.
+ */
+export interface MemoryProviderProjectionPolicy {
+  providerName: string;
+  projectionVersion: string;
+  payload: Record<string, unknown>;
+}
 
 export interface MemoryPolicy {
   mode: MemoryPolicyMode;
@@ -12,6 +24,7 @@ export interface MemoryPolicy {
   maxWritesPerRun: number;
   retentionDays?: number;
   allowSensitive: boolean;
+  providerProjection?: MemoryProviderProjectionPolicy;
 }
 
 const allNamespaces: MemoryNamespace[] = ["conversation", "user_private", "organization_shared", "agent_private"];
@@ -30,6 +43,26 @@ function enumList<T extends string>(value: unknown, values: readonly T[], fallba
   return result.length ? Array.from(new Set(result)) : [];
 }
 
+function providerProjection(value: unknown): MemoryProviderProjectionPolicy | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+  const raw = value as Record<string, unknown>;
+  const providerName = typeof raw.providerName === "string" ? raw.providerName.trim() : "";
+  if (!providerName || providerName.length > 160) return undefined;
+  const projectionVersion = raw.projectionVersion === undefined
+    ? "v1"
+    : typeof raw.projectionVersion === "string" ? raw.projectionVersion.trim() : "";
+  if (!projectionVersion || projectionVersion.length > 80) return undefined;
+  const payload = raw.payload;
+  if (payload !== undefined && (typeof payload !== "object" || payload === null || Array.isArray(payload))) return undefined;
+  try {
+    const normalizedPayload = payload === undefined ? {} : JSON.parse(JSON.stringify(payload)) as Record<string, unknown>;
+    if (JSON.stringify(normalizedPayload).length > 16_000) return undefined;
+    return { providerName, projectionVersion, payload: normalizedPayload };
+  } catch {
+    return undefined;
+  }
+}
+
 /**
  * Normalize user-editable policy data at the runtime boundary. Unknown fields
  * are ignored and limits are always bounded before they reach a repository or
@@ -44,6 +77,7 @@ export function normalizeMemoryPolicy(value: unknown): MemoryPolicy {
   const retentionDays = retentionCandidate === undefined || retentionCandidate === null || retentionCandidate === ""
     ? undefined
     : boundedInteger(retentionCandidate, 365, 1, 3_650);
+  const normalizedProviderProjection = providerProjection(raw.providerProjection);
   return {
     mode,
     readableNamespaces: enumList(raw.readableNamespaces, allNamespaces, allNamespaces),
@@ -54,6 +88,7 @@ export function normalizeMemoryPolicy(value: unknown): MemoryPolicy {
     maxWritesPerRun: boundedInteger(raw.maxWritesPerRun, 3, 0, 20),
     ...(retentionDays === undefined ? {} : { retentionDays }),
     allowSensitive: raw.allowSensitive === true,
+    ...(normalizedProviderProjection ? { providerProjection: normalizedProviderProjection } : {}),
   };
 }
 

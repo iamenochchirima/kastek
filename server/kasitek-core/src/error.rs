@@ -20,6 +20,11 @@ pub enum AppError {
     ServiceUnavailable(String),
     BadGateway(String),
     GatewayTimeout(String),
+    Upstream {
+        code: &'static str,
+        message: String,
+        status: StatusCode,
+    },
     Referral {
         code: &'static str,
         message: String,
@@ -41,6 +46,7 @@ impl fmt::Display for AppError {
             Self::ServiceUnavailable(message) => write!(f, "service unavailable: {message}"),
             Self::BadGateway(message) => write!(f, "bad gateway: {message}"),
             Self::GatewayTimeout(message) => write!(f, "gateway timeout: {message}"),
+            Self::Upstream { message, .. } => write!(f, "upstream: {message}"),
             Self::Referral { message, .. } => write!(f, "referral: {message}"),
             Self::Internal(message) => write!(f, "internal: {message}"),
         }
@@ -95,6 +101,12 @@ impl ResponseError for AppError {
                 error: message.clone(),
                 code,
             }),
+            Self::Upstream {
+                message, status, ..
+            } => HttpResponse::build(*status).json(ErrorResponse {
+                error: message.clone(),
+                code,
+            }),
             Self::Referral {
                 message, status, ..
             } => HttpResponse::build(*status).json(ErrorResponse {
@@ -125,6 +137,7 @@ impl AppError {
             Self::ServiceUnavailable(_) => "service_unavailable",
             Self::BadGateway(_) => "bad_gateway",
             Self::GatewayTimeout(_) => "gateway_timeout",
+            Self::Upstream { code, .. } => code,
             Self::Referral { code, .. } => code,
             Self::Internal(_) => "internal_error",
         }
@@ -132,6 +145,14 @@ impl AppError {
 
     pub fn referral(code: &'static str, message: impl Into<String>, status: StatusCode) -> Self {
         Self::Referral {
+            code,
+            message: message.into(),
+            status,
+        }
+    }
+
+    pub fn upstream(code: &'static str, message: impl Into<String>, status: StatusCode) -> Self {
+        Self::Upstream {
             code,
             message: message.into(),
             status,

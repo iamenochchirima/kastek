@@ -16,39 +16,33 @@ import {
   Archive,
   ArrowLeft,
   Bot,
-  Check,
-  ChevronDown,
   ChevronRight,
   Copy,
   LoaderCircle,
   MessageCircle,
   MoreHorizontal,
   PanelLeft,
-  Pencil,
   Pin,
   Plus,
   RotateCcw,
   Search,
-  Send,
   Settings2,
   SlidersHorizontal,
-  Activity,
   Sparkles,
-  Square,
   Trash2,
   Unlink,
   X,
 } from "lucide-react";
-import ReactMarkdown, { type Components } from "react-markdown";
-import remarkGfm from "remark-gfm";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   cancelAgentRun,
+  activeConversationRun,
+  isActiveAgentRunStatus,
   createPlatformConversation,
   disconnectKasiAiChannel,
   ensureKasiAi,
   getKasiAiHome,
-  decideAgentRunApproval,
+  getAgentRunTimeline,
   getAudioTranscriptionJob,
   getAgentRun,
   getPlatformConversation,
@@ -67,21 +61,22 @@ import {
   updateKasiAiConversation,
   updateKasiAiPreferences,
   AgentRequestError,
-  type AgentApproval,
+  type AgentApprovalGroup,
   type AgentChannelBinding,
   type AgentConversation,
   type AgentInstallation,
   type AgentMessage,
+  type AgentRuntimeTelemetry,
   type KasiAiHome,
   type KasiAiModel,
   type KasiAiPreferences,
   type WhatsappConnectionOption,
 } from "@/lib/agent-platform";
-import { AgentApprovalPreview } from "@/components/dashboard/agents/agent-approval-preview";
-import { AgentMessageMedia, agentMessageHasMedia } from "@/components/dashboard/agents/agent-message-media";
-import { AgentAuthorizationAction } from "@/components/dashboard/agents/agent-authorization-action";
-import { AudioMessageControl } from "@/components/dashboard/kasiai/audio-message-control";
-import { DynamicUiRenderer } from "@/components/dashboard/kasiai/dynamic-ui-renderer";
+import { AgentApprovalGroupActions } from "@/components/dashboard/agents/agent-approval-group-actions";
+import { AgentChatComposer } from "@/components/dashboard/agents/agent-chat-composer";
+import { AgentChatMessageList, channelLabel, messageChannel, messageText } from "@/components/dashboard/agents/agent-chat-message-list";
+import { AgentChatRunStatus } from "@/components/dashboard/agents/agent-chat-run-status";
+import { AgentChatSurface } from "@/components/dashboard/agents/agent-chat-surface";
 import type { AgentUiInteraction } from "@/components/dashboard/kasiai/dynamic-ui-renderer";
 import { cn } from "@/lib/utils";
 
@@ -97,89 +92,6 @@ const MAX_WIDTH = 1500;
 const EMPTY_MODELS: KasiAiModel[] = [];
 
 type UiInteractionRequest = AgentUiInteraction & { messageId: string };
-
-const markdownComponents: Components = {
-  h1: ({ children }) => (
-    <h3 className="mt-3 text-base font-semibold first:mt-0">{children}</h3>
-  ),
-  h2: ({ children }) => (
-    <h4 className="mt-3 text-sm font-semibold first:mt-0">{children}</h4>
-  ),
-  p: ({ children }) => <p className="mt-2 first:mt-0">{children}</p>,
-  ul: ({ children }) => (
-    <ul className="mt-2 list-disc space-y-1 pl-5 first:mt-0">{children}</ul>
-  ),
-  ol: ({ children }) => (
-    <ol className="mt-2 list-decimal space-y-1 pl-5 first:mt-0">{children}</ol>
-  ),
-  code: ({ children, className }) =>
-    className ? (
-      <code className="my-2 block overflow-x-auto rounded-md bg-black/15 p-2 text-xs">
-        {children}
-      </code>
-    ) : (
-      <code className="rounded bg-black/15 px-1 py-0.5 text-[0.85em]">
-        {children}
-      </code>
-    ),
-  a: ({ children, href }) =>
-    /^(https?:|mailto:)/i.test(href ?? "") ? (
-      <a
-        href={href}
-        target="_blank"
-        rel="noreferrer"
-        className="underline underline-offset-2"
-      >
-        {children}
-      </a>
-    ) : (
-      <>{children}</>
-    ),
-  table: ({ children }) => (
-    <div className="my-2 overflow-x-auto">
-      <table className="w-full border-collapse text-left text-xs">
-        {children}
-      </table>
-    </div>
-  ),
-  th: ({ children }) => (
-    <th className="border border-current/20 px-2 py-1 font-semibold">
-      {children}
-    </th>
-  ),
-  td: ({ children }) => (
-    <td className="border border-current/20 px-2 py-1 align-top">{children}</td>
-  ),
-};
-
-const channelLabels: Record<string, string> = {
-  whatsapp: "WhatsApp",
-  telegram: "Telegram",
-  discord: "Discord",
-};
-
-function channelLabel(channel: string) {
-  return (
-    channelLabels[channel.toLowerCase()] ??
-    `${channel.slice(0, 1).toUpperCase()}${channel.slice(1)}`
-  );
-}
-function messageChannel(message: AgentMessage) {
-  return (
-    message.source_channel ||
-    message.provider ||
-    "platform"
-  ).toLowerCase();
-}
-function messageText(message: AgentMessage) {
-  if (typeof message.content?.text === "string") return message.content.text;
-  if (Array.isArray(message.content?.media) || typeof message.content?.assetId === "string") return "Attachment";
-  return JSON.stringify(message.content);
-}
-function messageRenderText(message: AgentMessage) {
-  if (agentMessageHasMedia(message) && typeof message.content?.text !== "string") return "";
-  return messageText(message);
-}
 function sorted(messages: AgentMessage[]) {
   return [...messages].sort(
     (a, b) => Number(a.sequence_number) - Number(b.sequence_number),
@@ -313,15 +225,6 @@ const terminalRunStatuses = new Set([
   "cancelled",
   "expired",
 ]);
-const activeRunStatuses = new Set([
-  "received",
-  "queued",
-  "running",
-  "awaiting_approval",
-  "awaiting_human",
-  "awaiting_external_event",
-]);
-
 function runProgressLabel(status: string) {
   if (status === "awaiting_approval") return "Waiting for approval…";
   if (status === "awaiting_human") return "Waiting for a workspace member…";
@@ -442,6 +345,8 @@ export function KasiAiChat({
   const [sending, setSending] = useState(false);
   const [activeRunId, setActiveRunId] = useState<string | null>(null);
   const [lastRunId, setLastRunId] = useState<string | null>(null);
+  const [runtimeTelemetry, setRuntimeTelemetry] = useState<AgentRuntimeTelemetry | null>(null);
+  const [runtimeDetailsOpen, setRuntimeDetailsOpen] = useState(false);
   const [runProgress, setRunProgress] = useState("Preparing request…");
   const [runEvents, setRunEvents] = useState<
     Array<{ event: string; label: string }>
@@ -449,7 +354,7 @@ export function KasiAiChat({
   const [runStatuses, setRunStatuses] = useState<Record<string, string>>({});
   const [pendingApproval, setPendingApproval] = useState<{
     runId: string;
-    approval: AgentApproval;
+    approvalGroup: AgentApprovalGroup;
     canApprove: boolean;
   } | null>(null);
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
@@ -477,9 +382,7 @@ export function KasiAiChat({
   const [initialised, setInitialised] = useState(false);
   const streamAbort = useRef<AbortController | null>(null);
   const sendLocked = useRef(false);
-  const messagesEnd = useRef<HTMLDivElement | null>(null);
   const composerRef = useRef<HTMLTextAreaElement | null>(null);
-  const viewport = useRef<HTMLDivElement | null>(null);
   const resizeStart = useRef<{ x: number; width: number } | null>(null);
   const panelRef = useRef<HTMLElement | null>(null);
   const mobileNavigationPanelRef = useRef<HTMLDivElement | null>(null);
@@ -489,6 +392,7 @@ export function KasiAiChat({
   const conversationSelection = useRef(0);
   const runStatusesRef = useRef<Record<string, string>>({});
   const activeRunIdRef = useRef<string | null>(null);
+  const cancellationRequestedRun = useRef<string | null>(null);
 
   const models = home?.models ?? EMPTY_MODELS;
   const activeConversations = home?.conversations ?? [];
@@ -519,6 +423,26 @@ export function KasiAiChat({
   useEffect(() => {
     activeRunIdRef.current = activeRunId;
   }, [activeRunId]);
+
+  useEffect(() => {
+    const runId = activeRunId ?? lastRunId;
+    if (!runId) {
+      setRuntimeTelemetry(null);
+      return;
+    }
+    let cancelled = false;
+    const refreshRuntimeTelemetry = async () => {
+      const timeline = await getAgentRunTimeline(runId).catch(() => null);
+      if (!cancelled) setRuntimeTelemetry(timeline?.telemetry ?? null);
+    };
+    void refreshRuntimeTelemetry();
+    if (!activeRunId) return () => { cancelled = true; };
+    const timer = window.setInterval(() => { void refreshRuntimeTelemetry(); }, 1_000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [activeRunId, lastRunId]);
 
   const recordRunStatus = useCallback((runId: string, status: string) => {
     runStatusesRef.current = { ...runStatusesRef.current, [runId]: status };
@@ -553,7 +477,7 @@ export function KasiAiChat({
             return {
               runId,
               status: result.run.status,
-              approval: result.approval,
+              approvalGroup: result.approvalGroup,
               canApprove: result.canApprove !== false,
               events: result.events,
             };
@@ -565,8 +489,15 @@ export function KasiAiChat({
       results.forEach((result) => {
         if (!result) return;
         recordRunStatus(result.runId, result.status);
-        const active = activeRunStatuses.has(result.status);
-        if (
+        const active = isActiveAgentRunStatus(result.status);
+        const cancellationRequested = cancellationRequestedRun.current === result.runId;
+        if (cancellationRequested && active) {
+          activeRunIdRef.current = result.runId;
+          setActiveRunId(result.runId);
+          setLastRunId(result.runId);
+          setRunProgress("Cancellation requested…");
+          setSending(true);
+        } else if (
           activeRunIdRef.current === result.runId ||
           (active && activeRunIdRef.current === null)
         ) {
@@ -594,13 +525,16 @@ export function KasiAiChat({
             );
           }
         }
+        if (cancellationRequested && !active) {
+          cancellationRequestedRun.current = null;
+        }
         if (
           result.status === "awaiting_approval" &&
-          result.approval?.status === "pending"
+          result.approvalGroup?.status === "pending"
         ) {
           setPendingApproval({
             runId: result.runId,
-            approval: result.approval,
+            approvalGroup: result.approvalGroup,
             canApprove: result.canApprove,
           });
         } else if (result.status !== "awaiting_approval") {
@@ -638,6 +572,7 @@ export function KasiAiChat({
       streamAbort.current?.abort();
       streamAbort.current = null;
       activeRunIdRef.current = null;
+      cancellationRequestedRun.current = null;
       setSending(false);
       setActiveRunId(null);
       setPendingApproval(null);
@@ -656,9 +591,7 @@ export function KasiAiChat({
         result.activeRuns?.map((run) => run.id) ?? [],
       );
       if (selection !== conversationSelection.current) return;
-      const active = refreshedRuns.find((run) =>
-        activeRunStatuses.has(run.status),
-      );
+      const active = refreshedRuns.find((run) => isActiveAgentRunStatus(run.status));
       if (active) {
         activeRunIdRef.current = active.runId;
         setActiveRunId(active.runId);
@@ -738,6 +671,7 @@ export function KasiAiChat({
     if (open) return;
     conversationSelection.current += 1;
     activeRunIdRef.current = null;
+    cancellationRequestedRun.current = null;
     setInitialised(false);
     streamAbort.current?.abort();
     setConversation(null);
@@ -809,12 +743,6 @@ export function KasiAiChat({
   useEffect(() => {
     window.localStorage.setItem(DRAFT_KEY, draft);
   }, [draft]);
-  useEffect(() => {
-    messagesEnd.current?.scrollIntoView({
-      behavior: sending ? "smooth" : "auto",
-      block: "end",
-    });
-  }, [messages, sending]);
   const polledConversationId = conversation?.id;
   useEffect(() => {
     if (!open || !polledConversationId || document.visibilityState === "hidden")
@@ -893,7 +821,7 @@ export function KasiAiChat({
     uiInteraction?: UiInteractionRequest,
   ) => {
     const text = audioFile ? "" : (suggestion ?? draft).trim();
-    if ((!text && !audioFile && !uiInteraction) || !installation || sending || sendLocked.current)
+    if ((!text && !audioFile && !uiInteraction) || !installation || sending || sendLocked.current || cancellationRequestedRun.current)
       return;
     sendLocked.current = true;
     const selection = conversationSelection.current;
@@ -905,6 +833,7 @@ export function KasiAiChat({
     setAudioRetryJobId(null);
     setSending(true);
     let audioJobId: string | null = null;
+    let adoptedActiveRun = false;
     const optimistic: AgentMessage | null = retryRunId || uiInteraction
       ? null
       : {
@@ -1087,11 +1016,11 @@ export function KasiAiChat({
                     recordDisplayedRunStatus(accepted.runId, result.run.status);
                     if (
                       result.run.status === "awaiting_approval" &&
-                      result.approval?.status === "pending"
+                      result.approvalGroup?.status === "pending"
                     ) {
                       setPendingApproval({
                         runId: accepted.runId,
-                        approval: result.approval,
+                        approvalGroup: result.approvalGroup,
                         canApprove: result.canApprove !== false,
                       });
                     }
@@ -1157,6 +1086,26 @@ export function KasiAiChat({
       }
     } catch (cause) {
       if (selection === conversationSelection.current) {
+        if (cause instanceof AgentRequestError && cause.status === 409 && targetConversation?.id) {
+          try {
+            const current = await getPlatformConversation(targetConversation.id);
+            const activeRun = activeConversationRun(current.activeRuns);
+            if (activeRun) {
+              setConversation(current.conversation);
+              setMessages((items) => mergeMessages(items.filter((item) => item.id !== optimistic?.id), current.messages));
+              await refreshRunStatuses(current.messages, [activeRun.id]);
+              activeRunIdRef.current = activeRun.id;
+              setActiveRunId(activeRun.id);
+              setLastRunId(activeRun.id);
+              setSending(true);
+              setRunProgress(runProgressLabel(activeRun.status));
+              adoptedActiveRun = true;
+              setError(null);
+            }
+          } catch {
+            // Preserve the original conflict when the reconciliation read also fails.
+          }
+        }
         setMessages((current) =>
           optimistic
             ? current.filter((message) => message.id !== optimistic.id)
@@ -1169,18 +1118,20 @@ export function KasiAiChat({
           }
           if (!retryRunId) setDraft(text);
           if (!audioJobId) setAudioRetryJobId(null);
-          setError(
-            formatError(cause, "KasiAi could not complete this request"),
-          );
+          if (!adoptedActiveRun) setError(formatError(cause, "KasiAi could not complete this request"));
         }
       }
     } finally {
       if (selection === conversationSelection.current) {
         sendLocked.current = false;
-        streamAbort.current = null;
-        activeRunIdRef.current = null;
-        setActiveRunId(null);
-        setSending(false);
+        if (!adoptedActiveRun) {
+          streamAbort.current = null;
+          if (cancellationRequestedRun.current !== acceptedRunId) {
+            activeRunIdRef.current = null;
+            setActiveRunId(null);
+            setSending(false);
+          }
+        }
       }
     }
   };
@@ -1254,13 +1205,12 @@ export function KasiAiChat({
     composerRef.current?.focus();
   };
   const stop = async () => {
-    if (!activeRunId) return;
+    const runId = activeRunId;
+    if (!runId || cancellationRequestedRun.current === runId) return;
+    cancellationRequestedRun.current = runId;
     setRunProgress("Cancellation requested…");
-    await cancelAgentRun(activeRunId).catch(() => undefined);
     streamAbort.current?.abort();
-    activeRunIdRef.current = null;
-    setSending(false);
-    setActiveRunId(null);
+    await cancelAgentRun(runId).catch(() => undefined);
   };
   const changeModel = async (value: string) => {
     if (!conversation) return;
@@ -1371,10 +1321,6 @@ export function KasiAiChat({
     await disconnectKasiAiChannel(binding.id);
     await refreshHome(installation!.id);
   };
-  const visibleMessages =
-    channelFilter === "all"
-      ? messages
-      : messages.filter((message) => messageChannel(message) === channelFilter);
   const availableChannels = Array.from(
     new Set(
       messages.map(messageChannel).filter((channel) => channel !== "platform"),
@@ -1604,405 +1550,74 @@ export function KasiAiChat({
             />
           ) : null}
           {view === "chat" ? (
-            <>
-              {loading ? (
-                <div className="flex flex-1 items-center justify-center gap-2 text-sm text-muted-foreground">
-                  <LoaderCircle className="h-4 w-4 animate-spin" />
-                  Preparing KasiAi…
-                </div>
-              ) : (
-                <>
-                  {conversation ? (
-                    <div
-                      ref={viewport}
-                      className="flex-1 overflow-y-auto px-4 py-5"
-                    >
-                      {hasMore ? (
-                        <div className="mb-3 text-center">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => void loadOlder()}
-                          >
-                            Load earlier messages
-                          </Button>
-                        </div>
-                      ) : null}
-                      {availableChannels.length ? (
-                        <div className="mb-4 flex gap-1 overflow-x-auto">
-                          {["all", ...availableChannels].map((channel) => (
-                            <Button
-                              key={channel}
-                              variant={
-                                channelFilter === channel
-                                  ? "secondary"
-                                  : "ghost"
-                              }
-                              size="sm"
-                              className="h-7 px-2 text-[11px]"
-                              onClick={() => setChannelFilter(channel)}
-                            >
-                              {channel === "all"
-                                ? "All messages"
-                                : channelLabel(channel)}
-                            </Button>
-                          ))}
-                        </div>
-                      ) : null}
-                      <div className="mx-auto max-w-3xl space-y-4">
-                        {visibleMessages.map((message) => {
-                          const source = messageChannel(message);
-                          const delivery =
-                            message.direction === "outbound" &&
-                            message.delivery_status &&
-                            message.delivery_status !== "local"
-                              ? ` · ${message.delivery_status}`
-                              : "";
-                          const runStatus = message.run_id
-                            ? runStatuses[message.run_id]
-                            : undefined;
-                          const retryable =
-                            source === "platform" &&
-                            message.direction === "inbound" &&
-                            ["failed", "cancelled", "expired"].includes(
-                              runStatus ?? "",
-                            );
-                          return (
-                            <div
-                              key={message.id}
-                              className={cn(
-                                "group flex",
-                                message.direction === "outbound"
-                                  ? "justify-start"
-                                  : "justify-end",
-                              )}
-                            >
-                              <div
-                                className={cn(
-                                  "min-w-0 break-words",
-                                  message.direction === "outbound"
-                                    ? "w-full"
-                                    : "max-w-[88%]",
-                                )}
-                              >
-                                {source !== "platform" ? (
-                                  <div
-                                    className={cn(
-                                      "mb-1 text-[10px] text-muted-foreground",
-                                      message.direction === "outbound"
-                                        ? "text-left"
-                                        : "text-right",
-                                    )}
-                                  >
-                                    {channelLabel(source)}
-                                    {delivery}
-                                  </div>
-                                ) : null}
-                                <div
-                                  className={cn(
-                                    "text-sm leading-6",
-                                    message.direction === "outbound"
-                                      ? "w-full px-0 py-1 text-foreground"
-                                      : "rounded-2xl rounded-br-sm bg-primary px-3.5 py-2.5 text-primary-foreground",
-                                    retryable && "ring-1 ring-destructive/60",
-                                  )}
-                                >
-                                  <AgentMessageMedia message={message} />
-                                  {message.direction === "outbound" ? (
-                                    <ReactMarkdown
-                                      remarkPlugins={[remarkGfm]}
-                                      components={markdownComponents}
-                                      skipHtml
-                                    >
-                                      {messageRenderText(message)}
-                                    </ReactMarkdown>
-                                  ) : (
-                                    messageRenderText(message)
-                                  )}
-                                  {message.direction === "outbound" && source === "platform" ? (
-                                    <DynamicUiRenderer
-                                      ui={message.content.ui}
-                                      onInteraction={!isArchivedChat ? (interaction) => void send(undefined, undefined, undefined, { ...interaction, messageId: message.id }) : undefined}
-                                    />
-                                  ) : null}
-                                  <AgentAuthorizationAction message={message} />
-                                </div>
-                                {source === "platform" &&
-                                message.direction === "inbound" &&
-                                !isArchivedChat ? (
-                                  <>
-                                    <div className="pointer-events-none mt-1 flex items-center justify-end gap-0.5 opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100">
-                                      <Button
-                                        type="button"
-                                        variant="ghost"
-                                        size="icon"
-                                        className="h-7 w-7"
-                                        onClick={() =>
-                                          void copyMessage(message)
-                                        }
-                                        aria-label="Copy message"
-                                        title="Copy message"
-                                      >
-                                        <Copy className="h-3.5 w-3.5" />
-                                      </Button>
-                                      <Button
-                                        type="button"
-                                        variant="ghost"
-                                        size="icon"
-                                        className="h-7 w-7"
-                                        onClick={() => editMessage(message)}
-                                        aria-label="Edit and resend message"
-                                        title="Edit and resend message"
-                                      >
-                                        <Pencil className="h-3.5 w-3.5" />
-                                      </Button>
-                                      {retryable ? (
-                                        <Button
-                                          type="button"
-                                          variant="outline"
-                                          size="sm"
-                                          className="h-7 gap-1 px-2 text-[11px] text-destructive"
-                                          onClick={() => retryMessage(message)}
-                                          disabled={sending}
-                                          aria-label="Retry message"
-                                        >
-                                          <RotateCcw className="h-3.5 w-3.5" />
-                                          Retry
-                                        </Button>
-                                      ) : null}
-                                    </div>
-                                    {retryable ? (
-                                      <p className="mt-0.5 text-right text-[10px] text-destructive">
-                                        Run {runStatus}
-                                      </p>
-                                    ) : null}
-                                  </>
-                                ) : null}
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                      {pendingApproval &&
-                      pendingApproval.runId === lastRunId ? (
-                        <KasiAiApprovalPrompt
-                          runId={pendingApproval.runId}
-                          approval={pendingApproval.approval}
-                          canApprove={pendingApproval.canApprove}
-                          onDecision={(decision) => {
-                            setPendingApproval(null);
-                            setRunProgress(
-                              decision === "approved"
-                                ? "Approval accepted; resuming…"
-                                : "Approval denied",
-                            );
-                          }}
-                        />
-                      ) : null}
-                      {lastRunId ? (
-                        <div className="mx-auto mt-5 max-w-3xl rounded-lg border border-border bg-card px-3 py-2 text-xs">
-                          <div className="flex items-center justify-between gap-3">
-                            <div className="flex min-w-0 items-center gap-2 text-muted-foreground">
-                              <Activity className="h-3.5 w-3.5 shrink-0 text-primary" />
-                              <span className="truncate">{runProgress}</span>
-                            </div>
-                            <Link
-                              href={`/agents/activity/${encodeURIComponent(lastRunId)}`}
-                              className="shrink-0 font-medium text-primary hover:underline"
-                            >
-                              View activity
-                            </Link>
-                          </div>
-                          {runEvents.length ? (
-                            <div
-                              className="mt-2 flex flex-wrap gap-1.5"
-                              aria-label="Run activity"
-                            >
-                              {runEvents.map((entry, index) => (
-                                <span
-                                  key={`${entry.event}-${index}`}
-                                  className={cn(
-                                    "rounded-full px-2 py-0.5 text-[10px]",
-                                    entry.event.includes("failed")
-                                      ? "bg-destructive/10 text-destructive"
-                                      : entry.event.includes("approval")
-                                        ? "bg-status-attention-soft text-status-attention"
-                                        : "bg-secondary text-muted-foreground",
-                                  )}
-                                >
-                                  {entry.label}
-                                </span>
-                              ))}
-                            </div>
-                          ) : null}
-                        </div>
-                      ) : null}
-                      {sending ? (
-                        <div className="mx-auto mt-3 flex max-w-3xl items-center gap-2 text-xs text-muted-foreground">
-                          <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
-                          KasiAi is working…
-                        </div>
-                      ) : null}
-                      <div ref={messagesEnd} />
-                    </div>
-                  ) : (
-                    <NewChatHome
-                      suggestions={suggestions}
-                      onSuggestion={(suggestion) => void send(suggestion)}
-                    />
-                  )}
-                  {groundingSummary ? (
-                    <div
-                      className="mx-4 mb-2 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-[10px] text-muted-foreground"
-                      aria-label="Grounding summary"
-                    >
-                      <span className="font-medium text-foreground">
-                        Grounded response
-                      </span>
-                      {groundingSummary.organizationScoped
-                        ? " · workspace scoped"
-                        : " · scope unavailable"}
-                      {groundingSummary.toolEvidence
-                        ? ` · ${groundingSummary.toolEvidence.used?.length ?? 0} tools used`
-                        : ""}
-                      {groundingSummary.reviewedKnowledge?.requested
-                        ? ` · ${groundingSummary.reviewedKnowledge.matchedChunks ?? 0} reviewed sources`
-                        : " · no reviewed sources requested"}
-                      {groundingSummary.unavailableActions?.length
-                        ? ` · ${groundingSummary.unavailableActions.length} unavailable action${groundingSummary.unavailableActions.length === 1 ? "" : "s"}`
-                        : ""}
-                      {groundingSummary.uncertainty === "not_asserted"
-                        ? " · no unsupported certainty"
-                        : ""}
-                    </div>
-                  ) : null}
-                  {error ? (
-                    <div
-                      className="mx-4 mb-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive"
-                      role="alert"
-                    >
-                      <div className="flex items-center justify-between gap-3">
-                        <span>{error}</span>
-                        {audioRetryJobId ? (
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            className="h-7 shrink-0 gap-1 px-2 text-[11px]"
-                            onClick={() => void retryAudio()}
-                            disabled={sending}
-                          >
-                            <RotateCcw className="h-3.5 w-3.5" />
-                            Retry
-                          </Button>
-                        ) : null}
-                      </div>
-                    </div>
-                  ) : null}
-                  <footer className="border-t border-border p-3">
-                    {isArchivedChat ? (
-                      <div className="rounded-xl border border-border bg-muted/40 px-3 py-3 text-xs text-muted-foreground">
-                        This chat is archived. Restore it from the conversation
-                        library to continue it.
-                      </div>
-                    ) : (
-                      <div className="rounded-xl border border-border bg-card p-2 focus-within:border-primary/50">
-                        {editingMessageId ? (
-                          <div className="mb-2 flex items-center justify-between gap-2 rounded-md bg-primary/5 px-2 py-1.5 text-[11px] text-muted-foreground">
-                            <span className="font-medium text-foreground">
-                              Editing message
-                            </span>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              className="h-6 px-2 text-[10px]"
-                              onClick={cancelEdit}
-                            >
-                              Cancel
-                            </Button>
-                          </div>
-                        ) : null}
-                        <div className="mb-1 flex items-center justify-between gap-2">
-                          <ComposerModelPicker
-                            model={activeModel}
-                            models={models}
-                            disabled={!conversation || sending}
-                            onSelect={(value) => void changeModel(value)}
-                          />
-                          {conversation && !conversation.is_primary ? (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-6 text-[10px]"
-                              onClick={() =>
-                                void setKasiAiChannelDefault(
-                                  conversation.id,
-                                ).then(async (updated) => {
-                                  setConversation(updated);
-                                  await refreshHome(installation!.id);
-                                })
-                              }
-                            >
-                              Use for channels
-                            </Button>
-                          ) : null}
-                        </div>
-                        <textarea
-                          ref={composerRef}
-                          value={draft}
-                          onChange={(event) => setDraft(event.target.value)}
-                          onKeyDown={(event) => {
-                            if (event.key === "Enter" && !event.shiftKey) {
-                              event.preventDefault();
-                              void send();
-                            }
-                          }}
-                          placeholder={
-                            conversation ? "Ask KasiAi…" : "Start a new chat…"
-                          }
-                          rows={2}
-                          disabled={sending || !installation}
-                          className="min-h-12 w-full resize-none bg-transparent px-1 py-1 text-sm outline-none"
-                          aria-label="Message KasiAi"
-                        />
-                        <div className="flex items-center justify-between pt-1">
-                          <div className="flex min-w-0 items-center gap-1">
-                            <AudioMessageControl
-                              disabled={sending || !installation}
-                              onAudioReady={sendAudio}
-                              onError={(message) => setError(message)}
-                            />
-                            <span className="hidden text-[10px] text-muted-foreground sm:inline">
-                              Enter to send · Shift+Enter for a new line
-                            </span>
-                          </div>
-                          {sending ? (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => void stop()}
-                            >
-                              <Square className="h-3.5 w-3.5" />
-                              Stop
-                            </Button>
-                          ) : (
-                            <Button
-                              size="sm"
-                              disabled={!draft.trim() || !installation}
-                              onClick={() => void send()}
-                            >
-                              {editingMessageId ? "Send edited" : "Send"}
-                              <Send className="h-3.5 w-3.5" />
-                            </Button>
-                          )}
-                        </div>
-                      </div>
-                    )}
-                  </footer>
-                </>
-              )}
-            </>
+            loading ? (
+              <div className="flex flex-1 items-center justify-center gap-2 text-sm text-muted-foreground">
+                <LoaderCircle className="h-4 w-4 animate-spin" />
+                Preparing KasiAi…
+              </div>
+            ) : (
+              <AgentChatSurface
+                runtime={{ telemetry: runtimeTelemetry, detailsOpen: runtimeDetailsOpen, onToggleDetails: () => setRuntimeDetailsOpen((current) => !current) }}
+                contentClassName="px-4 py-5"
+                autoScrollKey={`${conversation?.id ?? "new"}:${messages.length}:${messages[messages.length - 1]?.id ?? ""}:${sending ? "running" : "idle"}`}
+                statusContent={
+                  <>
+                    {pendingApproval && pendingApproval.runId === lastRunId ? (
+                      <KasiAiApprovalPrompt
+                        runId={pendingApproval.runId}
+                        approvalGroup={pendingApproval.approvalGroup}
+                        canApprove={pendingApproval.canApprove}
+                        onDecision={(decision) => {
+                          setPendingApproval(null);
+                          setRunProgress(decision === "approved" ? "Approval accepted; resuming…" : "Approval denied");
+                        }}
+                      />
+                    ) : null}
+                    <AgentChatRunStatus runId={lastRunId} progress={runProgress} events={runEvents} running={sending} />
+                    {groundingSummary ? <div className="mx-4 mb-2 shrink-0 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-[10px] text-muted-foreground" aria-label="Grounding summary"><span className="font-medium text-foreground">Grounded response</span>{groundingSummary.organizationScoped ? " · workspace scoped" : " · scope unavailable"}{groundingSummary.toolEvidence ? ` · ${groundingSummary.toolEvidence.used?.length ?? 0} tools used` : ""}{groundingSummary.reviewedKnowledge?.requested ? ` · ${groundingSummary.reviewedKnowledge.matchedChunks ?? 0} reviewed sources` : " · no reviewed sources requested"}{groundingSummary.unavailableActions?.length ? ` · ${groundingSummary.unavailableActions.length} unavailable action${groundingSummary.unavailableActions.length === 1 ? "" : "s"}` : ""}{groundingSummary.uncertainty === "not_asserted" ? " · no unsupported certainty" : ""}</div> : null}
+                  </>
+                }
+                error={error ? <div className="flex items-center justify-between gap-3"><span>{error}</span>{audioRetryJobId ? <Button type="button" variant="outline" size="sm" className="h-7 shrink-0 gap-1 px-2 text-[11px]" onClick={() => void retryAudio()} disabled={sending}><RotateCcw className="h-3.5 w-3.5" />Retry</Button> : null}</div> : null}
+                composer={isArchivedChat ? <footer className="shrink-0 border-t border-border p-3"><div className="rounded-xl border border-border bg-muted/40 px-3 py-3 text-xs text-muted-foreground">This chat is archived. Restore it from the conversation library to continue it.</div></footer> : <AgentChatComposer
+                  value={draft}
+                  onChange={setDraft}
+                  onSubmit={() => void send()}
+                  model={activeModel}
+                  models={models}
+                  modelDisabled={!conversation || sending}
+                  onModelChange={(value, provider) => void changeModel(`${provider}:${value}`)}
+                  disabled={!installation}
+                  sending={sending}
+                  onStop={() => void stop()}
+                  onAudioReady={sendAudio}
+                  onAudioError={setError}
+                  placeholder={conversation ? "Ask KasiAi…" : "Start a new chat…"}
+                  inputRef={composerRef}
+                  leadingContent={editingMessageId ? <div className="mb-2 flex items-center justify-between gap-2 rounded-md bg-primary/5 px-2 py-1.5 text-[11px] text-muted-foreground"><span className="font-medium text-foreground">Editing message</span><Button type="button" variant="ghost" size="sm" className="h-6 px-2 text-[10px]" onClick={cancelEdit}>Cancel</Button></div> : null}
+                  modelAccessory={conversation && !conversation.is_primary ? <Button type="button" variant="ghost" size="sm" className="h-6 text-[10px]" onClick={() => void setKasiAiChannelDefault(conversation.id).then(async (updated) => { setConversation(updated); await refreshHome(installation!.id); })}>Use for channels</Button> : null}
+                  className="border-t border-border bg-card p-3 shadow-none"
+                  ariaLabel="Message KasiAi"
+                />}
+              >
+                {conversation ? <div className="space-y-3">
+                  {hasMore ? <div className="text-center"><Button variant="outline" size="sm" onClick={() => void loadOlder()}>Load earlier messages</Button></div> : null}
+                  <AgentChatMessageList
+                    messages={messages}
+                    availableChannels={availableChannels}
+                    channelFilter={channelFilter}
+                    onChannelFilterChange={setChannelFilter}
+                    runStatuses={runStatuses}
+                    archived={isArchivedChat}
+                    onUiInteraction={(_message, interaction) => void send(undefined, undefined, undefined, { ...interaction, messageId: _message.id })}
+                    onCopy={copyMessage}
+                    onEdit={editMessage}
+                    onRetry={retryMessage}
+                    retryable={(message, status) => messageChannel(message) === "platform" && message.direction === "inbound" && ["failed", "cancelled", "expired"].includes(status ?? "")}
+                    actionDisabled={sending}
+                  />
+                </div> : <NewChatHome suggestions={suggestions} onSuggestion={(suggestion) => void send(suggestion)} />}
+              </AgentChatSurface>
+            )
           ) : null}
         </div>
       </div>
@@ -2012,99 +1627,16 @@ export function KasiAiChat({
 
 function KasiAiApprovalPrompt({
   runId,
-  approval,
+  approvalGroup,
   canApprove,
   onDecision,
 }: {
   runId: string;
-  approval: AgentApproval;
+  approvalGroup: AgentApprovalGroup;
   canApprove: boolean;
   onDecision: (decision: "approved" | "rejected") => void;
 }) {
-  const [busy, setBusy] = useState<"approved" | "rejected" | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const decide = async (decision: "approved" | "rejected") => {
-    if (busy) return;
-    setBusy(decision);
-    setError(null);
-    try {
-      await decideAgentRunApproval(runId, approval, decision);
-      onDecision(decision);
-    } catch (cause) {
-      setError(
-        cause instanceof Error
-          ? cause.message
-          : "Unable to record approval decision",
-      );
-    } finally {
-      setBusy(null);
-    }
-  };
-  return (
-    <div
-      className="mx-auto mt-4 max-w-3xl rounded-lg border border-status-attention/40 bg-status-attention-soft/40 px-3 py-3 text-xs"
-      role="status"
-      aria-live="polite"
-    >
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="font-semibold text-foreground">Approval required</p>
-          <p className="mt-1 text-muted-foreground">
-            Review the proposed{" "}
-            <code className="rounded bg-background/70 px-1 py-0.5 font-mono text-[11px]">
-              {approval.capability}
-            </code>{" "}
-            action here.
-          </p>
-        </div>
-        <span className="shrink-0 rounded-full border border-status-attention/40 px-2 py-0.5 text-[10px] font-medium text-status-attention">
-          Pending
-        </span>
-      </div>
-      <details className="mt-3 rounded-md border border-border/70 bg-background/30 px-3 py-2">
-        <summary className="cursor-pointer font-medium text-foreground">
-          View exact action
-        </summary>
-        <div className="mt-3">
-          <AgentApprovalPreview snapshot={approval.resourceSnapshot} />
-        </div>
-      </details>
-      <div className="mt-3 flex flex-wrap items-center gap-2">
-        {canApprove ? (
-          <Button
-            type="button"
-            size="sm"
-            disabled={busy !== null}
-            onClick={() => void decide("approved")}
-          >
-            <Check className="mr-1.5 h-3.5 w-3.5" />
-            {busy === "approved" ? "Approving…" : "Approve"}
-          </Button>
-        ) : null}
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          disabled={busy !== null}
-          onClick={() => void decide("rejected")}
-        >
-          <X className="mr-1.5 h-3.5 w-3.5" />
-          {busy === "rejected" ? "Denying…" : "Deny"}
-        </Button>
-        <Link
-          href={`/agents/activity/${encodeURIComponent(runId)}`}
-          className="ml-auto text-muted-foreground hover:text-foreground"
-        >
-          View details
-        </Link>
-      </div>
-      {error ? (
-        <p className="mt-2 text-destructive" role="alert">
-          {error}
-        </p>
-      ) : null}
-    </div>
-  );
+  return <div className="mx-auto mt-4 max-w-3xl rounded-lg border border-status-attention/40 bg-status-attention-soft/40 px-3 py-3 text-xs" role="status" aria-live="polite"><div className="flex items-start justify-between gap-3"><div><p className="font-semibold text-foreground">Approval required</p><p className="mt-1 text-muted-foreground">Review {approvalGroup.operations.length} proposed actions as one group.</p></div><span className="shrink-0 rounded-full border border-status-attention/40 px-2 py-0.5 text-[10px] font-medium text-status-attention">Pending</span></div><div className="mt-3 space-y-1.5">{approvalGroup.operations.map((operation) => <div key={operation.runtimeOperationId ?? operation.providerToolCallId} className="rounded-md border border-border/70 bg-background/30 px-3 py-2"><p className="font-medium text-foreground">{operation.capability}</p><p className="mt-1 text-[10px] text-muted-foreground">{operation.status}</p></div>)}</div><div className="mt-3 flex flex-wrap items-center gap-2">{canApprove ? <AgentApprovalGroupActions runId={runId} group={approvalGroup} onDecided={onDecision} /> : <p className="text-muted-foreground">Approval is required from an authorized operator.</p>}<Link href={`/agents/activity/${encodeURIComponent(runId)}`} className="ml-auto text-muted-foreground hover:text-foreground">View details</Link></div></div>;
 }
 
 function NewChatHome({
@@ -2268,124 +1800,6 @@ function KasiAiNavigation({
         </div>
       ) : null}
     </nav>
-  );
-}
-
-function ComposerModelPicker({
-  model,
-  models,
-  disabled,
-  onSelect,
-}: {
-  model?: KasiAiModel;
-  models: KasiAiModel[];
-  disabled: boolean;
-  onSelect: (value: string) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const [search, setSearch] = useState("");
-  const selected = model ? `${model.provider}:${model.model}` : "";
-  const visible = open && !disabled;
-  const normalizedSearch = search.trim().toLowerCase();
-  const matchingModels = models.filter(
-    (item) =>
-      !normalizedSearch ||
-      `${item.label} ${item.model} ${item.provider}`
-        .toLowerCase()
-        .includes(normalizedSearch),
-  );
-  const displayedModels = matchingModels.slice(0, normalizedSearch ? 100 : 30);
-  return (
-    <div className="relative min-w-0">
-      <button
-        type="button"
-        disabled={disabled}
-        onClick={() => {
-          setOpen((value) => !value);
-          setSearch("");
-        }}
-        className="flex max-w-[14rem] items-center gap-1.5 rounded-md px-1.5 py-1 text-left text-[11px] text-muted-foreground transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-60"
-        aria-haspopup="listbox"
-        aria-expanded={visible}
-      >
-        <span className="truncate">{model?.label ?? "Workspace default"}</span>
-        <ChevronDown className="h-3.5 w-3.5 shrink-0" />
-      </button>
-      {visible ? (
-        <>
-          <button
-            type="button"
-            className="fixed inset-0 z-10 cursor-default"
-            onClick={() => {
-              setOpen(false);
-              setSearch("");
-            }}
-            aria-label="Close model picker"
-          />
-          <div
-            className="absolute bottom-full left-0 z-20 mb-2 w-72 overflow-hidden rounded-lg border border-border bg-popover shadow-xl"
-            role="listbox"
-            aria-label="Choose this chat's model"
-          >
-            <div className="border-b border-border px-3 py-2 text-[10px] text-muted-foreground">
-              Choose a model for this chat
-            </div>
-            <label className="flex items-center gap-2 border-b border-border px-3 py-2">
-              <Search className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-              <input
-                autoFocus
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder="Search models or IDs…"
-                className="min-w-0 flex-1 bg-transparent text-xs text-foreground outline-none placeholder:text-muted-foreground"
-              />
-            </label>
-            <div className="max-h-64 overflow-y-auto p-1">
-              {displayedModels.map((item) => {
-                const value = `${item.provider}:${item.model}`;
-                const active = value === selected;
-                return (
-                  <button
-                    type="button"
-                    key={value}
-                    role="option"
-                    aria-selected={active}
-                    onClick={() => {
-                      onSelect(value);
-                      setOpen(false);
-                      setSearch("");
-                    }}
-                    className={cn(
-                      "w-full rounded-md px-2.5 py-2 text-left transition-colors",
-                      active ? "bg-primary/10 text-primary" : "hover:bg-muted",
-                    )}
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="truncate text-xs font-medium">
-                        {item.label}
-                      </span>
-                      <span className="shrink-0 text-[10px] text-muted-foreground">
-                        {item.isFree ? "free" : item.tier}
-                      </span>
-                    </div>
-                  </button>
-                );
-              })}
-              {!matchingModels.length ? (
-                <p className="px-2.5 py-4 text-xs text-muted-foreground">
-                  No models match that search.
-                </p>
-              ) : null}
-              {matchingModels.length > displayedModels.length ? (
-                <p className="px-2.5 py-2 text-[10px] text-muted-foreground">
-                  Showing first {displayedModels.length} results. Search to narrow the list.
-                </p>
-              ) : null}
-            </div>
-          </div>
-        </>
-      ) : null}
-    </div>
   );
 }
 

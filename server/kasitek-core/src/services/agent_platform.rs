@@ -29,6 +29,29 @@ fn new_correlation_id() -> String {
     )
 }
 
+fn known_upstream_code(code: Option<&str>) -> Option<&'static str> {
+    match code {
+        Some("google_oauth_integration_not_supported") => {
+            Some("google_oauth_integration_not_supported")
+        }
+        Some("google_oauth_not_configured") => Some("google_oauth_not_configured"),
+        Some("google_token_exchange_failed") => Some("google_token_exchange_failed"),
+        Some("google_access_token_missing") => Some("google_access_token_missing"),
+        Some("mcp_oauth_not_configured") => Some("mcp_oauth_not_configured"),
+        Some("mcp_oauth_client_registration_unsupported") => {
+            Some("mcp_oauth_client_registration_unsupported")
+        }
+        Some("mcp_oauth_client_registration_failed") => {
+            Some("mcp_oauth_client_registration_failed")
+        }
+        Some("mcp_oauth_start_failed") => Some("mcp_oauth_start_failed"),
+        Some("mcp_oauth_state_incomplete") => Some("mcp_oauth_state_incomplete"),
+        Some("mcp_oauth_code_missing") => Some("mcp_oauth_code_missing"),
+        Some("mcp_oauth_connection_failed") => Some("mcp_oauth_connection_failed"),
+        _ => None,
+    }
+}
+
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct InternalClaims<'a> {
@@ -110,10 +133,14 @@ impl AgentPlatformClient {
         &self,
         organization_id: &str,
         actor_id: &str,
+        environment: Option<&str>,
     ) -> Result<Value, AppError> {
+        let path = environment
+            .map(|value| format!("/v1/agents?environment={value}"))
+            .unwrap_or_else(|| "/v1/agents".to_string());
         self.request_json(
             Method::GET,
-            "/v1/agents",
+            &path,
             organization_id,
             actor_id,
             &["agents:read"],
@@ -138,6 +165,55 @@ impl AgentPlatformClient {
         .await
     }
 
+    pub async fn list_capabilities(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::GET,
+            "/v1/capabilities",
+            organization_id,
+            actor_id,
+            &["agents:read"],
+            None,
+        )
+        .await
+    }
+
+    pub async fn list_capability_directory(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::GET,
+            "/v1/capabilities/directory",
+            organization_id,
+            actor_id,
+            &["agents:read"],
+            None,
+        )
+        .await
+    }
+
+    pub async fn list_connection_directory(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        installation_id: &str,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::GET,
+            &format!("/v1/installations/{installation_id}/connection-directory"),
+            organization_id,
+            actor_id,
+            &["agents:read"],
+            None,
+        )
+        .await
+    }
+
     pub async fn create_agent(
         &self,
         organization_id: &str,
@@ -147,6 +223,23 @@ impl AgentPlatformClient {
         self.request_json(
             Method::POST,
             "/v1/agents",
+            organization_id,
+            actor_id,
+            &["agents:write"],
+            Some(body),
+        )
+        .await
+    }
+
+    pub async fn create_studio_agent(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        body: Value,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::POST,
+            "/v1/studio/agents",
             organization_id,
             actor_id,
             &["agents:write"],
@@ -998,6 +1091,424 @@ impl AgentPlatformClient {
         .await
     }
 
+    pub async fn list_skills(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::GET,
+            "/v1/skills",
+            organization_id,
+            actor_id,
+            &["agents:read"],
+            None,
+        )
+        .await
+    }
+
+    pub async fn list_skill_directory(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        agent_version_id: Option<&str>,
+    ) -> Result<Value, AppError> {
+        let path = agent_version_id
+            .filter(|value| !value.trim().is_empty())
+            .map(|value| {
+                format!(
+                    "/v1/skills/directory?agentVersionId={}",
+                    urlencoding::encode(value)
+                )
+            })
+            .unwrap_or_else(|| "/v1/skills/directory".to_string());
+        self.request_json(
+            Method::GET,
+            &path,
+            organization_id,
+            actor_id,
+            &["agents:read"],
+            None,
+        )
+        .await
+    }
+
+    pub async fn list_plugin_directory(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::GET,
+            "/v1/plugins/directory",
+            organization_id,
+            actor_id,
+            &["agents:read"],
+            None,
+        )
+        .await
+    }
+
+    pub async fn install_skill_catalog(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        installation_id: &str,
+        catalog_id: &str,
+        body: Value,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::POST,
+            &format!("/v1/installations/{installation_id}/skills/catalog/{catalog_id}/install"),
+            organization_id,
+            actor_id,
+            &["agents:write"],
+            Some(body),
+        )
+        .await
+    }
+
+    pub async fn install_plugin_catalog(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        installation_id: &str,
+        catalog_id: &str,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::POST,
+            &format!("/v1/installations/{installation_id}/plugins/catalog/{catalog_id}/install"),
+            organization_id,
+            actor_id,
+            &["agents:write"],
+            Some(json!({})),
+        )
+        .await
+    }
+
+    pub async fn list_extension_packages(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::GET,
+            "/v1/extensions/packages",
+            organization_id,
+            actor_id,
+            &["agents:read"],
+            None,
+        )
+        .await
+    }
+
+    pub async fn list_skill_versions(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        skill_id: &str,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::GET,
+            &format!("/v1/skills/{skill_id}/versions"),
+            organization_id,
+            actor_id,
+            &["agents:read"],
+            None,
+        )
+        .await
+    }
+
+    pub async fn list_pinned_skills(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        agent_version_id: &str,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::GET,
+            &format!("/v1/agent-versions/{agent_version_id}/skills"),
+            organization_id,
+            actor_id,
+            &["agents:read"],
+            None,
+        )
+        .await
+    }
+
+    pub async fn pin_skill(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        agent_version_id: &str,
+        skill_version_id: &str,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::POST,
+            &format!("/v1/agent-versions/{agent_version_id}/skills/{skill_version_id}"),
+            organization_id,
+            actor_id,
+            &["agents:write"],
+            None,
+        )
+        .await
+    }
+
+    pub async fn unpin_skill(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        agent_version_id: &str,
+        skill_version_id: &str,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::DELETE,
+            &format!("/v1/agent-versions/{agent_version_id}/skills/{skill_version_id}"),
+            organization_id,
+            actor_id,
+            &["agents:write"],
+            None,
+        )
+        .await
+    }
+
+    pub async fn list_mcp_providers(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::GET,
+            "/v1/mcp/providers",
+            organization_id,
+            actor_id,
+            &["agents:read"],
+            None,
+        )
+        .await
+    }
+
+    pub async fn connect_mcp_catalog(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        installation_id: &str,
+        catalog_id: &str,
+        body: Value,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::POST,
+            &format!("/v1/installations/{installation_id}/mcp/catalog/{catalog_id}/connect"),
+            organization_id,
+            actor_id,
+            &["agents:write"],
+            Some(body),
+        )
+        .await
+    }
+
+    pub async fn start_mcp_catalog_oauth(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        installation_id: &str,
+        catalog_id: &str,
+        body: Value,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::POST,
+            &format!("/v1/installations/{installation_id}/mcp/catalog/{catalog_id}/oauth/start"),
+            organization_id,
+            actor_id,
+            &["agents:write"],
+            Some(body),
+        )
+        .await
+    }
+
+    pub async fn complete_mcp_oauth_callback(&self, query: &str) -> Result<Value, AppError> {
+        let path = if query.trim().is_empty() {
+            "/v1/integrations/mcp/oauth/callback".to_string()
+        } else {
+            format!("/v1/integrations/mcp/oauth/callback?{query}")
+        };
+        self.request_oauth_callback(&path).await
+    }
+
+    pub async fn complete_google_oauth_callback(&self, query: &str) -> Result<Value, AppError> {
+        let path = if query.trim().is_empty() {
+            "/v1/integrations/google/oauth/callback".to_string()
+        } else {
+            format!("/v1/integrations/google/oauth/callback?{query}")
+        };
+        self.request_oauth_callback(&path).await
+    }
+
+    pub async fn complete_microsoft_oauth_callback(&self, query: &str) -> Result<Value, AppError> {
+        let path = if query.trim().is_empty() {
+            "/v1/integrations/microsoft/oauth/callback".to_string()
+        } else {
+            format!("/v1/integrations/microsoft/oauth/callback?{query}")
+        };
+        self.request_oauth_callback(&path).await
+    }
+
+    pub async fn create_mcp_provider(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        body: Value,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::POST,
+            "/v1/mcp/providers",
+            organization_id,
+            actor_id,
+            &["agents:write"],
+            Some(body),
+        )
+        .await
+    }
+
+    pub async fn discover_mcp_provider(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        provider_id: &str,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::POST,
+            &format!("/v1/mcp/providers/{provider_id}/discover"),
+            organization_id,
+            actor_id,
+            &["agents:write"],
+            None,
+        )
+        .await
+    }
+
+    pub async fn health_mcp_provider(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        provider_id: &str,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::POST,
+            &format!("/v1/mcp/providers/{provider_id}/health"),
+            organization_id,
+            actor_id,
+            &["agents:write"],
+            None,
+        )
+        .await
+    }
+
+    pub async fn list_mcp_provider_versions(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        provider_id: &str,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::GET,
+            &format!("/v1/mcp/providers/{provider_id}/versions"),
+            organization_id,
+            actor_id,
+            &["agents:read"],
+            None,
+        )
+        .await
+    }
+
+    pub async fn publish_mcp_provider_version(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        provider_id: &str,
+        version_id: &str,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::POST,
+            &format!("/v1/mcp/providers/{provider_id}/versions/{version_id}/publish"),
+            organization_id,
+            actor_id,
+            &["agents:write"],
+            None,
+        )
+        .await
+    }
+
+    pub async fn revoke_mcp_provider(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        provider_id: &str,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::POST,
+            &format!("/v1/mcp/providers/{provider_id}/revoke"),
+            organization_id,
+            actor_id,
+            &["agents:write"],
+            None,
+        )
+        .await
+    }
+
+    pub async fn list_pinned_mcp_providers(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        agent_version_id: &str,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::GET,
+            &format!("/v1/agent-versions/{agent_version_id}/mcp-providers"),
+            organization_id,
+            actor_id,
+            &["agents:read"],
+            None,
+        )
+        .await
+    }
+
+    pub async fn pin_mcp_provider(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        agent_version_id: &str,
+        provider_version_id: &str,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::POST,
+            &format!("/v1/agent-versions/{agent_version_id}/mcp-providers/{provider_version_id}"),
+            organization_id,
+            actor_id,
+            &["agents:write"],
+            None,
+        )
+        .await
+    }
+
+    pub async fn unpin_mcp_provider(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        agent_version_id: &str,
+        provider_version_id: &str,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::DELETE,
+            &format!("/v1/agent-versions/{agent_version_id}/mcp-providers/{provider_version_id}"),
+            organization_id,
+            actor_id,
+            &["agents:write"],
+            None,
+        )
+        .await
+    }
+
     pub async fn list_integrations_catalog(
         &self,
         organization_id: &str,
@@ -1031,16 +1542,17 @@ impl AgentPlatformClient {
         .await
     }
 
-    pub async fn start_google_calendar_oauth(
+    pub async fn start_google_oauth(
         &self,
         organization_id: &str,
         actor_id: &str,
         installation_id: &str,
+        integration_id: &str,
     ) -> Result<Value, AppError> {
         self.request_json(
             Method::GET,
             &format!(
-                "/v1/installations/{installation_id}/integrations/google.calendar/oauth/start"
+                "/v1/installations/{installation_id}/integrations/{integration_id}/oauth/start"
             ),
             organization_id,
             actor_id,
@@ -1578,6 +2090,118 @@ impl AgentPlatformClient {
             actor_id,
             &["agents:read"],
             None,
+        )
+        .await
+    }
+
+    pub async fn get_agent_version_effective_config(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        agent_version_id: &str,
+        installation_id: Option<&str>,
+    ) -> Result<Value, AppError> {
+        let mut path = format!("/v1/agent-versions/{agent_version_id}/effective-config");
+        if let Some(installation_id) = installation_id.filter(|value| !value.trim().is_empty()) {
+            path.push_str("?installationId=");
+            path.push_str(&urlencoding::encode(installation_id));
+        }
+        self.request_json(
+            Method::GET,
+            &path,
+            organization_id,
+            actor_id,
+            &["agents:read"],
+            None,
+        )
+        .await
+    }
+
+    pub async fn get_agent_deployment_status(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        agent_id: &str,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::GET,
+            &format!("/v1/agents/{agent_id}/deployment-status"),
+            organization_id,
+            actor_id,
+            &["agents:read"],
+            None,
+        )
+        .await
+    }
+
+    pub async fn preflight_installation_deployment(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        installation_id: &str,
+        body: Value,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::POST,
+            &format!("/v1/installations/{installation_id}/preflight"),
+            organization_id,
+            actor_id,
+            &["agents:read"],
+            Some(body),
+        )
+        .await
+    }
+
+    pub async fn deploy_installation(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        installation_id: &str,
+        body: Value,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::POST,
+            &format!("/v1/installations/{installation_id}/deploy"),
+            organization_id,
+            actor_id,
+            &["agents:write"],
+            Some(body),
+        )
+        .await
+    }
+
+    pub async fn promote_installation(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        installation_id: &str,
+        body: Value,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::POST,
+            &format!("/v1/installations/{installation_id}/promote"),
+            organization_id,
+            actor_id,
+            &["agents:write"],
+            Some(body),
+        )
+        .await
+    }
+
+    pub async fn rollback_installation(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        installation_id: &str,
+        body: Value,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::POST,
+            &format!("/v1/installations/{installation_id}/rollback"),
+            organization_id,
+            actor_id,
+            &["agents:write"],
+            Some(body),
         )
         .await
     }
@@ -2669,6 +3293,37 @@ impl AgentPlatformClient {
         .await
     }
 
+    pub async fn get_run_memory_observatory(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        run_id: &str,
+        after_sequence: Option<u64>,
+        limit: Option<u32>,
+    ) -> Result<Value, AppError> {
+        let mut query = Vec::new();
+        if let Some(after_sequence) = after_sequence {
+            query.push(format!("afterSequence={after_sequence}"));
+        }
+        if let Some(limit) = limit {
+            query.push(format!("limit={limit}"));
+        }
+        let path = if query.is_empty() {
+            format!("/v1/runs/{run_id}/memory-observatory")
+        } else {
+            format!("/v1/runs/{run_id}/memory-observatory?{}", query.join("&"))
+        };
+        self.request_json(
+            Method::GET,
+            &path,
+            organization_id,
+            actor_id,
+            &["runs:read"],
+            None,
+        )
+        .await
+    }
+
     pub async fn cancel_run(
         &self,
         organization_id: &str,
@@ -2722,7 +3377,7 @@ impl AgentPlatformClient {
         .await
     }
 
-    pub async fn approve_run(
+    pub async fn approve_run_group(
         &self,
         organization_id: &str,
         actor_id: &str,
@@ -2731,7 +3386,7 @@ impl AgentPlatformClient {
     ) -> Result<Value, AppError> {
         self.request_json(
             Method::POST,
-            &format!("/v1/runs/{run_id}/approval"),
+            &format!("/v1/runs/{run_id}/approval-group"),
             organization_id,
             actor_id,
             &["runs:approve"],
@@ -2802,6 +3457,55 @@ impl AgentPlatformClient {
             return Ok(response);
         }
         Err(self.map_status(response).await)
+    }
+
+    async fn request_oauth_callback(&self, path: &str) -> Result<Value, AppError> {
+        let correlation_id = new_correlation_id();
+        let token = self.token("oauth-callback", "oauth-callback", &[], &correlation_id)?;
+        let request = self
+            .client
+            .get(format!("{}{}", self.base_url, path))
+            .timeout(self.timeout)
+            .header("Authorization", format!("Bearer {token}"))
+            .header("x-organization-id", "oauth-callback")
+            .header("x-actor-id", "oauth-callback")
+            .header("x-correlation-id", &correlation_id)
+            .header("x-kasitek-oauth-proxy", "1");
+        let response = observability::provider_result_span_with(
+            "kasitek-agents",
+            "http.request",
+            move || async move {
+                let mut trace_headers = HeaderMap::new();
+                observability::inject_trace_context(&mut trace_headers);
+                request.headers(trace_headers).send().await
+            },
+        )
+        .await
+        .map_err(|error| self.map_request_error(error))?;
+        if !response.status().is_success() {
+            let status = response.status();
+            let body = response.json::<Value>().await;
+            if let Ok(value) = body {
+                if value.is_object() {
+                    return Ok(value);
+                }
+            }
+            return Err(AppError::BadGateway(format!(
+                "Agent Platform OAuth callback failed with status {status}"
+            )));
+        }
+        response.json::<Value>().await.map_err(|error| {
+            observability::tracing::error!(
+                event = "provider.call.failed",
+                provider = "kasitek-agents",
+                operation = "oauth.callback",
+                error_type = %std::any::type_name_of_val(&error),
+                "Agent Platform returned invalid OAuth callback JSON"
+            );
+            AppError::BadGateway(
+                "Agent Platform returned an invalid OAuth callback response".to_string(),
+            )
+        })
     }
 
     async fn request_json(
@@ -3141,6 +3845,11 @@ impl AgentPlatformClient {
             .as_ref()
             .and_then(|value| value.error.clone())
             .unwrap_or_else(|| "Agent Platform request failed".to_string());
+        if let Some(code) = known_upstream_code(code) {
+            let response_status = actix_web::http::StatusCode::from_u16(status.as_u16())
+                .unwrap_or(actix_web::http::StatusCode::BAD_GATEWAY);
+            return AppError::upstream(code, message, response_status);
+        }
         if code == Some("conversation_handoff_active") {
             return AppError::referral(
                 "conversation_handoff_active",
@@ -3169,6 +3878,7 @@ impl AgentPlatformClient {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use actix_web::ResponseError;
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
     use tokio::net::TcpListener;
     use tokio::task::JoinHandle;
@@ -3262,6 +3972,53 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn studio_observability_reads_use_the_scoped_agent_boundary() {
+        let (base_url, server) = mock_agent_server(vec![
+            (200, r#"{"effective":{}}"#),
+            (200, r#"{"nodes":[],"edges":[],"cursor":4}"#),
+            (200, r#"{"id":"installation-1","status":"active"}"#),
+        ])
+        .await;
+        let client = test_client(&base_url);
+
+        client
+            .get_agent_version_effective_config(
+                "org-1",
+                "actor-1",
+                "version-1",
+                Some("installation-1"),
+            )
+            .await
+            .unwrap();
+        client
+            .get_run_memory_observatory("org-1", "actor-1", "run-1", Some(4), Some(20))
+            .await
+            .unwrap();
+        client
+            .deploy_installation(
+                "org-1",
+                "actor-1",
+                "installation-1",
+                json!({"versionId":"version-2"}),
+            )
+            .await
+            .unwrap();
+
+        let requests = server.await.unwrap();
+        assert_eq!(requests.len(), 3);
+        assert!(requests[0].starts_with(
+            "GET /v1/agent-versions/version-1/effective-config?installationId=installation-1 HTTP/1.1"
+        ));
+        assert!(requests[1].starts_with(
+            "GET /v1/runs/run-1/memory-observatory?afterSequence=4&limit=20 HTTP/1.1"
+        ));
+        assert!(requests[2].starts_with("POST /v1/installations/installation-1/deploy HTTP/1.1"));
+        assert_scoped_request(&requests[0], "agents:read");
+        assert_scoped_request(&requests[1], "runs:read");
+        assert_scoped_request(&requests[2], "agents:write");
+    }
+
+    #[tokio::test]
     async fn handoff_assignment_filter_is_forwarded_to_agent_platform() {
         let (base_url, server) = mock_agent_server(vec![(200, r#"{"items":[]}"#)]).await;
         let client = test_client(&base_url);
@@ -3293,6 +4050,155 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn capability_catalog_routes_are_forwarded_to_agent_platform() {
+        let (base_url, server) = mock_agent_server(vec![
+            (200, r#"{"capabilities":[]}"#),
+            (200, r#"{"directory":[],"toolsets":[]}"#),
+        ])
+        .await;
+        let client = test_client(&base_url);
+
+        client.list_capabilities("org-1", "actor-1").await.unwrap();
+        client
+            .list_capability_directory("org-1", "actor-1")
+            .await
+            .unwrap();
+
+        let requests = server.await.unwrap();
+        assert_eq!(requests.len(), 2);
+        assert!(requests[0].starts_with("GET /v1/capabilities HTTP/1.1"));
+        assert!(requests[1].starts_with("GET /v1/capabilities/directory HTTP/1.1"));
+        assert_scoped_request(&requests[0], "agents:read");
+        assert_scoped_request(&requests[1], "agents:read");
+    }
+
+    #[tokio::test]
+    async fn reviewed_directory_and_activation_routes_are_forwarded() {
+        let (base_url, server) = mock_agent_server(vec![
+            (200, r#"{"connections":[]}"#),
+            (200, r#"{"skills":[]}"#),
+            (200, r#"{"plugins":[]}"#),
+            (201, r#"{"skill":{}}"#),
+            (201, r#"{"plugin":{}}"#),
+            (201, r#"{"provider":{}}"#),
+            (200, r#"{"authorizationUrl":"https://example.test/oauth"}"#),
+            (200, r#"{"authorizationUrl":"https://accounts.google.com/o/oauth2/v2/auth"}"#),
+            (200, r#"{"connection":"hermes.mcp.example","status":"connected","installationId":"install-1"}"#),
+            (200, r#"{"integration":"google.calendar","status":"connected","installationId":"install-1"}"#),
+        ])
+        .await;
+        let client = test_client(&base_url);
+
+        client
+            .list_connection_directory("org-1", "actor-1", "install-1")
+            .await
+            .unwrap();
+        client
+            .list_skill_directory("org-1", "actor-1", Some("version-1"))
+            .await
+            .unwrap();
+        client
+            .list_plugin_directory("org-1", "actor-1")
+            .await
+            .unwrap();
+        client
+            .install_skill_catalog(
+                "org-1",
+                "actor-1",
+                "install-1",
+                "hermes.skill.example",
+                json!({}),
+            )
+            .await
+            .unwrap();
+        client
+            .install_plugin_catalog("org-1", "actor-1", "install-1", "hermes.plugin.example")
+            .await
+            .unwrap();
+        client
+            .connect_mcp_catalog(
+                "org-1",
+                "actor-1",
+                "install-1",
+                "hermes.mcp.example",
+                json!({"apiKey":"secret"}),
+            )
+            .await
+            .unwrap();
+        client
+            .start_mcp_catalog_oauth(
+                "org-1",
+                "actor-1",
+                "install-1",
+                "hermes.mcp.example",
+                json!({}),
+            )
+            .await
+            .unwrap();
+        client
+            .start_google_oauth("org-1", "actor-1", "install-1", "google.calendar")
+            .await
+            .unwrap();
+        client
+            .complete_mcp_oauth_callback("code=oauth-code&state=oauth-state")
+            .await
+            .unwrap();
+        client
+            .complete_google_oauth_callback("code=google-code&state=google-state")
+            .await
+            .unwrap();
+
+        let requests = server.await.unwrap();
+        assert_eq!(requests.len(), 10);
+        assert!(requests[0]
+            .starts_with("GET /v1/installations/install-1/connection-directory HTTP/1.1"));
+        assert!(
+            requests[1].starts_with("GET /v1/skills/directory?agentVersionId=version-1 HTTP/1.1")
+        );
+        assert!(requests[2].starts_with("GET /v1/plugins/directory HTTP/1.1"));
+        assert!(requests[3].starts_with(
+            "POST /v1/installations/install-1/skills/catalog/hermes.skill.example/install HTTP/1.1"
+        ));
+        assert!(requests[4].starts_with("POST /v1/installations/install-1/plugins/catalog/hermes.plugin.example/install HTTP/1.1"));
+        assert!(requests[5].starts_with(
+            "POST /v1/installations/install-1/mcp/catalog/hermes.mcp.example/connect HTTP/1.1"
+        ));
+        assert!(requests[6].starts_with(
+            "POST /v1/installations/install-1/mcp/catalog/hermes.mcp.example/oauth/start HTTP/1.1"
+        ));
+        assert!(requests[7].starts_with(
+            "GET /v1/installations/install-1/integrations/google.calendar/oauth/start HTTP/1.1"
+        ));
+        assert!(requests[8].starts_with(
+            "GET /v1/integrations/mcp/oauth/callback?code=oauth-code&state=oauth-state HTTP/1.1"
+        ));
+        assert!(requests[9].starts_with(
+            "GET /v1/integrations/google/oauth/callback?code=google-code&state=google-state HTTP/1.1"
+        ));
+        for (index, request) in requests.iter().take(8).enumerate() {
+            assert_scoped_request(
+                request,
+                if index < 3 {
+                    "agents:read"
+                } else {
+                    "agents:write"
+                },
+            );
+        }
+        for request in requests.iter().skip(8) {
+            assert_eq!(
+                request_header(request, "x-organization-id").as_deref(),
+                Some("oauth-callback")
+            );
+            assert_eq!(
+                request_header(request, "x-actor-id").as_deref(),
+                Some("oauth-callback")
+            );
+            assert!(request_header(request, "authorization").is_some());
+        }
+    }
+
+    #[tokio::test]
     async fn channel_handoff_conflicts_preserve_the_upstream_reason_code() {
         let (base_url, server) = mock_agent_server(vec![
             (409, r#"{"error":"Agent execution is paused while this conversation is owned by a human","code":"conversation_handoff_active"}"#),
@@ -3314,6 +4220,27 @@ mod tests {
             }
             other => panic!("unexpected error: {other:?}"),
         }
+        server.await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn oauth_configuration_errors_preserve_the_upstream_reason_code() {
+        let (base_url, server) = mock_agent_server(vec![(
+            503,
+            r#"{"error":"google_oauth_not_configured","code":"google_oauth_not_configured"}"#,
+        )])
+        .await;
+        let client = test_client(&base_url);
+        let error = client
+            .start_google_oauth("org-1", "actor-1", "install-1", "google.calendar")
+            .await
+            .expect_err("missing Google OAuth configuration should be surfaced");
+
+        assert_eq!(error.code(), "google_oauth_not_configured");
+        assert_eq!(
+            error.error_response().status(),
+            actix_web::http::StatusCode::SERVICE_UNAVAILABLE
+        );
         server.await.unwrap();
     }
 
@@ -3576,7 +4503,7 @@ mod tests {
 
     #[tokio::test]
     async fn every_non_operator_adapter_uses_the_scoped_agent_boundary() {
-        let (base_url, server) = mock_agent_server(vec![(200, r#"{"ok":true}"#); 80]).await;
+        let (base_url, server) = mock_agent_server(vec![(200, r#"{"ok":true}"#); 81]).await;
         let client = test_client(&base_url);
         let body = json!({"value": "test"});
 
@@ -3584,7 +4511,7 @@ mod tests {
             .ensure_kasiai("org-1", "actor-1", body.clone())
             .await
             .unwrap();
-        client.list_agents("org-1", "actor-1").await.unwrap();
+        client.list_agents("org-1", "actor-1", None).await.unwrap();
         client.get_model_catalog("org-1", "actor-1").await.unwrap();
         client
             .create_agent("org-1", "actor-1", body.clone())
@@ -3901,7 +4828,7 @@ mod tests {
             .await
             .unwrap();
         client
-            .approve_run("org-1", "actor-1", "run-1", body)
+            .approve_run_group("org-1", "actor-1", "run-1", json!({ "groupId": "group-1" }))
             .await
             .unwrap();
         client
@@ -3990,7 +4917,7 @@ mod tests {
             "POST /v1/runs/run-1/cancel HTTP/1.1",
             "POST /v1/runs/run-1/retry HTTP/1.1",
             "POST /v1/runs/run-1/external-event HTTP/1.1",
-            "POST /v1/runs/run-1/approval HTTP/1.1",
+            "POST /v1/runs/run-1/approval-group HTTP/1.1",
             "GET /v1/runs/run-1/events/stream?after=3 HTTP/1.1",
         ];
         assert_eq!(expected_paths.len(), requests.len());
@@ -4079,7 +5006,7 @@ mod tests {
             "runs:cancel",     // cancel_run
             "chat:write",      // retry_run
             "runs:write",      // signal_external_event
-            "runs:approve",    // approve_run
+            "runs:approve",    // approve_run_group
             "runs:read",       // stream_run_events
         ];
         assert_eq!(expected_scopes.len(), requests.len());
@@ -4109,6 +5036,21 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[tokio::test]
+    async fn list_agents_forwards_the_environment_filter() {
+        let (base_url, server) = mock_agent_server(vec![(200, r#"{"agents":[]}"#)]).await;
+        let client = test_client(&base_url);
+
+        client
+            .list_agents("org-1", "actor-1", Some("playground"))
+            .await
+            .unwrap();
+
+        let requests = server.await.unwrap();
+        assert_eq!(requests.len(), 1);
+        assert!(requests[0].starts_with("GET /v1/agents?environment=playground HTTP/1.1"));
     }
 
     #[tokio::test]

@@ -37,6 +37,18 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                 web::patch().to(agent_internal::update_workspace_connection_status_by_id),
             )
             .route(
+                "/email/connections",
+                web::post().to(agent_internal::upsert_email_connection),
+            )
+            .route(
+                "/email/connections/{id}",
+                web::get().to(agent_internal::get_email_connection),
+            )
+            .route(
+                "/email/{operation}",
+                web::post().to(agent_internal::email_operation),
+            )
+            .route(
                 "/workspace/report",
                 web::get().to(agent_internal::get_workspace_report),
             )
@@ -179,8 +191,36 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
             .route("", web::get().to(agent_platform::list_agents))
             .route("", web::post().to(agent_platform::create_agent))
             .route(
+                "/studio",
+                web::post().to(agent_platform::create_studio_agent),
+            )
+            .route(
                 "/models/catalog",
                 web::get().to(agent_platform::get_model_catalog),
+            )
+            .route(
+                "/integrations/mcp/oauth/callback",
+                web::get().to(agent_platform::complete_mcp_oauth_callback),
+            )
+            .route(
+                "/integrations/google/oauth/callback",
+                web::get().to(agent_platform::complete_google_oauth_callback),
+            )
+            .route(
+                "/integrations/microsoft/oauth/callback",
+                web::get().to(agent_platform::complete_microsoft_oauth_callback),
+            )
+            .route(
+                "/capabilities",
+                web::get().to(agent_platform::list_capabilities),
+            )
+            .route(
+                "/capabilities/directory",
+                web::get().to(agent_platform::list_capability_directory),
+            )
+            .route(
+                "/installations/{installationId}/connection-directory",
+                web::get().to(agent_platform::list_connection_directory),
             )
             .route("/{agentId}", web::patch().to(agent_platform::update_agent))
             .route("/{agentId}", web::delete().to(agent_platform::delete_agent))
@@ -267,6 +307,22 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                 web::post().to(agent_platform::create_installation),
             )
             .route(
+                "/installations/{installationId}/preflight",
+                web::post().to(agent_platform::preflight_installation_deployment),
+            )
+            .route(
+                "/installations/{installationId}/deploy",
+                web::post().to(agent_platform::deploy_installation),
+            )
+            .route(
+                "/installations/{installationId}/promote",
+                web::post().to(agent_platform::promote_installation),
+            )
+            .route(
+                "/installations/{installationId}/rollback",
+                web::post().to(agent_platform::rollback_installation),
+            )
+            .route(
                 "/installations/{installationId}/settings",
                 web::patch().to(agent_platform::set_installation_settings),
             )
@@ -299,8 +355,8 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                 web::get().to(agent_platform::list_installation_integrations),
             )
             .route(
-                "/installations/{installationId}/integrations/google.calendar/oauth/start",
-                web::get().to(agent_platform::start_google_calendar_oauth),
+                "/installations/{installationId}/integrations/{integrationId}/oauth/start",
+                web::get().to(agent_platform::start_google_oauth),
             )
             .route(
                 "/installations/{installationId}/integrations/{integrationId}/api-key",
@@ -317,6 +373,85 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
             .route(
                 "/installations/{installationId}/readiness",
                 web::get().to(agent_platform::get_installation_readiness),
+            )
+            .route("/skills", web::get().to(agent_platform::list_skills))
+            .route(
+                "/skills/directory",
+                web::get().to(agent_platform::list_skill_directory),
+            )
+            .route(
+                "/plugins/directory",
+                web::get().to(agent_platform::list_plugin_directory),
+            )
+            .route(
+                "/installations/{installationId}/skills/catalog/{catalogId}/install",
+                web::post().to(agent_platform::install_skill_catalog),
+            )
+            .route(
+                "/installations/{installationId}/plugins/catalog/{catalogId}/install",
+                web::post().to(agent_platform::install_plugin_catalog),
+            )
+            .route(
+                "/extensions/packages",
+                web::get().to(agent_platform::list_extension_packages),
+            )
+            .route(
+                "/skills/{skillId}/versions",
+                web::get().to(agent_platform::list_skill_versions),
+            )
+            .route(
+                "/agent-versions/{agentVersionId}/skills",
+                web::get().to(agent_platform::list_pinned_skills),
+            )
+            .route(
+                "/agent-versions/{agentVersionId}/skills/{skillVersionId}",
+                web::post().to(agent_platform::pin_skill),
+            )
+            .route(
+                "/agent-versions/{agentVersionId}/skills/{skillVersionId}",
+                web::delete().to(agent_platform::unpin_skill),
+            )
+            .route("/mcp/providers", web::get().to(agent_platform::list_mcp_providers))
+            .route("/mcp/providers", web::post().to(agent_platform::create_mcp_provider))
+            .route(
+                "/installations/{installationId}/mcp/catalog/{catalogId}/connect",
+                web::post().to(agent_platform::connect_mcp_catalog),
+            )
+            .route(
+                "/installations/{installationId}/mcp/catalog/{catalogId}/oauth/start",
+                web::post().to(agent_platform::start_mcp_catalog_oauth),
+            )
+            .route(
+                "/mcp/providers/{providerId}/discover",
+                web::post().to(agent_platform::discover_mcp_provider),
+            )
+            .route(
+                "/mcp/providers/{providerId}/health",
+                web::post().to(agent_platform::health_mcp_provider),
+            )
+            .route(
+                "/mcp/providers/{providerId}/versions",
+                web::get().to(agent_platform::list_mcp_provider_versions),
+            )
+            .route(
+                "/mcp/providers/{providerId}/versions/{versionId}/publish",
+                web::post().to(agent_platform::publish_mcp_provider_version),
+            )
+            .route(
+                "/mcp/providers/{providerId}/revoke",
+                web::post().to(agent_platform::revoke_mcp_provider),
+            )
+            .route(
+                "/agent-versions/{agentVersionId}/mcp-providers",
+                web::get().to(agent_platform::list_pinned_mcp_providers),
+            )
+            .route(
+                "/agent-versions/{agentVersionId}/mcp-providers/{providerVersionId}",
+                web::post().to(agent_platform::pin_mcp_provider),
+            )
+            .route(
+                "/agent-versions/{agentVersionId}/mcp-providers/{providerVersionId}",
+                web::delete().to(agent_platform::unpin_mcp_provider),
             )
             .route(
                 "/installations/{installationId}/grants",
@@ -414,6 +549,14 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
             .route(
                 "/{agentId}/versions",
                 web::get().to(agent_platform::list_agent_versions),
+            )
+            .route(
+                "/agent-versions/{agentVersionId}/effective-config",
+                web::get().to(agent_platform::get_agent_version_effective_config),
+            )
+            .route(
+                "/{agentId}/deployment-status",
+                web::get().to(agent_platform::get_agent_deployment_status),
             )
             .route(
                 "/{agentId}/versions",
@@ -601,6 +744,10 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                 web::get().to(agent_platform::get_run_timeline),
             )
             .route(
+                "/runs/{runId}/memory-observatory",
+                web::get().to(agent_platform::get_run_memory_observatory),
+            )
+            .route(
                 "/runs/{runId}/cancel",
                 web::post().to(agent_platform::cancel_run),
             )
@@ -613,8 +760,8 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                 web::post().to(agent_platform::signal_external_event),
             )
             .route(
-                "/runs/{runId}/approval",
-                web::post().to(agent_platform::approve_run),
+                "/runs/{runId}/approval-group",
+                web::post().to(agent_platform::approve_run_group),
             )
             .route(
                 "/runs/{runId}/events/stream",

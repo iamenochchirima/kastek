@@ -63,9 +63,9 @@ fn approval_acknowledgement(response: &Value) -> &'static str {
         response.get("status").and_then(Value::as_str),
         response.get("decision").and_then(Value::as_str),
     ) {
-        (Some("approval_already_signalled"), _) => "Already decided.",
-        (Some("approval_signalled"), Some("rejected")) => "Denied.",
-        (Some("approval_signalled"), Some("approved")) => "Approval received. Processing…",
+        (Some("approval_group_already_signalled"), _) => "Already decided.",
+        (Some("approval_group_signalled"), Some("rejected")) => "Denied.",
+        (Some("approval_group_signalled"), Some("approved")) => "Approval received. Processing…",
         _ => "Approval received.",
     }
 }
@@ -1609,20 +1609,20 @@ mod tests {
     fn reports_approval_progress_without_claiming_success() {
         assert_eq!(
             approval_acknowledgement(&json!({
-                "status": "approval_signalled",
+                "status": "approval_group_signalled",
                 "decision": "approved"
             })),
             "Approval received. Processing…"
         );
         assert_eq!(
             approval_acknowledgement(&json!({
-                "status": "approval_signalled",
+                "status": "approval_group_signalled",
                 "decision": "rejected"
             })),
             "Denied."
         );
         assert_eq!(
-            approval_acknowledgement(&json!({ "status": "approval_already_signalled" })),
+            approval_acknowledgement(&json!({ "status": "approval_group_already_signalled" })),
             "Already decided."
         );
     }

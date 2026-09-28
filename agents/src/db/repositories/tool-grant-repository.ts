@@ -1,6 +1,7 @@
 import type { Pool, PoolClient } from "pg";
 import { query, withTransaction } from "../pool";
 import { CUSTOMER_SERVICE_HANDOFF_TOOL, LEGACY_CUSTOMER_SERVICE_HANDOFF_TOOL } from "../../system/hosted-agent-defaults";
+import { listIntegrations } from "../../integrations/catalog";
 
 export interface ToolGrantRecord {
   id: string;
@@ -50,6 +51,39 @@ export class ToolGrantRepository {
         toolName: input.toolName,
         actorId: input.actorId,
       });
+    });
+  }
+
+  /**
+   * Remove installation-scoped activation for a disconnected integration.
+   * Version-level policy grants remain untouched; reconnecting the provider
+   * can safely activate its bundle again on the current installation.
+   */
+  public async revokeInstallationTools(input: {
+    organizationId: string;
+    installationId: string;
+    toolNames: readonly string[];
+    actorId: string;
+  }): Promise<number> {
+    const toolNames = [...new Set(input.toolNames.map((name) => name.trim()).filter(Boolean))];
+    if (!toolNames.length) return 0;
+    return withTransaction(this.pool, async (client) => {
+      const result = await client.query(
+        `UPDATE agent_tool_grants
+         SET revoked_at = now()
+         WHERE organization_id = $1 AND installation_id = $2
+           AND tool_name = ANY($3::text[]) AND revoked_at IS NULL`,
+        [input.organizationId, input.installationId, toolNames],
+      );
+      if (result.rowCount) {
+        await client.query(
+          `INSERT INTO audit_records
+            (organization_id, actor_type, actor_id, action, resource_type, resource_id, metadata)
+           VALUES ($1, 'human', $2, 'agent_installation_tools.revoked', 'agent_installation', $3, $4::jsonb)`,
+          [input.organizationId, input.actorId, input.installationId, JSON.stringify({ toolNames })],
+        );
+      }
+      return result.rowCount ?? 0;
     });
   }
 
@@ -134,22 +168,68 @@ export class ToolGrantRepository {
   ): Promise<Set<string>> {
     const result = await query<{ tool_name: string }>(
       this.pool,
-      `SELECT DISTINCT grants.tool_name
-       FROM agent_tool_grants grants
-       JOIN agent_versions version ON version.id = grants.agent_version_id
-       JOIN agent_definitions agent ON agent.id = version.agent_definition_id
-       WHERE grants.agent_version_id = $2 AND grants.revoked_at IS NULL AND (
-         (
-           grants.organization_id = $1
-           AND (grants.installation_id IS NULL OR grants.installation_id = $3)
-         ) OR (
-           agent.owner_type = 'system' AND agent.protected = TRUE
-           AND grants.organization_id = agent.organization_id
-           AND grants.installation_id IS NULL
-         )
-       )`,
+      `SELECT DISTINCT effective.tool_name
+       FROM (
+         SELECT grants.tool_name
+         FROM agent_tool_grants grants
+         JOIN agent_versions version ON version.id = grants.agent_version_id
+         JOIN agent_definitions agent ON agent.id = version.agent_definition_id
+         WHERE grants.agent_version_id = $2 AND grants.revoked_at IS NULL AND (
+           (
+             grants.organization_id = $1
+             AND (grants.installation_id IS NULL OR grants.installation_id = $3)
+           ) OR (
+             agent.owner_type = 'system' AND agent.protected = TRUE
+             AND grants.organization_id = agent.organization_id
+             AND grants.installation_id IS NULL
+           )
+       )) effective`,
       [organizationId, versionId, installationId],
     );
-    return new Set(result.rows.map((row) => row.tool_name));
+    const effective = new Set(result.rows.map((row) => row.tool_name));
+
+    // Integration capability bundles are owned by the catalog, not by this
+    // persistence repository. Resolve connected connector ids here and map
+    // them through the same catalog used by the connect routes and runtime.
+    // This prevents a second hand-maintained SQL bundle list from drifting.
+    const connected = await query<{ connector_id: string }>(
+      this.pool,
+      `SELECT DISTINCT connector.connector_id
+       FROM integration_connections connection
+       JOIN agent_installation_connector_grants connector
+         ON connector.organization_id = connection.organization_id
+        AND connector.installation_id = connection.installation_id
+        AND connector.connector_id = connection.integration_id
+        AND connector.revoked_at IS NULL
+       WHERE connection.organization_id = $1
+         AND connection.installation_id = $2
+         AND connection.status = 'connected'
+         AND connection.revoked_at IS NULL`,
+      [organizationId, installationId],
+    );
+    const integrations = new Map(listIntegrations().map((entry) => [entry.id, entry]));
+    for (const row of connected.rows) {
+      const integration = integrations.get(row.connector_id);
+      if (integration?.kind !== "tool") continue;
+      for (const toolName of integration.capabilityNames) effective.add(toolName);
+    }
+
+    // KasiTek's built-in integrations are available to every active hosted
+    // installation. Keep this in the catalog as well, rather than repeating
+    // the native bundle in SQL.
+    const installation = await query<{ status: string }>(
+      this.pool,
+      `SELECT status FROM agent_installations
+       WHERE id = $1 AND organization_id = $2`,
+      [installationId, organizationId],
+    );
+    if (installation.rows[0]?.status === "active") {
+      for (const integration of integrations.values()) {
+        if (integration.kind === "tool" && integration.auth === "internal") {
+          for (const toolName of integration.capabilityNames) effective.add(toolName);
+        }
+      }
+    }
+    return effective;
   }
 }

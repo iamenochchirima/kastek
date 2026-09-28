@@ -10,10 +10,44 @@ export const remoteMcpToolSchema = z.object({
   name: z.string().trim().min(1).max(160).regex(/^[A-Za-z0-9._:-]+$/),
   description: z.string().trim().max(2_000).default("Remote MCP tool"),
   inputSchema: z.record(z.string(), z.unknown()).default({ type: "object", properties: {}, additionalProperties: false }),
-}).strict();
+  // MCP servers may include protocol metadata such as title, outputSchema,
+  // annotations, and _meta. KasiTek only needs the executable tool contract;
+  // strip provider-specific metadata instead of rejecting an otherwise valid
+  // tools/list response.
+}).strip();
 export type RemoteMcpTool = z.infer<typeof remoteMcpToolSchema>;
 
+/** Stable runtime name shared by discovery, registry projection, and snapshots. */
+export function remoteMcpToolName(providerVersionId: string, toolName: string): string {
+  return `remote_mcp.${providerVersionId}.${toolName}`;
+}
+
 export const remoteMcpToolsSchema = z.array(remoteMcpToolSchema).max(MAX_REMOTE_TOOLS);
+
+/**
+ * OAuth credentials are persisted as an encrypted JSON envelope, while the
+ * remote MCP adapter needs only the bearer access token. Plain API keys stay
+ * unchanged for non-OAuth providers.
+ */
+export function resolveRemoteMcpAuthorizationToken(rawCredential: string): string {
+  const raw = rawCredential.trim();
+  if (!raw) return raw;
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      const record = parsed as Record<string, unknown>;
+      const accessToken = typeof record.accessToken === "string"
+        ? record.accessToken
+        : typeof record.access_token === "string"
+          ? record.access_token
+          : undefined;
+      if (accessToken?.trim()) return accessToken.trim();
+    }
+  } catch {
+    // A non-JSON credential is a normal API key or bearer token.
+  }
+  return raw;
+}
 
 export interface RemoteMcpProviderSettings {
   endpointUrl: string;
@@ -57,6 +91,7 @@ export async function discoverRemoteMcpTools(input: {
   timeoutMs: number;
   maxResponseBytes: number;
   environment?: "development" | "test" | "production";
+  signal?: AbortSignal;
 }): Promise<{ protocolVersion: string; tools: RemoteMcpTool[] }> {
   const endpoint = await resolveRemoteMcpEndpoint(input.endpointUrl, input.environment ?? "production");
   const headers = remoteHeaders(input.authorizationToken);
@@ -71,7 +106,7 @@ export async function discoverRemoteMcpTools(input: {
         capabilities: {},
         clientInfo: { name: "kasitek-agent-platform", version: "1" },
       },
-    }, headers, input.timeoutMs, input.maxResponseBytes);
+    }, headers, input.timeoutMs, input.maxResponseBytes, input.signal);
     sessionId = initialized.sessionId;
   } catch (error) {
     // Some stateless MCP providers do not implement initialize. Their tools
@@ -83,7 +118,7 @@ export async function discoverRemoteMcpTools(input: {
     id: "kasitek-tools-list",
     method: "tools/list",
     params: {},
-  }, { ...headers, ...(sessionId ? { "Mcp-Session-Id": sessionId } : {}) }, input.timeoutMs, input.maxResponseBytes);
+  }, { ...headers, ...(sessionId ? { "Mcp-Session-Id": sessionId } : {}) }, input.timeoutMs, input.maxResponseBytes, input.signal);
   const result = listed.result && typeof listed.result === "object" && !Array.isArray(listed.result) ? listed.result as Record<string, unknown> : {};
   const tools = remoteMcpToolsSchema.parse(result.tools ?? []);
   for (const tool of tools) {
@@ -100,6 +135,7 @@ export async function callRemoteMcpTool(input: {
   timeoutMs: number;
   maxResponseBytes: number;
   environment?: "development" | "test" | "production";
+  signal?: AbortSignal;
 }): Promise<unknown> {
   const endpoint = await resolveRemoteMcpEndpoint(input.endpointUrl, input.environment ?? "production");
   const response = await remoteJsonRpc(endpoint, {
@@ -107,18 +143,18 @@ export async function callRemoteMcpTool(input: {
     id: "kasitek-tools-call",
     method: "tools/call",
     params: { name: input.toolName, arguments: input.argumentsValue },
-  }, remoteHeaders(input.authorizationToken), input.timeoutMs, input.maxResponseBytes);
+  }, remoteHeaders(input.authorizationToken), input.timeoutMs, input.maxResponseBytes, input.signal);
   if (response.error) throw new Error("REMOTE_MCP_TOOL_FAILED");
   return redactSensitiveValue(response.result ?? {});
 }
 
-async function remoteJsonRpc(endpoint: URL, body: Record<string, unknown>, headers: Record<string, string>, timeoutMs: number, maxResponseBytes: number): Promise<{ result?: unknown; error?: unknown; protocolVersion?: string; sessionId?: string }> {
+async function remoteJsonRpc(endpoint: URL, body: Record<string, unknown>, headers: Record<string, string>, timeoutMs: number, maxResponseBytes: number, signal?: AbortSignal): Promise<{ result?: unknown; error?: unknown; protocolVersion?: string; sessionId?: string }> {
   const response = await fetch(endpoint, {
     method: "POST",
     redirect: "error",
     headers: { ...headers, accept: "application/json, text/event-stream" },
     body: JSON.stringify(body),
-    signal: AbortSignal.timeout(timeoutMs),
+    signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(timeoutMs)]) : AbortSignal.timeout(timeoutMs),
   });
   const raw = await readBoundedResponse(response, maxResponseBytes);
   if (!response.ok) {

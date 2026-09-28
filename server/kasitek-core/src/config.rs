@@ -46,6 +46,15 @@ pub struct AppConfig {
     pub agents_installation_token_public_key: Option<String>,
     pub agents_installation_token_issuer: String,
     pub agents_api_timeout_ms: u32,
+    /// OAuth clients used for workspace-owned email connections. The values
+    /// are optional in local environments so the provider picker can still
+    /// render while showing an unconfigured provider as unavailable.
+    pub email_google_client_id: Option<String>,
+    pub email_google_client_secret: Option<String>,
+    pub email_google_redirect_uri: Option<String>,
+    pub email_microsoft_client_id: Option<String>,
+    pub email_microsoft_client_secret: Option<String>,
+    pub email_microsoft_redirect_uri: Option<String>,
     pub web_push_vapid_public_key: Option<String>,
     pub web_push_vapid_private_key: Option<String>,
     pub web_push_subject: String,
@@ -177,6 +186,12 @@ impl AppConfig {
                 "kasitek-agents",
             ),
             agents_api_timeout_ms: env_u32_or("AGENTS_API_TIMEOUT_MS", 15_000).clamp(500, 120_000),
+            email_google_client_id: env_optional("KASITEK_EMAIL_GOOGLE_CLIENT_ID"),
+            email_google_client_secret: env_optional("KASITEK_EMAIL_GOOGLE_CLIENT_SECRET"),
+            email_google_redirect_uri: env_optional("KASITEK_EMAIL_GOOGLE_REDIRECT_URI"),
+            email_microsoft_client_id: env_optional("KASITEK_EMAIL_MICROSOFT_CLIENT_ID"),
+            email_microsoft_client_secret: env_optional("KASITEK_EMAIL_MICROSOFT_CLIENT_SECRET"),
+            email_microsoft_redirect_uri: env_optional("KASITEK_EMAIL_MICROSOFT_REDIRECT_URI"),
             web_push_vapid_public_key: env_optional("WEB_PUSH_VAPID_PUBLIC_KEY"),
             web_push_vapid_private_key: env_optional("WEB_PUSH_VAPID_PRIVATE_KEY"),
             web_push_subject: env_string_or("WEB_PUSH_SUBJECT", "mailto:hello@kasitek.co.za"),

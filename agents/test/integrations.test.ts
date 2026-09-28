@@ -7,16 +7,28 @@ describe("integration catalog", () => {
   it("keeps provider configuration separate from capability names", () => {
     const catalog = listIntegrations();
     expect(catalog.map((entry) => entry.id)).toEqual([
-      "whatsapp.messaging",
-      "telegram.messaging",
-      "discord.messaging",
-      "internal.calendar",
       "google.calendar",
+      "google.gmail",
+      "google.email",
+      "microsoft.email",
+      "google.drive",
+      "internal.calendar",
       "apple.tools",
       "tavily.search",
       "opentelemetry",
+      "discord.messaging",
+      "facebook.messaging",
+      "instagram.messaging",
+      "telegram.messaging",
+      "whatsapp.messaging",
     ]);
     expect(getIntegration("google.calendar")?.capabilityNames).toContain("kasitek.calendar.create");
+    expect(getIntegration("google.calendar")?.requiredScopes).toEqual(["https://www.googleapis.com/auth/calendar.events"]);
+    expect(getIntegration("google.calendar")?.auth).toBe("oauth2");
+    expect(getIntegration("google.gmail")?.requiredScopes).toEqual(["https://www.googleapis.com/auth/gmail.readonly"]);
+    expect(getIntegration("google.email")?.capabilityNames).toEqual(["kasitek.email.search", "kasitek.email.read", "kasitek.email.send", "kasitek.email.reply"]);
+    expect(getIntegration("microsoft.email")?.provider).toBe("microsoft");
+    expect(getIntegration("google.drive")?.requiredScopes).toEqual(["https://www.googleapis.com/auth/drive.readonly"]);
     expect(getIntegration("internal.calendar")?.auth).toBe("internal");
     expect(getIntegration("tavily.search")?.auth).toBe("api_key");
     expect(getIntegration("telegram.messaging")?.runtime).toBe("webhook");
@@ -51,5 +63,6 @@ describe("integration tool registry", () => {
     expect(registry.get("kasitek.calendar.list")?.requiresApproval).toBe(false);
     expect(registry.get("kasitek.calendar.create")?.requiresApproval).toBe(true);
     expect(registry.get("kasitek.apple.note.create")?.manifest?.requiredScope).toBe("apple.notes.write");
+    expect(registry.generation).toBeGreaterThan(0);
   });
 });

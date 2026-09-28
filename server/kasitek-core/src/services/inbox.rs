@@ -12,7 +12,7 @@ use crate::db::models::{ConversationRow, WhatsappSendMessageRequest};
 use crate::error::AppError;
 use crate::services::push::{send_push_notification_to_user, PushNotificationPayload};
 use crate::services::{
-    agent_platform, customers, message_domain, realtime, social, whatsapp, whatsapp_inbox,
+    agent_platform, customers, email, message_domain, realtime, social, whatsapp, whatsapp_inbox,
 };
 
 const META_GRAPH_BASE: &str = "https://graph.facebook.com/v23.0";
@@ -61,6 +61,25 @@ struct InboxMessageRow {
 }
 
 #[derive(Debug, FromRow)]
+struct EmailConversationScopeRow {
+    id: String,
+    provider: String,
+    email_address: String,
+    customer_identifier: String,
+    outbound_status: String,
+}
+
+#[derive(Debug, FromRow)]
+struct EmailMessageTargetRow {
+    id: String,
+    content: String,
+    #[sqlx(rename = "provider_message_id")]
+    provider_message_id: Option<String>,
+    #[sqlx(rename = "provider_metadata")]
+    provider_metadata: Option<Value>,
+}
+
+#[derive(Debug, FromRow)]
 struct MetaMessageAnalyticsRow {
     id: String,
     #[sqlx(rename = "conversation_id")]
@@ -90,6 +109,32 @@ struct MetaChannelRow {
     #[sqlx(rename = "access_token")]
     access_token: Option<String>,
     metadata: Option<Value>,
+}
+
+#[derive(Debug, FromRow)]
+struct EmailInboxConversationRow {
+    id: String,
+    #[sqlx(rename = "customer_identifier")]
+    customer_identifier: String,
+    #[sqlx(rename = "customer_name")]
+    customer_name: Option<String>,
+    status: String,
+    #[sqlx(rename = "last_message_at")]
+    last_message_at: chrono::DateTime<Utc>,
+    #[sqlx(rename = "last_read_at")]
+    last_read_at: Option<chrono::DateTime<Utc>>,
+    #[sqlx(rename = "unread_count")]
+    unread_count: i32,
+    #[sqlx(rename = "email_connection_id")]
+    email_connection_id: String,
+    #[sqlx(rename = "connection_label")]
+    connection_label: String,
+    #[sqlx(rename = "last_message_content")]
+    last_message_content: Option<String>,
+    #[sqlx(rename = "last_message_subject")]
+    last_message_subject: Option<String>,
+    #[sqlx(rename = "last_message_from")]
+    last_message_from: Option<String>,
 }
 
 #[derive(Debug, FromRow)]
@@ -252,6 +297,68 @@ pub async fn list_inbox_conversations(pool: &PgPool, org_id: &str) -> Result<Val
             "connectionId": row.channel_connection_id,
             "connectionLabel": row.channel_label,
             "lastMessage": row.last_message_content.unwrap_or_else(|| "No messages yet".to_string()),
+        }));
+    }
+
+    let email_rows = sqlx::query_as::<_, EmailInboxConversationRow>(
+        r#"
+        SELECT
+            c.id,
+            c."customerIdentifier" AS customer_identifier,
+            c."customerName" AS customer_name,
+            c.status,
+            c."lastMessageAt" AT TIME ZONE 'UTC' AS last_message_at,
+            c."lastReadAt" AT TIME ZONE 'UTC' AS last_read_at,
+            c."unreadCount" AS unread_count,
+            source."sourceId" AS email_connection_id,
+            source."displayName" || ' · ' || COALESCE(source.handle, '') AS connection_label,
+            last_message.content AS last_message_content,
+            last_message.subject AS last_message_subject,
+            last_message.from_address AS last_message_from
+        FROM "Conversation" c
+        JOIN "ExternalConnection" source
+          ON source.id = c."externalConnectionId"
+         AND source."orgId" = c."orgId"
+         AND source."sourceType" = 'EMAIL'
+        LEFT JOIN LATERAL (
+            SELECT m.content,
+                   m."providerMetadata"->>'subject' AS subject,
+                   m."providerMetadata"->>'from' AS from_address
+            FROM "Message" m
+            WHERE m."conversationId" = c.id
+            ORDER BY m.timestamp DESC
+            LIMIT 1
+        ) last_message ON true
+        WHERE c.channel = 'email'
+          AND c."orgId" = $1
+        ORDER BY c."lastMessageAt" DESC
+        "#,
+    )
+    .bind(org_id)
+    .fetch_all(pool)
+    .await?;
+
+    for row in email_rows {
+        let handle = row
+            .customer_identifier
+            .strip_prefix("email:")
+            .and_then(|value| value.rsplit(':').next())
+            .unwrap_or(&row.customer_identifier);
+        conversations.push(json!({
+            "id": row.id,
+            "channel": "email",
+            "customerName": row.customer_name,
+            "phone": handle,
+            "status": row.status,
+            "lastMessageAt": row.last_message_at,
+            "lastReadAt": row.last_read_at,
+            "unreadCount": row.unread_count,
+            "starred": false,
+            "connectionId": row.email_connection_id,
+            "connectionLabel": row.connection_label.trim_end_matches(" · "),
+            "lastMessage": row.last_message_content.unwrap_or_else(|| "No messages yet".to_string()),
+            "subject": row.last_message_subject.unwrap_or_else(|| "(no subject)".to_string()),
+            "from": row.last_message_from,
         }));
     }
 
@@ -734,6 +841,7 @@ pub async fn download_message_attachment(
 
 pub async fn send_conversation_message(
     pool: &PgPool,
+    config: &AppConfig,
     user_id: &str,
     org_id: &str,
     conversation_id: &str,
@@ -746,6 +854,10 @@ pub async fn send_conversation_message(
     if conversation.channel == "whatsapp" {
         return whatsapp::send_conversation_message(pool, user_id, org_id, conversation_id, input)
             .await;
+    }
+
+    if conversation.channel == "email" {
+        return send_email_conversation_message(pool, config, org_id, conversation_id, input).await;
     }
 
     let text = input
@@ -873,8 +985,236 @@ pub async fn send_conversation_message(
     .await
 }
 
+async fn send_email_conversation_message(
+    pool: &PgPool,
+    config: &AppConfig,
+    org_id: &str,
+    conversation_id: &str,
+    input: WhatsappSendMessageRequest,
+) -> Result<Value, AppError> {
+    let text = input
+        .text
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| AppError::BadRequest("Reply text is required".to_string()))?;
+    let scope = scoped_email_conversation(pool, org_id, conversation_id)
+        .await?
+        .ok_or_else(|| AppError::NotFound("Email conversation not found".to_string()))?;
+    if scope.outbound_status != "READY" {
+        return Err(AppError::Conflict(
+            "This mailbox is not ready to send email. Reconnect it or grant send access first."
+                .to_string(),
+        ));
+    }
+    let target = if let Some(target_id) = input
+        .reply_to_message_id
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        Some(
+            sqlx::query_as::<_, EmailMessageTargetRow>(
+                r#"SELECT id, content, "providerMessageId" AS provider_message_id,
+                          "providerMetadata" AS provider_metadata
+                   FROM "Message"
+                   WHERE id = $1 AND "conversationId" = $2
+                   LIMIT 1"#,
+            )
+            .bind(target_id)
+            .bind(&scope.id)
+            .fetch_optional(pool)
+            .await?
+            .ok_or_else(|| AppError::NotFound("Reply target not found".to_string()))?,
+        )
+    } else {
+        sqlx::query_as::<_, EmailMessageTargetRow>(
+            r#"SELECT id, content, "providerMessageId" AS provider_message_id,
+                      "providerMetadata" AS provider_metadata
+               FROM "Message"
+               WHERE "conversationId" = $1 AND sender = 'customer'
+               ORDER BY timestamp DESC
+               LIMIT 1"#,
+        )
+        .bind(&scope.id)
+        .fetch_optional(pool)
+        .await?
+    };
+    let provider_message_id = target
+        .as_ref()
+        .and_then(|row| row.provider_message_id.clone());
+    let provider_metadata = target
+        .as_ref()
+        .and_then(|row| row.provider_metadata.as_ref());
+    let thread_id = provider_metadata
+        .and_then(|metadata| metadata.get("threadId"))
+        .and_then(Value::as_str)
+        .or_else(|| scope.customer_identifier.rsplit(':').next())
+        .unwrap_or_default();
+    let subject = provider_metadata
+        .and_then(|metadata| metadata.get("subject"))
+        .and_then(Value::as_str)
+        .unwrap_or("Re:");
+    let reply_to_address = provider_metadata
+        .and_then(|metadata| metadata.get("from"))
+        .and_then(Value::as_str)
+        .map(str::to_string);
+    let message_id = cuid2::create_id();
+    let occurred_at = Utc::now();
+    let mut transaction = pool.begin().await?;
+    sqlx::query(
+        r#"INSERT INTO "Message" (
+               id, "conversationId", sender, content, "contentType",
+               "providerMessageId", "providerStatus", "providerMetadata", timestamp
+           ) VALUES ($1, $2, 'bot', $3, 'TEXT', $4, 'SENDING', $5, $6)"#,
+    )
+    .bind(&message_id)
+    .bind(&scope.id)
+    .bind(text)
+    .bind(provider_message_id.as_deref())
+    .bind(json!({
+        "provider": scope.provider.to_ascii_lowercase(),
+        "threadId": thread_id,
+        "subject": subject,
+        "replyToMessageId": input.reply_to_message_id,
+        "_kasitek_inbox_responder_type": "human",
+    }))
+    .bind(occurred_at)
+    .execute(&mut *transaction)
+    .await?;
+    analytics::inbox::enqueue_message_lifecycle(
+        &mut transaction,
+        org_id,
+        &message_id,
+        &scope.id,
+        "email",
+        "created",
+        "outbound",
+        "human",
+        "text",
+        Some("sending"),
+        None,
+        occurred_at,
+    )
+    .await
+    .map_err(|error| {
+        AppError::Internal(format!("Failed to queue Inbox analytics fact: {error}"))
+    })?;
+    transaction.commit().await?;
+    if let Some(target) = target.as_ref() {
+        message_domain::create_reference(
+            pool,
+            &message_id,
+            &target.id,
+            provider_message_id.as_deref(),
+            Some(&preview_text(&target.content, 180)),
+            Some("TEXT"),
+        )
+        .await?;
+    }
+
+    let operation = serde_json::json!({
+        "provider": scope.provider.to_ascii_lowercase(),
+        "account": scope.email_address,
+        "body": text,
+        "subject": subject,
+        "threadId": thread_id,
+        "messageId": provider_message_id,
+        "to": reply_to_address.into_iter().collect::<Vec<_>>(),
+    });
+    let email_operation = if provider_message_id.is_some() {
+        email::EmailOperation::Reply
+    } else {
+        email::EmailOperation::Send
+    };
+    match email::execute(pool, config, org_id, email_operation, &operation).await {
+        Ok(result) => {
+            let provider_id = result.get("messageId").and_then(Value::as_str);
+            let occurred_at = Utc::now();
+            let mut transaction = pool.begin().await?;
+            sqlx::query(
+                r#"UPDATE "Message"
+                   SET "providerMessageId" = COALESCE($1, "providerMessageId"),
+                       "providerStatus" = 'SENT', "errorCode" = NULL, "errorMessage" = NULL
+                   WHERE id = $2 AND "conversationId" = $3"#,
+            )
+            .bind(provider_id)
+            .bind(&message_id)
+            .bind(&scope.id)
+            .execute(&mut *transaction)
+            .await?;
+            sqlx::query(
+                r#"UPDATE "Conversation" SET "lastMessageAt" = NOW(), status = 'active', "updatedAt" = NOW()
+                   WHERE id = $1 AND "orgId" = $2"#,
+            )
+            .bind(&scope.id)
+            .bind(org_id)
+            .execute(&mut *transaction)
+            .await?;
+            analytics::inbox::enqueue_message_lifecycle(
+                &mut transaction,
+                org_id,
+                &message_id,
+                &scope.id,
+                "email",
+                "delivery_updated",
+                "outbound",
+                "human",
+                "text",
+                Some("sent"),
+                None,
+                occurred_at,
+            )
+            .await
+            .map_err(|error| {
+                AppError::Internal(format!(
+                    "Failed to queue email delivery analytics fact: {error}"
+                ))
+            })?;
+            transaction.commit().await?;
+            Ok(
+                json!({ "success": true, "messageId": message_id, "providerMessageId": provider_id, "status": "SENT" }),
+            )
+        }
+        Err(error) => {
+            let occurred_at = Utc::now();
+            let mut transaction = pool.begin().await?;
+            sqlx::query(
+                r#"UPDATE "Message" SET "providerStatus" = 'FAILED', "errorCode" = 'EMAIL_SEND_FAILED', "errorMessage" = $1 WHERE id = $2"#,
+            )
+            .bind(error.code())
+            .bind(&message_id)
+            .execute(&mut *transaction)
+            .await?;
+            analytics::inbox::enqueue_message_lifecycle(
+                &mut transaction,
+                org_id,
+                &message_id,
+                &scope.id,
+                "email",
+                "delivery_updated",
+                "outbound",
+                "human",
+                "text",
+                Some("failed"),
+                None,
+                occurred_at,
+            )
+            .await
+            .map_err(|analytics_error| {
+                AppError::Internal(format!(
+                    "Failed to queue email failure analytics fact: {analytics_error}"
+                ))
+            })?;
+            transaction.commit().await?;
+            Err(error)
+        }
+    }
+}
+
 pub async fn retry_conversation_message(
     pool: &PgPool,
+    config: &AppConfig,
     user_id: &str,
     org_id: &str,
     conversation_id: &str,
@@ -887,6 +1227,11 @@ pub async fn retry_conversation_message(
         return Err(AppError::BadRequest(
             "Retry is currently available for Instagram and Messenger messages".to_string(),
         ));
+    }
+
+    if conversation.channel == "email" {
+        return retry_email_conversation_message(pool, config, org_id, conversation_id, message_id)
+            .await;
     }
 
     let meta_scope = scoped_meta_conversation(pool, org_id, conversation_id)
@@ -966,6 +1311,137 @@ pub async fn retry_conversation_message(
         reply_to_provider_message_id.as_deref(),
     )
     .await
+}
+
+async fn retry_email_conversation_message(
+    pool: &PgPool,
+    config: &AppConfig,
+    org_id: &str,
+    conversation_id: &str,
+    message_id: &str,
+) -> Result<Value, AppError> {
+    let scope = scoped_email_conversation(pool, org_id, conversation_id)
+        .await?
+        .ok_or_else(|| AppError::NotFound("Email conversation not found".to_string()))?;
+    if scope.outbound_status != "READY" {
+        return Err(AppError::Conflict(
+            "This mailbox is not ready to send email. Reconnect it or grant send access first."
+                .to_string(),
+        ));
+    }
+    let message = sqlx::query_as::<_, EmailMessageTargetRow>(
+        r#"UPDATE "Message"
+           SET "providerStatus" = 'SENDING', "errorCode" = NULL, "errorMessage" = NULL
+           WHERE id = $1 AND "conversationId" = $2 AND sender = 'bot' AND "providerStatus" = 'FAILED'
+           RETURNING id, content, "providerMessageId" AS provider_message_id,
+                     "providerMetadata" AS provider_metadata"#,
+    )
+    .bind(message_id)
+    .bind(conversation_id)
+    .fetch_optional(pool)
+    .await?
+    .ok_or_else(|| AppError::Conflict("Only failed email messages can be retried".to_string()))?;
+    let metadata = message.provider_metadata.as_ref();
+    let thread_id = metadata
+        .and_then(|value| value.get("threadId"))
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    let subject = metadata
+        .and_then(|value| value.get("subject"))
+        .and_then(Value::as_str)
+        .unwrap_or("Re:");
+    let to = metadata
+        .and_then(|value| value.get("from"))
+        .and_then(Value::as_str)
+        .map(str::to_string)
+        .into_iter()
+        .collect::<Vec<_>>();
+    let operation = json!({
+        "provider": scope.provider.to_ascii_lowercase(),
+        "account": scope.email_address,
+        "body": message.content,
+        "subject": subject,
+        "threadId": thread_id,
+        "messageId": message.provider_message_id,
+        "to": to,
+    });
+    let email_operation = if message.provider_message_id.is_some() {
+        email::EmailOperation::Reply
+    } else {
+        email::EmailOperation::Send
+    };
+    match email::execute(pool, config, org_id, email_operation, &operation).await {
+        Ok(result) => {
+            let provider_id = result.get("messageId").and_then(Value::as_str);
+            let occurred_at = Utc::now();
+            let mut transaction = pool.begin().await?;
+            sqlx::query(
+                r#"UPDATE "Message" SET "providerMessageId" = COALESCE($1, "providerMessageId"),
+                   "providerStatus" = 'SENT', "errorCode" = NULL, "errorMessage" = NULL WHERE id = $2"#,
+            )
+            .bind(provider_id)
+            .bind(message_id)
+            .execute(&mut *transaction)
+            .await?;
+            analytics::inbox::enqueue_message_lifecycle(
+                &mut transaction,
+                org_id,
+                message_id,
+                &scope.id,
+                "email",
+                "delivery_updated",
+                "outbound",
+                "human",
+                "text",
+                Some("sent"),
+                None,
+                occurred_at,
+            )
+            .await
+            .map_err(|error| {
+                AppError::Internal(format!(
+                    "Failed to queue email retry analytics fact: {error}"
+                ))
+            })?;
+            transaction.commit().await?;
+            Ok(
+                json!({ "success": true, "messageId": message_id, "providerMessageId": provider_id, "status": "SENT" }),
+            )
+        }
+        Err(error) => {
+            let occurred_at = Utc::now();
+            let mut transaction = pool.begin().await?;
+            sqlx::query(
+                r#"UPDATE "Message" SET "providerStatus" = 'FAILED', "errorCode" = 'EMAIL_SEND_FAILED', "errorMessage" = $1 WHERE id = $2"#,
+            )
+            .bind(error.code())
+            .bind(message_id)
+            .execute(&mut *transaction)
+            .await?;
+            analytics::inbox::enqueue_message_lifecycle(
+                &mut transaction,
+                org_id,
+                message_id,
+                &scope.id,
+                "email",
+                "delivery_updated",
+                "outbound",
+                "human",
+                "text",
+                Some("failed"),
+                None,
+                occurred_at,
+            )
+            .await
+            .map_err(|analytics_error| {
+                AppError::Internal(format!(
+                    "Failed to queue email retry failure analytics fact: {analytics_error}"
+                ))
+            })?;
+            transaction.commit().await?;
+            Err(error)
+        }
+    }
 }
 
 async fn deliver_meta_text_message(
@@ -1969,6 +2445,39 @@ async fn scoped_meta_conversation(
           AND c."customerIdentifier" LIKE 'meta:%'
         LIMIT 1
         "#,
+    )
+    .bind(conversation_id)
+    .bind(org_id)
+    .fetch_optional(pool)
+    .await
+    .map_err(AppError::from)
+}
+
+async fn scoped_email_conversation(
+    pool: &PgPool,
+    org_id: &str,
+    conversation_id: &str,
+) -> Result<Option<EmailConversationScopeRow>, AppError> {
+    sqlx::query_as::<_, EmailConversationScopeRow>(
+        r#"SELECT c.id,
+                  email.provider,
+                  email."emailAddress" AS email_address,
+                  c."customerIdentifier" AS customer_identifier,
+                  binding."outboundStatus" AS outbound_status
+           FROM "Conversation" c
+           JOIN "ExternalConnection" source
+             ON source.id = c."externalConnectionId"
+            AND source."orgId" = c."orgId"
+            AND source."sourceType" = 'EMAIL'
+           JOIN "EmailConnection" email
+             ON email.id = source."sourceId"
+            AND email."orgId" = c."orgId"
+           JOIN "EmailInboxBinding" binding
+             ON binding."emailConnectionId" = email.id
+            AND binding."orgId" = c."orgId"
+            AND binding.status = 'ACTIVE'
+           WHERE c.id = $1 AND c."orgId" = $2 AND c.channel = 'email'
+           LIMIT 1"#,
     )
     .bind(conversation_id)
     .bind(org_id)
@@ -3169,6 +3678,29 @@ async fn conversation_channel_context(
                 .flatten()
             };
             Ok((Some(channel_connection_id), channel_label, customer_id))
+        }
+        "email" => {
+            let connection_id = conversation
+                .customer_identifier
+                .strip_prefix("email:")
+                .and_then(|value| value.split(':').next())
+                .map(str::to_string);
+            let (label, handle) = if let Some(source_id) = connection_id.as_deref() {
+                sqlx::query_as::<_, (Option<String>, Option<String>)>(
+                    r#"SELECT source."displayName", source.handle
+                       FROM "ExternalConnection" source
+                       WHERE source."sourceType" = 'EMAIL' AND source."sourceId" = $1
+                       LIMIT 1"#,
+                )
+                .bind(source_id)
+                .fetch_optional(pool)
+                .await?
+                .map(|(label, handle)| (label, handle.unwrap_or_default()))
+                .unwrap_or((None, conversation.customer_identifier.clone()))
+            } else {
+                (None, conversation.customer_identifier.clone())
+            };
+            Ok((connection_id, label, handle))
         }
         _ => Ok((None, None, conversation.customer_identifier.clone())),
     }

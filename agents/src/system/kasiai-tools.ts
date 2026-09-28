@@ -18,4 +18,24 @@ export const KASIAI_ALLOWED_TOOLS = [
   "kasitek.core.content_post_schedule",
   "kasitek.core.content_post_delete",
   "kasitek.core.content_post_delete_published",
+  // Native connector bundles are admitted only when their installation is
+  // connected, granted, and healthy. Keeping the schemas in the protected
+  // candidate lets Connect activate them without another system release.
+  "kasitek.calendar.list",
+  "kasitek.calendar.create",
+  "kasitek.calendar.update",
+  "kasitek.calendar.delete",
+  "kasitek.gmail.search",
+  "kasitek.email.search",
+  "kasitek.email.read",
+  "kasitek.email.send",
+  "kasitek.email.reply",
+  "kasitek.drive.search",
+  "kasitek.apple.calendar.list",
+  "kasitek.apple.mail.list",
+  "kasitek.apple.reminder.create",
+  "kasitek.apple.note.create",
+  "kasitek.web.search",
+  "skills_list",
+  "skill_view",
 ] as const;

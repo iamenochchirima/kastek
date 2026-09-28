@@ -15,6 +15,9 @@ export interface IntegrationCatalogEntry {
   auth: "internal" | ConnectorAuthScheme | "local_connector" | "observability";
   channelType?: "whatsapp" | "facebook" | "instagram" | "telegram" | "discord";
   logo: string;
+  provider?: string;
+  oauthProvider?: string;
+  displayOrder?: number;
   capabilityNames: string[];
   requiredScopes: string[];
   configurable: boolean;
@@ -31,6 +34,34 @@ export const INTEGRATION_CATALOG: readonly IntegrationCatalogEntry[] = [
     auth: "webhook",
     channelType: "whatsapp",
     logo: "whatsapp",
+    capabilityNames: ["kasitek.core.channel_deliver"],
+    requiredScopes: ["channels:ingest", "channels:deliver"],
+    configurable: true,
+  },
+  {
+    id: "facebook.messaging",
+    kind: "channel",
+    runtime: "workspace_channel",
+    name: "Facebook Messenger",
+    description: "Customer messaging through a connected Facebook Page.",
+    category: "messaging",
+    auth: "webhook",
+    channelType: "facebook",
+    logo: "facebook",
+    capabilityNames: ["kasitek.core.channel_deliver"],
+    requiredScopes: ["channels:ingest", "channels:deliver"],
+    configurable: true,
+  },
+  {
+    id: "instagram.messaging",
+    kind: "channel",
+    runtime: "workspace_channel",
+    name: "Instagram",
+    description: "Customer messaging through a connected Instagram account.",
+    category: "messaging",
+    auth: "webhook",
+    channelType: "instagram",
+    logo: "instagram",
     capabilityNames: ["kasitek.core.channel_deliver"],
     requiredScopes: ["channels:ingest", "channels:deliver"],
     configurable: true,
@@ -72,6 +103,8 @@ export const INTEGRATION_CATALOG: readonly IntegrationCatalogEntry[] = [
     category: "productivity",
     auth: "internal",
     logo: "calendar",
+    provider: "kasitek",
+    displayOrder: 40,
     capabilityNames: ["kasitek.calendar.list", "kasitek.calendar.create", "kasitek.calendar.update", "kasitek.calendar.delete"],
     requiredScopes: [],
     configurable: false,
@@ -85,8 +118,75 @@ export const INTEGRATION_CATALOG: readonly IntegrationCatalogEntry[] = [
     category: "productivity",
     auth: "oauth2",
     logo: "google-calendar",
+    provider: "google",
+    oauthProvider: "google",
+    displayOrder: 10,
     capabilityNames: ["kasitek.calendar.list", "kasitek.calendar.create", "kasitek.calendar.update", "kasitek.calendar.delete"],
     requiredScopes: ["https://www.googleapis.com/auth/calendar.events"],
+    configurable: true,
+  },
+  {
+    id: "google.gmail",
+    kind: "tool",
+    runtime: "tool_registry",
+    name: "Gmail",
+    description: "Search messages in a connected Gmail account.",
+    category: "productivity",
+    auth: "oauth2",
+    logo: "google-gmail",
+    provider: "google",
+    oauthProvider: "google",
+    displayOrder: 20,
+    capabilityNames: ["kasitek.gmail.search"],
+    requiredScopes: ["https://www.googleapis.com/auth/gmail.readonly"],
+    configurable: true,
+  },
+  {
+    id: "google.email",
+    kind: "tool",
+    runtime: "tool_registry",
+    name: "Google Mail",
+    description: "Search, read, and reply from a connected Google mailbox.",
+    category: "productivity",
+    auth: "oauth2",
+    logo: "google-gmail",
+    provider: "google",
+    oauthProvider: "google",
+    displayOrder: 21,
+    capabilityNames: ["kasitek.email.search", "kasitek.email.read", "kasitek.email.send", "kasitek.email.reply"],
+    requiredScopes: ["https://www.googleapis.com/auth/gmail.readonly", "https://www.googleapis.com/auth/gmail.send"],
+    configurable: true,
+  },
+  {
+    id: "microsoft.email",
+    kind: "tool",
+    runtime: "tool_registry",
+    name: "Microsoft Mail",
+    description: "Search, read, and reply from a connected Microsoft mailbox.",
+    category: "productivity",
+    auth: "oauth2",
+    logo: "microsoft-outlook",
+    provider: "microsoft",
+    oauthProvider: "microsoft",
+    displayOrder: 22,
+    capabilityNames: ["kasitek.email.search", "kasitek.email.read", "kasitek.email.send", "kasitek.email.reply"],
+    requiredScopes: ["Mail.Read", "Mail.Send", "offline_access"],
+    configurable: true,
+  },
+  {
+    id: "google.drive",
+    kind: "tool",
+    runtime: "tool_registry",
+    name: "Google Drive",
+    description: "Search files in a connected Google Drive.",
+    category: "productivity",
+    auth: "oauth2",
+    logo: "google-drive",
+    provider: "google",
+    oauthProvider: "google",
+    displayOrder: 30,
+    capabilityNames: ["kasitek.drive.search"],
+    requiredScopes: ["https://www.googleapis.com/auth/drive.readonly"],
     configurable: true,
   },
   {
@@ -98,6 +198,8 @@ export const INTEGRATION_CATALOG: readonly IntegrationCatalogEntry[] = [
     category: "apple",
     auth: "local_connector",
     logo: "apple",
+    provider: "apple",
+    displayOrder: 50,
     capabilityNames: ["kasitek.apple.calendar.list", "kasitek.apple.mail.list", "kasitek.apple.reminder.create", "kasitek.apple.note.create"],
     requiredScopes: ["apple.calendar.read", "apple.mail.read", "apple.reminders.write", "apple.notes.write"],
     configurable: true,
@@ -111,6 +213,8 @@ export const INTEGRATION_CATALOG: readonly IntegrationCatalogEntry[] = [
     category: "search",
     auth: "api_key",
     logo: "tavily",
+    provider: "tavily",
+    displayOrder: 60,
     capabilityNames: ["kasitek.web.search"],
     requiredScopes: [],
     configurable: true,
@@ -124,6 +228,8 @@ export const INTEGRATION_CATALOG: readonly IntegrationCatalogEntry[] = [
     category: "observability",
     auth: "observability",
     logo: "opentelemetry",
+    provider: "opentelemetry",
+    displayOrder: 90,
     capabilityNames: [],
     requiredScopes: [],
     configurable: true,
@@ -135,7 +241,9 @@ export function getIntegration(id: string): IntegrationCatalogEntry | undefined 
 }
 
 export function listIntegrations(): IntegrationCatalogEntry[] {
-  return INTEGRATION_CATALOG.map((entry) => ({ ...entry, capabilityNames: [...entry.capabilityNames], requiredScopes: [...entry.requiredScopes] }));
+  return INTEGRATION_CATALOG
+    .map((entry) => ({ ...entry, capabilityNames: [...entry.capabilityNames], requiredScopes: [...entry.requiredScopes] }))
+    .sort((left, right) => (left.displayOrder ?? 1_000) - (right.displayOrder ?? 1_000) || left.name.localeCompare(right.name));
 }
 
 export function listToolIntegrations(): IntegrationCatalogEntry[] {

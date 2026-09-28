@@ -14,4 +14,4 @@ This section contains current developer-facing guidance for working in the KasiT
 - [Local Development](./local-development.md)
 - [Repository Structure](./repository-structure.md)
 
-Temporary execution checklists belong in `docs/plans/active/`, not here.
+Keep task checklists in the current session or issue, not in this development guide.

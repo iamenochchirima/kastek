@@ -38,8 +38,22 @@ pinning require a successful health check, and known-unhealthy providers are exc
 tool registration. Probe an existing provider without creating a new revision with
 `POST /v1/mcp/providers/{providerId}/health`.
 
-Inbound MCP OAuth is not part of this release; existing API-key and installation-credential flows
-remain the supported provider authentication paths.
+Studio can also start browser MCP OAuth for reviewed HTTP providers. The flow uses protected-resource
+metadata, authorization-server discovery, PKCE, dynamic client registration when available, and
+encrypted one-use state. Providers without dynamic registration use the manual OAuth client fields
+in Studio.
+
+## Plugins
+
+Studio imports pinned external plugin manifests as reviewed catalogue metadata. A plugin is
+selectable only when KasiTek has a registered adapter for its declared capabilities. Supported
+selections are installed as published, checksum-pinned extension packages and persisted in the
+agent version's extension snapshot. The initial native adapter maps the reviewed Tavily web plugin
+to KasiTek's existing web-search capability. Support is derived from an exact adapter registration
+for the reviewed plugin id, version, and checksum; the catalogue flag is not sufficient. Other
+reviewed entries remain visible for discovery until a compatible adapter is registered. Pass an
+`installationId` to `GET /v1/plugins/directory` to receive the adapter readiness projection; only
+supported and ready entries can be enabled. External plugin code is never executed by the worker.
 
 ## Effective configuration and version diff
 

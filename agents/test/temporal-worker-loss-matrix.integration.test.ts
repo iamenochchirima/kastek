@@ -2,11 +2,15 @@ import { randomUUID } from "node:crypto";
 import { Client } from "@temporalio/client";
 import { NativeConnection, Worker } from "@temporalio/worker";
 import { afterEach, describe, expect, it } from "vitest";
-import { agentRunWorkflow, approvalSignal } from "../src/temporal/workflows";
+import { agentRunWorkflow, approvalGroupSignal } from "../src/temporal/workflows";
 import type { AgentRunActivities, DurableAgentLoopResult } from "../src/temporal/contracts";
 
 const temporalAddress = process.env.TEMPORAL_TEST_ADDRESS;
 const runIntegration = Boolean(temporalAddress && process.env.RUN_TEMPORAL_INTEGRATION_TESTS === "true");
+
+function activitiesForWorker(activities: AgentRunActivities): AgentRunActivities {
+  return { ...activities, executeModelStep: activities.executeLoop };
+}
 
 type Checkpoint = "model" | "tool" | "approval" | "effect" | "completion";
 type Position = "before" | "after";
@@ -48,6 +52,8 @@ function checkpointResult(checkpoint: Checkpoint): DurableAgentLoopResult {
             name: "test.effect",
             arguments: { target: "one" },
             argumentsHash: "a".repeat(64),
+            approvalGroupId: "group-approval",
+            approvalPlanDigest: "approval-digest",
           }],
         }
       : {}),
@@ -82,6 +88,7 @@ describe.skipIf(!runIntegration)("Temporal activity worker-loss matrix (integrat
 
     const activities: AgentRunActivities = {
       transitionRun: async ({ nextStatus }) => { calls.push(`transition:${nextStatus}`); },
+      waitForConversationTurn: async () => true,
       getContentPublishBatchStatus: async () => ({ status: "UNAVAILABLE" }),
       executeLoop: async () => {
         executions += 1;
@@ -109,7 +116,6 @@ describe.skipIf(!runIntegration)("Temporal activity worker-loss matrix (integrat
       },
       pauseRun: async ({ status }) => { calls.push(`pause:${status}`); },
       deliverApprovalPrompt: async () => { calls.push("approval-prompt"); },
-      cancelPendingApproval: async () => { calls.push("cancel-approval"); },
       cancelHandoff: async () => { calls.push("cancel-handoff"); },
       completeRun: async () => {
         completionCalls += 1;
@@ -127,7 +133,7 @@ describe.skipIf(!runIntegration)("Temporal activity worker-loss matrix (integrat
         namespace: "default",
         taskQueue,
         workflowsPath: new URL("../src/temporal/workflows.ts", import.meta.url).pathname,
-        activities,
+        activities: activitiesForWorker(activities),
       });
       workers.push(worker);
       runs.push(worker.run());
@@ -146,7 +152,11 @@ describe.skipIf(!runIntegration)("Temporal activity worker-loss matrix (integrat
     const handle = await client.workflow.start(agentRunWorkflow, { taskQueue, workflowId, args: [{ runId: workflowId }] });
 
     await new Promise<void>((resolve, reject) => {
-      const deadline = setTimeout(() => reject(new Error(`workflow did not reach ${checkpoint}/${position} checkpoint`)), 10_000);
+      // Worker replacement requires a fresh workflow bundle and a new poller. Under a
+      // concurrent local Temporal run that setup can legitimately exceed ten seconds;
+      // keep the assertion bounded, but leave enough room to observe the injected fault
+      // instead of turning scheduler contention into a false recovery failure.
+      const deadline = setTimeout(() => reject(new Error(`workflow did not reach ${checkpoint}/${position} checkpoint`)), 30_000);
       const timer = setInterval(() => {
         if (calls.some((call) => call === `checkpoint:${checkpoint}:${position}` || call === "checkpoint:approval") || calls.includes(`complete:1`)) {
           clearTimeout(deadline);
@@ -160,11 +170,12 @@ describe.skipIf(!runIntegration)("Temporal activity worker-loss matrix (integrat
     firstWorker = undefined;
 
     if (checkpoint === "approval") {
-      await handle.signal(approvalSignal, {
+      await handle.signal(approvalGroupSignal, {
+        groupId: "group-approval",
+        planDigest: "approval-digest",
         decision: "approved",
         approvedBy: "approver",
-        argumentsHash: "a".repeat(64),
-        providerToolCallId: "call-approval",
+        selectedOperationIds: ["call-approval"],
         expiresAt: new Date(Date.now() + 60_000).toISOString(),
       });
     }

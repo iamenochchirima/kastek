@@ -1,4 +1,5 @@
 import type { MessageRecord } from "../db/repositories/conversation-repository";
+import { assessMemorySafety } from "./poisoning";
 
 export const MEMORY_EXTRACTION_VERSION = "deterministic-v1";
 
@@ -14,6 +15,9 @@ export interface MemoryCandidate {
   memoryType: "semantic" | "episodic";
   canonicalText: string;
   confidence: number;
+  sensitivity: "normal" | "sensitive" | "restricted";
+  retentionSuggestion: "standard" | "short" | "long";
+  relations: readonly { type: "supports" | "contradicts" | "derived_from"; sourceMessageId: string }[];
   factKey?: string;
   content: {
     category: "preference" | "decision";
@@ -120,6 +124,11 @@ export function extractMemoryCandidates(evidence: readonly ConversationEvidence[
 
   for (const item of evidence) {
     if (item.direction !== "inbound") continue;
+    // Imported/user text is evidence, not executable instruction. Poisoning
+    // signals never become a candidate; sensitive signals remain reviewable
+    // but carry an explicit sensitivity classification.
+    const safety = assessMemorySafety({ text: item.text, sourceType: "inferred", memoryType: "semantic" });
+    if (safety.poisoningSignals.length > 0) continue;
     for (const pattern of patterns) {
       const match = pattern.expression.exec(item.text);
       const value = cleanValue(match?.[1] ?? "");
@@ -132,6 +141,9 @@ export function extractMemoryCandidates(evidence: readonly ConversationEvidence[
         memoryType: pattern.memoryType,
         canonicalText: `${pattern.prefix}: ${value}`,
         confidence: pattern.confidence,
+        sensitivity: safety.sensitiveSignals.length > 0 ? "sensitive" : "normal",
+        retentionSuggestion: pattern.category === "decision" ? "standard" : "long",
+        relations: [],
         ...(pattern.category === "preference" ? { factKey: key } : {}),
         content: { category: pattern.category, value },
         provenance: {

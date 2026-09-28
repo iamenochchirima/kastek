@@ -56,6 +56,19 @@ sequence number while holding the conversation row lock. Provider identities and
 idempotency keys prevent a retry or redelivery from allocating a second sequence number. Delayed
 media transcription updates the existing message/run path; it does not append a second user message.
 
+## Model-first capability and grounding
+
+An admitted run resolves one immutable effective capability snapshot, builds the model context and
+callable tool projection from that snapshot, and then enters the shared model/tool loop. Retrieval
+or memory returning no matches is not a reason to skip the model: the model must be allowed to use
+an authorized connected capability such as Calendar before a grounding policy is evaluated.
+
+Grounding is reviewed after the loop. Tool-backed or trusted-evidence-backed responses are kept;
+protected factual responses with no trusted evidence may be replaced by the bounded no-information
+response. The review records the model/tool usage and reason, and must not rewrite awaiting,
+cancelled, failed, or limited states as knowledge refusals. Tool authorization, approval, leases,
+idempotency, effect receipts, and dispatch-time readiness checks remain unchanged.
+
 ## Operations
 
 Watch active and queued run counts, oldest queue age, `conversation_busy` outcomes, provider

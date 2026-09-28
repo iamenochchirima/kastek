@@ -40,6 +40,7 @@ describe("KasiAi OpenRouter model catalog", () => {
           name: "Tool Model",
           description: "A capable model.",
           context_length: 128_000,
+          top_provider: { max_completion_tokens: 16_384 },
           pricing: { prompt: "0.000001", completion: "0.000002" },
           supported_parameters: ["tools", "tool_choice", "reasoning"],
         },
@@ -56,7 +57,7 @@ describe("KasiAi OpenRouter model catalog", () => {
     const catalog = await getKasiAiModelCatalog(config);
     expect(catalog.source).toBe("live");
     expect(catalog.models).toEqual(expect.arrayContaining([
-      expect.objectContaining({ provider: "openrouter", model: "vendor/tool-model", supportsTools: true, supportsReasoning: true, contextWindow: 128_000, inputUsdPerMillion: 1 }),
+      expect.objectContaining({ provider: "openrouter", model: "vendor/tool-model", supportsTools: true, supportsReasoning: true, contextWindow: 128_000, maxOutputTokens: 16_384, inputUsdPerMillion: 1 }),
       expect.objectContaining({ model: "vendor/free-model:free", isFree: true, supportsTools: false }),
     ]));
     expect(catalog.models[0]).toMatchObject({ model: "openai/gpt-4o-mini", isWorkspaceDefault: true });

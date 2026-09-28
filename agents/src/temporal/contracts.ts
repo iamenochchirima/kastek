@@ -1,5 +1,7 @@
 import type { RunStatus } from "../domain/types";
 import type { AgentLoopResult } from "../runtime/loop";
+import type { TranscriptSourceIdentity } from "../runtime/tool-transcript";
+import type { ModelMessage } from "../model/types";
 import type { ToolApproval } from "../tools/types";
 
 export type DurableAgentLoopResult = AgentLoopResult & {
@@ -8,7 +10,10 @@ export type DurableAgentLoopResult = AgentLoopResult & {
 };
 
 export interface ResumeApprovedToolCall {
+  /** Runtime identity used by approvals, receipts, and replay. */
   id: string;
+  /** Provider wire identity retained only for reconstructing the model transcript. */
+  providerToolCallId?: string;
   name: string;
   arguments: Record<string, unknown>;
   approval: ToolApproval;
@@ -30,13 +35,13 @@ export interface ContentPublishBatchStatusActivityResult {
   batch?: Record<string, unknown>;
 }
 
-export interface ApprovalSignal {
-  decision: "approved" | "rejected";
+export interface ApprovalGroupSignal {
+  groupId: string;
+  planDigest: string;
+  decision: "approved" | "partially_approved" | "rejected" | "invalidated";
   approvedBy: string;
-  argumentsHash: string;
-  providerToolCallId: string;
+  selectedOperationIds: string[];
   expiresAt: string;
-  resourceSnapshot?: Record<string, unknown>;
 }
 
 export interface CancellationSignal {
@@ -57,16 +62,106 @@ export interface ActivityScope {
   organizationId?: string;
   /** Originating actor used for audit context; it is not an authorization grant. */
   actorId?: string;
+  sessionLease?: SessionLeaseAdmission;
 }
 
 export interface DurableRunInput extends ActivityScope {
   runId: string;
+  /** Durable run status to restore when a workflow continues as new. */
+  workflowStatus?: RunStatus;
   /** Deterministic bounded-loop slice number used to make activity retries idempotent. */
   loopStep?: number;
-  /** Opt-in rollout for independently retryable context/model/tool/checkpoint activities. */
-  decomposed?: boolean;
+  /** Internal rollout/test limit; production runs use the workflow default when omitted. */
+  continueAsNewHistoryThreshold?: number;
   resumeApprovedToolCall?: ResumeApprovedToolCall;
   resumeExternalEvent?: ExternalEventSignal;
+  /** Lease epoch admitted by the session coordinator; stale epochs fail closed. */
+  sessionLease?: SessionLeaseAdmission;
+}
+
+export interface DurableToolCall {
+  id: string;
+  providerToolCallId?: string;
+  name: string;
+  arguments: Record<string, unknown>;
+  argumentsHash: string;
+  sequenceNumber: number;
+  /** Assigned by batch preparation and retained on every durable operation row. */
+  batchId?: string;
+  segmentId?: string;
+  /** The canonical operation that supplies this identical call's result. */
+  deduplicatedFrom?: string;
+  /** Approval group created during durable batch preparation, when required. */
+  approvalGroupId?: string;
+  /** Digest of the exact approval plan reviewed by the human. */
+  approvalPlanDigest?: string;
+  /** Bounded reusable approval matched during durable batch preparation. */
+  sessionGrantId?: string;
+}
+
+export interface DurableToolCallResult {
+  id: string;
+  providerToolCallId: string;
+  name: string;
+  argumentsHash: string;
+  /** Approval group identity retained through commit/replay for lifecycle evidence. */
+  approvalGroupId?: string;
+  status: "completed" | "failed" | "waiting" | "blocked" | "unknown";
+  failureClass?: "retryable" | "terminal" | "waiting" | "blocked" | "interrupted" | "unknown";
+  output?: unknown;
+  error?: { code: string; message: string };
+  latencyMs?: number;
+  effectId?: string;
+  control?: "final_response" | "awaiting_human";
+  waitingFor?: string;
+}
+
+export interface ExecuteToolCallActivityInput extends ActivityScope {
+  runId: string;
+  batchId: string;
+  call: DurableToolCall;
+  approval?: ToolApproval;
+  approvalGroupId?: string;
+  sessionLease?: SessionLeaseAdmission;
+}
+
+export interface PrepareToolBatchActivityInput extends ActivityScope {
+  runId: string;
+  batchId: string;
+  calls: DurableToolCall[];
+  /** Exact provider assistant message that produced this deferred batch. */
+  assistantMessage?: ModelMessage;
+  /** Canonical projection identity used to admit the model request. */
+  transcriptSource?: TranscriptSourceIdentity;
+  sessionLease?: SessionLeaseAdmission;
+}
+
+export interface DurableToolBatchSegment {
+  kind: "parallel" | "sequential";
+  segmentId: string;
+  calls: DurableToolCall[];
+}
+
+export interface CommitToolBatchActivityInput extends ActivityScope {
+  runId: string;
+  batchId: string;
+  results: DurableToolCallResult[];
+  remainingCalls?: DurableToolCall[];
+  sessionLease?: SessionLeaseAdmission;
+}
+
+export interface CommitToolBatchActivityResult {
+  status: "committed" | "replayed";
+  toolCalls: number;
+  control?: "final_response" | "awaiting_human";
+  waitingFor?: string;
+}
+
+export interface SessionLeaseAdmission {
+  acquired: boolean;
+  sessionKey?: string;
+  ownerId?: string;
+  fencingToken?: string;
 }
 
 export interface TransitionRunActivityInput extends ActivityScope {
@@ -77,12 +172,22 @@ export interface TransitionRunActivityInput extends ActivityScope {
 
 export interface AgentRunActivities {
   transitionRun(input: TransitionRunActivityInput): Promise<void>;
+  /** Durable session serializer; omitted by legacy test-only activity fakes. */
+  waitForConversationTurn?(input: ActivityScope & { runId: string }): Promise<boolean | SessionLeaseAdmission>;
   executeLoop(input: DurableRunInput): Promise<DurableAgentLoopResult>;
+  /** Workflow-visible model/context slice for autonomous runs. It must not execute provider tools. */
+  executeModelStep?(input: DurableRunInput): Promise<DurableAgentLoopResult>;
+  /** Optional on legacy test-only activity fakes; required by the production worker. */
+  prepareToolBatch?(input: PrepareToolBatchActivityInput): Promise<DurableToolBatchSegment[]>;
+  /** Optional on legacy test-only activity fakes; required by the production worker. */
+  executeToolCall?(input: ExecuteToolCallActivityInput): Promise<DurableToolCallResult>;
+  /** Optional on legacy test-only activity fakes; required by the production worker. */
+  commitToolBatch?(input: CommitToolBatchActivityInput): Promise<CommitToolBatchActivityResult>;
   /** Read the Core-owned batch state without creating another approval or effect. */
   getContentPublishBatchStatus(input: ActivityScope & { runId: string; batchId: string }): Promise<ContentPublishBatchStatusActivityResult>;
   pauseRun(input: ActivityScope & { runId: string; status: "awaiting_approval" | "awaiting_human" | "awaiting_external_event"; output: Record<string, unknown> }): Promise<void>;
   deliverApprovalPrompt(input: ActivityScope & { runId: string }): Promise<void>;
-  cancelPendingApproval(input: ActivityScope & { runId: string; providerToolCallId: string; reason?: string; outcome?: "cancelled" | "expired" }): Promise<void>;
+  cancelApprovalGroup?(input: ActivityScope & { runId: string; groupId: string; reason?: string }): Promise<void>;
   cancelHandoff(input: ActivityScope & { runId: string; reason?: string }): Promise<void>;
   completeRun(input: ActivityScope & { runId: string; output: Record<string, unknown> }): Promise<void>;
   generateConversationTitle(input: ActivityScope & { runId: string }): Promise<void>;

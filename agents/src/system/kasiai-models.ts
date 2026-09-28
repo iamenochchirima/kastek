@@ -17,6 +17,7 @@ export interface KasiAiModelOption {
   supportsTools?: boolean;
   supportsReasoning?: boolean;
   contextWindow?: number;
+  maxOutputTokens?: number;
   inputUsdPerMillion?: number;
   outputUsdPerMillion?: number;
 }
@@ -33,6 +34,8 @@ interface OpenRouterModel {
   name?: string;
   description?: string;
   context_length?: number;
+  max_output_tokens?: number;
+  top_provider?: { max_completion_tokens?: number; max_output_tokens?: number };
   pricing?: { prompt?: string; completion?: string };
   supported_parameters?: string[];
 }
@@ -87,6 +90,9 @@ function normalizeOpenRouterModel(model: OpenRouterModel): KasiAiModelOption | n
   const outputPrice = pricePerMillion(model.pricing?.completion);
   const isFree = id.endsWith(":free") || (inputPrice === 0 && outputPrice === 0);
   const supportsTools = parameters.has("tools") && parameters.has("tool_choice");
+  const maxOutputTokens = model.max_output_tokens
+    ?? model.top_provider?.max_completion_tokens
+    ?? model.top_provider?.max_output_tokens;
   return {
     provider: "openrouter",
     model: id,
@@ -97,6 +103,7 @@ function normalizeOpenRouterModel(model: OpenRouterModel): KasiAiModelOption | n
     supportsTools,
     supportsReasoning: parameters.has("reasoning"),
     contextWindow: model.context_length,
+    ...(typeof maxOutputTokens === "number" && Number.isSafeInteger(maxOutputTokens) && maxOutputTokens > 0 ? { maxOutputTokens } : {}),
     inputUsdPerMillion: inputPrice,
     outputUsdPerMillion: outputPrice,
   };

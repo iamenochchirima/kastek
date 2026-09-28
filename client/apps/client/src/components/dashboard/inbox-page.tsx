@@ -49,7 +49,13 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   PageHeader,
   PageHeaderActions,
@@ -98,9 +104,11 @@ type InboxConversation = {
   time: string;
   unread: boolean;
   starred: boolean;
-  channel: "whatsapp" | "facebook" | "instagram";
+  channel: "whatsapp" | "facebook" | "instagram" | "email";
   connectionId: string | null;
   connectionLabel: string;
+  emailSubject?: string;
+  emailFrom?: string | null;
   avatar: string;
   status: "online" | "offline";
   tags: string[];
@@ -108,7 +116,7 @@ type InboxConversation = {
 
 type InboxConversationPayload = {
   id: string;
-  channel: "whatsapp" | "facebook" | "instagram";
+  channel: "whatsapp" | "facebook" | "instagram" | "email";
   customerName: string | null;
   phone: string;
   lastMessage: string;
@@ -117,6 +125,8 @@ type InboxConversationPayload = {
   starred: boolean;
   connectionId: string | null;
   connectionLabel: string | null;
+  subject?: string | null;
+  from?: string | null;
 };
 
 function mapInboxConversation(conversation: InboxConversationPayload): InboxConversation {
@@ -134,6 +144,8 @@ function mapInboxConversation(conversation: InboxConversationPayload): InboxConv
     connectionId: conversation.connectionId,
     connectionLabel:
       conversation.connectionLabel || conversation.phone || "Unknown number",
+    emailSubject: conversation.subject || undefined,
+    emailFrom: conversation.from || null,
     avatar: buildConversationAvatar(name),
     status: "offline",
     tags: [],
@@ -181,7 +193,46 @@ type ChannelCounts = {
     unreadCount: number;
     conversationCount: number;
   };
+  email: {
+    connected: boolean;
+    connectionCount: number;
+    unreadCount: number;
+    conversationCount: number;
+  };
 };
+
+type EmailConnectionView = {
+  id: string;
+  provider: "GOOGLE" | "MICROSOFT" | string;
+  emailAddress: string;
+  displayName: string;
+  status: string;
+  healthStatus: string;
+  syncStatus: string;
+  inboxStatus: string;
+  inboundStatus: string;
+  outboundStatus: string;
+};
+
+function emailInboxReady(connection: EmailConnectionView) {
+  return (
+    connection.status === "CONNECTED" &&
+    connection.inboxStatus === "ACTIVE" &&
+    connection.inboundStatus === "READY"
+  );
+}
+
+function emailConnectionStatus(connection: EmailConnectionView) {
+  if (connection.status !== "CONNECTED") return "Disconnected";
+  if (connection.healthStatus !== "HEALTHY" || connection.inboundStatus === "RETRYABLE_FAILURE") {
+    return "Needs attention";
+  }
+  if (connection.inboundStatus === "SYNCING" || connection.inboundStatus === "PENDING") {
+    return "Syncing";
+  }
+  if (emailInboxReady(connection)) return "Ready";
+  return "Setting up";
+}
 
 function logCallMediaEvent(callId: string, event: string, details?: Record<string, unknown>) {
   console.info("[call-media]", {
@@ -646,17 +697,20 @@ export default function InboxPageClient({
   conversations,
   channelCounts,
   metaConnections,
+  emailConnections,
 }: {
   whatsappConnections: WhatsappConnectionView[];
   conversations: InboxConversation[];
   channelCounts: ChannelCounts;
   metaConnections: MetaConnections;
+  emailConnections: EmailConnectionView[];
 }) {
   const searchParams = useSearchParams();
   const { confirm } = useConfirmationDialog();
   const appearance = useAppearance();
   const emojiTheme = resolveTheme(appearance.theme);
   const [liveConversations, setLiveConversations] = useState(conversations);
+  const [liveEmailConnections, setLiveEmailConnections] = useState(emailConnections);
   const [selectedChannel, setSelectedChannel] = useState<
     "all" | "whatsapp" | "email" | "sms" | "instagram" | "facebook"
   >("all");
@@ -680,6 +734,9 @@ export default function InboxPageClient({
   const [reactionPicker, setReactionPicker] = useState<ReactionPickerState | null>(null);
   const [selfReactionOverridesByMessageId, setSelfReactionOverridesByMessageId] = useState<Record<string, string>>({});
   const [showChannelPanel, setShowChannelPanel] = useState(false);
+  const [showEmailConnectDialog, setShowEmailConnectDialog] = useState(false);
+  const [emailConnectProvider, setEmailConnectProvider] = useState<"google" | "microsoft" | null>(null);
+  const [emailConnectError, setEmailConnectError] = useState<string | null>(null);
   const [mobileConversationOpen, setMobileConversationOpen] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [lightbox, setLightbox] = useState<MediaLightboxState | null>(null);
@@ -710,24 +767,42 @@ export default function InboxPageClient({
   }, [conversations]);
 
   useEffect(() => {
+    setLiveEmailConnections(emailConnections);
+  }, [emailConnections]);
+
+  useEffect(() => {
     let cancelled = false;
 
     const refreshConversations = async () => {
       if (document.visibilityState === "hidden") return;
 
       try {
-        const response = await fetch(apiUrl("/api/inbox/conversations"), {
-          cache: "no-store",
-          credentials: "include",
-        });
-        if (!response.ok) return;
+        const [conversationResponse, emailResponse] = await Promise.all([
+          fetch(apiUrl("/api/inbox/conversations"), {
+            cache: "no-store",
+            credentials: "include",
+          }),
+          fetch(apiUrl("/api/email/connections"), {
+            cache: "no-store",
+            credentials: "include",
+          }),
+        ]);
+        if (cancelled) return;
 
-        const payload = (await response.json()) as {
-          conversations?: InboxConversationPayload[];
-        };
-        if (cancelled || !Array.isArray(payload.conversations)) return;
-
-        setLiveConversations(payload.conversations.map(mapInboxConversation));
+        if (conversationResponse.ok) {
+          const payload = (await conversationResponse.json()) as {
+            conversations?: InboxConversationPayload[];
+          };
+          if (Array.isArray(payload.conversations)) {
+            setLiveConversations(payload.conversations.map(mapInboxConversation));
+          }
+        }
+        if (emailResponse.ok) {
+          const payload = (await emailResponse.json()) as {
+            connections?: EmailConnectionView[];
+          };
+          if (Array.isArray(payload.connections)) setLiveEmailConnections(payload.connections);
+        }
       } catch {
         // Keep the current Inbox state if a foreground refresh fails.
       }
@@ -741,9 +816,13 @@ export default function InboxPageClient({
 
     window.addEventListener("focus", onVisibleOrFocused);
     document.addEventListener("visibilitychange", onVisibleOrFocused);
+    const refreshTimer = window.setInterval(() => {
+      void refreshConversations();
+    }, 30_000);
 
     return () => {
       cancelled = true;
+      window.clearInterval(refreshTimer);
       window.removeEventListener("focus", onVisibleOrFocused);
       document.removeEventListener("visibilitychange", onVisibleOrFocused);
     };
@@ -755,6 +834,59 @@ export default function InboxPageClient({
         (conversation) => conversation.channel === "whatsapp" && conversation.unread,
       ).length,
     [liveConversations],
+  );
+
+  const startEmailConnection = async (provider: "google" | "microsoft") => {
+    setEmailConnectProvider(provider);
+    setEmailConnectError(null);
+    try {
+      const response = await fetch(apiUrl(`/api/email/oauth/${provider}/start?returnTo=/inbox`), {
+        credentials: "include",
+        cache: "no-store",
+      });
+      const payload = (await response.json().catch(() => ({}))) as { authorizationUrl?: string; error?: string };
+      if (!response.ok || !payload.authorizationUrl) {
+        throw new Error(payload.error || `Unable to connect ${provider === "google" ? "Google" : "Microsoft"}`);
+      }
+      window.location.assign(payload.authorizationUrl);
+    } catch (error) {
+      setEmailConnectError(error instanceof Error ? error.message : "Unable to start email connection");
+      setEmailConnectProvider(null);
+    }
+  };
+
+  const startSocialConnection = (provider: "facebook" | "instagram") => {
+    const path =
+      provider === "facebook"
+        ? "/api/social/oauth/meta/start?target=facebook"
+        : "/api/social/oauth/instagram/start";
+    window.location.assign(apiUrl(path));
+  };
+
+  const emailConnectedConnections = liveEmailConnections.filter(
+    (connection) => connection.status === "CONNECTED" && connection.inboxStatus === "ACTIVE",
+  );
+  const instagramInboxConnected =
+    channelCounts.instagram.connected ||
+    metaConnections.instagram.length > 0 ||
+    liveConversations.some((conversation) => conversation.channel === "instagram");
+  const facebookInboxConnected =
+    channelCounts.facebook.connected ||
+    metaConnections.facebook.length > 0 ||
+    liveConversations.some((conversation) => conversation.channel === "facebook");
+  const emailReadyConnections = liveEmailConnections.filter(emailInboxReady);
+  const emailConnectionFilters = useMemo(
+    () => [
+      { id: null as string | null, label: "All mailboxes", status: "", conversationCount: liveConversations.filter((conversation) => conversation.channel === "email").length, unreadCount: liveConversations.filter((conversation) => conversation.channel === "email" && conversation.unread).length },
+      ...liveEmailConnections.map((connection) => ({
+        id: connection.id,
+        label: `${connection.provider === "MICROSOFT" ? "Microsoft" : "Google"} · ${connection.emailAddress}`,
+        status: emailConnectionStatus(connection),
+        conversationCount: liveConversations.filter((conversation) => conversation.channel === "email" && conversation.connectionId === connection.id).length,
+        unreadCount: liveConversations.filter((conversation) => conversation.channel === "email" && conversation.connectionId === connection.id && conversation.unread).length,
+      })),
+    ],
+    [liveEmailConnections, liveConversations],
   );
 
   const channels = useMemo(
@@ -785,12 +917,12 @@ export default function InboxPageClient({
         id: "email" as const,
         name: "Email",
         icon: Mail,
-        color: "text-muted-foreground",
-        bgColor: "bg-secondary",
-        count: 0,
-        unreadCount: 0,
-        disabled: true,
-        connected: false,
+        color: "text-blue-400",
+        bgColor: "bg-blue-500/10",
+        count: liveConversations.filter((conversation) => conversation.channel === "email").length,
+        unreadCount: liveConversations.filter((conversation) => conversation.channel === "email" && conversation.unread).length,
+        disabled: false,
+        connected: emailConnectedConnections.length > 0,
       },
       {
         id: "sms" as const,
@@ -813,10 +945,8 @@ export default function InboxPageClient({
         unreadCount: liveConversations.filter(
           (conversation) => conversation.channel === "instagram" && conversation.unread,
         ).length,
-        disabled:
-          !channelCounts.instagram.connected &&
-          !liveConversations.some((conversation) => conversation.channel === "instagram"),
-        connected: channelCounts.instagram.connected,
+        disabled: false,
+        connected: instagramInboxConnected,
       },
       {
         id: "facebook" as const,
@@ -828,13 +958,18 @@ export default function InboxPageClient({
         unreadCount: liveConversations.filter(
           (conversation) => conversation.channel === "facebook" && conversation.unread,
         ).length,
-        disabled:
-          !channelCounts.facebook.connected &&
-          !liveConversations.some((conversation) => conversation.channel === "facebook"),
-        connected: channelCounts.facebook.connected,
+        disabled: false,
+        connected: facebookInboxConnected,
       },
     ],
-    [channelCounts, liveConversations, whatsappUnreadCount],
+    [
+      channelCounts,
+      emailConnectedConnections.length,
+      facebookInboxConnected,
+      instagramInboxConnected,
+      liveConversations,
+      whatsappUnreadCount,
+    ],
   );
 
   const whatsappConnectionFilters = useMemo(
@@ -916,6 +1051,8 @@ export default function InboxPageClient({
         ? metaConnectionFilters.instagram
         : selectedChannel === "facebook"
           ? metaConnectionFilters.facebook
+          : selectedChannel === "email"
+            ? emailConnectionFilters
           : [];
   const selectedConnectionFilter =
     activeConnectionFilters.find((connection) => connection.id === selectedConnectionId) ??
@@ -923,7 +1060,8 @@ export default function InboxPageClient({
   const supportsConnectionFilter =
     selectedChannel === "whatsapp" ||
     selectedChannel === "instagram" ||
-    selectedChannel === "facebook";
+    selectedChannel === "facebook" ||
+    selectedChannel === "email";
 
   const filteredConversations = liveConversations.filter((conversation) => {
     const channelMatch = selectedChannel === "all" || conversation.channel === selectedChannel;
@@ -941,14 +1079,16 @@ export default function InboxPageClient({
   const selectedChannelConversationCount =
     selectedChannel === "all"
       ? liveConversations.length
-      : selectedChannel === "email" || selectedChannel === "sms"
-        ? 0
-        : liveConversations.filter((conversation) => conversation.channel === selectedChannel).length;
+      : liveConversations.filter((conversation) => conversation.channel === selectedChannel).length;
   const selectedChannelConnected =
     selectedChannel === "all"
       ? true
-      : selectedChannel === "email" || selectedChannel === "sms"
+      : selectedChannel === "sms"
         ? false
+        : selectedChannel === "instagram"
+          ? instagramInboxConnected
+          : selectedChannel === "facebook"
+            ? facebookInboxConnected
         : channelCounts[selectedChannel].connected;
   const emptyConversationCopy =
     selectedChannel === "instagram"
@@ -971,7 +1111,12 @@ export default function InboxPageClient({
                 ? "New messages will appear here after someone messages a connected Facebook Page."
                 : "No Messenger conversations match this filter.",
           }
-        : selectedChannel === "whatsapp"
+      : selectedChannel === "email"
+          ? {
+              title: "No email conversations yet",
+              description: filter === "all" ? "Connect Google or Microsoft to receive email here." : "No email conversations match this filter.",
+            }
+      : selectedChannel === "whatsapp"
           ? {
               title: selectedConnectionId
                 ? `No conversations for ${selectedConnectionFilter?.label || "this number"}`
@@ -988,6 +1133,7 @@ export default function InboxPageClient({
 
   const selectedConversation =
     filteredConversations.find((conversation) => conversation.id === selectedConversationId) ?? null;
+  const emailConversationOpen = selectedChannel === "email" && selectedConversation !== null;
 
   useEffect(() => {
     if (selectedConversation?.channel === "whatsapp") return;
@@ -1412,7 +1558,16 @@ export default function InboxPageClient({
                           : "Not connected"}
                       </p>
                     </div>
-                    {state.connected ? <Badge variant="outline">Connected</Badge> : null}
+                    <div className="flex items-center gap-2">
+                      {state.connected ? <Badge variant="outline">Connected</Badge> : null}
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => startSocialConnection(channel.key)}
+                      >
+                        {state.connected ? "Add" : "Connect"}
+                      </Button>
+                    </div>
                   </div>
                 );
               })}
@@ -1423,16 +1578,67 @@ export default function InboxPageClient({
           </section>
 
           <section>
-            <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Available next</p>
+            <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Email</p>
             <div className="divide-y divide-border rounded-lg border border-border bg-card">
-              {[
-                { label: "Email", description: "Bring shared inboxes into the same conversation view", icon: Mail },
-                { label: "SMS", description: "Manage text-message conversations alongside WhatsApp", icon: MessageCircle },
-              ].map((channel) => {
-                const Icon = channel.icon;
-                return <div key={channel.label} className="flex items-start gap-3 px-4 py-3 opacity-70"><Icon className="mt-0.5 h-4 w-4 text-muted-foreground" /><div><p className="text-sm font-medium text-foreground">{channel.label}</p><p className="mt-0.5 text-xs leading-5 text-muted-foreground">{channel.description}</p></div></div>;
-              })}
+              <div className="flex items-center gap-3 px-4 py-3">
+                <Mail className="h-4 w-4 text-blue-400" />
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium text-foreground">
+                    {emailConnectedConnections.length > 0 ? "Email" : "No mailbox connected"}
+                  </p>
+                  <p className="mt-0.5 text-xs leading-5 text-muted-foreground">
+                    {emailConnectedConnections.length > 0
+                      ? `${emailConnectedConnections.length} connected mailbox${emailConnectedConnections.length === 1 ? "" : "es"}`
+                      : "Google and Microsoft"}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  {emailConnectedConnections.length > 0 ? (
+                    <Badge variant="outline">
+                      {emailReadyConnections.length === emailConnectedConnections.length
+                        ? "Ready"
+                        : emailConnectedConnections.some((connection) => emailConnectionStatus(connection) === "Needs attention")
+                          ? "Needs attention"
+                          : "Syncing"}
+                    </Badge>
+                  ) : null}
+                  <Button size="sm" variant="outline" onClick={() => setShowEmailConnectDialog(true)}>
+                    {emailConnectedConnections.length > 0 ? "Add" : "Connect"}
+                  </Button>
+                </div>
+              </div>
+              {emailConnectedConnections.length > 0 ? (
+                <div className="border-t border-border p-2">
+                  {emailConnectionFilters.map((connectionFilter) => (
+                    <button
+                      key={connectionFilter.id || "all-email"}
+                      type="button"
+                      onClick={() => {
+                        setSelectedChannel("email");
+                        setSelectedConnectionId(connectionFilter.id);
+                        setShowChannelPanel(false);
+                        setMobileConversationOpen(false);
+                      }}
+                      className={cn(
+                        "flex min-h-9 w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm transition-colors hover:bg-secondary",
+                        selectedChannel === "email" && selectedConnectionId === connectionFilter.id && "bg-secondary text-foreground",
+                      )}
+                    >
+                      <span className="min-w-0 truncate">{connectionFilter.label}</span>
+                      <span className="ml-3 flex shrink-0 items-center gap-2 text-xs text-muted-foreground">
+                        {connectionFilter.status ? <span>{connectionFilter.status}</span> : null}
+                        <span className="tabular-nums">{connectionFilter.conversationCount}</span>
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              ) : null}
             </div>
+          </section>
+
+          <section>
+            <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Available next</p>
+            <div className="divide-y divide-border rounded-lg border border-border bg-card"><div className="flex items-start gap-3 px-4 py-3 opacity-70"><MessageCircle className="mt-0.5 h-4 w-4 text-muted-foreground" /><div><p className="text-sm font-medium text-foreground">SMS</p><p className="mt-0.5 text-xs leading-5 text-muted-foreground">Manage text-message conversations alongside WhatsApp</p></div></div></div>
           </section>
         </div>
       </ScrollArea>
@@ -2470,16 +2676,43 @@ export default function InboxPageClient({
     <TooltipProvider>
       <div className="relative flex h-[calc(100dvh-4rem)] min-h-0 flex-col overflow-hidden bg-background lg:h-[100dvh]">
         <Sheet open={showChannelPanel} onOpenChange={setShowChannelPanel}>
-          <SheetContent side="left" className="flex w-[min(360px,100vw)] flex-col p-0">
+        <SheetContent side="left" className="flex w-[min(360px,100vw)] flex-col p-0">
             {renderChannelPanelContent()}
           </SheetContent>
         </Sheet>
+
+        <Dialog open={showEmailConnectDialog} onOpenChange={(open) => { setShowEmailConnectDialog(open); if (!open) { setEmailConnectError(null); setEmailConnectProvider(null); } }}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Connect email</DialogTitle>
+              <DialogDescription>Choose a mailbox provider.</DialogDescription>
+            </DialogHeader>
+            <div className="space-y-2">
+              {[
+                { id: "google" as const, name: "Google", description: "Gmail and Google Workspace mail" },
+                { id: "microsoft" as const, name: "Microsoft", description: "Outlook and Microsoft 365 mail" },
+              ].map((provider) => (
+                <Button key={provider.id} type="button" variant="outline" className="h-auto w-full justify-between px-4 py-3 text-left" onClick={() => void startEmailConnection(provider.id)} disabled={Boolean(emailConnectProvider)}>
+                  <span><span className="block font-medium">{provider.name}</span><span className="mt-0.5 block text-xs text-muted-foreground">{provider.description}</span></span>
+                  {emailConnectProvider === provider.id ? <span className="text-xs text-muted-foreground">Opening…</span> : null}
+                </Button>
+              ))}
+              <div className="flex items-center justify-between rounded-md border border-dashed border-border px-4 py-3 text-left opacity-60">
+                <span><span className="block text-sm font-medium">Custom Email</span><span className="mt-0.5 block text-xs text-muted-foreground">IMAP/SMTP</span></span>
+                <Badge variant="outline">Coming soon</Badge>
+              </div>
+            </div>
+            {emailConnectError ? <p className="text-sm text-destructive" role="alert">{emailConnectError}</p> : null}
+          </DialogContent>
+        </Dialog>
 
         <header className="shrink-0 border-b border-border bg-card px-4 pt-4 sm:px-6 sm:pt-5">
           <PageHeader className="items-center">
             <PageHeaderContent>
               <PageHeaderTitle>Inbox</PageHeaderTitle>
-              <PageHeaderDescription>Customer conversations.</PageHeaderDescription>
+              <PageHeaderDescription>
+                {selectedChannel === "email" ? "Email inbox." : "Customer conversations."}
+              </PageHeaderDescription>
             </PageHeaderContent>
             <PageHeaderActions>
             <Button variant="outline" size="sm" className="h-9 gap-2" onClick={() => setShowChannelPanel(true)}>
@@ -2533,15 +2766,81 @@ export default function InboxPageClient({
         <div
           className={cn(
             "min-h-0 shrink-0 flex-col border-r border-border bg-card",
-            mobileConversationOpen ? "hidden md:flex" : "flex w-full",
-            "md:w-[340px] lg:w-[380px]",
+            emailConversationOpen
+              ? "hidden"
+              : mobileConversationOpen
+                ? "hidden md:flex"
+                : "flex w-full",
+            selectedChannel === "email"
+              ? "w-full"
+              : "md:w-[340px] lg:w-[380px]",
           )}
         >
+          <div className="flex min-h-0 flex-1">
+            {selectedChannel === "email" ? (
+              <aside className="hidden w-40 shrink-0 flex-col border-r border-border bg-background/30 p-2 md:flex">
+                <p className="px-2 py-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                  Mailbox
+                </p>
+                {[
+                  { id: "all", label: "Inbox", count: liveConversations.filter((conversation) => conversation.channel === "email").length },
+                  { id: "unread", label: "Unread", count: liveConversations.filter((conversation) => conversation.channel === "email" && conversation.unread).length },
+                  { id: "starred", label: "Starred", count: liveConversations.filter((conversation) => conversation.channel === "email" && conversation.starred).length },
+                ].map((folder) => (
+                  <button
+                    key={folder.id}
+                    type="button"
+                    onClick={() => {
+                      setFilter(folder.id);
+                      setSelectedConversationId(null);
+                      setMobileConversationOpen(false);
+                    }}
+                    className={cn(
+                      "flex items-center justify-between rounded-md px-2 py-2 text-left text-xs transition-colors",
+                      filter === folder.id
+                        ? "bg-secondary font-medium text-foreground"
+                        : "text-muted-foreground hover:bg-secondary hover:text-foreground",
+                    )}
+                  >
+                    <span>{folder.label}</span>
+                    {folder.count > 0 ? <span className="tabular-nums">{folder.count}</span> : null}
+                  </button>
+                ))}
+                <div className="mt-4 border-t border-border pt-3">
+                  <p className="px-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                    Mailboxes
+                  </p>
+                  <div className="mt-2 space-y-1">
+                    {emailConnectedConnections.map((connection) => (
+                      <button
+                        key={connection.id}
+                        type="button"
+                        onClick={() => {
+                          setSelectedConnectionId(connection.id);
+                          setSelectedConversationId(null);
+                          setMobileConversationOpen(false);
+                        }}
+                        className={cn(
+                          "w-full truncate rounded-md px-2 py-1.5 text-left text-[11px] text-muted-foreground hover:bg-secondary hover:text-foreground",
+                          selectedConnectionId === connection.id && "bg-secondary text-foreground",
+                        )}
+                        title={connection.emailAddress}
+                      >
+                        {connection.emailAddress}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </aside>
+            ) : null}
+            <div className="flex min-w-0 flex-1 flex-col">
           <div className="border-b border-border p-3 sm:p-4">
             <div className="mb-3 flex items-center justify-between gap-3">
-              <p className="text-sm font-semibold text-foreground">Conversations</p>
+              <p className="text-sm font-semibold text-foreground">
+                {selectedChannel === "email" ? "Mail" : "Conversations"}
+              </p>
               <span className="text-xs tabular-nums text-muted-foreground">
-                {filteredConversations.length} total
+                {filteredConversations.length} {selectedChannel === "email" ? "messages" : "total"}
               </span>
             </div>
 
@@ -2581,14 +2880,20 @@ export default function InboxPageClient({
             <div className="relative">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
-                placeholder="Search conversations..."
+                placeholder={selectedChannel === "email" ? "Search mail..." : "Search conversations..."}
                 className="border-border bg-secondary pl-9"
               />
             </div>
 
-            <div className="mt-3 flex items-center gap-1 overflow-x-auto" aria-label="Conversation filters">
+            <div
+              className={cn(
+                "mt-3 flex items-center gap-1 overflow-x-auto",
+                selectedChannel === "email" && "md:hidden",
+              )}
+              aria-label="Conversation filters"
+            >
               {[
-                { id: "all", label: "All" },
+                { id: "all", label: selectedChannel === "email" ? "Inbox" : "All" },
                 { id: "unread", label: "Unread" },
                 { id: "starred", label: "Starred" },
               ].map((filterItem) => (
@@ -2621,8 +2926,36 @@ export default function InboxPageClient({
                     {(() => { const Icon = inboxChannelIcon(selectedChannel); return <Icon className={`h-6 w-6 ${inboxChannelIconClass(selectedChannel)}`} />; })()}
                   </div>
                   <p className="text-sm text-foreground">
-                    Connect {selectedChannel === "facebook" ? "Facebook" : selectedChannel} to start using inbox
+                    {selectedChannel === "email"
+                      ? "Connect email to start using inbox"
+                      : selectedChannel === "instagram"
+                        ? "Connect Instagram to start using inbox"
+                        : selectedChannel === "facebook"
+                          ? "Connect Facebook to start using inbox"
+                          : selectedChannel === "whatsapp"
+                            ? "Connect WhatsApp to start using inbox"
+                            : "Connect this channel to start using inbox"}
                   </p>
+                  {selectedChannel === "email" ? (
+                    <Button variant="outline" size="sm" className="mt-4" onClick={() => setShowEmailConnectDialog(true)}>
+                      Connect email
+                    </Button>
+                  ) : null}
+                  {selectedChannel === "instagram" || selectedChannel === "facebook" ? (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="mt-4"
+                      onClick={() => startSocialConnection(selectedChannel)}
+                    >
+                      {selectedChannel === "instagram" ? "Connect Instagram" : "Connect Facebook"}
+                    </Button>
+                  ) : null}
+                  {selectedChannel === "whatsapp" ? (
+                    <Button asChild variant="outline" size="sm" className="mt-4">
+                      <Link href="/connections#whatsapp-setup">Connect WhatsApp</Link>
+                    </Button>
+                  ) : null}
                 </div>
               ) : filteredConversations.length === 0 ? (
                 <div className="flex flex-col items-center justify-center px-4 py-12 text-center">
@@ -2633,6 +2966,11 @@ export default function InboxPageClient({
                   <p className="mt-1 max-w-[260px] text-xs leading-5 text-muted-foreground">
                     {emptyConversationCopy.description}
                   </p>
+                  {selectedChannel === "email" && !selectedChannelConnected ? (
+                    <Button variant="outline" size="sm" className="mt-4" onClick={() => setShowEmailConnectDialog(true)}>
+                      Connect email
+                    </Button>
+                  ) : null}
                   {selectedChannelConversationCount === 0 &&
                   (selectedChannel === "instagram" || selectedChannel === "facebook") ? (
                     <Button asChild variant="outline" size="sm" className="mt-4">
@@ -2644,6 +2982,51 @@ export default function InboxPageClient({
                 filteredConversations.map((conversation) => {
                   const channelInfo = channels.find((channel) => channel.id === conversation.channel) ?? channels[0];
                   const ConversationChannelIcon = channelInfo.icon;
+
+                  if (conversation.channel === "email") {
+                    return (
+                      <div
+                        key={conversation.id}
+                        className={cn(
+                          "group flex w-full items-center gap-2 border-b border-border/70 px-2.5 py-2 text-left transition-colors",
+                          selectedConversation?.id === conversation.id
+                            ? "bg-primary/10"
+                            : "hover:bg-secondary/70",
+                        )}
+                      >
+                        <span className="h-4 w-4 shrink-0 rounded border border-muted-foreground/50" />
+                        <span
+                          aria-hidden="true"
+                          className="shrink-0 rounded p-1 text-muted-foreground"
+                        >
+                          <Star className={cn("h-4 w-4", conversation.starred && "fill-primary text-primary")} />
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => openConversation(conversation.id)}
+                          className="flex min-w-0 flex-1 items-center gap-2 text-left"
+                        >
+                          <span
+                            className={cn(
+                              "w-[30%] min-w-[110px] truncate text-sm",
+                              conversation.unread ? "font-semibold text-foreground" : "text-foreground",
+                            )}
+                          >
+                            {conversation.emailFrom || conversation.name}
+                          </span>
+                          <span className="min-w-0 flex-1 truncate text-sm">
+                            <span className={conversation.unread ? "font-semibold text-foreground" : "text-foreground"}>
+                              {conversation.emailSubject || "(no subject)"}
+                            </span>
+                            <span className="text-muted-foreground"> — {conversation.lastMessage}</span>
+                          </span>
+                          <span className="shrink-0 text-[11px] text-muted-foreground">
+                            {formatConversationTime(conversation.time)}
+                          </span>
+                        </button>
+                      </div>
+                    );
+                  }
 
                   return (
                     <div
@@ -2822,12 +3205,18 @@ export default function InboxPageClient({
               )}
             </div>
           </ScrollArea>
+            </div>
+          </div>
         </div>
 
         <div
           className={cn(
             "min-h-0 flex flex-1 flex-col bg-background",
-            mobileConversationOpen ? "flex" : "hidden md:flex",
+            emailConversationOpen
+              ? "flex w-full"
+              : mobileConversationOpen
+                ? "flex"
+                : "hidden md:flex",
           )}
         >
           <div
@@ -2842,8 +3231,16 @@ export default function InboxPageClient({
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-9 w-9 shrink-0 text-muted-foreground md:hidden"
-                    onClick={() => setMobileConversationOpen(false)}
+                    className={cn(
+                      "h-9 w-9 shrink-0 text-muted-foreground",
+                      selectedConversation.channel === "email" ? "inline-flex" : "md:hidden",
+                    )}
+                    onClick={() => {
+                      if (selectedConversation.channel === "email") {
+                        setSelectedConversationId(null);
+                      }
+                      setMobileConversationOpen(false);
+                    }}
                   >
                     <ArrowLeft className="h-4 w-4" />
                   </Button>
@@ -2865,7 +3262,9 @@ export default function InboxPageClient({
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
                       <h2 className="truncate text-sm font-semibold text-foreground">
-                        {selectedConversation.name}
+                        {selectedConversation.channel === "email"
+                          ? selectedConversation.emailSubject || "(no subject)"
+                          : selectedConversation.name}
                       </h2>
                       <Badge
                         variant="outline"
@@ -2879,7 +3278,14 @@ export default function InboxPageClient({
                       </Badge>
                     </div>
                     <p className="truncate text-xs text-muted-foreground">
-                      <span>{selectedConversation.handle}</span>
+                      <span>
+                        {selectedConversation.channel === "email"
+                          ? selectedConversation.emailFrom || selectedConversation.handle
+                          : selectedConversation.handle}
+                      </span>
+                      {selectedConversation.channel === "email" ? (
+                        <span className="ml-2">{selectedConversation.connectionLabel}</span>
+                      ) : null}
                       {selectedConversation.status === "online" ? (
                         <span className="ml-1 hidden items-center gap-1 text-status-success sm:inline-flex">
                           <span className="v-live-dot h-1.5 w-1.5" />
@@ -3149,13 +3555,19 @@ export default function InboxPageClient({
                   animate={{ opacity: 1, y: 0 }}
                   className={cn(
                     "flex",
-                    message.sender === "customer" ? "justify-start" : "justify-end",
+                    selectedConversation?.channel === "email"
+                      ? "justify-start"
+                      : message.sender === "customer"
+                        ? "justify-start"
+                        : "justify-end",
                   )}
                 >
                   <div
                     className={cn(
-                      "group relative max-w-[85%] text-foreground sm:max-w-[70%]",
-                      stickerOnly
+                      "group relative text-foreground",
+                      selectedConversation?.channel === "email"
+                        ? "w-full rounded-xl border border-border bg-card p-4"
+                        : stickerOnly
                         ? "p-0"
                         : cn(
                             "rounded-lg p-3",
@@ -3165,6 +3577,31 @@ export default function InboxPageClient({
                           ),
                     )}
                   >
+                    {selectedConversation?.channel === "email" ? (
+                      <div className="mb-3 flex items-start gap-3 border-b border-border/70 pb-3">
+                        <Avatar className="h-8 w-8 shrink-0 bg-secondary">
+                          <AvatarFallback className="bg-secondary text-xs text-foreground">
+                            {message.sender === "customer"
+                              ? selectedConversation.avatar
+                              : "ME"}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-medium text-foreground">
+                            {message.sender === "customer"
+                              ? selectedConversation.emailFrom || selectedConversation.name
+                              : "You"}
+                          </p>
+                          <p className="truncate text-xs text-muted-foreground">
+                            {message.sender === "customer"
+                              ? "to " + selectedConversation.connectionLabel
+                              : "from " + selectedConversation.connectionLabel}
+                            <span className="mx-1.5">·</span>
+                            {message.time}
+                          </p>
+                        </div>
+                      </div>
+                    ) : null}
                     <div className="absolute -top-2 right-2 opacity-0 transition-opacity group-hover:opacity-100">
                       <div className="flex items-center gap-0.5 rounded-md border border-border bg-card p-0.5 shadow-lg">
                         <Button

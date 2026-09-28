@@ -45,4 +45,25 @@ describe("agent runtime configuration", () => {
     });
     expect(enabled.MCP_STATELESS_ENABLED).toBe(true);
   });
+
+  it("keeps the memory-v2 path enabled by default but provides an explicit rollback switch", () => {
+    const enabled = loadConfig({
+      ...required,
+      OPENROUTER_API_KEY: "key",
+      INSTALLATION_TOKEN_PRIVATE_KEY: "test-key",
+    });
+    expect(enabled.MEMORY_V2_ENABLED).toBe(true);
+    const disabled = loadConfig({
+      ...required,
+      OPENROUTER_API_KEY: "key",
+      INSTALLATION_TOKEN_PRIVATE_KEY: "test-key",
+      MEMORY_V2_ENABLED: "false",
+    });
+    expect(disabled.MEMORY_V2_ENABLED).toBe(false);
+  });
+
+  it("enables credit settlement by default", () => {
+    const config = loadConfig({ AGENTS_DATABASE_URL: "postgres://localhost/agents" });
+    expect(config.CREDIT_BILLING_MODE).toBe("enforced");
+  });
 });

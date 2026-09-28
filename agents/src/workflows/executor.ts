@@ -1,5 +1,7 @@
 import { compileWorkflowStateSchema, type WorkflowGraph, type WorkflowStateValidator } from "./graph";
 import { hashToolArguments } from "../tools/registry";
+import type { ModelResponse } from "../model/types";
+import type { AgentBudgetLedger } from "../runtime/budget";
 
 interface GraphAuthorizationRequirement {
   code: string;
@@ -57,8 +59,9 @@ export interface GraphAgentLoopRequest {
 
 export interface GraphAgentLoopResult {
   status: "completed" | "awaiting_approval" | "awaiting_human" | "awaiting_external_event" | "limited" | "failed";
+  response?: ModelResponse;
   output?: unknown;
-  pendingToolCalls?: Array<{ id: string; name: string; arguments: Record<string, unknown>; argumentsHash: string }>;
+  pendingToolCalls?: Array<{ id: string; providerToolCallId?: string; name: string; arguments: Record<string, unknown>; argumentsHash: string; approvalGroupId?: string; approvalPlanDigest?: string }>;
   waitingFor?: string;
   error?: string | { message?: string };
   usage?: Partial<GraphExecutionUsage>;
@@ -66,6 +69,8 @@ export interface GraphAgentLoopResult {
 }
 
 export interface GraphExecutorDependencies {
+  /** Shared per-run admission ledger used by graph work and nested harness turns. */
+  budgetLedger?: AgentBudgetLedger;
   model?: (input: { nodeId: string; config: Record<string, unknown>; state: Record<string, unknown>; parallelLeaseId?: string }) => Promise<unknown>;
   agentLoop?: (input: GraphAgentLoopRequest) => Promise<GraphAgentLoopResult>;
   tool?: (input: GraphToolRequest) => Promise<unknown>;
@@ -128,7 +133,7 @@ export interface GraphExecutionResult {
   state: Record<string, unknown>;
   trace: Array<{ nodeId: string; type: string; status: string }>;
   pausedAt?: string;
-  pendingToolCalls?: Array<{ id: string; name: string; arguments: Record<string, unknown>; argumentsHash: string }>;
+  pendingToolCalls?: Array<{ id: string; providerToolCallId?: string; name: string; arguments: Record<string, unknown>; argumentsHash: string; approvalGroupId?: string; approvalPlanDigest?: string }>;
   waitingFor?: string;
   error?: string;
   usage: GraphExecutionUsage;
@@ -213,6 +218,11 @@ export async function executeWorkflowGraph(
   }
   while (execution.steps < execution.maxSteps) {
     execution.steps += 1;
+    try {
+      dependencies.budgetLedger?.consume("graph");
+    } catch (error) {
+      return { status: "failed", state, trace, usage, error: error instanceof Error ? error.message : "Graph budget exceeded" };
+    }
     if (dependencies.signal?.aborted) return { status: "failed", state, trace, usage, error: "Workflow execution cancelled" };
     const limitError = executionLimitError(usage, dependencies.limits, execution.startedAt);
     if (limitError) return { status: "failed", state, trace, usage, error: limitError };
@@ -250,6 +260,7 @@ export async function executeWorkflowGraph(
         }
       } else if (node.type === "tool") {
         if (!dependencies.tool || typeof node.config.toolName !== "string") throw new Error(`Tool node is not configured: ${node.id}`);
+        dependencies.budgetLedger?.consume("tool");
         consumeToolCall(usage, dependencies.limits);
         result = await dependencies.tool({ name: node.config.toolName, arguments: (node.config.arguments ?? {}) as Record<string, unknown>, nodeId: node.id, ...(dependencies.parallelBranchLease ? { parallelLeaseId: dependencies.parallelBranchLease.id } : {}) });
         throwIfGraphCancelled(dependencies.signal);

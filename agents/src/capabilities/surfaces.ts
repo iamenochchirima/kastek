@@ -1,4 +1,5 @@
 import type { CapabilityManifest, CapabilityManifestMetadata, ToolRiskClass } from "../tools/types";
+import type { CapabilityDescriptor } from "./catalog";
 
 export interface GeneratedCapabilitySurface {
   name: string;
@@ -30,6 +31,7 @@ export interface GeneratedCapabilitySurface {
     title: string;
     summary: string;
   };
+  catalog?: CapabilityDescriptor;
 }
 
 function titleCase(value: string): string {
@@ -81,8 +83,12 @@ function surfaceFor(manifest: CapabilityManifest): GeneratedCapabilitySurface {
 }
 
 /** Projects the authoritative registry into every non-handler consumer surface. */
-export function generateCapabilitySurfaces(manifests: readonly CapabilityManifest[]): GeneratedCapabilitySurface[] {
-  return manifests.map(surfaceFor);
+export function generateCapabilitySurfaces(manifests: readonly CapabilityManifest[], descriptors?: ReadonlyMap<string, CapabilityDescriptor>): GeneratedCapabilitySurface[] {
+  return manifests.map((manifest) => {
+    const surface = surfaceFor(manifest);
+    const descriptor = descriptors?.get(`${surface.name}@${surface.version}`);
+    return descriptor ? { ...surface, catalog: descriptor } : surface;
+  });
 }
 
 export function generateCapabilityDocumentation(manifests: readonly CapabilityManifest[]): string {

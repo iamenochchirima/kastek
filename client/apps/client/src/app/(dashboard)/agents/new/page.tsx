@@ -9,11 +9,11 @@ export const metadata = { title: "Create agent | KasiTek" };
 export default async function CreateAgentPage({
   searchParams,
 }: {
-  searchParams: Promise<{ template?: string; draft?: string; audience?: string; flow?: string }>;
+  searchParams: Promise<{ template?: string; draft?: string; audience?: string; flow?: string; mode?: string }>;
 }) {
   const session = await getRustSession();
   if (!session?.user?.id) redirect("/login");
-  const { template: templateKey, draft: draftId, audience, flow } = await searchParams;
+  const { template: templateKey, draft: draftId, audience, flow, mode } = await searchParams;
   const initialDraft = draftId
     ? await fetchRustJson<{ agents: AgentDefinition[] }>("/api/agents")
         .then(async (response) => {
@@ -40,9 +40,10 @@ export default async function CreateAgentPage({
         .then((response) => response.templates.find((template) => template.key === templateKey))
         .catch(() => undefined)
     : undefined;
-  const initialMode: AgentCreationKind | undefined = flow === "general"
+  const requestedMode = flow ?? mode;
+  const initialMode: AgentCreationKind | undefined = requestedMode === "general"
     ? "general"
-    : flow === "custom" || templateKey || initialDraft
+    : requestedMode === "custom" || templateKey || initialDraft
       ? "custom"
       : undefined;
   return <AgentCreationFlowPageClient userId={session.user.id} initialAudience={selectedAudience} initialMode={initialMode} initialTemplate={initialTemplate} initialDraft={initialDraft} />;

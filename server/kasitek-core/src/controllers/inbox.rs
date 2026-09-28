@@ -31,6 +31,7 @@ pub async fn list_messages(
 
 pub async fn send_message(
     pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
     req: HttpRequest,
     path: web::Path<String>,
     body: web::Json<WhatsappSendMessageRequest>,
@@ -39,6 +40,7 @@ pub async fn send_message(
     let org_id = resolve_active_org_id(&req, pool.get_ref(), &user.id).await?;
     let result = inbox::send_conversation_message(
         pool.get_ref(),
+        config.get_ref(),
         &user.id,
         &org_id,
         &path,
@@ -50,6 +52,7 @@ pub async fn send_message(
 
 pub async fn retry_message(
     pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
     req: HttpRequest,
     path: web::Path<(String, String)>,
 ) -> Result<HttpResponse, AppError> {
@@ -58,6 +61,7 @@ pub async fn retry_message(
     let (conversation_id, message_id) = path.into_inner();
     let result = inbox::retry_conversation_message(
         pool.get_ref(),
+        config.get_ref(),
         &user.id,
         &org_id,
         &conversation_id,

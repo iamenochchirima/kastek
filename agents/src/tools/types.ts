@@ -1,3 +1,6 @@
+import type { ExecutionScope } from "../runtime/execution-scope";
+import type { CapabilityRegistrationMetadata } from "../capabilities/catalog";
+
 export type ToolRiskClass = "read" | "draft" | "controlled-write" | "external-effect" | "privileged";
 
 export type CapabilityExecution = "immediate" | "durable";
@@ -31,11 +34,15 @@ export interface CapabilityManifestMetadata {
 }
 
 export interface ToolInvocationContext {
+  /** Canonical runtime identity; the other identity fields are capability projections. */
+  scope: ExecutionScope;
   organizationId: string;
   agentId: string;
   agentVersionId: string;
   installationId: string;
   runId: string;
+  /** Operation identity propagated from the capability runtime to adapters. */
+  operationId?: string;
   conversationId?: string;
   actorId?: string;
   correlationId: string;
@@ -45,6 +52,54 @@ export interface ToolInvocationContext {
   memoryPolicy?: Record<string, unknown>;
   /** Snapshot hash approved for the resumed external effect, when applicable. */
   approvalSnapshotHash?: string;
+  /** Digest of the effective capability projection used for this run. */
+  capabilitySnapshotDigest?: string;
+}
+
+/**
+ * Durable operation hooks at the capability boundary. The runtime owns the
+ * ordering: admission, prepare/replay, handler invocation, then completion or
+ * failure evidence. Hosts supply persistence and receipt implementations.
+ */
+export interface ToolInvocationLifecycle {
+  propose(input: {
+    request: ToolInvocationRequest;
+    manifest: Omit<ToolDefinition, "handler">;
+  }): Promise<void>;
+  prepare(input: {
+    request: ToolInvocationRequest;
+    manifest: Omit<ToolDefinition, "handler">;
+  }): Promise<{ status: "new" | "completed" | "unknown"; result?: ToolInvocationResult }>;
+  complete(input: {
+    request: ToolInvocationRequest;
+    manifest: Omit<ToolDefinition, "handler">;
+    result: ToolInvocationResult;
+    redactedOutput: unknown;
+  }): Promise<void>;
+  fail(input: {
+    request: ToolInvocationRequest;
+    manifest: Omit<ToolDefinition, "handler">;
+    error: { code: string; message: string };
+  }): Promise<void>;
+}
+
+export function toolInvocationContextFromScope(
+  scope: ExecutionScope,
+  extras: Pick<ToolInvocationContext, "memoryPolicy" | "approvalSnapshotHash" | "signal" | "operationId" | "capabilitySnapshotDigest"> = {},
+): ToolInvocationContext {
+  return {
+    scope,
+    organizationId: scope.organizationId,
+    agentId: scope.agentDefinitionId,
+    agentVersionId: scope.agentVersionId,
+    installationId: scope.installationId,
+    runId: scope.runId,
+    operationId: extras.operationId,
+    conversationId: scope.conversationId,
+    actorId: scope.actorId,
+    correlationId: scope.correlationId,
+    ...extras,
+  };
 }
 
 export function approvalSnapshotHashFromResource(snapshot?: Record<string, unknown>): string | undefined {
@@ -60,6 +115,8 @@ export interface ToolApproval {
   approvedBy: string;
   argumentsHash: string;
   expiresAt: string;
+  /** Durable group identity when this proof came from a multi-operation barrier. */
+  approvalGroupId?: string;
   /** The exact resource projection the approver reviewed, when available. */
   resourceSnapshot?: Record<string, unknown>;
 }
@@ -69,12 +126,16 @@ export interface ToolDefinition {
   version: string;
   description: string;
   riskClass: ToolRiskClass;
+  /** Explicit opt-in for safe overlap when the capability is not a read. */
+  parallelSafe?: boolean;
   requiresApproval: boolean;
   timeoutMs: number;
   inputSchema: Record<string, unknown>;
   outputSchema: Record<string, unknown>;
   handler: (context: ToolInvocationContext, argumentsValue: Record<string, unknown>) => Promise<unknown>;
   manifest?: CapabilityManifestMetadata;
+  /** Discovery metadata is projected into the canonical capability catalog. */
+  catalog?: CapabilityRegistrationMetadata;
 }
 
 export interface CapabilityManifest extends Omit<ToolDefinition, "handler" | "manifest"> {
@@ -86,10 +147,16 @@ export interface ToolInvocationRequest {
   arguments: Record<string, unknown>;
   context: ToolInvocationContext;
   grantedTools: ReadonlySet<string>;
+  /** Durable identity for this capability operation. */
+  operationId?: string;
+  /** Stable ordering within the current agent turn. */
+  sequenceNumber?: number;
   approval?: ToolApproval;
   signal?: AbortSignal;
   /** Runs after all validation/approval checks and immediately before a real effect handler. */
   beforeEffect?: () => Promise<void> | void;
+  /** Optional durable operation kernel supplied by the host composition root. */
+  lifecycle?: ToolInvocationLifecycle;
 }
 
 export interface ToolInvocationResult {

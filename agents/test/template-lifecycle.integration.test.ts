@@ -146,26 +146,33 @@ describe.skipIf(!runIntegration)("hosted template lifecycle (integration)", () =
       argumentsHash,
       idempotencyKey: effectIdempotencyKey,
     });
-    await approvals.createPending({
+    const approvalGroup = await approvals.createGroup({
       organizationId,
       installationId: installed.installation.id,
       runId: run.id,
-      providerToolCallId,
-      capability,
-      capabilityVersion,
-      argumentsHash,
-      resourceSnapshot: { connector: "telegram", externalIdentity: binding.external_identity },
-      previewRevision,
+      batchId: `${run.id}:template-effect`,
+      turnKey: providerToolCallId,
       policyRevision,
-      permittedEffectKey,
       expiresAt: new Date(Date.now() + 120_000).toISOString(),
+      proposals: [{
+        providerToolCallId,
+        runtimeOperationId: providerToolCallId,
+        capability,
+        capabilityVersion,
+        argumentsHash,
+        resourceSnapshot: { connector: "telegram", externalIdentity: binding.external_identity },
+        previewRevision,
+        policyRevision,
+        permittedEffectKey,
+      }],
     });
-    const decision = await approvals.decide({
+    const decision = await approvals.decideGroup({
       organizationId,
       runId: run.id,
-      providerToolCallId,
-      argumentsHash,
+      groupId: approvalGroup.group.id,
+      planDigest: approvalGroup.group.plan_digest,
       decision: "approved",
+      selectedOperationIds: [providerToolCallId],
       approvedBy: actorId,
     });
     expect(decision.accepted).toBe(true);
@@ -237,6 +244,7 @@ describe.skipIf(!runIntegration)("hosted template lifecycle (integration)", () =
   afterAll(async () => {
     await pool.query("DELETE FROM delivery_attempts WHERE organization_id = $1", [organizationId]);
     await pool.query("DELETE FROM agent_approval_records WHERE organization_id = $1", [organizationId]);
+    await pool.query("DELETE FROM agent_approval_groups WHERE organization_id = $1", [organizationId]);
     await pool.query("DELETE FROM agent_effect_receipts WHERE organization_id = $1", [organizationId]);
     await pool.query("DELETE FROM run_steps WHERE organization_id = $1", [organizationId]);
     await pool.query("DELETE FROM agent_events WHERE organization_id = $1", [organizationId]);

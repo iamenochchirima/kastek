@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import type { AgentDefinition, AgentTemplate, AgentVersion } from "@/lib/agent-platform";
-import { CreateAgentPageClient } from "./create-agent-page-client";
+import { AgentProfileCreationPageClient } from "./agent-profile-creation-page-client";
 import { CreateGeneralAgentPageClient } from "./create-general-agent-page-client";
 
 export type AgentCreationAudience = "personal" | "customer_service";
@@ -63,7 +63,7 @@ function KindChoice({ kind, selected, onSelect }: { kind: AgentCreationKind; sel
     <button type="button" aria-pressed={selected} onClick={onSelect} className={`flex min-h-56 flex-col rounded-2xl border p-6 text-left transition-[border-color,background-color,transform] hover:-translate-y-0.5 ${selected ? "border-primary bg-primary/10 shadow-lg shadow-primary/10" : "border-border bg-card hover:border-primary/60 hover:bg-secondary/35"}`}>
       {general ? <Sparkles className="h-6 w-6 text-primary" /> : <Bot className="h-6 w-6 text-primary" />}
       <h2 className="mt-5 text-lg font-semibold text-foreground">{general ? "General-purpose agent" : "Custom agent"}</h2>
-      <p className="mt-2 max-w-sm text-sm leading-6 text-muted-foreground">{general ? "Start with a focused role, approved knowledge, and sensible response defaults." : "Build a workflow from a canvas and add tools, knowledge, channels, and services as needed."}</p>
+      <p className="mt-2 max-w-sm text-sm leading-6 text-muted-foreground">{general ? "Start with a focused role, approved knowledge, and sensible response defaults." : "Define the agent profile, grant capabilities, and connect approved extensions."}</p>
       <span className="mt-auto pt-6 text-sm font-medium text-primary">{selected ? "Selected" : "Choose"}</span>
     </button>
   );
@@ -128,7 +128,7 @@ export function AgentCreationFlowPageClient({ userId, initialAudience, initialMo
     return <CreateGeneralAgentPageClient audience={audience} userId={userId} onBackToStart={returnToKind} />;
   }
   if (audience && kind === "custom") {
-    return <CreateAgentPageClient audience={audience} userId={userId} initialTemplate={initialTemplate} initialDraft={initialDraft} onBackToStart={returnToKind} />;
+    return <AgentProfileCreationPageClient audience={audience} userId={userId} initialTemplate={initialTemplate} initialDraft={initialDraft} onBackToStart={returnToKind} />;
   }
 
   return <StartScreen step={step} audience={selectedAudience} kind={selectedKind} onAudienceChange={setSelectedAudience} onKindChange={setSelectedKind} onBack={() => router.push("/agents")} onBackToAudience={() => { setSelectedKind(null); setKind(null); setStep("audience"); }} onContinue={() => {

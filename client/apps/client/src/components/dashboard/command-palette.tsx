@@ -2,7 +2,7 @@
 
 import { useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { Bell, Bot, Cable, CalendarDays, ChartColumn, Code2, FileText, Headphones, LayoutGrid, LayoutTemplate, Moon, PhoneCall, Send, Settings, Sparkles, Sun, Users } from "lucide-react"
+import { Bell, Bot, Cable, CalendarDays, ChartColumn, Code2, FileText, FlaskConical, Headphones, LayoutGrid, LayoutTemplate, Moon, PhoneCall, Send, Settings, Sparkles, Sun, Users } from "lucide-react"
 
 import { CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandSeparator, CommandShortcut } from "@/components/ui/command"
 import { applyTheme, resolveStoredTheme, serverThemeSnapshot, subscribeToThemeChange } from "@/lib/theme"
@@ -22,6 +22,7 @@ const routes = [
   { group: "Campaigns", label: "Campaigns", href: "/campaigns", icon: Send },
   { group: "Campaigns", label: "Templates", href: "/templates", icon: FileText },
   { group: "Automation", label: "Agents", href: "/agents", icon: Bot },
+  { group: "Automation", label: "Studio", href: "/studio", icon: FlaskConical },
   { group: "Automation", label: "Agent templates", href: "/agents/templates", icon: LayoutTemplate },
   { group: "Manage", label: "Developers", href: "/developers", icon: Code2 },
   { group: "Manage", label: "Connections", href: "/connections", icon: Cable },

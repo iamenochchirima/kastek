@@ -24,6 +24,7 @@ import {
   Download,
   Bot,
   FileText,
+  FlaskConical,
   Grid2x2,
   Headphones,
   HelpCircle,
@@ -94,6 +95,7 @@ function tourTarget(href: string) {
     "/connections": "connections",
     "/developers": "developers",
     "/agents": "agents",
+    "/studio": "studio",
     "/content": "content",
     "/bookings": "bookings",
     "/campaigns": "campaigns",
@@ -136,6 +138,7 @@ const navigationGroups: NavigationGroup[] = [
     label: "Automation",
     items: [
       { name: "Agents", href: "/agents", icon: Bot },
+      { name: "Studio", href: "/studio", icon: FlaskConical },
       { name: "Templates", href: "/agents/templates", icon: LayoutTemplate },
       { name: "Activity", href: "/agents/activity", icon: History },
       { name: "Analytics", href: "/agents/analytics", icon: ChartColumn },

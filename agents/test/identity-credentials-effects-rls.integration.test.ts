@@ -180,15 +180,15 @@ describe.skipIf(!runIntegration)("identity, credential, channel, and effect RLS 
       [runA, organizationA, definitionA, versionA, installationA, conversationA, runB, organizationB, definitionB, versionB, installationB, conversationB],
     );
     await adminPool.query(
-      `INSERT INTO agent_effect_receipts (id, organization_id, installation_id, run_id, provider_tool_call_id, capability, capability_version, arguments_hash, idempotency_key, status)
-       VALUES ($1, $2, $3, $4, $5, 'test.effect', '1', 'hash', $6, 'reserved'),
-              ($7, $8, $9, $10, $11, 'test.effect', '1', 'hash', $12, 'reserved')`,
+      `INSERT INTO agent_effect_receipts (id, organization_id, installation_id, run_id, provider_tool_call_id, runtime_operation_id, capability, capability_version, arguments_hash, idempotency_key, status)
+       VALUES ($1, $2, $3, $4, $5, $5, 'test.effect', '1', 'hash', $6, 'reserved'),
+              ($7, $8, $9, $10, $11, $11, 'test.effect', '1', 'hash', $12, 'reserved')`,
       [effectA, organizationA, installationA, runA, `effect-${effectA}`, `effect-key-${effectA}`, effectB, organizationB, installationB, runB, `effect-${effectB}`, `effect-key-${effectB}`],
     );
     await adminPool.query(
-      `INSERT INTO agent_approval_records (id, organization_id, installation_id, run_id, provider_tool_call_id, capability, capability_version, arguments_hash, preview_revision, status, expires_at)
-       VALUES ($1, $2, $3, $4, $5, 'test.effect', '1', 'hash', 'preview', 'pending', now() + interval '1 hour'),
-              ($6, $7, $8, $9, $10, 'test.effect', '1', 'hash', 'preview', 'pending', now() + interval '1 hour')`,
+      `INSERT INTO agent_approval_records (id, organization_id, installation_id, run_id, provider_tool_call_id, runtime_operation_id, capability, capability_version, arguments_hash, preview_revision, status, expires_at)
+       VALUES ($1, $2, $3, $4, $5, $5, 'test.effect', '1', 'hash', 'preview', 'pending', now() + interval '1 hour'),
+              ($6, $7, $8, $9, $10, $10, 'test.effect', '1', 'hash', 'preview', 'pending', now() + interval '1 hour')`,
       [approvalA, organizationA, installationA, runA, `approval-${approvalA}`, approvalB, organizationB, installationB, runB, `approval-${approvalB}`],
     );
     await adminPool.query(

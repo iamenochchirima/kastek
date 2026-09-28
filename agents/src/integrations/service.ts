@@ -3,8 +3,13 @@ import type { ToolInvocationContext } from "../tools/types";
 import { CalendarRepository } from "./calendar-repository";
 import { IntegrationRepository, type IntegrationConnectionRecord } from "./repository";
 import { withProviderSpan } from "../telemetry/spans";
+import type { KasitekCoreReadClient } from "../core/client";
 
 const GOOGLE_CALENDAR_API = "https://www.googleapis.com/calendar/v3";
+const GOOGLE_GMAIL_API = "https://gmail.googleapis.com/gmail/v1";
+const GOOGLE_DRIVE_API = "https://www.googleapis.com/drive/v3";
+const MICROSOFT_GRAPH_API = "https://graph.microsoft.com/v1.0";
+const MICROSOFT_TOKEN_URL = "https://login.microsoftonline.com/common/oauth2/v2.0/token";
 
 export class IntegrationToolError extends Error {
   public constructor(public readonly code: string, message = code) {
@@ -18,6 +23,8 @@ type GoogleCredential = {
   expiresAt?: string;
   calendarId?: string;
 };
+
+type MicrosoftCredential = GoogleCredential;
 
 function stringArg(args: Record<string, unknown>, key: string, fallback = ""): string {
   return typeof args[key] === "string" ? args[key].trim() : fallback;
@@ -39,7 +46,11 @@ function jsonRecord(value: string): Record<string, unknown> {
 export class IntegrationToolService {
   private readonly calendar: CalendarRepository;
 
-  public constructor(private readonly repository: IntegrationRepository, private readonly config?: AppConfig) {
+  public constructor(
+    private readonly repository: IntegrationRepository,
+    private readonly config?: AppConfig,
+    private readonly coreClient?: KasitekCoreReadClient,
+  ) {
     this.calendar = new CalendarRepository(repository.database);
   }
 
@@ -142,6 +153,158 @@ export class IntegrationToolService {
     return { answer: payload.answer ?? "", results: (payload.results ?? []).map((item) => ({ title: item.title ?? "", url: item.url ?? "", content: item.content ?? "", score: item.score })) };
   }
 
+  public async searchGmail(context: ToolInvocationContext, args: Record<string, unknown>): Promise<Record<string, unknown>> {
+    if (!this.coreClient) throw new IntegrationToolError("CORE_UNAVAILABLE", "Email capabilities require the kasitek-core connection boundary");
+    return this.coreClient.executeEmail(context, "search", await this.prepareCoreEmailInput(context, { ...args, provider: "google" })) as Promise<Record<string, unknown>>;
+  }
+
+  /** Provider-neutral email surface. Provider/account identity is selected by
+   * the runtime metadata, never guessed from a free-form tool name. */
+  public async searchEmail(context: ToolInvocationContext, args: Record<string, unknown>): Promise<Record<string, unknown>> {
+    if (this.coreClient) return this.coreClient.executeEmail(context, "search", await this.prepareCoreEmailInput(context, args)) as Promise<Record<string, unknown>>;
+    const queryText = stringArg(args, "query");
+    if (!queryText) throw new IntegrationToolError("INVALID_EMAIL_SEARCH", "query is required");
+    const limit = Math.max(1, Math.min(typeof args.limit === "number" ? args.limit : 10, 50));
+    const requested = stringArg(args, "provider").toLowerCase();
+    const providers = requested ? [requested] : ["google", "microsoft"];
+    const messages: Array<Record<string, unknown>> = [];
+    const accounts: Array<Record<string, unknown>> = [];
+    for (const provider of providers) {
+      const integrationId = provider === "microsoft" ? "microsoft.email" : "google.email";
+      const connection = await this.repository.getConnection(context.organizationId, context.installationId, integrationId);
+      if (connection?.status !== "connected") continue;
+      accounts.push({ provider, label: this.emailAccountLabel(connection, provider), integrationId });
+      if (provider === "microsoft") messages.push(...await this.searchMicrosoftEmail(context.organizationId, connection, queryText, limit));
+      else messages.push(...await this.searchGoogleEmail(context.organizationId, connection, queryText, limit));
+    }
+    if (!accounts.length) throw new IntegrationToolError("INTEGRATION_NOT_CONNECTED", requested ? `${requested} email is not connected` : "No Google or Microsoft email account is connected");
+    return { messages: messages.slice(0, limit), accounts, nextPageToken: null };
+  }
+
+  public async readEmail(context: ToolInvocationContext, args: Record<string, unknown>): Promise<Record<string, unknown>> {
+    if (this.coreClient) return this.coreClient.executeEmail(context, "read", await this.prepareCoreEmailInput(context, args)) as Promise<Record<string, unknown>>;
+    const messageId = stringArg(args, "messageId");
+    if (!messageId) throw new IntegrationToolError("INVALID_EMAIL_MESSAGE", "messageId is required");
+    const { provider, connection } = await this.requireEmailConnection(context, stringArg(args, "provider"));
+    const message = provider === "microsoft"
+      ? await this.microsoftProviderRequest(context.organizationId, connection, "GET", `/me/messages/${encodeURIComponent(messageId)}?$select=id,conversationId,subject,from,toRecipients,body,receivedDateTime,isRead`)
+      : await this.googleProviderRequest(context.organizationId, connection, "google-gmail", "Gmail", GOOGLE_GMAIL_API, "GET", `/users/me/messages/${encodeURIComponent(messageId)}?format=full`);
+    return { message: { provider, account: this.emailAccountLabel(connection, provider), ...jsonRecord(JSON.stringify(message)) } };
+  }
+
+  public async sendEmail(context: ToolInvocationContext, args: Record<string, unknown>): Promise<Record<string, unknown>> {
+    if (this.coreClient) return this.coreClient.executeEmail(context, "send", await this.prepareCoreEmailInput(context, args)) as Promise<Record<string, unknown>>;
+    const to = stringArrayArg(args, "to");
+    const subject = stringArg(args, "subject");
+    const body = stringArg(args, "body");
+    if (!to.length || !subject || !body) throw new IntegrationToolError("INVALID_EMAIL_MESSAGE", "to, subject, and body are required");
+    const { provider, connection } = await this.requireEmailConnection(context, stringArg(args, "provider"));
+    if (provider === "microsoft") {
+      const response = await this.microsoftProviderRequest(context.organizationId, connection, "POST", "/me/sendMail", { message: { subject, body: { contentType: "Text", content: body }, toRecipients: to.map((address) => ({ emailAddress: { address } })) }, saveToSentItems: true });
+      return { status: "sent", provider, messageId: jsonRecord(JSON.stringify(response)).id ?? null };
+    }
+    const raw = [`To: ${to.join(", ")}`, `Subject: ${subject}`, "Content-Type: text/plain; charset=UTF-8", "", body].join("\r\n");
+    const response = await this.googleProviderRequest(context.organizationId, connection, "google-gmail", "Gmail", GOOGLE_GMAIL_API, "POST", "/users/me/messages/send", { raw: Buffer.from(raw, "utf8").toString("base64url") });
+    return { status: "sent", provider, messageId: jsonRecord(JSON.stringify(response)).id ?? null };
+  }
+
+  public async replyEmail(context: ToolInvocationContext, args: Record<string, unknown>): Promise<Record<string, unknown>> {
+    if (this.coreClient) return this.coreClient.executeEmail(context, "reply", await this.prepareCoreEmailInput(context, args)) as Promise<Record<string, unknown>>;
+    const messageId = stringArg(args, "messageId");
+    const body = stringArg(args, "body");
+    if (!messageId || !body) throw new IntegrationToolError("INVALID_EMAIL_REPLY", "messageId and body are required");
+    const { provider, connection } = await this.requireEmailConnection(context, stringArg(args, "provider"));
+    if (provider === "microsoft") {
+      await this.microsoftProviderRequest(context.organizationId, connection, "POST", `/me/messages/${encodeURIComponent(messageId)}/reply`, { comment: body });
+    } else {
+      const original = await this.googleProviderRequest(context.organizationId, connection, "google-gmail", "Gmail", GOOGLE_GMAIL_API, "GET", `/users/me/messages/${encodeURIComponent(messageId)}?format=metadata&metadataHeaders=Subject&metadataHeaders=From&metadataHeaders=To&metadataHeaders=Message-ID&metadataHeaders=References`) as { threadId?: string; payload?: { headers?: Array<{ name?: string; value?: string }> } };
+      const headers = new Map((original.payload?.headers ?? []).filter((header): header is { name: string; value?: string } => Boolean(header.name)).map((header) => [header.name.toLowerCase(), header.value ?? ""]));
+      const subject = headers.get("subject") ?? "";
+      const to = stringArg(args, "to") || headers.get("from") || "";
+      const raw = [`To: ${to}`, `Subject: ${subject.startsWith("Re:") ? subject : `Re: ${subject}`}`, headers.get("message-id") ? `In-Reply-To: ${headers.get("message-id")}` : "", headers.get("references") ? `References: ${headers.get("references")}` : "", "Content-Type: text/plain; charset=UTF-8", "", body].filter(Boolean).join("\r\n");
+      await this.googleProviderRequest(context.organizationId, connection, "google-gmail", "Gmail", GOOGLE_GMAIL_API, "POST", "/users/me/messages/send", { raw: Buffer.from(raw, "utf8").toString("base64url"), threadId: original.threadId });
+    }
+    return { status: "sent", provider, messageId };
+  }
+
+  private emailAccountLabel(connection: IntegrationConnectionRecord, provider: string): string {
+    const label = typeof connection.configuration.accountLabel === "string" ? connection.configuration.accountLabel.trim() : "";
+    return label || (provider === "microsoft" ? "Microsoft Mail" : "Google Mail");
+  }
+
+  /**
+   * Core owns the workspace credential, but Agents still owns the explicit
+   * installation binding. Resolve that binding before crossing the service
+   * boundary so a tool can never silently select another mailbox in the same
+   * workspace.
+   */
+  private async prepareCoreEmailInput(context: ToolInvocationContext, args: Record<string, unknown>): Promise<Record<string, unknown>> {
+    const requestedProvider = stringArg(args, "provider").toLowerCase();
+    if (requestedProvider && requestedProvider !== "google" && requestedProvider !== "microsoft") {
+      throw new IntegrationToolError("UNKNOWN_EMAIL_PROVIDER", "provider must be google or microsoft");
+    }
+    const candidates = (requestedProvider ? [requestedProvider] : ["google", "microsoft"])
+      .map((provider) => ({
+        provider: provider as "google" | "microsoft",
+        integrationIds: provider === "microsoft" ? ["microsoft.email"] : ["google.email", "google.gmail"],
+      }));
+    const connected = (await Promise.all(candidates.map(async (candidate) => ({
+      ...candidate,
+      connection: (await Promise.all(candidate.integrationIds.map((integrationId) => this.repository.getConnection(context.organizationId, context.installationId, integrationId)))).find((connection) => connection?.status === "connected") ?? null,
+    })))).filter((candidate) => candidate.connection?.status === "connected");
+    if (!connected.length) throw new IntegrationToolError("INTEGRATION_NOT_CONNECTED", requestedProvider ? `${requestedProvider} email is not connected` : "No email account is connected");
+    if (connected.length > 1 && !requestedProvider) throw new IntegrationToolError("EMAIL_ACCOUNT_AMBIGUOUS", "Specify Google or Microsoft when more than one mailbox is connected");
+    const selected = connected[0]!;
+    const configuration = selected.connection!.configuration;
+    const account = typeof configuration.emailAddress === "string" ? configuration.emailAddress.trim() : "";
+    if (!account) throw new IntegrationToolError("EMAIL_BINDING_INVALID", "The connected mailbox is missing its account label");
+    const requestedAccount = stringArg(args, "account");
+    if (requestedAccount && requestedAccount.toLowerCase() !== account.toLowerCase()) throw new IntegrationToolError("EMAIL_ACCOUNT_NOT_BOUND", "That mailbox is not bound to this agent");
+    return { ...args, provider: selected.provider, account };
+  }
+
+  private async requireEmailConnection(context: ToolInvocationContext, requestedProvider: string): Promise<{ provider: "google" | "microsoft"; connection: IntegrationConnectionRecord }> {
+    const normalized = requestedProvider.trim().toLowerCase();
+    const candidates = normalized === "google" || normalized === "microsoft" ? [normalized] : ["google", "microsoft"];
+    const found: Array<{ provider: "google" | "microsoft"; connection: IntegrationConnectionRecord }> = [];
+    for (const provider of candidates) {
+      const integrationId = provider === "microsoft" ? "microsoft.email" : "google.email";
+      const connection = await this.repository.getConnection(context.organizationId, context.installationId, integrationId);
+      if (connection?.status === "connected") found.push({ provider: provider as "google" | "microsoft", connection });
+    }
+    if (!found.length) throw new IntegrationToolError("INTEGRATION_NOT_CONNECTED", normalized ? `${normalized} email is not connected` : "No email account is connected");
+    if (found.length > 1 && !normalized) throw new IntegrationToolError("EMAIL_ACCOUNT_AMBIGUOUS", "Specify Google or Microsoft when more than one mailbox is connected");
+    return found[0]!;
+  }
+
+  private async searchGoogleEmail(organizationId: string, connection: IntegrationConnectionRecord, queryText: string, limit: number): Promise<Array<Record<string, unknown>>> {
+    const listQuery = new URLSearchParams({ q: queryText, maxResults: String(limit), includeSpamTrash: "false" });
+    const listing = await this.googleProviderRequest(organizationId, connection, "google-gmail", "Gmail", GOOGLE_GMAIL_API, "GET", `/users/me/messages?${listQuery.toString()}`) as { messages?: Array<{ id?: string; threadId?: string }> };
+    return Promise.all((listing.messages ?? []).filter((message): message is { id: string; threadId?: string } => Boolean(message.id)).slice(0, limit).map(async (message) => {
+      const detail = await this.googleProviderRequest(organizationId, connection, "google-gmail", "Gmail", GOOGLE_GMAIL_API, "GET", `/users/me/messages/${encodeURIComponent(message.id)}?format=metadata&metadataHeaders=Subject&metadataHeaders=From&metadataHeaders=To&metadataHeaders=Date`) as { id?: string; threadId?: string; snippet?: string; internalDate?: string; payload?: { headers?: Array<{ name?: string; value?: string }> } };
+      const headers = new Map((detail.payload?.headers ?? []).filter((header): header is { name: string; value?: string } => Boolean(header.name)).map((header) => [header.name.toLowerCase(), header.value ?? ""]));
+      return { id: detail.id ?? message.id, threadId: detail.threadId ?? message.threadId ?? "", subject: headers.get("subject") ?? "", from: headers.get("from") ?? "", to: headers.get("to") ?? "", date: headers.get("date") ?? "", snippet: detail.snippet ?? "", provider: "google" };
+    }));
+  }
+
+  private async searchMicrosoftEmail(organizationId: string, connection: IntegrationConnectionRecord, queryText: string, limit: number): Promise<Array<Record<string, unknown>>> {
+    const escaped = queryText.replaceAll("'", "''");
+    const path = `/me/messages?$top=${Math.min(limit, 50)}&$select=id,conversationId,subject,from,toRecipients,receivedDateTime,bodyPreview&$filter=contains(subject,'${encodeURIComponent(escaped)}')`;
+    const payload = await this.microsoftProviderRequest(organizationId, connection, "GET", path) as { value?: Array<Record<string, unknown>> };
+    return (payload.value ?? []).map((message) => ({ id: message.id, threadId: message.conversationId ?? "", subject: message.subject ?? "", from: (message.from as Record<string, unknown> | undefined)?.emailAddress ?? message.from ?? "", to: message.toRecipients ?? [], date: message.receivedDateTime ?? "", snippet: message.bodyPreview ?? "", provider: "microsoft" }));
+  }
+
+  public async searchDrive(context: ToolInvocationContext, args: Record<string, unknown>): Promise<Record<string, unknown>> {
+    const queryText = stringArg(args, "query");
+    const limit = Math.max(1, Math.min(typeof args.limit === "number" ? args.limit : 20, 100));
+    const connection = await this.requireConnection(context, "google.drive");
+    const escapedQuery = queryText.replaceAll("\\", "\\\\").replaceAll("'", "\\'");
+    const query = queryText ? `trashed = false and (name contains '${escapedQuery}' or fullText contains '${escapedQuery}')` : "trashed = false";
+    const driveQuery = new URLSearchParams({ q: query, pageSize: String(limit), orderBy: "modifiedTime desc", fields: "files(id,name,mimeType,webViewLink,modifiedTime,size,description),nextPageToken" });
+    const payload = await this.googleProviderRequest(context.organizationId, connection, "google-drive", "Google Drive", GOOGLE_DRIVE_API, "GET", `/files?${driveQuery.toString()}`) as { files?: Array<Record<string, unknown>>; nextPageToken?: string };
+    return { files: payload.files ?? [], nextPageToken: payload.nextPageToken ?? null };
+  }
+
   public async appleTool(context: ToolInvocationContext, operation: string, args: Record<string, unknown>): Promise<Record<string, unknown>> {
     const connection = await this.requireConnection(context, "apple.tools");
     return { results: await this.callApple(context, connection, operation, args) };
@@ -177,22 +340,44 @@ export class IntegrationToolService {
   }
 
   private async googleRequest(organizationId: string, connection: IntegrationConnectionRecord, method: string, path: string, body?: unknown): Promise<unknown> {
-    if (!connection.credential_id) throw new IntegrationToolError("INTEGRATION_NOT_CONNECTED", "Google Calendar credential is missing");
+    return this.googleProviderRequest(organizationId, connection, "google-calendar", "Google Calendar", GOOGLE_CALENDAR_API, method, path, body);
+  }
+
+  private async googleProviderRequest(organizationId: string, connection: IntegrationConnectionRecord, provider: string, providerLabel: string, apiBase: string, method: string, path: string, body?: unknown): Promise<unknown> {
+    if (!connection.credential_id) throw new IntegrationToolError("INTEGRATION_NOT_CONNECTED", `${providerLabel} credential is missing`);
     let credential = jsonRecord(await this.repository.resolveCredential(organizationId, connection.credential_id)) as GoogleCredential;
-    if (!credential.accessToken) throw new IntegrationToolError("INTEGRATION_CREDENTIAL_INVALID", "Google Calendar access token is missing");
-    if (credential.expiresAt && Date.parse(credential.expiresAt) <= Date.now() + 30_000 && credential.refreshToken && this.config?.GOOGLE_CALENDAR_CLIENT_ID && this.config.GOOGLE_CALENDAR_CLIENT_SECRET) {
-      const clientId = this.config.GOOGLE_CALENDAR_CLIENT_ID;
-      const clientSecret = this.config.GOOGLE_CALENDAR_CLIENT_SECRET;
+    if (!credential.accessToken) throw new IntegrationToolError("INTEGRATION_CREDENTIAL_INVALID", `${providerLabel} access token is missing`);
+    if (credential.expiresAt && Date.parse(credential.expiresAt) <= Date.now() + 30_000 && credential.refreshToken && this.config?.GOOGLE_OAUTH_CLIENT_ID && this.config.GOOGLE_OAUTH_CLIENT_SECRET) {
+      const clientId = this.config.GOOGLE_OAUTH_CLIENT_ID;
+      const clientSecret = this.config.GOOGLE_OAUTH_CLIENT_SECRET;
       const refreshToken = credential.refreshToken;
-      const refreshed = await withProviderSpan("google-calendar", "oauth.refresh", () => fetch("https://oauth2.googleapis.com/token", { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ client_id: clientId, client_secret: clientSecret, grant_type: "refresh_token", refresh_token: refreshToken }), signal: AbortSignal.timeout(20_000) }));
-      if (!refreshed.ok) throw new IntegrationToolError("INTEGRATION_REAUTH_REQUIRED", "Google Calendar authorization has expired");
+      const refreshed = await withProviderSpan(provider, "oauth.refresh", () => fetch("https://oauth2.googleapis.com/token", { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ client_id: clientId, client_secret: clientSecret, grant_type: "refresh_token", refresh_token: refreshToken }), signal: AbortSignal.timeout(20_000) }));
+      if (!refreshed.ok) throw new IntegrationToolError("INTEGRATION_REAUTH_REQUIRED", `${providerLabel} authorization has expired`);
       const token = await refreshed.json() as { access_token?: string; expires_in?: number };
-      if (!token.access_token) throw new IntegrationToolError("INTEGRATION_REAUTH_REQUIRED", "Google Calendar refresh did not return an access token");
+      if (!token.access_token) throw new IntegrationToolError("INTEGRATION_REAUTH_REQUIRED", `${providerLabel} refresh did not return an access token`);
       credential = { ...credential, accessToken: token.access_token, expiresAt: new Date(Date.now() + (token.expires_in ?? 3_600) * 1_000).toISOString() };
       await this.repository.replaceCredential(organizationId, connection.credential_id, JSON.stringify(credential));
     }
-    const response = await withProviderSpan("google-calendar", "calendar.request", () => fetch(`${GOOGLE_CALENDAR_API}${path}`, { method, headers: { authorization: `Bearer ${credential.accessToken}`, "content-type": "application/json" }, ...(body === undefined ? {} : { body: JSON.stringify(body) }), signal: AbortSignal.timeout(20_000) }));
-    if (!response.ok) throw new IntegrationToolError(response.status === 401 ? "INTEGRATION_REAUTH_REQUIRED" : "PROVIDER_ERROR", `Google Calendar returned HTTP ${response.status}`);
+    const response = await withProviderSpan(provider, "request", () => fetch(`${apiBase}${path}`, { method, headers: { authorization: `Bearer ${credential.accessToken}`, "content-type": "application/json" }, ...(body === undefined ? {} : { body: JSON.stringify(body) }), signal: AbortSignal.timeout(20_000) }));
+    if (!response.ok) throw new IntegrationToolError(response.status === 401 ? "INTEGRATION_REAUTH_REQUIRED" : "PROVIDER_ERROR", `${providerLabel} returned HTTP ${response.status}`);
+    if (response.status === 204) return {};
+    return response.json();
+  }
+
+  private async microsoftProviderRequest(organizationId: string, connection: IntegrationConnectionRecord, method: string, path: string, body?: unknown): Promise<unknown> {
+    if (!connection.credential_id) throw new IntegrationToolError("INTEGRATION_NOT_CONNECTED", "Microsoft Mail credential is missing");
+    let credential = jsonRecord(await this.repository.resolveCredential(organizationId, connection.credential_id)) as MicrosoftCredential;
+    if (!credential.accessToken) throw new IntegrationToolError("INTEGRATION_CREDENTIAL_INVALID", "Microsoft Mail access token is missing");
+    if (credential.expiresAt && Date.parse(credential.expiresAt) <= Date.now() + 30_000 && credential.refreshToken && this.config?.MICROSOFT_OAUTH_CLIENT_ID && this.config.MICROSOFT_OAUTH_CLIENT_SECRET) {
+      const refreshed = await withProviderSpan("microsoft-mail", "oauth.refresh", () => fetch(MICROSOFT_TOKEN_URL, { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ client_id: this.config!.MICROSOFT_OAUTH_CLIENT_ID!, client_secret: this.config!.MICROSOFT_OAUTH_CLIENT_SECRET!, grant_type: "refresh_token", refresh_token: credential.refreshToken!, scope: "openid profile email offline_access User.Read Mail.Read Mail.Send" }), signal: AbortSignal.timeout(20_000) }));
+      if (!refreshed.ok) throw new IntegrationToolError("INTEGRATION_REAUTH_REQUIRED", "Microsoft Mail authorization has expired");
+      const token = await refreshed.json() as { access_token?: string; refresh_token?: string; expires_in?: number };
+      if (!token.access_token) throw new IntegrationToolError("INTEGRATION_REAUTH_REQUIRED", "Microsoft Mail refresh did not return an access token");
+      credential = { ...credential, accessToken: token.access_token, refreshToken: token.refresh_token ?? credential.refreshToken, expiresAt: new Date(Date.now() + (token.expires_in ?? 3_600) * 1_000).toISOString() };
+      await this.repository.replaceCredential(organizationId, connection.credential_id, JSON.stringify(credential));
+    }
+    const response = await withProviderSpan("microsoft-mail", "request", () => fetch(`${MICROSOFT_GRAPH_API}${path}`, { method, headers: { authorization: `Bearer ${credential.accessToken}`, "content-type": "application/json", ...(path.includes("$filter") ? { ConsistencyLevel: "eventual" } : {}) }, ...(body === undefined ? {} : { body: JSON.stringify(body) }), signal: AbortSignal.timeout(20_000) }));
+    if (!response.ok) throw new IntegrationToolError(response.status === 401 ? "INTEGRATION_REAUTH_REQUIRED" : "PROVIDER_ERROR", `Microsoft Graph returned HTTP ${response.status}`);
     if (response.status === 204) return {};
     return response.json();
   }

@@ -10,7 +10,7 @@ export type VersionStatus = z.infer<typeof versionStatusSchema>;
 export const installationStatusSchema = z.enum(["active", "paused", "disabled"]);
 export type InstallationStatus = z.infer<typeof installationStatusSchema>;
 
-export const agentReleaseModeSchema = z.enum(["pinned", "follow_published", "staged"]);
+export const agentReleaseModeSchema = z.literal("pinned");
 export type AgentReleaseMode = z.infer<typeof agentReleaseModeSchema>;
 
 export const agentExecutionModeSchema = z.enum(["system_hosted", "kasitek_hosted", "external_connected"]);
@@ -78,6 +78,13 @@ export const createAgentInputSchema = z.object({
   protected: z.boolean().default(false),
 });
 export type CreateAgentInput = z.input<typeof createAgentInputSchema>;
+
+export const studioAgentCreationInputSchema = z.object({
+  name: z.string().trim().min(1).max(160),
+  description: z.string().trim().max(2000).optional(),
+  instructions: z.string().trim().min(1).max(200_000),
+}).strict();
+export type StudioAgentCreationInput = z.infer<typeof studioAgentCreationInputSchema>;
 
 export const updateAgentInputSchema = z.object({
   name: z.string().trim().min(1).max(160).optional(),
@@ -165,18 +172,37 @@ export const deployInstallationInputSchema = z.object({
 });
 export type DeployInstallationInput = z.infer<typeof deployInstallationInputSchema>;
 
-export const deployStagedVersionInputSchema = z.object({
-  installationIds: z.array(z.string().uuid()).min(1).max(100).optional(),
-  percentage: z.number().int().min(1).max(100).optional(),
-}).superRefine((value, context) => {
-  if (value.installationIds === undefined && value.percentage === undefined) {
-    context.addIssue({ code: z.ZodIssueCode.custom, message: "installationIds or percentage is required" });
-  }
-  if (value.installationIds !== undefined && value.percentage !== undefined) {
-    context.addIssue({ code: z.ZodIssueCode.custom, message: "Choose installationIds or percentage, not both" });
-  }
-});
-export type DeployStagedVersionInput = z.infer<typeof deployStagedVersionInputSchema>;
+/**
+ * Read-only validation for moving an immutable candidate to a target
+ * installation. The source installation is optional for callers that only
+ * need to validate a published version; promotion requires it.
+ */
+export const installationDeploymentPreflightInputSchema = z.object({
+  versionId: z.string().uuid(),
+  sourceInstallationId: z.string().uuid().optional(),
+  expectedVersionId: z.string().uuid().optional(),
+}).strict();
+export type InstallationDeploymentPreflightInput = z.infer<typeof installationDeploymentPreflightInputSchema>;
+
+/**
+ * Activation is deliberately separate from the existing deploy endpoint:
+ * promotion names the tested Playground source and is idempotent against the
+ * target Live pointer.
+ */
+export const installationPromotionInputSchema = z.object({
+  versionId: z.string().uuid(),
+  sourceInstallationId: z.string().uuid(),
+  expectedVersionId: z.string().uuid(),
+  idempotencyKey: z.string().trim().min(8).max(240),
+}).strict();
+export type InstallationPromotionInput = z.infer<typeof installationPromotionInputSchema>;
+
+export const installationRollbackInputSchema = z.object({
+  expectedVersionId: z.string().uuid().optional(),
+  targetVersionId: z.string().uuid().optional(),
+  idempotencyKey: z.string().trim().min(8).max(240).optional(),
+}).strict();
+export type InstallationRollbackInput = z.infer<typeof installationRollbackInputSchema>;
 
 const externalScopeSchema = z.object({
   resourceType: z.string().trim().min(1).max(120),

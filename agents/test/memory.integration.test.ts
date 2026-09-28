@@ -5,6 +5,8 @@ import { KnowledgeRepository } from "../src/db/repositories/knowledge-repository
 import { MemoryRepository } from "../src/db/repositories/memory-repository";
 import { ConversationRepository } from "../src/db/repositories/conversation-repository";
 import { SummaryRepository } from "../src/db/repositories/summary-repository";
+import { MemoryRetrievalDecisionRepository } from "../src/db/repositories/memory-retrieval-decision-repository";
+import { buildRetrievalPlan } from "../src/memory/retrieval-planner";
 
 const databaseUrl = process.env.AGENTS_DATABASE_URL;
 const runIntegration = Boolean(databaseUrl && process.env.RUN_AGENTS_DB_INTEGRATION_TESTS === "true");
@@ -15,6 +17,7 @@ describe.skipIf(!runIntegration)("memory and knowledge isolation (integration)",
   const knowledge = new KnowledgeRepository(pool);
   const conversations = new ConversationRepository(pool);
   const summaries = new SummaryRepository(pool);
+  const retrievalDecisions = new MemoryRetrievalDecisionRepository(pool);
   const organizationId = `memory-test-${randomUUID()}`;
   const agentId = randomUUID();
   const versionId = randomUUID();
@@ -51,6 +54,42 @@ describe.skipIf(!runIntegration)("memory and knowledge isolation (integration)",
     expect(found.map((entry) => entry.id)).toContain(memoryId);
     const otherAgent = await memory.searchMemory({ organizationId, agentId: randomUUID(), installationId, actorId: "user-1" }, "prefers short replies");
     expect(otherAgent.map((entry) => entry.id)).not.toContain(memoryId);
+  });
+
+  it("persists a replay-safe, content-free retrieval decision", async () => {
+    const plan = buildRetrievalPlan({
+      scope: { organizationId, workspaceId: organizationId, agentDefinitionId: agentId, agentVersionId: versionId, installationId, namespace: "agent_private" },
+      query: "what is my reply style?",
+      intent: "current_fact",
+      reason: "preference_reference",
+    });
+    const input = {
+      organizationId,
+      workspaceId: organizationId,
+      agentDefinitionId: agentId,
+      agentVersionId: versionId,
+      installationId,
+      turnId: "turn-retrieval-decision",
+      attemptId: "attempt-retrieval-decision",
+      sourceBoundaryDigest: "a".repeat(64),
+      query: "what is my reply style?",
+      plan,
+      selectedRevisionIds: ["revision-none"],
+      rejectedReasons: ["no_authorized_visible_candidates"],
+      status: "completed" as const,
+      measuredTokens: 0,
+      candidateCount: 0,
+      evidenceCount: 0,
+      latencyMs: 4,
+    };
+    await expect(retrievalDecisions.record(input)).resolves.toBe("created");
+    await expect(retrievalDecisions.record(input)).resolves.toBe("replayed");
+    const row = await pool.query<{ query_digest: string; query_length: number; rejected_reasons: unknown }>(
+      "SELECT query_digest, query_length, rejected_reasons FROM agent_memory_retrieval_decisions WHERE organization_id = $1 AND turn_id = $2",
+      [organizationId, input.turnId],
+    );
+    expect(row.rows).toHaveLength(1);
+    expect(row.rows[0]).toMatchObject({ query_digest: expect.stringMatching(/^[0-9a-f]{64}$/), query_length: input.query.length, rejected_reasons: ["no_authorized_visible_candidates"] });
   });
 
   it("purges canonical memory and derived summary data while recording a deletion job", async () => {
@@ -248,6 +287,7 @@ describe.skipIf(!runIntegration)("memory and knowledge isolation (integration)",
   });
 
   afterAll(async () => {
+    await pool.query("DELETE FROM agent_memory_retrieval_decisions WHERE organization_id = $1", [organizationId]);
     await pool.query("DELETE FROM memory_deletion_jobs WHERE organization_id = $1", [organizationId]);
     if (conversationId) {
       await pool.query("DELETE FROM conversation_summaries WHERE organization_id = $1", [organizationId]);

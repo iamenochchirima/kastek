@@ -42,6 +42,7 @@ pub async fn sync_org_connections(pool: &PgPool, org_id: &str) -> Result<(), App
     let before_capabilities = load_capability_states(&mut tx, org_id).await?;
     sync_whatsapp(&mut tx, org_id).await?;
     sync_social(&mut tx, org_id).await?;
+    sync_email(&mut tx, org_id).await?;
     mark_missing_sources(&mut tx, org_id).await?;
     sync_capabilities(&mut tx, org_id).await?;
     let after_capabilities = load_capability_states(&mut tx, org_id).await?;
@@ -363,6 +364,62 @@ async fn sync_social(tx: &mut Transaction<'_, Postgres>, org_id: &str) -> Result
     Ok(())
 }
 
+async fn sync_email(tx: &mut Transaction<'_, Postgres>, org_id: &str) -> Result<(), AppError> {
+    sqlx::query(
+        r#"
+        INSERT INTO "ExternalConnection" (
+            id, "orgId", provider, "sourceType", "sourceId", "externalAccountId",
+            "displayName", handle, status, "credentialStatus", "healthStatus", "webhookStatus",
+            "lastCheckedAt", metadata, "createdAt", "updatedAt"
+        )
+        SELECT
+            'ext_' || ec.id, ec."orgId", ec.provider, 'EMAIL', ec.id, ec."externalAccountId",
+            ec."displayName", ec."emailAddress",
+            CASE ec.status
+                WHEN 'CONNECTED' THEN 'CONNECTED'::"ExternalConnectionStatus"
+                WHEN 'NEEDS_ATTENTION' THEN 'NEEDS_ATTENTION'::"ExternalConnectionStatus"
+                ELSE 'DISCONNECTED'::"ExternalConnectionStatus"
+            END,
+            CASE WHEN ec.status = 'CONNECTED' THEN 'ACTIVE' ELSE 'EXPIRED' END,
+            CASE WHEN ec.healthStatus = 'HEALTHY' THEN 'HEALTHY' ELSE 'NEEDS_ATTENTION' END,
+            'UNKNOWN', COALESCE(ec."lastSyncedAt", ec."updatedAt"),
+            jsonb_build_object(
+                'channelType', 'email',
+                'provider', lower(ec.provider),
+                'emailAddress', ec."emailAddress",
+                'syncStatus', ec."syncStatus",
+                'scopes', ec.scopes
+            ),
+            ec."createdAt", ec."updatedAt"
+        FROM "EmailConnection" ec
+        WHERE ec."orgId" = $1
+        ON CONFLICT ("orgId", "sourceType", "sourceId") DO UPDATE SET
+            provider = EXCLUDED.provider,
+            "externalAccountId" = EXCLUDED."externalAccountId",
+            "displayName" = EXCLUDED."displayName",
+            handle = EXCLUDED.handle,
+            status = CASE
+                WHEN EXCLUDED."updatedAt" > "ExternalConnection"."updatedAt"
+                    THEN EXCLUDED.status
+                ELSE COALESCE("ExternalConnection"."statusOverride", EXCLUDED.status)
+            END,
+            "statusOverride" = CASE
+                WHEN EXCLUDED."updatedAt" > "ExternalConnection"."updatedAt" THEN NULL
+                ELSE "ExternalConnection"."statusOverride"
+            END,
+            "credentialStatus" = EXCLUDED."credentialStatus",
+            "healthStatus" = EXCLUDED."healthStatus",
+            "lastCheckedAt" = EXCLUDED."lastCheckedAt",
+            metadata = EXCLUDED.metadata,
+            "updatedAt" = NOW()
+        "#,
+    )
+    .bind(org_id)
+    .execute(&mut **tx)
+    .await?;
+    Ok(())
+}
+
 async fn mark_missing_sources(
     tx: &mut Transaction<'_, Postgres>,
     org_id: &str,
@@ -384,6 +441,11 @@ async fn mark_missing_sources(
             OR
             (connection."sourceType" = 'SOCIAL' AND NOT EXISTS (
                 SELECT 1 FROM "SocialChannelConnection" source
+                WHERE source.id = connection."sourceId" AND source."orgId" = connection."orgId"
+            ))
+            OR
+            (connection."sourceType" = 'EMAIL' AND NOT EXISTS (
+                SELECT 1 FROM "EmailConnection" source
                 WHERE source.id = connection."sourceId" AND source."orgId" = connection."orgId"
             ))
           )
@@ -432,9 +494,18 @@ async fn sync_capabilities(
                 ('SOCIAL_POST_DELETE', 'feature.content.manage', ARRAY['FACEBOOK', 'INSTAGRAM', 'THREADS', 'BLUESKY', 'LINKEDIN', 'X']),
                 ('CALLS_INBOUND', NULL::text, ARRAY['TWILIO']),
                 ('CALLS_OUTBOUND', NULL::text, ARRAY['TWILIO']),
-                ('CALLS_BROWSER', NULL::text, ARRAY['TWILIO'])
+                ('CALLS_BROWSER', NULL::text, ARRAY['TWILIO']),
+                ('EMAIL_INBOUND', NULL::text, ARRAY['GOOGLE', 'MICROSOFT']),
+                ('EMAIL_READ', NULL::text, ARRAY['GOOGLE', 'MICROSOFT']),
+                ('EMAIL_OUTBOUND', NULL::text, ARRAY['GOOGLE', 'MICROSOFT']),
+                ('EMAIL_REPLY', NULL::text, ARRAY['GOOGLE', 'MICROSOFT']),
+                ('AGENT_EMAIL', 'feature.agents.manage', ARRAY['GOOGLE', 'MICROSOFT'])
             ) AS definition(key, entitlement_key, providers)
             WHERE connection.provider = ANY(definition.providers)
+              AND (
+                definition.key NOT IN ('EMAIL_INBOUND', 'EMAIL_READ', 'EMAIL_OUTBOUND', 'EMAIL_REPLY', 'AGENT_EMAIL')
+                OR connection."sourceType" = 'EMAIL'
+              )
         ) capability
         WHERE connection."orgId" = $1
         "#,
@@ -464,11 +535,12 @@ async fn sync_consumers(tx: &mut Transaction<'_, Postgres>, org_id: &str) -> Res
                consumer.product_key, NOW(), NOW()
         FROM "ExternalConnection" connection
         CROSS JOIN LATERAL (
-            SELECT unnest(CASE connection.provider
-                WHEN 'WHATSAPP' THEN ARRAY['inbox', 'campaigns', 'agents']
-                WHEN 'FACEBOOK' THEN ARRAY['inbox', 'content', 'agents']
-                WHEN 'INSTAGRAM' THEN ARRAY['inbox', 'content', 'agents']
-                WHEN 'TWILIO' THEN ARRAY['calls', 'inbox']
+            SELECT unnest(CASE
+                WHEN connection."sourceType" = 'EMAIL' THEN ARRAY['inbox', 'agents']
+                WHEN connection.provider = 'WHATSAPP' THEN ARRAY['inbox', 'campaigns', 'agents']
+                WHEN connection.provider = 'FACEBOOK' THEN ARRAY['inbox', 'content', 'agents']
+                WHEN connection.provider = 'INSTAGRAM' THEN ARRAY['inbox', 'content', 'agents']
+                WHEN connection.provider = 'TWILIO' THEN ARRAY['calls', 'inbox']
                 ELSE ARRAY['content']
             END) AS product_key
         ) consumer
@@ -562,6 +634,7 @@ fn sanitize_connection_metadata(metadata: &mut Option<serde_json::Value>) {
     for key in [
         "permissions",
         "scope",
+        "scopes",
         "tasks",
         "permissionsInspected",
         "capabilityChecks",
@@ -602,7 +675,7 @@ pub async fn update_status(
     } else {
         Some(status)
     };
-    let source_type = sqlx::query_scalar::<_, String>(
+    let source = sqlx::query_as::<_, (String, String)>(
         r#"
         UPDATE "ExternalConnection"
         SET "statusOverride" = CAST($1 AS "ExternalConnectionStatus"),
@@ -611,7 +684,7 @@ pub async fn update_status(
             "healthStatus" = CASE WHEN $2 = 'CONNECTED' THEN "healthStatus" ELSE 'NEEDS_ATTENTION' END,
             "updatedAt" = NOW()
         WHERE id = $3 AND "orgId" = $4
-        RETURNING "sourceType"
+        RETURNING "sourceType", "sourceId"
         "#,
     )
     .bind(override_status)
@@ -621,7 +694,7 @@ pub async fn update_status(
     .fetch_optional(&mut *tx)
     .await?;
 
-    let Some(source_type) = source_type else {
+    let Some((source_type, source_id)) = source else {
         return Err(AppError::NotFound("Connection not found".to_string()));
     };
 
@@ -635,12 +708,64 @@ pub async fn update_status(
             r#"
             UPDATE "SocialChannelConnection"
             SET status = CAST($1 AS "SocialChannelStatus"), "updatedAt" = NOW()
-            WHERE id = (SELECT "sourceId" FROM "ExternalConnection" WHERE id = $2 AND "orgId" = $3)
+            WHERE id = $2
               AND "orgId" = $3
             "#,
         )
         .bind(provider_status)
-        .bind(id)
+        .bind(&source_id)
+        .bind(org_id)
+        .execute(&mut *tx)
+        .await?;
+    }
+
+    if source_type == "EMAIL" {
+        let provider_status = match status {
+            "CONNECTED" => "CONNECTED",
+            "DISCONNECTED" => "DISCONNECTED",
+            _ => "REVOKED",
+        };
+        sqlx::query(
+            r#"UPDATE "EmailConnection"
+               SET status = $1,
+                   "healthStatus" = CASE WHEN $1 = 'CONNECTED' THEN 'HEALTHY' ELSE 'NEEDS_ATTENTION' END,
+                   "syncStatus" = CASE WHEN $1 = 'CONNECTED' THEN 'NOT_CONFIGURED' ELSE 'BLOCKED' END,
+                   "lastError" = CASE WHEN $1 = 'CONNECTED' THEN NULL ELSE 'connection_disconnected' END,
+                   "updatedAt" = NOW()
+               WHERE id = $2 AND "orgId" = $3"#,
+        )
+        .bind(provider_status)
+        .bind(&source_id)
+        .bind(org_id)
+        .execute(&mut *tx)
+        .await?;
+        sqlx::query(
+            r#"UPDATE "EmailInboxBinding"
+               SET status = CASE WHEN $1 = 'CONNECTED' THEN 'ACTIVE' ELSE 'PAUSED' END,
+                   "inboundStatus" = CASE
+                       WHEN $1 <> 'CONNECTED' THEN 'BLOCKED'
+                       WHEN EXISTS (
+                           SELECT 1 FROM "EmailConnection" connection
+                           WHERE connection.id = $2
+                             AND ('https://www.googleapis.com/auth/gmail.readonly' = ANY(connection.scopes) OR 'Mail.Read' = ANY(connection.scopes))
+                       ) THEN 'PENDING'
+                       ELSE 'BLOCKED'
+                   END,
+                   "outboundStatus" = CASE
+                       WHEN $1 <> 'CONNECTED' THEN 'BLOCKED'
+                       WHEN EXISTS (
+                           SELECT 1 FROM "EmailConnection" connection
+                           WHERE connection.id = $2
+                             AND ('https://www.googleapis.com/auth/gmail.send' = ANY(connection.scopes) OR 'Mail.Send' = ANY(connection.scopes))
+                       ) THEN 'READY'
+                       ELSE 'BLOCKED'
+                   END,
+                   "lastError" = CASE WHEN $1 = 'CONNECTED' THEN NULL ELSE 'connection_disconnected' END,
+                   "updatedAt" = NOW()
+               WHERE "emailConnectionId" = $2 AND "orgId" = $3"#,
+        )
+        .bind(provider_status)
+        .bind(&source_id)
         .bind(org_id)
         .execute(&mut *tx)
         .await?;

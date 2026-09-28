@@ -65,7 +65,7 @@ export interface ToolInvocationAnalyticsInput extends AgentRuntimeFactInput {
   toolVersion: string;
   riskClass: "read" | "draft" | "controlled-write" | "external-effect" | "privileged";
   action: "proposed" | "completed" | "failed";
-  status: "proposed" | "awaiting_approval" | "approved" | "rejected" | "executing" | "completed" | "failed";
+  status: "proposed" | "awaiting_approval" | "approved" | "rejected" | "executing" | "completed" | "failed" | "unknown";
   sequenceNumber: number;
   requiresApproval: boolean;
   latencyMs?: number | null;
@@ -139,9 +139,9 @@ export interface InstallationDeploymentAnalyticsInput {
   agentDefinitionId: string;
   agentVersionId: string;
   previousAgentVersionId: string | null;
-  releaseMode: "pinned" | "follow_published" | "staged";
+  releaseMode: "pinned";
   action: "deployed" | "rolled_back" | "failed";
-  trigger: "version_published" | "version_rolled_back" | "manual" | "canary";
+  trigger: "version_published" | "version_rolled_back" | "manual";
   outcome: "success" | "failure";
   errorCode?: string | null;
   actorType: "human" | "system";

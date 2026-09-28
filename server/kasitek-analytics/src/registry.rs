@@ -235,6 +235,76 @@ const CONTRACT_SOURCES: &[ContractSource] = &[
         )],
     },
     ContractSource {
+        path: "events/agent/memory_lifecycle/v1.schema.json",
+        schema: include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/contracts/events/agent/memory_lifecycle/v1.schema.json"
+        )),
+        examples: &[(
+            "examples/agent/memory_lifecycle.json",
+            include_str!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/contracts/examples/agent/memory_lifecycle.json"
+            )),
+        )],
+    },
+    ContractSource {
+        path: "events/agent/memory_retrieval/v1.schema.json",
+        schema: include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/contracts/events/agent/memory_retrieval/v1.schema.json"
+        )),
+        examples: &[(
+            "examples/agent/memory_retrieval.json",
+            include_str!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/contracts/examples/agent/memory_retrieval.json"
+            )),
+        )],
+    },
+    ContractSource {
+        path: "events/agent/memory_projection/v1.schema.json",
+        schema: include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/contracts/events/agent/memory_projection/v1.schema.json"
+        )),
+        examples: &[(
+            "examples/agent/memory_projection.json",
+            include_str!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/contracts/examples/agent/memory_projection.json"
+            )),
+        )],
+    },
+    ContractSource {
+        path: "events/agent/memory_deletion/v1.schema.json",
+        schema: include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/contracts/events/agent/memory_deletion/v1.schema.json"
+        )),
+        examples: &[(
+            "examples/agent/memory_deletion.json",
+            include_str!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/contracts/examples/agent/memory_deletion.json"
+            )),
+        )],
+    },
+    ContractSource {
+        path: "events/agent/memory_deletion/v2.schema.json",
+        schema: include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/contracts/events/agent/memory_deletion/v2.schema.json"
+        )),
+        examples: &[ (
+            "examples/agent/memory_deletion_v2.json",
+            include_str!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/contracts/examples/agent/memory_deletion_v2.json"
+            )),
+        )],
+    },
+    ContractSource {
         path: "events/agent/conversation_lifecycle/v1.schema.json",
         schema: include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
@@ -1628,12 +1698,58 @@ mod tests {
     #[test]
     fn repository_registry_is_valid_and_deterministic() {
         let registry = load_registry().expect("repository registry should validate");
-        assert_eq!(registry.contracts.len(), 47);
+        assert_eq!(registry.contracts.len(), 52);
         assert_eq!(registry.metrics.len(), 45);
         assert_eq!(registry.dimensions.len(), 68);
         assert_eq!(registry.metric_sets.len(), 2);
         assert_eq!(registry.metric_keys().len(), 45);
         assert!(!registry.sha256.is_empty());
+    }
+
+    #[test]
+    fn memory_contracts_are_registered_and_reject_content_fields() {
+        let registry = load_registry().expect("repository registry should validate");
+        for identity in [
+            "agent.memory.lifecycle@1",
+            "agent.memory.retrieval@1",
+            "agent.memory.projection@1",
+            "agent.memory.deletion@1",
+            "agent.memory.deletion@2",
+        ] {
+            assert!(registry
+                .contracts
+                .iter()
+                .any(|contract| contract.identity == identity));
+        }
+        let mut lifecycle = json!({
+            "workspace_id": "workspace-1",
+            "agent_definition_id": "agent-1",
+            "agent_version_id": "version-1",
+            "installation_id": "installation-1",
+            "memory_kind": "semantic",
+            "namespace": "workspace_shared",
+            "action": "capture",
+            "status": "accepted",
+            "occurred_at": "2026-09-08T08:00:00Z"
+        });
+        lifecycle["canonical_text"] = json!("must not be accepted");
+        assert!(validate_registered_contract("agent.memory.lifecycle@1", &lifecycle).is_err());
+        for (action, status) in [
+            ("capture", "accepted"),
+            ("candidate", "candidate"),
+            ("review", "active"),
+            ("conflict", "superseded"),
+            ("checkpoint", "committed"),
+        ] {
+            let mut data = lifecycle.clone();
+            data["action"] = json!(action);
+            data["status"] = json!(status);
+            data.as_object_mut()
+                .expect("lifecycle object")
+                .remove("canonical_text");
+            validate_registered_contract("agent.memory.lifecycle@1", &data)
+                .unwrap_or_else(|error| panic!("{action}/{status} should validate: {error}"));
+        }
     }
 
     #[test]

@@ -110,6 +110,10 @@ KasiAi uses `KASIAI_MODEL_PROVIDER` and `KASIAI_MODEL` for its pinned initial mo
 matching KasiTek-funded provider key, such as `OPENROUTER_API_KEY`, is resolved only inside worker
 activities and is never stored in an agent definition or workflow input.
 
+Credit settlement is enforced by default. Set `CREDIT_BILLING_MODE=shadow` to calculate pricing
+without debiting, or `CREDIT_BILLING_MODE=disabled` to skip credit settlement. User-funded BYOK
+credentials do not consume KasiTek credits.
+
 For containers, use the checked-in Dockerfile for the API and override the Railway worker start
 command with `node dist/temporal/worker.js`. Run `pnpm run migrate` as a release/deployment step
 against the Agent Platform database before routing traffic. The worker should use private
@@ -149,6 +153,12 @@ idempotently named Temporal workflow. Assistant output is committed as an outbou
 the same transaction that completes the run. Clients can read durable history from
 `GET /v1/conversations/:conversationId` and stream run events from
 `GET /v1/runs/:runId/events/stream`.
+
+Model selection follows the conversation boundary. A version's model policy supplies the default
+when a new conversation is created; after that, `conversations.model_provider` and
+`conversations.model` are authoritative for every run in that conversation. Existing-conversation
+message payloads must not be used to switch models per message. Each accepted run snapshots the
+conversation model into `agent_runs.resolved_model_provider` and `agent_runs.resolved_model`.
 
 ## kasitek-core read boundary
 
@@ -195,7 +205,9 @@ model calls.
 Agent integrations use the same encrypted-secret boundary without adding provider-specific
 credential tables. The catalog in `src/integrations/catalog.ts` describes each provider, the
 connection API stores installation-scoped state, and `src/integrations/tools.ts` exposes provider
-operations through the existing capability registry and approval policy. Add a provider by adding
-one catalog entry, an adapter in `IntegrationToolService`, and its connection form; do not add a
-new tool execution path. The first adapters are KasiTek Calendar, Google Calendar, Tavily Search,
-and an Apple Tools local bridge.
+operations through the existing capability registry and approval policy. OAuth-backed Google
+connections use `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`, and
+`GOOGLE_OAUTH_REDIRECT_URI`; each catalog entry supplies its own requested scopes through the
+shared Google OAuth boundary. Add a provider by adding one catalog entry, an adapter in
+`IntegrationToolService`, and its connection form; do not add a new tool execution path. The first
+adapters are KasiTek Calendar, Google Calendar, Gmail, Google Drive, Tavily Search, and an Apple Tools local bridge.

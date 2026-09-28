@@ -6,6 +6,7 @@ import { RunRepository } from "../db/repositories/run-repository";
 import { ToolGrantRepository } from "../db/repositories/tool-grant-repository";
 import { ToolRegistry } from "../tools/registry";
 import type { RunRecord } from "../db/repositories/run-repository";
+import type { CapabilityRuntime } from "../capabilities/runtime";
 
 export class InstallationCapabilityError extends Error {
   public constructor(public readonly code: string, message = code) {
@@ -43,6 +44,8 @@ export class InstallationCapabilityInvocationService {
     installationGrants: InstallationGrantRepository;
     killSwitches: KillSwitchRepository;
     tools: ToolRegistry;
+    /** Shared capability seam; tools remains a compatibility injection for host tests. */
+    capabilities?: CapabilityRuntime;
     temporalEnabled: boolean;
     startWorkflow?: (runId: string) => Promise<void>;
     immediateRead?: (input: InstallationCapabilityInvocation & {
@@ -52,14 +55,15 @@ export class InstallationCapabilityInvocationService {
   }) {}
 
   public async accept(input: InstallationCapabilityInvocation) {
+    const tools = this.dependencies.capabilities?.registry ?? this.dependencies.tools;
     const installation = await this.dependencies.agents.getInstallation(input.organizationId, input.installationId);
     if (!installation || installation.status !== "active") {
       throw new InstallationCapabilityError("INSTALLATION_NOT_FOUND", "installation_not_found");
     }
-    if (!this.dependencies.tools.get(input.name)) {
+    if (!tools.get(input.name)) {
       throw new InstallationCapabilityError("TOOL_NOT_FOUND", "tool_not_found");
     }
-    if (!this.dependencies.tools.validateArguments(input.name, input.argumentsValue)) {
+    if (!tools.validateArguments(input.name, input.argumentsValue)) {
       throw new InstallationCapabilityError("INVALID_TOOL_ARGUMENTS", "invalid_tool_arguments");
     }
     const grantedTools = await this.dependencies.toolGrants.effectiveTools(
@@ -75,7 +79,7 @@ export class InstallationCapabilityInvocationService {
         name: input.name,
         argumentsValue: input.argumentsValue,
         grantedTools,
-        tools: this.dependencies.tools,
+        tools,
         installationGrants: this.dependencies.installationGrants,
         approved: false,
         enforceApproval: false,

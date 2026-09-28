@@ -8,6 +8,8 @@ import {
   type CreateSkillInput,
   type CreateSkillVersionInput,
   type SkillDefinitionRecord,
+  type SkillLinkedFile,
+  type SkillLinkedFileMetadata,
   type SkillVersionRecord,
 } from "../../skills/contracts";
 
@@ -19,10 +21,10 @@ export class SkillRepository {
     const result = await query<SkillDefinitionRecord>(
       this.pool,
       `INSERT INTO agent_skill_definitions
-        (organization_id, owner_type, owner_id, slug, name, description, created_by)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
+        (organization_id, owner_type, owner_id, slug, name, description, catalog_id, created_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
        RETURNING *`,
-      [organizationId, parsed.ownerType, parsed.ownerType === "user" ? actorId : organizationId, parsed.slug, parsed.name, parsed.description ?? null, actorId],
+      [organizationId, parsed.ownerType, parsed.ownerType === "user" ? actorId : organizationId, parsed.slug, parsed.name, parsed.description ?? null, parsed.catalogId ?? null, actorId],
     );
     if (!result.rows[0]) throw new Error("SKILL_CREATE_FAILED");
     return result.rows[0];
@@ -54,7 +56,22 @@ export class SkillRepository {
         [skillId, organizationId, versionNumber, parsed.instructions, JSON.stringify(parsed.matching), parsed.requiredCapabilities, parsed.requiredConnectors, parsed.knowledgeSourceIds, parsed.compatibleChannels, parsed.compatibleAudiences, checksum, actorId],
       );
       if (!created.rows[0]) throw new Error("SKILL_VERSION_CREATE_FAILED");
-      return hydrateSkillVersion(created.rows[0]);
+      for (const file of parsed.files) {
+        await client.query(
+          `INSERT INTO agent_skill_version_files
+             (skill_version_id, organization_id, path, content, checksum)
+           VALUES ($1, $2, $3, $4, $5)`,
+          [created.rows[0].id, organizationId, file.path, file.content, createHash("sha256").update(file.content).digest("hex")],
+        );
+      }
+      return {
+        ...hydrateSkillVersion(created.rows[0]),
+        linked_files: parsed.files.map((file) => ({
+          path: file.path,
+          checksum: createHash("sha256").update(file.content).digest("hex"),
+          size: Buffer.byteLength(file.content, "utf8"),
+        })),
+      };
     });
   }
 
@@ -105,10 +122,20 @@ export class SkillRepository {
     return result.rows;
   }
 
+  public async getByCatalogId(organizationId: string, catalogId: string): Promise<SkillDefinitionRecord | null> {
+    const result = await query<SkillDefinitionRecord>(
+      this.pool,
+      `SELECT * FROM agent_skill_definitions
+       WHERE organization_id = $1 AND catalog_id = $2 AND status <> 'revoked'`,
+      [organizationId, catalogId],
+    );
+    return result.rows[0] ?? null;
+  }
+
   public async listVersions(organizationId: string, skillId: string): Promise<SkillVersionRecord[]> {
     const result = await query<SkillVersionRecord>(
       this.pool,
-      `SELECT version.*, skill.slug AS skill_slug, skill.name AS skill_name, skill.status AS skill_status
+      `SELECT version.*, skill.slug AS skill_slug, skill.name AS skill_name, skill.description AS skill_description, skill.status AS skill_status
        FROM agent_skill_versions version
        JOIN agent_skill_definitions skill ON skill.id = version.skill_definition_id
        WHERE version.skill_definition_id = $1
@@ -146,7 +173,7 @@ export class SkillRepository {
   public async loadPinnedVersions(organizationId: string, agentVersionId: string): Promise<SkillVersionRecord[]> {
     const result = await query<SkillVersionRecord>(
       this.pool,
-      `SELECT skill_version.*, skill.slug AS skill_slug, skill.name AS skill_name, skill.status AS skill_status
+      `SELECT skill_version.*, skill.slug AS skill_slug, skill.name AS skill_name, skill.description AS skill_description, skill.status AS skill_status
        FROM agent_version_skills pin
        JOIN agent_skill_versions skill_version ON skill_version.id = pin.skill_version_id
        JOIN agent_skill_definitions skill ON skill.id = skill_version.skill_definition_id
@@ -156,6 +183,57 @@ export class SkillRepository {
       [organizationId, agentVersionId],
     );
     return result.rows.map(hydrateSkillVersion);
+  }
+
+  public async listPinnedFiles(organizationId: string, agentVersionId: string, skillVersionId: string): Promise<SkillLinkedFileMetadata[]> {
+    const result = await query<SkillLinkedFileMetadata>(
+      this.pool,
+      `SELECT file.path, file.checksum, octet_length(file.content)::integer AS size
+       FROM agent_skill_version_files file
+       JOIN agent_version_skills pin
+         ON pin.skill_version_id = file.skill_version_id
+        AND pin.organization_id = file.organization_id
+       JOIN agent_skill_versions version
+         ON version.id = file.skill_version_id
+        AND version.status = 'published'
+       JOIN agent_skill_definitions definition
+         ON definition.id = version.skill_definition_id
+        AND definition.status = 'published'
+       WHERE file.organization_id = $1
+         AND pin.agent_version_id = $2
+         AND file.skill_version_id = $3
+       ORDER BY file.path ASC`,
+      [organizationId, agentVersionId, skillVersionId],
+    );
+    return result.rows;
+  }
+
+  public async loadPinnedFile(
+    organizationId: string,
+    agentVersionId: string,
+    skillVersionId: string,
+    path: string,
+  ): Promise<SkillLinkedFile | null> {
+    const result = await query<SkillLinkedFile>(
+      this.pool,
+      `SELECT file.path, file.content, file.checksum, octet_length(file.content)::integer AS size
+       FROM agent_skill_version_files file
+       JOIN agent_version_skills pin
+         ON pin.skill_version_id = file.skill_version_id
+        AND pin.organization_id = file.organization_id
+       JOIN agent_skill_versions version
+         ON version.id = file.skill_version_id
+        AND version.status = 'published'
+       JOIN agent_skill_definitions definition
+         ON definition.id = version.skill_definition_id
+        AND definition.status = 'published'
+       WHERE file.organization_id = $1
+         AND pin.agent_version_id = $2
+         AND file.skill_version_id = $3
+         AND file.path = $4`,
+      [organizationId, agentVersionId, skillVersionId, path],
+    );
+    return result.rows[0] ?? null;
   }
 }
 

@@ -19,7 +19,15 @@ describe("remote MCP boundary", () => {
           return;
         }
         if (input.method === "tools/list") {
-          response.end(JSON.stringify({ jsonrpc: "2.0", id: "kasitek-tools-list", result: { tools: [{ name: "lookup", description: "Look up a value", inputSchema: { type: "object", properties: { query: { type: "string" } }, required: ["query"], additionalProperties: false } }] } }));
+          response.end(JSON.stringify({ jsonrpc: "2.0", id: "kasitek-tools-list", result: { tools: [{
+            name: "lookup",
+            title: "lookup",
+            description: "Look up a value",
+            inputSchema: { type: "object", properties: { query: { type: "string" } }, required: ["query"], additionalProperties: false },
+            outputSchema: { type: "object", properties: { value: { type: "string" } } },
+            annotations: { readOnlyHint: true },
+            _meta: { provider: "test" },
+          }] } }));
           return;
         }
         response.end(JSON.stringify({ jsonrpc: "2.0", id: "kasitek-tools-call", result: { answer: "ok", apiKey: "do-not-return" } }));

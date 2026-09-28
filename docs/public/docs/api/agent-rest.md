@@ -33,6 +33,21 @@ and connection health; `/health` is a smaller health-only projection. `DELETE
 credentials atomically. These management routes use the browser/internal organization session, not
 the external bearer token.
 
+## Discover the capability directory
+
+```http
+GET /v1/capabilities/directory
+Authorization: Bearer <organization-session>
+```
+
+The response contains the organization-scoped capability descriptors and named toolsets for
+built-in tools, connectors, published skills and plugins, and published MCP revisions. Discovery
+does not grant a capability, load skill instructions, or make an unconfigured provider executable.
+Each descriptor carries its source, version/checksum, provider, runtime mode, required scopes, and
+credential requirements. The directory is separate from the installation-scoped grant projection
+below; agent-version publication and installation admission remain the points where capabilities
+become executable.
+
 ## Discover granted tools
 
 ```http
@@ -134,9 +149,63 @@ Authorization: Bearer <installation-token>
 The response contains the organization-scoped run record and its ordered event timeline. A run from
 another installation is intentionally indistinguishable from a missing operation (`404`).
 
+For a direct REST or MCP capability invocation, the terminal run output contains the redacted tool
+result under `tool` rather than an assistant message. The result is available only after the run is
+`completed`; it is not copied into a conversation response.
+
+```json
+{
+  "status": "completed",
+  "tool": {
+    "name": "platform.current_time",
+    "output": { "iso": "2026-09-08T12:00:00.000Z" }
+  }
+}
+```
+
 For polling clients, use `GET /v1/installations/{installationId}/operations/{runId}/events?after=42`.
 The response includes `nextAfter`, the current status, a terminal flag, and only redacted public
 event fields. Persist the cursor and resume from it after reconnecting.
+
+### Approval groups
+
+When one model turn proposes multiple approval-required effects, the run pauses with one immutable
+approval group. `GET /v1/installations/{installationId}/operations/{runId}` exposes the active
+complete group and its exact child operations; the internal run-detail projection also includes
+historical group summaries. Approve or reject the current group through the Agent
+Platform approval endpoint with the expected plan digest and an `Idempotency-Key`; approving a group
+never approves effects proposed by a later model turn.
+
+```http
+POST /v1/runs/{runId}/approval-group
+Authorization: Bearer <organization-session>
+Idempotency-Key: approval-decision-123
+Content-Type: application/json
+```
+
+```json
+{
+  "groupId": "approval-group-uuid",
+  "planDigest": "sha256-digest",
+  "decision": "approved",
+  "selectedOperationIds": ["runtime-operation-1"],
+  "grantScope": "once"
+}
+```
+
+Omit `selectedOperationIds` to approve every operation in the current group. A selected decision
+authorizes only the listed operation IDs; every other child receives a durable denied outcome.
+`grantScope` defaults to `once`. Set it to `session` only when every selected operation has an
+exact resource selector and the run is bound to a conversation. This creates a reusable grant for
+the same actor, installation, capability version, policy revision, and selected resource until its
+bounded expiry; it never authorizes a different resource or a later unscoped action. Session reuse
+is rejected for unscoped operations, non-conversation runs, or rejected decisions.
+The decision is bound to the digest, installation, capability version, arguments hash, and resource
+snapshot. A stale, expired, changed, or unauthorized request fails closed. A changed resource
+invalidates the group before the decision is accepted and returns `409 approval_group_invalidated`;
+the waiting run records a typed blocked outcome for each child and requires a new proposal. A
+repeated matching decision returns the durable prior outcome and does not signal or execute the
+group again.
 
 ## Cancel an operation
 
@@ -189,6 +258,21 @@ agent or installation. When the candidate provenance contains a contradiction, a
 requires `supersedesMemoryId` for the active conflicting fact. This explicit action marks the old
 record `superseded` and preserves the lineage; it does not delete the old record. Review actions
 are audited.
+
+## Memory lifecycle semantics
+
+The versioned memory path keeps source evidence, immutable revisions, and search projections
+separate. A retrieved item is returned only when its revision is `active`, its projection is
+`visible`, and its organization, workspace, agent version, installation, conversation, and end-user
+scope match the request. Inferred and imported candidates remain `review_pending` until an
+authorized review activates them. Corrections append a new revision and preserve the predecessor's
+validity interval; they do not overwrite history.
+
+Compaction checkpoints persist a redacted evidence envelope before a lossy context projection.
+Deletion is asynchronous and may report `held`, `provider_pending`, or `completed`; completion is
+not reported until canonical rows, local projections, and configured provider copies have been
+purged or confirmed. A legal hold prevents physical purge. These transitions are rollout-controlled
+and may be disabled independently by an operator during migration.
 
 MCP clients use the equivalent `/mcp` JSON-RPC methods. Both transports intentionally converge on the
 same `agent_runs`, approval, tool invocation, receipt, and event records.

@@ -13,6 +13,10 @@ import {
   buildFailedModelCallEvent,
   buildInstallationLifecycleEvent,
   buildInstallationDeploymentEvent,
+  buildMemoryDeletionEvent,
+  buildMemoryLifecycleEvent,
+  buildMemoryProjectionEvent,
+  buildMemoryRetrievalEvent,
   buildReadinessSnapshotEvent,
   buildScheduleLifecycleEvent,
   buildToolInvocationLifecycleEvent,
@@ -412,9 +416,9 @@ describe("Agent analytics producer", () => {
       agentDefinitionId: "agent-1",
       agentVersionId: "version-2",
       previousAgentVersionId: "version-1",
-      releaseMode: "staged",
+      releaseMode: "pinned",
       action: "failed",
-      trigger: "canary",
+      trigger: "manual",
       outcome: "failure",
       errorCode: "INSTALLATION VERSION CONFLICT/unsafe value",
       actorType: "human",
@@ -426,9 +430,9 @@ describe("Agent analytics producer", () => {
     });
     expect(record.envelope.data).toMatchObject({
       previous_agent_version_id: "version-1",
-      release_mode: "staged",
+      release_mode: "pinned",
       action: "failed",
-      trigger: "canary",
+      trigger: "manual",
       outcome: "failure",
       error_code: "INSTALLATION_VERSION_CONFLICT_unsafe_value",
     });
@@ -604,6 +608,144 @@ describe("Agent analytics producer", () => {
     });
     expect(scope.recordCategory).toBe("scope_definition");
     expect(scope.envelope.subject).toBe("scope:org-1");
+  });
+
+  it("builds memory lifecycle, retrieval, projection, and deletion contracts without content", () => {
+    const scope = {
+      organizationId: "org-1",
+      workspaceId: "workspace-1",
+      agentDefinitionId: "agent-1",
+      agentVersionId: "version-1",
+      installationId: "installation-1",
+    } as const;
+    const lifecycle = buildMemoryLifecycleEvent({
+      ...scope,
+      memoryId: "memory-1",
+      revisionId: "revision-1",
+      memoryKind: "semantic",
+      namespace: "workspace_shared",
+      action: "review",
+      status: "active",
+      transitionFrom: "review_pending",
+      transitionTo: "active",
+      sourceEventCount: 1,
+      occurredAt: "2026-09-08T08:00:00.000Z",
+    });
+    expect(lifecycle.contractName).toBe("agent.memory.lifecycle@1");
+    expect(lifecycle.envelope.data).toMatchObject({
+      action: "review",
+      status: "active",
+      memory_kind: "semantic",
+      namespace: "workspace_shared",
+    });
+    expect(JSON.stringify(lifecycle.envelope)).not.toContain("canonical_text");
+
+    const checkpoint = buildMemoryLifecycleEvent({
+      ...scope,
+      checkpointId: "checkpoint-1",
+      runId: "run-1",
+      memoryKind: "working",
+      namespace: "conversation",
+      action: "checkpoint",
+      status: "committed",
+      sourceEventCount: 3,
+      reasonCode: "compaction",
+      occurredAt: "2026-09-08T08:00:00.500Z",
+    });
+    expect(checkpoint.envelope.data).toMatchObject({
+      action: "checkpoint",
+      status: "committed",
+      checkpoint_id: "checkpoint-1",
+      memory_kind: "working",
+      source_event_count: 3,
+    });
+
+    const retrieval = buildMemoryRetrievalEvent({
+      ...scope,
+      retrievalId: "retrieval-1",
+      runId: "run-1",
+      turnId: "turn-1",
+      query: "what do we know?",
+      decision: "requested",
+      status: "completed",
+      freshness: "current",
+      memoryKinds: ["semantic", "episodic"],
+      reasonCode: "memory_intent",
+      plannerVersion: "memory-planner-v2",
+      candidateCount: 4,
+      evidenceCount: 2,
+      selectedCount: 2,
+      measuredTokens: 120,
+      maxTokens: 800,
+      latencyMs: 24,
+      gateSource: "heuristic",
+      gateConfidence: 0.9,
+      occurredAt: "2026-09-08T08:00:01.000Z",
+    });
+    expect(retrieval.contractName).toBe("agent.memory.retrieval@1");
+    expect(retrieval.envelope.data).toMatchObject({
+      decision: "requested",
+      status: "completed",
+      query_length: 16,
+    });
+    expect(retrieval.envelope.data).not.toHaveProperty("query");
+    expect(isRegisteredAgentContract(retrieval.contractName)).toBe(true);
+
+    const projection = buildMemoryProjectionEvent({
+      ...scope,
+      projectionId: "projection-1",
+      revisionId: "revision-1",
+      projectionKind: "vector",
+      operation: "upsert",
+      status: "visible",
+      providerName: "internal-vector",
+      providerState: "visible",
+      attemptCount: 1,
+      maxAttempts: 3,
+      latencyMs: 44,
+      occurredAt: "2026-09-08T08:00:02.000Z",
+    });
+    expect(projection.contractName).toBe("agent.memory.projection@1");
+    expect(projection.envelope.data).toMatchObject({ projection_kind: "vector", status: "visible" });
+    expect(JSON.stringify(projection.envelope)).not.toContain("embedding");
+
+    const deletion = buildMemoryDeletionEvent({
+      ...scope,
+      deletionId: "deletion-1",
+      targetType: "agent",
+      status: "completed",
+      legalHold: false,
+      targetCount: 3,
+      purgedRevisionCount: 3,
+      purgedProjectionCount: 6,
+      residualCount: 0,
+      attemptCount: 1,
+      occurredAt: "2026-09-08T08:00:03.000Z",
+    });
+    expect(deletion.contractName).toBe("agent.memory.deletion@2");
+    expect(deletion.envelope.data).toMatchObject({ target_type: "agent", status: "completed", scope_resolution: "installation", residual_count: 0 });
+    expect(JSON.stringify(deletion.envelope)).not.toContain("private message");
+
+    const aggregateDeletion = buildMemoryDeletionEvent({
+      organizationId: "org-1",
+      workspaceId: null,
+      agentDefinitionId: null,
+      agentVersionId: null,
+      installationId: null,
+      deletionId: "deletion-org-1",
+      targetType: "knowledge_source",
+      status: "completed",
+      legalHold: false,
+      attemptCount: 1,
+      occurredAt: "2026-09-08T08:00:04.000Z",
+    });
+    expect(aggregateDeletion.contractName).toBe("agent.memory.deletion@2");
+    expect(aggregateDeletion.envelope.data).toMatchObject({
+      target_type: "knowledge_source",
+      scope_resolution: "organization_aggregate",
+      workspace_id: null,
+      installation_id: null,
+    });
   });
 
   it("rejects an invalid observation window", () => {

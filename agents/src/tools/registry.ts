@@ -11,6 +11,7 @@ import type {
 import { ToolPolicyError } from "./types";
 import { generateCapabilitySurfaces, type GeneratedCapabilitySurface } from "../capabilities/surfaces";
 import { capabilityPresentationMetadataSchema } from "../media/dynamic-ui";
+import { CapabilityCatalog, type CapabilityCatalogFilter, type CapabilityDescriptor, type CapabilityToolsetDescriptor } from "../capabilities/catalog";
 
 function stableValue(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(stableValue);
@@ -36,10 +37,21 @@ interface RegisteredTool extends ToolDefinition {
 export class ToolRegistry {
   private readonly tools = new Map<string, RegisteredTool>();
   private readonly ajv: Ajv;
+  private readonly capabilityCatalog = new CapabilityCatalog();
+  private registryGeneration = 0;
 
   /** MCP and internal capability schemas use the JSON Schema 2020-12 dialect. */
   public constructor(ajv: Ajv = new Ajv2020({ allErrors: true, strict: false })) {
     this.ajv = ajv;
+  }
+
+  /**
+   * Monotonic generation for the scoped executable registry.  Model/tool
+   * projections include this value so a late MCP/plugin registration cannot
+   * reuse a stale capability snapshot on the next turn.
+   */
+  public get generation(): number {
+    return this.registryGeneration;
   }
 
   public register(definition: ToolDefinition): void {
@@ -51,7 +63,10 @@ export class ToolRegistry {
     }
     const validateInput = this.ajv.compile(definition.inputSchema);
     const validateOutput = this.ajv.compile(definition.outputSchema);
+    const { handler: _handler, catalog: catalogMetadata, ...toolManifest } = definition;
+    this.capabilityCatalog.registerTool(toolManifest, catalogMetadata);
     this.tools.set(definition.name, { ...definition, validateInput, validateOutput });
+    this.registryGeneration += 1;
   }
 
   public registerManifest(definition: CapabilityManifest & ToolDefinition): void {
@@ -85,8 +100,23 @@ export class ToolRegistry {
       .map(({ handler: _handler, validateInput: _input, validateOutput: _output, ...manifest }) => manifest as Omit<CapabilityManifest, "handler">);
   }
 
+  /** The canonical discovery projection for registered executable tools. */
+  public get catalog(): CapabilityCatalog {
+    return this.capabilityCatalog;
+  }
+
+  public descriptors(filter?: CapabilityCatalogFilter): readonly CapabilityDescriptor[] {
+    return this.capabilityCatalog.list(filter);
+  }
+
+  public registerToolset(toolset: CapabilityToolsetDescriptor): void {
+    this.capabilityCatalog.registerToolset(toolset);
+    this.registryGeneration += 1;
+  }
+
   public surfaces(grantedTools?: ReadonlySet<string>): GeneratedCapabilitySurface[] {
-    return generateCapabilitySurfaces(this.manifests(grantedTools));
+    const descriptors = new Map(this.capabilityCatalog.list().map((descriptor) => [`${descriptor.id}@${descriptor.version}`, descriptor] as const));
+    return generateCapabilitySurfaces(this.manifests(grantedTools), descriptors);
   }
 
   public async invoke(request: ToolInvocationRequest): Promise<ToolInvocationResult> {
@@ -110,7 +140,11 @@ export class ToolRegistry {
     }
     const startedAt = Date.now();
     if (tool.riskClass === "external-effect") await request.beforeEffect?.();
-    const context = request.signal ? { ...request.context, signal: request.signal } : request.context;
+    const context = {
+      ...request.context,
+      ...(request.operationId ? { operationId: request.operationId } : {}),
+      ...(request.signal ? { signal: request.signal } : {}),
+    };
     const output = await Promise.race([
       tool.handler(context, request.arguments),
       new Promise<never>((_, reject) => setTimeout(() => reject(new ToolPolicyError("TOOL_TIMEOUT", `Tool timed out: ${request.name}`)), tool.timeoutMs)),

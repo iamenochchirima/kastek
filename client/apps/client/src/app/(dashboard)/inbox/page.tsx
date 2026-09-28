@@ -4,7 +4,7 @@ import { fetchRustJson } from "@/lib/rust-server-api";
 
 type RustInboxConversation = {
   id: string;
-  channel: "whatsapp" | "facebook" | "instagram";
+  channel: "whatsapp" | "facebook" | "instagram" | "email";
   customerName: string | null;
   phone: string;
   lastMessageAt: string;
@@ -13,6 +13,21 @@ type RustInboxConversation = {
   connectionId: string | null;
   connectionLabel: string | null;
   lastMessage: string;
+  subject?: string | null;
+  from?: string | null;
+};
+
+type RustEmailConnection = {
+  id: string;
+  provider: string;
+  emailAddress: string;
+  displayName: string;
+  status: string;
+  healthStatus: string;
+  syncStatus: string;
+  inboxStatus: string;
+  inboundStatus: string;
+  outboundStatus: string;
 };
 
 type RustConnection = {
@@ -40,6 +55,7 @@ export default async function InboxPage() {
     sharedConnectionsPayload,
     conversationsPayload,
     socialChannelsPayload,
+    emailConnectionsPayload,
   ] = await Promise.all([
     fetchRustJson<{ connections: RustConnection[] }>("/api/whatsapp/connections").catch(
       () => ({ connections: [] }),
@@ -53,11 +69,15 @@ export default async function InboxPage() {
     fetchRustJson<{ channels: RustSocialChannel[] }>("/api/social/channels").catch(
       () => ({ channels: [] }),
     ),
+    fetchRustJson<{ connections: RustEmailConnection[] }>("/api/email/connections").catch(
+      () => ({ connections: [] }),
+    ),
   ]);
 
   const connections = connectionsPayload.connections || [];
   const conversations = conversationsPayload.conversations || [];
   const socialChannels = socialChannelsPayload.channels || [];
+  const emailConnections = emailConnectionsPayload.connections || [];
   const providerCounts = (provider: "WHATSAPP" | "FACEBOOK" | "INSTAGRAM") => {
     const providerConnections = sharedConnectionsPayload.connections.filter(
       (connection) => connection.provider === provider && connection.consumers.includes("inbox"),
@@ -89,6 +109,8 @@ export default async function InboxPage() {
           channel: conversation.channel,
           connectionId: conversation.connectionId,
           connectionLabel: conversation.connectionLabel || conversation.phone || "Unknown number",
+          emailSubject: conversation.subject || undefined,
+          emailFrom: conversation.from || null,
           avatar:
             (conversation.customerName || conversation.phone || "?")
               .split(/\s+/)
@@ -104,7 +126,14 @@ export default async function InboxPage() {
           whatsapp: providerCounts("WHATSAPP"),
           instagram: providerCounts("INSTAGRAM"),
           facebook: providerCounts("FACEBOOK"),
+          email: {
+            connected: emailConnections.some((connection) => connection.status === "CONNECTED" && connection.inboxStatus === "ACTIVE" && connection.inboundStatus === "READY"),
+            connectionCount: emailConnections.filter((connection) => connection.status === "CONNECTED" && connection.inboxStatus === "ACTIVE").length,
+            unreadCount: conversations.filter((conversation) => conversation.channel === "email").reduce((sum, conversation) => sum + Math.max(conversation.unreadCount, 0), 0),
+            conversationCount: conversations.filter((conversation) => conversation.channel === "email").length,
+          },
         }}
+        emailConnections={emailConnections}
         metaConnections={{
           instagram: socialChannels
             .filter(

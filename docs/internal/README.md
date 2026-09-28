@@ -12,6 +12,7 @@ This is the canonical home for private Kasitek documentation.
 ## Technical Documents
 
 - [Architecture](./architecture/kasitek-technical-blueprint.md)
+- [Credit Billing Coverage](./architecture/credit-billing-coverage.md)
 - [Audio Input and Transcription](./architecture/audio-transcription.md)
 - [Admin Analytics and Reporting](./architecture/admin-analytics.md)
 - [Customer Analytics Display Semantics](./architecture/customer-analytics.md)
@@ -22,7 +23,11 @@ This is the canonical home for private Kasitek documentation.
 - [Environments](./operations/environments.md)
 - [Railway Deployment Topology](./operations/deployment-topology.md)
 - [Observability](./operations/observability.md)
+- [Agent Memory Observability](./operations/agent-memory-observability.md)
 - [Documentation Maintenance](./operations/documentation-maintenance.md)
+- [Agent Platform Implementation Plan](/plans/agents/)
+- [Agent runtime host boundary](./architecture/agent-host-boundary.md)
+- [Shared workspace email connections](./architecture/shared-workspace-email-connections.md)
 
 ## Structure
 
@@ -31,11 +36,14 @@ This is the canonical home for private Kasitek documentation.
 - `development/`: repository and local-development guidance
 - `operations/`: release, environment, versioning, observability, and documentation procedures
 - `runbooks/`: step-by-step operational playbooks
-- `docs/plans/`: temporary implementation plans, kept outside the documentation site
+- `docs/plans/`: implementation plans; the canonical Agent Platform program map and selected active
+  implementation chunks are mounted at `/plans/agents/`
 - `docs/archive/legacy/`: historical or superseded material, not current guidance
 
 ## Notes
 
 - This site contains current technical and operational guidance only.
-- Temporary plans and checklists are maintained in `docs/plans/active/` and moved to
-  `docs/plans/completed/` when finished; they are not documentation sources of truth.
+- Work items and short checklists belong in the selected issue tracker and linked pull requests.
+  Former active plans are preserved under `docs/plans/parked/`. The Agent Platform program map
+  remains its architecture index; current runtime behavior belongs under
+  `docs/internal/architecture/`.

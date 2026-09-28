@@ -21,7 +21,7 @@ describe("knowledge repository", () => {
           canonical_text: "We help customers with product information.",
           metadata: {},
           provenance: {},
-          created_at: new Date(0).toISOString(),
+          created_at: new Date(0),
           lexical_score: 0.8,
         }],
       }),

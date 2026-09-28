@@ -101,14 +101,31 @@ model, runtime limits, workflows, capabilities, knowledge, schedules, and suppor
 the hosted-agent details page. Hosted installations do not receive MCP/REST machine credentials;
 external runtimes use the separate external-agent flow above.
 
-Hosted user installations follow the published version by default. Publishing and deployment are
-separate states: a pinned installation stays on its selected version until an explicit deployment,
-while a follow-published installation moves when a new version is published or rolled back. Runs
-already admitted keep the version they started with.
+Hosted user installations are pinned. Publishing and deployment are separate states: a pinned
+installation stays on its selected version until an explicit deployment. Runs already admitted keep
+the version they started with.
 
 Management clients can deploy a hosted installation explicitly with `POST
 /v1/installations/{installationId}/deploy` and `{ "versionId": "...", "expectedVersionId": "..." }`.
 The expected version is optional, but prevents overwriting a concurrent deployment when supplied.
+
+Playground-to-Live promotion uses a target-scoped contract. Read paired state with `GET
+/v1/agents/{agentId}/deployment-status`, then validate the candidate without changing a pointer:
+
+```http
+POST /v1/installations/{installationId}/preflight
+{ "versionId": "...", "sourceInstallationId": "...", "expectedVersionId": "..." }
+```
+
+The source must be a Playground installation pinned to the selected immutable version. Candidates
+may be published or retired; retiring removes a version from the current publication stream but
+does not delete its snapshot or prevent an explicit manual deployment. The expected version
+protects the Live pointer from concurrent changes. Activate the exact preflighted candidate with
+`POST /v1/installations/{installationId}/promote`, adding an `idempotencyKey`; a blocked preflight
+returns `409` with the structured blockers. Roll back a Live installation with
+`POST /v1/installations/{installationId}/rollback`, optionally supplying `targetVersionId` and
+`expectedVersionId`. Promotion and rollback history records retain the candidate digest, extension
+snapshot checksum, binding revision, source installation, prior pointer, and idempotency key.
 
 ### Workflow agent loops
 
@@ -170,3 +187,36 @@ The client does not choose provider OAuth routes for an existing connection. Wha
 the Connections setup surface because Embedded Signup uses a fixed provider configuration rather
 than arbitrary scope checkboxes. A callback updates the existing logical connection and preserves
 its local content and agent assignments.
+
+## Agent capability directories
+
+Hosted agent settings provide separate directory tabs for built-in tools, Connections, Skills,
+Plugins, MCP, and user-created tools. Connections contains native service bindings and reviewed
+remote MCP servers in one searchable surface; Gateways remains reserved for agent communication
+endpoints such as Website Chat and messaging channels.
+
+Connecting a native provider activates its declared capability bundle for the selected Playground
+installation immediately. For example, Google Calendar exposes its list, create, update, and delete
+actions as one provider-aware bundle; readiness, grants, and approval still apply to each call.
+Plugin and MCP packages and pinned skills follow the same candidate snapshot. These changes remain
+Playground-only until an explicit Deploy promotes the tested snapshot to Live.
+
+Skills are installed into the organization skill/version store and pinned to the selected Playground
+candidate immediately. Plugins use reviewed declarative manifests and the extension-package
+lifecycle. A plugin is selectable only when KasiTek has a registered runtime adapter for it; external
+plugin code is not imported into the worker. Unavailable manifests remain visible as catalogue
+metadata so an operator can distinguish a missing adapter from a missing credential. Capability
+changes must target Playground; attempts to change a Live installation return `PLAYGROUND_REQUIRED`.
+
+Native Google connections use one OAuth client and one callback per environment. The selected
+catalog entry supplies its own scopes, so Calendar, Gmail, and Drive can be connected separately.
+The callback is
+`/api/agents/integrations/google/oauth/callback`; users do not enter OAuth client credentials.
+
+Google Mail and Microsoft Mail use the same workspace-owned mailbox connection as Inbox. A
+successful OAuth flow creates or reuses one canonical provider account; Studio's **Use** action
+binds that account to the selected Playground installation without another OAuth exchange. The
+runtime exposes provider-neutral `kasitek.email.search`, `kasitek.email.read`,
+`kasitek.email.send`, and `kasitek.email.reply` tools, while retaining the Google/Microsoft account
+label in the capability snapshot. Inbox synchronization and reply readiness are reported
+separately from connection status, so a connected mailbox may still be syncing or require access.

@@ -814,7 +814,7 @@ An accepted asynchronous request returns a durable operation identifier whose st
 This document defines target architecture and governance. It is not the authoritative status board
 for feature delivery. Current implementation evidence belongs in the owning service documentation,
 tests, deployment records, and release records. Temporary sequencing and blockers belong in
-`docs/plans/active/`; completed execution records belong in `docs/plans/completed/`.
+the owning issue or pull request. Older execution records remain in `docs/plans/completed/`.
 
 Do not mark an architectural capability implemented from a roadmap date or an accepted design
 decision. Link verified code, contract, migration, test, and operational evidence when recording

@@ -15,6 +15,7 @@ export interface EffectReceipt {
   installation_id: string;
   run_id: string;
   provider_tool_call_id: string;
+  runtime_operation_id: string;
   capability: string;
   capability_version: string;
   arguments_hash: string;
@@ -41,6 +42,7 @@ interface PersistedEffectReceipt {
   installation_id: string;
   run_id: string;
   provider_tool_call_id: string;
+  runtime_operation_id: string;
   capability: string;
   capability_version: string;
   arguments_hash: string;
@@ -65,20 +67,22 @@ export class EffectReceiptRepository {
     installationId: string;
     runId: string;
     providerToolCallId: string;
+    runtimeOperationId?: string;
     capability: string;
     capabilityVersion: string;
     argumentsHash: string;
     idempotencyKey: string;
   }): Promise<EffectReceipt> {
+    const runtimeOperationId = input.runtimeOperationId ?? input.providerToolCallId;
     return withTransaction(this.pool, async (client) => {
       const created = await client.query<EffectReceipt>(
         `INSERT INTO agent_effect_receipts
-          (organization_id, installation_id, run_id, provider_tool_call_id, capability,
+          (organization_id, installation_id, run_id, provider_tool_call_id, runtime_operation_id, capability,
            capability_version, arguments_hash, idempotency_key, status)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'reserved')
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'reserved')
          ON CONFLICT (organization_id, idempotency_key) DO NOTHING
          RETURNING *`,
-        [input.organizationId, input.installationId, input.runId, input.providerToolCallId, input.capability, input.capabilityVersion, input.argumentsHash, input.idempotencyKey],
+        [input.organizationId, input.installationId, input.runId, input.providerToolCallId, runtimeOperationId, input.capability, input.capabilityVersion, input.argumentsHash, input.idempotencyKey],
       );
       const receipt = created.rows[0] ?? (await client.query<EffectReceipt>(
         `SELECT * FROM agent_effect_receipts WHERE organization_id = $1 AND idempotency_key = $2 FOR UPDATE`,
@@ -89,6 +93,7 @@ export class EffectReceiptRepository {
         receipt.installation_id !== input.installationId
         || receipt.run_id !== input.runId
         || receipt.provider_tool_call_id !== input.providerToolCallId
+        || receipt.runtime_operation_id !== runtimeOperationId
         || receipt.capability !== input.capability
         || receipt.capability_version !== input.capabilityVersion
         || receipt.arguments_hash !== input.argumentsHash
@@ -157,9 +162,9 @@ export class EffectReceiptRepository {
     });
   }
 
-  public async markNotExecuted(organizationId: string, runId: string, providerToolCallId: string, error: unknown): Promise<void> {
+  public async markNotExecuted(organizationId: string, runId: string, providerToolCallId: string, error: unknown, runtimeOperationId?: string): Promise<void> {
     await withTransaction(this.pool, async (client) => {
-      const result = await client.query(`UPDATE agent_effect_receipts SET status = 'failed', error = $4::jsonb, reconciliation_required = false, updated_at = now(), completed_at = now() WHERE organization_id = $1 AND run_id = $2 AND provider_tool_call_id = $3 AND status = 'reserved' RETURNING id`, [organizationId, runId, providerToolCallId, JSON.stringify(error ?? {})]);
+      const result = await client.query(`UPDATE agent_effect_receipts SET status = 'failed', error = $4::jsonb, reconciliation_required = false, updated_at = now(), completed_at = now() WHERE organization_id = $1 AND run_id = $2 AND provider_tool_call_id = $3 AND runtime_operation_id = COALESCE($5, provider_tool_call_id) AND status = 'reserved' RETURNING id`, [organizationId, runId, providerToolCallId, JSON.stringify(error ?? {}), runtimeOperationId ?? null]);
       if (!result.rowCount) return;
       const row = await this.getAnalyticsRow(client, String(result.rows[0].id));
       await enqueueOutbox(client, buildEffectLifecycleEvent(this.analyticsInput(row, "failed")));

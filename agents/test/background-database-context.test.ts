@@ -6,7 +6,6 @@ const backgroundBoundaries = [
   "src/temporal/activities.ts",
   "src/temporal/worker.ts",
   "src/transcription/worker.ts",
-  "src/memory/consolidation-worker.ts",
   "src/analytics/publisher-worker.ts",
   "src/analytics/readiness-sweep.ts",
   "src/discord/gateway.ts",

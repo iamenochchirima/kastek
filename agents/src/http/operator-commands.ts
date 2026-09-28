@@ -10,11 +10,13 @@ import { AgentRepository } from "../db/repositories/agent-repository";
 import { InstallationCredentialRepository } from "../db/repositories/installation-credential-repository";
 import { ScheduleRepository } from "../db/repositories/schedule-repository";
 import { ChannelRepository } from "../db/repositories/channel-repository";
-import { MemoryRepository } from "../db/repositories/memory-repository";
 import { OperatorControlRepository, type OperatorFlagKey, type OperatorFlagScope, type OperatorHoldScope, type OperatorHoldType } from "../db/repositories/operator-control-repository";
 import { RetentionRepository } from "../db/repositories/retention-repository";
 import { AudioTranscriptionJobRepository } from "../db/repositories/audio-transcription-job-repository";
 import { KasitekCoreReadClient } from "../core/client";
+import { MemoryDeletionJobRepository } from "../db/repositories/memory-deletion-job-repository";
+import { MemoryRetentionRepository } from "../db/repositories/memory-retention-repository";
+import { MemoryRevisionCommandService } from "../memory/revision-command-service";
 
 export const operatorCommandInputSchema = z.object({
   commandType: z.enum(["cancel_run", "retry_run", "retry_audio_transcription", "delete_audio_transcription", "replay_delivery", "delete_memory", "review_memory", "assign_run", "reconcile_effect", "reconcile_budget", "request_export", "set_feature_flag", "clear_feature_flag", "create_hold", "release_hold", "set_retention_policy", "apply_retention_policy", "create_legal_hold", "release_legal_hold", "kill_switch_enable", "kill_switch_disable", "suspend_installation", "resume_installation", "revoke_credential", "pause_schedule", "resume_schedule"]),
@@ -51,7 +53,9 @@ export interface OperatorCommandDependencies {
   installationCredentials?: InstallationCredentialRepository;
   schedules?: ScheduleRepository;
   channels?: ChannelRepository;
-  memory?: MemoryRepository;
+  memoryDeletionJobs?: MemoryDeletionJobRepository;
+  memoryRetention?: MemoryRetentionRepository;
+  memoryRevisionCommands?: MemoryRevisionCommandService;
   runBudgets?: RunBudgetRepository;
   controls?: OperatorControlRepository;
   retention?: RetentionRepository;
@@ -59,6 +63,54 @@ export interface OperatorCommandDependencies {
   coreClient?: KasitekCoreReadClient;
   startWorkflow?: (runId: string) => Promise<void>;
   signalCancellation?: (runId: string, signal: { reason?: string }) => Promise<void>;
+}
+
+interface CanonicalMemoryTarget {
+  organization_id: string;
+  workspace_id: string;
+  agent_definition_id: string;
+  installation_id: string;
+  agent_version_id: string | null;
+  conversation_id: string | null;
+  end_user_id: string | null;
+  namespace: string;
+  memory_type: string;
+  fact_id: string;
+  revision_id: string;
+  lifecycle_state: string;
+  canonical_text: string;
+  revision_number: number;
+}
+
+async function findCanonicalMemoryTarget(pool: Pool, targetId: string, preference: "active" | "review" = "active"): Promise<CanonicalMemoryTarget | null> {
+  const result = await query<CanonicalMemoryTarget>(
+    pool,
+    `SELECT fact.organization_id, fact.workspace_id, fact.agent_definition_id,
+            fact.installation_id, fact.agent_version_id, fact.conversation_id,
+            fact.end_user_id, fact.namespace, fact.memory_type,
+            fact.id::text AS fact_id, revision.id::text AS revision_id,
+            revision.lifecycle_state, revision.canonical_text, revision.revision_number
+     FROM agent_memory_facts fact
+     JOIN agent_memory_revisions revision ON revision.fact_id = fact.id
+     WHERE fact.id::text = $1 OR revision.id::text = $1
+     ORDER BY
+       CASE WHEN revision.id::text = $1 THEN 0 ELSE 1 END,
+       CASE WHEN $2 = 'review' THEN CASE revision.lifecycle_state
+         WHEN 'review_pending' THEN 0
+         WHEN 'quarantined' THEN 1
+         WHEN 'active' THEN 2
+         ELSE 3
+       END ELSE CASE revision.lifecycle_state
+         WHEN 'active' THEN 0
+         WHEN 'review_pending' THEN 1
+         WHEN 'quarantined' THEN 2
+         ELSE 3
+       END END,
+       revision.revision_number DESC
+       LIMIT 1`,
+    [targetId, preference],
+  );
+  return result.rows[0] ?? null;
 }
 
 export function publicOperatorCommand(command: OperatorCommandRecord): Record<string, unknown> {
@@ -84,6 +136,10 @@ export function publicOperatorCommand(command: OperatorCommandRecord): Record<st
       deliveryAttemptId: command.result.deliveryAttemptId,
       originalDeliveryAttemptId: command.result.originalDeliveryAttemptId,
       memoryId: command.result.memoryId,
+      factId: command.result.factId,
+      revisionId: command.result.revisionId,
+      deletionJobId: command.result.deletionJobId,
+      replayed: command.result.replayed,
       reservationId: command.result.reservationId,
       assignmentId: command.result.assignmentId,
       assigneeId: command.result.assigneeId,
@@ -93,6 +149,7 @@ export function publicOperatorCommand(command: OperatorCommandRecord): Record<st
       featureFlagId: command.result.featureFlagId,
       holdId: command.result.holdId,
       retentionPolicyId: command.result.retentionPolicyId,
+      workspacesQueued: command.result.workspacesQueued,
       legalHoldId: command.result.legalHoldId,
       audioTranscriptionJobId: command.result.audioTranscriptionJobId,
       expired: command.result.expired,
@@ -170,7 +227,7 @@ function retentionDays(command: OperatorCommandRecord, key: string, minimum: num
 
 function operatorFlagKey(command: OperatorCommandRecord): OperatorFlagKey {
   const value = command.payload.flagKey;
-  if (value !== "agent_execution_enabled" && value !== "agent_version_deployment_enabled" && value !== "effect_execution_enabled" && value !== "mcp_enabled" && value !== "rest_enabled" && value !== "customer_handoff_enabled" && value !== "audio_transcription_enabled" && value !== "dynamic_ui_enabled") {
+  if (value !== "agent_execution_enabled" && value !== "effect_execution_enabled" && value !== "mcp_enabled" && value !== "rest_enabled" && value !== "customer_handoff_enabled" && value !== "audio_transcription_enabled" && value !== "dynamic_ui_enabled" && value !== "memory_v2_retrieval_enabled" && value !== "memory_v2_writes_enabled" && value !== "memory_consolidation_enabled" && value !== "memory_projection_enabled") {
     throw Object.assign(new Error("Unsupported feature flag"), { statusCode: 400 });
   }
   return value;
@@ -483,88 +540,61 @@ async function executeCommand(command: OperatorCommandRecord, actorId: string, d
   }
 
   if (command.command_type === "delete_memory") {
-    if (!dependencies.memory) throw Object.assign(new Error("Memory deletion is unavailable"), { statusCode: 503 });
-    const target = (await query<{
-      organization_id: string;
-      agent_definition_id: string | null;
-      installation_id: string | null;
-      conversation_id: string | null;
-      owner_user_id: string | null;
-      fact_key: string | null;
-      status: string;
-    }>(dependencies.pool, `SELECT organization_id, agent_definition_id, installation_id, conversation_id, owner_user_id, fact_key, status
-      FROM memory_records WHERE id = $1`, [command.target_id])).rows[0];
-    if (!target) throw Object.assign(new Error("Memory not found"), { statusCode: 404 });
-    assertExpectedResource(command, "expectedOrganizationId", target.organization_id, "Memory organization");
-    assertExpectedResource(command, "expectedAgentId", target.agent_definition_id, "Memory agent");
-    assertExpectedResource(command, "expectedInstallationId", target.installation_id, "Memory installation");
-    assertExpectedResource(command, "expectedConversationId", target.conversation_id, "Memory conversation");
-    assertExpectedStatus(command, target.status);
-    if (target.status !== "active") throw Object.assign(new Error("Only active memory records can be deleted"), { statusCode: 409 });
-    await dependencies.memory.deleteMemory({
-      organizationId: target.organization_id,
-      agentId: target.agent_definition_id ?? "",
-      installationId: target.installation_id ?? undefined,
-      conversationId: target.conversation_id ?? undefined,
-      actorId: target.owner_user_id ?? undefined,
-    }, command.target_id, actorId);
-    await auditCommand(dependencies.pool, {
-      organizationId: target.organization_id,
-      actorId,
-      action: "operator_command.memory_deleted",
-      commandId: command.id,
-      metadata: { memoryId: command.target_id },
+    const canonicalTarget = await findCanonicalMemoryTarget(dependencies.pool, command.target_id, "active");
+    if (!canonicalTarget) throw Object.assign(new Error("Memory revision not found"), { statusCode: 404 });
+    if (!dependencies.memoryDeletionJobs) throw Object.assign(new Error("Canonical memory deletion is unavailable"), { statusCode: 503 });
+    assertExpectedResource(command, "expectedOrganizationId", canonicalTarget.organization_id, "Memory organization");
+    assertExpectedResource(command, "expectedAgentId", canonicalTarget.agent_definition_id, "Memory agent");
+    assertExpectedResource(command, "expectedConversationId", canonicalTarget.conversation_id, "Memory conversation");
+    assertExpectedStatus(command, canonicalTarget.lifecycle_state);
+    if (canonicalTarget.lifecycle_state !== "active") throw Object.assign(new Error("Only active canonical memory revisions can be deleted"), { statusCode: 409 });
+    const deletion = await dependencies.memoryDeletionJobs.enqueue({
+      organizationId: canonicalTarget.organization_id,
+      requestedBy: actorId,
+      targetType: "memory",
+      targetId: canonicalTarget.fact_id,
     });
-    return { status: "deleted", memoryId: command.target_id };
+    await auditCommand(dependencies.pool, {
+      organizationId: canonicalTarget.organization_id,
+      actorId,
+      action: "operator_command.memory_v2_deletion_requested",
+      commandId: command.id,
+      metadata: { memoryId: command.target_id, factId: canonicalTarget.fact_id, revisionId: canonicalTarget.revision_id, deletionJobId: deletion.id, replayed: deletion.replayed },
+    });
+    return { status: "queued", memoryId: command.target_id, factId: canonicalTarget.fact_id, revisionId: canonicalTarget.revision_id, deletionJobId: deletion.id, replayed: deletion.replayed };
   }
 
   if (command.command_type === "review_memory") {
-    if (!dependencies.memory) throw Object.assign(new Error("Memory review is unavailable"), { statusCode: 503 });
-    const target = (await query<{
-      organization_id: string;
-      agent_definition_id: string | null;
-      installation_id: string | null;
-      conversation_id: string | null;
-      owner_user_id: string | null;
-      fact_key: string | null;
-      status: string;
-    }>(dependencies.pool, `SELECT organization_id, agent_definition_id, installation_id, conversation_id, owner_user_id, fact_key, status
-      FROM memory_records WHERE id = $1`, [command.target_id])).rows[0];
-    if (!target) throw Object.assign(new Error("Memory not found"), { statusCode: 404 });
-    if (!target.agent_definition_id) throw Object.assign(new Error("Memory has no agent scope"), { statusCode: 409 });
-    assertExpectedResource(command, "expectedOrganizationId", target.organization_id, "Memory organization");
-    assertExpectedResource(command, "expectedAgentId", target.agent_definition_id, "Memory agent");
-    assertExpectedResource(command, "expectedInstallationId", target.installation_id, "Memory installation");
-    assertExpectedResource(command, "expectedConversationId", target.conversation_id, "Memory conversation");
-    assertExpectedStatus(command, target.status);
-    if (target.status !== "review_pending" && target.status !== "quarantined") {
-      throw Object.assign(new Error("Only review-pending or quarantined memory records can be reviewed"), { statusCode: 409 });
+    const canonicalTarget = await findCanonicalMemoryTarget(dependencies.pool, command.target_id, "review");
+    if (!canonicalTarget) throw Object.assign(new Error("Memory revision not found"), { statusCode: 404 });
+    if (!dependencies.memoryRevisionCommands) throw Object.assign(new Error("Canonical memory review is unavailable"), { statusCode: 503 });
+    if (canonicalTarget.lifecycle_state !== "review_pending" && canonicalTarget.lifecycle_state !== "quarantined") {
+      throw Object.assign(new Error("Only review-pending or quarantined canonical memory revisions can be reviewed"), { statusCode: 409 });
     }
+    assertExpectedResource(command, "expectedOrganizationId", canonicalTarget.organization_id, "Memory organization");
+    assertExpectedResource(command, "expectedAgentId", canonicalTarget.agent_definition_id, "Memory agent");
+    assertExpectedResource(command, "expectedInstallationId", canonicalTarget.installation_id, "Memory installation");
+    assertExpectedResource(command, "expectedConversationId", canonicalTarget.conversation_id, "Memory conversation");
+    assertExpectedStatus(command, canonicalTarget.lifecycle_state);
     const decision = command.payload.decision;
     if (decision !== "approve" && decision !== "reject") {
       throw Object.assign(new Error("Memory review decision must be approve or reject"), { statusCode: 400 });
     }
-    const supersedesMemoryId = typeof command.payload.supersedesMemoryId === "string"
-      ? command.payload.supersedesMemoryId.trim()
-      : undefined;
-    if (supersedesMemoryId && !target.fact_key) {
-      throw Object.assign(new Error("A fact key is required for memory supersession"), { statusCode: 400 });
-    }
-    const reviewed = await dependencies.memory.reviewMemory({
-      organizationId: target.organization_id,
-      agentId: target.agent_definition_id,
-      installationId: target.installation_id ?? undefined,
-      conversationId: target.conversation_id ?? undefined,
-      actorId: target.owner_user_id ?? undefined,
-    }, command.target_id, decision, actorId, supersedesMemoryId);
-    await auditCommand(dependencies.pool, {
-      organizationId: target.organization_id,
+    const reviewed = await dependencies.memoryRevisionCommands.operatorTransition({
+      organizationId: canonicalTarget.organization_id,
+      revisionId: canonicalTarget.revision_id,
       actorId,
-      action: "operator_command.memory_reviewed",
-      commandId: command.id,
-      metadata: { memoryId: command.target_id, decision, status: reviewed.status, ...(supersedesMemoryId ? { supersedesMemoryId } : {}) },
+      operationId: command.id,
+      command: decision,
     });
-    return { status: decision === "approve" ? "approved" : "rejected", memoryId: command.target_id };
+    await auditCommand(dependencies.pool, {
+      organizationId: canonicalTarget.organization_id,
+      actorId,
+      action: "operator_command.memory_v2_reviewed",
+      commandId: command.id,
+      metadata: { memoryId: command.target_id, factId: canonicalTarget.fact_id, revisionId: canonicalTarget.revision_id, resultingRevisionId: reviewed.revision.id, decision, replayed: reviewed.status === "replayed" },
+    });
+    return { status: decision === "approve" ? "approved" : "rejected", memoryId: command.target_id, factId: canonicalTarget.fact_id, revisionId: reviewed.revision.id, replayed: reviewed.status === "replayed" };
   }
 
   if (command.command_type === "suspend_installation" || command.command_type === "resume_installation") {
@@ -682,14 +712,14 @@ async function executeCommand(command: OperatorCommandRecord, actorId: string, d
   }
 
   if (command.command_type === "apply_retention_policy") {
-    if (!dependencies.retention) throw Object.assign(new Error("Retention controls are unavailable"), { statusCode: 503 });
+    if (!dependencies.memoryRetention) throw Object.assign(new Error("Canonical retention controls are unavailable"), { statusCode: 503 });
     const organizationId = command.target_id.trim();
     assertExpectedResource(command, "expectedOrganizationId", organizationId, "Retention organization");
-    const memory = await dependencies.retention.applyMemoryRetention(organizationId, actorId);
+    const memory = await dependencies.memoryRetention.requestRetentionScan(organizationId);
     const audio = await applyAudioRetention(organizationId, actorId, dependencies);
-    const result = { expired: memory.expired, audioDeleted: audio.deleted, audioFailed: audio.failed };
-    await auditCommand(dependencies.pool, { organizationId, actorId, action: "operator_command.retention_applied", commandId: command.id, metadata: { ...result, skippedByHold: memory.skippedByHold } });
-    return { status: "applied", ...result };
+    const result = { workspacesQueued: memory.queued, audioDeleted: audio.deleted, audioFailed: audio.failed };
+    await auditCommand(dependencies.pool, { organizationId, actorId, action: "operator_command.retention_requested", commandId: command.id, metadata: result });
+    return { status: "queued", ...result };
   }
 
   if (command.command_type === "create_legal_hold") {

@@ -24,6 +24,24 @@ describe("memory policy", () => {
     expect(normalizeMemoryPolicy({ maxRetrievedTokens: 12 })).toMatchObject({ maxRetrievedTokens: 256 });
   });
 
+  it("normalizes an explicit provider projection policy and fails closed for malformed config", () => {
+    expect(normalizeMemoryPolicy({
+      providerProjection: {
+        providerName: "  remote-memory  ",
+        projectionVersion: " provider-v2 ",
+        payload: { route: "tenant-default" },
+      },
+    })).toMatchObject({
+      providerProjection: {
+        providerName: "remote-memory",
+        projectionVersion: "provider-v2",
+        payload: { route: "tenant-default" },
+      },
+    });
+    expect(normalizeMemoryPolicy({ providerProjection: { providerName: "" } }).providerProjection).toBeUndefined();
+    expect(normalizeMemoryPolicy({ providerProjection: { providerName: "remote-memory", payload: [] } }).providerProjection).toBeUndefined();
+  });
+
   it("allows a policy to disable retrieval and writes", async () => {
     const repository = { searchMemory: vi.fn(), createMemory: vi.fn(), countWritesForRun: vi.fn() };
     const lifecycle = new MemoryLifecycle(repository as never);

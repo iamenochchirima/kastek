@@ -2,20 +2,25 @@ import { createHash } from "node:crypto";
 import type { Pool } from "pg";
 import { query, withTransaction } from "../pool";
 import {
-  callRemoteMcpTool,
   discoverRemoteMcpTools,
   remoteMcpToolsSchema,
+  remoteMcpToolName,
+  resolveRemoteMcpAuthorizationToken,
   validateRemoteMcpEndpoint,
   type RemoteMcpTool,
 } from "../../mcp/remote";
+import { createMcpServerSnapshot, McpOperationCoordinator } from "../../mcp/operation-boundary";
 import { z } from "zod";
 import type { ToolInvocationContext } from "../../tools/types";
 import type { ToolRegistry } from "../../tools/registry";
 import { recordRemoteMcpOperation } from "../../telemetry/spans";
+import { DurableOperationCoordinator } from "../../operations/durable-operation";
+import { DurableOperationRepository } from "./durable-operation-repository";
 
 export const createRemoteMcpProviderInputSchema = z.object({
   name: z.string().trim().min(1).max(160),
   endpointUrl: z.string().trim().url().max(2_000),
+  catalogId: z.string().trim().min(1).max(180).optional(),
   credentialReference: z.string().uuid().optional(),
   timeoutMs: z.number().int().min(1_000).max(120_000).default(15_000),
   maxResponseBytes: z.number().int().min(1_024).max(1_048_576).default(1_048_576),
@@ -30,6 +35,7 @@ export interface RemoteMcpProviderRecord {
   owner_id: string;
   name: string;
   endpoint_url: string;
+  catalog_id: string | null;
   credential_reference: string | null;
   status: "draft" | "approved" | "revoked";
   timeout_ms: number;
@@ -66,20 +72,25 @@ export interface RemoteMcpProviderVersionRecord {
   rate_limit_per_minute?: number;
 }
 
-export function remoteMcpToolName(providerVersionId: string, toolName: string): string {
-  return `remote_mcp.${providerVersionId}.${toolName}`;
+export function isCustomRemoteMcpProvider(provider: Pick<RemoteMcpProviderRecord, "catalog_id">): boolean {
+  return provider.catalog_id === null;
 }
 
 export class RemoteMcpProviderRepository {
+  private readonly operations: DurableOperationCoordinator;
+
   public constructor(
     private readonly pool: Pool,
     private readonly resolveCredential?: (organizationId: string, credentialReference: string) => Promise<string>,
-  ) {}
+    operationCoordinator?: DurableOperationCoordinator,
+  ) {
+    this.operations = operationCoordinator ?? new DurableOperationCoordinator(new DurableOperationRepository(pool));
+  }
 
   public async create(organizationId: string, actorId: string, input: CreateRemoteMcpProviderInput): Promise<RemoteMcpProviderRecord> {
     const parsed = createRemoteMcpProviderInputSchema.parse(input);
     validateRemoteMcpEndpoint(parsed.endpointUrl, process.env.NODE_ENV === "production" ? "production" : "development");
-    const result = await query<RemoteMcpProviderRecord>(this.pool, `INSERT INTO agent_mcp_providers (organization_id, owner_id, name, endpoint_url, credential_reference, timeout_ms, max_response_bytes, rate_limit_per_minute, created_by) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`, [organizationId, organizationId, parsed.name, parsed.endpointUrl, parsed.credentialReference ?? null, parsed.timeoutMs, parsed.maxResponseBytes, parsed.rateLimitPerMinute, actorId]);
+    const result = await query<RemoteMcpProviderRecord>(this.pool, `INSERT INTO agent_mcp_providers (organization_id, owner_id, name, catalog_id, endpoint_url, credential_reference, timeout_ms, max_response_bytes, rate_limit_per_minute, created_by) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`, [organizationId, organizationId, parsed.name, parsed.catalogId ?? null, parsed.endpointUrl, parsed.credentialReference ?? null, parsed.timeoutMs, parsed.maxResponseBytes, parsed.rateLimitPerMinute, actorId]);
     if (!result.rows[0]) throw new Error("REMOTE_MCP_PROVIDER_CREATE_FAILED");
     return result.rows[0];
   }
@@ -89,11 +100,22 @@ export class RemoteMcpProviderRepository {
     return result.rows;
   }
 
+  public async getByCatalogId(organizationId: string, catalogId: string): Promise<RemoteMcpProviderRecord | null> {
+    const result = await query<RemoteMcpProviderRecord>(this.pool, "SELECT * FROM agent_mcp_providers WHERE organization_id = $1 AND catalog_id = $2 AND status <> 'revoked'", [organizationId, catalogId]);
+    return result.rows[0] ?? null;
+  }
+
+  public async setCredentialReference(organizationId: string, providerId: string, credentialReference: string | null): Promise<RemoteMcpProviderRecord> {
+    const result = await query<RemoteMcpProviderRecord>(this.pool, "UPDATE agent_mcp_providers SET credential_reference = $1, updated_at = now() WHERE id = $2 AND organization_id = $3 AND status <> 'revoked' RETURNING *", [credentialReference, providerId, organizationId]);
+    if (!result.rows[0]) throw new Error("REMOTE_MCP_PROVIDER_NOT_FOUND");
+    return result.rows[0];
+  }
+
   public async discover(organizationId: string, actorId: string, providerId: string): Promise<RemoteMcpProviderVersionRecord> {
     const provider = await this.get(organizationId, providerId);
     if (!provider || provider.status === "revoked") throw new Error("REMOTE_MCP_PROVIDER_NOT_FOUND");
     const authorizationToken = provider.credential_reference && this.resolveCredential
-      ? await this.resolveCredential(organizationId, provider.credential_reference)
+      ? resolveRemoteMcpAuthorizationToken(await this.resolveCredential(organizationId, provider.credential_reference))
       : undefined;
     const startedAt = performance.now();
     let discovered;
@@ -121,7 +143,7 @@ export class RemoteMcpProviderRepository {
     const provider = await this.get(organizationId, providerId);
     if (!provider || provider.status === "revoked") throw new Error("REMOTE_MCP_PROVIDER_NOT_FOUND");
     const authorizationToken = provider.credential_reference && this.resolveCredential
-      ? await this.resolveCredential(organizationId, provider.credential_reference)
+      ? resolveRemoteMcpAuthorizationToken(await this.resolveCredential(organizationId, provider.credential_reference))
       : undefined;
     const startedAt = performance.now();
     try {
@@ -179,6 +201,36 @@ export class RemoteMcpProviderRepository {
     const providers = await this.listPinned(organizationId, agentVersionId);
     const names: string[] = [];
     for (const provider of providers) {
+      const catalogVersion = `${provider.revision}.0.0`;
+      const catalogSource = {
+        kind: "mcp" as const,
+        id: provider.id,
+        version: catalogVersion,
+        checksum: provider.checksum,
+        trust: "organization" as const,
+      };
+      const serverCatalogId = `mcp.${provider.id}`;
+      if (!registry.catalog.get(serverCatalogId, catalogVersion)) {
+        registry.catalog.register({
+          id: serverCatalogId,
+          version: catalogVersion,
+          kind: "mcp_server",
+          name: provider.provider_name ?? provider.provider_id,
+          description: `MCP server ${provider.provider_name ?? provider.provider_id}`,
+          category: "mcp",
+          logo: "mcp",
+          tags: ["mcp", "remote", provider.protocol_version],
+          source: catalogSource,
+          provider: { id: provider.provider_id, name: provider.provider_name ?? provider.provider_id, version: catalogVersion },
+          toolsetIds: [`mcp.${provider.id}`],
+          runtime: {
+            execution: "mcp",
+            timeoutMs: provider.timeout_ms ?? 15_000,
+            requiredScopes: ["mcp:remote"],
+            credentialRequirements: provider.credential_reference ? ["mcp.remote"] : [],
+          },
+        });
+      }
       for (const tool of provider.tools) {
         const name = remoteMcpToolName(provider.id, tool.name);
         names.push(name);
@@ -192,6 +244,15 @@ export class RemoteMcpProviderRepository {
           timeoutMs: provider.timeout_ms ?? 15_000,
           inputSchema: tool.inputSchema,
           outputSchema: { type: "object", properties: { result: {} }, required: ["result"], additionalProperties: false },
+          catalog: {
+            kind: "mcp_tool",
+            category: "mcp",
+            tags: ["mcp", "remote", "tool"],
+            source: catalogSource,
+            provider: { id: provider.provider_id, name: provider.provider_name ?? provider.provider_id, version: catalogVersion },
+            toolsetIds: [`mcp.${provider.id}`],
+            runtime: { execution: "mcp" },
+          },
           manifest: {
             ownerService: "remote-mcp",
             requiredScope: "mcp:remote",
@@ -202,15 +263,27 @@ export class RemoteMcpProviderRepository {
             redaction: ["result"],
           },
           handler: async (context: ToolInvocationContext, argumentsValue: Record<string, unknown>) => ({
-            result: await this.callPinnedTool({ organizationId: context.organizationId, agentVersionId: context.agentVersionId, providerVersionId: provider.id, toolName: tool.name, argumentsValue }),
+            result: await this.callPinnedTool({ organizationId: context.organizationId, agentVersionId: context.agentVersionId, providerVersionId: provider.id, toolName: tool.name, argumentsValue, operationId: context.operationId, runId: context.runId }),
           }),
+        });
+      }
+      const toolsetId = `mcp.${provider.id}`;
+      if (!registry.catalog.listToolsets().some((toolset) => toolset.id === toolsetId && toolset.version === catalogVersion)) {
+        registry.catalog.registerToolset({
+          id: toolsetId,
+          version: catalogVersion,
+          name: provider.provider_name ?? provider.provider_id,
+          description: `${provider.provider_name ?? provider.provider_id} MCP tools`,
+          source: catalogSource,
+          capabilityIds: provider.tools.map((tool) => remoteMcpToolName(provider.id, tool.name)),
+          includes: [],
         });
       }
     }
     return names;
   }
 
-  public async callPinnedTool(input: { organizationId: string; agentVersionId: string; providerVersionId: string; toolName: string; argumentsValue: Record<string, unknown> }): Promise<unknown> {
+  public async callPinnedTool(input: { organizationId: string; agentVersionId: string; providerVersionId: string; toolName: string; argumentsValue: Record<string, unknown>; operationId?: string; runId?: string }): Promise<unknown> {
     const result = await query<RemoteMcpProviderVersionRecord>(this.pool, `SELECT provider_version.*, provider.endpoint_url, provider.credential_reference, provider.timeout_ms, provider.max_response_bytes, provider.rate_limit_per_minute FROM agent_version_mcp_providers pin JOIN agent_mcp_provider_versions provider_version ON provider_version.id = pin.provider_version_id JOIN agent_mcp_providers provider ON provider.id = provider_version.provider_id WHERE pin.organization_id = $1 AND pin.agent_version_id = $2 AND pin.provider_version_id = $3 AND provider.status = 'approved' AND provider.health_status = 'healthy' AND provider_version.status = 'published'`, [input.organizationId, input.agentVersionId, input.providerVersionId]);
     const provider = result.rows[0];
     if (!provider || !provider.endpoint_url || !provider.timeout_ms || !provider.max_response_bytes) throw new Error("REMOTE_MCP_PROVIDER_NOT_PINNED");
@@ -238,10 +311,42 @@ export class RemoteMcpProviderRepository {
     }
     const tool = hydrateVersion(provider).tools.find((candidate) => candidate.name === input.toolName);
     if (!tool) throw new Error("REMOTE_MCP_TOOL_NOT_PINNED");
-    const authorizationToken = provider.credential_reference && this.resolveCredential ? await this.resolveCredential(input.organizationId, provider.credential_reference) : undefined;
+    const authorizationToken = provider.credential_reference && this.resolveCredential
+      ? resolveRemoteMcpAuthorizationToken(await this.resolveCredential(input.organizationId, provider.credential_reference))
+      : undefined;
     const startedAt = performance.now();
     try {
-      const result = await callRemoteMcpTool({ endpointUrl: provider.endpoint_url, toolName: tool.name, argumentsValue: input.argumentsValue, authorizationToken, timeoutMs: provider.timeout_ms, maxResponseBytes: provider.max_response_bytes, environment: process.env.NODE_ENV === "production" ? "production" : "development" });
+      const snapshot = createMcpServerSnapshot({
+        scope: { organizationId: input.organizationId, agentVersionId: input.agentVersionId },
+        serverId: provider.provider_id,
+        revision: provider.revision,
+        endpointUrl: provider.endpoint_url,
+        protocolVersion: provider.protocol_version,
+        state: "published",
+        tools: hydrateVersion(provider).tools,
+        limits: {
+          timeoutMs: provider.timeout_ms,
+          maxResponseBytes: provider.max_response_bytes,
+          maxSchemaBytes: 1_000_000,
+          maxResultBytes: Math.min(provider.max_response_bytes, 256_000),
+          maxTools: 100,
+        },
+      });
+      const operation = new McpOperationCoordinator({
+        environment: process.env.NODE_ENV === "production" ? "production" : "development",
+        durableOperations: this.operations,
+      });
+      const response = await operation.call({
+        scope: snapshot.scope,
+        snapshot,
+        toolName: tool.name,
+        argumentsValue: input.argumentsValue,
+        authorizationToken,
+        operationId: input.operationId ?? `${input.runId ?? "mcp"}:${input.providerVersionId}:${tool.name}`,
+        environment: process.env.NODE_ENV === "production" ? "production" : "development",
+      });
+      if (!response.ok) throw new Error(response.error.code);
+      const result = response.value.result;
       recordRemoteMcpOperation({ operation: "invocation", outcome: "success", durationMs: performance.now() - startedAt });
       return result;
     } catch (error) {

@@ -59,6 +59,36 @@ For clients that support it, `/.well-known/oauth-protected-resource` and
 The local stdio bridge should forward the same JSON-RPC messages to the hosted endpoint rather than
 implementing a second capability registry.
 
+## Agent Studio MCP directory
+
+Hosted agent configuration exposes a reviewed MCP directory under **Capabilities → Connections**.
+The directory is metadata only until the user selects an entry. HTTP servers can be connected from
+the directory; entries that require OAuth use protected-resource metadata, authorization-server
+discovery, PKCE, and the provider's dynamic client registration when available. API-key servers
+store the key in the encrypted credential vault. After connection, KasiTek discovers and publishes
+an immutable provider revision before it can be pinned to an agent version.
+
+Native service bindings use the same connection cards and activation flow. Platform-owned OAuth
+clients are configured by the deployment; Studio starts the provider flow and does not ask users
+for client IDs or secrets.
+
+If a provider does not support dynamic registration, Studio exposes an OAuth client ID and
+optional client secret and continues the same PKCE flow with those credentials. Client secrets
+remain in encrypted one-use OAuth state until the token exchange completes.
+
+Set `MCP_OAUTH_REDIRECT_URI` to the public Core callback URL
+(`/api/agents/integrations/mcp/oauth/callback`) for the environment running Agents. Use a
+separate value for local/tunnel, staging, and production. The production value is
+`https://api.kasitek.co.za/api/agents/integrations/mcp/oauth/callback`; local development must use
+the public tunnel or proxy URL, not `127.0.0.1`, when the provider requires an HTTPS callback.
+Core forwards the one-use callback to the private Agents API and returns the browser to Studio.
+`AGENT_INTEGRATIONS_RETURN_URL` is only needed when calling the private Agents callback directly.
+
+The directory also accepts a custom HTTPS MCP endpoint for providers that are not in the reviewed
+catalogue. Stdio manifests are shown for discovery but are unavailable until a managed stdio
+execution adapter is registered. Browsing or connecting a server does not grant every discovered
+tool; the agent version still selects the pinned revision and its grants.
+
 The standalone `@kasitek/mcp` package follows the same boundary for MCP clients that require a
 local command-launched server. It accepts `KASITEK_MCP_URL` and `KASITEK_API_KEY`, forwards bounded
 JSON-RPC traffic, and does not contain KasiTek tools, policy, product data, or REST client logic.

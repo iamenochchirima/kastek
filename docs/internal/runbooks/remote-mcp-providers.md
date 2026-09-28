@@ -24,6 +24,41 @@ version. The provider must also have a healthy reachability projection.
    revision.
 6. Re-run the health check after provider incidents or before enabling a new installation.
 
+## Reviewed catalogue and OAuth
+
+The Studio reviewed directory is imported from a pinned external manifest revision as metadata. A
+catalogue entry is not an active provider until a user connects it. HTTP OAuth entries use the browser
+callback flow with protected-resource metadata, authorization-server discovery, PKCE, dynamic
+client registration, one-use state, and encrypted token storage. The callback then runs the same
+discover, publish, health, and version-pin lifecycle described above.
+
+If a provider does not expose dynamic client registration, Studio accepts a user-supplied OAuth
+client ID and optional secret and uses the same PKCE callback. The secret exists only in encrypted
+one-use OAuth state until token exchange completes.
+
+Studio only opens that manual client form for the explicit dynamic-registration-unsupported result.
+Missing platform OAuth configuration and provider registration failures remain connection errors;
+they must not be presented as a request for user-supplied OAuth credentials.
+
+## Environment callbacks
+
+OAuth callback configuration is environment-scoped. Set `MCP_OAUTH_REDIRECT_URI` to the public
+Core proxy in each environment:
+
+| Environment | Callback |
+| --- | --- |
+| Local | `https://<tunnel-host>/api/agents/integrations/mcp/oauth/callback` |
+| Staging | `https://<staging-core-host>/api/agents/integrations/mcp/oauth/callback` |
+| Production | `https://api.kasitek.co.za/api/agents/integrations/mcp/oauth/callback` |
+
+Keep OAuth state storage, credential encryption keys, and provider credentials isolated per
+environment. MCP providers with dynamic client registration can register the callback at connect
+time; providers without it need one platform-managed client registration for each environment.
+
+API-key entries write only an encrypted credential reference to the provider record. Stdio entries
+remain unavailable until a managed execution adapter exists; do not enable them by copying an
+external command into the worker.
+
 ## Failure behavior
 
 An unsuccessful discovery or health check records only a bounded error code, latency, timestamp,

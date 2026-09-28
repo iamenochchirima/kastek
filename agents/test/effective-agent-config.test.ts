@@ -41,10 +41,30 @@ describe("effective agent configuration", () => {
 
     expect(projection.tools).toEqual(["platform.current_time"]);
     expect(projection.behavior).toEqual({ instructionCharacters: 21 });
+    expect(projection.version.extensionSnapshotId).toBeNull();
     expect(projection.workflow).toEqual({ configured: true, valid: true, nodeCount: 1 });
     expect(projection).not.toHaveProperty("configuration");
     expect(projection).not.toHaveProperty("credentialReference");
     expect(projection).not.toHaveProperty("workflow.nodes");
+  });
+
+  it("exposes the immutable extension snapshot reference as version metadata", () => {
+    const projection = projectEffectiveAgentConfig({
+      version: version({ extension_snapshot_id: "44444444-4444-4444-8444-444444444444" }),
+      source: "typed",
+      model: null,
+      tools: [],
+      connectors: [],
+      knowledge: { sourceIds: [], requiredConnections: [] },
+      memory: {},
+      limits: {},
+      workflow: { configured: false, valid: true },
+      channels: [],
+      skills: [],
+      remoteMcpProviders: [],
+    });
+
+    expect(projection.version.extensionSnapshotId).toBe("44444444-4444-4444-8444-444444444444");
   });
 
   it("diffs effective sections while ignoring immutable version identity", () => {

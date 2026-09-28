@@ -1,6 +1,8 @@
 import type { Pool } from "pg";
 import { query, withTransaction } from "../pool";
-import { assertNoActiveLegalHold, type MemoryScope } from "./memory-repository";
+import { compareDatabaseTimestampsDesc, type DatabaseTimestamp } from "../timestamps";
+import { assertNoActiveLegalHold } from "./legacy-memory-cleanup";
+import type { MemoryScope } from "../../memory/legacy-contracts";
 import { recordMemoryDeletion } from "../../telemetry/spans";
 import { createEnvironmentEmbeddingProvider, embedSafely, formatPgVector, MIN_VECTOR_SIMILARITY, type EmbeddingProvider } from "../../memory/embeddings";
 import { buildLexicalSearchQuery } from "../../memory/search-query";
@@ -16,7 +18,7 @@ export interface KnowledgeSourceRecord {
   provenance: Record<string, unknown>;
   status: string;
   revision: number;
-  created_at: string;
+  created_at: DatabaseTimestamp;
   updated_at: string;
 }
 
@@ -31,7 +33,7 @@ export interface KnowledgeChunkRecord {
   canonical_text: string;
   metadata: Record<string, unknown>;
   provenance: Record<string, unknown>;
-  created_at: string;
+  created_at: DatabaseTimestamp;
   embedding_vector?: number[] | null;
   embedding_model?: string | null;
   relevance_score?: number;
@@ -310,7 +312,7 @@ export class KnowledgeRepository {
         const vectorScore = Number(row.vector_score ?? 0);
         return { ...row, relevance_score: vectorText ? lexicalScore * 0.55 + vectorScore * 0.45 : lexicalScore };
       })
-      .sort((left, right) => (right.relevance_score ?? 0) - (left.relevance_score ?? 0) || right.created_at.localeCompare(left.created_at));
+      .sort((left, right) => (right.relevance_score ?? 0) - (left.relevance_score ?? 0) || compareDatabaseTimestampsDesc(left.created_at, right.created_at));
   }
 
   public async listSources(scope: { organizationId: string; agentId?: string; installationId?: string }, limit = 100): Promise<KnowledgeSourceRecord[]> {

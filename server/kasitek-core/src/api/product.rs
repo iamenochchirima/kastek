@@ -7,8 +7,8 @@ use crate::controllers::{
     admin, admin_billing, admin_conversations, admin_invoices, admin_leads, admin_notifications,
     admin_outreach, admin_quotations, admin_web_services, agent_internal, agent_platform, ai,
     analytics, auth, billing, bookings, calls, connections, customers, developers, early_access,
-    health, inbox, notifications, onboarding, orgs, product_tour, profile, realtime, referrals,
-    social, whatsapp, whatsapp_calls, workspace,
+    email, health, inbox, notifications, onboarding, orgs, product_tour, profile, realtime,
+    referrals, social, whatsapp, whatsapp_calls, workspace,
 };
 
 pub fn configure(cfg: &mut web::ServiceConfig) {
@@ -186,6 +186,17 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                 web::get().to(connections::request_access),
             )
             .route("/{id}/status", web::patch().to(connections::update_status)),
+    );
+    cfg.service(
+        web::scope("/api/email")
+            .route("/providers", web::get().to(email::providers))
+            .route("/connections", web::get().to(email::list))
+            .route("/connections/{id}/sync", web::post().to(email::sync))
+            .route("/oauth/{provider}/start", web::get().to(email::start_oauth))
+            .route(
+                "/oauth/{provider}/callback",
+                web::get().to(email::oauth_callback),
+            ),
     );
     cfg.service(
         web::scope("/api/social")

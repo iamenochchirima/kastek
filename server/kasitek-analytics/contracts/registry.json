@@ -116,6 +116,46 @@
       "privacy_class": "aggregate"
     },
     {
+      "identity": "agent.memory.deletion@1",
+      "schema": "events/agent/memory_deletion/v1.schema.json",
+      "examples": ["examples/agent/memory_deletion.json"],
+      "owner": "agent-platform",
+      "category": "event",
+      "privacy_class": "aggregate"
+    },
+    {
+      "identity": "agent.memory.deletion@2",
+      "schema": "events/agent/memory_deletion/v2.schema.json",
+      "examples": ["examples/agent/memory_deletion_v2.json"],
+      "owner": "agent-platform",
+      "category": "event",
+      "privacy_class": "aggregate"
+    },
+    {
+      "identity": "agent.memory.lifecycle@1",
+      "schema": "events/agent/memory_lifecycle/v1.schema.json",
+      "examples": ["examples/agent/memory_lifecycle.json"],
+      "owner": "agent-platform",
+      "category": "event",
+      "privacy_class": "aggregate"
+    },
+    {
+      "identity": "agent.memory.projection@1",
+      "schema": "events/agent/memory_projection/v1.schema.json",
+      "examples": ["examples/agent/memory_projection.json"],
+      "owner": "agent-platform",
+      "category": "event",
+      "privacy_class": "aggregate"
+    },
+    {
+      "identity": "agent.memory.retrieval@1",
+      "schema": "events/agent/memory_retrieval/v1.schema.json",
+      "examples": ["examples/agent/memory_retrieval.json"],
+      "owner": "agent-platform",
+      "category": "event",
+      "privacy_class": "aggregate"
+    },
+    {
       "identity": "agent.conversation.lifecycle@1",
       "schema": "events/agent/conversation_lifecycle/v1.schema.json",
       "examples": ["examples/agent/conversation_lifecycle.json"],

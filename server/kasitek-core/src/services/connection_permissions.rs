@@ -22,6 +22,10 @@ pub const MEDIA_PUBLISH: &str = "MEDIA_PUBLISH";
 pub const SOCIAL_ANALYTICS: &str = "SOCIAL_ANALYTICS";
 pub const COMMENTS_MANAGE: &str = "COMMENTS_MANAGE";
 pub const SOCIAL_POST_DELETE: &str = "SOCIAL_POST_DELETE";
+pub const EMAIL_INBOUND: &str = "EMAIL_INBOUND";
+pub const EMAIL_READ: &str = "EMAIL_READ";
+pub const EMAIL_OUTBOUND: &str = "EMAIL_OUTBOUND";
+pub const EMAIL_REPLY: &str = "EMAIL_REPLY";
 
 #[derive(Debug, Clone, Serialize)]
 pub struct AuthorizationRequirement {
@@ -166,6 +170,30 @@ const DEFINITIONS: &[PermissionDefinition] = &[
         group: "CONTENT_MANAGEMENT",
         label: "Delete published content",
         description: "Delete content published through this account.",
+    },
+    PermissionDefinition {
+        key: EMAIL_INBOUND,
+        group: "EMAIL",
+        label: "Receive email",
+        description: "Sync incoming email into the workspace inbox.",
+    },
+    PermissionDefinition {
+        key: EMAIL_READ,
+        group: "EMAIL",
+        label: "Read email",
+        description: "Read message headers and content from this mailbox.",
+    },
+    PermissionDefinition {
+        key: EMAIL_OUTBOUND,
+        group: "EMAIL",
+        label: "Send email",
+        description: "Send email from this mailbox.",
+    },
+    PermissionDefinition {
+        key: EMAIL_REPLY,
+        group: "EMAIL",
+        label: "Reply to email",
+        description: "Reply within an existing email thread.",
     },
 ];
 

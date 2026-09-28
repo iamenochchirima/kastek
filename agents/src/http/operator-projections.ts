@@ -108,14 +108,19 @@ async function buildPayload(pool: Pool, key: OperatorProjectionKey): Promise<Rec
 
   if (key === "retention") {
     const retention = new RetentionRepository(pool);
-    const [audit, events, messages, runs, memory, attachments, deletionJobs, exports, holds, policies, legalHolds] = await Promise.all([
+    const [audit, events, messages, runs, legacyMemory, canonicalFacts, canonicalRevisions, attachments, deletionJobs, providerDeletionJobs, consolidationJobs, projectionJobs, exports, holds, policies, legalHolds] = await Promise.all([
       query<{ count: string; oldest: string | null }>(pool, "SELECT COUNT(*)::text AS count, MIN(created_at)::text AS oldest FROM audit_records"),
       query<{ count: string; oldest: string | null }>(pool, "SELECT COUNT(*)::text AS count, MIN(created_at)::text AS oldest FROM agent_events"),
       query<{ count: string; oldest: string | null }>(pool, "SELECT COUNT(*)::text AS count, MIN(created_at)::text AS oldest FROM messages"),
       query<{ count: string; oldest: string | null }>(pool, "SELECT COUNT(*)::text AS count, MIN(created_at)::text AS oldest FROM agent_runs"),
       query<{ active: string; expired: string; deleted: string }>(pool, "SELECT COUNT(*) FILTER (WHERE status = 'active')::text AS active, COUNT(*) FILTER (WHERE status = 'expired')::text AS expired, COUNT(*) FILTER (WHERE status = 'deleted')::text AS deleted FROM memory_records"),
+      query<{ count: string }>(pool, "SELECT COUNT(*)::text AS count FROM agent_memory_facts"),
+      query<{ lifecycle_state: string; count: string }>(pool, "SELECT lifecycle_state, COUNT(*)::text AS count FROM agent_memory_revisions GROUP BY lifecycle_state ORDER BY lifecycle_state"),
       query<{ total: string; expired: string }>(pool, "SELECT COUNT(*)::text AS total, COUNT(*) FILTER (WHERE retention_expires_at IS NOT NULL AND retention_expires_at <= now())::text AS expired FROM agent_attachment_references"),
       query<{ status: string; count: string }>(pool, "SELECT status, COUNT(*)::text AS count FROM memory_deletion_jobs GROUP BY status ORDER BY status"),
+      query<{ status: string; count: string; oldest_pending: string | null }>(pool, "SELECT status, COUNT(*)::text AS count, MIN(created_at)::text AS oldest_pending FROM agent_memory_provider_deletion_jobs GROUP BY status ORDER BY status"),
+      query<{ status: string; count: string }>(pool, "SELECT status, COUNT(*)::text AS count FROM memory_consolidation_jobs GROUP BY status ORDER BY status"),
+      query<{ status: string; count: string }>(pool, "SELECT status, COUNT(*)::text AS count FROM agent_memory_projection_outbox GROUP BY status ORDER BY status"),
       query<{ status: string; count: string }>(pool, "SELECT status, COUNT(*)::text AS count FROM agent_export_requests GROUP BY status ORDER BY status"),
       query<{ active: string }>(pool, "SELECT COUNT(*)::text AS active FROM agent_operator_holds WHERE status = 'active' AND expires_at > now()"),
       retention.listPolicies(500),
@@ -129,10 +134,34 @@ async function buildPayload(pool: Pool, key: OperatorProjectionKey): Promise<Rec
         { key: "agent_events", count: Number(events.rows[0]?.count ?? 0), oldestAt: events.rows[0]?.oldest ?? null, immutable: false },
         { key: "messages", count: Number(messages.rows[0]?.count ?? 0), oldestAt: messages.rows[0]?.oldest ?? null, immutable: false },
         { key: "agent_runs", count: Number(runs.rows[0]?.count ?? 0), oldestAt: runs.rows[0]?.oldest ?? null, immutable: false },
-        { key: "memory_records", active: Number(memory.rows[0]?.active ?? 0), expired: Number(memory.rows[0]?.expired ?? 0), deleted: Number(memory.rows[0]?.deleted ?? 0), immutable: false },
+        {
+          key: "agent_memory_facts",
+          total: Number(canonicalFacts.rows[0]?.count ?? 0),
+          revisions: Object.fromEntries(canonicalRevisions.rows.map((row) => [row.lifecycle_state, Number(row.count)])),
+          immutable: false,
+          canonical: true,
+        },
+        {
+          key: "memory_records",
+          active: Number(legacyMemory.rows[0]?.active ?? 0),
+          expired: Number(legacyMemory.rows[0]?.expired ?? 0),
+          deleted: Number(legacyMemory.rows[0]?.deleted ?? 0),
+          immutable: false,
+          canonical: false,
+          compatibility: true,
+        },
         { key: "attachments", total: Number(attachments.rows[0]?.total ?? 0), expired: Number(attachments.rows[0]?.expired ?? 0), immutable: false },
       ],
       deletionJobs: Object.fromEntries(deletionJobs.rows.map((row) => [row.status, Number(row.count)])),
+      providerDeletionJobs: {
+        counts: Object.fromEntries(providerDeletionJobs.rows.map((row) => [row.status, Number(row.count)])),
+        oldestPendingAt: providerDeletionJobs.rows
+          .filter((row) => row.status === "queued" || row.status === "running")
+          .map((row) => row.oldest_pending)
+          .find((value): value is string => Boolean(value)) ?? null,
+      },
+      consolidationJobs: Object.fromEntries(consolidationJobs.rows.map((row) => [row.status, Number(row.count)])),
+      projectionJobs: Object.fromEntries(projectionJobs.rows.map((row) => [row.status, Number(row.count)])),
       exportRequests: Object.fromEntries(exports.rows.map((row) => [row.status, Number(row.count)])),
       activeIncidentHolds: Number(holds.rows[0]?.active ?? 0),
       configuredPolicies: policies.map((policy) => ({ organizationId: policy.organization_id, revision: policy.revision, memoryDays: policy.memory_days, conversationDays: policy.conversation_days, eventDays: policy.event_days, auditDays: policy.audit_days, attachmentDays: policy.attachment_days, updatedAt: policy.updated_at })),

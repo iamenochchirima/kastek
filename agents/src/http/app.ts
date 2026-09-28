@@ -9,8 +9,11 @@ import {
   createInstallationCredentialInputSchema,
   createInstallationInputSchema,
   deployInstallationInputSchema,
-  deployStagedVersionInputSchema,
+  installationDeploymentPreflightInputSchema,
+  installationPromotionInputSchema,
+  installationRollbackInputSchema,
   createVersionInputSchema,
+  studioAgentCreationInputSchema,
   updateAgentInputSchema,
   startRunInputSchema,
 } from "../domain/types";
@@ -30,7 +33,12 @@ import { CredentialVaultRepository } from "../db/repositories/credential-vault-r
 import { InstallationCredentialRepository } from "../db/repositories/installation-credential-repository";
 import { InstallationGrantRepository } from "../db/repositories/installation-grant-repository";
 import { KnowledgeRepository } from "../db/repositories/knowledge-repository";
-import { MemoryRepository } from "../db/repositories/memory-repository";
+import { MemoryDeletionJobRepository } from "../db/repositories/memory-deletion-job-repository";
+import { MemoryRetentionRepository } from "../db/repositories/memory-retention-repository";
+import { MemoryRevisionRepository } from "../db/repositories/memory-revision-repository";
+import { MemoryRevisionCommandService } from "../memory/revision-command-service";
+import { CanonicalMemoryHttpAdmin, type MemoryHttpAdmin } from "../memory/http-admin";
+import { MemoryObservatoryRepository } from "../memory/observatory";
 import { chunkKnowledgeText, fetchBoundedKnowledgeDocument } from "../knowledge/ingestion";
 import { FirecrawlClient } from "../knowledge/firecrawl";
 import { extractKnowledgeFile, MAX_KNOWLEDGE_FILE_BYTES } from "../knowledge/file-ingestion";
@@ -45,7 +53,7 @@ import { OperatorControlRepository } from "../db/repositories/operator-control-r
 import { RetentionRepository } from "../db/repositories/retention-repository";
 import { parseCanonicalMessageContent } from "../channels/messages";
 import { authenticateRequest, type AuthContext } from "./auth";
-import type { ApprovalSignal, CancellationSignal, ExternalEventSignal } from "../temporal/contracts";
+import type { ApprovalGroupSignal, CancellationSignal, ExternalEventSignal } from "../temporal/contracts";
 import { advanceSseCursor, formatSseComment, formatSseEvent, toPublicEvent } from "./sse";
 import { KASIAI_SLUG } from "../system/kasiai";
 import { PlatformChatRepository, type AcceptedExternalMessage, type HandoffAcknowledgement } from "../db/repositories/platform-chat-repository";
@@ -58,13 +66,13 @@ import { MODEL_PROVIDERS } from "../model/types";
 import { modelProviderEnvironmentKey } from "../model/providers";
 import { installationTokenJwks, issueInstallationToken, readClientAssertionSubject, verifyClientAssertion, verifyInstallationToken } from "../auth/installation-token";
 import { createHash, createPublicKey } from "node:crypto";
-import { createDefaultTools } from "../temporal/activities";
+import { buildApprovalResourceSnapshotFromCore, createDefaultTools } from "../temporal/activities";
 import { validateVersionWorkflow } from "../workflows/graph";
-import { agentSpecSchema } from "../domain/agent-spec";
+import { agentSpecSchema, compileAgentSpec } from "../domain/agent-spec";
 import { resolveModelTarget } from "../model/policy";
 import { diffEffectiveAgentConfig, projectEffectiveAgentConfig } from "../domain/effective-agent-config";
 import { buildAgentReadiness } from "../domain/agent-readiness";
-import { KasitekCoreReadClient } from "../core/client";
+import { KasitekCoreReadClient, type CoreRequestContext } from "../core/client";
 import { KasitekCoreDeveloperApiKeyResolver, type DeveloperApiKeyResolver } from "../core/developer-api-key";
 import { ToolRegistry } from "../tools/registry";
 import { redactSensitiveValue } from "../tools/redaction";
@@ -106,9 +114,27 @@ const MCP_TASK_TTL_MS = 86_400_000;
 const MCP_TASK_POLL_INTERVAL_MS = 2_000;
 const MCP_MAX_RESPONSE_BYTES = 1024 * 1024;
 const MAX_DISCORD_MEDIA_BYTES = 25 * 1024 * 1024;
+
+function projectRuntimeTelemetry(
+  events: ReadonlyArray<PersistedExecutionJournalEvent>,
+  identity: { readonly runId?: string; readonly turnId?: string } = {},
+  now = new Date().toISOString(),
+) {
+  const accumulator = new RuntimeTelemetryAccumulator(identity);
+  for (const event of events) {
+    if (event.event.kind !== "harness.turn") continue;
+    accumulator.apply({
+      type: event.event.data.type,
+      payload: event.event.data.payload,
+      observedAt: event.occurredAt,
+    });
+  }
+  return accumulator.snapshot(now);
+}
 import { ConnectorRegistry } from "../connectors";
 import { EffectReceiptRepository } from "../db/repositories/effect-receipt-repository";
-import { ApprovalRepository } from "../db/repositories/approval-repository";
+import { ApprovalRepository, type ApprovalGroupRecord, type ApprovalRecord } from "../db/repositories/approval-repository";
+import { approvalResourceSnapshotsEqual } from "../approval/resource-revalidation";
 import { InstallationCapabilityError, InstallationCapabilityInvocationService } from "../invocation/installation-capability";
 import { InstallationImmediateReadService } from "../invocation/immediate-read";
 import { authorizeInstallationCapability } from "../capabilities/authorization";
@@ -125,6 +151,9 @@ import { verifyChannelApprovalActionToken, type ChannelApprovalDecision } from "
 import { IntegrationRepository } from "../integrations/repository";
 import { IntegrationToolService } from "../integrations/service";
 import { getIntegration, listIntegrations, listToolIntegrations } from "../integrations/catalog";
+import { listConnectionDirectory, listPluginDirectory, listSkillDirectory } from "../integrations/directory";
+import { buildMcpAuthorizationUrl, createPkcePair, discoverMcpOAuth, exchangeMcpOAuthCode, registerMcpOAuthClient } from "../mcp/oauth";
+import { getReviewedMcpCatalogEntry, getReviewedSkillCatalogEntry } from "../integrations/reviewed-catalog";
 import { correlationIdFromHeader, currentCorrelationId, runWithCorrelationId } from "../telemetry/context";
 import { operationalLogFields, operationalLogRedaction, operationalLogSerializers } from "../telemetry/logger";
 import { AudioTranscriptionError, ElevenLabsTranscriptionProvider, hasAudioFileSignature, isSupportedAudioMimeType, MAX_AUDIO_FILE_BYTES, normalizeAudioMimeType, type AudioTranscriptionProvider } from "../transcription";
@@ -133,15 +162,31 @@ import { enterDatabaseContext, runWithDatabaseContext } from "../db/context";
 import { reconcileRunUsage } from "../operations/usage-reconciliation";
 import { SkillRepository } from "../db/repositories/skill-repository";
 import { createSkillInputSchema, createSkillVersionInputSchema } from "../skills/contracts";
-import { RemoteMcpProviderRepository, createRemoteMcpProviderInputSchema } from "../db/repositories/remote-mcp-provider-repository";
+import { isCustomRemoteMcpProvider, RemoteMcpProviderRepository, createRemoteMcpProviderInputSchema } from "../db/repositories/remote-mcp-provider-repository";
 import { executeDraftEvaluation, type DraftEvaluationRunner } from "../evaluations/draft";
 import { ModelGateway } from "../model/gateway";
 import { VaultCredentialResolver } from "../model/credentials";
+import { CoreHostAdapter, HostCapabilityRouter, NativeHostAdapter } from "../hosts/capabilities";
+import { createAgentHarness, type AgentHarness } from "../runtime/harness";
+import { ExtensionSnapshotRepository } from "../db/repositories/extension-snapshot-repository";
+import type { ExtensionKind } from "../extensions";
+import { getPluginAdapter } from "../extensions/plugin-adapters";
+import { getReviewedPluginAdapterCapabilityIds, getReviewedPluginAdapterConnectorIds, getReviewedPluginAdapterStatus, getReviewedPluginCatalogEntry } from "../extensions/reviewed-plugin-catalog";
+import { createCapabilityRuntime } from "../capabilities/runtime";
+import { registerIntegrationSources, registerMcpSources, registerPluginSources, registerSkillSources } from "../capabilities/source-adapters";
+import { PostgresDeliveryObligationCoordinator, type DeliveryObligationCoordinator } from "../delivery";
+import { RuntimeTelemetryAccumulator } from "../runtime/runtime-telemetry";
+import type { PersistedExecutionJournalEvent } from "../journal/contracts";
+import { executionScopeFromRun } from "../runtime/execution-scope";
+import { toolInvocationContextFromScope } from "../tools/types";
+import { approvalSessionKey, type ApprovalSessionResourceSelector } from "../approval/session-grants";
+import { recordApprovalGroupDecision, recordApprovalGroupLifecycle } from "../telemetry/spans";
 
 export interface AppDependencies {
   config: AppConfig;
   pool: Pool;
   agents?: AgentRepository;
+  extensionSnapshots?: ExtensionSnapshotRepository;
   runs?: RunRepository;
   conversations?: ConversationRepository;
   platformChat?: PlatformChatRepository;
@@ -151,6 +196,7 @@ export interface AppDependencies {
   modelCalls?: ModelCallRepository;
   runBudgets?: RunBudgetRepository;
   channels?: ChannelRepository;
+  deliveryObligations?: DeliveryObligationCoordinator;
   channelCredentials?: ChannelCredentialRepository;
   telegramClient?: TelegramBotClient;
   discordClient?: DiscordBotClient;
@@ -163,6 +209,8 @@ export interface AppDependencies {
   developerApiKeyResolver?: DeveloperApiKeyResolver;
   installationGrants?: InstallationGrantRepository;
   toolRegistry?: ToolRegistry;
+  hostCapabilities?: HostCapabilityRouter;
+  harness?: AgentHarness;
   conversationActions?: ConversationActionService;
   conversationControls?: ConversationControlService;
   uiInteractionCoordinator?: AgentUiInteractionCoordinator;
@@ -182,7 +230,11 @@ export interface AppDependencies {
   installationInvocations?: Pick<InstallationCapabilityInvocationService, "accept">;
   knowledge?: KnowledgeRepository;
   websiteCrawler?: FirecrawlClient;
-  memory?: MemoryRepository;
+  memoryAdmin?: MemoryHttpAdmin;
+  memoryObservatory?: MemoryObservatoryRepository;
+  memoryDeletionJobs?: MemoryDeletionJobRepository;
+  memoryRetention?: MemoryRetentionRepository;
+  memoryRevisionCommands?: MemoryRevisionCommandService;
   evaluations?: EvaluationRepository;
   audits?: AuditRepository;
   schedules?: ScheduleRepository;
@@ -195,7 +247,7 @@ export interface AppDependencies {
   remoteMcpProviders?: RemoteMcpProviderRepository;
   draftEvaluator?: DraftEvaluationRunner;
   startWorkflow?: (runId: string) => Promise<void>;
-  signalApproval?: (runId: string, signal: ApprovalSignal) => Promise<void>;
+  signalApprovalGroup?: (runId: string, signal: ApprovalGroupSignal) => Promise<void>;
   signalCancellation?: (runId: string, signal: CancellationSignal) => Promise<void>;
   signalExternalEvent?: (runId: string, signal: ExternalEventSignal) => Promise<void>;
   eventNotifications?: ConversationEventNotifications;
@@ -419,16 +471,141 @@ async function requireHostedResourceScope(
   }
 }
 
-function publicApprovalStatus(approval: { status: string; provider_tool_call_id: string; capability: string; arguments_hash: string; resource_snapshot?: Record<string, unknown>; preview_revision?: string; expires_at: string } | null) {
+function publicApprovalStatus(approval: { status: string; provider_tool_call_id: string; runtime_operation_id?: string; capability: string; arguments_hash: string; resource_snapshot?: Record<string, unknown>; resource_selector?: ApprovalSessionResourceSelector | null; preview_revision?: string; expires_at: string } | null) {
   if (!approval) return null;
   return {
     status: approval.status,
     providerToolCallId: approval.provider_tool_call_id,
+    ...(approval.runtime_operation_id ? { runtimeOperationId: approval.runtime_operation_id } : {}),
     capability: approval.capability,
     argumentsHash: approval.arguments_hash,
     resourceSnapshot: approval.resource_snapshot ?? {},
+    ...(approval.resource_selector ? { resourceSelector: approval.resource_selector } : {}),
     previewRevision: approval.preview_revision ?? null,
     expiresAt: approval.expires_at,
+  };
+}
+
+function publicApprovalGroup(group: ApprovalGroupRecord | null, approvals: ApprovalRecord[] = []) {
+  if (!group) return null;
+  return {
+    id: group.id,
+    batchId: group.batch_id,
+    turnKey: group.turn_key,
+    planDigest: group.plan_digest,
+    policyRevision: group.policy_revision,
+    status: group.status,
+    decision: group.decision,
+    selectedOperationIds: group.selected_operation_ids,
+    decidedBy: group.decided_by,
+    expiresAt: group.expires_at,
+    createdAt: group.created_at,
+    decidedAt: group.decided_at,
+    operations: approvals.map((approval) => publicApprovalStatus(approval)),
+  };
+}
+
+type StudioTimelineItemKind = "event" | "journal" | "step" | "tool_call" | "effect";
+
+type StudioTimelineItem = {
+  id: string;
+  kind: StudioTimelineItemKind;
+  scope: {
+    organizationId: string;
+    installationId: string;
+    runId: string;
+    operationId?: string;
+  };
+  sequence?: number;
+  occurredAt?: string;
+  event?: string;
+  status?: string;
+  operationId?: string;
+  attemptId?: string;
+  data: Record<string, unknown>;
+};
+
+function timelineRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+}
+
+function timelineText(record: Record<string, unknown>, keys: string[]): string | undefined {
+  for (const key of keys) {
+    const value = record[key];
+    if (typeof value === "string" && value.length > 0) return value;
+    if (typeof value === "number" && Number.isSafeInteger(value)) return String(value);
+    if (value instanceof Date && !Number.isNaN(value.getTime())) return value.toISOString();
+  }
+  return undefined;
+}
+
+function timelineNestedRecord(record: Record<string, unknown>, key: string): Record<string, unknown> {
+  return timelineRecord(record[key]);
+}
+
+function boundedTimelineData(value: unknown, maxBytes = 24_000): Record<string, unknown> {
+  const record = timelineRecord(value);
+  const entries = Object.entries(record).slice(0, 32);
+  const bounded = Object.fromEntries(entries);
+  try {
+    const serialized = JSON.stringify(bounded);
+    if (serialized.length <= maxBytes) return bounded;
+    return {
+      summary: serialized.slice(0, maxBytes - 64),
+      truncated: true,
+    };
+  } catch {
+    return { truncated: true };
+  }
+}
+
+function projectStudioTimelineItem(
+  kind: StudioTimelineItemKind,
+  value: unknown,
+  run: { id: string; organization_id: string; installation_id: string },
+  index: number,
+): StudioTimelineItem {
+  const record = timelineRecord(value);
+  const nestedEvent = timelineNestedRecord(record, "event");
+  const nestedEventData = timelineNestedRecord(nestedEvent, "data");
+  const recordPayload = timelineRecord(record.payload);
+  const payload = Object.keys(recordPayload).length ? recordPayload : timelineRecord(nestedEventData.payload);
+  const sequence = timelineText(record, ["sequence_number", "sequence"]);
+  const operationId = timelineText(record, ["operation_id", "operationId"])
+    ?? timelineText(timelineNestedRecord(record, "scope"), ["operationId", "operation_id"]);
+  const id = timelineText(record, ["id", "event_id", "provider_tool_call_id", "providerToolCallId"])
+    ?? `${run.id}:${kind}:${index}`;
+  const event = timelineText(record, ["event_type", "event", "event_kind", "kind"])
+    ?? timelineText(nestedEventData, ["type"])
+    ?? timelineText(nestedEvent, ["kind", "type"]);
+  const occurredAt = timelineText(record, ["occurred_at", "occurredAt", "created_at", "updated_at", "finished_at"]);
+  const status = timelineText(record, ["status", "outcome", "state"]);
+  const attemptId = timelineText(record, ["attempt_id", "attemptId"]);
+  const redacted = redactSensitiveValue({
+    payload: Object.keys(payload).length ? payload : undefined,
+    input: record.input,
+    output: record.output,
+    error: record.error,
+    arguments: record.arguments,
+    provider_receipt: record.provider_receipt,
+    metadata: record.metadata,
+  });
+  return {
+    id: `studio:${kind}:${id}`,
+    kind,
+    scope: {
+      organizationId: run.organization_id,
+      installationId: run.installation_id,
+      runId: run.id,
+      ...(operationId ? { operationId } : {}),
+    },
+    ...(sequence ? { sequence: Number(sequence) } : {}),
+    ...(occurredAt ? { occurredAt } : {}),
+    ...(event ? { event } : {}),
+    ...(status ? { status } : {}),
+    ...(operationId ? { operationId } : {}),
+    ...(attemptId ? { attemptId } : {}),
+    data: boundedTimelineData(redacted),
   };
 }
 
@@ -477,7 +654,8 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       fileSize: Math.max(MAX_KNOWLEDGE_FILE_BYTES, MAX_AUDIO_FILE_BYTES),
     },
   });
-  const agents = dependencies.agents ?? new AgentRepository(dependencies.pool);
+  const extensionSnapshots = dependencies.extensionSnapshots ?? new ExtensionSnapshotRepository(dependencies.pool);
+  const agents = dependencies.agents ?? new AgentRepository(dependencies.pool, extensionSnapshots);
   const runs = dependencies.runs ?? new RunRepository(dependencies.pool);
   const conversations = dependencies.conversations ?? new ConversationRepository(dependencies.pool);
   const runSteps = dependencies.runSteps ?? new RunStepRepository(dependencies.pool);
@@ -486,6 +664,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
   const modelCalls = dependencies.modelCalls ?? new ModelCallRepository(dependencies.pool);
   const runBudgets = dependencies.runBudgets ?? new RunBudgetRepository(dependencies.pool);
   const channels = dependencies.channels ?? new ChannelRepository(dependencies.pool);
+  const deliveryObligations = dependencies.deliveryObligations ?? new PostgresDeliveryObligationCoordinator(dependencies.pool);
   const channelCredentials = dependencies.channelCredentials ?? new ChannelCredentialRepository(dependencies.pool, dependencies.config.AGENTS_CREDENTIAL_ENCRYPTION_KEY);
   const telegramClient = dependencies.telegramClient ?? new TelegramBotClient({ apiBaseUrl: dependencies.config.TELEGRAM_API_BASE_URL, timeoutMs: dependencies.config.TELEGRAM_API_TIMEOUT_MS });
   const discordClient = dependencies.discordClient ?? new DiscordBotClient({ apiBaseUrl: dependencies.config.DISCORD_API_BASE_URL, timeoutMs: dependencies.config.DISCORD_API_TIMEOUT_MS });
@@ -518,6 +697,10 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
   const conversationActions = dependencies.conversationActions ?? new ConversationActionService(handoffs, controls);
   const conversationControls = dependencies.conversationControls ?? new ConversationControlService(handoffs);
   const coreClient = new KasitekCoreReadClient(dependencies.config);
+  const hostCapabilities = dependencies.harness?.host ?? dependencies.hostCapabilities ?? new HostCapabilityRouter([
+    new CoreHostAdapter(coreClient),
+    new NativeHostAdapter(),
+  ]);
   const deliverHandoffAcknowledgement = async (input: {
     accepted: AcceptedExternalMessage;
     organizationId: string;
@@ -528,7 +711,33 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     if (!acknowledgement) return;
     const organizationId = input.organizationId;
     let claimed = false;
+    const obligation = await deliveryObligations.create({
+      id: acknowledgement.deliveryAttemptId,
+      idempotencyKey: `handoff-ack:${acknowledgement.deliveryAttemptId}`,
+      scope: {
+        organizationId,
+        installationId: input.accepted.conversation.installation_id,
+        conversationId: input.accepted.conversation.id,
+      },
+      channel: `handoff:${input.channelType}`,
+      payloadRef: acknowledgement.message.id,
+    });
+    const obligationClaimId = `handoff-ack:${acknowledgement.deliveryAttemptId}`;
     try {
+      const obligationClaim = await deliveryObligations.claim({
+        obligationId: obligation.id,
+        claimId: obligationClaimId,
+        workerId: "http:handoff-acknowledgement",
+      });
+      if (obligationClaim.status !== "applied" && obligationClaim.status !== "idempotent") {
+        app.log.info({
+          event: "conversation.handoff.acknowledgement_delivery_skipped",
+          handoffRequestId: input.accepted.handoffRequestId,
+          deliveryAttemptId: acknowledgement.deliveryAttemptId,
+          obligationState: obligationClaim.obligation.state,
+        }, "Handoff acknowledgement delivery already has a terminal or competing obligation");
+        return;
+      }
       await channels.claimDelivery(organizationId, acknowledgement.deliveryAttemptId);
       claimed = true;
       const channelType = input.channelType.trim().toLowerCase();
@@ -567,6 +776,14 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
         attemptId: acknowledgement.deliveryAttemptId,
         providerMessageId: delivery.providerMessageId,
       });
+      const completed = await deliveryObligations.complete({
+        obligationId: obligation.id,
+        claimId: obligationClaimId,
+        receiptRef: delivery.providerMessageId ?? acknowledgement.deliveryAttemptId,
+      });
+      if (completed.status !== "applied" && completed.status !== "idempotent") {
+        throw new Error(`DELIVERY_OBLIGATION_${completed.status.toUpperCase()}`);
+      }
       app.log.info({
         event: "conversation.handoff.acknowledgement_delivered",
         channelType,
@@ -574,12 +791,19 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
         deliveryAttemptId: acknowledgement.deliveryAttemptId,
       }, "Handoff acknowledgement delivered");
     } catch (error) {
+      const unknown = error instanceof Error && error.message.includes("UNKNOWN");
+      await (unknown
+        ? deliveryObligations.unknown({ obligationId: obligation.id, claimId: claimed ? obligationClaimId : undefined, reason: error instanceof Error ? error.message : "Handoff acknowledgement delivery unknown" })
+        : deliveryObligations.fail({ obligationId: obligation.id, claimId: claimed ? obligationClaimId : undefined, reason: error instanceof Error ? error.message : "Handoff acknowledgement delivery failed" })
+      ).catch((obligationError) => {
+        app.log.error({ err: obligationError, event: "conversation.handoff.acknowledgement_obligation_update_failed", deliveryAttemptId: acknowledgement.deliveryAttemptId }, "Handoff acknowledgement obligation update failed");
+      });
       if (claimed) {
         await channels.markDeliveryFailed({
           organizationId,
           attemptId: acknowledgement.deliveryAttemptId,
           error: {
-            code: "HANDOFF_ACKNOWLEDGEMENT_DELIVERY_FAILED",
+            code: unknown ? "HANDOFF_ACKNOWLEDGEMENT_DELIVERY_UNKNOWN" : "HANDOFF_ACKNOWLEDGEMENT_DELIVERY_FAILED",
             message: error instanceof Error ? error.message : "Handoff acknowledgement delivery failed",
           },
         }).catch((markError) => {
@@ -596,12 +820,80 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     }
   };
   const integrationRepository = dependencies.integrationRepository ?? new IntegrationRepository(dependencies.pool, dependencies.config.AGENTS_CREDENTIAL_ENCRYPTION_KEY);
-  const integrationTools = dependencies.integrationTools ?? new IntegrationToolService(integrationRepository, dependencies.config);
+  const integrationTools = dependencies.integrationTools ?? new IntegrationToolService(integrationRepository, dependencies.config, coreClient);
+  const pluginReadiness = async (organizationId: string, entry: ReturnType<typeof getReviewedPluginCatalogEntry>, installationId?: string) => {
+    if (!entry) return { state: "blocked" as const, blockers: ["plugin_not_found"] };
+    const adapter = getPluginAdapter(entry);
+    if (!adapter) return { state: "blocked" as const, blockers: ["adapter_unavailable"] };
+    if (!installationId) return { state: "blocked" as const, blockers: ["installation_required"] };
+    const credentials = Object.fromEntries(await Promise.all(adapter.requiredCredentialRefs.map(async (credentialRef) => {
+      const connection = await integrationRepository.getConnection(organizationId, installationId, credentialRef);
+      const available = await integrationTools.isAvailable(organizationId, installationId, credentialRef);
+      const state = available
+        ? "configured" as const
+        : connection?.status === "revoked"
+          ? "revoked" as const
+          : connection?.status === "unhealthy"
+            ? "unknown" as const
+            : "missing" as const;
+      return [credentialRef, state] as const;
+    })));
+    return adapter.checkReadiness({ configuration: {}, credentials });
+  };
   const remoteMcpProviders = dependencies.remoteMcpProviders ?? new RemoteMcpProviderRepository(
     dependencies.pool,
     (organizationId, credentialReference) => integrationRepository.resolveCredential(organizationId, credentialReference),
   );
-  const toolRegistry = dependencies.toolRegistry ?? createDefaultTools(coreClient, conversationActions, integrationTools);
+  const configuredTools = dependencies.toolRegistry ?? createDefaultTools(coreClient, conversationActions, integrationTools, hostCapabilities);
+  const harness = dependencies.harness ?? createAgentHarness({
+    tools: configuredTools,
+    host: hostCapabilities,
+    capabilities: createCapabilityRuntime({
+      registry: configuredTools,
+      requireLifecycle: true,
+      admission: {
+        admit: async ({ request }) => {
+          await authorizeInstallationCapability({
+            organizationId: request.context.organizationId,
+            installationId: request.context.installationId,
+            name: request.name,
+            argumentsValue: request.arguments,
+            grantedTools: request.grantedTools,
+            tools: configuredTools,
+            installationGrants,
+            approved: Boolean(request.approval),
+          });
+          return { status: "ready" };
+        },
+      },
+    }),
+  });
+  const toolRegistry = harness.tools;
+  const activateIntegrationBundle = async (input: {
+    organizationId: string;
+    installationId: string;
+    integration: ReturnType<typeof getIntegration>;
+    actorId: string;
+  }): Promise<string[]> => {
+    const capabilityNames = [...new Set(input.integration?.capabilityNames ?? [])]
+      .filter((name) => Boolean(toolRegistry.get(name)));
+    for (const toolName of capabilityNames) {
+      await toolGrants.grantInstallationTool({
+        organizationId: input.organizationId,
+        installationId: input.installationId,
+        toolName,
+        actorId: input.actorId,
+      });
+    }
+    return capabilityNames;
+  };
+  const requirePlaygroundInstallation = (installation: { settings?: Record<string, unknown> }): void => {
+    if (installation.settings?.environment === "playground") return;
+    throw Object.assign(
+      new Error("Capability changes must be made in Playground before they can be deployed to Live"),
+      { statusCode: 409, code: "PLAYGROUND_REQUIRED" },
+    );
+  };
   const capabilityAccess = dependencies.capabilityAccess ?? new UnknownCapabilityAccessSource();
   const connectorRegistry = dependencies.connectorRegistry ?? new ConnectorRegistry();
   if (connectorRegistry.list().length === 0) {
@@ -633,7 +925,15 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
   const effectReceipts = dependencies.effectReceipts ?? new EffectReceiptRepository(dependencies.pool);
   const approvals = dependencies.approvals ?? new ApprovalRepository(dependencies.pool);
   const knowledge = dependencies.knowledge ?? new KnowledgeRepository(dependencies.pool);
-  const memory = dependencies.memory ?? new MemoryRepository(dependencies.pool);
+  const memoryDeletionJobs = dependencies.memoryDeletionJobs ?? new MemoryDeletionJobRepository(dependencies.pool);
+  const memoryRetention = dependencies.memoryRetention ?? new MemoryRetentionRepository(dependencies.pool);
+  const memoryRevisionCommands = dependencies.memoryRevisionCommands ?? new MemoryRevisionCommandService(
+    dependencies.pool,
+    new MemoryRevisionRepository(dependencies.pool, { analyticsEnabled: true }),
+    { analyticsPool: dependencies.pool },
+  );
+  const memoryAdmin = dependencies.memoryAdmin ?? new CanonicalMemoryHttpAdmin(dependencies.pool, memoryDeletionJobs, memoryRevisionCommands);
+  const memoryObservatory = dependencies.memoryObservatory ?? new MemoryObservatoryRepository(dependencies.pool);
   const evaluations = dependencies.evaluations ?? new EvaluationRepository(dependencies.pool);
   const draftEvaluator = dependencies.draftEvaluator ?? ((input) => executeDraftEvaluation(
     input,
@@ -646,6 +946,52 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
   const retention = dependencies.retention ?? new RetentionRepository(dependencies.pool);
   const kasiaiPreferences = dependencies.kasiaiPreferences ?? new KasiAiPreferenceRepository(dependencies.pool);
   const skills = dependencies.skills ?? new SkillRepository(dependencies.pool);
+  const activateHermesMcp = async (input: {
+    organizationId: string;
+    actorId: string;
+    catalogId: string;
+    credentialReference?: string | null;
+    agentVersionId?: string;
+    installationId?: string;
+  }) => {
+    const catalogEntry = getReviewedMcpCatalogEntry(input.catalogId);
+    if (!catalogEntry || !catalogEntry.managed || !catalogEntry.endpointUrl) throw new Error("HERMES_MCP_ENTRY_NOT_CONNECTABLE");
+    let provider = await remoteMcpProviders.getByCatalogId(input.organizationId, catalogEntry.id);
+    if (!provider) {
+      provider = await remoteMcpProviders.create(input.organizationId, input.actorId, {
+        name: catalogEntry.name,
+        endpointUrl: catalogEntry.endpointUrl,
+        catalogId: catalogEntry.id,
+        credentialReference: input.credentialReference ?? undefined,
+        timeoutMs: 15_000,
+        maxResponseBytes: 1_048_576,
+        rateLimitPerMinute: 60,
+      });
+    } else if (input.credentialReference !== undefined && input.credentialReference !== provider.credential_reference) {
+      provider = await remoteMcpProviders.setCredentialReference(input.organizationId, provider.id, input.credentialReference);
+    }
+    const discovered = await remoteMcpProviders.discover(input.organizationId, input.actorId, provider.id);
+    const published = await remoteMcpProviders.publish(input.organizationId, input.actorId, provider.id, discovered.id);
+    let activatedCandidate: { id: string } | undefined;
+    if (input.agentVersionId && input.installationId) {
+      const target = await agents.getVersion(input.organizationId, input.agentVersionId);
+      if (target?.status === "draft") {
+        await remoteMcpProviders.pin(input.organizationId, input.actorId, input.agentVersionId, published.id);
+      } else {
+        const activated = await agents.activatePlaygroundExtension({
+          organizationId: input.organizationId,
+          actorId: input.actorId,
+          installationId: input.installationId,
+          agentVersionId: input.agentVersionId,
+          extension: { kind: "mcp", providerVersionId: published.id },
+        });
+        activatedCandidate = activated.version;
+      }
+    } else if (input.agentVersionId) {
+      await remoteMcpProviders.pin(input.organizationId, input.actorId, input.agentVersionId, published.id);
+    }
+    return { provider, version: published, pinned: Boolean(input.agentVersionId), ...(activatedCandidate ? { candidate: activatedCandidate } : {}) };
+  };
   const websiteCrawler = dependencies.websiteCrawler ?? new FirecrawlClient({
     apiKey: dependencies.config.FIRECRAWL_API_KEY,
     baseUrl: dependencies.config.FIRECRAWL_API_BASE_URL,
@@ -656,7 +1002,11 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     dependencies.config.APPROVAL_DECISION_RATE_LIMIT_WINDOW_MS,
     dependencies.config.APPROVAL_DECISION_RATE_LIMIT_MAX_KEYS,
   );
-  const immediateReads = new InstallationImmediateReadService({ runs, toolInvocations, tools: toolRegistry });
+  const immediateReads = new InstallationImmediateReadService({
+    runs,
+    toolInvocations,
+    capabilities: harness.capabilities ?? createCapabilityRuntime({ registry: toolRegistry, requireLifecycle: true }),
+  });
   const installationInvocations = dependencies.installationInvocations ?? new InstallationCapabilityInvocationService({
     agents,
     runs,
@@ -664,6 +1014,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     installationGrants,
     killSwitches,
     tools: toolRegistry,
+    capabilities: harness.capabilities,
     temporalEnabled: dependencies.config.TEMPORAL_ENABLED,
     startWorkflow: dependencies.startWorkflow,
     immediateRead: (input) => immediateReads.execute({
@@ -673,63 +1024,230 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     }),
   });
 
-  const decideApproval = async (input: {
+  const decideApprovalGroup = async (input: {
     organizationId: string;
     runId: string;
-    providerToolCallId: string;
-    argumentsHash: string;
-    decision: ChannelApprovalDecision;
+    groupId: string;
+    planDigest: string;
+    decision: "approved" | "rejected";
+    selectedOperationIds?: string[];
+    grantScope?: "once" | "session";
+    idempotencyKey?: string;
     approvedBy: string;
     rateLimitKey: string;
   }) => {
+    const decisionStartedAt = performance.now();
+    const group = await approvals.getGroup(input.organizationId, input.groupId);
+    const operations = group ? await approvals.listGroupOperations(input.organizationId, group.id) : [];
+    const active = group ? { group, approvals: operations } : null;
+    if (!active) {
+      const awaitingRun = await runs.getRun(input.organizationId, input.runId);
+      if (awaitingRun?.id === input.runId && awaitingRun.status === "awaiting_approval") {
+        throw Object.assign(new Error("approval_group_not_ready"), {
+          statusCode: 409,
+          code: "approval_group_not_ready",
+          detail: "The approval group is still being assembled; retry after it is visible",
+        });
+      }
+    }
+    if (!active || active.group.run_id !== input.runId) {
+      throw Object.assign(new Error("approval_group_not_found"), { statusCode: 404, code: "approval_group_not_found" });
+    }
     const run = await runs.getRun(input.organizationId, input.runId);
     if (!run) throw Object.assign(new Error("run_not_found"), { statusCode: 404, code: "run_not_found" });
-    const approvalRecord = await approvals.getForRun(input.organizationId, input.runId);
-    const recordedDecision = input.decision === "approved" ? ["approved", "consumed"] : ["denied"];
-    if (approvalRecord
-      && approvalRecord.provider_tool_call_id === input.providerToolCallId
-      && approvalRecord.arguments_hash === input.argumentsHash
-      && approvalRecord.installation_id === run.installation_id
-      && recordedDecision.includes(approvalRecord.status)
-      && approvalRecord.approved_by === input.approvedBy) {
-      return { accepted: false, approval: approvalRecord };
+    // A group is bound to the installation that created its proposals. Keep
+    // the mismatch indistinguishable from a missing group so a caller cannot
+    // use a known group id to probe another installation's run state.
+    if (run.installation_id !== active.group.installation_id) {
+      throw Object.assign(new Error("approval_group_not_found"), { statusCode: 404, code: "approval_group_not_found" });
     }
-    if (run.status !== "awaiting_approval") {
-      throw Object.assign(new Error("run_not_awaiting_approval"), { statusCode: 409, code: "run_not_awaiting_approval" });
+    const groupEventPayload = (actor: string, options: {
+      selectedCount?: number;
+      durationMs?: number;
+      errorCode?: string;
+    } = {}): Record<string, unknown> => ({
+      approvalGroupId: active.group.id,
+      runId: active.group.run_id,
+      batchId: active.group.batch_id,
+      planDigest: active.group.plan_digest,
+      policyRevision: active.group.policy_revision,
+      operationCount: operations.length,
+      selectedCount: options.selectedCount ?? active.group.selected_operation_ids.length,
+      actor,
+      ...(options.durationMs !== undefined ? { durationMs: options.durationMs } : {}),
+      ...(options.errorCode ? { errorCode: options.errorCode } : {}),
+    });
+    const groupAgeMs = (): number | undefined => {
+      const createdAt = Date.parse(active.group.created_at);
+      const age = Date.now() - createdAt;
+      return Number.isFinite(createdAt) && age >= 0 ? age : undefined;
+    };
+    const appendDecisionConflict = async (reason: string): Promise<void> => {
+      const outcome = /digest|stale|mismatch|changed/i.test(reason) ? "stale" as const : "conflict" as const;
+      recordApprovalGroupDecision({ outcome, operationCount: operations.length, errorCode: reason });
+      await runs.appendEvent({
+        organizationId: input.organizationId,
+        runId: input.runId,
+        installationId: active.group.installation_id,
+        eventType: "agent.approval.group.decision_conflict",
+        payload: { ...groupEventPayload(input.approvedBy, { errorCode: reason }), reason },
+      });
+    };
+    if (active.group.plan_digest !== input.planDigest) {
+      await appendDecisionConflict("plan_digest_mismatch");
+      throw Object.assign(new Error("approval_group_digest_mismatch"), { statusCode: 409, code: "approval_group_digest_mismatch" });
     }
-    if (!dependencies.signalApproval) {
+    if (input.grantScope === "session" && input.decision !== "approved") {
+      throw Object.assign(new Error("approval_session_grant_requires_approval"), {
+        statusCode: 409,
+        code: "approval_session_grant_requires_approval",
+        detail: "Session approval reuse is available only for approved operations",
+      });
+    }
+    // A decision is durable before the Temporal signal is delivered. Once the
+    // group is no longer pending, a repeated click must return that recorded
+    // decision without re-running capability/policy checks that could have
+    // changed after the original approval. If the Workflow is still waiting,
+    // resend only the same durable command.
+    if (active.group.status !== "pending") {
+      let recordedDecision;
+      try {
+        recordedDecision = await approvals.decideGroup({
+          organizationId: input.organizationId,
+          runId: input.runId,
+          groupId: input.groupId,
+          planDigest: input.planDigest,
+          decision: input.decision,
+          selectedOperationIds: input.selectedOperationIds,
+          approvedBy: input.approvedBy,
+          idempotencyKey: input.idempotencyKey,
+        });
+      } catch (error) {
+        const code = error instanceof Error ? error.message : "approval_group_not_pending";
+        throw Object.assign(new Error(code), { statusCode: code === "APPROVAL_GROUP_NOT_FOUND" ? 404 : 409, code: code.toLowerCase() });
+      }
+      if (!recordedDecision.accepted) {
+        recordApprovalGroupDecision({
+          outcome: "duplicate",
+          operationCount: recordedDecision.approvals.length,
+          selectedCount: recordedDecision.group.selected_operation_ids.length,
+          decisionLatencyMs: performance.now() - decisionStartedAt,
+        });
+      }
+      if (run.status === "awaiting_approval") {
+        if (!dependencies.signalApprovalGroup) {
+          throw Object.assign(new Error("temporal_not_configured"), { statusCode: 503, code: "temporal_not_configured" });
+        }
+        await dependencies.signalApprovalGroup(input.runId, {
+          groupId: recordedDecision.group.id,
+          planDigest: recordedDecision.group.plan_digest,
+          decision: recordedDecision.group.decision ?? "rejected",
+          approvedBy: recordedDecision.group.decided_by ?? input.approvedBy,
+          selectedOperationIds: recordedDecision.group.selected_operation_ids,
+          expiresAt: recordedDecision.group.expires_at,
+        });
+      }
+      return recordedDecision;
+    }
+    if (active.group.status === "pending") {
+      if (run.status !== "awaiting_approval") {
+        throw Object.assign(new Error("run_not_awaiting_approval"), { statusCode: 409, code: "run_not_awaiting_approval" });
+      }
+    }
+    if (!dependencies.signalApprovalGroup) {
       throw Object.assign(new Error("temporal_not_configured"), { statusCode: 503, code: "temporal_not_configured" });
     }
-    if (!approvalRecord || approvalRecord.provider_tool_call_id !== input.providerToolCallId || approvalRecord.arguments_hash !== input.argumentsHash || approvalRecord.installation_id !== run.installation_id) {
-      throw Object.assign(new Error("approval_not_found"), { statusCode: 404, code: "approval_not_found" });
-    }
-    const installation = await agents.getInstallation(input.organizationId, run.installation_id);
+    const installation = await agents.getInstallation(input.organizationId, active.group.installation_id);
     if (!installation || installation.status !== "active") {
       throw Object.assign(new Error("installation_not_active"), { statusCode: 403, code: "installation_not_active" });
     }
-    const proposal = await toolInvocations.getProposal(input.organizationId, input.runId, input.providerToolCallId);
-    if (!proposal || proposal.toolName !== approvalRecord.capability || proposal.toolVersion !== approvalRecord.capability_version || proposal.argumentsHash !== input.argumentsHash) {
-      throw Object.assign(new Error("approval_proposal_mismatch"), { statusCode: 409, code: "approval_proposal_mismatch" });
-    }
     const grantedTools = await toolGrants.effectiveTools(input.organizationId, installation.agent_version_id, installation.id);
-    try {
-      await authorizeInstallationCapability({
-        organizationId: input.organizationId,
-        installationId: installation.id,
-        name: approvalRecord.capability,
-        argumentsValue: proposal.arguments,
-        grantedTools,
-        tools: toolRegistry,
-        installationGrants,
-        approved: false,
-        enforceApproval: false,
-      });
-    } catch (error) {
-      throw Object.assign(new Error("approval_policy_changed"), {
-        statusCode: 403,
-        code: "approval_policy_changed",
-        detail: error instanceof Error ? error.message : "CAPABILITY_NOT_GRANTED",
-      });
+    for (const approval of active.approvals) {
+      const proposal = await toolInvocations.getProposal(input.organizationId, input.runId, approval.provider_tool_call_id, approval.runtime_operation_id);
+      if (!proposal || proposal.toolName !== approval.capability || proposal.toolVersion !== approval.capability_version || proposal.argumentsHash !== approval.arguments_hash) {
+        recordApprovalGroupDecision({ outcome: "stale", operationCount: operations.length, errorCode: "approval_proposal_mismatch" });
+        throw Object.assign(new Error("approval_proposal_mismatch"), { statusCode: 409, code: "approval_proposal_mismatch" });
+      }
+      try {
+        await authorizeInstallationCapability({
+          organizationId: input.organizationId,
+          installationId: installation.id,
+          name: approval.capability,
+          argumentsValue: proposal.arguments,
+          grantedTools,
+          tools: toolRegistry,
+          installationGrants,
+          approved: false,
+          enforceApproval: false,
+        });
+      } catch (error) {
+        recordApprovalGroupDecision({ outcome: "stale", operationCount: operations.length, errorCode: "approval_policy_changed" });
+        throw Object.assign(new Error("approval_policy_changed"), {
+          statusCode: 403,
+          code: "approval_policy_changed",
+          detail: error instanceof Error ? error.message : "CAPABILITY_NOT_GRANTED",
+        });
+      }
+      let currentResourceSnapshot: Record<string, unknown>;
+      try {
+        currentResourceSnapshot = await buildApprovalResourceSnapshotFromCore(coreClient, {
+          ...toolInvocationContextFromScope(executionScopeFromRun(run)),
+          actorId: input.approvedBy,
+        }, approval.capability, proposal.arguments);
+      } catch (error) {
+        await approvals.invalidateGroup(input.organizationId, input.runId, input.groupId, "resource_revalidation_unavailable");
+        await dependencies.signalApprovalGroup?.(input.runId, {
+          groupId: input.groupId,
+          planDigest: active.group.plan_digest,
+          decision: "invalidated",
+          approvedBy: "system",
+          selectedOperationIds: [],
+          expiresAt: active.group.expires_at,
+        });
+        await runs.appendEvent({
+          organizationId: input.organizationId,
+          runId: input.runId,
+          installationId: active.group.installation_id,
+          eventType: "agent.approval.group.invalidated",
+        payload: {
+          ...groupEventPayload("system", { selectedCount: 0, errorCode: "resource_revalidation_unavailable", durationMs: groupAgeMs() }),
+          reason: "resource_revalidation_unavailable",
+        },
+        });
+        recordApprovalGroupLifecycle({ action: "invalidated", operationCount: operations.length, selectedCount: 0, errorCode: "resource_revalidation_unavailable" });
+        throw Object.assign(new Error("approval_group_invalidated"), {
+          statusCode: 409,
+          code: "approval_group_invalidated",
+          detail: error instanceof Error ? error.message : "RESOURCE_REVALIDATION_UNAVAILABLE",
+        });
+      }
+      if (!approvalResourceSnapshotsEqual(approval.resource_snapshot, currentResourceSnapshot)) {
+        await approvals.invalidateGroup(input.organizationId, input.runId, input.groupId, "resource_snapshot_changed");
+        await dependencies.signalApprovalGroup?.(input.runId, {
+          groupId: input.groupId,
+          planDigest: active.group.plan_digest,
+          decision: "invalidated",
+          approvedBy: "system",
+          selectedOperationIds: [],
+          expiresAt: active.group.expires_at,
+        });
+        await runs.appendEvent({
+          organizationId: input.organizationId,
+          runId: input.runId,
+          installationId: active.group.installation_id,
+          eventType: "agent.approval.group.invalidated",
+        payload: {
+          ...groupEventPayload("system", { selectedCount: 0, errorCode: "resource_snapshot_changed", durationMs: groupAgeMs() }),
+          reason: "resource_snapshot_changed",
+        },
+        });
+        recordApprovalGroupLifecycle({ action: "invalidated", operationCount: operations.length, selectedCount: 0, errorCode: "resource_snapshot_changed" });
+        throw Object.assign(new Error("approval_group_invalidated"), {
+          statusCode: 409,
+          code: "approval_group_invalidated",
+          detail: "The reviewed resource changed before approval",
+        });
+      }
     }
     const rateLimit = approvalDecisionRateLimiter.consume(input.rateLimitKey);
     if (!rateLimit.allowed) {
@@ -741,38 +1259,155 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     }
     let decision;
     try {
-      decision = await approvals.decide({
-        decision: input.decision,
-        providerToolCallId: input.providerToolCallId,
-        argumentsHash: input.argumentsHash,
+      const sessionGrant = input.grantScope === "session"
+        ? (() => {
+          if (!run.conversation_id) {
+            throw Object.assign(new Error("approval_session_grant_session_required"), {
+              statusCode: 409,
+              code: "approval_session_grant_session_required",
+              detail: "Session approval reuse requires a conversation-bound run",
+            });
+          }
+          const selectedOperationIds = input.selectedOperationIds ?? active.approvals.map((approval) => approval.runtime_operation_id);
+          const selectedApprovals = selectedOperationIds.map((operationId) => active.approvals.find((approval) => approval.runtime_operation_id === operationId));
+          if (selectedApprovals.some((approval) => !approval)) {
+            throw Object.assign(new Error("approval_group_operation_not_found"), { statusCode: 409, code: "approval_group_operation_not_found" });
+          }
+          const selectedRecords = selectedApprovals.filter((approval): approval is ApprovalRecord => Boolean(approval));
+          if (selectedRecords.some((approval) => !approval.resource_selector)) {
+            throw Object.assign(new Error("approval_session_grant_resource_scope_required"), {
+              statusCode: 409,
+              code: "approval_session_grant_resource_scope_required",
+              detail: "Session approval reuse requires an exact resource selector on every selected operation",
+            });
+          }
+          return {
+            sessionKey: approvalSessionKey(active.group.installation_id, run.conversation_id),
+            conversationId: run.conversation_id,
+            actorId: run.created_by,
+            grantedBy: input.approvedBy,
+            expiresAt: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
+            grants: selectedRecords.map((approval) => ({ operationId: approval.runtime_operation_id, resourceSelector: approval.resource_selector! })),
+          };
+        })()
+        : undefined;
+      decision = await approvals.decideGroup({
         organizationId: input.organizationId,
         runId: input.runId,
+        groupId: input.groupId,
+        planDigest: input.planDigest,
+        decision: input.decision,
+        selectedOperationIds: input.selectedOperationIds,
         approvedBy: input.approvedBy,
+        idempotencyKey: input.idempotencyKey,
+        ...(sessionGrant ? { sessionGrant } : {}),
       });
     } catch (error) {
-      throw Object.assign(new Error("approval_not_pending"), {
-        statusCode: 409,
-        code: "approval_not_pending",
-        detail: error instanceof Error ? error.message : undefined,
-      });
+      const code = error instanceof Error ? error.message : "approval_group_not_pending";
+      if (code === "APPROVAL_GROUP_EXPIRED") {
+        recordApprovalGroupDecision({
+          outcome: "expired",
+          operationCount: operations.length,
+          selectedCount: 0,
+          decisionLatencyMs: performance.now() - decisionStartedAt,
+          errorCode: code,
+        });
+        recordApprovalGroupLifecycle({ action: "expired", operationCount: operations.length, selectedCount: 0, errorCode: code });
+      }
+      if (code !== "APPROVAL_GROUP_EXPIRED") await appendDecisionConflict(code.toLowerCase());
+      const statusCode = code === "APPROVAL_GROUP_EXPIRED" ? 409 : 409;
+      throw Object.assign(new Error(code), { statusCode, code: code.toLowerCase() });
     }
-    const approval = decision.approval;
-    if (!decision.accepted) return { accepted: false, approval };
+    const signalDecision = async (): Promise<void> => {
+      await dependencies.signalApprovalGroup!(input.runId, {
+        groupId: decision.group.id,
+        planDigest: decision.group.plan_digest,
+        decision: decision.group.decision ?? "rejected",
+        approvedBy: decision.group.decided_by ?? input.approvedBy,
+        selectedOperationIds: decision.group.selected_operation_ids,
+        expiresAt: decision.group.expires_at,
+      });
+    };
+    if (!decision.accepted) {
+      // The database decision may commit before the first Temporal signal is
+      // delivered. A retry while the run is still paused must resend the same
+      // durable command without creating another decision or effect.
+      if (run.status === "awaiting_approval") await signalDecision();
+      recordApprovalGroupDecision({
+        outcome: "duplicate",
+        operationCount: decision.approvals.length,
+        selectedCount: decision.group.selected_operation_ids.length,
+        decisionLatencyMs: performance.now() - decisionStartedAt,
+      });
+      return decision;
+    }
+    const waitStartedAt = Date.parse(decision.group.created_at);
+    const waitFinishedAt = decision.group.decided_at ? Date.parse(decision.group.decided_at) : Number.NaN;
+    const waitDurationMs = Number.isFinite(waitStartedAt) && Number.isFinite(waitFinishedAt) && waitFinishedAt >= waitStartedAt
+      ? waitFinishedAt - waitStartedAt
+      : undefined;
+    const decisionOutcome = input.decision === "rejected"
+      ? "rejected" as const
+      : decision.group.status === "partially_approved" ? "partially_approved" as const : "approved" as const;
+    recordApprovalGroupDecision({
+      outcome: decisionOutcome,
+      operationCount: decision.approvals.length,
+      selectedCount: decision.group.selected_operation_ids.length,
+      ...(waitDurationMs !== undefined ? { waitDurationMs } : {}),
+      decisionLatencyMs: performance.now() - decisionStartedAt,
+    });
+    recordApprovalGroupLifecycle({
+      action: decisionOutcome,
+      operationCount: decision.approvals.length,
+      selectedCount: decision.group.selected_operation_ids.length,
+      ...(waitDurationMs !== undefined ? { durationMs: waitDurationMs } : {}),
+    });
     if (input.decision === "rejected") {
-      await effectReceipts.markNotExecuted(input.organizationId, input.runId, input.providerToolCallId, {
+      await Promise.all(active.approvals.map((approval) => effectReceipts.markNotExecuted(input.organizationId, input.runId, approval.provider_tool_call_id, {
         code: "APPROVAL_REJECTED",
         message: "The requested effect was denied before execution",
-      });
+      }, approval.runtime_operation_id)));
     }
-    await dependencies.signalApproval(input.runId, {
-      decision: input.decision,
-      providerToolCallId: input.providerToolCallId,
-      argumentsHash: input.argumentsHash,
-      approvedBy: input.approvedBy,
-      expiresAt: approval.expires_at,
-      resourceSnapshot: approval.resource_snapshot,
+    await runs.appendEvent({
+      organizationId: input.organizationId,
+      runId: input.runId,
+      installationId: decision.group.installation_id,
+      eventType: input.decision === "rejected"
+        ? "agent.approval.group.rejected"
+        : decision.group.status === "partially_approved"
+          ? "agent.approval.group.partially_approved"
+          : "agent.approval.group.approved",
+        payload: {
+          ...groupEventPayload(decision.group.decided_by ?? input.approvedBy, {
+            selectedCount: decision.group.selected_operation_ids.length,
+            durationMs: waitDurationMs,
+          }),
+          selectedOperationIds: decision.group.selected_operation_ids,
+          approvedBy: decision.group.decided_by ?? input.approvedBy,
+          decision: decision.group.decision,
+        },
     });
-    return { accepted: true, approval };
+    await signalDecision();
+    await runs.appendEvent({
+      organizationId: input.organizationId,
+      runId: input.runId,
+      installationId: decision.group.installation_id,
+      eventType: "agent.approval.group.resumed",
+      payload: {
+        ...groupEventPayload(decision.group.decided_by ?? input.approvedBy, {
+          selectedCount: decision.group.selected_operation_ids.length,
+          durationMs: waitDurationMs,
+        }),
+        decision: decision.group.decision,
+        selectedOperationIds: decision.group.selected_operation_ids,
+      },
+    });
+    recordApprovalGroupLifecycle({
+      action: "resumed",
+      operationCount: decision.approvals.length,
+      selectedCount: decision.group.selected_operation_ids.length,
+    });
+    return decision;
   };
 
   /**
@@ -824,6 +1459,86 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       };
     });
     return { installation, grants, capabilities, integrationAvailability: Object.fromEntries(integrationAvailability) };
+  };
+
+  const projectCapabilityCatalog = async (organizationId: string) => {
+    const surfaces = toolRegistry.surfaces();
+    const dependencyMap = await capabilityAccess.getForCapabilities({
+      organizationId,
+      capabilityNames: surfaces.map((surface) => surface.name),
+    });
+    const capabilities = surfaces.map((surface) => {
+      const effectiveAccess = dependencyProjection(dependencyMap.get(surface.name), {
+        // The generic catalog describes organization-level availability. Agent
+        // and installation grants are applied later when a version is bound.
+        granted: true,
+        requiresApproval: surface.requiresApproval,
+        resourceScoped: surface.manifest.resourceSelector !== undefined,
+      }, surface.manifest.availability);
+      return {
+        ...surface,
+        ...effectiveAccess,
+        effectiveAccess,
+        availability: effectiveAccess.available ? "available" : effectiveAccess.reasonCode,
+      };
+    });
+    return {
+      capabilities,
+      directory: toolRegistry.catalog.list(),
+      toolsets: toolRegistry.catalog.listToolsets(),
+    };
+  };
+
+  /**
+   * The Studio directory is a discovery projection, not an activation grant.
+   * It forks the immutable platform registry so organization-owned skills,
+   * packages, and MCP revisions cannot leak into another tenant's catalog or
+   * mutate the execution registry used by active runs.
+   */
+  const projectCapabilityDirectory = async (organizationId: string) => {
+    const catalog = toolRegistry.catalog.fork();
+    const skillDefinitions = await skills.listSkills(organizationId);
+    const skillVersions = (await Promise.all(skillDefinitions.map((definition) => skills.listVersions(organizationId, definition.id))))
+      .flat()
+      .filter((version) => version.status === "published" && version.skill_status !== "revoked");
+    registerSkillSources(catalog, skillVersions.map((version) => ({
+      id: version.id,
+      version: version.version_number,
+      name: version.skill_name ?? version.skill_slug ?? version.id,
+      description: version.skill_name ?? version.skill_slug,
+      checksum: version.checksum,
+      requiredCapabilities: version.required_capabilities,
+      requiredConnectors: version.required_connectors,
+    })));
+
+    const packages = (await extensionSnapshots.listPackages(organizationId)).filter((entry) => entry.status === "published" && entry.kind === "plugin");
+    registerPluginSources(catalog, packages.map((entry) => ({
+      id: entry.package_id,
+      version: entry.version,
+      checksum: entry.checksum,
+      name: entry.name,
+      description: entry.name,
+      permissions: [],
+      capabilityIds: entry.declaration.kind === "plugin" ? entry.declaration.capabilityIds : [],
+    })));
+
+    const providers = await remoteMcpProviders.list(organizationId);
+    const providerVersions = (await Promise.all(providers.map((provider) => remoteMcpProviders.listVersions(organizationId, provider.id))))
+      .flat()
+      .filter((version) => version.status === "published");
+    registerMcpSources(catalog, providerVersions.map((version) => ({
+      id: version.id,
+      providerId: version.provider_id,
+      providerName: version.provider_name ?? version.provider_id,
+      version: version.revision,
+      checksum: version.checksum,
+      protocolVersion: version.protocol_version,
+      tools: version.tools,
+      timeoutMs: version.timeout_ms,
+      credentialConfigured: Boolean(version.credential_reference),
+    })));
+
+    return { directory: catalog.list(), toolsets: catalog.listToolsets() };
   };
 
   const projectAgentVersionConfig = async (input: {
@@ -1181,16 +1896,16 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       try {
         const claims = verifyChannelApprovalActionToken(event.approvalAction.token, dependencies.config.INTERNAL_AUTH_SECRET ?? "");
         decision = claims.decision;
-        const approval = await approvals.getById(connection.organization_id, claims.approvalId);
-        const target = approval ? await channels.getApprovalPromptTarget(approval.run_id) : null;
-        if (!approval || !target || target.channel_type !== "telegram" || target.external_identity !== event.externalIdentity || target.external_conversation_id !== event.externalConversationId || target.channel_connection_id !== connection.id || target.owner_actor_id === null || target.owner_actor_id === undefined) {
+        const group = await approvals.getGroup(connection.organization_id, claims.approvalId);
+        const target = group ? await channels.getApprovalPromptTarget(group.run_id) : null;
+        if (!group || !target || target.channel_type !== "telegram" || target.external_identity !== event.externalIdentity || target.external_conversation_id !== event.externalConversationId || target.channel_connection_id !== connection.id || target.owner_actor_id === null || target.owner_actor_id === undefined) {
           throw new Error("channel_approval_not_authorized");
         }
-        result = await decideApproval({
+        result = await decideApprovalGroup({
           organizationId: connection.organization_id,
-          runId: approval.run_id,
-          providerToolCallId: approval.provider_tool_call_id,
-          argumentsHash: approval.arguments_hash,
+          runId: group.run_id,
+          groupId: group.id,
+          planDigest: group.plan_digest,
           decision: claims.decision,
           approvedBy: target.owner_actor_id,
           rateLimitKey: `${connection.organization_id}:channel:${target.owner_actor_id}`,
@@ -1399,16 +2114,16 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       try {
         const claims = verifyChannelApprovalActionToken(event.approvalAction.token, dependencies.config.INTERNAL_AUTH_SECRET ?? "");
         decision = claims.decision;
-        const approval = await approvals.getById(connection.organization_id, claims.approvalId);
-        const target = approval ? await channels.getApprovalPromptTarget(approval.run_id) : null;
-        if (!approval || !target || target.channel_type !== "discord" || target.external_identity !== event.externalIdentity || target.external_conversation_id !== event.externalConversationId || target.channel_connection_id !== connection.id || target.owner_actor_id === null || target.owner_actor_id === undefined) {
+        const group = await approvals.getGroup(connection.organization_id, claims.approvalId);
+        const target = group ? await channels.getApprovalPromptTarget(group.run_id) : null;
+        if (!group || !target || target.channel_type !== "discord" || target.external_identity !== event.externalIdentity || target.external_conversation_id !== event.externalConversationId || target.channel_connection_id !== connection.id || target.owner_actor_id === null || target.owner_actor_id === undefined) {
           throw new Error("channel_approval_not_authorized");
         }
-        result = await decideApproval({
+        result = await decideApprovalGroup({
           organizationId: connection.organization_id,
-          runId: approval.run_id,
-          providerToolCallId: approval.provider_tool_call_id,
-          argumentsHash: approval.arguments_hash,
+          runId: group.run_id,
+          groupId: group.id,
+          planDigest: group.plan_digest,
           decision: claims.decision,
           approvedBy: target.owner_actor_id,
           rateLimitKey: `${connection.organization_id}:channel:${target.owner_actor_id}`,
@@ -1933,7 +2648,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       actorId: auth.actorId,
       idempotencyKey: headerValue(request, "idempotency-key"),
       command,
-      dependencies: { pool: dependencies.pool, runs, effectReceipts, runBudgets, killSwitches, controls, retention, audioTranscriptionJobs, coreClient, agents, installationCredentials, schedules, channels, memory, startWorkflow: dependencies.startWorkflow, signalCancellation: dependencies.signalCancellation },
+      dependencies: { pool: dependencies.pool, runs, effectReceipts, runBudgets, killSwitches, controls, retention, memoryRetention, audioTranscriptionJobs, coreClient, agents, installationCredentials, schedules, channels, memoryDeletionJobs, memoryRevisionCommands, startWorkflow: dependencies.startWorkflow, signalCancellation: dependencies.signalCancellation },
     });
     return reply.code(result.replayed ? 200 : result.command.status === "awaiting_approval" ? 202 : 201).send(result.command);
   });
@@ -1947,7 +2662,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
   app.post<{ Params: { commandId: string } }>("/v1/operator/commands/:commandId/approve", async (request) => {
     const auth = requireAuth(request, dependencies.config);
     requireOperatorScope(auth, dependencies.config, "operator:write");
-    return approveOperatorCommand({ actorId: auth.actorId, commandId: request.params.commandId, dependencies: { pool: dependencies.pool, runs, effectReceipts, runBudgets, killSwitches, controls, retention, audioTranscriptionJobs, coreClient, agents, installationCredentials, schedules, channels, memory, startWorkflow: dependencies.startWorkflow, signalCancellation: dependencies.signalCancellation } });
+    return approveOperatorCommand({ actorId: auth.actorId, commandId: request.params.commandId, dependencies: { pool: dependencies.pool, runs, effectReceipts, runBudgets, killSwitches, controls, retention, memoryRetention, audioTranscriptionJobs, coreClient, agents, installationCredentials, schedules, channels, memoryDeletionJobs, memoryRevisionCommands, startWorkflow: dependencies.startWorkflow, signalCancellation: dependencies.signalCancellation } });
   });
 
   app.get<{ Params: { projectionKey: string } }>("/v1/operator/projections/:projectionKey", async (request) => {
@@ -2218,14 +2933,14 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       if (!runId) return failure(-32602, "runId is required");
       const run = await runs.getRun(auth.organizationId, runId);
       if (!run || run.installation_id !== auth.installationId) return failure(-32004, "operation_not_found");
-      const approval = await approvals.getForRun(auth.organizationId, run.id);
+      const approvalGroup = await approvals.getActiveGroup(auth.organizationId, run.id);
       return respond({
         content: [{ type: "text", text: `Operation ${run.id} is ${run.status}.` }],
         structuredContent: {
           runId: run.id,
           status: run.status,
           terminal: ["completed", "failed", "cancelled", "expired"].includes(run.status),
-          approval: publicApprovalStatus(approval),
+          approvalGroup: publicApprovalGroup(approvalGroup?.group ?? null, approvalGroup?.approvals ?? []),
         },
       });
     }
@@ -2417,11 +3132,16 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     requireApiScope(auth, "api:read");
     const run = await runs.getRun(auth.organizationId, request.params.runId);
     if (!run || run.installation_id !== auth.installationId) return reply.code(404).send({ error: "operation_not_found" });
-    const [events, approval] = await Promise.all([
+    const [events, approvalGroup] = await Promise.all([
       runs.listEvents(auth.organizationId, run.id),
-      approvals.getForRun(auth.organizationId, run.id),
+      approvals.getActiveGroup(auth.organizationId, run.id),
     ]);
-    return { operationId: run.id, run, approval: publicApprovalStatus(approval), events: events.map(toPublicEvent) };
+    return {
+      operationId: run.id,
+      run,
+      approvalGroup: publicApprovalGroup(approvalGroup?.group ?? null, approvalGroup?.approvals ?? []),
+      events: events.map(toPublicEvent),
+    };
   });
 
   app.get<{ Params: { installationId: string; runId: string }; Querystring: { after?: string } }>("/v1/installations/:installationId/operations/:runId/events", async (request, reply) => {
@@ -2459,6 +3179,56 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     const input = createAgentInputSchema.parse(request.body);
     const agent = await agents.createAgent(auth.organizationId, auth.actorId, input);
     return reply.code(201).send(agent);
+  });
+
+  app.post<{ Params: { agentId: string } }>("/v1/agents/:agentId/playground/ensure", async (request, reply) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:write");
+    const installation = await agents.ensurePlaygroundInstallation(auth.organizationId, auth.actorId, request.params.agentId);
+    return reply.send(installation);
+  });
+
+  app.post("/v1/studio/agents", async (request, reply) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:write");
+    const input = studioAgentCreationInputSchema.parse(request.body);
+    const spec = agentSpecSchema.parse({
+      specVersion: 1,
+      execution: { mode: "autonomous", role: "standalone" },
+      identity: {
+        displayName: input.name,
+        purpose: input.description,
+        audience: "personal",
+      },
+      behavior: { instructions: input.instructions },
+      model: {
+        version: "studio-autonomous-v1",
+        primary: {
+          provider: dependencies.config.KASIAI_MODEL_PROVIDER,
+          model: dependencies.config.KASIAI_MODEL,
+        },
+        fallback: [],
+        allowUserFundedFallbackToKasiTek: false,
+      },
+      runtime: {
+        maxContextMessages: 24,
+        maxIterations: 8,
+        maxModelCalls: 8,
+        maxToolCalls: 12,
+        maxTotalTokens: 24_000,
+        maxWallTimeMs: 120_000,
+      },
+      capabilities: { allowedTools: [], requiredCapabilities: [] },
+      knowledge: { sourceIds: [], requiredConnections: [] },
+      memory: { mode: "explicit" },
+      skills: { allowedSkillIds: [] },
+      extensions: { packages: [], grants: [] },
+      workflow: {},
+      channels: { allowed: ["platform"] },
+      release: { mode: "pinned" },
+    });
+    const created = await agents.createStudioAgent(auth.organizationId, auth.actorId, input, compileAgentSpec(spec));
+    return reply.code(201).send(created);
   });
 
   app.patch<{ Params: { agentId: string } }>("/v1/agents/:agentId", async (request, reply) => {
@@ -2509,16 +3279,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
   app.get("/v1/external-agents/catalog", async (request) => {
     const auth = requireAuth(request, dependencies.config);
     requireScope(auth, dependencies.config, "agents:read");
-    const surfaces = toolRegistry.surfaces();
-    const dependencyMap = await capabilityAccess.getForCapabilities({ organizationId: auth.organizationId, capabilityNames: surfaces.map((surface) => surface.name) });
-    const capabilities = surfaces.map((surface) => {
-      const effectiveAccess = dependencyProjection(dependencyMap.get(surface.name), {
-        granted: true,
-        requiresApproval: surface.requiresApproval,
-        resourceScoped: surface.manifest.resourceSelector !== undefined,
-      }, surface.manifest.availability);
-      return { ...surface, ...effectiveAccess, effectiveAccess, availability: effectiveAccess.available ? "available" : effectiveAccess.reasonCode };
-    });
+    const { capabilities } = await projectCapabilityCatalog(auth.organizationId);
     return {
       capabilities,
       connectors: connectorRegistry.list().map((connector) => ({
@@ -2532,6 +3293,18 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
         supportsReconciliation: connector.supportsReconciliation,
       })),
     };
+  });
+
+  app.get("/v1/capabilities", async (request) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:read");
+    return projectCapabilityCatalog(auth.organizationId);
+  });
+
+  app.get("/v1/capabilities/directory", async (request) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:read");
+    return projectCapabilityDirectory(auth.organizationId);
   });
 
   app.get("/v1/models/catalog", async (request) => {
@@ -2627,11 +3400,14 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     return reply.send(updated);
   });
 
-  app.get("/v1/agents", async (request) => {
+  app.get<{ Querystring: { environment?: string } }>("/v1/agents", async (request) => {
     const auth = requireAuth(request, dependencies.config);
     requireScope(auth, dependencies.config, "agents:read");
-    const listedAgents = await agents.listAgents(auth.organizationId);
-    const counts = typeof agents.countAgentsByAudience === "function"
+    const environment = request.query.environment
+      ? z.enum(["playground", "live"]).parse(request.query.environment)
+      : undefined;
+    const listedAgents = await agents.listAgents(auth.organizationId, { environment });
+    const counts = !environment && typeof agents.countAgentsByAudience === "function"
       ? await agents.countAgentsByAudience(auth.organizationId)
       : listedAgents.reduce(
         (summary, agent) => {
@@ -2653,10 +3429,71 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     return { templates: listAgentTemplates(audience) };
   });
 
+  app.post<{ Params: { installationId: string; catalogId: string }; Body: { agentVersionId?: string } }>("/v1/installations/:installationId/skills/catalog/:catalogId/install", async (request, reply) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:write");
+    const installation = await agents.getInstallation(auth.organizationId, request.params.installationId);
+    if (!installation) return reply.code(404).send({ error: "installation_not_found" });
+    requirePlaygroundInstallation(installation);
+    const entry = getReviewedSkillCatalogEntry(request.params.catalogId);
+    if (!entry) return reply.code(404).send({ error: "skill_catalog_entry_not_found" });
+    const input = z.object({ agentVersionId: z.string().uuid().optional() }).strict().parse(request.body ?? {});
+    let definition = await skills.getByCatalogId(auth.organizationId, entry.id);
+    let version = definition ? (await skills.listVersions(auth.organizationId, definition.id)).find((candidate) => candidate.status === "published") : undefined;
+    if (!definition || !version) {
+      try {
+        const instructions = await fetchHermesSkillInstructions(entry.rawUrl);
+        definition = await skills.createSkill(auth.organizationId, auth.actorId, {
+          slug: hermesSkillSlug(entry.slug),
+          name: entry.name,
+          description: entry.description,
+          ownerType: "organization",
+          catalogId: entry.id,
+        });
+        const created = await skills.createVersion(auth.organizationId, auth.actorId, definition.id, {
+          instructions,
+          matching: { keywords: [entry.name, ...entry.tags].slice(0, 50), phrases: [], channels: [], audiences: [] },
+          requiredCapabilities: [],
+          requiredConnectors: [],
+          knowledgeSourceIds: [],
+          compatibleChannels: [],
+          compatibleAudiences: [],
+        });
+        version = await skills.publishVersion(auth.organizationId, auth.actorId, definition.id, created.id);
+      } catch (error) {
+        request.log.warn({ event: "hermes_skill.install_failed", catalog_id: entry.id, error_code: error instanceof Error ? error.message : "unknown" }, "Hermes skill installation failed");
+        return reply.code(502).send({ error: "skill_catalog_install_failed" });
+      }
+    }
+    if (!version) return reply.code(502).send({ error: "skill_catalog_version_missing" });
+    await agents.activatePlaygroundExtension({
+      organizationId: auth.organizationId,
+      actorId: auth.actorId,
+      installationId: installation.id,
+      ...(input.agentVersionId ? { agentVersionId: input.agentVersionId } : {}),
+      extension: { kind: "skill", skillVersionId: version.id },
+    });
+    const pinned = true;
+    return reply.code(201).send({ skill: definition, version, pinned });
+  });
+
   app.get("/v1/skills", async (request) => {
     const auth = requireAuth(request, dependencies.config);
     requireScope(auth, dependencies.config, "agents:read");
     return { skills: await skills.listSkills(auth.organizationId) };
+  });
+
+  app.get<{ Querystring: { kind?: string } }>("/v1/extensions/packages", async (request) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:read");
+    const kind = request.query.kind;
+    if (kind && !(["skill", "plugin", "connector", "mcp_capability"] as ExtensionKind[]).includes(kind as ExtensionKind)) {
+      throw Object.assign(new Error("Invalid extension package kind"), { statusCode: 400, code: "extension_package_kind_invalid" });
+    }
+    return {
+      packages: (await extensionSnapshots.listPackages(auth.organizationId, kind as ExtensionKind | undefined))
+        .filter((entry) => entry.status === "published"),
+    };
   });
 
   app.post("/v1/skills", async (request, reply) => {
@@ -2688,7 +3525,12 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
   app.post<{ Params: { agentVersionId: string; skillVersionId: string } }>("/v1/agent-versions/:agentVersionId/skills/:skillVersionId", async (request, reply) => {
     const auth = requireAuth(request, dependencies.config);
     requireScope(auth, dependencies.config, "agents:write");
-    await skills.pinVersion(auth.organizationId, auth.actorId, request.params.agentVersionId, request.params.skillVersionId);
+    await agents.activatePlaygroundExtension({
+      organizationId: auth.organizationId,
+      actorId: auth.actorId,
+      agentVersionId: request.params.agentVersionId,
+      extension: { kind: "skill", skillVersionId: request.params.skillVersionId },
+    });
     return reply.code(204).send();
   });
 
@@ -2708,7 +3550,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
   app.get("/v1/mcp/providers", async (request) => {
     const auth = requireAuth(request, dependencies.config);
     requireScope(auth, dependencies.config, "agents:read");
-    return { providers: await remoteMcpProviders.list(auth.organizationId) };
+    return { providers: (await remoteMcpProviders.list(auth.organizationId)).filter(isCustomRemoteMcpProvider) };
   });
 
   app.post("/v1/mcp/providers", async (request, reply) => {
@@ -2762,7 +3604,12 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
   app.post<{ Params: { agentVersionId: string; providerVersionId: string } }>("/v1/agent-versions/:agentVersionId/mcp-providers/:providerVersionId", async (request, reply) => {
     const auth = requireAuth(request, dependencies.config);
     requireScope(auth, dependencies.config, "agents:write");
-    await remoteMcpProviders.pin(auth.organizationId, auth.actorId, request.params.agentVersionId, request.params.providerVersionId);
+    await agents.activatePlaygroundExtension({
+      organizationId: auth.organizationId,
+      actorId: auth.actorId,
+      agentVersionId: request.params.agentVersionId,
+      extension: { kind: "mcp", providerVersionId: request.params.providerVersionId },
+    });
     return reply.code(204).send();
   });
 
@@ -2966,15 +3813,42 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     return agents.deployInstallation(auth.organizationId, auth.actorId, request.params.installationId, input);
   });
 
-  app.post<{ Params: { agentId: string; versionId: string } }>(
-    "/v1/agents/:agentId/versions/:versionId/deploy",
-    async (request) => {
-      const auth = requireAuth(request, dependencies.config);
-      requireScope(auth, dependencies.config, "agents:write");
-      const input = deployStagedVersionInputSchema.parse(request.body);
-      return agents.deployStagedVersion(auth.organizationId, auth.actorId, request.params.agentId, request.params.versionId, input);
-    },
-  );
+  app.get<{ Params: { agentId: string } }>("/v1/agents/:agentId/deployment-status", async (request, reply) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:read");
+    const status = await agents.getDeploymentStatus(auth.organizationId, request.params.agentId);
+    if (!status) return reply.code(404).send({ error: "agent_not_found" });
+    return status;
+  });
+
+  app.post<{ Params: { installationId: string } }>("/v1/installations/:installationId/preflight", async (request) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:read");
+    const input = installationDeploymentPreflightInputSchema.parse(request.body);
+    return agents.preflightInstallationDeployment(auth.organizationId, request.params.installationId, input);
+  });
+
+  app.post<{ Params: { installationId: string } }>("/v1/installations/:installationId/promote", async (request, reply) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:write");
+    const input = installationPromotionInputSchema.parse(request.body);
+    try {
+      return await agents.promoteInstallation(auth.organizationId, auth.actorId, request.params.installationId, input);
+    } catch (error) {
+      const typed = error as { statusCode?: number; code?: string; preflight?: unknown };
+      if (typed.code === "PROMOTION_PREFLIGHT_BLOCKED" && typed.preflight) {
+        return reply.code(409).send({ error: typed.code, code: typed.code, preflight: typed.preflight });
+      }
+      throw error;
+    }
+  });
+
+  app.post<{ Params: { installationId: string } }>("/v1/installations/:installationId/rollback", async (request) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:write");
+    const input = installationRollbackInputSchema.parse(request.body ?? {});
+    return agents.rollbackInstallation(auth.organizationId, auth.actorId, request.params.installationId, input);
+  });
 
   app.get<{ Params: { installationId: string } }>("/v1/installations/:installationId/readiness", async (request, reply) => {
     const auth = requireAuth(request, dependencies.config);
@@ -3098,44 +3972,426 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     return { integrations: listIntegrations() };
   });
 
-  app.get<{ Params: { installationId: string } }>("/v1/installations/:installationId/integrations/google.calendar/oauth/start", async (request, reply) => {
+  app.get<{ Params: { installationId: string } }>("/v1/installations/:installationId/connection-directory", async (request, reply) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:read");
+    const installation = await agents.getInstallation(auth.organizationId, request.params.installationId);
+    if (!installation) return reply.code(404).send({ error: "installation_not_found" });
+    const [connections, providers] = await Promise.all([
+      integrationRepository.listConnections(auth.organizationId, installation.id),
+      remoteMcpProviders.list(auth.organizationId),
+    ]);
+    const nativeById = new Map(connections.map((connection) => [connection.integration_id, connection]));
+    const providerByCatalogId = new Map(providers.filter((provider) => provider.catalog_id).map((provider) => [provider.catalog_id!, provider]));
+    return {
+      installationId: installation.id,
+      connections: listConnectionDirectory().map((entry) => {
+        if (entry.kind === "native") {
+          const connection = nativeById.get(entry.id);
+          const ready = entry.auth === "internal";
+          const status = ready ? "ready" as const : connection?.status === "connected" ? "connected" as const : connection?.status === "unhealthy" ? "unhealthy" as const : "not_configured" as const;
+          return { ...entry, configured: ready || Boolean(connection), status, connectionId: connection?.id ?? null };
+        }
+        const provider = providerByCatalogId.get(entry.id);
+        const status = !entry.managed
+          ? "unsupported" as const
+          : provider?.health_status === "unhealthy"
+            ? "unhealthy" as const
+            : provider
+              ? "connected" as const
+              : "not_configured" as const;
+        return { ...entry, configured: Boolean(provider), status, providerId: provider?.id ?? null };
+      }),
+    };
+  });
+
+  app.get<{ Querystring: { agentVersionId?: string } }>("/v1/skills/directory", async (request) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:read");
+    const definitions = await skills.listSkills(auth.organizationId);
+    const installed = new Map(definitions.filter((definition) => definition.catalog_id).map((definition) => [definition.catalog_id!, definition]));
+    const pinned = request.query.agentVersionId
+      ? new Set((await skills.loadPinnedVersions(auth.organizationId, request.query.agentVersionId)).map((version) => version.id))
+      : new Set<string>();
+    const entries = await Promise.all(listSkillDirectory().map(async (entry) => {
+      const definition = installed.get(entry.id);
+      const versions = definition ? await skills.listVersions(auth.organizationId, definition.id) : [];
+      const version = versions.find((candidate) => candidate.status === "published") ?? versions[0];
+      return { ...entry, installed: Boolean(definition), skillId: definition?.id ?? null, versionId: version?.id ?? null, enabled: Boolean(version && pinned.has(version.id)) };
+    }));
+    return { skills: entries };
+  });
+
+  app.get<{ Querystring: { agentVersionId?: string; installationId?: string } }>("/v1/plugins/directory", async (request, reply) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:read");
+    if (request.query.installationId && !await agents.getInstallation(auth.organizationId, request.query.installationId)) {
+      return reply.code(404).send({ error: "installation_not_found" });
+    }
+    const packages = (await extensionSnapshots.listPackages(auth.organizationId, "plugin"))
+      .filter((entry) => entry.status === "published" || entry.status === "deprecated");
+    const installed = new Map(packages.map((entry) => [`${entry.package_id}:${entry.version}`, entry]));
+    return {
+      plugins: await Promise.all(listPluginDirectory().map(async (entry) => {
+        const packageRecord = installed.get(`${entry.id}:${entry.version}`);
+        return {
+          ...entry,
+          installed: Boolean(packageRecord),
+          packageId: packageRecord?.package_id ?? null,
+          packageVersionId: packageRecord?.id ?? null,
+          packageStatus: packageRecord?.status ?? null,
+          ...(request.query.installationId ? { readiness: await pluginReadiness(auth.organizationId, entry, request.query.installationId) } : {}),
+        };
+      })),
+    };
+  });
+
+  app.post<{ Params: { installationId: string; catalogId: string } }>("/v1/installations/:installationId/plugins/catalog/:catalogId/install", async (request, reply) => {
     const auth = requireAuth(request, dependencies.config);
     requireScope(auth, dependencies.config, "agents:write");
     const installation = await agents.getInstallation(auth.organizationId, request.params.installationId);
     if (!installation) return reply.code(404).send({ error: "installation_not_found" });
-    const clientId = dependencies.config.GOOGLE_CALENDAR_CLIENT_ID;
-    const redirectUri = dependencies.config.GOOGLE_CALENDAR_REDIRECT_URI;
-    if (!clientId || !dependencies.config.GOOGLE_CALENDAR_CLIENT_SECRET || !redirectUri) return reply.code(503).send({ error: "google_calendar_oauth_not_configured" });
+    requirePlaygroundInstallation(installation);
+    const entry = getReviewedPluginCatalogEntry(request.params.catalogId);
+    if (!entry) return reply.code(404).send({ error: "plugin_catalog_entry_not_found" });
+    const adapter = getPluginAdapter(entry);
+    if (!adapter) return reply.code(409).send({ error: "plugin_adapter_unavailable" });
+    const adapterStatus = getReviewedPluginAdapterStatus(entry);
+    const packageInput = {
+      declaration: {
+        kind: "plugin" as const,
+        id: entry.id,
+        version: entry.version,
+        checksum: entry.checksum,
+        name: entry.name,
+        available: true,
+        installed: true,
+        configured: true,
+        capabilityIds: getReviewedPluginAdapterCapabilityIds(entry),
+      },
+      compatibility: {
+        constraints: {
+          source: "reviewed-catalog",
+          sourceUrl: entry.sourceUrl,
+          adapterStatus,
+          adapterProtocolVersion: adapter.identity.protocolVersion,
+          adapterExecutionMode: adapter.executionMode,
+          adapterConnectorIds: getReviewedPluginAdapterConnectorIds(entry),
+          requiredCredentialRefs: adapter.requiredCredentialRefs,
+          requiredEnv: entry.requiredEnv,
+          providedProviders: entry.providedProviders,
+          hooks: entry.hooks,
+          platforms: entry.platforms,
+        },
+      },
+    };
+    try {
+      const existing = (await extensionSnapshots.listPackages(auth.organizationId, "plugin"))
+        .find((candidate) => candidate.package_id === entry.id && candidate.version === entry.version);
+      const pkg = existing ?? await extensionSnapshots.createPackage(auth.organizationId, auth.actorId, packageInput);
+      const published = pkg.status === "draft" ? await extensionSnapshots.publishPackage(auth.organizationId, auth.actorId, pkg.id) : pkg;
+      const candidate = await agents.activatePlaygroundExtension({
+        organizationId: auth.organizationId,
+        actorId: auth.actorId,
+        installationId: installation.id,
+        agentVersionId: installation.agent_version_id,
+        extension: {
+          kind: "plugin",
+          package: {
+            id: published.package_id,
+            version: published.version,
+            checksum: published.checksum,
+            configuration: {},
+          },
+        },
+      });
+      return reply.code(existing ? 200 : 201).send({ plugin: entry, package: published, installationId: installation.id, ...(candidate ? { candidate: candidate.version } : {}) });
+    } catch (error) {
+      request.log.warn({ event: "hermes_plugin.install_failed", catalog_id: entry.id, error_code: error instanceof Error ? error.message : "unknown" }, "Hermes plugin install failed");
+      return reply.code(502).send({ error: "plugin_catalog_install_failed" });
+    }
+  });
+
+  app.get<{ Params: { installationId: string; integrationId: string } }>("/v1/installations/:installationId/integrations/:integrationId/oauth/start", async (request, reply) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:write");
+    const installation = await agents.getInstallation(auth.organizationId, request.params.installationId);
+    if (!installation) return reply.code(404).send({ error: "installation_not_found" });
+    requirePlaygroundInstallation(installation);
+    const entry = getIntegration(request.params.integrationId);
+    if (!entry || entry.kind !== "tool" || entry.auth !== "oauth2" || !entry.oauthProvider || entry.requiredScopes.length === 0) {
+      return reply.code(400).send({ error: "oauth_integration_not_supported", code: "oauth_integration_not_supported" });
+    }
+    const oauthProvider = entry.oauthProvider;
+    const clientId = oauthProvider === "microsoft" ? dependencies.config.MICROSOFT_OAUTH_CLIENT_ID : dependencies.config.GOOGLE_OAUTH_CLIENT_ID;
+    const clientSecret = oauthProvider === "microsoft" ? dependencies.config.MICROSOFT_OAUTH_CLIENT_SECRET : dependencies.config.GOOGLE_OAUTH_CLIENT_SECRET;
+    const redirectUri = oauthProvider === "microsoft" ? dependencies.config.MICROSOFT_OAUTH_REDIRECT_URI : dependencies.config.GOOGLE_OAUTH_REDIRECT_URI;
+    if (!clientId || !clientSecret || !redirectUri) {
+      return reply.code(503).send({ error: `${oauthProvider}_oauth_not_configured`, code: `${oauthProvider}_oauth_not_configured` });
+    }
     const state = randomBytes(32).toString("base64url");
-    await integrationRepository.createOAuthState({ organizationId: auth.organizationId, installationId: installation.id, integrationId: "google.calendar", stateHash: createHash("sha256").update(state).digest("hex"), redirectUri, createdBy: auth.actorId, expiresAt: new Date(Date.now() + 10 * 60_000).toISOString() });
-    const authorizationUrl = new URL("https://accounts.google.com/o/oauth2/v2/auth");
-    authorizationUrl.search = new URLSearchParams({ client_id: clientId, redirect_uri: redirectUri, response_type: "code", access_type: "offline", prompt: "consent", scope: "https://www.googleapis.com/auth/calendar.events", state }).toString();
+    await integrationRepository.createOAuthState({ organizationId: auth.organizationId, installationId: installation.id, integrationId: entry.id, stateHash: createHash("sha256").update(state).digest("hex"), redirectUri, createdBy: auth.actorId, expiresAt: new Date(Date.now() + 10 * 60_000).toISOString(), flow: "native" });
+    const authorizationUrl = new URL(oauthProvider === "microsoft" ? "https://login.microsoftonline.com/common/oauth2/v2.0/authorize" : "https://accounts.google.com/o/oauth2/v2/auth");
+    authorizationUrl.search = new URLSearchParams({ client_id: clientId, redirect_uri: redirectUri, response_type: "code", ...(oauthProvider === "microsoft" ? { response_mode: "query" } : { access_type: "offline", prompt: "consent", include_granted_scopes: "true" }), scope: entry.requiredScopes.join(" "), state }).toString();
     return { authorizationUrl: authorizationUrl.toString() };
   });
 
-  app.get<{ Querystring: { code?: string; state?: string; error?: string } }>("/v1/integrations/google.calendar/oauth/callback", async (request, reply) => {
+  app.post<{ Params: { installationId: string; catalogId: string }; Body: { agentVersionId?: string; apiKey?: string } }>("/v1/installations/:installationId/mcp/catalog/:catalogId/connect", async (request, reply) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:write");
+    const installation = await agents.getInstallation(auth.organizationId, request.params.installationId);
+    if (!installation) return reply.code(404).send({ error: "installation_not_found" });
+    requirePlaygroundInstallation(installation);
+    const entry = getReviewedMcpCatalogEntry(request.params.catalogId);
+    if (!entry || !entry.managed || !entry.endpointUrl) return reply.code(400).send({ error: "mcp_catalog_entry_not_connectable" });
+    const authMode = entry.auth as string;
+    if (authMode === "oauth") return reply.code(400).send({ error: "mcp_catalog_entry_requires_oauth" });
+    const input = z.object({ agentVersionId: z.string().uuid().optional(), apiKey: z.string().trim().min(1).max(4_000).optional() }).strict().parse(request.body ?? {});
+    if (authMode === "api_key" && !input.apiKey) return reply.code(400).send({ error: "mcp_api_key_required" });
+    if (authMode === "none" && input.apiKey) return reply.code(400).send({ error: "mcp_api_key_not_expected" });
+    let credentialId: string | null = null;
+    try {
+      if (input.apiKey) {
+        const credential = await integrationRepository.storeCredential({ organizationId: auth.organizationId, integrationId: entry.id, secret: input.apiKey, label: `${entry.name} MCP`, actorId: auth.actorId });
+        credentialId = credential.id;
+      }
+      const activated = await activateHermesMcp({ organizationId: auth.organizationId, actorId: auth.actorId, catalogId: entry.id, credentialReference: credentialId, agentVersionId: input.agentVersionId ?? installation.agent_version_id, installationId: installation.id });
+      return reply.code(201).send(activated);
+    } catch (error) {
+      if (credentialId) await integrationRepository.revokeCredential(auth.organizationId, credentialId).catch(() => undefined);
+      request.log.warn({ event: "hermes_mcp.catalog_connect_failed", catalog_id: entry.id, error_code: error instanceof Error ? error.message : "unknown" }, "Hermes MCP catalogue connection failed");
+      return reply.code(502).send({ error: "mcp_catalog_connection_failed" });
+    }
+  });
+
+  app.post<{ Params: { installationId: string; catalogId: string }; Body: { agentVersionId?: string; clientId?: string; clientSecret?: string } }>("/v1/installations/:installationId/mcp/catalog/:catalogId/oauth/start", async (request, reply) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:write");
+    const installation = await agents.getInstallation(auth.organizationId, request.params.installationId);
+    if (!installation) return reply.code(404).send({ error: "installation_not_found" });
+    requirePlaygroundInstallation(installation);
+    const entry = getReviewedMcpCatalogEntry(request.params.catalogId);
+    if (!entry || !entry.managed || entry.auth !== "oauth" || !entry.endpointUrl) return reply.code(400).send({ error: "mcp_catalog_entry_not_oauth" });
+    const redirectUri = dependencies.config.MCP_OAUTH_REDIRECT_URI;
+    if (!redirectUri) return reply.code(503).send({ error: "mcp_oauth_not_configured", code: "mcp_oauth_not_configured" });
+    const input = z.object({
+      agentVersionId: z.string().uuid().optional(),
+      clientId: z.string().trim().min(1).max(500).optional(),
+      clientSecret: z.string().trim().min(1).max(2_000).optional(),
+    }).strict().parse(request.body ?? {});
+    if (!input.clientId && input.clientSecret) return reply.code(400).send({ error: "mcp_oauth_client_id_required" });
+    try {
+      const discovery = await discoverMcpOAuth({ endpointUrl: entry.endpointUrl, environment: dependencies.config.NODE_ENV });
+      const client = input.clientId
+        ? {
+          clientId: input.clientId,
+          clientSecret: input.clientSecret,
+          authorizationEndpoint: discovery.authorizationEndpoint,
+          tokenEndpoint: discovery.tokenEndpoint,
+          resource: discovery.resource,
+          scope: discovery.scopesSupported.length ? discovery.scopesSupported.join(" ") : undefined,
+        }
+        : await registerMcpOAuthClient({ discovery, redirectUri, clientName: dependencies.config.MCP_OAUTH_CLIENT_NAME, environment: dependencies.config.NODE_ENV });
+      const pkce = createPkcePair();
+      await integrationRepository.createOAuthState({ organizationId: auth.organizationId, installationId: installation.id, integrationId: entry.id, stateHash: createHash("sha256").update(pkce.state).digest("hex"), redirectUri, createdBy: auth.actorId, expiresAt: new Date(Date.now() + 10 * 60_000).toISOString(), flow: "mcp", codeVerifier: pkce.codeVerifier, clientId: client.clientId, clientSecret: client.clientSecret, resource: client.resource, authorizationEndpoint: client.authorizationEndpoint, tokenEndpoint: client.tokenEndpoint, agentVersionId: input.agentVersionId });
+      return { authorizationUrl: buildMcpAuthorizationUrl({ client, redirectUri, state: pkce.state, codeChallenge: pkce.codeChallenge }) };
+    } catch (error) {
+      const providerError = error instanceof Error ? error.message : "unknown";
+      request.log.warn({ event: "hermes_mcp.oauth_start_failed", catalog_id: entry.id, error_code: providerError }, "Hermes MCP OAuth start failed");
+      const code = providerError === "MCP_OAUTH_CLIENT_REGISTRATION_UNSUPPORTED"
+        ? "mcp_oauth_client_registration_unsupported"
+        : providerError === "MCP_OAUTH_CLIENT_REGISTRATION_FAILED"
+          ? "mcp_oauth_client_registration_failed"
+          : providerError.startsWith("MCP_OAUTH_")
+            ? "mcp_oauth_provider_unavailable"
+          : "mcp_oauth_start_failed";
+      const statusCode = code === "mcp_oauth_client_registration_unsupported" ? 409 : 502;
+      return reply.code(statusCode).send({ error: code, code });
+    }
+  });
+
+  const handleNativeOAuthCallback = async (request: { params: { provider: string }; query: { code?: string; state?: string; error?: string } ; headers: Record<string, string | string[] | undefined> }, reply: any) => {
     const state = request.query.state;
     if (!state) return reply.code(400).send({ error: "oauth_state_missing" });
     const stateRecord = await integrationRepository.consumeOAuthState(createHash("sha256").update(state).digest("hex"));
-    if (!stateRecord) return reply.code(400).send({ error: "oauth_state_invalid_or_expired" });
-    if (request.query.error || !request.query.code) return reply.code(400).send({ error: request.query.error ?? "oauth_code_missing" });
-    const clientId = dependencies.config.GOOGLE_CALENDAR_CLIENT_ID;
-    const clientSecret = dependencies.config.GOOGLE_CALENDAR_CLIENT_SECRET;
-    if (!clientId || !clientSecret) return reply.code(503).send({ error: "google_calendar_oauth_not_configured" });
-    const tokenResponse = await fetch("https://oauth2.googleapis.com/token", { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ code: request.query.code, client_id: clientId, client_secret: clientSecret, redirect_uri: stateRecord.redirect_uri, grant_type: "authorization_code" }), signal: AbortSignal.timeout(20_000) });
-    if (!tokenResponse.ok) return reply.code(502).send({ error: "google_calendar_token_exchange_failed" });
+    const entry = stateRecord ? getIntegration(stateRecord.integration_id) : undefined;
+    if (!stateRecord || stateRecord.flow !== "native" || !entry || entry.kind !== "tool" || entry.auth !== "oauth2" || entry.oauthProvider !== request.params.provider) return reply.code(400).send({ error: "oauth_state_invalid_or_expired" });
+    const returnError = (statusCode: number, code: string) => {
+      const payload = { integration: entry.id, status: "error", error: code, installationId: stateRecord.installation_id };
+      if (dependencies.config.AGENT_INTEGRATIONS_RETURN_URL && request.headers["x-kasitek-oauth-proxy"] !== "1") {
+        const returnUrl = new URL(dependencies.config.AGENT_INTEGRATIONS_RETURN_URL);
+        returnUrl.searchParams.set("integration", payload.integration);
+        returnUrl.searchParams.set("status", payload.status);
+        returnUrl.searchParams.set("error", payload.error);
+        returnUrl.searchParams.set("installationId", payload.installationId);
+        return reply.redirect(returnUrl.toString());
+      }
+      return reply.code(statusCode).send(payload);
+    };
+    const callbackInstallation = await agents.getInstallation(stateRecord.organization_id, stateRecord.installation_id);
+    if (!callbackInstallation || callbackInstallation.settings?.environment !== "playground") {
+      return returnError(409, "PLAYGROUND_REQUIRED");
+    }
+    if (request.query.error || !request.query.code) return returnError(400, request.query.error ?? "oauth_code_missing");
+    const oauthProvider = request.params.provider;
+    const clientId = oauthProvider === "microsoft" ? dependencies.config.MICROSOFT_OAUTH_CLIENT_ID : dependencies.config.GOOGLE_OAUTH_CLIENT_ID;
+    const clientSecret = oauthProvider === "microsoft" ? dependencies.config.MICROSOFT_OAUTH_CLIENT_SECRET : dependencies.config.GOOGLE_OAUTH_CLIENT_SECRET;
+    if (!clientId || !clientSecret) return returnError(503, `${oauthProvider}_oauth_not_configured`);
+    const tokenResponse = await fetch(oauthProvider === "microsoft" ? "https://login.microsoftonline.com/common/oauth2/v2.0/token" : "https://oauth2.googleapis.com/token", { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ code: request.query.code, client_id: clientId, client_secret: clientSecret, redirect_uri: stateRecord.redirect_uri, grant_type: "authorization_code" }), signal: AbortSignal.timeout(20_000) });
+    if (!tokenResponse.ok) return returnError(502, `${oauthProvider}_token_exchange_failed`);
     const token = await tokenResponse.json() as { access_token?: string; refresh_token?: string; expires_in?: number; scope?: string };
-    if (!token.access_token) return reply.code(502).send({ error: "google_calendar_access_token_missing" });
-    const credential = await integrationRepository.storeCredential({ organizationId: stateRecord.organization_id, integrationId: "google.calendar", secret: JSON.stringify({ accessToken: token.access_token, refreshToken: token.refresh_token, expiresAt: new Date(Date.now() + (token.expires_in ?? 3_600) * 1_000).toISOString(), scope: token.scope }), label: "Google Calendar", actorId: stateRecord.created_by });
-    await integrationRepository.upsertConnection({ organizationId: stateRecord.organization_id, installationId: stateRecord.installation_id, integrationId: "google.calendar", credentialId: credential.id, status: "connected", configuration: { calendarId: "primary" }, actorId: stateRecord.created_by });
-    if (dependencies.config.AGENT_INTEGRATIONS_RETURN_URL) {
+    if (!token.access_token) return returnError(502, `${oauthProvider}_access_token_missing`);
+    // The old google.gmail catalog entry is an alias only. Its OAuth flow
+    // still lands in Core's canonical workspace EmailConnection record so it
+    // can never create a second Agents-owned credential.
+    const isWorkspaceEmail = entry.id === "google.gmail" || entry.id === "google.email" || entry.id === "microsoft.email";
+    let connectionConfiguration: Record<string, unknown> = entry.id === "google.calendar" ? { calendarId: "primary" } : {};
+    let credentialId: string | null = null;
+    if (isWorkspaceEmail) {
+      const profileResponse = await fetch(oauthProvider === "microsoft" ? "https://graph.microsoft.com/v1.0/me" : "https://openidconnect.googleapis.com/v1/userinfo", {
+        headers: { authorization: `Bearer ${token.access_token}` },
+        signal: AbortSignal.timeout(20_000),
+      });
+      if (!profileResponse.ok) return returnError(502, `${oauthProvider}_profile_lookup_failed`);
+      const profile = await profileResponse.json() as { sub?: string; id?: string; email?: string; mail?: string; userPrincipalName?: string; name?: string; displayName?: string };
+      const emailAddress = oauthProvider === "microsoft" ? profile.mail ?? profile.userPrincipalName : profile.email;
+      const externalAccountId = oauthProvider === "microsoft" ? profile.id ?? emailAddress : profile.sub ?? emailAddress;
+      if (!emailAddress || !externalAccountId) return returnError(502, `${oauthProvider}_profile_incomplete`);
+      const coreConnection = await coreClient.upsertEmailConnection({
+        organizationId: stateRecord.organization_id,
+        installationId: stateRecord.installation_id,
+        actorId: stateRecord.created_by,
+        runId: `oauth:${stateRecord.id}`,
+        correlationId: `oauth:${stateRecord.id}`,
+      }, {
+        userId: stateRecord.created_by,
+        provider: oauthProvider,
+        externalAccountId,
+        emailAddress,
+        displayName: (oauthProvider === "microsoft" ? profile.displayName : profile.name) ?? emailAddress,
+        accessToken: token.access_token,
+        ...(token.refresh_token ? { refreshToken: token.refresh_token } : {}),
+        expiresAt: new Date(Date.now() + (token.expires_in ?? 3_600) * 1_000).toISOString(),
+        scopes: (token.scope ?? entry.requiredScopes.join(" ")).split(/\s+/).filter(Boolean),
+      });
+      connectionConfiguration = {
+        coreConnectionId: coreConnection.connection.id,
+        provider: oauthProvider,
+        emailAddress,
+        accountLabel: (oauthProvider === "microsoft" ? profile.displayName : profile.name) ?? emailAddress,
+      };
+    } else {
+      const credential = await integrationRepository.storeCredential({ organizationId: stateRecord.organization_id, integrationId: entry.id, secret: JSON.stringify({ accessToken: token.access_token, refreshToken: token.refresh_token, expiresAt: new Date(Date.now() + (token.expires_in ?? 3_600) * 1_000).toISOString(), scope: token.scope }), label: entry.name, actorId: stateRecord.created_by });
+      credentialId = credential.id;
+    }
+    await integrationRepository.upsertConnection({ organizationId: stateRecord.organization_id, installationId: stateRecord.installation_id, integrationId: entry.id, credentialId, status: "connected", configuration: connectionConfiguration, actorId: stateRecord.created_by });
+    await installationGrants.grantConnector({ organizationId: stateRecord.organization_id, installationId: stateRecord.installation_id, connectorId: entry.id, actorId: stateRecord.created_by });
+    const activatedTools = await activateIntegrationBundle({ organizationId: stateRecord.organization_id, installationId: stateRecord.installation_id, integration: entry, actorId: stateRecord.created_by });
+    if (dependencies.config.AGENT_INTEGRATIONS_RETURN_URL && request.headers["x-kasitek-oauth-proxy"] !== "1") {
       const returnUrl = new URL(dependencies.config.AGENT_INTEGRATIONS_RETURN_URL);
-      returnUrl.searchParams.set("integration", "google.calendar");
+      returnUrl.searchParams.set("integration", entry.id);
       returnUrl.searchParams.set("status", "connected");
       returnUrl.searchParams.set("installationId", stateRecord.installation_id);
       return reply.redirect(returnUrl.toString());
     }
-    return { integration: "google.calendar", status: "connected", installationId: stateRecord.installation_id };
+    return { integration: entry.id, status: "connected", installationId: stateRecord.installation_id, capabilityNames: activatedTools };
+  };
+  app.get<{ Params: { provider: string }; Querystring: { code?: string; state?: string; error?: string } }>("/v1/integrations/:provider/oauth/callback", handleNativeOAuthCallback);
+  // Keep the established Google callback route while the provider-neutral route
+  // supports Microsoft. Both paths execute the same canonical handler.
+  app.get<{ Querystring: { code?: string; state?: string; error?: string } }>("/v1/integrations/google/oauth/callback", async (request, reply) => handleNativeOAuthCallback({ params: { provider: "google" }, query: request.query, headers: request.headers }, reply));
+
+  app.post<{ Params: { installationId: string; integrationId: string } }>("/v1/installations/:installationId/integrations/:integrationId/workspace-email", async (request, reply) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:write");
+    const installation = await agents.getInstallation(auth.organizationId, request.params.installationId);
+    if (!installation) return reply.code(404).send({ error: "installation_not_found" });
+    requirePlaygroundInstallation(installation);
+    const integration = getIntegration(request.params.integrationId);
+    if (!integration || integration.kind !== "tool" || !["google.gmail", "google.email", "microsoft.email"].includes(integration.id)) {
+      return reply.code(400).send({ error: "integration_does_not_use_workspace_email" });
+    }
+    const input = z.object({ connectionId: z.string().trim().min(1).max(240) }).parse(request.body ?? {});
+    const expectedProvider = integration.provider === "microsoft" ? "MICROSOFT" : "GOOGLE";
+    const coreContext: CoreRequestContext = {
+      organizationId: auth.organizationId,
+      installationId: installation.id,
+      actorId: auth.actorId,
+      runId: `bind:${installation.id}:${integration.id}:${input.connectionId}`,
+      correlationId: request.id,
+    };
+    const resolved = await coreClient.getEmailConnection(coreContext, input.connectionId);
+    const emailConnection = resolved.connection;
+    if (emailConnection.provider.toUpperCase() !== expectedProvider) {
+      return reply.code(400).send({ error: "workspace_email_provider_mismatch" });
+    }
+    if (emailConnection.status.toUpperCase() !== "CONNECTED") {
+      return reply.code(409).send({ error: "workspace_email_not_connected" });
+    }
+    const connection = await integrationRepository.upsertConnection({
+      organizationId: auth.organizationId,
+      installationId: installation.id,
+      integrationId: integration.id,
+      credentialId: null,
+      status: "connected",
+      configuration: {
+        coreConnectionId: emailConnection.id,
+        provider: emailConnection.provider.toLowerCase(),
+        emailAddress: emailConnection.emailAddress,
+        accountLabel: emailConnection.displayName || emailConnection.emailAddress,
+      },
+      actorId: auth.actorId,
+    });
+    await installationGrants.grantConnector({ organizationId: auth.organizationId, installationId: installation.id, connectorId: integration.id, actorId: auth.actorId });
+    const capabilityNames = await activateIntegrationBundle({ organizationId: auth.organizationId, installationId: installation.id, integration, actorId: auth.actorId });
+    return reply.code(200).send({ integration: { ...integration, status: connection.status, available: true, hasCredential: false, configuration: connection.configuration, capabilityNames } });
+  });
+
+  app.get<{ Querystring: { code?: string; state?: string; error?: string; error_description?: string } }>("/v1/integrations/mcp/oauth/callback", async (request, reply) => {
+    const state = request.query.state;
+    if (!state) return reply.code(400).send({ error: "oauth_state_missing" });
+    const stateRecord = await integrationRepository.consumeOAuthState(createHash("sha256").update(state).digest("hex"));
+    if (!stateRecord || stateRecord.flow !== "mcp") return reply.code(400).send({ error: "oauth_state_invalid_or_expired" });
+    const callbackInstallation = await agents.getInstallation(stateRecord.organization_id, stateRecord.installation_id);
+    if (!callbackInstallation || callbackInstallation.settings?.environment !== "playground") {
+      return reply.code(409).send({ error: "PLAYGROUND_REQUIRED", code: "PLAYGROUND_REQUIRED" });
+    }
+    const entry = getReviewedMcpCatalogEntry(stateRecord.integration_id);
+    const returnError = (code: string) => {
+      if (dependencies.config.AGENT_INTEGRATIONS_RETURN_URL && request.headers["x-kasitek-oauth-proxy"] !== "1") {
+        const returnUrl = new URL(dependencies.config.AGENT_INTEGRATIONS_RETURN_URL);
+        returnUrl.searchParams.set("connection", stateRecord.integration_id);
+        returnUrl.searchParams.set("status", "error");
+        returnUrl.searchParams.set("error", code);
+        returnUrl.searchParams.set("installationId", stateRecord.installation_id);
+        return reply.redirect(returnUrl.toString());
+      }
+      return reply.code(502).send({ error: code });
+    };
+    if (!entry || !entry.endpointUrl || !stateRecord.code_verifier || !stateRecord.client_id || !stateRecord.authorization_endpoint || !stateRecord.token_endpoint) return returnError("mcp_oauth_state_incomplete");
+    if (request.query.error || !request.query.code) return returnError(request.query.error ?? "mcp_oauth_code_missing");
+    try {
+      const token = await exchangeMcpOAuthCode({
+        client: { clientId: stateRecord.client_id, clientSecret: stateRecord.client_secret ?? undefined, authorizationEndpoint: stateRecord.authorization_endpoint, tokenEndpoint: stateRecord.token_endpoint, resource: stateRecord.resource ?? entry.endpointUrl },
+        redirectUri: stateRecord.redirect_uri,
+        code: request.query.code,
+        codeVerifier: stateRecord.code_verifier,
+        environment: dependencies.config.NODE_ENV,
+      });
+      const credential = await integrationRepository.storeCredential({ organizationId: stateRecord.organization_id, integrationId: entry.id, secret: JSON.stringify(token), label: `${entry.name} MCP`, actorId: stateRecord.created_by });
+      const activated = await activateHermesMcp({ organizationId: stateRecord.organization_id, actorId: stateRecord.created_by, catalogId: entry.id, credentialReference: credential.id, agentVersionId: stateRecord.agent_version_id ?? undefined, installationId: stateRecord.installation_id });
+      if (dependencies.config.AGENT_INTEGRATIONS_RETURN_URL && request.headers["x-kasitek-oauth-proxy"] !== "1") {
+        const returnUrl = new URL(dependencies.config.AGENT_INTEGRATIONS_RETURN_URL);
+        returnUrl.searchParams.set("connection", entry.id);
+        returnUrl.searchParams.set("status", "connected");
+        returnUrl.searchParams.set("installationId", stateRecord.installation_id);
+        return reply.redirect(returnUrl.toString());
+      }
+      return { connection: entry.id, status: "connected", installationId: stateRecord.installation_id, provider: activated.provider, version: activated.version };
+    } catch (error) {
+      request.log.warn({ event: "hermes_mcp.oauth_callback_failed", catalog_id: entry.id, error_code: error instanceof Error ? error.message : "unknown" }, "Hermes MCP OAuth callback failed");
+      return returnError("mcp_oauth_connection_failed");
+    }
   });
 
   app.get<{ Params: { installationId: string } }>("/v1/installations/:installationId/integrations", async (request, reply) => {
@@ -3187,12 +4443,15 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     requireScope(auth, dependencies.config, "agents:write");
     const installation = await agents.getInstallation(auth.organizationId, request.params.installationId);
     if (!installation) return reply.code(404).send({ error: "installation_not_found" });
+    requirePlaygroundInstallation(installation);
     const integration = getIntegration(request.params.integrationId);
     if (!integration || integration.kind !== "tool" || integration.auth !== "api_key") return reply.code(400).send({ error: "integration_does_not_use_api_key" });
     const input = z.object({ apiKey: z.string().trim().min(1).max(4_000), label: z.string().trim().min(1).max(160).optional(), configuration: z.record(z.string(), z.unknown()).optional() }).parse(request.body);
     const credential = await integrationRepository.storeCredential({ organizationId: auth.organizationId, integrationId: integration.id, secret: input.apiKey, label: input.label, actorId: auth.actorId });
     const connection = await integrationRepository.upsertConnection({ organizationId: auth.organizationId, installationId: installation.id, integrationId: integration.id, credentialId: credential.id, status: "connected", configuration: input.configuration, actorId: auth.actorId });
-    return reply.code(201).send({ integration: { ...integration, status: connection.status, available: true, hasCredential: true, configuration: connection.configuration } });
+    await installationGrants.grantConnector({ organizationId: auth.organizationId, installationId: installation.id, connectorId: integration.id, actorId: auth.actorId });
+    const capabilityNames = await activateIntegrationBundle({ organizationId: auth.organizationId, installationId: installation.id, integration, actorId: auth.actorId });
+    return reply.code(201).send({ integration: { ...integration, status: connection.status, available: true, hasCredential: true, configuration: connection.configuration, capabilityNames } });
   });
 
   app.post<{ Params: { installationId: string; integrationId: string } }>("/v1/installations/:installationId/integrations/:integrationId/local-connector", async (request, reply) => {
@@ -3200,12 +4459,15 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     requireScope(auth, dependencies.config, "agents:write");
     const installation = await agents.getInstallation(auth.organizationId, request.params.installationId);
     if (!installation) return reply.code(404).send({ error: "installation_not_found" });
+    requirePlaygroundInstallation(installation);
     const integration = getIntegration(request.params.integrationId);
     if (!integration || integration.kind !== "tool" || integration.auth !== "local_connector") return reply.code(400).send({ error: "integration_does_not_use_local_connector" });
     const input = z.object({ endpoint: z.string().trim().url(), secret: z.string().trim().min(1).max(4_000), label: z.string().trim().min(1).max(160).optional() }).parse(request.body);
     const credential = await integrationRepository.storeCredential({ organizationId: auth.organizationId, integrationId: integration.id, secret: input.secret, label: input.label, actorId: auth.actorId });
     const connection = await integrationRepository.upsertConnection({ organizationId: auth.organizationId, installationId: installation.id, integrationId: integration.id, credentialId: credential.id, status: "connected", configuration: { endpoint: input.endpoint.replace(/\/$/, "") }, actorId: auth.actorId });
-    return reply.code(201).send({ integration: { ...integration, status: connection.status, available: true, hasCredential: true, configuration: connection.configuration } });
+    await installationGrants.grantConnector({ organizationId: auth.organizationId, installationId: installation.id, connectorId: integration.id, actorId: auth.actorId });
+    const capabilityNames = await activateIntegrationBundle({ organizationId: auth.organizationId, installationId: installation.id, integration, actorId: auth.actorId });
+    return reply.code(201).send({ integration: { ...integration, status: connection.status, available: true, hasCredential: true, configuration: connection.configuration, capabilityNames } });
   });
 
   app.delete<{ Params: { installationId: string; integrationId: string } }>("/v1/installations/:installationId/integrations/:integrationId", async (request, reply) => {
@@ -3214,8 +4476,13 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     const integration = getIntegration(request.params.integrationId);
     if (!integration) return reply.code(404).send({ error: "integration_not_found" });
     if (integration.kind !== "tool" || integration.auth === "internal") return reply.code(400).send({ error: "integration_cannot_be_disconnected_here" });
+    const installation = await agents.getInstallation(auth.organizationId, request.params.installationId);
+    if (!installation) return reply.code(404).send({ error: "installation_not_found" });
+    requirePlaygroundInstallation(installation);
     const connection = await integrationRepository.getConnection(auth.organizationId, request.params.installationId, integration.id);
     await integrationRepository.disconnect({ organizationId: auth.organizationId, installationId: request.params.installationId, integrationId: integration.id });
+    await installationGrants.revokeConnector({ organizationId: auth.organizationId, installationId: request.params.installationId, connectorId: integration.id });
+    await toolGrants.revokeInstallationTools({ organizationId: auth.organizationId, installationId: request.params.installationId, toolNames: integration.capabilityNames, actorId: auth.actorId });
     if (connection?.credential_id) await integrationRepository.revokeCredential(auth.organizationId, connection.credential_id);
     return reply.code(204).send();
   });
@@ -3255,6 +4522,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
         language: z.string().trim().min(2).max(35).optional(),
         tone: z.enum(["concise", "balanced", "detailed"]).optional(),
         responseDetail: z.enum(["short", "standard", "expanded"]).optional(),
+        environment: z.enum(["playground", "live"]).optional(),
       })
       .parse(request.body ?? {});
     const installation = await agents.ensureSystemInstallation({
@@ -4734,7 +6002,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
         throw error;
       }
     }
-    return reply.code(202).send({ runId: run.id, status: run.status, durable: Boolean(dependencies.startWorkflow) });
+    return reply.code(202).send({ runId: run.id, status: run.status, admission: run.admission, durable: Boolean(dependencies.startWorkflow) });
   });
 
   app.get<{ Params: { runId: string } }>("/v1/runs/:runId", async (request, reply) => {
@@ -4742,11 +6010,21 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     requireScope(auth, dependencies.config, "runs:read");
     const run = await runs.getRun(auth.organizationId, request.params.runId);
     if (!run) return reply.code(404).send({ error: "run_not_found" });
-    const [events, approval] = await Promise.all([
+    const [events, approvalGroup, approvalGroups] = await Promise.all([
       runs.listEvents(auth.organizationId, run.id),
-      approvals.getForRun(auth.organizationId, run.id),
+      approvals.getActiveGroup(auth.organizationId, run.id),
+      approvals.listGroups(auth.organizationId, run.id),
     ]);
-    return { run, approval: publicApprovalStatus(approval), events };
+    const approvalGroupHistory = await Promise.all(approvalGroups.map(async (group) => publicApprovalGroup(
+      group,
+      await approvals.listGroupOperations(auth.organizationId, group.id),
+    )));
+    return {
+      run,
+      approvalGroup: publicApprovalGroup(approvalGroup?.group ?? null, approvalGroup?.approvals ?? []),
+      approvalGroups: approvalGroupHistory,
+      events,
+    };
   });
 
   app.get<{ Params: { runId: string } }>("/v1/runs/:runId/timeline", async (request, reply) => {
@@ -4754,18 +6032,87 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     requireScope(auth, dependencies.config, "runs:read");
     const run = await runs.getRun(auth.organizationId, request.params.runId);
     if (!run) return reply.code(404).send({ error: "run_not_found" });
-    const [events, steps, toolCalls, effects] = await Promise.all([
+    const [events, journal, steps, toolCalls, effects] = await Promise.all([
       runs.listEvents(auth.organizationId, run.id),
+      typeof runs.listJournalEvents === "function"
+        ? runs.listJournalEvents(auth.organizationId, run.id)
+        : Promise.resolve([]),
       runSteps.listSteps(auth.organizationId, run.id),
       toolInvocations.list(auth.organizationId, run.id),
       effectReceipts.listForRun(auth.organizationId, run.id),
     ]);
+    const items = [
+      ...events.map((event, index) => projectStudioTimelineItem("event", event, run, index)),
+      ...journal.map((event, index) => projectStudioTimelineItem("journal", event, run, index)),
+      ...steps.map((step, index) => projectStudioTimelineItem("step", step, run, index)),
+      ...toolCalls.map((toolCall, index) => projectStudioTimelineItem("tool_call", toolCall, run, index)),
+      ...effects.map((effect, index) => projectStudioTimelineItem("effect", effect, run, index)),
+    ].sort((left, right) => {
+      const leftTime = left.occurredAt ? Date.parse(left.occurredAt) : Number.NaN;
+      const rightTime = right.occurredAt ? Date.parse(right.occurredAt) : Number.NaN;
+      if (Number.isFinite(leftTime) && Number.isFinite(rightTime) && leftTime !== rightTime) return leftTime - rightTime;
+      return (left.sequence ?? Number.MAX_SAFE_INTEGER) - (right.sequence ?? Number.MAX_SAFE_INTEGER) || left.id.localeCompare(right.id);
+    });
     return {
       run,
       events,
+      journal,
+      items,
+      telemetry: projectRuntimeTelemetry(journal, { runId: run.id }),
+      projection: {
+        version: "studio.run-timeline.v1",
+        cursor: Math.max(
+          journal.at(-1)?.sequence ?? 0,
+          Number.isSafeInteger(Number(events.at(-1)?.sequence_number)) ? Number(events.at(-1)?.sequence_number) : 0,
+        ),
+        freshness: ["completed", "failed", "cancelled", "timed_out"].includes(run.status) ? "settled" : "live",
+        redaction: "role_scoped",
+        observedAt: new Date().toISOString(),
+      },
       steps: steps.map((step) => ({ ...step, input: redactSensitiveValue(step.input), output: redactSensitiveValue(step.output), error: redactSensitiveValue(step.error) })),
       toolCalls: toolCalls.map((toolCall) => redactSensitiveValue(toolCall)),
       effects: effects.map((effect) => ({ ...effect, provider_receipt: redactSensitiveValue(effect.provider_receipt), error: redactSensitiveValue(effect.error) })),
+    };
+  });
+
+  app.get<{ Params: { runId: string }; Querystring: { afterSequence?: string; limit?: string } }>("/v1/runs/:runId/memory-observatory", async (request, reply) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "runs:read");
+    const run = await runs.getRun(auth.organizationId, request.params.runId);
+    if (!run) return reply.code(404).send({ error: "run_not_found" });
+    const afterSequence = request.query.afterSequence === undefined ? 0 : Number(request.query.afterSequence);
+    const limit = request.query.limit === undefined ? 200 : Number(request.query.limit);
+    if (!Number.isSafeInteger(afterSequence) || afterSequence < 0 || !Number.isSafeInteger(limit) || limit < 1 || limit > 200) {
+      return reply.code(400).send({ error: "invalid_memory_observatory_cursor" });
+    }
+    const graph = await memoryObservatory.listRun({ organizationId: auth.organizationId, runId: run.id, afterSequence, limit });
+    return {
+      ...graph,
+      projection: {
+        version: "studio.memory-observatory.v1",
+        cursor: Math.max(afterSequence, graph.cursor),
+        freshness: ["completed", "failed", "cancelled", "timed_out", "expired"].includes(run.status) ? "settled" : "live",
+        redaction: "role_scoped",
+        observedAt: new Date().toISOString(),
+      },
+    };
+  });
+
+  app.get<{ Params: { revisionId: string } }>("/v1/memory/revisions/:revisionId/lineage", async (request, reply) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:read");
+    const revisionId = z.string().uuid().parse(request.params.revisionId);
+    const graph = await memoryObservatory.listRevision({ organizationId: auth.organizationId, revisionId });
+    if (!graph.nodes.length) return reply.code(404).send({ error: "memory_revision_not_found" });
+    return {
+      ...graph,
+      projection: {
+        version: "studio.memory-lineage.v1",
+        cursor: graph.cursor,
+        freshness: "settled",
+        redaction: "role_scoped",
+        observedAt: new Date().toISOString(),
+      },
     };
   });
 
@@ -5251,7 +6598,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     const limit = request.query.limit ? Number(request.query.limit) : undefined;
     if (limit !== undefined && (!Number.isSafeInteger(limit) || limit < 1 || limit > 500)) throw new Error("Invalid memory limit");
     const reviewable = request.query.reviewable === "true";
-    return { memories: await memory.listMemory({ organizationId: auth.organizationId, agentId, installationId, actorId: auth.actorId }, limit, reviewable) };
+    return { memories: await memoryAdmin.list({ organizationId: auth.organizationId, agentId, installationId, limit, reviewable }) };
   });
 
   app.delete<{ Params: { memoryId: string } }>("/v1/memory/:memoryId", async (request, reply) => {
@@ -5259,7 +6606,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     requireScope(auth, dependencies.config, "agents:write");
     const input = z.object({ agentId: z.string().uuid(), installationId: z.string().uuid().optional(), conversationId: z.string().uuid().optional() }).parse(request.body);
     await requireHostedResourceScope(agents, auth.organizationId, input);
-    await memory.deleteMemory({ organizationId: auth.organizationId, agentId: input.agentId, installationId: input.installationId, conversationId: input.conversationId, actorId: auth.actorId }, request.params.memoryId, auth.actorId);
+    await memoryAdmin.delete({ organizationId: auth.organizationId, actorId: auth.actorId, memoryId: request.params.memoryId, agentId: input.agentId, installationId: input.installationId, conversationId: input.conversationId });
     return reply.code(204).send();
   });
 
@@ -5268,7 +6615,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     requireScope(auth, dependencies.config, "agents:write");
     const input = z.object({ agentId: z.string().uuid(), installationId: z.string().uuid().optional(), conversationId: z.string().uuid().optional(), expiresAt: z.string().datetime().nullable() }).parse(request.body);
     await requireHostedResourceScope(agents, auth.organizationId, input);
-    return memory.revalidateMemory({ organizationId: auth.organizationId, agentId: input.agentId, installationId: input.installationId, conversationId: input.conversationId, actorId: auth.actorId }, request.params.memoryId, input.expiresAt);
+    return memoryAdmin.revalidate({ organizationId: auth.organizationId, actorId: auth.actorId, memoryId: request.params.memoryId, agentId: input.agentId, installationId: input.installationId, conversationId: input.conversationId, expiresAt: input.expiresAt, operationId: headerValue(request, "idempotency-key") ?? auth.correlationId ?? randomUUID() });
   });
 
   app.post<{ Params: { memoryId: string } }>("/v1/memory/:memoryId/review", async (request) => {
@@ -5282,13 +6629,17 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       supersedesMemoryId: z.string().uuid().optional(),
     }).parse(request.body);
     await requireHostedResourceScope(agents, auth.organizationId, input);
-    const reviewed = await memory.reviewMemory(
-      { organizationId: auth.organizationId, agentId: input.agentId, installationId: input.installationId, conversationId: input.conversationId, actorId: auth.actorId },
-      request.params.memoryId,
-      input.decision,
-      auth.actorId,
-      input.supersedesMemoryId,
-    );
+    if (input.supersedesMemoryId) throw Object.assign(new Error("supersedesMemoryId is not supported by memory v2"), { statusCode: 422 });
+    const reviewed = await memoryAdmin.review({
+      organizationId: auth.organizationId,
+      actorId: auth.actorId,
+      memoryId: request.params.memoryId,
+      agentId: input.agentId,
+      installationId: input.installationId,
+      conversationId: input.conversationId,
+      decision: input.decision,
+      operationId: headerValue(request, "idempotency-key") ?? auth.correlationId ?? randomUUID(),
+    });
     await dependencies.pool.query(
       `INSERT INTO audit_records (organization_id, actor_type, actor_id, action, resource_type, resource_id, correlation_id, metadata)
        VALUES ($1, 'user', $2, 'memory.reviewed', 'memory', $3, $4, $5::jsonb)`,
@@ -5447,28 +6798,34 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     await poll();
   });
 
-  app.post<{ Params: { runId: string } }>("/v1/runs/:runId/approval", async (request, reply) => {
+  app.post<{ Params: { runId: string } }>("/v1/runs/:runId/approval-group", async (request, reply) => {
     const auth = requireAuth(request, dependencies.config);
     requireScope(auth, dependencies.config, "runs:approve");
-    const input = z.object({ decision: z.enum(["approved", "rejected"]), providerToolCallId: z.string().trim().min(1).max(240), argumentsHash: z.string().length(64) }).parse(request.body);
+    const input = z.object({
+      groupId: z.string().uuid(),
+      planDigest: z.string().length(64),
+      decision: z.enum(["approved", "rejected"]),
+      selectedOperationIds: z.array(z.string().trim().min(1).max(240)).max(256).optional(),
+      grantScope: z.enum(["once", "session"]).optional().default("once"),
+    }).parse(request.body);
     try {
-      const result = await decideApproval({
+      const result = await decideApprovalGroup({
         organizationId: auth.organizationId,
         runId: request.params.runId,
         ...input,
         approvedBy: auth.actorId,
-        rateLimitKey: `${auth.organizationId}:${request.params.runId}:${auth.actorId}`,
+        idempotencyKey: headerValue(request, "idempotency-key"),
+        rateLimitKey: `${auth.organizationId}:${request.params.runId}:${auth.actorId}:group:${input.groupId}`,
       });
-      if (!result.accepted) {
-        return reply.code(200).send({
-          runId: request.params.runId,
-          status: "approval_already_signalled",
-          decision: input.decision,
-          approvedBy: result.approval.approved_by,
-          expiresAt: result.approval.expires_at,
-        });
-      }
-      return reply.code(202).send({ runId: request.params.runId, status: "approval_signalled" });
+      return reply.code(result.accepted ? 202 : 200).send({
+        runId: request.params.runId,
+        groupId: result.group.id,
+        status: result.accepted ? "approval_group_signalled" : "approval_group_already_signalled",
+        decision: result.group.decision,
+        selectedOperationIds: result.group.selected_operation_ids,
+        grantScope: input.grantScope,
+        expiresAt: result.group.expires_at,
+      });
     } catch (error) {
       const typed = error as { statusCode?: number; code?: string; detail?: string; retryAfterSeconds?: number };
       if (typed.code === "approval_rate_limited" && typed.retryAfterSeconds) reply.header("retry-after", String(typed.retryAfterSeconds));
@@ -5497,25 +6854,25 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     } catch {
       return reply.code(401).send({ error: "invalid_channel_approval" });
     }
-    const approval = await approvals.getById(auth.organizationId, claims.approvalId);
-    const target = approval ? await channels.getApprovalPromptTarget(approval.run_id) : null;
-    if (!approval || !target || target.channel_type !== input.channelType || target.external_identity !== input.externalIdentity || (input.externalConversationId && target.external_conversation_id !== input.externalConversationId) || (input.channelConnectionId && target.channel_connection_id !== input.channelConnectionId) || target.owner_actor_id !== auth.actorId) {
+    const group = await approvals.getGroup(auth.organizationId, claims.approvalId);
+    const target = group ? await channels.getApprovalPromptTarget(group.run_id) : null;
+    if (!group || !target || target.channel_type !== input.channelType || target.external_identity !== input.externalIdentity || (input.externalConversationId && target.external_conversation_id !== input.externalConversationId) || (input.channelConnectionId && target.channel_connection_id !== input.channelConnectionId) || target.owner_actor_id !== auth.actorId) {
       return reply.code(403).send({ error: "channel_approval_not_authorized" });
     }
     try {
-      const result = await decideApproval({
+      const result = await decideApprovalGroup({
         organizationId: auth.organizationId,
-        runId: approval.run_id,
-        providerToolCallId: approval.provider_tool_call_id,
-        argumentsHash: approval.arguments_hash,
+        runId: group.run_id,
+        groupId: group.id,
+        planDigest: group.plan_digest,
         decision: claims.decision,
         approvedBy: target.owner_actor_id,
         rateLimitKey: `${auth.organizationId}:channel:${target.owner_actor_id}`,
       });
       return reply.code(result.accepted ? 202 : 200).send({
-        runId: approval.run_id,
+        runId: group.run_id,
         decision: claims.decision,
-        status: result.accepted ? "approval_signalled" : "approval_already_signalled",
+        status: result.accepted ? "approval_group_signalled" : "approval_group_already_signalled",
       });
     } catch (error) {
       const typed = error as { statusCode?: number; code?: string; detail?: string; retryAfterSeconds?: number };
@@ -5597,4 +6954,25 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
   });
 
   return app;
+}
+
+async function fetchHermesSkillInstructions(rawUrl: string): Promise<string> {
+  const url = new URL(rawUrl);
+  if (url.protocol !== "https:" || url.hostname !== "raw.githubusercontent.com") throw new Error("HERMES_SKILL_SOURCE_NOT_ALLOWED");
+  const response = await fetch(url, { redirect: "error", headers: { accept: "text/plain" }, signal: AbortSignal.timeout(20_000) });
+  if (!response.ok) throw new Error("HERMES_SKILL_SOURCE_UNAVAILABLE");
+  const length = Number(response.headers.get("content-length"));
+  if (Number.isFinite(length) && length > 40_000) throw new Error("HERMES_SKILL_SOURCE_TOO_LARGE");
+  const raw = await response.text();
+  if (raw.length > 40_000) throw new Error("HERMES_SKILL_SOURCE_TOO_LARGE");
+  const bodyStart = raw.startsWith("---") ? raw.indexOf("\n---", 3) : -1;
+  const instructions = bodyStart >= 0 ? raw.slice(bodyStart + 4).trim() : raw.trim();
+  if (!instructions) throw new Error("HERMES_SKILL_SOURCE_EMPTY");
+  return instructions;
+}
+
+function hermesSkillSlug(slug: string): string {
+  const readable = slug.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 56) || "skill";
+  const suffix = createHash("sha256").update(slug).digest("hex").slice(0, 12);
+  return `hermes-${readable}-${suffix}`.slice(0, 80).replace(/-+$/, "");
 }

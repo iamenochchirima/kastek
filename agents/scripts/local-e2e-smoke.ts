@@ -72,39 +72,30 @@ async function waitForTerminal(installationId: string, runId: string, token: str
 }
 
 async function main(): Promise<void> {
-  let agentId: string | undefined;
+  let installationId: string | undefined;
   try {
     await request(`${agentApiUrl}/health/ready`);
     await request(`${gatewayUrl}/health/ready`);
 
-    const agent = await request(`${agentApiUrl}/v1/agents`, {
-      method: "POST",
-      headers: controlHeaders(),
-      body: JSON.stringify({ name: `E2E smoke ${organizationId}`, slug: `e2e-${organizationId.slice(-12)}` }),
-    });
-    agentId = id(agent, "id");
-    const version = await request(`${agentApiUrl}/v1/agents/${agentId}/versions`, {
+    // Credentials and public/MCP tokens are intentionally available only to
+    // external-connected installations. Create the aggregate through its
+    // dedicated boundary instead of creating a hosted installation and then
+    // attempting to attach an external credential to it.
+    const external = await request(`${agentApiUrl}/v1/external-agents`, {
       method: "POST",
       headers: controlHeaders(),
       body: JSON.stringify({
-        instructions: "Use only the explicitly granted tool when asked.",
-        policy: { allowedTools: ["platform.current_time"], maxIterations: 1, maxToolCalls: 1 },
+        name: `E2E smoke ${organizationId}`,
+        slug: `e2e-${organizationId.slice(-12)}`,
+        protocols: ["mcp", "rest"],
+        capabilities: ["platform.current_time"],
+        idempotencyKey: `e2e-external-${organizationId}`,
+        credentialLabel: "local-e2e",
       }),
     });
-    const versionId = id(version, "id");
-    await request(`${agentApiUrl}/v1/agents/${agentId}/versions/${versionId}/publish`, { method: "POST", headers: controlHeaders() });
-    const installation = await request(`${agentApiUrl}/v1/installations`, {
-      method: "POST",
-      headers: controlHeaders(),
-      body: JSON.stringify({ agentVersionId: versionId, scopeType: "organization", scopeId: organizationId }),
-    });
-    const installationId = id(installation, "id");
-    const credentialResponse = await request(`${agentApiUrl}/v1/installations/${installationId}/credentials`, {
-      method: "POST",
-      headers: controlHeaders(),
-      body: JSON.stringify({ label: "local-e2e" }),
-    });
-    const secret = id(credentialResponse, "secret");
+    const installation = external.installation as Json | undefined;
+    installationId = id(installation, "id");
+    const secret = id(external, "secret");
     const exchange = async (audience: "mcp" | "kasitek-public-api") => request(`${agentApiUrl}/v1/installation-tokens/exchange`, {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -128,7 +119,13 @@ async function main(): Promise<void> {
     const runId = id(first, "runId");
     if (id(retry, "runId") !== runId) throw new Error("REST idempotency retry created a second operation");
     const terminal = await waitForTerminal(installationId, runId, apiToken);
-    if ((terminal.run as Json | undefined)?.status !== "completed") throw new Error(`REST operation did not complete successfully: ${JSON.stringify(terminal)}`);
+    const terminalRun = terminal.run as Json | undefined;
+    if (terminalRun?.status !== "completed") throw new Error(`REST operation did not complete successfully: ${JSON.stringify(terminal)}`);
+    const terminalOutput = terminalRun.output as Json | undefined;
+    const terminalTool = terminalOutput?.tool as Json | undefined;
+    if (terminalTool?.name !== "platform.current_time" || !terminalTool.output || typeof terminalTool.output !== "object") {
+      throw new Error(`REST operation did not persist its direct tool result: ${JSON.stringify(terminalRun.output)}`);
+    }
     console.log("REST credential exchange, discovery, idempotency, and durable execution passed.");
 
     const mcpHeaders = { authorization: `Bearer ${mcpToken}`, "content-type": "application/json", "mcp-protocol-version": "2025-06-18" };
@@ -142,10 +139,17 @@ async function main(): Promise<void> {
     });
     if (!(mcpCall.result as Json | undefined)?.structuredContent) throw new Error(`MCP tool call was not accepted: ${JSON.stringify(mcpCall)}`);
 
-    console.log(JSON.stringify({ status: "passed", organizationId, installationId, restRunId: runId, mcpRunId: ((mcpCall.result as Json).structuredContent as Json).runId }, null, 2));
+    const mcpRunId = id((mcpCall.result as Json).structuredContent, "runId");
+    const mcpTerminal = await waitForTerminal(installationId, mcpRunId, apiToken);
+    const mcpTerminalRun = mcpTerminal.run as Json | undefined;
+    if (mcpTerminalRun?.status !== "completed") {
+      throw new Error(`MCP operation did not complete successfully: ${JSON.stringify(mcpTerminal)}`);
+    }
+
+    console.log(JSON.stringify({ status: "passed", organizationId, installationId, restRunId: runId, mcpRunId }, null, 2));
   } finally {
-    if (agentId && !keepFixtures) {
-      await request(`${agentApiUrl}/v1/agents/${agentId}/archive`, { method: "POST", headers: controlHeaders() });
+    if (installationId && !keepFixtures) {
+      await request(`${agentApiUrl}/v1/external-agents/${installationId}`, { method: "DELETE", headers: controlHeaders() });
     }
   }
 }

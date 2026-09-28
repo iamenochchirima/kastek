@@ -8,9 +8,12 @@ import type {
   CreateExternalAgentInput,
   CreateInstallationInput,
   DeployInstallationInput,
-  DeployStagedVersionInput,
   CreateVersionInput,
   HostedAgentCreationProfile,
+  InstallationDeploymentPreflightInput,
+  InstallationPromotionInput,
+  InstallationRollbackInput,
+  StudioAgentCreationInput,
   UpdateAgentInput,
 } from "../../domain/types";
 import { query, withTransaction } from "../pool";
@@ -23,11 +26,23 @@ import { KASIAI_KNOWLEDGE_CHUNKS, KASIAI_KNOWLEDGE_SOURCE_NAME, KASIAI_KNOWLEDGE
 import { KASIAI_EVALUATION_SCENARIOS, KASIAI_EVALUATION_VERSION } from "../../system/kasiai-evaluations";
 import { createInstallationCredentialInTransaction, type CreatedInstallationCredential } from "./installation-credential-repository";
 import { buildDefinitionLifecycleEvent, buildInstallationLifecycleEvent, buildVersionLifecycleEvent, enqueueOutbox, type DefinitionLifecycleAnalyticsInput, type InstallationLifecycleAnalyticsInput, type VersionLifecycleAnalyticsInput } from "../../analytics";
-import { AgentDeploymentModule, type StagedDeploymentResult } from "./agent-deployment-repository";
+import { AgentDeploymentModule, type DeploymentActivationResult, type DeploymentPreflightResult, type DeploymentVersionProjection } from "./agent-deployment-repository";
+import { ExtensionSnapshotRepository } from "./extension-snapshot-repository";
+import { parseAgentEnvironment, type AgentEnvironment } from "../../runtime/execution-environment";
 
 type DbExecutor = Pool | PoolClient;
 
 export const SYSTEM_ORGANIZATION_ID = "kasitek-system";
+
+function normalizeInstallationSettings(
+  settings: Record<string, unknown> | undefined,
+  defaultEnvironment: AgentEnvironment = "live",
+): Record<string, unknown> {
+  return {
+    ...(settings ?? {}),
+    environment: parseAgentEnvironment(settings?.environment ?? defaultEnvironment),
+  };
+}
 
 export interface AgentRecord {
   id: string;
@@ -62,9 +77,29 @@ export interface AgentVersionRecord {
   configuration: Record<string, unknown>;
   policy: Record<string, unknown>;
   checksum: string;
+  extension_snapshot_id?: string | null;
   created_by: string;
   created_at: string;
   published_at: string | null;
+}
+
+export type PlaygroundExtensionActivation =
+  | {
+      kind: "plugin";
+      package: {
+        id: string;
+        version: string;
+        checksum: string;
+        configuration?: Record<string, unknown>;
+      };
+    }
+  | { kind: "skill"; skillVersionId: string }
+  | { kind: "mcp"; providerVersionId: string };
+
+export interface PlaygroundExtensionActivationResult {
+  installation: InstallationRecord;
+  version: AgentVersionRecord;
+  createdCandidate: boolean;
 }
 
 function canonicalizeJson(value: unknown): unknown {
@@ -77,6 +112,69 @@ function canonicalizeJson(value: unknown): unknown {
     );
   }
   return value;
+}
+
+function recordValue(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {};
+}
+
+export function addPluginPackageSelection(
+  configurationValue: unknown,
+  policyValue: unknown,
+  selection: Extract<PlaygroundExtensionActivation, { kind: "plugin" }>['package'],
+): { configuration: Record<string, unknown>; policy: Record<string, unknown>; changed: boolean } {
+  const configuration = { ...recordValue(configurationValue) };
+  const existingConfigurationExtensions = recordValue(configuration.extensions);
+  const packages = Array.isArray(existingConfigurationExtensions.packages)
+    ? existingConfigurationExtensions.packages.filter((entry): entry is Record<string, unknown> => Boolean(entry && typeof entry === "object" && !Array.isArray(entry)))
+    : [];
+  const alreadySelected = packages.some((entry) => entry.kind === "plugin" && entry.id === selection.id && entry.version === selection.version && entry.checksum === selection.checksum);
+  const nextPackages = alreadySelected
+    ? packages
+    : [...packages, {
+        kind: "plugin",
+        id: selection.id,
+        version: selection.version,
+        checksum: selection.checksum,
+        configuration: { ...(selection.configuration ?? {}) },
+      }];
+
+  const policy = { ...recordValue(policyValue) };
+  const policyExtensions = { ...recordValue(policy.extensions) };
+  const rawPolicyGrants = policyExtensions.grants;
+  const packageGrant = { kind: "plugin", id: selection.id, permissions: [] };
+  let nextPolicyGrants: unknown[];
+  let alreadyGranted = false;
+  if (Array.isArray(rawPolicyGrants)) {
+    const grants = rawPolicyGrants.filter((entry): entry is Record<string, unknown> => Boolean(entry && typeof entry === "object" && !Array.isArray(entry)));
+    alreadyGranted = grants.some((entry) => entry.kind === "plugin" && entry.id === selection.id);
+    nextPolicyGrants = alreadyGranted
+      ? grants
+      : [...grants, packageGrant];
+  } else {
+    // Legacy extension grants use an object keyed by declaration kind. Keep
+    // those IDs in the configuration projection while using the canonical
+    // package-grant array for the selected package itself.
+    const configurationGrants = recordValue(existingConfigurationExtensions.grants);
+    const legacyGrants = recordValue(rawPolicyGrants);
+    const pluginIds = [...new Set([
+      ...(Array.isArray(configurationGrants.pluginIds) ? configurationGrants.pluginIds.filter((entry): entry is string => typeof entry === "string") : []),
+      ...(Array.isArray(legacyGrants.pluginIds) ? legacyGrants.pluginIds.filter((entry): entry is string => typeof entry === "string") : []),
+      selection.id,
+    ])];
+    existingConfigurationExtensions.grants = { ...configurationGrants, ...(pluginIds.length ? { pluginIds } : {}) };
+    nextPolicyGrants = [packageGrant];
+  }
+  policyExtensions.grants = nextPolicyGrants;
+  configuration.extensions = { ...existingConfigurationExtensions, packages: nextPackages };
+  policy.extensions = policyExtensions;
+  return {
+    configuration,
+    policy,
+    changed: !alreadySelected || !alreadyGranted,
+  };
 }
 
 export function agentVersionContentMatches(
@@ -129,6 +227,34 @@ export interface SystemAgentReleaseStatus {
   staleInstallationCount: number;
 }
 
+export interface AgentDeploymentStatus {
+  agentId: string;
+  state: "pending" | "ready" | "blocked" | "deployed" | "rollback_available";
+  status: "pending" | "ready" | "blocked" | "deployed" | "rollback_available";
+  playground: {
+    installationId: string | null;
+    status: string | null;
+    version: DeploymentVersionProjection | null;
+    capabilityConfigurationDigest: string | null;
+  };
+  live: {
+    installationId: string | null;
+    status: string | null;
+    version: DeploymentVersionProjection | null;
+    capabilityConfigurationDigest: string | null;
+  };
+  rollbackTarget: DeploymentVersionProjection | null;
+  latestPromotion: {
+    id: string;
+    candidateVersionId: string | null;
+    previousVersionId: string | null;
+    sourceInstallationId: string | null;
+    capabilityConfigurationDigest: string | null;
+    bindingRevision: string | null;
+    createdAt: string;
+  } | null;
+}
+
 export interface TemplateInstallationRecord {
   agent: AgentRecord;
   version: AgentVersionRecord;
@@ -146,9 +272,68 @@ export interface ExternalAgentConnectionRecord {
   credential?: CreatedInstallationCredential;
 }
 
+export interface AgentDeletionResult {
+  agentId: string;
+  installationIds: string[];
+  deleted: boolean;
+  status: "deleted" | "queued";
+  deletionJobId?: string;
+}
+
 interface InstallationAnalyticsRow extends InstallationRecord {
   creation_profile: HostedAgentCreationProfile | "system";
   agent_audience: AgentAudience;
+}
+
+interface DeploymentStatusRow {
+  agent_id: string;
+  playground_installation_id: string | null;
+  playground_status: string | null;
+  playground_version_id: string | null;
+  playground_version_number: number | null;
+  playground_version_status: string | null;
+  playground_digest: string | null;
+  playground_extension_snapshot_id: string | null;
+  playground_extension_snapshot_checksum: string | null;
+  live_installation_id: string | null;
+  live_status: string | null;
+  live_version_id: string | null;
+  live_version_number: number | null;
+  live_version_status: string | null;
+  live_digest: string | null;
+  live_extension_snapshot_id: string | null;
+  live_extension_snapshot_checksum: string | null;
+  latest_promotion_id: string | null;
+  latest_candidate_version_id: string | null;
+  latest_previous_version_id: string | null;
+  latest_source_installation_id: string | null;
+  latest_capability_configuration_digest: string | null;
+  latest_binding_revision: string | null;
+  latest_promotion_created_at: string | null;
+  rollback_version_id: string | null;
+  rollback_version_number: number | null;
+  rollback_version_status: string | null;
+  rollback_digest: string | null;
+  rollback_extension_snapshot_id: string | null;
+  rollback_extension_snapshot_checksum: string | null;
+}
+
+function projectDeploymentVersionRow(row: {
+  version_id: string;
+  version_number: number | null;
+  status: string | null;
+  checksum: string | null;
+  extension_snapshot_id: string | null;
+  extension_snapshot_checksum: string | null;
+}): DeploymentVersionProjection {
+  return {
+    versionId: row.version_id,
+    versionNumber: Number(row.version_number ?? 0),
+    status: row.status ?? "unknown",
+    digest: row.checksum ?? "",
+    extensionSnapshotId: row.extension_snapshot_id,
+    extensionSnapshotChecksum: row.extension_snapshot_checksum,
+  };
 }
 
 type CreateSystemAgentInput = Omit<CreateAgentInput, "creationProfile"> & { creationProfile?: HostedAgentCreationProfile };
@@ -181,7 +366,38 @@ function checksumVersion(input: CreateVersionInput, versionNumber: number): stri
 export class AgentRepository {
   private readonly deploymentModule = new AgentDeploymentModule();
 
-  public constructor(private readonly pool: Pool) {}
+  public constructor(
+    private readonly pool: Pool,
+    extensionSnapshots?: ExtensionSnapshotRepository,
+  ) {
+    // Publication and run admission must never silently proceed without the
+    // immutable extension-snapshot boundary. Keep the constructor convenient
+    // for existing callers while making the reconciler mandatory in practice.
+    this.extensionSnapshots = extensionSnapshots ?? new ExtensionSnapshotRepository(pool);
+  }
+
+  private readonly extensionSnapshots: ExtensionSnapshotRepository;
+
+  private async ensureVersionExtensionSnapshot(
+    client: PoolClient,
+    organizationId: string,
+    actorId: string,
+    agentDefinitionId: string,
+    versionId: string,
+  ): Promise<AgentVersionRecord | undefined> {
+    const snapshot = await this.extensionSnapshots.ensureSnapshotForVersion(client, organizationId, actorId, versionId);
+    const pinned = await client.query<AgentVersionRecord>(
+      `UPDATE agent_versions
+       SET extension_snapshot_id = $3
+       WHERE id = $1
+         AND agent_definition_id = $2
+         AND (extension_snapshot_id IS NULL OR extension_snapshot_id = $3)
+       RETURNING *`,
+      [versionId, agentDefinitionId, snapshot.id],
+    );
+    if (!pinned.rows[0]) throw new Error("EXTENSION_SNAPSHOT_VERSION_PIN_FAILED");
+    return pinned.rows[0];
+  }
 
   private async assertHostedDefinition(client: PoolClient, organizationId: string, agentId: string): Promise<void> {
     const result = await client.query<{ execution_mode: AgentExecutionMode }>(
@@ -238,6 +454,66 @@ export class AgentRepository {
       await this.enqueueDefinitionLifecycle(client, organizationId, createdAgent, "created", "active", [], "human", createdAgent.created_at);
       return createdAgent;
     });
+  }
+
+  /**
+   * Create the first Studio agent as one platform operation.
+   *
+   * The public repository methods remain independently useful for advanced
+   * management flows, but the Studio should not have to coordinate definition,
+   * version, publication, and Playground installation from the browser. The
+   * compensation path removes the incomplete definition if a later stage
+   * fails, so a rejected Studio setup does not leave an unusable agent behind.
+   */
+  public async createStudioAgent(
+    organizationId: string,
+    actorId: string,
+    input: StudioAgentCreationInput,
+    versionInput: CreateVersionInput,
+  ): Promise<{ agent: AgentRecord; version: AgentVersionRecord; installation: InstallationRecord }> {
+    const agent = await this.createAgent(organizationId, actorId, {
+      name: input.name,
+      description: input.description,
+      creationProfile: "custom",
+      agentAudience: "personal",
+      protected: false,
+    });
+
+    try {
+      const draft = await this.createVersion(organizationId, actorId, agent.id, versionInput);
+      const version = await this.publishVersion(organizationId, actorId, agent.id, draft.id);
+      const installation = await this.createInstallation(organizationId, actorId, {
+        agentVersionId: version.id,
+        scopeType: "organization",
+        settings: {
+          environment: "playground",
+          source: "studio",
+          executionProfile: "autonomous",
+        },
+        executionMode: "kasitek_hosted",
+        releaseMode: "pinned",
+      });
+      // Every hosted agent has a separate Live target from its first
+      // published candidate. Future edits update Playground only; the
+      // explicit promotion contract moves the pinned Live pointer.
+      await this.createInstallation(organizationId, actorId, {
+        agentVersionId: version.id,
+        scopeType: "organization",
+        settings: {
+          environment: "live",
+          source: "studio",
+          executionProfile: "autonomous",
+          bindingRevision: "initial",
+          bindingStatus: "ready",
+        },
+        executionMode: "kasitek_hosted",
+        releaseMode: "pinned",
+      });
+      return { agent, version, installation };
+    } catch (error) {
+      await this.deleteAgent(organizationId, actorId, agent.id).catch(() => undefined);
+      throw error;
+    }
   }
 
   public async updateAgent(
@@ -311,6 +587,7 @@ export class AgentRepository {
     const requestedSlug = input.slug ?? `${slugify(input.name) || "external-agent"}-external`.slice(0, 80);
     const settings = {
       externalConnectionKey: input.idempotencyKey,
+      environment: "live",
       runtime: input.runtime,
       protocols: input.protocols,
       capabilities,
@@ -358,7 +635,7 @@ export class AgentRepository {
           actorId,
         ],
       );
-      const version = versionResult.rows[0]!;
+      const version = (await this.ensureVersionExtensionSnapshot(client, organizationId, actorId, agent.id, versionResult.rows[0]!.id)) ?? versionResult.rows[0]!;
       await this.enqueueVersionLifecycle(client, organizationId, version, "created", "human", version.created_at);
       for (const toolName of capabilities) {
         await client.query(
@@ -462,6 +739,7 @@ export class AgentRepository {
     const actorId = `developer-api-key:${developerApiKeyId}`;
     const settings = {
       developerApiKeyId,
+      environment: "live",
       runtime: "developer_api_key",
       protocols: ["mcp"],
       capabilities: [...input.toolNames],
@@ -484,7 +762,14 @@ export class AgentRepository {
             client.query<AgentVersionRecord>("SELECT * FROM agent_versions WHERE id = $1", [installation.agent_version_id]),
           ]);
           if (!agentResult.rows[0] || !versionResult.rows[0]) throw new Error("Developer API installation aggregate is incomplete");
-          return { agent: agentResult.rows[0], version: versionResult.rows[0], installation, created: false };
+          const version = (await this.ensureVersionExtensionSnapshot(
+            client,
+            input.organizationId,
+            actorId,
+            agentResult.rows[0].id,
+            versionResult.rows[0].id,
+          )) ?? versionResult.rows[0];
+          return { agent: agentResult.rows[0], version, installation, created: false };
         }
 
         const agentResult = await client.query<AgentRecord>(
@@ -513,7 +798,13 @@ export class AgentRepository {
             actorId,
           ],
         );
-        const version = versionResult.rows[0]!;
+        const version = (await this.ensureVersionExtensionSnapshot(
+          client,
+          input.organizationId,
+          actorId,
+          agent.id,
+          versionResult.rows[0]!.id,
+        )) ?? versionResult.rows[0]!;
         await this.enqueueVersionLifecycle(client, input.organizationId, version, "created", "system", version.created_at);
         for (const toolName of input.toolNames) {
           await client.query(
@@ -577,7 +868,7 @@ export class AgentRepository {
   }): Promise<TemplateInstallationRecord> {
     const template = getAgentTemplate(input.templateKey);
     if (!template) throw new Error("Agent template not found");
-    const settings = input.settings ?? {};
+    const settings = normalizeInstallationSettings(input.settings);
     const versionInput = templateVersionInput(template, settings);
     const allowedTools = resolveHostedAgentAllowedTools(template.profile, versionInput.policy.allowedTools, template.audience);
     const effectiveVersionInput = { ...versionInput, policy: { ...versionInput.policy, allowedTools } };
@@ -651,6 +942,7 @@ export class AgentRepository {
         created = true;
         await this.enqueueVersionLifecycle(client, input.organizationId, version, "created", "human", version.created_at);
       }
+      version = (await this.ensureVersionExtensionSnapshot(client, input.organizationId, input.actorId, agent.id, version.id)) ?? version;
       for (const toolName of allowedTools) {
         await client.query(
           `INSERT INTO agent_tool_grants
@@ -664,9 +956,33 @@ export class AgentRepository {
       const installationResult = await client.query<InstallationRecord & { created_now: boolean }>(
         `INSERT INTO agent_installations
           (agent_definition_id, agent_version_id, organization_id, scope_type, scope_id, execution_mode, release_mode, settings, created_by)
-         VALUES ($1, $2, $3, 'organization', $3, 'kasitek_hosted', 'follow_published', $4::jsonb, $5)
-         ON CONFLICT (organization_id, agent_definition_id, scope_type, scope_id)
-         DO UPDATE SET updated_at = agent_installations.updated_at
+         VALUES ($1, $2, $3, 'organization', $3, 'kasitek_hosted', 'pinned', $4::jsonb, $5)
+         ON CONFLICT (
+           organization_id,
+           agent_definition_id,
+           scope_type,
+           scope_id,
+           (COALESCE(settings ->> 'environment', 'live'))
+         )
+         DO UPDATE SET
+           updated_at = agent_installations.updated_at,
+           settings = CASE
+             WHEN COALESCE(EXCLUDED.settings ->> 'environment', 'live') = 'live'
+             THEN agent_installations.settings || jsonb_build_object(
+               'environment', 'live',
+               'bindingRevision', COALESCE(
+                 agent_installations.settings ->> 'bindingRevision',
+                 EXCLUDED.settings ->> 'bindingRevision',
+                 'system-default'
+               ),
+               'bindingStatus', COALESCE(
+                 agent_installations.settings ->> 'bindingStatus',
+                 EXCLUDED.settings ->> 'bindingStatus',
+                 'ready'
+               )
+             )
+             ELSE agent_installations.settings
+           END
          RETURNING *, (xmax = 0) AS created_now`,
         [agent.id, version.id, input.organizationId, JSON.stringify({ ...settings, templateKey: template.key, templateVersion: template.version }), input.actorId],
       );
@@ -797,7 +1113,7 @@ export class AgentRepository {
         if (!published.rows[0].content_matches) {
           throw new Error("Published system agent version differs; use an explicit release operation");
         }
-        return published.rows[0];
+        return (await this.ensureVersionExtensionSnapshot(client, agent.organization_id, actorId, agentId, published.rows[0].id)) ?? published.rows[0];
       }
       const versionResult = await client.query<{ version_number: number }>(
         "SELECT COALESCE(MAX(version_number), 0) + 1 AS version_number FROM agent_versions WHERE agent_definition_id = $1",
@@ -820,7 +1136,8 @@ export class AgentRepository {
           actorId,
         ],
       );
-      const version = created.rows[0]!;
+      let version = created.rows[0]!;
+      version = (await this.ensureVersionExtensionSnapshot(client, agent.organization_id, actorId, agentId, version.id)) ?? version;
       await this.enqueueVersionLifecycle(client, agent.organization_id, version, "created", "system", version.created_at);
       const allowedTools = Array.isArray(input.policy.allowedTools)
         ? input.policy.allowedTools.filter(
@@ -866,7 +1183,9 @@ export class AgentRepository {
         `SELECT * FROM agent_versions WHERE agent_definition_id = $1 AND status = 'published' LIMIT 1 FOR UPDATE`,
         [agentId],
       );
-      if (current.rows[0] && agentVersionContentMatches(current.rows[0], input)) return current.rows[0];
+      if (current.rows[0] && agentVersionContentMatches(current.rows[0], input)) {
+        return (await this.ensureVersionExtensionSnapshot(client, agent.rows[0].organization_id, actorId, agentId, current.rows[0].id)) ?? current.rows[0];
+      }
       const next = await client.query<{ version_number: number }>(
         `SELECT COALESCE(MAX(version_number), 0) + 1 AS version_number
          FROM agent_versions WHERE agent_definition_id = $1`,
@@ -890,7 +1209,8 @@ export class AgentRepository {
          RETURNING *`,
         [agentId, versionNumber, input.instructions, JSON.stringify(input.configuration), JSON.stringify(input.policy), checksumVersion(input, versionNumber), actorId],
       );
-      const version = created.rows[0]!;
+      let version = created.rows[0]!;
+      version = (await this.ensureVersionExtensionSnapshot(client, agent.rows[0].organization_id, actorId, agentId, version.id)) ?? version;
       await this.enqueueVersionLifecycle(client, agent.rows[0].organization_id, version, "created", "system", version.created_at);
       const allowedTools = Array.isArray(input.policy.allowedTools)
         ? input.policy.allowedTools.filter((tool): tool is string => typeof tool === "string" && tool.trim().length > 0)
@@ -1017,7 +1337,7 @@ export class AgentRepository {
     return result.rows[0] ?? null;
   }
 
-  public async listAgents(organizationId: string): Promise<AgentRecord[]> {
+  public async listAgents(organizationId: string, options: { environment?: "playground" | "live" } = {}): Promise<AgentRecord[]> {
     const result = await query<AgentRecord>(
       this.pool,
       `SELECT ad.*, ai.id AS installation_id, ai.execution_mode, ai.status AS installation_status,
@@ -1030,6 +1350,7 @@ export class AgentRepository {
        LEFT JOIN LATERAL (
          SELECT ai.* FROM agent_installations ai
          WHERE ai.agent_definition_id = ad.id AND ai.organization_id = $1
+           AND ($2::text IS NULL OR COALESCE(ai.settings ->> 'environment', 'live') = $2)
          ORDER BY ai.updated_at DESC LIMIT 1
        ) ai ON TRUE
        LEFT JOIN agent_versions av ON av.id = ai.agent_version_id
@@ -1049,8 +1370,9 @@ export class AgentRepository {
            AND hidden_ai.organization_id = $1
            AND hidden_ai.settings ->> 'developerApiKeyId' IS NOT NULL
        )
+       AND ($2::text IS NULL OR ai.id IS NOT NULL)
        ORDER BY ad.protected DESC, ad.created_at DESC`,
-      [organizationId],
+      [organizationId, options.environment ?? null],
     );
     return result.rows;
   }
@@ -1266,8 +1588,228 @@ export class AgentRepository {
         );
         if (pinned.rowCount !== requestedSkillIds.length) throw new Error("SKILL_VERSION_UNAVAILABLE");
       }
+      // Draft versions are reconciled at publication time. This prevents a
+      // package being revoked or becoming unready after draft creation from
+      // being hidden behind an already-pinned draft snapshot.
       return created.rows[0]!;
     });
+  }
+
+  /**
+   * Activate one extension on the next Playground candidate. Published
+   * versions are immutable: when the Playground still points at a published
+   * version, this clones the version, copies its pins and installation grants,
+   * applies the requested extension, materializes a fresh extension snapshot,
+   * and retargets only that Playground installation. Live remains pinned to
+   * its previous version until an explicit promotion.
+   */
+  public async activatePlaygroundExtension(
+    input: {
+      organizationId: string;
+      actorId: string;
+      installationId?: string;
+      agentVersionId?: string;
+      extension: PlaygroundExtensionActivation;
+    },
+  ): Promise<PlaygroundExtensionActivationResult> {
+    return withTransaction(this.pool, async (client) => {
+      const installationResult = await client.query<InstallationRecord>(
+        `SELECT * FROM agent_installations
+         WHERE organization_id = $1
+           AND (id = $2 OR ($2::uuid IS NULL AND agent_version_id = $3))
+           AND COALESCE(settings ->> 'environment', 'live') = 'playground'
+           AND status <> 'disabled'
+         ORDER BY updated_at DESC
+         LIMIT 1
+         FOR UPDATE`,
+        [input.organizationId, input.installationId ?? null, input.agentVersionId ?? null],
+      );
+      const installation = installationResult.rows[0];
+      if (!installation) throw new Error("PLAYGROUND_INSTALLATION_NOT_FOUND");
+      if (input.agentVersionId && installation.agent_version_id !== input.agentVersionId) {
+        throw new Error("PLAYGROUND_VERSION_NOT_ACTIVE");
+      }
+
+      const sourceResult = await client.query<AgentVersionRecord>(
+        `SELECT version.*
+         FROM agent_versions version
+         JOIN agent_definitions definition ON definition.id = version.agent_definition_id
+         WHERE version.id = $2 AND version.agent_definition_id = $3
+           AND definition.organization_id = $1
+         FOR UPDATE`,
+        [input.organizationId, installation.agent_version_id, installation.agent_definition_id],
+      );
+      const source = sourceResult.rows[0];
+      if (!source) throw new Error("PLAYGROUND_VERSION_NOT_FOUND");
+
+      let configuration = source.configuration ?? {};
+      let policy = source.policy ?? {};
+      let extensionChanged = false;
+      if (input.extension.kind === "plugin") {
+        const selected = addPluginPackageSelection(configuration, policy, input.extension.package);
+        configuration = selected.configuration;
+        policy = selected.policy;
+        extensionChanged = selected.changed;
+      }
+
+      const skillAlreadyPinned = input.extension.kind === "skill"
+        ? Boolean((await client.query(
+          `SELECT 1 FROM agent_version_skills
+           WHERE organization_id = $1 AND agent_version_id = $2 AND skill_version_id = $3`,
+          [input.organizationId, source.id, input.extension.skillVersionId],
+        )).rows[0])
+        : false;
+      const mcpAlreadyPinned = input.extension.kind === "mcp"
+        ? Boolean((await client.query(
+          `SELECT 1 FROM agent_version_mcp_providers
+           WHERE organization_id = $1 AND agent_version_id = $2 AND provider_version_id = $3`,
+          [input.organizationId, source.id, input.extension.providerVersionId],
+        )).rows[0])
+        : false;
+      extensionChanged ||= input.extension.kind === "skill" ? !skillAlreadyPinned : input.extension.kind === "mcp" ? !mcpAlreadyPinned : false;
+      if (!extensionChanged) return { installation, version: source, createdCandidate: false };
+
+      if (source.status === "draft") {
+        const updated = await client.query<AgentVersionRecord>(
+          `UPDATE agent_versions
+           SET configuration = $2::jsonb,
+               policy = $3::jsonb,
+               checksum = $4
+           WHERE id = $1
+           RETURNING *`,
+          [source.id, JSON.stringify(configuration), JSON.stringify(policy), checksumVersion({ instructions: source.instructions, configuration, policy } as CreateVersionInput, source.version_number)],
+        );
+        const version = updated.rows[0] ?? source;
+        await this.applyPlaygroundExtensionPin(client, input, version.id, installation.id);
+        return { installation, version, createdCandidate: false };
+      }
+
+      const nextNumber = await client.query<{ version_number: number }>(
+        `SELECT COALESCE(MAX(version_number), 0) + 1 AS version_number
+         FROM agent_versions WHERE agent_definition_id = $1`,
+        [source.agent_definition_id],
+      );
+      const versionNumber = Number(nextNumber.rows[0]?.version_number ?? source.version_number + 1);
+      const inserted = await client.query<AgentVersionRecord>(
+        `INSERT INTO agent_versions
+          (agent_definition_id, version_number, status, instructions, configuration, policy,
+           checksum, created_by)
+         VALUES ($1, $2, 'draft', $3, $4::jsonb, $5::jsonb, $6, $7)
+         RETURNING *`,
+        [
+          source.agent_definition_id,
+          versionNumber,
+          source.instructions,
+          JSON.stringify(configuration),
+          JSON.stringify(policy),
+          checksumVersion({ instructions: source.instructions, configuration, policy } as CreateVersionInput, versionNumber),
+          input.actorId,
+        ],
+      );
+      const candidate = inserted.rows[0];
+      if (!candidate) throw new Error("PLAYGROUND_CANDIDATE_CREATE_FAILED");
+
+      // Portable version grants and extension pins travel with the candidate.
+      await client.query(
+        `INSERT INTO agent_tool_grants
+           (organization_id, agent_version_id, installation_id, tool_name, granted_by)
+         SELECT organization_id, $2, installation_id, tool_name, granted_by
+         FROM agent_tool_grants
+         WHERE organization_id = $1 AND agent_version_id = $3 AND revoked_at IS NULL
+         ON CONFLICT (agent_version_id, COALESCE(installation_id, '00000000-0000-0000-0000-000000000000'::uuid), tool_name)
+           WHERE revoked_at IS NULL DO NOTHING`,
+        [input.organizationId, candidate.id, source.id],
+      );
+      await client.query(
+        `INSERT INTO agent_version_skills (organization_id, agent_version_id, skill_version_id, pinned_by)
+         SELECT organization_id, $2, skill_version_id, pinned_by
+         FROM agent_version_skills
+         WHERE organization_id = $1 AND agent_version_id = $3
+         ON CONFLICT (agent_version_id, skill_version_id) DO NOTHING`,
+        [input.organizationId, candidate.id, source.id],
+      );
+      await client.query(
+        `INSERT INTO agent_version_mcp_providers (organization_id, agent_version_id, provider_version_id, pinned_by)
+         SELECT organization_id, $2, provider_version_id, pinned_by
+         FROM agent_version_mcp_providers
+         WHERE organization_id = $1 AND agent_version_id = $3
+         ON CONFLICT DO NOTHING`,
+        [input.organizationId, candidate.id, source.id],
+      );
+      await this.applyPlaygroundExtensionPin(client, input, candidate.id, installation.id);
+
+      const snapshot = await this.extensionSnapshots.ensureSnapshotForVersion(client, input.organizationId, input.actorId, candidate.id);
+      const pinned = await client.query<AgentVersionRecord>(
+        `UPDATE agent_versions SET extension_snapshot_id = $2 WHERE id = $1 RETURNING *`,
+        [candidate.id, snapshot.id],
+      );
+      const retired = await client.query<AgentVersionRecord>(
+        `UPDATE agent_versions SET status = 'retired', retired_at = now()
+         WHERE id = $1 AND status = 'published' RETURNING *`,
+        [source.id],
+      );
+      const published = await client.query<AgentVersionRecord>(
+        `UPDATE agent_versions SET status = 'published', published_at = now()
+         WHERE id = $1 AND status = 'draft' RETURNING *`,
+        [candidate.id],
+      );
+      const publishedVersion = published.rows[0] ?? pinned.rows[0];
+      if (!publishedVersion) throw new Error("PLAYGROUND_CANDIDATE_PUBLISH_FAILED");
+      for (const version of retired.rows) {
+        await this.enqueueVersionLifecycle(client, input.organizationId, version, "retired", "human", new Date().toISOString());
+      }
+      await this.enqueueVersionLifecycle(client, input.organizationId, publishedVersion, "published", "human", new Date().toISOString());
+      const deployed = await this.deploymentModule.deployInstallation(client, input.organizationId, input.actorId, installation.id, {
+        versionId: publishedVersion.id,
+        expectedVersionId: source.id,
+      });
+      return { installation: deployed, version: publishedVersion, createdCandidate: true };
+    });
+  }
+
+  private async applyPlaygroundExtensionPin(
+    client: PoolClient,
+    input: { organizationId: string; actorId: string; extension: PlaygroundExtensionActivation },
+    agentVersionId: string,
+    installationId: string,
+  ): Promise<void> {
+    if (input.extension.kind === "skill") {
+      const result = await client.query(
+        `INSERT INTO agent_version_skills (organization_id, agent_version_id, skill_version_id, pinned_by)
+         SELECT $1, $2, version.id, $3
+         FROM agent_skill_versions version
+         JOIN agent_skill_definitions definition ON definition.id = version.skill_definition_id
+         WHERE version.id = $4 AND version.organization_id = $1
+           AND version.status = 'published' AND definition.status = 'published'
+           AND (definition.organization_id = $1 OR definition.owner_type = 'platform')
+         ON CONFLICT (agent_version_id, skill_version_id) DO NOTHING`,
+        [input.organizationId, agentVersionId, input.actorId, input.extension.skillVersionId],
+      );
+      if (!result.rowCount && !((await client.query("SELECT 1 FROM agent_version_skills WHERE organization_id = $1 AND agent_version_id = $2 AND skill_version_id = $3", [input.organizationId, agentVersionId, input.extension.skillVersionId])).rows[0])) {
+        throw new Error("SKILL_VERSION_NOT_FOUND_OR_NOT_PUBLISHED");
+      }
+      return;
+    }
+    if (input.extension.kind === "mcp") {
+      const result = await client.query(
+        `INSERT INTO agent_version_mcp_providers (organization_id, agent_version_id, provider_version_id, pinned_by)
+         SELECT $1, $2, provider_version.id, $3
+         FROM agent_mcp_provider_versions provider_version
+         JOIN agent_mcp_providers provider ON provider.id = provider_version.provider_id
+         WHERE provider_version.id = $4 AND provider_version.organization_id = $1
+           AND provider_version.status = 'published' AND provider.status = 'approved'
+           AND provider.health_status = 'healthy'
+         ON CONFLICT DO NOTHING`,
+        [input.organizationId, agentVersionId, input.actorId, input.extension.providerVersionId],
+      );
+      if (!result.rowCount && !((await client.query("SELECT 1 FROM agent_version_mcp_providers WHERE organization_id = $1 AND agent_version_id = $2 AND provider_version_id = $3", [input.organizationId, agentVersionId, input.extension.providerVersionId])).rows[0])) {
+        throw new Error("REMOTE_MCP_PROVIDER_VERSION_NOT_FOUND_OR_NOT_PUBLISHED_OR_UNHEALTHY");
+      }
+      return;
+    }
+    // Plugin selection is represented in the version configuration. The
+    // package itself was already validated and published by the caller.
+    void installationId;
   }
 
   public async publishVersion(
@@ -1286,6 +1828,17 @@ export class AgentRepository {
       if (agent.rows[0].protected && agent.rows[0].owner_type !== "system") {
         throw new Error("Protected agent ownership is invalid");
       }
+      const draft = await client.query<AgentVersionRecord>(
+        `SELECT * FROM agent_versions
+         WHERE id = $1 AND agent_definition_id = $2 AND status = 'draft'
+         FOR UPDATE`,
+        [versionId, agentId],
+      );
+      if (!draft.rows[0]) throw new Error("Draft version not found");
+      // Resolve against the current persisted package catalog while the
+      // version is still draft. The transaction cannot publish if any
+      // selected package is missing, revoked, or not ready.
+      await this.ensureVersionExtensionSnapshot(client, organizationId, actorId, agentId, draft.rows[0].id);
       const lifecycleAt = new Date().toISOString();
       const retired = await client.query<AgentVersionRecord>(
         `UPDATE agent_versions
@@ -1302,24 +1855,18 @@ export class AgentRepository {
         [versionId, agentId],
       );
       if (!published.rows[0]) throw new Error("Draft version not found");
+      const publishedVersion = published.rows[0];
       for (const version of retired.rows) {
         await this.enqueueVersionLifecycle(client, organizationId, version, "retired", "human", lifecycleAt);
       }
-      await this.enqueueVersionLifecycle(client, organizationId, published.rows[0], "published", "human", lifecycleAt);
-      await this.deploymentModule.deployFollowPublishedInstallations(client, {
-        organizationId,
-        agentId,
-        versionId,
-        actorId,
-        trigger: "version_published",
-      });
+      await this.enqueueVersionLifecycle(client, organizationId, publishedVersion, "published", "human", lifecycleAt);
       await client.query(
         `INSERT INTO audit_records
           (organization_id, actor_type, actor_id, action, resource_type, resource_id, metadata)
          VALUES ($1, 'human', $2, 'agent_version.published', 'agent_version', $3, $4::jsonb)`,
         [organizationId, actorId, versionId, JSON.stringify({ agentId })],
       );
-      return published.rows[0]!;
+      return publishedVersion;
     });
   }
 
@@ -1360,13 +1907,6 @@ export class AgentRepository {
       }
       if (published.rows[0]) {
         await this.enqueueVersionLifecycle(client, organizationId, published.rows[0], "rolled_back", "human", lifecycleAt);
-        await this.deploymentModule.deployFollowPublishedInstallations(client, {
-          organizationId,
-          agentId,
-          versionId,
-          actorId,
-          trigger: "version_rolled_back",
-        });
       }
       await client.query(
         `INSERT INTO audit_records
@@ -1468,8 +2008,142 @@ export class AgentRepository {
     });
   }
 
-  /** Permanently removes an organization-owned agent and all agent-scoped data. */
-  public async deleteAgent(organizationId: string, actorId: string, agentId: string): Promise<{ agentId: string; installationIds: string[]; deleted: true }> {
+  /**
+   * Requests deletion of an organization-owned agent.
+   *
+   * Agents with v2 memory are archived and routed through the durable memory
+   * deletion workflow first. This prevents installations from disappearing
+   * before source events, checkpoints, canonical revisions, and remote
+   * provider projections have been purged and acknowledged.
+   */
+  public async deleteAgent(organizationId: string, actorId: string, agentId: string): Promise<AgentDeletionResult> {
+    const queued = await withTransaction(this.pool, async (client) => {
+      const agentResult = await client.query<Pick<AgentRecord, "id" | "name" | "owner_type" | "protected" | "creation_profile" | "agent_audience" | "status">>(
+        `SELECT id, name, owner_type, protected, creation_profile, agent_audience, status
+         FROM agent_definitions
+         WHERE organization_id = $1 AND id = $2
+         FOR UPDATE`,
+        [organizationId, agentId],
+      );
+      const agent = agentResult.rows[0];
+      if (!agent) throw Object.assign(new Error("Agent not found"), { statusCode: 404, code: "AGENT_NOT_FOUND" });
+      if (agent.protected || agent.owner_type !== "organization") {
+        throw Object.assign(new Error("Protected agents cannot be deleted"), { statusCode: 403, code: "AGENT_PROTECTED" });
+      }
+
+      const installations = await client.query<{ id: string; status: string }>(
+        `SELECT id::text AS id, status
+         FROM agent_installations
+         WHERE organization_id = $1 AND agent_definition_id = $2
+         ORDER BY created_at
+         FOR UPDATE`,
+        [organizationId, agentId],
+      );
+      const installationIds = installations.rows.map((row) => row.id);
+      const memoryState = await client.query<{ requires_workflow: boolean }>(
+        `SELECT
+           EXISTS (SELECT 1 FROM agent_memory_facts WHERE organization_id = $1 AND agent_definition_id = $2) OR
+           EXISTS (SELECT 1 FROM memory_source_events WHERE organization_id = $1 AND agent_definition_id = $2) OR
+           EXISTS (SELECT 1 FROM memory_checkpoints WHERE organization_id = $1 AND agent_definition_id = $2) OR
+           EXISTS (SELECT 1 FROM agent_memory_provider_deletion_jobs provider_job
+                   WHERE provider_job.organization_id = $1
+                     AND provider_job.installation_id = ANY($3::uuid[])) OR
+           EXISTS (SELECT 1 FROM memory_deletion_jobs
+                   WHERE organization_id = $1 AND target_type = 'agent' AND target_id = $2::text
+                     AND status IN ('queued', 'running', 'held', 'provider_pending')) AS requires_workflow`,
+        [organizationId, agentId, installationIds],
+      );
+      if (!memoryState.rows[0]?.requires_workflow) return null;
+
+      const activeRuns = await client.query<{ count: string }>(
+        `SELECT COUNT(*)::text AS count
+         FROM agent_runs
+         WHERE organization_id = $1 AND agent_definition_id = $2
+           AND status NOT IN ('completed', 'failed', 'cancelled', 'expired')`,
+        [organizationId, agentId],
+      );
+      if (Number(activeRuns.rows[0]?.count ?? 0) > 0) {
+        throw Object.assign(new Error("Cancel active agent runs before deleting this agent"), { statusCode: 409, code: "AGENT_ACTIVE_RUNS" });
+      }
+      const activeLegalHold = await client.query(
+        `SELECT 1
+         FROM agent_legal_holds
+         WHERE organization_id = $1
+           AND status = 'active'
+           AND (expires_at IS NULL OR expires_at > now())
+           AND (
+             (scope_type = 'organization' AND scope_id = $1)
+             OR (scope_type = 'installation' AND scope_id = ANY($2::text[]))
+           )
+         LIMIT 1`,
+        [organizationId, installationIds],
+      );
+      if (activeLegalHold.rows[0]) {
+        throw Object.assign(new Error("Release the active legal hold before deleting this agent"), { statusCode: 409, code: "AGENT_LEGAL_HOLD_ACTIVE" });
+      }
+
+      const existingJob = await client.query<{ id: string }>(
+        `SELECT id::text AS id
+         FROM memory_deletion_jobs
+         WHERE organization_id = $1 AND target_type = 'agent' AND target_id = $2
+           AND status IN ('queued', 'running', 'held', 'provider_pending')
+         ORDER BY created_at DESC
+         LIMIT 1`,
+        [organizationId, agentId],
+      );
+      const deletionJobId = existingJob.rows[0]?.id ?? (await client.query<{ id: string }>(
+        `INSERT INTO memory_deletion_jobs
+           (organization_id, requested_by, target_type, target_id, status, next_attempt_at)
+         VALUES ($1, $2, 'agent', $3, 'queued', now())
+         RETURNING id::text AS id`,
+        [organizationId, actorId, agentId],
+      )).rows[0]!.id;
+
+      const archived = await client.query<AgentRecord>(
+        `UPDATE agent_definitions
+         SET status = 'archived', archived_at = COALESCE(archived_at, now()), updated_at = now()
+         WHERE organization_id = $1 AND id = $2
+         RETURNING *`,
+        [organizationId, agentId],
+      );
+      const archivedAgent = archived.rows[0];
+      if (!archivedAgent) throw new Error("Agent archive failed");
+      if (agent.status !== "archived") {
+        await this.enqueueDefinitionLifecycle(client, organizationId, archivedAgent, "archived", "archived", ["status"], "human", archivedAgent.updated_at);
+      }
+      const disabled = await client.query<InstallationRecord>(
+        `UPDATE agent_installations
+         SET status = 'disabled', updated_at = now()
+         WHERE organization_id = $1 AND agent_definition_id = $2 AND status <> 'disabled'
+         RETURNING *`,
+        [organizationId, agentId],
+      );
+      const previousById = new Map(installations.rows.map((installation) => [installation.id, installation.status]));
+      for (const installation of disabled.rows) {
+        const previousStatus = previousById.get(installation.id);
+        if (previousStatus) {
+          await this.enqueueInstallationLifecycle(client, installation, "disabled", previousStatus as InstallationLifecycleAnalyticsInput["previousStatus"], "human", installation.updated_at);
+        }
+      }
+      await client.query(
+        `INSERT INTO audit_records
+           (organization_id, actor_type, actor_id, action, resource_type, resource_id, metadata)
+         VALUES ($1, 'human', $2, 'agent.deletion.requested', 'agent_definition', $3, $4::jsonb)`,
+        [organizationId, actorId, agentId, JSON.stringify({ deletionJobId })],
+      );
+      return { agentId, installationIds, deleted: false, status: "queued" as const, deletionJobId };
+    });
+    if (queued) return queued;
+    return this.deleteAgentImmediately(organizationId, actorId, agentId);
+  }
+
+  /** Finalizer entrypoint used after the memory/provider deletion job completes. */
+  public async finalizeAgentDeletion(organizationId: string, actorId: string, agentId: string): Promise<AgentDeletionResult> {
+    return this.deleteAgentImmediately(organizationId, actorId, agentId);
+  }
+
+  /** Permanently removes an organization-owned agent after memory deletion is complete. */
+  private async deleteAgentImmediately(organizationId: string, actorId: string, agentId: string): Promise<AgentDeletionResult> {
     return withTransaction(this.pool, async (client) => {
       const agentResult = await client.query<Pick<AgentRecord, "id" | "name" | "owner_type" | "protected" | "creation_profile" | "agent_audience" | "status">>(
         `SELECT id, name, owner_type, protected, creation_profile, agent_audience, status
@@ -1482,6 +2156,17 @@ export class AgentRepository {
       if (!agent) throw Object.assign(new Error("Agent not found"), { statusCode: 404, code: "AGENT_NOT_FOUND" });
       if (agent.protected || agent.owner_type !== "organization") {
         throw Object.assign(new Error("Protected agents cannot be deleted"), { statusCode: 403, code: "AGENT_PROTECTED" });
+      }
+
+      const residualMemory = await client.query<{ requires_workflow: boolean }>(
+        `SELECT
+           EXISTS (SELECT 1 FROM agent_memory_facts WHERE organization_id = $1 AND agent_definition_id = $2) OR
+           EXISTS (SELECT 1 FROM memory_source_events WHERE organization_id = $1 AND agent_definition_id = $2) OR
+           EXISTS (SELECT 1 FROM memory_checkpoints WHERE organization_id = $1 AND agent_definition_id = $2) AS requires_workflow`,
+        [organizationId, agentId],
+      );
+      if (residualMemory.rows[0]?.requires_workflow) {
+        throw Object.assign(new Error("Agent memory deletion is still pending"), { statusCode: 409, code: "AGENT_MEMORY_DELETION_PENDING" });
       }
 
       await client.query(
@@ -1539,6 +2224,18 @@ export class AgentRepository {
         throw Object.assign(new Error("Release the active legal hold before deleting this agent"), { statusCode: 409, code: "AGENT_LEGAL_HOLD_ACTIVE" });
       }
 
+      const providerPending = await client.query<{ count: string }>(
+        `SELECT COUNT(*)::text AS count
+         FROM agent_memory_provider_deletion_jobs
+         WHERE organization_id = $1
+           AND installation_id IN (SELECT id FROM _agent_delete_installations)
+           AND status <> 'completed'`,
+        [organizationId],
+      );
+      if (Number(providerPending.rows[0]?.count ?? 0) > 0) {
+        throw Object.assign(new Error("Remote memory provider deletion is still pending"), { statusCode: 409, code: "AGENT_PROVIDER_DELETION_PENDING" });
+      }
+
       const deletedAt = new Date().toISOString();
       await this.enqueueDefinitionLifecycle(client, organizationId, agent, "deleted", "deleted", ["status"], "human", deletedAt);
       // Preserve immutable audit history, but remove execution, conversation, knowledge,
@@ -1548,6 +2245,13 @@ export class AgentRepository {
           (organization_id, actor_type, actor_id, action, resource_type, resource_id, metadata)
          VALUES ($1, 'human', $2, 'agent.deleted', 'agent_definition', $3, $4::jsonb)`,
         [organizationId, actorId, agentId, JSON.stringify({ name: agent.name })],
+      );
+      await client.query(
+        `DELETE FROM agent_delivery_obligations
+         WHERE organization_id = $1
+           AND (run_id IN (SELECT id FROM _agent_delete_runs)
+             OR conversation_id IN (SELECT id FROM _agent_delete_conversations))`,
+        [organizationId],
       );
       await client.query("DELETE FROM agent_client_assertion_replays WHERE credential_id IN (SELECT id FROM agent_installation_credentials WHERE installation_id IN (SELECT id FROM _agent_delete_installations))");
       await client.query("DELETE FROM agent_usage_records WHERE installation_id IN (SELECT id FROM _agent_delete_installations)");
@@ -1562,7 +2266,10 @@ export class AgentRepository {
 
       await client.query("DELETE FROM agent_operator_run_assignments WHERE run_id IN (SELECT id FROM _agent_delete_runs)");
       await client.query("DELETE FROM agent_approval_records WHERE run_id IN (SELECT id FROM _agent_delete_runs)");
+      await client.query("DELETE FROM agent_approval_groups WHERE run_id IN (SELECT id FROM _agent_delete_runs)");
+      await client.query("DELETE FROM agent_session_transcript_entries WHERE run_id IN (SELECT id FROM _agent_delete_runs)");
       await client.query("DELETE FROM agent_effect_receipts WHERE run_id IN (SELECT id FROM _agent_delete_runs)");
+      await client.query("DELETE FROM memory_consolidation_jobs WHERE trigger_run_id IN (SELECT id FROM _agent_delete_runs)");
       await client.query("DELETE FROM tool_invocations WHERE run_id IN (SELECT id FROM _agent_delete_runs)");
       await client.query("DELETE FROM run_attempts WHERE run_id IN (SELECT id FROM _agent_delete_runs)");
       await client.query("DELETE FROM run_steps WHERE run_id IN (SELECT id FROM _agent_delete_runs)");
@@ -1575,6 +2282,9 @@ export class AgentRepository {
       await client.query("DELETE FROM agent_runs WHERE id IN (SELECT id FROM _agent_delete_runs)");
       await client.query("DELETE FROM evaluation_scenarios WHERE agent_definition_id = $1", [agentId]);
 
+      await client.query("DELETE FROM agent_approval_session_grants WHERE installation_id IN (SELECT id FROM _agent_delete_installations)");
+      await client.query("DELETE FROM agent_session_transcript_entries WHERE installation_id IN (SELECT id FROM _agent_delete_installations)");
+      await client.query("DELETE FROM agent_session_contexts WHERE installation_id IN (SELECT id FROM _agent_delete_installations)");
       await client.query("DELETE FROM delivery_attempts WHERE conversation_id IN (SELECT id FROM _agent_delete_conversations)");
       await client.query("DELETE FROM conversation_summaries WHERE conversation_id IN (SELECT id FROM _agent_delete_conversations)");
       await client.query("DELETE FROM messages WHERE conversation_id IN (SELECT id FROM _agent_delete_conversations)");
@@ -1589,12 +2299,16 @@ export class AgentRepository {
       await client.query("DELETE FROM memory_records WHERE agent_definition_id = $1 OR installation_id IN (SELECT id FROM _agent_delete_installations) OR conversation_id IN (SELECT id FROM _agent_delete_conversations)", [agentId]);
       await client.query("DELETE FROM knowledge_chunks WHERE source_id IN (SELECT id FROM _agent_delete_sources) OR agent_definition_id = $1", [agentId]);
       await client.query("DELETE FROM knowledge_sources WHERE id IN (SELECT id FROM _agent_delete_sources)");
+      // Provider deletion children are retained until remote confirmation. At
+      // this point the preflight above proves every child is completed, so it
+      // is safe to remove the receipts before removing installations.
+      await client.query("DELETE FROM agent_memory_provider_deletion_jobs WHERE installation_id IN (SELECT id FROM _agent_delete_installations)");
       await client.query("DELETE FROM agent_tool_grants WHERE agent_version_id IN (SELECT id FROM _agent_delete_versions)");
       await client.query("DELETE FROM agent_principals WHERE installation_id IN (SELECT id FROM _agent_delete_installations)");
       await client.query("DELETE FROM agent_installations WHERE id IN (SELECT id FROM _agent_delete_installations)");
       await client.query("DELETE FROM agent_versions WHERE id IN (SELECT id FROM _agent_delete_versions)");
       await client.query("DELETE FROM agent_definitions WHERE organization_id = $1 AND id = $2", [organizationId, agentId]);
-      return { agentId, installationIds, deleted: true };
+      return { agentId, installationIds, deleted: true, status: "deleted" as const };
     });
   }
 
@@ -1621,6 +2335,7 @@ export class AgentRepository {
     actorId: string,
     input: CreateInstallationInput,
   ): Promise<InstallationRecord> {
+    const installationSettings = normalizeInstallationSettings(input.settings);
     return withTransaction(this.pool, async (client) => {
       const version = await client.query<AgentVersionRecord & { owner_type: string; protected: boolean; agent_audience: AgentAudience }>(
         `SELECT av.*, ad.owner_type, ad.protected, ad.agent_audience FROM agent_versions av
@@ -1658,7 +2373,7 @@ export class AgentRepository {
           input.scopeId ?? organizationId,
           executionMode,
           releaseMode,
-          JSON.stringify(input.settings),
+          JSON.stringify(installationSettings),
           actorId,
         ],
       );
@@ -1678,6 +2393,59 @@ export class AgentRepository {
     });
   }
 
+  public async ensurePlaygroundInstallation(
+    organizationId: string,
+    actorId: string,
+    agentId: string,
+  ): Promise<InstallationRecord> {
+    return withTransaction(this.pool, async (client) => {
+      const version = await client.query<AgentVersionRecord & { owner_type: string; protected: boolean }>(
+        `SELECT av.*, ad.owner_type, ad.protected
+         FROM agent_versions av
+         JOIN agent_definitions ad ON ad.id = av.agent_definition_id
+         WHERE ad.id = $2 AND ad.organization_id = $1 AND ad.owner_type = 'organization'
+           AND ad.protected = FALSE AND ad.status = 'active' AND av.status = 'published'
+         LIMIT 1`,
+        [organizationId, agentId],
+      );
+      const target = version.rows[0];
+      if (!target) throw new Error("Published organization agent version not found");
+      const created = await client.query<InstallationRecord & { created_now: boolean }>(
+        `INSERT INTO agent_installations
+          (agent_definition_id, agent_version_id, organization_id, scope_type, scope_id,
+           execution_mode, release_mode, settings, created_by)
+         VALUES ($1, $2, $3, 'organization', $3, 'kasitek_hosted', 'pinned', $4::jsonb, $5)
+         ON CONFLICT (
+           organization_id,
+           agent_definition_id,
+           scope_type,
+           scope_id,
+           (COALESCE(settings ->> 'environment', 'live'))
+         )
+         DO UPDATE SET updated_at = agent_installations.updated_at
+         RETURNING *, (xmax = 0) AS created_now`,
+        [agentId, target.id, organizationId, JSON.stringify(normalizeInstallationSettings({ environment: "playground", source: "studio", executionProfile: "autonomous" }, "playground")), actorId],
+      );
+      const installation = created.rows[0];
+      if (!installation) throw new Error("Playground installation was not created");
+      if (installation.created_now) {
+        await this.enqueueInstallationLifecycle(client, installation, "created", null, "human", installation.created_at);
+        await client.query(
+          `INSERT INTO agent_principals (installation_id, organization_id)
+           VALUES ($1, $2) ON CONFLICT (installation_id) DO NOTHING`,
+          [installation.id, organizationId],
+        );
+        await client.query(
+          `INSERT INTO audit_records
+            (organization_id, actor_type, actor_id, action, resource_type, resource_id, metadata)
+           VALUES ($1, 'human', $2, 'agent_installation.created', 'agent_installation', $3, $4::jsonb)`,
+          [organizationId, actorId, installation.id, JSON.stringify({ versionId: target.id, environment: "playground", source: "studio" })],
+        );
+      }
+      return installation;
+    });
+  }
+
   public async deployInstallation(
     organizationId: string,
     actorId: string,
@@ -1687,14 +2455,210 @@ export class AgentRepository {
     return withTransaction(this.pool, (client) => this.deploymentModule.deployInstallation(client, organizationId, actorId, installationId, input));
   }
 
-  public async deployStagedVersion(
+  private async getCapabilityConfigurationDigest(
+    organizationId: string,
+    installationId: string | null,
+    versionId: string | null,
+  ): Promise<string | null> {
+    if (!installationId) return null;
+    const result = await query<{ digest: string }>(
+      this.pool,
+      `SELECT md5(COALESCE(string_agg(entry, '|' ORDER BY entry), '')) AS digest
+       FROM (
+         SELECT concat('connection:', integration_id, ':', COALESCE(credential_id::text, ''), ':', status, ':', configuration::text) AS entry
+         FROM integration_connections
+         WHERE organization_id = $1 AND installation_id = $2 AND revoked_at IS NULL
+         UNION ALL
+         SELECT concat('resource:', resource_type, ':', resource_id) AS entry
+         FROM agent_installation_resource_grants
+         WHERE organization_id = $1 AND installation_id = $2 AND revoked_at IS NULL
+         UNION ALL
+         SELECT concat('connector:', connector_id) AS entry
+         FROM agent_installation_connector_grants
+         WHERE organization_id = $1 AND installation_id = $2 AND revoked_at IS NULL
+         UNION ALL
+         SELECT concat('tool:', tool_name) AS entry
+         FROM agent_tool_grants
+         WHERE organization_id = $1 AND installation_id = $2
+           AND agent_version_id = $3 AND revoked_at IS NULL
+       ) capability_entries`,
+      [organizationId, installationId, versionId],
+    );
+    return result.rows[0]?.digest ?? null;
+  }
+
+  public async getDeploymentStatus(organizationId: string, agentId: string): Promise<AgentDeploymentStatus | null> {
+    const result = await query<DeploymentStatusRow>(
+      this.pool,
+      `SELECT definition.id AS agent_id,
+              playground.id AS playground_installation_id,
+              playground.status AS playground_status,
+              playground_version.id AS playground_version_id,
+              playground_version.version_number AS playground_version_number,
+              playground_version.status AS playground_version_status,
+              playground_version.checksum AS playground_digest,
+              playground_version.extension_snapshot_id AS playground_extension_snapshot_id,
+              playground_snapshot.checksum AS playground_extension_snapshot_checksum,
+              live.id AS live_installation_id,
+              live.status AS live_status,
+              live_version.id AS live_version_id,
+              live_version.version_number AS live_version_number,
+              live_version.status AS live_version_status,
+              live_version.checksum AS live_digest,
+              live_version.extension_snapshot_id AS live_extension_snapshot_id,
+              live_snapshot.checksum AS live_extension_snapshot_checksum,
+              latest.id AS latest_promotion_id,
+              latest.agent_version_id AS latest_candidate_version_id,
+              latest.previous_agent_version_id AS latest_previous_version_id,
+              latest.source_installation_id AS latest_source_installation_id,
+              latest.capability_configuration_digest AS latest_capability_configuration_digest,
+              latest.binding_revision AS latest_binding_revision,
+              latest.created_at AS latest_promotion_created_at,
+              rollback_version.id AS rollback_version_id,
+              rollback_version.version_number AS rollback_version_number,
+              rollback_version.status AS rollback_version_status,
+              rollback_version.checksum AS rollback_digest,
+              rollback_version.extension_snapshot_id AS rollback_extension_snapshot_id,
+              rollback_snapshot.checksum AS rollback_extension_snapshot_checksum
+       FROM agent_definitions definition
+       LEFT JOIN LATERAL (
+         SELECT installation.* FROM agent_installations installation
+         WHERE installation.organization_id = $1
+           AND installation.agent_definition_id = definition.id
+           AND COALESCE(installation.settings ->> 'environment', 'live') = 'playground'
+         ORDER BY installation.updated_at DESC LIMIT 1
+       ) playground ON TRUE
+       LEFT JOIN agent_versions playground_version ON playground_version.id = playground.agent_version_id
+       LEFT JOIN agent_extension_snapshots playground_snapshot ON playground_snapshot.id = playground_version.extension_snapshot_id
+       LEFT JOIN LATERAL (
+         SELECT installation.* FROM agent_installations installation
+         WHERE installation.organization_id = $1
+           AND installation.agent_definition_id = definition.id
+           AND COALESCE(installation.settings ->> 'environment', 'live') = 'live'
+         ORDER BY installation.updated_at DESC LIMIT 1
+       ) live ON TRUE
+       LEFT JOIN agent_versions live_version ON live_version.id = live.agent_version_id
+       LEFT JOIN agent_extension_snapshots live_snapshot ON live_snapshot.id = live_version.extension_snapshot_id
+       LEFT JOIN LATERAL (
+         SELECT deployment.* FROM agent_installation_deployments deployment
+         WHERE deployment.organization_id = $1
+           AND deployment.installation_id = live.id
+           AND deployment.outcome = 'success'
+           AND deployment.idempotency_key IS NOT NULL
+         ORDER BY deployment.created_at DESC LIMIT 1
+       ) latest ON TRUE
+       LEFT JOIN agent_versions rollback_version ON rollback_version.id = latest.previous_agent_version_id
+       LEFT JOIN agent_extension_snapshots rollback_snapshot ON rollback_snapshot.id = rollback_version.extension_snapshot_id
+       WHERE definition.id = $2
+         AND (
+           definition.organization_id = $1
+           OR (
+             definition.owner_type = 'system' AND definition.protected = TRUE
+             AND EXISTS (
+               SELECT 1 FROM agent_installations visible
+               WHERE visible.organization_id = $1 AND visible.agent_definition_id = definition.id
+             )
+           )
+         )`,
+      [organizationId, agentId],
+    );
+    const row = result.rows[0];
+    if (!row) return null;
+    const [playgroundCapabilityConfigurationDigest, liveCapabilityConfigurationDigest] = await Promise.all([
+      this.getCapabilityConfigurationDigest(organizationId, row.playground_installation_id, row.playground_version_id),
+      this.getCapabilityConfigurationDigest(organizationId, row.live_installation_id, row.live_version_id),
+    ]);
+    const playground = row.playground_version_id ? projectDeploymentVersionRow({
+      version_id: row.playground_version_id,
+      version_number: row.playground_version_number,
+      status: row.playground_version_status,
+      checksum: row.playground_digest,
+      extension_snapshot_id: row.playground_extension_snapshot_id,
+      extension_snapshot_checksum: row.playground_extension_snapshot_checksum,
+    }) : null;
+    const live = row.live_version_id ? projectDeploymentVersionRow({
+      version_id: row.live_version_id,
+      version_number: row.live_version_number,
+      status: row.live_version_status,
+      checksum: row.live_digest,
+      extension_snapshot_id: row.live_extension_snapshot_id,
+      extension_snapshot_checksum: row.live_extension_snapshot_checksum,
+    }) : null;
+    const rollbackTarget = row.rollback_version_id ? projectDeploymentVersionRow({
+      version_id: row.rollback_version_id,
+      version_number: row.rollback_version_number,
+      status: row.rollback_version_status,
+      checksum: row.rollback_digest,
+      extension_snapshot_id: row.rollback_extension_snapshot_id,
+      extension_snapshot_checksum: row.rollback_extension_snapshot_checksum,
+    }) : null;
+    const blocked = !row.playground_installation_id || !row.live_installation_id
+      || row.playground_status !== "active" || row.live_status !== "active";
+    const differs = Boolean(playground && live && (
+      playground.versionId !== live.versionId
+      || playground.extensionSnapshotChecksum !== live.extensionSnapshotChecksum
+      || playgroundCapabilityConfigurationDigest !== liveCapabilityConfigurationDigest
+    ));
+    const state = blocked
+      ? "blocked"
+      : differs
+        ? "pending"
+        : rollbackTarget
+          ? "rollback_available"
+          : "deployed";
+    return {
+      agentId: row.agent_id,
+      state,
+      status: state,
+      playground: {
+        installationId: row.playground_installation_id,
+        status: row.playground_status,
+        version: playground,
+        capabilityConfigurationDigest: playgroundCapabilityConfigurationDigest,
+      },
+      live: {
+        installationId: row.live_installation_id,
+        status: row.live_status,
+        version: live,
+        capabilityConfigurationDigest: liveCapabilityConfigurationDigest,
+      },
+      rollbackTarget,
+      latestPromotion: row.latest_promotion_id ? {
+        id: row.latest_promotion_id,
+        candidateVersionId: row.latest_candidate_version_id,
+        previousVersionId: row.latest_previous_version_id,
+        sourceInstallationId: row.latest_source_installation_id,
+        capabilityConfigurationDigest: row.latest_capability_configuration_digest,
+        bindingRevision: row.latest_binding_revision,
+        createdAt: row.latest_promotion_created_at ?? "",
+      } : null,
+    };
+  }
+
+  public async preflightInstallationDeployment(
+    organizationId: string,
+    installationId: string,
+    input: InstallationDeploymentPreflightInput,
+  ): Promise<DeploymentPreflightResult> {
+    return withTransaction(this.pool, (client) => this.deploymentModule.preflightInstallation(client, organizationId, installationId, input));
+  }
+
+  public async promoteInstallation(
     organizationId: string,
     actorId: string,
-    agentId: string,
-    versionId: string,
-    input: DeployStagedVersionInput,
-  ): Promise<StagedDeploymentResult> {
-    return withTransaction(this.pool, (client) => this.deploymentModule.deployStagedVersion(client, organizationId, actorId, agentId, versionId, input));
+    installationId: string,
+    input: InstallationPromotionInput,
+  ): Promise<DeploymentActivationResult> {
+    return withTransaction(this.pool, (client) => this.deploymentModule.promoteInstallation(client, organizationId, actorId, installationId, input));
+  }
+
+  public async rollbackInstallation(
+    organizationId: string,
+    actorId: string,
+    installationId: string,
+    input: InstallationRollbackInput,
+  ): Promise<DeploymentActivationResult> {
+    return withTransaction(this.pool, (client) => this.deploymentModule.rollbackInstallation(client, organizationId, actorId, installationId, input));
   }
 
   public async ensureSystemInstallation(input: {
@@ -1722,7 +2686,13 @@ export class AgentRepository {
         `INSERT INTO agent_installations
           (agent_definition_id, agent_version_id, organization_id, scope_type, scope_id, execution_mode, settings, created_by)
          VALUES ($1, $2, $3, $4, $5, 'system_hosted', $6::jsonb, $7)
-         ON CONFLICT (organization_id, agent_definition_id, scope_type, scope_id)
+         ON CONFLICT (
+           organization_id,
+           agent_definition_id,
+           scope_type,
+           scope_id,
+           (COALESCE(settings ->> 'environment', 'live'))
+         )
          DO UPDATE SET updated_at = agent_installations.updated_at
          RETURNING *, (xmax = 0) AS created_now`,
         [
@@ -1731,7 +2701,7 @@ export class AgentRepository {
           input.organizationId,
           scopeType,
           scopeId,
-          JSON.stringify(input.settings ?? {}),
+          JSON.stringify(normalizeInstallationSettings(input.settings)),
           input.actorId,
         ],
       );
@@ -1895,6 +2865,7 @@ export class AgentRepository {
     systemSlug: string;
     scopeType?: "organization" | "user" | "business";
     scopeId?: string;
+    environment?: AgentEnvironment;
   }): Promise<SystemInstallationRecord | null> {
     const result = await query<SystemInstallationRecord>(
       this.pool,
@@ -1903,9 +2874,10 @@ export class AgentRepository {
        FROM agent_installations ai
        JOIN agent_definitions ad ON ad.id = ai.agent_definition_id
        JOIN agent_versions av ON av.id = ai.agent_version_id
-       WHERE ai.organization_id = $1 AND ad.organization_id = $2
+         WHERE ai.organization_id = $1 AND ad.organization_id = $2
          AND ad.owner_type = 'system' AND ad.protected = TRUE AND ad.slug = $3
          AND ai.scope_type = $4 AND ai.scope_id = $5
+         AND COALESCE(ai.settings ->> 'environment', 'live') = $6
        LIMIT 1`,
       [
         input.organizationId,
@@ -1913,6 +2885,7 @@ export class AgentRepository {
         input.systemSlug,
         input.scopeType ?? "organization",
         input.scopeId ?? input.organizationId,
+        input.environment ?? "live",
       ],
     );
     return result.rows[0] ?? null;

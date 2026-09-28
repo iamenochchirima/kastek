@@ -1,8 +1,8 @@
 # Deferred plans
 
 These plans are retained for reference but are not part of the current implementation focus.
-They are not marked complete. Move a plan back to `docs/plans/active/` when work resumes, or to
-`docs/plans/completed/` when its checklist and release evidence are finished.
+They are not marked complete. When work resumes, confirm the current requirements in an issue
+and link the retained plan. Do not move it back into `docs/plans/active/`.
 
 The current active focus is:
 

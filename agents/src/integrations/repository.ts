@@ -38,6 +38,14 @@ export interface IntegrationOAuthStateRecord {
   redirect_uri: string;
   created_by: string;
   expires_at: string;
+  flow: "native" | "mcp";
+  code_verifier: string | null;
+  client_id: string | null;
+  client_secret: string | null;
+  resource: string | null;
+  authorization_endpoint: string | null;
+  token_endpoint: string | null;
+  agent_version_id: string | null;
 }
 
 function encryptionKey(raw: string): Buffer {
@@ -147,12 +155,65 @@ export class IntegrationRepository {
     await query(this.pool, `UPDATE integration_credentials SET status = 'revoked', revoked_at = now() WHERE organization_id = $1 AND id = $2 AND status = 'active'`, [organizationId, credentialId]);
   }
 
-  public async createOAuthState(input: { organizationId: string; installationId: string; integrationId: string; stateHash: string; redirectUri: string; createdBy: string; expiresAt: string }): Promise<void> {
-    await query(this.pool, `INSERT INTO integration_oauth_states (organization_id, installation_id, integration_id, state_hash, redirect_uri, created_by, expires_at) VALUES ($1, $2, $3, $4, $5, $6, $7::timestamptz)`, [input.organizationId, input.installationId, input.integrationId, input.stateHash, input.redirectUri, input.createdBy, input.expiresAt]);
+  public async createOAuthState(input: {
+    organizationId: string;
+    installationId: string;
+    integrationId: string;
+    stateHash: string;
+    redirectUri: string;
+    createdBy: string;
+    expiresAt: string;
+    flow?: "native" | "mcp";
+    codeVerifier?: string;
+    clientId?: string;
+    clientSecret?: string;
+    resource?: string;
+    authorizationEndpoint?: string;
+    tokenEndpoint?: string;
+    agentVersionId?: string;
+  }): Promise<void> {
+    const encryptedClientSecret = input.clientSecret
+      ? (() => {
+        if (!this.encryptionSecret) throw new Error("Credential encryption is not configured");
+        return encrypt(input.clientSecret, this.encryptionSecret);
+      })()
+      : null;
+    await query(this.pool, `INSERT INTO integration_oauth_states
+      (organization_id, installation_id, integration_id, state_hash, redirect_uri, created_by,
+       expires_at, flow, code_verifier, client_id, encrypted_client_secret, resource,
+       authorization_endpoint, token_endpoint, agent_version_id)
+      VALUES ($1, $2, $3, $4, $5, $6, $7::timestamptz, $8, $9, $10, $11, $12, $13, $14, $15)`, [
+      input.organizationId,
+      input.installationId,
+      input.integrationId,
+      input.stateHash,
+      input.redirectUri,
+      input.createdBy,
+      input.expiresAt,
+      input.flow ?? "native",
+      input.codeVerifier ?? null,
+      input.clientId ?? null,
+      encryptedClientSecret,
+      input.resource ?? null,
+      input.authorizationEndpoint ?? null,
+      input.tokenEndpoint ?? null,
+      input.agentVersionId ?? null,
+    ]);
   }
 
   public async consumeOAuthState(stateHash: string): Promise<IntegrationOAuthStateRecord | null> {
-    const result = await query<IntegrationOAuthStateRecord>(this.pool, `DELETE FROM integration_oauth_states WHERE state_hash = $1 AND expires_at > now() RETURNING id, organization_id, installation_id, integration_id, redirect_uri, created_by, expires_at`, [stateHash]);
-    return result.rows[0] ?? null;
+    const result = await query<IntegrationOAuthStateRecord & { encrypted_client_secret: string | null }>(this.pool, `DELETE FROM integration_oauth_states WHERE state_hash = $1 AND expires_at > now() RETURNING id, organization_id, installation_id, integration_id, redirect_uri, created_by, expires_at, flow, code_verifier, client_id, encrypted_client_secret, resource, authorization_endpoint, token_endpoint, agent_version_id`, [stateHash]);
+    const row = result.rows[0];
+    if (!row) return null;
+    const { encrypted_client_secret: encryptedClientSecret, ...state } = row;
+    return {
+      ...state,
+      client_secret: encryptedClientSecret
+        ? (() => {
+          if (!this.encryptionSecret) throw new Error("Credential encryption is not configured");
+          return decrypt(encryptedClientSecret, this.encryptionSecret);
+        })()
+        : null,
+    };
   }
 }

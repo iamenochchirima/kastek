@@ -195,7 +195,7 @@ pub async fn summary(
     let (agent_list, agent_operations) =
         if let Ok(agent_client) = AgentPlatformClient::from_config(config.get_ref()) {
             tokio::join!(
-                agent_client.list_agents(&org_id, &user.id),
+                agent_client.list_agents(&org_id, &user.id, None),
                 agent_client.operations_summary(&org_id, &user.id),
             )
         } else {
