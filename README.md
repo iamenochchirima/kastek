@@ -38,19 +38,21 @@ checkout. No integration or cutover behavior was verified here.
 - `RUN_AGENTS_DB_INTEGRATION_TESTS=true AGENTS_DATABASE_URL=... pnpm test` enables the
   opt-in PostgreSQL isolation/deletion tests; the normal test command never mutates a database.
 
-The API and worker are intentionally separate process types so Railway can scale them
-independently. The default local-stack mode connects them to a dedicated Temporal Cloud
-development namespace. Set `TEMPORAL_MODE=local`, `TEMPORAL_ADDRESS=localhost:7233`, and
-`TEMPORAL_NAMESPACE=default` when a completely local Temporal Server is needed. Production
-must enable Temporal and provide a dedicated namespace/task queue.
+The Core public-v1 conformance check is skipped in a standalone checkout unless
+`KASITEK_GROWTH_REPO_ROOT` points to a Growth checkout. Run it explicitly with
+`KASITEK_GROWTH_REPO_ROOT=/path/to/kasitek-growth pnpm exec vitest run test/rest-mcp-conformance.test.ts`.
 
-The gateway is a third independently scalable process. It owns no database, Temporal, core, or
-product state: `POST /mcp` forwards the authenticated JSON-RPC request to the private Agent API,
-and `/health` reports gateway liveness. `/health/ready` checks the Agent API readiness endpoint and
-`/metrics` exposes redacted in-process request counters and latency. Route `agents.kasitek.co.za/mcp` to `start:gateway`; keep
-the Agent API `/v1` surface on its private/API origin. Local development binds the gateway to
-loopback by default; production deployment may bind `0.0.0.0` behind the configured network and
-Origin boundary.
+The API and worker are separate process types. The default local-stack mode connects them to a
+dedicated Temporal Cloud development namespace. Set `TEMPORAL_MODE=local`,
+`TEMPORAL_ADDRESS=localhost:7233`, and `TEMPORAL_NAMESPACE=default` when a completely local
+Temporal Server is needed. A hosted runtime needs a dedicated namespace and task queue; configuring
+or changing that runtime is separate work.
+
+The gateway is a separate process. It owns no database, Temporal, Core, or product state:
+`POST /mcp` forwards the authenticated JSON-RPC request to the private Agent API, and `/health`
+reports gateway liveness. `/health/ready` checks the Agent API readiness endpoint and `/metrics`
+exposes redacted in-process request counters and latency. Local development binds the gateway to
+loopback by default. Hosted routing and production deployment are separate work.
 
 The gateway applies bounded in-process fixed-window limits before forwarding requests. Set
 `MCP_GATEWAY_ENABLED=false` for an emergency transport disable, and tune the authenticated and
@@ -133,10 +135,9 @@ Credit settlement is enforced by default. Set `CREDIT_BILLING_MODE=shadow` to ca
 without debiting, or `CREDIT_BILLING_MODE=disabled` to skip credit settlement. User-funded BYOK
 credentials do not consume KasiTek credits.
 
-The root `Dockerfile` builds the API and worker package and includes `migrations/`. It defaults to
-the API entry point; the gateway and worker entry points are `dist/gateway/server.js` and
-`dist/temporal/worker.js`. Deployment descriptors and production cutover are outside this source
-move.
+The relocated root `Dockerfile` builds the API and worker package and includes `migrations/`. It
+defaults to the API entry point; the gateway and worker entry points are `dist/gateway/server.js`
+and `dist/temporal/worker.js`. This source move does not configure or deploy a hosted service.
 
 Run requests may include an `idempotencyKey`; retries within an organization return the original
 run and do not start a second Temporal workflow. Run inspection is available at

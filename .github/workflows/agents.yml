@@ -1,0 +1,60 @@
+name: Agents source checks
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/agents.yml"
+      - "migrations/**"
+      - "packages/**"
+      - "scripts/**"
+      - "src/**"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - "tsconfig.json"
+      - "tsconfig.scripts.json"
+      - "vitest.config.ts"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/agents.yml"
+      - "migrations/**"
+      - "packages/**"
+      - "scripts/**"
+      - "src/**"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - "tsconfig.json"
+      - "tsconfig.scripts.json"
+      - "vitest.config.ts"
+
+jobs:
+  build:
+    name: Build standalone source
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.30.1
+
+      - name: Install Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.12.0
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Type-check Agents source
+        run: pnpm exec tsc -p tsconfig.json --noEmit
+
+      - name: Type-check repository scripts
+        run: pnpm exec tsc -p tsconfig.scripts.json
+
+      - name: Build local MCP package
+        run: pnpm run build:mcp

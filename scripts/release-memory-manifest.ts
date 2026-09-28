@@ -10,8 +10,8 @@ type Artifact = {
   fileCount: number;
 };
 
-const repositoryRoot = resolve(__dirname, "../..");
-const agentsRoot = resolve(repositoryRoot, "agents");
+const repositoryRoot = resolve(__dirname, "..");
+const agentsRoot = repositoryRoot;
 const outputPath = resolve(process.env.MEMORY_RELEASE_MANIFEST_OUT ?? join(agentsRoot, ".artifacts", "memory-release-manifest.json"));
 const now = new Date();
 const timestamp = now.toISOString().replace(/[-:.]/gu, "").replace(/Z$/u, "Z");

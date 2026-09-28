@@ -15,8 +15,8 @@ type ReleaseManifest = {
   releaseGates?: Record<string, unknown>;
 };
 
-const repositoryRoot = resolve(__dirname, "../..");
-const agentsRoot = resolve(repositoryRoot, "agents");
+const repositoryRoot = resolve(__dirname, "..");
+const agentsRoot = repositoryRoot;
 const manifestPath = resolve(process.env.MEMORY_RELEASE_MANIFEST ?? join(agentsRoot, ".artifacts", "memory-release-manifest.json"));
 const failures: string[] = [];
 

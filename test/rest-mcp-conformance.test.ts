@@ -96,6 +96,13 @@ function repositoryPath(relativePath: string): string {
   return resolve(process.cwd(), relativePath);
 }
 
+const growthRepositoryRoot = process.env.KASITEK_GROWTH_REPO_ROOT?.trim();
+
+function growthRepositoryPath(relativePath: string): string {
+  if (!growthRepositoryRoot) throw new Error("Set KASITEK_GROWTH_REPO_ROOT to run Growth/Core conformance checks.");
+  return resolve(growthRepositoryRoot, relativePath);
+}
+
 async function mountedAgentRoutes(): Promise<Route[]> {
   const source = await readFile(repositoryPath("src/http/app.ts"), "utf8");
   const routePattern = /app\.(get|post|patch|put|delete)[\s\S]{0,220}?\(\s*["']([^"']+)["']/g;
@@ -324,11 +331,11 @@ describe("Agent REST and MCP conformance matrices", () => {
   });
 });
 
-describe("Core public v1 OpenAPI conformance", () => {
+describe.skipIf(!growthRepositoryRoot)("Core public v1 OpenAPI conformance", () => {
   it("matches every mounted route and documents a stable operation/error/security contract", async () => {
     const [source, openApiSource] = await Promise.all([
-      readFile(repositoryPath("server/kasitek-core/src/api/public_v1.rs"), "utf8"),
-      readFile(repositoryPath("server/kasitek-core/openapi/v1.json"), "utf8"),
+      readFile(growthRepositoryPath("server/kasitek-core/src/api/public_v1.rs"), "utf8"),
+      readFile(growthRepositoryPath("server/kasitek-core/openapi/v1.json"), "utf8"),
     ]);
     const routePattern = /\.route\(\s*"([^"]+)"\s*,\s*web::(get|post|patch|put|delete)\(\)/g;
     const mounted = [...source.matchAll(routePattern)].map((match) => `${match[2]!.toUpperCase()} ${match[1]}`).sort();
