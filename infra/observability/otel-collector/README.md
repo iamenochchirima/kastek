@@ -39,16 +39,17 @@ OTEL_RESOURCE_ATTRIBUTES=deployment.environment.name=local
 Do not put provider credentials in local configuration. Stop the Collector with `Ctrl-C` when the
 test is complete.
 
-## Railway staging service
+## Railway staging service (deferred)
 
 The named `otel-collector` partial in `.railway/railway.ts` declares one Railway service from
 `Kasitek-Labs/kasitek-labs`, rooted at `infra/observability/otel-collector`. It uses the checked-in
 Dockerfile, health check, restart policy, and staging config. The declaration does not add a public
 domain or TCP proxy.
 
-Pull requests that change `.railway/` get a read-only plan comment from the `Railway IaC plan`
-workflow. Set the repository Actions secret `RAILWAY_TOKEN` to a Railway project token scoped to
-the `staging` environment. The workflow does not apply changes.
+The repository currently typechecks the Railway declaration but does not connect to Railway from
+CI, create an environment, or deploy the service. Hosted staging setup and verification are
+deferred; the checked-in configuration is not evidence that a Railway service exists or is
+running.
 
 Before applying the partial:
 
@@ -77,8 +78,9 @@ Before applying the partial:
    and `4318` private; do not add public domains or TCP proxies.
 
 Railway's TypeScript IaC is generally available. CI typechecks `.railway/railway.ts`, but does not
-apply it. Before a staging change, run `railway config plan` against the isolated `staging`
-environment and check that it proposes only the intended Collector change.
+plan or apply it. When hosted staging work resumes, first create and verify an isolated `staging`
+environment, then run `railway config plan` and confirm that it proposes only the intended
+Collector change before applying anything.
 
 ## Staging rollback
 
