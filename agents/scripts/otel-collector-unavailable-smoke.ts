@@ -2,15 +2,20 @@ import { strict as assert } from "node:assert";
 import { createServer } from "node:net";
 import type { AppConfig } from "../src/config";
 
+interface RejectedTraceRequest {
+  path: string;
+  bodyBytes: number;
+}
+
 interface UnavailableCollector {
   endpoint: string;
-  firstRejectedTrace: Promise<{ path: string; bodyBytes: number }>;
+  firstRejectedTrace: Promise<RejectedTraceRequest>;
   close(): Promise<void>;
 }
 
 async function startUnavailableCollector(): Promise<UnavailableCollector> {
-  let resolveFirstTrace!: (request: { path: string; bodyBytes: number }) => void;
-  const firstRejectedTrace = new Promise<{ path: string; bodyBytes: number }>((resolve) => { resolveFirstTrace = resolve; });
+  let resolveFirstTrace!: (request: RejectedTraceRequest) => void;
+  const firstRejectedTrace = new Promise<RejectedTraceRequest>((resolve) => { resolveFirstTrace = resolve; });
   const server = createServer((socket) => {
     let request = "";
     let handled = false;
@@ -69,12 +74,12 @@ async function startUnavailableCollector(): Promise<UnavailableCollector> {
   };
 }
 
-async function waitForFirstTrace(promise: Promise<{ path: string; bodyBytes: number }>): Promise<{ path: string; bodyBytes: number }> {
+async function waitForFirstTrace(promise: Promise<RejectedTraceRequest>): Promise<RejectedTraceRequest> {
   let timer: NodeJS.Timeout | undefined;
   try {
     return await Promise.race([
       promise,
-      new Promise<{ path: string; bodyBytes: number }>((_resolve, reject) => {
+      new Promise<RejectedTraceRequest>((_resolve, reject) => {
         timer = setTimeout(() => reject(new Error("Health request did not produce an OTLP trace export")), 3_000);
       }),
     ]);
