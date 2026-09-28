@@ -6,9 +6,8 @@ Use GitHub Issues in [`Kasitek-Labs/kasitek-growth`](https://github.com/Kasitek-
 for specs, implementation issues, and bugs. Do not create a second Markdown issue/spec store or
 mirror work in another tracker.
 
-The repository currently has one open issue, [#2, Implement provider-neutral OpenTelemetry
-infrastructure](https://github.com/Kasitek-Labs/kasitek-growth/issues/2). It is not evidence that
-the issue has owner approval to start.
+Read the live issue list and Project before choosing work. This guide does not record the current
+queue; an open issue alone is not owner approval to start.
 
 ## GitHub Project
 
@@ -21,13 +20,11 @@ The Project does not duplicate either. While this is a solo project, assign ever
 
 The owner, `iamenochchirima`, explicitly approves an implementation issue and moves it to
 `Ready`. A spec issue, a `ready-for-agent` label, a cleared dependency, or an agent's own judgment
-is not approval. This is an instruction, not a GitHub-enforced permission gate. Issue
-[#2](https://github.com/Kasitek-Labs/kasitek-growth/issues/2) is assigned to the owner in
-`Backlog` and was not approved to start by this setup.
+is not approval. This is an instruction, not a GitHub-enforced permission gate.
 
 The saved [Backlog table](https://github.com/orgs/Kasitek-Labs/projects/1) is filtered to
-`Backlog`. The `Work board` uses Status columns. Intake and status changes are manual; no
-auto-add or PR-card workflow was enabled. Do not add a separate PR card for the same work.
+`Backlog`. The `Work board` uses Status columns. Intake and approval remain manual; no auto-add
+or PR-card workflow was enabled. Do not add a separate PR card for the same work.
 
 The Project's `Status` field means:
 
@@ -43,8 +40,9 @@ Only the owner moves an implementation issue to `Ready`. Move it to
 `In progress` when work starts and `In review` when its pull request is ready for review. Close the issue and
 move it to `Done` only when the change is merged and verification is recorded. GitHub's linked
 pull requests field shows PR associations; use `Closes #<issue-number>` in the PR body to link the
-implementation PR to its issue. Status changes are manual until an automation is deliberately
-configured and verified.
+implementation PR to its issue. If work is abandoned, close the issue as `not planned` and archive
+its Project card rather than treating it as `Done`. Verify the card after closing: GitHub Project
+workflows can change its status automatically.
 
 Record blockers on the issue while leaving its Project card visible. The agent must give the
 `code-review` skill the implementation issue or parent spec explicitly; a linked PR alone may
