@@ -14,8 +14,9 @@ behaving correctly, and what changed when the behavior changed?
 ## Architecture and current status
 
 Server-side services emit portable OpenTelemetry logs, traces, and metrics over OTLP HTTP. The
-repository-owned Collector at `infra/observability/otel-collector/` is the boundary between
-application code and a future telemetry backend:
+Collector implementation is owned by the Labs repository; Growth owns its producer-side
+instrumentation and exporter settings. The Collector is the boundary between application code and
+a future telemetry backend:
 
 ```text
 Core / Tenants / Analytics / Agents
@@ -41,6 +42,9 @@ context; contract tests cover the provider-child HTTP injection and Temporal act
 The debug exporter is not durable storage. Production observability is not complete until a
 durable destination, retention, access policy, resource owner, and alerting policy are approved
 and configured. Selecting Axiom or another backend is a separate change.
+
+Collector source and local operation instructions are maintained in the
+[Labs repository](https://github.com/Kasitek-Labs/kasitek-labs/tree/main/infra/observability/otel-collector).
 
 ## Service identity
 

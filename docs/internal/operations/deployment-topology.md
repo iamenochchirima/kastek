@@ -202,22 +202,15 @@ Core's normal API process already starts the WhatsApp, social, campaign, webhook
 workers. Tenants also has embedded worker behavior. Do not split these processes into separate
 Railway services until independent scaling, isolation, or reliability evidence justifies it.
 
-## OpenTelemetry Collector
+## OpenTelemetry Collector ownership
 
-Create one private Collector service per Railway environment. Until a durable telemetry backend
-is configured, the Production service may run the debug profile only for transport validation.
+Labs owns the Collector source and service definition in
+[`kasitek-labs/infra/observability/otel-collector`](https://github.com/Kasitek-Labs/kasitek-labs/tree/main/infra/observability/otel-collector).
+The source move does not change or verify any hosted deployment. Deployment cutover, the running
+artifact, and the active endpoint remain separate follow-up work.
 
-| Service | Root directory | Builder | Start command | Health and port | Exposure |
-| --- | --- | --- | --- | --- | --- |
-| OTel Collector | `/infra/observability/otel-collector` | Dockerfile | `/otelcol-contrib --config=/etc/otelcol/config.yaml` (temporary debug profile) | `/`, `13133` | Private |
-
-The durable Production Collector template requires `OTEL_BACKEND_ENDPOINT` and
-`OTEL_BACKEND_AUTH`. The current Production service uses the debug profile, so it proves private
-OTLP transport and keeps signals visible in Railway logs, but it does not provide durable
-retention, search, alerting, or an incident history. Switch to the durable profile only after a
-backend, retention, access policy, and owner are approved.
-
-Application services use the Collector's private address after it is available:
+Growth producers retain their OTLP exporter configuration. Do not change hosted endpoints as part
+of this repository move:
 
 ```text
 OTEL_EXPORTER_OTLP_ENDPOINT=http://${{otel-collector.RAILWAY_PRIVATE_DOMAIN}}:4318

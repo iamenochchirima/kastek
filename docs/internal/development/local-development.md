@@ -119,20 +119,13 @@ pnpm --dir client --filter tenant-portal dev
 The launcher is the authoritative list for local service names and ports. If an individual
 service changes its port, update the launcher and this table together.
 
-## Local OpenTelemetry Collector
+## Local OpenTelemetry export
 
-The provider-neutral Collector runs as an optional local Docker service. Start it before running
-instrumented application services when validating telemetry end to end:
-
-```bash
-docker compose -f infra/observability/otel-collector/compose.yaml up --build
-```
-
+The Collector is owned by the Labs repository. Start it from a separate Labs checkout using the
+[Collector local-run instructions](https://github.com/Kasitek-Labs/kasitek-labs/blob/main/infra/observability/otel-collector/README.md).
 It accepts OTLP over gRPC on `4317`, OTLP over HTTP/protobuf on `4318`, and exposes its health
-endpoint on `13133`. The current debug exporter writes received telemetry to the Collector's
-stdout; it is not durable storage. Compose uses the checked-in `config.local.yaml` profile by
-default. Set `OTEL_COLLECTOR_CONFIG=config.staging.yaml` only for a staging-like local
-verification. Point a service at the Collector with:
+endpoint on `13133`. The debug exporter is for local inspection only; it is not durable storage.
+When a local Collector is running, point a Growth producer at it with:
 
 ```bash
 export OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:4318
@@ -143,8 +136,8 @@ export OTEL_SERVICE_NAME=kasitek-agents
 
 For the Rust services also set `KASITEK_VERSION`, `KASITEK_RELEASE_ID`, and `KASITEK_COMMIT_SHA`
 when testing release identity. The application continues with stdout logging when these
-variables are absent or `OTEL_SDK_DISABLED=true`. See the [Collector README](https://github.com/iamenochchirima/kasitek/blob/main/infra/observability/otel-collector/README.md)
-for service variables and Railway deployment shape.
+variables are absent or `OTEL_SDK_DISABLED=true`. For Collector operation, see the
+[Labs Collector runbook](https://github.com/Kasitek-Labs/kasitek-labs/blob/main/docs/otel-collector-runbook.md).
 
 ## Verification before opening a pull request
 
