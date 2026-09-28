@@ -157,9 +157,11 @@ is configured:
 
 ```bash
 KASITEK_PROCESS=analytics-publisher cargo run --manifest-path server/kasitek-core/Cargo.toml
-KASITEK_PROCESS=analytics-publisher cargo run --manifest-path server/kasitek-tenants/Cargo.toml
 pnpm --dir agents run dev:analytics-publisher
 ```
+
+The tenant publisher is owned and launched from the Agency repository; Growth's local stack no
+longer starts or builds it.
 
 Set `ANALYTICS_INGESTION_URL` to the Analytics origin and configure
 `ANALYTICS_CORE_INGESTION_TOKEN`, `ANALYTICS_TENANT_INGESTION_TOKEN`, or

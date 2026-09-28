@@ -13,6 +13,10 @@ It describes the service boundaries, source directories, builders, commands, hea
 network exposure for the Production environment. Staging uses the same service topology with
 staging databases, credentials, domains, and environment values.
 
+The tenant API and portal source now belong to the Agency repository. This source split does not
+change any existing hosted tenant deployment; the separately tracked Agency cutover issue owns
+that later change.
+
 ## Deployment rules
 
 - Use the `main` branch for both environments.
@@ -29,13 +33,13 @@ staging databases, credentials, domains, and environment values.
 
 ## Required application services
 
-The following are the long-running Production services. Existing Core and Tenants services should
-be configured or reused rather than duplicated inside the same Railway environment.
+The following are the long-running Production services owned by this repository or its current
+service source tree. The existing tenant deployment is unchanged pending its separately authorized
+cutover.
 
 | Service | Root directory | Builder | Dockerfile path | Build command | Pre-deploy command | Start command | Health and port | Exposure |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | Core API | `/server` | Railpack | Not applicable | `mkdir -p bin && cargo build --release -p kasitek-core && cp target/release/server bin/server` | Manual Prisma migration before deployment; see below | `./bin/server` | `/health`, `PORT=4000` | Public |
-| Tenants API | `/server` | Railpack | Not applicable | `mkdir -p bin && cargo build --release -p kasitek-tenants && cp target/release/kasitek-tenants bin/kasitek-tenants` | Not applicable; the process currently runs tenant SQLx migrations at startup | `./bin/kasitek-tenants` | `/health`, `TENANT_SERVER_PORT` or Railway `PORT` (default `8090`) | Public |
 | Agents API | `/agents` | Dockerfile | `Dockerfile` | Leave blank; the Dockerfile builds the image | Manual one-shot migration before deployment; see below | `node dist/http/server.js` | `/health/ready`, `4100` | Private |
 | Agents Worker | `/agents` | Dockerfile | `Dockerfile` | Leave blank; the Dockerfile builds the image | None; deploy Agents API first | `node dist/temporal/worker.js` | No HTTP health check | Private |
 | MCP Gateway | `/agents` | Dockerfile | `Dockerfile` | Leave blank; the Dockerfile builds the image | None | `node dist/gateway/server.js` | `/health/ready`, `4200` | Public when external MCP clients are enabled |
@@ -196,11 +200,10 @@ Deploy these only when the related capability is enabled and has an operational 
 | Discord Gateway | `/agents` | Dockerfile | `node dist/discord/server.js` | Discord gateway polling is enabled with `DISCORD_GATEWAY_ENABLED=true` |
 | Agents Analytics Publisher | `/agents` | Dockerfile | `node dist/analytics/publisher-worker.js` | Agents analytics ingestion is enabled and independently scaled |
 | Core Analytics Publisher | `/server` | Railpack | `./bin/server` | Core analytics ingestion is enabled; set `KASITEK_PROCESS=analytics-publisher` |
-| Tenants Analytics Publisher | `/server` | Railpack | `./bin/kasitek-tenants` | Tenant analytics ingestion is enabled; set `KASITEK_PROCESS=analytics-publisher` |
 
 Core's normal API process already starts the WhatsApp, social, campaign, webhook, and billing
-workers. Tenants also has embedded worker behavior. Do not split these processes into separate
-Railway services until independent scaling, isolation, or reliability evidence justifies it.
+workers. Do not split these processes into separate Railway services until independent scaling,
+isolation, or reliability evidence justifies it.
 
 ## OpenTelemetry Collector
 

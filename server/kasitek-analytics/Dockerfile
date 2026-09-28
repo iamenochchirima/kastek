@@ -5,8 +5,6 @@ COPY Cargo.toml Cargo.lock ./
 COPY crates ./crates
 COPY kasitek-core ./kasitek-core
 COPY kasitek-analytics ./kasitek-analytics
-COPY kasitek-tenants ./kasitek-tenants
-
 RUN cargo build --release -p kasitek-analytics --bins
 
 FROM debian:bookworm-slim AS runtime

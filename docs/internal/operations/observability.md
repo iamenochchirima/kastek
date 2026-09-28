@@ -47,7 +47,7 @@ and configured. Selecting Axiom or another backend is a separate change.
 | Process | `service.name` |
 | --- | --- |
 | Core API and Core workers | `kasitek-core` |
-| Tenants API and workers | `kasitek-tenants` |
+| Agency tenant API and workers | `kasitek-tenants` |
 | Analytics API | `kasitek-analytics-api` |
 | Analytics worker | `kasitek-analytics-worker` |
 | Analytics migration job | `kasitek-analytics-migrate` |

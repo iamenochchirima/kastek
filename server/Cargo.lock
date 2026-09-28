@@ -2301,31 +2301,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "kasitek-tenants"
-version = "0.1.0"
-dependencies = [
- "actix-cors",
- "actix-web",
- "analytics-producer",
- "analytics-reporting",
- "bcrypt",
- "chrono",
- "config",
- "crypto-utils",
- "cuid2",
- "dotenv",
- "log",
- "observability",
- "reqwest 0.12.28",
- "serde",
- "serde_json",
- "sqlx",
- "thiserror 2.0.18",
- "tokio",
- "types",
-]
-
-[[package]]
 name = "keccak"
 version = "0.1.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
