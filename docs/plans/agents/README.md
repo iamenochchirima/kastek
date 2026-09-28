@@ -6,8 +6,9 @@ architecture assessments and research.
 The source of truth for the upcoming Agent Platform restructure is
 [`AGENT_PLATFORM_IMPLEMENTATION_PLAN.md`](./AGENT_PLATFORM_IMPLEMENTATION_PLAN.md). It supersedes
 the earlier architecture plans as implementation direction. Other documents in this directory are
-supporting inputs and research. Existing plans under `docs/plans/active/` may be consulted for
-current behavior and verification evidence, but they do not define a parallel architecture.
+supporting inputs and research. Former active plans under `docs/plans/parked/` may be consulted
+for historical decisions and evidence, but they do not define a parallel architecture or current
+work queue.
 
 The memory work inside P08 has its detailed implementation authority in
 [`AGENT_MEMORY_ARCHITECTURE_AND_IMPLEMENTATION_PLAN.md`](./AGENT_MEMORY_ARCHITECTURE_AND_IMPLEMENTATION_PLAN.md).
@@ -28,6 +29,6 @@ plan in [`AGENT_HERMES_ALIGNED_CAPABILITY_LIFECYCLE_PLAN.md`](../completed/AGENT
 It owns registry-driven activation, progressive skill discovery, connection/plugin/MCP refresh, and
 promotion of the tested capability snapshot to Live.
 
-When a work package starts, keep its short implementation checklist under `docs/plans/active/` and
-link it to the canonical package. Move finished implementation records to
-`docs/plans/completed/agents/`.
+When a work package starts, link its implementation issue to the canonical package. Keep the
+short checklist in the issue or current session and verification evidence in the pull request.
+Older finished records remain in `docs/plans/completed/agents/`.

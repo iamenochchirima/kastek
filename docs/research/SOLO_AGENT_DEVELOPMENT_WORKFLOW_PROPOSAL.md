@@ -12,7 +12,7 @@ The goal is a small number of *verified* changes that reach users safely. PR cou
 
 ## What exists in this checkout, and what does not
 
-This is a repository snapshot, not an audit of GitHub settings or running infrastructure. The checked-out branch is `rewrite`; `main` also exists locally. [The PR template](../../.github/pull_request_template.md) already asks for risk, owner, rollout, validation, and rollback. The inspected [release-version](../../.github/workflows/release-version.yml), [observability](../../.github/workflows/observability.yml), [docs](../../.github/workflows/docs.yml), and [analytics](../../.github/workflows/analytics.yml) workflows run focused checks on PRs and pushes to `main`, with read-only `contents` permission. They do not constitute a general PR gate.
+This is a historical repository snapshot, not an audit of current GitHub settings or running infrastructure. The checked-out branch was `rewrite`; `main` also existed locally. The PR template present when this proposal was written has since been removed. The inspected [release-version](../../.github/workflows/release-version.yml), [observability](../../.github/workflows/observability.yml), [docs](../../.github/workflows/docs.yml), and [analytics](../../.github/workflows/analytics.yml) workflows ran focused checks on PRs and pushes to `main`, with read-only `contents` permission. They did not constitute a general PR gate.
 
 The canonical [release process](../internal/operations/release-process.md) explicitly says general CI, staging deployment, production promotion, and rollback automation are incomplete. The [CI/CD plan](../archive/deferred-plans/CI_CD_RELEASE_PLAN.md) is marked **Draft / Not started**. Its target is task branch → PR → protected `main` → staging → promotion of the *same artifact* to production. It does not call for a permanent `develop` or `staging` branch. This proposal follows that target without pretending it is already enforced. GitHub-hosted branch rules and account permissions still need a separate configuration check.
 
@@ -71,7 +71,7 @@ A bug starts with reproduction. A feature starts with a user path and observable
 
 ## PR proof packet and review
 
-Use the existing PR template rather than a competing one. Add the following information in its summary, verification, and notes sections as appropriate:
+The proposal called for the following PR proof packet. It does not define a current repository template:
 
 ```text
 Task and expected user outcome:

@@ -3,7 +3,7 @@ id: documentation-maintenance
 title: Documentation Maintenance
 sidebar_position: 6
 owner: engineering
-last_reviewed: 2026-08-25
+last_reviewed: 2026-09-28
 ---
 
 # Documentation Maintenance
@@ -13,15 +13,20 @@ the record; generated site output is disposable build output and must not be com
 
 ## Ownership
 
-| Area | Default owner | Review trigger |
+| Record | Default owner | Update trigger |
 | --- | --- | --- |
+| GitHub Issue and [Growth Project](../../agents/issue-tracker.md) | Issue proposer for requirements; `iamenochchirima` for approval and assignee; implementer for progress | Scope, acceptance criteria, dependency, blocker, assignee, or work state changes. Only the owner approves `Ready`. Reconcile the issue and Project after merge. |
+| Pull request | Implementer | Every implementation change: link the issue when one exists, state affected and unaffected records, and attach verification evidence. Review and release decisions stay with the PR. |
+| `docs/features/README.md` | Engineering owner of the user-facing feature | Shipped behavior, entry point, or verification path changes. Record current behavior, not a proposed feature. |
+| `ARCHITECTURE.md` and `docs/internal/architecture/` | Engineering owner of the affected system | Component boundary, data ownership, security, or integration design changes |
+| `docs/internal/development/` | Engineering owner of the development workflow | Toolchain, repository layout, local setup, or verification command changes |
+| `CONTEXT.md` | Product/domain owner | The owner settles a domain term or changes its meaning; do not add guessed vocabulary |
+| `docs/adr/` | Decision owner | A hard-to-reverse architectural decision needs its context and trade-off recorded |
 | `docs/public/` | Engineering owner of the supported user or API surface | User behavior, public configuration, or public contract changes |
-| `docs/internal/architecture/` | Engineering | Runtime boundary, data ownership, security, or integration design changes |
-| `docs/internal/development/` | Engineering | Toolchain, repository layout, local setup, or developer workflow changes |
 | `docs/internal/operations/` | Release or platform owner | Environment, release, versioning, observability, or deployment changes |
 | `docs/internal/runbooks/` | Service owner or on-call owner | Incident procedure, dependency, credential, migration, or recovery changes |
 | `docs/internal/contracts/` | Owning service team | API, event, webhook, MCP, or integration contract changes |
-| `docs/plans/` | Plan owner | Every implementation update; move to `completed/` when finished |
+| Approved multi-PR program plan, when one exists | Program owner | A dependency, scope, or verification rule changes; move it to `docs/plans/completed/` when finished. Ordinary task progress belongs in the issue and PR. |
 
 If a document has no obvious owner, assign one before merging the change. A team or service name
 is sufficient; a person is not required.
@@ -44,6 +49,9 @@ is sufficient; a person is not required.
 For every non-trivial feature or platform change, the pull request must make an explicit decision
 for each applicable area:
 
+- issue requirements or blockers and Project work status;
+- current feature-map behavior, entry points, and verification paths;
+- architecture, domain terms, and ADRs;
 - public behavior or API documentation;
 - internal architecture or developer workflow;
 - migration and contract documentation;
@@ -52,16 +60,25 @@ for each applicable area:
 - release notes and version metadata.
 
 Write `not applicable` when the area genuinely does not apply. Do not leave it blank.
+Link the updated records and give evidence for claims about running behavior. If an existing
+record contradicts the code or cannot be verified, identify the gap before requesting review.
+Do not silently rewrite approved requirements to fit an implementation.
 
 ## Canonical-source rules
 
 - Current technical behavior belongs in `docs/internal/` or `docs/public/docs/`.
-- Temporary execution detail belongs in `docs/plans/active/`.
+- Current user-facing paths and verification starting points belong in the single feature map at
+  `docs/features/README.md`.
+- Requirements and blockers belong in the GitHub Issue. Approval, assignee, and work status
+  belong in the Growth Project. The PR holds implementation and verification evidence.
+- Task execution detail belongs in the issue or pull request. Use a separate program plan only
+  for dependent work spanning several changes.
 - Completed plans belong in `docs/plans/completed/`.
 - Historical, superseded, strategy, roadmap, and go-to-market material belongs in
   `docs/archive/legacy/` unless it is deliberately re-approved as a current technical reference.
 - Do not link live documentation to an archived plan as if it were a current source of truth.
 
-The documentation build workflow validates both Docusaurus sites on changes to documentation or
-documentation policy. The pull request template and the release process enforce the change rule;
-the owning service still supplies the technical content and evidence.
+The documentation build workflow attempts to build both Docusaurus sites when documentation or
+documentation policy changes. It does not check whether prose matches product behavior. The
+release process defines the change rule, but no repository PR template or records-freshness CI
+check currently enforces it. The owning service still supplies the technical content and evidence.

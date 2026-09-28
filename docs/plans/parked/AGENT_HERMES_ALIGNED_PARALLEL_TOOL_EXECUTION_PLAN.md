@@ -7,7 +7,10 @@ description: Replace KasiTek's all-or-nothing tool-call limit with Hermes-aligne
 
 # Hermes-aligned parallel tool execution runtime
 
-**Status:** Active
+> Parked on 2026-09-28. This document is preserved for reference, not an active execution queue.
+> Review its status and remaining work before resuming it.
+
+**Status:** Parked (previously Active)
 
 **Owner:** Agent Platform
 

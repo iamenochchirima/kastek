@@ -43,7 +43,7 @@ This is the canonical home for private Kasitek documentation.
 ## Notes
 
 - This site contains current technical and operational guidance only.
-- Temporary plans and checklists are maintained in `docs/plans/active/` and moved to
-  `docs/plans/completed/` when finished. The Agent Platform program map remains the maintained
-  implementation index, while selected active chunks may be mounted under its plan UI for review.
-  Current runtime behavior remains documented under `docs/internal/architecture/`.
+- Work items and short checklists belong in the selected issue tracker and linked pull requests.
+  Former active plans are preserved under `docs/plans/parked/`. The Agent Platform program map
+  remains its architecture index; current runtime behavior belongs under
+  `docs/internal/architecture/`.

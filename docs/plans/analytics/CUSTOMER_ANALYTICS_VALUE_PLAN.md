@@ -10,7 +10,8 @@ last_updated: 2026-09-03
 
 This document records product exploration and an implementation direction. It does not authorize
 code, schema, metric-registry, deployment, or UI changes. When this direction is approved for
-execution, create or move the scoped implementation plan and checklist into `docs/plans/active/`.
+execution, create a scoped issue and link this document. Use a separate program plan only if the
+work spans several dependent changes.
 
 ## Decision in one sentence
 

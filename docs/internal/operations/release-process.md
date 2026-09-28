@@ -120,8 +120,8 @@ and does not satisfy production retention or alerting requirements.
 The process becomes reliable when it is enforced at several levels:
 
 1. `AGENTS.md` requires agents to read this process and account for release impact in their plan.
-2. The default pull request template requires the release record fields and an explicit `not
-   applicable` decision where a concern does not apply.
+2. The pull request author records release impact and an explicit `not applicable` decision
+   where a concern does not apply. No repository PR template currently enforces this.
 3. CI should validate the mechanical parts: tests and builds, analytics registry changes,
    migration safety, documentation links, version metadata, and release artifact identity.
 4. Branch protection and code ownership should require the appropriate engineering, product,

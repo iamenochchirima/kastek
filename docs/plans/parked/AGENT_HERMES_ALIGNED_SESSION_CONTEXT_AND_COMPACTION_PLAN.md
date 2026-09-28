@@ -7,7 +7,10 @@ description: Durable cross-request agent context, provider-aware projection, and
 
 # Hermes-aligned session context and compaction
 
-**Status:** Track B local implementation complete — browser and live-provider evidence remain release follow-up
+> Parked on 2026-09-28. This document is preserved for reference, not an active execution queue.
+> Review its status and remaining work before resuming it.
+
+**Status:** Parked (recorded state: Track B local implementation complete; browser and live-provider evidence remain release follow-up)
 
 **Owner:** Agent Platform
 

@@ -7,5 +7,6 @@ truth.
 - `legacy/` contains retired strategy, roadmap, go-to-market, white-paper, and other non-technical
   material.
 
-Active technical documentation belongs in `docs/internal/`. Active implementation work belongs in
-`docs/plans/active/`. Completed plans belong in `docs/plans/completed/`.
+Active technical documentation belongs in `docs/internal/`. Implementation work belongs in the
+selected issue tracker and linked pull requests. Former active plans are retained in
+`docs/plans/parked/`; older completed records remain in `docs/plans/completed/`.

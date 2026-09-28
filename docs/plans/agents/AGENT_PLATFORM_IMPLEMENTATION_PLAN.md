@@ -76,14 +76,13 @@ not bypass the exit gate for the capability it depends on.
 Each work package uses one of these states:
 
 - `planned`: scoped here, with no implementation assumed.
-- `active`: an implementation plan has moved to `docs/plans/active/` and code work has started.
-- `verified`: its exit evidence has been recorded and the implementation plan has moved to
-  `docs/plans/completed/agents/`.
+- `active`: an approved implementation issue is in progress and code work has started.
+- `verified`: the pull request records its exit evidence and the agreed change has landed.
 - `blocked`: an explicit unresolved decision or dependency prevents implementation.
 
-This document stays in `docs/plans/agents/`. When a package starts, create one short execution
-checklist in `docs/plans/active/` that links back to the package. Do not fork the architecture into
-another umbrella plan.
+This document stays in `docs/plans/agents/`. When a package starts, link its implementation issue
+back to the package. Keep its short checklist in the issue or current session. Do not fork the
+architecture into another umbrella plan.
 
 ## Outcome
 

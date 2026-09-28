@@ -4,9 +4,10 @@ This file defines the default working structure for implementation tasks in this
 
 ## Project Direction
 
-Use [`docs/plans/templates/PROJECT_PLAN.md`](docs/plans/templates/PROJECT_PLAN.md) as the repository's single reusable planning template when
-a durable plan is useful. It contains no active product decisions; derive scope, ownership, and
-constraints from the current task and codebase.
+Use the selected [issue tracker](docs/agents/issue-tracker.md) for agreed work and its linked pull
+request for implementation and verification evidence. For a multi-PR program that needs one
+shared execution sequence, [`docs/plans/templates/PROJECT_PLAN.md`](docs/plans/templates/PROJECT_PLAN.md)
+is an optional starting point. It contains no active product decisions.
 
 ## Documentation and Release Impact
 
@@ -16,75 +17,37 @@ For feature, API, data, integration, observability, deployment, or user-workflow
   and include its release-record decisions in the plan or pull request.
 - Update current technical documentation in `docs/internal/` or supported user/API documentation
   in `docs/public/docs/` in the same change when behavior or contracts change.
-- Keep temporary implementation plans and checklists in `docs/plans/active/`; move finished work
-  to `docs/plans/completed/`.
+- Do not create routine task plans in `docs/plans/active/`. Former plans are preserved in
+  [`docs/plans/parked/`](docs/plans/parked/README.md) and are not an active work queue.
 - Do not add roadmaps, go-to-market material, strategy, or historical execution notes to live
   documentation navigation.
 - Add or update analytics, logging, metrics, runbook, version, migration, and rollback evidence
   when the change affects those areas. Record `not applicable` explicitly when it does not.
 
-## Default Rule
+## Planning and execution
 
-When implementing anything non-trivial, always start with a plan.
+Before editing, inspect the relevant code and name the intended outcome, scope, and verification.
+For ordinary work, keep a short checklist in the current session. Do not create a committed plan
+file merely because a change spans files or layers.
 
-Do not jump straight into edits unless the task is genuinely tiny and isolated.
+Use a settled spec issue for substantial requirements, then split multi-session work into
+independently verifiable implementation issues. Each issue should be understandable to a fresh
+agent. Keep its acceptance criteria in the issue, its code and verification evidence in the pull
+request, and current shipped behavior in the feature map.
 
-## Planning Standard
-
-Before making meaningful code changes:
-
-1. Build enough context from the relevant files.
-2. Write an explicit plan.
-3. Keep the plan visible and updated while working.
-
-The plan should be the default execution structure, not an exception.
-
-## Plan Format
-
-Use a short structured checklist similar to:
-
-- Restore or update the required backend/data layer pieces first
-- Rebuild the relevant UI flow on top of the real functionality
-- Reconnect integrations, validation, and edge cases
-- Run verification and report any remaining gaps
-
-Or, when helpful, use status markers such as:
-
-- `in_progress`
-- `pending`
-- `completed`
-
-## When a Plan Is Required
-
-Use a plan by default for:
-
-- feature work
-- refactors
-- route migrations
-- styling migrations
-- data model changes
-- API changes
-- debugging that spans multiple layers
-- anything involving more than one file
-
-## When You May Skip a Plan
-
-You may skip a written plan only when the task is extremely small, for example:
-
-- changing one line of copy
-- fixing a single obvious class name
-- adjusting one import
-
-If there is any real implementation uncertainty, use a plan.
+A separate program plan is warranted only when several dependent changes need one shared
+sequence, ownership boundary, and verification rule. Link it to the tracker items and agree its
+location before creating it. Do not use `docs/plans/active/` or the uninstalled
+`long-running-work` skill as a default workflow.
 
 ## Execution Order
 
 Preferred working order:
 
 1. Understand the current implementation.
-2. Publish a plan.
+2. State the outcome and verification; write a short in-session checklist when needed.
 3. Implement in small coherent steps.
-4. Update the plan as steps complete.
+4. Update the checklist or linked issue as steps complete.
 5. Verify with lint, tests, or build checks where appropriate.
 6. Report what changed, what was verified, and what still remains.
 
@@ -105,7 +68,7 @@ Avoid delegating trivial tasks where coordination overhead exceeds the benefit.
 - Prefer extending the real implementation over building parallel placeholder logic.
 - Keep styling and functionality migrations separate when possible.
 - When restoring broken work, first re-establish the correct architecture, then polish.
-- Avoid silent scope creep; reflect meaningful scope changes in the plan.
+- Avoid silent scope creep; reflect meaningful scope changes in the issue or approved spec.
 
 ## Technical Documentation Style
 
@@ -393,3 +356,77 @@ Not:
 - improvise
 - patch blindly
 - explain later
+
+## PROJECT FOUNDATION
+
+Use the current repository map in [`ARCHITECTURE.md`](ARCHITECTURE.md), the user-facing route
+inventory in [`docs/features/README.md`](docs/features/README.md), and the commands in
+[`docs/internal/development/local-development.md`](docs/internal/development/local-development.md).
+Read [`CODING_STANDARDS.md`](CODING_STANDARDS.md) for project-specific review rules and
+[`docs/adr/README.md`](docs/adr/README.md) before recording a product-level architecture decision.
+The project-local skill revisions and notices are in
+[`docs/agents/skill-sources.md`](docs/agents/skill-sources.md).
+The root [`CONTEXT.md`](CONTEXT.md) is intentionally empty at the owner's direction. Do not fill
+it with guessed or generic terms; add domain language only after it is agreed.
+
+## KEEP PROJECT RECORDS CURRENT
+
+Treat the code and verified product behavior as evidence. Before changing a feature, read its
+implementation issue when one exists, Project status, feature-map entry, and relevant technical
+docs. If they disagree, identify the discrepancy before proceeding; do not copy an unverified
+claim forward.
+
+Update affected records in the same pull request:
+
+- Keep requirements, acceptance criteria, dependencies, and blockers on the GitHub Issue.
+- Keep approval, assignee, and work status in the [Growth Project](docs/agents/issue-tracker.md).
+  Only the owner moves an implementation issue to `Ready`. Agents must not infer approval from
+  a label, a parent spec, or an unblocked dependency.
+- Update [the feature map](docs/features/README.md) when shipped user behavior, entry points,
+  or verification paths change. It describes what exists, not planned features.
+- Update architecture, contracts, development instructions, and runbooks when the change makes
+  their current descriptions inaccurate. Follow
+  [documentation maintenance](docs/internal/operations/documentation-maintenance.md).
+- Record a new ADR only for a qualifying architecture decision, not every implementation choice.
+
+Before requesting review, state in the pull request which records changed, link the changes,
+and explain which records were unaffected. Include evidence for claims about the running product.
+Do not mark an issue `Done` until its change is merged and verified. After merge, confirm the
+issue and Project status agree with what landed.
+
+If a record cannot be verified or updated, report the gap in the pull request. Do not silently
+declare the work complete.
+
+## SPECS AND ISSUES
+
+The selected tracker and its agent operations are in
+[`docs/agents/issue-tracker.md`](docs/agents/issue-tracker.md). Use the installed `to-spec` skill
+for settled work that spans sessions and `to-tickets` to propose verifiable implementation issues
+when a split is useful. Get approval for the proposed split before publishing it. Do not create
+specs or multiple tickets for small changes. Do not begin backlog work unless the owner approved
+the implementation issue and it is marked `Ready` in the configured Growth Project. A parent
+spec or readiness label alone is not approval. The verified Project URL, statuses, assignee rule,
+and agent commands are in the tracker file. While the owner works solo, keep issue cards assigned
+to `iamenochchirima`; agents do not assign the issues to themselves.
+
+## AGENT WORKFLOW
+
+For an owner-approved pilot task, use the project-installed `enoch-mode` skill and read only the
+playbook for the current task. Follow this repository's issue approval, verification, and release
+rules first. The pilot does not authorize unrelated backlog work, pushing, opening a pull request,
+merging, or deploying.
+
+## PULL REQUESTS
+
+For substantial, multi-phase, or unattended work that will lead to a pull request, use the
+project-installed `show-me-your-work` skill. Keep its local decision trail at
+`.audit/<task-slug>.tsv`; `.audit/` is ignored by git. A pull request must say why and what changed,
+what was actually verified, and any known risk or unfinished work. Link a committed decision
+trail only when the reviewer needs it. Never claim a check passed without evidence.
+
+## CODE REVIEWS
+
+When reviewing a branch or pull request, use the project-installed `code-review` skill and compare
+the change with its base branch. Read `CODING_STANDARDS.md` and its linked standards before the
+Standards review. Supply the originating issue or spec for the Spec review. Report Standards and
+Spec findings separately. If no issue or spec exists, say the Spec review was skipped.

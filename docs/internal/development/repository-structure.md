@@ -43,5 +43,5 @@ corresponding contract or documentation when the boundary changes.
 2. Update its tests and contract first.
 3. Update consumers and generated bindings if the contract changed.
 4. Update current internal or public documentation as part of the same change.
-5. Put short-lived sequencing, rollout, or blocker notes in `docs/plans/active/`; move them to
-   `docs/plans/completed/` when finished.
+5. Put short-lived sequencing and blockers in the issue or pull request. Record rollout and
+   rollback decisions in the release record.

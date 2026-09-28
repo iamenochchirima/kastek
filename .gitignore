@@ -57,6 +57,7 @@ next-env.d.ts
 local-work/
 outreach-emails/
 /.local/
+/.audit/
 
 .flaskenv*
 !.env.project
