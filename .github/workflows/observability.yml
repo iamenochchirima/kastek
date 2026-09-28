@@ -122,7 +122,9 @@ jobs:
 
       - name: Type check
         working-directory: agents
-        run: pnpm exec tsc -p tsconfig.json --noEmit
+        run: |
+          pnpm exec tsc -p tsconfig.json --noEmit
+          pnpm exec tsc -p tsconfig.scripts.json
 
       - name: Run Agents tests
         working-directory: agents

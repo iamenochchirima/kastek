@@ -1,0 +1,9 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "noEmit": true
+  },
+  "include": ["scripts/otel-collector-unavailable-smoke.ts"],
+  "exclude": ["node_modules", "dist"]
+}
