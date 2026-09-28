@@ -1,1 +1,227 @@
-# kasitek-agents
+# KasiTek Agent Platform
+
+This is the separately deployable Agent Platform service. It owns agent definitions,
+durable run orchestration, conversations, memory, and operational records for the direct
+KasiTek product. It does not query or mutate `kasitek-core` tables; consequential product
+actions will go through authenticated internal contracts exposed by `kasitek-core`.
+
+## Source boundary
+
+The API, database migrations, Temporal worker, MCP gateway, shared service modules, local MCP
+package, scripts, tests, and technical documentation are owned here. The Agent Platform UI remains
+in Growth. This source move does not change API or authentication behavior, move data, restore a
+Growth user journey, or perform a production cutover.
+
+Runtime integrations remain the existing HTTP boundaries: Core calls use `KASITEK_CORE_URL` and
+the configured Core authentication contract; analytics delivery uses `ANALYTICS_INGESTION_URL`
+and its configured ingestion credential. Neither Core nor the Analytics service is part of this
+repository.
+
+Growth's `scripts/run_local_stack.sh` and `scripts/sync_dotenv_vaults.sh` still expect
+`agents/.env`, and its observability workflow still installs and builds under `agents/`. Those
+Growth paths were not changed by this destination-side move. The moved
+`test/rest-mcp-conformance.test.ts` also reads Core source and OpenAPI files at
+`server/kasitek-core/...`; that conformance check still requires the corresponding Growth/Core
+checkout. No integration or cutover behavior was verified here.
+
+## Processes
+
+- `pnpm run dev:api` applies pending local migrations, then starts the HTTP API.
+- `pnpm run dev:gateway` starts the stateless external MCP gateway.
+- `pnpm run dev:stdio` starts the local line-delimited stdio bridge to that gateway.
+- `pnpm run dev:worker` starts the Temporal worker.
+- `pnpm run migrate` applies PostgreSQL migrations.
+- `pnpm run test:e2e:local` exercises a real local installation through REST, Temporal, and MCP.
+- `pnpm run bootstrap:kasiai` idempotently creates the protected KasiAi definition and initial
+  published version after migrations are applied.
+- `pnpm run build` compiles the API, worker, and gateway entry points to `dist/`.
+- `RUN_AGENTS_DB_INTEGRATION_TESTS=true AGENTS_DATABASE_URL=... pnpm test` enables the
+  opt-in PostgreSQL isolation/deletion tests; the normal test command never mutates a database.
+
+The API and worker are intentionally separate process types so Railway can scale them
+independently. The default local-stack mode connects them to a dedicated Temporal Cloud
+development namespace. Set `TEMPORAL_MODE=local`, `TEMPORAL_ADDRESS=localhost:7233`, and
+`TEMPORAL_NAMESPACE=default` when a completely local Temporal Server is needed. Production
+must enable Temporal and provide a dedicated namespace/task queue.
+
+The gateway is a third independently scalable process. It owns no database, Temporal, core, or
+product state: `POST /mcp` forwards the authenticated JSON-RPC request to the private Agent API,
+and `/health` reports gateway liveness. `/health/ready` checks the Agent API readiness endpoint and
+`/metrics` exposes redacted in-process request counters and latency. Route `agents.kasitek.co.za/mcp` to `start:gateway`; keep
+the Agent API `/v1` surface on its private/API origin. Local development binds the gateway to
+loopback by default; production deployment may bind `0.0.0.0` behind the configured network and
+Origin boundary.
+
+The gateway applies bounded in-process fixed-window limits before forwarding requests. Set
+`MCP_GATEWAY_ENABLED=false` for an emergency transport disable, and tune the authenticated and
+pre-authentication windows with the `MCP_GATEWAY_*` variables. These controls are transport-local;
+installation grants, capability policy, approvals, usage, and audit remain owned by the Agent API.
+`MCP_STATELESS_ENABLED` controls the Agent API's 2026 stateless path and
+`MCP_GATEWAY_STATELESS_ENABLED` controls the gateway adapter. Both default on for local
+development/test and off for production unless explicitly enabled. Turning either switch off
+returns an unsupported-version response for 2026 requests while leaving the pre-2026 path intact,
+so rollback does not disable existing clients.
+The gateway supports the MCP `2026-07-28` stateless path and retains the pre-2026 `2025-06-18`
+initialize-based compatibility path during migration. The 2026 path uses per-request metadata,
+header/body validation, `server/discover`, deterministic/cacheable tool lists, and optional Tasks
+handles for clients that advertise the extension. It currently uses JSON responses for ordinary POST
+Streamable HTTP and does not claim standalone GET streaming or resumable session support. Set
+`MCP_GATEWAY_ALLOWED_ORIGINS` to a comma-separated allowlist when browser-originated MCP requests
+are expected; presented Origins not on the allowlist are rejected.
+Gateway metrics include redacted protocol-era, safe method-bucket, result-class, error, in-flight,
+and latency counters; they never include tokens, arguments, organization identifiers, or tool
+catalog contents.
+
+The machine-readable integration guide for external MCP clients is in
+[`docs/mcp-integration.md`](docs/mcp-integration.md).
+The rollout-focused migration note is in
+[`docs/mcp-2026-migration.md`](docs/mcp-2026-migration.md).
+
+Clients that only support local MCP stdio can run `pnpm run start:stdio` with
+`MCP_STDIO_API_KEY` set to a Developer API key and, when needed,
+`MCP_STDIO_URL` pointed at the hosted `/mcp` endpoint. The bridge owns no state; it forwards one
+JSON-RPC message per input line, selects the 2026 HTTP revision for messages carrying 2026 metadata,
+retains the pre-2026 flow for older clients, bounds messages/responses, preserves notifications, and
+never logs the bearer token. Before forwarding an old-client message it probes `server/discover`
+once (configurable with `MCP_STDIO_PROBE=false`); a modern-only endpoint produces a bounded local
+unsupported-version error instead of sending an incompatible initialize request.
+
+The publishable package boundary is being prepared in [`packages/mcp`](packages/mcp). Build its
+standalone local adapter with `pnpm run build:mcp`. It is intentionally separate from the Agent API
+runtime and does not contain tools, authorization, product data, or a REST client; publication is
+blocked until the Developers authentication/setup flow is wired and tested.
+
+The capability catalog used by MCP discovery, public tool discovery, permission UI, audit
+descriptions, and agent documentation is generated from the runtime manifest registry. Regenerate
+the checked-in catalog with `pnpm generate:capabilities`; the output is
+[`docs/generated-capabilities.md`](docs/generated-capabilities.md).
+
+Approval decisions have a separate bounded per-organization/run/actor fixed-window guard. Tune it
+with `APPROVAL_DECISION_RATE_LIMIT_PER_WINDOW`, `APPROVAL_DECISION_RATE_LIMIT_WINDOW_MS`, and
+`APPROVAL_DECISION_RATE_LIMIT_MAX_KEYS`; PostgreSQL remains the authoritative compare-and-set and
+duplicate-decision boundary. When Temporal is unavailable in a development environment, only read
+manifests that explicitly declare `execution: immediate` may execute directly; the run and tool
+evidence are still persisted. Durable writes and all approval-required capabilities continue to
+require Temporal.
+
+## Local end-to-end smoke test
+
+After migrations, start the API, worker, and gateway in separate terminals:
+
+```bash
+pnpm run dev:api
+pnpm run dev:worker
+pnpm run dev:gateway
+```
+
+Set a dedicated development ES256 `INSTALLATION_TOKEN_PRIVATE_KEY` in `.env` before starting
+the API, and use a non-production `AGENT_GATEWAY_SHARED_SECRET` when the gateway and API communicate
+over a non-private local network. Then run `pnpm run test:e2e:local`. The smoke test creates an
+isolated organization, agent, installation, credential, and two durable runs. It verifies REST
+credential exchange, filtered discovery, idempotent execution, MCP authentication, protocol
+negotiation, and MCP tool acceptance; it archives its agent fixture afterwards. Set
+`AGENTS_E2E_KEEP_FIXTURES=true` only when investigating a failed run.
+
+Cloud mode requires `TEMPORAL_ADDRESS`, `TEMPORAL_NAMESPACE`, and `TEMPORAL_API_KEY` in
+`.env` (or the environment used to launch the processes). Never commit the API key.
+
+KasiAi uses `KASIAI_MODEL_PROVIDER` and `KASIAI_MODEL` for its pinned initial model target. The
+matching KasiTek-funded provider key, such as `OPENROUTER_API_KEY`, is resolved only inside worker
+activities and is never stored in an agent definition or workflow input.
+
+Credit settlement is enforced by default. Set `CREDIT_BILLING_MODE=shadow` to calculate pricing
+without debiting, or `CREDIT_BILLING_MODE=disabled` to skip credit settlement. User-funded BYOK
+credentials do not consume KasiTek credits.
+
+The root `Dockerfile` builds the API and worker package and includes `migrations/`. It defaults to
+the API entry point; the gateway and worker entry points are `dist/gateway/server.js` and
+`dist/temporal/worker.js`. Deployment descriptors and production cutover are outside this source
+move.
+
+Run requests may include an `idempotencyKey`; retries within an organization return the original
+run and do not start a second Temporal workflow. Run inspection is available at
+`GET /v1/runs/:runId/timeline`, which joins lifecycle events, ordered run steps, and audited tool
+invocations. The timeline is organization-scoped and backed by PostgreSQL, so it does not rely
+on API process memory or sticky sessions.
+
+For a plain external REST-client check, use the dependency-free Python harness after creating an
+installation credential and starting the Agent API:
+
+```bash
+AGENTS_REST_SMOKE_INSTALLATION_ID=... \\
+AGENTS_REST_SMOKE_SECRET=... \\
+python3 scripts/rest-client-smoke.py
+```
+
+Set `AGENTS_REST_SMOKE_TOKEN` instead when a public-API token has already been exchanged. The
+harness verifies discovery, a durable tool acceptance, idempotent retry, and operation inspection;
+it does not claim the n8n or hosted-client gates.
+
+Platform chat clients first call
+`POST /v1/installations/:installationId/platform/conversation` to resolve the authenticated
+user's durable conversation. They send text through
+`POST /v1/installations/:installationId/platform/messages` with a client-generated
+`idempotencyKey`. The latter stores the inbound message and run atomically, then dispatches the
+idempotently named Temporal workflow. Assistant output is committed as an outbound message in
+the same transaction that completes the run. Clients can read durable history from
+`GET /v1/conversations/:conversationId` and stream run events from
+`GET /v1/runs/:runId/events/stream`.
+
+Model selection follows the conversation boundary. A version's model policy supplies the default
+when a new conversation is created; after that, `conversations.model_provider` and
+`conversations.model` are authoritative for every run in that conversation. Existing-conversation
+message payloads must not be used to switch models per message. Each accepted run snapshots the
+conversation model into `agent_runs.resolved_model_provider` and `agent_runs.resolved_model`.
+
+## kasitek-core read boundary
+
+The worker can expose explicitly granted read-only core tools when the core URL and one of these
+authentication modes are present:
+
+- `KASITEK_CORE_URL` — the private base URL of `kasitek-core`.
+- `KASITEK_CORE_INTERNAL_TOKEN` — a dedicated bearer token configured in core as
+  `KASITEK_AGENTS_INTERNAL_TOKEN`.
+- `KASITEK_CORE_DELEGATION_PRIVATE_KEY` — an ES256 private key for per-invocation delegation.
+- `KASITEK_CORE_DELEGATION_KEY_ID` — optional active signing-key identifier during a core
+  delegation-key rotation; it must match core's trusted key map.
+
+Growth's existing `scripts/run_local_stack.sh` supplies `KASITEK_CORE_URL` and the matching local
+Core credential to both services, but still loads the Growth checkout's `agents/.env`. For a
+standalone Agents checkout, configure `KASITEK_CORE_URL` and either
+`KASITEK_CORE_INTERNAL_TOKEN` or `KASITEK_CORE_DELEGATION_PRIVATE_KEY`; Core must retain its
+corresponding authentication configuration. If the Agent-side URL or credential is missing, the
+tool fails before making an HTTP request with `CORE_UNAVAILABLE`.
+
+The core capability boundary currently includes customer/workspace reads and the first content
+vertical. Content tools call `GET /api/internal/agents/v1/content/posts` and
+`GET /api/internal/agents/v1/content/posts/:id` for scoped reads, `POST
+/api/internal/agents/v1/content/posts` for idempotent drafts, and approval-bound publish/schedule
+routes for later rollout. Every request carries organization, actor, run, correlation, and (for
+writes) idempotency context. Core scopes all queries and writes by organization and returns only
+the typed read/write result; the Agent Platform never receives core database credentials.
+The Agent Platform never receives core database credentials. Rotate this service token as a
+deployment secret; do not reuse the n8n callback token or a user session token.
+
+When configured, `KASITEK_CORE_DELEGATION_PRIVATE_KEY` signs a short-lived ES256 delegation per
+core invocation. Core verifies it with its legacy `AGENTS_DELEGATION_PUBLIC_KEY` or the rotating
+`AGENTS_DELEGATION_PUBLIC_KEYS_JSON` map, issuer, audience, run, installation, capability, and
+correlation claims. The static internal token remains only as a development compatibility path.
+
+External-effect tools reserve an idempotency-derived effect receipt before execution. Provider
+success/failure is persisted separately from the tool result; ambiguous outcomes are surfaced by
+`GET /v1/operations/effects/reconciliation` and must be reconciled before retrying.
+
+User-owned model credentials are stored through `/v1/credentials` as encrypted vault records.
+Set `AGENTS_CREDENTIAL_ENCRYPTION_KEY` to a random 32-byte hex or base64 key in every API and
+worker process. API responses contain only opaque credential IDs; revoke the ID to prevent future
+model calls.
+
+Agent integrations use the same encrypted-secret boundary without adding provider-specific
+credential tables. The catalog in `src/integrations/catalog.ts` describes each provider, the
+connection API stores installation-scoped state, and `src/integrations/tools.ts` exposes provider
+operations through the existing capability registry and approval policy. OAuth-backed Google
+connections use `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`, and
+`GOOGLE_OAUTH_REDIRECT_URI`; each catalog entry supplies its own requested scopes through the
+shared Google OAuth boundary. Add a provider by adding one catalog entry, an adapter in
+`IntegrationToolService`, and its connection form; do not add a new tool execution path. The first
+adapters are KasiTek Calendar, Google Calendar, Gmail, Google Drive, Tavily Search, and an Apple Tools local bridge.

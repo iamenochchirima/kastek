@@ -1,0 +1,99 @@
+import { randomUUID } from "node:crypto";
+import { Pool } from "pg";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { AgentRepository } from "../src/db/repositories/agent-repository";
+import { ChannelRepository } from "../src/db/repositories/channel-repository";
+import { ConversationRepository } from "../src/db/repositories/conversation-repository";
+
+const databaseUrl = process.env.AGENTS_DATABASE_URL;
+const runIntegration = Boolean(databaseUrl && process.env.RUN_AGENTS_DB_INTEGRATION_TESTS === "true");
+
+describe.skipIf(!runIntegration)("channel routing contracts (integration)", () => {
+  const pool = new Pool({ connectionString: databaseUrl });
+  const agents = new AgentRepository(pool);
+  const channels = new ChannelRepository(pool);
+  const conversations = new ConversationRepository(pool);
+  const organizationId = `channel-test-${randomUUID()}`;
+  const otherOrganizationId = `channel-other-${randomUUID()}`;
+  let agentId = "";
+  let versionId = "";
+  let installationId = "";
+  let conversationId = "";
+
+  it("creates a connection, binding, participant, and deduplicated delivery contract", async () => {
+    const agent = await agents.createAgent(organizationId, "test-user", { name: "Channel test" });
+    agentId = agent.id;
+    const version = await agents.createVersion(organizationId, "test-user", agent.id, { instructions: "test", configuration: {}, policy: {} });
+    versionId = version.id;
+    await agents.publishVersion(organizationId, "test-user", agent.id, version.id);
+    const installation = await agents.createInstallation(organizationId, "test-user", { agentVersionId: version.id, scopeType: "organization", scopeId: organizationId, settings: {} });
+    installationId = installation.id;
+    const connection = await channels.createConnection({ organizationId, installationId, channelType: "platform", channelKey: "channel-test", actorId: "test-user" });
+    const pairing = await channels.issuePairingToken({ organizationId, installationId, connectionId: connection.id, actorId: "test-user" });
+    expect(pairing.token).toBeTruthy();
+    const binding = await channels.consumePairingToken({ organizationId, token: pairing.token!, externalIdentity: "user:test" });
+    expect(binding.channel_type).toBe("platform");
+    expect(binding.owner_actor_id).toBe("test-user");
+    await expect(channels.consumePairingToken({ organizationId, token: pairing.token!, externalIdentity: "user:test" })).rejects.toThrow("invalid");
+    const conversation = await conversations.createConversation({ organizationId, installationId, channelType: "platform", channelKey: "channel-test", externalConversationId: "conversation:test" });
+    conversationId = conversation.id;
+    expect(await conversations.getConversation(otherOrganizationId, conversation.id)).toBeNull();
+    expect(await conversations.listMessages(otherOrganizationId, conversation.id)).toEqual([]);
+    await expect(conversations.appendMessage({ organizationId: otherOrganizationId, conversationId: conversation.id, direction: "inbound", content: { text: "cross-org" } })).rejects.toThrow("Active conversation not found");
+    await expect(conversations.createConversation({ organizationId: otherOrganizationId, installationId, externalConversationId: "cross-org" })).rejects.toThrow("Active installation not found");
+    const participant = await conversations.createParticipant({ organizationId, conversationId, participantType: "user", externalId: "user:test", displayName: "Test" });
+    const message = await conversations.appendMessage({ organizationId, conversationId, participantId: participant.id, direction: "outbound", content: { text: "hello" }, provider: "platform", providerMessageId: "message:test" });
+    const attempt = await channels.queueDelivery({ organizationId, conversationId, messageId: message.id, channelType: "platform" });
+    expect(attempt.status).toBe("queued");
+    await expect(channels.queueDelivery({ organizationId: "other-organization", conversationId, messageId: message.id, channelType: "platform" })).rejects.toThrow("Message not found");
+    await expect(channels.queueDelivery({ organizationId, conversationId: randomUUID(), messageId: message.id, channelType: "platform" })).rejects.toThrow("Message not found");
+    const claimed = await channels.claimDelivery(organizationId, attempt.id);
+    expect(claimed.status).toBe("sending");
+    const failed = await channels.markDeliveryFailed({ organizationId, attemptId: claimed.id, error: { code: "provider_timeout" } });
+    expect(failed.status).toBe("failed");
+    const retry = await channels.queueDelivery({ organizationId, conversationId, messageId: message.id, channelType: "platform" });
+    expect(retry).toMatchObject({ status: "queued", attempt_number: 2 });
+    const retryClaimed = await channels.claimDelivery(organizationId, retry.id);
+    expect(retryClaimed.status).toBe("sending");
+    const delivered = await channels.markDelivered({ organizationId, attemptId: retry.id, providerMessageId: "provider-message:1" });
+    expect(delivered.status).toBe("sent");
+    expect((await conversations.listMessages(organizationId, conversationId))[0]).toMatchObject({
+      delivery_status: "sent",
+      provider_message_id: "provider-message:1",
+    });
+    const receipt = await channels.updateProviderDeliveryStatus({
+      organizationId,
+      providerMessageId: "provider-message:1",
+      status: "read",
+    });
+    expect(receipt.delivery_status).toBe("read");
+    const staleReceipt = await channels.updateProviderDeliveryStatus({
+      organizationId,
+      providerMessageId: "provider-message:1",
+      status: "sent",
+    });
+    expect(staleReceipt.delivery_status).toBe("read");
+    await expect(channels.revokeOwnerBinding(organizationId, binding.id, "another-user"))
+      .rejects.toThrow("Channel binding not found");
+    await channels.revokeOwnerBinding(organizationId, binding.id, "test-user");
+    expect((await channels.listOwnerBindings(organizationId, installationId, "test-user"))[0]?.status)
+      .toBe("revoked");
+  });
+
+  beforeAll(async () => { await pool.query("SELECT 1"); });
+
+  afterAll(async () => {
+    await pool.query("DELETE FROM channel_pairing_tokens WHERE organization_id = $1", [organizationId]);
+    await pool.query("DELETE FROM delivery_attempts WHERE organization_id = $1", [organizationId]);
+    await pool.query("DELETE FROM channel_bindings WHERE organization_id = $1", [organizationId]);
+    await pool.query("DELETE FROM channel_connections WHERE organization_id = $1", [organizationId]);
+    await pool.query("DELETE FROM messages WHERE organization_id = $1", [organizationId]);
+    await pool.query("DELETE FROM participants WHERE organization_id = $1", [organizationId]);
+    await pool.query("DELETE FROM conversations WHERE organization_id = $1", [organizationId]);
+    await pool.query("DELETE FROM agent_principals WHERE organization_id = $1", [organizationId]);
+    await pool.query("DELETE FROM agent_installations WHERE organization_id = $1", [organizationId]);
+    if (versionId) await pool.query("DELETE FROM agent_versions WHERE id = $1", [versionId]);
+    if (agentId) await pool.query("DELETE FROM agent_definitions WHERE id = $1", [agentId]);
+    await pool.end();
+  });
+});
