@@ -42,3 +42,7 @@ ANALYTICS_BACKUP_FILE='/secure/backups/analytics-20260822T000000Z.dump' \
 The recovery procedure must reapply deletion and legal-hold records and reconcile source outboxes
 before restored reporting is exposed. Those records are implemented in later analytics packages;
 this A-02 package only establishes the guarded database restoration mechanism.
+
+Runbooks preserved from Growth are under
+[`runbooks/analytics/`](runbooks/analytics/README.md). They are historical drafts pending an
+operations review and must not be treated as production instructions yet.
