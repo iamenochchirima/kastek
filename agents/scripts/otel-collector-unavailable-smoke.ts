@@ -4,29 +4,51 @@ import type { AppConfig } from "../src/config";
 
 interface UnavailableCollector {
   endpoint: string;
-  firstRejectedTrace: Promise<string>;
+  firstRejectedTrace: Promise<{ path: string; bodyBytes: number }>;
   close(): Promise<void>;
 }
 
 async function startUnavailableCollector(): Promise<UnavailableCollector> {
-  let resolveFirstTrace!: (path: string) => void;
-  const firstRejectedTrace = new Promise<string>((resolve) => { resolveFirstTrace = resolve; });
+  let resolveFirstTrace!: (request: { path: string; bodyBytes: number }) => void;
+  const firstRejectedTrace = new Promise<{ path: string; bodyBytes: number }>((resolve) => { resolveFirstTrace = resolve; });
   const server = createServer((socket) => {
     let request = "";
+    let handled = false;
     socket.setTimeout(2_000, () => socket.destroy());
     socket.on("error", () => undefined);
     socket.on("data", (chunk) => {
+      if (handled) return;
       request += chunk.toString("latin1");
-      const lineEnd = request.indexOf("\r\n");
-      if (lineEnd < 0) return;
-      socket.removeAllListeners("data");
-      const [method, path] = request.slice(0, lineEnd).split(" ");
-      if (method !== "POST" || !path) return socket.destroy();
+      const headerEnd = request.indexOf("\r\n\r\n");
+      if (headerEnd < 0) return;
+      const lines = request.slice(0, headerEnd).split("\r\n");
+      const [method, path] = (lines[0] ?? "").split(" ");
+      const contentLengthHeader = lines.slice(1).find((line) => /^content-length:/i.test(line));
+      const transferEncodingHeader = lines.slice(1).find((line) => /^transfer-encoding:/i.test(line));
+      let bodyBytes: number | undefined;
+      if (contentLengthHeader) {
+        const contentLength = Number(contentLengthHeader.split(":", 2)[1]?.trim());
+        if (!Number.isSafeInteger(contentLength) || contentLength < 1) return socket.destroy();
+        if (request.length < headerEnd + 4 + contentLength) return;
+        bodyBytes = contentLength;
+      } else if (transferEncodingHeader?.toLowerCase().includes("chunked")) {
+        const chunkStart = headerEnd + 4;
+        const chunkSizeEnd = request.indexOf("\r\n", chunkStart);
+        if (chunkSizeEnd < 0) return;
+        const chunkBytes = Number.parseInt(request.slice(chunkStart, chunkSizeEnd).split(";", 1)[0] ?? "", 16);
+        if (!Number.isSafeInteger(chunkBytes) || chunkBytes < 1) return socket.destroy();
+        if (request.length < chunkSizeEnd + 2 + chunkBytes + 2) return;
+        bodyBytes = chunkBytes;
+      } else {
+        return socket.destroy();
+      }
+      if (method !== "POST" || path !== "/v1/traces" || bodyBytes === undefined) return socket.destroy();
+      handled = true;
 
       const body = "collector unavailable";
       socket.end(
         `HTTP/1.1 503 Service Unavailable\r\nConnection: close\r\nContent-Length: ${Buffer.byteLength(body)}\r\n\r\n${body}`,
-        () => resolveFirstTrace(path),
+        () => resolveFirstTrace({ path, bodyBytes }),
       );
     });
   });
@@ -47,12 +69,12 @@ async function startUnavailableCollector(): Promise<UnavailableCollector> {
   };
 }
 
-async function waitForFirstTrace(promise: Promise<string>): Promise<string> {
+async function waitForFirstTrace(promise: Promise<{ path: string; bodyBytes: number }>): Promise<{ path: string; bodyBytes: number }> {
   let timer: NodeJS.Timeout | undefined;
   try {
     return await Promise.race([
       promise,
-      new Promise<string>((_resolve, reject) => {
+      new Promise<{ path: string; bodyBytes: number }>((_resolve, reject) => {
         timer = setTimeout(() => reject(new Error("Health request did not produce an OTLP trace export")), 3_000);
       }),
     ]);
@@ -110,7 +132,13 @@ async function main(): Promise<void> {
     const live = await fetch(`${baseUrl}/health/live`, { signal: AbortSignal.timeout(2_000) });
     assert.equal(live.status, 200, "/health/live should succeed while the OTLP endpoint rejects exports");
     assert.deepEqual(await live.json(), { status: "ok", service: "kasitek-agents" });
-    assert.equal(await waitForFirstTrace(collector.firstRejectedTrace), "/v1/traces");
+    const rejectedTrace = await waitForFirstTrace(collector.firstRejectedTrace);
+    assert.equal(rejectedTrace.path, "/v1/traces");
+    assert.ok(rejectedTrace.bodyBytes > 0, "the rejected OTLP request should include a trace payload");
+
+    const liveAfterFailure = await fetch(`${baseUrl}/health/live`, { signal: AbortSignal.timeout(2_000) });
+    assert.equal(liveAfterFailure.status, 200, "/health/live should stay healthy after an OTLP export is rejected");
+    assert.deepEqual(await liveAfterFailure.json(), { status: "ok", service: "kasitek-agents" });
 
     const ready = await fetch(`${baseUrl}/health/ready`, { signal: AbortSignal.timeout(2_000) });
     assert.equal(ready.status, 200, "/health/ready should stay healthy after an OTLP export is rejected");
@@ -129,7 +157,7 @@ async function main(): Promise<void> {
   }
 
   if (healthChecksPassed) {
-    console.log("Agents live and ready health checks passed after an OTLP trace export was rejected with HTTP 503.");
+    console.log("Agents live and ready health checks passed after a non-empty OTLP trace export was rejected with HTTP 503.");
   }
 }
 
