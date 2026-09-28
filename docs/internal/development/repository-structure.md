@@ -19,7 +19,7 @@ corresponding contract or documentation when the boundary changes.
 | `agents/` | Agent API, worker, MCP gateway, Temporal workflows, migrations, and agent contracts |
 | `server/kasitek-core/` | Core product runtime, shared business capabilities, and core database |
 | `server/kasitek-tenants/` | White-label tenant runtime and tenant database |
-| `server/kasitek-analytics/` | Analytics ingestion, registry, reporting, projections, and analytics database |
+| [Labs Analytics service](https://github.com/Kasitek-Labs/kasitek-labs/tree/main/services/analytics) | Analytics ingestion, registry, reporting, projections, and Analytics database; not built from Growth |
 | `server/crates/` | Shared Rust crates used by server runtimes |
 | `scripts/` | Local stack, environment, release, migration, and verification automation |
 | `docs/public/` | User-facing documentation site source |
@@ -29,8 +29,8 @@ corresponding contract or documentation when the boundary changes.
 
 ## Ownership boundaries
 
-- Core, Tenant Platform, Agents, and Analytics use separate data boundaries. Do not connect one
-  service directly to another service's database.
+- Core, Tenant Platform, Agents, and Analytics use separate data boundaries. Analytics is owned by
+  Labs; do not connect one service directly to another service's database.
 - Cross-service behavior uses an explicit HTTP, event, queue, or shared contract boundary.
 - Frontend packages call supported service APIs or shared client packages; they should not encode
   server persistence rules locally.

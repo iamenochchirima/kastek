@@ -21,15 +21,12 @@ fi
 
 AGENT_ENV_SETUP="if [[ -f '$ROOT_DIR/agents/.env' ]]; then set -a; source '$ROOT_DIR/agents/.env'; set +a; fi"
 CORE_ENV_SETUP="if [[ -f '$ROOT_DIR/server/kasitek-core/.env' ]]; then set -a; source '$ROOT_DIR/server/kasitek-core/.env'; set +a; fi"
-ANALYTICS_LOCAL_REPORTING_ENV_FILE="/tmp/kasitek-analytics-reporting-${UID}.env"
-ANALYTICS_ENV_SETUP="if [[ -f '$ROOT_DIR/server/kasitek-analytics/.env' ]]; then set -a; source '$ROOT_DIR/server/kasitek-analytics/.env'; set +a; fi; if [[ -f '$ANALYTICS_LOCAL_REPORTING_ENV_FILE' ]]; then set -a; source '$ANALYTICS_LOCAL_REPORTING_ENV_FILE'; set +a; fi"
-CORE_ANALYTICS_ENV_SETUP="$CORE_ENV_SETUP; $ANALYTICS_ENV_SETUP"
 # Tenants has its own local environment file. The local launcher must not use
 # the generic DATABASE_URL fallback: the merged env file can contain Core or
 # hosted credentials. A process-local override is resolved below instead.
 TENANT_LOCAL_ENV_FILE="/tmp/kasitek-tenant-database-${UID}.env"
 TENANT_LOCAL_ENV_SETUP="if [[ -f '$TENANT_LOCAL_ENV_FILE' ]]; then set -a; source '$TENANT_LOCAL_ENV_FILE'; set +a; fi"
-TENANTS_ENV_SETUP="if [[ -f '$ROOT_DIR/server/kasitek-tenants/.env' ]]; then set -a; source '$ROOT_DIR/server/kasitek-tenants/.env'; set +a; fi; $TENANT_LOCAL_ENV_SETUP; $ANALYTICS_ENV_SETUP"
+TENANTS_ENV_SETUP="if [[ -f '$ROOT_DIR/server/kasitek-tenants/.env' ]]; then set -a; source '$ROOT_DIR/server/kasitek-tenants/.env'; set +a; fi; $TENANT_LOCAL_ENV_SETUP"
 TENANT_PORTAL_ENV_SETUP="if [[ -f '$ROOT_DIR/client/apps/tenant-portal/.env' ]]; then set -a; source '$ROOT_DIR/client/apps/tenant-portal/.env'; set +a; fi; if [[ -f '$ROOT_DIR/client/apps/tenant-portal/.env.local' ]]; then set -a; source '$ROOT_DIR/client/apps/tenant-portal/.env.local'; set +a; fi"
 
 # The local Agent Platform -> Core boundary uses the development bearer-token
@@ -38,19 +35,6 @@ TENANT_PORTAL_ENV_SETUP="if [[ -f '$ROOT_DIR/client/apps/tenant-portal/.env' ]];
 # Production deployments must use per-invocation delegation keys instead.
 LOCAL_CORE_URL="${KASITEK_CORE_URL:-http://127.0.0.1:4000}"
 LOCAL_CORE_AGENT_TOKEN="${KASITEK_LOCAL_CORE_AGENT_TOKEN:-kasitek-local-agent-boundary-dev-2026}"
-
-# Reuse the existing process-local reporting credentials when this script is
-# invoked from a fresh shell. Otherwise restarting only one reporting process
-# would generate a new token and leave the other processes unable to authenticate.
-if [[ -f "$ANALYTICS_LOCAL_REPORTING_ENV_FILE" ]] \
-  && [[ -z "${ANALYTICS_REPORTING_PRIVATE_KEY:-}" ]] \
-  && [[ -z "${ANALYTICS_REPORTING_PUBLIC_KEY:-}" ]] \
-  && [[ -z "${ANALYTICS_REPORTING_RESOLVER_TOKEN:-}" ]] \
-  && [[ -z "${ANALYTICS_REPORTING_RESOLVER_CREDENTIALS_JSON:-}" ]]; then
-  set -a
-  source "$ANALYTICS_LOCAL_REPORTING_ENV_FILE"
-  set +a
-fi
 
 # "$ROOT_DIR/scripts/sync_dotenv_vaults.sh" pull
 
@@ -64,88 +48,6 @@ require_command() {
 require_command cargo
 require_command pnpm
 require_command gnome-terminal
-
-# Customer reporting is intentionally authenticated even on the local stack. Generate one
-# process-local ES256 keypair and resolver credential when local credentials were not supplied;
-# the exported values are inherited by both Core and Analytics, but are never written to the repo.
-configure_local_analytics_reporting() {
-  local missing=()
-  [[ -n "${ANALYTICS_REPORTING_PRIVATE_KEY:-}" ]] || missing+=(ANALYTICS_REPORTING_PRIVATE_KEY)
-  [[ -n "${ANALYTICS_REPORTING_PUBLIC_KEY:-}" ]] || missing+=(ANALYTICS_REPORTING_PUBLIC_KEY)
-  [[ -n "${ANALYTICS_REPORTING_RESOLVER_TOKEN:-}" ]] || missing+=(ANALYTICS_REPORTING_RESOLVER_TOKEN)
-  [[ -n "${ANALYTICS_REPORTING_RESOLVER_CREDENTIALS_JSON:-}" ]] || missing+=(ANALYTICS_REPORTING_RESOLVER_CREDENTIALS_JSON)
-
-  if ((${#missing[@]} != 0 && ${#missing[@]} != 4)); then
-    echo "Incomplete local Analytics reporting configuration; missing: ${missing[*]}" >&2
-    echo "Set all four ANALYTICS_REPORTING_* values or remove the partial local configuration." >&2
-    exit 1
-  fi
-
-  local private_key="${ANALYTICS_REPORTING_PRIVATE_KEY:-}"
-  local public_key="${ANALYTICS_REPORTING_PUBLIC_KEY:-}"
-  local resolver_token="${ANALYTICS_REPORTING_RESOLVER_TOKEN:-}"
-  if ((${#missing[@]} == 4)); then
-    # jwt-simple's ES256 loader accepts PKCS#8 PEM keys. `ecparam -genkey`
-    # emits the older SEC1 `EC PRIVATE KEY` format, so use genpkey here.
-    private_key="$(openssl genpkey -algorithm EC -pkeyopt ec_paramgen_curve:P-256 2>/dev/null)"
-    public_key="$(printf '%s\n' "$private_key" | openssl pkey -pubout 2>/dev/null)"
-    resolver_token="$(openssl rand -hex 32)"
-  fi
-
-  export ANALYTICS_REPORTING_PRIVATE_KEY="$private_key"
-  export ANALYTICS_REPORTING_PUBLIC_KEY="$public_key"
-  export ANALYTICS_REPORTING_RESOLVER_TOKEN="$resolver_token"
-  export ANALYTICS_REPORTING_RESOLVER_CREDENTIALS_JSON="[{\"source_service\":\"core\",\"token\":\"$resolver_token\"}]"
-  # Leave the local grant unkeyed unless a keyed public-key map is explicitly
-  # supplied. A key id without ANALYTICS_REPORTING_PUBLIC_KEYS_JSON makes the
-  # Analytics verifier reject every otherwise valid grant.
-  export ANALYTICS_REPORTING_KEY_ID="${ANALYTICS_REPORTING_KEY_ID:-}"
-  export ANALYTICS_REPORTING_ISSUER="${ANALYTICS_REPORTING_ISSUER:-kasitek-core}"
-  export ANALYTICS_REPORTING_AUDIENCE="${ANALYTICS_REPORTING_AUDIENCE:-kasitek-analytics-reporting}"
-
-  umask 077
-  {
-    printf 'export ANALYTICS_REPORTING_PRIVATE_KEY=%q\n' "$private_key"
-    printf 'export ANALYTICS_REPORTING_PUBLIC_KEY=%q\n' "$public_key"
-    printf 'export ANALYTICS_REPORTING_RESOLVER_TOKEN=%q\n' "$resolver_token"
-    printf 'export ANALYTICS_REPORTING_RESOLVER_CREDENTIALS_JSON=%q\n' "$ANALYTICS_REPORTING_RESOLVER_CREDENTIALS_JSON"
-    printf 'export ANALYTICS_REPORTING_KEY_ID=%q\n' "$ANALYTICS_REPORTING_KEY_ID"
-    printf 'export ANALYTICS_REPORTING_ISSUER=%q\n' "$ANALYTICS_REPORTING_ISSUER"
-    printf 'export ANALYTICS_REPORTING_AUDIENCE=%q\n' "$ANALYTICS_REPORTING_AUDIENCE"
-  } > "$ANALYTICS_LOCAL_REPORTING_ENV_FILE"
-  chmod 600 "$ANALYTICS_LOCAL_REPORTING_ENV_FILE"
-}
-
-# Core's source publisher and Analytics' private ingestion API must share the
-# same local credential. Keep this in the process-local environment file so it
-# is never committed to the repository or copied into a service .env file.
-configure_local_analytics_ingestion() {
-  local core_token="${ANALYTICS_CORE_INGESTION_TOKEN:-${ANALYTICS_INGESTION_TOKEN:-}}"
-  local ingestion_credentials="${ANALYTICS_INGESTION_CREDENTIALS_JSON:-}"
-
-  if [[ -z "$core_token" && -n "$ingestion_credentials" ]]; then
-    echo "Incomplete local Analytics ingestion configuration; ANALYTICS_CORE_INGESTION_TOKEN is missing." >&2
-    exit 1
-  fi
-  if [[ -n "$core_token" && -z "$ingestion_credentials" ]]; then
-    echo "Incomplete local Analytics ingestion configuration; ANALYTICS_INGESTION_CREDENTIALS_JSON is missing." >&2
-    exit 1
-  fi
-  if [[ -z "$core_token" ]]; then
-    core_token="$(openssl rand -hex 32)"
-    ingestion_credentials="[{\"source_service\":\"core\",\"producer_id\":\"core-customer-analytics\",\"token\":\"$core_token\"}]"
-  fi
-
-  export ANALYTICS_CORE_INGESTION_TOKEN="$core_token"
-  export ANALYTICS_INGESTION_CREDENTIALS_JSON="$ingestion_credentials"
-
-  umask 077
-  {
-    printf 'export ANALYTICS_CORE_INGESTION_TOKEN=%q\n' "$core_token"
-    printf 'export ANALYTICS_INGESTION_CREDENTIALS_JSON=%q\n' "$ingestion_credentials"
-  } >> "$ANALYTICS_LOCAL_REPORTING_ENV_FILE"
-  chmod 600 "$ANALYTICS_LOCAL_REPORTING_ENV_FILE"
-}
 
 # Write a temp launcher script for each service to avoid gnome-terminal's
 # argument parsing bug where '--' stops processing subsequent '--tab' flags.
@@ -169,20 +71,15 @@ SCRIPT
 declare -a tabs=()
 declare -A services
 declare -a tenant_services=(tenant-api tenant-portal)
-analytics_required=false
 tenant_database_required=false
 
 # Define all available services
-services["core"]="$ROOT_DIR/server/kasitek-core|$CORE_ANALYTICS_ENV_SETUP; LOG_COLOR=always KASITEK_AGENTS_INTERNAL_TOKEN='$LOCAL_CORE_AGENT_TOKEN' cargo run"
+services["core"]="$ROOT_DIR/server/kasitek-core|$CORE_ENV_SETUP; LOG_COLOR=always KASITEK_AGENTS_INTERNAL_TOKEN='$LOCAL_CORE_AGENT_TOKEN' cargo run"
 services["tenant-api"]="$ROOT_DIR/server/kasitek-tenants|$TENANTS_ENV_SETUP; LOG_COLOR=always cargo run"
 services["tenant-portal"]="$ROOT_DIR/client/apps/tenant-portal|$TENANT_PORTAL_ENV_SETUP; TENANT_BACKEND_URL=\"\${TENANT_BACKEND_URL:-http://127.0.0.1:8090}\" pnpm dev"
-services["analytics-storage"]="$ROOT_DIR/server/kasitek-analytics|$ANALYTICS_ENV_SETUP; ./scripts/local-storage.sh"
-services["analytics-migrate"]="$ROOT_DIR/server/kasitek-analytics|$ANALYTICS_ENV_SETUP; ./scripts/local-migrate.sh"
-services["analytics-api"]="$ROOT_DIR/server/kasitek-analytics|$ANALYTICS_ENV_SETUP; ANALYTICS_DATABASE_URL=\"\${ANALYTICS_DATABASE_URL:-postgres://analytics:analytics_dev_password@127.0.0.1:5432/kasitek_analytics}\" ANALYTICS_REDIS_URL=\"\${ANALYTICS_REDIS_URL:-redis://127.0.0.1:6379}\" ANALYTICS_API_PORT=\"\${ANALYTICS_API_PORT:-4300}\" LOG_COLOR=always cargo run --bin analytics-api"
-services["analytics-worker"]="$ROOT_DIR/server/kasitek-analytics|$ANALYTICS_ENV_SETUP; ANALYTICS_DATABASE_URL=\"\${ANALYTICS_DATABASE_URL:-postgres://analytics:analytics_dev_password@127.0.0.1:5432/kasitek_analytics}\" ANALYTICS_REDIS_URL=\"\${ANALYTICS_REDIS_URL:-redis://127.0.0.1:6379}\" LOG_COLOR=always cargo run --bin analytics-worker"
-services["core-analytics-publisher"]="$ROOT_DIR/server/kasitek-core|$CORE_ANALYTICS_ENV_SETUP; LOG_COLOR=always KASITEK_PROCESS=analytics-publisher cargo run"
-services["core-analytics-backfill"]="$ROOT_DIR/server/kasitek-core|$CORE_ANALYTICS_ENV_SETUP; LOG_COLOR=always KASITEK_PROCESS=analytics-backfill-worker cargo run"
-services["tenants-analytics-publisher"]="$ROOT_DIR/server/kasitek-tenants|$ANALYTICS_ENV_SETUP; LOG_COLOR=always KASITEK_PROCESS=analytics-publisher cargo run"
+services["core-analytics-publisher"]="$ROOT_DIR/server/kasitek-core|$CORE_ENV_SETUP; LOG_COLOR=always KASITEK_PROCESS=analytics-publisher cargo run"
+services["core-analytics-backfill"]="$ROOT_DIR/server/kasitek-core|$CORE_ENV_SETUP; LOG_COLOR=always KASITEK_PROCESS=analytics-backfill-worker cargo run"
+services["tenants-analytics-publisher"]="$ROOT_DIR/server/kasitek-tenants|$TENANTS_ENV_SETUP; LOG_COLOR=always KASITEK_PROCESS=analytics-publisher cargo run"
 services["agent-analytics-publisher"]="$ROOT_DIR/agents|$AGENT_ENV_SETUP; pnpm run dev:analytics-publisher"
 services["agents-api"]="$ROOT_DIR/agents|$AGENT_ENV_SETUP; KASITEK_CORE_URL='$LOCAL_CORE_URL' KASITEK_CORE_INTERNAL_TOKEN='$LOCAL_CORE_AGENT_TOKEN' $AGENT_TEMPORAL_ENV pnpm run dev:api"
 services["agents-worker"]="$ROOT_DIR/agents|$AGENT_ENV_SETUP; KASITEK_CORE_URL='$LOCAL_CORE_URL' KASITEK_CORE_INTERNAL_TOKEN='$LOCAL_CORE_AGENT_TOKEN' $AGENT_TEMPORAL_ENV pnpm run dev:worker"
@@ -201,7 +98,6 @@ service_port() {
     core) echo 4000 ;;
     tenant-api) echo 8090 ;;
     tenant-portal) echo 3010 ;;
-    analytics-api) echo 4300 ;;
     agents-api) echo 4100 ;;
     agent-gateway) echo 4200 ;;
     client) echo 3000 ;;
@@ -209,17 +105,6 @@ service_port() {
     labs) echo 3007 ;;
     internal-docs) echo 3006 ;;
     temporal) echo 7233 ;;
-  esac
-}
-
-service_requires_analytics() {
-  case "$1" in
-    core|analytics-api|analytics-worker|core-analytics-publisher|core-analytics-backfill|tenants-analytics-publisher|agent-analytics-publisher)
-      return 0
-      ;;
-    *)
-      return 1
-      ;;
   esac
 }
 
@@ -292,9 +177,6 @@ add_service() {
   local dir="${service_def%%|*}"
   local cmd="${service_def#*|}"
 
-  if service_requires_analytics "$name"; then
-    analytics_required=true
-  fi
   if [[ "$name" == "tenant-api" ]]; then
     tenant_database_required=true
   fi
@@ -488,8 +370,6 @@ show_usage() {
   echo "  $0 core               # Run the Core API, including Calls"
   echo "  $0 core client        # Run the Core API and client"
   echo "  $0 internal-docs      # Run the internal documentation site"
-  echo "  $0 analytics-migrate # Apply Analytics migrations once"
-  echo "  $0 analytics-worker  # Run the optional Analytics worker"
   echo "  $0 core-analytics-publisher tenants-analytics-publisher agent-analytics-publisher # Run source publishers"
   echo "  $0 core-analytics-backfill # Run Core source reconstruction separately"
   echo "  $0 restart core       # Restart only the Core API"
@@ -500,7 +380,7 @@ show_usage() {
 # Parse command line arguments
 if [[ $# -eq 0 ]]; then
   # No arguments - run all services
-  services_to_start=(core tenant-api analytics-api agents-api agents-worker agent-gateway client admin labs internal-docs)
+  services_to_start=(core tenant-api agents-api agents-worker agent-gateway client admin labs internal-docs)
   if [[ "$TEMPORAL_MODE" == "local" ]]; then
     services_to_start+=(temporal)
   fi
@@ -550,12 +430,6 @@ fi
 
 if [[ "$tenant_database_required" == true ]]; then
   prepare_local_tenant_database
-fi
-
-if [[ "$analytics_required" == true ]]; then
-  require_command openssl
-  configure_local_analytics_reporting
-  configure_local_analytics_ingestion
 fi
 
 echo "Launching local KasiTek stack..."

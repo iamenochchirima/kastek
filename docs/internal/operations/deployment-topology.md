@@ -3,15 +3,15 @@ id: deployment-topology
 title: Railway Deployment Topology
 sidebar_position: 6
 owner: platform-ops
-last_reviewed: 2026-08-28
+last_reviewed: 2026-09-29
 ---
 
 # Railway Deployment Topology
 
-This document is the current deployment reference for the KasiTek backend services on Railway.
-It describes the service boundaries, source directories, builders, commands, health checks, and
-network exposure for the Production environment. Staging uses the same service topology with
-staging databases, credentials, domains, and environment values.
+This document records the Railway topology for services still built from Growth. Analytics source
+and build ownership have moved to Labs. The existing hosted Analytics deployment is unchanged by
+this source move; its deployment cutover is separate work and is not managed from Growth. Do not
+build or redeploy Analytics from this repository.
 
 ## Deployment rules
 
@@ -39,19 +39,6 @@ be configured or reused rather than duplicated inside the same Railway environme
 | Agents API | `/agents` | Dockerfile | `Dockerfile` | Leave blank; the Dockerfile builds the image | Manual one-shot migration before deployment; see below | `node dist/http/server.js` | `/health/ready`, `4100` | Private |
 | Agents Worker | `/agents` | Dockerfile | `Dockerfile` | Leave blank; the Dockerfile builds the image | None; deploy Agents API first | `node dist/temporal/worker.js` | No HTTP health check | Private |
 | MCP Gateway | `/agents` | Dockerfile | `Dockerfile` | Leave blank; the Dockerfile builds the image | None | `node dist/gateway/server.js` | `/health/ready`, `4200` | Public when external MCP clients are enabled |
-| Analytics API | `/server` | Dockerfile | `kasitek-analytics/Dockerfile` | Leave blank; the Dockerfile builds the image | Manual one-shot migration before deployment; see below | `/usr/local/bin/analytics-api` | `/health/ready`, `4300` | Private |
-| Analytics Worker | `/server` | Dockerfile | `kasitek-analytics/Dockerfile` | Leave blank; the Dockerfile builds the image | None; deploy Analytics API first | `/usr/local/bin/analytics-worker` | No HTTP health check | Private |
-
-For the Analytics services, if Railway does not provide a Dockerfile path field, add this
-service variable:
-
-```text
-RAILWAY_DOCKERFILE_PATH=kasitek-analytics/Dockerfile
-```
-
-The Analytics Dockerfile builds and packages the API, worker, and migration binaries. It is used
-by both Analytics services; the Start Command selects the process that each service runs.
-
 The Agents Dockerfile is directly under `/agents`, so it does not need
 `RAILWAY_DOCKERFILE_PATH`.
 
@@ -75,7 +62,6 @@ actual exported variable, for example:
 ```text
 DATABASE_URL=${{core-db.DATABASE_URL}}
 AGENTS_DATABASE_URL=${{agents-db.DATABASE_URL}}
-ANALYTICS_DATABASE_URL=${{analytics-db.DATABASE_URL}}
 KASITEK_TENANTS_DATABASE_URL=${{tenents-db.DATABASE_URL}}
 ```
 
@@ -129,18 +115,6 @@ node dist/system/release-kasiai.js --rollout
 
 Record the released agent version and release-gate result. The one-shot command is a recovery and
 audit tool; normal production deployments use the API startup release gate.
-
-### Analytics
-
-The Analytics image contains the migration binary. For a one-shot deployment, temporarily use:
-
-```text
-/usr/local/bin/analytics-migrate
-```
-
-After the command exits successfully, restore `/usr/local/bin/analytics-api` on the API or
-`/usr/local/bin/analytics-worker` on the worker. The migration binary uses the Analytics database
-and must never receive a Core, Tenants, or Agents database URL.
 
 ### Core
 
@@ -230,36 +204,31 @@ OTEL_SERVICE_NAME=<unique service name>
 
 The following are dependencies, tools, or deployment steps rather than application services:
 
-- Agents and Analytics database migrations; use one-shot deployments when no pre-deploy field is available.
-- `analytics-registry`; run it as a validation command, not a server.
+- Agents database migrations; use one-shot deployments when no pre-deploy field is available.
 - MCP stdio; it is a local bridge.
 - Core's individual embedded workers.
 - Tenants' embedded workers.
 - Temporal when using Temporal Cloud.
-- Redis while Analytics Redis remains optional and non-authoritative.
 - Vercel frontend deployments; those are configured separately from Railway.
 
 ## Production deployment order
 
 1. Confirm Production shared variables, service-scoped variables, secrets, databases, and domains
    are correct.
-2. Apply Agents and Analytics migrations as one-shot deployments; confirm each exits successfully.
-   The Agents API startup release gate runs after the Agents migration and must complete before the
-   API is considered healthy.
+2. Apply Agents migrations as a one-shot deployment and confirm it exits successfully. The Agents
+   API startup release gate must complete before the API is considered healthy.
 3. Apply the Core Prisma migration chain through the temporary database tunnel; confirm no pending
    migrations remain.
 4. Deploy `agents-api`; confirm `/health/ready` is healthy and record the protected KasiAi version
    reported by the release-completion log.
 5. Deploy `agents-worker`.
 6. Deploy `MCP-Gateway` and configure its public MCP domain if required.
-7. Deploy `analytics-api`; confirm `/health/ready` is healthy.
-8. Deploy `analytics-worker`.
-9. Update Core's private Agents and Analytics URLs, then deploy Core with `PORT=4000` and confirm
-   `/health` is healthy.
-10. Update Tenants' production variables, then deploy Tenants and confirm `/health` is healthy.
-11. Confirm the Collector receives OTLP signals. Treat the debug profile as temporary until a
-    durable backend is configured.
-12. Run production smoke checks using the release ID and commit SHA.
+7. Update Core's private Agents URL, then deploy Core with `PORT=4000` and confirm `/health` is
+   healthy. Analytics connectivity may remain disconnected until its separate integration work.
+8. Update Tenants' production variables, then deploy Tenants and confirm `/health` is healthy.
+9. Confirm the Collector receives OTLP signals. Treat the debug profile as temporary until a
+   durable backend is configured.
+10. Run production smoke checks using the release ID and commit SHA.
 
 Record the deployed commit, platform release ID, migration results, service revisions, health
 checks, and rollback target in the release record defined by

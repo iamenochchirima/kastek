@@ -28,7 +28,6 @@ const sidebars = {
         "runbooks/instagram-direct-login",
         "runbooks/paystack-billing",
         "runbooks/paystack-test-mode",
-        "runbooks/analytics/README",
         "runbooks/otel-collector",
       ],
     },
