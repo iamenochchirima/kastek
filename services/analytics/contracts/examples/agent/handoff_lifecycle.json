@@ -1,0 +1,16 @@
+{
+  "handoff_id": "handoff_01HZX8Y2D4",
+  "conversation_id": "conversation_01HZX8Y1B7",
+  "installation_id": "installation_01HZX8W2K4",
+  "agent_definition_id": "agent_01HZX8VZ0M",
+  "agent_version_id": "version_01HZX8W8Q2",
+  "run_id": "run_01HZX8Y0K7",
+  "channel_type": "platform",
+  "action": "requested",
+  "status": "pending",
+  "reason": "customer_requested",
+  "priority": "normal",
+  "actor_type": "agent",
+  "conversation_state": "handoff_requested",
+  "occurred_at": "2026-08-22T10:00:00Z"
+}

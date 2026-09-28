@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kasitek.co.za/analytics/contracts/events/core/scope_definition/v1.schema.json",
+  "title": "Core organization reporting scope definition attributes",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["scope_kind", "scope_external_id", "parent_scope_external_id", "reporting_timezone", "status", "source_version"],
+  "properties": {
+    "scope_kind": { "type": "string", "const": "core_organization" },
+    "scope_external_id": { "type": "string", "minLength": 1 },
+    "parent_scope_external_id": { "type": "null" },
+    "reporting_timezone": { "type": "string", "minLength": 1 },
+    "status": { "type": "string", "enum": ["active", "deleted"] },
+    "source_version": { "type": "integer", "minimum": 1 }
+  },
+  "x-kasitek": {
+    "identity": "core.scope.definition@1",
+    "owner": "core",
+    "privacy_class": "aggregate",
+    "prohibited_fields": ["name", "email", "phone", "metadata", "credential", "token"]
+  }
+}

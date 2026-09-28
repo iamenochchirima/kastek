@@ -1,0 +1,8 @@
+{
+  "tenant_client_id": "client-123",
+  "tenant_user_id": "tenant-user-123",
+  "action": "assigned",
+  "status": "active",
+  "assignment_role": "member",
+  "occurred_at": "2026-08-24T10:00:00Z"
+}

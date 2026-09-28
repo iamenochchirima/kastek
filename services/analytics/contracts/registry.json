@@ -1,0 +1,423 @@
+{
+  "$schema": "https://kasitek.co.za/analytics/contracts/registry.schema.json",
+  "registry_version": "1",
+  "envelope": "envelope.schema.json",
+  "contracts": [
+    {
+      "identity": "agent.run.completed@1",
+      "schema": "events/agent/run_completed/v1.schema.json",
+      "examples": ["examples/agent/run_completed.json"],
+      "owner": "agent-platform",
+      "category": "event",
+      "privacy_class": "aggregate"
+    },
+    {
+      "identity": "agent.run.failed@1",
+      "schema": "events/agent/run_failed/v1.schema.json",
+      "examples": ["examples/agent/run_failed.json"],
+      "owner": "agent-platform",
+      "category": "event",
+      "privacy_class": "aggregate"
+    },
+    {
+      "identity": "agent.model_call.completed@1",
+      "schema": "events/agent/model_call_completed/v1.schema.json",
+      "examples": ["examples/agent/model_call_completed.json"],
+      "owner": "agent-platform",
+      "category": "event",
+      "privacy_class": "aggregate"
+    },
+    {
+      "identity": "agent.model_call.failed@1",
+      "schema": "events/agent/model_call_failed/v1.schema.json",
+      "examples": ["examples/agent/model_call_failed.json"],
+      "owner": "agent-platform",
+      "category": "event",
+      "privacy_class": "aggregate"
+    },
+    {
+      "identity": "agent.tool_invocation.lifecycle@1",
+      "schema": "events/agent/tool_invocation_lifecycle/v1.schema.json",
+      "examples": ["examples/agent/tool_invocation_lifecycle.json"],
+      "owner": "agent-platform",
+      "category": "event",
+      "privacy_class": "aggregate"
+    },
+    {
+      "identity": "agent.approval.lifecycle@1",
+      "schema": "events/agent/approval_lifecycle/v1.schema.json",
+      "examples": ["examples/agent/approval_lifecycle.json"],
+      "owner": "agent-platform",
+      "category": "event",
+      "privacy_class": "aggregate"
+    },
+    {
+      "identity": "agent.effect.lifecycle@1",
+      "schema": "events/agent/effect_lifecycle/v1.schema.json",
+      "examples": ["examples/agent/effect_lifecycle.json"],
+      "owner": "agent-platform",
+      "category": "event",
+      "privacy_class": "aggregate"
+    },
+    {
+      "identity": "agent.handoff.lifecycle@1",
+      "schema": "events/agent/handoff_lifecycle/v1.schema.json",
+      "examples": ["examples/agent/handoff_lifecycle.json"],
+      "owner": "agent-platform",
+      "category": "event",
+      "privacy_class": "aggregate"
+    },
+    {
+      "identity": "agent.schedule.lifecycle@1",
+      "schema": "events/agent/schedule_lifecycle/v1.schema.json",
+      "examples": ["examples/agent/schedule_lifecycle.json"],
+      "owner": "agent-platform",
+      "category": "event",
+      "privacy_class": "aggregate"
+    },
+    {
+      "identity": "agent.installation.lifecycle@1",
+      "schema": "events/agent/installation_lifecycle/v1.schema.json",
+      "examples": ["examples/agent/installation_lifecycle.json"],
+      "owner": "agent-platform",
+      "category": "event",
+      "privacy_class": "aggregate"
+    },
+    {
+      "identity": "agent.installation.deployment@1",
+      "schema": "events/agent/installation_deployment/v1.schema.json",
+      "examples": ["examples/agent/installation_deployment.json"],
+      "owner": "agent-platform",
+      "category": "event",
+      "privacy_class": "aggregate"
+    },
+    {
+      "identity": "agent.version.lifecycle@1",
+      "schema": "events/agent/version_lifecycle/v1.schema.json",
+      "examples": ["examples/agent/version_lifecycle.json"],
+      "owner": "agent-platform",
+      "category": "event",
+      "privacy_class": "aggregate"
+    },
+    {
+      "identity": "agent.definition.lifecycle@1",
+      "schema": "events/agent/definition_lifecycle/v1.schema.json",
+      "examples": ["examples/agent/definition_lifecycle.json"],
+      "owner": "agent-platform",
+      "category": "event",
+      "privacy_class": "aggregate"
+    },
+    {
+      "identity": "agent.readiness.snapshot@1",
+      "schema": "events/agent/readiness_snapshot/v1.schema.json",
+      "examples": ["examples/agent/readiness_snapshot.json"],
+      "owner": "agent-platform",
+      "category": "event",
+      "privacy_class": "aggregate"
+    },
+    {
+      "identity": "agent.memory.deletion@1",
+      "schema": "events/agent/memory_deletion/v1.schema.json",
+      "examples": ["examples/agent/memory_deletion.json"],
+      "owner": "agent-platform",
+      "category": "event",
+      "privacy_class": "aggregate"
+    },
+    {
+      "identity": "agent.memory.deletion@2",
+      "schema": "events/agent/memory_deletion/v2.schema.json",
+      "examples": ["examples/agent/memory_deletion_v2.json"],
+      "owner": "agent-platform",
+      "category": "event",
+      "privacy_class": "aggregate"
+    },
+    {
+      "identity": "agent.memory.lifecycle@1",
+      "schema": "events/agent/memory_lifecycle/v1.schema.json",
+      "examples": ["examples/agent/memory_lifecycle.json"],
+      "owner": "agent-platform",
+      "category": "event",
+      "privacy_class": "aggregate"
+    },
+    {
+      "identity": "agent.memory.projection@1",
+      "schema": "events/agent/memory_projection/v1.schema.json",
+      "examples": ["examples/agent/memory_projection.json"],
+      "owner": "agent-platform",
+      "category": "event",
+      "privacy_class": "aggregate"
+    },
+    {
+      "identity": "agent.memory.retrieval@1",
+      "schema": "events/agent/memory_retrieval/v1.schema.json",
+      "examples": ["examples/agent/memory_retrieval.json"],
+      "owner": "agent-platform",
+      "category": "event",
+      "privacy_class": "aggregate"
+    },
+    {
+      "identity": "agent.conversation.lifecycle@1",
+      "schema": "events/agent/conversation_lifecycle/v1.schema.json",
+      "examples": ["examples/agent/conversation_lifecycle.json"],
+      "owner": "agent-platform",
+      "category": "event",
+      "privacy_class": "aggregate"
+    },
+    {
+      "identity": "agent.conversation.message@1",
+      "schema": "events/agent/conversation_message/v1.schema.json",
+      "examples": ["examples/agent/conversation_message.json"],
+      "owner": "agent-platform",
+      "category": "event",
+      "privacy_class": "aggregate"
+    },
+    {
+      "identity": "agent.audio_message.received@1",
+      "schema": "events/agent/audio_message_received/v1.schema.json",
+      "examples": ["examples/agent/audio_message_received.json"],
+      "owner": "agent-platform",
+      "category": "event",
+      "privacy_class": "aggregate"
+    },
+    {
+      "identity": "agent.audio_transcription.started@1",
+      "schema": "events/agent/audio_transcription_started/v1.schema.json",
+      "examples": ["examples/agent/audio_transcription_started.json"],
+      "owner": "agent-platform",
+      "category": "event",
+      "privacy_class": "aggregate"
+    },
+    {
+      "identity": "agent.audio_transcription.completed@1",
+      "schema": "events/agent/audio_transcription_completed/v1.schema.json",
+      "examples": ["examples/agent/audio_transcription_completed.json"],
+      "owner": "agent-platform",
+      "category": "event",
+      "privacy_class": "aggregate"
+    },
+    {
+      "identity": "agent.audio_transcription.failed@1",
+      "schema": "events/agent/audio_transcription_failed/v1.schema.json",
+      "examples": ["examples/agent/audio_transcription_failed.json"],
+      "owner": "agent-platform",
+      "category": "event",
+      "privacy_class": "aggregate"
+    },
+    {
+      "identity": "agent.audio_agent.dispatched@1",
+      "schema": "events/agent/audio_agent_dispatched/v1.schema.json",
+      "examples": ["examples/agent/audio_agent_dispatched.json"],
+      "owner": "agent-platform",
+      "category": "event",
+      "privacy_class": "aggregate"
+    },
+    {
+      "identity": "agent.audio_user.retry@1",
+      "schema": "events/agent/audio_user_retry/v1.schema.json",
+      "examples": ["examples/agent/audio_user_retry.json"],
+      "owner": "agent-platform",
+      "category": "event",
+      "privacy_class": "aggregate"
+    },
+    {
+      "identity": "campaign.recipient.sent@1",
+      "schema": "events/campaign/recipient_sent/v1.schema.json",
+      "examples": ["examples/campaign/recipient_sent.json"],
+      "owner": "core-campaigns",
+      "category": "event",
+      "privacy_class": "aggregate"
+    },
+    {
+      "identity": "campaign.recipient.delivered@1",
+      "schema": "events/campaign/recipient_delivered/v1.schema.json",
+      "examples": ["examples/campaign/recipient_delivered.json"],
+      "owner": "core-campaigns",
+      "category": "event",
+      "privacy_class": "aggregate"
+    },
+    {
+      "identity": "campaign.recipient.read@1",
+      "schema": "events/campaign/recipient_read/v1.schema.json",
+      "examples": ["examples/campaign/recipient_read.json"],
+      "owner": "core-campaigns",
+      "category": "event",
+      "privacy_class": "aggregate"
+    },
+    {
+      "identity": "campaign.recipient.failed@1",
+      "schema": "events/campaign/recipient_failed/v1.schema.json",
+      "examples": ["examples/campaign/recipient_failed.json"],
+      "owner": "core-campaigns",
+      "category": "event",
+      "privacy_class": "aggregate"
+    },
+    {
+      "identity": "campaign.recipient.blocked@1",
+      "schema": "events/campaign/recipient_blocked/v1.schema.json",
+      "examples": ["examples/campaign/recipient_blocked.json"],
+      "owner": "core-campaigns",
+      "category": "event",
+      "privacy_class": "aggregate"
+    },
+    {
+      "identity": "campaign.recipient.suppressed@1",
+      "schema": "events/campaign/recipient_suppressed/v1.schema.json",
+      "examples": ["examples/campaign/recipient_suppressed.json"],
+      "owner": "core-campaigns",
+      "category": "event",
+      "privacy_class": "aggregate"
+    },
+    {
+      "identity": "campaign.recipient.unsubscribed@1",
+      "schema": "events/campaign/recipient_unsubscribed/v1.schema.json",
+      "examples": ["examples/campaign/recipient_unsubscribed.json"],
+      "owner": "core-campaigns",
+      "category": "event",
+      "privacy_class": "aggregate"
+    },
+    {
+      "identity": "campaign.recipient.timing@1",
+      "schema": "events/campaign/recipient_timing/v1.schema.json",
+      "examples": ["examples/campaign/recipient_timing.json"],
+      "owner": "core-campaigns",
+      "category": "event",
+      "privacy_class": "aggregate"
+    },
+    {
+      "identity": "campaign.recipient.retry@1",
+      "schema": "events/campaign/recipient_retry/v1.schema.json",
+      "examples": ["examples/campaign/recipient_retry.json"],
+      "owner": "core-campaigns",
+      "category": "event",
+      "privacy_class": "aggregate"
+    },
+    {
+      "identity": "campaign.recipient.pricing@1",
+      "schema": "events/campaign/recipient_pricing/v1.schema.json",
+      "examples": ["examples/campaign/recipient_pricing.json"],
+      "owner": "core-campaigns",
+      "category": "event",
+      "privacy_class": "aggregate"
+    },
+    {
+      "identity": "conversation.message.received@1",
+      "schema": "events/inbox/message_received/v1.schema.json",
+      "examples": ["examples/inbox/message_received.json"],
+      "owner": "core-inbox",
+      "category": "event",
+      "privacy_class": "aggregate"
+    },
+    {
+      "identity": "conversation.lifecycle@1",
+      "schema": "events/inbox/conversation_lifecycle/v1.schema.json",
+      "examples": ["examples/inbox/conversation_lifecycle.json"],
+      "owner": "core-inbox",
+      "category": "event",
+      "privacy_class": "aggregate"
+    },
+    {
+      "identity": "conversation.message.lifecycle@1",
+      "schema": "events/inbox/conversation_message_lifecycle/v1.schema.json",
+      "examples": ["examples/inbox/conversation_message_lifecycle.json"],
+      "owner": "core-inbox",
+      "category": "event",
+      "privacy_class": "aggregate"
+    },
+    {
+      "identity": "conversation.response.recorded@1",
+      "schema": "events/inbox/response_recorded/v1.schema.json",
+      "examples": ["examples/inbox/response_recorded.json"],
+      "owner": "core-inbox",
+      "category": "event",
+      "privacy_class": "aggregate"
+    },
+    {
+      "identity": "connection.lifecycle@1",
+      "schema": "events/connections/lifecycle/v1.schema.json",
+      "examples": ["examples/connections/lifecycle.json"],
+      "owner": "core-connections",
+      "category": "event",
+      "privacy_class": "aggregate"
+    },
+    {
+      "identity": "connection.health_check@1",
+      "schema": "events/connections/health_check/v1.schema.json",
+      "examples": ["examples/connections/health_check.json"],
+      "owner": "core-connections",
+      "category": "event",
+      "privacy_class": "aggregate"
+    },
+    {
+      "identity": "connection.capability.lifecycle@1",
+      "schema": "events/connections/capability_lifecycle/v1.schema.json",
+      "examples": ["examples/connections/capability_lifecycle.json"],
+      "owner": "core-connections",
+      "category": "event",
+      "privacy_class": "aggregate"
+    },
+    {
+      "identity": "connection.sync_attempt@1",
+      "schema": "events/connections/sync_attempt/v1.schema.json",
+      "examples": ["examples/connections/sync_attempt.json"],
+      "owner": "core-connections",
+      "category": "event",
+      "privacy_class": "aggregate"
+    },
+    {
+      "identity": "connection.rate_limit@1",
+      "schema": "events/connections/rate_limit/v1.schema.json",
+      "examples": ["examples/connections/rate_limit.json"],
+      "owner": "core-connections",
+      "category": "event",
+      "privacy_class": "aggregate"
+    },
+    {
+      "identity": "connection.incident.lifecycle@1",
+      "schema": "events/connections/incident_lifecycle/v1.schema.json",
+      "examples": ["examples/connections/incident_lifecycle.json"],
+      "owner": "core-connections",
+      "category": "event",
+      "privacy_class": "aggregate"
+    },
+    {
+      "identity": "tenant.lead.lifecycle@1",
+      "schema": "events/tenant/lead_lifecycle/v1.schema.json",
+      "examples": ["examples/tenant/lead_lifecycle.json"],
+      "owner": "tenant-platform-leads",
+      "category": "event",
+      "privacy_class": "aggregate"
+    },
+    {
+      "identity": "tenant.client.lifecycle@1",
+      "schema": "events/tenant/client_lifecycle/v1.schema.json",
+      "examples": ["examples/tenant/client_lifecycle.json"],
+      "owner": "tenant-platform-clients",
+      "category": "event",
+      "privacy_class": "aggregate"
+    },
+    {
+      "identity": "tenant.client.assignment@1",
+      "schema": "events/tenant/client_assignment/v1.schema.json",
+      "examples": ["examples/tenant/client_assignment.json"],
+      "owner": "tenant-platform-assignments",
+      "category": "event",
+      "privacy_class": "aggregate"
+    },
+    {
+      "identity": "tenant.scope.definition@1",
+      "schema": "events/tenant/scope_definition/v1.schema.json",
+      "examples": ["examples/tenant/scope_definition.json"],
+      "owner": "tenant-platform",
+      "category": "scope_definition",
+      "privacy_class": "aggregate"
+    },
+    {
+      "identity": "core.scope.definition@1",
+      "schema": "events/core/scope_definition/v1.schema.json",
+      "examples": ["examples/core/scope_definition.json"],
+      "owner": "core",
+      "category": "scope_definition",
+      "privacy_class": "aggregate"
+    }
+  ]
+}

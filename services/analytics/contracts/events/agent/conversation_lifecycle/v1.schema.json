@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kasitek.co.za/analytics/contracts/events/agent/conversation_lifecycle/v1.schema.json",
+  "title": "Agent conversation lifecycle attributes",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "conversation_id",
+    "installation_id",
+    "agent_definition_id",
+    "agent_version_id",
+    "agent_audience",
+    "conversation_kind",
+    "channel",
+    "action",
+    "status",
+    "handoff_state",
+    "actor_type",
+    "occurred_at"
+  ],
+  "properties": {
+    "conversation_id": { "type": "string", "minLength": 1 },
+    "installation_id": { "type": "string", "minLength": 1 },
+    "agent_definition_id": { "type": "string", "minLength": 1 },
+    "agent_version_id": { "type": "string", "minLength": 1 },
+    "agent_audience": { "type": "string", "enum": ["personal", "customer_service"] },
+    "conversation_kind": { "type": "string", "enum": ["personal", "customer", "test", "external"] },
+    "channel": { "type": "string", "minLength": 1 },
+    "action": { "type": "string", "enum": ["created", "opened", "archived", "restored", "deleted"] },
+    "status": { "type": "string", "enum": ["active", "archived", "deleted"] },
+    "handoff_state": { "type": "string", "enum": ["agent_active", "handoff_requested", "human_owned", "resolved", "expired", "cancelled"] },
+    "actor_type": { "type": "string", "enum": ["human", "system"] },
+    "occurred_at": { "type": "string", "format": "date-time" }
+  },
+  "x-kasitek": {
+    "identity": "agent.conversation.lifecycle@1",
+    "owner": "agent-platform",
+    "privacy_class": "aggregate",
+    "prohibited_fields": ["title", "preview", "external_conversation_id", "customer_id", "phone_number", "email", "credential", "token"]
+  }
+}

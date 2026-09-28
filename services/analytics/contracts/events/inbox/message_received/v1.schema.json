@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kasitek.co.za/analytics/contracts/events/inbox/message_received/v1.schema.json",
+  "title": "Conversation message received attributes",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["conversation_id", "channel", "occurred_at", "responder_type"],
+  "properties": {
+    "conversation_id": { "type": "string", "minLength": 1 },
+    "channel": { "type": "string", "enum": ["whatsapp", "instagram", "facebook", "web", "email", "sms"] },
+    "occurred_at": { "type": "string", "format": "date-time" },
+    "responder_type": { "const": "customer" }
+  },
+  "x-kasitek": {
+    "identity": "conversation.message.received@1",
+    "owner": "core-inbox",
+    "privacy_class": "aggregate",
+    "prohibited_fields": ["message_body", "phone_number", "email", "credential", "token"]
+  }
+}

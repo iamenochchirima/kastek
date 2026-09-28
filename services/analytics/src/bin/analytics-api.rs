@@ -1,0 +1,86 @@
+use actix_web::{web, App, HttpServer};
+use kasitek_analytics::{
+    app,
+    config::AnalyticsConfig,
+    contracts::ProcessKind,
+    create_pool,
+    error::AnalyticsError,
+    ingestion::IngestionAuthenticator,
+    metrics::{MetricsAccess, ProcessMetrics},
+    reporting::{ReportingAuthenticator, ReportingCache},
+    rollout::{RolloutAuthenticator, RolloutDecisionCache},
+    scope_resolution::ScopeResolverAuthenticator,
+};
+
+fn load_dotenv() {
+    if dotenv::from_path(format!("{}/.env", env!("CARGO_MANIFEST_DIR"))).is_err() {
+        dotenv::dotenv().ok();
+    }
+}
+
+#[actix_web::main]
+async fn main() -> Result<(), AnalyticsError> {
+    load_dotenv();
+    let config = AnalyticsConfig::from_env()?;
+    observability::init_with_service(&config.log_filter, "kasitek-analytics-api");
+    let _telemetry_guard = observability::ShutdownGuard;
+    let registry = kasitek_analytics::registry::load_registry()?;
+    let registry_access = web::Data::new(registry.clone());
+    observability::tracing::info!(
+        event = "service.startup",
+        service = "kasitek-analytics",
+        process = "analytics-api",
+        phase = "registry_loaded",
+        registry_sha256 = %registry.sha256,
+        metrics_registry_version = %registry.metrics_registry_version,
+        "analytics registry loaded"
+    );
+    let pool = create_pool(&config)?;
+    let metrics = web::Data::new(ProcessMetrics::default());
+    let metrics_access = web::Data::new(MetricsAccess::from_config(&config));
+    let ingestion_access = web::Data::new(IngestionAuthenticator::from_config(&config));
+    let reporting_access = web::Data::new(
+        ReportingAuthenticator::from_config(&config).map_err(AnalyticsError::ReportingConfig)?,
+    );
+    let reporting_cache = web::Data::new(ReportingCache::from_config(&config));
+    let scope_resolver_access = web::Data::new(ScopeResolverAuthenticator::new(
+        config.reporting_resolver_credentials.clone(),
+    ));
+    let rollout_access = web::Data::new(RolloutAuthenticator::from_config(&config));
+    let rollout_cache = web::Data::new(RolloutDecisionCache::from_config(&config));
+    let bind_address = (config.api_host.clone(), config.api_port);
+
+    observability::tracing::info!(
+        event = "service.startup",
+        service = "kasitek-analytics",
+        process = "analytics-api",
+        port = config.api_port,
+        "server starting"
+    );
+
+    HttpServer::new(move || {
+        App::new()
+            .app_data(web::Data::new(pool.clone()))
+            .app_data(metrics.clone())
+            .app_data(metrics_access.clone())
+            .app_data(ingestion_access.clone())
+            .app_data(reporting_access.clone())
+            .app_data(reporting_cache.clone())
+            .app_data(scope_resolver_access.clone())
+            .app_data(rollout_access.clone())
+            .app_data(rollout_cache.clone())
+            .app_data(registry_access.clone())
+            .app_data(
+                web::JsonConfig::default().limit(kasitek_analytics::ingestion::MAX_BATCH_BYTES),
+            )
+            .wrap(observability::correlation_id())
+            .wrap(observability::http_logger())
+            .wrap(observability::http_metrics())
+            .wrap(observability::http_tracing_logger())
+            .configure(|cfg| app::configure(cfg, ProcessKind::Api))
+    })
+    .bind(bind_address)?
+    .run()
+    .await
+    .map_err(AnalyticsError::Bind)
+}
