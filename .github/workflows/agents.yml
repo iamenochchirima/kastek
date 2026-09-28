@@ -56,5 +56,8 @@ jobs:
       - name: Type-check repository scripts
         run: pnpm exec tsc -p tsconfig.scripts.json
 
+      - name: Verify API health when Collector rejects OTLP
+        run: pnpm run test:telemetry:collector-unavailable
+
       - name: Build local MCP package
         run: pnpm run build:mcp
