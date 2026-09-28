@@ -52,10 +52,10 @@ For each Railway environment that needs the Collector:
    check, and restart policy.
 4. Configure resource limits appropriate to the environment; sizing is not encoded in this
    provider-neutral service definition.
-5. Set the Collector service's Custom Start Command to
-   `/otelcol-contrib --config=/etc/otelcol/config.staging.yaml`. The image contains the checked-in
-   profiles; select the profile explicitly per Railway environment. Keep the production template
-   undeployed until a durable destination is approved.
+5. For the staging service only, set the Custom Start Command to
+   `/otelcol-contrib --config=/etc/otelcol/config.staging.yaml`. Keep the production service on
+   its current source and configuration during this migration. Do not deploy the production
+   template until its destination, retention, and access controls are approved.
 6. Set each application service's OTLP endpoint to the Collector's private address, for example:
 
    ```text
