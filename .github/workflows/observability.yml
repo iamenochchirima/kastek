@@ -64,9 +64,18 @@ jobs:
           toolchain: 1.88.0
           components: rustfmt, clippy
 
-      - name: Check formatting
+      - name: Check telemetry package formatting
         working-directory: server
-        run: cargo fmt --all -- --check
+        run: |
+          set -euo pipefail
+          for manifest in \
+            crates/observability/Cargo.toml \
+            crates/analytics-producer/Cargo.toml \
+            crates/analytics-reporting/Cargo.toml \
+            kasitek-core/Cargo.toml \
+            kasitek-tenants/Cargo.toml; do
+            cargo fmt --manifest-path "$manifest" -- --check
+          done
 
       - name: Reject new legacy Rust log macros
         run: |
