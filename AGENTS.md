@@ -4,10 +4,9 @@ This file defines the default working structure for implementation tasks in this
 
 ## Project Direction
 
-Use the selected [issue tracker](docs/agents/issue-tracker.md) for agreed work and its linked pull
-request for implementation and verification evidence. For a multi-PR program that needs one
-shared execution sequence, [`docs/plans/templates/PROJECT_PLAN.md`](docs/plans/templates/PROJECT_PLAN.md)
-is an optional starting point. It contains no active product decisions.
+For a multi-PR program that needs one shared execution sequence,
+[`docs/plans/templates/PROJECT_PLAN.md`](docs/plans/templates/PROJECT_PLAN.md) is an optional
+starting point. It contains no active product decisions.
 
 ## Documentation and Release Impact
 
@@ -379,7 +378,7 @@ claim forward.
 Update affected records in the same pull request:
 
 - Keep requirements, acceptance criteria, dependencies, and blockers on the GitHub Issue.
-- Keep approval, assignee, and work status in the [Growth Project](docs/agents/issue-tracker.md).
+- Keep approval, assignee, and work status in the Growth Project linked below.
   Only the owner moves an implementation issue to `Ready`. Agents must not infer approval from
   a label, a parent spec, or an unblocked dependency.
 - Update [the feature map](docs/features/README.md) when shipped user behavior, entry points,
@@ -399,15 +398,19 @@ declare the work complete.
 
 ## SPECS AND ISSUES
 
-The selected tracker and its agent operations are in
-[`docs/agents/issue-tracker.md`](docs/agents/issue-tracker.md). Use the installed `to-spec` skill
-for settled work that spans sessions and `to-tickets` to propose verifiable implementation issues
-when a split is useful. Get approval for the proposed split before publishing it. Do not create
-specs or multiple tickets for small changes. Do not begin backlog work unless the owner approved
-the implementation issue and it is marked `Ready` in the configured Growth Project. A parent
-spec or readiness label alone is not approval. The verified Project URL, statuses, assignee rule,
-and agent commands are in the tracker file. While the owner works solo, keep issue cards assigned
-to `iamenochchirima`; agents do not assign the issues to themselves.
+Store specs, tasks, and bugs in [GitHub Issues](https://github.com/Kasitek-Labs/kasitek-growth/issues).
+The [Kasitek Growth Project](https://github.com/orgs/Kasitek-Labs/projects/1) owns approval,
+assignee, and work status; pull requests hold changes and review evidence. Query the live issue
+list and Project before choosing work. Do not copy their current contents into repository docs.
+Use `gh issue list --repo Kasitek-Labs/kasitek-growth --state open` and
+`gh project item-list 1 --owner Kasitek-Labs --format json` to inspect them.
+
+Use `to-spec` for settled multi-session work and `to-tickets` when a split is useful. Get owner
+approval before publishing the split. Do not create multiple tickets for a small change. Begin
+an implementation issue only after the owner approves it and sets Project status to `Ready`;
+a parent spec or `ready-for-agent` label is not approval. Keep issue cards assigned to
+`iamenochchirima` while the owner works solo. After an issue is closed as `not planned`, archive
+its Project card rather than counting it as `Done`; verify the resulting status.
 
 ## AGENT WORKFLOW
 

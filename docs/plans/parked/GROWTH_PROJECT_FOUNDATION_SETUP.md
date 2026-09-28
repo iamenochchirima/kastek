@@ -23,7 +23,7 @@ issue-tracking process.
 
 - Keep the owner-requested root `CONTEXT.md` empty until domain language is agreed.
 - Add a current `ARCHITECTURE.md`, `CODING_STANDARDS.md`, `docs/adr/README.md`,
-  `docs/features/README.md`, and `docs/agents/issue-tracker.md`.
+  and `docs/features/README.md`. Link GitHub Issues and the Growth Project from `AGENTS.md`.
 - Update the root `README.md` and `AGENTS.md` with the new product direction and direct links.
 - Install only the selected project-local skills: `enoch-mode`, `show-me-your-work`,
   `code-review`, `to-spec`, and `to-tickets`. Do not install `triage` or `retro`.
@@ -76,8 +76,8 @@ issue-tracking process.
   Markdown files.
 - [x] Confirm the feature map points to real routes and the current local development guide:
   checked the representative client route files/directories and the guide link.
-- [ ] Confirm the issue tracker file documents the actual GitHub repository, Project URL/statuses,
-  and only verified commands and permissions. The Project URL/statuses still need Project access.
+- [ ] Confirm `AGENTS.md` points to the actual GitHub repository and Project and gives agents
+  verified lookup instructions. The Project URL/statuses still need Project access.
 - [x] Confirm the exact `ready-for-agent` label exists without changing any current issue.
 - [ ] From a fresh agent context, confirm `AGENTS.md` routes the agent to these files without this
   playbook. Record any fresh-session check that cannot be performed here.
@@ -108,8 +108,7 @@ Feature flag or rollout method: not applicable
 Analytics events and success metrics: not applicable
 Logs, metrics, dashboards, and alerts: not applicable
 User, API, internal, and operational documentation: README.md, AGENTS.md, ARCHITECTURE.md,
-  CODING_STANDARDS.md, docs/adr/README.md, docs/features/README.md,
-  docs/agents/issue-tracker.md
+  CODING_STANDARDS.md, docs/adr/README.md, docs/features/README.md
 Validation evidence: 30 setup-document links and 14 copied-skill links resolve; five skills
   discovered by the Skills CLI; representative feature-map route paths exist; CONTEXT.md is empty;
   ready-for-agent label and existing issue inventory confirmed with gh. Project and fresh-session

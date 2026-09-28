@@ -10,7 +10,7 @@ components as part of routine setup.
 - [Current repository architecture](ARCHITECTURE.md)
 - [Growth feature map](docs/features/README.md)
 - [Project coding standards](CODING_STANDARDS.md)
-- [Issue tracker and work flow](docs/agents/issue-tracker.md)
+- [GitHub Issues](https://github.com/Kasitek-Labs/kasitek-growth/issues) and [Growth Project](https://github.com/orgs/Kasitek-Labs/projects/1)
 - [Domain context](CONTEXT.md), intentionally empty until project terms are agreed
 - [Local development and verification](docs/internal/development/local-development.md)
 - [Release process](docs/internal/operations/release-process.md)
@@ -34,7 +34,7 @@ services required for your task.
 
 ## Work and decisions
 
-- Specs and implementation work belong in the [issue tracker](docs/agents/issue-tracker.md).
+- Specs and implementation work belong in [GitHub Issues](https://github.com/Kasitek-Labs/kasitek-growth/issues).
 - Former active plans are preserved in [`docs/plans/parked/`](docs/plans/parked/README.md). They
   are reference material, not a work queue.
 - Product-level architecture decisions belong in [`docs/adr/`](docs/adr/README.md).

@@ -15,7 +15,7 @@ the record; generated site output is disposable build output and must not be com
 
 | Record | Default owner | Update trigger |
 | --- | --- | --- |
-| GitHub Issue and [Growth Project](../../agents/issue-tracker.md) | Issue proposer for requirements; `iamenochchirima` for approval and assignee; implementer for progress | Scope, acceptance criteria, dependency, blocker, assignee, or work state changes. Only the owner approves `Ready`. Reconcile the issue and Project after merge. |
+| [GitHub Issue](https://github.com/Kasitek-Labs/kasitek-growth/issues) and [Growth Project](https://github.com/orgs/Kasitek-Labs/projects/1) | Issue proposer for requirements; `iamenochchirima` for approval and assignee; implementer for progress | Scope, acceptance criteria, dependency, blocker, assignee, or work state changes. Only the owner approves `Ready`. Reconcile the issue and Project after merge. |
 | Pull request | Implementer | Every implementation change: link the issue when one exists, state affected and unaffected records, and attach verification evidence. Review and release decisions stay with the PR. |
 | `docs/features/README.md` | Engineering owner of the user-facing feature | Shipped behavior, entry point, or verification path changes. Record current behavior, not a proposed feature. |
 | `ARCHITECTURE.md` and `docs/internal/architecture/` | Engineering owner of the affected system | Component boundary, data ownership, security, or integration design changes |
