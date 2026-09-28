@@ -21,7 +21,7 @@ working.
 | `client/packages/` | Shared client packages, including database and API-client packages. | Consumers and extraction constraints must be checked before moving a package. |
 | `agents/` | TypeScript Agent Platform API, gateway, workers, runtime, migrations, tests, and Temporal integration. | The owner intends Agents to be a separate product. Its code remains here until a separately approved extraction. |
 | `server/kasitek-core/` | Rust Core service. | Service boundary exists in code; final product/repository ownership is not decided here. |
-| `server/kasitek-analytics/` | Rust Analytics API, workers, migrations, and reporting code. | Present in the shared Rust workspace. Future product boundary is not recorded here. |
+| Labs repository (`services/analytics/`) | Analytics API, worker, contracts, migrations, and reporting implementation. | Owned and built by Labs; Growth retains product publishers and outboxes. Production cutover is separate work. |
 | `server/kasitek-tenants/` | Rust service and migrations supporting the white-label business product. | The product is intended to be separate from Growth. Its code remains here until a separately approved extraction. |
 | `server/crates/` | Rust crates shared by server workspace members. | Check dependencies and ownership before extraction. |
 | `scripts/`, `infra/` | Local development, verification, and infrastructure support. | Some scripts may span several services; check their consumers before moving them. |

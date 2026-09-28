@@ -1,9 +1,0 @@
-{
-  "agent_definition_id": "agent-123",
-  "agent_version_id": "version-4",
-  "version_number": 4,
-  "status": "published",
-  "action": "published",
-  "actor_type": "human",
-  "occurred_at": "2026-08-22T10:05:00Z"
-}

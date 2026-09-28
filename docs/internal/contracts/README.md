@@ -35,6 +35,9 @@ versioning rule.
 API, migration, event, and agent versions are separate identifiers from the coordinated platform
 release. See [Platform Versioning](../operations/platform-versioning.md) for the distinction.
 
-Analytics contracts and registry definitions live in `server/kasitek-analytics/contracts/` and
-`server/kasitek-analytics/metrics/`. The Agent Platform capability catalog is generated from its
-runtime manifest registry; do not edit generated output as the source of truth.
+Analytics contracts and registry definitions live in the
+[Labs Analytics service](https://github.com/Kasitek-Labs/kasitek-labs/tree/main/services/analytics),
+under `contracts/` and `metrics/`. Growth producer packages and the Agent Platform keep their
+product-owned publishers and generated consumer artifacts. Cross-repository generation and
+compatibility checks remain follow-up work. The Agent Platform capability catalog is generated
+from its runtime manifest registry; do not edit generated output as the source of truth.

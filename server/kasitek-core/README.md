@@ -79,11 +79,13 @@ KASITEK_PROCESS=all-workers cargo run
 The Analytics publisher is independently scalable and disabled unless
 `ANALYTICS_CORE_INGESTION_TOKEN` is configured. Set `ANALYTICS_INGESTION_URL` (default
 `http://127.0.0.1:4300`), `ANALYTICS_CORE_PRODUCER_ID`, and `ANALYTICS_CORE_PUBLISHER_ID` in the
-Core environment. The token must match the `core` credential in the Analytics service. The worker
-claims Core's durable outbox, sends authenticated batches, applies each acknowledgement, retries
-transient failures, and reclaims expired leases. The same process also runs the bounded Core source
-backfill loop; deploy `analytics-backfill-worker` separately when historical reconstruction needs
-independent capacity.
+Core environment. The token must match the `core` credential configured by the Labs-owned Analytics
+service ([source and local setup](https://github.com/Kasitek-Labs/kasitek-labs/tree/main/services/analytics)).
+Growth retains the publisher and Core outbox; Analytics delivery integration is being handled as
+separate follow-up work. The worker claims Core's durable outbox, sends authenticated batches,
+applies each acknowledgement, retries transient failures, and reclaims expired leases. The same
+process also runs the bounded Core source backfill loop; deploy `analytics-backfill-worker`
+separately when historical reconstruction needs independent capacity.
 
 ### Public v1 API webhooks
 
