@@ -132,6 +132,10 @@ jobs:
         working-directory: agents
         run: pnpm run build
 
+      - name: Verify Agents health when Collector is unavailable
+        working-directory: agents
+        run: pnpm run test:telemetry:collector-unavailable
+
   collector:
     name: Collector configuration checks
     runs-on: ubuntu-latest

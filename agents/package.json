@@ -24,6 +24,7 @@
     "start:analytics-publisher": "node dist/analytics/publisher-worker.js",
     "test:e2e:local": "tsx scripts/local-e2e-smoke.ts",
     "test:telemetry:local": "tsx scripts/otel-local-smoke.ts",
+    "test:telemetry:collector-unavailable": "tsx scripts/otel-collector-unavailable-smoke.ts",
     "release:memory:manifest": "tsx scripts/release-memory-manifest.ts",
     "release:memory:verify": "tsx scripts/verify-memory-release-manifest.ts",
     "generate:capabilities": "tsx scripts/generate-capability-docs.ts",
