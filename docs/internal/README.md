@@ -25,6 +25,7 @@ This is the canonical home for private Kasitek documentation.
 - [Observability](./operations/observability.md)
 - [Agent Memory Observability](./operations/agent-memory-observability.md)
 - [Documentation Maintenance](./operations/documentation-maintenance.md)
+- [Agent Platform Implementation Plan](/plans/agents/)
 - [Agent runtime host boundary](./architecture/agent-host-boundary.md)
 - [Shared workspace email connections](./architecture/shared-workspace-email-connections.md)
 
@@ -35,11 +36,14 @@ This is the canonical home for private Kasitek documentation.
 - `development/`: repository and local-development guidance
 - `operations/`: release, environment, versioning, observability, and documentation procedures
 - `runbooks/`: step-by-step operational playbooks
-- `docs/plans/`: Growth repository implementation plans
+- `docs/plans/`: implementation plans; the canonical Agent Platform program map and selected active
+  implementation chunks are mounted at `/plans/agents/`
 - `docs/archive/legacy/`: historical or superseded material, not current guidance
 
 ## Notes
 
 - This site contains current technical and operational guidance only.
 - Work items and short checklists belong in the selected issue tracker and linked pull requests.
-  Former active plans are preserved under `docs/plans/parked/`.
+  Former active plans are preserved under `docs/plans/parked/`. The Agent Platform program map
+  remains its architecture index; current runtime behavior belongs under
+  `docs/internal/architecture/`.
