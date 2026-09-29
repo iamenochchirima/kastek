@@ -8,9 +8,10 @@ actions will go through authenticated internal contracts exposed by `kasitek-cor
 ## Source boundary
 
 The API, database migrations, Temporal worker, MCP gateway, shared service modules, local MCP
-package, scripts, tests, and technical documentation are owned here. The Agent Platform UI remains
-in Growth. This source move does not change API or authentication behavior, move data, restore a
-Growth user journey, or perform a production cutover.
+package, scripts, tests, management UI, and technical documentation are owned here. Growth retains
+the Kāsiai Agent API client/chat and Core bridge; its duplicate management UI is removed through
+Growth issue #7. This source move does not change API or authentication behavior, move data, restore
+a Growth user journey, or perform a production cutover.
 
 Runtime integrations remain the existing HTTP boundaries: Core calls use `KASITEK_CORE_URL` and
 the configured Core authentication contract; analytics delivery uses `ANALYTICS_INGESTION_URL`
@@ -80,6 +81,8 @@ The rollout-focused migration note is in
 [`docs/mcp-2026-migration.md`](docs/mcp-2026-migration.md).
 The runtime/Core ownership seam is documented in
 [`docs/architecture/agent-runtime-host-boundary.md`](docs/architecture/agent-runtime-host-boundary.md).
+The [technical documentation index](docs/README.md) links to the Agent architecture, operations,
+and runbooks.
 
 Clients that only support local MCP stdio can run `pnpm run start:stdio` with
 `MCP_STDIO_API_KEY` set to a Developer API key and, when needed,
