@@ -16,7 +16,6 @@ type TourStep = {
 function goalStep(goal: string | null): TourStep {
   const steps: Record<string, TourStep> = {
     messages: { target: "inbox", eyebrow: "Customer conversations", title: "Your customer inbox", description: "This is where your team can manage customer messages from connected channels." },
-    agents: { target: "agents", eyebrow: "Automation", title: "AI agents", description: "Create and manage agents here when you are ready to automate answers and lead capture." },
     content: { target: "content", eyebrow: "Growth", title: "Content", description: "Plan, schedule and publish multi-platform content from this workspace." },
     bookings: { target: "bookings", eyebrow: "Growth", title: "Bookings", description: "Set up services and give customers a simple way to schedule with you." },
     campaigns: { target: "campaigns", eyebrow: "Growth", title: "Campaigns", description: "Send approved WhatsApp campaigns to contacts who have opted in." },

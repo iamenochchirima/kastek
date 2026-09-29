@@ -17,7 +17,6 @@ const steps = ["Business", "Goal", "Role", "Industry", "Source"];
 const choices = {
   goal: [
     ["messages", "Customer messages", "Connect channels and manage every conversation from one inbox."],
-    ["agents", "AI agents", "Answer questions, capture leads, and hand off to your team."],
     ["content", "Content", "Plan, schedule and publish multi-platform content for your business."],
     ["bookings", "Bookings", "Let customers schedule your services online."],
     ["campaigns", "Campaigns", "Reach opted-in contacts with WhatsApp campaigns."],
@@ -30,7 +29,6 @@ const choices = {
 
 const goalImages: Record<string, string> = {
   messages: "/images/onboarding-previews/messages-editorial.png",
-  agents: "/images/custom-services/automation.png",
   content: "/images/custom-services/agencies-content.png",
   bookings: "/images/custom-services/booking.png",
   campaigns: "/images/custom-services/campaigns.png",
@@ -40,7 +38,6 @@ const goalImages: Record<string, string> = {
 function destination(goal: string) {
   return {
     messages: "/connections",
-    agents: "/agents",
     content: "/content",
     bookings: "/bookings",
     campaigns: "/campaigns",
