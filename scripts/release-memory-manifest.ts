@@ -54,17 +54,14 @@ function statExists(path: string): boolean {
 }
 
 function worktreeFingerprint(): string {
-  const releaseRecordPath = "docs/plans/active/AGENT_MEMORY_ARCHITECTURE_RELEASE_RECORD.md";
   const digest = createHash("sha256");
-  // The release record stores this fingerprint. Exclude it from both status
-  // and diff inputs so updating the record does not invalidate its own digest.
-  digest.update(git(["status", "--porcelain=v1", "--", ".", `:(exclude)${releaseRecordPath}`]));
+  digest.update(git(["status", "--porcelain=v1", "--", "."]));
   digest.update("\0");
-  digest.update(git(["diff", "--binary", "--", ".", `:(exclude)${releaseRecordPath}`]));
+  digest.update(git(["diff", "--binary", "--", "."]));
   digest.update("\0");
   const untracked = git(["ls-files", "--others", "--exclude-standard", "-z"])
     .split("\0")
-    .filter((file) => Boolean(file) && file !== releaseRecordPath)
+    .filter(Boolean)
     .sort();
   for (const file of untracked) {
     const absolute = resolve(repositoryRoot, file);
