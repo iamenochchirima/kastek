@@ -17,7 +17,6 @@ const sidebars = {
     "operations/platform-versioning",
     "operations/environments",
     "operations/observability",
-    "operations/agent-memory-observability",
     "operations/documentation-maintenance",
     {
       type: "category",

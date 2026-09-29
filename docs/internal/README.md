@@ -23,7 +23,7 @@ This is the canonical home for private Kasitek documentation.
 - [Environments](./operations/environments.md)
 - [Railway Deployment Topology](./operations/deployment-topology.md)
 - [Observability](./operations/observability.md)
-- [Agent Memory Observability](./operations/agent-memory-observability.md)
+- [Agent Platform technical docs](https://github.com/Kasitek-Labs/kasitek-agents/blob/main/docs/README.md)
 - [Documentation Maintenance](./operations/documentation-maintenance.md)
 - [Shared workspace email connections](./architecture/shared-workspace-email-connections.md)
 

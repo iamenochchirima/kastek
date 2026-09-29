@@ -180,8 +180,9 @@ AGENT_PLATFORM_URL=http://${{agents-api.RAILWAY_PRIVATE_DOMAIN}}:4100
 AGENT_GATEWAY_SHARED_SECRET=<same secret in Agents API and Gateway>
 ```
 
-The `agents/src/gateway/stdio.ts` process is a local command-launched bridge for clients that
-require stdio. It is not a hosted Railway service.
+The [`stdio.ts` bridge](https://github.com/Kasitek-Labs/kasitek-agents/blob/main/src/gateway/stdio.ts)
+is a local command-launched process for clients that require stdio. It is not a hosted Railway
+service.
 
 ## Optional services
 
