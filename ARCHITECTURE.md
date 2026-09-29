@@ -16,7 +16,6 @@ working.
 | --- | --- | --- |
 | `client/apps/client/` | Main Next.js client, including campaigns, contacts, inbox, content, calendar, bookings, analytics, workspace, billing, and agent-facing routes. | Growth-facing routes and agent-facing routes coexist. Final ownership is not fully mapped. |
 | `client/apps/admin/` | Next.js admin application with agency, lead, outreach, quotation, invoice, operations, analytics, and access routes. | Present in the repo. Long-term product/repo ownership is not recorded here. |
-| `client/apps/labs/` | Separate Next.js app package. | Present in the repo. Product boundary is not recorded here. |
 | `client/apps/tenant-portal/` | Next.js portal package for the white-label business product. | The owner intends this product to be separate from Growth. Its code remains here until a separately approved extraction. |
 | `client/packages/` | Shared client packages, including database and API-client packages. | Consumers and extraction constraints must be checked before moving a package. |
 | `agents/` | TypeScript Agent Platform API, gateway, workers, runtime, migrations, tests, and Temporal integration. | The owner intends Agents to be a separate product. Its code remains here until a separately approved extraction. |
