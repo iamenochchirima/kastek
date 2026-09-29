@@ -17,6 +17,12 @@ source move establishes a single destination owner; versioning and consumption f
 Agency are tracked separately. Growth's copies remain until consumers can use an approved
 distribution path.
 
+Run a narrow local compile check for the shared libraries from the repository root:
+
+```sh
+cargo check --locked -p analytics-producer -p analytics-reporting -p config -p crypto-utils --lib
+```
+
 From the repository root, check the service package with:
 
 ```sh

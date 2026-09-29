@@ -6,6 +6,10 @@ on:
       - ".github/workflows/analytics.yml"
       - "Cargo.toml"
       - "Cargo.lock"
+      - "crates/analytics-producer/**"
+      - "crates/analytics-reporting/**"
+      - "crates/config/**"
+      - "crates/crypto-utils/**"
       - "crates/observability/**"
       - "services/analytics/**"
   push:
@@ -14,6 +18,10 @@ on:
       - ".github/workflows/analytics.yml"
       - "Cargo.toml"
       - "Cargo.lock"
+      - "crates/analytics-producer/**"
+      - "crates/analytics-reporting/**"
+      - "crates/config/**"
+      - "crates/crypto-utils/**"
       - "crates/observability/**"
       - "services/analytics/**"
 
@@ -22,7 +30,7 @@ permissions:
 
 jobs:
   analytics:
-    name: Check Analytics ownership package
+    name: Check Analytics and shared Rust workspace
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
@@ -39,6 +47,11 @@ jobs:
 
       - name: Check Analytics binaries
         run: cargo check -p kasitek-analytics --bins
+
+      - name: Check shared Rust libraries
+        run: >-
+          cargo check --locked -p analytics-producer -p analytics-reporting
+          -p config -p crypto-utils --lib
 
       - name: Check generated Analytics bindings
         run: cargo run -p kasitek-analytics --bin analytics-registry -- --check
