@@ -4,7 +4,7 @@ title: Customer Analytics Display Semantics
 slug: /architecture/customer-analytics
 sidebar_position: 7
 owner: engineering
-last_reviewed: 2026-09-03
+last_reviewed: 2026-09-29
 ---
 
 # Customer Analytics Display Semantics

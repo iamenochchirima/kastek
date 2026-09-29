@@ -1,5 +1,7 @@
 # Current repository architecture
 
+_Owner: engineering · Last reviewed: 2026-09-29_
+
 This document describes code that exists in this checkout. It is not a declaration that every
 current component belongs in the future Growth product.
 

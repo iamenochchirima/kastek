@@ -1,5 +1,7 @@
 # The Architect Server
 
+_Owner: engineering · Last reviewed: 2026-09-29_
+
 Actix-web backend for thearchitect.fun.
 
 ## Setup

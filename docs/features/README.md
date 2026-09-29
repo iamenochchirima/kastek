@@ -1,5 +1,7 @@
 # Feature map
 
+_Owner: engineering · Last reviewed: 2026-09-29_
+
 This is the index of user-facing routes currently present in the repository. It is a map of the
 checkout, not a final product-boundary decision. The repository is being refocused on Growth, but
 Agent Platform and the white-label business product still have code here. Do not treat their

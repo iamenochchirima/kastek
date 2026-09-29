@@ -3,7 +3,7 @@ id: local-development
 title: Local Development
 sidebar_position: 2
 owner: engineering
-last_reviewed: 2026-08-25
+last_reviewed: 2026-09-29
 ---
 
 # Local Development

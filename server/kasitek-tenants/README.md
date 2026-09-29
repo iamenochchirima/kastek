@@ -1,5 +1,7 @@
 # tenant-server
 
+_Owner: engineering · Last reviewed: 2026-09-29_
+
 Separate Rust backend for white-label tenant services.
 
 Initial scope:
