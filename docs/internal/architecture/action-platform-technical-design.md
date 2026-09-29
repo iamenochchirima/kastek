@@ -2,6 +2,8 @@
 title: Action Platform Technical Design
 slug: /architecture/action-platform-technical-design
 sidebar_position: 5
+owner: engineering
+last_reviewed: 2026-09-29
 ---
 
 # Action Platform Technical Design

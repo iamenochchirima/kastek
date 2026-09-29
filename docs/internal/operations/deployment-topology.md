@@ -3,7 +3,7 @@ id: deployment-topology
 title: Railway Deployment Topology
 sidebar_position: 6
 owner: platform-ops
-last_reviewed: 2026-08-28
+last_reviewed: 2026-09-29
 ---
 
 # Railway Deployment Topology

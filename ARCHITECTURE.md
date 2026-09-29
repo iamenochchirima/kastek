@@ -1,3 +1,8 @@
+---
+owner: engineering
+last_reviewed: 2026-09-29
+---
+
 # Current repository architecture
 
 This document describes the applications, services, and shared code present in this repository.
