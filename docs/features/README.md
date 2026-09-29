@@ -1,11 +1,12 @@
+---
+owner: engineering
+last_reviewed: 2026-09-29
+---
+
 # Feature map
 
-_Owner: engineering · Last reviewed: 2026-09-29_
-
-This is the index of user-facing routes currently present in the repository. It is a map of the
-checkout, not a final product-boundary decision. The repository is being refocused on Growth, but
-Agent Platform and the white-label business product still have code here. Do not treat their
-presence as approval to move or delete them.
+This is the index of user-facing routes currently present in Growth. The Agency tenant portal and
+service source live in the Agency repository; Growth Admin retains its provisioning interface.
 
 For local startup, environment, and test commands, use [Local Development](../internal/development/local-development.md).
 The main client runs on port `3000`; the other app ports and service prerequisites are listed in
@@ -25,8 +26,8 @@ Routes below are under `client/apps/client/src/app/`.
 | Analytics | `/analytics` | `(dashboard)/analytics/page.tsx` | The Growth client requests Analytics catalog and report data through its `/api/analytics` routes. Analytics service source and local setup live in Labs. This source move preserves the Growth client routes and configured endpoint; it does not verify a live report response. |
 | Workspace | `/workspace`, `/workspace/team`, `/workspace/settings`, `/workspace/profile` | `(dashboard)/workspace/` | Open the relevant route with an authorized local account and verify the saved state after navigation or reload. |
 | Billing | `/billing`, `/upgrade` | `(dashboard)/billing/page.tsx`, `(dashboard)/upgrade/page.tsx` | Use a test account and the configured billing test environment; do not use live payment credentials for local verification. |
-| Agent surfaces | `/agents`, `/studio`, `/playground`, `/agents/activity`, `/agents/conversations` | `(dashboard)/agents/`, `(dashboard)/studio/`, `(dashboard)/playground/` | Use the Agent Platform local service group in the development guide. The owner intends Agents to be a separate product; extraction has not happened. |
-| Developer surfaces | `/developers`, `/developers/api`, `/developers/cli`, `/developers/mcp` | `(dashboard)/developers/` | Verify against the documented local service and credentials for the specific developer workflow. Product ownership remains to be confirmed. |
+| Agent surfaces | `/agents`, `/studio`, `/playground`, `/agents/activity`, `/agents/conversations` | `(dashboard)/agents/`, `(dashboard)/studio/`, `(dashboard)/playground/` | Use the Agent Platform local service group in the development guide. |
+| Developer surfaces | `/developers`, `/developers/api`, `/developers/cli`, `/developers/mcp` | `(dashboard)/developers/` | Verify against the documented local service and credentials for the specific developer workflow. |
 
 ## Admin app
 
@@ -40,8 +41,6 @@ Admin belongs in Growth or another product/repository.
 
 - `client/apps/labs/` is a separate app package. Its user-facing feature inventory has not yet
   been confirmed in this setup.
-- `client/apps/tenant-portal/` is a separate app package. Its routes and workflows are not
-  included in the Growth feature list above.
 
 ## Map rules
 

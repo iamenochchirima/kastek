@@ -13,9 +13,7 @@ on:
       - "server/Cargo.lock"
       - "server/crates/**"
       - "server/kasitek-core/src/**"
-      - "server/kasitek-tenants/src/**"
       - "server/kasitek-core/src/main.rs"
-      - "server/kasitek-tenants/src/main.rs"
       - "infra/observability/**"
       - "docs/internal/development/local-development.md"
       - "docs/internal/operations/**"
@@ -33,9 +31,7 @@ on:
       - "server/Cargo.lock"
       - "server/crates/**"
       - "server/kasitek-core/src/**"
-      - "server/kasitek-tenants/src/**"
       - "server/kasitek-core/src/main.rs"
-      - "server/kasitek-tenants/src/main.rs"
       - "infra/observability/**"
       - "docs/internal/development/local-development.md"
       - "docs/internal/operations/**"
@@ -107,7 +103,6 @@ jobs:
           cargo test -p analytics-producer --lib
           cargo test -p analytics-reporting --lib
           cargo test -p kasitek-core --lib
-          cargo test -p kasitek-tenants
 
   agents:
     name: Agents telemetry checks

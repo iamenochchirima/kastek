@@ -1,5 +1,7 @@
 ---
 title: Roles and Permissions
+owner: engineering
+last_reviewed: 2026-09-29
 ---
 
 # Roles and Permissions
@@ -50,8 +52,8 @@ They are restricted to client-scoped routes and data:
 
 Role checks currently exist in both layers:
 
-- frontend route protection in `tenant-portal`
-- backend permission checks in `kasitek-tenants`
+- frontend route protection in the tenant portal
+- backend permission checks in the tenant API
 
 That means hiding a screen in the UI is not the only control. Backend handlers also validate access for sensitive operations such as:
 

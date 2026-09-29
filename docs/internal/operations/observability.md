@@ -52,7 +52,7 @@ Collector source and local operation instructions are maintained in the
 | Process | `service.name` |
 | --- | --- |
 | Core API and Core workers | `kasitek-core` |
-| Tenants API and workers | `kasitek-tenants` |
+| Agency tenant API and workers | `kasitek-tenants` |
 | Labs Analytics API | `kasitek-analytics-api` |
 | Labs Analytics worker | `kasitek-analytics-worker` |
 | Labs Analytics migration job | `kasitek-analytics-migrate` |

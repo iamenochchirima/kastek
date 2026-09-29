@@ -67,25 +67,17 @@ Growth retains product publishers and outboxes; reconnecting their delivery path
 
 ```bash
 ./scripts/run_local_stack.sh core client
-./scripts/run_local_stack.sh tenants       # Tenant API + tenant portal only
 ./scripts/run_local_stack.sh agents-api agents-worker agent-gateway
 ./scripts/run_local_stack.sh internal-docs  # Internal docs at http://localhost:3006
 ./scripts/run_local_stack.sh --help
 ```
 
-The `tenants` group starts `tenant-api` on port `8090` and `tenant-portal` on port `3010`. It
-does not start Core, Agents, Analytics, the direct client, Admin, Labs, or Temporal. Use
-`tenant-api` or `tenant-portal` when only one tenant process is needed. The launcher loads the
-Tenant API environment from `server/kasitek-tenants/.env` and the portal environment from
-`client/apps/tenant-portal/.env` and `.env.local`; the portal defaults its server-side proxy to
-`http://127.0.0.1:8090`. When `tenant-api` is selected, the launcher requires a loopback Tenant
-PostgreSQL URL. It uses `KASITEK_LOCAL_TENANT_DATABASE_URL` when set; otherwise it derives
-`kasitek_tenants` from the local `AGENTS_DATABASE_URL` and creates that database if it is absent.
-The generic `DATABASE_URL` is never used as the Tenant database fallback.
+This launcher does not start the tenant API or portal. Their source and local commands are in the
+Agency repository's README.
 
-The default no-argument invocation starts the Core and Tenant APIs, Agent API and worker, Agent
-gateway, client apps, internal docs, and local Temporal when local mode is enabled. Analytics is
-not part of the Growth launcher. Start Agent migrations as a separate release-like step:
+The default no-argument invocation starts Core, the Agent API and worker, the Agent gateway, client
+apps, internal docs, and local Temporal when local mode is enabled. It does not start Analytics or
+the Agency tenant service. Start Agent migrations as a separate release-like step:
 
 ```bash
 pnpm --dir agents run migrate
@@ -100,7 +92,6 @@ pnpm --dir agents run dev:worker
 pnpm --dir agents run dev:gateway
 pnpm --dir client run dev
 pnpm --dir client run dev:admin
-pnpm --dir client --filter tenant-portal dev
 ```
 
 ## Local service ports
@@ -108,7 +99,6 @@ pnpm --dir client --filter tenant-portal dev
 | Service | Default port | Liveness or readiness check |
 | --- | ---: | --- |
 | Core API | 4000 | `/health/live`, `/health/ready` where enabled |
-| Tenant Platform | 8090 | service health endpoint |
 | Agent API | 4100 | `/health/live`, `/health/ready` |
 | Agent gateway | 4200 | `/health`, `/health/ready` |
 | Client | 3000 | browser application |
