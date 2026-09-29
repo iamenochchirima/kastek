@@ -37,34 +37,6 @@ const config = {
       },
     ],
   ],
-  plugins: [
-    [
-      "@docusaurus/plugin-content-docs",
-      {
-        id: "agentPlatformPlan",
-        path: path.resolve(__dirname, "../plans"),
-        routeBasePath: "/plans/agents",
-        sidebarPath: require.resolve("./agent-platform-plan-sidebars.js"),
-        include: [
-          "agents/AGENT_PLATFORM_IMPLEMENTATION_PLAN.md",
-          "active/AGENT_PLATFORM_HOST_BOUNDARY_RESTRUCTURE_PLAN.md",
-          "active/AGENT_PLATFORM_HERMES_ALIGNED_RUNTIME_RELIABILITY_PLAN.md",
-          "active/AGENT_PLATFORM_HERMES_GAP_CLOSURE_PLAN.md",
-          "active/AGENT_CONTEXT_RUNTIME_AND_TELEMETRY_IMPLEMENTATION_PLAN.md",
-          "agents/AGENT_MEMORY_ARCHITECTURE_AND_IMPLEMENTATION_PLAN.md",
-          "active/AGENT_MEMORY_ARCHITECTURE_IMPLEMENTATION_CHECKLIST.md",
-          "active/AGENT_MEMORY_ARCHITECTURE_PHASE_LOG.md",
-          "active/AGENT_MEMORY_ARCHITECTURE_BASELINE.md",
-          "active/AGENT_STUDIO_RUNTIME_OBSERVATORY_UPDATE_PLAN.md",
-          "active/AGENT_PLATFORM_EXECUTION_OBSERVATORY_AND_CONTROL_PLANE_PLAN.md",
-          "agents/AGENT_PLATFORM_EXECUTION_VISUALIZATION_RESEARCH.md",
-          "agents/HERMES_CONTEXT_AND_RUNTIME_TELEMETRY_RESEARCH.md",
-        ],
-        showLastUpdateAuthor: false,
-        showLastUpdateTime: true,
-      },
-    ],
-  ],
   themes: ["@docusaurus/theme-mermaid"],
   themeConfig: {
     navbar: {
@@ -73,7 +45,6 @@ const config = {
         { to: "/", label: "Home", position: "left" },
         { to: "/development", label: "Development", position: "left" },
         { to: "/architecture", label: "Architecture", position: "left" },
-        { to: "/plans/agents/", label: "Agent Platform Plan", position: "left" },
         { to: "/operations/release-process", label: "Operations", position: "left" },
       ],
     },
