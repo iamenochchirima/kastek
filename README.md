@@ -78,6 +78,8 @@ The machine-readable integration guide for external MCP clients is in
 [`docs/mcp-integration.md`](docs/mcp-integration.md).
 The rollout-focused migration note is in
 [`docs/mcp-2026-migration.md`](docs/mcp-2026-migration.md).
+The runtime/Core ownership seam is documented in
+[`docs/architecture/agent-runtime-host-boundary.md`](docs/architecture/agent-runtime-host-boundary.md).
 
 Clients that only support local MCP stdio can run `pnpm run start:stdio` with
 `MCP_STDIO_API_KEY` set to a Developer API key and, when needed,
