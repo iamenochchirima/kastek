@@ -72,11 +72,11 @@ import {
   type KasiAiPreferences,
   type WhatsappConnectionOption,
 } from "@/lib/agent-platform";
-import { AgentApprovalGroupActions } from "@/components/dashboard/agents/agent-approval-group-actions";
-import { AgentChatComposer } from "@/components/dashboard/agents/agent-chat-composer";
-import { AgentChatMessageList, channelLabel, messageChannel, messageText } from "@/components/dashboard/agents/agent-chat-message-list";
-import { AgentChatRunStatus } from "@/components/dashboard/agents/agent-chat-run-status";
-import { AgentChatSurface } from "@/components/dashboard/agents/agent-chat-surface";
+import { AgentApprovalGroupActions } from "@/components/dashboard/kasiai/agent-approval-group-actions";
+import { AgentChatComposer } from "@/components/dashboard/kasiai/agent-chat-composer";
+import { AgentChatMessageList, channelLabel, messageChannel, messageText } from "@/components/dashboard/kasiai/agent-chat-message-list";
+import { AgentChatRunStatus } from "@/components/dashboard/kasiai/agent-chat-run-status";
+import { AgentChatSurface } from "@/components/dashboard/kasiai/agent-chat-surface";
 import type { AgentUiInteraction } from "@/components/dashboard/kasiai/dynamic-ui-renderer";
 import { cn } from "@/lib/utils";
 
@@ -1636,7 +1636,7 @@ function KasiAiApprovalPrompt({
   canApprove: boolean;
   onDecision: (decision: "approved" | "rejected") => void;
 }) {
-  return <div className="mx-auto mt-4 max-w-3xl rounded-lg border border-status-attention/40 bg-status-attention-soft/40 px-3 py-3 text-xs" role="status" aria-live="polite"><div className="flex items-start justify-between gap-3"><div><p className="font-semibold text-foreground">Approval required</p><p className="mt-1 text-muted-foreground">Review {approvalGroup.operations.length} proposed actions as one group.</p></div><span className="shrink-0 rounded-full border border-status-attention/40 px-2 py-0.5 text-[10px] font-medium text-status-attention">Pending</span></div><div className="mt-3 space-y-1.5">{approvalGroup.operations.map((operation) => <div key={operation.runtimeOperationId ?? operation.providerToolCallId} className="rounded-md border border-border/70 bg-background/30 px-3 py-2"><p className="font-medium text-foreground">{operation.capability}</p><p className="mt-1 text-[10px] text-muted-foreground">{operation.status}</p></div>)}</div><div className="mt-3 flex flex-wrap items-center gap-2">{canApprove ? <AgentApprovalGroupActions runId={runId} group={approvalGroup} onDecided={onDecision} /> : <p className="text-muted-foreground">Approval is required from an authorized operator.</p>}<Link href={`/agents/activity/${encodeURIComponent(runId)}`} className="ml-auto text-muted-foreground hover:text-foreground">View details</Link></div></div>;
+  return <div className="mx-auto mt-4 max-w-3xl rounded-lg border border-status-attention/40 bg-status-attention-soft/40 px-3 py-3 text-xs" role="status" aria-live="polite"><div className="flex items-start justify-between gap-3"><div><p className="font-semibold text-foreground">Approval required</p><p className="mt-1 text-muted-foreground">Review {approvalGroup.operations.length} proposed actions as one group.</p></div><span className="shrink-0 rounded-full border border-status-attention/40 px-2 py-0.5 text-[10px] font-medium text-status-attention">Pending</span></div><div className="mt-3 space-y-1.5">{approvalGroup.operations.map((operation) => <div key={operation.runtimeOperationId ?? operation.providerToolCallId} className="rounded-md border border-border/70 bg-background/30 px-3 py-2"><p className="font-medium text-foreground">{operation.capability}</p><p className="mt-1 text-[10px] text-muted-foreground">{operation.status}</p></div>)}</div><div className="mt-3 flex flex-wrap items-center gap-2">{canApprove ? <AgentApprovalGroupActions runId={runId} group={approvalGroup} onDecided={onDecision} /> : <p className="text-muted-foreground">Approval is required from an authorized operator.</p>}</div></div>;
 }
 
 function NewChatHome({
@@ -1647,7 +1647,6 @@ function NewChatHome({
   onSuggestion: (suggestion: string) => void;
 }) {
   const workspaces = [
-    { label: "Create agent", href: "/agents/new" },
     { label: "Connect account", href: "/connections" },
     { label: "Open content", href: "/content" },
     { label: "View report", href: "/workspace" },

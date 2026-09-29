@@ -4,31 +4,12 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-# The local stack is intentionally self-contained. Cloud Temporal remains an
-# explicit opt-in for environments that set TEMPORAL_MODE=cloud.
-TEMPORAL_MODE="${TEMPORAL_MODE:-local}"
-if [[ "$TEMPORAL_MODE" != "cloud" && "$TEMPORAL_MODE" != "local" ]]; then
-  echo "Error: TEMPORAL_MODE must be cloud or local" >&2
-  exit 1
-fi
-
-if [[ "$TEMPORAL_MODE" == "local" ]]; then
-  mkdir -p "$ROOT_DIR/.local"
-  AGENT_TEMPORAL_ENV="TEMPORAL_MODE=local TEMPORAL_ENABLED=true TEMPORAL_ADDRESS=localhost:7233 TEMPORAL_NAMESPACE=default TEMPORAL_API_KEY=''"
-else
-  AGENT_TEMPORAL_ENV="TEMPORAL_MODE=cloud TEMPORAL_ENABLED=true"
-fi
-
-AGENT_ENV_SETUP="if [[ -f '$ROOT_DIR/agents/.env' ]]; then set -a; source '$ROOT_DIR/agents/.env'; set +a; fi"
 CORE_ENV_SETUP="if [[ -f '$ROOT_DIR/server/kasitek-core/.env' ]]; then set -a; source '$ROOT_DIR/server/kasitek-core/.env'; set +a; fi"
 ANALYTICS_LOCAL_REPORTING_ENV_FILE="/tmp/kasitek-analytics-reporting-${UID}.env"
 ANALYTICS_ENV_SETUP="if [[ -f '$ROOT_DIR/server/kasitek-analytics/.env' ]]; then set -a; source '$ROOT_DIR/server/kasitek-analytics/.env'; set +a; fi; if [[ -f '$ANALYTICS_LOCAL_REPORTING_ENV_FILE' ]]; then set -a; source '$ANALYTICS_LOCAL_REPORTING_ENV_FILE'; set +a; fi"
 CORE_ANALYTICS_ENV_SETUP="$CORE_ENV_SETUP; $ANALYTICS_ENV_SETUP"
-# The local Agent Platform -> Core boundary uses the development bearer-token
-# compatibility path. Keep one value on both processes so read and draft tools
-# fail at startup configuration time rather than only when a user invokes one.
-# Production deployments must use per-invocation delegation keys instead.
-LOCAL_CORE_URL="${KASITEK_CORE_URL:-http://127.0.0.1:4000}"
+# Core's local Agent boundary uses the development bearer-token compatibility
+# path. Production deployments must use per-invocation delegation keys instead.
 LOCAL_CORE_AGENT_TOKEN="${KASITEK_LOCAL_CORE_AGENT_TOKEN:-kasitek-local-agent-boundary-dev-2026}"
 
 # Reuse the existing process-local reporting credentials when this script is
@@ -170,36 +151,25 @@ services["analytics-api"]="$ROOT_DIR/server/kasitek-analytics|$ANALYTICS_ENV_SET
 services["analytics-worker"]="$ROOT_DIR/server/kasitek-analytics|$ANALYTICS_ENV_SETUP; ANALYTICS_DATABASE_URL=\"\${ANALYTICS_DATABASE_URL:-postgres://analytics:analytics_dev_password@127.0.0.1:5432/kasitek_analytics}\" ANALYTICS_REDIS_URL=\"\${ANALYTICS_REDIS_URL:-redis://127.0.0.1:6379}\" LOG_COLOR=always cargo run --bin analytics-worker"
 services["core-analytics-publisher"]="$ROOT_DIR/server/kasitek-core|$CORE_ANALYTICS_ENV_SETUP; LOG_COLOR=always KASITEK_PROCESS=analytics-publisher cargo run"
 services["core-analytics-backfill"]="$ROOT_DIR/server/kasitek-core|$CORE_ANALYTICS_ENV_SETUP; LOG_COLOR=always KASITEK_PROCESS=analytics-backfill-worker cargo run"
-services["agent-analytics-publisher"]="$ROOT_DIR/agents|$AGENT_ENV_SETUP; pnpm run dev:analytics-publisher"
-services["agents-api"]="$ROOT_DIR/agents|$AGENT_ENV_SETUP; KASITEK_CORE_URL='$LOCAL_CORE_URL' KASITEK_CORE_INTERNAL_TOKEN='$LOCAL_CORE_AGENT_TOKEN' $AGENT_TEMPORAL_ENV pnpm run dev:api"
-services["agents-worker"]="$ROOT_DIR/agents|$AGENT_ENV_SETUP; KASITEK_CORE_URL='$LOCAL_CORE_URL' KASITEK_CORE_INTERNAL_TOKEN='$LOCAL_CORE_AGENT_TOKEN' $AGENT_TEMPORAL_ENV pnpm run dev:worker"
-services["agent-gateway"]="$ROOT_DIR/agents|$AGENT_ENV_SETUP; pnpm run dev:gateway"
 services["client"]="$ROOT_DIR/client|pnpm run dev"
 services["admin"]="$ROOT_DIR/client|pnpm dev:admin"
 services["labs"]="$ROOT_DIR/client|pnpm --filter labs dev"
 services["internal-docs"]="$ROOT_DIR/docs/internal-site|pnpm dev"
 
-if [[ "$TEMPORAL_MODE" == "local" ]]; then
-  services["temporal"]="$ROOT_DIR|temporal server start-dev --db-filename '$ROOT_DIR/.local/temporal.sqlite'"
-fi
-
 service_port() {
   case "$1" in
     core) echo 4000 ;;
     analytics-api) echo 4300 ;;
-    agents-api) echo 4100 ;;
-    agent-gateway) echo 4200 ;;
     client) echo 3000 ;;
     admin) echo 3001 ;;
     labs) echo 3007 ;;
     internal-docs) echo 3006 ;;
-    temporal) echo 7233 ;;
   esac
 }
 
 service_requires_analytics() {
   case "$1" in
-    core|analytics-api|analytics-worker|core-analytics-publisher|core-analytics-backfill|agent-analytics-publisher)
+    core|analytics-api|analytics-worker|core-analytics-publisher|core-analytics-backfill)
       return 0
       ;;
     *)
@@ -295,7 +265,7 @@ show_usage() {
   echo "  $0 internal-docs      # Run the internal documentation site"
   echo "  $0 analytics-migrate # Apply Analytics migrations once"
   echo "  $0 analytics-worker  # Run the optional Analytics worker"
-  echo "  $0 core-analytics-publisher agent-analytics-publisher # Run source publishers"
+  echo "  $0 core-analytics-publisher # Run the Core source publisher"
   echo "  $0 core-analytics-backfill # Run Core source reconstruction separately"
   echo "  $0 restart core       # Restart only the Core API"
   echo "  $0 restart client     # Restart only the direct client app"
@@ -305,10 +275,7 @@ show_usage() {
 # Parse command line arguments
 if [[ $# -eq 0 ]]; then
   # No arguments - run all services
-  services_to_start=(core analytics-api agents-api agents-worker agent-gateway client admin labs internal-docs)
-  if [[ "$TEMPORAL_MODE" == "local" ]]; then
-    services_to_start+=(temporal)
-  fi
+  services_to_start=(core analytics-api client admin labs internal-docs)
   for service in "${services_to_start[@]}"; do
     add_service "$service"
   done

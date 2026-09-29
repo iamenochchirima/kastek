@@ -20,7 +20,6 @@ Use the versions pinned by the repository where they exist:
 - pnpm: `package.json` `packageManager`
 - Rust: `server/rust-toolchain.toml`
 - PostgreSQL and Redis for services that require them
-- Temporal for Agent Platform workflows; local Temporal Server is optional
 
 Check the installed versions before debugging application failures. A mismatched toolchain can
 look like a code or dependency problem.
@@ -59,12 +58,11 @@ Never paste credentials into a plan, issue, log, test fixture, or documentation 
 
 ## Starting services
 
-The launcher opens each requested process in its own terminal. It uses local defaults for
-Analytics and can start a local Temporal Server when `TEMPORAL_MODE=local` is set.
+The launcher opens each requested Growth process in its own terminal. It uses local defaults for
+Analytics. Agent Platform services are owned by the Agents repository and are not started here.
 
 ```bash
 ./scripts/run_local_stack.sh core client
-./scripts/run_local_stack.sh agents-api agents-worker agent-gateway
 ./scripts/run_local_stack.sh analytics-api analytics-worker
 ./scripts/run_local_stack.sh internal-docs  # Internal docs at http://localhost:3006
 ./scripts/run_local_stack.sh --help
@@ -73,22 +71,18 @@ Analytics and can start a local Temporal Server when `TEMPORAL_MODE=local` is se
 This launcher does not start the tenant API or portal. Their source and local commands are in the
 Agency repository's README.
 
-The default no-argument invocation starts the Core, Analytics API, Agent API and worker, Agent
-gateway, client apps, internal docs, and local Temporal when local mode is enabled. Start
-migrations as a separate release-like step before services that need the database:
+The default no-argument invocation starts Growth-owned Core and Analytics services, client apps,
+and internal docs. Start migrations as a separate release-like step before services that need the
+database:
 
 ```bash
 ./scripts/run_local_stack.sh analytics-migrate
-pnpm --dir agents run migrate
 ```
 
 For focused work, manual commands are also supported:
 
 ```bash
 ./scripts/dev_core_watch.sh
-pnpm --dir agents run dev:api
-pnpm --dir agents run dev:worker
-pnpm --dir agents run dev:gateway
 pnpm --dir client run dev
 pnpm --dir client run dev:admin
 ```
@@ -99,12 +93,9 @@ pnpm --dir client run dev:admin
 | --- | ---: | --- |
 | Core API | 4000 | `/health/live`, `/health/ready` where enabled |
 | Analytics API | 4300 | `/health/live`, `/health/ready` |
-| Agent API | 4100 | `/health/live`, `/health/ready` |
-| Agent gateway | 4200 | `/health`, `/health/ready` |
 | Client | 3000 | browser application |
 | Admin | 3001 | browser application |
 | Labs | 3007 | browser application |
-| Temporal | 7233 | Temporal service endpoint |
 
 The launcher is the authoritative list for local service names and ports. If an individual
 service changes its port, update the launcher and this table together.
@@ -128,7 +119,7 @@ verification. Point a service at the Collector with:
 export OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:4318
 export OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
 export OTEL_DEPLOYMENT_ENVIRONMENT=local
-export OTEL_SERVICE_NAME=kasitek-agents
+export OTEL_SERVICE_NAME=kasitek-core
 ```
 
 For the Rust services also set `KASITEK_VERSION`, `KASITEK_RELEASE_ID`, and `KASITEK_COMMIT_SHA`

@@ -8,12 +8,14 @@ last_reviewed: 2026-09-29
 
 # Railway Deployment Topology
 
-This document describes Railway service definitions maintained from this Growth checkout. Staging
-uses the same listed service topology with staging databases, credentials, domains, and environment
-values.
+This document records the legacy Railway topology configured while these services were still
+owned by the Growth monorepo. It is a snapshot of hosted state, not an instruction to change or
+cut over deployments. Future service deployment configuration belongs in the owning repository;
+deployment cutover is tracked separately.
 
-The tenant API and portal source live in the Agency repository. This document does not define their
-deployment. The source move did not change any existing hosted tenant deployment.
+The Agents and Agency source are being extracted into separate repositories. This document does
+not define their future deployment setup, and the repository split does not change any existing
+hosted deployment.
 
 ## Deployment rules
 

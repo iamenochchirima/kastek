@@ -67,7 +67,7 @@ The JSON Schema 2020-12 event contracts and CloudEvents-compatible envelope live
 registry loader validates their schemas, examples, references, privacy metadata, formulas,
 dependencies, and deterministic artifact hash before any service process starts.
 
-Validate the checked-in generated Rust and TypeScript key bindings:
+Validate the checked-in Rust key binding:
 
 ```bash
 cargo run --bin analytics-registry -- --check
@@ -79,9 +79,9 @@ After an approved registry change, regenerate them with:
 cargo run --bin analytics-registry -- --write
 ```
 
-The generated bindings are build artifacts, not independent definitions. Producer, projection,
-reporting, and dashboard work must reference the registered identities rather than adding local
-formulas or dimensions.
+The generated Rust binding is a build artifact, not an independent definition. Producer,
+projection, reporting, and dashboard work must reference the registered identities rather than
+adding local formulas or dimensions.
 
 ## Scope authorization
 

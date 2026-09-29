@@ -4,11 +4,6 @@ on:
   pull_request:
     paths:
       - ".github/workflows/observability.yml"
-      - "agents/package.json"
-      - "agents/pnpm-lock.yaml"
-      - "agents/src/**"
-      - "agents/scripts/otel-*.ts"
-      - "agents/test/telemetry-*.test.ts"
       - "server/Cargo.toml"
       - "server/Cargo.lock"
       - "server/crates/**"
@@ -24,11 +19,6 @@ on:
     branches: [main]
     paths:
       - ".github/workflows/observability.yml"
-      - "agents/package.json"
-      - "agents/pnpm-lock.yaml"
-      - "agents/src/**"
-      - "agents/scripts/otel-*.ts"
-      - "agents/test/telemetry-*.test.ts"
       - "server/Cargo.toml"
       - "server/Cargo.lock"
       - "server/crates/**"
@@ -91,41 +81,6 @@ jobs:
           cargo test -p analytics-reporting --lib
           cargo test -p kasitek-core --lib
           cargo test -p kasitek-analytics --lib
-
-  agents:
-    name: Agents telemetry checks
-    runs-on: ubuntu-latest
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
-
-      - name: Install pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 10.30.1
-
-      - name: Install Node
-        uses: actions/setup-node@v4
-        with:
-          node-version-file: .nvmrc
-          cache: pnpm
-          cache-dependency-path: agents/pnpm-lock.yaml
-
-      - name: Install dependencies
-        working-directory: agents
-        run: pnpm install --frozen-lockfile
-
-      - name: Type check
-        working-directory: agents
-        run: pnpm exec tsc -p tsconfig.json --noEmit
-
-      - name: Run Agents tests
-        working-directory: agents
-        run: pnpm test
-
-      - name: Build Agents
-        working-directory: agents
-        run: pnpm run build
 
   collector:
     name: Collector configuration checks
@@ -227,41 +182,12 @@ jobs:
           grep -q 'kasitek.local.smoke.event' disabled-otel.log
           grep -q 'event=kasitek.local.smoke outcome=success' disabled-otel.log
 
-      - name: Install Node dependencies
-        uses: pnpm/action-setup@v4
-        with:
-          version: 10.30.1
-
-      - name: Install Node
-        uses: actions/setup-node@v4
-        with:
-          node-version-file: .nvmrc
-          cache: pnpm
-          cache-dependency-path: agents/pnpm-lock.yaml
-
-      - name: Install Agents dependencies
-        working-directory: agents
-        run: pnpm install --frozen-lockfile
-
-      - name: Emit Agents signals
-        working-directory: agents
-        env:
-          OTEL_EXPORTER_OTLP_ENDPOINT: http://127.0.0.1:4318
-          OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
-          OTEL_DEPLOYMENT_ENVIRONMENT: local
-          KASITEK_VERSION: 0.1.0
-          KASITEK_RELEASE_ID: ci-local-smoke
-          KASITEK_COMMIT_SHA: ${{ github.sha }}
-        run: pnpm run test:telemetry:local
-
-      - name: Verify Collector received both service signals
+      - name: Verify Collector received the smoke-test signals
         run: |
           set -euo pipefail
           for attempt in $(seq 1 15); do
             docker logs kasitek-otel-collector-ci > collector.log 2>&1 || true
             if grep -q "kasitek-observability-smoke" collector.log \
-              && grep -q "kasitek-agents" collector.log \
-              && grep -q "ci-local-smoke" collector.log \
               && grep -q "kasitek.local.smoke.count" collector.log \
               && grep -qi 'trace id' collector.log \
               && grep -qi 'span id' collector.log; then

@@ -16,7 +16,7 @@ corresponding contract or documentation when the boundary changes.
 | Location / path | Responsibility |
 | --- | --- |
 | `client/` | Frontend workspace, direct client, admin, Labs, and shared packages |
-| `agents/` | Agent API, worker, MCP gateway, Temporal workflows, migrations, and agent contracts |
+| `Kasitek-Labs/kasitek-agents` | Agent API, worker, MCP gateway, Temporal workflows, migrations, agent contracts, and Agent Platform UI |
 | `server/kasitek-core/` | Core product runtime, shared business capabilities, and core database |
 | `server/kasitek-analytics/` | Analytics ingestion, registry, reporting, projections, and analytics database |
 | `server/crates/` | Shared Rust crates used by server runtimes |
@@ -35,6 +35,8 @@ corresponding contract or documentation when the boundary changes.
 - Cross-service behavior uses an explicit HTTP, event, queue, or shared contract boundary.
 - Growth Admin's tenant provisioning bridge remains a product-side integration and may be
   disconnected until its separately tracked integration work is completed.
+- Growth's Kāsiai assistant remains a product-side Agent API consumer. Agent runtime and
+  management surfaces are owned by `kasitek-agents`; this repository does not own or launch them.
 - Frontend packages call supported service APIs or shared client packages; they should not encode
   server persistence rules locally.
 - `docs/internal/` describes current technical behavior. A plan belongs in `docs/plans/`, even if

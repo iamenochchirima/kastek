@@ -15,10 +15,10 @@ fn main() -> Result<(), AnalyticsError> {
     let snapshot = registry::load_registry()?;
     if write {
         snapshot.write_generated_bindings()?;
-        println!("Generated analytics registry bindings: {snapshot}");
+        println!("Generated Rust analytics registry bindings: {snapshot}");
     } else {
         snapshot.check_generated_bindings()?;
-        println!("Validated analytics registry bindings: {snapshot}");
+        println!("Validated Rust analytics registry bindings: {snapshot}");
     }
     Ok(())
 }

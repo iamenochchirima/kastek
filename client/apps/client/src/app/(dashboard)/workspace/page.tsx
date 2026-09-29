@@ -1,6 +1,6 @@
 import { getRustSession } from "@/lib/rust-auth";
 import { fetchRustJson } from "@/lib/rust-server-api";
-import { Bot, FileText, MessageCircle, PlugZap, type LucideIcon } from "lucide-react";
+import { FileText, MessageCircle, PlugZap, type LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { MotionReveal } from "@/components/ui/motion-reveal";
 import { PageHeader, PageHeaderActions, PageHeaderContent, PageHeaderDescription, PageHeaderTitle } from "@/components/ui/page-header";
@@ -11,7 +11,6 @@ import { WorkspaceAnalyticsOverview } from "@/components/dashboard/workspace-ana
 export const metadata = { title: "Overview | KasiTek" };
 
 type WorkspaceSummary = {
-  agentCount: number;
   socialPostCount: number;
   connections: Array<{
     id: string;
@@ -86,10 +85,9 @@ export default async function WorkspacePage() {
 
         <WorkspaceAnalyticsOverview />
 
-        <section className="mt-8 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <section className="mt-8 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           <OperationalLink href="/inbox" icon={MessageCircle} label="Inbox" detail="Open conversations and customer replies" delay={0.16} />
           <OperationalLink href="/templates" icon={FileText} label="Templates" detail={`${summary.templateStatusMap.APPROVED || 0} approved templates`} delay={0.2} />
-          <OperationalLink href="/agents" icon={Bot} label="Agents" detail={`${summary.agentCount} installed agents`} delay={0.24} />
           <OperationalLink href="/connections" icon={PlugZap} label="Connections" detail={`${summary.connections.length} connected numbers`} delay={0.28} />
         </section>
       </div>

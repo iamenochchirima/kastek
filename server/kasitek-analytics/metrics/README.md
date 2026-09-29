@@ -11,9 +11,9 @@ arbitrary event attribute. Metric sets provide named, versioned dashboard defaul
 
 The registry loader rejects duplicate identities, unknown references, invalid ratio dependencies,
 incompatible dimensions, coverage sources outside the source set, and dependency cycles. It also
-produces a SHA-256 artifact hash used by generated Rust and TypeScript key bindings.
+produces a SHA-256 artifact hash used by the generated Rust key binding.
 
-Validate or regenerate the bindings with:
+Validate or regenerate the Rust binding with:
 
 ```bash
 cargo run --bin analytics-registry -- --check
