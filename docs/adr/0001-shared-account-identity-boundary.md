@@ -1,6 +1,6 @@
 # Shared account identity and product authorization boundary
 
-**Status:** Proposed; requires owner approval
+**Status:** Proposed; Labs ownership is settled, remaining design requires owner approval
 
 **Date:** 2026-09-29
 
@@ -32,7 +32,8 @@ This is a source/schema inventory only. No live account rows, credentials, or pr
 
 ## Owner decisions still required
 
-- Confirm Labs as the owner of the shared account service contract, and choose managed identity infrastructure versus operating an OIDC provider in Labs.
+- **Settled repository boundary:** Kasitek Labs owns the shared account service and sign-in contract, consistent with the decision that Labs owns central services, accounts, and data collection.
+- Choose managed identity infrastructure versus operating an OIDC provider in Labs.
 - Decide whether Agency workspace administrators and Agency clients' `tenant_client_users` both sign in with KasiTek accounts, or whether either remains an independent identity class.
 - Decide how account linking handles duplicate emails, account recovery, and a person who has different local principals in multiple workspaces/products.
 - Define account disable, product logout, global logout, session lifetime, and revocation propagation behavior.
