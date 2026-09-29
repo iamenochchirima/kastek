@@ -767,8 +767,6 @@ dependencies = [
 name = "config"
 version = "0.1.0"
 dependencies = [
- "dotenv",
- "serde",
  "thiserror 2.0.18",
  "url",
 ]
