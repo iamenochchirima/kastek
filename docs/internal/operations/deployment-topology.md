@@ -8,14 +8,12 @@ last_reviewed: 2026-08-28
 
 # Railway Deployment Topology
 
-This document is the current deployment reference for the KasiTek backend services on Railway.
-It describes the service boundaries, source directories, builders, commands, health checks, and
-network exposure for the Production environment. Staging uses the same service topology with
-staging databases, credentials, domains, and environment values.
+This document describes Railway service definitions maintained from this Growth checkout. Staging
+uses the same listed service topology with staging databases, credentials, domains, and environment
+values.
 
-The tenant API and portal source now belong to the Agency repository. This source split does not
-change any existing hosted tenant deployment; the separately tracked Agency cutover issue owns
-that later change.
+The tenant API and portal source live in the Agency repository. This document does not define their
+deployment. The source move did not change any existing hosted tenant deployment.
 
 ## Deployment rules
 
@@ -33,9 +31,7 @@ that later change.
 
 ## Required application services
 
-The following are the long-running Production services owned by this repository or its current
-service source tree. The existing tenant deployment is unchanged pending its separately authorized
-cutover.
+The following are the long-running Production services documented from this repository.
 
 | Service | Root directory | Builder | Dockerfile path | Build command | Pre-deploy command | Start command | Health and port | Exposure |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -80,7 +76,6 @@ actual exported variable, for example:
 DATABASE_URL=${{core-db.DATABASE_URL}}
 AGENTS_DATABASE_URL=${{agents-db.DATABASE_URL}}
 ANALYTICS_DATABASE_URL=${{analytics-db.DATABASE_URL}}
-KASITEK_TENANTS_DATABASE_URL=${{tenents-db.DATABASE_URL}}
 ```
 
 Do not use `DATABASE_PRIVATE_URL` for these Railway Postgres services; this project exposes the
@@ -144,7 +139,7 @@ The Analytics image contains the migration binary. For a one-shot deployment, te
 
 After the command exits successfully, restore `/usr/local/bin/analytics-api` on the API or
 `/usr/local/bin/analytics-worker` on the worker. The migration binary uses the Analytics database
-and must never receive a Core, Tenants, or Agents database URL.
+and must never receive a Core or Agents database URL.
 
 ### Core
 
@@ -167,11 +162,6 @@ The migration chain includes `analytics_outbox`, so a Core deployment must not b
 until the migration command reports success. Do not apply the standalone files under
 `server/kasitek-core/sql/` as a substitute for the Prisma migration history; those files remain the
 source-service SQL inventory and are useful for isolated SQL verification.
-
-### Tenants
-
-The Tenants process currently runs its embedded SQLx migrations after connecting to its database.
-Deploy only one migration-capable Tenants process at a time when applying schema changes.
 
 ## MCP deployment
 
@@ -237,7 +227,6 @@ The following are dependencies, tools, or deployment steps rather than applicati
 - `analytics-registry`; run it as a validation command, not a server.
 - MCP stdio; it is a local bridge.
 - Core's individual embedded workers.
-- Tenants' embedded workers.
 - Temporal when using Temporal Cloud.
 - Redis while Analytics Redis remains optional and non-authoritative.
 - Vercel frontend deployments; those are configured separately from Railway.
@@ -259,10 +248,9 @@ The following are dependencies, tools, or deployment steps rather than applicati
 8. Deploy `analytics-worker`.
 9. Update Core's private Agents and Analytics URLs, then deploy Core with `PORT=4000` and confirm
    `/health` is healthy.
-10. Update Tenants' production variables, then deploy Tenants and confirm `/health` is healthy.
-11. Confirm the Collector receives OTLP signals. Treat the debug profile as temporary until a
+10. Confirm the Collector receives OTLP signals. Treat the debug profile as temporary until a
     durable backend is configured.
-12. Run production smoke checks using the release ID and commit SHA.
+11. Run production smoke checks using the release ID and commit SHA.
 
 Record the deployed commit, platform release ID, migration results, service revisions, health
 checks, and rollback target in the release record defined by

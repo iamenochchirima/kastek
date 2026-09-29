@@ -1,8 +1,6 @@
 # Feature map
 
-This is the index of user-facing routes that remain in the Growth repository. Agent Platform
-routes are still awaiting the separate source-removal issue; Agency PR #5 moves the tenant portal
-to `Kasitek-Labs/kasitek-agency`, so it is not part of this feature map.
+This is the index of user-facing routes present in this repository.
 
 For local startup, environment, and test commands, use [Local Development](../internal/development/local-development.md).
 The main client runs on port `3000`; the other app ports and service prerequisites are listed in
@@ -22,8 +20,8 @@ Routes below are under `client/apps/client/src/app/`.
 | Analytics | `/analytics` | `(dashboard)/analytics/page.tsx` | Run the client and required Analytics services; use the existing Analytics Playwright suite when the change affects its coverage. |
 | Workspace | `/workspace`, `/workspace/team`, `/workspace/settings`, `/workspace/profile` | `(dashboard)/workspace/` | Open the relevant route with an authorized local account and verify the saved state after navigation or reload. |
 | Billing | `/billing`, `/upgrade` | `(dashboard)/billing/page.tsx`, `(dashboard)/upgrade/page.tsx` | Use a test account and the configured billing test environment; do not use live payment credentials for local verification. |
-| Agent surfaces | `/agents`, `/studio`, `/playground`, `/agents/activity`, `/agents/conversations` | `(dashboard)/agents/`, `(dashboard)/studio/`, `(dashboard)/playground/` | Use the Agent Platform local service group in the development guide. The owner intends Agents to be a separate product; extraction has not happened. |
-| Developer surfaces | `/developers`, `/developers/api`, `/developers/cli`, `/developers/mcp` | `(dashboard)/developers/` | Verify against the documented local service and credentials for the specific developer workflow. Product ownership remains to be confirmed. |
+| Agent surfaces | `/agents`, `/studio`, `/playground`, `/agents/activity`, `/agents/conversations` | `(dashboard)/agents/`, `(dashboard)/studio/`, `(dashboard)/playground/` | Use the Agent Platform local service group in the development guide. |
+| Developer surfaces | `/developers`, `/developers/api`, `/developers/cli`, `/developers/mcp` | `(dashboard)/developers/` | Verify against the documented local service and credentials for the specific developer workflow. |
 
 ## Admin app
 

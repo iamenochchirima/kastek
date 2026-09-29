@@ -70,10 +70,8 @@ Analytics and can start a local Temporal Server when `TEMPORAL_MODE=local` is se
 ./scripts/run_local_stack.sh --help
 ```
 
-The tenant API and portal are owned by the Agency repository and are no longer started by this
-Growth launcher. Use the Agency repository's local-development instructions when working on those
-services. This source move does not change their existing hosted deployment; a separate issue owns
-any later deployment cutover.
+This launcher does not start the tenant API or portal. Their source and local commands are in the
+Agency repository's README.
 
 The default no-argument invocation starts the Core, Analytics API, Agent API and worker, Agent
 gateway, client apps, internal docs, and local Temporal when local mode is enabled. Start
