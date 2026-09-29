@@ -296,7 +296,7 @@ const CONTRACT_SOURCES: &[ContractSource] = &[
             env!("CARGO_MANIFEST_DIR"),
             "/contracts/events/agent/memory_deletion/v2.schema.json"
         )),
-        examples: &[(
+        examples: &[ (
             "examples/agent/memory_deletion_v2.json",
             include_str!(concat!(
                 env!("CARGO_MANIFEST_DIR"),
