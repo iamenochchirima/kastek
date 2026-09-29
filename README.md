@@ -142,7 +142,10 @@ credentials do not consume KasiTek credits.
 
 The relocated root `Dockerfile` builds the API and worker package and includes `migrations/`. It
 defaults to the API entry point; the gateway and worker entry points are `dist/gateway/server.js`
-and `dist/temporal/worker.js`. This source move does not configure or deploy a hosted service.
+and `dist/temporal/worker.js`. The root-level `railway.api.json`, `railway.gateway.json`, and
+`railway.worker.json` files hold service-specific start commands; the API and gateway configs also
+define readiness checks. Moving these files does not change hosted Railway settings or deploy a
+service.
 
 Run requests may include an `idempotencyKey`; retries within an organization return the original
 run and do not start a second Temporal workflow. Run inspection is available at
