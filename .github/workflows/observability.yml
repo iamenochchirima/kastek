@@ -89,6 +89,18 @@ jobs:
         working-directory: server
         run: cargo test -p observability
 
+      - name: Verify Rust stdout fallback with export disabled
+        working-directory: server
+        env:
+          OTEL_SDK_DISABLED: "true"
+          LOG_FORMAT: json
+          RUST_LOG: info
+        run: |
+          set -euo pipefail
+          cargo run -p observability --example otel-smoke 2>&1 | tee disabled-otel.log
+          grep -q 'kasitek.local.smoke.event' disabled-otel.log
+          grep -q 'event=kasitek.local.smoke outcome=success' disabled-otel.log
+
       - name: Run shared observability Clippy
         working-directory: server
         run: cargo clippy -p observability --all-targets --all-features -- -D warnings
@@ -137,160 +149,3 @@ jobs:
       - name: Build Agents
         working-directory: agents
         run: pnpm run build
-
-  collector:
-    name: Collector configuration checks
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
-
-      - name: Validate Compose shape
-        run: docker compose -f infra/observability/otel-collector/compose.yaml config --quiet
-
-      - name: Validate Railway service definition
-        run: python3 -m json.tool infra/observability/otel-collector/railway.json >/dev/null
-
-      - name: Validate pinned Collector profiles
-        env:
-          OTEL_BACKEND_ENDPOINT: http://127.0.0.1:4318
-          OTEL_BACKEND_AUTH: ci-placeholder
-        run: |
-          for config in config.yaml config.local.yaml config.staging.yaml config.production.template.yaml; do
-            docker run --rm \
-              -e PORT=13133 \
-              -e OTEL_BACKEND_ENDPOINT \
-              -e OTEL_BACKEND_AUTH \
-              -v "$PWD/infra/observability/otel-collector:/work:ro" \
-              otel/opentelemetry-collector-contrib:0.158.0 \
-              validate --config="/work/$config"
-          done
-
-  local-e2e:
-    name: Local telemetry signal smoke test
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
-
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchain: 1.88.0
-
-      - name: Build Collector image
-        run: docker build -t kasitek-otel-collector:ci infra/observability/otel-collector
-
-      - name: Verify staging profile selection
-        run: |
-          set -euo pipefail
-          docker run -d --name kasitek-otel-collector-staging-profile-ci \
-            --entrypoint /otelcol-contrib \
-            -e PORT=13133 \
-            -p 13134:13133 \
-            kasitek-otel-collector:ci \
-            --config=/etc/otelcol/config.staging.yaml
-          for attempt in $(seq 1 30); do
-            if curl --fail --silent http://127.0.0.1:13134/ >/dev/null; then
-              docker rm -f kasitek-otel-collector-staging-profile-ci
-              exit 0
-            fi
-            sleep 1
-          done
-          docker logs kasitek-otel-collector-staging-profile-ci
-          docker rm -f kasitek-otel-collector-staging-profile-ci
-          exit 1
-
-      - name: Start local Collector
-        run: |
-          docker run -d --name kasitek-otel-collector-ci \
-            -e PORT=13133 \
-            -p 4317:4317 -p 4318:4318 -p 13133:13133 \
-            -v "$PWD/infra/observability/otel-collector/config.local.yaml:/etc/otelcol/config.yaml:ro" \
-            kasitek-otel-collector:ci
-          for attempt in $(seq 1 30); do
-            if curl --fail --silent http://127.0.0.1:13133/ >/dev/null; then exit 0; fi
-            sleep 1
-          done
-          docker logs kasitek-otel-collector-ci
-          exit 1
-
-      - name: Emit Rust signals
-        working-directory: server
-        env:
-          OTEL_EXPORTER_OTLP_ENDPOINT: http://127.0.0.1:4318
-          OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
-          OTEL_DEPLOYMENT_ENVIRONMENT: local
-          KASITEK_VERSION: 0.1.0
-          KASITEK_RELEASE_ID: ci-local-smoke
-          KASITEK_COMMIT_SHA: ${{ github.sha }}
-        run: cargo run -p observability --example otel-smoke
-
-      - name: Verify Rust stdout fallback with export disabled
-        working-directory: server
-        env:
-          OTEL_SDK_DISABLED: "true"
-          LOG_FORMAT: json
-          RUST_LOG: info
-        run: |
-          set -euo pipefail
-          cargo run -p observability --example otel-smoke 2>&1 | tee disabled-otel.log
-          grep -q 'kasitek.local.smoke.event' disabled-otel.log
-          grep -q 'event=kasitek.local.smoke outcome=success' disabled-otel.log
-
-      - name: Install Node dependencies
-        uses: pnpm/action-setup@v4
-        with:
-          version: 10.30.1
-
-      - name: Install Node
-        uses: actions/setup-node@v4
-        with:
-          node-version-file: .nvmrc
-          cache: pnpm
-          cache-dependency-path: agents/pnpm-lock.yaml
-
-      - name: Install Agents dependencies
-        working-directory: agents
-        run: pnpm install --frozen-lockfile
-
-      - name: Emit Agents signals
-        working-directory: agents
-        env:
-          OTEL_EXPORTER_OTLP_ENDPOINT: http://127.0.0.1:4318
-          OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
-          OTEL_DEPLOYMENT_ENVIRONMENT: local
-          KASITEK_VERSION: 0.1.0
-          KASITEK_RELEASE_ID: ci-local-smoke
-          KASITEK_COMMIT_SHA: ${{ github.sha }}
-        run: pnpm run test:telemetry:local
-
-      - name: Verify Collector received both service signals
-        run: |
-          set -euo pipefail
-          for attempt in $(seq 1 15); do
-            docker logs kasitek-otel-collector-ci > collector.log 2>&1 || true
-            if grep -q "kasitek-observability-smoke" collector.log \
-              && grep -q "kasitek-agents" collector.log \
-              && grep -q "ci-local-smoke" collector.log \
-              && grep -q "kasitek.local.smoke.count" collector.log \
-              && grep -qi 'trace id' collector.log \
-              && grep -qi 'span id' collector.log; then
-              cat collector.log
-              if grep -q 'operation.invalid.event' collector.log; then
-                echo 'Collector received an invalid operational event name.'
-                exit 1
-              fi
-              exit 0
-            fi
-            sleep 1
-          done
-          cat collector.log
-          echo 'Collector did not receive all expected service signals before the timeout.'
-          exit 1
-
-      - name: Stop local Collector
-        if: always()
-        run: docker rm -f kasitek-otel-collector-ci

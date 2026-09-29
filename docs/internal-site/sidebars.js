@@ -29,7 +29,6 @@ const sidebars = {
         "runbooks/paystack-billing",
         "runbooks/paystack-test-mode",
         "runbooks/analytics/README",
-        "runbooks/otel-collector",
       ],
     },
   ],
