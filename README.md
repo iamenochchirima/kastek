@@ -21,6 +21,7 @@ Focused checks:
 
 ```bash
 pnpm typecheck
+pnpm --filter @kasitek/agent-platform test:studio
 pnpm build
 ```
 

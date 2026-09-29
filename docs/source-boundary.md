@@ -50,7 +50,9 @@ an API/authentication cutover. Growth issue #7 owns removal of the duplicate Gro
 
 ## Validation scope
 
-The CI workflow runs the app TypeScript check and Next build under the supported Node version.
+The CI workflow runs the app TypeScript check, the two existing Studio execution tests, and the
+Next build under the supported Node version. Run the focused tests locally with
+`pnpm --filter @kasitek/agent-platform test:studio`.
 The existing copied UI currently reports 39 ESLint errors, predominantly React-hook diagnostics,
 from the unchanged source. Lint is available locally but is not a merge gate for this source-only
 move.

@@ -35,4 +35,5 @@ jobs:
           cache-dependency-path: pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @kasitek/agent-platform typecheck
+      - run: pnpm --filter @kasitek/agent-platform test:studio
       - run: pnpm --filter @kasitek/agent-platform build
