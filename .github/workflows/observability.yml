@@ -45,6 +45,10 @@ on:
       - "docs/internal/operations/**"
       - "docs/plans/active/OPENTELEMETRY_INFRASTRUCTURE_*.md"
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
@@ -101,6 +105,7 @@ jobs:
   agents:
     name: Agents telemetry checks
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -136,6 +141,7 @@ jobs:
   collector:
     name: Collector configuration checks
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -164,6 +170,7 @@ jobs:
   local-e2e:
     name: Local telemetry signal smoke test
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - name: Check out repository
         uses: actions/checkout@v4

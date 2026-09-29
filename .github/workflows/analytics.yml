@@ -25,6 +25,10 @@ on:
       - "server/crates/observability/**"
       - "server/kasitek-analytics/**"
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
@@ -32,6 +36,7 @@ jobs:
   analytics-static:
     name: Analytics static checks
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -71,6 +76,7 @@ jobs:
   analytics-foundation-e2e:
     name: Analytics foundation E2E
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     services:
       postgres:
         image: postgres:16-alpine
