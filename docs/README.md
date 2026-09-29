@@ -21,5 +21,11 @@ Operations and recovery:
 - [Remote MCP provider operations](runbooks/remote-mcp-provider-operations.md)
 - [Temporal recovery](runbooks/temporal-recovery.md)
 
+Plans, implementation research, and the architecture audit:
+
+- [Agent Platform plan index](plans/agents/README.md)
+- [Agent Platform implementation map](plans/agents/AGENT_PLATFORM_IMPLEMENTATION_PLAN.md)
+- [Architecture audit](architecture/agent-platform-architecture-audit.md)
+
 These documents describe the Agent service. Cross-product contracts that define Core behavior remain
 with the owning product and link here where needed.
