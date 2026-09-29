@@ -26,45 +26,45 @@ Reduce duplicate provider work and make worker-loss recovery explicit while the 
 - [x] Add runtime and database-backed tests for replay, unknown operations, migration shape, and
   reconciliation projections.
 - [x] Add workflow graph recovery contracts for crash-after-checkpoint replay and branch failure
-  ([workflow-graph-recovery.test.ts](../../../agents/test/workflow-graph-recovery.test.ts)).
+  ([workflow-graph-recovery.test.ts](https://github.com/Kasitek-Labs/kasitek-growth/blob/ec9190819b5f202df60fa67cc6ed8a6764a9bf18/agents/test/workflow-graph-recovery.test.ts)).
 - [x] Propagate Temporal activity cancellation into configured graph execution and add pre-node and
-  post-provider-result contracts ([executor.ts](../../../agents/src/workflows/executor.ts),
-  [workflow-graph-cancellation.test.ts](../../../agents/test/workflow-graph-cancellation.test.ts)).
+  post-provider-result contracts ([executor.ts](https://github.com/Kasitek-Labs/kasitek-growth/blob/ec9190819b5f202df60fa67cc6ed8a6764a9bf18/agents/src/workflows/executor.ts),
+  [workflow-graph-cancellation.test.ts](https://github.com/Kasitek-Labs/kasitek-growth/blob/ec9190819b5f202df60fa67cc6ed8a6764a9bf18/agents/test/workflow-graph-cancellation.test.ts)).
 - [x] Add graph-boundary worker-loss contracts for model, tool, approval, external-event, and
-  terminal checkpoints ([workflow-graph-worker-recovery.test.ts](../../../agents/test/workflow-graph-worker-recovery.test.ts));
+  terminal checkpoints ([workflow-graph-worker-recovery.test.ts](https://github.com/Kasitek-Labs/kasitek-growth/blob/ec9190819b5f202df60fa67cc6ed8a6764a9bf18/agents/test/workflow-graph-worker-recovery.test.ts));
   activity-level worker-kill coverage remains open.
 - [x] Route configured `agent_loop` nodes through the hosted bounded loop with scoped durable
       operation keys, shared capability/approval/effect hooks, residual graph limits, and pause/resume
-      checkpoint mapping ([activities.ts](../../../agents/src/temporal/activities.ts),
-      [workflow-graph-agent-loop.test.ts](../../../agents/test/workflow-graph-agent-loop.test.ts)).
+      checkpoint mapping ([activities.ts](https://github.com/Kasitek-Labs/kasitek-growth/blob/ec9190819b5f202df60fa67cc6ed8a6764a9bf18/agents/src/temporal/activities.ts),
+      [workflow-graph-agent-loop.test.ts](https://github.com/Kasitek-Labs/kasitek-growth/blob/ec9190819b5f202df60fa67cc6ed8a6764a9bf18/agents/test/workflow-graph-agent-loop.test.ts)).
 - [x] Add a controlled ordinary-run continuation seam that persists a bounded model-message
       checkpoint after each model/tool slice and schedules the next Temporal activity through a
-      new operation-key prefix ([loop-checkpoint.ts](../../../agents/src/runtime/loop-checkpoint.ts),
-      [loop-step.test.ts](../../../agents/test/loop-step.test.ts)); keep it opt-in until the
+      new operation-key prefix ([loop-checkpoint.ts](https://github.com/Kasitek-Labs/kasitek-growth/blob/ec9190819b5f202df60fa67cc6ed8a6764a9bf18/agents/src/runtime/loop-checkpoint.ts),
+      [loop-step.test.ts](https://github.com/Kasitek-Labs/kasitek-growth/blob/ec9190819b5f202df60fa67cc6ed8a6764a9bf18/agents/test/loop-step.test.ts)); keep it opt-in until the
       worker-loss matrix is complete.
 - [x] Make continuation retries return the persisted activity result when a worker is lost after
       the checkpoint write, carry paused-result metadata through recovery, and refuse partial
       multi-tool slices when the remaining tool budget cannot admit the provider response
-      ([activities.ts](../../../agents/src/temporal/activities.ts),
-      [loop-checkpoint.ts](../../../agents/src/runtime/loop-checkpoint.ts)).
+      ([activities.ts](https://github.com/Kasitek-Labs/kasitek-growth/blob/ec9190819b5f202df60fa67cc6ed8a6764a9bf18/agents/src/temporal/activities.ts),
+      [loop-checkpoint.ts](https://github.com/Kasitek-Labs/kasitek-growth/blob/ec9190819b5f202df60fa67cc6ed8a6764a9bf18/agents/src/runtime/loop-checkpoint.ts)).
 - [x] Add a real Temporal worker-loss matrix around model, tool, approval, effect, and completion
       checkpoints before and after the activity boundary
-      ([temporal-worker-loss-matrix.integration.test.ts](../../../agents/test/temporal-worker-loss-matrix.integration.test.ts));
+      ([temporal-worker-loss-matrix.integration.test.ts](https://github.com/Kasitek-Labs/kasitek-growth/blob/ec9190819b5f202df60fa67cc6ed8a6764a9bf18/agents/test/temporal-worker-loss-matrix.integration.test.ts));
       provider/database fault injection inside the still-large activity remains open.
 - [x] Add an authenticated operator run-level usage reconciliation report that compares local
   model-call and budget totals with Core reservations and provider-reported usage events
-  ([usage-reconciliation.ts](../../../agents/src/operations/usage-reconciliation.ts),
-  [`GET /v1/operator/runs/:runId/usage-reconciliation`](../../../agents/src/http/app.ts)).
+  ([usage-reconciliation.ts](https://github.com/Kasitek-Labs/kasitek-growth/blob/ec9190819b5f202df60fa67cc6ed8a6764a9bf18/agents/src/operations/usage-reconciliation.ts),
+  [`GET /v1/operator/runs/:runId/usage-reconciliation`](https://github.com/Kasitek-Labs/kasitek-growth/blob/ec9190819b5f202df60fa67cc6ed8a6764a9bf18/agents/src/http/app.ts)).
 - [x] Preserve provider-reported cost from OpenAI-compatible responses, expose it in Core usage
       reconciliation, and compare Core only with platform-funded local calls
-      ([openai-compatible.ts](../../../agents/src/model/openai-compatible.ts),
-      [credits.rs](../../../server/kasitek-core/src/services/credits.rs)).
+      ([openai-compatible.ts](https://github.com/Kasitek-Labs/kasitek-growth/blob/ec9190819b5f202df60fa67cc6ed8a6764a9bf18/agents/src/model/openai-compatible.ts),
+      [credits.rs](https://github.com/Kasitek-Labs/kasitek-growth/blob/ec9190819b5f202df60fa67cc6ed8a6764a9bf18/server/kasitek-core/src/services/credits.rs)).
 - [x] Define the versioned non-secret activity protocol for the next decomposition boundary
-  ([decomposed-contracts.ts](../../../agents/src/temporal/decomposed-contracts.ts)); prompts,
+  ([decomposed-contracts.ts](https://github.com/Kasitek-Labs/kasitek-growth/blob/ec9190819b5f202df60fa67cc6ed8a6764a9bf18/agents/src/temporal/decomposed-contracts.ts)); prompts,
   provider responses, tool arguments, and tool output remain in durable Agents state rather than
   being passed through Temporal history.
 - [x] Add provider/database fault-injection tests for the current inner-loop safety boundary
-  ([temporal-fault-injection.test.ts](../../../agents/test/temporal-fault-injection.test.ts)).
+  ([temporal-fault-injection.test.ts](https://github.com/Kasitek-Labs/kasitek-growth/blob/ec9190819b5f202df60fa67cc6ed8a6764a9bf18/agents/test/temporal-fault-injection.test.ts)).
 - [x] Split context, model, tool, checkpoint, and completion work into independently retry-safe
       activities behind `TEMPORAL_DECOMPOSED_ACTIVITIES_ENABLED` for ordinary hosted runs. MCP and
       configured graph runs explicitly use the compatibility activity until their boundaries are
@@ -73,7 +73,7 @@ Reduce duplicate provider work and make worker-loss recovery explicit while the 
       and human/external-event resume state before the next model operation.
 - [x] Add activity-level provider/database fault-injection coverage for provider failure, post-provider
       persistence failure and replay, tool failure, context/checkpoint persistence failure, invalid
-      state recovery, and terminal completion failure ([decomposed-activities.test.ts](../../../agents/test/decomposed-activities.test.ts)).
+      state recovery, and terminal completion failure ([decomposed-activities.test.ts](https://github.com/Kasitek-Labs/kasitek-growth/blob/ec9190819b5f202df60fa67cc6ed8a6764a9bf18/agents/test/decomposed-activities.test.ts)).
 - [ ] Compare provider billing with reserved, captured, released, and reconciled usage during
       staged rollout; the diagnostic path exists, but staged production evidence and provider-side
       billing verification are still required.
@@ -94,8 +94,8 @@ Analytics, logs, and metrics: `model.reconciliation.required`, activity-attempt 
 exhaustion metrics, and reconciliation-required metrics are emitted without prompt or response
 content.
 
-Documentation: `docs/internal/architecture/agent-workflow-execution.md` and
-`docs/internal/runbooks/agent-temporal-recovery.md`.
+Documentation: [Agent workflow execution docs](https://github.com/Kasitek-Labs/kasitek-agents/blob/main/docs/architecture/workflow-execution.md) and
+[Temporal recovery runbook](https://github.com/Kasitek-Labs/kasitek-agents/blob/main/docs/runbooks/temporal-recovery.md).
 
 Validation: targeted runtime, HTTP, migration, and database integration tests pass locally. Full
 suite, agents build, client type-check, production migration, and deployment evidence are pending
@@ -520,7 +520,7 @@ logs synthetic activity failures for the before-checkpoint cases; those failures
 worker-loss condition, not application failures.
 
 User, API, internal, and operational documentation: updated the architecture audit and
-`docs/internal/runbooks/agent-temporal-recovery.md` with the matrix scope and command.
+[Temporal recovery runbook](https://github.com/Kasitek-Labs/kasitek-agents/blob/main/docs/runbooks/temporal-recovery.md) with the matrix scope and command.
 
 Validation evidence: the real Temporal integration matrix passed `9/9` cases against Temporal
 Server `1.31.2`; the test passed without the integration opt-in as `9` skipped; Agents TypeScript
@@ -577,7 +577,7 @@ recovery runbook and existing budget/reconciliation metrics; do not treat the di
 an alert by itself.
 
 User, API, internal, and operational documentation: updated
-`AGENT_PLATFORM_ARCHITECTURE_AUDIT.md`, `docs/internal/runbooks/agent-temporal-recovery.md`, and
+[Agent Platform architecture audit](https://github.com/Kasitek-Labs/kasitek-agents/blob/main/docs/architecture/agent-platform-architecture-audit.md), [Temporal recovery runbook](https://github.com/Kasitek-Labs/kasitek-agents/blob/main/docs/runbooks/temporal-recovery.md), and
 this plan. Public API documentation is not applicable because both new routes are internal.
 
 Validation evidence: Agents targeted reconciliation, Core-client, and HTTP tests passed (`130`);
@@ -675,8 +675,8 @@ activities emit bounded heartbeat phase metadata without prompt, response, argum
 content. Collector configuration is unchanged; `not applicable` for a new Collector revision.
 
 User, API, internal, and operational documentation: updated
-`AGENT_PLATFORM_ARCHITECTURE_AUDIT.md`, `docs/internal/architecture/agent-workflow-execution.md`,
-`docs/internal/runbooks/agent-temporal-recovery.md`, and this plan. Public API documentation is
+[Agent Platform architecture audit](https://github.com/Kasitek-Labs/kasitek-agents/blob/main/docs/architecture/agent-platform-architecture-audit.md), [Agent workflow execution docs](https://github.com/Kasitek-Labs/kasitek-agents/blob/main/docs/architecture/workflow-execution.md),
+[Temporal recovery runbook](https://github.com/Kasitek-Labs/kasitek-agents/blob/main/docs/runbooks/temporal-recovery.md), and this plan. Public API documentation is
 not applicable.
 
 Validation evidence: decomposed contract, coordinator, human-resume, activity replay, and
@@ -736,7 +736,7 @@ Agents budget/reconciliation telemetry. No Collector configuration change; `not 
 new Collector revision. The operator report remains diagnostic and is not itself an alert.
 
 User, API, internal, and operational documentation: updated
-`AGENT_PLATFORM_ARCHITECTURE_AUDIT.md`, `docs/internal/runbooks/agent-temporal-recovery.md`, and
+[Agent Platform architecture audit](https://github.com/Kasitek-Labs/kasitek-agents/blob/main/docs/architecture/agent-platform-architecture-audit.md), [Temporal recovery runbook](https://github.com/Kasitek-Labs/kasitek-agents/blob/main/docs/runbooks/temporal-recovery.md), and
 this plan. Public API documentation is not applicable because the changed Core route is internal.
 
 Validation evidence: 21 focused provider/reconciliation tests passed; the full Agents suite passed

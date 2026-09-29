@@ -16,7 +16,7 @@ description: First Agent Platform implementation chunk for the one-agent runtime
 
 **Risk:** High
 
-**Canonical plan:** [`AGENT_PLATFORM_IMPLEMENTATION_PLAN.md`](../agents/AGENT_PLATFORM_IMPLEMENTATION_PLAN.md)
+**Canonical plan:** [`AGENT_PLATFORM_IMPLEMENTATION_PLAN.md`](https://github.com/Kasitek-Labs/kasitek-agents/blob/main/docs/plans/agents/AGENT_PLATFORM_IMPLEMENTATION_PLAN.md)
 
 **Canonical packages:** P00, P00B, and P02. This document is the first executable implementation
 chunk derived from those packages.

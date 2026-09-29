@@ -22,7 +22,7 @@ description: Dedicated implementation plan for durable, provider-aware context m
 
 **Studio visual handoff:** [`Studio runtime observatory and promotion update`](./AGENT_STUDIO_RUNTIME_OBSERVATORY_UPDATE_PLAN.md)
 
-**Research record:** [`Hermes context and runtime telemetry research`](../agents/HERMES_CONTEXT_AND_RUNTIME_TELEMETRY_RESEARCH.md)
+**Research record:** [`Hermes context and runtime telemetry research`](https://github.com/Kasitek-Labs/kasitek-agents/blob/main/docs/plans/agents/HERMES_CONTEXT_AND_RUNTIME_TELEMETRY_RESEARCH.md)
 
 ## Objective
 
@@ -130,7 +130,7 @@ behaviour to KasiTek's Temporal, PostgreSQL, RLS, fencing, provider adapters, an
 We do not transplant code or assume Hermes's in-process object identity is durable.
 
 The decision record below uses the behavior and recommendations documented in
-[`HERMES_CONTEXT_AND_RUNTIME_TELEMETRY_RESEARCH.md`](../agents/HERMES_CONTEXT_AND_RUNTIME_TELEMETRY_RESEARCH.md).
+[`HERMES_CONTEXT_AND_RUNTIME_TELEMETRY_RESEARCH.md`](https://github.com/Kasitek-Labs/kasitek-agents/blob/main/docs/plans/agents/HERMES_CONTEXT_AND_RUNTIME_TELEMETRY_RESEARCH.md).
 Each source row has an explicit decision. `Adopt` means the runtime should preserve the behavior.
 `Adapt` means the behavior belongs in KasiTek but must use durable, provider-aware contracts.
 `Reject` means the Hermes implementation detail or assumption must not enter the runtime.
@@ -352,7 +352,7 @@ memory adapter handoff, and real Playground certification remain open.
   research record already documents the rejected process-local identity, hardcoded-capacity,
   raw-prompt, and cumulative-usage behaviors, so no separate research correction was required.
   Evidence: the decision matrix in this section and
-  `docs/plans/agents/HERMES_CONTEXT_AND_RUNTIME_TELEMETRY_RESEARCH.md`.
+  [`HERMES_CONTEXT_AND_RUNTIME_TELEMETRY_RESEARCH.md`](https://github.com/Kasitek-Labs/kasitek-agents/blob/main/docs/plans/agents/HERMES_CONTEXT_AND_RUNTIME_TELEMETRY_RESEARCH.md).
 
 **Manual check:** inspect a single admitted run and identify one owner for its context decision;
 there must be no second caller inventing a different token limit.

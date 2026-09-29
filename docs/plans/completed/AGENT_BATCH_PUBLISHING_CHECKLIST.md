@@ -184,7 +184,7 @@ Status markers: `[x]` complete, `[~]` implemented in part with a named follow-up
 - [ ] Add dashboards or queries for batch and target failure rates.
 - [ ] Add alerts for queue age, unknown outcomes, repeated provider failures, and duplicate-safety
       violations.
-- [x] Update `docs/internal/architecture/agent-workflow-execution.md` with batch approval and
+- [x] Update [Agent workflow execution docs](https://github.com/Kasitek-Labs/kasitek-agents/blob/main/docs/architecture/workflow-execution.md) with batch approval and
       durable execution semantics.
 - [x] Update `docs/internal/architecture/agent-media-harness.md` with batch media preflight and
       per-target delivery behavior.

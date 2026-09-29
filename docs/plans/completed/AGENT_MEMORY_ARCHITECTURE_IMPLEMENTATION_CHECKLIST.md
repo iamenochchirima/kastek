@@ -10,7 +10,7 @@ description: End-to-end execution checklist for the Agent Memory Architecture an
 
 **Status:** Non-Studio backend M0-M6 implementation and integrity hardening complete locally; release/cutover gates remain
 
-**Plan:** [`AGENT_MEMORY_ARCHITECTURE_AND_IMPLEMENTATION_PLAN.md`](../agents/AGENT_MEMORY_ARCHITECTURE_AND_IMPLEMENTATION_PLAN.md)
+**Plan:** [`AGENT_MEMORY_ARCHITECTURE_AND_IMPLEMENTATION_PLAN.md`](https://github.com/Kasitek-Labs/kasitek-agents/blob/main/docs/plans/agents/AGENT_MEMORY_ARCHITECTURE_AND_IMPLEMENTATION_PLAN.md)
 
 **Owner:** Agent Platform
 
@@ -90,8 +90,8 @@ Read the relevant sections directly from the checkout at
 
 Before touching the matching KasiTek module, read:
 
-- `docs/plans/agents/HERMES_WAKU_MEMORY_RESEARCH.md` — consolidated findings and target architecture;
-- [`AGENT_MEMORY_ARCHITECTURE_AND_IMPLEMENTATION_PLAN.md`](../agents/AGENT_MEMORY_ARCHITECTURE_AND_IMPLEMENTATION_PLAN.md)
+- [`HERMES_WAKU_MEMORY_RESEARCH.md`](https://github.com/Kasitek-Labs/kasitek-agents/blob/main/docs/plans/agents/HERMES_WAKU_MEMORY_RESEARCH.md) — consolidated findings and target architecture;
+- [`AGENT_MEMORY_ARCHITECTURE_AND_IMPLEMENTATION_PLAN.md`](https://github.com/Kasitek-Labs/kasitek-agents/blob/main/docs/plans/agents/AGENT_MEMORY_ARCHITECTURE_AND_IMPLEMENTATION_PLAN.md)
   — authoritative M0-M6 contracts and exit gates;
 - `agents/src/memory/lifecycle.ts` — current policy and write lifecycle;
 - `agents/src/memory/retrieval.ts` — current retrieval decision and hybrid search;
@@ -659,8 +659,8 @@ external release approval remain open.
       are specified in the memory observability runbook; notification routing and staging proof
       remain open.
 - [x] Update internal architecture documentation and operator runbooks. Updated
-      `docs/internal/architecture/agent-workflow-execution.md` and
-      `docs/internal/runbooks/agent-memory-safety.md` for the v2 contracts and recovery rules.
+      [Agent workflow execution docs](https://github.com/Kasitek-Labs/kasitek-agents/blob/main/docs/architecture/workflow-execution.md) and
+      [Memory safety runbook](https://github.com/Kasitek-Labs/kasitek-agents/blob/main/docs/runbooks/memory-safety.md) for the v2 contracts and recovery rules.
 - [x] Update API and public documentation only for behaviour enabled in the release. The public
       Agent REST guide now documents the versioned lifecycle, scope/readiness filtering,
       checkpoint, legal-hold, provider-confirmation, and rollout semantics; release-specific
