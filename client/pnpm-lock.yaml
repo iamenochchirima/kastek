@@ -33,7 +33,7 @@ importers:
         version: 16.3.1(@babel/core@7.29.0)(@playwright/test@1.62.1)(@types/node@20.19.33)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       next-auth:
         specifier: 5.0.0-beta.30
-        version: 5.0.0-beta.30(next@16.3.1(@playwright/test@1.62.1)(@types/node@20.19.33)(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(nodemailer@7.0.7)(react@19.2.3)
+        version: 5.0.0-beta.30(next@16.3.1(@babel/core@7.29.0)(@playwright/test@1.62.1)(@types/node@20.19.33)(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(nodemailer@7.0.7)(react@19.2.3)
       nodemailer:
         specifier: ^7.0.7
         version: 7.0.7
@@ -64,7 +64,7 @@ importers:
         version: 9.39.2(jiti@2.6.1)
       eslint-config-next:
         specifier: 16.1.6
-        version: 16.1.6(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3)
+        version: 16.1.6(@typescript-eslint/parser@8.55.0(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3))(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3)
       tailwindcss:
         specifier: ^4
         version: 4.1.18
@@ -174,49 +174,6 @@ importers:
       '@playwright/test':
         specifier: ^1.62.1
         version: 1.62.1
-      '@tailwindcss/postcss':
-        specifier: ^4
-        version: 4.1.18
-      '@types/node':
-        specifier: ^20
-        version: 20.19.33
-      '@types/react':
-        specifier: ^19
-        version: 19.2.14
-      '@types/react-dom':
-        specifier: ^19
-        version: 19.2.3(@types/react@19.2.14)
-      eslint:
-        specifier: ^9
-        version: 9.39.2(jiti@2.6.1)
-      eslint-config-next:
-        specifier: 16.1.6
-        version: 16.1.6(@typescript-eslint/parser@8.55.0(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3))(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3)
-      tailwindcss:
-        specifier: ^4
-        version: 4.1.18
-      typescript:
-        specifier: ^5
-        version: 5.9.3
-
-  apps/labs:
-    dependencies:
-      libphonenumber-js:
-        specifier: ^1.13.12
-        version: 1.13.12
-      lucide-react:
-        specifier: ^0.577.0
-        version: 0.577.0(react@19.2.3)
-      next:
-        specifier: 16.3.1
-        version: 16.3.1(@babel/core@7.29.0)(@playwright/test@1.62.1)(@types/node@20.19.33)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
-      react:
-        specifier: 19.2.3
-        version: 19.2.3
-      react-dom:
-        specifier: 19.2.3
-        version: 19.2.3(react@19.2.3)
-    devDependencies:
       '@tailwindcss/postcss':
         specifier: ^4
         version: 4.1.18
@@ -2990,9 +2947,6 @@ packages:
   levn@0.4.1:
     resolution: {integrity: sha512-+bT2uH4E5LGE7h/n3evcS/sQlJXCpIp6ym8OWJ5eV6+67Dsql/LaaT7qJBAt2rzfoa/5QBGBhxDix1dMt2kQKQ==}
     engines: {node: '>= 0.8.0'}
-
-  libphonenumber-js@1.13.12:
-    resolution: {integrity: sha512-uLVeV1c9OTk6qkdqnj+mpMD+ZdnZ0szVyWu58HwMmpwkHA1gCEkyjd3veZQXDnuw9KEwSRjcc9B1pS9XKIN1fA==}
 
   lightningcss-android-arm64@1.30.2:
     resolution: {integrity: sha512-BH9sEdOCahSgmkVhBLeU7Hc9DWeZ1Eb6wNS6Da8igvUwAe0sqROHddIlvU06q3WyXVEOYDZ6ykBZQnjTbmo4+A==}
@@ -7020,8 +6974,6 @@ snapshots:
       prelude-ls: 1.2.1
       type-check: 0.4.0
 
-  libphonenumber-js@1.13.12: {}
-
   lightningcss-android-arm64@1.30.2:
     optional: true
 
@@ -7519,7 +7471,7 @@ snapshots:
 
   natural-compare@1.4.0: {}
 
-  next-auth@5.0.0-beta.30(next@16.3.1(@playwright/test@1.62.1)(@types/node@20.19.33)(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(nodemailer@7.0.7)(react@19.2.3):
+  next-auth@5.0.0-beta.30(next@16.3.1(@babel/core@7.29.0)(@playwright/test@1.62.1)(@types/node@20.19.33)(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(nodemailer@7.0.7)(react@19.2.3):
     dependencies:
       '@auth/core': 0.41.0(nodemailer@7.0.7)
       next: 16.3.1(@babel/core@7.29.0)(@playwright/test@1.62.1)(@types/node@20.19.33)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)

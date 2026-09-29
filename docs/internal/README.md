@@ -25,6 +25,8 @@ This is the canonical home for private Kasitek documentation.
 - [Observability](./operations/observability.md)
 - [Agent Platform technical docs](https://github.com/Kasitek-Labs/kasitek-agents/blob/main/docs/README.md)
 - [Documentation Maintenance](./operations/documentation-maintenance.md)
+- [Agent Platform implementation plan](https://github.com/Kasitek-Labs/kasitek-agents/blob/main/docs/plans/agents/AGENT_PLATFORM_IMPLEMENTATION_PLAN.md)
+- [Agent runtime host boundary](./architecture/agent-host-boundary.md)
 - [Shared workspace email connections](./architecture/shared-workspace-email-connections.md)
 
 ## Structure
@@ -34,11 +36,13 @@ This is the canonical home for private Kasitek documentation.
 - `development/`: repository and local-development guidance
 - `operations/`: release, environment, versioning, observability, and documentation procedures
 - `runbooks/`: step-by-step operational playbooks
-- `docs/plans/`: Growth repository implementation plans
+- `docs/plans/`: Growth planning material and historical records; Agent Platform plans live in the
+  [Agents repository](https://github.com/Kasitek-Labs/kasitek-agents/tree/main/docs/plans/agents)
 - `docs/archive/legacy/`: historical or superseded material, not current guidance
 
 ## Notes
 
-- This site contains current technical and operational guidance only.
+- This site contains current Growth technical and operational guidance only.
 - Work items and short checklists belong in the selected issue tracker and linked pull requests.
-  Former active plans are preserved under `docs/plans/parked/`.
+  Former active plans are preserved under `docs/plans/parked/`. Agent runtime behavior and its
+  current architecture index belong to the Agents repository.

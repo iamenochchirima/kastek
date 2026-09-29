@@ -16,9 +16,9 @@ description: Second Agent Platform implementation chunk for adopting Hermes-insp
 
 **Depends on:** [`Agent Platform Host Boundary and Runtime Restructure`](./AGENT_PLATFORM_HOST_BOUNDARY_RESTRUCTURE_PLAN.md)
 
-**Canonical plan:** [`AGENT_PLATFORM_IMPLEMENTATION_PLAN.md`](../agents/AGENT_PLATFORM_IMPLEMENTATION_PLAN.md)
+**Canonical plan:** [`AGENT_PLATFORM_IMPLEMENTATION_PLAN.md`](https://github.com/Kasitek-Labs/kasitek-agents/blob/main/docs/plans/agents/AGENT_PLATFORM_IMPLEMENTATION_PLAN.md)
 
-**Related research:** `docs/plans/agents/AGENT_HERMES_ARCHITECTURE_RESEARCH.md`
+**Related research:** [`AGENT_HERMES_ARCHITECTURE_RESEARCH.md`](https://github.com/Kasitek-Labs/kasitek-agents/blob/main/docs/plans/agents/AGENT_HERMES_ARCHITECTURE_RESEARCH.md)
 
 **Mapped packages:** P01, P03, P05, P08, P09, P09B, P10, P14
 

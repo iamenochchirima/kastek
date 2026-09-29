@@ -92,7 +92,6 @@ pnpm --dir client run dev:admin
 | Core API | 4000 | `/health/live`, `/health/ready` where enabled |
 | Client | 3000 | browser application |
 | Admin | 3001 | browser application |
-| Labs | 3007 | browser application |
 
 The launcher is the authoritative list for local service names and ports. If an individual
 service changes its port, update the launcher and this table together.

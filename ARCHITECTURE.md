@@ -14,15 +14,14 @@ the extracted services.
 | --- | --- | --- |
 | `client/apps/client/` | Main Next.js client, including campaigns, contacts, inbox, content, calendar, bookings, analytics, workspace, billing, and Kāsiai. | Contains Growth routes, the app shell, and product-side Agent integrations. |
 | `client/apps/admin/` | Next.js admin application with agency, lead, outreach, quotation, invoice, operations, analytics, and access routes. | Contains the Growth Admin provisioning client for Agency. |
-| `client/apps/labs/` | Separate Next.js app package. | Product UI package. |
 | `client/packages/` | Shared database package. | Used by the client applications in this repository. |
-| `Kasitek-Labs/kasitek-agents` | Agent API, gateway, workers, runtime, migrations, management UI, and Temporal integration. | Agent Platform source owner; Growth consumes its API. |
+| [`kasitek-agents`](https://github.com/Kasitek-Labs/kasitek-agents) | Agent API, gateway, workers, runtime, migrations, management UI, and Temporal integration. | Agent Platform source owner; Growth consumes its API. |
 | `server/kasitek-core/` | Rust Core service. | Core API and its service-owned modules. |
-| Labs repository (`services/analytics/`) | Analytics API, worker, contracts, migrations, and reporting implementation. | Labs owns the source; Growth retains product publishers and outboxes. Deployment cutover is separate work. |
+| [`kasitek-labs`](https://github.com/Kasitek-Labs/kasitek-labs) | Labs website, Analytics API and worker, contracts, migrations, reporting, and OpenTelemetry Collector. | Labs owns these implementations; Growth retains product publishers and outboxes. Deployment cutover is separate work. |
 | `server/crates/` | Rust crates used by server workspace members. | Includes shared configuration, observability, security, and analytics packages. |
-| `scripts/`, `infra/` | Local development, verification, and infrastructure support. | Includes service-specific scripts and infrastructure definitions. |
+| `scripts/`, `.github/workflows/` | Growth local development and verification automation. | Service-specific automation belongs with its owning service. |
 | `docs/` | User and internal technical documentation. | Documents current repository behavior and interfaces. |
-| Agency repository | Tenant API, migrations, portal, portal-only API client, and tenant-owned configuration. | Agency owns this white-label product source; Growth Admin retains its provisioning client. |
+| [`kasitek-agency`](https://github.com/Kasitek-Labs/kasitek-agency) | Tenant API, migrations, portal, portal-only API client, and tenant-owned configuration. | Agency owns this white-label product source; Growth Admin retains its provisioning client. |
 
 The Agency tenant API, migrations, analytics publisher, and portal are not present in this
 checkout. Agency source lives in `Kasitek-Labs/kasitek-agency`; Growth Admin retains the

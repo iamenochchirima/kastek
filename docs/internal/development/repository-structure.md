@@ -19,10 +19,9 @@ integration work is approved.
 | --- | --- |
 | `client/apps/client`, `client/apps/admin` | Growth product interfaces |
 | `client/packages/database` | Growth client database package |
-| `client/apps/labs` | Labs-branded site source; its source move is tracked separately |
 | `server/kasitek-core/` | Core runtime, Core-owned business capabilities, and Core database |
 | [`kasitek-agents`](https://github.com/Kasitek-Labs/kasitek-agents) | Agent API, worker, MCP gateway, Temporal workflows, migrations, contracts, and Agent Platform UI |
-| [`kasitek-labs`](https://github.com/Kasitek-Labs/kasitek-labs) | Analytics API, worker, schemas, migrations, and OpenTelemetry Collector source/configuration |
+| [`kasitek-labs`](https://github.com/Kasitek-Labs/kasitek-labs) | Labs website, Analytics API and worker, schemas, migrations, and OpenTelemetry Collector source/configuration |
 | [`kasitek-agency`](https://github.com/Kasitek-Labs/kasitek-agency) | White-label tenant API, migrations, portal, and tenant-owned workers |
 | `server/crates/` | Shared Rust libraries used by Growth services |
 | `scripts/`, `.github/workflows/` | Growth-owned local, release, migration, and verification automation only; service-specific automation belongs with its service |
@@ -30,6 +29,9 @@ integration work is approved.
 | `docs/internal/` | Current private Growth technical documentation site source |
 | `docs/plans/` | Temporary implementation plans and checklists, outside the documentation sites |
 | `docs/archive/` | Historical or superseded material retained for reference |
+
+The Labs website, Analytics service, and OpenTelemetry Collector source live in the Labs
+repository. Growth retains product-side publishers and integrations where they are still needed.
 
 ## Ownership boundaries
 

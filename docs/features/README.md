@@ -36,11 +36,6 @@ reports routes. Start the Admin app using the command in Local Development, then
 and API calls for the task being changed. The existence of these routes does not settle whether
 Admin belongs in Growth or another product/repository.
 
-## Other apps
-
-- `client/apps/labs/` is a separate app package. Its user-facing feature inventory has not yet
-  been confirmed in this setup.
-
 ## Map rules
 
 - Add or change a feature entry in the same pull request as shipped user behavior.

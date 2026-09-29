@@ -33,7 +33,7 @@ workstream and must not duplicate the tool dispatcher.
 
 - [`Hermes and Waku tool-calling runtime investigation`](../../research/HERMES_WAKU_TOOL_CALLING_RUNTIME.md)
 - [`Hermes and Waku session context decisions`](../../research/HERMES_WAKU_SESSION_CONTEXT_DECISIONS.md)
-- [`Hermes architecture research`](../agents/AGENT_HERMES_ARCHITECTURE_RESEARCH.md)
+- [`Hermes architecture research`](https://github.com/Kasitek-Labs/kasitek-agents/blob/main/docs/plans/agents/AGENT_HERMES_ARCHITECTURE_RESEARCH.md)
 - Local Hermes checkout at `/home/enoch/aworkspace/agents/hermes-agent`.
 
 ## Objective
@@ -90,12 +90,12 @@ The following source locations are the implementation map for this contract:
 
 | Area | Current KasiTek code | Required implementation direction |
 | --- | --- | --- |
-| Cross-request load | [`activities.ts:3887`](../../../agents/src/temporal/activities.ts:3887) loads display conversation messages and [`activities.ts:3896`](../../../agents/src/temporal/activities.ts:3896) loads a separate summary. | Replace this split read with one canonical active-transcript projection. The summary cannot be an alternative context source. |
-| Compaction | [`activities.ts:3922`](../../../agents/src/temporal/activities.ts:3922) invokes durable compaction, while [`activities.ts:3996`](../../../agents/src/temporal/activities.ts:3996) currently treats it as an evidence/checkpoint artifact. | Make the committed checkpoint and active cursor drive the next provider projection. Keep the complete transcript as the source of truth. |
-| Loop input | [`activities.ts:4724`](../../../agents/src/temporal/activities.ts:4724) passes `loopCheckpoint.messages` or `context.sourceMessages` into the loop. | Those messages must come from the canonical active projection, not a per-run reconstruction or stale checkpoint. |
-| In-run growth | [`loop.ts:313`](../../../agents/src/runtime/loop.ts:313) creates the mutable request-local array; [`loop.ts:1121`](../../../agents/src/runtime/loop.ts:1121) and [`loop.ts:1334`](../../../agents/src/runtime/loop.ts:1334) append model/tool messages. | Preserve this within-turn behavior, but persist the same typed entries so the next turn can reload them. |
-| Current summary shortcut | [`summary-repository.ts:55`](../../../agents/src/db/repositories/summary-repository.ts:55) rebuilds from only the last 40 messages and truncates to 4,000 characters. | Retire this as the active model-context mechanism. A summary may be a compaction checkpoint only when produced and committed under the canonical compaction contract. |
-| Loop checkpoint | [`activities.ts:4990`](../../../agents/src/temporal/activities.ts:4990) persists a loop checkpoint only for step execution. | Checkpoints may accelerate recovery, but they cannot be the only place where model-visible messages survive. |
+| Cross-request load | [`activities.ts:3887`](https://github.com/Kasitek-Labs/kasitek-agents/blob/main/src/temporal/activities.ts#L3887) loads display conversation messages and [`activities.ts:3896`](https://github.com/Kasitek-Labs/kasitek-agents/blob/main/src/temporal/activities.ts#L3896) loads a separate summary. | Replace this split read with one canonical active-transcript projection. The summary cannot be an alternative context source. |
+| Compaction | [`activities.ts:3922`](https://github.com/Kasitek-Labs/kasitek-agents/blob/main/src/temporal/activities.ts#L3922) invokes durable compaction, while [`activities.ts:3996`](https://github.com/Kasitek-Labs/kasitek-agents/blob/main/src/temporal/activities.ts#L3996) currently treats it as an evidence/checkpoint artifact. | Make the committed checkpoint and active cursor drive the next provider projection. Keep the complete transcript as the source of truth. |
+| Loop input | [`activities.ts:4724`](https://github.com/Kasitek-Labs/kasitek-agents/blob/main/src/temporal/activities.ts#L4724) passes `loopCheckpoint.messages` or `context.sourceMessages` into the loop. | Those messages must come from the canonical active projection, not a per-run reconstruction or stale checkpoint. |
+| In-run growth | [`loop.ts:313`](https://github.com/Kasitek-Labs/kasitek-agents/blob/main/src/runtime/loop.ts#L313) creates the mutable request-local array; [`loop.ts:1121`](https://github.com/Kasitek-Labs/kasitek-agents/blob/main/src/runtime/loop.ts#L1121) and [`loop.ts:1334`](https://github.com/Kasitek-Labs/kasitek-agents/blob/main/src/runtime/loop.ts#L1334) append model/tool messages. | Preserve this within-turn behavior, but persist the same typed entries so the next turn can reload them. |
+| Current summary shortcut | [`summary-repository.ts:55`](https://github.com/Kasitek-Labs/kasitek-agents/blob/main/src/db/repositories/summary-repository.ts#L55) rebuilds from only the last 40 messages and truncates to 4,000 characters. | Retire this as the active model-context mechanism. A summary may be a compaction checkpoint only when produced and committed under the canonical compaction contract. |
+| Loop checkpoint | [`activities.ts:4990`](https://github.com/Kasitek-Labs/kasitek-agents/blob/main/src/temporal/activities.ts#L4990) persists a loop checkpoint only for step execution. | Checkpoints may accelerate recovery, but they cannot be the only place where model-visible messages survive. |
 
 Hermes source references that define the target behavior are:
 
@@ -118,7 +118,7 @@ provider: KasiTek currently keeps a useful working transcript inside one loop ex
 not persist that complete transcript as the canonical source for the next user request.
 
 The current path loads conversation display rows in
-`agents/src/temporal/activities.ts`, while `run-repository.ts` primarily persists the final
+Agents `src/temporal/activities.ts`, while `run-repository.ts` primarily persists the final
 outbound response. Intermediate assistant tool calls and tool results live in model/tool audit
 records and are not reliably reconstructed into the next model request. Compaction records exist,
 but the active prompt still uses a separate conversation summary path. This creates a reset after
@@ -410,7 +410,7 @@ Resolution and verification:
 - The configured real-provider test now passes 1/1 against the local Temporal server. It exercised
   model dispatch, a real `test.real_read` tool proposal, durable prepare/execute/commit, and the
   continuation after the active checkpoint. The earlier `no_progress` failure is resolved.
-- Shared-worktree note: the caller change is currently visible in `agents/src/temporal/activities.ts`
+- Shared-worktree note: the caller change was visible in Agents `src/temporal/activities.ts`
   alongside the context agent's existing edits and is intentionally not independently staged;
   preserve that file and the related context test changes when Task B resumes. The same file also
   contains the approval-runtime guard that skips the legacy per-operation approval insert when
