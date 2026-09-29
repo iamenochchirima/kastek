@@ -4,6 +4,7 @@ title: Customer analytics value plan
 status: Draft planning document
 owner: Product, Core, and Analytics
 last_updated: 2026-09-03
+last_reviewed: 2026-09-29
 ---
 
 # Customer analytics value plan
@@ -392,5 +393,5 @@ Post-release review date: TBD, within 14 days of production release
 
 - [Customer analytics architecture](../../internal/architecture/customer-analytics.md)
 - [Agent platform architecture audit](../../../AGENT_PLATFORM_ARCHITECTURE_AUDIT.md)
-- [Analytics metric definitions](../../../server/kasitek-analytics/metrics/)
+- [Analytics metric definitions](https://github.com/Kasitek-Labs/kasitek-labs/tree/main/services/analytics/metrics)
 - [Feature and platform release process](../../internal/operations/release-process.md)

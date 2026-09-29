@@ -3,7 +3,7 @@ id: release-process
 title: Feature and Platform Release Process
 sidebar_position: 2
 owner: platform-ops
-last_reviewed: 2026-08-26
+last_reviewed: 2026-09-29
 ---
 
 # Feature and Platform Release Process
@@ -141,9 +141,9 @@ This snapshot records the gaps that need follow-up work:
 | Release process | `docs/archive/deferred-plans/CI_CD_RELEASE_PLAN.md` contains a detailed target CI/CD and deployment model. | It is still marked draft/not started, and there is no general PR release gate. |
 | Platform versioning | The canonical `VERSION` file, read-only validator, and CI tag check now exist; Agent versions are also a product-domain concept. | Release tags, runtime version metadata, artifact manifests, and promotion/rollback automation are still missing. |
 | Logging | Rust and Agents now share a server-side OpenTelemetry contract, structured stdout fallback, bounded correlation IDs, redaction, HTTP/worker/provider spans, and Collector profiles. | A durable destination, retention, access control, dashboards, alerts, and hosted staging evidence are still missing; browser telemetry remains out of scope. |
-| Analytics | Analytics has versioned event contracts, registries, outboxes, metrics, and validation. | Feature work is not required to declare its events and success metrics, and analytics readiness is not a general release gate. |
+| Analytics | Labs owns the Analytics service contracts, registries, and metrics; Growth retains product-owned event producers and outboxes. | Feature work is not required to declare its events and success metrics, and analytics readiness is not a general release gate. |
 | Documentation | Public and internal Docusaurus sites now have separated current source trees, plan/archive boundaries, source-of-truth rules, and generated-output cleanup. | Per-document owner/review metadata and the remaining content-by-content stale-document audit still need to be completed. |
-| CI/CD | An Analytics-specific workflow exists. | General repository CI, staging deployment, production promotion, release metadata, and tested rollback workflows are not checked in. |
+| CI/CD | Growth's Analytics-specific workflow was removed with Analytics source ownership; workflows remain repository-specific. | Cross-repository CI, staging deployment, production promotion, release metadata, and tested rollback workflows are not checked in. |
 | Rollout | The CI/CD plan describes desired staging, approval, and rollback behavior. | There is no shared feature-flag, canary, rollback, or post-release monitoring standard implemented across services. |
 
 ## Recommended follow-up order

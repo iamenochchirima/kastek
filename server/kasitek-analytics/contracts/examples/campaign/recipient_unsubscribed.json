@@ -1,9 +1,0 @@
-{
-  "campaign_id": "campaign_01HZX92R1A",
-  "recipient_id": "recipient_01HZX93P6E",
-  "channel": "whatsapp",
-  "provider": "meta",
-  "occurred_at": "2026-08-24T10:10:05Z",
-  "status": "unsubscribed",
-  "unsubscribe_source": "keyword"
-}

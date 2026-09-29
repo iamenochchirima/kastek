@@ -4,7 +4,7 @@ title: Customer Analytics Display Semantics
 slug: /architecture/customer-analytics
 sidebar_position: 7
 owner: engineering
-last_reviewed: 2026-09-03
+last_reviewed: 2026-09-29
 ---
 
 # Customer Analytics Display Semantics
@@ -47,6 +47,7 @@ not be converted into a successful empty report, because doing so would hide rep
 
 ## Ownership
 
-The Analytics service owns aggregation and source-state calculation. The client owns the
-presentation rule above and must apply it consistently across Connections, Campaigns, Inbox, Agent
-analytics, the workspace overview, and the analytics playground.
+The Labs-owned Analytics service owns aggregation and source-state calculation. The Growth client
+owns the presentation rule above and must apply it consistently across Connections, Campaigns,
+Inbox, Agent analytics, the workspace overview, and the analytics playground. The service/client
+connection is a separate integration follow-up to the repository source move.

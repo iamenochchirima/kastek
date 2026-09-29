@@ -1,5 +1,7 @@
 # tenant-server
 
+_Owner: engineering · Last reviewed: 2026-09-29_
+
 Separate Rust backend for white-label tenant services.
 
 Initial scope:
@@ -39,9 +41,11 @@ Useful auth and portal settings:
 - `TENANT_CLIENT_SESSION_TTL_HOURS`
 - `TENANT_INVITE_TTL_HOURS`
 
-Analytics publication is a separate worker process. To enable it, set these values in the Tenant
-service environment; the token must match the `tenant-platform` credential configured in the
-Analytics service:
+Analytics publication is a product-owned worker process. The Tenant outbox and publisher remain in
+Growth; the receiving Analytics service is owned by Labs. Reconnecting and verifying delivery is
+separate work. To configure a future connection, set these values in the Tenant service
+environment; the token must match the `tenant-platform` credential configured by the
+[Labs Analytics service](https://github.com/Kasitek-Labs/kasitek-labs/tree/main/services/analytics):
 
 - `ANALYTICS_INGESTION_URL` (default `http://127.0.0.1:4300`)
 - `ANALYTICS_TENANT_INGESTION_TOKEN`
@@ -66,7 +70,7 @@ This starts the Tenant API on `8090` and the tenant portal on `3010`. The tenant
 be available on local PostgreSQL. The launcher uses `KASITEK_LOCAL_TENANT_DATABASE_URL` when set;
 otherwise it derives the local `kasitek_tenants` database from the loopback `AGENTS_DATABASE_URL`
 and creates that database if it is absent. It never falls back to the generic `DATABASE_URL` or
-starts the separate Analytics service.
+starts the Analytics service.
 
 Expected flow:
 

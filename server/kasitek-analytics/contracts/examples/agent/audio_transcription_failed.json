@@ -1,9 +1,0 @@
-{
-  "job_id": "job_01HZX8Z2D4",
-  "provider": "elevenlabs",
-  "channel": "whatsapp",
-  "error_code": "AUDIO_TRANSCRIPTION_TIMEOUT",
-  "retryable": true,
-  "attempt": 2,
-  "occurred_at": "2026-08-27T10:01:00Z"
-}

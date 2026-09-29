@@ -6,6 +6,8 @@
 
 **Research date:** 2026-09-05
 
+**Last reviewed:** 2026-09-29
+
 This note investigates how customer-facing SaaS analytics are commonly organized across overview
 dashboards, section pages, detail views, and operator diagnostics. It is a planning input only. It
 does not authorize code, schema, registry, API, or UI changes.
@@ -429,7 +431,7 @@ clear hierarchy.
 | Campaigns | [`campaigns-page-client.tsx`](../../../client/apps/client/src/components/dashboard/campaigns/campaigns-page-client.tsx) | Eleven metrics spanning recipient outcomes, delivery, delay, retry, suppression, and pricing | Outcome metrics and operational counters need separate treatment. |
 | Agents | [`AgentAnalyticsPanel`](../../../client/apps/client/src/components/dashboard/agents/agent-analytics-panel.tsx) and [`/agents/analytics`](<../../../client/apps/client/src/app/(dashboard)/agents/analytics/page.tsx>) | Agent runs, model calls, tokens, cost, tools, approvals, effects, schedules, installations, versions, readiness, conversations, and handoffs | The current list is useful for agent owners and operators, but too broad for a default customer view. |
 | Content | [`AnalyticsDashboard`](../../../client/apps/client/src/components/social/analytics-dashboard.tsx) and [`/content/analytics`](<../../../client/apps/client/src/app/(dashboard)/content/analytics/page.tsx>) | Publishing status, connected channels, WhatsApp campaign totals, and social post insights | Publishing workflow state and content performance should be related but distinct reports. |
-| Registry and overview set | [`metrics/`](../../../server/kasitek-analytics/metrics/), [`overview.summary.yaml`](../../../server/kasitek-analytics/metrics/metric-sets/overview.summary.yaml), and [`agent.performance.yaml`](../../../server/kasitek-analytics/metrics/metric-sets/agent.performance.yaml) | Versioned definitions, metric sets, dimensions, freshness, coverage, and permissions | The registry is a useful foundation. The UI needs curated surface-specific allowlists rather than broad set expansion. |
+| Registry and overview set | [`metrics/`](https://github.com/Kasitek-Labs/kasitek-labs/tree/main/services/analytics/metrics), [`overview.summary.yaml`](https://github.com/Kasitek-Labs/kasitek-labs/blob/main/services/analytics/metrics/metric-sets/overview.summary.yaml), and [`agent.performance.yaml`](https://github.com/Kasitek-Labs/kasitek-labs/blob/main/services/analytics/metrics/metric-sets/agent.performance.yaml) | Versioned definitions, metric sets, dimensions, freshness, coverage, and permissions | The registry is a useful foundation. The UI needs curated surface-specific allowlists rather than broad set expansion. |
 | Diagnostics | [`AnalyticsPlayground`](../../../client/apps/client/src/components/analytics/analytics-playground.tsx) and [`/analytics/playground`](<../../../client/apps/client/src/app/(dashboard)/analytics/playground/page.tsx>) | Catalog inspection, raw report queries, and data-quality evidence | This is the right home for technical evidence. It should remain separate from customer defaults. |
 
 This inventory is based on the current source tree. It is not a complete audit of every admin and

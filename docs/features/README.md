@@ -1,5 +1,7 @@
 # Feature map
 
+_Owner: engineering · Last reviewed: 2026-09-29_
+
 This is the index of user-facing routes currently present in the repository. It is a map of the
 checkout, not a final product-boundary decision. The repository is being refocused on Growth, but
 Agent Platform and the white-label business product still have code here. Do not treat their
@@ -20,7 +22,7 @@ Routes below are under `client/apps/client/src/app/`.
 | Inbox | `/inbox` | `(dashboard)/inbox/page.tsx` | Run the required local services, open the inbox, and verify the conversation action and resulting state. |
 | Calendar and bookings | `/calendar`, `/bookings` | `(dashboard)/calendar/page.tsx`, `(dashboard)/bookings/page.tsx` | Open the route with the required service and test data available; verify the visible event or booking and its persisted result. |
 | Content | `/content`, `/content/posts`, `/content/calendar`, `/content/history` | `(dashboard)/content/` | Open the relevant route and verify the content state plus the API side effect for the task. |
-| Analytics | `/analytics` | `(dashboard)/analytics/page.tsx` | Run the client and required Analytics services; use the existing Analytics Playwright suite when the change affects its coverage. |
+| Analytics | `/analytics` | `(dashboard)/analytics/page.tsx` | The Growth client requests Analytics catalog and report data through its `/api/analytics` routes. Analytics service source and local setup live in Labs. This source move preserves the Growth client routes and configured endpoint; it does not verify a live report response. |
 | Workspace | `/workspace`, `/workspace/team`, `/workspace/settings`, `/workspace/profile` | `(dashboard)/workspace/` | Open the relevant route with an authorized local account and verify the saved state after navigation or reload. |
 | Billing | `/billing`, `/upgrade` | `(dashboard)/billing/page.tsx`, `(dashboard)/upgrade/page.tsx` | Use a test account and the configured billing test environment; do not use live payment credentials for local verification. |
 | Agent surfaces | `/agents`, `/studio`, `/playground`, `/agents/activity`, `/agents/conversations` | `(dashboard)/agents/`, `(dashboard)/studio/`, `(dashboard)/playground/` | Use the Agent Platform local service group in the development guide. The owner intends Agents to be a separate product; extraction has not happened. |

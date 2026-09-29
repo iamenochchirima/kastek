@@ -1,8 +1,0 @@
-{
-  "connection_id": "ext_connection-123",
-  "provider": "WHATSAPP",
-  "capability": "MESSAGING_INBOUND",
-  "action": "enabled",
-  "enabled": true,
-  "occurred_at": "2026-08-24T10:00:00Z"
-}
