@@ -3,7 +3,7 @@ id: observability
 title: Observability
 sidebar_position: 5
 owner: platform-ops
-last_reviewed: 2026-08-27
+last_reviewed: 2026-09-29
 ---
 
 # Observability
