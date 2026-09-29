@@ -69,7 +69,8 @@ state. The UI view is a snapshot, not the source of truth for a draft, connectio
 
 ## Product workspaces
 
-`agents/src/workflows/product-workflows.ts` is a presentation catalog for the existing product
+[`product-workflows.ts`](https://github.com/Kasitek-Labs/kasitek-agents/blob/main/src/workflows/product-workflows.ts)
+is a presentation catalog for the existing product
 surfaces. It registers the entry route and capability scope for agent creation, social connections,
 content operations, and workspace reporting. It does not execute workflow nodes or persist state.
 Workspace cards open the existing agent editor, OAuth/connection pages, content workspace, or report

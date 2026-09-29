@@ -26,7 +26,6 @@ Routes below are under `client/apps/client/src/app/`.
 | Analytics | `/analytics` | `(dashboard)/analytics/page.tsx` | The Growth client requests Analytics catalog and report data through its `/api/analytics` routes. Analytics service source and local setup live in Labs. This source move preserves the Growth client routes and configured endpoint; it does not verify a live report response. |
 | Workspace | `/workspace`, `/workspace/team`, `/workspace/settings`, `/workspace/profile` | `(dashboard)/workspace/` | Open the relevant route with an authorized local account and verify the saved state after navigation or reload. |
 | Billing | `/billing`, `/upgrade` | `(dashboard)/billing/page.tsx`, `(dashboard)/upgrade/page.tsx` | Use a test account and the configured billing test environment; do not use live payment credentials for local verification. |
-| Agent surfaces | `/agents`, `/studio`, `/playground`, `/agents/activity`, `/agents/conversations` | `(dashboard)/agents/`, `(dashboard)/studio/`, `(dashboard)/playground/` | Use the Agent Platform local service group in the development guide. |
 | Developer surfaces | `/developers`, `/developers/api`, `/developers/cli`, `/developers/mcp` | `(dashboard)/developers/` | Verify against the documented local service and credentials for the specific developer workflow. |
 
 ## Admin app

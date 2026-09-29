@@ -8,33 +8,40 @@ last_reviewed: 2026-09-29
 
 # Repository Structure
 
-The repository is a monorepo. Keep changes in the boundary that owns the behavior and update the
-corresponding contract or documentation when the boundary changes.
+Growth is one product repository in a multi-repository system. Keep Growth-owned product code and
+consumer-side integrations here; each separate product repository owns its service implementation,
+build, and deployment source. A source move may leave an integration disconnected until its later
+integration work is approved.
 
 ## Main areas
 
-| Location / path | Responsibility |
+| Location / repository | Responsibility |
 | --- | --- |
-| `client/` | Frontend workspace, direct client, admin, Labs, and shared packages |
-| `agents/` | Agent API, worker, MCP gateway, Temporal workflows, migrations, and agent contracts |
-| `server/kasitek-core/` | Core product runtime, shared business capabilities, and core database |
-| [Labs Analytics service](https://github.com/Kasitek-Labs/kasitek-labs/tree/main/services/analytics) | Analytics ingestion, registry, reporting, projections, and Analytics database; not built from Growth |
-| `server/crates/` | Shared Rust crates used by server runtimes |
-| `Kasitek-Labs/kasitek-agency` | White-label tenant API, migrations, portal, and tenant-owned workers |
-| `scripts/` | Local stack, environment, release, migration, and verification automation |
-| `docs/public/` | User-facing documentation site source |
-| `docs/internal/` | Current private technical documentation site source |
+| `client/apps/client`, `client/apps/admin` | Growth product interfaces |
+| `client/packages/database` | Growth client database package |
+| `client/apps/labs` | Labs-branded site source; its source move is tracked separately |
+| `server/kasitek-core/` | Core runtime, Core-owned business capabilities, and Core database |
+| [`kasitek-agents`](https://github.com/Kasitek-Labs/kasitek-agents) | Agent API, worker, MCP gateway, Temporal workflows, migrations, contracts, and Agent Platform UI |
+| [`kasitek-labs`](https://github.com/Kasitek-Labs/kasitek-labs) | Analytics API, worker, schemas, migrations, and OpenTelemetry Collector source/configuration |
+| [`kasitek-agency`](https://github.com/Kasitek-Labs/kasitek-agency) | White-label tenant API, migrations, portal, and tenant-owned workers |
+| `server/crates/` | Shared Rust libraries used by Growth services |
+| `scripts/`, `.github/workflows/` | Growth-owned local, release, migration, and verification automation only; service-specific automation belongs with its service |
+| `docs/public/` | User-facing Growth documentation site source |
+| `docs/internal/` | Current private Growth technical documentation site source |
 | `docs/plans/` | Temporary implementation plans and checklists, outside the documentation sites |
 | `docs/archive/` | Historical or superseded material retained for reference |
 
 ## Ownership boundaries
 
-- Core, Agents, Labs Analytics, and Agency use separate data boundaries. Labs owns Analytics;
-  Agency owns the white-label tenant runtime and its tenant data. Do not connect one service
-  directly to another service's database.
+- Core, Agents, Labs Analytics, and Agency own separate service and data boundaries. Do not
+  connect one service directly to another service's database.
 - Cross-service behavior uses an explicit HTTP, event, queue, or shared contract boundary.
 - Growth Admin's tenant provisioning bridge remains a product-side integration and may be
   disconnected until its separately tracked integration work is completed.
+- Growth's Kāsiai assistant remains a product-side Agent API consumer. Agent runtime and
+  management surfaces are owned by `kasitek-agents`; this repository does not own or launch them.
+- Do not keep a second service implementation, service-owned build/deployment wiring, or fallback
+  copy in Growth after the destination repo takes ownership.
 - Frontend packages call supported service APIs or shared client packages; they should not encode
   server persistence rules locally.
 - `docs/internal/` describes current technical behavior. A plan belongs in `docs/plans/`, even if

@@ -2,7 +2,7 @@
 
 import { useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { Bell, Bot, Cable, CalendarDays, ChartColumn, Code2, FileText, FlaskConical, Headphones, LayoutGrid, LayoutTemplate, Moon, PhoneCall, Send, Settings, Sparkles, Sun, Users } from "lucide-react"
+import { Bell, Cable, CalendarDays, ChartColumn, Code2, FileText, LayoutGrid, Moon, PhoneCall, Send, Settings, Sparkles, Sun, Users } from "lucide-react"
 
 import { CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandSeparator, CommandShortcut } from "@/components/ui/command"
 import { applyTheme, resolveStoredTheme, serverThemeSnapshot, subscribeToThemeChange } from "@/lib/theme"
@@ -13,7 +13,6 @@ type CommandPaletteProps = { open: boolean; onOpenChange: (open: boolean) => voi
 const routes = [
   { group: "Workspace", label: "Overview", href: "/workspace", icon: LayoutGrid },
   { group: "Customer", label: "Inbox", href: "/inbox", icon: Bell },
-  { group: "Customer", label: "Live Chat", href: "/agents/conversations", icon: Headphones },
   { group: "Customer", label: "Calls", href: "/calls", icon: PhoneCall },
   { group: "Customer", label: "Contacts", href: "/contacts", icon: Users },
   { group: "Content", label: "Posts", href: "/content", icon: Sparkles },
@@ -21,9 +20,6 @@ const routes = [
   { group: "Content", label: "Analytics", href: "/content/analytics", icon: ChartColumn },
   { group: "Campaigns", label: "Campaigns", href: "/campaigns", icon: Send },
   { group: "Campaigns", label: "Templates", href: "/templates", icon: FileText },
-  { group: "Automation", label: "Agents", href: "/agents", icon: Bot },
-  { group: "Automation", label: "Studio", href: "/studio", icon: FlaskConical },
-  { group: "Automation", label: "Agent templates", href: "/agents/templates", icon: LayoutTemplate },
   { group: "Manage", label: "Developers", href: "/developers", icon: Code2 },
   { group: "Manage", label: "Connections", href: "/connections", icon: Cable },
   { group: "Manage", label: "Workspace settings", href: "/workspace/settings", icon: Settings },

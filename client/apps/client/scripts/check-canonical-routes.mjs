@@ -18,7 +18,6 @@ const requiredRoutes = [
   "content",
   "calendar",
   "analytics",
-  "agents",
   "connections",
   "billing",
 ];

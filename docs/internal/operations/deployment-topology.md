@@ -8,10 +8,13 @@ last_reviewed: 2026-09-29
 
 # Railway Deployment Topology
 
-This document records Railway topology for services still built from Growth. Analytics source and
-build ownership live in Labs; the tenant API and portal live in Agency. This source split does not
-change existing hosted deployments. Deployment cutovers are separate work and are not managed from
-Growth; do not build or redeploy either moved service from this repository.
+This document records the legacy Railway topology configured while these services were still
+owned by the Growth monorepo. It is a snapshot of hosted state, not an instruction to change or
+cut over deployments. Future service deployment configuration belongs in the owning repository;
+deployment cutovers are tracked separately.
+
+Analytics, Agency, and Agent source/build ownership lives in their respective repositories; the
+source moves do not change any existing hosted deployments.
 
 ## Deployment rules
 
@@ -150,8 +153,9 @@ AGENT_PLATFORM_URL=http://${{agents-api.RAILWAY_PRIVATE_DOMAIN}}:4100
 AGENT_GATEWAY_SHARED_SECRET=<same secret in Agents API and Gateway>
 ```
 
-The `agents/src/gateway/stdio.ts` process is a local command-launched bridge for clients that
-require stdio. It is not a hosted Railway service.
+The [`stdio.ts` bridge](https://github.com/Kasitek-Labs/kasitek-agents/blob/main/src/gateway/stdio.ts)
+is a local command-launched process for clients that require stdio. It is not a hosted Railway
+service.
 
 ## Optional services
 

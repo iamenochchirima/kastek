@@ -26,9 +26,10 @@ Agent Temporal activity
 
 The worker charges only when the call uses KasiTek-funded credentials. BYOK model calls do not
 create a Core credit debit. The worker's `CREDIT_BILLING_MODE` is now `enforced` by default; it can
-still be set to `shadow` or `disabled` for a controlled rollout. See
-`agents/README.md` and `agents/src/model/credit-pricing.ts` for the worker configuration and
-pricing decision.
+still be set to `shadow` or `disabled` for a controlled rollout. See the
+[Agents repository README](https://github.com/Kasitek-Labs/kasitek-agents/blob/main/README.md) and
+[credit pricing implementation](https://github.com/Kasitek-Labs/kasitek-agents/blob/main/src/model/credit-pricing.ts)
+for the worker configuration and pricing decision.
 
 Core owns the credit ledger and exposes reserve, capture, and release operations, but the only
 customer-usage call sites found are the internal Agents endpoints in
@@ -91,8 +92,8 @@ That plan is not yet a current-state contract:
 - The plan still describes AI billing rollout as `disabled`, then `shadow`, then `enforced`, while
   the Agents worker now defaults to `enforced`. The configuration and the plan need to be reconciled.
 
-The [Agent Temporal recovery runbook](../runbooks/agent-temporal-recovery.md) documents model-call
-reconciliation and the rule that BYOK calls should not create Core credit events. The
+The [Agent Temporal recovery runbook](https://github.com/Kasitek-Labs/kasitek-agents/blob/main/docs/runbooks/temporal-recovery.md)
+documents model-call reconciliation and the rule that BYOK calls should not create Core credit events. The
 [audio transcription architecture](./audio-transcription.md) explicitly leaves credit treatment as
 a release gate. Neither document covers product-wide charging.
 

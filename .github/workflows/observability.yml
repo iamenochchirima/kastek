@@ -4,17 +4,11 @@ on:
   pull_request:
     paths:
       - ".github/workflows/observability.yml"
-      - "agents/package.json"
-      - "agents/pnpm-lock.yaml"
-      - "agents/src/**"
-      - "agents/scripts/otel-*.ts"
-      - "agents/test/telemetry-*.test.ts"
       - "server/Cargo.toml"
       - "server/Cargo.lock"
       - "server/crates/**"
       - "server/kasitek-core/src/**"
       - "server/kasitek-core/src/main.rs"
-      - "infra/observability/**"
       - "docs/internal/development/local-development.md"
       - "docs/internal/operations/**"
       - "docs/plans/active/OPENTELEMETRY_INFRASTRUCTURE_*.md"
@@ -22,17 +16,11 @@ on:
     branches: [main]
     paths:
       - ".github/workflows/observability.yml"
-      - "agents/package.json"
-      - "agents/pnpm-lock.yaml"
-      - "agents/src/**"
-      - "agents/scripts/otel-*.ts"
-      - "agents/test/telemetry-*.test.ts"
       - "server/Cargo.toml"
       - "server/Cargo.lock"
       - "server/crates/**"
       - "server/kasitek-core/src/**"
       - "server/kasitek-core/src/main.rs"
-      - "infra/observability/**"
       - "docs/internal/development/local-development.md"
       - "docs/internal/operations/**"
       - "docs/plans/active/OPENTELEMETRY_INFRASTRUCTURE_*.md"
@@ -103,39 +91,3 @@ jobs:
           cargo test -p analytics-producer --lib
           cargo test -p analytics-reporting --lib
           cargo test -p kasitek-core --lib
-
-  agents:
-    name: Agents telemetry checks
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
-
-      - name: Install pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 10.30.1
-
-      - name: Install Node
-        uses: actions/setup-node@v4
-        with:
-          node-version-file: .nvmrc
-          cache: pnpm
-          cache-dependency-path: agents/pnpm-lock.yaml
-
-      - name: Install dependencies
-        working-directory: agents
-        run: pnpm install --frozen-lockfile
-
-      - name: Type check
-        working-directory: agents
-        run: pnpm exec tsc -p tsconfig.json --noEmit
-
-      - name: Run Agents tests
-        working-directory: agents
-        run: pnpm test
-
-      - name: Build Agents
-        working-directory: agents
-        run: pnpm run build

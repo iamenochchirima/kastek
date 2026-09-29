@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { Activity, LoaderCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -33,7 +32,6 @@ export function AgentChatRunStatus({
             <span className="truncate">{progress}</span>
             {running ? <LoaderCircle className="h-3.5 w-3.5 shrink-0 animate-spin text-primary" /> : null}
           </div>
-          {runId ? <Link href={`/agents/activity/${encodeURIComponent(runId)}`} className="shrink-0 font-medium text-primary hover:underline">View activity</Link> : null}
         </div>
         {events.length ? (
           <div className="mt-2 flex flex-wrap gap-1.5" aria-label="Run activity">
