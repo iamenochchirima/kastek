@@ -4503,7 +4503,7 @@ mod tests {
 
     #[tokio::test]
     async fn every_non_operator_adapter_uses_the_scoped_agent_boundary() {
-        let (base_url, server) = mock_agent_server(vec![(200, r#"{"ok":true}"#); 81]).await;
+        let (base_url, server) = mock_agent_server(vec![(200, r#"{"ok":true}"#); 80]).await;
         let client = test_client(&base_url);
         let body = json!({"value": "test"});
 
@@ -4836,7 +4836,10 @@ mod tests {
             .await
             .unwrap();
 
-        let requests = server.await.unwrap();
+        let requests = tokio::time::timeout(Duration::from_secs(30), server)
+            .await
+            .expect("mock Agent server timed out before receiving all expected requests")
+            .unwrap();
         assert_eq!(requests.len(), 80);
         let expected_paths = [
             "POST /v1/system-agents/kasiai/installation HTTP/1.1",

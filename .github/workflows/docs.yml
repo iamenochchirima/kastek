@@ -15,6 +15,10 @@ on:
       - ".gitignore"
       - ".github/workflows/docs.yml"
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
@@ -22,6 +26,7 @@ jobs:
   internal:
     name: Build internal documentation
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     defaults:
       run:
         working-directory: docs/internal-site
@@ -50,6 +55,7 @@ jobs:
   public:
     name: Build public documentation
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     defaults:
       run:
         working-directory: docs/public
