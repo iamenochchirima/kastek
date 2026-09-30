@@ -25,10 +25,10 @@ their product repositories; hosted deployment and database cutover are separate 
 ## Shared Rust crates
 
 Labs owns the cross-product Rust crates in [`crates/`](crates/): Analytics producer and reporting
-contracts, application configuration helpers, cryptographic utilities, and observability. The
-source move establishes a single destination owner; versioning and consumption from Growth and
-Agency are tracked separately. Growth's copies remain until consumers can use an approved
-distribution path.
+contracts, application configuration helpers, cryptographic utilities, and observability. They are
+private Git-sourced packages, pinned by consumers to an immutable Labs commit. `publish = false`
+prevents accidental publication to a public registry. Builds that consume them need read access to
+this repository; service-to-service behavior still crosses the services' HTTP or event interfaces.
 
 Run a narrow local compile check for the shared libraries from the repository root:
 

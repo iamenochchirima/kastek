@@ -2,6 +2,7 @@
 name = "crypto-utils"
 version.workspace = true
 edition.workspace = true
+publish = false
 
 [dependencies]
 aes-gcm.workspace = true

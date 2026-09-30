@@ -2,6 +2,7 @@
 name = "analytics-producer"
 version.workspace = true
 edition.workspace = true
+publish = false
 
 [dependencies]
 chrono.workspace = true
