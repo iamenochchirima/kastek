@@ -36,8 +36,6 @@ Admin belongs in Growth or another product/repository.
 
 ## Other apps
 
-- `client/apps/labs/` is a separate app package. Its user-facing feature inventory has not yet
-  been confirmed in this setup.
 - `client/apps/tenant-portal/` is a separate app package. Its routes and workflows are not
   included in the Growth feature list above.
 
