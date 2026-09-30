@@ -1,0 +1,25 @@
+{
+  "specversion": "1.0",
+  "id": "0f5f5dd6-2b2f-4f78-a58c-6e6cf5b2f54a",
+  "source": "kasitek://agent-platform",
+  "type": "agent.run.completed@1",
+  "subject": "run/run_01HZX8Y0K7",
+  "time": "2026-08-22T10:00:00Z",
+  "datacontenttype": "application/json",
+  "dataschema": "https://kasitek.co.za/analytics/contracts/events/agent/run_completed/v1.schema.json",
+  "source_service": "agent-platform",
+  "source_domain": "agents",
+  "record_category": "event",
+  "scope_kind": "core_organization",
+  "scope_external_id": "org_01HZX8V6R3",
+  "correlation_id": "corr_01HZX8X9N1",
+  "idempotency_key": "agent-platform:run_01HZX8Y0K7:completed",
+  "data": {
+    "run_id": "run_01HZX8Y0K7",
+    "installation_id": "installation_01HZX8W2K4",
+    "agent_definition_id": "agent_01HZX8VZ0M",
+    "status": "completed",
+    "occurred_at": "2026-08-22T09:59:58Z",
+    "duration_ms": 1840
+  }
+}

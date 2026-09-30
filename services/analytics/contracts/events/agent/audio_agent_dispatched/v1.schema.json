@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kasitek.co.za/analytics/contracts/events/agent/audio_agent_dispatched/v1.schema.json",
+  "title": "Agent audio dispatch attributes",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["job_id", "channel", "run_id", "occurred_at"],
+  "properties": {
+    "job_id": { "type": "string", "minLength": 1 },
+    "channel": { "type": "string", "enum": ["whatsapp", "telegram", "discord", "platform", "website"] },
+    "run_id": { "type": "string", "minLength": 1 },
+    "occurred_at": { "type": "string", "format": "date-time" }
+  },
+  "x-kasitek": {
+    "identity": "agent.audio_agent.dispatched@1",
+    "owner": "agent-platform",
+    "privacy_class": "aggregate",
+    "prohibited_fields": ["transcript", "audio_url", "storage_key", "filename", "credential", "token", "phone_number", "email"]
+  }
+}

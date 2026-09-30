@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kasitek.co.za/analytics/contracts/events/connections/sync_attempt/v1.schema.json",
+  "title": "Core provider connection synchronization attempt attributes",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "attempt_id",
+    "connection_id",
+    "provider",
+    "operation",
+    "outcome",
+    "failure_class",
+    "duration_ms",
+    "occurred_at"
+  ],
+  "properties": {
+    "attempt_id": { "type": "string", "pattern": "^[A-Za-z0-9_-]{1,128}$" },
+    "connection_id": { "type": "string", "minLength": 1 },
+    "provider": { "type": "string", "pattern": "^[A-Z][A-Z0-9_-]{0,63}$" },
+    "operation": { "type": "string", "pattern": "^[a-z][a-z0-9_.-]{0,63}$" },
+    "outcome": { "type": "string", "enum": ["succeeded", "failed"] },
+    "failure_class": {
+      "type": "string",
+      "enum": [
+        "none",
+        "authentication",
+        "authorization",
+        "invalid_request",
+        "provider_rejected",
+        "rate_limited",
+        "provider_unavailable",
+        "not_found",
+        "internal",
+        "unknown"
+      ]
+    },
+    "duration_ms": { "type": "integer", "minimum": 0, "maximum": 86400000 },
+    "occurred_at": { "type": "string", "format": "date-time" }
+  },
+  "x-kasitek": {
+    "identity": "connection.sync_attempt@1",
+    "owner": "core-connections",
+    "privacy_class": "aggregate",
+    "prohibited_fields": [
+      "display_name",
+      "handle",
+      "external_account_id",
+      "metadata",
+      "last_error",
+      "error_message",
+      "credential",
+      "token",
+      "provider_payload"
+    ]
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "model_call_id": "model-call_01HZX9012C",
+  "run_id": "run_01HZX9012C",
+  "provider": "openai",
+  "model": "gpt-4o-mini",
+  "funding_source": "kasitek",
+  "failure_class": "timeout",
+  "status": "failed",
+  "occurred_at": "2026-08-22T10:04:58Z"
+}

@@ -1,0 +1,367 @@
+kind: metrics
+definitions:
+  - key: campaign.recipients.sent
+    version: 1
+    domain: campaigns
+    owner: core-campaigns
+    lifecycle: active
+    description: Campaign recipients with a recorded send attempt.
+    value_type: integer
+    unit: count
+    precision: 0
+    sources:
+      - campaign.recipient.sent@1
+    formula: count_distinct(campaign.recipient.sent@1, recipient_id)
+    eligible_population: campaign recipients with a send attempt in the reporting window
+    exclusions: [test recipients]
+    time_semantics: event_time
+    default_aggregation: distinct_count
+    temporal_aggregation: distinct_count
+    comparison: previous_period
+    deduplication: recipient
+    descendant_aggregation: deduplicated
+    supported_intervals: [hour, day, week, month]
+    scope_kinds: [core_organization, tenant_workspace]
+    dimensions: [campaign, channel, provider, status]
+    permissions: [analytics:read]
+    privacy_class: aggregate
+    exactness: exact
+    freshness: {max_age_seconds: 3600, late_data_window_seconds: 86400}
+    coverage: {mode: partial, required_sources: [campaign.recipient.sent@1]}
+    availability: when_instrumented
+    effective_from: "2026-08-22T00:00:00Z"
+    applicability: campaign recipient send facts are instrumented
+    dependencies: []
+
+  - key: campaign.recipients.delivered
+    version: 1
+    domain: campaigns
+    owner: core-campaigns
+    lifecycle: active
+    description: Campaign recipients with a recorded delivery outcome.
+    value_type: integer
+    unit: count
+    precision: 0
+    sources:
+      - campaign.recipient.delivered@1
+    formula: count_distinct(campaign.recipient.delivered@1, recipient_id)
+    eligible_population: campaign recipients with a delivery outcome in the reporting window
+    exclusions: [test recipients]
+    time_semantics: event_time
+    default_aggregation: distinct_count
+    temporal_aggregation: distinct_count
+    comparison: previous_period
+    deduplication: recipient
+    descendant_aggregation: deduplicated
+    supported_intervals: [hour, day, week, month]
+    scope_kinds: [core_organization, tenant_workspace]
+    dimensions: [campaign, channel, provider, status]
+    permissions: [analytics:read]
+    privacy_class: aggregate
+    exactness: exact
+    freshness: {max_age_seconds: 3600, late_data_window_seconds: 86400}
+    coverage: {mode: partial, required_sources: [campaign.recipient.delivered@1]}
+    availability: when_instrumented
+    effective_from: "2026-08-22T00:00:00Z"
+    applicability: campaign provider delivery facts are instrumented
+    dependencies: []
+
+  - key: campaign.recipients.read
+    version: 1
+    domain: campaigns
+    owner: core-campaigns
+    lifecycle: active
+    description: Campaign recipients with a recorded read outcome.
+    value_type: integer
+    unit: count
+    precision: 0
+    sources:
+      - campaign.recipient.read@1
+    formula: count_distinct(campaign.recipient.read@1, recipient_id)
+    eligible_population: campaign recipients with a read outcome in the reporting window
+    exclusions: [test recipients]
+    time_semantics: event_time
+    default_aggregation: distinct_count
+    temporal_aggregation: distinct_count
+    comparison: previous_period
+    deduplication: recipient
+    descendant_aggregation: deduplicated
+    supported_intervals: [hour, day, week, month]
+    scope_kinds: [core_organization, tenant_workspace]
+    dimensions: [campaign, channel, provider, status]
+    permissions: [analytics:read]
+    privacy_class: aggregate
+    exactness: exact
+    freshness: {max_age_seconds: 3600, late_data_window_seconds: 86400}
+    coverage: {mode: partial, required_sources: [campaign.recipient.read@1]}
+    availability: when_instrumented
+    effective_from: "2026-08-24T00:00:00Z"
+    applicability: campaign provider read facts are instrumented
+    dependencies: []
+
+  - key: campaign.recipients.failed
+    version: 1
+    domain: campaigns
+    owner: core-campaigns
+    lifecycle: active
+    description: Campaign recipients with a recorded failed delivery outcome.
+    value_type: integer
+    unit: count
+    precision: 0
+    sources:
+      - campaign.recipient.failed@1
+    formula: count_distinct(campaign.recipient.failed@1, recipient_id)
+    eligible_population: campaign recipients with a failed delivery outcome in the reporting window
+    exclusions: [test recipients, blocked recipients]
+    time_semantics: event_time
+    default_aggregation: distinct_count
+    temporal_aggregation: distinct_count
+    comparison: previous_period
+    deduplication: recipient
+    descendant_aggregation: deduplicated
+    supported_intervals: [hour, day, week, month]
+    scope_kinds: [core_organization, tenant_workspace]
+    dimensions: [campaign, channel, provider, failure_class, status]
+    permissions: [analytics:read]
+    privacy_class: aggregate
+    exactness: exact
+    freshness: {max_age_seconds: 3600, late_data_window_seconds: 86400}
+    coverage: {mode: partial, required_sources: [campaign.recipient.failed@1]}
+    availability: when_instrumented
+    effective_from: "2026-08-24T00:00:00Z"
+    applicability: campaign provider failure facts are instrumented
+    dependencies: []
+
+  - key: campaign.recipients.blocked
+    version: 1
+    domain: campaigns
+    owner: core-campaigns
+    lifecycle: active
+    description: Campaign recipients with a recorded blocked delivery outcome.
+    value_type: integer
+    unit: count
+    precision: 0
+    sources:
+      - campaign.recipient.blocked@1
+    formula: count_distinct(campaign.recipient.blocked@1, recipient_id)
+    eligible_population: campaign recipients with a blocked delivery outcome in the reporting window
+    exclusions: [test recipients]
+    time_semantics: event_time
+    default_aggregation: distinct_count
+    temporal_aggregation: distinct_count
+    comparison: previous_period
+    deduplication: recipient
+    descendant_aggregation: deduplicated
+    supported_intervals: [hour, day, week, month]
+    scope_kinds: [core_organization, tenant_workspace]
+    dimensions: [campaign, channel, provider, block_class, status]
+    permissions: [analytics:read]
+    privacy_class: aggregate
+    exactness: exact
+    freshness: {max_age_seconds: 3600, late_data_window_seconds: 86400}
+    coverage: {mode: partial, required_sources: [campaign.recipient.blocked@1]}
+    availability: when_instrumented
+    effective_from: "2026-08-24T00:00:00Z"
+    applicability: campaign provider block facts are instrumented
+    dependencies: []
+
+  - key: campaign.recipients.suppressed
+    version: 1
+    domain: campaigns
+    owner: core-campaigns
+    lifecycle: active
+    description: Campaign recipients suppressed by an eligibility or exclusion guard.
+    value_type: integer
+    unit: count
+    precision: 0
+    sources:
+      - campaign.recipient.suppressed@1
+    formula: count_distinct(campaign.recipient.suppressed@1, recipient_id)
+    eligible_population: campaign recipients suppressed before a provider send attempt in the reporting window
+    exclusions: [test recipients]
+    time_semantics: event_time
+    default_aggregation: distinct_count
+    temporal_aggregation: distinct_count
+    comparison: previous_period
+    deduplication: recipient
+    descendant_aggregation: deduplicated
+    supported_intervals: [hour, day, week, month]
+    scope_kinds: [core_organization, tenant_workspace]
+    dimensions: [campaign, channel, provider, suppression_class, status]
+    permissions: [analytics:read]
+    privacy_class: aggregate
+    exactness: exact
+    freshness: {max_age_seconds: 3600, late_data_window_seconds: 86400}
+    coverage: {mode: partial, required_sources: [campaign.recipient.suppressed@1]}
+    availability: when_instrumented
+    effective_from: "2026-08-24T00:00:00Z"
+    applicability: campaign eligibility and exclusion guards emit suppression facts
+    dependencies: []
+
+  - key: campaign.recipients.unsubscribed
+    version: 1
+    domain: campaigns
+    owner: core-campaigns
+    lifecycle: active
+    description: Campaign recipients unsubscribed from future campaign delivery.
+    value_type: integer
+    unit: count
+    precision: 0
+    sources:
+      - campaign.recipient.unsubscribed@1
+    formula: count_distinct(campaign.recipient.unsubscribed@1, recipient_id)
+    eligible_population: campaign recipients whose unsubscribe transition was recorded in the reporting window
+    exclusions: [test recipients]
+    time_semantics: event_time
+    default_aggregation: distinct_count
+    temporal_aggregation: distinct_count
+    comparison: previous_period
+    deduplication: recipient
+    descendant_aggregation: deduplicated
+    supported_intervals: [hour, day, week, month]
+    scope_kinds: [core_organization, tenant_workspace]
+    dimensions: [campaign, channel, provider, unsubscribe_source, status]
+    permissions: [analytics:read]
+    privacy_class: aggregate
+    exactness: exact
+    freshness: {max_age_seconds: 3600, late_data_window_seconds: 86400}
+    coverage: {mode: partial, required_sources: [campaign.recipient.unsubscribed@1]}
+    availability: when_instrumented
+    effective_from: "2026-08-24T00:00:00Z"
+    applicability: campaign unsubscribe transitions emit provider-neutral facts
+    dependencies: []
+
+  - key: campaign.delivery_delay_ms
+    version: 1
+    domain: campaigns
+    owner: core-campaigns
+    lifecycle: active
+    description: Average time from a campaign send to provider delivery or read acknowledgement.
+    value_type: duration
+    unit: milliseconds
+    precision: 0
+    sources:
+      - campaign.recipient.timing@1
+    formula: average(campaign.recipient.timing@1, duration_ms)
+    eligible_population: campaign recipients with a provider timing fact in the reporting window
+    exclusions: [test recipients, timing facts without a recorded duration]
+    time_semantics: event_time
+    default_aggregation: weighted_average
+    temporal_aggregation: weighted_average
+    comparison: previous_period
+    deduplication: recipient
+    descendant_aggregation: weighted_average
+    supported_intervals: [hour, day, week, month]
+    scope_kinds: [core_organization, tenant_workspace]
+    dimensions: [campaign, channel, provider, timing_kind, status]
+    permissions: [analytics:read]
+    privacy_class: aggregate
+    exactness: exact
+    freshness: {max_age_seconds: 3600, late_data_window_seconds: 86400}
+    coverage: {mode: partial, required_sources: [campaign.recipient.timing@1]}
+    availability: when_instrumented
+    effective_from: "2026-08-24T00:00:00Z"
+    applicability: provider delivery and read acknowledgements include measured timing
+    dependencies: []
+
+  - key: campaign.recipients.retried
+    version: 1
+    domain: campaigns
+    owner: core-campaigns
+    lifecycle: active
+    description: Campaign recipients explicitly queued for another delivery attempt.
+    value_type: integer
+    unit: count
+    precision: 0
+    sources:
+      - campaign.recipient.retry@1
+    formula: count(campaign.recipient.retry@1)
+    eligible_population: failed campaign recipients that were queued for a subsequent attempt in the reporting window
+    exclusions: [test recipients]
+    time_semantics: event_time
+    default_aggregation: count
+    temporal_aggregation: sum
+    comparison: previous_period
+    deduplication: none
+    descendant_aggregation: sum
+    supported_intervals: [hour, day, week, month]
+    scope_kinds: [core_organization, tenant_workspace]
+    dimensions: [campaign, channel, provider, retry_reason, status]
+    permissions: [analytics:read]
+    privacy_class: aggregate
+    exactness: exact
+    freshness: {max_age_seconds: 3600, late_data_window_seconds: 86400}
+    coverage: {mode: partial, required_sources: [campaign.recipient.retry@1]}
+    availability: when_instrumented
+    effective_from: "2026-08-24T00:00:00Z"
+    applicability: campaign retry transitions emit durable retry facts
+    dependencies: []
+
+  - key: campaign.recipients.pricing_recorded
+    version: 1
+    domain: campaigns
+    owner: core-campaigns
+    lifecycle: active
+    description: Campaign recipients for which the provider returned pricing metadata.
+    value_type: integer
+    unit: count
+    precision: 0
+    sources:
+      - campaign.recipient.pricing@1
+    formula: count_distinct(campaign.recipient.pricing@1, recipient_id)
+    eligible_population: campaign recipients with provider pricing metadata in the reporting window
+    exclusions: [test recipients, pricing facts without a category]
+    time_semantics: event_time
+    default_aggregation: distinct_count
+    temporal_aggregation: distinct_count
+    comparison: previous_period
+    deduplication: recipient
+    descendant_aggregation: deduplicated
+    supported_intervals: [hour, day, week, month]
+    scope_kinds: [core_organization, tenant_workspace]
+    dimensions: [campaign, channel, provider, pricing_billable, pricing_category, pricing_model, pricing_type, status]
+    permissions: [analytics:read]
+    privacy_class: aggregate
+    exactness: exact
+    freshness: {max_age_seconds: 3600, late_data_window_seconds: 86400}
+    coverage: {mode: partial, required_sources: [campaign.recipient.pricing@1]}
+    availability: when_instrumented
+    effective_from: "2026-08-24T00:00:00Z"
+    applicability: WhatsApp provider status payloads include pricing metadata
+    dependencies: []
+
+  - key: campaign.delivery_rate
+    version: 1
+    domain: campaigns
+    owner: core-campaigns
+    lifecycle: active
+    description: Delivered recipients divided by sent recipients.
+    value_type: percentage
+    unit: fraction
+    precision: 4
+    sources:
+      - campaign.recipient.sent@1
+      - campaign.recipient.delivered@1
+    formula: safe_divide(campaign.recipients.delivered@1, campaign.recipients.sent@1)
+    eligible_population: campaign recipients with both send and delivery facts available
+    exclusions: [test recipients, recipients without a send fact]
+    numerator: campaign.recipients.delivered@1
+    denominator: campaign.recipients.sent@1
+    time_semantics: event_time
+    default_aggregation: ratio_of_sums
+    temporal_aggregation: ratio_of_sums
+    comparison: previous_period
+    deduplication: recipient
+    descendant_aggregation: ratio_of_sums
+    supported_intervals: [hour, day, week, month]
+    scope_kinds: [core_organization, tenant_workspace]
+    dimensions: [campaign, channel, provider]
+    permissions: [analytics:read]
+    privacy_class: aggregate
+    exactness: exact
+    freshness: {max_age_seconds: 3600, late_data_window_seconds: 86400}
+    coverage: {mode: partial, required_sources: [campaign.recipient.sent@1, campaign.recipient.delivered@1]}
+    availability: when_instrumented
+    effective_from: "2026-08-22T00:00:00Z"
+    applicability: both sent and delivered populations are available
+    dependencies: [campaign.recipients.sent@1, campaign.recipients.delivered@1]

@@ -1,0 +1,9 @@
+{
+  "lead_id": "lead_01J",
+  "tenant_client_id": "client_01J",
+  "action": "created",
+  "status": "new",
+  "source": "web_chat",
+  "score_band": "high",
+  "occurred_at": "2026-08-24T12:00:00Z"
+}
