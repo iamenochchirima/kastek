@@ -9,9 +9,19 @@ Labs owns the Analytics API, worker, schema, migrations, and service-owned build
 [`services/analytics`](services/analytics/README.md). Growth-owned product publishers remain in
 their product repositories; hosted deployment and database cutover are separate work.
 
-The Analytics workspace currently includes a local `observability` crate copy so it can build
-without Growth's Cargo workspace. Growth's copy remains in use by services that have not moved;
-shared-crate ownership and distribution are still a separate boundary to settle.
+## Shared Rust crates
+
+Labs owns the cross-product Rust crates in [`crates/`](crates/): Analytics producer and reporting
+contracts, application configuration helpers, cryptographic utilities, and observability. The
+source move establishes a single destination owner; versioning and consumption from Growth and
+Agency are tracked separately. Growth's copies remain until consumers can use an approved
+distribution path.
+
+Run a narrow local compile check for the shared libraries from the repository root:
+
+```sh
+cargo check --locked -p analytics-producer -p analytics-reporting -p config -p crypto-utils --lib
+```
 
 From the repository root, check the service package with:
 
