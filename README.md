@@ -41,3 +41,9 @@ From the repository root, check the service package with:
 ```sh
 cargo check -p kasitek-analytics --bins
 ```
+
+## Website
+
+The standalone Next.js website lives in [`apps/labs-site`](apps/labs-site/README.md).
+Its quote-request, waitlist, and chat integrations retain their existing upstream API contracts.
+Hosting, domains, and deployed environments remain separate cutover work.
