@@ -1,12 +1,12 @@
 ---
 owner: engineering
-last_reviewed: 2026-09-29
+last_reviewed: 2026-10-01
 ---
 
 # Feature map
 
-This is the index of user-facing routes currently present in Growth. The Agency tenant portal and
-service source live in the Agency repository; Growth Admin retains its provisioning interface.
+This is the index of user-facing routes currently present in Growth. The Agency tenant portal
+and central Admin UI live in their owning repositories and are outside this route map.
 
 For local startup, environment, and test commands, use [Local Development](../internal/development/local-development.md).
 The main client runs on port `3000`; the other app ports and service prerequisites are listed in
@@ -27,14 +27,6 @@ Routes below are under `client/apps/client/src/app/`.
 | Workspace | `/workspace`, `/workspace/team`, `/workspace/settings`, `/workspace/profile` | `(dashboard)/workspace/` | Open the relevant route with an authorized local account and verify the saved state after navigation or reload. |
 | Billing | `/billing`, `/upgrade` | `(dashboard)/billing/page.tsx`, `(dashboard)/upgrade/page.tsx` | Use a test account and the configured billing test environment; do not use live payment credentials for local verification. |
 | Developer surfaces | `/developers`, `/developers/api`, `/developers/cli`, `/developers/mcp` | `(dashboard)/developers/` | Verify against the documented local service and credentials for the specific developer workflow. |
-
-## Admin app
-
-Routes are under `client/apps/admin/src/app/(dashboard)/`. The current app includes dashboard,
-agencies, leads, outreach, quotations, invoices, billing, access, operations, analytics, and
-reports routes. Start the Admin app using the command in Local Development, then follow its route
-and API calls for the task being changed. The existence of these routes does not settle whether
-Admin belongs in Growth or another product/repository.
 
 ## Map rules
 

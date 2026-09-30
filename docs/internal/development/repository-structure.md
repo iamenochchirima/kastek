@@ -17,11 +17,11 @@ integration work is approved.
 
 | Location / repository | Responsibility |
 | --- | --- |
-| `client/apps/client`, `client/apps/admin` | Growth product interfaces |
+| `client/apps/client` | Growth product interface |
 | `client/packages/database` | Growth client database package |
 | `server/kasitek-core/` | Core runtime, Core-owned business capabilities, and Core database |
 | [`kasitek-agents`](https://github.com/Kasitek-Labs/kasitek-agents) | Agent API, worker, MCP gateway, Temporal workflows, migrations, contracts, and Agent Platform UI |
-| [`kasitek-labs`](https://github.com/Kasitek-Labs/kasitek-labs) | Labs website, Analytics API and worker, schemas, migrations, OpenTelemetry Collector source/configuration, and private Rust crates |
+| [`kasitek-labs`](https://github.com/Kasitek-Labs/kasitek-labs) | Admin UI, Labs website, Analytics API and worker, schemas, migrations, OpenTelemetry Collector source/configuration, and private Rust crates |
 | [`kasitek-agency`](https://github.com/Kasitek-Labs/kasitek-agency) | White-label tenant API, migrations, portal, and tenant-owned workers |
 | `server/crates/actions`, `execution`, `types` | Growth-owned supporting Rust libraries |
 | `scripts/`, `.github/workflows/` | Growth-owned local, release, migration, and verification automation only; service-specific automation belongs with its service |
@@ -38,8 +38,7 @@ repository. Growth retains product-side publishers and integrations where they a
 - Core, Agents, Labs Analytics, and Agency own separate service and data boundaries. Do not
   connect one service directly to another service's database.
 - Cross-service behavior uses an explicit HTTP, event, queue, or shared contract boundary.
-- Growth Admin's tenant provisioning bridge remains a product-side integration and may be
-  disconnected until its separately tracked integration work is completed.
+- The Labs-owned Admin UI talks to Growth Core and Agency through their existing HTTP APIs.
 - Growth's Kāsiai assistant remains a product-side Agent API consumer. Agent runtime and
   management surfaces are owned by `kasitek-agents`; this repository does not own or launch them.
 - Do not keep a second service implementation, service-owned build/deployment wiring, or fallback

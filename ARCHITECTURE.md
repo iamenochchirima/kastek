@@ -13,25 +13,24 @@ the extracted services.
 | Path / owner | Source or behavior | Role in the split |
 | --- | --- | --- |
 | `client/apps/client/` | Main Next.js client, including campaigns, contacts, inbox, content, calendar, bookings, analytics, workspace, billing, and Kāsiai. | Contains Growth routes, the app shell, and product-side Agent integrations. |
-| `client/apps/admin/` | Next.js admin application with agency, lead, outreach, quotation, invoice, operations, analytics, and access routes. | Contains the Growth Admin provisioning client for Agency. |
-| `client/packages/` | Shared database package. | Used by the client applications in this repository. |
+| `client/packages/` | Shared database package. | Used by the Growth client. |
 | [`kasitek-agents`](https://github.com/Kasitek-Labs/kasitek-agents) | Agent API, gateway, workers, runtime, migrations, management UI, and Temporal integration. | Agent Platform source owner; Growth consumes its API. |
 | `server/kasitek-core/` | Rust Core service. | Core API and its service-owned modules. |
-| [`kasitek-labs`](https://github.com/Kasitek-Labs/kasitek-labs) | Labs website, Analytics API and worker, contracts, migrations, reporting, OpenTelemetry Collector, and shared Rust crates. | Labs owns these implementations; Growth consumes private Rust crates and retains product publishers and outboxes. Deployment cutover is separate work. |
+| [`kasitek-labs`](https://github.com/Kasitek-Labs/kasitek-labs) | Labs website, Analytics API and worker, contracts, migrations, reporting, OpenTelemetry Collector, shared Rust crates, and central Admin UI. | Labs owns these implementations; Growth consumes private Rust crates and retains product publishers and outboxes. Admin calls Growth Core and Agency over HTTP. Deployment cutover is separate work. |
 | `server/crates/actions`, `execution`, `types` | Growth-owned Rust support libraries. | Used by Growth Core. |
 | `scripts/`, `.github/workflows/` | Growth local development and verification automation. | Service-specific automation belongs with its owning service. |
 | `docs/` | User and internal technical documentation. | Documents current repository behavior and interfaces. |
-| [`kasitek-agency`](https://github.com/Kasitek-Labs/kasitek-agency) | Tenant API, migrations, portal, portal-only API client, and tenant-owned configuration. | Agency owns this white-label product source; Growth Admin retains its provisioning client. |
+| [`kasitek-agency`](https://github.com/Kasitek-Labs/kasitek-agency) | Tenant API, migrations, portal, portal-only API client, and tenant-owned configuration. | Agency owns this white-label product source. |
 
 The Agency tenant API, migrations, analytics publisher, and portal are not present in this
-checkout. Agency source lives in `Kasitek-Labs/kasitek-agency`; Growth Admin retains the
-provisioning client in `client/apps/admin/`. Agent runtime and management UI source live in
-`Kasitek-Labs/kasitek-agents`; Growth retains the Kāsiai API client, Core bridge, and customer
-Agent activity data.
+checkout. Agency source lives in `Kasitek-Labs/kasitek-agency`. The central Admin UI lives in
+`Kasitek-Labs/kasitek-labs` and calls Growth Core and the Agency API over HTTP. Agent runtime and
+management UI source live in `Kasitek-Labs/kasitek-agents`; Growth retains the Kāsiai API client,
+Core bridge, and customer Agent activity data.
 
 ## Runtime and dependency notes
 
-- The frontend is a pnpm workspace under `client/`.
+- The Growth client is a pnpm workspace under `client/`.
 - Rust services are members of `server/Cargo.toml`.
 - Agent workflows use Temporal in the Agents repository; Growth does not build or launch them.
 - Local service startup, environment requirements, ports, and verification commands are recorded

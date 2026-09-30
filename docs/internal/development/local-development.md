@@ -81,8 +81,11 @@ For focused work, manual commands are also supported:
 ```bash
 ./scripts/dev_core_watch.sh
 pnpm --dir client run dev
-pnpm --dir client run dev:admin
 ```
+
+The central Admin UI is maintained in the Labs repository. See the
+[Admin app guide](https://github.com/Kasitek-Labs/kasitek-labs/tree/main/apps/admin-site) for its
+standalone local setup.
 
 ## Local service ports
 
@@ -90,7 +93,6 @@ pnpm --dir client run dev:admin
 | --- | ---: | --- |
 | Core API | 4000 | `/health/live`, `/health/ready` where enabled |
 | Client | 3000 | browser application |
-| Admin | 3001 | browser application |
 
 The launcher is the authoritative list for local service names and ports. If an individual
 service changes its port, update the launcher and this table together.

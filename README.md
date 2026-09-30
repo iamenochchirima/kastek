@@ -1,15 +1,14 @@
 # KasiTek Growth
 
-This repository is being refocused as the standalone KasiTek Growth product. It still contains
-some non-Growth service source whose extraction is tracked in GitHub Issues. Perform only the
-moves named by those issues; this overview does not authorize additional extractions.
+This repository contains the standalone KasiTek Growth product. The Labs, Agency, and Agent
+Platform repositories own their extracted services and applications; see [Current repository
+architecture](ARCHITECTURE.md) for the ownership map.
 
 ## Start here
 
 - [Current repository architecture](ARCHITECTURE.md)
 - [Growth feature map](docs/features/README.md)
 - [Project coding standards](CODING_STANDARDS.md)
-- [GitHub Issues](https://github.com/Kasitek-Labs/kasitek-growth/issues) and [Growth Project](https://github.com/orgs/Kasitek-Labs/projects/1)
 - [Domain context](CONTEXT.md), intentionally empty until project terms are agreed
 - [Local development and verification](docs/internal/development/local-development.md)
 - [Release process](docs/internal/operations/release-process.md)
@@ -33,9 +32,8 @@ services required for your task.
 
 ## Work and decisions
 
-- Specs and implementation work belong in [GitHub Issues](https://github.com/Kasitek-Labs/kasitek-growth/issues).
-- Former active plans are preserved in [`docs/plans/parked/`](docs/plans/parked/README.md). They
-  are reference material, not a work queue.
+- Historical plans are preserved in [`docs/plans/parked/`](docs/plans/parked/README.md). They are
+  reference material, not a work queue.
 - Product-level architecture decisions belong in [`docs/adr/`](docs/adr/README.md).
 - Agent-specific ADRs and implementation decisions are owned with the Agent service in
   `Kasitek-Labs/kasitek-agents`.

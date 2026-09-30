@@ -48,14 +48,12 @@ services["core"]="$ROOT_DIR/server/kasitek-core|$CORE_ENV_SETUP; LOG_COLOR=alway
 services["core-analytics-publisher"]="$ROOT_DIR/server/kasitek-core|$CORE_ENV_SETUP; LOG_COLOR=always KASITEK_PROCESS=analytics-publisher cargo run"
 services["core-analytics-backfill"]="$ROOT_DIR/server/kasitek-core|$CORE_ENV_SETUP; LOG_COLOR=always KASITEK_PROCESS=analytics-backfill-worker cargo run"
 services["client"]="$ROOT_DIR/client|pnpm run dev"
-services["admin"]="$ROOT_DIR/client|pnpm dev:admin"
 services["internal-docs"]="$ROOT_DIR/docs/internal-site|pnpm dev"
 
 service_port() {
   case "$1" in
     core) echo 4000 ;;
     client) echo 3000 ;;
-    admin) echo 3001 ;;
     internal-docs) echo 3006 ;;
   esac
 }
@@ -152,7 +150,7 @@ show_usage() {
 # Parse command line arguments
 if [[ $# -eq 0 ]]; then
   # No arguments - run all services
-  services_to_start=(core client admin internal-docs)
+  services_to_start=(core client internal-docs)
   for service in "${services_to_start[@]}"; do
     add_service "$service"
   done
