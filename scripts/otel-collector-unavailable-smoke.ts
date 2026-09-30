@@ -1,95 +1,125 @@
-import { strict as assert } from "node:assert";
-import { createServer } from "node:net";
+import assert from "node:assert/strict";
+import { createServer as createHttpServer } from "node:http";
+import { createServer as createTcpServer } from "node:net";
+import { diag, DiagLogLevel, type DiagLogger } from "@opentelemetry/api";
 import type { AppConfig } from "../src/config";
 
-interface RejectedTraceRequest {
-  path: string;
-  bodyBytes: number;
-}
+type Scenario = "http-503" | "connection-refused";
 
 interface UnavailableCollector {
   endpoint: string;
-  firstRejectedTrace: Promise<RejectedTraceRequest>;
+  firstRejectedTrace?: Promise<{ path: string; bodyBytes: number }>;
   close(): Promise<void>;
 }
 
-async function startUnavailableCollector(): Promise<UnavailableCollector> {
-  let resolveFirstTrace!: (request: RejectedTraceRequest) => void;
-  const firstRejectedTrace = new Promise<RejectedTraceRequest>((resolve) => { resolveFirstTrace = resolve; });
-  const server = createServer((socket) => {
-    let request = "";
-    let handled = false;
-    socket.setTimeout(2_000, () => socket.destroy());
-    socket.on("error", () => undefined);
-    socket.on("data", (chunk) => {
-      if (handled) return;
-      request += chunk.toString("latin1");
-      const headerEnd = request.indexOf("\r\n\r\n");
-      if (headerEnd < 0) return;
-      const lines = request.slice(0, headerEnd).split("\r\n");
-      const [method, path] = (lines[0] ?? "").split(" ");
-      const contentLengthHeader = lines.slice(1).find((line) => /^content-length:/i.test(line));
-      const transferEncodingHeader = lines.slice(1).find((line) => /^transfer-encoding:/i.test(line));
-      let bodyBytes: number | undefined;
-      if (contentLengthHeader) {
-        const contentLength = Number(contentLengthHeader.split(":", 2)[1]?.trim());
-        if (!Number.isSafeInteger(contentLength) || contentLength < 1) return socket.destroy();
-        if (request.length < headerEnd + 4 + contentLength) return;
-        bodyBytes = contentLength;
-      } else if (transferEncodingHeader?.toLowerCase().includes("chunked")) {
-        const chunkStart = headerEnd + 4;
-        const chunkSizeEnd = request.indexOf("\r\n", chunkStart);
-        if (chunkSizeEnd < 0) return;
-        const chunkBytes = Number.parseInt(request.slice(chunkStart, chunkSizeEnd).split(";", 1)[0] ?? "", 16);
-        if (!Number.isSafeInteger(chunkBytes) || chunkBytes < 1) return socket.destroy();
-        if (request.length < chunkSizeEnd + 2 + chunkBytes + 2) return;
-        bodyBytes = chunkBytes;
-      } else {
-        return socket.destroy();
-      }
-      if (method !== "POST" || path !== "/v1/traces" || bodyBytes === undefined) return socket.destroy();
-      handled = true;
-
-      const body = "collector unavailable";
-      socket.end(
-        `HTTP/1.1 503 Service Unavailable\r\nConnection: close\r\nContent-Length: ${Buffer.byteLength(body)}\r\n\r\n${body}`,
-        () => resolveFirstTrace({ path, bodyBytes }),
-      );
-    });
-  });
-
+async function listen(server: ReturnType<typeof createTcpServer> | ReturnType<typeof createHttpServer>): Promise<number> {
   await new Promise<void>((resolve, reject) => {
     server.once("error", reject);
     server.listen(0, "127.0.0.1", resolve);
   });
   const address = server.address();
-  if (!address || typeof address === "string") throw new Error("Could not start the unavailable Collector fixture");
+  if (!address || typeof address === "string") throw new Error("Could not bind the local Collector fixture");
+  return address.port;
+}
 
+async function close(server: ReturnType<typeof createTcpServer> | ReturnType<typeof createHttpServer>): Promise<void> {
+  await new Promise<void>((resolve, reject) => {
+    server.close((error) => error ? reject(error) : resolve());
+  });
+}
+
+async function startUnavailableCollector(scenario: Scenario): Promise<UnavailableCollector> {
+  if (scenario === "connection-refused") {
+    const server = createTcpServer();
+    const port = await listen(server);
+    await close(server);
+    return {
+      endpoint: `http://127.0.0.1:${port}`,
+      close: async () => undefined,
+    };
+  }
+
+  let resolveFirstTrace!: (request: { path: string; bodyBytes: number }) => void;
+  let rejectFirstTrace!: (error: Error) => void;
+  const firstRejectedTrace = new Promise<{ path: string; bodyBytes: number }>((resolve, reject) => {
+    resolveFirstTrace = resolve;
+    rejectFirstTrace = reject;
+  });
+  const server = createHttpServer((request, response) => {
+    const chunks: Buffer[] = [];
+    request.on("data", (chunk: Buffer | string) => chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)));
+    request.on("error", (error) => rejectFirstTrace(error));
+    request.on("end", () => {
+      if (request.method !== "POST" || request.url !== "/v1/traces") {
+        rejectFirstTrace(new Error(`Unexpected Collector request: ${request.method ?? "?"} ${request.url ?? "?"}`));
+        response.writeHead(404).end();
+        return;
+      }
+      const bodyBytes = chunks.reduce((total, chunk) => total + chunk.byteLength, 0);
+      if (bodyBytes < 1) {
+        rejectFirstTrace(new Error("OTLP trace export had an empty request body"));
+        response.writeHead(400).end();
+        return;
+      }
+      response.writeHead(503, { connection: "close" }).end("collector unavailable", () => {
+        resolveFirstTrace({ path: request.url ?? "", bodyBytes });
+      });
+    });
+  });
+  const port = await listen(server);
   return {
-    endpoint: `http://127.0.0.1:${address.port}`,
+    endpoint: `http://127.0.0.1:${port}`,
     firstRejectedTrace,
-    close: () => new Promise<void>((resolve, reject) => {
-      server.close((error) => error ? reject(error) : resolve());
-    }),
+    close: () => close(server),
   };
 }
 
-async function waitForFirstTrace(promise: Promise<RejectedTraceRequest>): Promise<RejectedTraceRequest> {
+function waitFor<T>(promise: Promise<T>, timeoutMessage: string): Promise<T> {
   let timer: NodeJS.Timeout | undefined;
+  return Promise.race([
+    promise,
+    new Promise<T>((_resolve, reject) => {
+      timer = setTimeout(() => reject(new Error(timeoutMessage)), 3_000);
+    }),
+  ]).finally(() => {
+    if (timer) clearTimeout(timer);
+  });
+}
+
+async function waitForConnectionRefused(errors: string[]): Promise<void> {
+  let timer: NodeJS.Timeout | undefined;
+  const deadline = Date.now() + 3_000;
   try {
-    return await Promise.race([
-      promise,
-      new Promise<RejectedTraceRequest>((_resolve, reject) => {
-        timer = setTimeout(() => reject(new Error("Health request did not produce an OTLP trace export")), 3_000);
-      }),
-    ]);
+    while (Date.now() < deadline) {
+      if (errors.some((error) => error.includes("ECONNREFUSED"))) return;
+      await new Promise<void>((resolve) => {
+        timer = setTimeout(resolve, 25);
+      });
+      if (timer) clearTimeout(timer);
+    }
   } finally {
     if (timer) clearTimeout(timer);
   }
+  throw new Error("OTLP export did not report the expected ECONNREFUSED failure");
 }
 
 async function main(): Promise<void> {
-  const collector = await startUnavailableCollector();
+  const scenario = process.argv[2] ?? "http-503";
+  assert.ok(scenario === "http-503" || scenario === "connection-refused", `Unknown scenario: ${scenario}`);
+  const collector = await startUnavailableCollector(scenario);
+  const diagnosticErrors: string[] = [];
+  const collectError: DiagLogger["error"] = (message, ...args) => {
+    diagnosticErrors.push([message, ...args].map((value) => String(value)).join(" "));
+  };
+  const diagLogger: DiagLogger = {
+    error: collectError,
+    warn: () => undefined,
+    info: () => undefined,
+    debug: () => undefined,
+    verbose: () => undefined,
+  };
+  diag.setLogger(diagLogger, DiagLogLevel.ERROR);
+
   let closeApp: (() => Promise<void>) | undefined;
   let closeTelemetry: (() => Promise<void>) | undefined;
   let healthChecksPassed = false;
@@ -135,18 +165,26 @@ async function main(): Promise<void> {
 
     const baseUrl = `http://127.0.0.1:${address.port}`;
     const live = await fetch(`${baseUrl}/health/live`, { signal: AbortSignal.timeout(2_000) });
-    assert.equal(live.status, 200, "/health/live should succeed while the OTLP endpoint rejects exports");
+    assert.equal(live.status, 200, "/health/live should succeed while the Collector is unavailable");
     assert.deepEqual(await live.json(), { status: "ok", service: "kasitek-agents" });
-    const rejectedTrace = await waitForFirstTrace(collector.firstRejectedTrace);
-    assert.equal(rejectedTrace.path, "/v1/traces");
-    assert.ok(rejectedTrace.bodyBytes > 0, "the rejected OTLP request should include a trace payload");
+
+    if (scenario === "http-503") {
+      const rejectedTrace = await waitFor(
+        collector.firstRejectedTrace!,
+        "Health request did not produce an OTLP trace export rejected with HTTP 503",
+      );
+      assert.equal(rejectedTrace.path, "/v1/traces");
+      assert.ok(rejectedTrace.bodyBytes > 0, "the rejected OTLP request should include a trace payload");
+    } else {
+      await waitForConnectionRefused(diagnosticErrors);
+    }
 
     const liveAfterFailure = await fetch(`${baseUrl}/health/live`, { signal: AbortSignal.timeout(2_000) });
-    assert.equal(liveAfterFailure.status, 200, "/health/live should stay healthy after an OTLP export is rejected");
+    assert.equal(liveAfterFailure.status, 200, "/health/live should stay healthy after an OTLP export failure");
     assert.deepEqual(await liveAfterFailure.json(), { status: "ok", service: "kasitek-agents" });
 
     const ready = await fetch(`${baseUrl}/health/ready`, { signal: AbortSignal.timeout(2_000) });
-    assert.equal(ready.status, 200, "/health/ready should stay healthy after an OTLP export is rejected");
+    assert.equal(ready.status, 200, "/health/ready should stay healthy after an OTLP export failure");
     assert.deepEqual(await ready.json(), { status: "ready", temporalEnabled: false });
     healthChecksPassed = true;
   } finally {
@@ -162,7 +200,7 @@ async function main(): Promise<void> {
   }
 
   if (healthChecksPassed) {
-    console.log("Agents live and ready health checks passed after a non-empty OTLP trace export was rejected with HTTP 503.");
+    console.log(`Agents live and ready health checks passed after Collector scenario: ${scenario}.`);
   }
 }
 

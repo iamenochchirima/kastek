@@ -33,6 +33,7 @@ checkout. No integration or cutover behavior was verified here.
 - `pnpm run dev:worker` starts the Temporal worker.
 - `pnpm run migrate` applies PostgreSQL migrations.
 - `pnpm run test:e2e:local` exercises a real local installation through REST, Temporal, and MCP.
+- `pnpm run test:telemetry:collector-unavailable` checks API liveness and readiness when OTLP returns HTTP 503 or the Collector connection is refused.
 - `pnpm run bootstrap:kasiai` idempotently creates the protected KasiAi definition and initial
   published version after migrations are applied.
 - `pnpm run build` compiles the API, worker, and gateway entry points to `dist/`.
