@@ -87,8 +87,9 @@ Collector change before applying anything.
 Before changing a staging producer endpoint, record the previous endpoint and the running Growth
 Collector deployment/config revision. Do not record secret values. If staging export or health
 checks fail, restore the producer's previous OTLP endpoint and redeploy that producer if needed.
-Keep the Growth Collector available until the separate Growth cleanup issue is complete. This
-rollback changes staging only; leave production untouched.
+Keep any existing hosted Collector available until its separately approved destination and
+endpoint cutover is complete. This source move does not change or redeploy it. This rollback
+changes staging only; leave production untouched.
 
 ## Configuration policy
 
