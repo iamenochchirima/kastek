@@ -4,7 +4,7 @@
 
 **Date:** 2026-09-29
 
-This proposal is for [Labs issue #4](https://github.com/Kasitek-Labs/kasitek-labs/issues/4). It records source-level findings and a recommended boundary; it is not an accepted decision and does not authorize identity-code or account-data changes.
+This proposal records source-level findings and a recommended boundary; it is not an accepted decision and does not authorize identity-code or account-data changes.
 
 ## Observed source boundaries
 
