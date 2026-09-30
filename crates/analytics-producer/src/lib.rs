@@ -1,9 +1,9 @@
 //! Shared Rust producer and source-outbox primitives for Core and Tenant Platform.
 //!
 //! This crate deliberately knows nothing about either service's domain schema. It builds the
-//! repository-owned analytics envelope, validates producer-safe payloads, and provides the common
-//! transactional outbox/lease operations. The Analytics HTTP transport is injected by a later
-//! ingestion package.
+//! repository-owned analytics envelope, validates producer-safe payloads, provides common
+//! transactional outbox/lease operations, and exposes an HTTP client for the Analytics ingestion
+//! API. The Analytics service itself remains independently deployed.
 
 use std::{collections::BTreeSet, time::Duration};
 
