@@ -1,0 +1,18 @@
+{
+  "name": "@kasitek-labs/otel-collector-railway-iac",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "railway": "3.11.0"
+  },
+  "devDependencies": {
+    "@types/node": "22.15.0",
+    "typescript": "5.8.3"
+  }
+}
