@@ -41,6 +41,10 @@ Inbound text messages are persisted in Inbox and routed to the assigned agent. A
 are delivered by Core using the existing Meta connection. The first release supports text replies;
 media, reactions, and approval buttons remain on their provider-specific Inbox paths.
 
+Published Instagram deletion requires an Instagram connection made through Meta/Facebook Login
+with the `instagram_manage_contents` permission. Direct Instagram Login can be used for its
+supported operations, but it cannot delete published media.
+
 If the account is not connected or needs attention, use **Open connections** in the access dialog,
 restore the Meta connection, and return to the agent details page. Only one active customer-service
 agent may own a Page or Instagram account route at a time.

@@ -1669,6 +1669,24 @@ pub async fn delete_published_content_post(
         &body.platform,
     )
     .await?;
+    if !result.success {
+        let provider_detail = result
+            .provider_results
+            .iter()
+            .filter(|provider_result| provider_result.status != "DELETED")
+            .find_map(|provider_result| provider_result.message.as_deref())
+            .filter(|message| {
+                message.contains("Meta/Facebook Login")
+                    || message.contains("instagram_manage_contents")
+            })
+            .filter(|message| !message.trim().is_empty());
+        return Err(AppError::Conflict(match provider_detail {
+            Some(message) => format!(
+                "The published post was not deleted from the provider; local content was not changed. {message}"
+            ),
+            None => "The published post was not deleted from the provider; local content was not changed.".to_string(),
+        }));
+    }
     Ok(HttpResponse::Ok().json(result))
 }
 

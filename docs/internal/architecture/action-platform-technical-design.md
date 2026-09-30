@@ -497,6 +497,12 @@ Transaction: reserve effect + append outbox
 
 An unknown provider outcome moves to reconciliation rather than being reported as success or automatically retried without policy.
 
+The same rule applies when a provider responds with HTTP success but its domain payload reports a
+failed operation. The owning service must convert that result into a failed or unknown effect
+before the agent run can complete. For published-content deletion, Core keeps the local post
+unchanged when provider deletion is not confirmed, and the Agent client rejects a false domain
+result defensively so an older Core deployment cannot produce a false completion message.
+
 ## 12. Run and effect state machines
 
 ### 12.1 Run states

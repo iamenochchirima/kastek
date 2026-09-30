@@ -2518,6 +2518,17 @@ async fn delete_social_post_from_platforms_internal(
             }
             Err(error) => {
                 result.message = Some(error.to_string());
+                observability::tracing::warn!(
+                    event = "provider.call.failed",
+                    provider = %job.platform,
+                    operation = "content.post.delete",
+                    org_id = %org_id,
+                    post_id = %post_id,
+                    job_id = %job.id,
+                    channel_connection_id = %channel_connection_id,
+                    error_code = %error.code(),
+                    "provider post deletion was not confirmed"
+                );
                 if connection_permissions::is_authorization_error(&error) {
                     let metadata = resolve_channel_for_post_deletion(
                         pool,

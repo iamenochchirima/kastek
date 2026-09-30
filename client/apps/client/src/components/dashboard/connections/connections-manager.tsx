@@ -284,9 +284,11 @@ function AccessSelection({
 
 export function ConnectionsManager({
   connections,
+  loadFailed = false,
   initialAccessRequest,
 }: {
   connections: WorkspaceConnection[];
+  loadFailed?: boolean;
   initialAccessRequest?: InitialAccessRequest;
 }) {
   const router = useRouter();
@@ -562,7 +564,14 @@ export function ConnectionsManager({
           <p className="text-sm text-muted-foreground">Manage the accounts already available to your workspace.</p>
         </div>
 
-        {shownConnections.length === 0 ? (
+        {loadFailed ? (
+          <Card>
+            <CardContent className="flex items-center justify-between gap-3 py-6 text-sm text-destructive">
+              <span>Unable to load connected accounts.</span>
+              <Button type="button" variant="outline" size="sm" onClick={() => router.refresh()}>Retry</Button>
+            </CardContent>
+          </Card>
+        ) : shownConnections.length === 0 ? (
           <Card><CardContent className="py-6 text-sm text-muted-foreground">No accounts connected yet.</CardContent></Card>
         ) : (
           <div className="divide-y divide-border/70">

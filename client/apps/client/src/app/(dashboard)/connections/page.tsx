@@ -40,7 +40,9 @@ export default async function ConnectionsPage({
   const requestedCapabilities = params.capabilities?.split(",").map((value) => value.trim().toUpperCase()).filter(Boolean);
 
   const [sharedResponse, whatsappResponse] = await Promise.all([
-    fetchRustJson<{ connections: WorkspaceConnection[] }>("/api/connections").catch(() => ({ connections: [] })),
+    fetchRustJson<{ connections: WorkspaceConnection[] }>("/api/connections")
+      .then((response) => ({ ...response, loadFailed: false }))
+      .catch(() => ({ connections: [], loadFailed: true })),
     fetchRustJson<{ connections: WhatsappConnectionView[] }>("/api/whatsapp/connections").catch(() => ({ connections: [] })),
   ]);
 
@@ -131,6 +133,7 @@ export default async function ConnectionsPage({
 
         <ConnectionsManager
           connections={sharedResponse.connections}
+          loadFailed={sharedResponse.loadFailed}
           initialAccessRequest={params.connectionId ? {
             connectionId: params.connectionId,
             capabilities: requestedCapabilities,
