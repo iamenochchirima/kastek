@@ -234,3 +234,28 @@ connections use `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`, and
 shared Google OAuth boundary. Add a provider by adding one catalog entry, an adapter in
 `IntegrationToolService`, and its connection form; do not add a new tool execution path. The first
 adapters are KasiTek Calendar, Google Calendar, Gmail, Google Drive, Tavily Search, and an Apple Tools local bridge.
+
+## Management UI
+
+The Next.js app is in `client/apps/agent-platform` and contains the `/agents/**`, `/studio`,
+`/studio/new`, and `/playground` routes. Growth retains its copy until the separate cleanup is
+completed. Authentication and API integrations in the relocated app remain transitional; this
+source move does not configure a standalone production service. See [the source boundary](docs/source-boundary.md).
+
+Use Node `>=22.12.0 <23` or `>=24.0.0` and pnpm `10.30.1`.
+
+```bash
+pnpm install
+pnpm dev
+```
+
+Focused UI commands:
+
+```bash
+pnpm typecheck
+pnpm test:studio
+pnpm build:ui
+```
+
+`pnpm build` builds the API and worker. The UI's `pnpm lint:ui` command is available, while
+the relocated source currently reports existing React-hook lint errors.
