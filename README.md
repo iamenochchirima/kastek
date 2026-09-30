@@ -26,7 +26,7 @@ their product repositories; hosted deployment and database cutover are separate 
 
 Labs owns the cross-product Rust crates in [`crates/`](crates/): Analytics producer and reporting
 contracts, application configuration helpers, cryptographic utilities, and observability. They are
-private Git-sourced packages, pinned by consumers to an immutable Labs commit. `publish = false`
+private Git-sourced packages, pinned by consumers to the `rust-crates-v0.1.0` release tag. `publish = false`
 prevents accidental publication to a public registry. Builds that consume them need read access to
 this repository; service-to-service behavior still crosses the services' HTTP or event interfaces.
 
