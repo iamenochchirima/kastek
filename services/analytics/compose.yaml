@@ -1,0 +1,84 @@
+name: kasitek-analytics
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${ANALYTICS_POSTGRES_DB:-kasitek_analytics}
+      POSTGRES_USER: ${ANALYTICS_POSTGRES_USER:-analytics}
+      POSTGRES_PASSWORD: ${ANALYTICS_POSTGRES_PASSWORD:-analytics_dev_password}
+    ports:
+      - "${ANALYTICS_POSTGRES_HOST_PORT:-55432}:5432"
+    volumes:
+      - analytics_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "${ANALYTICS_REDIS_HOST_PORT:-56379}:6379"
+    volumes:
+      - analytics_redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  analytics-migrate:
+    build:
+      context: ../..
+      dockerfile: services/analytics/Dockerfile
+    entrypoint: ["/usr/local/bin/analytics-migrate"]
+    environment: &analytics-environment
+      ANALYTICS_ENVIRONMENT: ${ANALYTICS_ENVIRONMENT:-development}
+      ANALYTICS_DATABASE_URL: postgres://${ANALYTICS_POSTGRES_USER:-analytics}:${ANALYTICS_POSTGRES_PASSWORD:-analytics_dev_password}@postgres:5432/${ANALYTICS_POSTGRES_DB:-kasitek_analytics}
+      ANALYTICS_REDIS_URL: redis://redis:6379
+      ANALYTICS_METRICS_TOKEN: ${ANALYTICS_METRICS_TOKEN:-}
+      ANALYTICS_DATABASE_MAX_CONNECTIONS: ${ANALYTICS_DATABASE_MAX_CONNECTIONS:-10}
+      ANALYTICS_DATABASE_ACQUIRE_TIMEOUT_MS: ${ANALYTICS_DATABASE_ACQUIRE_TIMEOUT_MS:-5000}
+      ANALYTICS_DATABASE_CONNECT_TIMEOUT_MS: ${ANALYTICS_DATABASE_CONNECT_TIMEOUT_MS:-5000}
+      ANALYTICS_LOG_FILTER: ${ANALYTICS_LOG_FILTER:-info}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  analytics-api:
+    build:
+      context: ../..
+      dockerfile: services/analytics/Dockerfile
+    environment:
+      <<: *analytics-environment
+      ANALYTICS_API_HOST: 0.0.0.0
+      ANALYTICS_API_PORT: 4300
+    ports:
+      - "${ANALYTICS_API_HOST_PORT:-4300}:4300"
+    depends_on:
+      analytics-migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://127.0.0.1:4300/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+
+  analytics-worker:
+    build:
+      context: ../..
+      dockerfile: services/analytics/Dockerfile
+    entrypoint: ["/usr/local/bin/analytics-worker"]
+    environment: *analytics-environment
+    depends_on:
+      analytics-migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+volumes:
+  analytics_postgres_data:
+  analytics_redis_data:

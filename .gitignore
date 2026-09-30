@@ -1,0 +1,3 @@
+/target/
+services/analytics/.env
+services/analytics/.backups/

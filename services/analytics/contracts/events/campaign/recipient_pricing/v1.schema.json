@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kasitek.co.za/analytics/contracts/events/campaign/recipient_pricing/v1.schema.json",
+  "title": "Campaign recipient pricing attributes",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["campaign_id", "recipient_id", "channel", "provider", "occurred_at", "status", "billable", "pricing_category"],
+  "properties": {
+    "campaign_id": { "type": "string", "minLength": 1 },
+    "recipient_id": { "type": "string", "minLength": 1 },
+    "channel": { "type": "string", "enum": ["email", "sms", "whatsapp", "social"] },
+    "provider": { "type": "string", "minLength": 1, "maxLength": 64 },
+    "occurred_at": { "type": "string", "format": "date-time" },
+    "status": { "const": "pricing_recorded" },
+    "billable": { "type": "boolean" },
+    "pricing_category": { "type": "string", "minLength": 1, "maxLength": 64, "pattern": "^[A-Za-z0-9_.-]+$" },
+    "pricing_model": { "type": "string", "minLength": 1, "maxLength": 64, "pattern": "^[A-Za-z0-9_.-]+$" },
+    "pricing_type": { "type": "string", "minLength": 1, "maxLength": 64, "pattern": "^[A-Za-z0-9_.-]+$" }
+  },
+  "x-kasitek": {
+    "identity": "campaign.recipient.pricing@1",
+    "owner": "core-campaigns",
+    "privacy_class": "aggregate",
+    "prohibited_fields": ["phone_number", "email", "message_body", "credential", "token", "raw_error", "provider_payload"]
+  }
+}

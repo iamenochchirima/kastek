@@ -1,0 +1,14 @@
+{
+  "conversation_id": "conversation-123",
+  "installation_id": "installation-123",
+  "agent_definition_id": "agent-123",
+  "agent_version_id": "version-123",
+  "agent_audience": "customer_service",
+  "conversation_kind": "customer",
+  "channel": "whatsapp",
+  "action": "opened",
+  "status": "active",
+  "handoff_state": "agent_active",
+  "actor_type": "human",
+  "occurred_at": "2026-08-22T10:03:30Z"
+}

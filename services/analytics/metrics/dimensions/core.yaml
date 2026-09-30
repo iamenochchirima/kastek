@@ -1,0 +1,749 @@
+kind: dimensions
+definitions:
+  - key: agent_definition
+    type: reference
+    source: envelope.subject.agent_definition_id
+    compatible_metrics: [agent.runs.completed@1, agent.runs.failed@1, agent.tools.lifecycle_events@1, agent.approvals.lifecycle_events@1, agent.effects.lifecycle_events@1, agent.schedules.lifecycle_events@1, agent.installations.lifecycle_events@1, agent.installations.version_deployments@1, agent.versions.lifecycle_events@1, agent.definitions.lifecycle_events@1, agent.readiness.evaluations@1, agent.conversations.lifecycle_events@1, agent.handoffs.lifecycle_events@1, agent.conversation_messages.lifecycle_events@1, agent.conversation.response_time_ms@1]
+    filterable: true
+    groupable: true
+    cardinality: medium
+    privacy_class: aggregate
+    stable_key: true
+    permissions: [analytics:read]
+
+  - key: agent_version
+    type: reference
+    source: envelope.data.agent_version_id
+    compatible_metrics: [agent.runs.completed@1, agent.runs.failed@1, agent.tools.lifecycle_events@1, agent.approvals.lifecycle_events@1, agent.effects.lifecycle_events@1, agent.schedules.lifecycle_events@1, agent.installations.lifecycle_events@1, agent.installations.version_deployments@1, agent.versions.lifecycle_events@1, agent.readiness.evaluations@1, agent.conversations.lifecycle_events@1, agent.handoffs.lifecycle_events@1, agent.conversation_messages.lifecycle_events@1, agent.conversation.response_time_ms@1]
+    filterable: true
+    groupable: true
+    cardinality: medium
+    privacy_class: aggregate
+    stable_key: true
+    permissions: [analytics:read]
+
+  - key: agent_installation
+    type: reference
+    source: envelope.data.installation_id
+    compatible_metrics: [agent.runs.completed@1, agent.runs.failed@1, agent.tools.lifecycle_events@1, agent.approvals.lifecycle_events@1, agent.effects.lifecycle_events@1, agent.schedules.lifecycle_events@1, agent.installations.lifecycle_events@1, agent.installations.version_deployments@1, agent.readiness.evaluations@1, agent.conversations.lifecycle_events@1, agent.handoffs.lifecycle_events@1, agent.conversation_messages.lifecycle_events@1, agent.conversation.response_time_ms@1]
+    filterable: true
+    groupable: true
+    cardinality: high
+    privacy_class: restricted
+    stable_key: true
+    permissions: [analytics:read:agent]
+
+  - key: agent_execution_mode
+    type: enum
+    source: envelope.data.execution_mode
+    compatible_metrics: [agent.installations.lifecycle_events@1]
+    filterable: true
+    groupable: true
+    cardinality: low
+    privacy_class: aggregate
+    stable_key: true
+    permissions: [analytics:read]
+
+  - key: agent_creation_profile
+    type: enum
+    source: envelope.data.creation_profile
+    compatible_metrics: [agent.installations.lifecycle_events@1, agent.definitions.lifecycle_events@1]
+    filterable: true
+    groupable: true
+    cardinality: low
+    privacy_class: aggregate
+    stable_key: true
+    permissions: [analytics:read]
+
+  - key: agent_audience
+    type: enum
+    source: envelope.data.agent_audience
+    compatible_metrics: [agent.installations.lifecycle_events@1, agent.definitions.lifecycle_events@1, agent.conversations.lifecycle_events@1, agent.handoffs.lifecycle_events@1, agent.conversation_messages.lifecycle_events@1, agent.conversation.response_time_ms@1]
+    filterable: true
+    groupable: true
+    cardinality: low
+    privacy_class: aggregate
+    stable_key: true
+    permissions: [analytics:read]
+
+  - key: installation_scope
+    type: enum
+    source: envelope.data.scope_type
+    compatible_metrics: [agent.installations.lifecycle_events@1]
+    filterable: true
+    groupable: true
+    cardinality: low
+    privacy_class: aggregate
+    stable_key: true
+    permissions: [analytics:read]
+
+  - key: agent_owner_type
+    type: enum
+    source: envelope.data.owner_type
+    compatible_metrics: [agent.definitions.lifecycle_events@1]
+    filterable: true
+    groupable: true
+    cardinality: low
+    privacy_class: aggregate
+    stable_key: true
+    permissions: [analytics:read]
+
+  - key: campaign
+    type: reference
+    source: envelope.data.campaign_id
+    compatible_metrics: [campaign.recipients.sent@1, campaign.recipients.delivered@1, campaign.recipients.read@1, campaign.recipients.failed@1, campaign.recipients.blocked@1, campaign.recipients.suppressed@1, campaign.recipients.unsubscribed@1, campaign.delivery_delay_ms@1, campaign.recipients.retried@1, campaign.recipients.pricing_recorded@1, campaign.delivery_rate@1]
+    filterable: true
+    groupable: true
+    cardinality: medium
+    privacy_class: aggregate
+    stable_key: true
+    permissions: [analytics:read]
+
+  - key: channel
+    type: enum
+    source: envelope.data.channel
+    compatible_metrics: [campaign.recipients.sent@1, campaign.recipients.delivered@1, campaign.recipients.read@1, campaign.recipients.failed@1, campaign.recipients.blocked@1, campaign.recipients.suppressed@1, campaign.recipients.unsubscribed@1, campaign.delivery_delay_ms@1, campaign.recipients.retried@1, campaign.recipients.pricing_recorded@1, campaign.delivery_rate@1]
+    filterable: true
+    groupable: true
+    cardinality: low
+    privacy_class: aggregate
+    stable_key: true
+    permissions: [analytics:read]
+
+  - key: provider
+    type: reference
+    source: envelope.data.provider
+    compatible_metrics: [campaign.recipients.sent@1, campaign.recipients.delivered@1, campaign.recipients.read@1, campaign.recipients.failed@1, campaign.recipients.blocked@1, campaign.recipients.suppressed@1, campaign.recipients.unsubscribed@1, campaign.delivery_delay_ms@1, campaign.recipients.retried@1, campaign.recipients.pricing_recorded@1, campaign.delivery_rate@1, connection.lifecycle_events@1, connection.health_checks@1, connection.sync_attempts@1, connection.rate_limit_encounters@1, connection.incidents@1]
+    filterable: true
+    groupable: true
+    cardinality: medium
+    privacy_class: aggregate
+    stable_key: true
+    permissions: [analytics:read]
+
+  - key: conversation_channel
+    type: enum
+    source: envelope.data.channel
+    compatible_metrics: [conversation.lifecycle_events@1, conversation.message.lifecycle_events@1, conversation.response_time_ms@1, conversation.messages.received@1, conversation.responses.recorded@1]
+    filterable: true
+    groupable: true
+    cardinality: low
+    privacy_class: aggregate
+    stable_key: true
+    permissions: [analytics:read]
+
+  - key: agent_conversation_kind
+    type: enum
+    source: envelope.data.conversation_kind
+    compatible_metrics: [agent.conversations.lifecycle_events@1, agent.conversation_messages.lifecycle_events@1]
+    filterable: true
+    groupable: true
+    cardinality: low
+    privacy_class: aggregate
+    stable_key: true
+    permissions: [analytics:read]
+
+  - key: agent_conversation_channel
+    type: string
+    source: envelope.data.channel
+    compatible_metrics: [agent.conversations.lifecycle_events@1, agent.conversation_messages.lifecycle_events@1, agent.conversation.response_time_ms@1]
+    filterable: true
+    groupable: true
+    cardinality: medium
+    privacy_class: aggregate
+    stable_key: true
+    permissions: [analytics:read]
+
+  - key: conversation_handoff_state
+    type: enum
+    source: envelope.data.handoff_state
+    compatible_metrics: [agent.conversations.lifecycle_events@1]
+    filterable: true
+    groupable: true
+    cardinality: low
+    privacy_class: aggregate
+    stable_key: true
+    permissions: [analytics:read]
+
+  - key: handoff_channel
+    type: enum
+    source: envelope.data.channel_type
+    compatible_metrics: [agent.handoffs.lifecycle_events@1]
+    filterable: true
+    groupable: true
+    cardinality: low
+    privacy_class: aggregate
+    stable_key: true
+    permissions: [analytics:read]
+
+  - key: handoff_conversation_state
+    type: enum
+    source: envelope.data.conversation_state
+    compatible_metrics: [agent.handoffs.lifecycle_events@1]
+    filterable: true
+    groupable: true
+    cardinality: low
+    privacy_class: aggregate
+    stable_key: true
+    permissions: [analytics:read]
+
+  - key: handoff_reason
+    type: enum
+    source: envelope.data.reason
+    compatible_metrics: [agent.handoffs.lifecycle_events@1]
+    filterable: true
+    groupable: true
+    cardinality: low
+    privacy_class: aggregate
+    stable_key: true
+    permissions: [analytics:read]
+
+  - key: handoff_priority
+    type: enum
+    source: envelope.data.priority
+    compatible_metrics: [agent.handoffs.lifecycle_events@1]
+    filterable: true
+    groupable: true
+    cardinality: low
+    privacy_class: aggregate
+    stable_key: true
+    permissions: [analytics:read]
+
+  - key: handoff_actor_type
+    type: enum
+    source: envelope.data.actor_type
+    compatible_metrics: [agent.handoffs.lifecycle_events@1]
+    filterable: true
+    groupable: true
+    cardinality: low
+    privacy_class: aggregate
+    stable_key: true
+    permissions: [analytics:read]
+
+  - key: handoff_resolution_code
+    type: enum
+    source: envelope.data.resolution_code
+    compatible_metrics: [agent.handoffs.lifecycle_events@1]
+    filterable: true
+    groupable: true
+    cardinality: low
+    privacy_class: aggregate
+    stable_key: true
+    permissions: [analytics:read]
+
+  - key: message_action
+    type: enum
+    source: envelope.data.action
+    compatible_metrics: [agent.conversation_messages.lifecycle_events@1, conversation.message.lifecycle_events@1]
+    filterable: true
+    groupable: true
+    cardinality: low
+    privacy_class: aggregate
+    stable_key: true
+    permissions: [analytics:read]
+
+  - key: message_direction
+    type: enum
+    source: envelope.data.direction
+    compatible_metrics: [agent.conversation_messages.lifecycle_events@1, conversation.message.lifecycle_events@1]
+    filterable: true
+    groupable: true
+    cardinality: low
+    privacy_class: aggregate
+    stable_key: true
+    permissions: [analytics:read]
+
+  - key: message_responder_type
+    type: enum
+    source: envelope.data.responder_type
+    compatible_metrics: [agent.conversation_messages.lifecycle_events@1, agent.conversation.response_time_ms@1]
+    filterable: true
+    groupable: true
+    cardinality: low
+    privacy_class: aggregate
+    stable_key: true
+    permissions: [analytics:read]
+
+  - key: message_type
+    type: string
+    source: envelope.data.message_type
+    compatible_metrics: [agent.conversation_messages.lifecycle_events@1, conversation.message.lifecycle_events@1]
+    filterable: true
+    groupable: true
+    cardinality: medium
+    privacy_class: aggregate
+    stable_key: true
+    permissions: [analytics:read]
+
+  - key: message_delivery_status
+    type: enum
+    source: envelope.data.delivery_status
+    compatible_metrics: [agent.conversation_messages.lifecycle_events@1, conversation.message.lifecycle_events@1]
+    filterable: true
+    groupable: true
+    cardinality: low
+    privacy_class: aggregate
+    stable_key: true
+    permissions: [analytics:read]
+
+  - key: responder_type
+    type: enum
+    source: envelope.data.responder_type
+    compatible_metrics: [conversation.message.lifecycle_events@1, conversation.response_time_ms@1, conversation.messages.received@1, conversation.responses.recorded@1]
+    filterable: true
+    groupable: true
+    cardinality: low
+    privacy_class: aggregate
+    stable_key: true
+    permissions: [analytics:read]
+
+  - key: outcome
+    type: enum
+    source: envelope.data.outcome
+    compatible_metrics: [agent.runs.completed@1, agent.installations.version_deployments@1, connection.sync_attempts@1]
+    filterable: true
+    groupable: true
+    cardinality: low
+    privacy_class: aggregate
+    stable_key: true
+    permissions: [analytics:read]
+
+  - key: failure_class
+    type: enum
+    source: envelope.data.failure_class
+    compatible_metrics: [agent.runs.failed@1, agent.tools.lifecycle_events@1, agent.effects.lifecycle_events@1, connection.sync_attempts@1]
+    filterable: true
+    groupable: true
+    cardinality: low
+    privacy_class: aggregate
+    stable_key: true
+    permissions: [analytics:read]
+
+  - key: block_class
+    type: enum
+    source: envelope.data.block_class
+    compatible_metrics: [campaign.recipients.blocked@1]
+    filterable: true
+    groupable: true
+    cardinality: low
+    privacy_class: aggregate
+    stable_key: true
+    permissions: [analytics:read]
+
+  - key: suppression_class
+    type: enum
+    source: envelope.data.suppression_class
+    compatible_metrics: [campaign.recipients.suppressed@1]
+    filterable: true
+    groupable: true
+    cardinality: low
+    privacy_class: aggregate
+    stable_key: true
+    permissions: [analytics:read]
+
+  - key: unsubscribe_source
+    type: enum
+    source: envelope.data.unsubscribe_source
+    compatible_metrics: [campaign.recipients.unsubscribed@1]
+    filterable: true
+    groupable: true
+    cardinality: low
+    privacy_class: aggregate
+    stable_key: true
+    permissions: [analytics:read]
+
+  - key: timing_kind
+    type: enum
+    source: envelope.data.timing_kind
+    compatible_metrics: [campaign.delivery_delay_ms@1]
+    filterable: true
+    groupable: true
+    cardinality: low
+    privacy_class: aggregate
+    stable_key: true
+    permissions: [analytics:read]
+
+  - key: retry_reason
+    type: enum
+    source: envelope.data.retry_reason
+    compatible_metrics: [campaign.recipients.retried@1]
+    filterable: true
+    groupable: true
+    cardinality: low
+    privacy_class: aggregate
+    stable_key: true
+    permissions: [analytics:read]
+
+  - key: pricing_billable
+    type: enum
+    source: envelope.data.billable
+    compatible_metrics: [campaign.recipients.pricing_recorded@1]
+    filterable: true
+    groupable: true
+    cardinality: low
+    privacy_class: aggregate
+    stable_key: true
+    permissions: [analytics:read]
+
+  - key: pricing_category
+    type: enum
+    source: envelope.data.pricing_category
+    compatible_metrics: [campaign.recipients.pricing_recorded@1]
+    filterable: true
+    groupable: true
+    cardinality: low
+    privacy_class: aggregate
+    stable_key: true
+    permissions: [analytics:read]
+
+  - key: pricing_model
+    type: enum
+    source: envelope.data.pricing_model
+    compatible_metrics: [campaign.recipients.pricing_recorded@1]
+    filterable: true
+    groupable: true
+    cardinality: low
+    privacy_class: aggregate
+    stable_key: true
+    permissions: [analytics:read]
+
+  - key: pricing_type
+    type: enum
+    source: envelope.data.pricing_type
+    compatible_metrics: [campaign.recipients.pricing_recorded@1]
+    filterable: true
+    groupable: true
+    cardinality: low
+    privacy_class: aggregate
+    stable_key: true
+    permissions: [analytics:read]
+
+  - key: status
+    type: enum
+    source: envelope.data.status
+    compatible_metrics: [agent.runs.completed@1, agent.runs.failed@1, agent.tools.lifecycle_events@1, agent.approvals.lifecycle_events@1, agent.effects.lifecycle_events@1, agent.schedules.lifecycle_events@1, agent.versions.lifecycle_events@1, agent.definitions.lifecycle_events@1, agent.readiness.evaluations@1, agent.conversations.lifecycle_events@1, campaign.recipients.sent@1, campaign.recipients.delivered@1, campaign.recipients.read@1, campaign.recipients.failed@1, campaign.recipients.blocked@1, campaign.recipients.suppressed@1, campaign.recipients.unsubscribed@1, campaign.delivery_delay_ms@1, campaign.recipients.retried@1, conversation.lifecycle_events@1, conversation.messages.received@1, conversation.responses.recorded@1, connection.lifecycle_events@1, connection.health_checks@1]
+    filterable: true
+    groupable: true
+    cardinality: low
+    privacy_class: aggregate
+    stable_key: true
+    permissions: [analytics:read]
+
+  - key: tool_name
+    type: string
+    source: envelope.data.tool_name
+    compatible_metrics: [agent.tools.lifecycle_events@1]
+    filterable: true
+    groupable: true
+    cardinality: medium
+    privacy_class: aggregate
+    stable_key: true
+    permissions: [analytics:read]
+
+  - key: tool_risk_class
+    type: enum
+    source: envelope.data.risk_class
+    compatible_metrics: [agent.tools.lifecycle_events@1]
+    filterable: true
+    groupable: true
+    cardinality: low
+    privacy_class: aggregate
+    stable_key: true
+    permissions: [analytics:read]
+
+  - key: lifecycle_action
+    type: enum
+    source: envelope.data.action
+    compatible_metrics: [agent.tools.lifecycle_events@1, agent.approvals.lifecycle_events@1, agent.effects.lifecycle_events@1, agent.schedules.lifecycle_events@1, agent.installations.lifecycle_events@1, agent.installations.version_deployments@1, agent.versions.lifecycle_events@1, agent.definitions.lifecycle_events@1, agent.conversations.lifecycle_events@1, conversation.lifecycle_events@1, connection.lifecycle_events@1, connection.capability_events@1, connection.incidents@1]
+    filterable: true
+    groupable: true
+    cardinality: low
+    privacy_class: aggregate
+    stable_key: true
+    permissions: [analytics:read]
+
+  - key: readiness_workflow_status
+    type: enum
+    source: envelope.data.workflow_status
+    compatible_metrics: [agent.readiness.evaluations@1]
+    filterable: true
+    groupable: true
+    cardinality: low
+    privacy_class: aggregate
+    stable_key: true
+    permissions: [analytics:read]
+
+  - key: readiness_credential_status
+    type: enum
+    source: envelope.data.credential_status
+    compatible_metrics: [agent.readiness.evaluations@1]
+    filterable: true
+    groupable: true
+    cardinality: low
+    privacy_class: aggregate
+    stable_key: true
+    permissions: [analytics:read]
+
+  - key: connection_health_status
+    type: enum
+    source: envelope.data.health_status
+    compatible_metrics: [connection.health_checks@1]
+    filterable: true
+    groupable: true
+    cardinality: low
+    privacy_class: aggregate
+    stable_key: true
+    permissions: [analytics:read]
+
+  - key: connection_credential_status
+    type: enum
+    source: envelope.data.credential_status
+    compatible_metrics: [connection.health_checks@1]
+    filterable: true
+    groupable: true
+    cardinality: low
+    privacy_class: aggregate
+    stable_key: true
+    permissions: [analytics:read]
+
+  - key: connection_webhook_status
+    type: enum
+    source: envelope.data.webhook_status
+    compatible_metrics: [connection.health_checks@1]
+    filterable: true
+    groupable: true
+    cardinality: low
+    privacy_class: aggregate
+    stable_key: true
+    permissions: [analytics:read]
+
+  - key: readiness_blocker_set
+    type: enum
+    source: envelope.data.blocker_set
+    compatible_metrics: [agent.readiness.evaluations@1]
+    filterable: true
+    groupable: true
+    cardinality: low
+    privacy_class: aggregate
+    stable_key: true
+    permissions: [analytics:read]
+
+  - key: capability
+    type: string
+    source: envelope.data.capability
+    compatible_metrics: [agent.approvals.lifecycle_events@1, agent.effects.lifecycle_events@1, connection.capability_events@1]
+    filterable: true
+    groupable: true
+    cardinality: medium
+    privacy_class: aggregate
+    stable_key: true
+    permissions: [analytics:read]
+
+  - key: approval_actor_type
+    type: enum
+    source: envelope.data.actor_type
+    compatible_metrics: [agent.approvals.lifecycle_events@1]
+    filterable: true
+    groupable: true
+    cardinality: low
+    privacy_class: aggregate
+    stable_key: true
+    permissions: [analytics:read]
+
+  - key: effect_reconciliation
+    type: enum
+    source: envelope.data.reconciliation_required
+    compatible_metrics: [agent.effects.lifecycle_events@1]
+    filterable: true
+    groupable: true
+    cardinality: low
+    privacy_class: aggregate
+    stable_key: true
+    permissions: [analytics:read]
+
+  - key: model_provider
+    type: enum
+    source: envelope.data.provider
+    compatible_metrics: [agent.model_calls.completed@1, agent.model_calls.failed@1, agent.tokens.input@1, agent.tokens.output@1, agent.cost.usd@1]
+    filterable: true
+    groupable: true
+    cardinality: low
+    privacy_class: aggregate
+    stable_key: true
+    permissions: [analytics:read]
+
+  - key: model
+    type: string
+    source: envelope.data.model
+    compatible_metrics: [agent.model_calls.completed@1, agent.model_calls.failed@1, agent.tokens.input@1, agent.tokens.output@1, agent.cost.usd@1]
+    filterable: true
+    groupable: true
+    cardinality: medium
+    privacy_class: aggregate
+    stable_key: true
+    permissions: [analytics:read]
+
+  - key: funding_source
+    type: enum
+    source: envelope.data.funding_source
+    compatible_metrics: [agent.model_calls.completed@1, agent.model_calls.failed@1, agent.tokens.input@1, agent.tokens.output@1, agent.cost.usd@1]
+    filterable: true
+    groupable: true
+    cardinality: low
+    privacy_class: aggregate
+    stable_key: true
+    permissions: [analytics:read]
+
+  - key: connection_sync_operation
+    type: enum
+    source: envelope.data.operation
+    compatible_metrics: [connection.sync_attempts@1]
+    filterable: true
+    groupable: true
+    cardinality: low
+    privacy_class: aggregate
+    stable_key: true
+    permissions: [analytics:read]
+
+  - key: rate_limit_scope
+    type: enum
+    source: envelope.data.rate_limit_scope
+    compatible_metrics: [connection.rate_limit_encounters@1]
+    filterable: true
+    groupable: true
+    cardinality: low
+    privacy_class: aggregate
+    stable_key: true
+    permissions: [analytics:read]
+
+  - key: incident_severity
+    type: enum
+    source: envelope.data.severity
+    compatible_metrics: [connection.incidents@1]
+    filterable: true
+    groupable: true
+    cardinality: low
+    privacy_class: aggregate
+    stable_key: true
+    permissions: [analytics:read]
+
+  - key: incident_reason_code
+    type: enum
+    source: envelope.data.reason_code
+    compatible_metrics: [connection.incidents@1]
+    filterable: true
+    groupable: true
+    cardinality: low
+    privacy_class: aggregate
+    stable_key: true
+    permissions: [analytics:read]
+
+  - key: tenant_client
+    type: reference
+    source: envelope.data.tenant_client_id
+    compatible_metrics: [tenant.clients.lifecycle_events@1, tenant.leads.lifecycle_events@1]
+    filterable: true
+    groupable: true
+    cardinality: medium
+    privacy_class: restricted
+    stable_key: true
+    permissions: [analytics:read]
+
+  - key: client_lifecycle_action
+    type: enum
+    source: envelope.data.action
+    compatible_metrics: [tenant.clients.lifecycle_events@1]
+    filterable: true
+    groupable: true
+    cardinality: low
+    privacy_class: aggregate
+    stable_key: true
+    permissions: [analytics:read]
+
+  - key: assignment_action
+    type: enum
+    source: envelope.data.action
+    compatible_metrics: [tenant.client.assignment_events@1]
+    filterable: true
+    groupable: true
+    cardinality: low
+    privacy_class: aggregate
+    stable_key: true
+    permissions: [analytics:read]
+
+  - key: assignment_role
+    type: enum
+    source: envelope.data.assignment_role
+    compatible_metrics: [tenant.client.assignment_events@1]
+    filterable: true
+    groupable: true
+    cardinality: low
+    privacy_class: aggregate
+    stable_key: true
+    permissions: [analytics:read]
+
+  - key: lead_action
+    type: enum
+    source: envelope.data.action
+    compatible_metrics: [tenant.leads.lifecycle_events@1]
+    filterable: true
+    groupable: true
+    cardinality: low
+    privacy_class: aggregate
+    stable_key: true
+    permissions: [analytics:read]
+
+  - key: lead_status
+    type: enum
+    source: envelope.data.status
+    compatible_metrics: [tenant.leads.lifecycle_events@1]
+    filterable: true
+    groupable: true
+    cardinality: low
+    privacy_class: aggregate
+    stable_key: true
+    permissions: [analytics:read]
+
+  - key: lead_source
+    type: enum
+    source: envelope.data.source
+    compatible_metrics: [tenant.leads.lifecycle_events@1]
+    filterable: true
+    groupable: true
+    cardinality: low
+    privacy_class: aggregate
+    stable_key: true
+    permissions: [analytics:read]
+
+  - key: lead_score_band
+    type: enum
+    source: envelope.data.score_band
+    compatible_metrics: [tenant.leads.lifecycle_events@1]
+    filterable: true
+    groupable: true
+    cardinality: low
+    privacy_class: aggregate
+    stable_key: true
+    permissions: [analytics:read]
+
+  - key: lead_reason_code
+    type: enum
+    source: envelope.data.reason_code
+    compatible_metrics: [tenant.leads.lifecycle_events@1]
+    filterable: true
+    groupable: true
+    cardinality: low
+    privacy_class: aggregate
+    stable_key: true
+    permissions: [analytics:read]
+
+  - key: lead_actor_type
+    type: enum
+    source: envelope.data.actor_type
+    compatible_metrics: [tenant.leads.lifecycle_events@1]
+    filterable: true
+    groupable: true
+    cardinality: low
+    privacy_class: aggregate
+    stable_key: true
+    permissions: [analytics:read]

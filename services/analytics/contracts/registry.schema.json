@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kasitek.co.za/analytics/contracts/registry.schema.json",
+  "title": "KasiTek analytics contract registry",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["registry_version", "envelope", "contracts"],
+  "properties": {
+    "$schema": { "type": "string", "format": "uri-reference" },
+    "registry_version": { "type": "string", "pattern": "^[0-9]+$" },
+    "envelope": { "type": "string", "minLength": 1 },
+    "contracts": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["identity", "schema", "examples", "owner", "category", "privacy_class"],
+        "properties": {
+          "identity": { "type": "string", "pattern": "^[a-z][a-z0-9_.-]+@[0-9]+$" },
+          "schema": { "type": "string", "minLength": 1 },
+          "examples": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
+          "owner": { "type": "string", "minLength": 1 },
+          "category": { "enum": ["event", "observation", "scope_definition"] },
+          "privacy_class": { "enum": ["aggregate", "restricted", "sensitive"] }
+        }
+      }
+    }
+  }
+}

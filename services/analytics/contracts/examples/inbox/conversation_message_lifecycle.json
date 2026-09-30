@@ -1,0 +1,12 @@
+{
+  "message_id": "message-123",
+  "conversation_id": "conversation-123",
+  "channel": "whatsapp",
+  "action": "created",
+  "direction": "outbound",
+  "responder_type": "human",
+  "message_type": "text",
+  "delivery_status": "queued",
+  "response_time_ms": 1820,
+  "occurred_at": "2026-08-22T10:03:30Z"
+}

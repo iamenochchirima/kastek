@@ -1,0 +1,38 @@
+[package]
+name = "kasitek-analytics"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+actix-web.workspace = true
+async-trait.workspace = true
+chrono.workspace = true
+dotenv.workspace = true
+jsonschema.workspace = true
+jwt-simple = "0.11"
+log.workspace = true
+observability = { path = "../../crates/observability" }
+redis.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+serde_yaml.workspace = true
+sha2.workspace = true
+sqlx.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+
+[[bin]]
+name = "analytics-api"
+path = "src/bin/analytics-api.rs"
+
+[[bin]]
+name = "analytics-worker"
+path = "src/bin/analytics-worker.rs"
+
+[[bin]]
+name = "analytics-migrate"
+path = "src/bin/analytics-migrate.rs"
+
+[[bin]]
+name = "analytics-registry"
+path = "src/bin/analytics-registry.rs"
