@@ -47,3 +47,8 @@ cargo check -p kasitek-analytics --bins
 The standalone Next.js website lives in [`apps/labs-site`](apps/labs-site/README.md).
 Its quote-request, waitlist, and chat integrations retain their existing upstream API contracts.
 Hosting, domains, and deployed environments remain separate cutover work.
+
+## Admin UI
+
+The standalone admin application lives in [`apps/admin-site`](apps/admin-site/README.md). It
+uses Growth Core and Agency HTTP APIs; hosting cutover remains separate work.
