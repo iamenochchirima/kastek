@@ -3,6 +3,21 @@
 Shared infrastructure and platform services owned outside the Growth, Agents, and Agency
 products.
 
+## OpenTelemetry Collector
+
+Labs owns the Collector image, configuration profiles, and staging-only Railway service
+declaration. The implementation is in
+[`infra/observability/otel-collector`](infra/observability/otel-collector/README.md), the Railway
+partial is in [`.railway/railway.ts`](.railway/railway.ts), and operating notes are in
+[`docs/otel-collector-runbook.md`](docs/otel-collector-runbook.md). Moving the source does not
+change Growth's or Agents' exporter settings or any hosted endpoint.
+
+Run it locally from the repository root:
+
+```sh
+docker compose -f infra/observability/otel-collector/compose.yaml up --build
+```
+
 ## Analytics
 
 Labs owns the Analytics API, worker, schema, migrations, and service-owned build configuration in
