@@ -12,6 +12,28 @@ use super::social::{
     TIKTOK_TOKEN_URL, X_POST_TWEET_URL,
 };
 
+pub(crate) fn instagram_delete_graph_base(
+    connection_metadata: Option<&Value>,
+) -> Result<&'static str, AppError> {
+    let uses_instagram_login = connection_metadata
+        .and_then(|value| value.get("authMethod"))
+        .and_then(Value::as_str)
+        == Some("instagram_login");
+    if uses_instagram_login {
+        return Err(AppError::BadRequest(
+            "Instagram post deletion requires a Meta/Facebook Login connection with Instagram content management permission; reconnect this account through Meta before deleting the post".to_string(),
+        ));
+    }
+    Ok(META_GRAPH_BASE)
+}
+
+fn is_instagram_permission_failure(status: reqwest::StatusCode, detail: &str) -> bool {
+    status == reqwest::StatusCode::UNAUTHORIZED
+        || status == reqwest::StatusCode::FORBIDDEN
+        || detail.to_ascii_lowercase().contains("permission")
+        || detail.to_ascii_lowercase().contains("oauthexception")
+}
+
 async fn send_provider_delete(
     request: reqwest::RequestBuilder,
     fallback: &str,
@@ -24,6 +46,13 @@ async fn send_provider_delete(
 
     let body = response.text().await.unwrap_or_default();
     let detail = body.chars().take(300).collect::<String>();
+    if fallback == "Failed to delete the Instagram post"
+        && is_instagram_permission_failure(status, &detail)
+    {
+        return Err(AppError::BadRequest(
+            "Instagram deletion was rejected because this connection lacks the required Meta permission. Reconnect Instagram through Meta/Facebook Login and grant instagram_manage_contents, then try again".to_string(),
+        ));
+    }
     let detail = if detail.trim().is_empty() {
         status.to_string()
     } else {
@@ -49,6 +78,9 @@ pub(crate) async fn delete_post_from_provider(
         return Err(AppError::BadRequest(
             "TikTok does not currently expose a delete endpoint through the Content Posting API; delete the post in TikTok".to_string(),
         ));
+    }
+    if platform == "INSTAGRAM" {
+        instagram_delete_graph_base(connection_metadata.as_ref())?;
     }
     let access_token = decrypt_social_secret(access_token_encrypted)?;
     let client = reqwest::Client::new();
@@ -78,16 +110,7 @@ pub(crate) async fn delete_post_from_provider(
             .await
         }
         "INSTAGRAM" => {
-            let uses_instagram_login = connection_metadata
-                .as_ref()
-                .and_then(|value| value.get("authMethod"))
-                .and_then(Value::as_str)
-                == Some("instagram_login");
-            let graph_base = if uses_instagram_login {
-                INSTAGRAM_GRAPH_BASE
-            } else {
-                META_GRAPH_BASE
-            };
+            let graph_base = instagram_delete_graph_base(connection_metadata.as_ref())?;
             send_provider_delete(
                 client
                     .delete(format!(
@@ -762,8 +785,44 @@ pub(crate) async fn publish_post_to_instagram(
 
 #[cfg(test)]
 mod tests {
-    use super::{instagram_container_state, InstagramContainerState};
+    use super::{
+        instagram_container_state, instagram_delete_graph_base, is_instagram_permission_failure,
+        InstagramContainerState, META_GRAPH_BASE,
+    };
+    use reqwest::StatusCode;
     use serde_json::json;
+
+    #[test]
+    fn direct_instagram_login_is_not_reported_as_delete_capable() {
+        let error = instagram_delete_graph_base(Some(&json!({
+            "authMethod": "instagram_login"
+        })))
+        .expect_err("direct Instagram Login cannot delete media");
+
+        assert!(error.to_string().contains("Meta/Facebook Login"));
+    }
+
+    #[test]
+    fn legacy_meta_instagram_connections_use_the_meta_graph_for_deletion() {
+        let graph_base = instagram_delete_graph_base(Some(&json!({
+            "provider": "meta"
+        })))
+        .expect("legacy Meta connections should use the Meta Graph API");
+
+        assert_eq!(graph_base, META_GRAPH_BASE);
+    }
+
+    #[test]
+    fn meta_permission_rejections_are_classified_for_actionable_errors() {
+        assert!(is_instagram_permission_failure(
+            StatusCode::BAD_REQUEST,
+            r#"{"error":{"type":"OAuthException","code":200,"message":"Permissions error"}}"#,
+        ));
+        assert!(!is_instagram_permission_failure(
+            StatusCode::NOT_FOUND,
+            "media not found",
+        ));
+    }
 
     #[test]
     fn instagram_container_processing_is_not_publishable() {

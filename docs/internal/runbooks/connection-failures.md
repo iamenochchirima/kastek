@@ -12,6 +12,7 @@ Use this when a provider account shows `NEEDS_ATTENTION`, messages stop arriving
 2. Open `/connections` and identify the provider account, current status, credential status, and webhook status.
 3. Check the API and worker logs using the connection source ID and organisation ID. Do not log or copy access tokens.
 4. Confirm the organisation still has the entitlement required by the failed capability.
+5. If `/connections` unexpectedly shows no accounts, check the Core request for `/api/connections` before changing provider connections. A failed request is not an empty workspace; the page should display a load error.
 
 ## WhatsApp
 

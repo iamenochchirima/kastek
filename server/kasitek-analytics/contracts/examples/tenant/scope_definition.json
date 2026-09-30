@@ -1,8 +1,0 @@
-{
-  "scope_kind": "tenant_client",
-  "scope_external_id": "client_01J",
-  "parent_scope_external_id": "workspace_01J",
-  "reporting_timezone": "UTC",
-  "status": "active",
-  "source_version": 1
-}

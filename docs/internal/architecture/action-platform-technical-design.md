@@ -2,6 +2,8 @@
 title: Action Platform Technical Design
 slug: /architecture/action-platform-technical-design
 sidebar_position: 5
+owner: engineering
+last_reviewed: 2026-09-29
 ---
 
 # Action Platform Technical Design
@@ -33,22 +35,17 @@ The architecture may still use the general word “capability” when describing
 ### Proposed code names
 
 ```text
-server/
-|-- crates/
-|   |-- actions/
-|   |-- execution/
-|   `-- action-testing/
-|
-|-- kasitek-core/
-|   `-- src/actions/
-|
-|-- kasitek-tenants/
-|   `-- src/actions/
-|
-`-- kasitek-gateway/
-    |-- src/rest/
-    |-- src/mcp/
-    `-- src/a2a/
+Growth repository
+  server/crates/actions/
+  server/crates/execution/
+  server/crates/action-testing/
+  server/kasitek-core/src/actions/
+
+Agency repository
+  Kasitek-Labs/kasitek-agency/server/kasitek-tenants/src/actions/
+
+Agents repository
+  gateway adapters for REST, MCP, and A2A
 ```
 
 These names describe responsibility without encoding a temporary protocol or product name into the core.
@@ -198,7 +195,7 @@ The direct runtime owns:
 - direct database migrations;
 - direct audit and outbox integration.
 
-### 5.5 `kasitek-tenants/src/actions`
+### 5.5 Agency repository: `Kasitek-Labs/kasitek-agency/server/kasitek-tenants/src/actions`
 
 The white-label runtime owns:
 
@@ -499,6 +496,12 @@ Transaction: reserve effect + append outbox
 ```
 
 An unknown provider outcome moves to reconciliation rather than being reported as success or automatically retried without policy.
+
+The same rule applies when a provider responds with HTTP success but its domain payload reports a
+failed operation. The owning service must convert that result into a failed or unknown effect
+before the agent run can complete. For published-content deletion, Core keeps the local post
+unchanged when provider deletion is not confirmed, and the Agent client rejects a false domain
+result defensively so an older Core deployment cannot produce a false completion message.
 
 ## 12. Run and effect state machines
 

@@ -18,7 +18,7 @@ description: Standalone Studio plan for visualising context, memory, capabilitie
 
 **Primary plan:** [`Agent Playground and Execution Observatory`](./AGENT_PLATFORM_EXECUTION_OBSERVATORY_AND_CONTROL_PLANE_PLAN.md)
 
-**Related contracts:** [`Context runtime and telemetry`](./AGENT_CONTEXT_RUNTIME_AND_TELEMETRY_IMPLEMENTATION_PLAN.md), [`Agent memory architecture`](../agents/AGENT_MEMORY_ARCHITECTURE_AND_IMPLEMENTATION_PLAN.md), and [`Agent Platform implementation`](../agents/AGENT_PLATFORM_IMPLEMENTATION_PLAN.md)
+**Related contracts:** [`Context runtime and telemetry`](./AGENT_CONTEXT_RUNTIME_AND_TELEMETRY_IMPLEMENTATION_PLAN.md), [`Agent memory architecture`](https://github.com/Kasitek-Labs/kasitek-agents/blob/main/docs/plans/agents/AGENT_MEMORY_ARCHITECTURE_AND_IMPLEMENTATION_PLAN.md), and [`Agent Platform implementation`](https://github.com/Kasitek-Labs/kasitek-agents/blob/main/docs/plans/agents/AGENT_PLATFORM_IMPLEMENTATION_PLAN.md)
 
 ## Why this document exists
 

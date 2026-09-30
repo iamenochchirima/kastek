@@ -40,7 +40,7 @@ KasiTek files refreshed:
   `db/repositories/memory-repository.ts` — legacy lifecycle and migration inputs.
 - `agents/src/runtime/context-compaction.ts`, `context-engine.ts`, `context-memory-boundary.ts`,
   `journal/`, and `runtime/runtime-telemetry.ts` — runtime seams and event envelope.
-- `docs/plans/agents/HERMES_WAKU_MEMORY_RESEARCH.md` and the canonical memory plan.
+- [`HERMES_WAKU_MEMORY_RESEARCH.md`](https://github.com/Kasitek-Labs/kasitek-agents/blob/main/docs/plans/agents/HERMES_WAKU_MEMORY_RESEARCH.md) and the canonical memory plan.
 
 Decisions carried forward:
 

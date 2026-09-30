@@ -3,7 +3,7 @@ id: local-development
 title: Local Development
 sidebar_position: 2
 owner: engineering
-last_reviewed: 2026-09-30
+last_reviewed: 2026-09-29
 ---
 
 # Local Development
@@ -20,7 +20,6 @@ Use the versions pinned by the repository where they exist:
 - pnpm: `package.json` `packageManager`
 - Rust: `server/rust-toolchain.toml`
 - PostgreSQL and Redis for services that require them
-- Temporal for Agent Platform workflows; local Temporal Server is optional
 
 Check the installed versions before debugging application failures. A mismatched toolchain can
 look like a code or dependency problem.
@@ -59,47 +58,31 @@ Never paste credentials into a plan, issue, log, test fixture, or documentation 
 
 ## Starting services
 
-The launcher opens each requested process in its own terminal. It uses local defaults for
-Analytics and can start a local Temporal Server when `TEMPORAL_MODE=local` is set.
+The launcher opens requested Growth processes in their own terminals. It does not start the moved
+Analytics, Agency, or Agent services. Analytics source and local commands are in the
+[Labs Analytics service](https://github.com/Kasitek-Labs/kasitek-labs/tree/main/services/analytics).
+Agency and Agent service source and local commands are in their owning repositories. Growth retains
+product publishers and consumer integrations; reconnecting their delivery paths is separate work.
 
 ```bash
 ./scripts/run_local_stack.sh core client
-./scripts/run_local_stack.sh tenants       # Tenant API + tenant portal only
-./scripts/run_local_stack.sh agents-api agents-worker agent-gateway
-./scripts/run_local_stack.sh analytics-api analytics-worker
 ./scripts/run_local_stack.sh internal-docs  # Internal docs at http://localhost:3006
 ./scripts/run_local_stack.sh --help
 ```
 
-The `tenants` group starts `tenant-api` on port `8090` and `tenant-portal` on port `3010`. It
-does not start Core, Agents, Analytics, the direct client, Admin, or Temporal. Use
-`tenant-api` or `tenant-portal` when only one tenant process is needed. The launcher loads the
-Tenant API environment from `server/kasitek-tenants/.env` and the portal environment from
-`client/apps/tenant-portal/.env` and `.env.local`; the portal defaults its server-side proxy to
-`http://127.0.0.1:8090`. When `tenant-api` is selected, the launcher requires a loopback Tenant
-PostgreSQL URL. It uses `KASITEK_LOCAL_TENANT_DATABASE_URL` when set; otherwise it derives
-`kasitek_tenants` from the local `AGENTS_DATABASE_URL` and creates that database if it is absent.
-The generic `DATABASE_URL` is never used as the Tenant database fallback.
+This launcher does not start the tenant API or portal. Their source and local commands are in the
+Agency repository's README.
 
-The default no-argument invocation starts the core, tenant, Analytics API, Agent API and worker,
-Agent gateway, client apps, internal docs, and local Temporal when local mode is enabled. Start
-migrations as a separate release-like step before services that need the database:
-
-```bash
-./scripts/run_local_stack.sh analytics-migrate
-pnpm --dir agents run migrate
+The default no-argument invocation starts Growth-owned Core, client apps, and internal docs. The
+moved services and their migrations are maintained in their owner repositories.
 ```
 
 For focused work, manual commands are also supported:
 
 ```bash
 ./scripts/dev_core_watch.sh
-pnpm --dir agents run dev:api
-pnpm --dir agents run dev:worker
-pnpm --dir agents run dev:gateway
 pnpm --dir client run dev
 pnpm --dir client run dev:admin
-pnpm --dir client --filter tenant-portal dev
 ```
 
 ## Local service ports
@@ -107,13 +90,8 @@ pnpm --dir client --filter tenant-portal dev
 | Service | Default port | Liveness or readiness check |
 | --- | ---: | --- |
 | Core API | 4000 | `/health/live`, `/health/ready` where enabled |
-| Tenant Platform | 8090 | service health endpoint |
-| Analytics API | 4300 | `/health/live`, `/health/ready` |
-| Agent API | 4100 | `/health/live`, `/health/ready` |
-| Agent gateway | 4200 | `/health`, `/health/ready` |
 | Client | 3000 | browser application |
 | Admin | 3001 | browser application |
-| Temporal | 7233 | Temporal service endpoint |
 
 The launcher is the authoritative list for local service names and ports. If an individual
 service changes its port, update the launcher and this table together.
@@ -130,7 +108,7 @@ When a local Collector is running, point a Growth producer at it with:
 export OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:4318
 export OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
 export OTEL_DEPLOYMENT_ENVIRONMENT=local
-export OTEL_SERVICE_NAME=kasitek-agents
+export OTEL_SERVICE_NAME=kasitek-core
 ```
 
 For the Rust services also set `KASITEK_VERSION`, `KASITEK_RELEASE_ID`, and `KASITEK_COMMIT_SHA`

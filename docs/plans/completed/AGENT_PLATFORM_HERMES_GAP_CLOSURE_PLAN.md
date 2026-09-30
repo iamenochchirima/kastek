@@ -19,7 +19,7 @@ description: Implementation plan for reworking the Agent Platform around the mat
 **Reference implementation:** `/home/enoch/aworkspace/agents/hermes-agent`, revision
 `9a84bee265daad14340a80d7585928cd8ea1f9eb`, reviewed 2026-09-07.
 
-**Related plan:** [`Agent Platform Implementation Plan`](../agents/AGENT_PLATFORM_IMPLEMENTATION_PLAN.md)
+**Related plan:** [`Agent Platform Implementation Plan`](https://github.com/Kasitek-Labs/kasitek-agents/blob/main/docs/plans/agents/AGENT_PLATFORM_IMPLEMENTATION_PLAN.md)
 
 ## Objective
 

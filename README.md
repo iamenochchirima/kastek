@@ -1,9 +1,8 @@
 # KasiTek Growth
 
-This repository is being refocused as the standalone KasiTek Growth product. The checkout is
-still a monorepo and contains code for other product areas. Their ownership and extraction will
-be handled through separately approved work. Do not assume those moves have happened or move
-components as part of routine setup.
+This repository is being refocused as the standalone KasiTek Growth product. It still contains
+some non-Growth service source whose extraction is tracked in GitHub Issues. Perform only the
+moves named by those issues; this overview does not authorize additional extractions.
 
 ## Start here
 
@@ -19,8 +18,8 @@ components as part of routine setup.
 
 The client workspace uses Node.js and pnpm versions recorded in `client/package.json` and
 `.nvmrc`. Rust services use the toolchain in `server/rust-toolchain.toml`. PostgreSQL and Redis
-are needed by services that use them. Local Temporal is needed only for Agent Platform workflow
-work.
+are needed by services that use them. Agent Platform services are developed from the
+`Kasitek-Labs/kasitek-agents` repository, not from this Growth checkout.
 
 For a local client and Core API stack, start with:
 
@@ -38,4 +37,7 @@ services required for your task.
 - Former active plans are preserved in [`docs/plans/parked/`](docs/plans/parked/README.md). They
   are reference material, not a work queue.
 - Product-level architecture decisions belong in [`docs/adr/`](docs/adr/README.md).
-- Agent-specific ADRs already under `agents/docs/adr/` remain there.
+- Agent-specific ADRs and implementation decisions are owned with the Agent service in
+  `Kasitek-Labs/kasitek-agents`.
+- Growth retains the Kāsiai Agent API client and Core's authenticated Agent bridge as product-side
+  integrations.

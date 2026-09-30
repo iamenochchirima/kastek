@@ -7,6 +7,10 @@ KasiTek supports two Instagram connection paths:
 
 The direct path does not support personal consumer Instagram accounts.
 
+Direct Instagram Login cannot delete published media. Use Meta/Facebook Login for an agent or user
+that must delete a published Instagram post; the Meta flow requests `instagram_manage_contents`.
+See [Meta's Instagram Media deletion reference](https://developers.facebook.com/docs/instagram-api/reference/ig-media/).
+
 ## Meta app setup
 
 In the Meta app dashboard, enable **Instagram API with Instagram Login** and configure these permissions:

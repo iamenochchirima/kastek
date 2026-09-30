@@ -503,8 +503,15 @@ async fn sync_capabilities(
             ) AS definition(key, entitlement_key, providers)
             WHERE connection.provider = ANY(definition.providers)
               AND (
-                definition.key NOT IN ('EMAIL_INBOUND', 'EMAIL_READ', 'EMAIL_OUTBOUND', 'EMAIL_REPLY', 'AGENT_EMAIL')
-                OR connection."sourceType" = 'EMAIL'
+                (
+                    definition.key NOT IN ('EMAIL_INBOUND', 'EMAIL_READ', 'EMAIL_OUTBOUND', 'EMAIL_REPLY', 'AGENT_EMAIL')
+                    OR connection."sourceType" = 'EMAIL'
+                )
+                AND (
+                    definition.key <> 'SOCIAL_POST_DELETE'
+                    OR connection.provider <> 'INSTAGRAM'
+                    OR connection.metadata->>'authMethod' = 'meta_login'
+                )
               )
         ) capability
         WHERE connection."orgId" = $1
