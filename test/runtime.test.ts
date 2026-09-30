@@ -480,6 +480,109 @@ describe("Tool Gateway and bounded runtime", () => {
     expect(result.completionMessage).toBe("Publishing “Launch” to the selected destinations.");
   });
 
+  it("completes an approved published deletion with a truthful reply", async () => {
+    const registry = new ToolRegistry();
+    registry.register({
+      name: "kasitek.core.content_post_delete_published",
+      version: "1.0.0",
+      description: "Delete a published post",
+      riskClass: "external-effect",
+      requiresApproval: true,
+      timeoutMs: 1000,
+      inputSchema: { type: "object" },
+      outputSchema: { type: "object" },
+      handler: async () => ({ success: true, localDeleted: true, providerResults: [{ platform: "INSTAGRAM", status: "DELETED" }] }),
+    });
+    const argumentsValue = { postId: "post-1", platform: "INSTAGRAM" };
+    const result = await runBoundedAgentLoop({
+      model: { provider: "openai", model: "test-model" },
+      messages: [{ role: "user", content: "delete" }],
+      credentials,
+      gateway: new ModelGateway([]),
+      tools: registry,
+      grantedTools: new Set(["kasitek.core.content_post_delete_published"]),
+      toolContext: { organizationId: "org", agentId: "agent", agentVersionId: "version", installationId: "install", runId: "run", correlationId: "corr" },
+      resumeApprovedToolCall: {
+        id: "call-1",
+        name: "kasitek.core.content_post_delete_published",
+        arguments: argumentsValue,
+        approval: { approvedBy: "user", argumentsHash: hashToolArguments(argumentsValue), expiresAt: new Date(Date.now() + 60_000).toISOString() },
+      },
+    });
+
+    expect(result.status).toBe("completed");
+    expect(result.completionMessage).toBe("Deleted the post from Instagram.");
+  });
+
+  it("does not report an approved published deletion as completed after provider failure", async () => {
+    const registry = new ToolRegistry();
+    registry.register({
+      name: "kasitek.core.content_post_delete_published",
+      version: "1.0.0",
+      description: "Delete a published post",
+      riskClass: "external-effect",
+      requiresApproval: true,
+      timeoutMs: 1000,
+      inputSchema: { type: "object" },
+      outputSchema: { type: "object" },
+      handler: async () => { throw new Error("The published post was not deleted from Instagram; the provider did not confirm deletion."); },
+    });
+    const argumentsValue = { postId: "post-1", platform: "INSTAGRAM" };
+    const result = await runBoundedAgentLoop({
+      model: { provider: "openai", model: "test-model" },
+      messages: [{ role: "user", content: "delete" }],
+      credentials,
+      gateway: new ModelGateway([]),
+      tools: registry,
+      grantedTools: new Set(["kasitek.core.content_post_delete_published"]),
+      toolContext: { organizationId: "org", agentId: "agent", agentVersionId: "version", installationId: "install", runId: "run", correlationId: "corr" },
+      resumeApprovedToolCall: {
+        id: "call-1",
+        name: "kasitek.core.content_post_delete_published",
+        arguments: argumentsValue,
+        approval: { approvedBy: "user", argumentsHash: hashToolArguments(argumentsValue), expiresAt: new Date(Date.now() + 60_000).toISOString() },
+      },
+    });
+
+    expect(result.status).toBe("failed");
+    expect(result.completionMessage).toBeUndefined();
+    expect(result.error?.userMessage).toBe("I couldn’t delete the published post. The provider did not confirm deletion, so the local post was kept. Check the channel connection, then try again.");
+  });
+
+  it("directs Instagram permission failures to the Meta reconnect flow", async () => {
+    const registry = new ToolRegistry();
+    registry.register({
+      name: "kasitek.core.content_post_delete_published",
+      version: "1.0.0",
+      description: "Delete a published post",
+      riskClass: "external-effect",
+      requiresApproval: true,
+      timeoutMs: 1000,
+      inputSchema: { type: "object" },
+      outputSchema: { type: "object" },
+      handler: async () => { throw new Error("kasitek-core returned 409: Instagram deletion was rejected because this connection lacks the required Meta permission; grant instagram_manage_contents"); },
+    });
+    const argumentsValue = { postId: "post-1", platform: "INSTAGRAM" };
+    const result = await runBoundedAgentLoop({
+      model: { provider: "openai", model: "test-model" },
+      messages: [{ role: "user", content: "delete" }],
+      credentials,
+      gateway: new ModelGateway([]),
+      tools: registry,
+      grantedTools: new Set(["kasitek.core.content_post_delete_published"]),
+      toolContext: { organizationId: "org", agentId: "agent", agentVersionId: "version", installationId: "install", runId: "run", correlationId: "corr" },
+      resumeApprovedToolCall: {
+        id: "call-1",
+        name: "kasitek.core.content_post_delete_published",
+        arguments: argumentsValue,
+        approval: { approvedBy: "user", argumentsHash: hashToolArguments(argumentsValue), expiresAt: new Date(Date.now() + 60_000).toISOString() },
+      },
+    });
+
+    expect(result.status).toBe("failed");
+    expect(result.error?.userMessage).toBe("I couldn’t delete the published Instagram post because this connection lacks Meta’s Instagram content-management permission. Reconnect Instagram through Meta/Facebook Login, then try again.");
+  });
+
   it("returns a useful channel-safe error when an approved Bluesky publish fails", async () => {
     const registry = new ToolRegistry();
     registry.register({

@@ -120,6 +120,8 @@ export function buildApprovedToolCompletionMessage(
       return `Scheduled ${target}${suffix}.`;
     case "kasitek.core.content_post_unschedule":
       return `Removed the schedule for ${target}.`;
+    case "kasitek.core.content_post_delete_published":
+      return platform ? `Deleted ${target} from ${platform}.` : `Deleted ${target}.`;
     case "kasitek.core.content_post_delete":
       return "Post deleted.";
     default:
@@ -158,6 +160,12 @@ export function buildApprovedToolFailureMessage(
       return `I couldn’t publish the ${platform} post because the provider is temporarily unavailable. The post was not confirmed as published; try again shortly.`;
     }
     return `I couldn’t publish the ${platform} post. The provider did not confirm that it was published; please try again.`;
+  }
+  if (toolName === "kasitek.core.content_post_delete_published") {
+    if (/Meta\/Facebook Login|instagram_manage_contents|lacks the required Meta permission/i.test(message)) {
+      return "I couldn’t delete the published Instagram post because this connection lacks Meta’s Instagram content-management permission. Reconnect Instagram through Meta/Facebook Login, then try again.";
+    }
+    return "I couldn’t delete the published post. The provider did not confirm deletion, so the local post was kept. Check the channel connection, then try again.";
   }
   if (toolName === "kasitek.core.content_post_publish_batch" || toolName === "kasitek.core.content_post_publish_batch_retry") {
     if (/permission|scope|authorization|forbidden|reconnect|connection|credential|oauth|token/i.test(message)) {

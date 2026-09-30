@@ -601,6 +601,19 @@ describe("kasitek-core read boundary", () => {
     expect(init.headers).toHaveProperty("idempotency-key");
   });
 
+  it("rejects a provider deletion result that reports failure inside HTTP 200", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      success: false,
+      localDeleted: false,
+      providerResults: [{ platform: "INSTAGRAM", status: "FAILED" }],
+    }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const config = loadConfig({ AGENTS_DATABASE_URL: "postgres://localhost/agents", KASITEK_CORE_URL: "https://core.example.test", KASITEK_CORE_INTERNAL_TOKEN: "internal-token" });
+
+    await expect(new KasitekCoreReadClient(config).deletePublishedContentPost(context, "post-1", "INSTAGRAM"))
+      .rejects.toMatchObject({ code: "CORE_PROVIDER_FAILURE" });
+  });
+
   it("binds a delegation token to the installation and the exact core capability", async () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ customer: { id: "cust-1" }, identities: [] }), { status: 200 }));
     vi.stubGlobal("fetch", fetchMock);

@@ -989,12 +989,20 @@ export class KasitekCoreReadClient {
     postId: string,
     platform: string,
   ): Promise<CorePublishedPostDeletionResult> {
-    return this.requestJson<CorePublishedPostDeletionResult>(
+    const result = await this.requestJson<CorePublishedPostDeletionResult>(
       context,
       `/api/internal/agents/v1/content/posts/${encodeURIComponent(postId)}/delete-published`,
       "Published content delete",
       { method: "POST", body: JSON.stringify({ platform }) },
     );
+    if (!result.success) {
+      const destination = platform.trim() || "social platform";
+      throw new CoreToolError(
+        "CORE_PROVIDER_FAILURE",
+        `The published post was not deleted from ${destination}; the provider did not confirm deletion.`,
+      );
+    }
+    return result;
   }
 
   public async deliverChannelMessage(input: {
