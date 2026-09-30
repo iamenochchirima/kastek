@@ -41,13 +41,13 @@ sha2 = "0.10"
 sha1 = "0.10"
 hex = "0.4"
 p256 = { version = "0.13", features = ["ecdsa"] }
-config = { path = "../crates/config" }
-crypto-utils = { path = "../crates/crypto-utils" }
-observability = { path = "../crates/observability" }
+config.workspace = true
+crypto-utils.workspace = true
+observability.workspace = true
 types = { path = "../crates/types" }
 actions = { path = "../crates/actions" }
-analytics-producer = { path = "../crates/analytics-producer" }
-analytics-reporting = { path = "../crates/analytics-reporting" }
+analytics-producer.workspace = true
+analytics-reporting.workspace = true
 execution = { path = "../crates/execution" }
 semver.workspace = true
 jwt-simple = "0.11"

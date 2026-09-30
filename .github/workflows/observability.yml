@@ -55,8 +55,7 @@ jobs:
         run: |
           set -euo pipefail
           if rg -n 'log::(trace|debug|info|warn|error)!' server \
-            --glob '*.rs' \
-            --glob '!server/crates/observability/examples/otel-smoke.rs'; then
+            --glob '*.rs'; then
             echo 'Operational Rust log macros must use the shared observability tracing API.'
             exit 1
           fi
@@ -65,29 +64,7 @@ jobs:
         working-directory: server
         run: cargo check --workspace
 
-      - name: Test shared observability crate
-        working-directory: server
-        run: cargo test -p observability
-
-      - name: Verify Rust stdout fallback with export disabled
-        working-directory: server
-        env:
-          OTEL_SDK_DISABLED: "true"
-          LOG_FORMAT: json
-          RUST_LOG: info
-        run: |
-          set -euo pipefail
-          cargo run -p observability --example otel-smoke 2>&1 | tee disabled-otel.log
-          grep -q 'kasitek.local.smoke.event' disabled-otel.log
-          grep -q 'event=kasitek.local.smoke outcome=success' disabled-otel.log
-
-      - name: Run shared observability Clippy
-        working-directory: server
-        run: cargo clippy -p observability --all-targets --all-features -- -D warnings
-
       - name: Test instrumented Rust services
         working-directory: server
         run: |
-          cargo test -p analytics-producer --lib
-          cargo test -p analytics-reporting --lib
           cargo test -p kasitek-core --lib

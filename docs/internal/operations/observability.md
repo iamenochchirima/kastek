@@ -27,8 +27,8 @@ Growth Core / Tenants / Agents / Labs Analytics
        └─ generic OTLP exporter (production template, backend decision pending)
 ```
 
-Growth Rust services initialize the shared `server/crates/observability` crate. Labs Analytics
-builds against its own local copy while shared-crate ownership is unresolved. Agents initializes
+Growth Rust services initialize the private `observability` crate from KasiTek Labs. Labs Analytics
+uses the shared crate source maintained in its own repository. Agents initializes
 the Node SDK before Fastify, PostgreSQL, Temporal, and gateway modules. HTTP instrumentation,
 Pino correlation, PostgreSQL/HTTP auto-instrumentation, provider spans, Temporal activity spans,
 background-worker spans, and graceful shutdown are enabled in the current server-side slice.

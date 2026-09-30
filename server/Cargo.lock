@@ -338,6 +338,7 @@ checksum = "683d7910e743518b0e34f1186f92494becacb047c7b6bf616c96772180fef923"
 [[package]]
 name = "analytics-producer"
 version = "0.1.0"
+source = "git+https://github.com/Kasitek-Labs/kasitek-labs.git?tag=rust-crates-v0.1.0#4ec7f68dc7c4784c42bb71a8046cb945ef6c6e80"
 dependencies = [
  "chrono",
  "observability",
@@ -347,13 +348,13 @@ dependencies = [
  "sha2",
  "sqlx",
  "thiserror 2.0.18",
- "tokio",
  "uuid",
 ]
 
 [[package]]
 name = "analytics-reporting"
 version = "0.1.0"
+source = "git+https://github.com/Kasitek-Labs/kasitek-labs.git?tag=rust-crates-v0.1.0#4ec7f68dc7c4784c42bb71a8046cb945ef6c6e80"
 dependencies = [
  "chrono",
  "jwt-simple",
@@ -757,6 +758,7 @@ dependencies = [
 [[package]]
 name = "config"
 version = "0.1.0"
+source = "git+https://github.com/Kasitek-Labs/kasitek-labs.git?tag=rust-crates-v0.1.0#4ec7f68dc7c4784c42bb71a8046cb945ef6c6e80"
 dependencies = [
  "thiserror 2.0.18",
  "url",
@@ -890,6 +892,7 @@ dependencies = [
 [[package]]
 name = "crypto-utils"
 version = "0.1.0"
+source = "git+https://github.com/Kasitek-Labs/kasitek-labs.git?tag=rust-crates-v0.1.0#4ec7f68dc7c4784c42bb71a8046cb945ef6c6e80"
 dependencies = [
  "aes-gcm",
  "base64 0.22.1",
@@ -2590,6 +2593,7 @@ dependencies = [
 [[package]]
 name = "observability"
 version = "0.1.0"
+source = "git+https://github.com/Kasitek-Labs/kasitek-labs.git?tag=rust-crates-v0.1.0#4ec7f68dc7c4784c42bb71a8046cb945ef6c6e80"
 dependencies = [
  "actix-web",
  "env_logger",
@@ -2601,7 +2605,6 @@ dependencies = [
  "opentelemetry_sdk",
  "regex",
  "serde_json",
- "tokio",
  "tracing",
  "tracing-actix-web",
  "tracing-log",

@@ -1,6 +1,6 @@
 ---
 owner: engineering
-last_reviewed: 2026-09-29
+last_reviewed: 2026-10-01
 ---
 
 # Current repository architecture
@@ -17,8 +17,8 @@ the extracted services.
 | `client/packages/` | Shared database package. | Used by the client applications in this repository. |
 | [`kasitek-agents`](https://github.com/Kasitek-Labs/kasitek-agents) | Agent API, gateway, workers, runtime, migrations, management UI, and Temporal integration. | Agent Platform source owner; Growth consumes its API. |
 | `server/kasitek-core/` | Rust Core service. | Core API and its service-owned modules. |
-| [`kasitek-labs`](https://github.com/Kasitek-Labs/kasitek-labs) | Labs website, Analytics API and worker, contracts, migrations, reporting, and OpenTelemetry Collector. | Labs owns these implementations; Growth retains product publishers and outboxes. Deployment cutover is separate work. |
-| `server/crates/` | Rust crates used by server workspace members. | Includes shared configuration, observability, security, and analytics packages. |
+| [`kasitek-labs`](https://github.com/Kasitek-Labs/kasitek-labs) | Labs website, Analytics API and worker, contracts, migrations, reporting, OpenTelemetry Collector, and shared Rust crates. | Labs owns these implementations; Growth consumes private Rust crates and retains product publishers and outboxes. Deployment cutover is separate work. |
+| `server/crates/actions`, `execution`, `types` | Growth-owned Rust support libraries. | Used by Growth Core. |
 | `scripts/`, `.github/workflows/` | Growth local development and verification automation. | Service-specific automation belongs with its owning service. |
 | `docs/` | User and internal technical documentation. | Documents current repository behavior and interfaces. |
 | [`kasitek-agency`](https://github.com/Kasitek-Labs/kasitek-agency) | Tenant API, migrations, portal, portal-only API client, and tenant-owned configuration. | Agency owns this white-label product source; Growth Admin retains its provisioning client. |

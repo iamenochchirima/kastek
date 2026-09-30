@@ -3,7 +3,7 @@ id: local-development
 title: Local Development
 sidebar_position: 2
 owner: engineering
-last_reviewed: 2026-09-29
+last_reviewed: 2026-10-01
 ---
 
 # Local Development
@@ -75,7 +75,6 @@ Agency repository's README.
 
 The default no-argument invocation starts Growth-owned Core, client apps, and internal docs. The
 moved services and their migrations are maintained in their owner repositories.
-```
 
 For focused work, manual commands are also supported:
 

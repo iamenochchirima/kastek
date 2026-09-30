@@ -1,12 +1,7 @@
 [workspace]
 members = [
     "kasitek-core",
-    "crates/config",
-    "crates/crypto-utils",
-    "crates/observability",
     "crates/actions",
-    "crates/analytics-producer",
-    "crates/analytics-reporting",
     "crates/execution",
     "crates/types",
 ]
@@ -47,7 +42,11 @@ opentelemetry_sdk = { version = "0.32.1", features = [
     "experimental_metrics_periodicreader_with_async_runtime",
     "experimental_trace_batch_span_processor_with_async_runtime",
 ] }
-observability = { path = "crates/observability" }
+analytics-producer = { git = "https://github.com/Kasitek-Labs/kasitek-labs.git", tag = "rust-crates-v0.1.0", version = "0.1.0" }
+analytics-reporting = { git = "https://github.com/Kasitek-Labs/kasitek-labs.git", tag = "rust-crates-v0.1.0", version = "0.1.0" }
+config = { git = "https://github.com/Kasitek-Labs/kasitek-labs.git", tag = "rust-crates-v0.1.0", version = "0.1.0" }
+crypto-utils = { git = "https://github.com/Kasitek-Labs/kasitek-labs.git", tag = "rust-crates-v0.1.0", version = "0.1.0" }
+observability = { git = "https://github.com/Kasitek-Labs/kasitek-labs.git", tag = "rust-crates-v0.1.0", version = "0.1.0" }
 jsonschema = { version = "0.48", default-features = false }
 rand = "0.8"
 regex = "1"
