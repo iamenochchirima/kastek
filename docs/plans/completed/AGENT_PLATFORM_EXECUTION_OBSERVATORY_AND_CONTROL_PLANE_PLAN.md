@@ -18,11 +18,11 @@ description: Third Agent Platform implementation chunk for real Playground execu
 
 **Depends on:** [`Agent Platform Hermes-Aligned Runtime Reliability`](./AGENT_PLATFORM_HERMES_ALIGNED_RUNTIME_RELIABILITY_PLAN.md)
 
-**Canonical plan:** [`AGENT_PLATFORM_IMPLEMENTATION_PLAN.md`](../agents/AGENT_PLATFORM_IMPLEMENTATION_PLAN.md)
+**Canonical plan:** [`AGENT_PLATFORM_IMPLEMENTATION_PLAN.md`](https://github.com/Kasitek-Labs/kasitek-agents/blob/main/docs/plans/agents/AGENT_PLATFORM_IMPLEMENTATION_PLAN.md)
 
 **Related packages:** P01, P03, P06, P07B, P09, P09B, P11, P13, P14
 
-**Related research:** [`Agent execution visualization platform research`](../agents/AGENT_PLATFORM_EXECUTION_VISUALIZATION_RESEARCH.md)
+**Related research:** [`Agent execution visualization platform research`](https://github.com/Kasitek-Labs/kasitek-agents/blob/main/docs/plans/agents/AGENT_PLATFORM_EXECUTION_VISUALIZATION_RESEARCH.md)
 
 **Studio visual contract:** [`Studio runtime observatory and promotion update`](./AGENT_STUDIO_RUNTIME_OBSERVATORY_UPDATE_PLAN.md)
 
@@ -218,7 +218,7 @@ The comparison research narrows this chunk to five related but separate surfaces
 The third chunk adopts useful patterns from LangGraph Studio, LangSmith, Google ADK Web, Dify,
 Microsoft Foundry, AWS AgentCore, Langfuse, Logfire, n8n, and Restate, but adapts them to the
 KasiTek journal, Temporal, and tenancy model. The
-comparison and decisions are recorded in the [visualization research note](../agents/AGENT_PLATFORM_EXECUTION_VISUALIZATION_RESEARCH.md).
+comparison and decisions are recorded in the [visualization research note](https://github.com/Kasitek-Labs/kasitek-agents/blob/main/docs/plans/agents/AGENT_PLATFORM_EXECUTION_VISUALIZATION_RESEARCH.md).
 
 ## Playground lifecycle
 

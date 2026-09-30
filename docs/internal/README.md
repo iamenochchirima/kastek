@@ -23,9 +23,9 @@ This is the canonical home for private Kasitek documentation.
 - [Environments](./operations/environments.md)
 - [Railway Deployment Topology](./operations/deployment-topology.md)
 - [Observability](./operations/observability.md)
-- [Agent Memory Observability](./operations/agent-memory-observability.md)
+- [Agent Platform technical docs](https://github.com/Kasitek-Labs/kasitek-agents/blob/main/docs/README.md)
 - [Documentation Maintenance](./operations/documentation-maintenance.md)
-- [Agent Platform Implementation Plan](/plans/agents/)
+- [Agent Platform implementation plan](https://github.com/Kasitek-Labs/kasitek-agents/blob/main/docs/plans/agents/AGENT_PLATFORM_IMPLEMENTATION_PLAN.md)
 - [Agent runtime host boundary](./architecture/agent-host-boundary.md)
 - [Shared workspace email connections](./architecture/shared-workspace-email-connections.md)
 
@@ -36,14 +36,13 @@ This is the canonical home for private Kasitek documentation.
 - `development/`: repository and local-development guidance
 - `operations/`: release, environment, versioning, observability, and documentation procedures
 - `runbooks/`: step-by-step operational playbooks
-- `docs/plans/`: implementation plans; the canonical Agent Platform program map and selected active
-  implementation chunks are mounted at `/plans/agents/`
+- `docs/plans/`: Growth planning material and historical records; Agent Platform plans live in the
+  [Agents repository](https://github.com/Kasitek-Labs/kasitek-agents/tree/main/docs/plans/agents)
 - `docs/archive/legacy/`: historical or superseded material, not current guidance
 
 ## Notes
 
-- This site contains current technical and operational guidance only.
+- This site contains current Growth technical and operational guidance only.
 - Work items and short checklists belong in the selected issue tracker and linked pull requests.
-  Former active plans are preserved under `docs/plans/parked/`. The Agent Platform program map
-  remains its architecture index; current runtime behavior belongs under
-  `docs/internal/architecture/`.
+  Former active plans are preserved under `docs/plans/parked/`. Agent runtime behavior and its
+  current architecture index belong to the Agents repository.

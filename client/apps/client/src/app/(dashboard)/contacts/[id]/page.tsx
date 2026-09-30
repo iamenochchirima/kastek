@@ -278,9 +278,6 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
               <h2 className="text-lg font-semibold text-foreground">Agent Platform activity</h2>
               <p className="mt-1 text-sm text-muted-foreground">Runs linked to this customer or their conversation will appear here.</p>
             </div>
-            <Link href="/agents" className="text-sm text-muted-foreground hover:text-foreground">
-              Open Agents →
-            </Link>
           </div>
           <div className="mt-5 divide-y divide-border rounded-xl border border-border">
             {detail.agentEvents.length ? (

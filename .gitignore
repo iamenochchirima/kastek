@@ -52,6 +52,9 @@ yarn-error.log*
 next-env.d.ts
 
 **/generated/prisma
+**/dist/
+**/.backups/
+**/.artifacts/
 
 # local-only working files (prompts, experiments, drafts)
 local-work/

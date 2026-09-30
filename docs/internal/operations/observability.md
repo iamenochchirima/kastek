@@ -3,7 +3,7 @@ id: observability
 title: Observability
 sidebar_position: 5
 owner: platform-ops
-last_reviewed: 2026-08-27
+last_reviewed: 2026-09-29
 ---
 
 # Observability
@@ -14,11 +14,12 @@ behaving correctly, and what changed when the behavior changed?
 ## Architecture and current status
 
 Server-side services emit portable OpenTelemetry logs, traces, and metrics over OTLP HTTP. The
-repository-owned Collector at `infra/observability/otel-collector/` is the boundary between
-application code and a future telemetry backend:
+Collector implementation is owned by the Labs repository; Growth owns its producer-side
+instrumentation and exporter settings. The Collector is the boundary between application code and
+a future telemetry backend:
 
 ```text
-Core / Tenants / Analytics / Agents
+Growth Core / Tenants / Agents / Labs Analytics
               │ OTLP HTTP
               ▼
      OpenTelemetry Collector
@@ -26,7 +27,8 @@ Core / Tenants / Analytics / Agents
        └─ generic OTLP exporter (production template, backend decision pending)
 ```
 
-The Rust services initialize the shared `server/crates/observability` crate. Agents initializes
+Growth Rust services initialize the shared `server/crates/observability` crate. Labs Analytics
+builds against its own local copy while shared-crate ownership is unresolved. Agents initializes
 the Node SDK before Fastify, PostgreSQL, Temporal, and gateway modules. HTTP instrumentation,
 Pino correlation, PostgreSQL/HTTP auto-instrumentation, provider spans, Temporal activity spans,
 background-worker spans, and graceful shutdown are enabled in the current server-side slice.
@@ -42,15 +44,18 @@ The debug exporter is not durable storage. Production observability is not compl
 durable destination, retention, access policy, resource owner, and alerting policy are approved
 and configured. Selecting Axiom or another backend is a separate change.
 
+Collector source and local operation instructions are maintained in the
+[Labs repository](https://github.com/Kasitek-Labs/kasitek-labs/tree/main/infra/observability/otel-collector).
+
 ## Service identity
 
 | Process | `service.name` |
 | --- | --- |
 | Core API and Core workers | `kasitek-core` |
-| Tenants API and workers | `kasitek-tenants` |
-| Analytics API | `kasitek-analytics-api` |
-| Analytics worker | `kasitek-analytics-worker` |
-| Analytics migration job | `kasitek-analytics-migrate` |
+| Agency tenant API and workers | `kasitek-tenants` |
+| Labs Analytics API | `kasitek-analytics-api` |
+| Labs Analytics worker | `kasitek-analytics-worker` |
+| Labs Analytics migration job | `kasitek-analytics-migrate` |
 | Agents API | `kasitek-agents` unless `OTEL_SERVICE_NAME` or `KASITEK_SERVICE_NAME` overrides it |
 | Agents worker | `kasitek-agents` unless overridden |
 | Agents gateway | `kasitek-agents` unless overridden |
@@ -137,8 +142,8 @@ Agents uses Pino with `trace_id`, `span_id`, `trace_flags`, and `correlation_id`
 operational logger accepts lowercase dot-separated event names and normalizes invalid event
 values to `operation.invalid.event` while retaining only a bounded diagnostic value. Rust `log`
 records are bridged into the tracing subscriber when OTLP is enabled. Core and Tenant source
-backfill workers, Core operational workers, the Analytics outbox publisher, and Analytics
-projection processing now emit stable lifecycle/result events and shared operation metrics.
+backfill workers, Core operational workers, the Growth Analytics outbox publisher, and Labs
+Analytics projection processing emit stable lifecycle/result events and shared operation metrics.
 Request summaries omit query strings and network addresses; credentials, authorization material,
 cookies, tokens, prompts, and message content are redacted in the application logger and Collector
 processor. Rust legacy `log!` messages, Rust telemetry bootstrap diagnostics, and Agents stdio or

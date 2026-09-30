@@ -52,7 +52,6 @@ function isBypassedRequest(requestUrl, request) {
     "/content",
     "/calendar",
     "/analytics",
-    "/agents",
     "/connections",
     "/billing",
   ];

@@ -17,7 +17,6 @@ const sidebars = {
     "operations/platform-versioning",
     "operations/environments",
     "operations/observability",
-    "operations/agent-memory-observability",
     "operations/documentation-maintenance",
     {
       type: "category",
@@ -28,8 +27,6 @@ const sidebars = {
         "runbooks/instagram-direct-login",
         "runbooks/paystack-billing",
         "runbooks/paystack-test-mode",
-        "runbooks/analytics/README",
-        "runbooks/otel-collector",
       ],
     },
   ],

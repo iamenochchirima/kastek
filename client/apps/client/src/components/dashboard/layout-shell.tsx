@@ -22,15 +22,10 @@ import {
   ChevronsRight,
   ChevronRight,
   Download,
-  Bot,
   FileText,
-  FlaskConical,
   Grid2x2,
-  Headphones,
   HelpCircle,
-  History,
   Inbox,
-  LayoutTemplate,
   LayoutGrid,
   LockKeyhole,
   LogOut,
@@ -49,7 +44,7 @@ import Image from "next/image";
 import { apiUrl } from "@/lib/server-api";
 import Link from "next/link";
 import { AnimatePresence, motion, MotionConfig } from "framer-motion";
-import { usePathname, useSearchParams } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import {
   useWhatsappInboxUnreadCount,
@@ -94,8 +89,6 @@ function tourTarget(href: string) {
     "/inbox": "inbox",
     "/connections": "connections",
     "/developers": "developers",
-    "/agents": "agents",
-    "/studio": "studio",
     "/content": "content",
     "/bookings": "bookings",
     "/campaigns": "campaigns",
@@ -113,7 +106,6 @@ const navigationGroups: NavigationGroup[] = [
     label: "Customer",
     items: [
       { name: "Inbox", href: "/inbox", icon: Inbox },
-      { name: "Live Chat", href: "/agents/conversations", icon: Headphones },
       { name: "Calls", href: "/calls", icon: PhoneCall },
       { name: "Contacts", href: "/contacts", icon: Users },
       { name: "Bookings", href: "/bookings", icon: CalendarCheck },
@@ -132,16 +124,6 @@ const navigationGroups: NavigationGroup[] = [
     items: [
       { name: "Campaigns", href: "/campaigns", icon: Send },
       { name: "Templates", href: "/templates", icon: FileText },
-    ],
-  },
-  {
-    label: "Automation",
-    items: [
-      { name: "Agents", href: "/agents", icon: Bot },
-      { name: "Studio", href: "/studio", icon: FlaskConical },
-      { name: "Templates", href: "/agents/templates", icon: LayoutTemplate },
-      { name: "Activity", href: "/agents/activity", icon: History },
-      { name: "Analytics", href: "/agents/analytics", icon: ChartColumn },
     ],
   },
   {
@@ -202,8 +184,7 @@ function isItemActive(pathname: string, href: string) {
   return getActiveNavItem(pathname)[0]?.href === href;
 }
 
-function getSectionLabel(pathname: string, view?: string | null) {
-  if (pathname === "/agents" && view === "external") return "External agents";
+function getSectionLabel(pathname: string) {
   return getActiveNavItem(pathname)[0]?.name ?? "Home";
 }
 
@@ -596,8 +577,7 @@ export function LayoutShell({
   const [commandOpen, setCommandOpen] = useState(false);
   const appearance = useAppearance();
   const pathname = usePathname();
-  const searchParams = useSearchParams();
-  const sectionLabel = getSectionLabel(pathname, searchParams.get("view"));
+  const sectionLabel = getSectionLabel(pathname);
   const organizationName = orgs.find((org) => org.id === activeOrgId)?.name ?? "Workspace";
   const setSidebarCollapsed = useCallback((value: boolean) => {
     setCollapsed(value);

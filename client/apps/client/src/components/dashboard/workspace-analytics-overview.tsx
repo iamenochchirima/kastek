@@ -13,14 +13,14 @@ const OVERVIEW_METRIC_SET = "overview.summary@1";
 const highlightConfig = [
   { key: "conversation.messages.received@1", label: "Messages received", href: "/inbox", icon: MessageCircle },
   { key: "campaign.recipients.delivered@1", label: "Campaign deliveries", href: "/campaigns", icon: Send },
-  { key: "agent.runs.completed@1", label: "Completed agent runs", href: "/agents/analytics", icon: Bot },
+  { key: "agent.runs.completed@1", label: "Completed agent runs", href: "/analytics", icon: Bot },
   { key: "connection.health_checks@1", label: "Connection health checks", href: "/connections", icon: Wifi },
 ] as const;
 
 const trendConfig = [
   { key: "campaign.delivery_rate@1", label: "Campaign delivery rate", href: "/campaigns" },
   { key: "conversation.response_time_ms@1", label: "Conversation response time", href: "/inbox" },
-  { key: "agent.runs.failed@1", label: "Failed agent runs", href: "/agents/analytics" },
+  { key: "agent.runs.failed@1", label: "Failed agent runs", href: "/analytics" },
 ] as const;
 
 export function WorkspaceAnalyticsOverview() {

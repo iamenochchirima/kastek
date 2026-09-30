@@ -1,37 +1,39 @@
+---
+owner: engineering
+last_reviewed: 2026-09-29
+---
+
 # Current repository architecture
 
-This document describes code that exists in this checkout. It is not a declaration that every
-current component belongs in the future Growth product.
-
-## Product direction
-
-The owner is refocusing this repository as a standalone KasiTek Growth product. The code has not
-yet been split to match that boundary. Keep the current monorepo intact unless a separately
-approved issue describes a component move, its destination, and the contracts that must remain
-working.
+This document maps the code currently present in Growth and the product repositories that now own
+the extracted services.
 
 ## Current component map
 
-| Path | What is present in this checkout | Boundary status |
+| Path / owner | Source or behavior | Role in the split |
 | --- | --- | --- |
-| `client/apps/client/` | Main Next.js client, including campaigns, contacts, inbox, content, calendar, bookings, analytics, workspace, billing, and agent-facing routes. | Growth-facing routes and agent-facing routes coexist. Final ownership is not fully mapped. |
-| `client/apps/admin/` | Next.js admin application with agency, lead, outreach, quotation, invoice, operations, analytics, and access routes. | Present in the repo. Long-term product/repo ownership is not recorded here. |
-| `client/apps/labs/` | Separate Next.js app package. | Present in the repo. Product boundary is not recorded here. |
-| `client/apps/tenant-portal/` | Next.js portal package for the white-label business product. | The owner intends this product to be separate from Growth. Its code remains here until a separately approved extraction. |
-| `client/packages/` | Shared client packages, including database and API-client packages. | Consumers and extraction constraints must be checked before moving a package. |
-| `agents/` | TypeScript Agent Platform API, gateway, workers, runtime, migrations, tests, and Temporal integration. | The owner intends Agents to be a separate product. Its code remains here until a separately approved extraction. |
-| `server/kasitek-core/` | Rust Core service. | Service boundary exists in code; final product/repository ownership is not decided here. |
-| `server/kasitek-analytics/` | Rust Analytics API, workers, migrations, and reporting code. | Present in the shared Rust workspace. Future product boundary is not recorded here. |
-| `server/kasitek-tenants/` | Rust service and migrations supporting the white-label business product. | The product is intended to be separate from Growth. Its code remains here until a separately approved extraction. |
-| `server/crates/` | Rust crates shared by server workspace members. | Check dependencies and ownership before extraction. |
-| `scripts/`, `infra/` | Local development, verification, and infrastructure support. | Some scripts may span several services; check their consumers before moving them. |
-| `docs/` | User, internal, and temporary planning documents. | Existing documents have not been reconciled by this setup. Use the new entry points linked from the root README and `AGENTS.md`. |
+| `client/apps/client/` | Main Next.js client, including campaigns, contacts, inbox, content, calendar, bookings, analytics, workspace, billing, and Kāsiai. | Contains Growth routes, the app shell, and product-side Agent integrations. |
+| `client/apps/admin/` | Next.js admin application with agency, lead, outreach, quotation, invoice, operations, analytics, and access routes. | Contains the Growth Admin provisioning client for Agency. |
+| `client/packages/` | Shared database package. | Used by the client applications in this repository. |
+| [`kasitek-agents`](https://github.com/Kasitek-Labs/kasitek-agents) | Agent API, gateway, workers, runtime, migrations, management UI, and Temporal integration. | Agent Platform source owner; Growth consumes its API. |
+| `server/kasitek-core/` | Rust Core service. | Core API and its service-owned modules. |
+| [`kasitek-labs`](https://github.com/Kasitek-Labs/kasitek-labs) | Labs website, Analytics API and worker, contracts, migrations, reporting, and OpenTelemetry Collector. | Labs owns these implementations; Growth retains product publishers and outboxes. Deployment cutover is separate work. |
+| `server/crates/` | Rust crates used by server workspace members. | Includes shared configuration, observability, security, and analytics packages. |
+| `scripts/`, `.github/workflows/` | Growth local development and verification automation. | Service-specific automation belongs with its owning service. |
+| `docs/` | User and internal technical documentation. | Documents current repository behavior and interfaces. |
+| [`kasitek-agency`](https://github.com/Kasitek-Labs/kasitek-agency) | Tenant API, migrations, portal, portal-only API client, and tenant-owned configuration. | Agency owns this white-label product source; Growth Admin retains its provisioning client. |
+
+The Agency tenant API, migrations, analytics publisher, and portal are not present in this
+checkout. Agency source lives in `Kasitek-Labs/kasitek-agency`; Growth Admin retains the
+provisioning client in `client/apps/admin/`. Agent runtime and management UI source live in
+`Kasitek-Labs/kasitek-agents`; Growth retains the Kāsiai API client, Core bridge, and customer
+Agent activity data.
 
 ## Runtime and dependency notes
 
 - The frontend is a pnpm workspace under `client/`.
 - Rust services are members of `server/Cargo.toml`.
-- Agent workflows use Temporal code under `agents/src/temporal/`.
+- Agent workflows use Temporal in the Agents repository; Growth does not build or launch them.
 - Local service startup, environment requirements, ports, and verification commands are recorded
   in [Local Development](docs/internal/development/local-development.md). Treat that file as the
   command source instead of copying its setup details into new docs.
@@ -48,5 +50,4 @@ working.
    current product.
 3. When code and documentation disagree, inspect the implementation and its callers. Do not
    silently treat an older architecture document as proof of current behavior.
-4. Record only settled domain vocabulary in [`CONTEXT.md`](CONTEXT.md). It is intentionally empty
-   at the owner's direction.
+4. Record settled domain vocabulary in [`CONTEXT.md`](CONTEXT.md).

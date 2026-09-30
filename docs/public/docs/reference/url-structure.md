@@ -1,5 +1,7 @@
 ---
 title: URL Structure
+owner: engineering
+last_reviewed: 2026-09-29
 ---
 
 # URL Structure
@@ -36,9 +38,9 @@ Current client routes include:
 - `/client/conversations`
 - `/client/conversations/[id]`
 
-## Auth routes in the backend
+## Tenant API auth routes
 
-Current auth route groups in `kasitek-tenants` include:
+Current auth route groups include:
 
 - `/api/auth/*` for tenant staff and shared session access
 - `/api/client-auth/*` for invite preview, accept-invite, and client sign-in
