@@ -1,14 +1,13 @@
 # Current repository architecture
 
-This document describes code that exists in this checkout. It is not a declaration that every
-current component belongs in the future Growth product.
+This document describes code that remains in the Growth checkout. Sources extracted to another
+repository are maintained by their destination owners.
 
 ## Product direction
 
-The owner is refocusing this repository as a standalone KasiTek Growth product. The code has not
-yet been split to match that boundary. Keep the current monorepo intact unless a separately
-approved issue describes a component move, its destination, and the contracts that must remain
-working.
+The owner is refocusing this repository as a standalone KasiTek Growth product. Some Agency,
+Agents, and Admin code remains here while its ownership moves are completed. Keep this map aligned
+with the source that actually remains in the checkout.
 
 ## Current component map
 
@@ -16,7 +15,6 @@ working.
 | --- | --- | --- |
 | `client/apps/client/` | Main Next.js client, including campaigns, contacts, inbox, content, calendar, bookings, analytics, workspace, billing, and agent-facing routes. | Growth-facing routes and agent-facing routes coexist. Final ownership is not fully mapped. |
 | `client/apps/admin/` | Next.js admin application with agency, lead, outreach, quotation, invoice, operations, analytics, and access routes. | Present in the repo. Long-term product/repo ownership is not recorded here. |
-| `client/apps/labs/` | Separate Next.js app package. | Present in the repo. Product boundary is not recorded here. |
 | `client/apps/tenant-portal/` | Next.js portal package for the white-label business product. | The owner intends this product to be separate from Growth. Its code remains here until a separately approved extraction. |
 | `client/packages/` | Shared client packages, including database and API-client packages. | Consumers and extraction constraints must be checked before moving a package. |
 | `agents/` | TypeScript Agent Platform API, gateway, workers, runtime, migrations, tests, and Temporal integration. | The owner intends Agents to be a separate product. Its code remains here until a separately approved extraction. |

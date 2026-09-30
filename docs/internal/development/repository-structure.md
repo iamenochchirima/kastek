@@ -3,7 +3,7 @@ id: repository-structure
 title: Repository Structure
 sidebar_position: 3
 owner: engineering
-last_reviewed: 2026-08-25
+last_reviewed: 2026-09-30
 ---
 
 # Repository Structure
@@ -15,11 +15,12 @@ corresponding contract or documentation when the boundary changes.
 
 | Path | Responsibility |
 | --- | --- |
-| `client/` | Frontend workspace, direct client, admin, labs, tenant portal, and shared packages |
+| `client/` | Frontend workspace, direct client, admin, tenant portal, and shared packages |
 | `agents/` | Agent API, worker, MCP gateway, Temporal workflows, migrations, and agent contracts |
 | `server/kasitek-core/` | Core product runtime, shared business capabilities, and core database |
 | `server/kasitek-tenants/` | White-label tenant runtime and tenant database |
 | `server/kasitek-analytics/` | Analytics ingestion, registry, reporting, projections, and analytics database |
+| [`kasitek-labs`](https://github.com/Kasitek-Labs/kasitek-labs) | Standalone Labs website and shared Labs platform sources |
 | `server/crates/` | Shared Rust crates used by server runtimes |
 | `scripts/` | Local stack, environment, release, migration, and verification automation |
 | `docs/public/` | User-facing documentation site source |

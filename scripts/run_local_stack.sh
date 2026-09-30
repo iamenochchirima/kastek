@@ -189,7 +189,6 @@ services["agents-worker"]="$ROOT_DIR/agents|$AGENT_ENV_SETUP; KASITEK_CORE_URL='
 services["agent-gateway"]="$ROOT_DIR/agents|$AGENT_ENV_SETUP; pnpm run dev:gateway"
 services["client"]="$ROOT_DIR/client|pnpm run dev"
 services["admin"]="$ROOT_DIR/client|pnpm dev:admin"
-services["labs"]="$ROOT_DIR/client|pnpm --filter labs dev"
 services["internal-docs"]="$ROOT_DIR/docs/internal-site|pnpm dev"
 
 if [[ "$TEMPORAL_MODE" == "local" ]]; then
@@ -206,7 +205,6 @@ service_port() {
     agent-gateway) echo 4200 ;;
     client) echo 3000 ;;
     admin) echo 3001 ;;
-    labs) echo 3007 ;;
     internal-docs) echo 3006 ;;
     temporal) echo 7233 ;;
   esac
@@ -500,7 +498,7 @@ show_usage() {
 # Parse command line arguments
 if [[ $# -eq 0 ]]; then
   # No arguments - run all services
-  services_to_start=(core tenant-api analytics-api agents-api agents-worker agent-gateway client admin labs internal-docs)
+  services_to_start=(core tenant-api analytics-api agents-api agents-worker agent-gateway client admin internal-docs)
   if [[ "$TEMPORAL_MODE" == "local" ]]; then
     services_to_start+=(temporal)
   fi

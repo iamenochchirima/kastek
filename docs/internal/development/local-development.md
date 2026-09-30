@@ -3,7 +3,7 @@ id: local-development
 title: Local Development
 sidebar_position: 2
 owner: engineering
-last_reviewed: 2026-09-29
+last_reviewed: 2026-09-30
 ---
 
 # Local Development
@@ -72,7 +72,7 @@ Analytics and can start a local Temporal Server when `TEMPORAL_MODE=local` is se
 ```
 
 The `tenants` group starts `tenant-api` on port `8090` and `tenant-portal` on port `3010`. It
-does not start Core, Agents, Analytics, the direct client, Admin, Labs, or Temporal. Use
+does not start Core, Agents, Analytics, the direct client, Admin, or Temporal. Use
 `tenant-api` or `tenant-portal` when only one tenant process is needed. The launcher loads the
 Tenant API environment from `server/kasitek-tenants/.env` and the portal environment from
 `client/apps/tenant-portal/.env` and `.env.local`; the portal defaults its server-side proxy to
@@ -113,7 +113,6 @@ pnpm --dir client --filter tenant-portal dev
 | Agent gateway | 4200 | `/health`, `/health/ready` |
 | Client | 3000 | browser application |
 | Admin | 3001 | browser application |
-| Labs | 3007 | browser application |
 | Temporal | 7233 | Temporal service endpoint |
 
 The launcher is the authoritative list for local service names and ports. If an individual
