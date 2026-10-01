@@ -43,8 +43,11 @@ SCRIPT
 
 declare -a tabs=()
 declare -A services
-# Define all available services
+# Growth-owned services only. Labs, Agency, and Agents services are launched
+# from their owning repositories.
 services["core"]="$ROOT_DIR/server/kasitek-core|$CORE_ENV_SETUP; LOG_COLOR=always KASITEK_AGENTS_INTERNAL_TOKEN='$LOCAL_CORE_AGENT_TOKEN' cargo run"
+# These optional Core workers publish Growth data to Labs Analytics; they do
+# not start the Analytics service itself.
 services["core-analytics-publisher"]="$ROOT_DIR/server/kasitek-core|$CORE_ENV_SETUP; LOG_COLOR=always KASITEK_PROCESS=analytics-publisher cargo run"
 services["core-analytics-backfill"]="$ROOT_DIR/server/kasitek-core|$CORE_ENV_SETUP; LOG_COLOR=always KASITEK_PROCESS=analytics-backfill-worker cargo run"
 services["client"]="$ROOT_DIR/client|pnpm run dev"
@@ -123,6 +126,11 @@ add_service() {
   local dir="${service_def%%|*}"
   local cmd="${service_def#*|}"
 
+  if [[ ! -d "$dir" ]]; then
+    echo "Error: '$name' is not available in this Growth checkout (missing directory: $dir)." >&2
+    exit 1
+  fi
+
   add_tab "$name" "$dir" "$cmd"
 }
 
@@ -136,12 +144,12 @@ show_usage() {
   done | sort
   echo ""
   echo "Examples:"
-  echo "  $0                    # Run all services"
+  echo "  $0                    # Run Growth Core, client, and internal docs"
   echo "  $0 core               # Run the Core API, including Calls"
   echo "  $0 core client        # Run the Core API and client"
   echo "  $0 internal-docs      # Run the internal documentation site"
-  echo "  $0 core-analytics-publisher # Run the Core source publisher"
-  echo "  $0 core-analytics-backfill # Run Core source reconstruction separately"
+  echo "  $0 core-analytics-publisher # Run Core's optional publisher to Labs Analytics"
+  echo "  $0 core-analytics-backfill # Run Core's optional backfill to Labs Analytics"
   echo "  $0 restart core       # Restart only the Core API"
   echo "  $0 restart client     # Restart only the direct client app"
   echo ""
@@ -149,7 +157,7 @@ show_usage() {
 
 # Parse command line arguments
 if [[ $# -eq 0 ]]; then
-  # No arguments - run all services
+  # No arguments - run the default Growth-owned local stack.
   services_to_start=(core client internal-docs)
   for service in "${services_to_start[@]}"; do
     add_service "$service"

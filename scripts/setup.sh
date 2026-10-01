@@ -51,5 +51,5 @@ echo "==> Installing JS dependencies..."
 (cd "$ROOT_DIR/client" && pnpm install)
 
 echo ""
-echo "==> Done. Run ./scripts/run_local_stack.sh to start all services."
+echo "==> Done. Run ./scripts/run_local_stack.sh to start Growth Core, client, and internal docs."
 echo ""
