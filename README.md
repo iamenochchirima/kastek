@@ -1,16 +1,14 @@
-# kasitek-labs
+# KasiTek Labs
 
 Shared infrastructure and platform services owned outside the Growth, Agents, and Agency
 products.
 
 ## OpenTelemetry Collector
 
-Labs owns the Collector image, configuration profiles, and staging-only Railway service
-declaration. The implementation is in
-[`infra/observability/otel-collector`](infra/observability/otel-collector/README.md), the Railway
-partial is in [`.railway/railway.ts`](.railway/railway.ts), and operating notes are in
-[`docs/otel-collector-runbook.md`](docs/otel-collector-runbook.md). Moving the source does not
-change Growth's or Agents' exporter settings or any hosted endpoint.
+The Collector image, local profiles, and staging profile live in
+[`infra/observability/otel-collector`](infra/observability/otel-collector/README.md). Railway's
+service declaration is the named `otel-collector` partial in [`.railway/railway.ts`](.railway/railway.ts).
+The operational notes are in [`docs/otel-collector-runbook.md`](docs/otel-collector-runbook.md).
 
 Run it locally from the repository root:
 
@@ -43,3 +41,14 @@ From the repository root, check the service package with:
 ```sh
 cargo check -p kasitek-analytics --bins
 ```
+
+## Website
+
+The standalone Next.js website lives in [`apps/labs-site`](apps/labs-site/README.md).
+Its quote-request, waitlist, and chat integrations retain their existing upstream API contracts.
+Hosting, domains, and deployed environments remain separate cutover work.
+
+## Admin UI
+
+The standalone admin application lives in [`apps/admin-site`](apps/admin-site/README.md). It
+uses Growth Core and Agency HTTP APIs; hosting cutover remains separate work.
