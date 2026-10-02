@@ -2,7 +2,7 @@ import { parseSerdeValueJson } from "../../json.js";
 import { createHmac, createHash, timingSafeEqual } from "node:crypto";
 import { createId } from "@paralleldrive/cuid2";
 import type { Pool } from "pg";
-import { canonicalJson } from "@kasitek/server-support/json";
+import { canonicalJson } from "@kasitek-labs/server-support/json";
 import { ApiError } from "../../error.js";
 import { bad, internal } from "./common.js";
 type Env = Record<string, string | undefined>;

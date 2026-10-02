@@ -1,4 +1,4 @@
-import { SerdeFloat } from "@kasitek/server-support/json";
+import { SerdeFloat } from "@kasitek-labs/server-support/json";
 import { ApiError } from "../../error.js";
 import { AgentPlatformTransport } from "./transport.js";
 /** Explicit source-owned adapters preserve endpoint, scope and body contracts. */

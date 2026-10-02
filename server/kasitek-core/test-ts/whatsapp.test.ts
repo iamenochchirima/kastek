@@ -52,7 +52,7 @@ import {
   campaignCreateInput,
   contactListQuery,
 } from "../src-ts/routes/whatsapp.js";
-import { SerdeFloat } from "@kasitek/server-support/json";
+import { SerdeFloat } from "@kasitek-labs/server-support/json";
 const config = readConfig({
   DATABASE_URL: "postgres://fixture",
   WHATSAPP_TOKEN_ENCRYPTION_KEY: "synthetic-key",

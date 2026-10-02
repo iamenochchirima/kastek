@@ -4,7 +4,7 @@ import {
   canonicalJson,
   wireInteger,
   SerdeFloat,
-} from "@kasitek/server-support/json";
+} from "@kasitek-labs/server-support/json";
 import { transaction } from "../../db.js";
 import { epochMicros } from "../../analytics/facts.js";
 import { SQL } from "./posts-sql.js";

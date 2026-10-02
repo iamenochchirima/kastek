@@ -14,7 +14,7 @@ import {
   canonicalJson,
   SerdeFloat,
   wireInteger,
-} from "@kasitek/server-support/json";
+} from "@kasitek-labs/server-support/json";
 type Row = Record<string, unknown>;
 const SQL = {
   audit_begin_request: [

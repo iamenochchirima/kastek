@@ -1,4 +1,4 @@
-import { serdeFloat } from '@kasitek/server-support/json';
+import { serdeFloat } from '@kasitek-labs/server-support/json';
 const ROW_FIELDS: Record<string, Record<string, string>> = {
   'invoices.InvoiceRow': {
     id: 'id',

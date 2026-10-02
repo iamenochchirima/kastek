@@ -24,7 +24,7 @@ import { AgentPlatformClient } from "../src-ts/services/agent-platform/client.js
 import { readConfig } from "../src-ts/config.js";
 import { installErrorHandler } from "../src-ts/error.js";
 const require = createRequire(
-  fileURLToPath(import.meta.resolve("@kasitek/server-support/telemetry")),
+  fileURLToPath(import.meta.resolve("@kasitek-labs/server-support/telemetry")),
 );
 const {
   BasicTracerProvider,
@@ -185,7 +185,7 @@ test("HTTP/provider/worker telemetry preserves W3C context, bounded correlation 
   }
 });
 test("Collector outage leaves actual API health available and telemetry shutdown bounded", () => {
-  const code = `import {initTelemetry} from '@kasitek/server-support/telemetry';const telemetry=initTelemetry('kasitek-core');const {buildApp}=await import('./src-ts/app.ts');const {readConfig}=await import('./src-ts/config.ts');const app=await buildApp({config:readConfig({DATABASE_URL:'postgresql://fixture',LOG_LEVEL:'silent'}),pool:{}});const response=await app.inject({url:'/health'});if(response.statusCode!==200||response.json().status!=='ok')throw Error('Health failed');await app.close();await telemetry.shutdown();console.log('outage-health-ok');`;
+  const code = `import {initTelemetry} from '@kasitek-labs/server-support/telemetry';const telemetry=initTelemetry('kasitek-core');const {buildApp}=await import('./src-ts/app.ts');const {readConfig}=await import('./src-ts/config.ts');const app=await buildApp({config:readConfig({DATABASE_URL:'postgresql://fixture',LOG_LEVEL:'silent'}),pool:{}});const response=await app.inject({url:'/health'});if(response.statusCode!==200||response.json().status!=='ok')throw Error('Health failed');await app.close();await telemetry.shutdown();console.log('outage-health-ok');`;
   const result = spawnSync(
     process.execPath,
     ["--import", "tsx", "--input-type=module", "-e", code],

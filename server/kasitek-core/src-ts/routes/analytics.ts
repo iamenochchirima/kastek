@@ -1,5 +1,5 @@
 import type { FastifyInstance,FastifyRequest } from 'fastify';
-import type { ReportQueryInput } from '@kasitek/contracts';
+import type { ReportQueryInput } from '@kasitek-labs/contracts';
 import type { CoreContext } from '../context.js';
 import { ApiError } from '../error.js';
 import { extractUser,resolveActiveOrgId } from '../identity/session.js';

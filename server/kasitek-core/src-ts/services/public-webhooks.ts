@@ -9,11 +9,11 @@ import {
   canonicalJson,
   timestamp,
   SerdeFloat,
-} from "@kasitek/server-support/json";
+} from "@kasitek-labs/server-support/json";
 import {
   encryptWithAes256Gcm,
   decryptWithAes256Gcm,
-} from "@kasitek/server-support/crypto";
+} from "@kasitek-labs/server-support/crypto";
 type Row = Record<string, unknown>;
 const SQL = {
   create_subscription: [

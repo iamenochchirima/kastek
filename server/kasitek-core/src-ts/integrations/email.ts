@@ -1,7 +1,7 @@
 import { apiJson, parseSerdeValueJson } from "../json.js";
 import type { Pool } from "pg";
 import { createId } from "@paralleldrive/cuid2";
-import { generateToken, sha256Base64Url } from "@kasitek/server-support/crypto";
+import { generateToken, sha256Base64Url } from "@kasitek-labs/server-support/crypto";
 import type { CoreConfig } from "../config.js";
 import { ApiError } from "../error.js";
 import { syncOrgConnections } from "../services/connections.js";

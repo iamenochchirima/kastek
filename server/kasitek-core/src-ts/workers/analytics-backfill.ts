@@ -6,11 +6,11 @@ import type {
   BackfillRecord,
   BackfillBatchResponse,
   Timestamp,
-} from "@kasitek/contracts";
+} from "@kasitek-labs/contracts";
 import {
   AnalyticsIngestionClient,
   backfillSourceSequence,
-} from "@kasitek/server-support/analytics-producer";
+} from "@kasitek-labs/server-support/analytics-producer";
 import {
   buildMetaConversationBackfillRecord,
   buildMetaMessageBackfillRecord,

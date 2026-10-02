@@ -2,7 +2,7 @@ import type { Pool } from "pg";
 import { createId } from "@paralleldrive/cuid2";
 import { parse } from "csv-parse/sync";
 import { stringify } from "csv-stringify/sync";
-import { wireInteger } from "@kasitek/server-support/json";
+import { wireInteger } from "@kasitek-labs/server-support/json";
 import { linkWhatsappContact } from "../customers.js";
 import type {
   Row,

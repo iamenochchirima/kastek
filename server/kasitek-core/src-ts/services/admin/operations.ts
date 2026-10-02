@@ -1,4 +1,4 @@
-import { SerdeFloat } from "@kasitek/server-support/json";
+import { SerdeFloat } from "@kasitek-labs/server-support/json";
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import type { CoreContext } from "../../context.js";
 import { ApiError } from "../../error.js";

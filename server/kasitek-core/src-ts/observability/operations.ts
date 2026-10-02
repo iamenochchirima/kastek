@@ -2,8 +2,8 @@ import { context, trace, SpanStatusCode } from "@opentelemetry/api";
 import {
   resultSpan,
   recordDependencyFailure,
-} from "@kasitek/server-support/telemetry";
-export { recordRetry, recordQueueAge } from "@kasitek/server-support/telemetry";
+} from "@kasitek-labs/server-support/telemetry";
+export { recordRetry, recordQueueAge } from "@kasitek-labs/server-support/telemetry";
 /** Record only the exception class; provider error strings can contain customer data. */
 export async function providerSpan<T>(
   provider: string,

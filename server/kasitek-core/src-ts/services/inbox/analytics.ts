@@ -1,5 +1,5 @@
 import type { PoolClient } from 'pg';
-import type { JsonValue } from '@kasitek/contracts';
+import type { JsonValue } from '@kasitek-labs/contracts';
 import { enqueueEvent, enqueueManifest } from '../../analytics/index.js';
 async function event(
   tx: PoolClient,

@@ -1,13 +1,13 @@
 import { queueSpan } from "../observability/operations.js";
 import type { Pool } from "pg";
-import type { ReconciliationCursor } from "@kasitek/contracts";
+import type { ReconciliationCursor } from "@kasitek-labs/contracts";
 import {
   AnalyticsIngestionClient,
   publishOutboxOnce,
   reconcileOutboxOnce,
   type AnalyticsPublisherSettings,
   MAX_RECONCILIATION_STREAMS,
-} from "@kasitek/server-support/analytics-producer";
+} from "@kasitek-labs/server-support/analytics-producer";
 import { enqueueMissingScopeDefinitions } from "./scope-bootstrap.js";
 interface Log {
   info(fields: Record<string, unknown>, message?: string): void;

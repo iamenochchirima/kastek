@@ -1,5 +1,5 @@
 import { canonicalJsonBody } from "../identity/json-body.js";
-import { SerdeFloat } from "@kasitek/server-support/json";
+import { SerdeFloat } from "@kasitek-labs/server-support/json";
 import { Readable } from "node:stream";
 import { createId } from "@paralleldrive/cuid2";
 import * as website from "../services/website/index.js";

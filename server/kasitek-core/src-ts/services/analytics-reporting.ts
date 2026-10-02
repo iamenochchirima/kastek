@@ -1,7 +1,7 @@
 import { createId } from '@paralleldrive/cuid2';
-import { AnalyticsReportingClient,ReportingGrantIssuer,ReportingClientError,redactScopeId,withScope } from '@kasitek/server-support/analytics-reporting';
-import { integer } from '@kasitek/server-support/json';
-import type { ReportQueryInput,ScopeResolution } from '@kasitek/contracts';
+import { AnalyticsReportingClient,ReportingGrantIssuer,ReportingClientError,redactScopeId,withScope } from '@kasitek-labs/server-support/analytics-reporting';
+import { integer } from '@kasitek-labs/server-support/json';
+import type { ReportQueryInput,ScopeResolution } from '@kasitek-labs/contracts';
 import type { CoreContext } from '../context.js';
 import { ApiError } from '../error.js';
 import { unsignedSetting } from './org-support.js';

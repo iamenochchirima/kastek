@@ -3,7 +3,7 @@ import { createId } from "@paralleldrive/cuid2";
 import type { Pool } from "pg";
 import type { CoreConfig } from "../../config.js";
 import { ApiError } from "../../error.js";
-import { canonicalJson } from "@kasitek/server-support/json";
+import { canonicalJson } from "@kasitek-labs/server-support/json";
 import { enqueueLifecycle } from "../../analytics/connections.js";
 import * as sql from "./sql.js";
 type Form = Record<string, string>;

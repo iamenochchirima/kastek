@@ -9,7 +9,7 @@ import { installPgTimestampParsers } from '../src-ts/db.js';
 import { readConfig } from '../src-ts/config.js';
 import { encryptSocialSecret } from '../src-ts/integrations/crypto.js';
 import * as calls from '../src-ts/services/whatsapp/calls.js';
-import { SerdeFloat } from '@kasitek/server-support/json';
+import { SerdeFloat } from '@kasitek-labs/server-support/json';
 
 test('WhatsApp call statuses preserve source precedence, epoch parsing and SDP line normalization', () => {
   assert.equal(

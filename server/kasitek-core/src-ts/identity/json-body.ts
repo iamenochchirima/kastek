@@ -5,7 +5,7 @@ import {
 } from "./json-number-contracts.js";
 import { parseSerdeValueJson } from "../json.js";
 import type { FastifyRequest } from "fastify";
-import { parseLosslessJson, SerdeFloat } from "@kasitek/server-support/json";
+import { parseLosslessJson, SerdeFloat } from "@kasitek-labs/server-support/json";
 import { RequestExtractionError } from "../error.js";
 const canonicalBodies = new WeakMap<FastifyRequest, unknown>();
 /** Preserve JSON number kinds separately while typed DTOs keep primitive numbers for Ajv. */

@@ -1,6 +1,6 @@
 import type { Pool } from "pg";
 import { ApiError } from "../../error.js";
-import { SerdeFloat, wireInteger } from "@kasitek/server-support/json";
+import { SerdeFloat, wireInteger } from "@kasitek-labs/server-support/json";
 import * as sql from "./analytics-sql.js";
 import { COVERAGE } from "./analytics-metadata.js";
 export type Row = Record<string, any>;

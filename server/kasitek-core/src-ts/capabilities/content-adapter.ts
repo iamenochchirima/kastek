@@ -15,7 +15,7 @@ import {
   type SocialExecutionOptions,
 } from "../services/social/publishing.js";
 import { transaction } from "../db.js";
-import { canonicalJson } from "@kasitek/server-support/json";
+import { canonicalJson } from "@kasitek-labs/server-support/json";
 import { ApiError } from "../error.js";
 import { parseOptionalDatetime } from "../services/social/common.js";
 import { SQL } from "./content-adapter-sql.js";

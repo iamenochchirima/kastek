@@ -3,11 +3,11 @@ import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { generateKeyPairSync } from 'node:crypto';
 import { importSPKI,jwtVerify } from 'jose';
-import { parseLosslessJson } from '@kasitek/server-support/json';
-import { ReportingClientError } from '@kasitek/server-support/analytics-reporting';
+import { parseLosslessJson } from '@kasitek-labs/server-support/json';
+import { ReportingClientError } from '@kasitek-labs/server-support/analytics-reporting';
 import { parseReportQuery } from '../src-ts/routes/analytics.js';
 import { mapReportingError,reportForOrganization } from '../src-ts/services/analytics-reporting.js';
-import { MAX_GRANT_SECONDS } from '@kasitek/contracts';
+import { MAX_GRANT_SECONDS } from '@kasitek-labs/contracts';
 import { readConfig } from '../src-ts/config.js';
 import type { CoreContext } from '../src-ts/context.js';
 test('report input keeps Rust defaults and rejects extra scope fields or malformed contract values',()=>{

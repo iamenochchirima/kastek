@@ -1,6 +1,6 @@
 import type { PoolClient } from 'pg';
-import type { AnalyticsOutboxRecord,EventInput,ObservationInput,ScopeDefinitionInput,ManifestInput } from '@kasitek/contracts';
-import { coreProducerConfig,buildEvent,buildObservation,buildScopeDefinition,buildManifest,enqueueOutbox } from '@kasitek/server-support/analytics-producer';
+import type { AnalyticsOutboxRecord,EventInput,ObservationInput,ScopeDefinitionInput,ManifestInput } from '@kasitek-labs/contracts';
+import { coreProducerConfig,buildEvent,buildObservation,buildScopeDefinition,buildManifest,enqueueOutbox } from '@kasitek-labs/server-support/analytics-producer';
 export { coreProducerConfig as producerConfig };
 export async function enqueueRecord(transaction:PoolClient,record:AnalyticsOutboxRecord){return enqueueOutbox(transaction,record);}
 export async function enqueueEvent(transaction:PoolClient,input:EventInput){return enqueueRecord(transaction,buildEvent(coreProducerConfig(),input));}

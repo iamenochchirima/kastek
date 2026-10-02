@@ -5,7 +5,7 @@ import {
   SerdeFloat,
   wireInteger,
   integer,
-} from "@kasitek/server-support/json";
+} from "@kasitek-labs/server-support/json";
 import { readConfig, type CoreConfig } from "../../config.js";
 import { decryptSocialSecret } from "../../integrations/crypto.js";
 import { getSocialPost, listSocialPosts } from "./posts.js";

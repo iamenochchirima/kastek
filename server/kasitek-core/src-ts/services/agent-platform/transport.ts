@@ -9,7 +9,7 @@ import { randomUUID } from "node:crypto";
 import type { CoreConfig } from "../../config.js";
 import { ApiError } from "../../error.js";
 import { signInternalAuth } from "../../identity/internal-delegation.js";
-import { canonicalJson, SerdeFloat } from "@kasitek/server-support/json";
+import { canonicalJson, SerdeFloat } from "@kasitek-labs/server-support/json";
 export interface AgentTransportOptions {
   fetch?: typeof fetch;
   correlationId?: () => string;

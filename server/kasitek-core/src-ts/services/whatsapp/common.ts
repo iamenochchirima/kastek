@@ -2,7 +2,7 @@ import { parseSerdeValueJson } from "../../json.js";
 import { sourceIsConnected } from "../connections.js";
 import type { Pool } from "pg";
 import type { CoreConfig } from "../../config.js";
-import { canonicalJson, SerdeFloat } from "@kasitek/server-support/json";
+import { canonicalJson, SerdeFloat } from "@kasitek-labs/server-support/json";
 import { ApiError } from "../../error.js";
 import { parseOptionalDatetime } from "../social/common.js";
 import type {

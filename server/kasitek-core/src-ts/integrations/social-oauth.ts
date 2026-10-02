@@ -1,4 +1,4 @@
-import { generateToken, sha256Base64Url } from '@kasitek/server-support/crypto';
+import { generateToken, sha256Base64Url } from '@kasitek-labs/server-support/crypto';
 import { createId } from '@paralleldrive/cuid2';
 import type { CoreConfig } from '../config.js';
 import { ApiError } from '../error.js';

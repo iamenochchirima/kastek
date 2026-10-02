@@ -1,7 +1,7 @@
 import type { Pool } from "pg";
 import { createHash } from "node:crypto";
 import { createId } from "@paralleldrive/cuid2";
-import { canonicalJson, wireInteger } from "@kasitek/server-support/json";
+import { canonicalJson, wireInteger } from "@kasitek-labs/server-support/json";
 import type { RequestContext } from "../identity/request-context.js";
 import type { SocialPost } from "../services/social/types.js";
 import { getSocialPost } from "../services/social/posts.js";

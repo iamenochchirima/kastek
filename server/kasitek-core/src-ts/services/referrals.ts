@@ -6,7 +6,7 @@ import {
   canonicalJson,
   integer,
   wireInteger,
-} from "@kasitek/server-support/json";
+} from "@kasitek-labs/server-support/json";
 import type { CoreConfig } from "../config.js";
 import { grantSystemCredits, revokeUnspentSystemGrant } from "./credits.js";
 import type { Units } from "./credits.js";

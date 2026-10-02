@@ -1,5 +1,5 @@
 import type { Pool } from "pg";
-import { canonicalJson, SerdeFloat } from "@kasitek/server-support/json";
+import { canonicalJson, SerdeFloat } from "@kasitek-labs/server-support/json";
 import { parseSerdeValueJson } from "../json.js";
 import { createId } from "@paralleldrive/cuid2";
 import { createHmac, timingSafeEqual } from "node:crypto";

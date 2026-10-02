@@ -11,7 +11,7 @@ export async function boot(): Promise<void> {
   )
     loadEnvironment();
   process.env.TZ = "UTC";
-  const { initTelemetry } = await import("@kasitek/server-support/telemetry");
+  const { initTelemetry } = await import("@kasitek-labs/server-support/telemetry");
   const telemetry = initTelemetry("kasitek-core");
   let closing: Promise<void> | undefined;
   const shutdownTelemetry = () => (closing ??= telemetry.shutdown());

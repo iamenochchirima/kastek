@@ -9,7 +9,7 @@ import { publisherSettings } from "../src-ts/analytics/publisher.js";
 import {
   AnalyticsIngestionClient,
   publishOutboxOnce,
-} from "@kasitek/server-support/analytics-producer";
+} from "@kasitek-labs/server-support/analytics-producer";
 const database = process.env.CORE_ANALYTICS_RECOVERY_TEST_DATABASE_URL;
 test(
   "competing Analytics publishers exclude an active lease and recover a lost acknowledgement using stable record identity",

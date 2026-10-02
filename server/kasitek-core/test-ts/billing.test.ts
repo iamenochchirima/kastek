@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { createHmac, randomUUID } from "node:crypto";
 import { createServer } from "node:http";
 import pg from "pg";
-import { parseCanonicalJson } from "@kasitek/server-support/json";
+import { parseCanonicalJson } from "@kasitek-labs/server-support/json";
 import { installPgTimestampParsers } from "../src-ts/db.js";
 import Fastify from "fastify";
 import cookie from "@fastify/cookie";

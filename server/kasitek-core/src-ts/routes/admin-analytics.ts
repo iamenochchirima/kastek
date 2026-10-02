@@ -8,7 +8,7 @@ import {
   requireAdminRole,
   type AdminUser,
 } from "../identity/admin-session.js";
-import { SerdeFloat } from "@kasitek/server-support/json";
+import { SerdeFloat } from "@kasitek-labs/server-support/json";
 import * as analytics from "../services/admin/analytics.js";
 import * as reports from "../services/admin/reports.js";
 import * as activity from "../services/admin/activity.js";

@@ -1,4 +1,4 @@
-import { SerdeFloat } from "@kasitek/server-support/json";
+import { SerdeFloat } from "@kasitek-labs/server-support/json";
 import { nativeRedisFixture } from "./helpers/redis-fixture.js";
 import test from "node:test";
 import assert from "node:assert/strict";

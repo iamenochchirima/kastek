@@ -3,7 +3,7 @@ import {
   jsonValueAt,
   requireJsonIntegerToken,
 } from "../identity/json-body.js";
-import { wireInteger } from "@kasitek/server-support/json";
+import { wireInteger } from "@kasitek-labs/server-support/json";
 import {
   createWhatsappInboxPorts,
   createInboxDeliveryOptions,

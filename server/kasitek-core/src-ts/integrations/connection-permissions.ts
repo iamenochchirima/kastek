@@ -1,6 +1,6 @@
 import type { Pool } from 'pg';
 import { createId } from '@paralleldrive/cuid2';
-import { generateToken } from '@kasitek/server-support/crypto';
+import { generateToken } from '@kasitek-labs/server-support/crypto';
 import { ApiError } from '../error.js';
 import { PERMISSION_DEFINITIONS } from './permission-definitions.js';
 import { adapterFor, authMode, providerName, capability, requiredScopes, type Metadata, type ProviderAdapter } from './provider-permissions.js';

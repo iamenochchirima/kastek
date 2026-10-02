@@ -6,7 +6,7 @@ import {
   canonicalJson,
   integer,
   wireInteger,
-} from "@kasitek/server-support/json";
+} from "@kasitek-labs/server-support/json";
 export type Units = number | bigint | string;
 type Row = Record<string, unknown>;
 const SQL = {

@@ -6,7 +6,7 @@ import {
   type JWTPayload,
   type JWTVerifyGetKey,
 } from 'jose';
-import { SerdeFloat } from '@kasitek/server-support/json';
+import { SerdeFloat } from '@kasitek-labs/server-support/json';
 import { parseSerdeValueJson } from '../json.js';
 import type { CoreContext } from '../context.js';
 import {

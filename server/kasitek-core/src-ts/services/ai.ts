@@ -1,5 +1,5 @@
 import type { Pool } from "pg";
-import { canonicalJson } from "@kasitek/server-support/json";
+import { canonicalJson } from "@kasitek-labs/server-support/json";
 import { bad, internal, PLATFORMS } from "./social/common.js";
 export interface SocialIdeasRequest {
   topic?: string | null;

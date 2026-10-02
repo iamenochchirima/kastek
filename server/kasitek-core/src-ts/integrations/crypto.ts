@@ -1,4 +1,4 @@
-import { encryptWithAes256Gcm, decryptWithAes256Gcm } from '@kasitek/server-support/crypto';
+import { encryptWithAes256Gcm, decryptWithAes256Gcm } from '@kasitek-labs/server-support/crypto';
 import type { CoreConfig } from '../config.js';
 import { ApiError } from '../error.js';
 function secret(config: CoreConfig): string { const value = config.rawEnv.SOCIAL_TOKEN_ENCRYPTION_KEY ?? config.rawEnv.WHATSAPP_TOKEN_ENCRYPTION_KEY; if (value === undefined)

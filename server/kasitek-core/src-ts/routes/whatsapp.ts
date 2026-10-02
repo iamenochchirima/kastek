@@ -16,7 +16,7 @@ import type {
   Row,
   WhatsappContactListQuery,
 } from "../services/whatsapp/types.js";
-import { SerdeFloat } from "@kasitek/server-support/json";
+import { SerdeFloat } from "@kasitek-labs/server-support/json";
 function object(value: unknown): Row {
   if (value === null || typeof value !== "object" || Array.isArray(value))
     throw bad("Invalid request");

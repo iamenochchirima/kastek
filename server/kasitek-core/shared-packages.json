@@ -1,13 +1,13 @@
 {
   "schemaVersion": 1,
-  "sourceCommit": "2a85358d62865104c4f9ef980c7a1764dd465166",
-  "sourceContentSha256": "08148919f57b1ea23c8616f7d55310e07871ba90cd2cffb172277a9ecc4fb5a2",
-  "node": "v24.15.0",
+  "sourceCommit": "50a869d855d7e5c77bca56dec03524de89b3c86e",
+  "sourceContentSha256": "b1881be57343ec6ae5054fb38c4dbb5e5157fb9bbb1f793e647db2ecc9dd424e",
+  "node": "v24.19.0",
   "packageManager": "pnpm@10.30.1",
   "sourceFiles": [
     {
       "path": "package.json",
-      "sha256": "acab51c75e10bef937f7ab42a93bb3fe144bd2009b00c1c1b7a02da336458620"
+      "sha256": "a2a9d6c57e0d3e6fbc9150ce15e43d8c2daf14b9c8045aa2d562363839c6eb27"
     },
     {
       "path": "packages/contracts/README.md",
@@ -15,7 +15,7 @@
     },
     {
       "path": "packages/contracts/package.json",
-      "sha256": "68a9b4e985be53c2b657401133fe50ca5a0a4b8f8c7e2498dd937390a567f89b"
+      "sha256": "7fb389da5720227ad3e125cefc9cb72013ebec7ce0ffffbd79d107b26563429a"
     },
     {
       "path": "packages/contracts/src/index.ts",
@@ -27,23 +27,23 @@
     },
     {
       "path": "packages/server-support/README.md",
-      "sha256": "2236287967f9920a2478c77687e00c1e50dc53413285609416bf384a62b1abb3"
+      "sha256": "49d87b54560edfc0f6ea4a79436a97b2076f4f569e047bd2d2a08daf66ea57ef"
     },
     {
       "path": "packages/server-support/package.json",
-      "sha256": "73794133b5658d61492c52946868a225b7cff104e32fe72d40acc5490666b9bd"
+      "sha256": "ad330a3b3360da0ceb3f998f6fa7bb3da1630ebaa25de1724d9101a9263cd30f"
     },
     {
       "path": "packages/server-support/scripts/pack-shared.mjs",
-      "sha256": "2696a358ea1444a0ee49f42075d58b1a851fd40629e628f85f6e39e42555c1e3"
+      "sha256": "6e3339f02634a9f2ecd58fc55084af4864c352df6f9ff7325ad65c3c8bbe546b"
     },
     {
       "path": "packages/server-support/src/analytics-producer.ts",
-      "sha256": "55c96be0c0039cc7f48d08b29658d4867a8e192e1ff10bc34ccc0c825605271e"
+      "sha256": "e46c43f8ea97ba1b2e0c693fa4b0376871e580936c52f6ef50978f052dbafb6b"
     },
     {
       "path": "packages/server-support/src/analytics-reporting.ts",
-      "sha256": "9a076b87e724a7f6433ce7c6a1bef49f4438de1256827e1546eddad15dc05c01"
+      "sha256": "ed14e910b8be583b4419e5a82290520ce08654c899e4ab4b4ac62866c4ef08d3"
     },
     {
       "path": "packages/server-support/src/config.ts",
@@ -59,7 +59,7 @@
     },
     {
       "path": "packages/server-support/src/json.ts",
-      "sha256": "bed69a29f96e197214c3b07349ed5086e93fac19f2b37c789b13ce8e1bdc07e6"
+      "sha256": "6b06d8d7b779ed102d8cd0631a115aeb76ab6e41a6d5aae77a12fdcfd6dcbc30"
     },
     {
       "path": "packages/server-support/src/outbox-sql.ts",
@@ -67,11 +67,11 @@
     },
     {
       "path": "packages/server-support/src/outbox.ts",
-      "sha256": "d4c669f6569d8cd6b6fcafa6ad526aa0ed30cf3d7bd4742e8a248b4eddf53b8c"
+      "sha256": "af903017ec123b1d7f107447637331e3ff8e8b06bc864590034c82a8c6d990de"
     },
     {
       "path": "packages/server-support/src/publisher.ts",
-      "sha256": "cac04baae772b55956fca1ee7b8acab0c8b457708f904203293edc876cf403a2"
+      "sha256": "ec94aa8120e958f91ea8fc579870737e84247572f235729190ee3d7cbe9da53b"
     },
     {
       "path": "packages/server-support/src/telemetry.ts",
@@ -99,11 +99,11 @@
     },
     {
       "path": "pnpm-lock.yaml",
-      "sha256": "77e042e4efe62d73823872f8f93c9e413ca13bace05001d3361e1ba98b63ed39"
+      "sha256": "b8149598f97a4de8af292f7253f2fca2d9a3e6c757f34ff4454cb25b0f01e11a"
     },
     {
       "path": "pnpm-workspace.yaml",
-      "sha256": "d115dc6c83ba283a7d17146ad456056f3f70b003edb8c312a52880b48b034001"
+      "sha256": "b79fe11572963ec28693e2c2e4d51cf5fd137edce25477064899731709ab7b3a"
     },
     {
       "path": "tsconfig.shared.json",
@@ -112,18 +112,18 @@
   ],
   "artifacts": [
     {
-      "package": "@kasitek/contracts",
+      "package": "@kasitek-labs/contracts",
       "version": "0.1.0",
-      "file": "kasitek-contracts-0.1.0.tgz",
-      "sha256": "6b551807aba6207ca1b9e18eee1cfb651ecda8fd45705b0d804265a2992deebb",
-      "integrity": "sha512-XT6GiHp0B/rgkT1IyCb3sDhqw7ipqGzReJpkDAWRvab1u39CAsE5r0A4iZRBkIIL6wAqiYZMp4gWZt3pC8OTBg=="
+      "file": "kasitek-labs-contracts-0.1.0.tgz",
+      "sha256": "fc9d423cfcacd039b004b2f1711fedfab18c8b92a2a140518172fab1afb0dda2",
+      "integrity": "sha512-w29UkLe3JfUr8nc1hqMDMPcisT0CDEVGdQXs9uZ3njFnEWJadVEL5ty/RJrgDpsp4gJd/y10I9MRE6F3OvsU+Q=="
     },
     {
-      "package": "@kasitek/server-support",
+      "package": "@kasitek-labs/server-support",
       "version": "0.1.0",
-      "file": "kasitek-server-support-0.1.0.tgz",
-      "sha256": "e42c6087490c0576e6265331fac31538f20fb3c6a9376e927bcac83d9fbbb6df",
-      "integrity": "sha512-Yp4GIFd4l0omoIEATQif6YB1IL5m6hy9MC05broewv0t/AzcxPRbxNdrgGH7s7Kv3dkPecQOMjVqy7dCniZwyw=="
+      "file": "kasitek-labs-server-support-0.1.0.tgz",
+      "sha256": "8fa25578e1c9189ea1b0b45ea1e3b876d890ce61cf1e1df95c2d1a9f733fd11b",
+      "integrity": "sha512-S3BfoDO690aqe0IQyZauO+tD25wmvG0EA7XonTVy/A3UH/q3tGPhl5N6qSueIj+Rk17akmdD4fc3M8vnl932jA=="
     }
   ]
 }

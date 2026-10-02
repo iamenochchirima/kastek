@@ -1,4 +1,4 @@
-import { wireInteger } from "@kasitek/server-support/json";
+import { wireInteger } from "@kasitek-labs/server-support/json";
 export type Row = Record<string, any>;
 export interface WhatsappConnectionRow {
   id: string;

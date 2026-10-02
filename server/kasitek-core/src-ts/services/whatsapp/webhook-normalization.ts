@@ -1,4 +1,4 @@
-import { SerdeFloat } from "@kasitek/server-support/json";
+import { SerdeFloat } from "@kasitek-labs/server-support/json";
 import type { Row } from "./types.js";
 export function obj(value: unknown): Row {
   return value && typeof value === "object" && !Array.isArray(value)

@@ -1,7 +1,7 @@
 import { createId } from "@paralleldrive/cuid2";
 import type { Pool } from "pg";
 import { stringify } from "csv-stringify/sync";
-import { canonicalJson, SerdeFloat } from "@kasitek/server-support/json";
+import { canonicalJson, SerdeFloat } from "@kasitek-labs/server-support/json";
 import { ApiError } from "../../error.js";
 import type { AdminUser } from "../../identity/admin-session.js";
 import { reportWindow, type Row } from "./analytics.js";

@@ -1,10 +1,10 @@
-import { SerdeFloat } from "@kasitek/server-support/json";
+import { SerdeFloat } from "@kasitek-labs/server-support/json";
 import type { Pool } from "pg";
 import { createId } from "@paralleldrive/cuid2";
 import { SQL } from "./channels-sql.js";
 import type { SocialChannel } from "./types.js";
 import { missing } from "./common.js";
-import { canonicalJson } from "@kasitek/server-support/json";
+import { canonicalJson } from "@kasitek-labs/server-support/json";
 export function platformCapabilities(
   platform: string,
 ): Record<string, unknown> {

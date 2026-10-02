@@ -10,7 +10,7 @@ import {
   integer,
   wireInteger,
   timestamp,
-} from "@kasitek/server-support/json";
+} from "@kasitek-labs/server-support/json";
 import { grantSystemCredits } from "./credits.js";
 import type { Units } from "./credits.js";
 import {

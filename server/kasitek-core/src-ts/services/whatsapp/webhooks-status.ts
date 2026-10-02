@@ -1,7 +1,7 @@
 import { createId } from "@paralleldrive/cuid2";
 import type { Pool } from "pg";
 import { transaction } from "../../db.js";
-import { canonicalJson } from "@kasitek/server-support/json";
+import { canonicalJson } from "@kasitek-labs/server-support/json";
 import * as analytics from "../../analytics/campaigns.js";
 import { enqueueMessageLifecycle } from "../../analytics/inbox.js";
 import { recordEvent } from "../inbox/message-domain.js";

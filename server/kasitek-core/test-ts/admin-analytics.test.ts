@@ -35,7 +35,7 @@ import {
   registerAdminAnalyticsRoutes,
   signedInteger,
 } from "../src-ts/routes/admin-analytics.js";
-import { SerdeFloat } from "@kasitek/server-support/json";
+import { SerdeFloat } from "@kasitek-labs/server-support/json";
 test("Admin reporting bounds, lossless integer DTOs and microsecond activity cursor contract", () => {
   const w = reportWindow(2n, new Date("2026-10-02T12:34:56Z"));
   assert.equal(w.start.toISOString(), "2026-10-01T00:00:00.000Z");

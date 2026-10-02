@@ -1,4 +1,4 @@
-import { SerdeFloat } from "@kasitek/server-support/json";
+import { SerdeFloat } from "@kasitek-labs/server-support/json";
 import { createId } from "@paralleldrive/cuid2";
 import { readFile } from "node:fs/promises";
 import type { FastifyInstance, FastifyRequest } from "fastify";

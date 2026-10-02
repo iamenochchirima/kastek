@@ -1,7 +1,7 @@
 import type { Pool } from 'pg';
 import type { CoreConfig } from '../../../config.js';
 import { parseOptionalDatetime } from '../../social/common.js';
-import { SerdeFloat } from '@kasitek/server-support/json';
+import { SerdeFloat } from '@kasitek-labs/server-support/json';
 import { createId } from '@paralleldrive/cuid2';
 import { ensureWhatsappCustomer } from '../../customers.js';
 import { SQL } from './sql.js';

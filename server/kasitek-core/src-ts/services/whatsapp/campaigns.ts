@@ -9,7 +9,7 @@ import {
   recordMeterUsage,
 } from "../billing.js";
 import { decryptSocialSecret } from "../../integrations/crypto.js";
-import { wireInteger } from "@kasitek/server-support/json";
+import { wireInteger } from "@kasitek-labs/server-support/json";
 import type {
   Row,
   WhatsappCampaignCreateRequest,

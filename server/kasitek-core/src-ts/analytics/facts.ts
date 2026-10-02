@@ -1,8 +1,8 @@
 import type {PoolClient} from 'pg';
-import type {Timestamp,JsonValue,Integer} from '@kasitek/contracts';
-import {wireInteger as genericWireInteger,integer,timestamp} from '@kasitek/server-support/json';
+import type {Timestamp,JsonValue,Integer} from '@kasitek-labs/contracts';
+import {wireInteger as genericWireInteger,integer,timestamp} from '@kasitek-labs/server-support/json';
 export function wireInteger(value:Integer):number|bigint {const parsed=integer(value);if(parsed<-(1n<<63n)||parsed>=(1n<<63n))throw new Error('integer outside signed 64-bit range');return genericWireInteger(parsed);}
-import {buildEvent,coreProducerConfig,enqueueOutbox,buildManifest} from '@kasitek/server-support/analytics-producer';
+import {buildEvent,coreProducerConfig,enqueueOutbox,buildManifest} from '@kasitek-labs/server-support/analytics-producer';
 export type {Timestamp,Integer};
 export function iso(value:Timestamp):string {
  const input=typeof value==='string'?value:value.toISOString();timestamp(input); // Validate before normalizing Chrono's AutoSi fraction.

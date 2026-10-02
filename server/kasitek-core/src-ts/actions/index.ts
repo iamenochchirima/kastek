@@ -1,7 +1,7 @@
 import { catalog } from "./catalog.js";
 import Ajv2020 from "ajv/dist/2020.js";
 import semver from "semver";
-import { SerdeFloat } from "@kasitek/server-support/json";
+import { SerdeFloat } from "@kasitek-labs/server-support/json";
 import type { ValidateFunction } from "ajv";
 export type ProductRuntime = "control_plane" | "direct" | "white_label";
 export type ActorKind =

@@ -12,7 +12,7 @@ import {
 import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { createId } from "@paralleldrive/cuid2";
-import { canonicalJson, wireInteger } from "@kasitek/server-support/json";
+import { canonicalJson, wireInteger } from "@kasitek-labs/server-support/json";
 import type { CoreConfig } from "../../config.js";
 import { ApiError } from "../../error.js";
 import { transaction } from "../../db.js";

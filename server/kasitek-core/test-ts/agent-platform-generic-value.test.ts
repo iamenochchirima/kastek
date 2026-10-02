@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createHmac } from "node:crypto";
-import { canonicalJson, SerdeFloat } from "@kasitek/server-support/json";
+import { canonicalJson, SerdeFloat } from "@kasitek-labs/server-support/json";
 import { verifyThreadsSignedRequest } from "../src-ts/integrations/provider-auth.js";
 import { readConfig } from "../src-ts/config.js";
 import { parseTiktokWebhookEnvelope } from "../src-ts/services/social/webhooks.js";

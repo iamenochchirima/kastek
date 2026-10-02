@@ -22,7 +22,7 @@ import {
 } from "../src-ts/routes/whatsapp-webhooks.js";
 import { syncConnectionTemplates } from "../src-ts/services/whatsapp/templates.js";
 import { createCampaign } from "../src-ts/services/whatsapp/campaigns.js";
-import { SerdeFloat } from "@kasitek/server-support/json";
+import { SerdeFloat } from "@kasitek-labs/server-support/json";
 test("WhatsApp webhook normalization preserves bounded error/pricing, media fallback and approval contracts", () => {
   assert.equal(
     n.inboundText({ text: { body: "hello" }, button: { text: "button" } }),

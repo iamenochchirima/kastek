@@ -11,7 +11,7 @@ import {
 } from 'node:crypto';
 import { isIP } from 'node:net';
 import { lookup } from 'node:dns/promises';
-import { generateToken, sha256Base64Url } from '@kasitek/server-support/crypto';
+import { generateToken, sha256Base64Url } from '@kasitek-labs/server-support/crypto';
 import { encryptSocialSecret, decryptSocialSecret } from './crypto.js';
 import { requiredScopes } from './provider-permissions.js';
 import type { HttpFetch } from './email.js';

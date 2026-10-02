@@ -1,7 +1,7 @@
-import { SerdeFloat } from "@kasitek/server-support/json";
+import { SerdeFloat } from "@kasitek-labs/server-support/json";
 import { parseSerdeValueJson } from "../../json.js";
 import type { Pool } from "pg";
-import { canonicalJson } from "@kasitek/server-support/json";
+import { canonicalJson } from "@kasitek-labs/server-support/json";
 import { transaction } from "../../db.js";
 import { ApiError } from "../../error.js";
 import { JOB_STATUSES, bad } from "./common.js";
