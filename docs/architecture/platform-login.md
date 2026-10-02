@@ -1,7 +1,8 @@
 # Agents login integration
 
-Status: Database foundation and backend login routes implemented. Local client
-registration and actual browser integration remain unverified.
+Status: Backend routes and initial frontend account integration implemented.
+Local client registration, password login, onboarding and browser logout verified.
+The authenticated agent API facade and actual agent journey remain unfinished.
 
 Labs owns the Keycloak account. Agents owns platform access. An account is
 identified by the validated provider issuer and subject, never a matching email.
@@ -58,26 +59,21 @@ Origin. Polling `/me` does not extend the inactivity deadline.
 frontend must navigate to that URL; if the provider is unavailable, the local
 session is still cleared and the frontend must report incomplete shared logout.
 `POST /api/auth/logout-all` attempts provider-wide revocation after local account
-sessions have been revoked. Provider failure returns an error, not a false success.
+sessions have been revoked. Provider failure returns `providerLogoutPending: true`
+so the frontend can leave the revoked session and report incomplete shared logout.
 
 Without OIDC configuration, auth endpoints report 503 rather than creating a
 temporary session. Existing internal service authentication remains independent.
 
 ## Next integration steps
 
-1. Register a separate Agents confidential OIDC client, with exact localhost:3100
-   callback/logout URLs and its own backend secret. Do not reuse Growth's client.
-2. Configure independent Agents realm service credentials. The session-admin
-   client needs realm-management/manage-users for user/session lookup and
-   all-device revocation, scoped to the shared account realm. Never reuse Growth
-   or master-admin credentials in the running product.
-3. Connect frontend login, workspace onboarding/selection, account actions,
-   explicit activity and logout to the implemented routes. Verify actual browser
-   login against the shared provider. Add signed backchannel logout handling.
-4. Connect trusted browser session context to Agents API authorization. Do not
+1. Add signed backchannel logout handling. Initial password login, onboarding,
+   account actions and activity integration are implemented. Verify multiple
+   workspace switching and all-device provider logout in the browser.
+2. Connect trusted browser session context to Agents API authorization. Do not
    accept browser organization/actor headers as evidence of membership. Preserve
    the independent internal machine authentication contract.
-5. Adapt the existing frontend API contracts and prove actual sign-in, create,
+3. Adapt the existing frontend API contracts and prove create,
    playground response and reopening history. Shared provider configuration and
    repository tests alone do not establish this acceptance journey.
 
@@ -107,6 +103,49 @@ PLATFORM_ACCESS_TEST_DATABASE_URL='<disposable database URL>' \
 ```
 
 The test skips when that variable is absent; a skipped run is not verification.
+
+## Local setup and browser evidence
+
+With the native Labs provider running, register only the local Agents clients:
+
+```sh
+python3 scripts/configure-local-login.py
+```
+
+The script reads the separate ignored identity admin environment for this
+operator-only setup action. It writes independent Agents secrets to mode-0600
+`.env`, sets exact callback/logout URLs and grants the Agents session service
+realm-management/manage-users. It does not alter shared realm settings, users,
+Growth clients or Google configuration. Master-admin credentials never enter
+the running Agents environment. Existing secrets are reused without rotation.
+
+The current local Agents database is an independent native PostgreSQL 18 cluster
+at `.artifacts/local-postgres/data`. It listens only on its private Unix socket
+directory, with no TCP listener. All migrations through 179 have passed. The API
+uses `agents_local_runtime`, a non-superuser member of the existing runtime role;
+the migration connection remains separate. Both URLs are in ignored `.env`.
+
+To restart that existing development database from the Agents root:
+
+```sh
+/usr/lib/postgresql/18/bin/pg_ctl -D .artifacts/local-postgres/data \
+  -l .artifacts/local-postgres/postgres.log \
+  -o "-k $(pwd)/.artifacts/local-postgres -p 55434 -c listen_addresses='' -c shared_buffers=32MB -c max_connections=30" start
+pnpm dev:api
+```
+
+Stop only that database with `pg_ctl -D .artifacts/local-postgres/data stop -m fast`
+using the same installed binary path. Do not initialize over existing data or stop
+the shared identity/Growth database.
+
+On 2026-10-02 a dedicated local fixture completed real password sign-in, initial
+workspace creation, authenticated dashboard/account rendering, a live provider
+session recheck, browser logout and subsequent signed-out redirect. Signing in
+again restored the saved workspace. Desktop and narrow shell checks passed.
+Screenshots are under `.artifacts/`. Seven focused login-boundary checks and the
+backend build passed after adding the frontend's provider-unavailable logout
+handling. Actual agent creation/model execution and multiple-workspace/all-device
+browser checks remain pending.
 
 Implementation references: [openid-client](https://github.com/panva/openid-client),
 [Keycloak registration prompt](https://www.keycloak.org/docs/latest/release_notes/index),

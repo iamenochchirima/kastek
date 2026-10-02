@@ -18,9 +18,17 @@ Open http://localhost:3100. Copy .env.example to .env.local if the Agents API us
 - / is the public landing page; /login and /signup enter backend-owned shared login.
 - /app is the authenticated shell, with agent screens under /app/agents, /app/studio and /app/playground.
 - Existing /agents and /studio bookmarks redirect into /app.
-- Knowledge, Connections, Usage, Settings and Inbox are navigation areas with honest pending states until their integrations are built. Personal deployment is planned.
+- /onboarding creates or selects a permitted workspace before agent screens load.
+- Settings shows the account/workspace and provides logout. Team administration,
+  Knowledge, Connections, Usage and Inbox retain pending states. Personal deployment is planned.
 
-The session loader expects GET /api/auth/me from the standalone Agents backend. Existing agent screen controllers still use /api/agents contracts that formerly passed through Growth. Their standalone Agents facade is the next integration task; Vite does not manufacture a session, translate authority, or inject service credentials. With an absent backend, protected routes display a connection error. Neither a successful build nor the public page checks prove actual login or agent execution.
+The session loader uses GET /api/auth/me from the standalone Agents backend. Local
+password login, workspace onboarding, dashboard access and logout are verified.
+Existing agent screen controllers still use /api/agents contracts that formerly
+passed through Growth. Their standalone Agents facade is the next integration task;
+Vite does not manufacture a session, translate authority, or inject service credentials.
+With an absent backend, protected routes display a connection error. Agent creation
+and execution remain unverified.
 
 ## Normal checks
 

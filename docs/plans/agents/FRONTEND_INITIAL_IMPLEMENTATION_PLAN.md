@@ -1,7 +1,7 @@
 # Agents frontend initial implementation
 
 Updated: 2026-10-02.
-Status: In progress. Vite migration, public layout and initial shell implemented; standalone session/API integration remains pending.
+Status: In progress. Vite frontend and local login/workspace integration are verified; agent API integration and the actual create/run journey remain pending.
 Priority: First implementation slice of the platform delivery plan.
 
 ## Outcome and scope
@@ -16,11 +16,11 @@ This is a functional implementation with ordinary build, typing, browser and foc
 
 ## Phase 1: Review and retain the useful UI
 
-- [ ] Inspect the existing Agents client and Growth shell. Identify which layouts, components, assets and styles are already present in Agents before copying more.
-- [ ] Record the proposed elements to preserve: typography, colors/theme, spacing, sidebar/top bar, organization selector, page headers, forms, dialogs, tables, toasts and loading/empty/error patterns. Confirm any material redesign with the owner before replacing these patterns.
-- [ ] Show one representative dashboard layout and navigation structure for review. Keep landing-page styling separate.
-- [ ] Identify Next-specific routing, server components/helpers, image/font handling, middleware, environment variables and API adapters requiring replacement.
-- [ ] List Growth features to exclude, including campaigns, content publishing, CRM/contact management, bookings administration, billing implementation, Growth onboarding, PWA/offline infrastructure and Growth-only analytics. Agent booking tools are separate backend capabilities, not these product screens.
+- [x] Inspect the existing Agents client and Growth shell. Identify which layouts, components, assets and styles are already present in Agents before copying more.
+- [x] Record the proposed elements to preserve: typography, colors/theme, spacing, sidebar/top bar, organization selector, page headers, forms, dialogs, tables, toasts and loading/empty/error patterns. Confirm any material redesign with the owner before replacing these patterns.
+- [x] Show one representative dashboard layout and navigation structure for review. Keep landing-page styling separate.
+- [x] Identify Next-specific routing, server components/helpers, image/font handling, middleware, environment variables and API adapters requiring replacement.
+- [x] List Growth features to exclude, including campaigns, content publishing, CRM/contact management, bookings administration, billing implementation, Growth onboarding, PWA/offline infrastructure and Growth-only analytics. Agent booking tools are separate backend capabilities, not these product screens.
 
 Exit: a short keep/remove list and a concrete shell direction. Copy needed source into Agents; do not introduce cross-repository runtime imports or modify Growth.
 
@@ -38,10 +38,10 @@ Exit: Vite serves the landing and dashboard layouts, including direct route navi
 
 ## Phase 3: Growth-style Agents shell
 
-- [ ] Port/reuse the approved Growth shell, theme and UI primitives, then remove Growth-only navigation and imports.
+- [x] Port/reuse the approved Growth shell, theme and UI primitives, then remove Growth-only navigation and imports.
 - [x] Add Overview, Agents, Inbox, Knowledge, Connections, Usage and Settings as the proposed navigation. Keep Studio/Playground discoverable inside the agent workflow.
 - [ ] Within Agents, distinguish API-based agents from Personal deployments, with separate appropriate detail screens. Personal deployment functionality follows its own platform phase.
-- [ ] Implement responsive sidebar/top bar, active navigation, organization context and basic account actions using existing patterns.
+- [x] Implement responsive sidebar/top bar, active navigation, organization context and basic account actions using existing patterns.
 - [ ] Provide consistent loading, empty, error and unavailable states. Later features must show honest availability rather than fabricated counts or working controls.
 - [ ] Preserve basic keyboard navigation, labels, focus behavior and readable mobile layouts during the port.
 
@@ -52,17 +52,17 @@ Exit: the shell looks and behaves consistently with the retained Growth UX while
 - [x] Build the public landing page with its own navigation, styling and responsive layout, isolated from dashboard CSS and authenticated layout providers where possible.
 - [x] Explain API-based agents, workflows and personal deployments, with clear availability language. Do not advertise later capabilities as shipped.
 - [ ] Add product overview, use cases and clear signup/login calls to action. Use real product screenshots when available and identify any illustrative previews.
-- [ ] Connect calls to action to the same app's login/signup routes and preserve an approved post-login destination.
+- [x] Connect calls to action to the same app's login/signup routes and preserve an approved post-login destination.
 - [ ] Set basic document title, description, icons and share metadata. Extensive SEO work and a separate marketing deployment are out of scope.
 
 Exit: visitors can understand the product and enter its real sign-in flow from the landing page.
 
 ## Phase 5: Authentication and backend connection
 
-- [ ] Consume the other agent's Labs shared-login contract and Agents backend session interface. Login/signup redirect to backend-owned provider flows; support existing-user and new-user outcomes.
+- [x] Consume the other agent's Labs shared-login contract and Agents backend session interface. Login/signup redirect to backend-owned provider flows; support existing-user and new-user outcomes.
 - [ ] Replace Growth Core session/API dependencies with Agents endpoints. Load the current user and permitted organizations from the backend.
-- [ ] Implement route loading, unauthenticated redirect, organization selection and ordinary API-error handling. Backend authorization remains authoritative.
-- [ ] Send cookies through the /api interface and connect logout to the agreed backend behavior. Provider tokens and credentials must not appear in frontend storage or build configuration.
+- [x] Implement route loading, unauthenticated redirect, organization selection and ordinary API-error handling. Backend authorization remains authoritative.
+- [x] Send cookies through the /api interface and connect logout to the agreed backend behavior. Provider tokens and credentials must not appear in frontend storage or build configuration.
 - [ ] Document any missing Agents backend endpoints as explicit prerequisites; implement only the small API changes needed for this slice or leave their acceptance blocked.
 
 Dependency: do not edit the other agent's shared-login work or invent temporary fake authentication. Shell work can proceed independently; end-to-end acceptance waits for working authenticated APIs.
@@ -87,7 +87,7 @@ Run once after the relevant changes; repeat only after failures or new edits.
 - [ ] Frontend typecheck and production build pass. Run focused lint for changed frontend code and resolve introduced errors; record unrelated baseline errors separately.
 - [ ] Open landing, login/signup entry, dashboard and agent routes. Verify navigation, back/forward, direct URL refresh and an unknown route.
 - [ ] Inspect the landing and shell at desktop and mobile widths; verify menu, forms, dialogs and basic keyboard focus.
-- [ ] Complete real login and logout with a test account when the shared provider/backend are available. Check the signed-out dashboard redirect.
+- [x] Complete real login and logout with a test account when the shared provider/backend are available. Check the signed-out dashboard redirect.
 - [ ] Create and reopen an agent, execute one real Playground message, observe its response/status and reload its history.
 - [ ] Check one normal validation error, an empty agent list and backend-unavailable feedback. Confirm unfinished features do not look operational.
 - [ ] Verify development and production API routing and a live stream/reconnect on the first working journey.
@@ -147,3 +147,31 @@ Backend login routes, 2026-10-02:
 - [Vite guide](https://vite.dev/guide/).
 - [Vite backend integration](https://vite.dev/guide/backend-integration).
 - [React Router documentation](https://reactrouter.com/start/declarative/installation).
+
+Local authenticated frontend evidence, 2026-10-02:
+
+- Registered independent `agents` and `agents-session-admin` clients using
+  `scripts/configure-local-login.py`. Only those clients and their own service
+  role mapping were configured. Shared realm settings and other product clients
+  were untouched. Backend credentials remain in ignored, mode-0600 `.env`.
+- Initialized an independent native PostgreSQL 18 cluster for Agents under
+  `.artifacts/local-postgres`, on a private Unix socket and port 55434. All
+  migrations through 179 passed. The API uses a non-superuser runtime login with
+  the existing Agents runtime grants, RLS enforcement and HMAC machine auth.
+- A dedicated local provider fixture, with no existing workspace memberships,
+  completed real password login, reached onboarding, created a workspace and
+  reached the authenticated dashboard/account screen. Refresh also passed a live
+  provider recheck forced due through the disposable session record. Browser
+  logout reached Keycloak's confirmation, then protected `/app` returned to login.
+  Signing in again restored the saved workspace. No mocked browser APIs were used.
+- Added workspace creation/selection and account/logout UI. Child page loaders
+  check workspace selection before loading agent data. User activity is reported
+  from visible clicks/typing at most once per minute; background requests do not
+  prolong sessions. Workspace changes reload the app to clear previous UI state.
+- Desktop shell screenshot: `.artifacts/agents-authenticated-shell.jpg`. A
+  390-pixel check confirmed page width stayed at 390, the mobile menu opened and
+  Escape dismissed it. The viewport override was reset afterward.
+- Frontend typing/build and focused lint passed; backend build and seven focused
+  login-boundary checks passed. Agent screens still need the standalone browser
+  API facade, and agent creation/execution are not accepted yet. Google setup
+  remains deferred by the owner; no new Google/passkey verification is claimed.

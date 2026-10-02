@@ -119,8 +119,12 @@ export class PlatformLogin {
       // Always revoke local cookies, even if provider revocation must be retried.
       await this.access.revokeAccountSessions(session.account.id);
       this.clearSession(reply);
-      await this.provider.logoutEverywhere(session.account.subject);
-      return { redirectTo: "/login" };
+      try {
+        await this.provider.logoutEverywhere(session.account.subject);
+        return { redirectTo: "/login", providerLogoutPending: false };
+      } catch {
+        return { redirectTo: "/login", providerLogoutPending: true };
+      }
     });
   }
 }

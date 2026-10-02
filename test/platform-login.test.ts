@@ -68,4 +68,14 @@ describe("Agents browser login boundary", () => {
     expect(response.json()).toEqual({ redirectTo: "/login", providerLogoutPending: true });
     expect(response.headers["set-cookie"]).toContain("Max-Age=0");
   });
+  it("leaves revoked sessions and reports incomplete shared logout after all-device provider failure", async () => {
+    const { app, login } = setup();
+    vi.spyOn(login!, "requireSession").mockResolvedValue({ account: { id: "account-1", subject: "subject-1" } } as never);
+    const revoke = vi.spyOn(login!.access, "revokeAccountSessions").mockResolvedValue();
+    vi.spyOn(login!.provider, "logoutEverywhere").mockRejectedValue(new Error("Offline"));
+    const response = await app.inject({ method: "POST", url: "/api/auth/logout-all", headers: { origin: "http://localhost:3100" } });
+    expect(revoke).toHaveBeenCalledWith("account-1");
+    expect(response.json()).toEqual({ redirectTo: "/login", providerLogoutPending: true });
+    expect(response.headers["set-cookie"]).toContain("Max-Age=0");
+  });
 });

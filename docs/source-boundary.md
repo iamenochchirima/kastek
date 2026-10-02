@@ -10,14 +10,28 @@ Growth's Vantage design tokens, authored Geist fonts, theme/accent/density prefe
 
 ## Remaining dependencies
 
-The backend now implements standalone /api/auth routes, with its own workspace/session records, OIDC callback, HttpOnly cookie and bounded provider checks. Actual local provider registration and browser login still need verification. Existing screens use /api/agents commands inherited from the Growth-facing contract; the Agents backend currently exposes scoped /v1 interfaces. A proper authenticated browser facade is still required. No fake session or browser service-secret injection has been introduced.
+The backend now implements standalone /api/auth routes, with its own workspace/session records, OIDC callback, HttpOnly cookie and bounded provider checks. Independent local clients are registered. Password sign-in, workspace onboarding, dashboard access, provider rechecking and browser logout were verified with a dedicated local test account. Existing screens use /api/agents commands inherited from the Growth-facing contract; the Agents backend currently exposes scoped /v1 interfaces. A proper authenticated browser facade is still required. No fake session or browser service-secret injection has been introduced.
 
 The dev/preview proxy points /api to the configured Agents endpoint. It does not forward to Growth by default. Shared login belongs to Labs; the Agents integration must register its own client and enforce its own memberships.
 
-Inbox, knowledge, connections, usage and account-management pages are pending integration. Personal runtime deployments are a later platform capability. The public landing describes availability honestly.
+Account settings provide current account/workspace information and logout. Workspace creation, selection and activity reporting use the real backend. Invitations and role management remain planned. Inbox, knowledge, connections and usage pages are pending integration. Personal runtime deployments are a later platform capability.
+
+## UI retention decisions
+
+Preserve Growth typography and colors, theme/accent/density preferences, spacing,
+sidebar/top bar, workspace context, page headers, form/dialog/table primitives,
+toasts and loading/empty/error states already present in Agents. Keep Studio,
+Playground, agent definitions, conversations and run inspection as Agents-owned
+components. The authenticated shell screenshot is saved locally under
+`.artifacts/agents-authenticated-shell.jpg` for review.
+
+Exclude Growth campaign/content publishing, CRM/contacts, bookings administration,
+its billing/onboarding implementation, PWA/offline infrastructure and Growth-only
+analytics. Booking tools remain backend agent capabilities. Growth remains a
+reference checkout; runtime imports and changes to that repo are excluded.
 
 ## Evidence
 
-The migration passed frontend typecheck, production build and existing Studio event/reducer checks. Landing and signup navigation were inspected in the browser; the protected route reports the unavailable backend. Actual login, dashboard access, creation and model execution remain unverified.
+The migration passed frontend typecheck, production build and existing Studio event/reducer checks. Landing and signup navigation were inspected in the browser. The dashboard and account screen rendered with real session/workspace records. A 390-pixel viewport check confirmed no horizontal page overflow and working mobile navigation dismissal. Creation and model execution remain unverified.
 
 Follow the [frontend checklist](plans/agents/FRONTEND_INITIAL_IMPLEMENTATION_PLAN.md). Growth's styling is reference material; no Growth files were modified by this frontend migration.
