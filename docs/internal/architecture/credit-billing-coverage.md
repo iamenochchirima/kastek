@@ -6,9 +6,10 @@ last_reviewed: 2026-09-10
 
 # Credit billing coverage
 
-This document records the current implementation of credit charging and the gap between that
-implementation and the intended product-wide credit model. It is an audit of the repository as of
-2026-09-10, not a pricing approval.
+This document records the source audit of credit charging and the gap between that implementation
+and the intended product-wide credit model. Its behavior conclusions date from 2026-09-10; the
+links below point to the local TypeScript counterparts, but this is not a post-migration parity
+audit, pricing approval, or claim that the TypeScript service has been deployed.
 
 ## Bottom line
 
@@ -33,9 +34,10 @@ for the worker configuration and pricing decision.
 
 Core owns the credit ledger and exposes reserve, capture, and release operations, but the only
 customer-usage call sites found are the internal Agents endpoints in
-[`agent_internal.rs`](../../../server/kasitek-core/src/controllers/agent_internal.rs) and
-[`internal.rs`](../../../server/kasitek-core/src/api/internal.rs). The ledger does not charge a
-feature merely because that feature exists in Core.
+[`agent-internal.ts`](../../../server/kasitek-core/src-ts/routes/agent-internal.ts). Ledger
+operations are implemented in
+[`credits.ts`](../../../server/kasitek-core/src-ts/services/credits.ts). The ledger does not
+charge a feature merely because that feature exists in Core.
 
 ## Current charging matrix
 
@@ -45,7 +47,7 @@ feature merely because that feature exists in Core.
 | Agents model calls using BYOK | Preserves `fundingSource = user` and skips the KasiTek credit reservation. | **Not charged by design.** |
 | Agent read tools | No direct credit reservation or capture. | **Not charged.** |
 | Agent outbound tool effects | The tool itself does not use the credit ledger. A downstream action may use a separate meter or provider-specific policy. | **No general credit charge.** |
-| Core social ideas and captions | Core calls OpenRouter directly from [`services/ai.rs`](../../../server/kasitek-core/src/services/ai.rs). No credit reserve, capture, or provider-usage settlement is present in that path. | **Not charged. This is an implementation gap.** |
+| Core social ideas and captions | Core calls OpenRouter directly from [`ai.ts`](../../../server/kasitek-core/src-ts/services/ai.ts). No credit reserve, capture, or provider-usage settlement is present in that path. | **Not charged. This is an implementation gap.** |
 | Website chat | The intended plan says to charge AI response usage through the Agent boundary, but the credit implementation checklist still marks website-chat enforcement incomplete. | **Not confirmed as a complete credit contract.** Platform-funded model calls may be charged after reaching the worker; anonymous and end-to-end behavior need explicit tests. |
 | WhatsApp campaign recipients | Checks and records the monthly `campaign_recipients` meter around accepted sends. | **Not charged as credits.** Uses a separate monthly meter. |
 | Social publishing | Records the monthly `social_publishes` meter after successful publication. | **Not charged as credits.** |

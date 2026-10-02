@@ -1,8 +1,13 @@
 # KasiTek Growth Core
 
-_Owner: engineering · Last reviewed: 2026-09-29_
+_Owner: engineering · Last reviewed: 2026-10-02_
 
 Native Node.js 24 and TypeScript backend for KasiTek Growth.
+
+TypeScript registers all 537 inventoried Core operations and ten worker modes.
+Registration coverage does not yet prove complete behavior or authorize Rust
+retirement. Cross-service parity, private-package delivery and the deletion gate
+remain open.
 
 ## Setup
 

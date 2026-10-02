@@ -1,12 +1,15 @@
 ---
 title: Paystack Billing Runbook
 owner: platform-ops
-last_reviewed: 2026-08-25
+last_reviewed: 2026-10-02
 ---
 
 # Paystack Billing Runbook
 
 This document covers the direct Kasitek workspace billing integration. It does not apply to the separate white-label tenant platform.
+
+The local Core runtime is now TypeScript. The hosted Railway topology remains a separate,
+unverified state; check its running revision before changing a deployed worker.
 
 ## Required configuration
 
@@ -55,8 +58,10 @@ The browser callback is `${FRONTEND_URL}/billing?payment=complete`. Paystack add
 Pending checkout transactions older than 30 seconds and active provider subscriptions are rechecked by the billing reconciliation worker. In the API process this worker starts with the other background workers. It can also run as a separate process:
 
 ```text
-KASITEK_PROCESS=billing-reconciliation-worker cargo run -p kasitek-core
+KASITEK_PROCESS=billing-reconciliation-worker pnpm --dir server/kasitek-core start
 ```
+
+This starts the compiled TypeScript worker after the Core dependencies are installed and built.
 
 The default interval is five minutes. Set `PAYSTACK_RECONCILIATION_INTERVAL_SECONDS` and `PAYSTACK_RECONCILIATION_BATCH_SIZE` to change it. The interval cannot be lower than 30 seconds.
 

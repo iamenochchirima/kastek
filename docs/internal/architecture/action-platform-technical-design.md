@@ -32,21 +32,24 @@ The code uses simple, direct names.
 
 The architecture may still use the general word “capability” when describing what Kasitek permits or provides. Executable code units are named **actions** so “capability” is not overloaded across code, entitlements, provider features, OAuth scopes, and product packaging.
 
-### Proposed code names
+### Code ownership and current location
 
 ```text
-Growth repository
-  server/crates/actions/
-  server/crates/execution/
-  server/crates/action-testing/
-  server/kasitek-core/src/actions/
+Growth repository (current TypeScript implementation)
+  server/kasitek-core/src-ts/actions/
+  server/kasitek-core/src-ts/execution/
+  server/kasitek-core/src-ts/capabilities/
 
 Agency repository
-  Kasitek-Labs/kasitek-agency/server/kasitek-tenants/src/actions/
+  Kasitek-Labs/kasitek-agency/server/kasitek-tenants/ (tenant business logic)
 
 Agents repository
-  gateway adapters for REST, MCP, and A2A
+  gateway adapters for REST and MCP
 ```
+
+The Growth Rust action and execution crates remain as migration references until the shared
+Rust retirement gate passes. Agency and Agents remain separate service owners; this design does
+not turn their business logic or protocol adapters into shared Growth packages.
 
 These names describe responsibility without encoding a temporary protocol or product name into the core.
 
