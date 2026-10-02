@@ -85,7 +85,7 @@ Exit: authenticated user → create agent → send a test message → see a real
 Run once after the relevant changes; repeat only after failures or new edits.
 
 - [x] Frontend typecheck and production build pass. Run focused lint for changed frontend code and resolve introduced errors; record unrelated baseline errors separately.
-- [ ] Open landing, login/signup entry, dashboard and agent routes. Verify navigation, back/forward, direct URL refresh and an unknown route.
+- [x] Open landing, login/signup entry, dashboard and agent routes. Verify navigation, back/forward, direct URL refresh and an unknown route.
 - [ ] Inspect the landing and shell at desktop and mobile widths; verify menu, forms, dialogs and basic keyboard focus.
 - [x] Complete real login and logout with a test account when the shared provider/backend are available. Check the signed-out dashboard redirect.
 - [ ] Create and reopen an agent, execute one real Playground message, observe its response/status and reload its history.
@@ -587,3 +587,20 @@ Run-stream completion recovery, 2026-10-02:
   feature behavior is recorded under bookmark and mobile setup checks.
 - The actual model response, real stream/reconnect and reopened persisted response
   remain unverified. Their acceptance boxes stay open pending model credentials.
+
+
+Basic route navigation acceptance, 2026-10-02:
+
+- Opened Booking Assistant directly in Studio with the real local session, then
+  refreshed. Its saved conversation, v2 playground pin and v1 live pin reloaded.
+  The composer remained disabled with the actual OpenRouter-credential blocker.
+- Navigated through Agents, used browser Back to restore Studio and Forward to
+  restore the agent list. The list retained both saved agents and their versions.
+- An unknown /app URL showed Page not found. Its Open workspace link reached the
+  authenticated Overview. Screenshot: `.artifacts/agents-unknown-route-recovery.jpg`.
+- Together with the earlier recorded landing/signup and real login/logout checks,
+  this completes the basic route-navigation acceptance box. It establishes no
+  execution or run-history result; there are still no runs in the test workspace.
+- The previous browser tab timed out twice, while direct HTTP checks showed the
+  UI/API responding. A fresh tab in the same browser completed these checks; no
+  server was restarted to resolve the browser-control issue.
