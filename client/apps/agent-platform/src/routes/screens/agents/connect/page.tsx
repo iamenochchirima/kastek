@@ -1,10 +1,5 @@
-import { redirect } from "@/lib/navigation";
-import { getSession } from "@/lib/session";
-
-export const metadata = { title: "Connect external agent | KasiTek" };
+import { PlannedFeature } from "@/components/platform/overview";
 
 export default async function AgentConnectPage() {
-  const session = await getSession();
-  if (!session?.user?.id) redirect("/login");
-  redirect("/developers/api-keys");
+  return <PlannedFeature title="Connect external agents" description="Developer credentials and external-agent registration are not connected in this initial frontend." />;
 }

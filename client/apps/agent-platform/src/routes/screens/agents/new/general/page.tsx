@@ -1,16 +1,5 @@
-import { getSession } from "@/lib/session";
 import { redirect } from "@/lib/navigation";
-import { AgentCreationFlowPageClient } from "@/components/dashboard/agents/agent-creation-flow-page-client";
 
-export const metadata = { title: "Create general-purpose agent | KasiTek" };
-
-export default async function CreateGeneralAgentPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ audience?: string }>;
-}) {
-  const session = await getSession();
-  if (!session?.user?.id) redirect("/login");
-  const { audience } = await searchParams;
-  return <AgentCreationFlowPageClient initialAudience={audience === "customer_service" ? "customer_service" : "personal"} initialMode="general" userId={session.user.id} />;
+export default async function CreateGeneralAgentPage() {
+  redirect("/app/studio/new");
 }

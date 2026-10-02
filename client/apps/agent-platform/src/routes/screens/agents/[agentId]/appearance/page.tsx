@@ -1,18 +1,12 @@
-import { notFound, redirect } from "@/lib/navigation";
-import { AgentWebsiteChatAppearancePageClient } from "@/components/dashboard/agents/agent-website-chat-appearance-page-client";
-import type { AgentDefinition } from "@/lib/agent-platform";
-import { getSession } from "@/lib/session";
+import { notFound } from "@/lib/navigation";
 import { fetchApiJson } from "@/lib/api-client";
+import { PlannedFeature } from "@/components/platform/overview";
+import type { AgentDefinition } from "@/lib/agent-platform";
 
-export const metadata = { title: "Website Chat appearance | KasiTek" };
-
-export default async function AgentWebsiteChatAppearancePage({ params }: { params: Promise<{ agentId: string }> }) {
-  const session = await getSession();
-  if (!session?.user?.id) redirect("/login");
+export default async function AgentFeaturePage({ params }: { params: Promise<{ agentId: string }> }) {
   const { agentId } = await params;
-  const agents = await fetchApiJson<{ agents: AgentDefinition[] }>("/api/agents").catch(() => ({ agents: [] }));
-  const agent = agents.agents.find((candidate) => candidate.id === agentId);
+  const { agents } = await fetchApiJson<{ agents: AgentDefinition[] }>("/api/agents");
+  const agent = agents.find(candidate => candidate.id === agentId);
   if (!agent) notFound();
-  if (agent.execution_mode === "external_connected" || !agent.installation_id) redirect(`/agents/${encodeURIComponent(agent.id)}`);
-  return <AgentWebsiteChatAppearancePageClient agent={agent} />;
+  return <PlannedFeature title={"Website appearance · " + agent.name} description="Website publishing and appearance controls are not connected in this initial frontend." action={{ href: `/app/studio?agent=${encodeURIComponent(agent.id)}`, label: "Open Studio" }} />;
 }

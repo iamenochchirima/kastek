@@ -16,11 +16,7 @@ type OperationsSummary = {
 export default async function AgentAnalyticsPage() {
   const session = await getSession();
   if (!session?.user?.id) redirect("/login");
-  const summary = await fetchApiJson<OperationsSummary>("/api/agents/operations/summary").catch(() => ({
-    runs: { runsByStatus: [], oldestQueuedAt: null },
-    models: { inputTokens: 0, outputTokens: 0, totalTokens: 0, estimatedCostUsd: 0, failedCalls: 0 },
-    tools: [],
-  }));
+  const summary = await fetchApiJson<OperationsSummary>("/api/agents/operations/summary");
   const runCount = summary.runs.runsByStatus.reduce((total, entry) => total + entry.count, 0);
   const completedRuns = summary.runs.runsByStatus.find((entry) => entry.status === "completed")?.count ?? 0;
   const failedRuns = summary.runs.runsByStatus.find((entry) => entry.status === "failed")?.count ?? 0;

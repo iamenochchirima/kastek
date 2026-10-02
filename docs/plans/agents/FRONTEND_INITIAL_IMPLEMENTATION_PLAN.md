@@ -462,3 +462,29 @@ Basic validation and recovery states, 2026-10-02:
   lint passed; no additional automated test suite was added for these UI changes.
 - Broader route/mobile/unfinished-control checks and the actual response/stream/
   history journey remain open; these observations do not complete all acceptance.
+
+Copied bookmark availability, 2026-10-02:
+
+- Ordinary and general creation bookmarks now enter the working Studio form. A
+  draft bookmark enters its agent's Studio. Template requests remain explicitly
+  pending instead of silently applying or discarding an unavailable blueprint.
+- Template, external-registration, workspace-activity, workflow and appearance
+  bookmarks show initial availability and a useful next action. Workflow and
+  appearance pages still resolve the agent through the authenticated workspace;
+  read failures are not masked as nonexistent agents. The old conversation route
+  enters the planned Inbox. These changes do not implement those later features.
+- Workflow version saving/publishing has retained backend support, but its canvas
+  test path does not apply the displayed draft to the playground. The incomplete
+  editor is not mounted in this slice; its source remains for later integration.
+  Studio remains the supported version editing/testing path. Other future
+  components and all independent backend functionality are also retained.
+- Analytics continues to display the real scoped operations summary. A failed
+  summary request now reaches the route error UI rather than displaying zeros.
+- Browser checks confirmed the old general-creation bookmark reached the working
+  form, external registration showed pending rather than a missing developer URL,
+  and the saved Booking Assistant workflow bookmark showed its pending state and
+  Studio link. Screenshot: `.artifacts/agents-workflow-bookmark-pending.jpg`.
+  Other changed bookmarks were inspected in source; they are not all claimed as
+  browser-verified. Frontend production build and focused changed-file lint passed.
+- Studio capability/connection settings and remaining initial journey acceptance
+  still need work. Model credentials remain pending; no actual response was run.

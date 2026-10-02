@@ -51,3 +51,14 @@ rules. Backend permissions and independent machine APIs remain authoritative.
 The retained backend capabilities still need explicit scoped browser admission and
 ordinary product verification before enabling those copied sections. The unused
 detail-page schedule form was removed; backend scheduling code remains.
+
+Copied route availability: ordinary `/agents/new` and `/agents/new/general`
+bookmarks now enter the initial Studio creation form; a draft bookmark opens its
+agent in Studio. Template setup, external registration, workspace activity,
+workflow canvas and website appearance bookmarks expose pending screens rather
+than mounting their incomplete setup/operator controls. Existing underlying
+components and backend APIs are retained for later platform phases. The old
+conversation bookmark enters the planned Inbox screen. Aggregate analytics keeps
+its scoped backend summary and reports API failures through route errors instead
+of manufacturing zero totals. Agent detail and Studio retain their scoped run
+history; this is not a claim that workspace-wide operations are implemented.
