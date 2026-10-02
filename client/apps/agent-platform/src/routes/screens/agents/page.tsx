@@ -20,7 +20,7 @@ export default async function AgentsPage({
   const session = await getSession();
   if (!session?.user?.id) redirect("/login");
   const { template, view } = await searchParams;
-  const initialView: AgentView = view === "external" ? "external" : "agents";
+  const initialView: AgentView = view === "personal" ? "personal" : view === "external" ? "external" : "agents";
 
   const agentResult = await fetchApiJson<{ agents: AgentListItem[]; counts?: AgentAudienceCounts }>("/api/agents")
     .then((value) => ({ value, unavailable: false }))

@@ -254,3 +254,19 @@ Studio browser follow-up and metadata, 2026-10-02:
   is not known yet, so no invented canonical/share URL is configured.
 - Frontend production build and built HTML/SVG checks passed. Real model
   execution remains pending credentials and development billing setup.
+
+Personal deployment UI distinction, 2026-10-02:
+
+- Added an explicit Personal deployments category alongside API-based agents and
+  external connections. Its planned state has no fabricated counts, provisioning
+  controls or Create action. Existing private hosted workspace assistants stay in
+  the API-based category. Audience and runtime type remain separate concepts.
+- Added the protected `/app/agents/personal` page, linked from the category and
+  Overview. It explains planned persistent files/memory, runtime/skills, lifecycle
+  controls and scoped product/channel connections. It does not provision a
+  container or substitute another product's personal runtime.
+- Replaced incomplete tab semantics on the category filters with ordinary labelled
+  pressed buttons. The existing card styling and hosted/external views remain.
+- Frontend typing/production build and focused lint passed. Browser control timed
+  out during navigation and reconnect, so the new category/page still needs live
+  navigation and mobile verification. The phase-3 acceptance stays unchecked.

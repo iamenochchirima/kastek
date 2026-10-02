@@ -1,5 +1,6 @@
 "use client";
 
+import { PersonalDeploymentSummary } from "@/components/platform/personal-deployments";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -26,7 +27,7 @@ import { AgentChatPanel } from "./agent-chat-panel";
 import { listAgentCreationDrafts, type AgentCreationDraftSummary } from "@/lib/agent-creation-drafts";
 
 export type AgentListItem = AgentDefinition;
-export type AgentView = "agents" | "external";
+export type AgentView = "agents" | "external" | "personal";
 
 function statusClass(status: string) {
   if (status === "active") return "border-status-success/30 bg-status-success-soft text-status-success";
@@ -132,35 +133,34 @@ export function AgentsPageClient({
         <PageHeader>
           <PageHeaderContent>
             <PageHeaderTitle>Agents</PageHeaderTitle>
-            <PageHeaderDescription>Installed agents.</PageHeaderDescription>
+            <PageHeaderDescription>Hosted agents, external connections and personal runtime deployments.</PageHeaderDescription>
           </PageHeaderContent>
           <PageHeaderActions>
-          <Button type="button" onClick={openCreate}>Create agent</Button>
+          {activeView !== "personal" ? <Button type="button" onClick={openCreate}>Create agent</Button> : null}
           </PageHeaderActions>
         </PageHeader>
 
-        {initialOperations ? <OperationsSummary summary={initialOperations} /> : null}
-        {initialCounts ? <AudienceSummary counts={initialCounts} /> : null}
+        {activeView !== "personal" && initialOperations ? <OperationsSummary summary={initialOperations} /> : null}
+        {activeView !== "personal" && initialCounts ? <AudienceSummary counts={initialCounts} /> : null}
 
-        <div role="tablist" aria-label="Agent views" className="flex w-fit max-w-full items-center gap-1 overflow-x-auto rounded-lg border border-border bg-secondary/40 p-1">
+        <div role="group" aria-label="Agent views" className="flex w-fit max-w-full items-center gap-1 overflow-x-auto rounded-lg border border-border bg-secondary/40 p-1">
           <button
             type="button"
-            role="tab"
-            aria-selected={activeView === "agents"}
+            aria-pressed={activeView === "agents"}
             onClick={() => setActiveView("agents")}
             className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${activeView === "agents" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
           >
-            Agents
+            API-based agents
           </button>
           <button
             type="button"
-            role="tab"
-            aria-selected={activeView === "external"}
+            aria-pressed={activeView === "external"}
             onClick={() => setActiveView("external")}
             className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${activeView === "external" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
           >
             External agents
           </button>
+          <button type="button" aria-pressed={activeView === "personal"} onClick={() => setActiveView("personal")} className={`whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${activeView === "personal" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}>Personal deployments · Planned</button>
         </div>
 
         {activeView === "agents" && browserDrafts.length ? <section aria-labelledby="unfinished-drafts-heading" className="space-y-3">
@@ -170,7 +170,7 @@ export function AgentsPageClient({
           <div className="grid gap-4 lg:grid-cols-2">{browserDrafts.map((draft) => <CreationDraftCard key={draft.key} draft={draft} onResume={() => router.push(draftPath(draft))} />)}</div>
         </section> : null}
 
-        {agentsUnavailable ? (
+        {activeView === "personal" ? <PersonalDeploymentSummary /> : agentsUnavailable ? (
           <Card><CardContent className="flex flex-col items-start gap-4 p-8"><Info className="h-7 w-7 text-status-attention" /><div><h2 className="text-xl font-semibold text-foreground">Agents are unavailable</h2><p className="mt-1 max-w-xl text-sm leading-6 text-muted-foreground">The Agent Platform could not be reached. Your existing installations are unchanged; try refreshing in a moment.</p></div><Button type="button" variant="outline" onClick={() => router.refresh()}>Retry</Button></CardContent></Card>
         ) : visibleAgents.length ? (
           <section className="grid gap-4 lg:grid-cols-2" aria-label="Installed agents">

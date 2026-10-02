@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { createBrowserRouter, Navigate, Link, useLoaderData, useRouteLoaderData, useRouteError, isRouteErrorResponse, type LoaderFunctionArgs } from "react-router-dom";
 import { AppShell } from "@/components/platform/app-shell";
+import { PersonalDeployments } from "@/components/platform/personal-deployments";
 import { Overview, PlannedFeature } from "@/components/platform/overview";
 import { Landing, SignIn } from "@/components/platform/landing";
 import { WorkspaceAccess, AccountSettings } from "@/components/platform/workspace-access";
@@ -35,6 +36,7 @@ export const router = createBrowserRouter([
   { path: "/onboarding", Component: WorkspaceAccess, loader: requireSession, errorElement: <RouteError /> },
   { id: "workspace", path: "/app", Component: AppShell, loader: requireWorkspace, errorElement: <RouteError />, children: [
     { index: true, Component: Overview },
+    { path: "agents/personal", Component: PersonalDeployments },
     { path: "agents/:agentId/appearance", lazy: async () => {
       const page = await import("./screens/agents/[agentId]/appearance/page");
       return { loader: (args: LoaderFunctionArgs) => loadPage(page.default as unknown as PageController, args), Component: LoadedScreen };
