@@ -8,7 +8,7 @@ import { memoryPolicyFromAgentPolicy } from "../memory/policy";
 import { KnowledgeRepository } from "../db/repositories/knowledge-repository";
 import type { AgentRunActivities, DurableToolCallResult, DurableToolBatchSegment } from "./contracts";
 import { ModelGateway } from "../model/gateway";
-import { EnvironmentCredentialResolver, VaultCredentialResolver, type CredentialResolver } from "../model/credentials";
+import { EnvironmentCredentialResolver, ModelCredentialMissingError, VaultCredentialResolver, type CredentialResolver } from "../model/credentials";
 import type { ModelPricing, ModelProvider } from "../model/types";
 import { type AgentLoopEvent, type AgentLoopLimits, type AgentLoopResult, type ModelCreditReservation } from "../runtime/loop";
 import type { ModelCreditPricing } from "../model/credit-pricing";
@@ -51,6 +51,7 @@ import { redactSensitiveValue, redactToolOutput } from "../tools/redaction";
 import { ModelProviderError, type ModelCredentials, type ModelMessage, type ModelRequest, type ModelResponse, type ModelToolCall } from "../model/types";
 import { activityInfo, ApplicationFailure, cancellationSignal, heartbeat } from "@temporalio/activity";
 import { buildGroundingProvenance } from "../runtime/provenance";
+import { modelCredentialFailureResult } from "../runtime/model-credential-failure";
 import { approvalSnapshotHashFromResource, toolInvocationContextFromScope, type ToolApproval, type ToolInvocationContext } from "../tools/types";
 import type { CoreContentPost, CoreContentPosts, CoreContentPublishBatch, CoreContentPublishBatchPreflight, CoreWorkspaceConnections, CoreWorkspaceStatus } from "../core/client";
 import { buildDomainApprovalSnapshot, projectBookingApprovalResource, projectCampaignApprovalResource } from "../approval/domain-preview";
@@ -4618,7 +4619,13 @@ async function executeLoopForRun(
     : typeof configuration.credentialReference === "string"
       ? configuration.credentialReference
       : modelTarget.credentialReference;
-  const modelCredentials = await credentials.resolve(provider, credentialReference, run.organization_id);
+  let modelCredentials: ModelCredentials;
+  try {
+    modelCredentials = await credentials.resolve(provider, credentialReference, run.organization_id);
+  } catch (error) {
+    if (error instanceof ModelCredentialMissingError) return modelCredentialFailureResult(error);
+    throw error;
+  }
   const runtimeEnvironment = process.env.NODE_ENV ?? "development";
   const resolveAttemptContextCapability = (input: {
     provider: ModelProvider;

@@ -6,14 +6,23 @@ export interface CredentialResolver {
   resolve(provider: ModelProvider, credentialReference?: string, organizationId?: string): Promise<ModelCredentials>;
 }
 
+export class ModelCredentialMissingError extends Error {
+  public readonly code = "MODEL_CREDENTIAL_MISSING";
+
+  public constructor(public readonly provider: ModelProvider) {
+    super(`The server-side ${MODEL_PROVIDER_DEFINITIONS[provider].label} credential is not configured`);
+    this.name = "ModelCredentialMissingError";
+  }
+}
+
 /**
  * Local/Poc resolver. Production will replace this with a core-owned secret-manager adapter;
  * only the activity receives the secret, never a workflow input or model-visible message.
  */
 export class EnvironmentCredentialResolver implements CredentialResolver {
   public async resolve(provider: ModelProvider, credentialReference?: string): Promise<ModelCredentials> {
-    const apiKey = process.env[MODEL_PROVIDER_DEFINITIONS[provider].apiKeyEnv];
-    if (!apiKey) throw new Error(`No ${provider} credential configured for reference ${credentialReference ?? "default"}`);
+    const apiKey = process.env[MODEL_PROVIDER_DEFINITIONS[provider].apiKeyEnv]?.trim();
+    if (!apiKey) throw new ModelCredentialMissingError(provider);
     return { apiKey, fundingSource: "kasitek", credentialReference };
   }
 }

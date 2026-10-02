@@ -36,9 +36,10 @@ an Agents-owned connection design and scoped browser endpoints.
 
 Initial execution needs a backend model credential, a working Temporal server
 and worker with matching namespace/queue, and the configured billing dependency
-or the explicitly documented isolated development billing mode. These are runtime
-prerequisites, not missing frontend endpoints. Model credentials remain the current
-local blocker.
+or the explicitly documented isolated development billing mode. The owner selected
+OpenRouter for local development and is configuring its key. A real no-key Playground
+run now terminates promptly with an actionable setup message; a provider-backed reply
+remains unverified until the key is available.
 
 Inherited rich-response controls call `platform/ui-interactions` and run approval
 routes that are not in the initial browser manifest. Those paths still need scoped

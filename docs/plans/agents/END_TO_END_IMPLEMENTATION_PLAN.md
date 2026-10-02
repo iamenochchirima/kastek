@@ -24,7 +24,7 @@ components. Source availability alone does not establish a working feature.
 |---|---|---|
 | Login, workspace, browser admission | `src/http/platform-login.ts`, `src/http/browser-agent-routes.ts`, `src/identity/` | Local login, membership, selection and logout verified |
 | Agent creation, versions and playground | `src/http/app.ts`, `src/db/repositories/agent-deployment-repository.ts`, `client/apps/agent-platform/src/components/dashboard/studio/` | Creation, saved settings and playground version selection verified; real response pending |
-| Model and execution | `src/model/`, `src/runtime/`, `src/temporal/` | Existing runtime; current development model credential is missing |
+| Model and execution | `src/model/`, `src/runtime/`, `src/temporal/` | OpenRouter selected; key pending. Missing-key failure now returns a clear terminal setup error. Real model response remains unverified |
 | Knowledge and tools | `src/knowledge/`, `src/memory/`, `src/capabilities/`, `src/integrations/catalog.ts`, `src/mcp/` | Scoped knowledge controls are connected; manual source create/list/delete verified in browser. Retrieval and provider-backed answers remain pending |
 | Customer conversations and handoff | `src/db/repositories/conversation-repository.ts`, `src/db/repositories/handoff-repository.ts`, `src/actions/`, `src/events/postgres-conversation-notifications.ts` | Existing implementation to reuse; complete live inbox unverified |
 | Channel delivery | `src/channels/`, `src/discord/`, channel/deployment handlers in `src/http/app.ts` | Inspect each adapter and its provider prerequisites before enabling it |
@@ -40,7 +40,8 @@ or a machine credential embedded in JavaScript.
 - [x] Select OpenRouter for local model calls. The owner will configure the key in local backend secrets; never put keys in chat, frontend bundles or Git.
 - [ ] Start the API, database, client, Temporal server and worker using the existing documented setup. Confirm queue/namespace and billing mode; production credit enforcement stays intact.
 - [ ] Create a fresh agent through the UI, choose its model/instructions and pin the saved version to Playground.
-- [ ] Send a message and display the actual model response, recorded run status, progress and ordinary provider errors.
+- [ ] Send a message and display an actual provider response with its recorded run status and progress.
+- [x] Persist and display an actionable missing-provider-key setup error without exposing credentials. Verified with a real local Playground run while OpenRouter was unconfigured.
 - [ ] Verify cancellation, safe retry, stream disconnect/reconnect and the final persisted outcome using the existing controls.
 - [ ] Refresh and reopen both the conversation and agent detail; retain messages, selected version and visible run history.
 - [ ] Finish the initial frontend acceptance and remove obsolete copied files only after confirming they have no retained consumers.
