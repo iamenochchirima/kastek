@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "sourceCommit": "62b997ef411bb69322995343fcbddb1f73f17e46",
-  "sourceContentSha256": "d66daf3523b415222f6a69093ce38097a5e24cac3f961f77c95dd1d0d7203f66",
+  "sourceCommit": "2a85358d62865104c4f9ef980c7a1764dd465166",
+  "sourceContentSha256": "08148919f57b1ea23c8616f7d55310e07871ba90cd2cffb172277a9ecc4fb5a2",
   "node": "v24.15.0",
   "packageManager": "pnpm@10.30.1",
   "sourceFiles": [
@@ -43,7 +43,7 @@
     },
     {
       "path": "packages/server-support/src/analytics-reporting.ts",
-      "sha256": "b63b12293d1b127d67086e62d3035290ccb6b40b9f68ee707cfdf42e9ce2d925"
+      "sha256": "9a076b87e724a7f6433ce7c6a1bef49f4438de1256827e1546eddad15dc05c01"
     },
     {
       "path": "packages/server-support/src/config.ts",
@@ -59,7 +59,7 @@
     },
     {
       "path": "packages/server-support/src/json.ts",
-      "sha256": "aba7299e8b0e5394071412bc061206d62347e65b89e27d268115bf75b01f0047"
+      "sha256": "bed69a29f96e197214c3b07349ed5086e93fac19f2b37c789b13ce8e1bdc07e6"
     },
     {
       "path": "packages/server-support/src/outbox-sql.ts",
@@ -84,6 +84,10 @@
     {
       "path": "packages/server-support/tests/parity.test.mjs",
       "sha256": "ed1972ac39fbbe4635b40caaa1ddb52d972d75789278b9da9862e015a48dd143"
+    },
+    {
+      "path": "packages/server-support/tests/reporting-json.test.mjs",
+      "sha256": "1f50096bedf95abf3c387f3504bebf780b1dea4b2ef647ec8174e04b409334e6"
     },
     {
       "path": "packages/server-support/tests/telemetry-lazy.test.mjs",
@@ -118,8 +122,8 @@
       "package": "@kasitek/server-support",
       "version": "0.1.0",
       "file": "kasitek-server-support-0.1.0.tgz",
-      "sha256": "1ce0a07c5cb6f5cebd92920029af1390e2e5bdaa91ed1a9d570a409b039df6df",
-      "integrity": "sha512-D5cjZgweqOY0jdKbauX4jxGhAIgyLzhh0UCjrX5krWu1k+IffyPAgUEqEDP6jCmbu+SYW5dKIZEoYuS4cKvABA=="
+      "sha256": "e42c6087490c0576e6265331fac31538f20fb3c6a9376e927bcac83d9fbbb6df",
+      "integrity": "sha512-Yp4GIFd4l0omoIEATQif6YB1IL5m6hy9MC05broewv0t/AzcxPRbxNdrgGH7s7Kv3dkPecQOMjVqy7dCniZwyw=="
     }
   ]
 }

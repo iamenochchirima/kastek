@@ -1,5 +1,6 @@
 import Fastify, {type FastifyInstance} from 'fastify';
 import cookie from '@fastify/cookie';
+import {Readable} from 'node:stream';
 import cors from '@fastify/cors';
 import { environmentAllowsLoopbackOrigins, isLoopbackOrigin } from '@kasitek/server-support/config';
 import type {TenantContext} from './context.js';
@@ -7,6 +8,7 @@ import {installErrorHandler} from './error.js';
 import {apiJson,parseSerdeValueJson} from './json.js';
 import {installHttpObservability} from './observability/http.js';
 
+const bodylessRequest=(method:string,url:string)=>method==='DELETE'||(method==='POST'&&(/\/logout$/.test(url)||/\/domains\/:domain_id\/(verify|primary)$/.test(url)));
 export type RouteRegistrar=(app:FastifyInstance,context:TenantContext)=>void|Promise<void>;
 /** Preserve main.rs's platform-domain matching, including its source host extraction. */
 export function originMatchesPlatformDomain(origin:string,base:string):boolean {
@@ -22,9 +24,18 @@ export async function buildApp(context:TenantContext,registrars:RouteRegistrar[]
   logger:{level:context.config.env.LOG_LEVEL??'info',redact:['req.headers.authorization','req.headers.cookie','res.headers["set-cookie"]']},disableRequestLogging:true});
  installHttpObservability(app);installErrorHandler(app);
  app.setReplySerializer(apiJson);
+ app.addHook('preParsing',async(request,_reply,payload)=>{
+  if(!bodylessRequest(request.method,request.routeOptions.url??''))return payload;
+  // These source handlers have no body extractor: drain bytes without decoding or buffering.
+  payload.resume();
+  request.headers['content-length']='0';
+  request.headers['content-type']='application/json';
+  return Readable.from([]);
+ });
  const safeJson=app.getDefaultJsonParser('error','error');
  app.removeContentTypeParser('application/json');
  app.addContentTypeParser('application/json',{parseAs:'string'},(request,body,done)=>{
+  if(bodylessRequest(request.method,request.routeOptions.url??''))return done(null,undefined);
   const text=typeof body==='string'?body:body.toString('utf8');
   safeJson(request,text,(error,value)=>{
    if(error)return done(error);

@@ -1,0 +1,66 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {once} from 'node:events';
+import {createServer} from 'node:net';
+import {spawn} from 'node:child_process';
+import {readFileSync,existsSync} from 'node:fs';
+import {resolve} from 'node:path';
+import {pathToFileURL} from 'node:url';
+import {setTimeout as delay} from 'node:timers/promises';
+import {parse} from 'dotenv';
+import {hash} from 'bcryptjs';
+import {analyticsFixture} from './analytics-fixture.js';
+import {buildApp} from '../src-ts/app.js';
+import {readConfig} from '../src-ts/config.js';
+import {routes} from '../src-ts/routes.js';
+import {isolatedDatabase} from '../../../../kasitek-growth/server/kasitek-core/test-ts/helpers/database-fixture.js';
+import {buildApp as buildCore} from '../../../../kasitek-growth/server/kasitek-core/src-ts/app.js';
+import {readConfig as readCoreConfig} from '../../../../kasitek-growth/server/kasitek-core/src-ts/config.js';
+import {registerAdminAuthRoutes} from '../../../../kasitek-growth/server/kasitek-core/src-ts/routes/admin-auth.js';
+const url=process.env.TENANT_TEST_DATABASE_URL;
+async function freePort(){const server=createServer();server.listen(0,'127.0.0.1');await once(server,'listening');const port=(server.address() as {port:number}).port;await new Promise<void>(r=>server.close(()=>r()));return port;}
+test('compiled Labs Admin session and agency provisioning proxy reach native Core and Tenant APIs', {skip:!url,timeout:45000},async()=>{
+ const tenant=await analyticsFixture();
+ const coreDb=await isolatedDatabase(url!,'agency_admin_consumer',['AdminUser']);
+ const secret='synthetic-tenant-admin-fixture';
+ const core=await buildCore({pool:coreDb.pool,config:readCoreConfig({DATABASE_URL:url!,ENVIRONMENT:'test',LOG_LEVEL:'silent'})},[registerAdminAuthRoutes]);
+ const tenants=await buildApp({pool:tenant.pool,config:readConfig({TENANT_DATABASE_URL:url!,TENANT_ADMIN_SECRET:secret,TENANT_APP_BASE_URL:'http://localhost:3010',LOG_LEVEL:'silent'})},routes);
+ const coreUrl=await core.listen({host:'127.0.0.1',port:0});
+ const tenantsUrl=await tenants.listen({host:'127.0.0.1',port:0});
+ const adminDir=resolve('../../../kasitek-labs/apps/admin-site');
+ assert.ok(existsSync(resolve(adminDir,'.next/BUILD_ID')),'Build Labs Admin before this compiled consumer fixture');
+ const port=await freePort();const front=`http://127.0.0.1:${port}`;
+ const env:NodeJS.ProcessEnv={PATH:process.env.PATH,HOME:process.env.HOME};
+ for(const file of ['.env','.env.local'])if(existsSync(resolve(adminDir,file)))for(const name of Object.keys(parse(readFileSync(resolve(adminDir,file)))))env[name]='';
+ Object.assign(env,{CORE_BACKEND_URL:coreUrl,TENANTS_BACKEND_URL:tenantsUrl,TENANT_ADMIN_SECRET:secret,NEXT_TELEMETRY_DISABLED:'1',NODE_ENV:'production',AUTH_SECRET:'synthetic-admin-consumer-only'});
+ const nextModule=pathToFileURL(resolve(adminDir,'node_modules/next/dist/server/next.js')).href;
+ const child=spawn(process.execPath,['--input-type=module','-e',`import http from 'node:http';const next=(await import(${JSON.stringify(nextModule)})).default;const app=next({dev:false,dir:${JSON.stringify(adminDir)}});await app.prepare();const server=http.createServer(app.getRequestHandler());server.listen(${port},'127.0.0.1');process.on('SIGTERM',async()=>{server.close();await app.close();process.exit(0);});`],{cwd:adminDir,env,stdio:['ignore','pipe','pipe']});
+ let logs='';child.stdout.on('data',chunk=>logs+=chunk);child.stderr.on('data',chunk=>logs+=chunk);
+ const exit=once(child,'exit');
+ let cookie='';
+ const request=(path:string,init:RequestInit={},authenticated=true)=>{const headers=new Headers(init.headers);if(authenticated&&cookie)headers.set('cookie',cookie);return fetch(front+path,{...init,headers,redirect:'manual'});};
+ const post=(path:string,body:unknown)=>request(path,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)});
+ try {
+  await coreDb.pool.query(`INSERT INTO "AdminUser"(id,name,email,password,role,"updatedAt") VALUES('fixture-admin','Fixture Admin','admin@example.test',$1,'admin',NOW())`,[await hash('synthetic-fixture-password',4)]);
+  let ready=false;for(let i=0;i<200&&child.exitCode===null;i++){try{if((await request('/api/agencies',{},false)).status===401){ready=true;break;}}catch{}await delay(50);}
+  assert.ok(ready,'Compiled Admin readiness failed: '+logs.slice(-1500));
+  const login=await fetch(coreUrl+'/api/admin/login',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({email:'admin@example.test',password:'synthetic-fixture-password'})});assert.equal(login.status,200);cookie=login.headers.getSetCookie()[0]!.split(';')[0]!;
+  assert.equal((await fetch(tenantsUrl+'/api/admin/workspaces')).status,403);
+  const list=await request('/api/agencies');assert.equal(list.status,200);assert.equal((await list.json() as {workspaces:unknown[]}).workspaces.length,2);
+  const created=await post('/api/agencies',{workspaceName:'Consumer Agency',slug:'consumer-agency',adminEmail:'owner@example.test',reportingTimezone:'Africa/Johannesburg',primaryColor:'#123456'});assert.equal(created.status,200);
+  const data=await created.json() as {workspace:{id:string;slug:string};adminInvite:{emailSent:boolean};apiKey:{key:string;id:string}};assert.equal(data.workspace.slug,'consumer-agency');assert.equal(data.adminInvite.emailSent,false);assert.ok(data.apiKey.key.startsWith('ktnt_'));
+  const id=data.workspace.id;
+  const details=await request(`/api/agencies/${id}`);assert.equal(details.status,200);assert.equal((await details.json() as {workspace:{slug:string}}).workspace.slug,'consumer-agency');
+  const update=await request(`/api/agencies/${id}`,{method:'PATCH',headers:{'content-type':'application/json'},body:JSON.stringify({displayName:'Updated Consumer Agency'})});assert.equal(update.status,200);
+  assert.equal((await request(`/api/agencies/${id}/clients`)).status,200);
+  const staff=await request(`/api/agencies/${id}/staff`);assert.equal(staff.status,200);assert.equal((await staff.json() as {staff:unknown[]}).staff.length,1);
+  const added=await post(`/api/agencies/${id}/staff`,{email:'staff@example.test',password:'fixture-staff-password',role:'support'});assert.equal(added.status,201);const addedData=await added.json() as {user:{id:string}};
+  assert.equal((await request(`/api/agencies/${id}/staff/${addedData.user.id}`,{method:'DELETE'})).status,200);
+  const key=await post(`/api/agencies/${id}/api-keys`,{label:'Consumer scoped read',scopes:['workspace:read']});assert.equal(key.status,201);const keyData=await key.json() as {apiKey:{id:string;key:string}};
+  const keys=await request(`/api/agencies/${id}/api-keys`);assert.equal(keys.status,200);assert.ok(!(await keys.text()).includes(keyData.apiKey.key));
+  assert.equal((await request(`/api/agencies/${id}/api-keys/${keyData.apiKey.id}`,{method:'DELETE'})).status,200);
+  assert.ok((await tenant.pool.query('SELECT revoked_at FROM workspace_api_keys WHERE id=$1',[keyData.apiKey.id])).rows[0].revoked_at);
+  assert.equal((await request('/api/agencies',{},false)).status,401);
+  assert.equal((await tenant.pool.query('SELECT display_name FROM workspaces WHERE id=$1',[id])).rows[0].display_name,'Updated Consumer Agency');
+ }finally{child.kill('SIGTERM');await exit;await tenants.close();await core.close();await tenant.close();await coreDb.close();}
+});

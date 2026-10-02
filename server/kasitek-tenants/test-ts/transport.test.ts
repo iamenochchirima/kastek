@@ -8,6 +8,8 @@ const config=readConfig({TENANT_DATABASE_URL:'postgres://unused',TENANT_SERVER_E
 test('native Agency HTTP keeps health, explicit errors, source CORS and method misses',async()=>{
  const app=await buildApp({config,pool:{} as pg.Pool},[(app)=>{
   app.post('/api/fixture',async()=>{throw forbidden();});
+  app.delete('/api/bodyless',async()=>({deleted:true}));
+  app.post('/api/auth/logout',async()=>({loggedOut:true}));
   app.post('/api/extractor',async()=>{throw new RequestExtractionError('json');});
   app.get('/api/count',async()=>({count:9223372036854775807n}));
  }]);
@@ -16,6 +18,11 @@ test('native Agency HTTP keeps health, explicit errors, source CORS and method m
   const error=await app.inject({method:'POST',url:'/api/fixture',payload:{}});assert.equal(error.statusCode,403);assert.deepEqual(error.json(),{error:'forbidden'});
   const extractor=await app.inject({method:'POST',url:'/api/extractor',payload:{}});assert.equal(extractor.statusCode,400);assert.match(extractor.headers['content-type']!,/^text\/plain/);
   const malformed=await app.inject({method:'POST',url:'/api/fixture',payload:'{',headers:{'content-type':'application/json'}});assert.equal(malformed.statusCode,400);
+  for(const [method,path] of [['DELETE','/api/bodyless'],['POST','/api/auth/logout']] as const){
+   for(const [contentType,payload] of [['application/json','{'],['text/csv','ignored'],['application/json','x'.repeat(2097153)]]){
+    const result=await app.inject({method,url:path,payload,headers:{'content-type':contentType!}});assert.equal(result.statusCode,200);
+   }
+  }
   assert.equal((await app.inject('/api/count')).body,'{"count":9223372036854775807}');
   for(const method of ['POST','HEAD'] as const){const unknown=await app.inject({method,url:'/health',payload:method==='POST'?'broken':undefined});assert.equal(unknown.statusCode,404);assert.equal(unknown.body,'');}
   const allowed=await app.inject({method:'OPTIONS',url:'/api/fixture',headers:{origin:'https://partner.agency.example','access-control-request-method':'POST','access-control-request-headers':'x-admin-secret'}});assert.equal(allowed.statusCode,204);assert.equal(allowed.headers['access-control-allow-origin'],'https://partner.agency.example');assert.equal(allowed.headers['access-control-allow-credentials'],'true');

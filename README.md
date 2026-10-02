@@ -55,3 +55,11 @@ No hosted deployment has been performed.
 The source move does not change runtime behavior or deploy either service. Labs Admin consumes the Tenant API's provisioning endpoints. Portal routing, authentication cookies, tenant domains,
 Analytics publication, and the shared Rust crate boundary are recorded in
 [source boundaries](docs/source-boundaries.md).
+
+For a future Railway deployment, the service root is `server/kasitek-tenants`.
+After private shared packages are made available, build with `pnpm build` and
+start with `pnpm start`. Set `TENANT_SERVER_PORT` or Railway's `PORT`, health path
+`/health`, and a dedicated Agency database URL. The API and dedicated workers use
+the same artifact with different `KASITEK_PROCESS` values. All processes run the
+same guarded migration startup. Hosted build access and deployment settings have
+not been verified or applied.
