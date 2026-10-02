@@ -12,6 +12,11 @@ Start with the [frontend initial implementation checklist](FRONTEND_INITIAL_IMPL
 
 ## Product outcome
 
+The [next end-to-end checklist](END_TO_END_IMPLEMENTATION_PLAN.md) sequences the
+remaining real-response acceptance and selected execution, knowledge/tool, website,
+inbox and first-channel work below. Use it for the next bounded implementation;
+this document continues to define the complete platform scope.
+
 Users can create, test, publish, and operate API-based agents with short-run or durable execution, and deploy/manage our own filesystem-based personal agent runtime. Agents can use knowledge and external tools and be reached through a website, API, or messaging channels. Personal deployments have a persistent workspace with files, instructions, skills, memory and session material, with authorized tools and channels plugged into the runtime.
 
 Agent behavior, execution mode, hosting, and channel are separate choices. Our filesystem personal runtime uses a managed isolated environment; its lifecycle differs from hosted API execution. Durable execution can run on shared workers or invoke an isolated environment. A short-run agent can save conversations without using a durable orchestrator.
