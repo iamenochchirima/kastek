@@ -6,7 +6,7 @@ import {
 import { parseSerdeValueJson } from "../json.js";
 import type { FastifyRequest } from "fastify";
 import { parseLosslessJson, SerdeFloat } from "@kasitek/server-support/json";
-import { ApiError } from "../error.js";
+import { RequestExtractionError } from "../error.js";
 const canonicalBodies = new WeakMap<FastifyRequest, unknown>();
 /** Preserve JSON number kinds separately while typed DTOs keep primitive numbers for Ajv. */
 export function parseRequestJson(
@@ -51,7 +51,7 @@ export function requireJsonIntegerToken(
   message = "Invalid request",
 ): void {
   if (jsonNumberKind(request, path) === "float")
-    throw new ApiError(400, "bad_request", message);
+    throw new RequestExtractionError("json", message);
 }
 /** JSON Schema integer describes a Rust integer token, including integral exponent/decimal rejection. */
 export function validateIntegerTokenSchema(
@@ -67,7 +67,7 @@ export function validateIntegerTokenSchema(
       !types.includes("number") &&
       value instanceof SerdeFloat
     )
-      throw new ApiError(400, "bad_request", "Invalid request");
+      throw new RequestExtractionError("json");
     if (
       value === null ||
       typeof value !== "object" ||
@@ -162,7 +162,7 @@ export function normalizeRustNumericContract(request: FastifyRequest): void {
     if (type.startsWith("f")) {
       if (typeof value === "bigint") value = Number(value);
       if (typeof value !== "number" || !Number.isFinite(value))
-        throw new ApiError(400, "bad_request", "Invalid request");
+        throw new RequestExtractionError("json");
       if (parent !== null && key !== null)
         (parent as Record<string | number, unknown>)[key] = value;
       return;
@@ -174,13 +174,13 @@ export function normalizeRustNumericContract(request: FastifyRequest): void {
         (typeof value === "number" && Number.isSafeInteger(value))
       )
     )
-      throw new ApiError(400, "bad_request", "Invalid request");
+      throw new RequestExtractionError("json");
     const bits = Number(type.slice(1));
     const integer = BigInt(value);
     const min = type.startsWith("i") ? -(1n << BigInt(bits - 1)) : 0n,
       max = (1n << BigInt(type.startsWith("i") ? bits - 1 : bits)) - 1n;
     if (integer < min || integer > max)
-      throw new ApiError(400, "bad_request", "Invalid request");
+      throw new RequestExtractionError("json");
   }
   for (const [path, type] of fields)
     visit(path, type, request.body, canonicalJsonBody(request), null, null);

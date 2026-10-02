@@ -1,6 +1,6 @@
 import { Readable, Transform } from "node:stream";
 import type { FastifyRequest } from "fastify";
-import { ApiError } from "../../error.js";
+import { ApiError, RequestExtractionError } from "../../error.js";
 export function bad(message: string): never {
   throw new ApiError(400, "bad_request", message);
 }
@@ -30,10 +30,11 @@ export function validatedQuery(
     request.raw.url?.split("?").slice(1).join("?") ?? "",
   );
   for (const [key, value] of params) {
-    if (Object.hasOwn(result, key)) bad("Invalid query");
+    if (Object.hasOwn(result, key)) throw new RequestExtractionError("query");
     result[key] = value;
     if (numeric[key]) {
-      if (!validUint(value, numeric[key])) bad("Invalid query");
+      if (!validUint(value, numeric[key]))
+        throw new RequestExtractionError("query");
       result[key] = numeric[key] === 64 ? BigInt(value) : Number(value);
     }
   }

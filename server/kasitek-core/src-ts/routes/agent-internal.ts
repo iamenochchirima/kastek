@@ -19,7 +19,7 @@ import { publishInboxEvent } from "../services/realtime.js";
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import type { CoreContext } from "../context.js";
 import { UtcTimestamp } from "../db.js";
-import { ApiError } from "../error.js";
+import { ApiError, RequestExtractionError } from "../error.js";
 import {
   resolveInternalAgentContext,
   requireInternalAgent,
@@ -143,7 +143,14 @@ function typedBody(
   request: FastifyRequest,
   fields: Record<string, FieldType>,
 ): Record<string, unknown> {
-  const body = objectBody(request);
+  let body: Record<string, unknown>;
+  try {
+    body = objectBody(request);
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 400)
+      throw new RequestExtractionError("json");
+    throw error;
+  }
   for (const [key, type] of Object.entries(fields)) {
     const value = body[key];
     if (type.startsWith("optional") && (value === undefined || value === null))
@@ -183,7 +190,7 @@ function typedBody(
           !Number.isNaN(Date.parse(value));
         break;
     }
-    if (!valid) bad("Invalid request");
+    if (!valid) throw new RequestExtractionError("json");
   }
   if (Object.hasOwn(body, "metadata"))
     body.metadata = jsonValueAt(request, ["metadata"]);
@@ -197,7 +204,7 @@ function internalQuery(
   for (const [key, value] of new URLSearchParams(
     request.raw.url?.split("?").slice(1).join("?") ?? "",
   )) {
-    if (Object.hasOwn(query, key)) bad("Invalid query");
+    if (Object.hasOwn(query, key)) throw new RequestExtractionError("query");
     query[key] = value;
     if (numeric[key]) {
       if (
@@ -207,7 +214,7 @@ function internalQuery(
             BigInt(value) < -9223372036854775808n ||
             BigInt(value) > 9223372036854775807n
       )
-        bad("Invalid query");
+        throw new RequestExtractionError("query");
       query[key] = BigInt(value);
     }
   }
@@ -218,7 +225,7 @@ function internalQuery(
     ["publishedTo", "published_to"],
   ] as const)
     if (Object.hasOwn(query, canonical) && Object.hasOwn(query, alias))
-      bad("Invalid query");
+      throw new RequestExtractionError("query");
   return query;
 }
 function bounded(value: unknown): number {

@@ -6,7 +6,7 @@ import formbody from "@fastify/formbody";
 import multipart from "@fastify/multipart";
 import { isIP } from "node:net";
 import type { CoreContext } from "./context.js";
-import { installErrorHandler } from "./error.js";
+import { installErrorHandler, RequestExtractionError } from "./error.js";
 import { apiJson } from "./json.js";
 import {
   parseRequestJson,
@@ -29,6 +29,7 @@ export async function buildApp(
 ): Promise<FastifyInstance> {
   const app = Fastify({
     bodyLimit: 2 * 1024 * 1024,
+    exposeHeadRoutes: false,
     // Serde does not coerce JSON fields or silently remove unknown properties.
     ajv: {
       customOptions: {
@@ -49,6 +50,29 @@ export async function buildApp(
   });
   installHttpObservability(app);
   installErrorHandler(app);
+  app.setNotFoundHandler((request, reply) => {
+    // Most Rust cfg.route registrations have method guards at resource selection,
+    // returning an empty 404. Waitlist alone uses web::resource and returns 405.
+    if (
+      request.url.split("?")[0] === "/api/waitlist" &&
+      request.method !== "POST" &&
+      app.hasRoute({ method: "POST", url: "/api/waitlist" })
+    )
+      return reply.code(405).header("allow", "POST").send();
+    return reply.code(404).send();
+  });
+  // Actix selects the resource before invoking its extractors. Unknown paths and
+  // method-guard misses therefore never attempt to decode their request body.
+  app.addHook("onRequest", async (request, reply) => {
+    if (!request.is404) return;
+    if (
+      request.url.split("?")[0] === "/api/waitlist" &&
+      request.method !== "POST" &&
+      app.hasRoute({ method: "POST", url: "/api/waitlist" })
+    )
+      return reply.code(405).header("allow", "POST").send();
+    return reply.code(404).send();
+  });
   app.setReplySerializer(apiJson);
   // Keep Fastify's prototype-poisoning checks while retaining integer JSON tokens above 2^53.
   const safeJson = app.getDefaultJsonParser("error", "error");
@@ -63,7 +87,7 @@ export async function buildApp(
         try {
           done(null, parseRequestJson(request, text));
         } catch {
-          done(Object.assign(new Error("Invalid JSON"), { statusCode: 400 }));
+          done(new RequestExtractionError("json", "Invalid JSON"));
         }
       });
     },

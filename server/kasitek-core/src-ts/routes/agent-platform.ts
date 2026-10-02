@@ -19,7 +19,7 @@ import type { FastifyInstance, FastifyRequest } from "fastify";
 import type { CoreContext } from "../context.js";
 import { extractUser, resolveActiveOrgId } from "../identity/session.js";
 import { requireCapability } from "../services/billing.js";
-import { ApiError } from "../error.js";
+import { ApiError, RequestExtractionError } from "../error.js";
 import { AgentPlatformClient } from "../services/agent-platform/client.js";
 import type { AgentTransportOptions } from "../services/agent-platform/transport.js";
 const agentScopeCache = new WeakMap<
@@ -72,7 +72,14 @@ function headerValue(request: FastifyRequest, key: string): string | null {
   return typeof value === "string" ? value : null;
 }
 function deploymentBody(request: FastifyRequest): website.DeploymentInput {
-  const body = objectBody(request, "Invalid website deployment");
+  let body: Record<string, unknown>;
+  try {
+    body = objectBody(request, "Invalid website deployment");
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 400)
+      throw new RequestExtractionError("json");
+    throw error;
+  }
   for (const key of [
     "displayName",
     "welcomeText",
@@ -86,24 +93,24 @@ function deploymentBody(request: FastifyRequest): website.DeploymentInput {
       body[key] !== null &&
       typeof body[key] !== "string"
     )
-      bad("Invalid website deployment");
+      throw new RequestExtractionError("json");
   if (
     body.allowedOrigins !== undefined &&
     body.allowedOrigins !== null &&
     (!Array.isArray(body.allowedOrigins) ||
       body.allowedOrigins.some((value) => typeof value !== "string"))
   )
-    bad("Invalid website deployment");
+    throw new RequestExtractionError("json");
   if (body.appearance !== undefined && body.appearance !== null) {
     if (typeof body.appearance !== "object" || Array.isArray(body.appearance))
-      bad("Invalid website deployment");
+      throw new RequestExtractionError("json");
     const appearance = body.appearance as Record<string, unknown>;
     if (
       appearance.primaryColor !== undefined &&
       appearance.primaryColor !== null &&
       typeof appearance.primaryColor !== "string"
     )
-      bad("Invalid website deployment");
+      throw new RequestExtractionError("json");
     for (const key of [
       "launcherSize",
       "windowWidth",
@@ -118,13 +125,13 @@ function deploymentBody(request: FastifyRequest): website.DeploymentInput {
           Number(appearance[key]) < -2147483648 ||
           Number(appearance[key]) > 2147483647)
       )
-        bad("Invalid website deployment");
+        throw new RequestExtractionError("json");
     if (
       appearance.showBranding !== undefined &&
       appearance.showBranding !== null &&
       typeof appearance.showBranding !== "boolean"
     )
-      bad("Invalid website deployment");
+      throw new RequestExtractionError("json");
   }
   return body as website.DeploymentInput;
 }

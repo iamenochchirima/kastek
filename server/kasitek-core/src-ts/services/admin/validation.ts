@@ -1,4 +1,4 @@
-import { ApiError } from '../../error.js';
+import { RequestExtractionError } from '../../error.js';
 import { validCalendarDate, type ObjectValue } from './common.js';
 const structs: Record<string, [string, string, boolean][]> = {
   'leads.ListLeadsQuery': [
@@ -297,7 +297,7 @@ const structs: Record<string, [string, string, boolean][]> = {
   ],
 };
 function reject(): never {
-  throw new ApiError(400, 'bad_request', 'Invalid request');
+  throw new RequestExtractionError('json');
 }
 function field(value: unknown, kind: string): unknown {
   if (kind === 'any') return value;
@@ -352,24 +352,36 @@ function field(value: unknown, kind: string): unknown {
   return validateBody(kind.slice(7), value);
 }
 export function validateBody(name: string, input: unknown): ObjectValue {
-  if (!input || typeof input !== 'object' || Array.isArray(input)) reject();
-  const source = input as ObjectValue,
-    output: ObjectValue = {};
-  for (const [key, kind, optional] of structs[name] ?? reject()) {
-    const value = source[key];
-    if (value === null && kind === 'any' && !optional) {
-      output[key] = null;
-      continue;
+  try {
+    if (!input || typeof input !== "object" || Array.isArray(input)) reject();
+    const source = input as ObjectValue,
+      output: ObjectValue = {};
+    for (const [key, kind, optional] of structs[name] ?? reject()) {
+      const value = source[key];
+      if (value === null && kind === "any" && !optional) {
+        output[key] = null;
+        continue;
+      }
+      if (value == null) {
+        if (!optional) reject();
+        output[key] = null;
+      } else output[key] = field(value, kind);
     }
-    if (value == null) {
-      if (!optional) reject();
-      output[key] = null;
-    } else output[key] = field(value, kind);
+    return output;
+  } catch (error) {
+    if (error instanceof RequestExtractionError && name.endsWith("Query"))
+      throw new RequestExtractionError("query");
+    throw error;
   }
-  return output;
 }
-export function queryInteger(value: unknown, kind: 'i64' | 'u32' = 'i64') {
-  if (value == null) return null;
-  if (typeof value !== 'string' || !/^[+-]?\d+$/.test(value)) reject();
-  return field(BigInt(value), kind) as number | bigint;
+export function queryInteger(value: unknown, kind: "i64" | "u32" = "i64") {
+  try {
+    if (value == null) return null;
+    if (typeof value !== "string" || !/^[+-]?\d+$/.test(value)) reject();
+    return field(BigInt(value), kind) as number | bigint;
+  } catch (error) {
+    if (error instanceof RequestExtractionError)
+      throw new RequestExtractionError("query");
+    throw error;
+  }
 }
