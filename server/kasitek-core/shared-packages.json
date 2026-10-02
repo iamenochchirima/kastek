@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "sourceCommit": "934e1f9036e2aab9ecd20dfe65cf0e379d37c82e",
-  "sourceContentSha256": "b37533c2c7da98695d07e21306ceabb2353cec66e1bcba5f4aef1d41bde3e70f",
+  "sourceCommit": "262c017e4ff65dff9d40c4e4dc8f8f4289a9d546",
+  "sourceContentSha256": "11833e3ec05a55ca3d7878e8c10d22a8c30b1bea145cd070a212d5a92f36234e",
   "artifacts": [
     {
       "package": "@kasitek/contracts",
@@ -14,8 +14,8 @@
       "package": "@kasitek/server-support",
       "version": "0.1.0",
       "file": "kasitek-server-support-0.1.0.tgz",
-      "sha256": "ac67e2547eb692ca5488ec2a762149d6ecdfcccd9170388a8858ce942dcb9823",
-      "integrity": "sha512-AnYPZANNJSpaaF/ZZ+0Fb/QKoFWtLOvpxqcii2dVfW6YzJbXdHU/VIj9HIcNrsWCGQjsDHji1WniXeqcUjnCyQ=="
+      "sha256": "2e83b1ff3528d483b9b2254bd15d0a4c436c9bdf78642182f5e58f8c321ca740",
+      "integrity": "sha512-TrYhD3cizeBu77pK51jHmqPv3NlNwaJecnh4ZT2l0ArkICkgbdMBfBOm/SfMEC6Xo153hBcqfD3KqUtPqsnppQ=="
     }
   ]
 }

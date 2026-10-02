@@ -6,6 +6,8 @@ import multipart from '@fastify/multipart';
 import { isIP } from 'node:net';
 import type { CoreContext } from './context.js';
 import { installErrorHandler } from './error.js';
+import { apiJson } from './json.js';
+import { parseLosslessJson } from '@kasitek/server-support/json';
 
 export type RouteRegistrar = (app: FastifyInstance, context: CoreContext) => void | Promise<void>;
 
@@ -19,6 +21,18 @@ export async function buildApp(context: CoreContext, registrars: RouteRegistrar[
     disableRequestLogging: true,
   });
   installErrorHandler(app);
+  app.setReplySerializer(apiJson);
+  // Keep Fastify's prototype-poisoning checks while retaining integer JSON tokens above 2^53.
+  const safeJson = app.getDefaultJsonParser('error', 'error');
+  app.removeContentTypeParser('application/json');
+  app.addContentTypeParser('application/json', { parseAs: 'string' }, (request, body, done) => {
+    const text = typeof body === 'string' ? body : body.toString('utf8');
+    safeJson(request, text, (error) => {
+      if (error) return done(error);
+      try { done(null, parseLosslessJson(text)); }
+      catch { done(Object.assign(new Error('Invalid JSON'), { statusCode: 400 })); }
+    });
+  });
   await app.register(cookie);
   await app.register(formbody);
   await app.register(multipart, { limits: { fileSize: 5 * 1024 * 1024 } });

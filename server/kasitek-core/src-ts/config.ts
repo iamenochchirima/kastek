@@ -8,6 +8,7 @@ export interface CoreConfig {
   publicApiUrl: string;
   mediaStoragePath: string;
   env: Record<string, string | undefined>;
+  rawEnv: Record<string, string | undefined>;
 }
 
 /** SQLx's unsigned env parser falls back on invalid input rather than clamping it. */
@@ -46,5 +47,6 @@ export function readConfig(source: Record<string, string | undefined> = process.
     publicApiUrl: origin(env.KASITEK_CORE_PUBLIC_URL ?? 'http://localhost:4000', 'KASITEK_CORE_PUBLIC_URL'),
     mediaStoragePath: env.KASITEK_MEDIA_STORAGE_PATH ?? '.data/media',
     env,
+    rawEnv: { ...source },
   };
 }

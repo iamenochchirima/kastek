@@ -1,6 +1,6 @@
 # TypeScript migration development
 
-This replacement is in progress. Rust remains the running Growth service until all domains and worker modes pass the migration plan. The TypeScript API currently includes shared login, organization membership/invitations, profile, onboarding and the product tour. Other routes and worker modes are still being implemented. Do not deploy it as the complete service.
+This replacement is in progress. Rust remains the running Growth service until all domains and worker modes pass the migration plan. The TypeScript API currently includes shared login, admin authentication, organizations/invitations, profile/onboarding, bookings/customer details, billing/referrals, notifications/realtime and Analytics reporting. Other routes and worker modes are still being implemented. Do not deploy it as the complete service.
 
 Use Node 24 and pnpm 10.30.1. Install Labs' root frozen lockfile, then prepare its compiled private packages from the pinned source content:
 

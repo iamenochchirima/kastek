@@ -8,6 +8,13 @@ import { registerAuthRoutes } from './routes/auth.js';
 import { registerProfileRoutes } from './routes/profile.js';
 import { registerOrganizationRoutes } from './routes/orgs.js';
 import { registerAdminAuthRoutes } from './routes/admin-auth.js';
+import { registerBookingRoutes } from './routes/bookings.js';
+import { registerCustomerRoutes } from './routes/customers.js';
+import { registerBillingRoutes } from './routes/billing.js';
+import { registerReferralRoutes } from './routes/referrals.js';
+import { registerNotificationRoutes } from './routes/notifications.js';
+import { registerRealtimeRoutes } from './routes/realtime.js';
+import { registerAnalyticsRoutes } from './routes/analytics.js';
 
 export async function start(): Promise<void> {
   process.env.TZ = 'UTC';
@@ -19,7 +26,7 @@ export async function start(): Promise<void> {
     throw new Error('During migration, start the TypeScript comparison API with KASITEK_DISABLE_BACKGROUND_WORKERS=1');
   }
   const pool = createPool(config);
-  const app = await buildApp({ config, pool }, [registerAuthRoutes, registerProfileRoutes, registerOrganizationRoutes, registerAdminAuthRoutes]);
+  const app = await buildApp({ config, pool }, CORE_REGISTRARS);
   app.addHook('onClose', async () => pool.end());
   try {
     await pool.query('SELECT 1');
@@ -34,6 +41,10 @@ export async function start(): Promise<void> {
     });
   }
 }
+
+export const CORE_REGISTRARS = [registerAuthRoutes, registerProfileRoutes, registerOrganizationRoutes,
+  registerAdminAuthRoutes, registerBookingRoutes, registerCustomerRoutes, registerBillingRoutes,
+  registerReferralRoutes, registerNotificationRoutes, registerRealtimeRoutes, registerAnalyticsRoutes];
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   start().catch(() => {

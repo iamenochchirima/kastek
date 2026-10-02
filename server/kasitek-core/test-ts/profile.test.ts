@@ -6,10 +6,12 @@ import { readConfig } from '../src-ts/config.js';
 import { buildApp } from '../src-ts/app.js';
 import { registerProfileRoutes } from '../src-ts/routes/profile.js';
 import { sha256 } from '../src-ts/identity/session.js';
+import { installPgTimestampParsers } from '../src-ts/db.js';
 
 test('profile updates preserve omitted-field clearing, UTC timestamps and password privacy',
   { skip: !process.env.CORE_PROFILE_TEST_DATABASE_URL }, async () => {
     process.env.TZ = 'UTC';
+    installPgTimestampParsers();
     const databaseUrl = process.env.CORE_PROFILE_TEST_DATABASE_URL!;
     const schema = `profile_test_${randomUUID().replaceAll('-', '')}`;
     const admin = new pg.Pool({ connectionString: databaseUrl });
@@ -29,7 +31,7 @@ test('profile updates preserve omitted-field clearing, UTC timestamps and passwo
       const before = await app.inject({ method: 'GET', url: '/api/profile', headers });
       assert.equal(before.statusCode, 200);
       assert.equal(before.json().hasPassword, true);
-      assert.equal(before.json().user.createdAt, '2026-01-01T12:00:00.000Z');
+      assert.equal(before.json().user.createdAt, '2026-01-01T12:00:00Z');
       assert.ok(!before.body.includes('synthetic secret hash'));
       const changed = await app.inject({ method: 'PATCH', url: '/api/profile', headers, payload: { name: ' After ' } });
       assert.equal(changed.statusCode, 200);
