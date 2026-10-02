@@ -15,6 +15,8 @@ import { registerReferralRoutes } from './routes/referrals.js';
 import { registerNotificationRoutes } from './routes/notifications.js';
 import { registerRealtimeRoutes } from './routes/realtime.js';
 import { registerAnalyticsRoutes } from './routes/analytics.js';
+import { registerInternalWorkspaceRoutes } from './routes/internal-workspace.js';
+import { registerConnectionRoutes } from './routes/connections.js';
 
 export async function start(): Promise<void> {
   process.env.TZ = 'UTC';
@@ -44,7 +46,8 @@ export async function start(): Promise<void> {
 
 export const CORE_REGISTRARS = [registerAuthRoutes, registerProfileRoutes, registerOrganizationRoutes,
   registerAdminAuthRoutes, registerBookingRoutes, registerCustomerRoutes, registerBillingRoutes,
-  registerReferralRoutes, registerNotificationRoutes, registerRealtimeRoutes, registerAnalyticsRoutes];
+  registerReferralRoutes, registerNotificationRoutes, registerRealtimeRoutes, registerAnalyticsRoutes,
+  registerInternalWorkspaceRoutes, registerConnectionRoutes];
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   start().catch(() => {
