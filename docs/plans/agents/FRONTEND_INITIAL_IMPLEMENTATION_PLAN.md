@@ -53,7 +53,7 @@ Exit: the shell looks and behaves consistently with the retained Growth UX while
 - [x] Explain API-based agents, workflows and personal deployments, with clear availability language. Do not advertise later capabilities as shipped.
 - [ ] Add product overview, use cases and clear signup/login calls to action. Use real product screenshots when available and identify any illustrative previews.
 - [x] Connect calls to action to the same app's login/signup routes and preserve an approved post-login destination.
-- [ ] Set basic document title, description, icons and share metadata. Extensive SEO work and a separate marketing deployment are out of scope.
+- [x] Set basic document title, description, icons and share metadata. Extensive SEO work and a separate marketing deployment are out of scope.
 
 Exit: visitors can understand the product and enter its real sign-in flow from the landing page.
 
@@ -238,3 +238,19 @@ Studio cleanup checkpoint, 2026-10-02:
   checks passed. Browser observation timed out twice on the existing tab, so
   visual, mobile-navigation and live send-state verification for this change
   remain pending. No additional live execution acceptance is claimed.
+
+Studio browser follow-up and metadata, 2026-10-02:
+
+- A fresh tab recovered browser access after the old tab became unavailable.
+  Studio showed the missing OpenAI credential, disabled message/audio/send controls
+  and loaded the saved conversation. Settings no longer showed prototype controls.
+- At 390 pixels, the settings-section selector opened Runtime and showed the saved
+  `openai:gpt-5.5` configuration. The viewport was reset. Screenshot of the retained
+  settings layout: `.artifacts/agents-clean-settings.jpg`. This clears the previous
+  checkpoint's pending mobile settings navigation and send-state observations.
+- Added a local SVG favicon plus basic Open Graph and summary-card metadata.
+  The landing document exposes its title/description/icon/share tags; the
+  production build contains those tags and the icon. The public deployment URL
+  is not known yet, so no invented canonical/share URL is configured.
+- Frontend production build and built HTML/SVG checks passed. Real model
+  execution remains pending credentials and development billing setup.
