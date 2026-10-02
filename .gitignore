@@ -1,3 +1,8 @@
 /target/
 services/analytics/.env
 services/analytics/.backups/
+
+infra/identity/.env
+infra/identity/.backups/
+infra/identity/__pycache__/
+infra/identity/.runtime/

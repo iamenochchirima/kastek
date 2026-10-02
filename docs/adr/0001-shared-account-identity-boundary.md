@@ -1,10 +1,29 @@
 # Shared account identity and product authorization boundary
 
-**Status:** Proposed; Labs ownership is settled, remaining design requires owner approval
+Status: Accepted for Labs and Growth local implementation. Agency, Agents, and Admin adoption remain later work.
+Date: 2026-10-02.
 
-**Date:** 2026-09-29
+## Decision
 
-This proposal records source-level findings and a recommended boundary; it is not an accepted decision and does not authorize identity-code or account-data changes.
+Labs self-hosts Keycloak and owns shared account authentication, credentials, verification, recovery, and provider operation. Growth is the first integration and retains its product users, organizations, memberships, roles, and business data.
+
+Offer email/password, Google social login, and passkeys. Registration is open, email/password accounts require email verification, and password reset uses email. Two-factor authentication is optional for administrators and ordinary users, with recovery codes for enrolled users.
+
+Use Authorization Code with PKCE S256. Products exchange codes on the backend and validate signature, issuer, audience, expiry, nonce, and transaction state. Identify a product user through issuer and subject. Email alone never grants membership or connects identities. Adding Google or passkeys to one newly created account requires proof of account control.
+
+Each product has its own client, exact callbacks, database, and opaque application session. Use HttpOnly, host-scoped cookies, Secure in production and SameSite=Lax, with CSRF protection. Provider tokens and secrets stay on the backend. Product cookies are not shared across domains.
+
+Sessions expire after 7 days of inactivity and require fresh authentication after 30 days total. Activity or remember-me cannot extend the absolute deadline. Normal logout ends provider and connected product sessions in this browser. A separate action signs out all devices. Google itself remains signed in. Products must handle verified logout notifications and bounded account-disable revocation; exact enforcement details belong to the product integration.
+
+The project is fresh. There is no legacy-user migration, credential import, compatibility window, or old-login fallback. Schema installation and operational backup/recovery still apply.
+
+Agency customer accounts remain agency-specific and isolated. Their provider isolation model, branding, and primary-partner shared access are deferred. Agents and central Admin have separate future adoption plans; authentication does not automatically grant administrative entitlement.
+
+## Implementation scope
+
+Native local identity configuration lives in `infra/identity/`. No Docker. Production deployment is later work. The master administration realm is separate from shared KasiTek accounts. Use dedicated PostgreSQL storage and development email delivery. Production hosting, DNS, email delivery, secret storage, and rollout require separate preparation.
+
+Each product authorizes current local memberships. Existing service credentials and Core-to-Agents authentication remain separate from human login. Shared Rust crates may later hold repeated client helpers; runtime authentication uses provider HTTPS interfaces.
 
 ## Observed source boundaries
 
@@ -15,38 +34,10 @@ This proposal records source-level findings and a recommended boundary; it is no
 
 This is a source/schema inventory only. No live account rows, credentials, or production sessions were queried.
 
-## Proposed boundary
+## References
 
-1. **Labs owns the shared human account identity contract and its authentication authority.** A global account represents a person's ability to sign in across KasiTek products; it is not itself an organization, Agency workspace, Agency client, role, or product permission.
-2. **Each product keeps its own authorization and business records.** Growth continues to own Growth organizations and memberships; Agency owns workspaces, client relationships, and their role assignments; Agents owns organization-scoped agent permissions and resources. Products must authorize access using their own current membership and policy data.
-3. **Products identify the shared account by issuer plus stable subject, not email.** Each product keeps an explicit mapping from the identity subject to its local principal ID. Email is a mutable, potentially duplicated attribute and must not silently merge existing principals.
-4. **Use OpenID Connect for interactive sign-in, while keeping service credentials separate.** The proposed web flow is Authorization Code with PKCE (`S256`); clients validate issuer, audience, expiry, and nonce. The existing Agents service-token contract remains separate from user sign-in. Whether Labs operates an OIDC provider itself or uses a managed provider behind the Labs-owned contract is still open.
-5. **Keep sessions and revocation explicit.** The Labs sign-in session and each product's application session are distinct. A product session must not outlive account suspension or revocation without an explicitly approved bounded policy. Logout, global disable, refresh-token rotation, and revocation propagation need a defined contract before implementation.
-
-## Account linking and migration constraints
-
-- Do not copy, replace, or delete identity rows as part of this decision ticket.
-- Do not merge Growth, Agency workspace-admin, or Agency client-user records solely because their email strings match. Linking must require proof of control of the existing identity or an owner-approved recovery process.
-- Preserve every existing local principal ID and business-membership relationship through a reversible mapping. Product organizations, Agency workspaces/clients, roles, and access rules remain product-owned.
-- Plan migration as a separately approved, product-by-product change: inventory and reconcile first, pilot one product, retain a rollback path, and remove legacy authentication only after adoption is verified. No production cutover is included here.
-
-## Owner decisions still required
-
-- **Settled repository boundary:** Kasitek Labs owns the shared account service and sign-in contract, consistent with the decision that Labs owns central services, accounts, and data collection.
-- Choose managed identity infrastructure versus operating an OIDC provider in Labs.
-- Decide whether Agency workspace administrators and Agency clients' `tenant_client_users` both sign in with KasiTek accounts, or whether either remains an independent identity class.
-- Decide how account linking handles duplicate emails, account recovery, and a person who has different local principals in multiple workspaces/products.
-- Define account disable, product logout, global logout, session lifetime, and revocation propagation behavior.
-- Decide whether Growth's separate `AdminUser` identities are included in the shared account system or remain on a separate privileged control-plane path.
-- Choose the first product for a later adoption/migration ticket. Do not create implementation tickets with assumed answers to the items above.
-
-## Protocol references
-
-- [RFC 9700: OAuth 2.0 Security Best Current Practice](https://www.rfc-editor.org/rfc/rfc9700.html) recommends PKCE for authorization-code clients, specifies use of `S256`, and sets refresh-token replay protections for public clients.
-- [OpenID Connect Core 1.0](https://openid.net/specs/openid-connect-core-1_0-22.html) defines the issuer, stable subject, audience, expiry, and nonce claims and requires clients to validate issuer and audience.
-
-## Source references
-
-- Growth: `client/packages/database/prisma/schema.prisma:12-92, 935-1019`; `server/kasitek-core/src/services/auth.rs:8-35`; `server/kasitek-core/src/middleware/mod.rs:31-105`.
-- Agency: `server/kasitek-tenants/migrations/20260410090000_tenant_auth_and_domains.sql:30-70`; `server/kasitek-tenants/migrations/20260410113000_tenant_clients_and_client_auth.sql:17-86`; `server/kasitek-tenants/src/controllers/session.rs:177-248`.
-- Agents: `src/http/auth.ts:5-73`; `src/config/index.ts:33-38, 170-180`.
+- [Local identity setup and contract](../../infra/identity/README.md).
+- [Shared login implementation checklist](../../../plans/shared-login/IMPLEMENTATION.md).
+- [OIDC Core](https://openid.net/specs/openid-connect-core-1_0.html).
+- [OAuth security, RFC 9700](https://www.rfc-editor.org/rfc/rfc9700.html).
+- [Keycloak administration](https://www.keycloak.org/docs/latest/server_admin/index.html).

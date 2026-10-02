@@ -1,0 +1,90 @@
+# Local shared identity
+
+Labs operates native Keycloak 26.6.0 with a dedicated PostgreSQL database and Mailpit. No Docker is used. This setup is for local development. Production requires HTTPS, a stable hostname, production email delivery, secret management, and a separately reviewed deployment.
+
+## Start
+
+Copy `.env.example` to `.env`, replace every secret placeholder with independent random values, and keep file permissions at `0600`. Do not commit `.env` or exports. Python's `secrets.token_urlsafe(32)` can generate each secret.
+
+```sh
+./identity.sh install
+./identity.sh start
+./identity.sh status
+./identity.sh stop
+```
+
+`install` explicitly downloads checksum-pinned Keycloak, a Java 21 runtime, and Mailpit into ignored `.runtime/`. Archives are deleted after extraction. Linux x86_64 is supported by the supplied lock; another platform needs its own approved runtime URLs. PostgreSQL uses already installed native binaries, or `IDENTITY_POSTGRES_BIN` pointing to them.
+
+`start` creates a separate local PostgreSQL cluster on port 55432, starts Mailpit and Keycloak, checks readiness, configures optional recovery-code authentication, and enables Google when both credentials are supplied. `stop` stops only these identity processes; it does not stop the laptop's existing PostgreSQL database. Runtime data and process logs remain in `.runtime/`.
+
+Java heap is capped at 512 MB with a 128 MB initial heap. Total process memory includes non-heap allocations and can exceed that cap. PostgreSQL shared buffers are 32 MB and its connection count is limited. Measure actual RAM before running the complete product stack; stop identity when it is not needed.
+
+- Shared login and account console: `http://localhost:8080/realms/kasitek/account/`
+- Provider administration: `http://localhost:8080/admin/`, using the separate `master` realm and credentials from `.env`.
+- Development email inbox: `http://localhost:8025/`
+- Readiness: `http://localhost:9000/health/ready`
+- Discovery: `http://localhost:8080/realms/kasitek/.well-known/openid-configuration`
+
+PostgreSQL uses port 55432 and SMTP uses port 1025. Identity HTTP, PostgreSQL, and Mailpit bind to loopback only. Do not expose these development services publicly.
+
+## Growth contract
+
+Core uses these environment settings. Copy the same client secret from the ignored identity `.env` without logging it.
+
+```dotenv
+OIDC_ISSUER_URL=http://localhost:8080/realms/kasitek
+OIDC_CLIENT_ID=growth
+OIDC_CLIENT_SECRET=<same GROWTH_OIDC_CLIENT_SECRET>
+OIDC_REDIRECT_URI=http://localhost:3000/api/auth/callback
+OIDC_ADMIN_CLIENT_ID=growth-session-admin
+OIDC_ADMIN_CLIENT_SECRET=<same GROWTH_SESSION_ADMIN_SECRET>
+```
+
+The callback goes through Growth's existing same-origin API proxy to Core on port 4000. The logout return URL is exactly `http://localhost:3000/login`. The backchannel endpoint is Core's `http://localhost:4000/api/auth/backchannel-logout`. The separate revocation service account has realm-management/manage-users permission to end provider sessions. This is a privileged backend-only credential; never expose it to the browser. It is restricted to the shared account realm, not the master administration realm. Each production product gets its own OIDC client and exact callbacks; there are no wildcard redirects or shared parent-domain product cookies.
+
+## Account behavior
+
+Registration is public. Email/password registrations require verification, with links sent to Mailpit locally. Password reset belongs to Keycloak. Google is the only social provider. Passkeys are enabled with resident credentials and user verification, using `localhost` as the local relying-party ID. Use `localhost` consistently, not a mixture of localhost and IP addresses. A production RP domain must be settled before enrolling production passkeys.
+
+Users add passkeys or connect Google from the account console after signing in. The default first-broker-login flow requires proof of an existing account before linking; matching email alone must never silently merge identities. Optional OTP enrollment requests recovery codes, which are one-time second-factor alternatives. No default action forces OTP enrollment for ordinary users or administrators.
+
+Provider and product sessions have a 7-day inactivity limit and 30-day absolute limit. Remember-me does not increase either limit. Growth must enforce its own limits, fresh authentication at the absolute deadline, idle activity rules, and product revocation. Provider configuration alone cannot revoke opaque product cookies.
+
+Normal logout ends the shared provider session and associated product sessions for this browser. All-device logout requires Growth to revoke its local sessions and provider sessions for that subject. Neither operation logs the user out of Google. Agency isolation and other products are later work.
+
+## Google setup
+
+Create or reuse a Google OAuth web client approved for this development application. Register this exact authorized redirect URI:
+
+```text
+http://localhost:8080/realms/kasitek/broker/google/endpoint
+```
+
+Configure consent-screen audience and allowed test users as appropriate to that Google project. Add `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` to the ignored `.env`, then run `./identity.sh configure`. No guessed credentials are generated. Google stays unavailable until real credentials exist. In this local implementation the existing credentials are configured, but the owner has deferred correcting Google's redirect URI; actual Google login remains unverified. Production uses a separate approved HTTPS broker callback and deployment secrets.
+
+## Configuration and recovery
+
+The realm JSON imports only when `kasitek` does not already exist. Changing it does not update an existing realm automatically. The configure command reconciles login scope mappers, client secrets, Google credentials, optional recovery-code execution, authenticated credential deletion and audit settings. Other realm edits require reviewed Admin API or console changes, then export. Never delete the native database directory to apply a configuration edit to accounts you need to keep.
+
+```sh
+./identity.sh backup
+./identity.sh stop
+./identity.sh export
+./identity.sh restore .backups/identity-<timestamp>.sql
+./identity.sh start
+```
+
+Backups contain account and credential data. Keep the ignored backup directory private. The restore command requires stopped identity services and restores only into an isolated `identity_restore_check` database on port 55432. Validate it before deliberately replacing the active identity database; never run restore against Growth's database.
+
+The export command requires stopped identity services and runs the pinned Keycloak export against the dedicated database, excluding users. Exported configuration can contain secrets. On 2026-10-02 the user-free realm export, SQL backup and isolated restore were executed successfully. The export is saved under `.backups/realm-export/kasitek-realm.json`. Take a database backup before upgrades. These scripts do not manage production backups.
+
+Lost passkey or Google access can be recovered with another enrolled method or verified password reset. Recovery codes recover the second factor, not the primary identity. Avoid deleting the last usable login method without a recovery path. Account disable and logout require bounded product revocation; Growth's documented integration defines that enforcement.
+
+## Verification and references
+
+Check readiness/discovery and use the actual Growth browser code flow. Test fresh signup/email verification, password reset, optional OTP/recovery, passkeys, method linking, expiry, and logout. Google requires configured credentials and passkeys require a capable browser/authenticator. Configuration inspection is not proof of those browser flows.
+
+- [Keycloak configuration](https://www.keycloak.org/server/configuration)
+- [Keycloak administration, passkeys, recovery codes and session settings](https://www.keycloak.org/docs/latest/server_admin/index.html)
+- [OIDC Core](https://openid.net/specs/openid-connect-core-1_0.html)
+- [OAuth security, RFC 9700](https://www.rfc-editor.org/rfc/rfc9700.html)
