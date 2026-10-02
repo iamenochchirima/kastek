@@ -848,6 +848,8 @@ export type StudioAgentCreationInput = {
   name: string;
   description?: string;
   instructions: string;
+  modelProvider?: AgentModelProvider;
+  model?: string;
 };
 
 export type StudioAgentCreationResult = {

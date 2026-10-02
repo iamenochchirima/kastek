@@ -3196,6 +3196,9 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     const auth = requireAuth(request, dependencies.config);
     requireScope(auth, dependencies.config, "agents:write");
     const input = studioAgentCreationInputSchema.parse(request.body);
+    if (input.modelProvider && input.model && !await isAllowedKasiAiModel(dependencies.config, input.modelProvider, input.model)) {
+      return reply.code(403).send({ error: "Selected model is not available for this workspace" });
+    }
     const spec = agentSpecSchema.parse({
       specVersion: 1,
       execution: { mode: "autonomous", role: "standalone" },
@@ -3208,8 +3211,8 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       model: {
         version: "studio-autonomous-v1",
         primary: {
-          provider: dependencies.config.KASIAI_MODEL_PROVIDER,
-          model: dependencies.config.KASIAI_MODEL,
+          provider: input.modelProvider ?? dependencies.config.KASIAI_MODEL_PROVIDER,
+          model: input.model ?? dependencies.config.KASIAI_MODEL,
         },
         fallback: [],
         allowUserFundedFallbackToKasiTek: false,

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { agentSpecSchema, compileAgentSpec } from "./agent-spec";
+import { MODEL_PROVIDERS } from "../model/types";
 
 export const agentStatusSchema = z.enum(["active", "paused", "archived"]);
 export type AgentStatus = z.infer<typeof agentStatusSchema>;
@@ -83,7 +84,11 @@ export const studioAgentCreationInputSchema = z.object({
   name: z.string().trim().min(1).max(160),
   description: z.string().trim().max(2000).optional(),
   instructions: z.string().trim().min(1).max(200_000),
-}).strict();
+  modelProvider: z.enum(MODEL_PROVIDERS).optional(),
+  model: z.string().trim().min(1).max(240).optional(),
+}).strict().refine(input => Boolean(input.modelProvider) === Boolean(input.model), {
+  message: "Choose model provider and model together", path: ["model"],
+});
 export type StudioAgentCreationInput = z.infer<typeof studioAgentCreationInputSchema>;
 
 export const updateAgentInputSchema = z.object({

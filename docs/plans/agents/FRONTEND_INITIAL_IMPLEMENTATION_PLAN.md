@@ -197,5 +197,29 @@ Standalone agent creation evidence, 2026-10-02:
   and remaining endpoint/UI cleanup remain unfinished. Agents has no configured
   model credential; the owner has been asked whether to reuse development keys
   or configure separate credentials. No key was copied or fabricated. Local
-  Temporal dispatch/worker setup also still needs verification for the retained
-  execution path. These prerequisites do not mark the actual journey complete.
+  At that checkpoint, local Temporal setup was also pending. See the execution
+  setup evidence below for its current state. The actual journey is incomplete.
+
+Model selection and local execution setup, 2026-10-02:
+
+- The creation form loads the backend model catalog and defaults to the workspace
+  model. A chosen provider/model pair is validated against that catalog and saved
+  in the new agent specification. Incomplete pairs are rejected. Creation waits
+  for the initial catalog request; a failed catalog request explicitly reports
+  that the workspace default will be used. Options show their model identifiers.
+- Created a separate local fixture with a non-default OpenAI selection through
+  the real browser form. Studio and its settings still showed OpenAI after a
+  refresh. Screenshot: `.artifacts/agents-model-selection.jpg`. This checks saved
+  configuration, not whether that provider credential or model execution works.
+- Backend compilation, frontend typing/production build, focused creation-page
+  lint and five direct input-validation assertions passed.
+- Started the native local Temporal development server on loopback port 7233,
+  with its database under ignored `.artifacts`. The worker is polling workflow
+  and activity tasks on `kasitek-agents-initial-ui`; queue inspection confirmed
+  both pollers. The API uses the same namespace and queue. No model run was sent.
+- Credentials remain pending the owner's answer. The retained execution path
+  also defaults to enforced platform-credit billing and requires Growth's credit
+  API for platform-funded calls. Local execution needs an explicit development
+  billing mode or that API configured. This does not implement Agents billing or
+  remove the retained production billing checks.
+- The complete create/test/response/history acceptance remains unchecked.

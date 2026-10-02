@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ArrowLeft, Bot, LoaderCircle, Sparkles } from "lucide-react";
 import { useRouter } from "@/lib/navigation";
 import { Button } from "@/components/ui/button";
@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
-import { createStudioAgent } from "@/lib/agent-platform";
+import { createStudioAgent, getAgentModelCatalog, AGENT_MODEL_PROVIDER_LABELS, type AgentModel } from "@/lib/agent-platform";
 
 const defaultInstructions = "You are an autonomous workspace assistant. Plan the user's request, use only authorized capabilities, and clearly report what you completed.";
 
@@ -18,15 +18,32 @@ export function StudioAgentCreationPage() {
   const [description, setDescription] = useState("");
   const [instructions, setInstructions] = useState(defaultInstructions);
   const [submitting, setSubmitting] = useState(false);
+  const [models, setModels] = useState<AgentModel[]>([]);
+  const [modelKey, setModelKey] = useState("");
+  const [modelsLoading, setModelsLoading] = useState(true);
+  const [modelsError, setModelsError] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    void getAgentModelCatalog().then(result => {
+      if (cancelled) return;
+      setModels(result.models);
+      const selected = result.models.find(model => model.isWorkspaceDefault) ?? result.models[0];
+      if (selected) setModelKey(`${selected.provider}:${selected.model}`);
+    }).catch(() => { if (!cancelled) setModelsError(true); })
+      .finally(() => { if (!cancelled) setModelsLoading(false); });
+    return () => { cancelled = true; };
+  }, []);
 
   const submit = async () => {
-    if (!name.trim() || !instructions.trim() || submitting) return;
+    if (!name.trim() || !instructions.trim() || submitting || modelsLoading) return;
     setSubmitting(true);
     try {
+      const selected = models.find(model => `${model.provider}:${model.model}` === modelKey);
       const created = await createStudioAgent({
         name: name.trim(),
         description: description.trim() || undefined,
         instructions: instructions.trim(),
+        ...(selected ? { modelProvider: selected.provider, model: selected.model } : {}),
       });
       router.push(`/studio?agent=${encodeURIComponent(created.agent.id)}`);
     } catch (cause) {
@@ -59,12 +76,20 @@ export function StudioAgentCreationPage() {
                 <Input id="studio-agent-description" value={description} onChange={(event) => setDescription(event.target.value)} placeholder="What this agent is responsible for" className="mt-2" />
               </div>
               <div>
+                <label htmlFor="studio-agent-model" className="text-sm font-medium text-foreground">Model</label>
+                <select id="studio-agent-model" value={modelKey} onChange={event => setModelKey(event.target.value)} disabled={modelsLoading || submitting || !models.length} className="mt-2 h-10 w-full rounded-md border border-input bg-background px-3 text-sm">
+                  {!models.length && <option value="">{modelsLoading ? "Loading models…" : "Workspace default"}</option>}
+                  {models.map(model => <option key={`${model.provider}:${model.model}`} value={`${model.provider}:${model.model}`}>{model.label}{model.label !== model.model ? ` (${model.model})` : ""} · {AGENT_MODEL_PROVIDER_LABELS[model.provider]}{model.isWorkspaceDefault ? " · Default" : ""}</option>)}
+                </select>
+                {modelsError && <p role="status" className="mt-2 text-xs text-muted-foreground">The model list is unavailable. Your workspace default will be used.</p>}
+              </div>
+              <div>
                 <label htmlFor="studio-agent-instructions" className="text-sm font-medium text-foreground">Instructions</label>
                 <Textarea id="studio-agent-instructions" value={instructions} onChange={(event) => setInstructions(event.target.value)} className="mt-2 min-h-48 resize-y" />
               </div>
               <div className="flex flex-wrap justify-end gap-2 border-t border-border pt-5">
                 <Button type="button" variant="outline" onClick={() => router.push("/studio")} disabled={submitting}>Cancel</Button>
-                <Button type="button" onClick={() => void submit()} disabled={submitting || !name.trim() || !instructions.trim()}>
+                <Button type="button" onClick={() => void submit()} disabled={submitting || modelsLoading || !name.trim() || !instructions.trim()}>
                   {submitting ? <LoaderCircle className="mr-1.5 size-4 animate-spin" /> : <Sparkles className="mr-1.5 size-4" />}
                   {submitting ? "Creating…" : "Create agent"}
                 </Button>
