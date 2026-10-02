@@ -15,8 +15,8 @@ architecture](ARCHITECTURE.md) for the ownership map.
 
 ## Local development
 
-The client workspace uses Node.js and pnpm versions recorded in `client/package.json` and
-`.nvmrc`. Rust services use the toolchain in `server/rust-toolchain.toml`. PostgreSQL and Redis
+Core and the client use Node.js 24, pinned in `.nvmrc`, and their package manifests pin pnpm.
+Core runs natively as TypeScript. PostgreSQL and Redis
 are needed by services that use them. Agent Platform services are developed from the
 `Kasitek-Labs/kasitek-agents` repository, not from this Growth checkout.
 

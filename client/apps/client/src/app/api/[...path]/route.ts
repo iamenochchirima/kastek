@@ -9,7 +9,7 @@ type RouteContext = {
 async function proxy(request: NextRequest, context: RouteContext) {
   const { path } = await context.params;
   const apiBaseUrl = (
-    process.env.RUST_API_BASE_URL || process.env.NEXT_PUBLIC_API_BASE_URL || DEFAULT_API_BASE_URL
+    process.env.CORE_API_BASE_URL || process.env.NEXT_PUBLIC_API_BASE_URL || DEFAULT_API_BASE_URL
   ).replace(/\/$/, "");
   const target = new URL(`${apiBaseUrl}/api/${path.map(encodeURIComponent).join("/")}`);
   target.search = request.nextUrl.search;
@@ -28,6 +28,7 @@ async function proxy(request: NextRequest, context: RouteContext) {
       body,
       cache: "no-store",
       redirect: "manual",
+      signal: request.signal,
     });
   } catch {
     return NextResponse.json(

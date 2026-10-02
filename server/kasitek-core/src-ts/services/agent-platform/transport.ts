@@ -18,6 +18,7 @@ export interface AgentTransportOptions {
   log?: { error(fields: Record<string, unknown>, message?: string): void };
 }
 const streamDispatchers = new Map<number, Agent>();
+const activeStreams = new Set<AbortController>();
 function streamDispatcher(timeout: number): Agent {
   let dispatcher = streamDispatchers.get(timeout);
   if (!dispatcher) {
@@ -31,9 +32,32 @@ function streamDispatcher(timeout: number): Agent {
   return dispatcher;
 }
 export async function closeAgentStreamDispatchers(): Promise<void> {
+  for (const controller of activeStreams) controller.abort();
+  activeStreams.clear();
   const dispatchers = [...streamDispatchers.values()];
   streamDispatchers.clear();
   await Promise.all(dispatchers.map((dispatcher) => dispatcher.close()));
+}
+/** EOF or downstream cancellation drops the upstream body; shutdown also aborts still-open streams. */
+function trackedStream(response: Response, controller: AbortController): Response {
+  if (!response.body) { activeStreams.delete(controller); return response; }
+  const reader = response.body.getReader();
+  function finish() { activeStreams.delete(controller); reader.releaseLock(); }
+  const body = new ReadableStream<Uint8Array>({
+    async pull(output) {
+      try {
+        const next = await reader.read();
+        if (next.done) { finish(); output.close(); }
+        else output.enqueue(next.value);
+      } catch (error) { finish(); output.error(error); }
+    },
+    async cancel(reason) {
+      activeStreams.delete(controller);
+      controller.abort(reason);
+      try { await reader.cancel(reason); } catch {} finally { reader.releaseLock(); }
+    },
+  });
+  return new Response(body, {status: response.status, statusText: response.statusText, headers: response.headers});
 }
 const knownCodes = new Set([
   "google_oauth_integration_not_supported",
@@ -137,6 +161,7 @@ export class AgentPlatformTransport {
       ...(operator ? { operator: true } : {}),
     });
     const controller = new AbortController();
+    if (stream) activeStreams.add(controller);
     let timer: ReturnType<typeof setTimeout> | undefined = stream
       ? undefined
       : setTimeout(() => controller.abort(), this.timeoutMs);
@@ -169,7 +194,7 @@ export class AgentPlatformTransport {
       if (stream) {
         clearTimeout(timer);
         timer = undefined;
-        return response;
+        return trackedStream(response, controller);
       }
       const bytes = await response.arrayBuffer();
       return new Response(
@@ -181,6 +206,7 @@ export class AgentPlatformTransport {
         },
       );
     } catch (error) {
+      activeStreams.delete(controller);
       if (
         controller.signal.aborted ||
         (error instanceof Error && /timeout|timed out/i.test(error.message)) ||

@@ -288,3 +288,30 @@ test("native SSE limits TCP connection only and permits delayed response headers
     );
   }
 });
+test('native stream shutdown aborts an open upstream body instead of waiting for remote EOF',async()=>{
+ const {createServer}=await import('node:http');
+ const {closeAgentStreamDispatchers}=await import('../src-ts/services/agent-platform/transport.js');
+ let closed!:()=>void;
+ const disconnected=new Promise<void>(resolve=>{closed=resolve;});
+ const server=createServer((_request,response)=>{
+  response.writeHead(200,{'content-type':'text/event-stream'});
+  response.write('data: fixture\n\n');
+  response.on('close',closed);
+ });
+ await new Promise<void>(resolve=>server.listen(0,'127.0.0.1',resolve));
+ try{
+  const native=new AgentPlatformClient(readConfig({DATABASE_URL:'postgres://unused',AGENTS_API_URL:`http://127.0.0.1:${(server.address() as {port:number}).port}`,AGENTS_INTERNAL_AUTH_SECRET:'fixture'}));
+  const response=await native.streamConversationFeedEvents('synthetic','synthetic');
+  const reader=response.body!.getReader();
+  assert.equal(new TextDecoder().decode((await reader.read()).value),'data: fixture\n\n');
+  const bounded=(promise:Promise<unknown>)=>Promise.race([promise,new Promise((_,reject)=>{const timer=setTimeout(()=>reject(new Error('Stream shutdown did not disconnect upstream')),2000);timer.unref();})]);
+  await bounded(closeAgentStreamDispatchers());
+  await bounded(disconnected);
+  await assert.rejects(reader.read());
+  reader.releaseLock();
+ }finally{
+  await closeAgentStreamDispatchers();
+  server.closeAllConnections();
+  await new Promise<void>(resolve=>server.close(()=>resolve()));
+ }
+});

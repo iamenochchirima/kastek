@@ -1,20 +1,29 @@
-# The Architect Server
+# KasiTek Growth Core
 
 _Owner: engineering · Last reviewed: 2026-09-29_
 
-Actix-web backend for thearchitect.fun.
+Native Node.js 24 and TypeScript backend for KasiTek Growth.
 
 ## Setup
 
-1. Copy `.env.example` to `.env` and fill in values
-2. Start Postgres and apply the Core schema from the repository root:
+1. Use Node.js 24 and pnpm 10.30.1. Configure the service `.env`; the shared-login
+   settings are documented in `.env.identity.example`.
+2. Prepare the pinned private Labs packages and install locked dependencies from
+   this service directory:
+   `pnpm prepare:shared /path/to/kasitek-labs && pnpm install --frozen-lockfile`.
+   `LABS_SOURCE_DIR` can supply that source path instead. The package preparation
+   command verifies the pinned source and artifact checksums.
+3. Start Postgres and apply the Core schema from the repository root:
    `pnpm --dir client/packages/database exec prisma migrate deploy`
-3. Run server: `cargo run`
+4. Start the shared Keycloak service from Labs, then run `pnpm dev`.
 
 ## Development
 
 ```bash
-cargo run
+pnpm dev
+# Production artifact, without a watcher:
+pnpm build
+pnpm start
 ```
 
 ## Temporary release access mode
@@ -63,19 +72,19 @@ stored in core.
 If you need to disable embedded workers for a pure API process, set:
 
 ```bash
-KASITEK_DISABLE_BACKGROUND_WORKERS=true cargo run
+KASITEK_DISABLE_BACKGROUND_WORKERS=true pnpm start
 ```
 
 If you want a dedicated worker-only process, use:
 
 ```bash
-KASITEK_PROCESS=whatsapp-marketing-worker cargo run
-KASITEK_PROCESS=whatsapp-inbox-worker cargo run
-KASITEK_PROCESS=social-publishing-worker cargo run
-KASITEK_PROCESS=billing-reconciliation-worker cargo run
-KASITEK_PROCESS=analytics-publisher cargo run
-KASITEK_PROCESS=analytics-backfill-worker cargo run
-KASITEK_PROCESS=all-workers cargo run
+KASITEK_PROCESS=whatsapp-marketing-worker pnpm start
+KASITEK_PROCESS=whatsapp-inbox-worker pnpm start
+KASITEK_PROCESS=social-publishing-worker pnpm start
+KASITEK_PROCESS=billing-reconciliation-worker pnpm start
+KASITEK_PROCESS=analytics-publisher pnpm start
+KASITEK_PROCESS=analytics-backfill-worker pnpm start
+KASITEK_PROCESS=all-workers pnpm start
 ```
 
 The Analytics publisher is independently scalable and disabled unless
@@ -115,7 +124,10 @@ principal matrix: direct product users, workspace Developer API keys, and agent
 installations are supported; service accounts and OAuth grants remain explicitly
 unsupported until their issuers and resource policies are approved.
 
-Server runs on `http://localhost:8080` by default unless `PORT` is set.
+Server runs on `http://localhost:4000` by default unless `PORT` is set.
+
+See the [native runtime guide](../../docs/internal/development/typescript-core.md)
+for all process modes, shutdown behavior and remaining migration verification.
 
 ## Content provider setup
 

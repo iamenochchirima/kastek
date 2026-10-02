@@ -117,29 +117,37 @@ export function registerInboxRoutes(
       inbox.verifyMetaWebhookRequest(context.config, request.query),
   );
   void app.register(async (webhook) => {
-    webhook.removeContentTypeParser("application/json");
+    webhook.removeAllContentTypeParsers();
     webhook.addContentTypeParser(
-      "application/json",
-      { parseAs: "buffer" },
+      "*",
+      { parseAs: "buffer", bodyLimit: 262_144 },
       (_request, body, done) => done(null, body),
     );
-    webhook.post<{ Body: Buffer }>("/api/webhooks/meta", async (request) => {
-      const signature = request.headers["x-hub-signature-256"];
-      inbox.verifyMetaWebhookSignature(
-        context.config,
-        typeof signature === "string" ? signature : undefined,
-        request.body,
-      );
-      let payload: unknown;
-      try {
-        payload = parseSerdeValueJson(
-          new TextDecoder("utf-8", { fatal: true }).decode(request.body),
+    webhook.post<{ Body: Buffer }>(
+      "/api/webhooks/meta",
+      { bodyLimit: 262_144 },
+      async (request) => {
+        const signature = request.headers["x-hub-signature-256"];
+        inbox.verifyMetaWebhookSignature(
+          context.config,
+          typeof signature === "string" ? signature : undefined,
+          request.body,
         );
-      } catch {
-        throw new ApiError(400, "bad_request", "Invalid Meta webhook payload");
-      }
-      await inbox.processMetaWebhookPayload(context.pool, payload, options);
-      return { success: true };
-    });
+        let payload: unknown;
+        try {
+          payload = parseSerdeValueJson(
+            new TextDecoder("utf-8", { fatal: true }).decode(request.body),
+          );
+        } catch {
+          throw new ApiError(
+            400,
+            "bad_request",
+            "Invalid Meta webhook payload",
+          );
+        }
+        await inbox.processMetaWebhookPayload(context.pool, payload, options);
+        return { success: true };
+      },
+    );
   });
 }

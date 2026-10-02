@@ -18,23 +18,22 @@ Use the versions pinned by the repository where they exist:
 
 - Node.js: `.nvmrc`
 - pnpm: `package.json` `packageManager`
-- Rust: `server/rust-toolchain.toml`
 - PostgreSQL and Redis for services that require them
 
 Check the installed versions before debugging application failures. A mismatched toolchain can
 look like a code or dependency problem.
 
-## Rust build output
+## Core build output
 
-All Rust services are members of the `server` workspace and share `server/target`. The development
-profile keeps incremental compilation enabled for local iteration but stores reduced debug
-information. Remove accumulated development artifacts when needed:
+Core uses native TypeScript under `server/kasitek-core/src-ts`. Build its production
+JavaScript with:
 
 ```bash
-cargo clean --manifest-path server/Cargo.toml --profile dev
+pnpm --dir server/kasitek-core build
 ```
 
-The target directory is disposable and is not part of the runtime or release artifact.
+The compiler writes `server/kasitek-core/dist`. Rust build output is retained
+temporarily for migration recovery and is not used by the native launcher.
 
 ## Environment files
 
@@ -78,9 +77,9 @@ email inbox is `http://localhost:8025/`; set Core `LOCAL_MAILPIT_URL` for organi
 
 ## Starting services
 
-The additive Node.js replacement has separate
-[TypeScript Core commands and worker modes](typescript-core.md). The current
-launcher continues to use Rust until the migration cutover is verified.
+The launcher uses the native Node.js 24 Core. See
+[TypeScript Core commands and worker modes](typescript-core.md). A previously
+started Rust process must be stopped before running Core on its existing port.
 
 The launcher opens requested Growth processes in their own terminals. It does not start the moved
 Analytics, Agency, or Agent services. Analytics source and local commands are in the
@@ -136,7 +135,7 @@ export OTEL_DEPLOYMENT_ENVIRONMENT=local
 export OTEL_SERVICE_NAME=kasitek-core
 ```
 
-For the Rust services also set `KASITEK_VERSION`, `KASITEK_RELEASE_ID`, and `KASITEK_COMMIT_SHA`
+For Core also set `KASITEK_VERSION`, `KASITEK_RELEASE_ID`, and `KASITEK_COMMIT_SHA`
 when testing release identity. The application continues with stdout logging when these
 variables are absent or `OTEL_SDK_DISABLED=true`. For Collector operation, see the
 [Labs Collector runbook](https://github.com/Kasitek-Labs/kasitek-labs/blob/main/docs/otel-collector-runbook.md).

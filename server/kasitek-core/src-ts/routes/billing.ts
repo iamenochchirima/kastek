@@ -162,58 +162,64 @@ export function registerBillingRoutes(
   });
   // Encapsulation retains the original payload bytes without changing other JSON routes.
   app.register(async (webhook) => {
-    webhook.removeContentTypeParser("application/json");
+    webhook.removeAllContentTypeParsers();
     webhook.addContentTypeParser(
-      "application/json",
-      { parseAs: "buffer" },
+      "*",
+      { parseAs: "buffer", bodyLimit: 262_144 },
       (_request, payload, done) => done(null, payload),
     );
-    webhook.post("/api/webhooks/paystack", async (request) => {
-      const provider = paystackProvider(context),
-        signature = request.headers["x-paystack-signature"];
-      if (
-        !Buffer.isBuffer(request.body) ||
-        typeof signature !== "string" ||
-        !provider.verifyWebhook(request.body, signature)
-      )
-        throw new ApiError(401, "unauthorized", "Unauthorized");
-      let value: unknown;
-      try {
-        value = parseSerdeValueJson(request.body.toString("utf8"));
-      } catch {
-        throw new ApiError(
-          400,
-          "bad_request",
-          "Invalid Paystack webhook payload",
-        );
-      }
-      const event = provider.parseWebhook(value),
-        key = billing.paystackEventKey(value);
-      if (!(await billing.recordPaystackEvent(context.pool, key, value)))
-        return { received: true, duplicate: true };
-      try {
-        const processed = await billing.processProviderEvent(
-          context.pool,
-          provider.name,
-          event,
-          config(),
-        );
-        await billing.finishPaystackEvent(
-          context.pool,
-          key,
-          processed ? "PROCESSED" : "IGNORED",
-          null,
-        );
-        return { received: true, processed };
-      } catch (error) {
-        await billing.finishPaystackEvent(
-          context.pool,
-          key,
-          "FAILED",
-          String(error),
-        );
-        throw error;
-      }
-    });
+    webhook.post(
+      "/api/webhooks/paystack",
+      { bodyLimit: 262_144 },
+      async (request) => {
+        const provider = paystackProvider(context),
+          signature = request.headers["x-paystack-signature"];
+        if (
+          !Buffer.isBuffer(request.body) ||
+          typeof signature !== "string" ||
+          !provider.verifyWebhook(request.body, signature)
+        )
+          throw new ApiError(401, "unauthorized", "Unauthorized");
+        let value: unknown;
+        try {
+          value = parseSerdeValueJson(
+            new TextDecoder("utf-8", { fatal: true }).decode(request.body),
+          );
+        } catch {
+          throw new ApiError(
+            400,
+            "bad_request",
+            "Invalid Paystack webhook payload",
+          );
+        }
+        const event = provider.parseWebhook(value),
+          key = billing.paystackEventKey(value);
+        if (!(await billing.recordPaystackEvent(context.pool, key, value)))
+          return { received: true, duplicate: true };
+        try {
+          const processed = await billing.processProviderEvent(
+            context.pool,
+            provider.name,
+            event,
+            config(),
+          );
+          await billing.finishPaystackEvent(
+            context.pool,
+            key,
+            processed ? "PROCESSED" : "IGNORED",
+            null,
+          );
+          return { received: true, processed };
+        } catch (error) {
+          await billing.finishPaystackEvent(
+            context.pool,
+            key,
+            "FAILED",
+            String(error),
+          );
+          throw error;
+        }
+      },
+    );
   });
 }

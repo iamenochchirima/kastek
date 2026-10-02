@@ -3,6 +3,9 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# shellcheck source=node24.sh
+source "$ROOT_DIR/scripts/node24.sh"
+kasitek_use_node24
 
 echo ""
 echo "==> KasiTek local setup"
@@ -21,7 +24,6 @@ require_command() {
 require_command node
 require_command npx
 require_command pnpm
-require_command cargo
 
 if ! command -v ngrok >/dev/null 2>&1; then
   echo "WARNING: ngrok not found — WhatsApp webhooks won't reach your machine."
@@ -49,6 +51,9 @@ echo "==> Pulling envs from vault..."
 echo ""
 echo "==> Installing JS dependencies..."
 (cd "$ROOT_DIR/client" && pnpm install)
+labs_source="${LABS_SOURCE_DIR:-$ROOT_DIR/../kasitek-labs}"
+pnpm --dir "$ROOT_DIR/server/kasitek-core" prepare:shared "$labs_source"
+pnpm --dir "$ROOT_DIR/server/kasitek-core" install --frozen-lockfile
 
 echo ""
 echo "==> Done. Run ./scripts/run_local_stack.sh to start Growth Core, client, and internal docs."

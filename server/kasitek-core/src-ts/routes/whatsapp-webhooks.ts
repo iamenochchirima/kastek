@@ -29,7 +29,7 @@ export async function registerWhatsappWebhookRoutes(
     scope.removeAllContentTypeParsers();
     scope.addContentTypeParser(
       "*",
-      { parseAs: "buffer" },
+      { parseAs: "buffer", bodyLimit: 262_144 },
       (_request, body, done) => done(null, body),
     );
     scope.get("/api/webhooks/whatsapp", async (request, reply) =>
@@ -42,34 +42,38 @@ export async function registerWhatsappWebhookRoutes(
           ),
         ),
     );
-    scope.post("/api/webhooks/whatsapp", async (request) => {
-      const raw = request.body;
-      if (!Buffer.isBuffer(raw))
-        throw new ApiError(
-          400,
-          "bad_request",
-          "Invalid WhatsApp webhook payload",
+    scope.post(
+      "/api/webhooks/whatsapp",
+      { bodyLimit: 262_144 },
+      async (request) => {
+        const raw = request.body;
+        if (!Buffer.isBuffer(raw))
+          throw new ApiError(
+            400,
+            "bad_request",
+            "Invalid WhatsApp webhook payload",
+          );
+        const signature = request.headers["x-hub-signature-256"];
+        verifyMetaWebhookSignature(
+          core.config,
+          typeof signature === "string" ? signature : undefined,
+          raw,
         );
-      const signature = request.headers["x-hub-signature-256"];
-      verifyMetaWebhookSignature(
-        core.config,
-        typeof signature === "string" ? signature : undefined,
-        raw,
-      );
-      let payload: unknown;
-      try {
-        payload = parseSerdeValueJson(
-          new TextDecoder("utf-8", { fatal: true }).decode(raw),
-        );
-      } catch {
-        throw new ApiError(
-          400,
-          "bad_request",
-          "Invalid WhatsApp webhook payload",
-        );
-      }
-      await processWebhookPayload(core.pool, core.config, payload, options);
-      return { success: true, queued: false };
-    });
+        let payload: unknown;
+        try {
+          payload = parseSerdeValueJson(
+            new TextDecoder("utf-8", { fatal: true }).decode(raw),
+          );
+        } catch {
+          throw new ApiError(
+            400,
+            "bad_request",
+            "Invalid WhatsApp webhook payload",
+          );
+        }
+        await processWebhookPayload(core.pool, core.config, payload, options);
+        return { success: true, queued: false };
+      },
+    );
   });
 }

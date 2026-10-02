@@ -111,6 +111,7 @@ export async function start(runtime?: {
   let workers: Promise<void> = Promise.resolve();
   app.addHook("preClose", async () => {
     controller.abort();
+    await closeAgentStreamDispatchers();
   });
   app.addHook("onClose", async () => {
     controller.abort();

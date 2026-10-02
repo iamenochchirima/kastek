@@ -4,7 +4,9 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-CORE_ENV_SETUP="if [[ -f '$ROOT_DIR/server/kasitek-core/.env' ]]; then set -a; source '$ROOT_DIR/server/kasitek-core/.env'; set +a; fi"
+# shellcheck source=node24.sh
+source "$ROOT_DIR/scripts/node24.sh"
+kasitek_use_node24
 # Core's local authenticated Agent bridge uses this development-only token.
 # Production deployments must use per-invocation delegation keys instead.
 LOCAL_CORE_AGENT_TOKEN="${KASITEK_LOCAL_CORE_AGENT_TOKEN:-kasitek-local-agent-boundary-dev-2026}"
@@ -18,7 +20,6 @@ require_command() {
   fi
 }
 
-require_command cargo
 require_command pnpm
 require_command gnome-terminal
 
@@ -32,6 +33,8 @@ make_launcher() {
   cat > "$script" <<SCRIPT
 #!/usr/bin/env bash
 cd '$dir'
+source '$ROOT_DIR/scripts/node24.sh'
+kasitek_use_node24 || exit 1
 $cmd
 echo
 echo "[$name] process exited. Press Enter to close."
@@ -45,11 +48,12 @@ declare -a tabs=()
 declare -A services
 # Growth-owned services only. Labs, Agency, and Agents services are launched
 # from their owning repositories.
-services["core"]="$ROOT_DIR/server/kasitek-core|$CORE_ENV_SETUP; LOG_COLOR=always KASITEK_AGENTS_INTERNAL_TOKEN='$LOCAL_CORE_AGENT_TOKEN' cargo run"
+printf -v quoted_core_token '%q' "$LOCAL_CORE_AGENT_TOKEN"
+services["core"]="$ROOT_DIR/server/kasitek-core|KASITEK_AGENTS_INTERNAL_TOKEN=$quoted_core_token pnpm dev"
 # These optional Core workers publish Growth data to Labs Analytics; they do
 # not start the Analytics service itself.
-services["core-analytics-publisher"]="$ROOT_DIR/server/kasitek-core|$CORE_ENV_SETUP; LOG_COLOR=always KASITEK_PROCESS=analytics-publisher cargo run"
-services["core-analytics-backfill"]="$ROOT_DIR/server/kasitek-core|$CORE_ENV_SETUP; LOG_COLOR=always KASITEK_PROCESS=analytics-backfill-worker cargo run"
+services["core-analytics-publisher"]="$ROOT_DIR/server/kasitek-core|KASITEK_PROCESS=analytics-publisher pnpm dev"
+services["core-analytics-backfill"]="$ROOT_DIR/server/kasitek-core|KASITEK_PROCESS=analytics-backfill-worker pnpm dev"
 services["client"]="$ROOT_DIR/client|pnpm run dev"
 services["internal-docs"]="$ROOT_DIR/docs/internal-site|pnpm dev"
 

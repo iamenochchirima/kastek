@@ -3,11 +3,9 @@
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# shellcheck source=node24.sh
+source "$repo_root/scripts/node24.sh"
+kasitek_use_node24
 cd "$repo_root/server/kasitek-core"
 
-# cargo-watch restarts the API when Rust sources, shared crates, or its .env change.
-exec cargo watch \
-  --watch src \
-  --watch .env \
-  --watch ../crates \
-  --exec run
+exec pnpm dev

@@ -1,3 +1,4 @@
+import { apiJson } from '../json.js';
 import { PassThrough } from 'node:stream';
 import { createClient } from 'redis';
 import type { CoreContext } from '../context.js';
@@ -43,7 +44,7 @@ export async function publishInboxEvent(context: CoreContext, orgId: string, eve
     try {
         let payload: string;
         try {
-            payload = JSON.stringify(event);
+            payload = apiJson(event);
             if (payload === undefined)
                 throw Error();
         }

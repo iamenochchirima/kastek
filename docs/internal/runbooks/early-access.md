@@ -54,7 +54,7 @@ The raw token is never shown in Admin, stored in the application record, or writ
 
 - **The public form returns 403 or 500:** confirm the Labs `/api/waitlist` route reaches the Core
   API origin. Production defaults to `https://api.kasitek.co.za`; set
-  `NEXT_PUBLIC_KASITEK_PUBLIC_API_URL` or `RUST_API_BASE_URL` for another environment.
+  `NEXT_PUBLIC_KASITEK_PUBLIC_API_URL` or `CORE_API_BASE_URL` for another environment.
 - **The invitation page says unavailable:** the token is unknown, expired, revoked, or already
   accepted. Ask an Admin to resend the invitation; do not copy tokens into support tickets.
 - **The applicant cannot sign up:** the email field must match the approved email. Private-release

@@ -205,16 +205,14 @@ export function registerSocialRoutes(
     { schema: { body: postSchema } },
     async (request, reply) => {
       const { user, org } = await scope(request, context);
-      return reply
-        .code(201)
-        .send({
-          post: await posts.createSocialPost(
-            context.pool,
-            user.id,
-            org,
-            request.body as SocialPostUpsertRequest,
-          ),
-        });
+      return reply.code(201).send({
+        post: await posts.createSocialPost(
+          context.pool,
+          user.id,
+          org,
+          request.body as SocialPostUpsertRequest,
+        ),
+      });
     },
   );
   app.patch(
@@ -235,17 +233,15 @@ export function registerSocialRoutes(
   );
   app.post("/api/social/media", async (request, reply) => {
     const { user, org } = await scope(request, context);
-    return reply
-      .code(201)
-      .send({
-        asset: await media.uploadContentMedia(
-          context.pool,
-          context.config,
-          user.id,
-          org,
-          request,
-        ),
-      });
+    return reply.code(201).send({
+      asset: await media.uploadContentMedia(
+        context.pool,
+        context.config,
+        user.id,
+        org,
+        request,
+      ),
+    });
   });
   app.get("/api/social/media/:id", async (request, reply) => {
     const { org } = await scope(request, context);
@@ -395,41 +391,60 @@ export function registerSocialRoutes(
     if (!result) throw missing("Post not found");
     return result;
   });
-  app.delete("/api/social/posts/:id", async (request, reply) => {
-    const { org } = await scope(request, context);
-    const body = request.body as
-      { deleteFromPlatforms?: boolean | null } | undefined;
-    if (
-      body !== undefined &&
-      (body === null ||
-        typeof body !== "object" ||
-        Array.isArray(body) ||
-        (body.deleteFromPlatforms !== undefined &&
-          body.deleteFromPlatforms !== null &&
-          typeof body.deleteFromPlatforms !== "boolean"))
-    )
-      throw bad("Invalid delete options");
-    if (body?.deleteFromPlatforms) {
-      const result = await publishing.deleteSocialPostFromPlatforms(
-        context.pool,
-        context.config,
-        org,
-        id(request),
-      );
-      if (!result.success)
-        return reply
-          .code(409)
-          .send({
-            ...result,
-            error:
-              "The post was not removed from KasiTek because one or more platform deletions failed.",
-            authorizationRequired: result.authorizationRequired ?? null,
-          });
-      return result;
-    }
-    if (!(await posts.deleteSocialPost(context.pool, org, id(request))))
-      throw missing("Post not found");
-    return { success: true, localDeleted: true, providerResults: [] };
+  app.register(async (rawDelete) => {
+    rawDelete.removeAllContentTypeParsers();
+    rawDelete.addContentTypeParser(
+      "*",
+      { parseAs: "buffer", bodyLimit: 262_144 },
+      (_request, raw, done) => done(null, raw),
+    );
+    rawDelete.delete(
+      "/api/social/posts/:id",
+      { bodyLimit: 262_144 },
+      async (request, reply) => {
+        const { org } = await scope(request, context);
+        let body: { deleteFromPlatforms?: boolean | null } | undefined;
+        const raw = request.body;
+        if (Buffer.isBuffer(raw) && raw.length) {
+          try {
+            body = JSON.parse(
+              new TextDecoder("utf-8", { fatal: true }).decode(raw),
+            );
+          } catch {
+            throw bad("Invalid delete options");
+          }
+        }
+        if (
+          body !== undefined &&
+          (body === null ||
+            typeof body !== "object" ||
+            Array.isArray(body) ||
+            (body.deleteFromPlatforms !== undefined &&
+              body.deleteFromPlatforms !== null &&
+              typeof body.deleteFromPlatforms !== "boolean"))
+        )
+          throw bad("Invalid delete options");
+        if (body?.deleteFromPlatforms) {
+          const result = await publishing.deleteSocialPostFromPlatforms(
+            context.pool,
+            context.config,
+            org,
+            id(request),
+          );
+          if (!result.success)
+            return reply.code(409).send({
+              ...result,
+              error:
+                "The post was not removed from KasiTek because one or more platform deletions failed.",
+              authorizationRequired: result.authorizationRequired ?? null,
+            });
+          return result;
+        }
+        if (!(await posts.deleteSocialPost(context.pool, org, id(request))))
+          throw missing("Post not found");
+        return { success: true, localDeleted: true, providerResults: [] };
+      },
+    );
   });
   app.post(
     "/api/social/posts/:id/publish",
@@ -625,33 +640,37 @@ export function registerSocialRoutes(
     },
   );
   app.register(async (webhook) => {
-    webhook.removeContentTypeParser("application/json");
+    webhook.removeAllContentTypeParsers();
     webhook.addContentTypeParser(
-      "application/json",
-      { parseAs: "buffer" },
+      "*",
+      { parseAs: "buffer", bodyLimit: 262_144 },
       (_request, body, done) => done(null, body),
     );
-    webhook.post("/api/webhooks/tiktok", async (request) => {
-      const body = request.body as Buffer;
-      webhooks.verifyTiktokWebhookSignature(
-        typeof request.headers["tiktok-signature"] === "string"
-          ? request.headers["tiktok-signature"]
-          : undefined,
-        body,
-        context.config.rawEnv,
-      );
-      const payload = webhooks.parseTiktokWebhookEnvelope(
-        body,
-        context.config.rawEnv,
-      );
-      return {
-        received: true,
-        duplicate: !(await webhooks.recordTiktokWebhookEvent(
-          context.pool,
-          payload,
+    webhook.post(
+      "/api/webhooks/tiktok",
+      { bodyLimit: 262_144 },
+      async (request) => {
+        const body = request.body as Buffer;
+        webhooks.verifyTiktokWebhookSignature(
+          typeof request.headers["tiktok-signature"] === "string"
+            ? request.headers["tiktok-signature"]
+            : undefined,
           body,
-        )),
-      };
-    });
+          context.config.rawEnv,
+        );
+        const payload = webhooks.parseTiktokWebhookEnvelope(
+          body,
+          context.config.rawEnv,
+        );
+        return {
+          received: true,
+          duplicate: !(await webhooks.recordTiktokWebhookEvent(
+            context.pool,
+            payload,
+            body,
+          )),
+        };
+      },
+    );
   });
 }
