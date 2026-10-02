@@ -1,6 +1,6 @@
 import WhatsappTemplateManager from "@/components/dashboard/campaigns/whatsapp-template-manager";
 import { PageHeader, PageHeaderContent, PageHeaderDescription, PageHeaderTitle } from "@/components/ui/page-header";
-import { getRustSession } from "@/lib/rust-auth";
+import { getWorkspaceSession } from "@/lib/rust-auth";
 import { fetchRustJson } from "@/lib/rust-server-api";
 import { redirect } from "next/navigation";
 import { MotionReveal } from "@/components/ui/motion-reveal";
@@ -14,7 +14,7 @@ export default async function ReachTemplatesPage({
 }: {
   searchParams: Promise<{ starter?: string; status?: string; create?: string }>;
 }) {
-  const session = await getRustSession();
+  const session = await getWorkspaceSession();
   if (!session?.user?.id) redirect("/login");
 
   const params = await searchParams;

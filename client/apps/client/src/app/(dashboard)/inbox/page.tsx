@@ -1,3 +1,5 @@
+import { getWorkspaceSession } from "@/lib/rust-auth";
+import { redirect } from "next/navigation";
 import InboxPageClient from "@/components/dashboard/inbox-page";
 import type { WorkspaceConnection } from "@/lib/connections";
 import { fetchRustJson } from "@/lib/rust-server-api";
@@ -50,6 +52,8 @@ type RustSocialChannel = {
 };
 
 export default async function InboxPage() {
+  const session = await getWorkspaceSession();
+  if (!session) redirect("/login");
   const [
     connectionsPayload,
     sharedConnectionsPayload,

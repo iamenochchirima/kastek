@@ -51,6 +51,8 @@ analytics-reporting.workspace = true
 execution = { path = "../crates/execution" }
 semver.workspace = true
 jwt-simple = "0.11"
+openidconnect = { version = "4.0.1", default-features = false, features = ["reqwest", "rustls-tls"] }
+jsonwebtoken = "9"
 
 [[bin]]
 name = "server"

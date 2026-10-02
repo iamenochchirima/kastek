@@ -37,13 +37,17 @@ async function proxy(request: NextRequest, context: RouteContext) {
   }
 
   const responseHeaders = new Headers(upstream.headers);
+  // Preserve separate transaction/session cookies, especially on login callbacks.
+  responseHeaders.delete("set-cookie");
+  if (path[0] === "auth") responseHeaders.set("cache-control", "no-store");
   const response = new NextResponse(upstream.body, {
     status: upstream.status,
     headers: responseHeaders,
   });
 
-  const setCookie = upstream.headers.get("set-cookie");
-  if (setCookie) response.headers.set("set-cookie", setCookie);
+  for (const cookie of upstream.headers.getSetCookie()) {
+    response.headers.append("set-cookie", cookie);
+  }
 
   return response;
 }

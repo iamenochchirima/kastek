@@ -943,6 +943,7 @@ model User {
 
   accounts Account[]
   sessions Session[]
+  externalIdentity ExternalIdentity?
 
   ownedOrganizations Organization[]           @relation("OwnedOrganizations")
   orgMemberships     OrganizationMember[]
@@ -1010,12 +1011,40 @@ model Account {
 }
 
 model Session {
-  id           String   @id @default(cuid())
-  sessionToken String   @unique
-  userId       String
-  expires      DateTime
-
+  id String @id @default(cuid())
+  sessionToken String @unique
+  userId String
+  expires DateTime
+  lastActivityAt DateTime @default(now())
+  identityCheckedAt DateTime @default(now())
+  providerRefreshedAt DateTime @default(now())
+  refreshToken String
+  idToken String
+  providerSid String?
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@index([providerSid])
+}
+
+model ExternalIdentity {
+  issuer String
+  subject String
+  userId String @unique
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@id([issuer, subject])
+}
+
+model OidcTransaction {
+  state String @id
+  browserHash String
+  nonce String
+  verifier String
+  returnTo String
+  expires DateTime
+}
+
+model OidcLogoutReplay {
+  jti String @id
+  expires DateTime
 }
 
 model VerificationToken {

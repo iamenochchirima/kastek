@@ -1,4 +1,4 @@
-import { getRustSession } from "@/lib/rust-auth";
+import { getWorkspaceSession } from "@/lib/rust-auth";
 import { fetchRustJson } from "@/lib/rust-server-api";
 import { FileText, MessageCircle, PlugZap, type LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -51,7 +51,7 @@ type WorkspaceSummary = {
 };
 
 export default async function WorkspacePage() {
-  const session = await getRustSession();
+  const session = await getWorkspaceSession();
   if (!session?.user?.id) redirect("/login");
 
   const response = await fetchRustJson<{ summary: WorkspaceSummary }>("/api/workspace/summary");

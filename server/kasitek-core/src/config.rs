@@ -274,11 +274,13 @@ impl AppConfig {
     }
 
     pub fn build_user_session_cookie(&self, value: &str) -> Cookie<'static> {
-        self.build_cookie(USER_SESSION_COOKIE, value)
+        build_product_session_cookie(value, self.is_production())
     }
 
     pub fn clear_user_session_cookie(&self) -> Cookie<'static> {
-        self.clear_cookie(USER_SESSION_COOKIE)
+        let mut cookie = self.build_user_session_cookie("");
+        cookie.make_removal();
+        cookie
     }
 
     pub fn build_admin_session_cookie(&self, value: &str) -> Cookie<'static> {
@@ -327,4 +329,14 @@ impl AppConfig {
 
         cookie
     }
+}
+
+pub(crate) fn build_product_session_cookie(value: &str, production: bool) -> Cookie<'static> {
+    Cookie::build(USER_SESSION_COOKIE, value.to_owned())
+        .path("/")
+        .http_only(true)
+        .secure(production)
+        .same_site(SameSite::Lax)
+        .max_age(actix_web::cookie::time::Duration::days(30))
+        .finish()
 }

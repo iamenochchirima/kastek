@@ -1,36 +1,23 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { apiUrl } from "@/lib/server-api";
+import { useState } from "react";
+import { LogOut } from "lucide-react";
+import { signOut } from "@/lib/shared-login";
 import { Button } from "@/components/ui/button";
 
-function SignOutIcon() {
+export default function SignOutButton({ allDevices = false }: { allDevices?: boolean }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  async function logout() {
+    setBusy(true);
+    setError("");
+    try { await signOut(allDevices); }
+    catch { setError("Could not sign out. Please try again."); setBusy(false); }
+  }
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4">
-      <path d="M9 4.5H6.5A2.5 2.5 0 0 0 4 7v10a2.5 2.5 0 0 0 2.5 2.5H9" />
-      <path d="M14 8.5 19 12l-5 3.5" />
-      <path d="M19 12H9" />
-    </svg>
-  );
-}
-
-export default function SignOutButton() {
-  const router = useRouter();
-
-  return (
-    <Button
-      onClick={async () => {
-        await fetch(apiUrl("/api/auth/logout"), {
-          method: "POST",
-          credentials: "include",
-        });
-        router.refresh();
-        router.push("/");
-      }}
-      variant="outline"
-    >
-      <SignOutIcon />
-      Sign out
-    </Button>
+    <div className="space-y-2">
+      <Button disabled={busy} onClick={() => void logout()} variant="outline"><LogOut className="size-4" />{busy ? "Signing out…" : allDevices ? "Sign out all devices" : "Log out"}</Button>
+      {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
+    </div>
   );
 }

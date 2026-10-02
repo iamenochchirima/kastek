@@ -31,7 +31,6 @@ export type WorkspaceProfile = {
     phone: string | null;
     image: string | null;
   };
-  hasPassword: boolean;
 };
 
 const SETTINGS_LINKS = [
@@ -180,7 +179,7 @@ export function WorkspaceSettingsClient({
             <motion.div key={tab} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: VANTAGE_MOTION.shell / 1000, ease: VANTAGE_EXPO }}>
             {tab === "profile" ? (
               <div className="space-y-5">
-                <ProfileForm user={{ ...profile.user, emailVerified: !!profile.user.emailVerified, hasPassword: profile.hasPassword }} />
+                <ProfileForm user={{ ...profile.user, emailVerified: !!profile.user.emailVerified }} />
                 <section className="v-settings-card rounded-xl border border-border bg-card p-5 shadow-[var(--shadow-panel)]">
                   <h2 className="text-base font-semibold text-foreground">Workspace access</h2>
                   <p className="mt-0.5 text-xs text-muted-foreground">Manage the people in this workspace.</p>

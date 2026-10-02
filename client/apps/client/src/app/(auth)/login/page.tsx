@@ -2,15 +2,17 @@ import LoginForm from "@/components/auth/login-form";
 import { getRustSession } from "@/lib/rust-auth";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
+import { safeReturnTo } from "@/lib/shared-login";
 
 export const metadata = {
   title: "Sign In | KasiTek",
 };
 
-export default async function LoginPage() {
+export default async function LoginPage({ searchParams }: { searchParams: Promise<{ returnTo?: string; callbackUrl?: string }> }) {
+  const params = await searchParams;
   const session = await getRustSession();
   if (session?.user?.id) {
-    redirect(session.user.emailVerified ? "/workspace" : `/verify-request?email=${encodeURIComponent(session.user.email)}`);
+    redirect(safeReturnTo(params.returnTo ?? params.callbackUrl));
   }
 
   return (

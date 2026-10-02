@@ -1,4 +1,4 @@
-import { getRustSession } from "@/lib/rust-auth";
+import { getWorkspaceSession } from "@/lib/rust-auth";
 import { fetchRustJson } from "@/lib/rust-server-api";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
@@ -84,7 +84,7 @@ export const metadata = {
 };
 
 export default async function CustomerDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const session = await getRustSession();
+  const session = await getWorkspaceSession();
   if (!session?.user?.id) redirect("/login");
 
   const { id } = await params;

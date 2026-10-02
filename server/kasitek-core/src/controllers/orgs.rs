@@ -35,12 +35,6 @@ pub struct UpdateMemberRequest {
     pub role: String,
 }
 
-#[derive(Deserialize)]
-pub struct ActivateInvitationRequest {
-    pub name: Option<String>,
-    pub password: String,
-}
-
 // ─── Handlers ────────────────────────────────────────────
 
 pub async fn list_orgs(
@@ -368,32 +362,4 @@ pub async fn accept_invitation(
 
     let org = orgs::accept_invitation(pool.get_ref(), &token, &user.id).await?;
     Ok(HttpResponse::Ok().json(serde_json::json!({ "org": org })))
-}
-
-pub async fn activate_invitation(
-    pool: web::Data<PgPool>,
-    config: web::Data<AppConfig>,
-    path: web::Path<String>,
-    body: web::Json<ActivateInvitationRequest>,
-) -> Result<HttpResponse, AppError> {
-    let password = body.password.trim();
-    if password.len() < 8 {
-        return Err(AppError::BadRequest(
-            "Password must be at least 8 characters".to_string(),
-        ));
-    }
-
-    let token = path.into_inner();
-    let name = body
-        .name
-        .as_deref()
-        .map(str::trim)
-        .filter(|value| !value.is_empty());
-    let (org, user_id) =
-        orgs::activate_invitation_with_new_user(pool.get_ref(), &token, name, password).await?;
-    let session_token = crate::services::auth::create_session(pool.get_ref(), &user_id).await?;
-
-    Ok(HttpResponse::Created()
-        .cookie(config.build_user_session_cookie(&session_token))
-        .json(serde_json::json!({ "org": org })))
 }

@@ -1,1285 +1,509 @@
+//! Human authentication is owned by Labs Keycloak; Growth owns opaque product sessions.
+use crate::{
+    config::AppConfig, db::models::UserProfileResponse, error::AppError, middleware::extract_user,
+};
 use actix_web::{
     cookie::{Cookie, SameSite},
     web, HttpRequest, HttpResponse,
 };
-use bcrypt::{hash, verify, DEFAULT_COST};
-use rand::Rng;
-use serde::{Deserialize, Serialize};
+use openidconnect::{
+    core::{CoreAuthenticationFlow, CoreClient, CoreProviderMetadata},
+    AuthorizationCode, ClientId, ClientSecret, CsrfToken, IssuerUrl, Nonce, OAuth2TokenResponse,
+    PkceCodeChallenge, PkceCodeVerifier, RedirectUrl, Scope, TokenResponse,
+};
+use serde::Deserialize;
 use sqlx::PgPool;
-use std::collections::HashMap;
 
-use crate::config::AppConfig;
-use crate::db::models::{
-    AccountCheckRequest, LoginRequest, PasswordSetupRequest, ResendVerificationRequest,
-    SendOtpRequest, SetPasswordRequest, SignupRequest, User, UserProfileResponse, VerifyOtpRequest,
-};
-use crate::error::AppError;
-use crate::middleware::extract_user_allow_unverified;
-use crate::services::auth::{
-    create_session, delete_session, issue_verification_token, send_email, send_sms_message,
-};
-use crate::services::early_access;
-use crate::services::orgs;
-use crate::services::referrals;
-
-const EARLY_ACCESS_OAUTH_TOKEN_COOKIE: &str = "kasitek_early_access_oauth_token";
-
-fn auth_server_base_url(config: &AppConfig) -> String {
-    std::env::var("API_BASE_URL").unwrap_or_else(|_| config.public_api_url.clone())
+pub(crate) fn setting(name: &str) -> Result<String, AppError> {
+    std::env::var(name)
+        .ok()
+        .filter(|v| !v.is_empty())
+        .ok_or_else(|| AppError::ServiceUnavailable(format!("{name} is not configured")))
 }
-
-fn invitation_required_redirect(config: &AppConfig) -> HttpResponse {
-    HttpResponse::Found()
-        .append_header((
-            "Location",
-            format!(
-                "{}/auth-error?code=INVITE_REQUIRED",
-                config.frontend_url.trim_end_matches('/')
-            ),
-        ))
-        .finish()
+pub(crate) fn http() -> Result<reqwest::Client, AppError> {
+    reqwest::Client::builder()
+        .redirect(reqwest::redirect::Policy::none())
+        .timeout(std::time::Duration::from_secs(10))
+        .build()
+        .map_err(|_| AppError::ServiceUnavailable("Identity connection unavailable".into()))
 }
-
-fn google_redirect_uri(config: &AppConfig) -> String {
-    format!("{}/api/auth/google/callback", auth_server_base_url(config))
+fn provider_error(_: impl std::fmt::Debug) -> AppError {
+    AppError::ServiceUnavailable("Shared login is unavailable".into())
 }
-
-#[derive(Debug, Deserialize, Serialize)]
-struct GoogleOAuthState {
-    callback_path: String,
-    #[serde(default)]
-    early_access_token_hash: Option<String>,
+fn rejected(_: impl std::fmt::Debug) -> AppError {
+    AppError::Unauthorized
 }
-
-fn parse_google_oauth_state(payload: &str) -> GoogleOAuthState {
-    serde_json::from_str(payload).unwrap_or_else(|_| GoogleOAuthState {
-        // Keep accepting states created before the state payload included a
-        // flow type. They expire quickly and are only used for the ordinary
-        // login/signup redirect.
-        callback_path: payload.to_string(),
-        early_access_token_hash: None,
-    })
-}
-
-fn early_access_callback_path(token: &str) -> String {
-    format!("/early-access/{}", urlencoding::encode(token))
-}
-
-fn early_access_oauth_redirect(config: &AppConfig, token: &str, error_code: &str) -> HttpResponse {
-    let target = format!(
-        "{}/early-access/{}?error={}",
-        config.frontend_url.trim_end_matches('/'),
-        urlencoding::encode(token),
-        urlencoding::encode(error_code),
-    );
-    HttpResponse::Found()
-        .append_header(("Location", target))
-        .cookie(clear_early_access_oauth_cookie(config))
-        .finish()
-}
-
-fn clear_early_access_oauth_cookie(config: &AppConfig) -> Cookie<'static> {
-    let mut cookie = Cookie::build(EARLY_ACCESS_OAUTH_TOKEN_COOKIE, "")
-        .path("/")
+fn transaction_cookie(value: &str, config: &AppConfig) -> Cookie<'static> {
+    Cookie::build("kasitek_login", value.to_owned())
+        .path("/api/auth")
         .http_only(true)
-        .same_site(if config.is_production() {
-            SameSite::None
-        } else {
-            SameSite::Lax
-        })
         .secure(config.is_production())
-        .max_age(actix_web::cookie::time::Duration::seconds(0))
-        .finish();
-    if let Ok(domain) = std::env::var("COOKIE_DOMAIN") {
-        cookie.set_domain(domain);
-    }
-    cookie
-}
-
-fn build_early_access_oauth_cookie(config: &AppConfig, token: &str) -> Cookie<'static> {
-    let mut cookie = Cookie::build(EARLY_ACCESS_OAUTH_TOKEN_COOKIE, token.to_string())
-        .path("/")
-        .http_only(true)
-        .same_site(if config.is_production() {
-            SameSite::None
-        } else {
-            SameSite::Lax
-        })
-        .secure(config.is_production())
+        .same_site(SameSite::Lax)
         .max_age(actix_web::cookie::time::Duration::minutes(10))
-        .finish();
-    if let Ok(domain) = std::env::var("COOKIE_DOMAIN") {
-        cookie.set_domain(domain);
-    }
-    cookie
+        .finish()
 }
-
-fn google_oauth_error_redirect(
-    config: &AppConfig,
-    state: &GoogleOAuthState,
-    token: Option<&str>,
-    error_code: &str,
-) -> HttpResponse {
-    if let Some(token) = token {
-        return early_access_oauth_redirect(config, token, error_code);
-    }
-
-    let mut response = HttpResponse::Found();
-    response.append_header((
-        "Location",
-        format!(
-            "{}/auth-error?code={}",
-            config.frontend_url.trim_end_matches('/'),
-            urlencoding::encode(error_code)
-        ),
-    ));
-    if state.early_access_token_hash.is_some() {
-        return response
-            .cookie(clear_early_access_oauth_cookie(config))
-            .finish();
-    }
-    response.finish()
+pub fn safe_return_path(value: &str) -> bool {
+    value.starts_with('/')
+        && !value.starts_with("//")
+        && !value.contains('\\')
+        && !value.chars().any(char::is_control)
 }
-
-fn referral_code_from_callback(callback_path: &str) -> Option<String> {
-    callback_path
-        .split_once('?')
-        .and_then(|(_, query)| {
-            query.split('&').find_map(|part| {
-                let (key, value) = part.split_once('=')?;
-                (key == "referralCode")
-                    .then(|| {
-                        urlencoding::decode(value)
-                            .ok()
-                            .map(|value| value.into_owned())
-                    })
-                    .flatten()
-            })
-        })
-        .map(|value| value.trim().to_string())
-        .filter(|value| !value.is_empty())
+#[derive(Deserialize)]
+pub struct LoginQuery {
+    #[serde(rename = "returnTo")]
+    return_to: Option<String>,
+    screen: Option<String>,
 }
-
-async fn send_account_verification_email(
-    pool: &PgPool,
-    config: &AppConfig,
-    email: &str,
-) -> Result<(), AppError> {
-    let token = issue_verification_token(pool, email).await?;
-    let verify_url = format!(
-        "{}/api/auth/verify-email?token={}&email={}",
-        auth_server_base_url(config),
-        token,
-        urlencoding::encode(email)
-    );
-    send_email(
-        config,
-        email,
-        "Verify your KasiTek account",
-        &format!("Welcome to KasiTek. Verify your email here: {}", verify_url),
-    )
-    .await
-}
-
-pub async fn signup(
-    pool: web::Data<PgPool>,
-    config: web::Data<AppConfig>,
-    body: web::Json<SignupRequest>,
-) -> Result<HttpResponse, AppError> {
-    let email = body.email.trim().to_lowercase();
-    let early_access_token = body
-        .early_access_token
-        .as_deref()
-        .map(str::trim)
-        .filter(|value| !value.is_empty());
-    if early_access_token.is_some() && !config.early_access_self_service_enabled {
-        return Err(AppError::Conflict(
-            "Early-access self-service is temporarily unavailable".to_string(),
-        ));
-    }
-    let early_access_invitation = if let Some(token) = early_access_token {
-        let invitation = early_access::signup_invitation_preview(pool.get_ref(), token).await?;
-        if invitation.status != "pending"
-            || invitation.expires_at <= chrono::Utc::now()
-            || !invitation.email.eq_ignore_ascii_case(&email)
-        {
-            return Err(AppError::Forbidden(
-                "This early-access invitation is not valid for this email".to_string(),
-            ));
-        }
-        Some(token)
-    } else {
-        None
-    };
-    if config.private_release_mode && early_access_invitation.is_none() {
-        return Ok(HttpResponse::Forbidden().json(serde_json::json!({
-            "error": "KasiTek is currently available by invitation only.",
-            "code": "SIGNUP_INVITE_ONLY"
-        })));
-    }
-
-    let password = body.password.trim();
-
-    if email.is_empty() || password.is_empty() {
-        return Err(AppError::BadRequest(
-            "Email and password are required".to_string(),
-        ));
-    }
-
-    if password.len() < 8 {
-        return Err(AppError::BadRequest(
-            "Password must be at least 8 characters".to_string(),
-        ));
-    }
-
-    if body.phone.as_ref().is_some() && body.phone_verified != Some(true) {
-        return Err(AppError::BadRequest(
-            "Phone number must be verified".to_string(),
-        ));
-    }
-
-    let existing = sqlx::query_scalar::<_, i64>(
-        r#"SELECT COUNT(*) FROM "User" WHERE lower(email) = lower($1)"#,
-    )
-    .bind(&email)
-    .fetch_one(pool.get_ref())
-    .await?;
-
-    if existing > 0 {
-        let email_verified = sqlx::query_scalar::<_, Option<chrono::DateTime<chrono::Utc>>>(
-            r#"SELECT "emailVerified" FROM "User" WHERE lower(email) = lower($1) LIMIT 1"#,
-        )
-        .bind(&email)
-        .fetch_one(pool.get_ref())
-        .await?;
-
-        if email_verified.is_none() {
-            return Ok(HttpResponse::Conflict().json(serde_json::json!({
-                "error": "This account still needs email verification.",
-                "code": "EMAIL_UNVERIFIED"
-            })));
-        }
-
-        let has_google_account = sqlx::query_scalar::<_, i64>(
-            r#"
-            SELECT COUNT(*)
-            FROM "Account"
-            WHERE provider = 'google'
-              AND "userId" IN (
-                SELECT id FROM "User" WHERE lower(email) = lower($1)
-              )
-            "#,
-        )
-        .bind(&email)
-        .fetch_one(pool.get_ref())
-        .await?
-            > 0;
-
-        let user_has_password = sqlx::query_scalar::<_, Option<String>>(
-            r#"SELECT password FROM "User" WHERE lower(email) = lower($1) LIMIT 1"#,
-        )
-        .bind(&email)
-        .fetch_one(pool.get_ref())
-        .await?
-        .is_some();
-
-        if has_google_account && !user_has_password {
-            let token = issue_verification_token(pool.get_ref(), &email).await?;
-            let setup_url = format!(
-                "{}/set-password?token={}&email={}",
-                config.auth_url,
-                token,
-                urlencoding::encode(&email)
-            );
-
-            let _ = send_email(
-                config.get_ref(),
-                &email,
-                "Set up a password for your KasiTek account",
-                &format!(
-                    "You already have a Google-linked KasiTek account. Set your password here: {}",
-                    setup_url
-                ),
-            )
-            .await;
-
-            return Ok(HttpResponse::Conflict().json(serde_json::json!({
-                "error": "An account with this email is linked to Google. Check your email to set up a password.",
-                "code": "GOOGLE_ACCOUNT_EXISTS"
-            })));
-        }
-
-        return Err(AppError::Conflict(
-            "An account with this email already exists".to_string(),
-        ));
-    }
-
-    let password_hash = hash(password, DEFAULT_COST)?;
-    let user_id = cuid2::create_id();
-
-    sqlx::query(
-        r#"
-        INSERT INTO "User" (id, email, name, password, phone, "createdAt", "updatedAt")
-        VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
-        "#,
-    )
-    .bind(&user_id)
-    .bind(&email)
-    .bind(
-        body.name
-            .as_ref()
-            .map(|value| value.trim())
-            .filter(|v| !v.is_empty()),
-    )
-    .bind(&password_hash)
-    .bind(
-        body.phone
-            .as_ref()
-            .map(|value| value.trim())
-            .filter(|v| !v.is_empty()),
-    )
-    .execute(pool.get_ref())
-    .await?;
-
-    if let Some(_token) = early_access_invitation {
-        sqlx::query(r#"UPDATE "User" SET "emailVerified" = NOW() WHERE id = $1"#)
-            .bind(&user_id)
-            .execute(pool.get_ref())
-            .await?;
-        let session_token = create_session(pool.get_ref(), &user_id).await?;
-        return Ok(HttpResponse::Ok()
-            .cookie(config.build_user_session_cookie(&session_token))
-            .json(serde_json::json!({
-                "message": "Account created.", "userId": user_id
-            })));
-    }
-
-    // Auto-create personal organisation for ordinary public signup.
-    let org_name = body
-        .name
-        .as_ref()
-        .map(|n| n.trim())
-        .filter(|n| !n.is_empty())
-        .map(|n| format!("{}'s Workspace", n))
-        .unwrap_or_else(|| "My Workspace".to_string());
-    let base_slug = orgs::slugify(&user_id);
-    let created_org = orgs::create_org(
-        pool.get_ref(),
-        &user_id,
-        &org_name,
-        &base_slug,
-        None,
-        config.trial_credits,
-        config.trial_duration_days,
-    )
-    .await;
-    if let Ok(org) = created_org {
-        if let Some(code) = body
-            .referral_code
-            .as_deref()
-            .map(str::trim)
-            .filter(|value| !value.is_empty())
-        {
-            let _ = referrals::attribute_referral(
-                pool.get_ref(),
-                &org.id,
-                code,
-                referrals::ReferralRewardConfig::from_config(config.get_ref()),
-            )
-            .await;
-        }
-    }
-
-    let _ = send_account_verification_email(pool.get_ref(), config.get_ref(), &email).await;
-
-    Ok(HttpResponse::Ok().json(serde_json::json!({
-        "message": "Account created. Check your email to verify.",
-        "userId": user_id
-    })))
-}
-
 pub async fn login(
     pool: web::Data<PgPool>,
     config: web::Data<AppConfig>,
-    body: web::Json<LoginRequest>,
+    query: web::Query<LoginQuery>,
+    req: HttpRequest,
 ) -> Result<HttpResponse, AppError> {
-    let email = body.email.trim().to_lowercase();
-    let password = body.password.trim();
-
-    let user = sqlx::query_as::<_, User>(
-        r#"
-        SELECT
-            id,
-            name,
-            email,
-            phone,
-            image,
-            password,
-            "emailVerified" AT TIME ZONE 'UTC' AS "emailVerified",
-            "createdAt" AT TIME ZONE 'UTC' AS "createdAt",
-            "updatedAt" AT TIME ZONE 'UTC' AS "updatedAt"
-        FROM "User"
-        WHERE lower(email) = lower($1)
-        LIMIT 1
-        "#,
+    let return_to = query.return_to.as_deref().unwrap_or("/");
+    if !safe_return_path(return_to) {
+        return Err(AppError::BadRequest("Invalid return path".into()));
+    }
+    let issuer = IssuerUrl::new(setting("OIDC_ISSUER_URL")?).map_err(provider_error)?;
+    let http = http()?;
+    let metadata = CoreProviderMetadata::discover_async(issuer, &http)
+        .await
+        .map_err(provider_error)?;
+    let client = CoreClient::from_provider_metadata(
+        metadata,
+        ClientId::new(setting("OIDC_CLIENT_ID")?),
+        Some(ClientSecret::new(setting("OIDC_CLIENT_SECRET")?)),
     )
-    .bind(&email)
-    .fetch_optional(pool.get_ref())
+    .set_redirect_uri(RedirectUrl::new(setting("OIDC_REDIRECT_URI")?).map_err(provider_error)?);
+    let (challenge, verifier) = PkceCodeChallenge::new_random_sha256();
+    let force_login = if let Some(cookie) = req.cookie(crate::config::USER_SESSION_COOKIE) {
+        !sqlx::query_scalar::<_,bool>(r#"SELECT EXISTS(SELECT 1 FROM "Session" WHERE "sessionToken"=$1 AND expires>NOW() AND "lastActivityAt">NOW()-INTERVAL '7 days')"#).bind(crypto_utils::sha256_hex(cookie.value())).fetch_one(pool.get_ref()).await?
+    } else {
+        false
+    };
+    let mut request = client
+        .authorize_url(
+            CoreAuthenticationFlow::AuthorizationCode,
+            CsrfToken::new_random,
+            Nonce::new_random,
+        )
+        .add_scope(Scope::new("email".into()))
+        .add_scope(Scope::new("profile".into()))
+        .set_pkce_challenge(challenge)
+        .add_extra_param("max_age", "2592000");
+    if force_login {
+        request = request.add_extra_param("prompt", "login");
+    }
+    let (mut url, state, nonce) = request.url();
+    if query.screen.as_deref() == Some("signup") {
+        let path = url.path().strip_suffix("/auth").ok_or_else(|| {
+            AppError::ServiceUnavailable("Unsupported registration endpoint".into())
+        })?;
+        url.set_path(&format!("{path}/registrations"));
+    }
+    let browser = CsrfToken::new_random().secret().to_owned();
+    sqlx::query(r#"DELETE FROM "OidcTransaction" WHERE expires<NOW()"#)
+        .execute(pool.get_ref())
+        .await?;
+    sqlx::query(r#"INSERT INTO "OidcTransaction" (state, "browserHash", nonce, verifier, "returnTo", expires) VALUES ($1,$2,$3,$4,$5,NOW()+INTERVAL '10 minutes')"#).bind(crypto_utils::sha256_hex(state.secret())).bind(crypto_utils::sha256_hex(&browser)).bind(nonce.secret()).bind(verifier.secret()).bind(return_to).execute(pool.get_ref()).await?;
+    Ok(HttpResponse::Found()
+        .insert_header(("Cache-Control", "no-store"))
+        .cookie(transaction_cookie(&browser, &config))
+        .append_header(("Location", url.as_str()))
+        .finish())
+}
+#[derive(Deserialize)]
+pub struct CallbackQuery {
+    code: Option<String>,
+    state: Option<String>,
+    error: Option<String>,
+}
+pub async fn callback(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    query: web::Query<CallbackQuery>,
+) -> HttpResponse {
+    match callback_impl(pool, config.clone(), req, query).await {
+        Ok(response) => response,
+        Err(error) => {
+            let code = if matches!(error, AppError::ServiceUnavailable(_)) {
+                "IDENTITY_UNAVAILABLE"
+            } else {
+                "LOGIN_FAILED"
+            };
+            observability::tracing::warn!(
+                event = "auth.callback.failed",
+                error_code = code,
+                "Shared login callback failed"
+            );
+            let mut clear = transaction_cookie("", &config);
+            clear.make_removal();
+            HttpResponse::Found()
+                .cookie(clear)
+                .insert_header(("Cache-Control", "no-store"))
+                .append_header((
+                    "Location",
+                    format!(
+                        "{}/auth-error?code={code}",
+                        config.frontend_url.trim_end_matches('/')
+                    ),
+                ))
+                .finish()
+        }
+    }
+}
+fn callback_denied(stage: &'static str) -> AppError {
+    observability::tracing::warn!(
+        event = "auth.callback.denied",
+        stage,
+        "Shared login callback rejected"
+    );
+    AppError::Unauthorized
+}
+async fn callback_impl(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    query: web::Query<CallbackQuery>,
+) -> Result<HttpResponse, AppError> {
+    let state = query
+        .state
+        .as_ref()
+        .ok_or_else(|| callback_denied("missing_state"))?;
+    let browser = req
+        .cookie("kasitek_login")
+        .ok_or_else(|| callback_denied("missing_browser_cookie"))?;
+    let tx=sqlx::query_as::<_,(String,String,String)>(r#"DELETE FROM "OidcTransaction" WHERE state=$1 AND "browserHash"=$2 AND expires>NOW() RETURNING nonce,verifier,"returnTo""#).bind(crypto_utils::sha256_hex(state)).bind(crypto_utils::sha256_hex(browser.value())).fetch_optional(pool.get_ref()).await?.ok_or_else(||callback_denied("missing_transaction"))?;
+    if query.error.is_some() {
+        return Ok(HttpResponse::Found()
+            .insert_header(("Cache-Control", "no-store"))
+            .append_header((
+                "Location",
+                format!(
+                    "{}/auth-error?code=LOGIN_CANCELLED",
+                    config.frontend_url.trim_end_matches('/')
+                ),
+            ))
+            .finish());
+    }
+    let http = http()?;
+    let issuer = setting("OIDC_ISSUER_URL")?;
+    let metadata = CoreProviderMetadata::discover_async(
+        IssuerUrl::new(issuer.clone()).map_err(provider_error)?,
+        &http,
+    )
+    .await
+    .map_err(provider_error)?;
+    let client = CoreClient::from_provider_metadata(
+        metadata,
+        ClientId::new(setting("OIDC_CLIENT_ID")?),
+        Some(ClientSecret::new(setting("OIDC_CLIENT_SECRET")?)),
+    )
+    .set_redirect_uri(RedirectUrl::new(setting("OIDC_REDIRECT_URI")?).map_err(provider_error)?);
+    let tokens = client
+        .exchange_code(AuthorizationCode::new(
+            query.code.clone().ok_or(AppError::Unauthorized)?,
+        ))
+        .map_err(provider_error)?
+        .set_pkce_verifier(PkceCodeVerifier::new(tx.1))
+        .request_async(&http)
+        .await
+        .map_err(|_| callback_denied("code_exchange"))?;
+    let id = tokens
+        .id_token()
+        .ok_or_else(|| callback_denied("missing_id_token"))?;
+    let claims = id
+        .claims(&client.id_token_verifier(), &Nonce::new(tx.0))
+        .map_err(|err| {
+            let reason = match err {
+                openidconnect::ClaimsVerificationError::InvalidNonce(_) => "invalid_nonce",
+                openidconnect::ClaimsVerificationError::InvalidIssuer(_) => "invalid_issuer",
+                openidconnect::ClaimsVerificationError::InvalidAudience(_) => "invalid_audience",
+                openidconnect::ClaimsVerificationError::SignatureVerification(_) => {
+                    "invalid_signature"
+                }
+                _ => "invalid_claims",
+            };
+            callback_denied(reason)
+        })?;
+    if let Some(expected) = claims.access_token_hash() {
+        let verifier = client.id_token_verifier();
+        let actual = openidconnect::AccessTokenHash::from_token(
+            tokens.access_token(),
+            id.signing_alg().map_err(rejected)?,
+            id.signing_key(&verifier).map_err(rejected)?,
+        )
+        .map_err(rejected)?;
+        if actual != *expected {
+            return Err(AppError::Unauthorized);
+        }
+    }
+    if claims.email_verified() != Some(true) {
+        return Err(AppError::Forbidden("Verify your email to continue".into()));
+    }
+    let absolute_expires = authentication_deadline(claims.auth_time(), chrono::Utc::now())?;
+    let subject = claims.subject().as_str();
+    let email = claims
+        .email()
+        .ok_or_else(|| callback_denied("missing_email"))?
+        .as_str();
+    let name = claims
+        .name()
+        .and_then(|names| names.get(None))
+        .map(|name| name.as_str());
+    let mut db = pool.begin().await?;
+    // Serialize first-use provisioning for this identity; emails never establish identity.
+    sqlx::query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))")
+        .bind(format!("{issuer}:{subject}"))
+        .execute(&mut *db)
+        .await?;
+    let existing = sqlx::query_scalar::<_, String>(
+        r#"SELECT "userId" FROM "ExternalIdentity" WHERE issuer=$1 AND subject=$2"#,
+    )
+    .bind(&issuer)
+    .bind(subject)
+    .fetch_optional(&mut *db)
+    .await?;
+    let user_id = if let Some(id) = existing {
+        id
+    } else {
+        let id = cuid2::create_id();
+        // A conflicting email is rejected, never silently linked to an existing user.
+        sqlx::query(r#"INSERT INTO "User" (id,name,email,"emailVerified","createdAt","updatedAt") VALUES ($1,$2,$3,NOW(),NOW(),NOW())"#).bind(&id).bind(name).bind(email).execute(&mut *db).await.map_err(|_|AppError::Conflict("This email belongs to another identity; manage login methods in your existing account".into()))?;
+        sqlx::query(
+            r#"INSERT INTO "ExternalIdentity" (issuer,subject,"userId") VALUES ($1,$2,$3)"#,
+        )
+        .bind(&issuer)
+        .bind(subject)
+        .bind(&id)
+        .execute(&mut *db)
+        .await?;
+        id
+    };
+    sqlx::query(
+        r#"UPDATE "User" SET email=$2, "emailVerified"=NOW(), "updatedAt"=NOW() WHERE id=$1"#,
+    )
+    .bind(&user_id)
+    .bind(email)
+    .execute(&mut *db)
+    .await
+    .map_err(|_| AppError::Conflict("Email is already used by another identity".into()))?;
+    let token = CsrfToken::new_random().secret().to_owned();
+    let sid: Option<String> =
+        serde_json::from_str::<serde_json::Value>(&decode_payload(&id.to_string())?)
+            .ok()
+            .and_then(|v| v.get("sid").and_then(|s| s.as_str()).map(str::to_owned));
+    sqlx::query(r#"INSERT INTO "Session" (id,"sessionToken","userId",expires,"lastActivityAt","identityCheckedAt","refreshToken","idToken","providerSid") VALUES ($1,$2,$3,$7,NOW(),NOW(),$4,$5,$6)"#).bind(cuid2::create_id()).bind(crypto_utils::sha256_hex(&token)).bind(&user_id).bind(tokens.refresh_token().ok_or_else(||callback_denied("missing_refresh_token"))?.secret()).bind(id.to_string()).bind(sid).bind(absolute_expires).execute(&mut *db).await?;
+    db.commit().await?;
+    observability::tracing::info!(event="auth.login.success",user_id=%user_id,"Shared login completed");
+    let mut clear = transaction_cookie("", &config);
+    clear.make_removal();
+    Ok(HttpResponse::Found()
+        .insert_header(("Cache-Control", "no-store"))
+        .cookie(config.build_user_session_cookie(&token))
+        .cookie(clear)
+        .append_header((
+            "Location",
+            format!("{}{}", config.frontend_url.trim_end_matches('/'), tx.2),
+        ))
+        .finish())
+}
+fn authentication_deadline(
+    authenticated_at: Option<chrono::DateTime<chrono::Utc>>,
+    now: chrono::DateTime<chrono::Utc>,
+) -> Result<chrono::DateTime<chrono::Utc>, AppError> {
+    let authenticated_at = authenticated_at.ok_or_else(|| callback_denied("missing_auth_time"))?;
+    let expires = authenticated_at + chrono::Duration::days(30);
+    if expires <= now || authenticated_at > now + chrono::Duration::seconds(30) {
+        return Err(callback_denied("invalid_auth_time"));
+    }
+    Ok(expires)
+}
+fn decode_payload(token: &str) -> Result<String, AppError> {
+    use base64::Engine;
+    String::from_utf8(
+        base64::engine::general_purpose::URL_SAFE_NO_PAD
+            .decode(token.split('.').nth(1).ok_or(AppError::Unauthorized)?)
+            .map_err(rejected)?,
+    )
+    .map_err(rejected)
+}
+pub async fn me(pool: web::Data<PgPool>, req: HttpRequest) -> Result<HttpResponse, AppError> {
+    let user = extract_user(&req, &pool).await?;
+    Ok(HttpResponse::Ok()
+        .insert_header(("Cache-Control", "no-store"))
+        .json(serde_json::json!({"user":UserProfileResponse::from(user)})))
+}
+pub fn require_origin(req: &HttpRequest, config: &AppConfig) -> Result<(), AppError> {
+    require_request_origin(req, &config.frontend_url)
+}
+fn require_request_origin(req: &HttpRequest, frontend_url: &str) -> Result<(), AppError> {
+    let expected = url::Url::parse(frontend_url)
+        .map_err(provider_error)?
+        .origin()
+        .ascii_serialization();
+    if req.headers().get("Origin").and_then(|h| h.to_str().ok()) != Some(expected.as_str()) {
+        return Err(AppError::Forbidden("Invalid request origin".into()));
+    }
+    Ok(())
+}
+pub async fn account(pool: web::Data<PgPool>, req: HttpRequest) -> Result<HttpResponse, AppError> {
+    extract_user(&req, &pool).await?;
+    Ok(HttpResponse::Found()
+        .insert_header(("Cache-Control", "no-store"))
+        .append_header((
+            "Location",
+            format!(
+                "{}/account/",
+                setting("OIDC_ISSUER_URL")?.trim_end_matches('/')
+            ),
+        ))
+        .finish())
+}
+async fn logout_impl(
+    pool: &PgPool,
+    config: &AppConfig,
+    req: &HttpRequest,
+    all: bool,
+) -> Result<HttpResponse, AppError> {
+    require_origin(req, config)?;
+    let cookie = req
+        .cookie(crate::config::USER_SESSION_COOKIE)
+        .ok_or(AppError::Unauthorized)?;
+    let token = crypto_utils::sha256_hex(cookie.value());
+    let row = sqlx::query_as::<_, (String, String)>(
+        r#"SELECT "userId", "idToken" FROM "Session" WHERE "sessionToken"=$1"#,
+    )
+    .bind(&token)
+    .fetch_optional(pool)
     .await?
     .ok_or(AppError::Unauthorized)?;
-
-    let hashed = user.password.clone().ok_or(AppError::Unauthorized)?;
-    if !verify(password, &hashed)? {
-        return Err(AppError::Unauthorized);
+    if all {
+        crate::services::identity::logout_all(pool, &row.0).await?;
+    } else {
+        sqlx::query(r#"DELETE FROM "Session" WHERE "sessionToken"=$1"#)
+            .bind(token)
+            .execute(pool)
+            .await?;
     }
-
-    if user.email_verified.is_none() {
-        return Ok(HttpResponse::Forbidden().json(serde_json::json!({
-            "error": "Verify your email before signing in.",
-            "code": "EMAIL_UNVERIFIED"
-        })));
-    }
-
-    let session_token = create_session(pool.get_ref(), &user.id).await?;
-
+    let mut redirect = url::Url::parse(&format!(
+        "{}/protocol/openid-connect/logout",
+        setting("OIDC_ISSUER_URL")?.trim_end_matches('/')
+    ))
+    .map_err(provider_error)?;
+    redirect
+        .query_pairs_mut()
+        .append_pair("id_token_hint", &row.1)
+        .append_pair("client_id", &setting("OIDC_CLIENT_ID")?)
+        .append_pair(
+            "post_logout_redirect_uri",
+            &format!("{}/login", config.frontend_url.trim_end_matches('/')),
+        );
     Ok(HttpResponse::Ok()
-        .cookie(config.build_user_session_cookie(&session_token))
-        .json(serde_json::json!({ "user": UserProfileResponse::from(user) })))
+        .insert_header(("Cache-Control", "no-store"))
+        .cookie(config.clear_user_session_cookie())
+        .json(serde_json::json!({"redirectUrl":redirect.as_str()})))
 }
-
 pub async fn logout(
     pool: web::Data<PgPool>,
     config: web::Data<AppConfig>,
     req: HttpRequest,
 ) -> Result<HttpResponse, AppError> {
-    if let Some(cookie) = req.cookie(crate::config::USER_SESSION_COOKIE) {
-        delete_session(pool.get_ref(), cookie.value()).await?;
-    }
-
-    Ok(HttpResponse::Ok()
-        .cookie(config.clear_user_session_cookie())
-        .json(serde_json::json!({ "message": "Logged out" })))
+    logout_impl(&pool, &config, &req, false).await
 }
-
-pub async fn me(pool: web::Data<PgPool>, req: HttpRequest) -> Result<HttpResponse, AppError> {
-    let user = extract_user_allow_unverified(&req, pool.get_ref()).await?;
-    Ok(HttpResponse::Ok().json(serde_json::json!({
-        "user": UserProfileResponse::from(user)
-    })))
-}
-
-pub async fn start_google_oauth(
-    pool: web::Data<PgPool>,
-    config: web::Data<AppConfig>,
-    query: web::Query<HashMap<String, String>>,
-) -> Result<HttpResponse, AppError> {
-    let client_id = std::env::var("GOOGLE_CLIENT_ID")
-        .or_else(|_| std::env::var("AUTH_GOOGLE_ID"))
-        .map_err(|_| AppError::Internal("Missing Google OAuth client id".to_string()))?;
-    let early_access_token = query
-        .get("earlyAccessToken")
-        .map(|value| value.trim())
-        .filter(|value| !value.is_empty())
-        .map(str::to_string);
-    if early_access_token.is_some() && !config.early_access_self_service_enabled {
-        return Err(AppError::Conflict(
-            "Early-access self-service is temporarily unavailable".to_string(),
-        ));
-    }
-
-    if let Some(token) = early_access_token.as_deref() {
-        let invitation = early_access::signup_invitation_preview(pool.get_ref(), token).await?;
-        if invitation.status != "pending" {
-            return Err(AppError::Forbidden(
-                "This early-access invitation is not available".to_string(),
-            ));
-        }
-        if invitation.expires_at <= chrono::Utc::now() {
-            return Err(AppError::Forbidden(
-                "This early-access invitation has expired".to_string(),
-            ));
-        }
-    }
-
-    let callback_path = if early_access_token.is_some() {
-        "/early-access".to_string()
-    } else {
-        query
-            .get("callbackUrl")
-            .map(|value| value.trim())
-            .filter(|value| !value.is_empty())
-            .map(str::to_string)
-            .unwrap_or_else(|| "/dashboard".to_string())
-    };
-    let state_payload = serde_json::to_string(&GoogleOAuthState {
-        callback_path,
-        early_access_token_hash: early_access_token.as_deref().map(crypto_utils::sha256_hex),
-    })
-    .map_err(|_| AppError::Internal("Could not create OAuth state".to_string()))?;
-    let state = cuid2::create_id();
-    let identifier = format!("google-oauth-state:{state}");
-    sqlx::query(r#"DELETE FROM "VerificationToken" WHERE identifier = $1"#)
-        .bind(&identifier)
-        .execute(pool.get_ref())
-        .await?;
-    sqlx::query(
-        r#"
-        INSERT INTO "VerificationToken" (identifier, token, expires)
-        VALUES ($1, $2, NOW() + INTERVAL '10 minutes')
-        "#,
-    )
-    .bind(&identifier)
-    .bind(state_payload)
-    .execute(pool.get_ref())
-    .await?;
-
-    let authorize_url = format!(
-        "https://accounts.google.com/o/oauth2/v2/auth?client_id={}&redirect_uri={}&response_type=code&scope={}&state={}&access_type=offline&prompt=consent",
-        urlencoding::encode(&client_id),
-        urlencoding::encode(&google_redirect_uri(config.get_ref())),
-        urlencoding::encode("openid email profile"),
-        urlencoding::encode(&state)
-    );
-    let mut response = HttpResponse::Found();
-    response.append_header(("Location", authorize_url));
-    if let Some(token) = early_access_token.as_deref() {
-        response.cookie(build_early_access_oauth_cookie(config.get_ref(), token));
-    }
-    Ok(response.finish())
-}
-
-pub async fn google_oauth_callback(
+pub async fn logout_all(
     pool: web::Data<PgPool>,
     config: web::Data<AppConfig>,
     req: HttpRequest,
-    query: web::Query<HashMap<String, String>>,
 ) -> Result<HttpResponse, AppError> {
-    let state = query
-        .get("state")
-        .map(|value| value.trim())
-        .filter(|value| !value.is_empty())
-        .ok_or_else(|| AppError::BadRequest("Missing OAuth state".to_string()))?;
-    let state_identifier = format!("google-oauth-state:{state}");
-    let state_payload = sqlx::query_scalar::<_, String>(
-        r#"
-        DELETE FROM "VerificationToken"
-        WHERE identifier = $1 AND expires > NOW()
-        RETURNING token
-        "#,
-    )
-    .bind(&state_identifier)
-    .fetch_optional(pool.get_ref())
-    .await?
-    .ok_or_else(|| AppError::BadRequest("Invalid or expired OAuth state".to_string()))?;
-    let oauth_state = parse_google_oauth_state(&state_payload);
-    let callback_path = oauth_state.callback_path.clone();
-    let early_access_token =
-        if let Some(expected_hash) = oauth_state.early_access_token_hash.as_deref() {
-            let token = req
-                .cookie(EARLY_ACCESS_OAUTH_TOKEN_COOKIE)
-                .map(|cookie| cookie.value().to_string());
-            match token {
-                Some(token) if crypto_utils::sha256_hex(&token) == expected_hash => Some(token),
-                _ => {
-                    return Ok(google_oauth_error_redirect(
-                        config.get_ref(),
-                        &oauth_state,
-                        None,
-                        "invitation_unavailable",
-                    ));
-                }
-            }
-        } else {
-            None
-        };
-
-    if query.get("error").is_some() {
-        return Ok(google_oauth_error_redirect(
-            config.get_ref(),
-            &oauth_state,
-            early_access_token.as_deref(),
-            if early_access_token.is_some() {
-                "google_cancelled"
-            } else {
-                "GOOGLE_SIGN_IN_CANCELLED"
-            },
-        ));
+    logout_impl(&pool, &config, &req, true).await
+}
+#[derive(Deserialize)]
+pub struct LogoutForm {
+    logout_token: String,
+}
+pub async fn backchannel_logout(
+    pool: web::Data<PgPool>,
+    form: web::Form<LogoutForm>,
+) -> Result<HttpResponse, AppError> {
+    crate::services::identity::backchannel_logout(&pool, &form.logout_token).await?;
+    Ok(HttpResponse::Ok().finish())
+}
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn return_paths_cannot_escape_origin() {
+        for bad in ["//evil.test", "https://evil.test", "/\\evil.test", "/\nfoo"] {
+            assert!(!safe_return_path(bad));
+        }
+        assert!(safe_return_path("/invitations/abc?tab=team"));
     }
+}
 
-    let code = query
-        .get("code")
-        .map(|value| value.trim())
-        .filter(|value| !value.is_empty())
-        .ok_or_else(|| AppError::BadRequest("Missing Google OAuth code".to_string()))?;
-
-    let client_id = std::env::var("GOOGLE_CLIENT_ID")
-        .or_else(|_| std::env::var("AUTH_GOOGLE_ID"))
-        .map_err(|_| AppError::Internal("Missing Google OAuth client id".to_string()))?;
-    let client_secret = std::env::var("GOOGLE_CLIENT_SECRET")
-        .or_else(|_| std::env::var("AUTH_GOOGLE_SECRET"))
-        .map_err(|_| AppError::Internal("Missing Google OAuth client secret".to_string()))?;
-
-    let token_response = reqwest::Client::new()
-        .post("https://oauth2.googleapis.com/token")
-        .form(&[
-            ("code", code),
-            ("client_id", client_id.as_str()),
-            ("client_secret", client_secret.as_str()),
-            (
-                "redirect_uri",
-                google_redirect_uri(config.get_ref()).as_str(),
-            ),
-            ("grant_type", "authorization_code"),
-        ])
-        .send()
-        .await?;
-    let token_payload = token_response.json::<serde_json::Value>().await?;
-    let access_token = token_payload
-        .get("access_token")
-        .and_then(|value| value.as_str())
-        .ok_or_else(|| AppError::BadRequest("Google token exchange failed".to_string()))?;
-
-    let profile_response = reqwest::Client::new()
-        .get("https://www.googleapis.com/oauth2/v2/userinfo")
-        .bearer_auth(access_token)
-        .send()
-        .await?;
-    let profile = profile_response.json::<serde_json::Value>().await?;
-    let provider_user_id = profile
-        .get("id")
-        .and_then(|value| value.as_str())
-        .ok_or_else(|| AppError::BadRequest("Google profile did not include id".to_string()))?;
-    let email = profile
-        .get("email")
-        .and_then(|value| value.as_str())
-        .map(|value| value.trim().to_lowercase())
-        .filter(|value| !value.is_empty())
-        .ok_or_else(|| AppError::BadRequest("Google profile did not include email".to_string()))?;
-    let name = profile
-        .get("name")
-        .and_then(|value| value.as_str())
-        .map(str::trim)
-        .filter(|value| !value.is_empty());
-    let image = profile
-        .get("picture")
-        .and_then(|value| value.as_str())
-        .map(str::trim)
-        .filter(|value| !value.is_empty());
-
-    let early_access_flow = if let Some(token) = early_access_token.as_deref() {
-        let invitation = match early_access::signup_invitation_preview(pool.get_ref(), token).await
-        {
-            Ok(invitation) => invitation,
-            Err(AppError::NotFound(_)) => {
-                return Ok(early_access_oauth_redirect(
-                    config.get_ref(),
-                    token,
-                    "invitation_unavailable",
-                ));
-            }
-            Err(error) => return Err(error),
-        };
-        if invitation.status != "pending" || invitation.expires_at <= chrono::Utc::now() {
-            return Ok(early_access_oauth_redirect(
-                config.get_ref(),
-                token,
-                "invitation_unavailable",
-            ));
-        }
-        if !invitation.email.eq_ignore_ascii_case(&email) {
-            observability::tracing::warn!(
-                event = "auth.google.denied",
-                provider = "google",
-                reason = "early_access_email_mismatch",
-                "Google account did not match the early-access invitation"
-            );
-            return Ok(early_access_oauth_redirect(
-                config.get_ref(),
-                token,
-                "google_email_mismatch",
-            ));
-        }
-        observability::tracing::info!(
-            event = "auth.google.early_access",
-            provider = "google",
-            outcome = "email_match",
-            "Google account matched an early-access invitation"
-        );
-        true
-    } else {
-        false
-    };
-
-    let existing_linked_user = sqlx::query_scalar::<_, String>(
-        r#"SELECT "userId" FROM "Account" WHERE provider = 'google' AND "providerAccountId" = $1 LIMIT 1"#,
-    )
-    .bind(provider_user_id)
-    .fetch_optional(pool.get_ref())
-    .await?;
-
-    let mut created_org_id = None;
-    let user_id = if let Some(user_id) = existing_linked_user {
-        sqlx::query(
-            r#"
-            UPDATE "User"
-            SET name = COALESCE($1, name),
-                email = COALESCE($2, email),
-                image = COALESCE($3, image),
-                "emailVerified" = COALESCE("emailVerified", NOW()),
-                "updatedAt" = NOW()
-            WHERE id = $4
-            "#,
-        )
-        .bind(name)
-        .bind(&email)
-        .bind(image)
-        .bind(&user_id)
-        .execute(pool.get_ref())
-        .await?;
-        user_id
-    } else {
-        let existing_user = sqlx::query_as::<_, (String, bool)>(
-            r#"SELECT id, password IS NOT NULL
-               FROM "User" WHERE lower(email) = lower($1) LIMIT 1"#,
-        )
-        .bind(&email)
-        .fetch_optional(pool.get_ref())
-        .await?;
-        let user_id = if let Some((existing_user_id, has_password)) = existing_user {
-            if config.private_release_mode && !has_password && !early_access_flow {
-                let has_membership = sqlx::query_scalar::<_, bool>(
-                    r#"SELECT EXISTS(
-                         SELECT 1 FROM "OrganizationMember" WHERE "userId" = $1
-                       )"#,
-                )
-                .bind(&existing_user_id)
-                .fetch_one(pool.get_ref())
-                .await?;
-                let has_pending_invitation = sqlx::query_scalar::<_, bool>(
-                    r#"SELECT EXISTS(
-                         SELECT 1 FROM "OrganizationInvitation"
-                         WHERE lower(email) = lower($1)
-                           AND "acceptedAt" IS NULL
-                           AND "revokedAt" IS NULL
-                           AND "expiresAt" > NOW()
-                       )"#,
-                )
-                .bind(&email)
-                .fetch_one(pool.get_ref())
-                .await?;
-
-                if !has_membership && !has_pending_invitation {
-                    observability::tracing::warn!(
-                        event = "auth.google.denied",
-                        provider = "google",
-                        reason = "invitation_required",
-                        "new Google account rejected while KasiTek is invite-only"
-                    );
-                    return Ok(invitation_required_redirect(config.get_ref()));
-                }
-            }
-
-            sqlx::query(
-                r#"
-                UPDATE "User"
-                SET name = COALESCE($1, name),
-                    image = COALESCE($2, image),
-                    "emailVerified" = COALESCE("emailVerified", NOW()),
-                    "updatedAt" = NOW()
-                WHERE id = $3
-                "#,
-            )
-            .bind(name)
-            .bind(image)
-            .bind(&existing_user_id)
-            .execute(pool.get_ref())
-            .await?;
-            existing_user_id
-        } else {
-            if config.private_release_mode && !early_access_flow {
-                observability::tracing::warn!(
-                    event = "auth.google.denied",
-                    provider = "google",
-                    reason = "invitation_required",
-                    "new Google account rejected while KasiTek is invite-only"
-                );
-                return Ok(invitation_required_redirect(config.get_ref()));
-            }
-
-            let new_user_id = cuid2::create_id();
-            sqlx::query(
-                r#"
-                INSERT INTO "User" (id, name, email, image, "emailVerified", "createdAt", "updatedAt")
-                VALUES ($1, $2, $3, $4, NOW(), NOW(), NOW())
-                "#,
-            )
-            .bind(&new_user_id)
-            .bind(name)
-            .bind(&email)
-            .bind(image)
-            .execute(pool.get_ref())
-            .await?;
-
-            // Ordinary public signup creates a personal organisation. Early
-            // access deliberately waits for the invitation page so the user
-            // can choose or create the workspace there.
-            if !early_access_flow {
-                let org_name = name
-                    .filter(|n| !n.is_empty())
-                    .map(|n| format!("{}'s Workspace", n))
-                    .unwrap_or_else(|| "My Workspace".to_string());
-                let base_slug = orgs::slugify(&new_user_id);
-                if let Ok(org) = orgs::create_org(
-                    pool.get_ref(),
-                    &new_user_id,
-                    &org_name,
-                    &base_slug,
-                    None,
-                    config.trial_credits,
-                    config.trial_duration_days,
-                )
-                .await
-                {
-                    created_org_id = Some(org.id);
-                }
-            }
-
-            new_user_id
-        };
-
-        sqlx::query(
-            r#"
-            INSERT INTO "Account" (
-                id, "userId", type, provider, "providerAccountId", access_token, token_type, scope
-            )
-            VALUES ($1, $2, 'oauth', 'google', $3, $4, 'Bearer', 'openid email profile')
-            ON CONFLICT (provider, "providerAccountId")
-            DO UPDATE SET
-                "userId" = EXCLUDED."userId",
-                access_token = EXCLUDED.access_token,
-                token_type = EXCLUDED.token_type,
-                scope = EXCLUDED.scope
-            "#,
-        )
-        .bind(cuid2::create_id())
-        .bind(&user_id)
-        .bind(provider_user_id)
-        .bind(access_token)
-        .execute(pool.get_ref())
-        .await?;
-        user_id
-    };
-
-    if let Some(org_id) = created_org_id {
-        if let Some(code) = referral_code_from_callback(&callback_path) {
-            let _ = referrals::attribute_referral(
-                pool.get_ref(),
-                &org_id,
-                &code,
-                referrals::ReferralRewardConfig::from_config(config.get_ref()),
-            )
-            .await;
-        }
-    }
-
-    let session_token = create_session(pool.get_ref(), &user_id).await?;
-    let target = if let Some(token) = early_access_token.as_deref() {
-        format!(
-            "{}{}",
-            config.frontend_url.trim_end_matches('/'),
-            early_access_callback_path(token)
-        )
-    } else if callback_path.starts_with("http://") || callback_path.starts_with("https://") {
-        callback_path
-    } else {
-        format!(
-            "{}{}",
-            config.frontend_url.trim_end_matches('/'),
-            callback_path
-        )
-    };
-    Ok(HttpResponse::Found()
-        .cookie(config.build_user_session_cookie(&session_token))
-        .cookie(clear_early_access_oauth_cookie(config.get_ref()))
-        .append_header(("Location", target))
-        .finish())
+pub async fn activity(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+) -> Result<HttpResponse, AppError> {
+    require_origin(&req, &config)?;
+    extract_user(&req, &pool).await?;
+    Ok(HttpResponse::NoContent().finish())
 }
 
 #[cfg(test)]
-mod tests {
-    use super::{parse_google_oauth_state, GoogleOAuthState};
-
+mod origin_tests {
+    use super::*;
     #[test]
-    fn google_oauth_state_preserves_early_access_context() {
-        let state = GoogleOAuthState {
-            callback_path: "/early-access".to_string(),
-            early_access_token_hash: Some(crypto_utils::sha256_hex("invitation-token")),
-        };
-        let payload = serde_json::to_string(&state).expect("state should serialize");
-        let parsed = parse_google_oauth_state(&payload);
+    fn cookie_mutations_require_the_exact_browser_origin() {
+        use actix_web::test::TestRequest;
+        let origin = "https://growth.example";
+        let good = TestRequest::default()
+            .insert_header(("Origin", origin))
+            .to_http_request();
+        assert!(require_request_origin(&good, origin).is_ok());
+        for bad in [
+            "https://attacker.example",
+            "null",
+            "https://growth.example.attacker.test",
+            "http://growth.example",
+        ] {
+            let req = TestRequest::default()
+                .insert_header(("Origin", bad))
+                .to_http_request();
+            assert!(require_request_origin(&req, origin).is_err());
+        }
+        assert!(require_request_origin(&TestRequest::default().to_http_request(), origin).is_err());
+    }
+}
 
-        assert!(!payload.contains("invitation-token"));
-        assert_eq!(parsed.callback_path, state.callback_path);
+#[cfg(test)]
+mod cookie_tests {
+    #[test]
+    fn product_cookie_is_host_only_http_only_and_secure_in_production() {
+        let cookie = crate::config::build_product_session_cookie("opaque", true);
+        assert_eq!(cookie.http_only(), Some(true));
+        assert_eq!(cookie.secure(), Some(true));
+        assert_eq!(cookie.same_site(), Some(actix_web::cookie::SameSite::Lax));
+        assert_eq!(cookie.domain(), None);
+        assert_eq!(cookie.max_age().unwrap().whole_days(), 30);
+    }
+}
+
+#[cfg(test)]
+mod authentication_age_tests {
+    use super::*;
+    #[test]
+    fn signed_authentication_time_is_required_and_absolute_age_cannot_reset() {
+        let now = chrono::Utc::now();
+        assert!(authentication_deadline(None, now).is_err());
+        assert!(authentication_deadline(Some(now - chrono::Duration::days(30)), now).is_err());
+        assert!(authentication_deadline(Some(now + chrono::Duration::minutes(1)), now).is_err());
+        let original = now - chrono::Duration::days(20);
         assert_eq!(
-            parsed.early_access_token_hash,
-            state.early_access_token_hash
+            authentication_deadline(Some(original), now).unwrap(),
+            original + chrono::Duration::days(30)
         );
     }
-
-    #[test]
-    fn google_oauth_state_accepts_previous_callback_only_payloads() {
-        let parsed = parse_google_oauth_state("/workspace");
-
-        assert_eq!(parsed.callback_path, "/workspace");
-        assert!(parsed.early_access_token_hash.is_none());
-    }
-}
-
-pub async fn account_check(
-    pool: web::Data<PgPool>,
-    body: web::Json<AccountCheckRequest>,
-) -> Result<HttpResponse, AppError> {
-    let Some(email) = body.email.as_ref().map(|value| value.trim().to_lowercase()) else {
-        return Ok(HttpResponse::Ok().json(serde_json::json!({ "provider": null })));
-    };
-
-    if email.is_empty() {
-        return Ok(HttpResponse::Ok().json(serde_json::json!({ "provider": null })));
-    }
-
-    let user = sqlx::query_as::<_, User>(
-        r#"
-        SELECT
-            id,
-            name,
-            email,
-            phone,
-            image,
-            password,
-            "emailVerified" AT TIME ZONE 'UTC' AS "emailVerified",
-            "createdAt" AT TIME ZONE 'UTC' AS "createdAt",
-            "updatedAt" AT TIME ZONE 'UTC' AS "updatedAt"
-        FROM "User"
-        WHERE lower(email) = lower($1)
-        LIMIT 1
-        "#,
-    )
-    .bind(&email)
-    .fetch_optional(pool.get_ref())
-    .await?;
-
-    let Some(user) = user else {
-        return Ok(HttpResponse::Ok().json(serde_json::json!({ "provider": null })));
-    };
-
-    let google_accounts = sqlx::query_scalar::<_, i64>(
-        r#"SELECT COUNT(*) FROM "Account" WHERE "userId" = $1 AND provider = 'google'"#,
-    )
-    .bind(&user.id)
-    .fetch_one(pool.get_ref())
-    .await?;
-
-    let provider = match (google_accounts > 0, user.password.is_some()) {
-        (true, true) => Some("both"),
-        (true, false) => Some("google"),
-        (false, true) => Some("credentials"),
-        (false, false) => None,
-    };
-
-    Ok(HttpResponse::Ok().json(serde_json::json!({ "provider": provider })))
-}
-
-pub async fn resend_verification(
-    pool: web::Data<PgPool>,
-    config: web::Data<AppConfig>,
-    body: web::Json<ResendVerificationRequest>,
-) -> Result<HttpResponse, AppError> {
-    let email = body
-        .email
-        .as_ref()
-        .map(|value| value.trim().to_lowercase())
-        .filter(|value| !value.is_empty());
-
-    if let Some(email) = email {
-        let user = sqlx::query_as::<_, User>(
-            r#"
-            SELECT id, name, email, phone, image, password,
-                   "emailVerified" AT TIME ZONE 'UTC' AS "emailVerified",
-                   "createdAt" AT TIME ZONE 'UTC' AS "createdAt",
-                   "updatedAt" AT TIME ZONE 'UTC' AS "updatedAt"
-            FROM "User"
-            WHERE lower(email) = lower($1)
-            LIMIT 1
-            "#,
-        )
-        .bind(&email)
-        .fetch_optional(pool.get_ref())
-        .await?;
-
-        if user.is_some_and(|user| user.email_verified.is_none()) {
-            send_account_verification_email(pool.get_ref(), config.get_ref(), &email).await?;
-        }
-    }
-
-    Ok(HttpResponse::Ok().json(serde_json::json!({
-        "message": "If this account needs verification, we sent a new verification link."
-    })))
-}
-
-pub async fn send_otp(
-    pool: web::Data<PgPool>,
-    config: web::Data<AppConfig>,
-    body: web::Json<SendOtpRequest>,
-) -> Result<HttpResponse, AppError> {
-    let phone = body
-        .phone
-        .as_ref()
-        .map(|value| value.trim().to_string())
-        .filter(|value| !value.is_empty())
-        .ok_or_else(|| AppError::BadRequest("Phone number is required".to_string()))?;
-
-    let code = format!("{:06}", rand::thread_rng().gen_range(0..=999999));
-    let identifier = format!("phone:{phone}");
-
-    sqlx::query(r#"DELETE FROM "VerificationToken" WHERE identifier = $1"#)
-        .bind(&identifier)
-        .execute(pool.get_ref())
-        .await?;
-
-    sqlx::query(
-        r#"
-        INSERT INTO "VerificationToken" (identifier, token, expires)
-        VALUES ($1, $2, NOW() + INTERVAL '10 minutes')
-        "#,
-    )
-    .bind(&identifier)
-    .bind(&code)
-    .execute(pool.get_ref())
-    .await?;
-
-    send_sms_message(
-        config.get_ref(),
-        &phone,
-        &format!("Your KasiTek verification code is: {code}"),
-    )
-    .await?;
-
-    Ok(HttpResponse::Ok().json(serde_json::json!({ "message": "OTP sent" })))
-}
-
-pub async fn verify_otp(
-    pool: web::Data<PgPool>,
-    body: web::Json<VerifyOtpRequest>,
-) -> Result<HttpResponse, AppError> {
-    let phone = body
-        .phone
-        .as_ref()
-        .map(|value| value.trim().to_string())
-        .filter(|value| !value.is_empty())
-        .ok_or_else(|| AppError::BadRequest("Phone number and code are required".to_string()))?;
-    let code = body
-        .code
-        .as_ref()
-        .map(|value| value.trim().to_string())
-        .filter(|value| !value.is_empty())
-        .ok_or_else(|| AppError::BadRequest("Phone number and code are required".to_string()))?;
-
-    let deleted = sqlx::query(
-        r#"
-        DELETE FROM "VerificationToken"
-        WHERE identifier = $1
-          AND token = $2
-          AND expires > NOW()
-        "#,
-    )
-    .bind(format!("phone:{phone}"))
-    .bind(code)
-    .execute(pool.get_ref())
-    .await?;
-
-    if deleted.rows_affected() == 0 {
-        return Err(AppError::BadRequest(
-            "Invalid or expired code. Please try again.".to_string(),
-        ));
-    }
-
-    Ok(HttpResponse::Ok().json(serde_json::json!({ "verified": true })))
-}
-
-pub async fn verify_email(
-    pool: web::Data<PgPool>,
-    config: web::Data<AppConfig>,
-    query: web::Query<std::collections::HashMap<String, String>>,
-) -> Result<HttpResponse, AppError> {
-    let token = query
-        .get("token")
-        .map(|value| value.trim().to_string())
-        .filter(|value| !value.is_empty())
-        .ok_or_else(|| AppError::BadRequest("Missing token".to_string()))?;
-    let email = query
-        .get("email")
-        .map(|value| value.trim().to_lowercase())
-        .filter(|value| !value.is_empty())
-        .ok_or_else(|| AppError::BadRequest("Missing email".to_string()))?;
-
-    let deleted = sqlx::query(
-        r#"
-        DELETE FROM "VerificationToken"
-        WHERE identifier = $1
-          AND token = $2
-          AND expires > NOW()
-        "#,
-    )
-    .bind(&email)
-    .bind(&token)
-    .execute(pool.get_ref())
-    .await?;
-
-    if deleted.rows_affected() == 0 {
-        return Err(AppError::BadRequest(
-            "Invalid or expired verification token".to_string(),
-        ));
-    }
-
-    sqlx::query(
-        r#"
-        UPDATE "User"
-        SET "emailVerified" = NOW(), "updatedAt" = NOW()
-        WHERE lower(email) = lower($1)
-        "#,
-    )
-    .bind(&email)
-    .execute(pool.get_ref())
-    .await?;
-
-    sqlx::query(
-        r#"DELETE FROM "Session" WHERE "userId" IN (
-            SELECT id FROM "User" WHERE lower(email) = lower($1)
-        )"#,
-    )
-    .bind(&email)
-    .execute(pool.get_ref())
-    .await?;
-
-    Ok(HttpResponse::Found()
-        .cookie(config.clear_user_session_cookie())
-        .append_header((
-            "Location",
-            format!(
-                "{}/verify-request?verified=true&email={}",
-                config.frontend_url.trim_end_matches('/'),
-                urlencoding::encode(&email)
-            ),
-        ))
-        .finish())
-}
-
-pub async fn request_password_setup(
-    pool: web::Data<PgPool>,
-    config: web::Data<AppConfig>,
-    body: web::Json<PasswordSetupRequest>,
-) -> Result<HttpResponse, AppError> {
-    let email = body
-        .email
-        .as_ref()
-        .map(|value| value.trim().to_lowercase())
-        .filter(|value| !value.is_empty())
-        .ok_or_else(|| AppError::BadRequest("Email is required".to_string()))?;
-
-    let exists = sqlx::query_scalar::<_, i64>(
-        r#"SELECT COUNT(*) FROM "User" WHERE lower(email) = lower($1)"#,
-    )
-    .bind(&email)
-    .fetch_one(pool.get_ref())
-    .await?;
-
-    if exists == 0 {
-        return Err(AppError::NotFound("User not found".to_string()));
-    }
-
-    let token = issue_verification_token(pool.get_ref(), &email).await?;
-    let setup_url = format!(
-        "{}/set-password?token={}&email={}",
-        config.auth_url,
-        token,
-        urlencoding::encode(&email)
-    );
-
-    let _ = send_email(
-        config.get_ref(),
-        &email,
-        "Set up your KasiTek password",
-        &format!("Use this link to set your password: {}", setup_url),
-    )
-    .await;
-
-    Ok(HttpResponse::Ok().json(serde_json::json!({
-        "message": "Password setup email sent"
-    })))
-}
-
-pub async fn set_password(
-    pool: web::Data<PgPool>,
-    body: web::Json<SetPasswordRequest>,
-) -> Result<HttpResponse, AppError> {
-    let email = body
-        .email
-        .as_ref()
-        .map(|value| value.trim().to_lowercase())
-        .filter(|value| !value.is_empty())
-        .ok_or_else(|| AppError::BadRequest("Email is required".to_string()))?;
-    let token = body
-        .token
-        .as_ref()
-        .map(|value| value.trim().to_string())
-        .filter(|value| !value.is_empty())
-        .ok_or_else(|| AppError::BadRequest("Token is required".to_string()))?;
-    let password = body
-        .password
-        .as_ref()
-        .map(|value| value.trim().to_string())
-        .filter(|value| !value.is_empty())
-        .ok_or_else(|| AppError::BadRequest("Password is required".to_string()))?;
-
-    if password.len() < 8 {
-        return Err(AppError::BadRequest(
-            "Password must be at least 8 characters".to_string(),
-        ));
-    }
-
-    let deleted = sqlx::query(
-        r#"
-        DELETE FROM "VerificationToken"
-        WHERE identifier = $1
-          AND token = $2
-          AND expires > NOW()
-        "#,
-    )
-    .bind(&email)
-    .bind(&token)
-    .execute(pool.get_ref())
-    .await?;
-
-    if deleted.rows_affected() == 0 {
-        return Err(AppError::BadRequest(
-            "Invalid or expired password setup token".to_string(),
-        ));
-    }
-
-    let password_hash = hash(password, DEFAULT_COST)?;
-    sqlx::query(
-        r#"
-        UPDATE "User"
-        SET password = $1, "updatedAt" = NOW()
-        WHERE lower(email) = lower($2)
-        "#,
-    )
-    .bind(password_hash)
-    .bind(email)
-    .execute(pool.get_ref())
-    .await?;
-
-    Ok(HttpResponse::Ok().json(serde_json::json!({
-        "message": "Password updated"
-    })))
 }

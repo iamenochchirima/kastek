@@ -1,5 +1,5 @@
 import CampaignCreateForm from "@/components/dashboard/campaigns/campaign-create-form";
-import { getRustSession } from "@/lib/rust-auth";
+import { getWorkspaceSession } from "@/lib/rust-auth";
 import { fetchRustJson } from "@/lib/rust-server-api";
 import { redirect } from "next/navigation";
 import { MotionReveal } from "@/components/ui/motion-reveal";
@@ -9,7 +9,7 @@ export const metadata = {
 };
 
 export default async function ReachCampaignsCreatePage() {
-  const session = await getRustSession();
+  const session = await getWorkspaceSession();
   if (!session?.user?.id) redirect("/login");
 
   const [connectionResponse, templateResponse, contactResponse] = await Promise.all([

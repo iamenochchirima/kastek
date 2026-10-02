@@ -3,6 +3,10 @@ import type { NextConfig } from "next";
 const publicSiteUrl = "https://kasitek.co.za";
 
 const nextConfig: NextConfig = {
+  // Login callbacks contain one-time authorization codes; invitation URLs contain secrets.
+  logging: {
+    incomingRequests: { ignore: [/\/api\/auth(?:\/|\?)/, /\/(?:invite|early-access)\//] },
+  },
   // Keep Next's development indicator out of the fixed dashboard sidebar.
   devIndicators: { position: "bottom-right" },
   // The development client is served through this public hostname. Next uses

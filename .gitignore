@@ -43,6 +43,7 @@ yarn-error.log*
 !.env.vault
 !**/.env.vault
 !**/.env.example
+!server/kasitek-core/.env.identity.example
 
 # vercel
 .vercel

@@ -1,4 +1,4 @@
-import { getRustSession } from "@/lib/rust-auth";
+import { getWorkspaceSession } from "@/lib/rust-auth";
 import { fetchOrgs, fetchOrgMembers, getActiveOrgId, type Org } from "@/lib/orgs";
 import { fetchBillingCredits, fetchBillingPlans, fetchBillingSummary, fetchBillingUsage } from "@/lib/billing";
 import { fetchRustJson } from "@/lib/rust-server-api";
@@ -20,7 +20,7 @@ export default async function WorkspaceSettingsPage({
   searchParams: Promise<SettingsSearchParams>;
 }) {
   const { section, payment, reference, trxref } = await searchParams;
-  const session = await getRustSession();
+  const session = await getWorkspaceSession();
   if (!session?.user?.id) redirect("/login");
   const sectionValue = Array.isArray(section) ? section[0] : section;
   if (sectionValue === "api-keys") redirect("/developers/api-keys");

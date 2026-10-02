@@ -45,7 +45,7 @@ export function InviteLookupClient() {
         <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-primary/20 bg-primary/10 text-primary">
           <Mail className="h-6 w-6" aria-hidden="true" />
         </div>
-        <p className="mt-5 text-xs font-semibold uppercase tracking-[0.18em] text-primary">Early access</p>
+        <p className="mt-5 text-xs font-semibold uppercase tracking-[0.18em] text-primary">Organization invitation</p>
         <h1 className="mt-2 text-2xl font-semibold tracking-tight text-foreground">Redeem invitation</h1>
         <p className="mt-2 text-sm leading-6 text-muted-foreground">
           Paste the invitation link from your email.

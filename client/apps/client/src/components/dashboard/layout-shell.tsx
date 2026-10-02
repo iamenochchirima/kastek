@@ -15,7 +15,6 @@ import {
   Cable,
   CalendarDays,
   CalendarCheck,
-  ChartColumn,
   Code2,
   ChevronDown,
   ChevronsLeft,
@@ -28,7 +27,6 @@ import {
   Inbox,
   LayoutGrid,
   LockKeyhole,
-  LogOut,
   Menu,
   Moon,
   PhoneCall,
@@ -41,7 +39,7 @@ import {
   Users,
 } from "lucide-react";
 import Image from "next/image";
-import { apiUrl } from "@/lib/server-api";
+import { AccountMenuItems } from "@/components/auth/account-menu-items";
 import Link from "next/link";
 import { AnimatePresence, motion, MotionConfig } from "framer-motion";
 import { usePathname } from "next/navigation";
@@ -263,18 +261,7 @@ function DesktopTopbar({
               <HelpCircle className="mr-2 size-4" />Take a tour
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem
-              className="text-destructive focus:text-destructive"
-              onSelect={(event) => {
-                event.preventDefault();
-                void (async () => {
-                  await fetch(apiUrl("/api/auth/logout"), { method: "POST", credentials: "include" });
-                  window.location.assign("/");
-                })();
-              }}
-            >
-              <LogOut className="mr-2 size-4" />Log out
-            </DropdownMenuItem>
+            <AccountMenuItems />
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
@@ -355,18 +342,7 @@ function MobileTopbar({
             <HelpCircle className="mr-2 h-4 w-4" />Take a tour
           </DropdownMenuItem>
           <DropdownMenuSeparator />
-          <DropdownMenuItem
-            className="text-destructive focus:text-destructive"
-            onSelect={(event) => {
-              event.preventDefault();
-              void (async () => {
-                await fetch(apiUrl("/api/auth/logout"), { method: "POST", credentials: "include" });
-                window.location.assign("/");
-              })();
-            }}
-          >
-            <LogOut className="mr-2 h-4 w-4" />Log out
-          </DropdownMenuItem>
+          <AccountMenuItems />
         </DropdownMenuContent>
       </DropdownMenu>
     </div>

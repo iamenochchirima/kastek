@@ -1,6 +1,6 @@
 ---
 owner: engineering
-last_reviewed: 2026-10-01
+last_reviewed: 2026-10-02
 ---
 
 # Feature map
@@ -18,6 +18,7 @@ Routes below are under `client/apps/client/src/app/`.
 
 | Feature area | User entry point | Source route | Verification starting point |
 | --- | --- | --- | --- |
+| Shared login | `/login`, `/signup`, `/auth-error`, `/onboarding`, `/invite/<token>`, workspace Account security | `(auth)/`, `onboarding/`, `invite/`, `components/auth/` | Provider login, registration and account management use Labs Keycloak through Core. [Frontend contracts and verification](../internal/development/shared-login-frontend.md). Browser verification requires the configured Labs identity runtime, Core database and email delivery; Google additionally needs its configured OAuth client. |
 | Campaigns | `/campaigns` | `(dashboard)/campaigns/page.tsx` | Run the client locally, open the route, then follow the task's real campaign path and inspect its visible/API result. |
 | Contacts | `/contacts` | `(dashboard)/contacts/page.tsx` | Run the client locally, open the list and a contact detail, and verify the requested change in the UI and its backing API. |
 | Inbox | `/inbox` | `(dashboard)/inbox/page.tsx` | Run the required local services, open the inbox, and verify the conversation action and resulting state. |

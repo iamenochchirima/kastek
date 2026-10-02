@@ -1,4 +1,4 @@
-import { getRustSession } from "@/lib/rust-auth";
+import { getWorkspaceSession } from "@/lib/rust-auth";
 import { redirect } from "next/navigation";
 import { CreateOrgForm } from "./create-org-form";
 import { MotionReveal } from "@/components/ui/motion-reveal";
@@ -6,7 +6,7 @@ import { MotionReveal } from "@/components/ui/motion-reveal";
 export const metadata = { title: "Create Organisation | KasiTek" };
 
 export default async function NewOrgPage() {
-  const session = await getRustSession();
+  const session = await getWorkspaceSession();
   if (!session?.user?.id) redirect("/login");
   return (
     <div className="min-h-[100dvh] space-y-6 p-4 sm:p-6 lg:p-8">

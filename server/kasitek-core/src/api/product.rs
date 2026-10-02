@@ -110,44 +110,26 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
     cfg.service(
         web::scope("/api/invitations")
             .route("/{token}", web::get().to(orgs::get_invitation_preview))
-            .route(
-                "/{token}/activate",
-                web::post().to(orgs::activate_invitation),
-            )
             .route("/{token}/accept", web::post().to(orgs::accept_invitation)),
     );
     cfg.service(
         web::scope("/api/auth")
-            .route("/signup", web::post().to(auth::signup))
-            .route("/login", web::post().to(auth::login))
+            .route("/login", web::get().to(auth::login))
+            .route("/callback", web::get().to(auth::callback))
             .route("/logout", web::post().to(auth::logout))
-            .route("/me", web::get().to(auth::me))
-            .route("/google/start", web::get().to(auth::start_google_oauth))
+            .route("/logout-all", web::post().to(auth::logout_all))
             .route(
-                "/google/callback",
-                web::get().to(auth::google_oauth_callback),
+                "/backchannel-logout",
+                web::post().to(auth::backchannel_logout),
             )
-            .route("/account-check", web::post().to(auth::account_check))
-            .route(
-                "/resend-verification",
-                web::post().to(auth::resend_verification),
-            )
-            .route("/send-otp", web::post().to(auth::send_otp))
-            .route("/verify-otp", web::post().to(auth::verify_otp))
-            .route("/verify-email", web::get().to(auth::verify_email))
-            .route(
-                "/request-password-setup",
-                web::post().to(auth::request_password_setup),
-            )
-            .route("/set-password", web::post().to(auth::set_password)),
+            .route("/account", web::get().to(auth::account))
+            .route("/activity", web::post().to(auth::activity))
+            .route("/me", web::get().to(auth::me)),
     );
     cfg.service(
         web::scope("/api/profile")
             .route("", web::get().to(profile::get))
-            .route("", web::patch().to(profile::patch))
-            .route("/email", web::post().to(profile::request_email_change))
-            .route("/email/verify", web::get().to(profile::verify_email_change))
-            .route("/password", web::patch().to(profile::change_password)),
+            .route("", web::patch().to(profile::patch)),
     );
     cfg.service(
         web::scope("/api/onboarding")

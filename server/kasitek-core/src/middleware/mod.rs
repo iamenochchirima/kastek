@@ -2,7 +2,7 @@ use actix_web::HttpRequest;
 use sqlx::PgPool;
 
 use crate::config::{ADMIN_SESSION_COOKIE, USER_SESSION_COOKIE};
-use crate::db::models::{AdminUser, SessionRecord, User};
+use crate::db::models::{AdminUser, User};
 use crate::error::AppError;
 use crate::services::orgs;
 
@@ -32,21 +32,24 @@ pub async fn extract_user_allow_unverified(
     req: &HttpRequest,
     pool: &PgPool,
 ) -> Result<User, AppError> {
+    if req.cookie(USER_SESSION_COOKIE).is_some()
+        && !matches!(
+            *req.method(),
+            actix_web::http::Method::GET
+                | actix_web::http::Method::HEAD
+                | actix_web::http::Method::OPTIONS
+        )
+    {
+        let config = req
+            .app_data::<actix_web::web::Data<crate::config::AppConfig>>()
+            .ok_or(AppError::Unauthorized)?;
+        crate::controllers::auth::require_origin(req, config)?;
+    }
     let token = extract_user_session_token(req).ok_or(AppError::Unauthorized)?;
 
-    let session = sqlx::query_as::<_, SessionRecord>(
-        r#"
-        SELECT id, "sessionToken", "userId", expires AT TIME ZONE 'UTC' AS expires
-        FROM "Session"
-        WHERE "sessionToken" = $1 AND expires > NOW()
-        "#,
-    )
-    .bind(token)
-    .fetch_optional(pool)
-    .await?
-    .ok_or(AppError::Unauthorized)?;
-
-    let _ = (&session.id, &session.session_token, &session.expires);
+    let user_id =
+        crate::services::identity::check_session(pool, &crypto_utils::sha256_hex(&token), req)
+            .await?;
 
     let user = sqlx::query_as::<_, User>(
         r#"
@@ -64,7 +67,7 @@ pub async fn extract_user_allow_unverified(
         WHERE id = $1
         "#,
     )
-    .bind(session.user_id)
+    .bind(user_id)
     .fetch_optional(pool)
     .await?
     .ok_or(AppError::Unauthorized)?;
@@ -158,5 +161,36 @@ mod tests {
             ))
             .to_http_request();
         assert_eq!(active_org_cookie(&request).as_deref(), Some("org-a"));
+    }
+}
+
+#[cfg(test)]
+mod csrf_tests {
+    use super::*;
+    #[actix_web::test]
+    async fn cookie_mutations_cannot_skip_origin_validation_when_configuration_is_missing() {
+        let pool = sqlx::postgres::PgPoolOptions::new()
+            .connect_lazy("postgres://unused:unused@127.0.0.1:1/unused")
+            .unwrap();
+        for method in [
+            actix_web::http::Method::POST,
+            actix_web::http::Method::PUT,
+            actix_web::http::Method::PATCH,
+            actix_web::http::Method::DELETE,
+        ] {
+            let req = actix_web::test::TestRequest::default()
+                .method(method)
+                .uri("/api/orgs")
+                .cookie(actix_web::cookie::Cookie::new(
+                    USER_SESSION_COOKIE,
+                    "opaque",
+                ))
+                .insert_header(("Origin", "https://other.example.test"))
+                .to_http_request();
+            assert!(matches!(
+                extract_user_allow_unverified(&req, &pool).await,
+                Err(AppError::Unauthorized)
+            ));
+        }
     }
 }

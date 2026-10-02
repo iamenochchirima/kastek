@@ -1,14 +1,5 @@
-import { VerifyEmailRequest } from "./verify-email-request";
+import { redirect } from "next/navigation";
 
-export const metadata = {
-  title: "Check Your Email | KasiTek",
-};
-
-export default async function VerifyRequestPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ email?: string; verified?: string }>;
-}) {
-  const { email, verified } = await searchParams;
-  return <VerifyEmailRequest initialEmail={email ?? ""} verified={verified === "true"} />;
+export default function AccountPage() {
+  redirect("/api/auth/account");
 }

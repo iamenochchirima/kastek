@@ -1,6 +1,6 @@
 import { UpgradePage } from "@/components/dashboard/billing/upgrade-page";
 import { fetchBillingPlans, fetchBillingSummary } from "@/lib/billing";
-import { getRustSession } from "@/lib/rust-auth";
+import { getWorkspaceSession } from "@/lib/rust-auth";
 import { redirect } from "next/navigation";
 
 export const metadata = {
@@ -8,7 +8,7 @@ export const metadata = {
 };
 
 export default async function UpgradeRoute() {
-  const session = await getRustSession();
+  const session = await getWorkspaceSession();
   if (!session?.user?.id) redirect("/login");
 
   const [planResponse, summary] = await Promise.all([

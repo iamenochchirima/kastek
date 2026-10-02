@@ -220,6 +220,19 @@ mod tests {
 
 impl From<sqlx::Error> for AppError {
     fn from(error: sqlx::Error) -> Self {
+        if let Some(database) = error
+            .as_database_error()
+            .and_then(|db| db.try_downcast_ref::<sqlx::postgres::PgDatabaseError>())
+        {
+            observability::tracing::error!(
+                event = "database.query.failed",
+                sqlstate = database.code(),
+                table = database.table().unwrap_or(""),
+                column = database.column().unwrap_or(""),
+                constraint = database.constraint().unwrap_or(""),
+                "Database query rejected"
+            );
+        }
         observability::tracing::error!(
             event = "dependency.unavailable",
             dependency = "postgres",

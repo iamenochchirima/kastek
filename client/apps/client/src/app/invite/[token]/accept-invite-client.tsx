@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { CheckCircle, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { loginUrl } from "@/lib/shared-login";
 import { apiUrl } from "@/lib/server-api";
 import type { InvitationPreview } from "@/lib/orgs";
 import { MotionReveal } from "@/components/ui/motion-reveal";
@@ -29,9 +29,6 @@ export function AcceptInviteClient({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [accepted, setAccepted] = useState(false);
-  const [name, setName] = useState("");
-  const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
 
   if (!invitation) {
     return (
@@ -97,57 +94,23 @@ export function AcceptInviteClient({
     setLoading(true);
     setError(null);
 
-    const res = await fetch(apiUrl(`/api/invitations/${token}/accept`), {
-      method: "POST",
-      credentials: "include",
-    });
-
-    setLoading(false);
-
-    if (res.ok) {
+    try {
+      const res = await fetch(apiUrl(`/api/invitations/${encodeURIComponent(token)}/accept`), {
+        method: "POST",
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error ?? "Failed to accept invitation");
+      }
       setAccepted(true);
-      setTimeout(() => {
-        router.push("/workspace");
-        router.refresh();
-      }, 1500);
-    } else {
-      const data = await res.json().catch(() => ({}));
-      setError(data.error ?? "Failed to accept invitation");
+      router.push("/workspace");
+      router.refresh();
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Failed to accept invitation");
+    } finally {
+      setLoading(false);
     }
-  }
-
-  async function handleActivation(e: React.FormEvent) {
-    e.preventDefault();
-    if (password.length < 8) {
-      setError("Password must be at least 8 characters.");
-      return;
-    }
-    if (password !== confirmPassword) {
-      setError("Passwords do not match.");
-      return;
-    }
-
-    setLoading(true);
-    setError(null);
-    const res = await fetch(apiUrl(`/api/invitations/${token}/activate`), {
-      method: "POST",
-      credentials: "include",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, password }),
-    });
-    setLoading(false);
-
-    if (res.ok) {
-      setAccepted(true);
-      setTimeout(() => {
-        router.push("/workspace");
-        router.refresh();
-      }, 1200);
-      return;
-    }
-
-    const data = await res.json().catch(() => ({}));
-    setError(data.error ?? "We could not activate this invitation.");
   }
 
   if (accepted) {
@@ -216,20 +179,10 @@ export function AcceptInviteClient({
             {loading ? "Joining…" : `Join ${invitation.orgName}`}
           </Button>
         ) : (
-          <form onSubmit={handleActivation} className="space-y-3">
-            <p className="text-sm text-muted-foreground">Create your account to join this workspace.</p>
-            <label className="block text-sm font-medium text-foreground">Name
-              <Input value={name} onChange={(event) => setName(event.target.value)} required className="mt-1.5" placeholder="Your name" />
-            </label>
-            <label className="block text-sm font-medium text-foreground">Password
-              <Input type="password" value={password} onChange={(event) => setPassword(event.target.value)} required minLength={8} className="mt-1.5" placeholder="At least 8 characters" />
-            </label>
-            <label className="block text-sm font-medium text-foreground">Confirm password
-              <Input type="password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} required minLength={8} className="mt-1.5" placeholder="Confirm your password" />
-            </label>
-            <Button type="submit" disabled={loading} className="w-full" size="lg">{loading ? "Creating account…" : "Create account and join"}</Button>
-            <p className="text-center text-xs text-muted-foreground">Already have an account? <button type="button" onClick={() => router.push(`/login?callbackUrl=${encodeURIComponent(`/invite/${token}`)}`)} className="text-primary hover:underline">Sign in</button></p>
-          </form>
+          <div className="space-y-3">
+            <Button asChild className="w-full" size="lg"><a href={loginUrl(`/invite/${encodeURIComponent(token)}`, true)}>Create account</a></Button>
+            <Button asChild variant="outline" className="w-full"><a href={loginUrl(`/invite/${encodeURIComponent(token)}`)}>Sign in</a></Button>
+          </div>
         )}
 
         <p className="text-center text-xs text-muted-foreground">

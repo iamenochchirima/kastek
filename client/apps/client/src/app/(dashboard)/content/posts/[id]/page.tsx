@@ -1,5 +1,5 @@
 import { notFound, redirect } from "next/navigation";
-import { getRustSession } from "@/lib/rust-auth";
+import { getWorkspaceSession } from "@/lib/rust-auth";
 import { fetchRustJson } from "@/lib/rust-server-api";
 import { PostDetailPageClient } from "@/components/social/post-detail-page-client";
 import type { SocialPost } from "@/components/social/social-shared";
@@ -11,7 +11,7 @@ export default async function ContentPostDetailPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const session = await getRustSession();
+  const session = await getWorkspaceSession();
   if (!session?.user?.id) redirect("/login");
 
   const { id } = await params;

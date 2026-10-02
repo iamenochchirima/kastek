@@ -1,4 +1,4 @@
-import { getRustSession } from "@/lib/rust-auth";
+import { getWorkspaceSession } from "@/lib/rust-auth";
 import { fetchOrgs, fetchOrgMembers, fetchOrgInvitations, getActiveOrgId } from "@/lib/orgs";
 import { redirect } from "next/navigation";
 import { TeamPageClient } from "./team-page-client";
@@ -7,7 +7,7 @@ import type { Org, OrgMember, OrgInvitation } from "@/lib/orgs";
 export const metadata = { title: "Team | KasiTek" };
 
 export default async function TeamPage() {
-  const session = await getRustSession();
+  const session = await getWorkspaceSession();
   if (!session?.user?.id) redirect("/login");
 
   const orgs = await fetchOrgs();

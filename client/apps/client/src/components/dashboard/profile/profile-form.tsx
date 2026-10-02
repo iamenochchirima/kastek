@@ -1,10 +1,11 @@
 "use client";
 
 import { apiUrl } from "@/lib/server-api";
-import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import SignOutButton from "@/components/auth/sign-out-button";
 
 type ProfileFormProps = {
   user: {
@@ -13,7 +14,6 @@ type ProfileFormProps = {
     emailVerified: boolean;
     phone: string | null;
     image: string | null;
-    hasPassword: boolean;
   };
 };
 
@@ -36,7 +36,6 @@ function Notice({
 
 export default function ProfileForm({ user }: ProfileFormProps) {
   const router = useRouter();
-  const searchParams = useSearchParams();
 
   const [name, setName] = useState(user.name || "");
   const [phone, setPhone] = useState(user.phone || "");
@@ -44,29 +43,6 @@ export default function ProfileForm({ user }: ProfileFormProps) {
   const [savingProfile, setSavingProfile] = useState(false);
   const [profileError, setProfileError] = useState("");
   const [profileNotice, setProfileNotice] = useState("");
-
-  const [nextEmail, setNextEmail] = useState(user.email || "");
-  const [emailSaving, setEmailSaving] = useState(false);
-  const [emailError, setEmailError] = useState("");
-  const [emailNotice, setEmailNotice] = useState("");
-
-  const [currentPassword, setCurrentPassword] = useState("");
-  const [nextPassword, setNextPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [passwordSaving, setPasswordSaving] = useState(false);
-  const [passwordError, setPasswordError] = useState("");
-  const [passwordNotice, setPasswordNotice] = useState("");
-
-  useEffect(() => {
-    const emailChange = searchParams.get("emailChange");
-    if (emailChange === "success") {
-      setEmailNotice("Email address updated successfully.");
-      setEmailError("");
-    } else if (emailChange === "conflict") {
-      setEmailError("That email address is no longer available. Try another one.");
-      setEmailNotice("");
-    }
-  }, [searchParams]);
 
   async function onProfileSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -97,74 +73,6 @@ export default function ProfileForm({ user }: ProfileFormProps) {
       setProfileError(err instanceof Error ? err.message : "Failed to update profile");
     } finally {
       setSavingProfile(false);
-    }
-  }
-
-  async function onEmailSubmit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setEmailSaving(true);
-    setEmailError("");
-    setEmailNotice("");
-
-    try {
-      const res = await fetch(apiUrl("/api/profile/email"), {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: nextEmail.trim() }),
-      });
-
-      const body = await res.json();
-      if (!res.ok) {
-        throw new Error(body.error || "Failed to start email change");
-      }
-
-      setEmailNotice(body.message || "Verification email sent.");
-    } catch (err) {
-      setEmailError(err instanceof Error ? err.message : "Failed to start email change");
-    } finally {
-      setEmailSaving(false);
-    }
-  }
-
-  async function onPasswordSubmit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setPasswordSaving(true);
-    setPasswordError("");
-    setPasswordNotice("");
-
-    try {
-      if (nextPassword.length < 8) {
-        throw new Error("New password must be at least 8 characters");
-      }
-
-      if (nextPassword !== confirmPassword) {
-        throw new Error("New password and confirmation do not match");
-      }
-
-      const res = await fetch(apiUrl("/api/profile/password"), {
-        method: "PATCH",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          currentPassword,
-          nextPassword,
-        }),
-      });
-
-      const body = await res.json();
-      if (!res.ok) {
-        throw new Error(body.error || "Failed to update password");
-      }
-
-      setCurrentPassword("");
-      setNextPassword("");
-      setConfirmPassword("");
-      setPasswordNotice(body.message || "Password updated.");
-    } catch (err) {
-      setPasswordError(err instanceof Error ? err.message : "Failed to update password");
-    } finally {
-      setPasswordSaving(false);
     }
   }
 
@@ -236,125 +144,16 @@ export default function ProfileForm({ user }: ProfileFormProps) {
           </div>
         </form>
 
-        <form onSubmit={onEmailSubmit} className="rounded-xl border border-border bg-card p-6">
-          <div className="mb-6">
-            <h2 className="text-xl font-semibold tracking-tight text-foreground">Email address</h2>
-            <p className="mt-2 text-sm text-muted-foreground">
-              Change your sign-in email. We will verify the new address before switching it.
-            </p>
+        <section className="space-y-4 rounded-xl border border-border bg-card p-6">
+          <h2 className="text-xl font-semibold">Account security</h2>
+          <p className="break-all text-sm text-muted-foreground">{user.email}</p>
+          <p className="text-sm text-muted-foreground">Manage password, Google, passkeys and two-factor authentication.</p>
+          <Button asChild variant="outline"><a href={apiUrl("/api/auth/account")}>Manage account</a></Button>
+          <div className="flex flex-wrap gap-3">
+            <SignOutButton />
+            <SignOutButton allDevices />
           </div>
-
-          <div className="mb-4 grid gap-4 md:grid-cols-2">
-            <label className="block">
-              <span className="mb-2 block text-sm font-medium text-foreground">Current email</span>
-              <Input
-                value={user.email || ""}
-                readOnly
-                className="bg-secondary/70 text-muted-foreground"
-              />
-            </label>
-
-            <label className="block">
-              <span className="mb-2 block text-sm font-medium text-foreground">New email</span>
-              <Input
-                value={nextEmail}
-                onChange={(event) => setNextEmail(event.target.value)}
-                placeholder="name@example.com"
-              />
-            </label>
-          </div>
-
-          <div className="mb-4">
-            <Notice
-              tone="info"
-              message={
-                user.emailVerified
-                  ? "Your current email is verified."
-                  : "Your current email is not verified yet."
-              }
-            />
-          </div>
-
-          {(emailError || emailNotice) &&
-            (emailError ? (
-              <div className="mb-4">
-                <Notice tone="error" message={emailError} />
-              </div>
-            ) : (
-              <div className="mb-4">
-                <Notice tone="success" message={emailNotice} />
-              </div>
-            ))}
-
-          <Button
-            type="submit"
-            disabled={emailSaving}
-          >
-            {emailSaving ? "Sending..." : "Send verification link"}
-          </Button>
-        </form>
-
-        <form onSubmit={onPasswordSubmit} className="rounded-xl border border-border bg-card p-6">
-          <div className="mb-6">
-            <h2 className="text-xl font-semibold tracking-tight text-foreground">Password</h2>
-            <p className="mt-2 text-sm text-muted-foreground">
-              {user.hasPassword
-                ? "Change your current password."
-                : "You do not have a password yet. Set one now for email sign-in."}
-            </p>
-          </div>
-
-          <div className="grid gap-4 md:grid-cols-2">
-            {user.hasPassword ? (
-              <label className="block md:col-span-2">
-                <span className="mb-2 block text-sm font-medium text-foreground">Current password</span>
-                <Input
-                  type="password"
-                  value={currentPassword}
-                  onChange={(event) => setCurrentPassword(event.target.value)}
-                />
-              </label>
-            ) : null}
-
-            <label className="block">
-              <span className="mb-2 block text-sm font-medium text-foreground">New password</span>
-              <Input
-                type="password"
-                value={nextPassword}
-                onChange={(event) => setNextPassword(event.target.value)}
-              />
-            </label>
-
-            <label className="block">
-              <span className="mb-2 block text-sm font-medium text-foreground">Confirm new password</span>
-              <Input
-                type="password"
-                value={confirmPassword}
-                onChange={(event) => setConfirmPassword(event.target.value)}
-              />
-            </label>
-          </div>
-
-          {(passwordError || passwordNotice) &&
-            (passwordError ? (
-              <div className="mb-4 mt-4">
-                <Notice tone="error" message={passwordError} />
-              </div>
-            ) : (
-              <div className="mb-4 mt-4">
-                <Notice tone="success" message={passwordNotice} />
-              </div>
-            ))}
-
-          <div className="mt-5">
-            <Button
-              type="submit"
-              disabled={passwordSaving}
-            >
-              {passwordSaving ? "Saving..." : user.hasPassword ? "Change password" : "Set password"}
-            </Button>
-          </div>
-        </form>
+        </section>
       </div>
 
       <aside className="rounded-xl border border-border bg-card p-6">

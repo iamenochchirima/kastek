@@ -3,7 +3,7 @@ id: local-development
 title: Local Development
 sidebar_position: 2
 owner: engineering
-last_reviewed: 2026-10-01
+last_reviewed: 2026-10-02
 ---
 
 # Local Development
@@ -55,6 +55,26 @@ part of the task:
 ```
 
 Never paste credentials into a plan, issue, log, test fixture, or documentation page.
+
+## Shared login
+
+Growth login requires the native Labs Keycloak service. Start it from the Labs repository before
+starting Core and the client:
+
+```bash
+cd ../kasitek-labs/infra/identity
+./identity.sh start
+```
+
+The first setup requires explicit `./identity.sh install` and secret configuration described in
+Labs' `infra/identity/README.md`. No Docker. Identity PostgreSQL is a separate local cluster on
+port 55432; Growth's existing database is unchanged. Stop identity with `./identity.sh stop` when
+it is not needed.
+
+Set the Core OIDC variables from [the shared login contract](../architecture/shared-login.md).
+Use `http://localhost:3000/api/auth/callback` through the Next proxy. The account console owns
+email/password, Google, passkeys, optional two-factor authentication and recovery. The development
+email inbox is `http://localhost:8025/`; set Core `LOCAL_MAILPIT_URL` for organization invitations.
 
 ## Starting services
 

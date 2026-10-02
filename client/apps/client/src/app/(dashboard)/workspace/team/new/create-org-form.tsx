@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { apiUrl } from "@/lib/server-api";
 
-export function CreateOrgForm() {
+export function CreateOrgForm({ nextPath = "/workspace/team", initial = false }: { nextPath?: string; initial?: boolean }) {
   const router = useRouter();
   const [name, setName] = useState("");
   const [slug, setSlug] = useState("");
@@ -32,28 +32,28 @@ export function CreateOrgForm() {
     setLoading(true);
     setError(null);
 
-    const res = await fetch(apiUrl("/api/orgs"), {
-      method: "POST",
-      credentials: "include",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: name.trim(), slug: slug.trim() || undefined }),
-    });
-
-    setLoading(false);
-
-    if (res.ok) {
-      const data = await res.json();
-      // Set as active org then go to team page
-      await fetch("/api/orgs/set-active", {
+    try {
+      const res = await fetch(apiUrl("/api/orgs"), {
         method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: name.trim(), slug: slug.trim() || undefined }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error ?? "Failed to create organisation");
+      const active = await fetch(apiUrl("/api/orgs/set-active"), {
+        method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ orgId: data.org.id }),
       });
-      router.push("/workspace/team");
+      if (!active.ok) throw new Error("Organisation created. Could not select it. Reload to continue.");
+      router.push(nextPath);
       router.refresh();
-    } else {
-      const data = await res.json().catch(() => ({}));
-      setError(data.error ?? "Failed to create organisation");
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Failed to create organisation");
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -92,19 +92,19 @@ export function CreateOrgForm() {
         </p>
       </div>
 
-      {error ? <p className="text-sm text-destructive">{error}</p> : null}
+      {error ? <p role="alert" className="text-sm text-destructive">{error}</p> : null}
 
       <div className="flex gap-3">
         <Button type="submit" disabled={loading || !name.trim()} className="flex-1">
           {loading ? "Creating…" : "Create organisation"}
         </Button>
-        <Button
+        {!initial && <Button
           type="button"
           variant="outline"
           onClick={() => router.back()}
         >
           Cancel
-        </Button>
+        </Button>}
       </div>
     </form>
   );

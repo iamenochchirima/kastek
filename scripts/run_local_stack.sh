@@ -143,6 +143,9 @@ show_usage() {
     echo "  - $service"
   done | sort
   echo ""
+  echo "Start shared login separately from Labs: infra/identity/identity.sh start"
+  echo "Core needs the OIDC settings documented in docs/internal/architecture/shared-login.md."
+  echo ""
   echo "Examples:"
   echo "  $0                    # Run Growth Core, client, and internal docs"
   echo "  $0 core               # Run the Core API, including Calls"

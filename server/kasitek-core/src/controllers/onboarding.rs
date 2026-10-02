@@ -160,13 +160,13 @@ pub async fn update(
         r#"INSERT INTO "OrganizationOnboardingProfile" (
                 id, "orgId", website, "primaryGoal", "primaryGoals", "teamRole", industry, "referralSource",
                 "completedAt", "skippedAt", "createdAt", "updatedAt"
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8,
+            ) VALUES ($1, $2, $3, $4, COALESCE($5, ARRAY[]::TEXT[]), $6, $7, $8,
                 CASE WHEN $9 THEN NOW() ELSE NULL END,
                 CASE WHEN $10 THEN NOW() ELSE NULL END, NOW(), NOW())
             ON CONFLICT ("orgId") DO UPDATE SET
                 website = COALESCE(EXCLUDED.website, "OrganizationOnboardingProfile".website),
                 "primaryGoal" = COALESCE(EXCLUDED."primaryGoal", "OrganizationOnboardingProfile"."primaryGoal"),
-                "primaryGoals" = COALESCE(EXCLUDED."primaryGoals", "OrganizationOnboardingProfile"."primaryGoals"),
+                "primaryGoals" = COALESCE($5, "OrganizationOnboardingProfile"."primaryGoals"),
                 "teamRole" = COALESCE(EXCLUDED."teamRole", "OrganizationOnboardingProfile"."teamRole"),
                 industry = COALESCE(EXCLUDED.industry, "OrganizationOnboardingProfile".industry),
                 "referralSource" = COALESCE(EXCLUDED."referralSource", "OrganizationOnboardingProfile"."referralSource"),

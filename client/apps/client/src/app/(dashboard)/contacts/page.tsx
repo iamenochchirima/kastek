@@ -1,5 +1,5 @@
 import ContactsManager from "@/components/dashboard/contacts/contacts-manager";
-import { getRustSession } from "@/lib/rust-auth";
+import { getWorkspaceSession } from "@/lib/rust-auth";
 import { fetchRustJson } from "@/lib/rust-server-api";
 import { redirect } from "next/navigation";
 
@@ -12,7 +12,7 @@ export default async function ReachContactsPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const session = await getRustSession();
+  const session = await getWorkspaceSession();
   if (!session?.user?.id) redirect("/login");
 
   const params = await searchParams;
