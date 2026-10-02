@@ -95,3 +95,38 @@ existing `EARLY_ACCESS_TEST_DATABASE_URL`, `REFERRALS_TEST_DATABASE_URL` or
 They validate the actual URL hostname, create synthetic isolated schemas and
 clean them up. They do not load the historical seed into public tables. The
 seed SQL remains available as source evidence.
+
+## Native build and Railway preparation
+
+Run `bash scripts/verify_native_core.sh /path/to/kasitek-labs` from the Growth
+checkout to prepare pinned shared artifacts, install the frozen lockfile, build
+Core and check transport/telemetry without database or provider effects. Omit
+the Labs path only when the pinned local artifacts are already prepared.
+
+The observability workflow is manual and runs the same command. It requires
+`LABS_SOURCE_READ_TOKEN` with read access to the private Labs repository and the
+pinned commit to be available remotely. Neither is claimed verified by local
+builds. No Actions run is required for local migration verification. This paired
+source preparation remains temporary pending the private package delivery choice.
+
+For Railway, use service root `server/kasitek-core`, Node 24 and pnpm 10.30.1.
+The native build is `pnpm install --frozen-lockfile && pnpm build`, after private
+packages are made available. Start with `pnpm start`; HTTP binds to `0.0.0.0`
+and reads `PORT`. Configure `/health` as the health path. Keep `openapi/` beside
+`dist/` and preserve durable media storage and its environment path.
+
+Set `KASITEK_DISABLE_BACKGROUND_WORKERS=1` for an API deployed with separate
+workers. Each worker uses the same artifact/start command with its documented
+`KASITEK_PROCESS`. These commands must not run both old and new effect producers.
+
+Prisma migration ownership stays in `client/packages/database`. From the Growth
+repository root, the predeploy command is
+`pnpm --dir client --filter @kasitek/database exec prisma migrate deploy`; its
+client lockfile/dependencies and service database credentials must be available
+to that release job. API startup does not migrate. No schema or migration files
+were changed by this runtime preparation.
+
+Railway's hosted root/build/start/release settings, secrets and private-package
+access have not been inspected or deployed. The current local file artifacts
+are not an independent Railway install. Retain the recoverable Rust baseline
+until the migration deletion gate passes; stop native effects before rollback.
