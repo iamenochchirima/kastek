@@ -488,3 +488,31 @@ Copied bookmark availability, 2026-10-02:
   browser-verified. Frontend production build and focused changed-file lint passed.
 - Studio capability/connection settings and remaining initial journey acceptance
   still need work. Model credentials remain pending; no actual response was run.
+
+Mobile Studio and setup availability, 2026-10-02:
+
+- Fixed the narrow Studio panel container: it now scrolls vertically below the
+  desktop breakpoint instead of clipping the system map. The panel region can
+  receive keyboard focus. Version and Run have explicit accessible names even
+  when their visible labels are hidden, and the agent identity has a minimum width.
+- At 390x844, document client/scroll widths both measured 390. The panel height
+  was 523 and its content height 1242. Home/PageDown keyboard scrolling exposed
+  the System map heading at y426 within the panel beginning at y307. Screenshot:
+  `.artifacts/agents-studio-mobile-map.jpg`. The viewport was reset afterward.
+- Capability/connection and gateway setup controls still require missing browser
+  contracts and grants. They now show pending notes without mounting the broken
+  catalogs or credential/channel forms, and their Save controls are disabled.
+  Existing future components and backend implementations remain in source.
+- Removed unconnected audio buttons from this initial Studio composer, with an
+  explicit audio-pending hint. The shared audio UI/backend paths remain intact.
+  Replaced a hard-coded Configured approval-policy badge and inert Review action
+  with runtime-policy context and a pending detailed-review note.
+- On mobile, the settings selector opened Capabilities and Gateways pending notes
+  with disabled Save and no error notifications. Dialog close restored focus to
+  Settings after returning to desktop. Screenshot:
+  `.artifacts/agents-studio-mobile-pending-settings.jpg`.
+- Production build passed. Focused lint identified obsolete helpers/imports from
+  the removed safety badge; those were removed, then final typing and focused
+  lint passed. No additional test suite was added for this layout/availability edit.
+- Actual response/stream/history and remaining route acceptance stay incomplete.
+  No model credentials were added and no model call was submitted.

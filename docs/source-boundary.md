@@ -62,3 +62,10 @@ conversation bookmark enters the planned Inbox screen. Aggregate analytics keeps
 its scoped backend summary and reports API failures through route errors instead
 of manufacturing zero totals. Agent detail and Studio retain their scoped run
 history; this is not a claim that workspace-wide operations are implemented.
+
+Studio's initial browser path currently exposes behavior, memory and model/version
+editing plus text playground setup. Capability catalogs/grants, gateway credential
+and channel setup, audio submission and detailed safety-policy review have explicit
+pending states. Their future source/backend paths remain intact, and frontend
+availability does not replace backend authorization. Mobile Studio panels scroll
+vertically so the conversation and observatory are both reachable.

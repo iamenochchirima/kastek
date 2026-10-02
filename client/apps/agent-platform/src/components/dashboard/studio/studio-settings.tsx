@@ -10,7 +10,6 @@ import {
   Check,
   CircleHelp,
   Clock3,
-  Eye,
   FlaskConical,
   KeyRound,
   Layers3,
@@ -87,6 +86,10 @@ import {
 } from "@/lib/agent-platform";
 import { cn } from "@/lib/utils";
 import { getPlatformBrandColor, getPlatformBrandIcon } from "@/lib/platform-icons";
+
+// These setup controls still need the standalone browser contracts and grants.
+// This UI availability flag is not an authorization rule; backend checks remain.
+const connectionSettingsAvailable = false;
 
 type SettingsSection = "overview" | "behavior" | "capabilities" | "memory" | "gateways" | "safety" | "runtime";
 type ModelSelection = Pick<AgentModel, "provider" | "model">;
@@ -226,16 +229,6 @@ const sections: Array<{ id: SettingsSection; label: string; description: string 
 function formatTokens(value: number | undefined) {
   if (!value || !Number.isFinite(value)) return "Not reported";
   return new Intl.NumberFormat(undefined, { notation: "compact", maximumFractionDigits: 1 }).format(value);
-}
-
-function statusClass(status: "ready" | "attention" | "included" | "not_configured") {
-  if (status === "ready" || status === "included") return "text-emerald-700 dark:text-emerald-300";
-  if (status === "attention") return "text-amber-700 dark:text-amber-300";
-  return "text-muted-foreground";
-}
-
-function StatusDot({ status }: { status: "ready" | "attention" | "included" | "not_configured" }) {
-  return <span className={cn("size-1.5 shrink-0 rounded-full", status === "ready" || status === "included" ? "bg-emerald-500" : status === "attention" ? "bg-amber-500" : "bg-muted-foreground/40")} />;
 }
 
 function googleOAuthCallbackMessage(error: string): string {
@@ -431,7 +424,7 @@ function SettingsContent({
 }) {
   const title = sections.find((item) => item.id === section)?.label ?? "Settings";
   const description = sections.find((item) => item.id === section)?.description ?? "";
-  return <div className="mx-auto max-w-4xl px-5 py-6 pb-24 sm:px-8 sm:py-8"><div className="mb-7 flex items-start justify-between gap-4"><div><p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Agent settings</p><h3 className="mt-2 text-2xl font-semibold tracking-[-0.03em] text-foreground">{title}</h3><p className="mt-1 text-sm text-muted-foreground">{description}</p></div><span className="hidden items-center gap-1.5 rounded-full border border-border px-2.5 py-1 text-[10px] text-muted-foreground sm:inline-flex"><span className="size-1.5 rounded-full bg-amber-500" />Draft</span></div>{capabilitySaveError ? <div className="mb-4 rounded-xl border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">{capabilitySaveError}</div> : null}{section === "overview" ? <OverviewSection agent={agent} version={version} selectedModel={selectedModel} capabilityDraft={capabilityDraft} behaviorDraft={behaviorDraft} memoryDraft={memoryDraft} /> : null}{section === "behavior" ? <BehaviorSection draft={behaviorDraft} onDraftChange={setBehaviorDraft} /> : null}{section === "capabilities" ? <CapabilitiesSection installationId={installationId} versionId={version?.id ?? null} draft={capabilityDraft} onDraftChange={setCapabilityDraft} /> : null}{section === "memory" ? <MemorySection draft={memoryDraft} onDraftChange={setMemoryDraft} /> : null}{section === "gateways" ? <GatewaysSection agent={agent} installationId={installationId} /> : null}{section === "safety" ? <SafetySection /> : null}{section === "runtime" ? <RuntimeSection selectedModel={selectedModel} pickerModels={pickerModels} modelCatalog={modelCatalog} modelCatalogLoading={modelCatalogLoading} effectiveSelection={effectiveSelection} setModelSelection={setModelSelection} /> : null}<div className="mt-8 flex flex-wrap items-center justify-end gap-3 border-t border-border pt-5"><div className="flex items-center gap-2"><Button type="button" variant="outline" size="sm" onClick={() => setSection("overview")}><ArrowLeft className="mr-1.5 size-3.5" />Overview</Button><Button type="button" size="sm" onClick={onSave} disabled={saving}>{saving ? <Clock3 className="mr-1.5 size-3.5 animate-pulse" /> : <Save className="mr-1.5 size-3.5" />}{saving ? "Saving…" : "Save draft"}</Button></div></div></div>;
+  return <div className="mx-auto max-w-4xl px-5 py-6 pb-24 sm:px-8 sm:py-8"><div className="mb-7 flex items-start justify-between gap-4"><div><p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Agent settings</p><h3 className="mt-2 text-2xl font-semibold tracking-[-0.03em] text-foreground">{title}</h3><p className="mt-1 text-sm text-muted-foreground">{description}</p></div><span className="hidden items-center gap-1.5 rounded-full border border-border px-2.5 py-1 text-[10px] text-muted-foreground sm:inline-flex"><span className="size-1.5 rounded-full bg-amber-500" />Draft</span></div>{capabilitySaveError ? <div className="mb-4 rounded-xl border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">{capabilitySaveError}</div> : null}{section === "overview" ? <OverviewSection agent={agent} version={version} selectedModel={selectedModel} capabilityDraft={capabilityDraft} behaviorDraft={behaviorDraft} memoryDraft={memoryDraft} /> : null}{section === "behavior" ? <BehaviorSection draft={behaviorDraft} onDraftChange={setBehaviorDraft} /> : null}{section === "capabilities" ? connectionSettingsAvailable ? <CapabilitiesSection installationId={installationId} versionId={version?.id ?? null} draft={capabilityDraft} onDraftChange={setCapabilityDraft} /> : <SettingNote title="Capability setup pending" detail="Tool, skill, plugin and connection setup is not connected in this initial frontend. Existing version configuration is retained when editing behavior, memory or model settings." /> : null}{section === "memory" ? <MemorySection draft={memoryDraft} onDraftChange={setMemoryDraft} /> : null}{section === "gateways" ? connectionSettingsAvailable ? <GatewaysSection agent={agent} installationId={installationId} /> : <SettingNote title="Gateway setup pending" detail="Website and social-channel setup is not connected yet. Test text conversations in the playground before configuring external delivery." /> : null}{section === "safety" ? <SafetySection /> : null}{section === "runtime" ? <RuntimeSection selectedModel={selectedModel} pickerModels={pickerModels} modelCatalog={modelCatalog} modelCatalogLoading={modelCatalogLoading} effectiveSelection={effectiveSelection} setModelSelection={setModelSelection} /> : null}<div className="mt-8 flex flex-wrap items-center justify-end gap-3 border-t border-border pt-5"><div className="flex items-center gap-2"><Button type="button" variant="outline" size="sm" onClick={() => setSection("overview")}><ArrowLeft className="mr-1.5 size-3.5" />Overview</Button><Button type="button" size="sm" onClick={onSave} disabled={saving || section === "safety" || (!connectionSettingsAvailable && (section === "capabilities" || section === "gateways"))}>{saving ? <Clock3 className="mr-1.5 size-3.5 animate-pulse" /> : <Save className="mr-1.5 size-3.5" />}{saving ? "Saving…" : "Save draft"}</Button></div></div></div>;
 }
 
 function OverviewSection({ agent, version, selectedModel, capabilityDraft, behaviorDraft, memoryDraft }: { agent: AgentDefinition; version: AgentVersion | null; selectedModel?: AgentModel; capabilityDraft: StudioCapabilityDraft; behaviorDraft: StudioBehaviorDraft; memoryDraft: StudioMemoryDraft }) {
@@ -1054,10 +1047,6 @@ function UserToolsPanel({ tools, draft, onDraftChange }: { tools: AgentCapabilit
   return <div className="space-y-4"><div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><p className="text-xs text-muted-foreground">Tools created by this organization and published to the registry.</p><DirectorySearch value={query} onChange={setQuery} placeholder="Search user tools" /></div>{filtered.length ? <div className="grid gap-3 sm:grid-cols-2">{filtered.map((tool) => { const enabled = selected.has(tool.id); return <div key={`${tool.id}:${tool.version}`} className="flex items-center gap-3 rounded-xl border border-border p-3"><DirectoryIcon label={tool.name} logo={tool.logo} icon={<Bot className="size-5" />} /><div className="min-w-0 flex-1"><p className="truncate text-xs font-medium text-foreground">{tool.name}</p><p className="mt-1 line-clamp-2 text-[11px] leading-4 text-muted-foreground">{tool.description}</p><p className="mt-1 text-[10px] text-muted-foreground">v{tool.version}</p></div><Button type="button" variant={enabled ? "default" : "outline"} size="icon" className="size-8 shrink-0" aria-label={enabled ? `Disable ${tool.name}` : `Enable ${tool.name}`} onClick={() => toggle(tool)}>{enabled ? <Check className="size-4" /> : <Plus className="size-4" />}</Button></div>; })}</div> : <p className="rounded-xl border border-dashed border-border px-3 py-5 text-center text-xs text-muted-foreground">No published user tools are available.</p>}</div>;
 }
 
-function CapabilityRow({ icon, title, detail, status, statusText, action, onAction }: { icon: ReactNode; title: string; detail: string; status: "ready" | "attention" | "included" | "not_configured"; statusText: string; action: string; onAction?: () => void }) {
-  return <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-border bg-card p-4 sm:flex-nowrap"><span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">{icon}</span><div className="min-w-0 flex-1"><p className="text-sm font-medium text-foreground">{title}</p><p className="mt-1 text-xs text-muted-foreground">{detail}</p></div><span className={cn("inline-flex items-center gap-1.5 text-[11px]", statusClass(status))}><StatusDot status={status} />{statusText}</span><Button type="button" variant="outline" size="sm" className="h-8 shrink-0" onClick={onAction}>{action}</Button></div>;
-}
-
 function memoryLabel(value: string): string {
   return value.replaceAll("_", " ").replace(/\b\w/g, (character) => character.toUpperCase());
 }
@@ -1078,7 +1067,7 @@ function GatewaysSection({ agent, installationId }: { agent: AgentDefinition; in
 }
 
 function SafetySection() {
-  return <div className="space-y-4"><CapabilityRow icon={<ShieldCheck className="size-4" />} title="Approval policy" detail="Require a decision before higher-risk actions" status="ready" statusText="Configured" action="Review" /><div className="grid gap-3 sm:grid-cols-3"><InfoTile label="External effects" value="Ask first" icon={<LockKeyhole className="size-4" />} /><InfoTile label="Unknown effects" value="Reconcile" icon={<CircleHelp className="size-4" />} /><InfoTile label="Data access" value="Workspace" icon={<Eye className="size-4" />} /></div><SettingNote title="Every action remains observable" detail="Approvals, denials, retries, and unknown provider effects appear in the run observatory." /></div>;
+  return <div className="space-y-4"><SettingNote title="Runtime safety" detail="The backend enforces workspace access and tool permissions. Approval requirements depend on the version and action; this screen does not change them." /><SettingNote title="Policy review pending" detail="A detailed safety-policy view is not connected in this initial frontend. Run evidence and approval requests appear in the observatory when available." /></div>;
 }
 
 function RuntimeSection({ selectedModel, pickerModels, modelCatalog, modelCatalogLoading, effectiveSelection, setModelSelection }: { selectedModel?: AgentModel; pickerModels: AgentModel[]; modelCatalog: AgentModelCatalog | null; modelCatalogLoading: boolean; effectiveSelection: ModelSelection | null; setModelSelection: (value: ModelSelection | null) => void }) {
