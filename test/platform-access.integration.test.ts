@@ -16,6 +16,7 @@ describe.skipIf(!databaseUrl)("Agents platform access, PostgreSQL", () => {
   beforeAll(async () => {
     await admin.query(`CREATE SCHEMA ${schema}`);
     await pool.query(await readFile("migrations/178_platform_identity_sessions.sql", "utf8"));
+    await pool.query(await readFile("migrations/179_platform_login_transactions.sql", "utf8"));
   });
   afterAll(async () => {
     await pool.end();

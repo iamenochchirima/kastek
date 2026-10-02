@@ -10,7 +10,7 @@ Growth's Vantage design tokens, authored Geist fonts, theme/accent/density prefe
 
 ## Remaining dependencies
 
-The browser expects a standalone Agents session at /api/auth/me. Existing screens use /api/agents commands inherited from the Growth-facing contract; the Agents backend currently exposes scoped /v1 interfaces. A proper authenticated browser facade and own product session are still required. No fake session or browser service-secret injection has been introduced.
+The backend now implements standalone /api/auth routes, with its own workspace/session records, OIDC callback, HttpOnly cookie and bounded provider checks. Actual local provider registration and browser login still need verification. Existing screens use /api/agents commands inherited from the Growth-facing contract; the Agents backend currently exposes scoped /v1 interfaces. A proper authenticated browser facade is still required. No fake session or browser service-secret injection has been introduced.
 
 The dev/preview proxy points /api to the configured Agents endpoint. It does not forward to Growth by default. Shared login belongs to Labs; the Agents integration must register its own client and enforce its own memberships.
 

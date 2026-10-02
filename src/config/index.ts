@@ -33,6 +33,12 @@ const envSchema = z.object({
   INTERNAL_AUTH_AUDIENCE: z.string().default("kasitek-agents"),
   AUTH_MODE: z.enum(["headers", "hmac"]).default("headers"),
   INTERNAL_AUTH_SECRET: z.string().optional(),
+  AGENTS_OIDC_ISSUER_URL: z.string().url().optional(),
+  AGENTS_OIDC_CLIENT_ID: z.string().min(1).optional(),
+  AGENTS_OIDC_CLIENT_SECRET: z.string().min(1).optional(),
+  AGENTS_PUBLIC_URL: z.string().url().optional(),
+  AGENTS_OIDC_ADMIN_CLIENT_ID: z.string().min(1).optional(),
+  AGENTS_OIDC_ADMIN_CLIENT_SECRET: z.string().min(1).optional(),
   KASITEK_CORE_URL: z.string().url().optional(),
   KASITEK_CORE_INTERNAL_TOKEN: z.string().optional(),
   KASITEK_CORE_TIMEOUT_MS: z.coerce.number().int().min(100).max(120_000).default(10_000),
@@ -167,6 +173,20 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     KASITEK_CORE_PUBLISH_TIMEOUT_MS: parsed.KASITEK_CORE_PUBLISH_TIMEOUT_MS ?? 30_000,
     MCP_STATELESS_ENABLED: parsed.MCP_STATELESS_ENABLED ?? parsed.NODE_ENV !== "production",
   };
+  if (config.AGENTS_OIDC_ISSUER_URL) {
+    if (!config.AGENTS_OIDC_CLIENT_ID || !config.AGENTS_OIDC_CLIENT_SECRET || !config.AGENTS_PUBLIC_URL
+      || !config.AGENTS_OIDC_ADMIN_CLIENT_ID || !config.AGENTS_OIDC_ADMIN_CLIENT_SECRET) {
+      throw new Error("Agents OIDC requires its own client, session-admin credentials and AGENTS_PUBLIC_URL");
+    }
+    for (const address of [config.AGENTS_OIDC_ISSUER_URL, config.AGENTS_PUBLIC_URL]) {
+      const url = new URL(address);
+      if (url.username || url.password || url.search || url.hash
+        || (url.protocol !== "https:" && !(config.NODE_ENV !== "production" && url.protocol === "http:" && url.hostname === "localhost"))) {
+        throw new Error("Agents identity URLs require HTTPS; development HTTP is limited to localhost");
+      }
+    }
+    if (new URL(config.AGENTS_PUBLIC_URL).pathname !== "/") throw new Error("AGENTS_PUBLIC_URL must be an origin");
+  }
   if (config.NODE_ENV === "production" && !config.TEMPORAL_ENABLED) {
     throw new Error("TEMPORAL_ENABLED must be true in production");
   }

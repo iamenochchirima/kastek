@@ -53,6 +53,7 @@ import { OperatorControlRepository } from "../db/repositories/operator-control-r
 import { RetentionRepository } from "../db/repositories/retention-repository";
 import { parseCanonicalMessageContent } from "../channels/messages";
 import { authenticateRequest, type AuthContext } from "./auth";
+import { registerPlatformLogin } from "./platform-login";
 import type { ApprovalGroupSignal, CancellationSignal, ExternalEventSignal } from "../temporal/contracts";
 import { advanceSseCursor, formatSseComment, formatSseEvent, toPublicEvent } from "./sse";
 import { KASIAI_SLUG } from "../system/kasiai";
@@ -642,6 +643,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       mixin: () => ({ ...operationalLogFields(), ...(currentCorrelationId() ? { correlation_id: currentCorrelationId() } : {}) }),
     },
   });
+  registerPlatformLogin(app, dependencies.config, dependencies.pool);
   app.addHook("onRequest", (request, reply, done) => {
     const correlationId = correlationIdFromHeader(request.headers["x-correlation-id"]);
     reply.header("x-correlation-id", correlationId);

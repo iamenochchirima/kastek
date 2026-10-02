@@ -159,6 +159,14 @@ export class PlatformAccessRepository {
     if (hash) await this.pool.query("UPDATE platform_browser_sessions SET revoked_at = now() WHERE token_hash = $1", [hash]);
   }
 
+  async markProviderChecked(token: string): Promise<void> {
+    const hash = tokenHash(token);
+    if (hash) await this.pool.query(
+      "UPDATE platform_browser_sessions SET provider_checked_at = now() WHERE token_hash = $1 AND revoked_at IS NULL",
+      [hash],
+    );
+  }
+
   async revokeAccountSessions(accountId: string): Promise<void> {
     await this.pool.query("UPDATE platform_browser_sessions SET revoked_at = now() WHERE account_id = $1 AND revoked_at IS NULL", [accountId]);
   }

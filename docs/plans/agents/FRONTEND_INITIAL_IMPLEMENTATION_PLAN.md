@@ -125,6 +125,20 @@ Standalone login foundation, 2026-10-02:
   routing remain pending. Phase 5 and the actual agent journey remain unchecked.
   See [login integration details](../../architecture/platform-login.md).
 
+Backend login routes, 2026-10-02:
+
+- Added authorization-code login/signup, single-use database login attempts,
+  signed ID-token verification, PKCE/state/nonce, HttpOnly cookies and current-user
+  responses. Added explicit workspace creation/selection, activity, browser logout
+  and all-device logout. Realm session/account checks bound revocation to five
+  minutes and fail closed when a due check cannot reach the provider.
+- Backend build, six focused login-boundary checks and three existing internal-auth
+  checks passed. Both identity migrations were applied to the isolated database.
+  The live Labs discovery endpoint responded, but actual provider registration,
+  browser login and UI/backend agent contract integration remain pending.
+- Phase 5 acceptance remains unchecked until the real authenticated frontend
+  works. No production deployment, shared-login source changes or Growth changes.
+
 ## References
 
 - [Platform architecture](../../architecture/agent-platform-architecture.md).
