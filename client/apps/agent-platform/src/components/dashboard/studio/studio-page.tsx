@@ -503,7 +503,10 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
   const selectedVersion = versions.find((version) => version.id === selectedVersionId) ?? versions[0] ?? null;
   const playgroundReady = agent.installation_settings?.environment === "playground";
   const canRun = Boolean(agent.installation_id && playgroundReady);
-  const executionReady = canRun && installationReadiness?.ready === true;
+  const playgroundVersionSelected = Boolean(selectedVersion
+    && deploymentStatus?.playground.installationId === agent.installation_id
+    && deploymentStatus?.playground.version?.versionId === selectedVersion.id);
+  const executionReady = canRun && playgroundVersionSelected && installationReadiness?.ready === true;
   const activeModelSelection = conversationModelSelection ?? versionModelSelection;
   const pickerModels = useMemo<AgentModel[]>(() => {
     const available = modelCatalog?.models ?? [];
@@ -695,7 +698,7 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
       if (!cancelled) setEffectiveConfigLoading(false);
     });
     return () => { cancelled = true; };
-  }, [agent.installation_id, selectedVersionId]);
+  }, [agent.installation_id, selectedVersionId, deploymentStatus?.playground.version?.versionId]);
 
   useEffect(() => {
     const installationId = agent.installation_id;
@@ -879,7 +882,7 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
     }
     const message = input.trim();
     if (!executionReady) {
-      showError(installationReadiness?.blockers[0]?.detail ?? "Execution setup is not ready yet.");
+      showError(!playgroundVersionSelected ? "Use the selected version in Playground before sending a test message." : installationReadiness?.blockers[0]?.detail ?? "Execution setup is not ready yet.");
       return;
     }
     if ((!message && !audioFile) || running || conversationLoading || modelChangePending) return;
@@ -1221,7 +1224,7 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
           {activeRunId ? <Button type="button" variant="outline" size="sm" onClick={() => void cancelRun()} disabled={cancelling}><X className="mr-1.5 size-3.5" />{cancelling ? "Cancelling…" : "Cancel"}</Button> : null}
           {!activeRunId && selectedRun && ["failed", "expired"].includes(selectedRun.status) ? <Button type="button" variant="outline" size="sm" onClick={() => void retryRun()} disabled={retrying}><ArrowRight className="mr-1.5 size-3.5" />{retrying ? "Retrying…" : "Retry"}</Button> : null}
           {selectedRun && ["awaiting_external_event", "awaiting_human"].includes(selectedRun.status) ? <AgentRunActions runId={selectedRun.id} status={selectedRun.status} waitingFor={typeof selectedRun.output?.waitingFor === "string" ? selectedRun.output.waitingFor : undefined} showCancel={!activeRunId} /> : null}
-          <AgentDeploymentLifecycle agent={agent} versions={versions} selectedVersionId={selectedVersionId} onVersionsChange={setVersions} onStatusChange={setDeploymentStatus} compact readOnly />
+          <AgentDeploymentLifecycle agent={agent} versions={versions} selectedVersionId={selectedVersionId} onVersionsChange={setVersions} onStatusChange={setDeploymentStatus} compact playgroundOnly />
         </div>
       </header>
 
@@ -1235,7 +1238,7 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
               autoScrollKey={`${messages.length}:${running ? "running" : "idle"}`}
               statusContent={
                 <>
-                  {!running && !executionReady ? <div role="status" className="mx-4 mb-3 rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-amber-700 dark:text-amber-300"><p className="font-medium">{effectiveConfigLoading ? "Checking execution setup" : installationReadiness ? "Execution setup required" : "Execution setup unavailable"}</p>{installationReadiness?.blockers.map(blocker => <p key={blocker.code} className="mt-1">{blocker.detail}</p>)}</div> : null}
+                  {!running && !executionReady ? <div role="status" className="mx-4 mb-3 rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-amber-700 dark:text-amber-300"><p className="font-medium">{effectiveConfigLoading ? "Checking execution setup" : installationReadiness ? "Execution setup required" : "Execution setup unavailable"}</p>{!playgroundVersionSelected ? <p className="mt-1">Use the selected version in Playground before sending a test message.</p> : null}{installationReadiness?.blockers.map(blocker => <p key={blocker.code} className="mt-1">{blocker.detail}</p>)}</div> : null}
                   {approvalGroup?.status === "pending" && observedRunId ? <div className="mx-4 mb-3 shrink-0 rounded-lg border border-status-attention/40 bg-status-attention-soft/40 px-3 py-3 text-xs" role="status" aria-live="polite"><div className="flex items-start justify-between gap-3"><div><p className="font-semibold text-foreground">Approval required</p><p className="mt-1 text-muted-foreground">Review {approvalGroup.operations.length} proposed actions.</p></div><span className="shrink-0 rounded-full border border-status-attention/40 px-2 py-0.5 text-[10px] font-medium text-status-attention">Pending</span></div><div className="mt-3"><AgentApprovalGroupActions runId={observedRunId} group={approvalGroup} onDecided={(decision) => { setApprovalGroup((current) => current ? { ...current, status: decision, decision } : current); setNotice(`Approval ${decision}`); }} /></div></div> : null}
                   <AgentChatRunStatus runId={lastRunId} progress={runProgress} events={trace.slice(-5).map((node) => ({ event: node.event, label: node.label }))} running={running} />
                   {notice ? <div className="mx-4 mb-3 flex shrink-0 items-center gap-2 rounded-lg border border-emerald-500/20 bg-emerald-500/5 px-3 py-2 text-xs text-emerald-700 dark:text-emerald-300"><Check className="size-3.5" />{notice}</div> : null}
@@ -1281,7 +1284,7 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
       <DialogContent showCloseButton={false} className="block h-[calc(100dvh-1.5rem)] w-[calc(100%-1.5rem)] max-w-none overflow-hidden rounded-2xl border border-border bg-card p-0 sm:h-[calc(100dvh-3rem)] sm:w-[calc(100%-3rem)] sm:max-w-none sm:p-0 lg:h-[calc(100dvh-5rem)] lg:w-[calc(100%-5rem)]">
         <DialogTitle className="sr-only">Settings for {agent.name}</DialogTitle>
         <DialogDescription className="sr-only">Configure this agent's behavior, model, memory and capabilities.</DialogDescription>
-        <StudioSettings key={selectedVersion?.id ?? "new-version"} agent={agent} version={selectedVersion} installationId={agent.installation_id ?? null} instructions={instructions} setInstructions={setInstructions} onSave={saveDraft} saving={saving} modelCatalog={modelCatalog} modelCatalogLoading={modelCatalogLoading} modelSelection={versionModelSelection} setModelSelection={setVersionModelSelection} onClose={() => setConfigurationOpen(false)} />
+        <StudioSettings key={selectedVersion?.id ?? "new-version"} agent={{ ...agent, published_version_number: versions.find((version) => version.status === "published")?.version_number ?? agent.published_version_number }} version={selectedVersion} installationId={agent.installation_id ?? null} instructions={instructions} setInstructions={setInstructions} onSave={saveDraft} saving={saving} modelCatalog={modelCatalog} modelCatalogLoading={modelCatalogLoading} modelSelection={versionModelSelection} setModelSelection={setVersionModelSelection} onClose={() => setConfigurationOpen(false)} />
       </DialogContent>
     </div>
     </Dialog>

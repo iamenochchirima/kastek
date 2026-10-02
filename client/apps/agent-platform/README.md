@@ -69,3 +69,11 @@ pnpm --filter @kasitek/agent-platform lint
 Production output is dist/. Use preview for a local build check, not production hosting. The production host must serve dist assets, fall back to index.html for frontend deep links, and proxy /api to the Agents backend before that fallback. Preserve cookie headers and stream responses without buffering. Missing /api routes must remain API errors, not return the frontend HTML. The local Vite dev/preview proxy forwards paths unchanged.
 
 See the [frontend checklist](../../../docs/plans/agents/FRONTEND_INITIAL_IMPLEMENTATION_PLAN.md) for progress and remaining integration work.
+
+## Editing and testing a saved agent
+
+Open the agent in Studio, edit Behavior/Runtime settings and save a draft. Select
+**Use version in Playground** to publish and pin that version for testing. Saving
+alone does not change the playground installation. Studio requires the selected
+version to match the playground before sending a message, and also checks runtime
+readiness. Live promotion/rollback controls are pending in this initial frontend.

@@ -29,7 +29,7 @@ type AgentDeploymentLifecycleProps = {
   onVersionsChange?: (versions: AgentVersion[]) => void;
   onStatusChange?: (status: AgentDeploymentStatus | null) => void;
   compact?: boolean;
-  readOnly?: boolean;
+  playgroundOnly?: boolean;
 };
 
 function deploymentLabel(status: AgentDeploymentStatus | null, loading: boolean): string {
@@ -60,7 +60,7 @@ export function AgentDeploymentLifecycle({
   onVersionsChange,
   onStatusChange,
   compact = false,
-  readOnly = false,
+  playgroundOnly = false,
 }: AgentDeploymentLifecycleProps) {
   const [status, setStatus] = useState<AgentDeploymentStatus | null>(null);
   const [loading, setLoading] = useState(true);
@@ -205,10 +205,13 @@ export function AgentDeploymentLifecycle({
     }
   };
 
-  if (readOnly) {
+  if (playgroundOnly) {
     return <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground" aria-live="polite">
       <span>{loading ? "Checking deployments…" : status ? `Playground ${versionLabel(status.playground.version)} · Live ${versionLabel(status.live.version)}` : "Deployment status unavailable"}</span>
-      <Button type="button" variant="outline" size="sm" disabled title="Live deployment actions are not connected in this initial frontend">Deployment pending</Button>
+      <Button type="button" variant="outline" size="sm" onClick={() => void updatePlayground()} disabled={!selectedVersion || loading || busy !== null || !status?.playground.installationId || selectedVersion.id === status.playground.version?.versionId}>
+        {busy === "playground" ? "Updating…" : "Use version in Playground"}
+      </Button>
+      <Button type="button" variant="outline" size="sm" disabled title="Live deployment actions are not connected in this initial frontend">Live deployment pending</Button>
     </div>;
   }
 

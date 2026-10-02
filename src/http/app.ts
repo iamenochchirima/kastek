@@ -3817,6 +3817,13 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     const auth = requireAuth(request, dependencies.config);
     requireScope(auth, dependencies.config, "agents:write");
     const input = deployInstallationInputSchema.parse(request.body);
+    if (auth.source === "browser") {
+      const installation = await agents.getInstallation(auth.organizationId, request.params.installationId);
+      if (!installation) throw Object.assign(new Error("Installation not found"), { statusCode: 404 });
+      if (installation.settings.environment !== "playground") {
+        throw Object.assign(new Error("Only playground version updates are available in this frontend"), { statusCode: 403 });
+      }
+    }
     return agents.deployInstallation(auth.organizationId, auth.actorId, request.params.installationId, input);
   });
 

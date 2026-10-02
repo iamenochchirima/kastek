@@ -13,6 +13,8 @@ export const browserAgentRoutes: [HTTPMethods, string, string][] = [
   ["POST", "/v1/agents/:agentId/playground/ensure", "/api/agents/:agentId/playground/ensure"],
   ["GET", "/v1/agents/:agentId/versions", "/api/agents/:agentId/versions"],
   ["POST", "/v1/agents/:agentId/versions", "/api/agents/:agentId/versions"],
+  ["POST", "/v1/agents/:agentId/versions/:versionId/publish", "/api/agents/:agentId/versions/:versionId/publish"],
+  ["POST", "/v1/installations/:installationId/deploy", "/api/agents/installations/:installationId/deploy"],
   ["GET", "/v1/agent-versions/:agentVersionId/effective-config", "/api/agents/agent-versions/:agentVersionId/effective-config"],
   ["GET", "/v1/models/catalog", "/api/agents/models/catalog"],
   ["GET", "/v1/capabilities/directory", "/api/agents/capabilities/directory"],

@@ -72,7 +72,7 @@ Exit: a user reaches the dashboard with an actual Agents session and organizatio
 ## Phase 6: One actual agent creation and execution journey
 
 - [ ] Reuse the existing agent list, creation, Studio and Playground components where they fit; adapt their routing and data fetching to Vite and Agents APIs.
-- [ ] Create an agent with name, instructions and supported model/settings; persist it through the real backend and reopen it after refresh.
+- [x] Create an agent with name, instructions and supported model/settings; persist it through the real backend and reopen it after refresh.
 - [ ] Connect Playground message submission and actual run status/output. Preserve working execution visualizations where useful; do not rebuild the full editor for this slice.
 - [ ] Display progress, actual response, relevant tool/error results and cancellation where supported. Use the backend's streaming/history interfaces rather than simulated execution.
 - [ ] Return to the agent list/detail and retain the saved agent and visible run history.
@@ -389,3 +389,30 @@ Studio deployment-status follow-up, 2026-10-02:
   `.artifacts/agents-studio-deployment-status.jpg`.
 - Backend/frontend builds, focused lint and the five existing browser-admission
   tests passed. Those admission tests do not establish complete deployment behavior.
+
+Saved draft to playground, 2026-10-02:
+
+- Studio's initial deployment mode now supports publishing a saved draft and
+  assigning its immutable version to the playground. Live promotion and rollback
+  controls remain pending. The explicit browser manifest includes version publish
+  and deployment; the backend permits browser deployment only to an installation
+  belonging to the session organization with environment `playground`. Existing
+  deployment ownership, version validation and expected-version conflict checks
+  remain in the repository transaction. Machine deployment behavior is unchanged.
+- Studio refreshes readiness after the playground version changes. Message input
+  and submission require the selected version to match the actual playground
+  assignment, preventing a draft selection from testing an older pinned version.
+  The published-version summary updates immediately from the current version list.
+- Browser verification edited Booking Assistant's instructions, saved v2 as a
+  draft, published/assigned it through Use version in Playground, and refreshed.
+  The edited instructions persisted; Playground showed v2 while Live stayed v1.
+  Selecting retired v1 showed the required-version guidance, then v2 was restored
+  without another assignment. Screenshot:
+  `.artifacts/agents-playground-version-update.jpg`.
+- Basic creation/model/behavior persistence and reopen acceptance is now checked.
+  Tool/connection configuration, actual model execution, streaming and history
+  remain incomplete. No model call or live promotion was submitted.
+- Backend/frontend builds, focused lint and five browser-admission tests passed.
+  A frontend nullability error caught during the build was fixed before the final
+  successful build. The browser checks cover the normal playground update path;
+  they do not establish full live deployment or adversarial access coverage.
