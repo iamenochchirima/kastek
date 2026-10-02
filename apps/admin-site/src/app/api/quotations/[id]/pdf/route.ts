@@ -1,3 +1,4 @@
+import { coreQuotationDraftRecord } from "@/lib/core-quotation-record";
 import { NextResponse } from "next/server";
 import { getAdminSession, fetchFromCore } from "@/lib/admin-auth";
 import { buildQuotationPdf, quotationRecordToDraft } from "@/lib/quotation";
@@ -14,7 +15,7 @@ export async function GET(
   if (!res.ok) return NextResponse.json({ error: "Not found" }, { status: 404 });
   const quotation = await res.json();
 
-  const draft = quotationRecordToDraft(quotation);
+  const draft = quotationRecordToDraft(coreQuotationDraftRecord(quotation));
   const pdf = buildQuotationPdf(draft);
   const filename = `${draft.preparedFor.toLowerCase().replace(/[^a-z0-9]+/g, "-") || "quotation"}-quotation.pdf`;
 

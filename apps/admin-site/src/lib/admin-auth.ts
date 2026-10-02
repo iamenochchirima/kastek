@@ -133,6 +133,7 @@ export async function proxyToCore(
 
   return fetch(target, {
     method: req.method,
+    signal: req.signal,
     headers: {
       "Content-Type": "application/json",
       ...(cookieHeader ? { Cookie: cookieHeader } : {}),
