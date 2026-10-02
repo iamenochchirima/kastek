@@ -757,7 +757,7 @@ export class AgentRequestError extends Error {
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const headers = new Headers(init?.headers);
   const isFormData = typeof FormData !== "undefined" && init?.body instanceof FormData;
-  if (!isFormData && !headers.has("content-type")) headers.set("content-type", "application/json");
+  if (init?.body != null && !isFormData && !headers.has("content-type")) headers.set("content-type", "application/json");
   const response = await fetch(apiUrl(path), {
     ...init,
     cache: "no-store",

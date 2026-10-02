@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/page-header";
 import { Bot, Info, MessageSquare, Sparkles, X } from "lucide-react";
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
 import { useRouter } from "@/lib/navigation";
 import { setAgentInstallationStatus, type AgentAudienceCounts, type AgentDefinition, type AgentOperationsSummary } from "@/lib/agent-platform";
 import { MotionReveal } from "@/components/ui/motion-reveal";
@@ -249,6 +250,8 @@ function AgentCard({ agent, onChanged, onChat, onOpenDetails, delay = 0 }: { age
     try {
       await setAgentInstallationStatus(agent.installation_id, installationStatus === "active" ? "paused" : "active");
       onChanged();
+    } catch (cause) {
+      toast.error(cause instanceof Error ? cause.message : "Unable to update agent status");
     } finally {
       setUpdating(false);
     }

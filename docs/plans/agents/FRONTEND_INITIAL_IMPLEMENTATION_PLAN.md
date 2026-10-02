@@ -286,3 +286,22 @@ Settings keyboard behavior and personal navigation, 2026-10-02:
   planned control areas. Screenshot: `.artifacts/agents-personal-planned.jpg`.
   This clears the previous checkpoint's pending desktop category/page navigation;
   mobile coverage for that new page remains pending.
+
+Agent-list actions and detail loading, 2026-10-02:
+
+- Exposed the existing installation status handler through the explicit browser
+  manifest. It retains membership admission, same-origin writes, agents:write
+  scope and the repository's organization-scoped update/audit transaction.
+- Fixed the frontend request helper to add JSON content type only when a body is
+  present. Empty POST actions previously failed Fastify JSON parsing with 400.
+  Agent-card status failures now show a toast rather than an unhandled rejection.
+- Removed detail-loader catches that converted API failures into a false missing
+  agent or empty version list. The route error UI now receives those failures.
+- In the dedicated local workspace, Pause changed the test fixture to paused;
+  Resume restored active. Its list card opened the real saved detail page with
+  its name/version data. Screenshots: `.artifacts/agents-paused-fixture.jpg` and
+  `.artifacts/agents-saved-detail.jpg`. This does not verify every retained detail
+  control; deployment, knowledge, credentials and other copied features still
+  require endpoint integration or explicit unavailable states.
+- Backend/frontend builds, focused lint and the five existing browser-admission
+  checks passed. No real model call was submitted.

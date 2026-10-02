@@ -10,9 +10,9 @@ export default async function AgentDetailPage({ params }: { params: Promise<{ ag
   const session = await getSession();
   if (!session?.user?.id) redirect("/login");
   const { agentId } = await params;
-  const agents = await fetchApiJson<{ agents: AgentDefinition[] }>("/api/agents").catch(() => ({ agents: [] }));
+  const agents = await fetchApiJson<{ agents: AgentDefinition[] }>("/api/agents");
   const agent = agents.agents.find((candidate) => candidate.id === agentId);
   if (!agent) notFound();
-  const versions = await fetchApiJson<{ versions: AgentVersion[] }>(`/api/agents/${encodeURIComponent(agentId)}/versions`).catch(() => ({ versions: [] }));
+  const versions = await fetchApiJson<{ versions: AgentVersion[] }>(`/api/agents/${encodeURIComponent(agentId)}/versions`);
   return <AgentDetailPageClient agent={agent} initialVersions={versions.versions} />;
 }

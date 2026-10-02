@@ -16,6 +16,7 @@ export const browserAgentRoutes: [HTTPMethods, string, string][] = [
   ["GET", "/v1/models/catalog", "/api/agents/models/catalog"],
   ["GET", "/v1/capabilities/directory", "/api/agents/capabilities/directory"],
   ["GET", "/v1/operations/summary", "/api/agents/operations/summary"],
+  ["POST", "/v1/installations/:installationId/status/:status", "/api/agents/installations/:installationId/status/:status"],
   ["GET", "/v1/installations/:installationId/readiness", "/api/agents/installations/:installationId/readiness"],
   ["GET", "/v1/installations/:installationId/capabilities", "/api/agents/installations/:installationId/capabilities"],
   ["GET", "/v1/installations/:installationId/connection-directory", "/api/agents/installations/:installationId/connection-directory"],
