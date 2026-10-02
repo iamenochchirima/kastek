@@ -542,3 +542,24 @@ Production frontend hosting, 2026-10-02:
 - Actual agent response, stream reconnect and reopened run-history acceptance
   remain unchecked pending model credentials. No credentials were copied, no
   model call was submitted, and no production login or cutover was claimed.
+
+
+Playground run recovery wiring, 2026-10-02:
+
+- Added the explicit browser retry alias to the existing platform-chat retry
+  handler. Its organization lookup, hosted-installation requirement, actor-owned
+  conversation resolution and retryable-status checks remain intact.
+- Member browser sessions now include the cancellation scope required by the
+  existing handler. Viewer mutations and foreign origins remain denied.
+- Retry claims stream ownership before setting the active run, marks execution
+  busy, and clears its controller/ownership/busy state afterward. This avoids
+  opening the effect-owned stream alongside the retry-owned stream and permits
+  the same cancellation control during retries.
+- Cancellation now keeps observing the run after the backend accepts the signal,
+  rather than aborting the stream before the actual terminal result is observed.
+  Retried runs report a cancelled terminal result as cancellation, not failure.
+- Seven targeted admission/retry tests passed, including member recovery access,
+  viewer/cross-origin denial and the existing no-duplicate-message retry test.
+  Backend build, frontend typing/build and focused Studio lint passed. These are
+  contract/source checks; actual model execution, cancellation, reconnect and
+  persisted-response history still need the real journey with model credentials.

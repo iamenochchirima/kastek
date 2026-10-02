@@ -1033,7 +1033,6 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
     try {
       await cancelAgentRun(activeRunId, "Cancelled from Playground");
       setNotice("Cancellation requested");
-      streamAbortRef.current?.abort();
     } catch (cause) {
       setCancelling(false);
       showError(cause instanceof Error ? cause.message : "Unable to cancel run");
@@ -1043,21 +1042,31 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
   const retryRun = async () => {
     if (!selectedRunId || running || retrying) return;
     setRetrying(true);
+    setRunning(true);
+    let acceptedRunId: string | null = null;
     setNotice(null);
     setSelectedNodeId(null);
     setTrace([]);
     setExecution(createExecutionObservatoryState());
     try {
       const accepted = await retryAgentRun(selectedRunId);
+      acceptedRunId = accepted.runId;
+      const controller = new AbortController();
+      streamAbortRef.current = controller;
+      streamOwnerRef.current = accepted.runId;
+      activeRunRef.current = accepted.runId;
       setConversationId(accepted.conversation.id);
       setMessages((current) => current.some((item) => item.id === accepted.message.id) ? current : [...current, accepted.message]);
       setActiveRunId(accepted.runId);
       setSelectedRunId(accepted.runId);
       setLastRunId(accepted.runId);
-      const controller = new AbortController();
       await streamStudioRun(accepted.runId, addTraceEvent, controller.signal, setRunStreamState);
       const result = await getAgentRun(accepted.runId);
       await refreshConversation(accepted.conversation.id);
+      if (result.run.status === "cancelled") {
+        setNotice("Run cancelled");
+        return;
+      }
       if (result.run.status !== "completed") {
         const runError = result.run.error;
         throw new Error(runError?.userMessage || runError?.message || `Run ${result.run.status}`);
@@ -1067,6 +1076,11 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
       showError(cause instanceof Error ? cause.message : "Unable to retry run");
     } finally {
       setRetrying(false);
+      setRunning(false);
+      setCancelling(false);
+      if (streamOwnerRef.current === acceptedRunId) streamOwnerRef.current = null;
+      streamAbortRef.current = null;
+      activeRunRef.current = null;
       setRunStreamState("idle");
       setActiveRunId(null);
     }

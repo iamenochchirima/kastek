@@ -24,6 +24,8 @@ function setup(role = "member") {
   registerBrowserAgentRoutes(app, login);
   app.get("/v1/agents", request => browserAuthContext(request) ?? { machineRoute: true });
   app.post("/v1/agents", request => browserAuthContext(request));
+  app.post("/v1/runs/:runId/retry", request => browserAuthContext(request));
+  app.post("/v1/runs/:runId/cancel", request => browserAuthContext(request));
   app.get("/v1/runs/:runId/events/stream", async request => {
     session.activeOrganizationId = "another-workspace";
     await recheckBrowserRequest(request);
@@ -52,6 +54,18 @@ describe("standalone browser agent admission", () => {
     const { app } = setup("viewer");
     expect((await app.inject({ url: "/api/agents", headers })).statusCode).toBe(200);
     expect((await app.inject({ method: "POST", url: "/api/agents", headers, payload: { name: "Denied" } })).statusCode).toBe(403);
+  });
+  it("admits member run recovery controls and rejects viewer or cross-origin writes", async () => {
+    const { app } = setup();
+    const viewer = setup("viewer").app;
+    for (const action of ["cancel", "retry"]) {
+      const url = `/api/agents/runs/run-1/${action}`;
+      const response = await app.inject({ method: "POST", url, headers, payload: {} });
+      expect(response.statusCode).toBe(200);
+      expect(response.json().scopes).toContain(action === "cancel" ? "runs:cancel" : "chat:write");
+      expect((await viewer.inject({ method: "POST", url, headers, payload: {} })).statusCode).toBe(403);
+      expect((await app.inject({ method: "POST", url, headers: { ...headers, origin: "https://foreign.example" }, payload: {} })).statusCode).toBe(403);
+    }
   });
   it("rejects foreign origins before checking memberships", async () => {
     const { app, check } = setup();

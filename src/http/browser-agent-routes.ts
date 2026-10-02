@@ -35,6 +35,7 @@ export const browserAgentRoutes: [HTTPMethods, string, string][] = [
   ["GET", "/v1/memory/revisions/:revisionId/lineage", "/api/agents/memory/revisions/:revisionId/lineage"],
   ["GET", "/v1/runs/:runId/events/stream", "/api/agents/runs/:runId/events/stream"],
   ["POST", "/v1/runs/:runId/cancel", "/api/agents/runs/:runId/cancel"],
+  ["POST", "/v1/runs/:runId/retry", "/api/agents/runs/:runId/retry"],
 ];
 
 export function registerBrowserAgentRoutes(app: FastifyInstance, login?: PlatformLogin): void {
@@ -58,7 +59,7 @@ export function registerBrowserAgentRoutes(app: FastifyInstance, login?: Platfor
         if (!membership) throw Object.assign(new Error("Choose a workspace first"), { statusCode: 403 });
         if (changing && membership.role === "viewer") throw Object.assign(new Error("Workspace write access required"), { statusCode: 403 });
         return { organizationId: membership.id, actorId: session.account.id,
-          scopes: ["agents:read", "runs:read", "chat:read", ...(membership.role === "viewer" ? [] : ["agents:write", "runs:write", "chat:write"])] };
+          scopes: ["agents:read", "runs:read", "chat:read", ...(membership.role === "viewer" ? [] : ["agents:write", "runs:write", "runs:cancel", "chat:write"])] };
       }
       app.route({
         ...options, method, url,
