@@ -37,7 +37,8 @@ or a machine credential embedded in JavaScript.
 
 ## Stage 1: Finish the real Playground journey
 
-- [x] Select OpenRouter for local model calls. The owner will configure the key in local backend secrets; never put keys in chat, frontend bundles or Git.
+- [x] Select OpenRouter for local model calls. Never put keys in chat, frontend bundles or Git.
+- [ ] Configure the key in local backend secrets, then restart the API and Temporal worker; both load `.env` at startup. Verify the credential only through an actual provider-backed Playground reply.
 - [x] Verify the local API/database and Temporal server/worker by processing a persisted Playground run. Local namespace is `default` and queue is `kasitek-agents-initial-ui`.
 - [x] Confirm local `CREDIT_BILLING_MODE=disabled`, the documented local skip-settlement mode. No production billing configuration or enforcement code changed.
 - [ ] Create a fresh agent through the UI, choose its model/instructions and pin the saved version to Playground.
