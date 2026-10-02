@@ -1,48 +1,68 @@
-# Analytics deployment jobs
+# Analytics on Railway
 
-The Analytics image contains three independently deployed process commands:
+Deploy Analytics as three Railway processes from the Labs repository: the API, the projection and
+maintenance worker, and a one-time migration command. The TypeScript package builds from the
+repository root so its private workspace packages are available.
 
-| Process | Command | Startup migration behavior |
-| --- | --- | --- |
-| API | `/usr/local/bin/analytics-api` | Never migrates; serves health and API traffic |
-| Worker | `/usr/local/bin/analytics-worker` | Never migrates; runs background work |
-| Release job | `/usr/local/bin/analytics-migrate` | Connects eagerly, takes the PostgreSQL advisory lock, and applies migrations |
+## Build
 
-Build the image from the Labs repository root:
+Set the service build command to:
 
 ```bash
-docker build -f services/analytics/Dockerfile -t kasitek-analytics:dev .
+corepack pnpm install --frozen-lockfile \
+  && corepack pnpm --filter @kasitek/contracts build \
+  && corepack pnpm --filter @kasitek/server-support build \
+  && corepack pnpm --filter @kasitek/analytics build
 ```
 
-The release job must complete successfully before the API or worker rollout. Do not put migration
-execution in an API or worker startup command. Production PostgreSQL and Redis should be managed
-services with private networking, separate credentials, encrypted backups, and no public database
-ports. The application receives only `ANALYTICS_DATABASE_URL` and `ANALYTICS_REDIS_URL`.
-
-The service Compose file is a local and deployment-shape reference. It starts PostgreSQL, Redis,
-the migration release job, API, and worker. API and worker startup is gated on PostgreSQL migration
-completion; Redis remains non-authoritative and is not a startup readiness gate:
+The API start command is:
 
 ```bash
-docker compose -f services/analytics/compose.yaml up --build
+corepack pnpm --filter @kasitek/analytics start
 ```
 
-For scheduled operations, run `scripts/backup.sh` from a backup runner with a managed destination,
-then copy the dump, checksum, and metadata together. Restore only into an isolated recovery target
-or an explicitly stopped service environment:
+Create a second long-running service with this command:
 
 ```bash
-ANALYTICS_RESTORE_CONFIRM=YES \
-ANALYTICS_RESTORE_SERVICES_STOPPED=YES \
-ANALYTICS_DATABASE_URL='postgres://...' \
-ANALYTICS_BACKUP_FILE='/secure/backups/analytics-20260822T000000Z.dump' \
-  scripts/restore.sh
+corepack pnpm --filter @kasitek/analytics start:worker
 ```
 
-The recovery procedure must reapply deletion and legal-hold records and reconcile source outboxes
-before restored reporting is exposed. Those records are implemented in later analytics packages;
-this A-02 package only establishes the guarded database restoration mechanism.
+Run migrations as a one-time release job before starting API or worker deployments:
 
-Runbooks preserved from Growth are under
-[`runbooks/analytics/`](runbooks/analytics/README.md). They are historical drafts pending an
-operations review and must not be treated as production instructions yet.
+```bash
+corepack pnpm --filter @kasitek/analytics migrate
+```
+
+API and worker startup never changes the database schema. The migration process takes the same
+application advisory lock as the existing SQLx runner and validates the existing migration ledger.
+
+## Railway variables
+
+Configure `ANALYTICS_DATABASE_URL` with a dedicated private PostgreSQL database. Railway's `PORT`
+is used when `ANALYTICS_API_PORT` is unset; the default is `4300`. Keep Core, Agency, and Agents
+database credentials separate. Redis is optional and only caches report and rollout decisions;
+PostgreSQL remains authoritative.
+
+Set the required service credentials and signing keys for the integrations you enable:
+
+- `ANALYTICS_INGESTION_CREDENTIALS_JSON` for registered source publishers.
+- `ANALYTICS_REPORTING_PUBLIC_KEY` or `ANALYTICS_REPORTING_PUBLIC_KEYS_JSON` for signed report grants.
+- `ANALYTICS_REPORTING_RESOLVER_CREDENTIALS_JSON` for Core/Tenant scope resolution.
+- `ANALYTICS_ROLLOUT_ADMIN_PRODUCERS` for authorized rollout-control producers.
+- `ANALYTICS_METRICS_TOKEN` for internal metrics access.
+- `ANALYTICS_REDIS_URL` only when using the optional cache.
+
+Use Railway's private networking for PostgreSQL and Redis. Do not expose database ports publicly.
+Configure the API health check at `/health/ready`; it returns `503` until PostgreSQL is reachable
+and the base Analytics migration has been applied. The worker is a background process and does not
+open an HTTP port.
+
+## Backups and recovery
+
+`scripts/backup.sh` creates a custom-format PostgreSQL dump with a checksum and metadata. Keep all
+three files together in a protected backup location. Run `scripts/restore.sh` only against an
+isolated recovery database or while the target service is stopped; the script requires explicit
+confirmation variables.
+
+Runbooks preserved from Growth are under [`runbooks/analytics/`](runbooks/analytics/README.md).
+They remain drafts until operations has reviewed them.

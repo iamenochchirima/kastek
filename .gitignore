@@ -9,3 +9,6 @@ infra/identity/.env
 infra/identity/.backups/
 infra/identity/__pycache__/
 infra/identity/.runtime/
+
+services/analytics/node_modules/
+services/analytics/dist/

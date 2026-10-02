@@ -1,48 +1,44 @@
 # KasiTek Analytics
 
-Standalone customer-facing analytics service foundation.
+Standalone customer-facing analytics service. The TypeScript implementation is under `src-ts/`;
+Rust remains in the repository as the parity baseline until the migration's final retirement gate.
+The native Node processes are:
 
-The A-01 through A-09 packages provide three process commands from one Rust crate:
-
-- `analytics-api`: health endpoints, authenticated batch ingestion, and source reconciliation.
-- `analytics-worker`: durable worker process reserved for projection, replay, and scheduled quality
-  loops.
-- `analytics-migrate`: release job for forward-only migrations.
+- `start`: API, health endpoints, authenticated ingestion/reconciliation, reporting and rollout routes.
+- `start:worker`: durable projections, replay and maintenance loops.
+- `migrate`: one-time forward migration release command.
+- `registry:check` / `registry:write`: validate or regenerate the TypeScript metric bindings.
 
 Analytics requires its own database URL. It must not reuse Core, Tenant Platform, or Agent Platform
 database credentials.
 
 ## Local configuration
 
-Normal local development uses native PostgreSQL and, when installed, native Redis. Create a
-dedicated `kasitek_analytics` database and `analytics` database role; never point this service at
-Core's `DATABASE_URL`. Redis is non-authoritative and can be omitted until cache code is enabled.
-Copy `.env.example` to `.env` in this directory; service commands read it from the working
-directory.
+Local development uses native PostgreSQL and optional native Redis. Create a dedicated
+`kasitek_analytics` database and `analytics` database role; never point this service at Core's
+`DATABASE_URL`. Redis is non-authoritative. Copy `.env.example` to `.env` in this directory.
+Node.js 24.15.0 and pnpm 10.30.1 are pinned at the repository root.
 
 ```bash
-cp .env.example .env
-cargo run --bin analytics-migrate
+cp services/analytics/.env.example services/analytics/.env
+corepack pnpm install --frozen-lockfile
+corepack pnpm build:shared
+corepack pnpm --filter @kasitek/analytics build
+corepack pnpm --filter @kasitek/analytics migrate
 ```
 
-From this directory, run the API and worker as separate processes:
+After migrations complete, run the API and worker as separate native processes:
 
 ```bash
-cargo run --bin analytics-api
-cargo run --bin analytics-worker
+corepack pnpm --filter @kasitek/analytics start
+corepack pnpm --filter @kasitek/analytics start:worker
 ```
 
-The migration command is a one-time release job, not a long-running local service. The optional
-Docker Compose definition starts the isolated local service shape:
-
-```bash
-docker compose -f compose.yaml up --build
-```
-
-The API and worker never run migrations themselves. The release job takes the PostgreSQL advisory
-lock and must complete before those processes are deployed. `scripts/backup.sh` creates a custom
-format PostgreSQL dump with a checksum and metadata; `scripts/restore.sh` requires explicit
-confirmation and stopped services.
+The migration command is a one-time release job, not a long-running service. The API and worker
+never run migrations themselves. The release job takes the PostgreSQL advisory lock and must
+complete before those processes start. `scripts/local-storage.sh` only checks that native
+PostgreSQL is reachable. `scripts/backup.sh` creates a custom-format dump with a checksum and
+metadata; `scripts/restore.sh` requires explicit confirmation and stopped services.
 
 The API listens on `ANALYTICS_API_PORT` (default `4300`). Check:
 
@@ -67,16 +63,16 @@ The JSON Schema 2020-12 event contracts and CloudEvents-compatible envelope live
 registry loader validates their schemas, examples, references, privacy metadata, formulas,
 dependencies, and deterministic artifact hash before any service process starts.
 
-Validate the checked-in generated Rust and TypeScript key bindings:
+Validate the checked-in TypeScript key bindings:
 
 ```bash
-cargo run --bin analytics-registry -- --check
+corepack pnpm --filter @kasitek/analytics registry:check
 ```
 
 After an approved registry change, regenerate them with:
 
 ```bash
-cargo run --bin analytics-registry -- --write
+corepack pnpm --filter @kasitek/analytics registry:write
 ```
 
 The generated bindings are build artifacts, not independent definitions. Producer, projection,
@@ -95,8 +91,8 @@ The migration also provides PostgreSQL authorization context functions and row-l
 scope-bearing control tables. Application authorization must validate the grant before setting the
 transaction-local context; RLS is defense in depth, not a replacement for grant validation.
 
-The Rust `scope` module contains the reusable hierarchy and grant rules. The `authorization`
-module encodes the validated scope set into the PostgreSQL context without storing bearer tokens.
+The `scope` module contains the reusable hierarchy and grant rules. The `authorization` module
+encodes the validated scope set into PostgreSQL context without storing bearer tokens.
 
 ## Facts and collection controls
 
@@ -166,11 +162,10 @@ The previous Growth cross-product E2E harness is not part of this source move. I
 test sources are preserved under `tests/system/` for later integration work.
 
 The API can start while PostgreSQL is unavailable because its pool is lazy. Readiness returns
-`503` until the database responds. Redis is an optional, non-authoritative reporting response cache;
-authorization, projection generation, freshness, and fallback responses come from PostgreSQL. The
-worker currently starts
-and waits for shutdown; projection, replay scheduling, and quality loops belong to later execution
-packages.
+`503` until the database responds and the base migration is applied. Redis is an optional,
+non-authoritative reporting response cache; authorization, projection generation, freshness, and
+fallback responses come from PostgreSQL. The TypeScript worker runs durable projection and
+maintenance work, including replay, repair and backfill jobs.
 
 ## Rollout controls
 

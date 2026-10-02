@@ -16,8 +16,8 @@ produces a SHA-256 artifact hash used by generated Rust and TypeScript key bindi
 Validate or regenerate the bindings with:
 
 ```bash
-cargo run --bin analytics-registry -- --check
-cargo run --bin analytics-registry -- --write
+corepack pnpm --filter @kasitek/analytics registry:check
+corepack pnpm --filter @kasitek/analytics registry:write
 ```
 
 Formula, population, denominator, unit, or aggregation changes require a new metric major version

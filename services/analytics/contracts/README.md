@@ -12,7 +12,7 @@ unchanged meaning may remain within the current major version.
 Validate schemas and examples with:
 
 ```bash
-cargo run --bin analytics-registry -- --check
+corepack pnpm --filter @kasitek/analytics registry:check
 ```
 
 Source outboxes, authenticated ingestion, scope authorization, and producer adapters are later
