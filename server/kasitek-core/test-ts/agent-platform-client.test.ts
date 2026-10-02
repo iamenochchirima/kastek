@@ -1,0 +1,213 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { createHmac } from "node:crypto";
+import { readFileSync } from "node:fs";
+import { readConfig } from "../src-ts/config.js";
+import { AgentPlatformClient } from "../src-ts/services/agent-platform/client.js";
+const config = () =>
+  readConfig({
+    DATABASE_URL: "postgres://unused",
+    AGENTS_API_URL: "https://agents.synthetic.example",
+    AGENTS_INTERNAL_AUTH_SECRET: "synthetic-signing-secret",
+    AGENTS_INTERNAL_AUTH_AUDIENCE: "synthetic-agents",
+    AGENTS_API_TIMEOUT_MS: "500",
+  });
+const json = (value: unknown, status = 200) =>
+  new Response(JSON.stringify(value), { status });
+test("native Agents transport preserves scoped HMAC claims, correlation, operator admission and all source-owned adapter names", async () => {
+  const calls: { url: string; init: RequestInit }[] = [];
+  const client = new AgentPlatformClient(config(), {
+    correlationId: () => "synthetic-correlation",
+    now: () => 1700000000000,
+    fetch: async (url, init) => {
+      calls.push({ url: String(url), init: init! });
+      return new Response('{"large":9223372036854775807}');
+    },
+  });
+  assert.deepEqual(
+    await client.createAgent("org", "user", {
+      name: "synthetic",
+      large: 9223372036854775807n,
+    }),
+    { large: 9223372036854775807n },
+  );
+  const init = calls[0]!.init,
+    headers = init.headers as Record<string, string>;
+  assert.equal(init.body, '{"large":9223372036854775807,"name":"synthetic"}');
+  assert.equal(headers["x-organization-id"], "org");
+  const [payload, signature] = headers.Authorization!.slice(7).split(".");
+  assert.equal(
+    signature,
+    createHmac("sha256", "synthetic-signing-secret")
+      .update(payload!)
+      .digest("base64url"),
+  );
+  assert.deepEqual(JSON.parse(Buffer.from(payload!, "base64url").toString()), {
+    organizationId: "org",
+    actorId: "user",
+    correlationId: "synthetic-correlation",
+    audience: "synthetic-agents",
+    expiresAt: 1700000060,
+    scopes: ["agents:write"],
+  });
+  await client.operatorCreateCommand("operator", "synthetic-key", {
+    action: "synthetic",
+  });
+  const operator = calls[1]!.init.headers as Record<string, string>;
+  assert.equal(operator["x-kasitek-operator"], "true");
+  assert.equal(operator["x-organization-id"], "platform");
+  assert.equal(operator["idempotency-key"], "synthetic-key");
+  const claims = JSON.parse(
+    Buffer.from(
+      operator.Authorization!.slice(7).split(".")[0]!,
+      "base64url",
+    ).toString(),
+  );
+  assert.equal(claims.operator, true);
+  assert.deepEqual(claims.scopes, ["operator:write"]);
+  const source = readFileSync("src/services/agent_platform.rs", "utf8"),
+    expected = [...source.matchAll(/    pub async fn (\w+)/g)]
+      .map((match) =>
+        match[1]!
+          .replace(/_([a-z])/g, (_all, c) => c.toUpperCase())
+          .replace("Oauth", "OAuth"),
+      )
+      .sort();
+  const actual = Object.getOwnPropertyNames(AgentPlatformClient.prototype)
+    .filter((name) => name !== "constructor")
+    .sort();
+  assert.equal(expected.length, 174);
+  assert.deepEqual(actual, expected);
+});
+test("Agents filtering, OAuth error responses and multipart/audio contract preserve raw values and scopes", async () => {
+  const calls: { url: string; init: RequestInit }[] = [];
+  let next = json({});
+  const client = new AgentPlatformClient(config(), {
+    fetch: async (url, init) => {
+      calls.push({ url: String(url), init: init! });
+      return next;
+    },
+  });
+  await client.listHandoffs(
+    "org",
+    "actor",
+    " installation ",
+    null,
+    null,
+    null,
+    null,
+    "unassigned",
+    null,
+    "!'()*",
+    20,
+    null,
+    null,
+  );
+  assert.equal(
+    calls[0]!.url,
+    "https://agents.synthetic.example/v1/conversations/handoffs?installationId=%20installation%20&assignment=unassigned&search=%21%27%28%29%2A&limit=20",
+  );
+  next = json({ error: "denied", status: "error" }, 400);
+  assert.deepEqual(
+    await client.completeGoogleOAuthCallback("state=synthetic&code=a%2Fb"),
+    { error: "denied", status: "error" },
+  );
+  assert.equal(
+    calls[1]!.url,
+    "https://agents.synthetic.example/v1/integrations/google/oauth/callback?state=synthetic&code=a%2Fb",
+  );
+  assert.equal(
+    (calls[1]!.init.headers as Record<string, string>)["x-kasitek-oauth-proxy"],
+    "1",
+  );
+  next = json({ transcript: "fixture" });
+  await client.sendPlatformAudio(
+    "org",
+    "actor",
+    "installation",
+    Buffer.from("synthetic"),
+    "audio/ogg",
+    "voice.ogg",
+    "synthetic-key",
+    "conversation",
+    "caption",
+    null,
+    null,
+  );
+  const sent = calls[2]!.init;
+  const form = sent.body as FormData;
+  const file = form.get("file") as File;
+  assert.equal(file.name, "voice.ogg");
+  assert.equal(file.type, "audio/ogg");
+  assert.equal(await file.text(), "synthetic");
+  assert.equal(
+    (sent.headers as Record<string, string>)["x-audio-conversation-id"],
+    "conversation",
+  );
+  assert.equal(
+    (sent.headers as Record<string, string>)["Content-Type"],
+    undefined,
+  );
+});
+test("Agents upstream errors preserve reviewed codes and native stream bodies remain unbounded after connection", async () => {
+  let next = json(
+    { error: "provider missing", code: "google_oauth_not_configured" },
+    503,
+  );
+  const client = new AgentPlatformClient(config(), { fetch: async () => next });
+  await assert.rejects(client.getModelCatalog("org", "actor"), {
+    status: 503,
+    code: "google_oauth_not_configured",
+    message: "provider missing",
+  });
+  next = json(
+    { error: "operator conflict", code: "conversation_handoff_active" },
+    400,
+  );
+  await assert.rejects(client.getModelCatalog("org", "actor"), {
+    status: 409,
+    code: "conversation_handoff_active",
+  });
+  next = json({ error: "not permitted" }, 401);
+  await assert.rejects(client.getModelCatalog("org", "actor"), {
+    status: 401,
+    message: "Unauthorized",
+  });
+  next = new Response(null, { status: 204 });
+  assert.equal(await client.getModelCatalog("org", "actor"), null);
+  next = new Response("not-json");
+  await assert.rejects(client.getModelCatalog("org", "actor"), {
+    status: 502,
+    message: "Agent Platform returned an invalid response",
+  });
+  let signal: AbortSignal | undefined;
+  const streamClient = new AgentPlatformClient(config(), {
+    fetch: async (_url, init) => {
+      signal = init?.signal ?? undefined;
+      return new Response(
+        new ReadableStream({
+          start(controller) {
+            controller.enqueue(new TextEncoder().encode("data: synthetic\n\n"));
+          },
+        }),
+        { headers: { "Content-Type": "text/event-stream" } },
+      );
+    },
+  });
+  const streamed = await streamClient.streamRunEvents(
+    "org",
+    "actor",
+    "run",
+    18446744073709551615n,
+  );
+  const reader = streamed.body!.getReader();
+  assert.equal(
+    new TextDecoder().decode((await reader.read()).value),
+    "data: synthetic\n\n",
+  );
+  await new Promise((resolve) => setTimeout(resolve, 525));
+  assert.equal(signal!.aborted, false);
+  await reader.cancel();
+});
+
+test("Agents JSON preserves explicit null bodies while bodyless adapters omit JSON",async()=>{const bodies:unknown[]=[];const client=new AgentPlatformClient(config(),{fetch:async(_url,init)=>{bodies.push(init?.body);return json({});}});await client.createAgent("org","actor",null);await client.getModelCatalog("org","actor");assert.deepEqual(bodies,["null",undefined]);});
