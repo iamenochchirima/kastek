@@ -43,6 +43,41 @@ test('synthetic PostgreSQL booking availability, org isolation, customer identit
  await assert.rejects(createBooking(pool,scope,{...input,customerId:foreign}),/Contact does not belong/);
  await assert.rejects(createBooking(pool,context('org-b'),input),/Active booking service not found/);
  const booking=await createBooking(pool,scope,input);assert.equal(booking.serviceName,'Consultation');assert.equal(booking.customerName,'Ada');assert.equal(booking.timezone,'Africa/Johannesburg');assert.equal(booking.scheduledStart.toJSON(),'2030-01-01T12:00:00.123456Z');assert.equal(booking.scheduledEnd.toJSON(),'2030-01-01T13:00:00.123456Z');
+ // Rust create_booking has an autocommit INSERT followed by a separate readback;
+ // update_booking is one data-modifying CTE. Exercise those actual statement
+ // boundaries rather than inventing a broader transaction around validation.
+ await pool.query(`CREATE TABLE "BookingFailureAudit"("bookingId" text, operation text);
+ CREATE FUNCTION booking_fixture_failure() RETURNS trigger LANGUAGE plpgsql AS $$
+ BEGIN
+   IF NEW.notes = '__fixture_force_statement_failure__' THEN
+     INSERT INTO "BookingFailureAudit" VALUES(NEW.id,TG_OP);
+     RAISE EXCEPTION USING ERRCODE='P0001', MESSAGE='synthetic booking statement failure';
+   END IF;
+   RETURN NEW;
+ END;
+ $$;
+ CREATE TRIGGER booking_fixture_failure AFTER INSERT OR UPDATE ON "Booking"
+ FOR EACH ROW EXECUTE FUNCTION booking_fixture_failure();`);
+ const rowsBefore = (await pool.query(`SELECT count(*)::int AS count FROM "Booking"`)).rows[0].count;
+ const customerBefore = (await pool.query(`SELECT * FROM "Customer" WHERE id=$1`,[customerId])).rows[0];
+ await assert.rejects(createBooking(pool,scope,{
+   ...input,scheduledStart:'2030-01-02T12:00:00.123456Z',
+   notes:'__fixture_force_statement_failure__',
+ }), (error:unknown)=>error instanceof Error && error.message === 'synthetic booking statement failure' && (error as Error & {code?:string}).code === 'P0001');
+ assert.equal((await pool.query(`SELECT count(*)::int AS count FROM "Booking"`)).rows[0].count, rowsBefore);
+ assert.equal((await pool.query(`SELECT count(*)::int AS count FROM "BookingFailureAudit"`)).rows[0].count,0);
+ assert.deepEqual((await pool.query(`SELECT * FROM "Customer" WHERE id=$1`,[customerId])).rows[0],customerBefore);
+ const beforeFailedUpdate=(await pool.query(`SELECT * FROM "Booking" WHERE id=$1`,[booking.id])).rows[0];
+ await assert.rejects(updateBooking(pool,scope,booking.id,{
+   status:'CONFIRMED',notes:'__fixture_force_statement_failure__',
+ }), (error:unknown)=>error instanceof Error && error.message === 'synthetic booking statement failure' && (error as Error & {code?:string}).code === 'P0001');
+ assert.deepEqual((await pool.query(`SELECT * FROM "Booking" WHERE id=$1`,[booking.id])).rows[0],beforeFailedUpdate);
+ assert.equal((await pool.query(`SELECT count(*)::int AS count FROM "BookingFailureAudit"`)).rows[0].count,0);
+ // The same connection pool remains usable after each rejected statement.
+ const recovered=await createBooking(pool,scope,{
+   ...input,scheduledStart:'2030-01-02T12:00:00.123456Z',notes:'recovered',
+ });
+ await pool.query(`DELETE FROM "Booking" WHERE id=$1`,[recovered.id]);
  const precision=(await pool.query(`SELECT EXTRACT(MICROSECONDS FROM "scheduledStart") AS start,EXTRACT(MICROSECONDS FROM "scheduledEnd") AS finish FROM "Booking" WHERE id=$1`,[booking.id])).rows[0];assert.equal(precision.start,'123456');assert.equal(precision.finish,'123456');
  await assert.rejects(createBooking(pool,scope,input),/already has a booking/);
  const original=await updateBooking(pool,scope,booking.id,parseUpdateBooking({status:'cancelled',notes:' '}));assert.equal(original.status,'SCHEDULED');

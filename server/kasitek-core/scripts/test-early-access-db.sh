@@ -1,14 +1,7 @@
-#!/usr/bin/env sh
-set -eu
-
-: "${EARLY_ACCESS_TEST_DATABASE_URL:?Set EARLY_ACCESS_TEST_DATABASE_URL to a disposable local PostgreSQL database}"
-
-case "$EARLY_ACCESS_TEST_DATABASE_URL" in
-  *localhost*|*127.0.0.1*|*::1*) ;;
-  *) echo "Refusing to run early-access integration tests against a non-local database" >&2; exit 1 ;;
-esac
+#!/usr/bin/env bash
+set -euo pipefail
 
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
-SERVER_ROOT="$SCRIPT_DIR/../.."
-cd "$SERVER_ROOT"
-DATABASE_URL="$EARLY_ACCESS_TEST_DATABASE_URL" cargo test -p kasitek-core --test early_access -- --ignored
+source "$SCRIPT_DIR/../../../scripts/node24.sh"
+kasitek_use_node24
+exec node "$SCRIPT_DIR/run-db-fixtures.mjs" early-access

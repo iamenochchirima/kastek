@@ -17,11 +17,11 @@ Existing process environment variables take precedence. It connects to the
 configured PostgreSQL database before starting HTTP or workers. It does not
 automatically apply Prisma migrations.
 
-For an API comparison alongside Rust, use a separate port and disable background
-workers:
+The current local API runs on port 4000 with Rust stopped. To start it without
+effect-producing background workers:
 
 ```sh
-KASITEK_DISABLE_BACKGROUND_WORKERS=1 PORT=4900 pnpm start
+KASITEK_DISABLE_BACKGROUND_WORKERS=1 pnpm start
 ```
 
 Do not start both implementations' workers against the same data. That can send
@@ -80,7 +80,18 @@ and telemetry shutdown bounded.
 These checks do not prove every live provider integration, hosted production OTLP
 export, full frontend parity or Rust retirement. Those remain migration gates.
 
-Rollout is local comparison only. Keep Rust and the existing deployment commands
-until the full migration gates pass. Rollback from a comparison API is stopping
-that process. Production configuration changes, Collector revision changes and
-post-release review dates are not applicable before deployment.
+Rollout is local only. Native launchers now use TypeScript; Rust source and its
+recoverable Git baseline remain until the full deletion gate passes. Stop native
+workers before restoring the Rust baseline. Production deployment, private
+registry installation and hosted configuration remain pending. Collector changes
+and post-release review dates are not applicable before deployment.
+
+## Focused database fixtures
+
+The existing `scripts/test-early-access-db.sh`, `test-referrals-db.sh` and
+`test-seeded-core-db.sh` entrypoints now run the TypeScript fixtures. Supply their
+existing `EARLY_ACCESS_TEST_DATABASE_URL`, `REFERRALS_TEST_DATABASE_URL` or
+`SEEDED_CORE_TEST_DATABASE_URL` variable with a disposable local PostgreSQL URL.
+They validate the actual URL hostname, create synthetic isolated schemas and
+clean them up. They do not load the historical seed into public tables. The
+seed SQL remains available as source evidence.
