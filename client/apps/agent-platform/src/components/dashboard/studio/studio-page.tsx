@@ -15,6 +15,7 @@ import {
   X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useConfirmationDialog } from "@/components/ui/confirmation-provider";
 import { toast } from "sonner";
 import {
@@ -1204,6 +1205,7 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
   }, [selectedMemoryRevisionId]);
 
   return (
+    <Dialog open={configurationOpen} onOpenChange={setConfigurationOpen}>
     <div className="flex h-[calc(100dvh-4rem)] min-h-0 flex-col overflow-hidden bg-canvas">
       <header className="border-b border-border bg-card/80 px-4 py-3 backdrop-blur sm:px-6">
         <div className="mx-auto flex max-w-[1760px] flex-wrap items-center gap-3">
@@ -1215,7 +1217,7 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
           <span className="inline-flex items-center gap-1.5 rounded-md border border-primary/20 bg-primary/5 px-2.5 py-1.5 text-xs text-primary"><FlaskConical className="size-3.5" />{surface === "playground" ? "Playground" : "Studio"}</span>
           <span className={cn("inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-[11px]", installationReadiness?.ready ? "border-emerald-500/30 bg-emerald-500/5 text-emerald-700 dark:text-emerald-300" : installationReadiness ? "border-amber-500/30 bg-amber-500/5 text-amber-700 dark:text-amber-300" : "border-border text-muted-foreground")} title={effectiveConfig?.version.checksum ? `Candidate ${effectiveConfig.version.checksum}` : undefined}><CircleDot className="size-3" />{installationReadiness ? (installationReadiness.ready ? "Ready" : "Blocked") : effectiveConfigLoading ? "Checking" : "Unknown"}{effectiveConfig?.version ? ` · v${effectiveConfig.version.versionNumber}` : ""}</span>
           {deploymentStatus?.live.version ? <span className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-[11px] text-muted-foreground" title={`Live candidate ${deploymentStatus.live.version.digest}`}><CircleDot className="size-3 text-status-success" />Live · v{deploymentStatus.live.version.versionNumber}</span> : null}
-          <Button type="button" variant="outline" size="sm" onClick={() => setConfigurationOpen(true)}><SlidersHorizontal className="mr-1.5 size-3.5" />Settings</Button>
+          <DialogTrigger asChild><Button type="button" variant="outline" size="sm"><SlidersHorizontal className="mr-1.5 size-3.5" />Settings</Button></DialogTrigger>
           {activeRunId ? <Button type="button" variant="outline" size="sm" onClick={() => void cancelRun()} disabled={cancelling}><X className="mr-1.5 size-3.5" />{cancelling ? "Cancelling…" : "Cancel"}</Button> : null}
           {!activeRunId && selectedRun && ["failed", "expired"].includes(selectedRun.status) ? <Button type="button" variant="outline" size="sm" onClick={() => void retryRun()} disabled={retrying}><ArrowRight className="mr-1.5 size-3.5" />{retrying ? "Retrying…" : "Retry"}</Button> : null}
           {selectedRun && ["awaiting_external_event", "awaiting_human"].includes(selectedRun.status) ? <AgentRunActions runId={selectedRun.id} status={selectedRun.status} waitingFor={typeof selectedRun.output?.waitingFor === "string" ? selectedRun.output.waitingFor : undefined} showCancel={!activeRunId} /> : null}
@@ -1276,8 +1278,13 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
           </section>
         </div>
       </div>
-      {configurationOpen ? <div className="fixed inset-0 z-50" role="presentation"><button type="button" aria-label="Close settings" className="absolute inset-0 bg-black/50" onClick={() => setConfigurationOpen(false)} /><aside role="dialog" aria-modal="true" aria-labelledby="configuration-title" className="absolute inset-3 overflow-hidden rounded-2xl border border-border bg-card shadow-2xl sm:inset-6 lg:inset-10"><StudioSettings key={selectedVersion?.id ?? "new-version"} agent={agent} version={selectedVersion} installationId={agent.installation_id ?? null} instructions={instructions} setInstructions={setInstructions} onSave={saveDraft} saving={saving} modelCatalog={modelCatalog} modelCatalogLoading={modelCatalogLoading} modelSelection={versionModelSelection} setModelSelection={setVersionModelSelection} onClose={() => setConfigurationOpen(false)} /></aside></div> : null}
+      <DialogContent showCloseButton={false} className="block h-[calc(100dvh-1.5rem)] w-[calc(100%-1.5rem)] max-w-none overflow-hidden rounded-2xl border border-border bg-card p-0 sm:h-[calc(100dvh-3rem)] sm:w-[calc(100%-3rem)] sm:max-w-none sm:p-0 lg:h-[calc(100dvh-5rem)] lg:w-[calc(100%-5rem)]">
+        <DialogTitle className="sr-only">Settings for {agent.name}</DialogTitle>
+        <DialogDescription className="sr-only">Configure this agent's behavior, model, memory and capabilities.</DialogDescription>
+        <StudioSettings key={selectedVersion?.id ?? "new-version"} agent={agent} version={selectedVersion} installationId={agent.installation_id ?? null} instructions={instructions} setInstructions={setInstructions} onSave={saveDraft} saving={saving} modelCatalog={modelCatalog} modelCatalogLoading={modelCatalogLoading} modelSelection={versionModelSelection} setModelSelection={setVersionModelSelection} onClose={() => setConfigurationOpen(false)} />
+      </DialogContent>
     </div>
+    </Dialog>
   );
 }
 

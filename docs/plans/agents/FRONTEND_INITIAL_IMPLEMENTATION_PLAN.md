@@ -270,3 +270,19 @@ Personal deployment UI distinction, 2026-10-02:
 - Frontend typing/production build and focused lint passed. Browser control timed
   out during navigation and reconnect, so the new category/page still needs live
   navigation and mobile verification. The phase-3 acceptance stays unchecked.
+
+Settings keyboard behavior and personal navigation, 2026-10-02:
+
+- Replaced the hand-built settings overlay with the existing Radix-based Dialog
+  primitive and its Settings trigger. Added a dialog title and description while
+  retaining the settings layout and viewport-relative dimensions.
+- In the real browser, opening Settings focused Close settings inside the dialog.
+  Shift+Tab wrapped to Save draft; Tab returned to the first control. Escape
+  removed the dialog and restored focus to Settings. Screenshot:
+  `.artifacts/agents-settings-dialog.jpg`. Frontend build and focused lint passed.
+- Verified the hosted agent list still showed both saved fixtures. Selecting
+  Personal deployments showed its planned explanation, without counts or a
+  Create action, then its link opened `/app/agents/personal` with all four
+  planned control areas. Screenshot: `.artifacts/agents-personal-planned.jpg`.
+  This clears the previous checkpoint's pending desktop category/page navigation;
+  mobile coverage for that new page remains pending.
