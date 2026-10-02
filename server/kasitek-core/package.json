@@ -1,0 +1,45 @@
+{
+  "name": "@kasitek/growth-core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24 <25"
+  },
+  "packageManager": "pnpm@10.30.1",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "dev": "tsx watch src-ts/main.ts",
+    "start": "node dist/main.js",
+    "test": "tsx --test test-ts/*.test.ts",
+    "prepare:shared": "node scripts/prepare-shared.mjs"
+  },
+  "dependencies": {
+    "@fastify/cookie": "^10.0.1",
+    "@fastify/cors": "^11.1.0",
+    "@fastify/formbody": "^8.0.2",
+    "@fastify/multipart": "^9.4.0",
+    "@paralleldrive/cuid2": "^2.3.1",
+    "dotenv": "^16.6.1",
+    "fastify": "^5.6.2",
+    "jose": "^6.1.0",
+    "openid-client": "^6.8.1",
+    "pg": "^8.16.3",
+    "@kasitek/contracts": "file:.artifacts/shared/kasitek-contracts-0.1.0.tgz",
+    "@kasitek/server-support": "file:.artifacts/shared/kasitek-server-support-0.1.0.tgz",
+    "bcryptjs": "^3.0.2",
+    "redis": "^5.9.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.6.0",
+    "@types/pg": "^8.15.5",
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.3"
+  },
+  "pnpm": {
+    "overrides": {
+      "@kasitek/contracts": "file:.artifacts/shared/kasitek-contracts-0.1.0.tgz"
+    }
+  }
+}

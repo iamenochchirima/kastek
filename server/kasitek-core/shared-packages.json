@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "sourceCommit": "934e1f9036e2aab9ecd20dfe65cf0e379d37c82e",
+  "sourceContentSha256": "b37533c2c7da98695d07e21306ceabb2353cec66e1bcba5f4aef1d41bde3e70f",
+  "artifacts": [
+    {
+      "package": "@kasitek/contracts",
+      "version": "0.1.0",
+      "file": "kasitek-contracts-0.1.0.tgz",
+      "sha256": "6b551807aba6207ca1b9e18eee1cfb651ecda8fd45705b0d804265a2992deebb",
+      "integrity": "sha512-XT6GiHp0B/rgkT1IyCb3sDhqw7ipqGzReJpkDAWRvab1u39CAsE5r0A4iZRBkIIL6wAqiYZMp4gWZt3pC8OTBg=="
+    },
+    {
+      "package": "@kasitek/server-support",
+      "version": "0.1.0",
+      "file": "kasitek-server-support-0.1.0.tgz",
+      "sha256": "ac67e2547eb692ca5488ec2a762149d6ecdfcccd9170388a8858ce942dcb9823",
+      "integrity": "sha512-AnYPZANNJSpaaF/ZZ+0Fb/QKoFWtLOvpxqcii2dVfW6YzJbXdHU/VIj9HIcNrsWCGQjsDHji1WniXeqcUjnCyQ=="
+    }
+  ]
+}

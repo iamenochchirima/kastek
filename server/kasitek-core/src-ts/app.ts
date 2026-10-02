@@ -1,0 +1,53 @@
+import Fastify, { type FastifyInstance } from 'fastify';
+import cookie from '@fastify/cookie';
+import cors from '@fastify/cors';
+import formbody from '@fastify/formbody';
+import multipart from '@fastify/multipart';
+import { isIP } from 'node:net';
+import type { CoreContext } from './context.js';
+import { installErrorHandler } from './error.js';
+
+export type RouteRegistrar = (app: FastifyInstance, context: CoreContext) => void | Promise<void>;
+
+export async function buildApp(context: CoreContext, registrars: RouteRegistrar[] = []): Promise<FastifyInstance> {
+  const app = Fastify({
+    bodyLimit: 2 * 1024 * 1024,
+    // Serde does not coerce JSON fields or silently remove unknown properties.
+    ajv: { customOptions: { coerceTypes: false, removeAdditional: false, useDefaults: false } },
+    logger: { level: context.config.env.LOG_LEVEL ?? 'info',
+      redact: ['req.headers.authorization', 'req.headers.cookie', 'res.headers["set-cookie"]'] },
+    disableRequestLogging: true,
+  });
+  installErrorHandler(app);
+  await app.register(cookie);
+  await app.register(formbody);
+  await app.register(multipart, { limits: { fileSize: 5 * 1024 * 1024 } });
+  await app.register(cors, {
+    delegator: (request, callback) => {
+      const value = request.headers.origin;
+      let allowed = value === context.config.frontendUrl;
+      if (value) {
+        try {
+          const parsed = new URL(value);
+          const http = ['http:', 'https:'].includes(parsed.protocol);
+          if (http && request.url.startsWith('/api/widget/v1/')) allowed = true;
+          const hostname = parsed.hostname.replace(/^\[|\]$/g, '');
+          const loopback = hostname === 'localhost' || hostname === '::1'
+            || (isIP(hostname) === 4 && hostname.startsWith('127.'));
+          const local = ['development', 'dev', 'local', 'test'].includes(context.config.environment.toLowerCase());
+          if (http && local && loopback && !parsed.username && !parsed.password
+            && parsed.pathname === '/' && !parsed.search && !parsed.hash) allowed = true;
+        } catch { /* Invalid origins are not reflected. */ }
+      }
+      callback(null, { origin: allowed, credentials: true, maxAge: 3600,
+        methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
+        allowedHeaders: ['Content-Type', 'Authorization', 'Idempotency-Key', 'X-Audio-Idempotency-Key',
+          'X-Audio-File-Name', 'X-Audio-Caption', 'X-Audio-Display-Name'] });
+    },
+  });
+  const health = () => ({ service: 'kasitek-core', status: 'ok', timestamp: new Date().toISOString() });
+  app.get('/', health);
+  app.get('/health', health);
+  for (const register of registrars) await register(app, context);
+  return app;
+}
