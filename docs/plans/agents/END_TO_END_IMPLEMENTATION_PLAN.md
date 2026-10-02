@@ -37,7 +37,7 @@ or a machine credential embedded in JavaScript.
 
 ## Stage 1: Finish the real Playground journey
 
-- [ ] Resolve the owner's credential choice: reuse approved development credentials or configure separate backend credentials. Never put keys in chat, frontend bundles or Git.
+- [x] Select OpenRouter for local model calls. The owner will configure the key in local backend secrets; never put keys in chat, frontend bundles or Git.
 - [ ] Start the API, database, client, Temporal server and worker using the existing documented setup. Confirm queue/namespace and billing mode; production credit enforcement stays intact.
 - [ ] Create a fresh agent through the UI, choose its model/instructions and pin the saved version to Playground.
 - [ ] Send a message and display the actual model response, recorded run status, progress and ordinary provider errors.
