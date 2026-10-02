@@ -67,9 +67,10 @@ rather than promise automatic recovery.
 
 ## Stage 3: Connect knowledge from setup to answers
 
-- [x] Expose the existing source list/create/read/delete and manual text-ingestion controls through scoped Agents browser routes. A signed-in workspace member created, saw and deleted a temporary FAQ in the agent detail screen.
+- [x] Expose the existing source list/create/read/delete and manual text-ingestion controls through scoped Agents browser routes. A signed-in workspace member created, saw and deleted a temporary FAQ in the agent detail screen; a second FAQ is retained locally for the next retrieval check.
 - [ ] Verify file, URL and website ingestion, including processing progress and ordinary errors.
-- [ ] Connect Knowledge setup to source readiness, ingestion errors and agent/source attachment. Keep conversation history, memory and knowledge distinct in the UI.
+- [x] Show source readiness in Knowledge, including processing/failure/empty states and whether search is semantic plus keyword or keyword-only, with indexed section count when available.
+- [ ] Surface actionable ingestion errors and verify that sources are attached to the intended agent. Keep conversation history, memory and knowledge distinct in the UI.
 - [ ] Verify retrieval uses the selected agent's permitted sources and appears in recorded execution evidence.
 - [ ] Reuse the existing file/storage/index path; identify any missing storage dependency before accepting uploads. Deletion must remove access to derived retrieval data.
 - [ ] Add website ingestion only after text/file ingestion works; expose crawler/provider requirements and actual progress.
