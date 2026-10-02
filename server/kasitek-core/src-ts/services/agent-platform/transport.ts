@@ -1,3 +1,4 @@
+import { Agent, fetch as undiciFetch } from "undici";
 import { randomUUID } from "node:crypto";
 import type { CoreConfig } from "../../config.js";
 import { ApiError } from "../../error.js";
@@ -9,6 +10,24 @@ export interface AgentTransportOptions {
   now?: () => number;
   traceHeaders?: () => Record<string, string>;
   log?: { error(fields: Record<string, unknown>, message?: string): void };
+}
+const streamDispatchers = new Map<number, Agent>();
+function streamDispatcher(timeout: number): Agent {
+  let dispatcher = streamDispatchers.get(timeout);
+  if (!dispatcher) {
+    dispatcher = new Agent({
+      connect: { timeout },
+      headersTimeout: 0,
+      bodyTimeout: 0,
+    });
+    streamDispatchers.set(timeout, dispatcher);
+  }
+  return dispatcher;
+}
+export async function closeAgentStreamDispatchers(): Promise<void> {
+  const dispatchers = [...streamDispatchers.values()];
+  streamDispatchers.clear();
+  await Promise.all(dispatchers.map((dispatcher) => dispatcher.close()));
 }
 const knownCodes = new Set([
   "google_oauth_integration_not_supported",
@@ -89,29 +108,31 @@ export class AgentPlatformTransport {
       ...(operator ? { operator: true } : {}),
     });
     const controller = new AbortController();
-    let timer: ReturnType<typeof setTimeout> | undefined = setTimeout(
-      () => controller.abort(),
-      this.timeoutMs,
-    );
-    timer.unref();
+    let timer: ReturnType<typeof setTimeout> | undefined = stream
+      ? undefined
+      : setTimeout(() => controller.abort(), this.timeoutMs);
+    timer?.unref();
     try {
-      const response = await (this.options.fetch ?? fetch)(
-        `${this.baseUrl}${path}`,
-        {
-          method,
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "x-organization-id": organizationId,
-            "x-actor-id": actorId,
-            "x-correlation-id": correlationId,
-            ...(operator ? { "x-kasitek-operator": "true" } : {}),
-            ...extraHeaders,
-            ...this.options.traceHeaders?.(),
-          },
-          ...(body == null ? {} : { body }),
-          signal: controller.signal,
+      const http =
+        this.options.fetch ??
+        (stream ? (undiciFetch as unknown as typeof fetch) : fetch);
+      const response = await http(`${this.baseUrl}${path}`, {
+        method,
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "x-organization-id": organizationId,
+          "x-actor-id": actorId,
+          "x-correlation-id": correlationId,
+          ...(operator ? { "x-kasitek-operator": "true" } : {}),
+          ...extraHeaders,
+          ...this.options.traceHeaders?.(),
         },
-      );
+        ...(body == null ? {} : { body }),
+        signal: controller.signal,
+        ...(stream && !this.options.fetch
+          ? { dispatcher: streamDispatcher(this.timeoutMs) }
+          : {}),
+      } as RequestInit);
       if (stream) {
         clearTimeout(timer);
         timer = undefined;
@@ -129,7 +150,9 @@ export class AgentPlatformTransport {
     } catch (error) {
       if (
         controller.signal.aborted ||
-        (error instanceof Error && /timeout|timed out/i.test(error.message))
+        (error instanceof Error && /timeout|timed out/i.test(error.message)) ||
+        (error as { cause?: { code?: string } })?.cause?.code ===
+          "UND_ERR_CONNECT_TIMEOUT"
       )
         throw new ApiError(
           504,

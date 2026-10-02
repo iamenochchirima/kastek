@@ -254,3 +254,37 @@ test("Telegram bridge preserves forwarded secret headers and source service-unav
     (error: unknown) => (error as { status: number }).status === 503,
   );
 });
+test("native SSE limits TCP connection only and permits delayed response headers and body", async () => {
+  const { createServer } = await import("node:http");
+  const { closeAgentStreamDispatchers } =
+    await import("../src-ts/services/agent-platform/transport.js");
+  const server = createServer((_request, response) => {
+    setTimeout(() => {
+      response.writeHead(200, { "content-type": "text/event-stream" });
+      response.flushHeaders();
+      setTimeout(() => response.end("data: synthetic\n\n"), 650);
+    }, 650);
+  });
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  try {
+    const address = server.address() as { port: number };
+    const native = new AgentPlatformClient(
+      readConfig({
+        DATABASE_URL: "postgres://unused",
+        AGENTS_API_URL: `http://127.0.0.1:${address.port}`,
+        AGENTS_INTERNAL_AUTH_SECRET: "synthetic",
+        AGENTS_API_TIMEOUT_MS: "500",
+      }),
+    );
+    const response = await native.streamConversationFeedEvents(
+      "synthetic",
+      "synthetic",
+    );
+    assert.equal(await response.text(), "data: synthetic\n\n");
+  } finally {
+    await closeAgentStreamDispatchers();
+    await new Promise<void>((resolve, reject) =>
+      server.close((error) => (error ? reject(error) : resolve())),
+    );
+  }
+});
