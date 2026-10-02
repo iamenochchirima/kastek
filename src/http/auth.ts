@@ -19,7 +19,19 @@ export interface AuthContext {
   correlationId?: string;
   scopes: string[];
   operator?: boolean;
+  source?: "browser";
 }
+
+// Only backend session admission can populate these contexts. Browser headers
+// and internal token claims cannot select this authentication path.
+const browserContexts = new WeakMap<object, AuthContext>();
+const browserRechecks = new WeakMap<object, () => Promise<void>>();
+export function admitBrowserRequest(request: object, context: AuthContext, recheck: () => Promise<void>): void {
+  browserContexts.set(request, { ...context, source: "browser", operator: false });
+  browserRechecks.set(request, recheck);
+}
+export function browserAuthContext(request: object): AuthContext | undefined { return browserContexts.get(request); }
+export async function recheckBrowserRequest(request: object): Promise<void> { await browserRechecks.get(request)?.(); }
 
 function encode(value: string): string {
   return Buffer.from(value).toString("base64url");

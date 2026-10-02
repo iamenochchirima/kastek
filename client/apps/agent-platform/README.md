@@ -24,11 +24,12 @@ Open http://localhost:3100. Copy .env.example to .env.local if the Agents API us
 
 The session loader uses GET /api/auth/me from the standalone Agents backend. Local
 password login, workspace onboarding, dashboard access and logout are verified.
-Existing agent screen controllers still use /api/agents contracts that formerly
-passed through Growth. Their standalone Agents facade is the next integration task;
-Vite does not manufacture a session, translate authority, or inject service credentials.
-With an absent backend, protected routes display a connection error. Agent creation
-and execution remain unverified.
+The initial /api/agents facade now uses real session/membership admission and the
+existing Agents backend handlers. Agent creation, Studio reopening after refresh
+and workspace listing are verified. Other inherited integration endpoints still
+need review. Vite does not manufacture a session or inject service credentials.
+With an absent backend, protected routes display a connection error. Actual model
+execution and streaming/history acceptance remain unverified.
 
 ## Normal checks
 

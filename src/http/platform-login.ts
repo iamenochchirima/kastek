@@ -131,8 +131,9 @@ export class PlatformLogin {
 
 export function registerPlatformLogin(app: FastifyInstance, config: AppConfig, pool: Pool): PlatformLogin | undefined {
   const login = config.AGENTS_OIDC_ISSUER_URL ? new PlatformLogin(config, pool) : undefined;
+  // Root cookie parsing is also needed by the standalone browser agent routes.
+  app.register(cookie);
   app.register(async (authApp) => {
-    await authApp.register(cookie);
     if (login) login.register(authApp);
     else authApp.all("/api/auth/*", async (_request, reply) => reply.code(503)
       .header("cache-control", "no-store").send({ message: "Sign-in is not configured yet" }));

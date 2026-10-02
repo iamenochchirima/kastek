@@ -10,7 +10,7 @@ Growth's Vantage design tokens, authored Geist fonts, theme/accent/density prefe
 
 ## Remaining dependencies
 
-The backend now implements standalone /api/auth routes, with its own workspace/session records, OIDC callback, HttpOnly cookie and bounded provider checks. Independent local clients are registered. Password sign-in, workspace onboarding, dashboard access, provider rechecking and browser logout were verified with a dedicated local test account. Existing screens use /api/agents commands inherited from the Growth-facing contract; the Agents backend currently exposes scoped /v1 interfaces. A proper authenticated browser facade is still required. No fake session or browser service-secret injection has been introduced.
+The backend implements standalone /api/auth routes, with its own workspace/session records, OIDC callback, HttpOnly cookie and bounded provider checks. Independent local clients are registered. Password sign-in, workspace onboarding, dashboard access, provider rechecking and browser logout were verified with a dedicated local test account. An explicit browser route manifest now connects the initial /api/agents creation/Studio/playground contracts to the existing scoped handlers. Other inherited agent/integration screens still need endpoint review. No fake session or browser service-secret injection has been introduced.
 
 The dev/preview proxy points /api to the configured Agents endpoint. It does not forward to Growth by default. Shared login belongs to Labs; the Agents integration must register its own client and enforce its own memberships.
 
@@ -32,6 +32,6 @@ reference checkout; runtime imports and changes to that repo are excluded.
 
 ## Evidence
 
-The migration passed frontend typecheck, production build and existing Studio event/reducer checks. Landing and signup navigation were inspected in the browser. The dashboard and account screen rendered with real session/workspace records. A 390-pixel viewport check confirmed no horizontal page overflow and working mobile navigation dismissal. Creation and model execution remain unverified.
+The migration passed frontend typecheck, production build and existing Studio event/reducer checks. Landing and signup navigation were inspected in the browser. The dashboard and account screen rendered with real session/workspace records. A 390-pixel viewport check confirmed no horizontal page overflow and working mobile navigation dismissal. A Booking Assistant was created through the real standalone backend, reopened in Studio after refresh and shown in its workspace list. Model execution remains unverified.
 
 Follow the [frontend checklist](plans/agents/FRONTEND_INITIAL_IMPLEMENTATION_PLAN.md). Growth's styling is reference material; no Growth files were modified by this frontend migration.

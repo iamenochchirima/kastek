@@ -2,7 +2,8 @@
 
 Status: Backend routes and initial frontend account integration implemented.
 Local client registration, password login, onboarding and browser logout verified.
-The authenticated agent API facade and actual agent journey remain unfinished.
+The initial authenticated agent API facade and saved-agent creation work.
+Execution, live-stream acceptance and the full agent journey remain unfinished.
 
 Labs owns the Keycloak account. Agents owns platform access. An account is
 identified by the validated provider issuer and subject, never a matching email.
@@ -70,12 +71,38 @@ temporary session. Existing internal service authentication remains independent.
 1. Add signed backchannel logout handling. Initial password login, onboarding,
    account actions and activity integration are implemented. Verify multiple
    workspace switching and all-device provider logout in the browser.
-2. Connect trusted browser session context to Agents API authorization. Do not
-   accept browser organization/actor headers as evidence of membership. Preserve
-   the independent internal machine authentication contract.
-3. Adapt the existing frontend API contracts and prove create,
-   playground response and reopening history. Shared provider configuration and
-   repository tests alone do not establish this acceptance journey.
+2. Finish the initial execution path and prove a real playground response,
+   stream/reconnect and reopening history. Saved-agent creation and reopening are
+   verified; they do not establish execution acceptance.
+3. Review additional inherited screen endpoints before expanding the explicit
+   browser route manifest. Preserve independent internal machine authentication.
+
+## Authenticated agent routes
+
+`src/http/browser-agent-routes.ts` lists the initial browser endpoints explicitly.
+The registration hook adds aliases sharing the canonical /v1 handlers, schemas
+and product checks. It does not proxy arbitrary paths or generate internal tokens.
+Operators, credential administration, external channel ingestion and unrelated
+services are not in this initial manifest.
+
+Admission resolves the real session and selected live membership. It stores trusted
+organization/actor context against the request object; browser actor, organization,
+operator and Authorization headers cannot choose that context. Existing handlers
+then establish the same database scope/RLS used by internal calls. Viewers can read;
+owner/admin/member roles can issue the exposed writes. Browser scopes remain
+enforced even when the independent machine interface uses development header auth.
+Changing requests require the exact product Origin. Read requests reject foreign
+Origin/cross-site browser metadata.
+
+Run streaming checks session/membership before each poll without refreshing user
+activity. Revocation or changed workspace context closes the stream. Provider
+checks retain the five-minute bound. Actual stream execution/reconnect is pending.
+
+Five focused admission tests passed for trusted context instead of forged headers,
+signed-out denial, viewer write denial, foreign-origin denial and changed streaming
+workspace context. Live browser creation/reopening also passed against the existing
+non-superuser runtime role. Registration follows the documented
+[Fastify route hook interface](https://fastify.dev/docs/v5.4.x/Reference/Hooks/).
 
 Invitations, full role management and the personal/team workspace relationship
 remain platform delivery work.

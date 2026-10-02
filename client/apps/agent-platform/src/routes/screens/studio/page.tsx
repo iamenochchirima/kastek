@@ -15,11 +15,6 @@ export default async function StudioRoute({
   if (!session?.user?.id) redirect("/login");
 
   const { agent, installationId } = await searchParams;
-  await fetchApiJson<{ id: string }>("/api/agents/kasiai/ensure", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ environment: "playground" }),
-  }).catch(() => null);
   const result = await fetchApiJson<{ agents: AgentDefinition[] }>("/api/agents?environment=playground")
     .then((value) => ({ agents: value.agents, unavailable: false }))
     .catch(() => ({ agents: [] as AgentDefinition[], unavailable: true }));

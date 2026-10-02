@@ -52,8 +52,9 @@ import { KillSwitchRepository } from "../db/repositories/kill-switch-repository"
 import { OperatorControlRepository } from "../db/repositories/operator-control-repository";
 import { RetentionRepository } from "../db/repositories/retention-repository";
 import { parseCanonicalMessageContent } from "../channels/messages";
-import { authenticateRequest, type AuthContext } from "./auth";
+import { authenticateRequest, browserAuthContext, recheckBrowserRequest, type AuthContext } from "./auth";
 import { registerPlatformLogin } from "./platform-login";
+import { registerBrowserAgentRoutes } from "./browser-agent-routes";
 import type { ApprovalGroupSignal, CancellationSignal, ExternalEventSignal } from "../temporal/contracts";
 import { advanceSseCursor, formatSseComment, formatSseEvent, toPublicEvent } from "./sse";
 import { KASIAI_SLUG } from "../system/kasiai";
@@ -267,7 +268,7 @@ function secretHeaderMatches(expected: string | undefined, provided: string | un
 }
 
 function requireAuth(request: FastifyRequest, config: AppConfig): AuthContext {
-  const auth = authenticateRequest(
+  const auth = browserAuthContext(request) ?? authenticateRequest(
     {
       authorization: headerValue(request, "authorization"),
       organizationId: headerValue(request, "x-organization-id"),
@@ -282,7 +283,7 @@ function requireAuth(request: FastifyRequest, config: AppConfig): AuthContext {
 }
 
 function requireScope(auth: AuthContext, config: AppConfig, scope: string): void {
-  if (config.AUTH_MODE === "headers") return;
+  if (config.AUTH_MODE === "headers" && auth.source !== "browser") return;
   if (!auth.scopes.includes(scope)) {
     throw Object.assign(new Error(`Missing internal scope: ${scope}`), { statusCode: 403 });
   }
@@ -643,7 +644,8 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       mixin: () => ({ ...operationalLogFields(), ...(currentCorrelationId() ? { correlation_id: currentCorrelationId() } : {}) }),
     },
   });
-  registerPlatformLogin(app, dependencies.config, dependencies.pool);
+  const platformLogin = registerPlatformLogin(app, dependencies.config, dependencies.pool);
+  registerBrowserAgentRoutes(app, platformLogin);
   app.addHook("onRequest", (request, reply, done) => {
     const correlationId = correlationIdFromHeader(request.headers["x-correlation-id"]);
     reply.header("x-correlation-id", correlationId);
@@ -6774,6 +6776,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       if (closed || polling) return;
       polling = true;
       try {
+        await recheckBrowserRequest(request);
         const events = await runs.listEventsAfter(auth.organizationId, run.id, cursor);
         for (const event of events) {
           response.write(formatSseEvent(event));

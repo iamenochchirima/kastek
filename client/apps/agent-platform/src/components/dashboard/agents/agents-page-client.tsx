@@ -62,7 +62,7 @@ function creationProfileLabel(agent: AgentDefinition): string | null {
 }
 
 function audienceLabel(agent: AgentDefinition): string {
-  return agent.agent_audience === "customer_service" ? "Customer service" : "Personal";
+  return agent.agent_audience === "customer_service" ? "Customer service" : "Workspace assistant";
 }
 
 function audienceClass(agent: AgentDefinition): string {
@@ -124,7 +124,7 @@ export function AgentsPageClient({
     router.replace(`/agents/new?flow=custom&audience=personal&template=${encodeURIComponent(initialTemplateKey)}`);
   }, [initialTemplateKey, router]);
 
-  const openCreate = () => router.push("/agents/new");
+  const openCreate = () => router.push("/studio/new");
 
   return (
     <div className="min-h-[100dvh] p-4 sm:p-6">
@@ -182,7 +182,7 @@ export function AgentsPageClient({
               <Sparkles className="h-7 w-7 text-primary" />
               <div>
                 <h2 className="text-xl font-semibold text-foreground">{activeView === "external" ? "No external agents yet" : "No installed agents yet"}</h2>
-                <p className="mt-1 max-w-xl text-sm leading-6 text-muted-foreground">{activeView === "external" ? "External connections will appear here." : "Install KasiAI or choose an available template to get started."}</p>
+                <p className="mt-1 max-w-xl text-sm leading-6 text-muted-foreground">{activeView === "external" ? "External connections will appear here." : "Create an agent and try it in the playground."}</p>
               </div>
               {activeView === "agents" ? <Button type="button" onClick={openCreate}>Create agent</Button> : null}
             </CardContent>
@@ -206,7 +206,7 @@ function CreationDraftCard({ draft, onResume }: { draft: AgentCreationDraftSumma
             <Badge className="border-primary/20 bg-primary/10 text-primary">Draft</Badge>
           </div>
           <div className="mt-2 flex flex-wrap gap-2 text-xs text-muted-foreground">
-            <span>{draft.audience === "customer_service" ? "Customer service" : "Personal"}</span>
+            <span>{draft.audience === "customer_service" ? "Customer service" : "Workspace assistant"}</span>
             <span aria-hidden="true">·</span>
             <span>{isCustom ? "Custom agent" : "General-purpose agent"}</span>
             <span aria-hidden="true">·</span>
@@ -232,8 +232,8 @@ function OperationsSummary({ summary }: { summary: AgentOperationsSummary }) {
 
 function AudienceSummary({ counts }: { counts: AgentAudienceCounts }) {
   return <section aria-label="Agent audience summary" className="grid gap-3 sm:grid-cols-3">
-    <Card><CardContent className="p-4"><p className="text-xs text-muted-foreground">Total agents</p><p className="mt-1 text-2xl font-semibold text-foreground">{counts.total}</p><p className="mt-1 text-xs text-muted-foreground">Personal and customer service</p></CardContent></Card>
-    <Card><CardContent className="p-4"><p className="text-xs text-muted-foreground">Personal agents</p><p className="mt-1 text-2xl font-semibold text-foreground">{counts.personal}</p><p className="mt-1 text-xs text-muted-foreground">Private and test assistants</p></CardContent></Card>
+    <Card><CardContent className="p-4"><p className="text-xs text-muted-foreground">Total agents</p><p className="mt-1 text-2xl font-semibold text-foreground">{counts.total}</p><p className="mt-1 text-xs text-muted-foreground">Workspace and customer service</p></CardContent></Card>
+    <Card><CardContent className="p-4"><p className="text-xs text-muted-foreground">Workspace assistants</p><p className="mt-1 text-2xl font-semibold text-foreground">{counts.personal}</p><p className="mt-1 text-xs text-muted-foreground">Private and test assistants</p></CardContent></Card>
     <Card><CardContent className="p-4"><p className="text-xs text-muted-foreground">Customer service</p><p className="mt-1 text-2xl font-semibold text-foreground">{counts.customer_service}</p><p className="mt-1 text-xs text-muted-foreground">Customer-facing agents</p></CardContent></Card>
   </section>;
 }

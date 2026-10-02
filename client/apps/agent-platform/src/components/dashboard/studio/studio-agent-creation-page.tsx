@@ -47,7 +47,7 @@ export function StudioAgentCreationPage() {
             <CardHeader>
               <div className="flex items-center gap-2 text-primary"><Bot className="size-4" /><span className="text-[10px] font-semibold uppercase tracking-[0.16em]">Studio setup</span></div>
               <CardTitle className="text-2xl tracking-tight">Create agent</CardTitle>
-              <CardDescription>Creates an autonomous agent with a Playground installation.</CardDescription>
+              <CardDescription>Create a hosted agent with a playground to try its instructions.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-5">
               <div>

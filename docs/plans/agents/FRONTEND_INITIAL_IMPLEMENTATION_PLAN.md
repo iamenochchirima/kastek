@@ -1,7 +1,7 @@
 # Agents frontend initial implementation
 
 Updated: 2026-10-02.
-Status: In progress. Vite frontend and local login/workspace integration are verified; agent API integration and the actual create/run journey remain pending.
+Status: In progress. Vite, local login/workspaces and saved-agent creation are verified; real model execution and remaining frontend acceptance are pending.
 Priority: First implementation slice of the platform delivery plan.
 
 ## Outcome and scope
@@ -175,3 +175,27 @@ Local authenticated frontend evidence, 2026-10-02:
   login-boundary checks passed. Agent screens still need the standalone browser
   API facade, and agent creation/execution are not accepted yet. Google setup
   remains deferred by the owner; no new Google/passkey verification is claimed.
+
+Standalone agent creation evidence, 2026-10-02:
+
+- Added an explicit /api/agents manifest for initial creation, version/config/model
+  reads, playground conversations, runs and event streaming. Aliases share the
+  existing canonical handlers. Browser auth derives tenant/actor/scopes from live
+  session membership rather than service tokens or browser-supplied headers.
+- Removed the Studio loader's Growth-era automatic KasiAi installation. The agent
+  list's Create action opens the working Studio creation form. Private hosted
+  assistants are labelled workspace assistants, keeping them distinct from the
+  planned filesystem-based personal deployment product.
+- Created Booking Assistant in the dedicated local test workspace through the
+  browser and backend. Its saved instructions/version/installation reopened after
+  refresh; the real agent list showed the saved agent and count. Screenshot:
+  `.artifacts/agents-saved-agent.jpg`.
+- Backend and frontend builds passed. Five new admission checks and the existing
+  login/internal-auth checks passed, 15 in total. Focused lint of changed Studio
+  route/creation modules passed. No broad hardening suite was added.
+- Actual response, streaming/reconnect, execution history, model/settings changes
+  and remaining endpoint/UI cleanup remain unfinished. Agents has no configured
+  model credential; the owner has been asked whether to reuse development keys
+  or configure separate credentials. No key was copied or fabricated. Local
+  Temporal dispatch/worker setup also still needs verification for the retained
+  execution path. These prerequisites do not mark the actual journey complete.
