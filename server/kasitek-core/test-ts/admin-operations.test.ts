@@ -228,6 +228,52 @@ test(
       ).json();
       assert.equal(invoiceData.status, 'paid');
       assert.equal(invoiceData.currentRun.status, 'paid');
+      // Source actions are administrative state markers, not payment provider
+      // calls, and require a valid Admin session rather than a second approval.
+      // Repeating mark_paid must not create another cycle or reminder fact.
+      const paidRunsBefore = (
+        await pool.query(
+          'SELECT COUNT(*)::int AS count FROM "InvoiceRun" WHERE "invoiceId"=$1',
+          [invoiceId],
+        )
+      ).rows[0].count;
+      const notificationFactsBefore = (
+        await pool.query(
+          'SELECT COUNT(*)::int AS count FROM "NotificationEvent"',
+        )
+      ).rows[0].count;
+      const paidAgain = await request(
+        'POST',
+        `/invoices/${invoiceId}/runs/${runId}/actions`,
+        { action: 'mark_paid' },
+      );
+      assert.equal(paidAgain.statusCode, 200);
+      assert.equal(paidAgain.json().currentRun.id, runId);
+      assert.equal(paidAgain.json().currentRun.status, 'paid');
+      assert.equal(
+        (
+          await pool.query(
+            'SELECT COUNT(*)::int AS count FROM "InvoiceRun" WHERE "invoiceId"=$1',
+            [invoiceId],
+          )
+        ).rows[0].count,
+        paidRunsBefore,
+      );
+      assert.equal(
+        (
+          await pool.query(
+            'SELECT COUNT(*)::int AS count FROM "NotificationEvent"',
+          )
+        ).rows[0].count,
+        notificationFactsBefore,
+      );
+      const unauthenticatedAction = await request(
+        'POST',
+        `/invoices/${invoiceId}/runs/${runId}/actions`,
+        { action: 'mark_paid' },
+        'missing-session',
+      );
+      assert.equal(unauthenticatedAction.statusCode, 401);
       const campaign = await request('POST', '/outreach/import', {
         name: 'Fixture campaign',
         category: 'Fixture',
@@ -310,6 +356,36 @@ test(
           )
         ).statusCode,
         403,
+      );
+      await pool.query(
+        'UPDATE "AdminSupportAccessGrant" SET "expiresAt"=NOW()-INTERVAL \'1 second\' WHERE id=$1',
+        [grant.json().id],
+      );
+      assert.equal(
+        (
+          await request(
+            'GET',
+            '/conversations/conversation-a',
+            undefined,
+            'support',
+          )
+        ).statusCode,
+        403,
+      );
+      await pool.query(
+        'UPDATE "AdminSupportAccessGrant" SET "expiresAt"=NOW()+INTERVAL \'5 minutes\' WHERE id=$1',
+        [grant.json().id],
+      );
+      assert.equal(
+        (
+          await request(
+            'GET',
+            '/conversations/conversation-a',
+            undefined,
+            'support',
+          )
+        ).statusCode,
+        200,
       );
       await request(
         'POST',
