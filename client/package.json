@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "pnpm --filter client dev",
     "dev:all": "pnpm --parallel --filter './apps/*' dev",
-    "dev:worker:whatsapp": "cd ../server/kasitek-core && KASITEK_PROCESS=whatsapp-marketing-worker cargo run",
+    "dev:worker:whatsapp": "KASITEK_PROCESS=whatsapp-marketing-worker bash ../scripts/dev_core_watch.sh",
     "build": "pnpm db:generate && pnpm --filter './apps/*' build",
     "build:client": "pnpm db:generate && pnpm --filter client build",
     "db:generate": "pnpm --filter @kasitek/database generate",
