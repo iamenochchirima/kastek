@@ -51,7 +51,7 @@ Exit: the shell looks and behaves consistently with the retained Growth UX while
 
 - [x] Build the public landing page with its own navigation, styling and responsive layout, isolated from dashboard CSS and authenticated layout providers where possible.
 - [x] Explain API-based agents, workflows and personal deployments, with clear availability language. Do not advertise later capabilities as shipped.
-- [ ] Add product overview, use cases and clear signup/login calls to action. Use real product screenshots when available and identify any illustrative previews.
+- [x] Add product overview, use cases and clear signup/login calls to action. Use real product screenshots when available and identify any illustrative previews.
 - [x] Connect calls to action to the same app's login/signup routes and preserve an approved post-login destination.
 - [x] Set basic document title, description, icons and share metadata. Extensive SEO work and a separate marketing deployment are out of scope.
 
@@ -305,3 +305,19 @@ Agent-list actions and detail loading, 2026-10-02:
   require endpoint integration or explicit unavailable states.
 - Backend/frontend builds, focused lint and the five existing browser-admission
   checks passed. No real model call was submitted.
+
+Landing overview and real screenshot, 2026-10-02:
+
+- Added a Studio product overview and actual screenshot of the saved Booking
+  Assistant in the dedicated local test workspace. The caption states that
+  credentials are missing and no response/booking is demonstrated. The image
+  contains only local test-fixture data and is stored as a frontend public asset.
+- Added common-question, appointment-request and ongoing-work examples. Scheduling
+  integration and personal deployments are labelled planned; business/workflow
+  product categories are labelled in development. Existing signup/login links
+  continue to enter the same app's shared-login flow.
+- The real landing page displayed the new overview, all three use cases and
+  caption. The image loaded at natural width 1280 and rendered at 1160 within
+  the 1270-pixel document width. Screenshot: `.artifacts/agents-landing-preview.jpg`.
+- Frontend production build and focused landing lint passed. Responsive coverage
+  of the added sections is still part of the normal verification checklist.
