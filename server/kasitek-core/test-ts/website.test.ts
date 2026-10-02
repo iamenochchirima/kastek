@@ -74,20 +74,19 @@ test("Website normalization, channel payloads and widget assets preserve origina
     status: "queued",
     provider: "elevenlabs",
   });
-  const source = readFileSync(
-    new URL("../src/controllers/website.rs", import.meta.url),
-    "utf8",
-  );
+  const baseline = JSON.parse(
+    readFileSync(
+      new URL("./fixtures/rust-baseline-contracts.json", import.meta.url),
+      "utf8",
+    ),
+  ) as { websiteAssetSha256: Record<string, string> };
   for (const [name, value] of [
     ["WEBSITE_CHAT_LOADER", WEBSITE_CHAT_LOADER],
     ["WEBSITE_CHAT_FRAME", WEBSITE_CHAT_FRAME],
   ]) {
-    const original = source.match(
-      new RegExp(`const ${name}: &str = r#"([\\s\\S]*?)"#;`),
-    )?.[1];
     assert.equal(
       createHash("sha256").update(value!).digest("hex"),
-      createHash("sha256").update(original!).digest("hex"),
+      baseline.websiteAssetSha256[name],
     );
   }
 });

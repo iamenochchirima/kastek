@@ -3,7 +3,7 @@ id: observability
 title: Observability
 sidebar_position: 5
 owner: platform-ops
-last_reviewed: 2026-09-29
+last_reviewed: 2026-10-03
 ---
 
 # Observability
@@ -27,9 +27,10 @@ Growth Core / Tenants / Agents / Labs Analytics
        └─ generic OTLP exporter (production template, backend decision pending)
 ```
 
-Growth Rust services initialize the private `observability` crate from KasiTek Labs. Labs Analytics
-uses the shared crate source maintained in its own repository. Agents initializes
-the Node SDK before Fastify, PostgreSQL, Temporal, and gateway modules. HTTP instrumentation,
+Growth Core initializes the Node SDK before Fastify and PostgreSQL modules. The remaining Rust
+source baselines for Agency and Analytics use the private `observability` crate from KasiTek Labs;
+their TypeScript service implementations follow the Node SDK pattern. Agents initializes the Node
+SDK before Fastify, PostgreSQL, Temporal, and gateway modules. HTTP instrumentation,
 Pino correlation, PostgreSQL/HTTP auto-instrumentation, provider spans, Temporal activity spans,
 background-worker spans, and graceful shutdown are enabled in the current server-side slice.
 PostgreSQL enhanced database reporting is disabled so query parameters and result data are not

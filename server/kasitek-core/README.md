@@ -1,13 +1,19 @@
 # KasiTek Growth Core
 
-_Owner: engineering · Last reviewed: 2026-10-02_
+_Owner: engineering · Last reviewed: 2026-10-03_
 
 Native Node.js 24 and TypeScript backend for KasiTek Growth.
 
 TypeScript registers all 537 inventoried Core operations and ten worker modes.
-Registration coverage does not yet prove complete behavior or authorize Rust
-retirement. Cross-service parity, private-package delivery and the deletion gate
-remain open.
+The previous Rust Core and Growth-local Rust libraries have been removed from
+this checkout after local API, worker, and consumer checks. The preceding Git
+commit is the recovery point. SQL, database migrations, OpenAPI assets, and
+media storage remain in place.
+
+This source cleanup did not change hosted services. Railway still records the
+legacy Rust Core build until private package delivery is verified and a hosted
+TypeScript cutover is separately authorized. Some live provider setup and
+cross-service producer checks remain pending.
 
 ## Setup
 
@@ -97,8 +103,9 @@ The Analytics publisher is independently scalable and disabled unless
 `http://127.0.0.1:4300`), `ANALYTICS_CORE_PRODUCER_ID`, and `ANALYTICS_CORE_PUBLISHER_ID` in the
 Core environment. The token must match the `core` credential configured by the Labs-owned Analytics
 service ([source and local setup](https://github.com/Kasitek-Labs/kasitek-labs/tree/main/services/analytics)).
-Growth retains the publisher and Core outbox; Analytics delivery integration is being handled as
-separate follow-up work. The worker claims Core's durable outbox, sends authenticated batches,
+Growth retains the publisher and Core outbox. The actual Core publisher has been verified against
+the local TypeScript Analytics API, projection worker, and an authorized campaign report; the
+Agency and Agents producer paths remain separate follow-up work. The worker claims Core's durable outbox, sends authenticated batches,
 applies each acknowledgement, retries transient failures, and reclaims expired leases. The same
 process also runs the bounded Core source backfill loop; deploy `analytics-backfill-worker`
 separately when historical reconstruction needs independent capacity.

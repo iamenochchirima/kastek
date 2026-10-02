@@ -3,7 +3,7 @@ id: platform-versioning
 title: Platform Versioning
 sidebar_position: 3
 owner: platform-ops
-last_reviewed: 2026-08-25
+last_reviewed: 2026-10-03
 ---
 
 # Platform Versioning
@@ -51,8 +51,8 @@ commit has passed the staging release gates.
 | Event schema version | Analytics or integration event compatibility identifier. |
 | Agent version | Customer or system agent lifecycle version, independent of the platform release. |
 
-Package versions in `package.json` and `Cargo.toml` remain package metadata. They are not the
-platform release identity.
+Package versions in `package.json` and, where Rust services remain, `Cargo.toml` are package
+metadata. They are not the platform release identity.
 
 ## Release rules
 

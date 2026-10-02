@@ -14,7 +14,7 @@ const config = () =>
   });
 const json = (value: unknown, status = 200) =>
   new Response(JSON.stringify(value), { status });
-test("native Agents transport preserves scoped HMAC claims, correlation, operator admission and all source-owned adapter names", async () => {
+test("native Agents transport preserves scoped HMAC claims, correlation, operator admission and the frozen adapter inventory", async () => {
   const calls: { url: string; init: RequestInit }[] = [];
   const client = new AgentPlatformClient(config(), {
     correlationId: () => "synthetic-correlation",
@@ -65,14 +65,13 @@ test("native Agents transport preserves scoped HMAC claims, correlation, operato
   );
   assert.equal(claims.operator, true);
   assert.deepEqual(claims.scopes, ["operator:write"]);
-  const source = readFileSync("src/services/agent_platform.rs", "utf8"),
-    expected = [...source.matchAll(/    pub async fn (\w+)/g)]
-      .map((match) =>
-        match[1]!
-          .replace(/_([a-z])/g, (_all, c) => c.toUpperCase())
-          .replace("Oauth", "OAuth"),
-      )
-      .sort();
+  const baseline = JSON.parse(
+    readFileSync(
+      new URL("./fixtures/rust-baseline-contracts.json", import.meta.url),
+      "utf8",
+    ),
+  ) as { agentPlatformClientMethods: string[] };
+  const expected = baseline.agentPlatformClientMethods;
   const actual = Object.getOwnPropertyNames(AgentPlatformClient.prototype)
     .filter((name) => name !== "constructor")
     .sort();

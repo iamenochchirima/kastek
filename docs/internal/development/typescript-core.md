@@ -2,14 +2,16 @@
 id: typescript-core
 title: TypeScript Core migration runtime
 owner: platform-ops
-last_reviewed: 2026-10-02
+last_reviewed: 2026-10-03
 ---
 
 # TypeScript Core migration runtime
 
-Core's native Node.js 24 replacement is in `server/kasitek-core/src-ts`.
-The Rust implementation remains during migration. This document describes
-the replacement's available startup commands, not a completed production cutover.
+Growth Core's supported runtime is native Node.js 24 under
+`server/kasitek-core/src-ts`. The replaced Rust implementation and Growth-local
+Rust libraries are no longer in this checkout; the previous Git commit remains
+the recovery point. This local source retirement does not change the hosted
+Railway service or authorize its TypeScript cutover.
 
 From `server/kasitek-core`, run `pnpm build` and `pnpm start`.
 The entrypoint loads that service's `.env` regardless of the launch directory.
@@ -17,8 +19,8 @@ Existing process environment variables take precedence. It connects to the
 configured PostgreSQL database before starting HTTP or workers. It does not
 automatically apply Prisma migrations.
 
-The current local API runs on port 4000 with Rust stopped. To start it without
-effect-producing background workers:
+The local API runs on port 4000. To start it without effect-producing background
+workers:
 
 ```sh
 KASITEK_DISABLE_BACKGROUND_WORKERS=1 pnpm start
@@ -60,7 +62,7 @@ events without dumping request bodies or credentials.
 
 The migration owner is the platform team. Risk is high because Core includes
 provider callbacks, billing and delivery workers. There is no production release
-ID or deployment for this additive implementation. Package version `0.1.0` is a
+ID or deployment for this source retirement. Package version `0.1.0` is a
 development artifact version.
 
 Database schema changes are not applicable to this startup wiring. Existing
@@ -78,13 +80,14 @@ to an in-memory fixture. A refused Collector connection leaves health available
 and telemetry shutdown bounded.
 
 These checks do not prove every live provider integration, hosted production OTLP
-export, full frontend parity or Rust retirement. Those remain migration gates.
+export, full frontend parity, or authenticated private-package delivery. Those
+remain migration gates.
 
-Rollout is local only. Native launchers now use TypeScript; Rust source and its
-recoverable Git baseline remain until the full deletion gate passes. Stop native
-workers before restoring the Rust baseline. Production deployment, private
-registry installation and hosted configuration remain pending. Collector changes
-and post-release review dates are not applicable before deployment.
+Rollout is local only. Native launchers use TypeScript; the retired Rust source
+remains recoverable from the previous Git commit. Stop TypeScript workers before
+restoring that baseline. Production deployment, private registry installation,
+and hosted configuration remain pending. Collector changes and post-release
+review dates are not applicable before deployment.
 
 ## Focused database fixtures
 
@@ -128,5 +131,7 @@ were changed by this runtime preparation.
 
 Railway's hosted root/build/start/release settings, secrets and private-package
 access have not been inspected or deployed. The current local file artifacts
-are not an independent Railway install. Retain the recoverable Rust baseline
-until the migration deletion gate passes; stop native effects before rollback.
+are not an independent Railway install. Keep the legacy hosted build record
+until private package access and the TypeScript Railway build are verified.
+Stop TypeScript effects before restoring the Rust source baseline or rolling
+back a future deployment.

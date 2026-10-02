@@ -3,7 +3,7 @@ title: Action Platform Technical Design
 slug: /architecture/action-platform-technical-design
 sidebar_position: 5
 owner: engineering
-last_reviewed: 2026-09-29
+last_reviewed: 2026-10-03
 ---
 
 # Action Platform Technical Design
@@ -39,6 +39,7 @@ Growth repository (current TypeScript implementation)
   server/kasitek-core/src-ts/actions/
   server/kasitek-core/src-ts/execution/
   server/kasitek-core/src-ts/capabilities/
+  server/kasitek-core/test-ts/actions*.test.ts
 
 Agency repository
   Kasitek-Labs/kasitek-agency/server/kasitek-tenants/ (tenant business logic)
@@ -47,9 +48,10 @@ Agents repository
   gateway adapters for REST and MCP
 ```
 
-The Growth Rust action and execution crates remain as migration references until the shared
-Rust retirement gate passes. Agency and Agents remain separate service owners; this design does
-not turn their business logic or protocol adapters into shared Growth packages.
+Growth's former Rust action and execution libraries have been retired from the working tree; their
+last source revision remains recoverable from Git history. Agency and Agents remain separate
+service owners; this design does not turn their business logic or protocol adapters into shared
+Growth packages.
 
 These names describe responsibility without encoding a temporary protocol or product name into the core.
 
@@ -116,25 +118,14 @@ Protocol adapters validate protocol-specific messages and establish the caller. 
 
 ## 5. Code organization
 
-### 5.1 `crates/actions`
+### 5.1 `server/kasitek-core/src-ts/actions`
 
 This is a small, protocol-neutral library. It contains no HTTP server, database connection, OAuth client, queue, provider adapter, or product-domain implementation.
 
 ```text
-actions/src/
-|-- lib.rs
-|-- action.rs          action identity and definition
-|-- actor.rs           human and machine actor identity
-|-- scope.rs           direct, tenant staff, and tenant client scopes
-|-- request.rs         untrusted and validated action requests
-|-- result.rs          safe action outcomes
-|-- risk.rs            risk and approval classes
-|-- schema.rs          input/output schema metadata and validation contract
-|-- registry.rs        deterministic registration and lookup
-|-- error.rs           stable internal error categories
-`-- catalog/
-    |-- customers.rs
-    `-- conversations.rs
+src-ts/actions/
+|-- index.ts           action identity, metadata and schema definitions
+`-- catalog.ts         deterministic registration and lookup
 ```
 
 Responsibilities:
@@ -147,28 +138,17 @@ Responsibilities:
 - reject invalid or conflicting definitions;
 - expose no persistence or transport implementation.
 
-### 5.2 `crates/execution`
+### 5.2 `server/kasitek-core/src-ts/execution`
 
 This is the application-level orchestration layer.
 
 ```text
-execution/src/
-|-- lib.rs
-|-- pipeline.rs         ordered invocation flow
-|-- authorizer.rs       grants and scope decisions
-|-- entitlements.rs     product availability and limits
-|-- policy.rs           risk and approval policy
-|-- approvals.rs        approval binding and decisions
-|-- idempotency.rs      logical request ownership
-|-- runs.rs             run and step state transitions
-|-- effects.rs          external-effect tracking
-|-- audit.rs            required evidence contract
-|-- outbox.rs           reliable event publication contract
-|-- ports.rs            persistence and domain interfaces
-`-- error.rs
+src-ts/execution/
+`-- index.ts            ordered invocation flow and journal/effect outcomes
 ```
 
-It depends on `actions`, but `actions` never depends on `execution`.
+It uses the action definitions from `src-ts/actions`; the action catalog stays
+independent of execution policy.
 
 Responsibilities:
 
@@ -181,13 +161,15 @@ Responsibilities:
 
 It does not contain SQL tied to either product runtime.
 
-### 5.3 `crates/action-testing`
+### 5.3 Growth action checks
 
-This contains reusable test harnesses, fixtures, fake clocks, fake providers, and contract suites. Production crates do not depend on it.
+`server/kasitek-core/test-ts/actions.test.ts` and
+`actions-batch.test.ts` cover catalog contracts and ordered execution outcomes.
+Production code does not depend on these fixtures.
 
 It must support the same isolation and execution tests against both direct and white-label runtime adapters.
 
-### 5.4 `kasitek-core/src/actions`
+### 5.4 `server/kasitek-core/src-ts` runtime adapters
 
 The direct runtime owns:
 

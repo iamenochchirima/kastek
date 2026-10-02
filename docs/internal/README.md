@@ -26,7 +26,7 @@ This is the canonical home for private Kasitek documentation.
 - [Agent Platform technical docs](https://github.com/Kasitek-Labs/kasitek-agents/blob/main/docs/README.md)
 - [Documentation Maintenance](./operations/documentation-maintenance.md)
 - [Agent Platform implementation plan](https://github.com/Kasitek-Labs/kasitek-agents/blob/main/docs/plans/agents/AGENT_PLATFORM_IMPLEMENTATION_PLAN.md)
-- [Agent runtime host boundary](./architecture/agent-host-boundary.md)
+- [Agent runtime host boundary](https://github.com/Kasitek-Labs/kasitek-agents/blob/main/docs/architecture/agent-runtime-host-boundary.md)
 - [Shared workspace email connections](./architecture/shared-workspace-email-connections.md)
 
 ## Structure

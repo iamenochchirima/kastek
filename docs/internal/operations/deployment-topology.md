@@ -173,8 +173,9 @@ isolation, or reliability evidence justifies it.
 
 ## Core TypeScript migration candidate
 
-The Core API row above records the current Rust hosted baseline. It does not describe a TypeScript
-deployment or authorize changing the hosted service. Growth's TypeScript package is
+The Core API row above records the legacy Rust hosted baseline. The Rust source has been removed
+from the current Growth checkout, but this local cleanup did not change or authorize changing the
+hosted service. Growth's TypeScript package is
 `server/kasitek-core`; its compiled API commands are `pnpm build` and `pnpm start` from that
 directory. The API serves `/health` on `PORT` (default `4000`). A separate publisher process uses
 the same Node entrypoint with `KASITEK_PROCESS=analytics-publisher pnpm start`; this mode publishes
@@ -185,8 +186,8 @@ A clean Railway build is not ready yet. Growth currently pins the private Labs p
 rebuilds them from a sibling Labs checkout, which is unavailable to an isolated Railway build.
 Complete and verify authenticated private-registry delivery before changing the hosted build or
 start commands. Keep the Core Prisma migration procedure above: TypeScript does not change schema
-ownership or replace the Prisma migration history. Apply the Core deletion gate before retiring the
-Rust build configuration.
+ownership or replace the Prisma migration history. The previous Growth commit is the Rust source
+recovery point; hosted build configuration remains unchanged until a separately authorized cutover.
 
 ## OpenTelemetry Collector ownership
 

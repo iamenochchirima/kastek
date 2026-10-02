@@ -3,7 +3,7 @@ id: local-development
 title: Local Development
 sidebar_position: 2
 owner: engineering
-last_reviewed: 2026-10-02
+last_reviewed: 2026-10-03
 ---
 
 # Local Development
@@ -32,8 +32,8 @@ JavaScript with:
 pnpm --dir server/kasitek-core build
 ```
 
-The compiler writes `server/kasitek-core/dist`. Rust build output is retained
-temporarily for migration recovery and is not used by the native launcher.
+The compiler writes `server/kasitek-core/dist`. Growth no longer carries a Rust
+Core build directory. The prior Rust source remains recoverable from Git history.
 
 ## Environment files
 
@@ -78,8 +78,8 @@ email inbox is `http://localhost:8025/`; set Core `LOCAL_MAILPIT_URL` for organi
 ## Starting services
 
 The launcher uses the native Node.js 24 Core. See
-[TypeScript Core commands and worker modes](typescript-core.md). A previously
-started Rust process must be stopped before running Core on its existing port.
+[TypeScript Core commands and worker modes](typescript-core.md). Stop any Core
+process already using port 4000 before starting it.
 
 The launcher opens requested Growth processes in their own terminals. It does not start the moved
 Analytics, Agency, or Agent services. Analytics source and local commands are in the

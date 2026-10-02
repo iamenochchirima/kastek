@@ -6,7 +6,6 @@ cd "$root_dir"
 
 if matches=$(rg -n '(/api/bots|BotConfiguration|BotDeployment|BotEvent|N8N_API_URL|N8N_API_KEY|N8N_CALLBACK_TOKEN)' \
   server/kasitek-core/src-ts \
-  server/kasitek-core/src \
   client/apps/client/src \
   client/packages/database/prisma/schema.prisma \
   client/packages/database/src/generated 2>/dev/null); then

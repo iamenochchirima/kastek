@@ -3,7 +3,7 @@ id: repository-structure
 title: Repository Structure
 sidebar_position: 3
 owner: engineering
-last_reviewed: 2026-10-01
+last_reviewed: 2026-10-03
 ---
 
 # Repository Structure
@@ -19,11 +19,10 @@ integration work is approved.
 | --- | --- |
 | `client/apps/client` | Growth product interface |
 | `client/packages/database` | Growth client database package |
-| `server/kasitek-core/` | Core runtime, Core-owned business capabilities, and Core database |
+| `server/kasitek-core/` | TypeScript Core runtime, Core-owned business capabilities, and Core database |
 | [`kasitek-agents`](https://github.com/Kasitek-Labs/kasitek-agents) | Agent API, worker, MCP gateway, Temporal workflows, migrations, contracts, and Agent Platform UI |
-| [`kasitek-labs`](https://github.com/Kasitek-Labs/kasitek-labs) | Admin UI, Labs website, Analytics API and worker, schemas, migrations, OpenTelemetry Collector source/configuration, and private Rust crates |
+| [`kasitek-labs`](https://github.com/Kasitek-Labs/kasitek-labs) | Admin UI, Labs website, Analytics API and worker, schemas, migrations, OpenTelemetry Collector source/configuration, and private packages |
 | [`kasitek-agency`](https://github.com/Kasitek-Labs/kasitek-agency) | White-label tenant API, migrations, portal, and tenant-owned workers |
-| `server/crates/actions`, `execution`, `types` | Growth-owned supporting Rust libraries |
 | `scripts/`, `.github/workflows/` | Growth-owned local, release, migration, and verification automation only; service-specific automation belongs with its service |
 | `docs/public/` | User-facing Growth documentation site source |
 | `docs/internal/` | Current private Growth technical documentation site source |
