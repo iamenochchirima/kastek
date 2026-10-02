@@ -42,7 +42,7 @@ Exit: Vite serves the landing and dashboard layouts, including direct route navi
 - [x] Add Overview, Agents, Inbox, Knowledge, Connections, Usage and Settings as the proposed navigation. Keep Studio/Playground discoverable inside the agent workflow.
 - [x] Within Agents, distinguish API-based agents from Personal deployments, with separate appropriate detail screens. Personal deployment functionality follows its own platform phase.
 - [x] Implement responsive sidebar/top bar, active navigation, organization context and basic account actions using existing patterns.
-- [ ] Provide consistent loading, empty, error and unavailable states. Later features must show honest availability rather than fabricated counts or working controls.
+- [x] Provide consistent loading, empty, error and unavailable states. Later features must show honest availability rather than fabricated counts or working controls.
 - [x] Preserve basic keyboard navigation, labels, focus behavior and readable mobile layouts during the port.
 
 Exit: the shell looks and behaves consistently with the retained Growth UX while exposing only Agents product areas.
@@ -71,7 +71,7 @@ Exit: a user reaches the dashboard with an actual Agents session and organizatio
 
 ## Phase 6: One actual agent creation and execution journey
 
-- [ ] Reuse the existing agent list, creation, Studio and Playground components where they fit; adapt their routing and data fetching to Vite and Agents APIs.
+- [x] Reuse the existing agent list, creation, Studio and Playground components where they fit; adapt their routing and data fetching to Vite and Agents APIs.
 - [x] Create an agent with name, instructions and supported model/settings; persist it through the real backend and reopen it after refresh.
 - [ ] Connect Playground message submission and actual run status/output. Preserve working execution visualizations where useful; do not rebuild the full editor for this slice.
 - [ ] Display progress, actual response, relevant tool/error results and cancellation where supported. Use the backend's streaming/history interfaces rather than simulated execution.
@@ -640,3 +640,28 @@ Mobile shell keyboard completion, 2026-10-02:
   creation validation focus, Studio dialog focus and mobile-panel scrolling cover
   the rest of the basic layout/form/dialog acceptance, so those boxes are checked.
 - Real model execution and response-history acceptance remain incomplete.
+
+
+Initial-slice dependency checkpoint, 2026-10-02:
+
+- Opened the dedicated /app/playground route with the saved Booking Assistant.
+  It loaded the actual agent, conversation and v2 playground version through the
+  standalone backend. The composer displayed the missing OpenRouter credential
+  and kept Send disabled. Screenshot:
+  `.artifacts/agents-playground-credential-blocker.jpg`.
+- Local configuration presence checks also found no OpenRouter/OpenAI model key.
+  No key value was printed, copied or submitted. Existing development credentials
+  require the owner's pending choice before reuse in Agents.
+- Checked component/routing adaptation separately from execution acceptance.
+  Initial list, creation, Studio and Playground source is adapted to Vite/Agents.
+  Loading, empty, validation, backend-unavailable and pending-feature states have
+  the source/browser evidence recorded above; their checklist item is complete.
+- Six acceptance items remain open: actual message/status/output; progress,
+  response/tool/error/cancellation results; persisted run history; cleanup after
+  the working journey; the combined create/execute/reopen check; and real stream
+  reconnect through the configured API routing. These all wait on the real journey.
+- No further independent initial-slice work is identified at this checkpoint.
+  Do not expand into later platform features or substitute fixture responses to
+  finish it. Continue when the owner chooses existing development credentials or
+  supplies separate credentials in the backend environment, then restart affected
+  runtime processes as needed and run the actual journey.
