@@ -8,7 +8,7 @@ import { apiJson, parseSerdeValueJson } from "../src-ts/json.js";
 import { enqueueLeadCreated } from "../src-ts/analytics.js";
 import { runAnalyticsPublisher } from "../src-ts/analytics-publisher.js";
 import { runAnalyticsBackfill } from "../src-ts/analytics-backfill.js";
-import { backfillSourceSequence } from "@kasitek/server-support/analytics-producer";
+import { backfillSourceSequence } from "@kasitek-labs/server-support/analytics-producer";
 const enabled = !!process.env.TENANT_TEST_DATABASE_URL;
 test(
   "Tenant native publisher and backfill loops send exact source records, reconcile and stop on abort",

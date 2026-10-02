@@ -1,15 +1,15 @@
-import { resultSpan } from "@kasitek/server-support/telemetry";
+import { resultSpan } from "@kasitek-labs/server-support/telemetry";
 const queueSpan = <T>(name: string, run: () => Promise<T>): Promise<T> =>
   resultSpan("queue", name, run);
 import type { Pool } from "pg";
-import type { ReconciliationCursor } from "@kasitek/contracts";
+import type { ReconciliationCursor } from "@kasitek-labs/contracts";
 import {
   AnalyticsIngestionClient,
   publishOutboxOnce,
   reconcileOutboxOnce,
   type AnalyticsPublisherSettings,
   MAX_RECONCILIATION_STREAMS,
-} from "@kasitek/server-support/analytics-producer";
+} from "@kasitek-labs/server-support/analytics-producer";
 export interface Log {
   info(fields: Record<string, unknown>, message?: string): void;
   warn(fields: Record<string, unknown>, message?: string): void;

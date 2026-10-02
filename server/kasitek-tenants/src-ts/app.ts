@@ -2,7 +2,7 @@ import Fastify, {type FastifyInstance} from 'fastify';
 import cookie from '@fastify/cookie';
 import {Readable} from 'node:stream';
 import cors from '@fastify/cors';
-import { environmentAllowsLoopbackOrigins, isLoopbackOrigin } from '@kasitek/server-support/config';
+import { environmentAllowsLoopbackOrigins, isLoopbackOrigin } from '@kasitek-labs/server-support/config';
 import type {TenantContext} from './context.js';
 import {installErrorHandler} from './error.js';
 import {apiJson,parseSerdeValueJson} from './json.js';

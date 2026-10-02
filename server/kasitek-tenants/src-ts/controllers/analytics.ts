@@ -1,13 +1,13 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
-import type { ReportQueryInput } from "@kasitek/contracts";
-import { REPORTING_AUDIENCE } from "@kasitek/contracts";
+import type { ReportQueryInput } from "@kasitek-labs/contracts";
+import { REPORTING_AUDIENCE } from "@kasitek-labs/contracts";
 import {
   AnalyticsReportingClient,
   ReportingGrantIssuer,
   ReportingClientError,
   withScope,
   redactScopeId,
-} from "@kasitek/server-support/analytics-reporting";
+} from "@kasitek-labs/server-support/analytics-reporting";
 import { createId } from "@paralleldrive/cuid2";
 import type { TenantContext } from "../context.js";
 import {

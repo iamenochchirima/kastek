@@ -1,7 +1,7 @@
 import type { FastifyRequest } from "fastify";
 import type { TenantContext } from "../context.js";
 import { extractAccessContext, requireTenantRoles } from "../middleware.js";
-import { wireInteger, integer } from "@kasitek/server-support/json";
+import { wireInteger, integer } from "@kasitek-labs/server-support/json";
 export const WORKSPACE_READ_ROLES = [
   "owner",
   "admin",

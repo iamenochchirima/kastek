@@ -5,8 +5,8 @@ import { UtcTimestamp, transaction } from "../src-ts/db.js";
 import {
   canonicalJson,
   canonicalJsonSha256,
-} from "@kasitek/server-support/json";
-import { backfillSourceSequence } from "@kasitek/server-support/analytics-producer";
+} from "@kasitek-labs/server-support/json";
+import { backfillSourceSequence } from "@kasitek-labs/server-support/analytics-producer";
 import {
   enqueueWorkspaceScopeDefinition,
   enqueueClientScopeDefinition,
@@ -25,7 +25,7 @@ import {
   type BackfillTransport,
 } from "../src-ts/analytics-backfill.js";
 import { publisherSettings } from "../src-ts/analytics-publisher.js";
-import type { SourceBackfillWork, BackfillRecord } from "@kasitek/contracts";
+import type { SourceBackfillWork, BackfillRecord } from "@kasitek-labs/contracts";
 const enabled = !!process.env.TENANT_TEST_DATABASE_URL;
 const time = new UtcTimestamp("2030-01-01T00:00:00.123456Z", true);
 function work(scope = "w"): SourceBackfillWork {

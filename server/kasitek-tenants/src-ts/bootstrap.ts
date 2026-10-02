@@ -5,7 +5,7 @@ import {resolve} from 'node:path';
 export async function boot():Promise<void> {
  if(loadEnvironment({path:fileURLToPath(new URL('../.env',import.meta.url))}).error)loadEnvironment();
  process.env.TZ='UTC';
- const {initTelemetry}=await import('@kasitek/server-support/telemetry');
+ const {initTelemetry}=await import('@kasitek-labs/server-support/telemetry');
  const telemetry=initTelemetry('kasitek-tenants');
  let closing:Promise<void>|undefined;
  const shutdownTelemetry=()=>closing??=telemetry.shutdown();

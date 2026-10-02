@@ -6,7 +6,7 @@ import type {
   ObservationInput,
   ScopeDefinitionInput,
   ManifestInput,
-} from "@kasitek/contracts";
+} from "@kasitek-labs/contracts";
 import {
   tenantProducerConfig,
   buildEvent,
@@ -15,14 +15,14 @@ import {
   buildManifest,
   enqueueOutbox,
   type EnqueueResult,
-} from "@kasitek/server-support/analytics-producer";
-import { timestamp } from "@kasitek/server-support/json";
+} from "@kasitek-labs/server-support/analytics-producer";
+import { timestamp } from "@kasitek-labs/server-support/json";
 import { UtcTimestamp } from "./db.js";
 export {
   applyDeliveryOutcome,
   claimOutboxBatch,
   releaseExpiredLeases,
-} from "@kasitek/server-support/analytics-producer";
+} from "@kasitek-labs/server-support/analytics-producer";
 export const producerConfig = tenantProducerConfig;
 export const enqueueRecord = (tx: PoolClient, record: AnalyticsOutboxRecord) =>
   enqueueOutbox(tx, record);

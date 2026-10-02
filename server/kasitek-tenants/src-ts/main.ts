@@ -1,5 +1,5 @@
 import type {FastifyInstance} from 'fastify';
-import {resultSpan} from '@kasitek/server-support/telemetry';
+import {resultSpan} from '@kasitek-labs/server-support/telemetry';
 import {readConfig} from './config.js';
 import {createPool} from './db.js';
 import {runMigrations} from './migrate.js';

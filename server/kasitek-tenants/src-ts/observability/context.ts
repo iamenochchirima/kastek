@@ -4,7 +4,7 @@ import { context, propagation } from "@opentelemetry/api";
 import {
   injectTraceContext,
   isSafeCorrelationId,
-} from "@kasitek/server-support/telemetry";
+} from "@kasitek-labs/server-support/telemetry";
 const storage = new AsyncLocalStorage<string>();
 export function correlationId(value: unknown): string {
   const candidate = typeof value === "string" ? value.trim() : "";

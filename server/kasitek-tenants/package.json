@@ -20,8 +20,8 @@
     "@fastify/cors": "^11.1.0",
     "@fastify/formbody": "^8.0.2",
     "@fastify/multipart": "^9.4.0",
-    "@kasitek/contracts": "file:.artifacts/shared/kasitek-contracts-0.1.0.tgz",
-    "@kasitek/server-support": "file:.artifacts/shared/kasitek-server-support-0.1.0.tgz",
+    "@kasitek-labs/contracts": "file:.artifacts/shared/kasitek-labs-contracts-0.1.0.tgz",
+    "@kasitek-labs/server-support": "file:.artifacts/shared/kasitek-labs-server-support-0.1.0.tgz",
     "@opentelemetry/api": "1.9.0",
     "@paralleldrive/cuid2": "^2.3.1",
     "ajv": "8.17.1",
@@ -41,7 +41,7 @@
   },
   "pnpm": {
     "overrides": {
-      "@kasitek/contracts": "file:.artifacts/shared/kasitek-contracts-0.1.0.tgz"
+      "@kasitek-labs/contracts": "file:.artifacts/shared/kasitek-labs-contracts-0.1.0.tgz"
     }
   }
 }

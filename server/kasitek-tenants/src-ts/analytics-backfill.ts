@@ -5,12 +5,12 @@ import type {
   BackfillRecord,
   BackfillBatchResponse,
   SourceBackfillWork,
-} from "@kasitek/contracts";
+} from "@kasitek-labs/contracts";
 import {
   AnalyticsIngestionClient,
   backfillSourceSequence,
-} from "@kasitek/server-support/analytics-producer";
-import { resultSpan } from "@kasitek/server-support/telemetry";
+} from "@kasitek-labs/server-support/analytics-producer";
+import { resultSpan } from "@kasitek-labs/server-support/telemetry";
 import {
   envSigned,
   envUnsigned,
@@ -18,7 +18,7 @@ import {
   type Log,
   type Env,
 } from "./analytics-publisher.js";
-import { integer, timestamp } from "@kasitek/server-support/json";
+import { integer, timestamp } from "@kasitek-labs/server-support/json";
 export interface BackfillSettings {
   endpoint: string;
   token: string;
