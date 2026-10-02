@@ -354,3 +354,20 @@ Inherited detail-control availability, 2026-10-02:
   `.artifacts/agents-detail-pending.jpg`. These checks do not verify every detail
   section or claim the future features are implemented.
 - Frontend typing/production build and focused detail-page lint passed.
+
+Playground setup and version labels, 2026-10-02:
+
+- The isolated local development environment now explicitly disables credit
+  charging. API and Temporal worker were restarted with that setting; normal run
+  limits and production billing defaults remain unchanged. Model credentials are
+  still absent, and no model call has been submitted.
+- Studio Overview distinguishes Selected version, Playground installation and
+  Published version. An active playground is labelled Active rather than Live;
+  publishing a version does not establish a live deployment. Browser verification
+  showed the saved Booking Assistant, active playground and published v1.
+  Screenshot: `.artifacts/agents-studio-version-labels.jpg`.
+- Frontend production build and focused settings lint passed for these labels.
+- Opening Studio also exposed an inherited deployment lifecycle request to
+  `/api/agents/:agentId/deployment-status` without a browser alias. Its failed
+  request can show an incorrect Deployed control. Deployment integration remains
+  incomplete and must be reconciled rather than inferred from saved versions.
