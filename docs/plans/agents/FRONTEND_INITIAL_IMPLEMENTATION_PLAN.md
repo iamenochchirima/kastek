@@ -337,3 +337,20 @@ Mobile layout follow-up, 2026-10-02:
   shell/keyboard/state acceptance remains open for other inherited controls.
 - Updated frontend startup documentation with the separate backend/worker
   prerequisites. No source code changed, so builds/tests were not repeated.
+
+Inherited detail-control availability, 2026-10-02:
+
+- Added explicit pending panels for copied detail sections without initial browser
+  integration. They do not mount their upload, provider-key, workflow, grant or
+  deployment forms. Model/behavior panels direct users to Studio. Model-section
+  effects skip unnecessary credential requests while that section is pending.
+- Identity editing, installation status and hosted recent runs remain available.
+  Missing preference and archive/delete/publish/retire controls are disabled.
+  Scheduled-trigger copy is pending; its unmounted copied form was removed.
+  Backend scheduling and independent machine APIs are unchanged.
+- In the browser, Knowledge showed an unavailable panel and Studio link; Operations
+  loaded the actual empty run history. Settings showed the identity form and
+  disabled preferences with explanatory copy. Screenshot:
+  `.artifacts/agents-detail-pending.jpg`. These checks do not verify every detail
+  section or claim the future features are implemented.
+- Frontend typing/production build and focused detail-page lint passed.

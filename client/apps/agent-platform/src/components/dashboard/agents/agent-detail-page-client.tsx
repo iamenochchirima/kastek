@@ -76,10 +76,6 @@ import {
   type AgentInstallationRun,
   type AgentInstallationOperation,
   type AgentInstallationOperationSummary,
-  listAgentInstallationSchedules,
-  createAgentInstallationSchedule,
-  setAgentScheduleStatus,
-  type AgentSchedule,
   listAgentKnowledgeSources,
   getAgentKnowledgeSource,
   createAgentKnowledgeSource,
@@ -489,6 +485,21 @@ function sanitizeAgentSlug(value: string): string {
 
 type DetailSection = "overview" | "analytics" | "activity" | "conversations" | "operations" | "knowledge" | "behavior" | "models" | "tools" | "integrations" | "appearance" | "deployment" | "connection" | "settings" | "advanced";
 
+// Initial browser integration. Keep later feature controls unavailable until
+// their scoped endpoints are connected and their product journey is verified.
+const pendingDetailSections: Partial<Record<DetailSection, string>> = {
+  analytics: "Detailed analytics are not available in this app yet. Recent runs are available under Operations.",
+  conversations: "Customer conversation management will be connected with the shared inbox.",
+  knowledge: "Knowledge uploads and source management are not available yet.",
+  behavior: "Use Studio settings to edit instructions. The full workflow editor is not connected yet.",
+  models: "Use Studio to choose a model. Saving your own provider credentials from this screen is not available yet.",
+  tools: "Tool grants and connection management are not available from this screen yet.",
+  integrations: "Channel and tool connections are not available from this screen yet.",
+  appearance: "Website chat appearance controls are not connected yet.",
+  deployment: "Live deployment and rollback controls are not available yet. You can inspect the saved agent in Studio.",
+  connection: "External runtime credentials and connection health are not available from this screen yet.",
+};
+
 type DetailNavigationItem = {
   section: DetailSection;
   label: string;
@@ -585,8 +596,10 @@ export function AgentDetailPageClient({ agent, initialVersions }: { agent: Agent
     || (normalizedSection === "deployment" && !hostedAgent)
   ) ? "activity" : normalizedSection;
 
+  const pendingSection = externalAgent && activeSection === "operations" ? "External runtime operations are not connected yet." : pendingDetailSections[activeSection];
+
   useEffect(() => {
-    if (!kasitekHostedAgent || activeSection !== "models") return;
+    if (pendingSection || !kasitekHostedAgent || activeSection !== "models") return;
     let cancelled = false;
     setModelCatalogLoading(true);
     setModelCatalogLoadError(null);
@@ -604,10 +617,10 @@ export function AgentDetailPageClient({ agent, initialVersions }: { agent: Agent
         if (!cancelled) setModelCatalogLoading(false);
       });
     return () => { cancelled = true; };
-  }, [activeSection, kasitekHostedAgent]);
+  }, [activeSection, kasitekHostedAgent, pendingSection]);
 
   useEffect(() => {
-    if (!kasitekHostedAgent || activeSection !== "models") return;
+    if (pendingSection || !kasitekHostedAgent || activeSection !== "models") return;
     let cancelled = false;
     setCredentialsLoading(true);
     void listAgentProviderCredentials()
@@ -621,7 +634,7 @@ export function AgentDetailPageClient({ agent, initialVersions }: { agent: Agent
         if (!cancelled) setCredentialsLoading(false);
       });
     return () => { cancelled = true; };
-  }, [activeSection, kasitekHostedAgent]);
+  }, [activeSection, kasitekHostedAgent, pendingSection]);
 
   const providerOptions = MODEL_PROVIDERS;
 
@@ -908,7 +921,7 @@ export function AgentDetailPageClient({ agent, initialVersions }: { agent: Agent
                   <p className="mt-1 text-sm leading-6 text-muted-foreground">{agentDescription || "Installed Agent Platform agent"}</p>
                 </div>
               </div>
-              <div className="flex flex-wrap items-center justify-end gap-2">{hostedAgent ? <Button type="button" variant="outline" onClick={() => selectSection("deployment")}><Rocket className="mr-2 h-4 w-4" />Deploy</Button> : null}{customHostedAgent ? <Button asChild><Link href={`/agents/${encodeURIComponent(agent.id)}/workflow`}><Workflow className="mr-2 h-4 w-4" />Edit workflow</Link></Button> : null}{agent.installation_id && installationStatus !== "disabled" ? <Button type="button" variant="outline" disabled={busy !== null} onClick={() => void toggleInstallation()}>{busy === "installation-status" ? "Updating…" : installationStatus === "active" ? "Pause installation" : "Resume installation"}</Button> : null}{protectedAgent ? <Badge className="w-fit border-primary/20 bg-primary/10 text-primary">Protected system agent</Badge> : deletableAgent ? <Button type="button" variant="outline" disabled={busy === "archive" || busy === "delete"} onClick={() => void mutate("archive", () => externalAgent && agent.installation_id ? archiveExternalAgent(agent.installation_id) : archiveAgent(agent.id))}><Archive className="mr-2 h-4 w-4" />{busy === "archive" ? "Archiving…" : "Archive agent"}</Button> : null}</div>
+              <div className="flex flex-wrap items-center justify-end gap-2">{hostedAgent ? <Button type="button" variant="outline" onClick={() => selectSection("deployment")}><Rocket className="mr-2 h-4 w-4" />Deploy · Pending</Button> : null}{customHostedAgent ? <Button asChild><Link href={`/studio?agent=${encodeURIComponent(agent.id)}`}><Workflow className="mr-2 h-4 w-4" />Open Studio</Link></Button> : null}{agent.installation_id && installationStatus !== "disabled" ? <Button type="button" variant="outline" disabled={busy !== null} onClick={() => void toggleInstallation()}>{busy === "installation-status" ? "Updating…" : installationStatus === "active" ? "Pause installation" : "Resume installation"}</Button> : null}{protectedAgent ? <Badge className="w-fit border-primary/20 bg-primary/10 text-primary">Protected system agent</Badge> : deletableAgent ? <Button type="button" variant="outline" disabled title="Archive is not connected yet" onClick={() => void mutate("archive", () => externalAgent && agent.installation_id ? archiveExternalAgent(agent.installation_id) : archiveAgent(agent.id))}><Archive className="mr-2 h-4 w-4" />{busy === "archive" ? "Archiving…" : "Archive agent"}</Button> : null}</div>
             </div>
             {externalAgent ? <p className="rounded-lg border border-status-info/20 bg-status-info-soft/40 px-3 py-2 text-sm text-muted-foreground">This is an external-connected installation. It calls KasiTek through MCP or REST and does not run hosted chat, channels, schedules, knowledge, or model workflows here.</p> : null}
           </CardContent>
@@ -920,25 +933,27 @@ export function AgentDetailPageClient({ agent, initialVersions }: { agent: Agent
             <Card className="overflow-hidden border-border/80 shadow-sm"><CardContent className="p-3 sm:p-4">
               <div className="mb-3 px-2"><p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Manage agent</p><p className="mt-1 truncate text-sm font-medium text-foreground">{agentName}</p></div>
               <nav aria-label="Agent management" className="flex gap-1 overflow-x-auto lg:block">
-                {navigationGroups.map((group, groupIndex) => <div key={group.label ?? `group-${groupIndex}`} className="lg:mt-4 first:mt-0">{group.label ? <p className="mb-1 px-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">{group.label}</p> : null}{group.items.map((item) => { const Icon = item.icon; const active = activeSection === item.section; return <button key={item.section} type="button" aria-current={active ? "page" : undefined} title={item.description} onClick={() => selectSection(item.section)} className={`flex min-w-max items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm transition-colors lg:min-w-0 lg:w-full ${active ? "bg-primary/10 font-semibold text-primary" : "text-foreground/80 hover:bg-secondary hover:text-foreground"}`}><Icon className="h-4 w-4 shrink-0" /><span>{item.label}</span></button>; })}{group.label === "Settings" && deletableAgent ? <><div className="my-2 border-t border-border/70" /><button type="button" title="Permanently delete this agent" onClick={() => void deleteCurrentAgent()} disabled={busy !== null} className="flex min-w-max items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm text-destructive transition-colors hover:bg-destructive/10 disabled:cursor-not-allowed disabled:opacity-50 lg:min-w-0 lg:w-full"><Trash2 className="h-4 w-4 shrink-0" /><span>{busy === "delete" ? "Deleting…" : "Delete agent"}</span></button></> : null}</div>)}
+                {navigationGroups.map((group, groupIndex) => <div key={group.label ?? `group-${groupIndex}`} className="lg:mt-4 first:mt-0">{group.label ? <p className="mb-1 px-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">{group.label}</p> : null}{group.items.map((item) => { const Icon = item.icon; const active = activeSection === item.section; return <button key={item.section} type="button" aria-current={active ? "page" : undefined} title={item.description} onClick={() => selectSection(item.section)} className={`flex min-w-max items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm transition-colors lg:min-w-0 lg:w-full ${active ? "bg-primary/10 font-semibold text-primary" : "text-foreground/80 hover:bg-secondary hover:text-foreground"}`}><Icon className="h-4 w-4 shrink-0" /><span>{item.label}</span>{pendingDetailSections[item.section] ? <span className="ml-auto text-[10px] text-muted-foreground">Pending</span> : null}</button>; })}{group.label === "Settings" && deletableAgent ? <><div className="my-2 border-t border-border/70" /><button type="button" title="Deletion is not connected yet" onClick={() => void deleteCurrentAgent()} disabled className="flex min-w-max items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm text-destructive transition-colors hover:bg-destructive/10 disabled:cursor-not-allowed disabled:opacity-50 lg:min-w-0 lg:w-full"><Trash2 className="h-4 w-4 shrink-0" /><span>{busy === "delete" ? "Deleting…" : "Delete agent"}</span></button></> : null}</div>)}
               </nav>
               <div className="mt-4 hidden rounded-xl border border-border bg-secondary/30 p-3 lg:block"><p className="text-xs text-muted-foreground">{protectedAgent ? "Protected platform agent" : externalAgent ? "External runtime" : "Hosted runtime"}</p><p className="mt-1 text-xs font-medium capitalize text-foreground">{installationStatus.replaceAll("_", " ")}</p></div>
             </CardContent></Card>
           </aside>
           <main className="min-w-0 space-y-6">
-        {activeSection === "overview" ? <Card><CardContent className="space-y-5 p-6"><div><p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-primary">Overview</p><h2 className="mt-1 text-xl font-semibold text-foreground">Manage {agentName}</h2><p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">Use the sections on the left to update knowledge, behaviour, deployment, access, and activity without searching through one long page.</p></div><div className="grid gap-3 sm:grid-cols-3"><button type="button" onClick={() => selectSection(hostedAgent ? "knowledge" : "connection")} className="rounded-xl border border-border bg-secondary/20 p-4 text-left transition-colors hover:border-primary/40 hover:bg-primary/5"><BookOpen className="h-5 w-5 text-primary" /><p className="mt-3 text-sm font-semibold text-foreground">{hostedAgent ? "Add knowledge" : "Connect runtime"}</p><p className="mt-1 text-xs leading-5 text-muted-foreground">{hostedAgent ? "Upload files or paste information." : "Manage credentials and connection health."}</p></button><button type="button" onClick={() => selectSection(hostedAgent ? "behavior" : "settings")} className="rounded-xl border border-border bg-secondary/20 p-4 text-left transition-colors hover:border-primary/40 hover:bg-primary/5"><SlidersHorizontal className="h-5 w-5 text-primary" /><p className="mt-3 text-sm font-semibold text-foreground">{hostedAgent ? "Tune behaviour" : "Review access"}</p><p className="mt-1 text-xs leading-5 text-muted-foreground">{hostedAgent ? "Adjust response settings and capabilities." : "Review scopes and audit information."}</p></button><button type="button" onClick={() => selectSection(hostedAgent ? "activity" : externalAgent ? "operations" : "activity")} className="rounded-xl border border-border bg-secondary/20 p-4 text-left transition-colors hover:border-primary/40 hover:bg-primary/5"><MessageSquare className="h-5 w-5 text-primary" /><p className="mt-3 text-sm font-semibold text-foreground">{hostedAgent ? "Test chat" : externalAgent ? "View operations" : "Private chat"}</p><p className="mt-1 text-xs leading-5 text-muted-foreground">{hostedAgent ? "Try a conversation with this agent." : externalAgent ? "Review calls, outcomes, and usage." : "Test this private platform agent."}</p></button></div></CardContent></Card> : null}
+        {pendingSection ? <Card><CardContent className="space-y-4 p-6"><Badge variant="secondary">Not available yet</Badge><h2 className="text-xl font-semibold">{navigationGroups.flatMap(group => group.items).find(item => item.section === activeSection)?.label ?? "Agent feature"}</h2><p className="max-w-2xl text-sm leading-6 text-muted-foreground">{pendingSection}</p>{hostedAgent ? <Button asChild variant="outline"><Link href={`/studio?agent=${encodeURIComponent(agent.id)}`}>Open Studio</Link></Button> : null}</CardContent></Card> : <>
+
+        {activeSection === "overview" ? <Card><CardContent className="space-y-5 p-6"><div><p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-primary">Overview</p><h2 className="mt-1 text-xl font-semibold text-foreground">Manage {agentName}</h2><p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">Open Studio to edit instructions and model settings. Review recent runs under Operations; other sections show their current availability.</p></div><div className="grid gap-3 sm:grid-cols-3"><button type="button" onClick={() => selectSection(hostedAgent ? "knowledge" : "connection")} className="rounded-xl border border-border bg-secondary/20 p-4 text-left transition-colors hover:border-primary/40 hover:bg-primary/5"><BookOpen className="h-5 w-5 text-primary" /><p className="mt-3 text-sm font-semibold text-foreground">{hostedAgent ? "Knowledge · Pending" : "Connect runtime · Pending"}</p><p className="mt-1 text-xs leading-5 text-muted-foreground">{hostedAgent ? "Source management will be connected later." : "Runtime connection controls will be connected later."}</p></button><button type="button" onClick={() => hostedAgent ? router.push(`/studio?agent=${encodeURIComponent(agent.id)}`) : selectSection("settings")} className="rounded-xl border border-border bg-secondary/20 p-4 text-left transition-colors hover:border-primary/40 hover:bg-primary/5"><SlidersHorizontal className="h-5 w-5 text-primary" /><p className="mt-3 text-sm font-semibold text-foreground">{hostedAgent ? "Open Studio" : "Review identity"}</p><p className="mt-1 text-xs leading-5 text-muted-foreground">{hostedAgent ? "Edit instructions and model settings." : "Review this agent’s name and description."}</p></button><button type="button" onClick={() => selectSection(hostedAgent ? "activity" : externalAgent ? "operations" : "activity")} className="rounded-xl border border-border bg-secondary/20 p-4 text-left transition-colors hover:border-primary/40 hover:bg-primary/5"><MessageSquare className="h-5 w-5 text-primary" /><p className="mt-3 text-sm font-semibold text-foreground">{hostedAgent ? "Test chat" : externalAgent ? "View operations" : "Private chat"}</p><p className="mt-1 text-xs leading-5 text-muted-foreground">{hostedAgent ? "Try a conversation with this agent." : externalAgent ? "Review calls, outcomes, and usage." : "Test this private platform agent."}</p></button></div></CardContent></Card> : null}
 
         {activeSection === "settings" && !protectedAgent ? <Card><CardContent className="space-y-4 p-6"><div><p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-primary">Settings</p><h2 className="mt-1 text-xl font-semibold text-foreground">Agent identity</h2><p className="mt-2 text-sm text-muted-foreground">Change the name, description, or public slug for this agent.</p></div><div className="grid gap-4 sm:grid-cols-2"><label className="text-sm font-medium text-foreground">Name<Input value={agentName} onChange={(event) => { const next = event.target.value; setAgentName(next); if (!slugEdited) setAgentSlug(slugifyAgentName(next)); }} maxLength={160} className="mt-2" /></label><label className="text-sm font-medium text-foreground">Slug<Input value={agentSlug} onChange={(event) => { setSlugEdited(true); setAgentSlug(sanitizeAgentSlug(event.target.value)); }} maxLength={80} className="mt-2" /><span className="mt-1 block text-xs text-muted-foreground">Updates automatically from the name until you edit it.</span></label></div><label className="text-sm font-medium text-foreground">Description<Textarea value={agentDescription} onChange={(event) => setAgentDescription(event.target.value)} rows={4} maxLength={2000} className="mt-2 resize-y" /></label><div className="flex items-center justify-between gap-3"><button type="button" className="text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline" onClick={() => { setSlugEdited(false); setAgentSlug(slugifyAgentName(agentName)); }}>Reset slug from name</button><Button type="button" onClick={() => void saveIdentity()} disabled={savingIdentity || !agentName.trim() || !agentSlug.trim()}>{savingIdentity ? "Saving…" : "Save details"}</Button></div></CardContent></Card> : null}
 
         {activeSection === "settings" && hostedAgent ? <Card>
           <CardContent className="space-y-4 p-6">
-            <div><h2 className="text-lg font-semibold text-foreground">Workspace preferences</h2><p className="mt-1 text-sm text-muted-foreground">These settings affect this workspace installation only. Protected instructions and tool policy remain unchanged.</p></div>
+            <fieldset disabled className="space-y-4 opacity-60"><p className="text-xs text-muted-foreground">Preferences are not connected yet.</p><div><h2 className="text-lg font-semibold text-foreground">Workspace preferences</h2><p className="mt-1 text-sm text-muted-foreground">These settings affect this workspace installation only. Protected instructions and tool policy remain unchanged.</p></div>
             <div className="grid gap-4 sm:grid-cols-2">
               <label className="text-sm font-medium text-foreground">Response tone<Select value={tone} onValueChange={setTone}><SelectTrigger className="mt-2"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="concise">Concise</SelectItem><SelectItem value="balanced">Balanced</SelectItem><SelectItem value="detailed">Detailed</SelectItem></SelectContent></Select></label>
               <label className="text-sm font-medium text-foreground">Response detail<Select value={responseDetail} onValueChange={setResponseDetail}><SelectTrigger className="mt-2"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="concise">Concise</SelectItem><SelectItem value="standard">Standard</SelectItem><SelectItem value="detailed">Detailed</SelectItem></SelectContent></Select></label>
               <label className="text-sm font-medium text-foreground">Language<Input value={language} onChange={(event) => setLanguage(event.target.value)} maxLength={20} placeholder="en" className="mt-2" /></label>
             </div>
-            <label className="flex items-center gap-2 text-sm text-muted-foreground"><Checkbox checked={notificationsEnabled} onCheckedChange={(checked) => setNotificationsEnabled(checked === true)} />Send run and approval notifications for this installation</label><Button type="button" onClick={() => void saveSettings()} disabled={!agent.installation_id || savingSettings}>{savingSettings ? "Saving…" : "Save preferences"}</Button>
+            <label className="flex items-center gap-2 text-sm text-muted-foreground"><Checkbox checked={notificationsEnabled} onCheckedChange={(checked) => setNotificationsEnabled(checked === true)} />Send run and approval notifications for this installation</label><Button type="button" onClick={() => void saveSettings()} disabled={!agent.installation_id || savingSettings}>{savingSettings ? "Saving…" : "Save preferences"}</Button></fieldset>
           </CardContent>
         </Card> : null}
 
@@ -957,8 +972,8 @@ export function AgentDetailPageClient({ agent, initialVersions }: { agent: Agent
         {activeSection === "settings" && agent.installation_id ? <section className="space-y-3" aria-labelledby="additional-settings-title">
           <div><h2 id="additional-settings-title" className="text-lg font-semibold text-foreground">Additional settings</h2><p className="text-sm text-muted-foreground">Access, schedules, and activation controls.</p></div>
           {kasitekHostedAgent ? <details className="group rounded-xl border border-border bg-card">
-            <summary className="cursor-pointer list-none p-5 [&::-webkit-details-marker]:hidden"><div className="flex items-center justify-between gap-3"><div><h3 className="font-semibold text-foreground">Schedules</h3><p className="mt-1 text-sm text-muted-foreground">Run this agent on a recurring schedule.</p></div><span className="text-xs font-medium text-primary group-open:hidden">Open</span><span className="hidden text-xs font-medium text-primary group-open:inline">Close</span></div></summary>
-            <div className="border-t border-border p-5"><InstallationSchedules installationId={agent.installation_id} /></div>
+            <summary className="cursor-pointer list-none p-5 [&::-webkit-details-marker]:hidden"><div className="flex items-center justify-between gap-3"><div><h3 className="font-semibold text-foreground">Schedules</h3><p className="mt-1 text-sm text-muted-foreground">Scheduled triggers are not connected yet.</p></div><span className="text-xs font-medium text-primary group-open:hidden">Open</span><span className="hidden text-xs font-medium text-primary group-open:inline">Close</span></div></summary>
+            <div className="border-t border-border p-5"><p className="text-sm text-muted-foreground">Scheduled triggers are not connected yet.</p></div>
           </details> : null}
         </section> : null}
 
@@ -1067,20 +1082,21 @@ export function AgentDetailPageClient({ agent, initialVersions }: { agent: Agent
         ) : null}
 
         {activeSection === "settings" ? <details className="group rounded-xl border border-border bg-card" aria-labelledby="agent-versions-title">
-          <summary className="cursor-pointer list-none p-5 [&::-webkit-details-marker]:hidden"><div className="flex items-center justify-between gap-3"><div><h2 id="agent-versions-title" className="font-semibold text-foreground">Version history</h2><p className="mt-1 text-sm text-muted-foreground">Publish candidates and review immutable versions. Use Deploy for Live activation.</p></div><span className="text-xs font-medium text-primary group-open:hidden">Open</span><span className="hidden text-xs font-medium text-primary group-open:inline">Close</span></div></summary>
+          <summary className="cursor-pointer list-none p-5 [&::-webkit-details-marker]:hidden"><div className="flex items-center justify-between gap-3"><div><h2 id="agent-versions-title" className="font-semibold text-foreground">Version history</h2><p className="mt-1 text-sm text-muted-foreground">Review saved versions. Publishing and Live activation are not connected yet.</p></div><span className="text-xs font-medium text-primary group-open:hidden">Open</span><span className="hidden text-xs font-medium text-primary group-open:inline">Close</span></div></summary>
           <div className="space-y-3 border-t border-border p-5">
           {error ? <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive" role="alert">{error}</p> : null}
           {!versions.length ? <Card><CardContent className="p-6 text-sm text-muted-foreground">No versions are available for this agent.</CardContent></Card> : versions.map((version) => (
             <Card key={version.id}><CardContent className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
               <div><div className="flex items-center gap-2"><h3 className="font-semibold text-foreground">Version {version.version_number}</h3>{version.id === agent.published_version_id ? <><CheckCircle2 className="h-4 w-4 text-status-success" aria-label="Published" /><Badge className="border-status-success/30 bg-status-success-soft text-status-success">Published</Badge></> : <Badge className={versionStatusClass(version.status)}>{version.status}</Badge>}{version.id === agent.installation_version_id ? <Badge className="border-primary/30 bg-primary/10 text-primary">Deployed</Badge> : null}</div><p className="mt-1 text-xs text-muted-foreground">Created {new Date(version.created_at).toLocaleString()}{version.published_at ? ` · Published ${new Date(version.published_at).toLocaleString()}` : ""}</p></div>
               {kasitekHostedAgent ? <div className="flex flex-wrap gap-2">
-                {version.status === "draft" ? <Button type="button" size="sm" disabled={busy !== null} onClick={() => void mutate(`publish:${version.id}`, () => publishAgentVersion(agent.id, version.id))}>Publish candidate</Button> : null}
-                {version.status === "published" ? <Button type="button" size="sm" variant="outline" disabled={busy !== null} onClick={() => void mutate(`retire:${version.id}`, () => retireAgentVersion(agent.id, version.id))}>Retire</Button> : null}
+                {version.status === "draft" ? <Button type="button" size="sm" disabled title="Version publishing is not connected yet" onClick={() => void mutate(`publish:${version.id}`, () => publishAgentVersion(agent.id, version.id))}>Publish candidate</Button> : null}
+                {version.status === "published" ? <Button type="button" size="sm" variant="outline" disabled title="Version retirement is not connected yet" onClick={() => void mutate(`retire:${version.id}`, () => retireAgentVersion(agent.id, version.id))}>Retire</Button> : null}
               </div> : null}
             </CardContent></Card>
           ))}
           </div>
         </details> : null}
+        </>}
           </main>
         </div>
         <Dialog open={deleteConfirmationOpen} onOpenChange={(open) => {
@@ -1808,69 +1824,6 @@ function InstallationKnowledge({ agentId, installationId }: { agentId: string; i
     <Dialog open={Boolean(openSourceRecord)} onOpenChange={(open) => { if (!open) setOpenSourceId(null); }}>{openSourceRecord ? <DialogContent className="flex max-h-[calc(100svh-2rem)] max-w-5xl flex-col overflow-hidden p-0"><div className="border-b border-border px-6 py-5"><DialogHeader><p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-primary">Knowledge source</p><DialogTitle className="truncate">{openSourceRecord.name}</DialogTitle><DialogDescription>Revision {openSourceRecord.revision} · {openSourceRecord.source_type}</DialogDescription></DialogHeader></div><div className="min-h-0 flex-1 overflow-y-auto p-6">{openSourceRecord.source_type === "manual" ? <Textarea value={sourceDraft} onChange={(event) => setSourceDraft(event.target.value)} rows={24} maxLength={200_000} className="min-h-[55svh] resize-y" aria-label={`Edit ${openSourceRecord.name}`} /> : <div className="min-h-[55svh] whitespace-pre-wrap rounded-xl border border-border bg-secondary/20 p-4 text-sm leading-6 text-foreground">{sourceDraft || "No extracted text is available for this source."}</div>}</div><DialogFooter className="items-center justify-between border-t border-border px-6 py-4 sm:justify-between"><p className="text-xs text-muted-foreground">{openSourceRecord.source_type === "manual" ? "Save creates a new searchable revision." : "This source is read-only here; replace it from the original file or URL."}</p><div className="flex gap-2"><Button type="button" variant="outline" onClick={() => setOpenSourceId(null)}>Cancel</Button>{openSourceRecord.source_type === "manual" ? <Button type="button" disabled={busy !== null || !sourceDraft.trim()} onClick={() => void saveSource(openSourceRecord)}>{busy === `save-source:${openSourceRecord.id}` ? "Saving…" : "Save changes"}</Button> : null}</div></DialogFooter></DialogContent> : null}</Dialog>
     <Dialog open={Boolean(saveConfirmation)} onOpenChange={(open) => { if (!open) setSaveConfirmation(null); }}>{saveConfirmation ? <DialogContent className="max-w-md"><DialogHeader><div className="flex h-12 w-12 items-center justify-center rounded-full bg-status-success-soft text-status-success"><CheckCircle2 className="h-6 w-6" aria-hidden="true" /></div><DialogTitle>Information saved</DialogTitle><DialogDescription><span className="font-medium text-foreground">{saveConfirmation.name}</span> is now available to the agent as searchable knowledge.</DialogDescription></DialogHeader><p className="text-xs text-muted-foreground">Revision {saveConfirmation.revision} created successfully.</p><DialogFooter><Button type="button" onClick={() => setSaveConfirmation(null)}>Done</Button></DialogFooter></DialogContent> : null}</Dialog>
   </>;
-}
-
-function InstallationSchedules({ installationId }: { installationId: string }) {
-  const [schedules, setSchedules] = useState<AgentSchedule[]>([]);
-  const [expression, setExpression] = useState("0 9 * * *");
-  const [timezone, setTimezone] = useState("UTC");
-  const [nextRunAt, setNextRunAt] = useState("");
-  const [loading, setLoading] = useState(true);
-  const [busy, setBusy] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  const refresh = useCallback(async () => {
-    setLoading(true);
-    try {
-      const response = await listAgentInstallationSchedules(installationId);
-      setSchedules(response.schedules);
-      setError(null);
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Unable to load schedules");
-    } finally {
-      setLoading(false);
-    }
-  }, [installationId]);
-
-  useEffect(() => { void refresh(); }, [refresh]);
-
-  const create = async () => {
-    if (!expression.trim() || !timezone.trim() || busy) return;
-    setBusy("create");
-    setError(null);
-    try {
-      const schedule = await createAgentInstallationSchedule(installationId, { expression: expression.trim(), timezone: timezone.trim(), nextRunAt: nextRunAt ? new Date(nextRunAt).toISOString() : undefined, input: { source: "agent-detail" } });
-      setSchedules((current) => [schedule, ...current]);
-      setNextRunAt("");
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Unable to create schedule");
-    } finally {
-      setBusy(null);
-    }
-  };
-
-  const setStatus = async (schedule: AgentSchedule) => {
-    if (busy) return;
-    const status = schedule.status === "active" ? "paused" : "active";
-    setBusy(schedule.id);
-    try {
-      const updated = await setAgentScheduleStatus(schedule.id, status);
-      setSchedules((current) => current.map((entry) => entry.id === schedule.id ? updated : entry));
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Unable to update schedule");
-    } finally {
-      setBusy(null);
-    }
-  };
-
-  return <Card>
-    <CardContent className="space-y-4 p-6">
-      <div><h2 className="text-lg font-semibold text-foreground">Schedules</h2><p className="mt-1 text-sm text-muted-foreground">Create durable schedule triggers for this installation. The runtime owns dispatch and records each resulting run.</p></div>
-      {error ? <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive" role="alert">{error}</p> : null}
-      <div className="grid gap-2 rounded-xl border border-border bg-secondary/20 p-4 sm:grid-cols-[1.2fr_0.7fr_1fr_auto] sm:items-end"><label className="text-xs font-medium text-foreground">Cron expression<Input value={expression} onChange={(event) => setExpression(event.target.value)} placeholder="0 9 * * *" className="mt-1" /></label><label className="text-xs font-medium text-foreground">Timezone<Input value={timezone} onChange={(event) => setTimezone(event.target.value)} placeholder="Africa/Johannesburg" className="mt-1" /></label><label className="text-xs font-medium text-foreground">First run (optional)<Input value={nextRunAt} onChange={(event) => setNextRunAt(event.target.value)} type="datetime-local" className="mt-1" /></label><Button type="button" size="sm" disabled={busy !== null || !expression.trim()} onClick={() => void create()}>{busy === "create" ? "Creating…" : "Add schedule"}</Button></div>
-      {loading ? <p className="text-sm text-muted-foreground">Loading schedules…</p> : schedules.length ? <div className="space-y-2">{schedules.map((schedule) => <div key={schedule.id} className="flex flex-col gap-2 rounded-lg border border-border p-3 sm:flex-row sm:items-center sm:justify-between"><div><p className="font-mono text-sm text-foreground">{schedule.expression}</p><p className="mt-1 text-xs text-muted-foreground">{schedule.timezone} · {schedule.next_run_at ? `next ${new Date(schedule.next_run_at).toLocaleString()}` : "runtime calculates next run"}</p></div><Button type="button" variant="outline" size="sm" disabled={busy !== null || schedule.status === "disabled"} onClick={() => void setStatus(schedule)}>{busy === schedule.id ? "Updating…" : schedule.status === "active" ? "Pause" : "Resume"}</Button></div>)}</div> : <p className="text-sm text-muted-foreground">No schedules configured.</p>}
-    </CardContent>
-  </Card>;
 }
 
 function integrationProviderLabel(provider: string) {

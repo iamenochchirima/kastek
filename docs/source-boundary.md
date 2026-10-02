@@ -35,3 +35,19 @@ reference checkout; runtime imports and changes to that repo are excluded.
 The migration passed frontend typecheck, production build and existing Studio event/reducer checks. Landing and signup navigation were inspected in the browser. The dashboard and account screen rendered with real session/workspace records. A 390-pixel viewport check confirmed no horizontal page overflow and working mobile navigation dismissal. A Booking Assistant was created through the real standalone backend, reopened in Studio after refresh and shown in its workspace list. Model execution remains unverified.
 
 Follow the [frontend checklist](plans/agents/FRONTEND_INITIAL_IMPLEMENTATION_PLAN.md). Growth's styling is reference material; no Growth files were modified by this frontend migration.
+
+### Initial detail-screen availability
+
+The initial browser manifest supports agent identity updates, installation status,
+version reads/creation, hosted run history and the Studio execution path. Agent
+details now display pending states for analytics, customer conversations, knowledge,
+full workflow editing, provider-key management, tool grants, integrations, appearance,
+live deployment/rollback and external credentials/operations. Studio links provide
+the initial instructions/model workflow. Missing preference, archive/delete,
+schedule and publish/retire controls are disabled or replaced with pending copy.
+These are frontend availability choices for the initial slice, not authorization
+rules. Backend permissions and independent machine APIs remain authoritative.
+
+The retained backend capabilities still need explicit scoped browser admission and
+ordinary product verification before enabling those copied sections. The unused
+detail-page schedule form was removed; backend scheduling code remains.
