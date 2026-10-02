@@ -40,7 +40,7 @@ Exit: Vite serves the landing and dashboard layouts, including direct route navi
 
 - [x] Port/reuse the approved Growth shell, theme and UI primitives, then remove Growth-only navigation and imports.
 - [x] Add Overview, Agents, Inbox, Knowledge, Connections, Usage and Settings as the proposed navigation. Keep Studio/Playground discoverable inside the agent workflow.
-- [ ] Within Agents, distinguish API-based agents from Personal deployments, with separate appropriate detail screens. Personal deployment functionality follows its own platform phase.
+- [x] Within Agents, distinguish API-based agents from Personal deployments, with separate appropriate detail screens. Personal deployment functionality follows its own platform phase.
 - [x] Implement responsive sidebar/top bar, active navigation, organization context and basic account actions using existing patterns.
 - [ ] Provide consistent loading, empty, error and unavailable states. Later features must show honest availability rather than fabricated counts or working controls.
 - [ ] Preserve basic keyboard navigation, labels, focus behavior and readable mobile layouts during the port.
@@ -321,3 +321,19 @@ Landing overview and real screenshot, 2026-10-02:
   the 1270-pixel document width. Screenshot: `.artifacts/agents-landing-preview.jpg`.
 - Frontend production build and focused landing lint passed. Responsive coverage
   of the added sections is still part of the normal verification checklist.
+
+Mobile layout follow-up, 2026-10-02:
+
+- At a 390-pixel viewport, the landing's document client/scroll widths both
+  measured 380 pixels with its scrollbar; the screenshot rendered at 332 pixels
+  and use-case cards formed one column. No horizontal document overflow occurred.
+- The personal-deployment page also had matching 380-pixel client/scroll widths.
+  Its back link opened the hosted-agent list. The category filter stayed within
+  its 348-pixel container and selecting Personal deployments showed the planned
+  state without counts or provisioning controls. Screenshot:
+  `.artifacts/agents-personal-mobile.jpg`. The viewport override was reset.
+- The product-type distinction now has verified separate hosted-agent detail and
+  planned personal-deployment screens, including this mobile check. The broader
+  shell/keyboard/state acceptance remains open for other inherited controls.
+- Updated frontend startup documentation with the separate backend/worker
+  prerequisites. No source code changed, so builds/tests were not repeated.

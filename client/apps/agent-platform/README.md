@@ -13,6 +13,31 @@ pnpm --filter @kasitek/agent-platform dev
 
 Open http://localhost:3100. Copy .env.example to .env.local if the Agents API uses a different address. AGENTS_API_PROXY_TARGET is read by Vite only; it is not exposed as a browser environment variable. Use localhost consistently with the shared provider's local passkey configuration.
 
+The frontend needs the standalone Agents API on `127.0.0.1:4100` and the shared
+login provider. Configure the backend's own root `.env` with its database and
+OIDC settings before starting it. See [platform login setup](../../../docs/architecture/platform-login.md).
+From the repository root, run the API in a separate terminal:
+
+```sh
+pnpm dev:api
+```
+
+For playground execution, the retained runtime also needs a Temporal server and
+worker. Set `TEMPORAL_ENABLED=true`, the server address, namespace and task queue
+in the backend `.env`, then start the worker in another terminal:
+
+```sh
+pnpm dev:worker
+```
+
+API and worker must use the same queue/namespace. Configure a model-provider key
+in the backend environment only. The default enforced credit-billing mode needs
+the Growth credit service for platform-funded model calls. An isolated development
+test can explicitly use `CREDIT_BILLING_MODE=disabled`; this skips credit charging,
+while normal run limits still apply. The frontend does not select billing mode or
+provide credentials. Production billing defaults remain enforced. Starting the UI
+alone does not establish that execution is ready.
+
 ## Routes and state
 
 - / is the public landing page; /login and /signup enter backend-owned shared login.
@@ -20,7 +45,8 @@ Open http://localhost:3100. Copy .env.example to .env.local if the Agents API us
 - Existing /agents and /studio bookmarks redirect into /app.
 - /onboarding creates or selects a permitted workspace before agent screens load.
 - Settings shows the account/workspace and provides logout. Team administration,
-  Knowledge, Connections, Usage and Inbox retain pending states. Personal deployment is planned.
+  Knowledge, Connections, Usage and Inbox retain pending states. Personal deployments are labelled planned under Agents and have a separate
+  explanation page at /app/agents/personal.
 
 The session loader uses GET /api/auth/me from the standalone Agents backend. Local
 password login, workspace onboarding, dashboard access and logout are verified.
