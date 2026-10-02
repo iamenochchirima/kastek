@@ -26,7 +26,7 @@ pnpm build
   widget. It defaults to `https://api.kasitek.co.za`.
 - `NEXT_PUBLIC_KASITEK_CONTACT_EMAIL` sets the displayed contact address. It defaults to
   `hello@kasitek.co.za`.
-- `RUST_API_BASE_URL`, `NEXT_PUBLIC_API_BASE_URL`, and `NEXT_PUBLIC_KASITEK_PUBLIC_API_URL` set
+- `CORE_API_BASE_URL`, `NEXT_PUBLIC_API_BASE_URL`, and `NEXT_PUBLIC_KASITEK_PUBLIC_API_URL` set
   the upstream API origin for the quote-request and waitlist routes, in that precedence order.
   In development they otherwise target `http://localhost:4000`; in production they default to
   `https://api.kasitek.co.za`.

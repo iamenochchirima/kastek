@@ -7,7 +7,7 @@ const DEFAULT_API_BASE_URL =
 
 export async function POST(request: NextRequest) {
   const apiBaseUrl = (
-    process.env.RUST_API_BASE_URL ||
+    process.env.CORE_API_BASE_URL ||
     process.env.NEXT_PUBLIC_API_BASE_URL ||
     process.env.NEXT_PUBLIC_KASITEK_PUBLIC_API_URL ||
     DEFAULT_API_BASE_URL
