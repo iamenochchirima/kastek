@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ArrowLeft, Bot, LoaderCircle, Sparkles } from "lucide-react";
 import { useRouter } from "@/lib/navigation";
 import { Button } from "@/components/ui/button";
@@ -18,6 +18,9 @@ export function StudioAgentCreationPage() {
   const [description, setDescription] = useState("");
   const [instructions, setInstructions] = useState(defaultInstructions);
   const [submitting, setSubmitting] = useState(false);
+  const [validationError, setValidationError] = useState<{ field: "name" | "instructions"; message: string } | null>(null);
+  const nameInput = useRef<HTMLInputElement>(null);
+  const instructionsInput = useRef<HTMLTextAreaElement>(null);
   const [models, setModels] = useState<AgentModel[]>([]);
   const [modelKey, setModelKey] = useState("");
   const [modelsLoading, setModelsLoading] = useState(true);
@@ -35,7 +38,18 @@ export function StudioAgentCreationPage() {
   }, []);
 
   const submit = async () => {
-    if (!name.trim() || !instructions.trim() || submitting || modelsLoading) return;
+    if (submitting || modelsLoading) return;
+    if (!name.trim()) {
+      setValidationError({ field: "name", message: "Enter a name for this agent." });
+      nameInput.current?.focus();
+      return;
+    }
+    if (!instructions.trim()) {
+      setValidationError({ field: "instructions", message: "Add instructions describing what this agent should do." });
+      instructionsInput.current?.focus();
+      return;
+    }
+    setValidationError(null);
     setSubmitting(true);
     try {
       const selected = models.find(model => `${model.provider}:${model.model}` === modelKey);
@@ -66,14 +80,14 @@ export function StudioAgentCreationPage() {
               <CardTitle className="text-2xl tracking-tight">Create agent</CardTitle>
               <CardDescription>Create a hosted agent with a playground to try its instructions.</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-5">
+            <CardContent><form className="space-y-5" onSubmit={event => { event.preventDefault(); void submit(); }}>
               <div>
                 <label htmlFor="studio-agent-name" className="text-sm font-medium text-foreground">Name</label>
-                <Input id="studio-agent-name" value={name} onChange={(event) => setName(event.target.value)} placeholder="Research assistant" className="mt-2" autoFocus />
+                <Input id="studio-agent-name" ref={nameInput} required maxLength={160} aria-invalid={validationError?.field === "name"} aria-describedby={validationError?.field === "name" ? "studio-agent-validation" : undefined} disabled={submitting} value={name} onChange={(event) => { setName(event.target.value); setValidationError(null); }} placeholder="Research assistant" className="mt-2" autoFocus />
               </div>
               <div>
                 <label htmlFor="studio-agent-description" className="text-sm font-medium text-foreground">Purpose <span className="font-normal text-muted-foreground">(optional)</span></label>
-                <Input id="studio-agent-description" value={description} onChange={(event) => setDescription(event.target.value)} placeholder="What this agent is responsible for" className="mt-2" />
+                <Input id="studio-agent-description" maxLength={2000} disabled={submitting} value={description} onChange={(event) => setDescription(event.target.value)} placeholder="What this agent is responsible for" className="mt-2" />
               </div>
               <div>
                 <label htmlFor="studio-agent-model" className="text-sm font-medium text-foreground">Model</label>
@@ -85,16 +99,17 @@ export function StudioAgentCreationPage() {
               </div>
               <div>
                 <label htmlFor="studio-agent-instructions" className="text-sm font-medium text-foreground">Instructions</label>
-                <Textarea id="studio-agent-instructions" value={instructions} onChange={(event) => setInstructions(event.target.value)} className="mt-2 min-h-48 resize-y" />
+                <Textarea id="studio-agent-instructions" ref={instructionsInput} required maxLength={200000} aria-invalid={validationError?.field === "instructions"} aria-describedby={validationError?.field === "instructions" ? "studio-agent-validation" : undefined} disabled={submitting} value={instructions} onChange={(event) => { setInstructions(event.target.value); setValidationError(null); }} className="mt-2 min-h-48 resize-y" />
               </div>
+              {validationError ? <p id="studio-agent-validation" role="alert" className="text-sm text-destructive">{validationError.message}</p> : null}
               <div className="flex flex-wrap justify-end gap-2 border-t border-border pt-5">
                 <Button type="button" variant="outline" onClick={() => router.push("/studio")} disabled={submitting}>Cancel</Button>
-                <Button type="button" onClick={() => void submit()} disabled={submitting || modelsLoading || !name.trim() || !instructions.trim()}>
+                <Button type="submit" disabled={submitting || modelsLoading}>
                   {submitting ? <LoaderCircle className="mr-1.5 size-4 animate-spin" /> : <Sparkles className="mr-1.5 size-4" />}
                   {submitting ? "Creating…" : "Create agent"}
                 </Button>
               </div>
-            </CardContent>
+            </form></CardContent>
           </Card>
         </div>
       </div>

@@ -437,3 +437,28 @@ Conversation model and readiness, 2026-10-02:
 - Backend/frontend builds, focused composer/Studio lint and eight existing browser
   admission/readiness checks passed. Actual model execution and complete access
   coverage remain unverified.
+
+Basic validation and recovery states, 2026-10-02:
+
+- The initial creation screen is now a real form with required fields and matching
+  backend length limits. Whitespace-only names/instructions produce an associated
+  inline alert and focus the invalid field. Fields are disabled during creation.
+- Unknown URLs now show Page not found with workspace/home links. Route failures
+  distinguish unavailable resources, forbidden workspace access and loading
+  failures; a missing endpoint is not described as a connection failure.
+- Created an empty local workspace under the dedicated test account. Its real agent
+  list showed zero counts and No installed agents yet. Create opened the initial
+  form; a whitespace-only name showed Enter a name for this agent and focused the
+  field without creating an agent. Screenshot:
+  `.artifacts/agents-create-validation.jpg`; empty state:
+  `.artifacts/agents-empty-workspace.jpg`.
+- A direct unknown URL rendered the missing-page screen. Stopped only the Agents
+  local API, verified workspace-unavailable feedback, restarted the API, and Try
+  again recovered the empty list. Screenshot:
+  `.artifacts/agents-backend-unavailable.jpg`. Restored Agents demo workspace using
+  the actual selector; the empty workspace remains a local test fixture.
+- Browser control timed out on the previous tab. A fresh tab in the same browser
+  continued these checks. Frontend production build and focused creation/router
+  lint passed; no additional automated test suite was added for these UI changes.
+- Broader route/mobile/unfinished-control checks and the actual response/stream/
+  history journey remain open; these observations do not complete all acceptance.

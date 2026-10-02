@@ -10,10 +10,15 @@ import { ApiError } from "@/lib/api-client";
 import { redirect } from "@/lib/navigation";
 type PageController = (props: { params: Promise<Record<string, string | undefined>>; searchParams: Promise<Record<string, string>> }) => Promise<ReactNode>;
 function LoadedScreen() { return useLoaderData() as ReactNode; }
+function PageNotFound() {
+  return <main className="dashboard-theme min-h-dvh bg-background"><div className="mx-auto max-w-xl px-6 py-20"><h1 className="text-2xl font-semibold">Page not found</h1><p className="mt-4 text-sm leading-6 text-muted-foreground">Check the address, or return to your workspace.</p><div className="mt-7 flex gap-5"><Link className="text-sm text-primary" to="/app">Open workspace</Link><Link className="text-sm text-primary" to="/">Back to home</Link></div></div></main>;
+}
 function RouteError() {
   const error = useRouteError();
   const status = error instanceof ApiError ? error.status : isRouteErrorResponse(error) ? error.status : undefined;
-  return <div className="mx-auto max-w-xl px-6 py-20"><h1 className="text-2xl font-semibold">{status === 404 ? "This page or endpoint is not available yet" : "We couldn't open this page"}</h1><p className="mt-4 text-sm leading-6 text-muted-foreground">{error instanceof ApiError ? "We couldn’t connect to your workspace. Please try again shortly." : "Try again, or return to the home page."}</p><div className="mt-7 flex gap-5"><button className="text-sm text-primary" onClick={() => window.location.reload()}>Try again</button><Link className="text-sm text-primary" to="/">Back to home</Link></div></div>;
+  const title = status === 404 ? "This page or resource isn't available" : status === 403 ? "Workspace access required" : "We couldn't open this page";
+  const detail = status === 404 ? "Check the address, or return to your workspace." : status === 403 ? "Choose a workspace you have access to, or sign in with another account." : "We couldn't load your workspace. Please try again shortly.";
+  return <main className="dashboard-theme min-h-dvh bg-background"><div className="mx-auto max-w-xl px-6 py-20"><h1 className="text-2xl font-semibold">{title}</h1><p role="status" className="mt-4 text-sm leading-6 text-muted-foreground">{detail}</p><div className="mt-7 flex gap-5"><button className="text-sm text-primary" onClick={() => window.location.reload()}>Try again</button>{status === 403 ? <Link className="text-sm text-primary" to="/onboarding">Choose workspace</Link> : null}<Link className="text-sm text-primary" to="/">Back to home</Link></div></div></main>;
 }
 async function requireSession() {
   try { const session = await getSession(); if (!session?.user?.id) redirect("/login"); return session; }
@@ -106,5 +111,5 @@ export const router = createBrowserRouter([
   { path: "/agents/*", loader: ({ request }) => { const url = new URL(request.url); redirect(`/app${url.pathname}${url.search}`); } },
   { path: "/studio/*", loader: ({ request }) => { const url = new URL(request.url); redirect(`/app${url.pathname}${url.search}`); } },
   { path: "/playground", element: <Navigate to="/app/playground" replace /> },
-  { path: "*", element: <RouteError /> },
+  { path: "*", Component: PageNotFound },
 ]);
