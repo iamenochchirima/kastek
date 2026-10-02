@@ -60,10 +60,10 @@ Exit: visitors can understand the product and enter its real sign-in flow from t
 ## Phase 5: Authentication and backend connection
 
 - [x] Consume the other agent's Labs shared-login contract and Agents backend session interface. Login/signup redirect to backend-owned provider flows; support existing-user and new-user outcomes.
-- [ ] Replace Growth Core session/API dependencies with Agents endpoints. Load the current user and permitted organizations from the backend.
+- [x] Replace Growth Core session/API dependencies with Agents endpoints. Load the current user and permitted organizations from the backend.
 - [x] Implement route loading, unauthenticated redirect, organization selection and ordinary API-error handling. Backend authorization remains authoritative.
 - [x] Send cookies through the /api interface and connect logout to the agreed backend behavior. Provider tokens and credentials must not appear in frontend storage or build configuration.
-- [ ] Document any missing Agents backend endpoints as explicit prerequisites; implement only the small API changes needed for this slice or leave their acceptance blocked.
+- [x] Document any missing Agents backend endpoints as explicit prerequisites; implement only the small API changes needed for this slice or leave their acceptance blocked.
 
 Dependency: do not edit the other agent's shared-login work or invent temporary fake authentication. Shell work can proceed independently; end-to-end acceptance waits for working authenticated APIs.
 
@@ -604,3 +604,20 @@ Basic route navigation acceptance, 2026-10-02:
 - The previous browser tab timed out twice, while direct HTTP checks showed the
   UI/API responding. A fresh tab in the same browser completed these checks; no
   server was restarted to resolve the browser-control issue.
+
+
+Standalone API boundary review, 2026-10-02:
+
+- Reviewed session helpers, shell workspace selection/activity, route loaders and
+  the initial browser manifest against current source. Mounted account/workspace,
+  agent list, creation, Studio and Playground paths use the standalone Agents API.
+- Marked the session/API replacement item complete for this frontend slice.
+  Retained Growth connection contracts belong to unmounted pending integration
+  components; they are explicitly described in docs/source-boundary.md.
+- Recorded runtime prerequisites separately from missing browser contracts.
+  Model credentials are still pending. Rich-response UI interactions and approval
+  actions need explicit scoped browser admission before their journeys can be
+  accepted. Their backend source was not broadened merely to clear a checklist.
+- Marked prerequisite documentation complete. Execution/output, actual cancellation,
+  reconnect, saved response history and post-journey unused-source cleanup remain
+  open. This review made documentation changes only; no extra tests were run.

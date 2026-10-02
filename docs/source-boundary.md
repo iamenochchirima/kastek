@@ -14,6 +14,34 @@ The backend implements standalone /api/auth routes, with its own workspace/sessi
 
 The dev/preview proxy points /api to the configured Agents endpoint. It does not forward to Growth by default. Shared login belongs to Labs; the Agents integration must register its own client and enforce its own memberships.
 
+### Current API boundary
+
+The mounted initial journey uses Agents-owned `/api/auth/me`, workspace
+creation/selection, activity and logout routes. Agent list, creation, version
+editing, playground pinning, conversations, run detail/timeline, streaming,
+retry and cancellation use the explicit `/api/agents` manifest in
+`src/http/browser-agent-routes.ts`. Browser sessions supply account and workspace
+context; no Growth Core session or service credential is required by these screens.
+
+Retained integration source such as `src/lib/connections.ts` still describes
+Growth's `/api/connections` contract. It is not an enabled part of this slice.
+Do not redirect that contract to another service or turn its settings on without
+an Agents-owned connection design and scoped browser endpoints.
+
+Initial execution needs a backend model credential, a working Temporal server
+and worker with matching namespace/queue, and the configured billing dependency
+or the explicitly documented isolated development billing mode. These are runtime
+prerequisites, not missing frontend endpoints. Model credentials remain the current
+local blocker.
+
+Inherited rich-response controls call `platform/ui-interactions` and run approval
+routes that are not in the initial browser manifest. Those paths still need scoped
+admission and ordinary verification before interactive tool/approval journeys can
+be accepted. The first text-response journey does not establish their completion.
+Capability grants, credentials/channels, live promotion, inbox and personal runtime
+controls remain later work as described below. Independent machine APIs remain
+available under their existing authentication.
+
 Account settings provide current account/workspace information and logout. Workspace creation, selection and activity reporting use the real backend. Invitations and role management remain planned. Inbox, knowledge, connections and usage pages are pending integration. Personal runtime deployments are a later platform capability.
 
 ## UI retention decisions
