@@ -19,7 +19,8 @@ import {
   wireInteger,
   timestamp,
   canonicalJson,
-  parseLosslessJson,
+  parseSerdeValueJson,
+  SerdeFloat,
 } from "./json.js";
 import { injectTraceContext, providerResultSpan } from "./telemetry.js";
 export function redactScopeId(
@@ -27,7 +28,12 @@ export function redactScopeId(
   scopeKind: string,
   externalId: string,
 ): unknown {
-  if (!response || typeof response !== "object" || Array.isArray(response))
+  if (
+    !response ||
+    typeof response !== "object" ||
+    Array.isArray(response) ||
+    response instanceof SerdeFloat
+  )
     return response;
   const { scope_id: _, ...rest } = response as Record<string, unknown>;
   return { ...rest, scope: { kind: scopeKind, externalId } };
@@ -121,6 +127,45 @@ export class ReportingClientError extends Error {
     super(`analytics reporting returned HTTP ${status}: ${body}`);
   }
 }
+
+/** Scope resolution is a typed Rust struct, unlike the catalog/report Value responses. */
+function decodeScopeResolution(value: unknown): ScopeResolution {
+  if (
+    !value ||
+    typeof value !== "object" ||
+    Array.isArray(value) ||
+    value instanceof SerdeFloat
+  )
+    throw new SyntaxError("invalid analytics scope response");
+  const input = value as Record<string, unknown>;
+  const id = (key: string): number | bigint => {
+    const current = input[key];
+    if (
+      (typeof current !== "number" || !Number.isSafeInteger(current)) &&
+      typeof current !== "bigint"
+    )
+      throw new SyntaxError(`invalid analytics scope ${key}`);
+    const parsed = BigInt(current);
+    if (parsed < -(1n << 63n) || parsed > (1n << 63n) - 1n)
+      throw new SyntaxError(`invalid analytics scope ${key}`);
+    return current;
+  };
+  const text = (key: string): string => {
+    if (typeof input[key] !== "string")
+      throw new SyntaxError(`invalid analytics scope ${key}`);
+    return input[key];
+  };
+  return {
+    scope_id: id("scope_id"),
+    scope_kind: text("scope_kind"),
+    owning_source_service: text("owning_source_service"),
+    external_source_id: text("external_source_id"),
+    root_scope_id: id("root_scope_id"),
+    parent_scope_id:
+      input.parent_scope_id == null ? null : id("parent_scope_id"),
+    reporting_timezone: text("reporting_timezone"),
+  };
+}
 export class AnalyticsReportingClient {
   private readonly baseUrl: string;
   constructor(
@@ -133,11 +178,11 @@ export class AnalyticsReportingClient {
       throw new Error("analytics reporting URL cannot be empty");
     new URL(this.baseUrl);
   }
-  private async request<T>(
+  private async request(
     path: string,
     token: string,
     init: RequestInit = {},
-  ): Promise<T> {
+  ): Promise<unknown> {
     return providerResultSpan(
       "kasitek-analytics",
       "reporting.request",
@@ -156,19 +201,21 @@ export class AnalyticsReportingClient {
             response.status,
             Array.from(body).slice(0, 500).join(""),
           );
-        return parseLosslessJson(body) as T;
+        return parseSerdeValueJson(body);
       },
     );
   }
-  resolveScope(
+  async resolveScope(
     sourceService: string,
     scopeKind: string,
     externalSourceId: string,
   ): Promise<ScopeResolution> {
-    return this.request(
-      `${SCOPE_RESOLVE_PATH}?${new URLSearchParams({ scope_kind: scopeKind, external_source_id: externalSourceId })}`,
-      this.resolverToken,
-      { headers: { "x-source-service": sourceService } },
+    return decodeScopeResolution(
+      await this.request(
+        `${SCOPE_RESOLVE_PATH}?${new URLSearchParams({ scope_kind: scopeKind, external_source_id: externalSourceId })}`,
+        this.resolverToken,
+        { headers: { "x-source-service": sourceService } },
+      ),
     );
   }
   catalog(grant: string, scopeId: number | bigint | string): Promise<unknown> {

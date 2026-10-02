@@ -128,3 +128,25 @@ export function parseCanonicalJson(value: string): unknown {
       : current,
   );
 }
+
+/** serde_json::Value keeps only i64/u64 integer tokens; every other numeric token is f64. */
+export function parseSerdeValueJson(text: string): unknown {
+  const parse = JSON.parse as unknown as (
+    text: string,
+    reviver: (
+      key: string,
+      value: unknown,
+      context?: { source?: string },
+    ) => unknown,
+  ) => unknown;
+  return parse(text, (_key, value, context) => {
+    if (typeof value !== "number" || !context?.source) return value;
+    const token = context.source;
+    if (/^-?\d+$/.test(token) && token !== "-0") {
+      const parsed = BigInt(token);
+      if (parsed >= -(1n << 63n) && parsed <= (1n << 64n) - 1n)
+        return Number.isSafeInteger(value) ? value : parsed;
+    }
+    return serdeFloat(value);
+  });
+}
