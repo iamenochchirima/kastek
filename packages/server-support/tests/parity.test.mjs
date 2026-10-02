@@ -8,6 +8,7 @@ import {
   canonicalJsonSha256,
   parseCanonicalJson,
   parseLosslessJson,
+  timestamp,
 } from "../dist/json.js";
 import {
   buildEvent,
@@ -22,6 +23,17 @@ import {
 } from "../dist/publisher.js";
 import { redactTelemetryText, initTelemetry } from "../dist/telemetry.js";
 import { createServer } from "node:http";
+test("configured publisher retries preserve whole-second Rust duration arithmetic", () => {
+  const now = new Date("2026-01-01T00:00:00Z");
+  const row = { source_sequence: 1, outbox_id: "retry-one", attempt_count: 3, record_id: "record-one" };
+  const response = { acknowledgements: [{ source_sequence: 1, record_id: "record-one", status: "retryable" }] };
+  const outcome = responseOutcomes([row], response, now,
+    { base_delay_ms: 5999, max_delay_ms: 17999, jitter_window_ms: 999 })[0];
+  assert.equal(outcome.kind, "retryable");
+  assert.equal(outcome.retry_at.toISOString(), "2026-01-01T00:00:17.000Z");
+  class PreciseDate extends Date { toISOString() { return "2026-01-01T00:00:00.123456Z"; } }
+  assert.equal(timestamp(new PreciseDate(now)), "2026-01-01T00:00:00.123456Z");
+});
 test("AES format matches Rust nonce:tag:ciphertext and nonce:ciphertext+tag formats", () => {
   const nonce = Buffer.alloc(12, 7),
     key = createHash("sha256").update("fixture-secret").digest(),

@@ -71,6 +71,10 @@ export function wireInteger(value: Integer): number | bigint {
     : v;
 }
 export function timestamp(value: Timestamp): string {
+  if (value instanceof Date) {
+    if (!Number.isFinite(value.getTime())) throw new Error("invalid time");
+    return value.toISOString().replace(".000Z", "Z");
+  }
   if (
     typeof value === "string" &&
     /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d{1,9})?Z$/.test(value) &&

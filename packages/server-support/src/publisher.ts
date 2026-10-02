@@ -46,6 +46,19 @@ export interface AnalyticsPublisherSettings {
   batch_size: number;
   lease_duration_ms: number;
   request_timeout_ms: number;
+  retry_policy?: RetryPolicy;
+}
+export interface RetryPolicy {
+  base_delay_ms: number;
+  max_delay_ms: number;
+  jitter_window_ms: number;
+}
+function retryAt(now: Date, row: OutboxRow, policy?: RetryPolicy): Date {
+  if (!policy) return nextRetryAt(now, row.attempt_count, row.outbox_id);
+  // Rust Duration::as_secs discards fractional seconds before exponential/jitter arithmetic.
+  return nextRetryAt(now, row.attempt_count, row.outbox_id,
+    Math.floor(policy.base_delay_ms / 1000), Math.floor(policy.max_delay_ms / 1000),
+    Math.floor(policy.jitter_window_ms / 1000));
 }
 const safeCode = (v: string | undefined | null, fallback: string): string =>
   v && /^[a-z0-9._-]{1,128}$/.test(v) ? v : fallback;
@@ -228,11 +241,12 @@ export function responseOutcomes(
   rows: OutboxRow[],
   response: BackfillBatchResponse,
   now: Date,
+  policy?: RetryPolicy,
 ): DeliveryOutcome[] {
   const retry = (row: OutboxRow, code: string): DeliveryOutcome => ({
     kind: "retryable",
     error_code: code,
-    retry_at: nextRetryAt(now, row.attempt_count, row.outbox_id),
+    retry_at: retryAt(now, row, policy),
   });
   if (
     !Array.isArray(response.acknowledgements) ||
@@ -325,6 +339,7 @@ export async function publishOutboxOnce(
       rows,
       await client.sendBatch(settings.producer_id, rows),
       now,
+      settings.retry_policy,
     );
   } catch (error) {
     const err =
@@ -336,7 +351,7 @@ export async function publishOutboxOnce(
         ? {
             kind: "retryable",
             error_code: err.code,
-            retry_at: nextRetryAt(now, row.attempt_count, row.outbox_id),
+            retry_at: retryAt(now, row, settings.retry_policy),
           }
         : { kind: "quarantined", error_code: err.code },
     );
