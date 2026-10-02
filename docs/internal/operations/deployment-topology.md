@@ -3,7 +3,7 @@ id: deployment-topology
 title: Railway Deployment Topology
 sidebar_position: 6
 owner: platform-ops
-last_reviewed: 2026-09-29
+last_reviewed: 2026-10-03
 ---
 
 # Railway Deployment Topology
@@ -170,6 +170,23 @@ Deploy these only when the related capability is enabled and has an operational 
 Core's normal API process already starts the WhatsApp, social, campaign, webhook, and billing
 workers. Do not split these processes into separate Railway services until independent scaling,
 isolation, or reliability evidence justifies it.
+
+## Core TypeScript migration candidate
+
+The Core API row above records the current Rust hosted baseline. It does not describe a TypeScript
+deployment or authorize changing the hosted service. Growth's TypeScript package is
+`server/kasitek-core`; its compiled API commands are `pnpm build` and `pnpm start` from that
+directory. The API serves `/health` on `PORT` (default `4000`). A separate publisher process uses
+the same Node entrypoint with `KASITEK_PROCESS=analytics-publisher pnpm start`; this mode publishes
+and backfills Analytics outbox data without opening an HTTP listener.
+
+A clean Railway build is not ready yet. Growth currently pins the private Labs packages to
+`file:.artifacts/shared/*.tgz`, and those generated artifacts are ignored by Git. Local setup
+rebuilds them from a sibling Labs checkout, which is unavailable to an isolated Railway build.
+Complete and verify authenticated private-registry delivery before changing the hosted build or
+start commands. Keep the Core Prisma migration procedure above: TypeScript does not change schema
+ownership or replace the Prisma migration history. Apply the Core deletion gate before retiring the
+Rust build configuration.
 
 ## OpenTelemetry Collector ownership
 
