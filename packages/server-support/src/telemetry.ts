@@ -1,0 +1,216 @@
+import {
+  context,
+  propagation,
+  trace,
+  metrics,
+  SpanStatusCode,
+} from "@opentelemetry/api";
+import { NodeSDK } from "@opentelemetry/sdk-node";
+import { resourceFromAttributes } from "@opentelemetry/resources";
+import { getNodeAutoInstrumentations } from "@opentelemetry/auto-instrumentations-node";
+import { envTruthy } from "./config.js";
+export function redactTelemetryText(value: unknown, maxLength = 4096): string {
+  return Array.from(String(value))
+    .slice(0, maxLength)
+    .join("")
+    .replace(
+      /(Bearer\s+)[^\s,;&]+|([?&](?:token|access[_-]?token|refresh[_-]?token|api[_-]?key|key|code|signature|password|secret)=)[^&\s]+|((?:authorization|token|secret|password|api[_-]?key|access[_-]?token|refresh[_-]?token|client[_-]?secret)\s*[:=])\s*(?:Bearer\s+)?(?:"[^"]*"|'[^']*'|[^,\s;&]+)/gi,
+      (_match, bearer, query, field) => `${query ?? field ?? bearer}[REDACTED]`,
+    );
+}
+const envFirst = (names: string[]): string =>
+  names.map((n) => process.env[n]?.trim()).find(Boolean) ?? "unknown";
+export function telemetryResource(serviceName: string) {
+  return resourceFromAttributes({
+    "service.name": process.env.OTEL_SERVICE_NAME || serviceName,
+    "service.version": envFirst(["KASITEK_VERSION", "PLATFORM_VERSION"]),
+    "deployment.environment.name": envFirst([
+      "OTEL_DEPLOYMENT_ENVIRONMENT",
+      "DEPLOYMENT_ENVIRONMENT",
+      "ENVIRONMENT",
+      "RAILWAY_ENVIRONMENT_NAME",
+    ]),
+    "kasitek.release_id": envFirst([
+      "KASITEK_RELEASE_ID",
+      "RELEASE_ID",
+      "KASITEK_VERSION",
+    ]),
+    "kasitek.commit_sha": envFirst([
+      "KASITEK_COMMIT_SHA",
+      "GIT_SHA",
+      "COMMIT_SHA",
+    ]),
+    "kasitek.artifact_digest": envFirst([
+      "KASITEK_ARTIFACT_DIGEST",
+      "ARTIFACT_DIGEST",
+    ]),
+    "kasitek.environment": envFirst([
+      "OTEL_DEPLOYMENT_ENVIRONMENT",
+      "DEPLOYMENT_ENVIRONMENT",
+      "ENVIRONMENT",
+      "RAILWAY_ENVIRONMENT_NAME",
+    ]),
+    "service.instance.id": envFirst([
+      "KASITEK_INSTANCE_ID",
+      "RAILWAY_REPLICA_ID",
+      "HOSTNAME",
+    ]),
+    "process.runtime.name": "nodejs",
+    "process.runtime.version": process.version,
+  });
+}
+export function initTelemetry(serviceName: string): {
+  shutdown: () => Promise<void>;
+} {
+  if (
+    envTruthy("OTEL_SDK_DISABLED") ||
+    ![
+      "OTEL_EXPORTER_OTLP_ENDPOINT",
+      "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT",
+      "OTEL_EXPORTER_OTLP_METRICS_ENDPOINT",
+      "OTEL_EXPORTER_OTLP_LOGS_ENDPOINT",
+    ].some((n) => process.env[n]?.trim())
+  )
+    return { shutdown: async () => {} };
+  let sdk: NodeSDK;
+  try {
+    sdk = new NodeSDK({
+      resource: telemetryResource(serviceName),
+      instrumentations: [
+        getNodeAutoInstrumentations({
+          "@opentelemetry/instrumentation-fs": { enabled: false },
+          "@opentelemetry/instrumentation-http": {
+            redactedQueryParams: [
+              "token",
+              "access_token",
+              "refresh_token",
+              "api_key",
+              "key",
+              "code",
+              "signature",
+              "password",
+              "secret",
+            ],
+            applyCustomAttributesOnSpan: (span, request) => {
+              const raw = "path" in request ? request.path : request.url;
+              const target = raw?.split(/[?#]/, 1)[0]?.slice(0, 256);
+              if (target) {
+                span.setAttribute("http.target", target);
+                span.setAttribute("url.full", target);
+              }
+              for (const name of [
+                "user_agent.original",
+                "client.address",
+                "client.port",
+                "server.address",
+                "server.port",
+              ])
+                span.setAttribute(name, "[REDACTED]");
+            },
+          },
+          "@opentelemetry/instrumentation-pg": {
+            enhancedDatabaseReporting: false,
+          },
+          "@opentelemetry/instrumentation-openai": { enabled: false },
+          "@opentelemetry/instrumentation-aws-sdk": { enabled: false },
+          "@opentelemetry/instrumentation-aws-lambda": { enabled: false },
+        }),
+      ],
+    });
+    sdk.start();
+  } catch (error) {
+    process.stderr.write(
+      `OpenTelemetry initialization failed: ${redactTelemetryText(error, 512)}\n`,
+    );
+    return { shutdown: async () => {} };
+  }
+  return {
+    shutdown: async () => {
+      let timer: NodeJS.Timeout | undefined;
+      await Promise.race([
+        sdk.shutdown().catch((error) => {
+          process.stderr.write(
+            `OpenTelemetry shutdown failed: ${redactTelemetryText(error, 512)}\n`,
+          );
+        }),
+        new Promise<void>((resolve) => {
+          timer = setTimeout(resolve, 2000);
+          timer.unref();
+        }),
+      ]);
+      if (timer) clearTimeout(timer);
+    },
+  };
+}
+export function injectTraceContext(headers: Headers): void {
+  propagation.inject(context.active(), headers, {
+    set: (carrier, key, value) => carrier.set(key, value),
+  });
+}
+export const isSafeCorrelationId = (value: string): boolean =>
+  /^[A-Za-z0-9._:-]{1,128}$/.test(value);
+const meter = metrics.getMeter("kasitek"),
+  counter = meter.createCounter("kasitek.operation.count"),
+  errors = meter.createCounter("kasitek.operation.error.count"),
+  duration = meter.createHistogram("kasitek.operation.duration", { unit: "s" }),
+  inFlight = meter.createUpDownCounter("kasitek.operation.in_flight"),
+  retries = meter.createCounter("kasitek.operation.retry.count"),
+  queue = meter.createHistogram("kasitek.queue.age", { unit: "s" }),
+  failures = meter.createCounter("kasitek.dependency.failure.count");
+export const recordRetry = (kind: string, name: string, count: number): void =>
+  retries.add(count, { kind, name });
+export const recordQueueAge = (name: string, ageSeconds: number): void =>
+  queue.record(ageSeconds, { queue: name });
+export const recordDependencyFailure = (
+  provider: string,
+  operation: string,
+): void => failures.add(1, { provider, operation });
+export async function resultSpan<T>(
+  kind: string,
+  name: string,
+  operation: () => Promise<T>,
+): Promise<T> {
+  return trace
+    .getTracer("kasitek")
+    .startActiveSpan(
+      name,
+      {
+        attributes: {
+          "kasitek.operation.kind": kind,
+          "kasitek.operation.name": name,
+        },
+      },
+      async (span) => {
+        const started = performance.now(),
+          attributes = { kind, name };
+        inFlight.add(1, attributes);
+        try {
+          return await operation();
+        } catch (error) {
+          errors.add(1, attributes);
+          span.setStatus({
+            code: SpanStatusCode.ERROR,
+            message: redactTelemetryText(error, 512),
+          });
+          throw error;
+        } finally {
+          counter.add(1, attributes);
+          duration.record((performance.now() - started) / 1000, attributes);
+          inFlight.add(-1, attributes);
+          span.end();
+        }
+      },
+    );
+}
+export async function providerResultSpan<T>(
+  provider: string,
+  operation: string,
+  fn: () => Promise<T>,
+): Promise<T> {
+  try {
+    return await resultSpan("provider", `${provider}.${operation}`, fn);
+  } catch (error) {
+    recordDependencyFailure(provider, operation);
+    throw error;
+  }
+}

@@ -1,4 +1,7 @@
 /target/
+node_modules/
+packages/*/dist/
+*.tgz
 services/analytics/.env
 services/analytics/.backups/
 
