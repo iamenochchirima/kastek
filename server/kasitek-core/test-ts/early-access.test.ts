@@ -182,6 +182,19 @@ test('isolated early-access approval, activation, retries, revocation and expiry
       failMail = false;
       await resendInvitation(core, 'application', 'operator');
       assert.equal((await getApplication(pool, 'application')).application.status, 'invited');
+      await pool.query(`INSERT INTO "ProductWaitlistEntry"(id,"contactPerson",email,products,"createdAt","updatedAt")
+        VALUES('failure','Wrong','wrong@example.test','{}',NOW(),NOW())`);
+      await approveApplication(core, 'failure', 'operator', {});
+      const failureToken = messages.at(-1)!.Text.match(/\/early-access\/([A-Za-z0-9_-]+)/)![1]!;
+      // A controlled schema fault verifies compensation without touching real service tables.
+      await pool.query(`ALTER TABLE "OrganizationEntitlementGrant" RENAME TO "HiddenEntitlementGrant"`);
+      try {
+        await assert.rejects(activateInvitation(core, failureToken, 'wrong', { workspaceName: 'Failed Workspace' }), /does not exist/);
+        assert.equal((await pool.query('SELECT COUNT(*) FROM "Organization"')).rows[0].count, '1');
+        assert.equal((await signupInvitationPreview(pool, failureToken)).status, 'pending');
+      } finally {
+        await pool.query(`ALTER TABLE "HiddenEntitlementGrant" RENAME TO "OrganizationEntitlementGrant"`);
+      }
       await pool.query(`UPDATE "ProductWaitlistEntry" SET "earlyAccessEndsAt"=NOW()-INTERVAL '1 day' WHERE id='application'`);
       assert.equal((await listApplications(pool, { status: 'expired' }))[0]?.status, 'expired');
       const batch = await batchApprove(core, 'operator', { applicationIds: ['application', 'missing'] });
