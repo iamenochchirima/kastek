@@ -69,11 +69,16 @@ their source paths and signing rules. The WhatsApp template-start path publishes
 its locally stored message ID; the Rust source used the provider ID and silently
 missed the realtime event.
 
-Validation includes a Node.js build, combined route registration/authentication
-checks, isolated database/provider fixtures for Calls and WhatsApp, and worker
-selection/concurrent shutdown checks. These checks do not prove all nine real
-workers running together, production OTLP export, full frontend parity or
-Rust retirement. Those remain migration gates.
+Validation includes a Node.js build, all 537 source route registrations,
+isolated database/provider fixtures and native worker process checks. All ten
+standalone modes poll empty isolated queues and stop on SIGTERM. The combined
+publisher includes backfill; the API starts the seven source workers by default
+and honors the disable flag. HTTP/provider traces and operation metrics export
+to an in-memory fixture. A refused Collector connection leaves health available
+and telemetry shutdown bounded.
+
+These checks do not prove every live provider integration, hosted production OTLP
+export, full frontend parity or Rust retirement. Those remain migration gates.
 
 Rollout is local comparison only. Keep Rust and the existing deployment commands
 until the full migration gates pass. Rollback from a comparison API is stopping
