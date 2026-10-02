@@ -105,7 +105,7 @@ interface PendingMessage {
   access_token_encrypted: string;
   content: string;
 }
-function errorText(error: unknown): string {
+export function deliveryErrorText(error: unknown): string {
   if (error instanceof ApiError) {
     // Rust Display uses human-readable variant labels, persisted in Message.errorMessage.
     const labels: Record<string, string> = {
@@ -195,7 +195,7 @@ export async function processSingleQueuedInboxMessage(
       await deliver(tx, job, options);
       return { job, error: null };
     } catch (error) {
-      const message = errorText(error);
+      const message = deliveryErrorText(error);
       await tx.query(sql.FAIL_CLAIMED_INBOX_MESSAGE_0, [job.id, message]);
       await enqueueMessageLifecycle(
         tx,

@@ -25,6 +25,9 @@ export class UtcTimestamp extends Date {
 }
 
 export function installPgTimestampParsers(): void {
+  // SQLx binds naive timestamps as UTC. pg otherwise formats Date parameters
+  // using the host timezone even when the database session is UTC.
+  pg.defaults.parseInputDatesAsUTC = true;
   pg.types.setTypeParser(1082, (value) => value); // NaiveDate is YYYY-MM-DD, not midnight Date.
   pg.types.setTypeParser(1114, (value) => new UtcTimestamp(value, false));
   pg.types.setTypeParser(1184, (value) => new UtcTimestamp(value, true));

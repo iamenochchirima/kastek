@@ -361,11 +361,30 @@ export class AgentPlatformTransport {
       return await this.parseResponse(response);
     } catch (error) {
       if (error instanceof ApiError) throw error;
-      if (controller.signal.aborted)
+      if (
+        controller.signal.aborted ||
+        (error instanceof Error && /timeout|timed out/i.test(error.message))
+      )
         throw new ApiError(
           504,
           "gateway_timeout",
           "Agent Platform request timed out",
+        );
+      const cause = (error as { cause?: { code?: string } })?.cause;
+      if (
+        cause?.code &&
+        [
+          "ECONNREFUSED",
+          "ENOTFOUND",
+          "EHOSTUNREACH",
+          "ENETUNREACH",
+          "UND_ERR_CONNECT_TIMEOUT",
+        ].includes(cause.code)
+      )
+        throw new ApiError(
+          503,
+          "service_unavailable",
+          "Agent Platform is unavailable",
         );
       throw new ApiError(502, "bad_gateway", "Agent Platform request failed");
     } finally {

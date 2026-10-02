@@ -210,4 +210,47 @@ test("Agents upstream errors preserve reviewed codes and native stream bodies re
   await reader.cancel();
 });
 
-test("Agents JSON preserves explicit null bodies while bodyless adapters omit JSON",async()=>{const bodies:unknown[]=[];const client=new AgentPlatformClient(config(),{fetch:async(_url,init)=>{bodies.push(init?.body);return json({});}});await client.createAgent("org","actor",null);await client.getModelCatalog("org","actor");assert.deepEqual(bodies,["null",undefined]);});
+test("Agents JSON preserves explicit null bodies while bodyless adapters omit JSON", async () => {
+  const bodies: unknown[] = [];
+  const client = new AgentPlatformClient(config(), {
+    fetch: async (_url, init) => {
+      bodies.push(init?.body);
+      return json({});
+    },
+  });
+  await client.createAgent("org", "actor", null);
+  await client.getModelCatalog("org", "actor");
+  assert.deepEqual(bodies, ["null", undefined]);
+});
+test("Telegram bridge preserves forwarded secret headers and source service-unavailable mapping", async () => {
+  let headers: Record<string, string> = {};
+  const client = new AgentPlatformClient(config(), {
+    fetch: async (_input, init) => {
+      headers = init!.headers as Record<string, string>;
+      return new Response(null, { status: 204 });
+    },
+  });
+  assert.equal(
+    await client.forwardTelegramWebhook("synthetic", "provider-secret", {
+      update_id: 7,
+    }),
+    null,
+  );
+  assert.equal(
+    headers["x-kasitek-core-forward-secret"],
+    "synthetic-signing-secret",
+  );
+  assert.equal(headers["x-telegram-bot-api-secret-token"], "provider-secret");
+  assert.equal(headers.Authorization, undefined);
+  const unavailable = new AgentPlatformClient(config(), {
+    fetch: async () => {
+      throw Object.assign(new Error("fetch failed"), {
+        cause: { code: "ECONNREFUSED" },
+      });
+    },
+  });
+  await assert.rejects(
+    unavailable.forwardTelegramWebhook("synthetic", null, {}),
+    (error: unknown) => (error as { status: number }).status === 503,
+  );
+});

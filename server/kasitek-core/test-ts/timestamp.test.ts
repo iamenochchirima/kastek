@@ -25,3 +25,15 @@ test('PostgreSQL timestamps retain microseconds and chrono UTC fraction formatti
   '{"amount":9223372036854775807,"at":"2026-01-01T12:00:00.123456Z"}');
   assert.equal(pg.types.getTypeParser(3802)('{"amount":9223372036854775807}').amount, 9223372036854775807n);
 });
+
+test('Date query parameters remain UTC on a Johannesburg host', {skip:!process.env.CORE_TIMESTAMP_TEST_DATABASE_URL}, async()=>{
+  const previous=process.env.TZ;
+  const pool=new pg.Pool({connectionString:process.env.CORE_TIMESTAMP_TEST_DATABASE_URL!,options:'-c timezone=UTC'});
+  try {
+    process.env.TZ='Africa/Johannesburg';
+    installPgTimestampParsers();
+    const row=(await pool.query('SELECT $1::timestamp AS naive, $1::timestamptz AS zoned',[new Date('2026-01-01T00:00:00.123Z')])).rows[0];
+    assert.equal(row.naive.toISOString(),'2026-01-01T00:00:00.123Z');
+    assert.equal(row.zoned.toISOString(),'2026-01-01T00:00:00.123Z');
+  } finally {if(previous===undefined)delete process.env.TZ;else process.env.TZ=previous;await pool.end();}
+});

@@ -29,6 +29,9 @@ import { createWhatsappInboxPorts } from "./services/whatsapp/inbox.js";
 import { publishInboxEvent } from "./services/realtime.js";
 import type { FastifyInstance } from "fastify";
 import type { CoreContext } from "./context.js";
+import { registerAgentPlatformRoutes } from "./routes/agent-platform.js";
+import { registerAgentInternalRoutes } from "./routes/agent-internal.js";
+import { registerAdminOperationsRoutes } from "./routes/admin-operations.js";
 
 function registerUnifiedInboxRoutes(
   app: FastifyInstance,
@@ -98,6 +101,9 @@ export const CORE_REGISTRARS = [
   registerEmailRoutes,
   registerUnifiedInboxRoutes,
   registerWebsiteRoutes,
+  registerAgentPlatformRoutes,
+  registerAgentInternalRoutes,
+  registerAdminOperationsRoutes,
 ];
 
 if (
