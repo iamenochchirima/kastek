@@ -113,6 +113,18 @@ Initial implementation evidence, 2026-10-02:
 
 Continue with standalone authenticated backend integration and complete the remaining functional browser checks. No production deployment or Growth changes were made.
 
+Standalone login foundation, 2026-10-02:
+
+- Added Agents-owned account, organization, membership and hashed browser-session
+  tables and their access repository. Identity uses provider issuer/subject;
+  verified users can explicitly create a workspace, and selection checks live
+  membership. Idle/absolute expiry and local revocation are implemented in storage.
+- Backend build and five focused checks against a temporary PostgreSQL database
+  passed. The temporary cluster was stopped. No existing product database changed.
+- OIDC callbacks, cookies, provider revalidation and authenticated browser API
+  routing remain pending. Phase 5 and the actual agent journey remain unchecked.
+  See [login integration details](../../architecture/platform-login.md).
+
 ## References
 
 - [Platform architecture](../../architecture/agent-platform-architecture.md).
