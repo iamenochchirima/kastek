@@ -6,6 +6,8 @@ import { once } from 'node:events';
 import { spawn } from 'node:child_process';
 import { createHash, createHmac } from 'node:crypto';
 import { readFileSync } from 'node:fs';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { setTimeout as delay } from 'node:timers/promises';
@@ -23,7 +25,7 @@ const port = async () => {
   return p;
 };
 test(
-  'actual Next proxy preserves OIDC, organization mutation, signed chat, SSE disconnect and binary upload',
+  'actual Next/Core consumers preserve identity, chat and workspace product persistence',
   { skip: !url, timeout: 120000 },
   async () => {
     const admin = new pg.Pool({ connectionString: url });
@@ -35,7 +37,15 @@ test(
     await admin.end();
     const fixture = await isolatedDatabase(url!, 'frontend_identity', names),
       db = new URL(url!);
+    // LIKE retains enum-array types in public; bind this draft column to the
+    // already cloned local enum without adding public to the search path.
+    await fixture.pool
+      .query(`ALTER TABLE "SocialPost" ALTER COLUMN channels DROP DEFAULT;
+      ALTER TABLE "SocialPost" ALTER COLUMN channels TYPE "SocialPlatform"[] USING channels::text[]::"SocialPlatform"[]`);
     db.searchParams.set('options', String(fixture.pool.options.options));
+    const mediaPath = await mkdtemp(
+      resolve(tmpdir(), 'growth-consumer-media-'),
+    );
     const corePort = await port(),
       frontPort = await port(),
       providerPort = await port(),
@@ -224,6 +234,8 @@ test(
       AGENTS_INTERNAL_AUTH_SECRET: 'fixture-agents-secret',
       AGENTS_INTERNAL_AUTH_AUDIENCE: 'fixture-agents',
       CORE_API_BASE_URL: `http://127.0.0.1:${corePort}`,
+      KASITEK_CORE_PUBLIC_URL: `http://127.0.0.1:${corePort}`,
+      KASITEK_MEDIA_STORAGE_PATH: mediaPath,
       NEXT_TELEMETRY_DISABLED: '1',
     });
     const children: Array<ReturnType<typeof spawn>> = [];
@@ -396,6 +408,272 @@ test(
       assert.equal(upload.status, 202, await upload.clone().text());
       assert.equal((await upload.json()).jobId, 'fixture-audio');
       assert.equal(agentRequests.length, 4);
+      // Actual product DTOs pass through the production Next proxy. Every row,
+      // uploaded asset and credential below belongs to this isolated fixture.
+      const json = async (
+        path: string,
+        method: string,
+        body: unknown,
+        status = 200,
+      ) => {
+        const response = await request(path, {
+          method,
+          headers: { origin: front, 'content-type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        assert.equal(
+          response.status,
+          status,
+          `${method} ${path}: ${await response.clone().text()}`,
+        );
+        return response.json();
+      };
+      // Mirrors lib/onboarding.ts and the organization logo multipart consumer.
+      const onboarding = await json('/api/onboarding', 'PATCH', {
+        companyName: 'Fixture Onboarded',
+        primaryGoal: 'Grow sales',
+        primaryGoals: ['Grow sales'],
+        complete: true,
+      });
+      assert.equal(onboarding.needsOnboarding, false);
+      assert.equal(
+        (
+          await fixture.pool.query(
+            'SELECT name FROM "Organization" WHERE id=$1',
+            [id],
+          )
+        ).rows[0].name,
+        'Fixture Onboarded',
+      );
+      const png = Buffer.from(
+        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jZQAAAABJRU5ErkJggg==',
+        'base64',
+      );
+      const logoForm = new FormData();
+      logoForm.set(
+        'file',
+        new Blob([png], { type: 'image/png' }),
+        'fixture.png',
+      );
+      const logo = await request(`/api/orgs/${id}/logo`, {
+        method: 'POST',
+        headers: { origin: front },
+        body: logoForm,
+      });
+      assert.equal(logo.status, 200, await logo.clone().text());
+      assert.match((await logo.json()).org.logo, /\/logo\?v=/);
+      const logoRead = await request(`/api/orgs/${id}/logo`);
+      assert.equal(logoRead.status, 200);
+      assert.deepEqual(Buffer.from(await logoRead.arrayBuffer()), png);
+
+      await fixture.pool.query(
+        `INSERT INTO "SocialChannelConnection" (id,"userId","orgId",platform,status,"displayName","updatedAt") VALUES ('fixture-social',$1,$2,'FACEBOOK','CONNECTED','Fixture Facebook',now())`,
+        [expectedActor, id],
+      );
+      const draft = await json(
+        '/api/social/posts',
+        'POST',
+        {
+          content: 'Fixture draft',
+          channels: ['FACEBOOK'],
+          channelSelections: { FACEBOOK: 'fixture-social' },
+          status: 'DRAFT',
+        },
+        201,
+      );
+      await json(`/api/social/posts/${draft.post.id}`, 'PATCH', {
+        content: 'Fixture revised draft',
+        channelSelections: { FACEBOOK: 'fixture-social' },
+      });
+      assert.equal(
+        (
+          await fixture.pool.query(
+            'SELECT content FROM "SocialPost" WHERE id=$1',
+            [draft.post.id],
+          )
+        ).rows[0].content,
+        'Fixture revised draft',
+      );
+
+      await fixture.pool.query(
+        `INSERT INTO "ExternalConnection" (id,"orgId",provider,"sourceType","sourceId","displayName",status,"updatedAt") VALUES ('fixture-email',$1,'GOOGLE','EMAIL','fixture-mailbox','Fixture mailbox','CONNECTED',now())`,
+        [id],
+      );
+      await fixture.pool.query(
+        `INSERT INTO "Conversation" (id,channel,"customerIdentifier","customerName","orgId","externalConnectionId","unreadCount","updatedAt") VALUES ('fixture-inbox','email','email:fixture-mailbox:customer@example.test','Fixture Customer',$1,'fixture-email',1,now()),('foreign-inbox','email','email:foreign:customer@example.test','Foreign Customer','foreign-org',NULL,1,now())`,
+        [id],
+      );
+      await fixture.pool.query(
+        `INSERT INTO "Message" (id,"conversationId",sender,content) VALUES ('fixture-message','fixture-inbox','customer','Fixture inbox message')`,
+      );
+      const inbox = await request('/api/inbox/conversations');
+      assert.equal(inbox.status, 200, await inbox.clone().text());
+      const inboxBody = await inbox.json();
+      assert.ok(
+        inboxBody.conversations.some(
+          (row: { id: string }) => row.id === 'fixture-inbox',
+        ),
+      );
+      assert.ok(
+        !inboxBody.conversations.some(
+          (row: { id: string }) => row.id === 'foreign-inbox',
+        ),
+      );
+      const messages = await request('/api/inbox/fixture-inbox/messages');
+      assert.equal(messages.status, 200, await messages.clone().text());
+      assert.match(await messages.text(), /Fixture inbox message/);
+      await json('/api/inbox/fixture-inbox/read', 'POST', {});
+      assert.equal(
+        (
+          await fixture.pool.query(
+            'SELECT "unreadCount" FROM "Conversation" WHERE id=$1',
+            ['fixture-inbox'],
+          )
+        ).rows[0].unreadCount,
+        0,
+      );
+      assert.equal(
+        (await request('/api/inbox/foreign-inbox/messages')).status,
+        404,
+      );
+      assert.equal(
+        (
+          await request('/api/inbox/foreign-inbox/read', {
+            method: 'POST',
+            headers: { origin: front },
+          })
+        ).status,
+        404,
+      );
+
+      await fixture.pool.query(
+        `INSERT INTO "OrganizationEntitlementGrant" (id,"orgId",key,value,source,"updatedAt") VALUES ('fixture-campaign-grant',$1,'feature.campaigns.manage','true','MANUAL',now())`,
+        [id],
+      );
+      // Mirrors contacts-manager.tsx CSV import/export without opting contacts in.
+      const contactForm = new FormData();
+      contactForm.set(
+        'file',
+        new Blob(['phone,fullName\n+27820000123,Fixture Contact\n'], {
+          type: 'text/csv',
+        }),
+        'fixture.csv',
+      );
+      contactForm.set('defaultOptIn', 'false');
+      contactForm.set('consentConfirmed', 'false');
+      contactForm.set('listLabel', 'Fixture List');
+      const imported = await request('/api/whatsapp/contacts/import', {
+        method: 'POST',
+        headers: { origin: front },
+        body: contactForm,
+      });
+      assert.equal(imported.status, 200, await imported.clone().text());
+      assert.equal((await imported.json()).summary.created, 1);
+      const exported = await request(
+        '/api/whatsapp/contacts/lists/Fixture%20List/export',
+      );
+      assert.equal(exported.status, 200, await exported.clone().text());
+      assert.match(exported.headers.get('content-type')!, /text\/csv/);
+      const csv = await exported.text();
+      assert.match(csv, /27820000123/);
+      assert.match(csv, /Fixture Contact/);
+
+      const service = await json(
+        '/api/bookings/services',
+        'POST',
+        { name: 'Fixture consultation', durationMinutes: 30 },
+        201,
+      );
+      const booking = await json(
+        '/api/bookings',
+        'POST',
+        {
+          serviceId: service.service.id,
+          contactName: 'Fixture Customer',
+          scheduledStart: new Date(Date.now() + 86400000).toISOString(),
+        },
+        201,
+      );
+      await json(`/api/bookings/${booking.booking.id}`, 'PATCH', {
+        status: 'CONFIRMED',
+        notes: 'Fixture booking updated',
+      });
+      assert.equal(
+        (
+          await fixture.pool.query('SELECT notes FROM "Booking" WHERE id=$1', [
+            booking.booking.id,
+          ])
+        ).rows[0].notes,
+        'Fixture booking updated',
+      );
+
+      await fixture.pool.query(
+        `INSERT INTO "NotificationEvent" (id,"scopeType","scopeId","eventType",title,message,severity) VALUES ('fixture-notification-event','USER',$1,'fixture.notification','Fixture notice','Fixture notice body','INFO')`,
+        [expectedActor],
+      );
+      await fixture.pool.query(
+        `INSERT INTO "Notification" (id,"eventId","recipientType","recipientId",channel,status,"updatedAt") VALUES ('fixture-notification','fixture-notification-event','USER',$1,'IN_APP','PENDING',now()),('foreign-notification','fixture-notification-event','USER','foreign-user','IN_APP','PENDING',now())`,
+        [expectedActor],
+      );
+      const notificationRead = await request('/api/notifications');
+      assert.equal(notificationRead.status, 200);
+      assert.match(await notificationRead.text(), /Fixture notice/);
+      await json('/api/notifications/fixture-notification', 'PATCH', {});
+      assert.ok(
+        (
+          await fixture.pool.query(
+            'SELECT "readAt" FROM "Notification" WHERE id=$1',
+            ['fixture-notification'],
+          )
+        ).rows[0].readAt,
+      );
+      assert.equal(
+        (
+          await request('/api/notifications/foreign-notification', {
+            method: 'PATCH',
+            headers: { origin: front, 'content-type': 'application/json' },
+            body: '{}',
+          })
+        ).status,
+        404,
+      );
+
+      // Mirrors lib/developers.ts creation/rotation; secret appears only on creation.
+      const key = await json(
+        '/api/developers/api-keys',
+        'POST',
+        { name: 'Fixture consumer' },
+        201,
+      );
+      const rotated = await json(
+        `/api/developers/api-keys/${key.key.id}/rotate`,
+        'POST',
+        {},
+        201,
+      );
+      assert.notEqual(rotated.secret, key.secret);
+      const developer = await request('/api/developers');
+      assert.equal(developer.status, 200);
+      const restBase = (await developer.json()).config.restBaseUrl;
+      assert.equal(restBase, `http://127.0.0.1:${corePort}/v1`);
+      // The public REST consumer uses its advertised Core URL, not /api proxy cookies.
+      assert.equal(
+        (
+          await fetch(restBase + '/contacts', {
+            headers: { authorization: `Bearer ${key.secret}` },
+          })
+        ).status,
+        401,
+      );
+      const publicContacts = await fetch(restBase + '/contacts', {
+        headers: { authorization: `Bearer ${rotated.secret}` },
+      });
+      assert.equal(
+        publicContacts.status,
+        200,
+        await publicContacts.clone().text(),
+      );
+      assert.match(await publicContacts.text(), /Fixture Contact/);
       const logout = await request('/api/auth/logout', {
         method: 'POST',
         headers: { origin: front },
@@ -419,6 +697,7 @@ test(
       }
       await new Promise<void>((r) => provider.close(() => r()));
       await fixture.close();
+      await rm(mediaPath, { recursive: true, force: true });
     }
   },
 );
