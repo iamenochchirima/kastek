@@ -1,7 +1,7 @@
-import {recordQueueAge as sharedQueueAge,resultSpan as sharedResultSpan} from '@kasitek/server-support/telemetry';
+import {recordQueueAge as sharedQueueAge,resultSpan as sharedResultSpan} from '@kasitek-labs/server-support/telemetry';
 import type {ProcessKind} from './contracts.js';
 import {SERVICE_NAME} from './contracts.js';
-import {redactTelemetryText} from '@kasitek/server-support/telemetry';
+import {redactTelemetryText} from '@kasitek-labs/server-support/telemetry';
 
 export type RolloutCacheOutcome='hit'|'miss'|'stale'|'unavailable'|'disabled';
 export type LogLevel='debug'|'info'|'warn'|'error';

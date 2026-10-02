@@ -19,7 +19,7 @@ importers:
 
   packages/server-support:
     dependencies:
-      '@kasitek/contracts':
+      '@kasitek-labs/contracts':
         specifier: workspace:*
         version: link:../contracts
       '@opentelemetry/api':
@@ -47,10 +47,10 @@ importers:
 
   services/analytics:
     dependencies:
-      '@kasitek/contracts':
+      '@kasitek-labs/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
-      '@kasitek/server-support':
+      '@kasitek-labs/server-support':
         specifier: workspace:*
         version: link:../../packages/server-support
       ajv:

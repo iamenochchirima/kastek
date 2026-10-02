@@ -7,7 +7,7 @@ import {createPool} from './db.js';
 import {ProcessMetrics} from './metrics.js';
 import {buildApp} from './app.js';
 import type {ProcessKind} from './contracts.js';
-import {initTelemetry} from '@kasitek/server-support/telemetry';
+import {initTelemetry} from '@kasitek-labs/server-support/telemetry';
 
 export function loadLocalEnvironment():void{
  const local=fileURLToPath(new URL('../.env',import.meta.url));

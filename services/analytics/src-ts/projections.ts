@@ -2,7 +2,7 @@ import type { Pool, PoolClient, QueryResultRow } from "pg";
 import type { RegistrySnapshot, MetricDefinition } from "./registry-types.js";
 import { transaction } from "./db.js";
 import { apiJson } from "./json.js";
-import { SerdeFloat } from "@kasitek/server-support/json";
+import { SerdeFloat } from "@kasitek-labs/server-support/json";
 import type { ResultSpanMetrics } from "./metrics.js";
 import { SQL } from "./projections-sql.js";
 export const PROJECTION_NAME = "typed_domain_facts",

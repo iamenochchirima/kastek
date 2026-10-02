@@ -5,7 +5,7 @@ import {fileURLToPath} from 'node:url';
 import {Ajv2020} from 'ajv/dist/2020.js';
 import * as formatsPlugin from 'ajv-formats';
 import {parseDocument} from 'yaml';
-import {canonicalJson,parseSerdeValueJson,SerdeFloat} from '@kasitek/server-support/json';
+import {canonicalJson,parseSerdeValueJson,SerdeFloat} from '@kasitek-labs/server-support/json';
 import type {ContractSummary,DimensionDefinition,MetricDefinition,MetricSetDefinition,RegistrySnapshot} from './registry-types.js';
 
 const root=fileURLToPath(new URL('../',import.meta.url));

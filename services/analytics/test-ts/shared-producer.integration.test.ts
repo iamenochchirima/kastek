@@ -2,13 +2,13 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import type { AddressInfo } from "node:net";
 import test from "node:test";
-import type { AnalyticsOutboxRecord, OutboxRow } from "@kasitek/contracts";
+import type { AnalyticsOutboxRecord, OutboxRow } from "@kasitek-labs/contracts";
 import {
   AnalyticsReportingClient,
   ReportingGrantIssuer,
   withScope,
-} from "@kasitek/server-support/analytics-reporting";
-import { SerdeFloat } from "@kasitek/server-support/json";
+} from "@kasitek-labs/server-support/analytics-reporting";
+import { SerdeFloat } from "@kasitek-labs/server-support/json";
 import {
   AnalyticsIngestionClient,
   buildEvent,
@@ -16,7 +16,7 @@ import {
   canonicalJsonSha256,
   coreProducerConfig,
   tenantProducerConfig,
-} from "@kasitek/server-support/analytics-producer";
+} from "@kasitek-labs/server-support/analytics-producer";
 import { exportPKCS8, exportSPKI, generateKeyPair } from "jose";
 import { buildApp } from "../src-ts/app.js";
 import { ProcessMetrics } from "../src-ts/metrics.js";

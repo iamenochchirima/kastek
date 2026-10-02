@@ -7,7 +7,7 @@ import type {
   ReconciliationRequest,
   ReconciliationResponse,
   ReconciliationCursor,
-} from "@kasitek/contracts";
+} from "@kasitek-labs/contracts";
 import {
   canonicalJson,
   parseLosslessJson,

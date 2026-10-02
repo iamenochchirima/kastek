@@ -8,7 +8,7 @@ import {
   canonicalJson,
   parseSerdeValueJson,
   serdeFloat,
-} from "@kasitek/server-support/json";
+} from "@kasitek-labs/server-support/json";
 import {
   IngestionAuthenticator,
   ingestBatch,

@@ -4,7 +4,7 @@ import { createHash } from "node:crypto";
 import { analyticsFixture } from "./database-fixture.js";
 import { transaction } from "../src-ts/db.js";
 import { apiJson } from "../src-ts/json.js";
-import { canonicalJson, serdeFloat } from "@kasitek/server-support/json";
+import { canonicalJson, serdeFloat } from "@kasitek-labs/server-support/json";
 import {
   RolloutDecisionCache,
   decisionCacheKey,

@@ -18,7 +18,7 @@ import {
   type ScopeBinding,
 } from "./records.js";
 import { enqueueReconciliationRepair } from "./projections.js";
-import { canonicalJson } from "@kasitek/server-support/json";
+import { canonicalJson } from "@kasitek-labs/server-support/json";
 import { SQL } from "./reconciliation-sql.js";
 export const RECONCILIATION_PATH = "/internal/reconciliation/v1/summary";
 export interface ReconciliationRequest {

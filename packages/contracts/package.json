@@ -1,8 +1,11 @@
 {
-  "name": "@kasitek/contracts",
+  "name": "@kasitek-labs/contracts",
   "version": "0.1.0",
-  "private": true,
   "type": "module",
+  "repository": "https://github.com/Kasitek-Labs/kasitek-labs.git",
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  },
   "engines": {
     "node": ">=24 <25"
   },

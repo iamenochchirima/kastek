@@ -1,4 +1,4 @@
-import { canonicalJson, SerdeFloat } from "@kasitek/server-support/json";
+import { canonicalJson, SerdeFloat } from "@kasitek-labs/server-support/json";
 
 function prepare(value: unknown): unknown {
   if (value instanceof Date) return value.toISOString();
@@ -24,4 +24,4 @@ export function apiJson(value: unknown): string {
   return canonicalJson(prepare(value));
 }
 
-export { parseSerdeValueJson } from "@kasitek/server-support/json";
+export { parseSerdeValueJson } from "@kasitek-labs/server-support/json";

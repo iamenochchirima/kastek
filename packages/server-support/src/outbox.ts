@@ -4,7 +4,7 @@ import type {
   OutboxRow,
   ReconciliationCursor,
   OutboxReconciliationSummary,
-} from "@kasitek/contracts";
+} from "@kasitek-labs/contracts";
 import { canonicalJson } from "./json.js";
 import * as sql from "./outbox-sql.js";
 export type Database = Pick<Pool | PoolClient, "query">;

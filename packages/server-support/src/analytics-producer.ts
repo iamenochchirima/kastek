@@ -8,7 +8,7 @@ import type {
   AnalyticsOutboxRecord,
   AnalyticsEnvelope,
   RecordCategory,
-} from "@kasitek/contracts";
+} from "@kasitek-labs/contracts";
 import {
   canonicalJsonSha256,
   integer,

@@ -10,8 +10,8 @@ Set the service build command to:
 
 ```bash
 corepack pnpm install --frozen-lockfile \
-  && corepack pnpm --filter @kasitek/contracts build \
-  && corepack pnpm --filter @kasitek/server-support build \
+  && corepack pnpm --filter @kasitek-labs/contracts build \
+  && corepack pnpm --filter @kasitek-labs/server-support build \
   && corepack pnpm --filter @kasitek/analytics build
 ```
 

@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import type { Integer, Timestamp } from "@kasitek/contracts";
+import type { Integer, Timestamp } from "@kasitek-labs/contracts";
 // Object members sort lexically as serde_json's BTreeMap does. Integer values never pass through Number.
 export class SerdeFloat {
   readonly __serde_float = true as const;

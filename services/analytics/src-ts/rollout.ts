@@ -17,7 +17,7 @@ import {
 import {
   canonicalJson,
   parseSerdeValueJson,
-} from "@kasitek/server-support/json";
+} from "@kasitek-labs/server-support/json";
 import { normalizedTime, timestampNanos } from "./records.js";
 import { transaction } from "./db.js";
 import { SQL } from "./rollout-sql.js";

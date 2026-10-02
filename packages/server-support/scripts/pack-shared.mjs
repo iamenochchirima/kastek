@@ -16,7 +16,7 @@ run(["build:shared"]);
 for (const name of ["contracts", "server-support"])
   run([
     "--filter",
-    `@kasitek/${name}`,
+    `@kasitek-labs/${name}`,
     "pack",
     "--pack-destination",
     destination,
@@ -57,7 +57,7 @@ const artifacts = ["contracts", "server-support"].map((name) => {
   const metadata = JSON.parse(
     readFileSync(resolve(root, "packages", name, "package.json"), "utf8"),
   );
-  const file = `kasitek-${name}-${metadata.version}.tgz`;
+  const file = `kasitek-labs-${name}-${metadata.version}.tgz`;
   const bytes = readFileSync(resolve(destination, file));
   return {
     package: metadata.name,

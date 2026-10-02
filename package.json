@@ -6,8 +6,8 @@
     "node": ">=24 <25"
   },
   "scripts": {
-    "build:shared": "pnpm --filter @kasitek/contracts build && pnpm --filter @kasitek/server-support build",
-    "test:shared": "pnpm --filter @kasitek/server-support test",
+    "build:shared": "pnpm --filter @kasitek-labs/contracts build && pnpm --filter @kasitek-labs/server-support build",
+    "test:shared": "pnpm --filter @kasitek-labs/server-support test",
     "pack:shared": "node packages/server-support/scripts/pack-shared.mjs"
   },
   "devDependencies": {

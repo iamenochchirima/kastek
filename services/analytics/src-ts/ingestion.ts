@@ -2,7 +2,7 @@ import { RequestExtractionError } from "./error.js";
 import { createHash, timingSafeEqual } from "node:crypto";
 import type { Pool, PoolClient } from "pg";
 import type { FastifyInstance, FastifyRequest } from "fastify";
-import { canonicalJson, SerdeFloat } from "@kasitek/server-support/json";
+import { canonicalJson, SerdeFloat } from "@kasitek-labs/server-support/json";
 import { validateEnvelope, validateRegisteredContract } from "./registry.js";
 import { enqueueFact, hourlyWindow } from "./projections.js";
 import {

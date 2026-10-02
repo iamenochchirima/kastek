@@ -18,8 +18,8 @@
     "registry:write": "node dist/registry-main.js --write"
   },
   "dependencies": {
-    "@kasitek/contracts": "workspace:*",
-    "@kasitek/server-support": "workspace:*",
+    "@kasitek-labs/contracts": "workspace:*",
+    "@kasitek-labs/server-support": "workspace:*",
     "ajv": "8.17.1",
     "ajv-formats": "3.0.1",
     "dotenv": "^16.6.1",

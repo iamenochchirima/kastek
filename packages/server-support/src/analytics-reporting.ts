@@ -7,13 +7,13 @@ import {
   CATALOG_PATH,
   QUERY_PATH,
   SCOPE_RESOLVE_PATH,
-} from "@kasitek/contracts";
+} from "@kasitek-labs/contracts";
 import type {
   ReportingGrantInput,
   ScopeResolution,
   ReportQueryInput,
   ReportQueryRequest,
-} from "@kasitek/contracts";
+} from "@kasitek-labs/contracts";
 import {
   integer,
   wireInteger,

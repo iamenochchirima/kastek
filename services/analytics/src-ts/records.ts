@@ -2,7 +2,7 @@ import {
   canonicalJson,
   canonicalJsonSha256,
   integer,
-} from "@kasitek/server-support/json";
+} from "@kasitek-labs/server-support/json";
 export type RecordCategory =
   | "event"
   | "observation"

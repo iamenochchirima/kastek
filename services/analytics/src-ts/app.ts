@@ -6,7 +6,7 @@ import type {ProcessKind} from './contracts.js';
 import {MetricsAccess} from './metrics.js';
 import {registerHealthRoutes} from './health.js';
 import {RequestExtractionError,errorType} from './error.js';
-import {isSafeCorrelationId} from '@kasitek/server-support/telemetry';
+import {isSafeCorrelationId} from '@kasitek-labs/server-support/telemetry';
 import {apiJson,parseSerdeValueJson} from './json.js';
 import {MAX_BATCH_BYTES,registerIngestionRoutes} from './ingestion.js';
 import {registerReconciliationRoutes} from './reconciliation.js';

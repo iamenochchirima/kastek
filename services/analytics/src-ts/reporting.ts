@@ -11,7 +11,7 @@ import type {
   MetricSetDefinition,
 } from './registry-types.js';
 import { apiJson, parseSerdeValueJson } from './json.js';
-import { SerdeFloat, canonicalJson } from '@kasitek/server-support/json';
+import { SerdeFloat, canonicalJson } from '@kasitek-labs/server-support/json';
 import { UtcTimestamp, transaction } from './db.js';
 import { type ReportingGrant, validateGrant } from './scope.js';
 import {
