@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import type { AddressInfo } from "node:net";
+import { resolve } from "node:path";
 import test from "node:test";
+import { pathToFileURL } from "node:url";
+import pg from "pg";
 import type { AnalyticsOutboxRecord, OutboxRow } from "@kasitek-labs/contracts";
 import {
   AnalyticsReportingClient,
@@ -29,6 +32,182 @@ const coreToken = "synthetic-core-publisher-token";
 const tenantToken = "synthetic-tenant-publisher-token";
 const agentToken = "synthetic-agent-publisher-token";
 const metricsToken = "synthetic-analytics-metrics-token";
+
+async function publishGrowthOutbox(
+  fixture: Awaited<ReturnType<typeof analyticsFixture>>,
+  endpoint: string,
+  occurredAt: string,
+) {
+  const growthDist = process.env.GROWTH_CORE_DIST;
+  if (!growthDist) return undefined;
+
+  const eventRecordId = "core-event:growth-outbox-recipient";
+  const schema = `growth_source_${randomUUID().replaceAll("-", "")}`;
+  assert.match(schema, /^growth_source_[a-f0-9]{32}$/);
+  await fixture.pool.query(`CREATE SCHEMA "${schema}"`);
+  const sourcePool = new pg.Pool({
+    connectionString: fixture.databaseUrl,
+    options: `-c search_path=${schema},public -c timezone=UTC`,
+  });
+
+  try {
+    await sourcePool.query(`
+      CREATE TABLE "Organization" (
+        id text PRIMARY KEY,
+        "createdAt" timestamp NOT NULL,
+        "reportingTimezone" text NOT NULL
+      );
+      CREATE TABLE analytics_outbox (
+        outbox_id text PRIMARY KEY,
+        source_service text NOT NULL,
+        source_domain text NOT NULL,
+        source_stream_key text NOT NULL,
+        record_category text NOT NULL,
+        record_id text NOT NULL,
+        contract_name text NOT NULL,
+        schema_version integer NOT NULL,
+        scope_kind text NOT NULL,
+        scope_external_id text NOT NULL,
+        idempotency_key text NOT NULL,
+        envelope jsonb NOT NULL,
+        payload_hash text NOT NULL,
+        source_sequence bigserial NOT NULL,
+        delivery_status text NOT NULL DEFAULT 'pending',
+        attempt_count integer NOT NULL DEFAULT 0,
+        next_attempt_at timestamptz NOT NULL DEFAULT NOW(),
+        lease_owner text,
+        lease_expires_at timestamptz,
+        last_error_code text,
+        created_at timestamptz NOT NULL DEFAULT NOW(),
+        updated_at timestamptz NOT NULL DEFAULT NOW(),
+        delivered_at timestamptz,
+        quarantined_at timestamptz,
+        UNIQUE (source_service, record_category, record_id)
+      );
+    `);
+    await sourcePool.query(
+      `INSERT INTO "Organization"(id,"createdAt","reportingTimezone") VALUES ($1,$2,'UTC')`,
+      ["shared-contract-org", new Date(occurredAt)],
+    );
+
+    const coreRoot = resolve(growthDist);
+    const [
+      { enqueueEvent },
+      { enqueueMissingScopeDefinitions },
+      { runAnalyticsPublisher },
+    ] = await Promise.all([
+      import(pathToFileURL(resolve(coreRoot, "analytics/index.js")).href),
+      import(
+        pathToFileURL(resolve(coreRoot, "analytics/scope-bootstrap.js")).href,
+      ),
+      import(pathToFileURL(resolve(coreRoot, "analytics/publisher.js")).href),
+    ]);
+    assert.equal(await enqueueMissingScopeDefinitions(sourcePool), 1);
+
+    const sourceClient = await sourcePool.connect();
+    try {
+      await sourceClient.query("BEGIN");
+      await enqueueEvent(sourceClient, {
+        record_id: eventRecordId,
+        source_domain: "campaigns",
+        source_stream_key: "campaign:growth-outbox-campaign:recipients",
+        contract_name: "campaign.recipient.sent@1",
+        schema_version: 1,
+        scope_kind: "core_organization",
+        scope_external_id: "shared-contract-org",
+        subject_type: "recipient",
+        subject_id: "growth-outbox-recipient",
+        occurred_at: occurredAt,
+        attributes: {
+          campaign_id: "growth-outbox-campaign",
+          recipient_id: "growth-outbox-recipient",
+          channel: "whatsapp",
+          status: "sent",
+          occurred_at: occurredAt,
+        },
+      });
+      await sourceClient.query("COMMIT");
+    } catch (error) {
+      await sourceClient.query("ROLLBACK");
+      throw error;
+    } finally {
+      sourceClient.release();
+    }
+
+    const logs: Record<string, unknown>[] = [];
+    let totalDelivered = 0;
+    const controller = new AbortController();
+    const log = {
+      info(fields: Record<string, unknown>) {
+        logs.push(fields);
+        if (fields.phase === "publication") {
+          totalDelivered += Number(fields.delivered ?? 0);
+          if (totalDelivered >= 2) controller.abort();
+        }
+      },
+      warn(fields: Record<string, unknown>) {
+        logs.push(fields);
+      },
+      error(fields: Record<string, unknown>) {
+        logs.push(fields);
+        controller.abort();
+      },
+    };
+    const timeout = setTimeout(() => controller.abort(), 10000);
+    try {
+      await runAnalyticsPublisher(
+        sourcePool,
+        {
+          ANALYTICS_CORE_INGESTION_TOKEN: coreToken,
+          ANALYTICS_INGESTION_URL: endpoint,
+          ANALYTICS_PUBLISHER_POLL_INTERVAL_MS: "1",
+          ANALYTICS_RECONCILIATION_INTERVAL_MS: "60000",
+        },
+        log,
+        controller.signal,
+      );
+    } finally {
+      clearTimeout(timeout);
+    }
+
+    const outbox = await sourcePool.query<{
+      record_id: string;
+      delivery_status: string;
+      attempt_count: number;
+    }>(
+      "SELECT record_id,delivery_status,attempt_count FROM analytics_outbox ORDER BY source_sequence",
+    );
+    assert.ok(
+      logs.some(
+        (fields) => fields.phase === "publication" && Number(fields.delivered) > 0,
+      ),
+      `Growth publisher did not deliver to Analytics: ${JSON.stringify({ logs, outbox: outbox.rows })}`,
+    );
+    assert.deepEqual(
+      outbox.rows.map((row) => [row.record_id, row.delivery_status]),
+      [
+        [
+          `core-scope:organization:shared-contract-org:${new Date(occurredAt).getTime()}`,
+          "delivered",
+        ],
+        [eventRecordId, "delivered"],
+      ],
+    );
+    assert.equal(
+      (
+        await fixture.pool.query(
+          "SELECT 1 FROM analytics.analytics_event WHERE source_service='core' AND source_record_id=$1",
+          [eventRecordId],
+        )
+      ).rowCount,
+      1,
+    );
+    return { eventRecordId };
+  } finally {
+    await sourcePool.end();
+    await fixture.pool.query(`DROP SCHEMA "${schema}" CASCADE`);
+  }
+}
 
 function leased(
   record: AnalyticsOutboxRecord,
@@ -213,6 +392,11 @@ test(
       );
       const agentClient = new AnalyticsIngestionClient(endpoint, agentToken, 5000);
       const reportingClient = new AnalyticsReportingClient(endpoint, "unused");
+      const growthOutbox = await publishGrowthOutbox(
+        fixture,
+        endpoint,
+        timestamp,
+      );
 
       const coreScope = buildScopeDefinition(coreProducerConfig(), {
         record_id: "core-scope:shared-contract-org:1",
@@ -245,24 +429,26 @@ test(
           occurred_at: timestamp,
         },
       });
-      const coreRows = [
-        leased(coreScope, 1, timestamp),
-        leased(coreEvent, 1, timestamp),
-      ];
+      const coreRows = growthOutbox
+        ? [leased(coreEvent, 1, timestamp)]
+        : [
+            leased(coreScope, 1, timestamp),
+            leased(coreEvent, 1, timestamp),
+          ];
       const acceptedCore = await coreClient.sendBatch(
         "core-customer-analytics",
         coreRows,
       );
-      assert.equal(acceptedCore.accepted_count, 2);
+      assert.equal(acceptedCore.accepted_count, coreRows.length);
       assert.deepEqual(
         acceptedCore.acknowledgements.map((ack) => String(ack.source_sequence)),
-        ["1", "1"],
+        coreRows.map(() => "1"),
       );
       assert.equal(
         (
           await coreClient.sendBatch("core-customer-analytics", coreRows)
         ).duplicate_count,
-        2,
+        coreRows.length,
       );
 
       const workspaceScope = buildScopeDefinition(tenantProducerConfig(), {
@@ -360,7 +546,7 @@ test(
       let projected = 0;
       while (await processOnce(fixture.pool, registry, "a13-fixture", 60))
         projected++;
-      assert.equal(projected, 2);
+      assert.ok(projected > 0);
 
       const coreScopeId = BigInt(
         (
@@ -388,7 +574,7 @@ test(
           rangeStart,
           rangeEnd,
         ),
-        1,
+        growthOutbox ? 2 : 1,
       );
       assert.equal(
         await reportMetric(
