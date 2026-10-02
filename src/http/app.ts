@@ -1646,6 +1646,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     actorId: string;
     correlationId?: string | null;
     evaluationSource: "readiness_route" | "readiness_sweep";
+    conversationId?: string;
   }) => {
     const installation = await agents.getInstallation(input.organizationId, input.installationId);
     if (!installation) return null;
@@ -1656,6 +1657,12 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     ]);
     if (!agent || !version || !projected) return null;
 
+    const conversation = input.conversationId
+      ? await conversations.getOwnedConversation(input.organizationId, input.conversationId, input.actorId)
+      : null;
+    if (input.conversationId && (!conversation || conversation.installation_id !== installation.id)) {
+      throw Object.assign(new Error("Conversation not found for this installation"), { statusCode: 404 });
+    }
     const configuration = version.configuration ?? {};
     const policy = version.policy ?? {};
     const blueprint = configuration.blueprint && typeof configuration.blueprint === "object" && !Array.isArray(configuration.blueprint)
@@ -1689,8 +1696,10 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     const providerValue = kasiaiPreference?.default_model_provider
       ?? modelPolicy.provider
       ?? (modelPolicy.primary && typeof modelPolicy.primary === "object" && !Array.isArray(modelPolicy.primary) ? (modelPolicy.primary as Record<string, unknown>).provider : configuration.provider);
-    const provider = typeof providerValue === "string" ? providerValue : undefined;
-    const credentialReference = configuration.credentialReference ?? modelPolicy.credentialReference ?? kasiaiPreference?.default_credential_reference;
+    const provider = conversation?.model_provider ?? (typeof providerValue === "string" ? providerValue : undefined);
+    const credentialReference = conversation?.model_provider && conversation.model_provider !== providerValue
+      ? undefined
+      : configuration.credentialReference ?? modelPolicy.credentialReference ?? kasiaiPreference?.default_credential_reference;
     const credentialKey = modelProviderEnvironmentKey(provider);
     const credentialConfigured = (typeof credentialReference === "string" && credentialReference.trim().length > 0) || Boolean(credentialKey && process.env[credentialKey]?.trim());
     const readiness = buildAgentReadiness({
@@ -1704,7 +1713,8 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       credentialConfigured,
       workflowError,
     });
-    await readinessAnalytics.recordSnapshot({
+    // A chat override is not the installation baseline recorded by the sweep.
+    if (!input.conversationId) await readinessAnalytics.recordSnapshot({
       organizationId: input.organizationId,
       installationId: installation.id,
       agentDefinitionId: agent.id,
@@ -3867,7 +3877,10 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
   app.get<{ Params: { installationId: string } }>("/v1/installations/:installationId/readiness", async (request, reply) => {
     const auth = requireAuth(request, dependencies.config);
     requireScope(auth, dependencies.config, "agents:read");
+    const { conversationId } = z.object({ conversationId: z.string().uuid().optional() }).parse(request.query);
+    if (conversationId) requireScope(auth, dependencies.config, "chat:read");
     const evaluated = await evaluateInstallationReadiness({
+      conversationId,
       organizationId: auth.organizationId,
       installationId: request.params.installationId,
       actorId: auth.actorId,

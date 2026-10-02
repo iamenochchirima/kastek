@@ -28,6 +28,7 @@ export const browserAgentRoutes: [HTTPMethods, string, string][] = [
   ["POST", "/v1/installations/:installationId/platform/conversation/new", "/api/agents/installations/:installationId/platform/conversation/new"],
   ["POST", "/v1/installations/:installationId/platform/messages", "/api/agents/installations/:installationId/platform/messages"],
   ["GET", "/v1/conversations/:conversationId", "/api/agents/conversations/:conversationId"],
+  ["PATCH", "/v1/conversations/:conversationId", "/api/agents/conversations/:conversationId"],
   ["GET", "/v1/runs/:runId", "/api/agents/runs/:runId"],
   ["GET", "/v1/runs/:runId/timeline", "/api/agents/runs/:runId/timeline"],
   ["GET", "/v1/runs/:runId/memory-observatory", "/api/agents/runs/:runId/memory-observatory"],

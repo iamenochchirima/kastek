@@ -1632,8 +1632,9 @@ export function listAgentInstallationCapabilities(installationId: string): Promi
   return request(`/api/agents/installations/${encodeURIComponent(installationId)}/capabilities`);
 }
 
-export function getAgentInstallationReadiness(installationId: string): Promise<AgentReadiness> {
-  return request(`/api/agents/installations/${encodeURIComponent(installationId)}/readiness`);
+export function getAgentInstallationReadiness(installationId: string, conversationId?: string | null): Promise<AgentReadiness> {
+  const query = conversationId ? `?conversationId=${encodeURIComponent(conversationId)}` : "";
+  return request(`/api/agents/installations/${encodeURIComponent(installationId)}/readiness${query}`);
 }
 
 export function grantAgentInstallationTool(installationId: string, toolName: string): Promise<unknown> {

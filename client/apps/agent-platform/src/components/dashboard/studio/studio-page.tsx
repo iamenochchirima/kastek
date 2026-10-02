@@ -441,8 +441,8 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
     toast.error(message, remediation ? { description: remediation } : undefined);
   };
 
-  const changeModel = async (model: string, provider: AgentModelProvider) => {
-    const nextSelection = { model, provider };
+  const changeModel = async (model: string | null, provider: AgentModelProvider | null) => {
+    const nextSelection = model && provider ? { model, provider } : null;
     const previousSelection = conversationModelSelection;
     if (!conversationId) {
       showError("The Playground conversation is still loading.");
@@ -451,7 +451,7 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
     setModelChangePending(true);
     setConversationModelSelection(nextSelection);
     try {
-      const updated = await updateKasiAiConversation(conversationId, { modelProvider: provider, model });
+      const updated = await updateKasiAiConversation(conversationId, nextSelection ? { modelProvider: nextSelection.provider, model: nextSelection.model } : { clearModel: true });
       setConversationModelSelection(modelSelectionFromConversation(updated) ?? nextSelection);
     } catch (cause) {
       setConversationModelSelection(previousSelection);
@@ -682,7 +682,7 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
       getAgentVersionEffectiveConfig(selectedVersionId, installationId),
       installationId ? listAgentInstallationCapabilities(installationId) : Promise.resolve({ capabilities: [] as AgentCapability[] }),
       installationId ? listAgentConnectionDirectory(installationId) : Promise.resolve({ connections: [] as AgentConnectionDirectoryEntry[] }),
-      installationId ? getAgentInstallationReadiness(installationId) : Promise.resolve(null),
+      installationId ? getAgentInstallationReadiness(installationId, conversationId) : Promise.resolve(null),
     ]).then(([configResult, capabilitiesResult, connectionsResult, readinessResult]) => {
       if (cancelled) return;
       if (configResult.status === "fulfilled") {
@@ -698,7 +698,7 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
       if (!cancelled) setEffectiveConfigLoading(false);
     });
     return () => { cancelled = true; };
-  }, [agent.installation_id, selectedVersionId, deploymentStatus?.playground.version?.versionId]);
+  }, [agent.installation_id, selectedVersionId, deploymentStatus?.playground.version?.versionId, conversationId, conversationModelSelection?.provider, conversationModelSelection?.model]);
 
   useEffect(() => {
     const installationId = agent.installation_id;
@@ -1252,6 +1252,8 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
                 models={pickerModels}
                 onModelChange={(model, provider) => void changeModel(model, provider)}
                 modelDisabled={modelCatalogLoading || !pickerModels.length || !conversationId || modelChangePending}
+                allowModelSelectionWhenDisabled
+                modelAccessory={conversationModelSelection ? <Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-[10px]" disabled={running || modelChangePending || !conversationId} onClick={() => void changeModel(null, null)} title="Use the model configured in the agent version">Use agent model</Button> : null}
                 disabled={!executionReady || conversationLoading || modelChangePending}
                 sending={running}
                 onStop={() => void cancelRun()}

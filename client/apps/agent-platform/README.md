@@ -77,3 +77,7 @@ Open the agent in Studio, edit Behavior/Runtime settings and save a draft. Selec
 alone does not change the playground installation. Studio requires the selected
 version to match the playground before sending a message, and also checks runtime
 readiness. Live promotion/rollback controls are pending in this initial frontend.
+
+The playground model picker changes only the saved conversation's model. **Use
+agent model** clears that override and follows the agent version. Readiness checks
+use the conversation selection; changing providers does not configure credentials.

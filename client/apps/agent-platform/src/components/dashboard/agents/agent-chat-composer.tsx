@@ -16,6 +16,7 @@ export function AgentChatComposer({
   models = [],
   onModelChange,
   modelDisabled = false,
+  allowModelSelectionWhenDisabled = false,
   disabled = false,
   sending = false,
   onStop,
@@ -36,6 +37,7 @@ export function AgentChatComposer({
   models?: AgentModel[];
   onModelChange?: (model: string, provider: AgentModelProvider) => void;
   modelDisabled?: boolean;
+  allowModelSelectionWhenDisabled?: boolean;
   disabled?: boolean;
   sending?: boolean;
   onStop?: () => void;
@@ -67,7 +69,7 @@ export function AgentChatComposer({
             <AgentModelPicker
               model={model}
               models={models}
-              disabled={modelDisabled || inputDisabled}
+              disabled={modelDisabled || sending || (disabled && !allowModelSelectionWhenDisabled)}
               compact
               menuPlacement="above"
               ariaLabel="Choose this chat's model"

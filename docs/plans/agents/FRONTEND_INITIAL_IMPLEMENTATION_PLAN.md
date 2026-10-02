@@ -416,3 +416,24 @@ Saved draft to playground, 2026-10-02:
   A frontend nullability error caught during the build was fixed before the final
   successful build. The browser checks cover the normal playground update path;
   they do not establish full live deployment or adversarial access coverage.
+
+Conversation model and readiness, 2026-10-02:
+
+- Connected the conversation PATCH browser alias to the existing hosted-chat
+  handler, which checks organization, actor ownership, installation and model
+  catalog. The picker can change the chat model while execution setup is blocked;
+  sending remains disabled. Use agent model clears the conversation override.
+- The readiness endpoint optionally takes a conversation ID, requires chat read
+  scope and checks that the owned conversation belongs to the requested
+  installation. It evaluates that conversation's persisted model provider rather
+  than reporting the saved version's provider. A credential reference for another
+  provider does not establish readiness. Chat override evaluations do not overwrite
+  the installation baseline analytics snapshot.
+- Studio reloads readiness when the conversation model changes. In the browser,
+  selecting OpenAI persisted after refresh and the blocker changed from OpenRouter
+  to OpenAI. Use agent model restored the version's OpenRouter model and blocker.
+  Screenshot: `.artifacts/agents-conversation-model-readiness.jpg`. No provider
+  credential was configured and no model run was submitted.
+- Backend/frontend builds, focused composer/Studio lint and eight existing browser
+  admission/readiness checks passed. Actual model execution and complete access
+  coverage remain unverified.
