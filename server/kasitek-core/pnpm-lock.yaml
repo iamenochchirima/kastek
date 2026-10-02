@@ -29,6 +29,9 @@ importers:
       '@kasitek/server-support':
         specifier: file:.artifacts/shared/kasitek-server-support-0.1.0.tgz
         version: file:.artifacts/shared/kasitek-server-support-0.1.0.tgz(@opentelemetry/core@2.11.0(@opentelemetry/api@1.9.0))
+      '@opentelemetry/api':
+        specifier: 1.9.0
+        version: 1.9.0
       '@paralleldrive/cuid2':
         specifier: ^2.3.1
         version: 2.3.1

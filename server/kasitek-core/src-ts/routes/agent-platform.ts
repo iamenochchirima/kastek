@@ -1,3 +1,5 @@
+import { canonicalJsonBody } from "../identity/json-body.js";
+import { SerdeFloat } from "@kasitek/server-support/json";
 import { Readable } from "node:stream";
 import { createId } from "@paralleldrive/cuid2";
 import * as website from "../services/website/index.js";
@@ -47,15 +49,21 @@ const param = (request: FastifyRequest, name: string) =>
   (request.params as Record<string, string>)[name]!;
 function requiredJson(request: FastifyRequest): unknown {
   if (request.body === undefined) bad("Invalid request");
-  return request.body;
+  return canonicalJsonBody(request);
 }
 function objectBody(
   request: FastifyRequest,
   message: string,
   optional = false,
 ): Record<string, unknown> {
-  const body = request.body === undefined && optional ? {} : request.body;
-  if (body === null || typeof body !== "object" || Array.isArray(body))
+  const body =
+    request.body === undefined && optional ? {} : canonicalJsonBody(request);
+  if (
+    body === null ||
+    body instanceof SerdeFloat ||
+    typeof body !== "object" ||
+    Array.isArray(body)
+  )
     throw new ApiError(400, "bad_request", message);
   return body as Record<string, unknown>;
 }
@@ -107,8 +115,8 @@ function deploymentBody(request: FastifyRequest): website.DeploymentInput {
         appearance[key] !== undefined &&
         appearance[key] !== null &&
         (!Number.isInteger(appearance[key]) ||
-          Number(appearance[key]) < 0 ||
-          Number(appearance[key]) > 4294967295)
+          Number(appearance[key]) < -2147483648 ||
+          Number(appearance[key]) > 2147483647)
       )
         bad("Invalid website deployment");
     if (
@@ -1862,7 +1870,7 @@ export function registerAgentPlatformRoutes(
     "/api/agents/installations/:installationId/grants/connectors",
     async (request, reply) => {
       const { user, org } = await agentScope(request, core, true);
-      const body = request.body;
+      const body = canonicalJsonBody(request);
       requiredString(body, "connectorId", "connectorId is required");
       const result = await new AgentPlatformClient(
         core.config,
@@ -2143,7 +2151,7 @@ export function registerAgentPlatformRoutes(
             org,
             user.id,
             param(request, "installationId"),
-            sanitizeMessageBody(request.body),
+            sanitizeMessageBody(canonicalJsonBody(request)),
           ),
         );
     },
@@ -2465,14 +2473,12 @@ export function registerAgentPlatformRoutes(
     });
     raw.setErrorHandler((error, request, reply) => {
       if ((error as { code?: string }).code === "FST_ERR_CTP_BODY_TOO_LARGE")
-        return reply
-          .code(400)
-          .send({
-            error: request.url.includes("/knowledge/sources/")
-              ? "Knowledge file upload exceeds the 20 MB limit"
-              : "Audio must be 25 MB or smaller",
-            code: "bad_request",
-          });
+        return reply.code(400).send({
+          error: request.url.includes("/knowledge/sources/")
+            ? "Knowledge file upload exceeds the 20 MB limit"
+            : "Audio must be 25 MB or smaller",
+          code: "bad_request",
+        });
       return app.errorHandler(error, request, reply);
     });
     raw.addHook("preParsing", (request, _reply, payload, done) => {

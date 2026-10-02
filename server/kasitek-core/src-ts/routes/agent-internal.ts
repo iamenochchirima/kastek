@@ -1,3 +1,8 @@
+import {
+  canonicalJsonBody,
+  jsonValueAt,
+  requireJsonIntegerToken,
+} from "../identity/json-body.js";
 import { wireInteger } from "@kasitek/server-support/json";
 import {
   createWhatsappInboxPorts,
@@ -151,6 +156,7 @@ function typedBody(
         break;
       case "i64":
       case "optionalI64":
+        requireJsonIntegerToken(request, [key]);
         valid =
           (typeof value === "bigint" ||
             (typeof value === "number" && Number.isSafeInteger(value))) &&
@@ -158,7 +164,10 @@ function typedBody(
           BigInt(value) <= 9223372036854775807n;
         break;
       case "optionalNumber":
-        valid = typeof value === "number" && Number.isFinite(value);
+        if (typeof value === "bigint") body[key] = Number(value);
+        valid =
+          (typeof value === "number" && Number.isFinite(value)) ||
+          (typeof value === "bigint" && Number.isFinite(Number(value)));
         break;
       case "optionalBoolean":
         valid = typeof value === "boolean";
@@ -176,6 +185,8 @@ function typedBody(
     }
     if (!valid) bad("Invalid request");
   }
+  if (Object.hasOwn(body, "metadata"))
+    body.metadata = jsonValueAt(request, ["metadata"]);
   return body;
 }
 function internalQuery(
@@ -554,7 +565,7 @@ export function registerAgentInternalRoutes(
           core.config,
           org,
           operation,
-          requiredJson(request),
+          canonicalJsonBody(request),
           options.fetch,
         ),
       );

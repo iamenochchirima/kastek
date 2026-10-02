@@ -10,8 +10,8 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "dev": "tsx watch src-ts/main.ts",
-    "start": "node dist/main.js",
+    "dev": "tsx watch src-ts/bootstrap.ts",
+    "start": "node dist/bootstrap.js",
     "test": "tsx --test test-ts/*.test.ts",
     "prepare:shared": "node scripts/prepare-shared.mjs"
   },
@@ -22,6 +22,7 @@
     "@fastify/multipart": "^9.4.0",
     "@kasitek/contracts": "file:.artifacts/shared/kasitek-contracts-0.1.0.tgz",
     "@kasitek/server-support": "file:.artifacts/shared/kasitek-server-support-0.1.0.tgz",
+    "@opentelemetry/api": "1.9.0",
     "@paralleldrive/cuid2": "^2.3.1",
     "ajv": "8.17.1",
     "ajv-formats": "3.0.1",

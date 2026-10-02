@@ -78,6 +78,10 @@ email inbox is `http://localhost:8025/`; set Core `LOCAL_MAILPIT_URL` for organi
 
 ## Starting services
 
+The additive Node.js replacement has separate
+[TypeScript Core commands and worker modes](typescript-core.md). The current
+launcher continues to use Rust until the migration cutover is verified.
+
 The launcher opens requested Growth processes in their own terminals. It does not start the moved
 Analytics, Agency, or Agent services. Analytics source and local commands are in the
 [Labs Analytics service](https://github.com/Kasitek-Labs/kasitek-labs/tree/main/services/analytics).
