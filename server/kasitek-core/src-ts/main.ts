@@ -18,6 +18,10 @@ import { registerAnalyticsRoutes } from './routes/analytics.js';
 import { registerInternalWorkspaceRoutes } from './routes/internal-workspace.js';
 import { registerConnectionRoutes } from './routes/connections.js';
 import { registerEarlyAccessRoutes } from './routes/early-access.js';
+import { registerWhatsappConnectionRoutes } from './routes/whatsapp-connections.js';
+import { registerWhatsappMarketingRoutes } from './routes/whatsapp.js';
+import { registerSocialRoutes } from './routes/social.js';
+import { registerAiRoutes } from './routes/ai.js';
 
 export async function start(): Promise<void> {
   process.env.TZ = 'UTC';
@@ -48,7 +52,8 @@ export async function start(): Promise<void> {
 export const CORE_REGISTRARS = [registerAuthRoutes, registerProfileRoutes, registerOrganizationRoutes,
   registerAdminAuthRoutes, registerBookingRoutes, registerCustomerRoutes, registerBillingRoutes,
   registerReferralRoutes, registerNotificationRoutes, registerRealtimeRoutes, registerAnalyticsRoutes,
-  registerInternalWorkspaceRoutes, registerConnectionRoutes, registerEarlyAccessRoutes];
+  registerInternalWorkspaceRoutes, registerConnectionRoutes, registerEarlyAccessRoutes,
+  registerWhatsappConnectionRoutes, registerWhatsappMarketingRoutes, registerSocialRoutes, registerAiRoutes];
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   start().catch(() => {
