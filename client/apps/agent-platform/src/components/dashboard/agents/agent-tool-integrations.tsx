@@ -1,6 +1,6 @@
 "use client";
 
-import Image from "next/image";
+import Image from "@/components/ui/image";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Activity, CalendarDays, Check, Link2, LoaderCircle, Search, Unplug } from "lucide-react";
 import { SiDiscord, SiInstagram, SiMessenger, SiTelegram, SiWhatsapp } from "react-icons/si";

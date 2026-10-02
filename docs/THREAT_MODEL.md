@@ -6,12 +6,9 @@ Status: implementation baseline; production security review still required.
 
 1. Browser and external channels are untrusted input. They can submit messages, webhooks,
    attachments, and replayed delivery events.
-2. `kasitek-agents-api` authenticates callers and writes scoped records. It does not own core
-   product authorization or provider accounts.
-3. Temporal workflows carry orchestration state. Activities are the only place that may read
-   the database or call external services.
-4. `kasitek-core` is the authority for product identity, entitlements, business authorization,
-   and consequential product actions.
+2. `kasitek-agents-api` authenticates callers and writes scoped records. It owns Agents organization authorization and validates shared-provider identities. Growth/Agency enforce authorization for their own product tools.
+3. Temporal workflows carry durable orchestration state; their database and external calls happen in activities. Direct hosted execution and the personal runtime enforce their own scoped tool interfaces.
+4. Labs Keycloak owns shared identity. Agents owns platform access; Growth Core and Agency enforce their respective business entitlements and consequential product actions.
 5. Model providers, retrieved documents, tool results, and future MCP servers are untrusted
    content even when their transport is authenticated.
 
@@ -40,5 +37,10 @@ Status: implementation baseline; production security review still required.
   effects.
 - Complete PostgreSQL RLS, credential-manager, retention/redaction, and sandbox reviews before
   production agents can execute consequential or untrusted custom code.
-- Treat an unreviewed model output as a proposal; core authorization and explicit approvals remain
-  mandatory for external effects.
+- Treat an unreviewed model output as a proposal; the owning product must enforce authorization, with explicit approvals for actions whose policy requires them.
+
+## Filesystem personal runtime scope
+
+The planned personal runtime adds persistent workspaces, user-editable skills, browser/code execution and authenticated task/control interfaces. Enforce cross-deployment filesystem and credential isolation, scoped tool grants, resource/network limits, task deduplication, workspace deletion and secret revocation. Model output and editable files cannot grant new authority.
+
+Local Docker development is not evidence of production isolation for hostile customer code. Select and verify production hosting before exposing that capability. Platform contracts and the delivery checklist take precedence over historical assumptions that every run is hosted through Temporal or every credential belongs to Core.

@@ -1,34 +1,17 @@
-# Agent platform plans and research
+# Agent platform plans
 
-This directory contains the canonical Agent Platform implementation map plus its supporting
-architecture assessments and research.
+Updated: 2026-10-02.
 
-The source of truth for the upcoming Agent Platform restructure is
-[`AGENT_PLATFORM_IMPLEMENTATION_PLAN.md`](./AGENT_PLATFORM_IMPLEMENTATION_PLAN.md). It supersedes
-the earlier architecture plans as implementation direction. Other documents in this directory are
-supporting inputs and research. Completed, parked, and deferred records from the former Growth
-monorepo remain in the [Growth plan archive](https://github.com/Kasitek-Labs/kasitek-growth/tree/main/docs/plans).
-They are historical evidence, not a parallel architecture or current work queue.
+- [Platform delivery plan](AGENT_PLATFORM_DELIVERY_PLAN.md) is the only platform implementation checklist. It covers API-based agents, the shared Agents/Growth live inbox in phases 6A/6B, and deployment/management of our filesystem-based personal runtime.
+- [Initial frontend implementation](FRONTEND_INITIAL_IMPLEMENTATION_PLAN.md) is the first bounded task: React/Vite migration, Growth-style app shell, landing page and one real agent journey.
+- [Personal runtime work](PERSONAL_AGENT_RUNTIME_PLAN.md) is the separate linked checklist for building that runtime and its platform interface. Its items do not change the platform delivery order.
+- [Platform architecture](../../architecture/agent-platform-architecture.md) defines module ownership, execution options, storage and product integration.
 
-The memory work inside P08 has its detailed implementation authority in
-[`AGENT_MEMORY_ARCHITECTURE_AND_IMPLEMENTATION_PLAN.md`](./AGENT_MEMORY_ARCHITECTURE_AND_IMPLEMENTATION_PLAN.md).
-It is a scoped package plan, not a second Agent Platform roadmap.
+Pinned technical references, not active plans:
 
-The visual integration of memory, context, capabilities, extensions, durable execution, and
-Playground-to-Live promotion has its focused plan in
-[`AGENT_STUDIO_RUNTIME_OBSERVATORY_UPDATE_PLAN.md`](https://github.com/Kasitek-Labs/kasitek-growth/blob/main/docs/plans/completed/AGENT_STUDIO_RUNTIME_OBSERVATORY_UPDATE_PLAN.md).
-It consumes the runtime contracts and does not replace their ownership.
+- [Hermes context and telemetry study](HERMES_CONTEXT_AND_RUNTIME_TELEMETRY_RESEARCH.md).
+- [Hermes and Waku memory study](HERMES_WAKU_MEMORY_RESEARCH.md).
 
-The canonical capability directory and managed extension work has its focused implementation plan
-in [`AGENT_CAPABILITY_REGISTRY_AND_EXTENSION_SURFACES_IMPLEMENTATION_PLAN.md`](https://github.com/Kasitek-Labs/kasitek-growth/blob/main/docs/plans/completed/AGENT_CAPABILITY_REGISTRY_AND_EXTENSION_SURFACES_IMPLEMENTATION_PLAN.md).
-It covers built-in tools, external connectors, skills, plugins, MCP servers, and user-created tools
-without creating a second runtime or telemetry system.
+The earlier rewrite roadmap, superseded architecture plans, broad comparison studies and old Growth-hosted architecture audit have been removed. Their tracked versions remain recoverable from Git history. Useful current contracts and runbooks remain under docs/architecture and docs/runbooks.
 
-The Hermes-aligned capability activation and Playground-to-Live lifecycle has its focused execution
-plan in [`AGENT_HERMES_ALIGNED_CAPABILITY_LIFECYCLE_PLAN.md`](https://github.com/Kasitek-Labs/kasitek-growth/blob/main/docs/plans/completed/AGENT_HERMES_ALIGNED_CAPABILITY_LIFECYCLE_PLAN.md).
-It owns registry-driven activation, progressive skill discovery, connection/plugin/MCP refresh, and
-promotion of the tested capability snapshot to Live.
-
-When a work package starts, link its implementation issue to the canonical package. Keep the
-short checklist in the issue or current session and verification evidence in the pull request.
-Older finished records remain in the [Growth Agent history archive](https://github.com/Kasitek-Labs/kasitek-growth/tree/main/docs/plans/completed/agents/).
+Reuse functioning code; establish current runtime evidence before replacing it. Work one phase at a time, keep verification focused and record outcomes in the delivery plan. Do not create issue boards or additional umbrella plans.

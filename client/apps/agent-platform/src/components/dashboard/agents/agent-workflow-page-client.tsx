@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import Link from "@/lib/link";
 import { useCallback, useState } from "react";
 import { ArrowLeft, CheckCircle2, LoaderCircle, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";

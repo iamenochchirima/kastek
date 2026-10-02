@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import Link from "@/lib/link";
 import { Activity, LoaderCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 

@@ -5,25 +5,15 @@ durable run orchestration, conversations, memory, and operational records for th
 KasiTek product. It does not query or mutate `kasitek-core` tables; consequential product
 actions will go through authenticated internal contracts exposed by `kasitek-core`.
 
-## Source boundary
+## Product direction and current status
 
-The API, database migrations, Temporal worker, MCP gateway, shared service modules, local MCP
-package, scripts, tests, management UI, and technical documentation are owned here. Growth retains
-the Kāsiai Agent API client/chat and Core bridge; its duplicate management UI is removed through
-Growth issue #7. This source move does not change API or authentication behavior, move data, restore
-a Growth user journey, or perform a production cutover.
+The platform supports two planned delivery tracks: hosted API-based agents with short-run or durable execution, and deployment/management of our own filesystem-based personal runtime.
 
-Runtime integrations remain the existing HTTP boundaries: Core calls use `KASITEK_CORE_URL` and
-the configured Core authentication contract; analytics delivery uses `ANALYTICS_INGESTION_URL`
-and its configured ingestion credential. Neither Core nor the Analytics service is part of this
-repository.
+Use the [current architecture](docs/architecture/agent-platform-architecture.md) and [delivery checklist](docs/plans/agents/AGENT_PLATFORM_DELIVERY_PLAN.md). They replace the older broad rewrite roadmap. Personal runtime development has a [linked checklist](docs/plans/agents/PERSONAL_AGENT_RUNTIME_PLAN.md).
 
-Growth's `scripts/run_local_stack.sh` and `scripts/sync_dotenv_vaults.sh` still expect
-`agents/.env`, and its observability workflow still installs and builds under `agents/`. Those
-Growth paths were not changed by this destination-side move. The moved
-`test/rest-mcp-conformance.test.ts` also reads Core source and OpenAPI files at
-`server/kasitek-core/...`; that conformance check still requires the corresponding Growth/Core
-checkout. No integration or cutover behavior was verified here.
+This repository owns the API, database migrations, Temporal worker, MCP gateway, knowledge/memory modules, channel adapters and management UI. Existing relocated source must be verified before claiming a working standalone product. Some client authentication/API adapters still require replacing; see [client integration status](docs/source-boundary.md).
+
+Growth and Agency are optional product-tool integrations through authenticated interfaces, not runtime or database dependencies for every agent. Shared login comes from Labs Keycloak; Analytics uses its configured ingestion endpoint, and telemetry uses the Labs Collector. Agents owns its organization authorization and sessions.
 
 ## Processes
 

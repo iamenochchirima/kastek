@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type PointerEvent, type WheelEvent } from "react";
-import Link from "next/link";
+import Link from "@/lib/link";
 import {
   MessageCircle,
   Bot,

@@ -2,11 +2,11 @@
 
 - Status: accepted
 - Date: 2026-08-11
+- Scope updated: 2026-10-02
 
 ## Decision
 
-Each agent run is one Temporal workflow. Database reads/writes and external calls are
-activities. Workflows contain deterministic orchestration only. Interactive and background
+Durable hosted runs use Temporal workflows. Bounded short-run API agents do not require a workflow for every invocation. Personal runtime tasks use the separate runtime contract; Temporal may coordinate long-running deployment work. Within Temporal execution, database reads/writes and external calls are activities. Workflows contain deterministic orchestration only. Interactive and background
 work use separate task queues, beginning with the interactive queue in the proof of concept.
 
 The initial deployment uses Temporal Cloud. The service keeps workflow contracts free of

@@ -1,5 +1,7 @@
 # Hermes and Waku memory-system research
 
+
+Reference only as of 2026-10-02. This pinned source study is not an implementation mandate. Use [the delivery plan](AGENT_PLATFORM_DELIVERY_PLAN.md) and [personal runtime checklist](PERSONAL_AGENT_RUNTIME_PLAN.md) for current scope.
 Status: research complete
 Scope: local source audit of Hermes Agent and Waku Agent, focused on memory architecture and lifecycle
 Repository snapshots: [Hermes `9a84bee265daad14340a80d7585928cd8ea1f9eb`](https://github.com/NousResearch/hermes-agent/tree/9a84bee265daad14340a80d7585928cd8ea1f9eb) (2026-09-06), [Waku `21486b39ca2b59cf3a616159139712f4bef0914c`](https://github.com/ShenSeanChen/waku-agent/tree/21486b39ca2b59cf3a616159139712f4bef0914c) (2026-08-29)

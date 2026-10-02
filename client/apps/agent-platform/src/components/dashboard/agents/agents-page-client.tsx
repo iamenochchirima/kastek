@@ -19,7 +19,7 @@ import {
 } from "@/components/ui/page-header";
 import { Bot, Info, MessageSquare, Sparkles, X } from "lucide-react";
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/lib/navigation";
 import { setAgentInstallationStatus, type AgentAudienceCounts, type AgentDefinition, type AgentOperationsSummary } from "@/lib/agent-platform";
 import { MotionReveal } from "@/components/ui/motion-reveal";
 import { AgentChatPanel } from "./agent-chat-panel";

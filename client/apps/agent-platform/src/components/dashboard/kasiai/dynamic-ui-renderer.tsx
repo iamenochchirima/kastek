@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import Link from "@/lib/link";
 import { ArrowUpRight, Check, CircleAlert, CircleDot, ExternalLink, LoaderCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { AgentDynamicUi, AgentUiAction, AgentUiBlock } from "@/lib/agent-platform";

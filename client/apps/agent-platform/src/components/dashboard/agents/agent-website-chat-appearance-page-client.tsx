@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import Link from "@/lib/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CSSProperties } from "react";
 import { ArrowLeft, Bot, Check, LoaderCircle, Maximize2, MessageCircle, Mic, Paperclip, Send, X } from "lucide-react";

@@ -1,58 +1,23 @@
-# Agent Platform UI source boundary
+# Agents client integration status
 
-The Agent Platform Next app is at `client/apps/agent-platform` and is the intended owner of the
-existing `/agents/**`, `/studio`, `/studio/new`, and `/playground` UI source. The route group is
-kept in the source tree, so it does not change the public paths.
-The Growth-only `/analytics/playground` route is intentionally excluded.
-Growth retains its duplicate copy until Growth issue #7 is completed.
+Updated: 2026-10-02.
 
-## Relocated source
+The client lives in client/apps/agent-platform and now uses React/TypeScript, Vite and React Router. Next.js routing, server cookie helpers, font/image imports and dependencies have been replaced. Existing agent, Studio, workflow and activity components remain product-local source, adapted to browser route loaders.
 
-The 90 local modules reachable from those routes—including their loading states, Agent and
-Studio components, UI primitives, analytics display helpers, KasıAI audio/dynamic renderers, and
-Agent API/type helpers—were copied byte-for-byte from Growth commit `52bee672`. The Growth
-checkout was not modified. The root stylesheet, theme bootstrap, and toaster were also copied to
-provide the minimal application shell. The shell does not include Growth navigation, billing,
-onboarding, product tours, or PWA registration.
+## Preserved UI
 
-Generic UI source is copied into this product because these repositories are independently
-owned; no shared package or cross-repository source import is introduced.
+Growth's Vantage design tokens, authored Geist fonts, theme/accent/density preferences and existing UI primitives remain. The Agents shell uses Growth-style grouped navigation, collapse behavior, a mobile navigation dialog and a workspace header. Marketing pages have a separate cream/green layout and scoped styles.
 
-## Transitional integrations
+## Remaining dependencies
 
-The copied adapters preserve the old UI behavior but are not configured as standalone product
-integrations yet:
+The browser expects a standalone Agents session at /api/auth/me. Existing screens use /api/agents commands inherited from the Growth-facing contract; the Agents backend currently exposes scoped /v1 interfaces. A proper authenticated browser facade and own product session are still required. No fake session or browser service-secret injection has been introduced.
 
-- Authentication remains in `src/lib/rust-auth.ts` and `src/lib/rust-server-api.ts`. It expects
-  the existing Core session endpoint and cookies. Pages retain their current redirects, including
-  `/login` and `/verify-request`; those routes and a standalone account/sign-in flow are not part
-  of this app yet.
-- Browser API calls in `src/lib/server-api.ts` use same-origin proxy paths by default. Server
-  requests use `RUST_API_BASE_URL`, then `NEXT_PUBLIC_API_BASE_URL`, then the existing local
-  default `http://localhost:4000`. The standalone app does not add an API proxy or configure an
-  API origin, so Agent operations remain disconnected until a later integration task.
-- `src/lib/connections.ts` preserves the existing workspace-connection requests. It still expects
-  the current authenticated Core/API contract; account and workspace ownership are not changed
-  here.
-- `src/lib/analytics.ts` and the copied Analytics display components preserve the Agent analytics
-  screen. No Analytics service endpoint or credentials are configured by this source move.
+The dev/preview proxy points /api to the configured Agents endpoint. It does not forward to Growth by default. Shared login belongs to Labs; the Agents integration must register its own client and enforce its own memberships.
 
-These copied Growth adapters and display modules are transitional product-local copies, not a
-decision that Growth owns the Agent UI or that the products should share runtime code. Replacing
-them, configuring account/API/connection integrations, and adding standalone sign-in are later
-work. This change does not create fake auth, weaken page checks, or add placeholder API behavior.
+Inbox, knowledge, connections, usage and account-management pages are pending integration. Personal runtime deployments are a later platform capability. The public landing describes availability honestly.
 
-## Out of scope
+## Evidence
 
-This source move does not delete Growth copies, change routes or screen behavior, redesign UI,
-create a shared package, configure domains, migrate data, change production traffic, or perform
-an API/authentication cutover. Growth issue #7 owns removal of the duplicate Growth source.
+The migration passed frontend typecheck, production build and existing Studio event/reducer checks. Landing and signup navigation were inspected in the browser; the protected route reports the unavailable backend. Actual login, dashboard access, creation and model execution remain unverified.
 
-## Validation scope
-
-The CI workflow runs the app TypeScript check, the two existing Studio execution tests, and the
-Next build under the supported Node version. Run the focused tests locally with
-`pnpm --filter @kasitek/agent-platform test:studio`.
-The existing copied UI currently reports 39 ESLint errors, predominantly React-hook diagnostics,
-from the unchanged source. Lint is available locally but is not a merge gate for this source-only
-move.
+Follow the [frontend checklist](plans/agents/FRONTEND_INITIAL_IMPLEMENTATION_PLAN.md). Growth's styling is reference material; no Growth files were modified by this frontend migration.

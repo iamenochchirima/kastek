@@ -1,6 +1,13 @@
 # Agent Platform technical documentation
 
-Current service architecture and contracts:
+Current architecture and delivery:
+
+- [Platform architecture and both agent tracks](architecture/agent-platform-architecture.md)
+- [Platform implementation checklist](plans/agents/AGENT_PLATFORM_DELIVERY_PLAN.md)
+- [Initial React/Vite frontend checklist](plans/agents/FRONTEND_INITIAL_IMPLEMENTATION_PLAN.md)
+- [Filesystem personal runtime checklist](plans/agents/PERSONAL_AGENT_RUNTIME_PLAN.md)
+
+Existing hosted-runtime contracts, to verify against the standalone checkout:
 
 - [Runtime/Core host boundary](architecture/agent-runtime-host-boundary.md)
 - [AgentSpec](architecture/agent-spec.md)
@@ -21,11 +28,19 @@ Operations and recovery:
 - [Remote MCP provider operations](runbooks/remote-mcp-provider-operations.md)
 - [Temporal recovery](runbooks/temporal-recovery.md)
 
-Plans, implementation research, and the architecture audit:
+Decisions and reference material:
 
-- [Agent Platform plan index](plans/agents/README.md)
-- [Agent Platform implementation map](plans/agents/AGENT_PLATFORM_IMPLEMENTATION_PLAN.md)
-- [Architecture audit](architecture/agent-platform-architecture-audit.md)
+- [Plan index and retained source studies](plans/agents/README.md)
+- [Runtime decision](adr/0001-agent-platform-runtime.md)
+- [Durable execution decision](adr/0002-temporal-durable-execution.md)
+- [Database ownership](adr/0003-agent-platform-database.md)
+- [Threat model](THREAT_MODEL.md)
+- [Client integration status](source-boundary.md)
+- [MCP integration](mcp-integration.md)
+- [Capability catalog](generated-capabilities.md)
+
+Older rewrite roadmaps, overlapping plans and the Growth-hosted architecture audit have been removed.
+Historical code and deployment claims in retained contracts/runbooks must be verified during the baseline phase; they do not establish current production readiness.
 
 These documents describe the Agent service. Cross-product contracts that define Core behavior remain
 with the owning product and link here where needed.

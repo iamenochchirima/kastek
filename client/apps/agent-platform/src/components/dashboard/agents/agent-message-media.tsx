@@ -1,5 +1,5 @@
 import { useState } from "react";
-import Image from "next/image";
+import Image from "@/components/ui/image";
 import type { AgentMessage } from "@/lib/agent-platform";
 import { apiUrl } from "@/lib/server-api";
 

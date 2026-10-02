@@ -6,6 +6,8 @@ last_reviewed: 2026-09-01
 
 # Agents tenant isolation inventory
 
+Historical inventory. Counts and production checks below describe the recorded September baseline; recheck the current schema and runtime roles during Phase 0 before treating them as present verification.
+
 This inventory covers the public schema of the Agents PostgreSQL database. It was checked against
 the local migrated database on 2026-08-31 and the production database through the Agents API
 container. The schema contains 72 base tables. Migrations 091 through 094, 097, and 100 through 103

@@ -1,5 +1,7 @@
 # Hermes context and runtime telemetry research
 
+
+Reference only as of 2026-10-02. This pinned source study is not an implementation mandate. Use [the delivery plan](AGENT_PLATFORM_DELIVERY_PLAN.md) and [personal runtime checklist](PERSONAL_AGENT_RUNTIME_PLAN.md) for current scope.
 Status: Research complete
 Hermes source: [pinned upstream revision `9a84bee265daad14340a80d7585928cd8ea1f9eb`](https://github.com/NousResearch/hermes-agent/tree/9a84bee265daad14340a80d7585928cd8ea1f9eb)
 Hermes revision inspected: `9a84bee265daad14340a80d7585928cd8ea1f9eb`

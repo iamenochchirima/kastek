@@ -41,6 +41,6 @@ const appearanceInitScript = `
 })();
 `;
 
-export default function ThemeScript() {
-  return <script dangerouslySetInnerHTML={{ __html: appearanceInitScript }} />;
+export function bootstrapAppearance() {
+  const script = document.createElement("script"); script.textContent = appearanceInitScript; document.head.append(script); script.remove();
 }

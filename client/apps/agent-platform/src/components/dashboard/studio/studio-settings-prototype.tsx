@@ -4,8 +4,8 @@
 // capabilities without making users learn plugin or MCP terminology?
 
 import { createElement, useCallback, useEffect, useState, type FormEvent, type ReactNode } from "react";
-import Image from "next/image";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import Image from "@/components/ui/image";
+import { usePathname, useRouter, useSearchParams } from "@/lib/navigation";
 import {
   Activity,
   ArrowLeft,
@@ -403,7 +403,7 @@ export function StudioSettingsPrototype({
         {variant === "c" ? <ChecklistVariant content={content} section={section} setSection={setSection} /> : null}
       </div>
 
-      {process.env.NODE_ENV !== "production" ? <PrototypeSwitcher variant={variant} onChange={chooseVariant} /> : null}
+      {import.meta.env.DEV ? <PrototypeSwitcher variant={variant} onChange={chooseVariant} /> : null}
     </div>
   );
 }

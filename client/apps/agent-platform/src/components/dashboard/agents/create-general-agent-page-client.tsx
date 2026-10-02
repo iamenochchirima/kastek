@@ -1,9 +1,9 @@
 "use client";
 
-import Link from "next/link";
+import Link from "@/lib/link";
 import { useEffect, useRef, useState } from "react";
 import { ArrowLeft, BookOpen, Bot, Check, CheckCircle2, ChevronLeft, ChevronRight, Expand, FileText, Globe2, LoaderCircle, Upload } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/lib/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";

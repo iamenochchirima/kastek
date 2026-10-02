@@ -6,6 +6,8 @@ last_reviewed: 2026-09-29
 
 # Agent runtime host boundary
 
+This describes the existing hosted-runtime implementation. The [platform architecture](agent-platform-architecture.md) also covers the separately built filesystem personal runtime; its deployment interface is not implemented by the code described below.
+
 The Agent Platform owns agent execution. A host supplies scoped capabilities. Runtime code does
 not choose an organization, installation, credential, or host from model arguments.
 
