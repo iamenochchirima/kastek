@@ -26,6 +26,8 @@ function setup(role = "member") {
   app.post("/v1/agents", request => browserAuthContext(request));
   app.post("/v1/runs/:runId/retry", request => browserAuthContext(request));
   app.post("/v1/runs/:runId/cancel", request => browserAuthContext(request));
+  app.get("/v1/knowledge/sources", request => browserAuthContext(request));
+  app.post("/v1/knowledge/sources", request => browserAuthContext(request));
   app.get("/v1/runs/:runId/events/stream", async request => {
     session.activeOrganizationId = "another-workspace";
     await recheckBrowserRequest(request);
@@ -66,6 +68,16 @@ describe("standalone browser agent admission", () => {
       expect((await viewer.inject({ method: "POST", url, headers, payload: {} })).statusCode).toBe(403);
       expect((await app.inject({ method: "POST", url, headers: { ...headers, origin: "https://foreign.example" }, payload: {} })).statusCode).toBe(403);
     }
+  });
+  it("admits scoped knowledge reads and writes through the explicit browser aliases", async () => {
+    const { app } = setup();
+    const viewer = setup("viewer").app;
+    expect((await app.inject({ url: "/api/agents/knowledge/sources?agentId=agent-1", headers })).statusCode).toBe(200);
+    const create = await app.inject({ method: "POST", url: "/api/agents/knowledge/sources", headers, payload: { agentId: "agent-1", name: "FAQ", sourceType: "manual" } });
+    expect(create.statusCode).toBe(200);
+    expect(create.json().scopes).toContain("agents:write");
+    expect((await viewer.inject({ method: "POST", url: "/api/agents/knowledge/sources", headers, payload: { agentId: "agent-1" } })).statusCode).toBe(403);
+    expect((await app.inject({ method: "POST", url: "/api/agents/knowledge/sources", headers: { ...headers, origin: "https://foreign.example" }, payload: {} })).statusCode).toBe(403);
   });
   it("rejects foreign origins before checking memberships", async () => {
     const { app, check } = setup();

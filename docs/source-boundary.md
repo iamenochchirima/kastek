@@ -22,6 +22,12 @@ editing, playground pinning, conversations, run detail/timeline, streaming,
 retry and cancellation use the explicit `/api/agents` manifest in
 `src/http/browser-agent-routes.ts`. Browser sessions supply account and workspace
 context; no Growth Core session or service credential is required by these screens.
+The Knowledge page lists hosted agents and opens their source controls. Agent
+detail now connects source list/create/read/delete, manual text ingestion, file/URL
+ingestion, website crawl and durable-memory controls through the same scoped
+manifest. A signed-in member's manual FAQ create/list/delete path was verified in
+the browser. File/site ingestion, cross-workspace denial through these controls,
+and retrieval-backed model answers remain unverified.
 
 Retained integration source such as `src/lib/connections.ts` still describes
 Growth's `/api/connections` contract. It is not an enabled part of this slice.
@@ -42,7 +48,7 @@ Capability grants, credentials/channels, live promotion, inbox and personal runt
 controls remain later work as described below. Independent machine APIs remain
 available under their existing authentication.
 
-Account settings provide current account/workspace information and logout. Workspace creation, selection and activity reporting use the real backend. Invitations and role management remain planned. Inbox, knowledge, connections and usage pages are pending integration. Personal runtime deployments are a later platform capability.
+Account settings provide current account/workspace information and logout. Workspace creation, selection and activity reporting use the real backend. Invitations and role management remain planned. Inbox, connections and usage pages are pending integration. Knowledge source management is available per hosted agent; end-to-end retrieval-backed answers remain pending. Personal runtime deployments are a later platform capability.
 
 ## UI retention decisions
 
@@ -67,8 +73,8 @@ Follow the [frontend checklist](plans/agents/FRONTEND_INITIAL_IMPLEMENTATION_PLA
 ### Initial detail-screen availability
 
 The initial browser manifest supports agent identity updates, installation status,
-version reads/creation, hosted run history and the Studio execution path. Agent
-details now display pending states for analytics, customer conversations, knowledge,
+version reads/creation, hosted run history, the Studio execution path and knowledge
+source/memory controls. Agent details now display pending states for analytics, customer conversations,
 full workflow editing, provider-key management, tool grants, integrations, appearance,
 live deployment/rollback and external credentials/operations. Studio links provide
 the initial instructions/model workflow. Missing preference, archive/delete,
@@ -76,9 +82,9 @@ schedule and publish/retire controls are disabled or replaced with pending copy.
 These are frontend availability choices for the initial slice, not authorization
 rules. Backend permissions and independent machine APIs remain authoritative.
 
-The retained backend capabilities still need explicit scoped browser admission and
-ordinary product verification before enabling those copied sections. The unused
-detail-page schedule form was removed; backend scheduling code remains.
+The remaining retained backend capabilities still need explicit scoped browser
+admission and ordinary product verification before enabling those copied sections.
+The unused detail-page schedule form was removed; backend scheduling code remains.
 
 Copied route availability: ordinary `/agents/new` and `/agents/new/general`
 bookmarks now enter the initial Studio creation form; a draft bookmark opens its

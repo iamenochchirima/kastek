@@ -490,7 +490,6 @@ type DetailSection = "overview" | "analytics" | "activity" | "conversations" | "
 const pendingDetailSections: Partial<Record<DetailSection, string>> = {
   analytics: "Detailed analytics are not available in this app yet. Recent runs are available under Operations.",
   conversations: "Customer conversation management will be connected with the shared inbox.",
-  knowledge: "Knowledge uploads and source management are not available yet.",
   behavior: "Use Studio settings to edit instructions. The full workflow editor is not connected yet.",
   models: "Use Studio to choose a model. Saving your own provider credentials from this screen is not available yet.",
   tools: "Tool grants and connection management are not available from this screen yet.",

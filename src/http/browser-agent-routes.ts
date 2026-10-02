@@ -2,8 +2,8 @@ import type { FastifyInstance, FastifyRequest, HTTPMethods } from "fastify";
 import { admitBrowserRequest } from "./auth";
 import { requireSameOrigin, type PlatformLogin } from "./platform-login";
 
-// Explicitly expose the initial creation/playground journey. No wildcard proxy,
-// internal credential forwarding, operator routes or channel ingestion aliases.
+// Explicitly expose the initial browser workspace and agent journeys. No wildcard
+// proxy, internal credential forwarding, operator routes or channel ingestion aliases.
 export const browserAgentRoutes: [HTTPMethods, string, string][] = [
   ["GET", "/v1/agents", "/api/agents"],
   ["POST", "/v1/agents", "/api/agents"],
@@ -33,6 +33,21 @@ export const browserAgentRoutes: [HTTPMethods, string, string][] = [
   ["GET", "/v1/runs/:runId/timeline", "/api/agents/runs/:runId/timeline"],
   ["GET", "/v1/runs/:runId/memory-observatory", "/api/agents/runs/:runId/memory-observatory"],
   ["GET", "/v1/memory/revisions/:revisionId/lineage", "/api/agents/memory/revisions/:revisionId/lineage"],
+  ["GET", "/v1/memory", "/api/agents/memory"],
+  ["DELETE", "/v1/memory/:memoryId", "/api/agents/memory/:memoryId"],
+  ["POST", "/v1/memory/:memoryId/revalidate", "/api/agents/memory/:memoryId/revalidate"],
+  ["POST", "/v1/memory/:memoryId/review", "/api/agents/memory/:memoryId/review"],
+  ["POST", "/v1/knowledge/sources", "/api/agents/knowledge/sources"],
+  ["GET", "/v1/knowledge/sources", "/api/agents/knowledge/sources"],
+  ["GET", "/v1/knowledge/sources/:sourceId", "/api/agents/knowledge/sources/:sourceId"],
+  ["DELETE", "/v1/knowledge/sources/:sourceId", "/api/agents/knowledge/sources/:sourceId"],
+  ["POST", "/v1/knowledge/sources/:sourceId/ingest-text", "/api/agents/knowledge/sources/:sourceId/ingest-text"],
+  ["POST", "/v1/knowledge/sources/:sourceId/ingest-file", "/api/agents/knowledge/sources/:sourceId/ingest-file"],
+  ["POST", "/v1/knowledge/sources/:sourceId/ingest-url", "/api/agents/knowledge/sources/:sourceId/ingest-url"],
+  ["POST", "/v1/knowledge/websites/map", "/api/agents/knowledge/websites/map"],
+  ["POST", "/v1/knowledge/websites/crawl", "/api/agents/knowledge/websites/crawl"],
+  ["GET", "/v1/knowledge/websites/crawl/:sourceId", "/api/agents/knowledge/websites/crawl/:sourceId"],
+  ["DELETE", "/v1/knowledge/websites/crawl/:sourceId", "/api/agents/knowledge/websites/crawl/:sourceId"],
   ["GET", "/v1/runs/:runId/events/stream", "/api/agents/runs/:runId/events/stream"],
   ["POST", "/v1/runs/:runId/cancel", "/api/agents/runs/:runId/cancel"],
   ["POST", "/v1/runs/:runId/retry", "/api/agents/runs/:runId/retry"],

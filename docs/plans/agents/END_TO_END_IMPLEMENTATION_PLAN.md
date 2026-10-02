@@ -25,7 +25,7 @@ components. Source availability alone does not establish a working feature.
 | Login, workspace, browser admission | `src/http/platform-login.ts`, `src/http/browser-agent-routes.ts`, `src/identity/` | Local login, membership, selection and logout verified |
 | Agent creation, versions and playground | `src/http/app.ts`, `src/db/repositories/agent-deployment-repository.ts`, `client/apps/agent-platform/src/components/dashboard/studio/` | Creation, saved settings and playground version selection verified; real response pending |
 | Model and execution | `src/model/`, `src/runtime/`, `src/temporal/` | Existing runtime; current development model credential is missing |
-| Knowledge and tools | `src/knowledge/`, `src/memory/`, `src/capabilities/`, `src/integrations/catalog.ts`, `src/mcp/` | Backend source exists; relevant browser controls remain pending |
+| Knowledge and tools | `src/knowledge/`, `src/memory/`, `src/capabilities/`, `src/integrations/catalog.ts`, `src/mcp/` | Scoped knowledge controls are connected; manual source create/list/delete verified in browser. Retrieval and provider-backed answers remain pending |
 | Customer conversations and handoff | `src/db/repositories/conversation-repository.ts`, `src/db/repositories/handoff-repository.ts`, `src/actions/`, `src/events/postgres-conversation-notifications.ts` | Existing implementation to reuse; complete live inbox unverified |
 | Channel delivery | `src/channels/`, `src/discord/`, channel/deployment handlers in `src/http/app.ts` | Inspect each adapter and its provider prerequisites before enabling it |
 
@@ -64,8 +64,9 @@ rather than promise automatic recovery.
 
 ## Stage 3: Connect knowledge from setup to answers
 
-- [ ] Enable the existing source list/create/read and text/file ingestion controls through scoped Agents browser routes.
-- [ ] Connect Knowledge and agent setup to source readiness, ingestion errors, agent/source attachment and deletion. Keep conversation history, memory and knowledge distinct in the UI.
+- [x] Expose the existing source list/create/read/delete and manual text-ingestion controls through scoped Agents browser routes. A signed-in workspace member created, saw and deleted a temporary FAQ in the agent detail screen.
+- [ ] Verify file, URL and website ingestion, including processing progress and ordinary errors.
+- [ ] Connect Knowledge setup to source readiness, ingestion errors and agent/source attachment. Keep conversation history, memory and knowledge distinct in the UI.
 - [ ] Verify retrieval uses the selected agent's permitted sources and appears in recorded execution evidence.
 - [ ] Reuse the existing file/storage/index path; identify any missing storage dependency before accepting uploads. Deletion must remove access to derived retrieval data.
 - [ ] Add website ingestion only after text/file ingestion works; expose crawler/provider requirements and actual progress.

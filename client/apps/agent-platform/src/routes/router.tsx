@@ -103,7 +103,10 @@ export const router = createBrowserRouter([
       return { loader: (args: LoaderFunctionArgs) => loadPage(page.default as unknown as PageController, args), Component: LoadedScreen };
     } },
     { path: "inbox", element: <PlannedFeature title="Inbox" description="Live customer conversations, teammate replies and human handoff. The Agents-owned inbox will also connect to Growth." /> },
-    { path: "knowledge", element: <PlannedFeature title="Knowledge" description="Manage the sources your agents use to answer questions." /> },
+    { path: "knowledge", lazy: async () => {
+      const page = await import("./screens/knowledge/page");
+      return { loader: (args: LoaderFunctionArgs) => loadPage(page.default as unknown as PageController, args), Component: LoadedScreen };
+    } },
     { path: "connections", element: <PlannedFeature title="Connections" description="Connect channels, external tools and product capabilities to your agents." /> },
     { path: "usage", element: <PlannedFeature title="Usage" description="Review model usage, runtime costs and workspace budgets." /> },
     { path: "settings", Component: SettingsScreen },
