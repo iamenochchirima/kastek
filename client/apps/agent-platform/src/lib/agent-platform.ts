@@ -2372,6 +2372,14 @@ export async function streamAgentRun(
     if (chunk.done) {
       if (buffer.trim()) dataLines.push(buffer.trim());
       flush();
+      // A resumed stream can end after its terminal event was already consumed.
+      // Read the durable run instead of reconnecting forever from that cursor.
+      if (!terminal && !signal.aborted) {
+        const detail = await request<{ run: { status: string } }>(
+          `/api/agents/runs/${encodeURIComponent(runId)}`, { signal },
+        );
+        terminal = ["completed", "failed", "cancelled", "expired"].includes(detail.run.status);
+      }
       return { lastSequence, terminal };
     }
   }

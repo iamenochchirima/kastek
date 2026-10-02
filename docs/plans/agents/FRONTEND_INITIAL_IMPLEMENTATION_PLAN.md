@@ -84,15 +84,15 @@ Exit: authenticated user → create agent → send a test message → see a real
 
 Run once after the relevant changes; repeat only after failures or new edits.
 
-- [ ] Frontend typecheck and production build pass. Run focused lint for changed frontend code and resolve introduced errors; record unrelated baseline errors separately.
+- [x] Frontend typecheck and production build pass. Run focused lint for changed frontend code and resolve introduced errors; record unrelated baseline errors separately.
 - [ ] Open landing, login/signup entry, dashboard and agent routes. Verify navigation, back/forward, direct URL refresh and an unknown route.
 - [ ] Inspect the landing and shell at desktop and mobile widths; verify menu, forms, dialogs and basic keyboard focus.
 - [x] Complete real login and logout with a test account when the shared provider/backend are available. Check the signed-out dashboard redirect.
 - [ ] Create and reopen an agent, execute one real Playground message, observe its response/status and reload its history.
-- [ ] Check one normal validation error, an empty agent list and backend-unavailable feedback. Confirm unfinished features do not look operational.
+- [x] Check one normal validation error, an empty agent list and backend-unavailable feedback. Confirm unfinished features do not look operational.
 - [ ] Verify development and production API routing and a live stream/reconnect on the first working journey.
-- [ ] Adapt existing Studio reducer/event tests if their logic changed and run those focused checks. Add a small regression test only for behavior that warrants one; do not create a broad test program for the UI port.
-- [ ] Record commands, browser outcomes and external setup blockers. Mocked APIs or credentials do not establish real integration success.
+- [x] Adapt existing Studio reducer/event tests if their logic changed and run those focused checks. Add a small regression test only for behavior that warrants one; do not create a broad test program for the UI port.
+- [x] Record commands, browser outcomes and external setup blockers. Mocked APIs or credentials do not establish real integration success.
 
 ## Later delivery
 
@@ -563,3 +563,27 @@ Playground run recovery wiring, 2026-10-02:
   Backend build, frontend typing/build and focused Studio lint passed. These are
   contract/source checks; actual model execution, cancellation, reconnect and
   persisted-response history still need the real journey with model credentials.
+
+
+Run-stream completion recovery, 2026-10-02:
+
+- Reopened Studio conversations already poll their persisted messages and active
+  runs. Source inspection found a separate cursor edge case: the backend can close
+  a resumed stream with only a keep-alive when its terminal event is already behind
+  the cursor. The client previously returned terminal=false and reconnected again.
+- On stream EOF without a terminal event, the client now reads the existing run
+  endpoint using the same cookie admission and abort signal. Completed, failed,
+  cancelled and expired statuses end observation; active statuses permit reconnect.
+  A failed status read remains an error. No terminal event or response is fabricated.
+- Added a small client regression check for all terminal statuses, an active run,
+  terminal-event delivery without a redundant read and a denied/missing status read.
+  These use explicit mocked transport and prove client behavior only.
+- `pnpm --filter @kasitek/agent-platform test:studio` passed the existing event and
+  reducer checks plus completion recovery. Frontend build/typecheck and focused
+  lint of the changed client files passed. No backend changes were needed.
+- Reconciled normal-check boxes for builds/focused lint, validation/empty/unavailable
+  feedback, reducer/event checks and recorded outcomes. Validation/recovery browser
+  evidence is recorded above under Basic validation and recovery states; pending
+  feature behavior is recorded under bookmark and mobile setup checks.
+- The actual model response, real stream/reconnect and reopened persisted response
+  remain unverified. Their acceptance boxes stay open pending model credentials.

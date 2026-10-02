@@ -10,7 +10,7 @@
     "build": "tsc --noEmit && vite build",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
-    "test:studio": "tsx src/components/dashboard/studio/studio-execution-events.test.ts && tsx src/components/dashboard/studio/studio-execution-reducer.test.ts",
+    "test:studio": "tsx src/components/dashboard/studio/studio-execution-events.test.ts && tsx src/components/dashboard/studio/studio-execution-reducer.test.ts && tsx src/lib/agent-run-stream.test.ts",
     "preview": "vite preview --host 127.0.0.1"
   },
   "dependencies": {
