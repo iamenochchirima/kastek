@@ -44,7 +44,8 @@ or a machine credential embedded in JavaScript.
 - [ ] Send a message and display an actual provider response with its recorded run status and progress.
 - [x] Persist and display an actionable missing-provider-key setup error without exposing credentials. Verified with a real local Playground run while OpenRouter was unconfigured.
 - [ ] Verify cancellation, safe retry, stream disconnect/reconnect and the final persisted outcome using the existing controls.
-- [ ] Refresh and reopen both the conversation and agent detail; retain messages, selected version and visible run history.
+- [x] Refresh and reopen the existing failed Playground conversation; its prompts, terminal status, setup guidance and durable run timeline remain visible.
+- [ ] After a successful provider reply, reopen the conversation and agent detail; confirm the selected version and run history remain visible.
 - [ ] Finish the initial frontend acceptance and remove obsolete copied files only after confirming they have no retained consumers.
 
 Normal check: one real create → test → reply → reopen journey, one cancellation,
