@@ -149,22 +149,30 @@ export function injectTraceContext(headers: Headers): void {
 }
 export const isSafeCorrelationId = (value: string): boolean =>
   /^[A-Za-z0-9._:-]{1,128}$/.test(value);
-const meter = metrics.getMeter("kasitek"),
-  counter = meter.createCounter("kasitek.operation.count"),
-  errors = meter.createCounter("kasitek.operation.error.count"),
-  duration = meter.createHistogram("kasitek.operation.duration", { unit: "s" }),
-  inFlight = meter.createUpDownCounter("kasitek.operation.in_flight"),
-  retries = meter.createCounter("kasitek.operation.retry.count"),
-  queue = meter.createHistogram("kasitek.queue.age", { unit: "s" }),
-  failures = meter.createCounter("kasitek.dependency.failure.count");
+// SDK initialization occurs after this module is imported. Acquiring instruments
+// before metrics.setGlobalMeterProvider permanently selects the no-op provider.
+function createInstruments() {
+  const meter = metrics.getMeter("kasitek");
+  return {
+    counter: meter.createCounter("kasitek.operation.count"),
+    errors: meter.createCounter("kasitek.operation.error.count"),
+    duration: meter.createHistogram("kasitek.operation.duration", { unit: "s" }),
+    inFlight: meter.createUpDownCounter("kasitek.operation.in_flight"),
+    retries: meter.createCounter("kasitek.operation.retry.count"),
+    queue: meter.createHistogram("kasitek.queue.age", { unit: "s" }),
+    failures: meter.createCounter("kasitek.dependency.failure.count"),
+  };
+}
+let instruments: ReturnType<typeof createInstruments> | undefined;
+const getInstruments = () => instruments ??= createInstruments();
 export const recordRetry = (kind: string, name: string, count: number): void =>
-  retries.add(count, { kind, name });
+  getInstruments().retries.add(count, { kind, name });
 export const recordQueueAge = (name: string, ageSeconds: number): void =>
-  queue.record(ageSeconds, { queue: name });
+  getInstruments().queue.record(ageSeconds, { queue: name });
 export const recordDependencyFailure = (
   provider: string,
   operation: string,
-): void => failures.add(1, { provider, operation });
+): void => getInstruments().failures.add(1, { provider, operation });
 export async function resultSpan<T>(
   kind: string,
   name: string,
@@ -183,20 +191,20 @@ export async function resultSpan<T>(
       async (span) => {
         const started = performance.now(),
           attributes = { kind, name };
-        inFlight.add(1, attributes);
+        getInstruments().inFlight.add(1, attributes);
         try {
           return await operation();
         } catch (error) {
-          errors.add(1, attributes);
+          getInstruments().errors.add(1, attributes);
           span.setStatus({
             code: SpanStatusCode.ERROR,
             message: redactTelemetryText(error, 512),
           });
           throw error;
         } finally {
-          counter.add(1, attributes);
-          duration.record((performance.now() - started) / 1000, attributes);
-          inFlight.add(-1, attributes);
+          getInstruments().counter.add(1, attributes);
+          getInstruments().duration.record((performance.now() - started) / 1000, attributes);
+          getInstruments().inFlight.add(-1, attributes);
           span.end();
         }
       },
