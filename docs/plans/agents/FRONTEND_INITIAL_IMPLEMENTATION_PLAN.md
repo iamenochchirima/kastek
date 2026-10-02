@@ -43,7 +43,7 @@ Exit: Vite serves the landing and dashboard layouts, including direct route navi
 - [x] Within Agents, distinguish API-based agents from Personal deployments, with separate appropriate detail screens. Personal deployment functionality follows its own platform phase.
 - [x] Implement responsive sidebar/top bar, active navigation, organization context and basic account actions using existing patterns.
 - [ ] Provide consistent loading, empty, error and unavailable states. Later features must show honest availability rather than fabricated counts or working controls.
-- [ ] Preserve basic keyboard navigation, labels, focus behavior and readable mobile layouts during the port.
+- [x] Preserve basic keyboard navigation, labels, focus behavior and readable mobile layouts during the port.
 
 Exit: the shell looks and behaves consistently with the retained Growth UX while exposing only Agents product areas.
 
@@ -86,7 +86,7 @@ Run once after the relevant changes; repeat only after failures or new edits.
 
 - [x] Frontend typecheck and production build pass. Run focused lint for changed frontend code and resolve introduced errors; record unrelated baseline errors separately.
 - [x] Open landing, login/signup entry, dashboard and agent routes. Verify navigation, back/forward, direct URL refresh and an unknown route.
-- [ ] Inspect the landing and shell at desktop and mobile widths; verify menu, forms, dialogs and basic keyboard focus.
+- [x] Inspect the landing and shell at desktop and mobile widths; verify menu, forms, dialogs and basic keyboard focus.
 - [x] Complete real login and logout with a test account when the shared provider/backend are available. Check the signed-out dashboard redirect.
 - [ ] Create and reopen an agent, execute one real Playground message, observe its response/status and reload its history.
 - [x] Check one normal validation error, an empty agent list and backend-unavailable feedback. Confirm unfinished features do not look operational.
@@ -621,3 +621,22 @@ Standalone API boundary review, 2026-10-02:
 - Marked prerequisite documentation complete. Execution/output, actual cancellation,
   reconnect, saved response history and post-journey unused-source cleanup remain
   open. This review made documentation changes only; no extra tests were run.
+
+
+Mobile shell keyboard completion, 2026-10-02:
+
+- At a 390x844 viewport, opened Workspace navigation using Enter. Tabbing from
+  the last controls wrapped back to its home link rather than escaping the dialog.
+  Escape closed the menu, but initially left focus on the document.
+- Added a ref to the mobile navigation button and explicit dialog-close focus
+  restoration. Repeating Enter/Escape returned focus to Open navigation. Added
+  an accessible Account name to the header link whose visible text is hidden on
+  mobile. Existing appearance and navigation styling remain intact.
+- After dismissal, the document client and scroll widths both measured 380 within
+  the 390-pixel viewport, with no horizontal overflow. Screenshot:
+  `.artifacts/agents-mobile-shell-focus.jpg`. Restored the normal viewport.
+- Frontend typing and focused shell lint passed. No additional test suite was
+  added for this focus/label correction. Earlier recorded landing/mobile checks,
+  creation validation focus, Studio dialog focus and mobile-panel scrolling cover
+  the rest of the basic layout/form/dialog acceptance, so those boxes are checked.
+- Real model execution and response-history acceptance remain incomplete.
