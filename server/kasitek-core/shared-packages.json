@@ -1,7 +1,111 @@
 {
   "schemaVersion": 1,
-  "sourceCommit": "262c017e4ff65dff9d40c4e4dc8f8f4289a9d546",
-  "sourceContentSha256": "11833e3ec05a55ca3d7878e8c10d22a8c30b1bea145cd070a212d5a92f36234e",
+  "sourceCommit": "62b997ef411bb69322995343fcbddb1f73f17e46",
+  "sourceContentSha256": "d66daf3523b415222f6a69093ce38097a5e24cac3f961f77c95dd1d0d7203f66",
+  "node": "v24.15.0",
+  "packageManager": "pnpm@10.30.1",
+  "sourceFiles": [
+    {
+      "path": "package.json",
+      "sha256": "acab51c75e10bef937f7ab42a93bb3fe144bd2009b00c1c1b7a02da336458620"
+    },
+    {
+      "path": "packages/contracts/README.md",
+      "sha256": "a1c03d5b7b0bed7850fb4f943d8ac769f3d27b2298eac2f633956b907c767f1a"
+    },
+    {
+      "path": "packages/contracts/package.json",
+      "sha256": "68a9b4e985be53c2b657401133fe50ca5a0a4b8f8c7e2498dd937390a567f89b"
+    },
+    {
+      "path": "packages/contracts/src/index.ts",
+      "sha256": "4aafdf45a50d132a8b1f24c6c4e3019d3fe815829dc5f7783a9bda8d98c8ffea"
+    },
+    {
+      "path": "packages/contracts/tsconfig.json",
+      "sha256": "ed2409ed7e2788139da5af2dd436f521c05e1c557a6131f791785c2049ff41cc"
+    },
+    {
+      "path": "packages/server-support/README.md",
+      "sha256": "2236287967f9920a2478c77687e00c1e50dc53413285609416bf384a62b1abb3"
+    },
+    {
+      "path": "packages/server-support/package.json",
+      "sha256": "73794133b5658d61492c52946868a225b7cff104e32fe72d40acc5490666b9bd"
+    },
+    {
+      "path": "packages/server-support/scripts/pack-shared.mjs",
+      "sha256": "2696a358ea1444a0ee49f42075d58b1a851fd40629e628f85f6e39e42555c1e3"
+    },
+    {
+      "path": "packages/server-support/src/analytics-producer.ts",
+      "sha256": "55c96be0c0039cc7f48d08b29658d4867a8e192e1ff10bc34ccc0c825605271e"
+    },
+    {
+      "path": "packages/server-support/src/analytics-reporting.ts",
+      "sha256": "b63b12293d1b127d67086e62d3035290ccb6b40b9f68ee707cfdf42e9ce2d925"
+    },
+    {
+      "path": "packages/server-support/src/config.ts",
+      "sha256": "35e642ade10feb65b0fa76694a6f0e9e8dccdec4aa4e8bc379d77d803586cbef"
+    },
+    {
+      "path": "packages/server-support/src/crypto.ts",
+      "sha256": "5e782702765eb1b6d20de28adee434d991ca90a9c70358405012fb4308b6d45f"
+    },
+    {
+      "path": "packages/server-support/src/index.ts",
+      "sha256": "bd67bb6b56802d2979db2f0863b7fb1ce5467d0e9f9bcfd482880a766faf4875"
+    },
+    {
+      "path": "packages/server-support/src/json.ts",
+      "sha256": "aba7299e8b0e5394071412bc061206d62347e65b89e27d268115bf75b01f0047"
+    },
+    {
+      "path": "packages/server-support/src/outbox-sql.ts",
+      "sha256": "cf5f108e8c1111476dde76f8596312d6ed029c1a46269deb3f9926aa0124fb84"
+    },
+    {
+      "path": "packages/server-support/src/outbox.ts",
+      "sha256": "d4c669f6569d8cd6b6fcafa6ad526aa0ed30cf3d7bd4742e8a248b4eddf53b8c"
+    },
+    {
+      "path": "packages/server-support/src/publisher.ts",
+      "sha256": "cac04baae772b55956fca1ee7b8acab0c8b457708f904203293edc876cf403a2"
+    },
+    {
+      "path": "packages/server-support/src/telemetry.ts",
+      "sha256": "f12127e624bfead1855f32f826ef5d473c7f83045bb1040a68987619d81718dd"
+    },
+    {
+      "path": "packages/server-support/tests/outbox-postgres.test.mjs",
+      "sha256": "692141f2db2cc8b9f4466de2d17ad01e240b34a767a1ae87742b0c3d438664e4"
+    },
+    {
+      "path": "packages/server-support/tests/parity.test.mjs",
+      "sha256": "ed1972ac39fbbe4635b40caaa1ddb52d972d75789278b9da9862e015a48dd143"
+    },
+    {
+      "path": "packages/server-support/tests/telemetry-lazy.test.mjs",
+      "sha256": "91aac681988811a958083e86a1814822bd6649c58e3abbd0375296b2bbe95483"
+    },
+    {
+      "path": "packages/server-support/tsconfig.json",
+      "sha256": "ed2409ed7e2788139da5af2dd436f521c05e1c557a6131f791785c2049ff41cc"
+    },
+    {
+      "path": "pnpm-lock.yaml",
+      "sha256": "77e042e4efe62d73823872f8f93c9e413ca13bace05001d3361e1ba98b63ed39"
+    },
+    {
+      "path": "pnpm-workspace.yaml",
+      "sha256": "d115dc6c83ba283a7d17146ad456056f3f70b003edb8c312a52880b48b034001"
+    },
+    {
+      "path": "tsconfig.shared.json",
+      "sha256": "31bd7747a0a0baadad6ff62f1bc26020f12b52b4aa20f7541187a8b9a2954616"
+    }
+  ],
   "artifacts": [
     {
       "package": "@kasitek/contracts",
@@ -14,8 +118,8 @@
       "package": "@kasitek/server-support",
       "version": "0.1.0",
       "file": "kasitek-server-support-0.1.0.tgz",
-      "sha256": "2e83b1ff3528d483b9b2254bd15d0a4c436c9bdf78642182f5e58f8c321ca740",
-      "integrity": "sha512-TrYhD3cizeBu77pK51jHmqPv3NlNwaJecnh4ZT2l0ArkICkgbdMBfBOm/SfMEC6Xo153hBcqfD3KqUtPqsnppQ=="
+      "sha256": "1ce0a07c5cb6f5cebd92920029af1390e2e5bdaa91ed1a9d570a409b039df6df",
+      "integrity": "sha512-D5cjZgweqOY0jdKbauX4jxGhAIgyLzhh0UCjrX5krWu1k+IffyPAgUEqEDP6jCmbu+SYW5dKIZEoYuS4cKvABA=="
     }
   ]
 }

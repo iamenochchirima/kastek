@@ -1,3 +1,4 @@
+import { workerSpan } from "../observability/operations.js";
 import { setTimeout as sleep } from "node:timers/promises";
 import type { Pool } from "pg";
 import type { CoreConfig } from "../config.js";
@@ -17,11 +18,13 @@ export async function runPublicWebhooks(
   logger.info({ event: "worker.started", worker: "public_webhooks" });
   while (!signal.aborted) {
     try {
-      const processed = await processDueDeliveries(
-        pool,
-        config,
-        Number.isSafeInteger(batch) ? batch : 25,
-        signal,
+      const processed = await workerSpan("public_webhooks.process_batch", () =>
+        processDueDeliveries(
+          pool,
+          config,
+          Number.isSafeInteger(batch) ? batch : 25,
+          signal,
+        ),
       );
       if (processed)
         logger.info({

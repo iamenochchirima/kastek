@@ -313,7 +313,7 @@ packages:
     engines: {node: '>=24 <25'}
 
   '@kasitek/server-support@file:.artifacts/shared/kasitek-server-support-0.1.0.tgz':
-    resolution: {integrity: sha512-TrYhD3cizeBu77pK51jHmqPv3NlNwaJecnh4ZT2l0ArkICkgbdMBfBOm/SfMEC6Xo153hBcqfD3KqUtPqsnppQ==, tarball: file:.artifacts/shared/kasitek-server-support-0.1.0.tgz}
+    resolution: {integrity: sha512-D5cjZgweqOY0jdKbauX4jxGhAIgyLzhh0UCjrX5krWu1k+IffyPAgUEqEDP6jCmbu+SYW5dKIZEoYuS4cKvABA==, tarball: file:.artifacts/shared/kasitek-server-support-0.1.0.tgz}
     version: 0.1.0
     engines: {node: '>=24 <25'}
 

@@ -1,4 +1,5 @@
 import type { CoreContext } from "../context.js";
+import { workerSpan } from "../observability/operations.js";
 import { publishInboxEvent } from "../services/realtime.js";
 import { runWhatsappInbox } from "./whatsapp-inbox.js";
 import { runEmailInbox } from "./email-inbox.js";
@@ -101,7 +102,7 @@ export async function runWorkerGroup(
   const results = await Promise.allSettled(
     names.map(async (name) => {
       try {
-        await runners[name](controller.signal);
+        await workerSpan(name, () => runners[name](controller.signal));
       } catch (error) {
         log.error(
           {

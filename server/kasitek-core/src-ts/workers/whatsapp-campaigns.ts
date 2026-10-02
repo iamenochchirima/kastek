@@ -1,3 +1,4 @@
+import { workerSpan } from "../observability/operations.js";
 import type { Pool } from "pg";
 import type { CoreConfig } from "../config.js";
 import { setTimeout as sleep } from "node:timers/promises";
@@ -23,10 +24,14 @@ export async function runWhatsappCampaigns(
   logger.info({ event: "worker.started", worker: "whatsapp_campaigns" });
   while (!signal.aborted) {
     try {
-      const processed = await processQueuedCampaignRecipients(pool, batch, {
-        config,
-        publishEvent,
-      });
+      const processed = await workerSpan(
+        "whatsapp_campaigns.process_batch",
+        () =>
+          processQueuedCampaignRecipients(pool, batch, {
+            config,
+            publishEvent,
+          }),
+      );
       if (processed > 0)
         logger.info({
           event: "queue.item.completed",

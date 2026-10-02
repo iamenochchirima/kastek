@@ -1,8 +1,9 @@
-import type { Pool } from 'pg';
-import { setTimeout as delay } from 'node:timers/promises';
-import type { CoreConfig } from '../config.js';
-import { syncAllConnections } from '../services/email/sync.js';
-import type { HttpFetch } from '../integrations/email.js';
+import { workerSpan } from "../observability/operations.js";
+import type { Pool } from "pg";
+import { setTimeout as delay } from "node:timers/promises";
+import type { CoreConfig } from "../config.js";
+import { syncAllConnections } from "../services/email/sync.js";
+import type { HttpFetch } from "../integrations/email.js";
 interface Log {
   info(fields: Record<string, unknown>, message?: string): void;
   error(fields: Record<string, unknown>, message?: string): void;
@@ -29,7 +30,7 @@ async function sleep(milliseconds: bigint, signal?: AbortSignal) {
     try {
       await delay(Number(chunk), undefined, { signal });
     } catch (error) {
-      if ((error as Error).name === 'AbortError') return;
+      if ((error as Error).name === "AbortError") return;
       throw error;
     }
     milliseconds -= chunk;
@@ -43,8 +44,8 @@ export async function runEmailInbox(
   http: HttpFetch = fetch,
 ): Promise<void> {
   log.info(
-    { event: 'worker.started', worker: 'email_inbox' },
-    'worker started',
+    { event: "worker.started", worker: "email_inbox" },
+    "worker started",
   );
   const interval = integer(
       config.rawEnv.EMAIL_INBOX_POLL_INTERVAL_MS,
@@ -54,24 +55,26 @@ export async function runEmailInbox(
     batch = integer(config.rawEnv.EMAIL_INBOX_BATCH_SIZE, 10n);
   while (!signal?.aborted) {
     try {
-      const count = await syncAllConnections(pool, config, Number(batch), http);
+      const count = await workerSpan("email_inbox.process_batch", () =>
+        syncAllConnections(pool, config, Number(batch), http),
+      );
       if (count > 0)
         log.info(
           {
-            event: 'queue.item.completed',
-            worker: 'email_inbox',
+            event: "queue.item.completed",
+            worker: "email_inbox",
             items: count,
           },
-          'email Inbox sync batch completed',
+          "email Inbox sync batch completed",
         );
     } catch (error) {
       log.error(
         {
-          event: 'queue.item.failed',
-          worker: 'email_inbox',
-          error_type: error instanceof Error ? error.name : 'unknown',
+          event: "queue.item.failed",
+          worker: "email_inbox",
+          error_type: error instanceof Error ? error.name : "unknown",
         },
-        'email Inbox sync batch failed',
+        "email Inbox sync batch failed",
       );
     }
     await sleep(interval, signal);

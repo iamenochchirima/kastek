@@ -1,3 +1,4 @@
+import { workerSpan, recordRetry } from "../observability/operations.js";
 import { setTimeout as sleep } from "node:timers/promises";
 import type { Pool } from "pg";
 import type { CoreConfig } from "../config.js";
@@ -38,12 +39,22 @@ export async function runBillingReconciliation(
   });
   while (!signal.aborted) {
     try {
-      const result = await reconcileBilling(
-        pool,
-        provider,
-        Number.isSafeInteger(batch) ? batch : 100,
-        referralRewardConfig(config),
+      const result = await workerSpan(
+        "billing_reconciliation.process_batch",
+        () =>
+          reconcileBilling(
+            pool,
+            provider,
+            Number.isSafeInteger(batch) ? batch : 100,
+            referralRewardConfig(config),
+          ),
       );
+      if (Number(result.webhookRetries) > 0)
+        recordRetry(
+          "worker",
+          "billing_reconciliation.webhook",
+          Number(result.webhookRetries),
+        );
       if (Number(result.checked) > 0 || Number(result.subscriptionsChecked) > 0)
         logger.info({
           event: "queue.item.completed",

@@ -1,3 +1,4 @@
+import { workerSpan } from "../observability/operations.js";
 import type { Pool } from "pg";
 import {
   processDueSocialPublishJobs,
@@ -27,10 +28,12 @@ export async function runSocialPublishing(
     batch = socialWorkerInteger(env.SOCIAL_PUBLISH_BATCH_SIZE, 10n);
   while (!signal?.aborted) {
     try {
-      const count = await processDueSocialPublishJobs(pool, Number(batch), {
-        ...options,
-        log,
-      });
+      const count = await workerSpan("social_publishing.process_batch", () =>
+        processDueSocialPublishJobs(pool, Number(batch), {
+          ...options,
+          log,
+        }),
+      );
       if (count > 0)
         log.info(
           {

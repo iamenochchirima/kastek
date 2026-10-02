@@ -1,9 +1,15 @@
+import { parseSerdeValueJson } from "../../json.js";
+import { providerSpan } from "../../observability/operations.js";
+import {
+  currentCorrelationId,
+  outboundTraceHeaders,
+} from "../../observability/context.js";
 import { Agent, fetch as undiciFetch } from "undici";
 import { randomUUID } from "node:crypto";
 import type { CoreConfig } from "../../config.js";
 import { ApiError } from "../../error.js";
 import { signInternalAuth } from "../../identity/internal-delegation.js";
-import { canonicalJson, parseLosslessJson } from "@kasitek/server-support/json";
+import { canonicalJson, SerdeFloat } from "@kasitek/server-support/json";
 export interface AgentTransportOptions {
   fetch?: typeof fetch;
   correlationId?: () => string;
@@ -79,6 +85,26 @@ export class AgentPlatformTransport {
       Math.min(120000, envU32(config.rawEnv.AGENTS_API_TIMEOUT_MS, 15000)),
     );
   }
+  private observedFetch(
+    http: typeof fetch,
+    url: string,
+    init: RequestInit,
+  ): Promise<Response> {
+    return providerSpan("kasitek-agents", "http.request", () => {
+      const original =
+        init.headers instanceof Headers
+          ? Object.fromEntries(init.headers)
+          : Array.isArray(init.headers)
+            ? Object.fromEntries(init.headers)
+            : (init.headers ?? {});
+      const headers = {
+        ...outboundTraceHeaders(),
+        ...original,
+        ...this.options.traceHeaders?.(),
+      };
+      return http(url, { ...init, headers });
+    });
+  }
   protected async send(
     method: string,
     path: string,
@@ -90,7 +116,10 @@ export class AgentPlatformTransport {
     operator = false,
     stream = false,
   ): Promise<Response> {
-    const correlationId = (this.options.correlationId ?? randomUUID)(),
+    const correlationId = (
+        this.options.correlationId ??
+        (() => currentCorrelationId() ?? randomUUID())
+      )(),
       now = Math.floor((this.options.now ?? Date.now)() / 1000);
     if (now < 0)
       throw new ApiError(
@@ -116,23 +145,27 @@ export class AgentPlatformTransport {
       const http =
         this.options.fetch ??
         (stream ? (undiciFetch as unknown as typeof fetch) : fetch);
-      const response = await http(`${this.baseUrl}${path}`, {
-        method,
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "x-organization-id": organizationId,
-          "x-actor-id": actorId,
-          "x-correlation-id": correlationId,
-          ...(operator ? { "x-kasitek-operator": "true" } : {}),
-          ...extraHeaders,
-          ...this.options.traceHeaders?.(),
-        },
-        ...(body == null ? {} : { body }),
-        signal: controller.signal,
-        ...(stream && !this.options.fetch
-          ? { dispatcher: streamDispatcher(this.timeoutMs) }
-          : {}),
-      } as RequestInit);
+      const response = await this.observedFetch(
+        http,
+        `${this.baseUrl}${path}`,
+        {
+          method,
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "x-organization-id": organizationId,
+            "x-actor-id": actorId,
+            "x-correlation-id": correlationId,
+            ...(operator ? { "x-kasitek-operator": "true" } : {}),
+            ...extraHeaders,
+            ...this.options.traceHeaders?.(),
+          },
+          ...(body == null ? {} : { body }),
+          signal: controller.signal,
+          ...(stream && !this.options.fetch
+            ? { dispatcher: streamDispatcher(this.timeoutMs) }
+            : {}),
+        } as RequestInit,
+      );
       if (stream) {
         clearTimeout(timer);
         timer = undefined;
@@ -196,7 +229,7 @@ export class AgentPlatformTransport {
     if (!response.ok) throw await this.mapStatus(response);
     if (allowNoContent && response.status === 204) return null;
     try {
-      return parseLosslessJson(await response.text());
+      return parseSerdeValueJson(await response.text());
     } catch {
       this.options.log?.error(
         {
@@ -318,9 +351,14 @@ export class AgentPlatformTransport {
       { "x-kasitek-oauth-proxy": "1" },
     );
     try {
-      const value = parseLosslessJson(await response.text());
+      const value = parseSerdeValueJson(await response.text());
       if (response.ok) return value;
-      if (value !== null && typeof value === "object" && !Array.isArray(value))
+      if (
+        value !== null &&
+        typeof value === "object" &&
+        !Array.isArray(value) &&
+        !(value instanceof SerdeFloat)
+      )
         return value;
     } catch {
       if (response.ok)
@@ -365,7 +403,8 @@ export class AgentPlatformTransport {
       timer = setTimeout(() => controller.abort(), this.timeoutMs);
     timer.unref();
     try {
-      const response = await (this.options.fetch ?? fetch)(
+      const response = await this.observedFetch(
+        this.options.fetch ?? fetch,
         this.baseUrl + path,
         {
           method: "POST",
@@ -417,11 +456,12 @@ export class AgentPlatformTransport {
   async mapStatus(response: Response): Promise<ApiError> {
     let detail: Record<string, unknown> | null = null;
     try {
-      const value = parseLosslessJson(await response.text());
+      const value = parseSerdeValueJson(await response.text());
       if (
         value !== null &&
         typeof value === "object" &&
-        !Array.isArray(value)
+        !Array.isArray(value) &&
+        !(value instanceof SerdeFloat)
       ) {
         const raw = value as Record<string, unknown>;
         if (

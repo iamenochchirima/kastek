@@ -1,3 +1,4 @@
+import { workerSpan } from "../observability/operations.js";
 import type { CoreContext } from "../context.js";
 import { setTimeout as delay } from "node:timers/promises";
 import {
@@ -56,10 +57,8 @@ export async function runWhatsappInbox(
   const batch = integer(context.config.rawEnv.WHATSAPP_INBOX_BATCH_SIZE, 50n);
   while (!signal?.aborted) {
     try {
-      const processed = await processQueuedInboxMessages(
-        context,
-        Number(batch),
-        options,
+      const processed = await workerSpan("whatsapp_inbox.process_batch", () =>
+        processQueuedInboxMessages(context, Number(batch), options),
       );
       if (processed > 0)
         logger.info({

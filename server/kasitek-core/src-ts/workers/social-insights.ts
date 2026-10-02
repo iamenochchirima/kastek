@@ -1,3 +1,4 @@
+import { workerSpan } from "../observability/operations.js";
 import type { Pool } from "pg";
 import { setTimeout as delay } from "node:timers/promises";
 import {
@@ -62,10 +63,8 @@ export async function runSocialInsights(
     batch = socialWorkerInteger(env.SOCIAL_INSIGHTS_BATCH_SIZE, 25n);
   while (!signal?.aborted) {
     try {
-      const synced = await syncAllSocialPostInsights(
-        pool,
-        Number(batch),
-        options,
+      const synced = await workerSpan("social_insights.process_batch", () =>
+        syncAllSocialPostInsights(pool, Number(batch), options),
       );
       if (synced > 0)
         log.info(

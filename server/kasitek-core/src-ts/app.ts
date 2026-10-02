@@ -1,3 +1,4 @@
+import { installHttpObservability } from "./observability/http.js";
 import Fastify, { type FastifyInstance } from "fastify";
 import cookie from "@fastify/cookie";
 import cors from "@fastify/cors";
@@ -46,6 +47,7 @@ export async function buildApp(
     },
     disableRequestLogging: true,
   });
+  installHttpObservability(app);
   installErrorHandler(app);
   app.setReplySerializer(apiJson);
   // Keep Fastify's prototype-poisoning checks while retaining integer JSON tokens above 2^53.
