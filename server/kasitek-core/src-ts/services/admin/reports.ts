@@ -62,7 +62,11 @@ export async function saveReport(
   const days = input.days ?? 30;
   reportWindow(days);
   const base = input.config ?? {};
-  if (typeof base !== "object" || Array.isArray(base))
+  if (
+    typeof base !== "object" ||
+    base instanceof SerdeFloat ||
+    Array.isArray(base)
+  )
     throw bad("Report configuration must be an object");
   const config = { ...base, days, version: version(input.reportKey) };
   let serialized: string;

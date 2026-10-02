@@ -1,11 +1,8 @@
+import { parseSerdeValueJson } from "../../json.js";
 import { sourceIsConnected } from "../connections.js";
 import type { Pool } from "pg";
 import type { CoreConfig } from "../../config.js";
-import {
-  canonicalJson,
-  parseLosslessJson,
-  SerdeFloat,
-} from "@kasitek/server-support/json";
+import { canonicalJson, SerdeFloat } from "@kasitek/server-support/json";
 import { ApiError } from "../../error.js";
 import { parseOptionalDatetime } from "../social/common.js";
 import type {
@@ -109,7 +106,7 @@ export async function fetchGraphJson(
       throw new ApiError(429, "rate_limited", "Provider rate limit exceeded");
     let value: Row | undefined;
     try {
-      value = parseLosslessJson(body) as Row;
+      value = parseSerdeValueJson(body) as Row;
     } catch {}
     throw bad(
       typeof value?.error?.message === "string"
@@ -118,7 +115,7 @@ export async function fetchGraphJson(
     );
   }
   try {
-    return parseLosslessJson(body) as Row;
+    return parseSerdeValueJson(body) as Row;
   } catch {
     throw internal("Failed to decode Graph API response");
   }

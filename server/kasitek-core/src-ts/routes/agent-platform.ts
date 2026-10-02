@@ -2364,6 +2364,7 @@ export function registerAgentPlatformRoutes(
         if (
           metadata &&
           typeof metadata === "object" &&
+          !(metadata instanceof SerdeFloat) &&
           !Array.isArray(metadata)
         ) {
           const metadataId = (metadata as Record<string, unknown>)
@@ -2388,6 +2389,7 @@ export function registerAgentPlatformRoutes(
         if (
           body.metadata &&
           typeof body.metadata === "object" &&
+          !(body.metadata instanceof SerdeFloat) &&
           !Array.isArray(body.metadata)
         )
           Object.assign(body.metadata, {

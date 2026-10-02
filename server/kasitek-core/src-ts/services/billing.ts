@@ -1,3 +1,4 @@
+import { parseSerdeValueJson } from "../json.js";
 import { createId } from "@paralleldrive/cuid2";
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import type { Pool, PoolClient } from "pg";
@@ -5,7 +6,6 @@ import { transaction } from "../db.js";
 import { ApiError } from "../error.js";
 import {
   canonicalJson,
-  parseCanonicalJson,
   SerdeFloat,
   integer,
   wireInteger,
@@ -260,7 +260,10 @@ const fail = (message: string): never => {
   throw new ApiError(500, "internal_error", message);
 };
 const object = (value: unknown): Row =>
-  value && typeof value === "object" && !Array.isArray(value)
+  value &&
+  typeof value === "object" &&
+  !(value instanceof SerdeFloat) &&
+  !Array.isArray(value)
     ? (value as Row)
     : {};
 const text = (value: unknown): string | null =>
@@ -463,7 +466,7 @@ export class PaystackProvider implements BillingProvider {
     }
     let result: Row;
     try {
-      result = object(parseCanonicalJson(await response.text()));
+      result = object(parseSerdeValueJson(await response.text()));
     } catch {
       throw new ApiError(500, "internal_error", "Invalid Paystack response");
     }

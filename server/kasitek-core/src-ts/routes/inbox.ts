@@ -1,9 +1,9 @@
-import type { FastifyInstance, FastifyRequest } from 'fastify';
-import { parseLosslessJson } from '@kasitek/server-support/json';
-import type { CoreContext } from '../context.js';
-import { ApiError } from '../error.js';
-import { extractUser, resolveActiveOrgId } from '../identity/session.js';
-import * as inbox from '../services/inbox/index.js';
+import { parseSerdeValueJson } from "../json.js";
+import type { FastifyInstance, FastifyRequest } from "fastify";
+import type { CoreContext } from "../context.js";
+import { ApiError } from "../error.js";
+import { extractUser, resolveActiveOrgId } from "../identity/session.js";
+import * as inbox from "../services/inbox/index.js";
 export function registerInboxRoutes(
   app: FastifyInstance,
   context: CoreContext,
@@ -14,7 +14,7 @@ export function registerInboxRoutes(
       org = await resolveActiveOrgId(request, context, user.id);
     return { user, org };
   }
-  app.get('/api/inbox/conversations', async (request) =>
+  app.get("/api/inbox/conversations", async (request) =>
     inbox.listInboxConversations(
       context.pool,
       (await scope(request)).org,
@@ -22,7 +22,7 @@ export function registerInboxRoutes(
     ),
   );
   app.get<{ Params: { id: string } }>(
-    '/api/inbox/:id/messages',
+    "/api/inbox/:id/messages",
     async (request) =>
       inbox.listConversationMessages(
         context.pool,
@@ -32,14 +32,14 @@ export function registerInboxRoutes(
       ),
   );
   app.post<{ Params: { id: string }; Body: inbox.SendMessageInput }>(
-    '/api/inbox/:id/messages',
+    "/api/inbox/:id/messages",
     {
       schema: {
         body: {
-          type: 'object',
+          type: "object",
           properties: {
-            text: { type: ['string', 'null'] },
-            replyToMessageId: { type: ['string', 'null'] },
+            text: { type: ["string", "null"] },
+            replyToMessageId: { type: ["string", "null"] },
           },
         },
       },
@@ -61,7 +61,7 @@ export function registerInboxRoutes(
     },
   );
   app.post<{ Params: { id: string; message_id: string } }>(
-    '/api/inbox/:id/messages/:message_id/retry',
+    "/api/inbox/:id/messages/:message_id/retry",
     async (request, reply) => {
       const { user, org } = await scope(request);
       return reply
@@ -79,7 +79,7 @@ export function registerInboxRoutes(
     },
   );
   app.post<{ Params: { id: string } }>(
-    '/api/inbox/:id/read',
+    "/api/inbox/:id/read",
     async (request) => {
       const { user, org } = await scope(request);
       return inbox.markConversationRead(
@@ -92,7 +92,7 @@ export function registerInboxRoutes(
     },
   );
   app.get<{ Params: { message_id: string; attachment_id: string } }>(
-    '/api/inbox/messages/:message_id/attachments/:attachment_id',
+    "/api/inbox/messages/:message_id/attachments/:attachment_id",
     async (request, reply) => {
       const { org } = await scope(request),
         result = await inbox.downloadMessageAttachment(
@@ -103,40 +103,40 @@ export function registerInboxRoutes(
           options,
         );
       reply
-        .header('Content-Type', result.contentType)
-        .header('Content-Disposition', `inline; filename="${result.fileName}"`)
-        .header('Cache-Control', result.cacheControl);
+        .header("Content-Type", result.contentType)
+        .header("Content-Disposition", `inline; filename="${result.fileName}"`)
+        .header("Cache-Control", result.cacheControl);
       if (result.mediaSource)
-        reply.header('X-KasiTek-Media-Source', result.mediaSource);
+        reply.header("X-KasiTek-Media-Source", result.mediaSource);
       return reply.send(Buffer.from(result.bytes));
     },
   );
   app.get<{ Querystring: Record<string, string> }>(
-    '/api/webhooks/meta',
+    "/api/webhooks/meta",
     async (request) =>
       inbox.verifyMetaWebhookRequest(context.config, request.query),
   );
   void app.register(async (webhook) => {
-    webhook.removeContentTypeParser('application/json');
+    webhook.removeContentTypeParser("application/json");
     webhook.addContentTypeParser(
-      'application/json',
-      { parseAs: 'buffer' },
+      "application/json",
+      { parseAs: "buffer" },
       (_request, body, done) => done(null, body),
     );
-    webhook.post<{ Body: Buffer }>('/api/webhooks/meta', async (request) => {
-      const signature = request.headers['x-hub-signature-256'];
+    webhook.post<{ Body: Buffer }>("/api/webhooks/meta", async (request) => {
+      const signature = request.headers["x-hub-signature-256"];
       inbox.verifyMetaWebhookSignature(
         context.config,
-        typeof signature === 'string' ? signature : undefined,
+        typeof signature === "string" ? signature : undefined,
         request.body,
       );
       let payload: unknown;
       try {
-        payload = parseLosslessJson(
-          new TextDecoder('utf-8', { fatal: true }).decode(request.body),
+        payload = parseSerdeValueJson(
+          new TextDecoder("utf-8", { fatal: true }).decode(request.body),
         );
       } catch {
-        throw new ApiError(400, 'bad_request', 'Invalid Meta webhook payload');
+        throw new ApiError(400, "bad_request", "Invalid Meta webhook payload");
       }
       await inbox.processMetaWebhookPayload(context.pool, payload, options);
       return { success: true };

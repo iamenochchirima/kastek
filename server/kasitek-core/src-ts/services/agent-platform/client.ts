@@ -1,3 +1,4 @@
+import { SerdeFloat } from "@kasitek/server-support/json";
 import { ApiError } from "../../error.js";
 import { AgentPlatformTransport } from "./transport.js";
 /** Explicit source-owned adapters preserve endpoint, scope and body contracts. */
@@ -2300,7 +2301,12 @@ export class AgentPlatformClient extends AgentPlatformTransport {
     body: unknown,
     key: string,
   ): Promise<unknown> {
-    if (body !== null && typeof body === "object" && !Array.isArray(body))
+    if (
+      body !== null &&
+      typeof body === "object" &&
+      !(body instanceof SerdeFloat) &&
+      !Array.isArray(body)
+    )
       body = { ...body, idempotencyKey: key };
     return this.requestJson(
       "POST",

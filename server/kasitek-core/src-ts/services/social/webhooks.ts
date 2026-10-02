@@ -1,7 +1,8 @@
+import { parseSerdeValueJson } from "../../json.js";
 import { createHmac, createHash, timingSafeEqual } from "node:crypto";
 import { createId } from "@paralleldrive/cuid2";
 import type { Pool } from "pg";
-import { canonicalJson, parseLosslessJson } from "@kasitek/server-support/json";
+import { canonicalJson } from "@kasitek/server-support/json";
 import { ApiError } from "../../error.js";
 import { bad, internal } from "./common.js";
 type Env = Record<string, string | undefined>;
@@ -64,7 +65,9 @@ export function parseTiktokWebhookEnvelope(
 ): Record<string, unknown> {
   let payload: unknown;
   try {
-    payload = parseLosslessJson(body.toString("utf8"));
+    payload = parseSerdeValueJson(
+      new TextDecoder("utf-8", { fatal: true }).decode(body),
+    );
   } catch {
     throw bad("Invalid TikTok webhook payload");
   }

@@ -1,3 +1,4 @@
+import { parseSerdeValueJson } from "../../json.js";
 import type { Pool } from "pg";
 import { createId } from "@paralleldrive/cuid2";
 import { transaction } from "../../db.js";
@@ -8,7 +9,7 @@ import {
   recordMeterUsage,
 } from "../billing.js";
 import { decryptSocialSecret } from "../../integrations/crypto.js";
-import { parseLosslessJson, wireInteger } from "@kasitek/server-support/json";
+import { wireInteger } from "@kasitek/server-support/json";
 import type {
   Row,
   WhatsappCampaignCreateRequest,
@@ -619,7 +620,7 @@ export async function sendMarketingTemplate(
   }
   let raw: Row | null = null;
   try {
-    raw = parseLosslessJson(await response.text()) as Row;
+    raw = parseSerdeValueJson(await response.text()) as Row;
   } catch {}
   if (!response.ok)
     throw bad(

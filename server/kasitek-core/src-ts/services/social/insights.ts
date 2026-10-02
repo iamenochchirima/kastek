@@ -2,6 +2,7 @@ import type { Pool } from "pg";
 import { createId } from "@paralleldrive/cuid2";
 import {
   canonicalJson,
+  SerdeFloat,
   wireInteger,
   integer,
 } from "@kasitek/server-support/json";
@@ -71,7 +72,7 @@ interface Metric {
   windowEnd: Date | null;
   previousValue: number | bigint | null;
   absoluteChange: number | bigint | null;
-  percentageChange: number | null;
+  percentageChange: SerdeFloat | null;
   history: {
     value: number | bigint | null;
     availability: string;
@@ -217,7 +218,9 @@ function buildPostInsights(
       percentageChange:
         difference === null || integer(previousValue!) === 0n
           ? null
-          : (Number(difference) / Number(integer(previousValue!))) * 100,
+          : new SerdeFloat(
+              (Number(difference) / Number(integer(previousValue!))) * 100,
+            ),
       history: items.map((item) => ({
         value: item.value === null ? null : wireInteger(item.value),
         availability: item.availability,
@@ -449,8 +452,12 @@ export function numericValue(value: unknown): bigint | null {
     const parsed = BigInt(value);
     return parsed >= -(1n << 63n) && parsed < 1n << 63n ? parsed : null;
   }
-  if (value && typeof value === "object" && !Array.isArray(value)) {
-    if ("__serde_float" in value) return null;
+  if (
+    value &&
+    typeof value === "object" &&
+    !(value instanceof SerdeFloat) &&
+    !Array.isArray(value)
+  ) {
     let total = 0n;
     for (const item of Object.values(value)) {
       const current = numericValue(item);

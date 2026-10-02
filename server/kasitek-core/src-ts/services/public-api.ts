@@ -1,3 +1,4 @@
+import { parseSerdeValueJson } from "../json.js";
 import { createId } from "@paralleldrive/cuid2";
 import { randomBytes, randomUUID, createHash, createHmac } from "node:crypto";
 import type { Pool, PoolClient } from "pg";
@@ -11,7 +12,7 @@ import { ApiError } from "../error.js";
 import { transaction } from "../db.js";
 import {
   canonicalJson,
-  parseCanonicalJson,
+  SerdeFloat,
   wireInteger,
 } from "@kasitek/server-support/json";
 type Row = Record<string, unknown>;
@@ -100,7 +101,8 @@ const missingKey = (): never => {
 const unsigned = (value: string | undefined, fallback: number): number =>
   value !== undefined &&
   /^\+?\d+$/.test(value) &&
-  Number.isSafeInteger(Number(value)) && Number(value)<=4294967295
+  Number.isSafeInteger(Number(value)) &&
+  Number(value) <= 4294967295
     ? Number(value)
     : fallback;
 export const publicRateLimit = (config: CoreConfig): number =>
@@ -380,8 +382,13 @@ export async function loadInstallationCapabilities(
   if (!response.ok) {
     let detail: Row = {};
     try {
-      const parsed = parseCanonicalJson(await response.text());
-      if (parsed && typeof parsed === "object" && !Array.isArray(parsed))
+      const parsed = parseSerdeValueJson(await response.text());
+      if (
+        parsed &&
+        typeof parsed === "object" &&
+        !(parsed instanceof SerdeFloat) &&
+        !Array.isArray(parsed)
+      )
         detail = parsed as Row;
     } catch {}
     const message =
@@ -428,7 +435,7 @@ export async function loadInstallationCapabilities(
     );
   }
   try {
-    return parseCanonicalJson(
+    return parseSerdeValueJson(
       await response.text(),
     ) as InstallationCapabilities;
   } catch {

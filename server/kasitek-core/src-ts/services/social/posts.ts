@@ -1,6 +1,10 @@
 import type { Pool, PoolClient } from "pg";
 import { createId } from "@paralleldrive/cuid2";
-import { canonicalJson, wireInteger } from "@kasitek/server-support/json";
+import {
+  canonicalJson,
+  wireInteger,
+  SerdeFloat,
+} from "@kasitek/server-support/json";
 import { transaction } from "../../db.js";
 import { epochMicros } from "../../analytics/facts.js";
 import { SQL } from "./posts-sql.js";
@@ -286,7 +290,11 @@ export async function createSocialPostIdempotent(
   let metadata = request.metadata ?? null;
   if (key) {
     metadata = metadata ?? {};
-    if (typeof metadata !== "object" || Array.isArray(metadata))
+    if (
+      typeof metadata !== "object" ||
+      metadata instanceof SerdeFloat ||
+      Array.isArray(metadata)
+    )
       throw bad("Content metadata must be a JSON object");
     metadata = { ...(metadata as object), _kasitek_agent_idempotency_key: key };
   }

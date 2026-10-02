@@ -1,13 +1,14 @@
-import type { CoreConfig } from '../../../config.js';
-import type { Pool } from 'pg';
-import { ApiError } from '../../../error.js';
-import { apiJson } from '../../../json.js';
-import { publishWhatsappEvent } from '../../realtime.js';
+import { SerdeFloat } from "@kasitek/server-support/json";
+import type { CoreConfig } from "../../../config.js";
+import type { Pool } from "pg";
+import { ApiError } from "../../../error.js";
+import { apiJson } from "../../../json.js";
+import { publishWhatsappEvent } from "../../realtime.js";
 import {
   sendPushNotificationToUser,
   type PushNotificationPayload,
-} from '../../notifications.js';
-import type { NotificationLogger } from '../../notifications.js';
+} from "../../notifications.js";
+import type { NotificationLogger } from "../../notifications.js";
 export type Row = Record<string, unknown>;
 export interface CallRow extends Row {
   id: string;
@@ -36,43 +37,46 @@ export interface CallsOptions {
   logger?: NotificationLogger;
 }
 export const object = (value: unknown): Row =>
-  value !== null && typeof value === 'object' && !Array.isArray(value)
+  value !== null &&
+  typeof value === "object" &&
+  !(value instanceof SerdeFloat) &&
+  !Array.isArray(value)
     ? (value as Row)
     : {};
 export const text = (value: unknown): string | null =>
-  typeof value === 'string' ? value : null;
+  typeof value === "string" ? value : null;
 export function bad(message: string): never {
-  throw new ApiError(400, 'bad_request', message);
+  throw new ApiError(400, "bad_request", message);
 }
 export function missing(message: string): never {
-  throw new ApiError(404, 'not_found', message);
+  throw new ApiError(404, "not_found", message);
 }
 export function internal(message: string): never {
-  throw new ApiError(500, 'internal_error', message);
+  throw new ApiError(500, "internal_error", message);
 }
 export const json = apiJson;
 const callFields: Record<string, string> = {
-  id: 'id',
-  user_id: 'user_id',
-  connectionId: 'connection_id',
-  conversationId: 'conversation_id',
-  direction: 'direction',
-  status: 'status',
-  waCallId: 'wa_call_id',
-  fromPhone: 'from_phone',
-  toPhone: 'to_phone',
-  agentLabel: 'agent_label',
-  startedAt: 'started_at',
-  answeredAt: 'answered_at',
-  endedAt: 'ended_at',
-  durationSeconds: 'duration_seconds',
-  errorCode: 'error_code',
-  errorMessage: 'error_message',
-  rawPayload: 'raw_payload',
-  conversationCustomerName: 'conversation_customer_name',
-  connectionLabel: 'connection_label',
-  createdAt: 'created_at',
-  updatedAt: 'updated_at',
+  id: "id",
+  user_id: "user_id",
+  connectionId: "connection_id",
+  conversationId: "conversation_id",
+  direction: "direction",
+  status: "status",
+  waCallId: "wa_call_id",
+  fromPhone: "from_phone",
+  toPhone: "to_phone",
+  agentLabel: "agent_label",
+  startedAt: "started_at",
+  answeredAt: "answered_at",
+  endedAt: "ended_at",
+  durationSeconds: "duration_seconds",
+  errorCode: "error_code",
+  errorMessage: "error_message",
+  rawPayload: "raw_payload",
+  conversationCustomerName: "conversation_customer_name",
+  connectionLabel: "connection_label",
+  createdAt: "created_at",
+  updatedAt: "updated_at",
 };
 export const callView = (row: Row): Row =>
   Object.fromEntries(
@@ -105,10 +109,10 @@ export async function publish(
   } catch {
     options.logger?.warn(
       {
-        event: 'operation.failed',
-        operation: 'whatsapp_call.realtime_publish',
+        event: "operation.failed",
+        operation: "whatsapp_call.realtime_publish",
       },
-      'WhatsApp call realtime event publish failed',
+      "WhatsApp call realtime event publish failed",
     );
   }
 }
@@ -133,12 +137,12 @@ export async function push(
   } catch {
     options.logger?.warn(
       {
-        event: 'operation.failed',
-        operation: 'push_notification.send',
-        provider: 'whatsapp',
+        event: "operation.failed",
+        operation: "push_notification.send",
+        provider: "whatsapp",
         user_id: user,
       },
-      'push notification for incoming WhatsApp call failed',
+      "push notification for incoming WhatsApp call failed",
     );
   }
 }

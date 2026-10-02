@@ -1,3 +1,4 @@
+import { parseSerdeValueJson } from "../json.js";
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import type { CoreContext } from "../context.js";
 import { extractUser, resolveActiveOrgId } from "../identity/session.js";
@@ -9,13 +10,14 @@ import {
   referralRewardConfig,
 } from "../services/referrals.js";
 import { ApiError } from "../error.js";
-import { parseCanonicalJson } from "@kasitek/server-support/json";
 export function paystackProvider(
   context: CoreContext,
 ): billing.PaystackProvider {
   const env = context.config.env;
-  const live = (env.PAYSTACK_MODE?.trim() ?? 'test').toLowerCase() === 'live';
-  const secret = (live ? env.PAYSTACK_LIVE_SECRET_KEY : env.PAYSTACK_TEST_SECRET_KEY) ?? env.PAYSTACK_SECRET_KEY;
+  const live = (env.PAYSTACK_MODE?.trim() ?? "test").toLowerCase() === "live";
+  const secret =
+    (live ? env.PAYSTACK_LIVE_SECRET_KEY : env.PAYSTACK_TEST_SECRET_KEY) ??
+    env.PAYSTACK_SECRET_KEY;
   if (!secret?.trim())
     throw new ApiError(500, "internal_error", "Paystack is not configured");
   return new billing.PaystackProvider(
@@ -177,7 +179,7 @@ export function registerBillingRoutes(
         throw new ApiError(401, "unauthorized", "Unauthorized");
       let value: unknown;
       try {
-        value = parseCanonicalJson(request.body.toString("utf8"));
+        value = parseSerdeValueJson(request.body.toString("utf8"));
       } catch {
         throw new ApiError(
           400,

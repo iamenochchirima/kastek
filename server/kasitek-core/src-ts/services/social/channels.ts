@@ -1,3 +1,4 @@
+import { SerdeFloat } from "@kasitek/server-support/json";
 import type { Pool } from "pg";
 import { createId } from "@paralleldrive/cuid2";
 import { SQL } from "./channels-sql.js";
@@ -48,12 +49,21 @@ export function mergeChannelMetadataWithCapabilities(
   const capabilities = platformCapabilities(platform);
   return metadata !== null &&
     metadata !== undefined &&
-    !(typeof metadata === "object" && !Array.isArray(metadata))
+    !(
+      typeof metadata === "object" &&
+      !(metadata instanceof SerdeFloat) &&
+      !Array.isArray(metadata)
+    )
     ? { value: metadata, capabilities }
     : { ...((metadata as Record<string, unknown>) ?? {}), capabilities };
 }
 export function sanitizePublicChannelMetadata(metadata: unknown): unknown {
-  if (metadata && typeof metadata === "object" && !Array.isArray(metadata)) {
+  if (
+    metadata &&
+    typeof metadata === "object" &&
+    !(metadata instanceof SerdeFloat) &&
+    !Array.isArray(metadata)
+  ) {
     const copy = { ...metadata };
     for (const key of [
       "scope",

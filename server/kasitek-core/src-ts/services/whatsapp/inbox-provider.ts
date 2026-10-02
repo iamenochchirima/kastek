@@ -1,4 +1,5 @@
-import { canonicalJson, parseLosslessJson } from "@kasitek/server-support/json";
+import { parseSerdeValueJson } from "../../json.js";
+import { canonicalJson } from "@kasitek/server-support/json";
 import {
   bad,
   internal,
@@ -27,7 +28,7 @@ async function request(
 }
 async function decode(response: Response): Promise<Row | null> {
   try {
-    return parseLosslessJson(await response.text()) as Row | null;
+    return parseSerdeValueJson(await response.text()) as Row | null;
   } catch {
     return null;
   }

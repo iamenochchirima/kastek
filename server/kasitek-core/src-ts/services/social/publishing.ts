@@ -1,3 +1,5 @@
+import { SerdeFloat } from "@kasitek/server-support/json";
+import { parseSerdeValueJson } from "../../json.js";
 import type { Pool } from "pg";
 import { canonicalJson } from "@kasitek/server-support/json";
 import { transaction } from "../../db.js";
@@ -402,7 +404,11 @@ export async function executeSocialPublishJob(
           options,
         );
         const raw = job.post_metadata ?? {};
-        if (typeof raw !== "object" || Array.isArray(raw))
+        if (
+          typeof raw !== "object" ||
+          raw instanceof SerdeFloat ||
+          Array.isArray(raw)
+        )
           throw bad("TikTok post metadata must be an object");
         const metadata = { ...raw };
         if (batchApprovalGrantsTiktokConsent(job.job_metadata))
@@ -662,7 +668,6 @@ import {
   isAuthorizationError,
 } from "../../integrations/connection-permissions.js";
 import { createId } from "@paralleldrive/cuid2";
-import { parseCanonicalJson } from "@kasitek/server-support/json";
 import { refreshActiveBatches } from "../../capabilities/content-batch.js";
 export interface ProviderDeletionResult {
   platform: string;
@@ -1012,7 +1017,7 @@ async function processTiktokWebhookEvent(
   let content: Record<string, unknown> | null = null;
   if (typeof event.payload.content === "string") {
     try {
-      content = parseCanonicalJson(event.payload.content) as Record<
+      content = parseSerdeValueJson(event.payload.content) as Record<
         string,
         unknown
       > | null;

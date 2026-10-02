@@ -1,4 +1,4 @@
-import { parseCanonicalJson } from "@kasitek/server-support/json";
+import { parseSerdeValueJson } from "../../json.js";
 import type { CoreConfig } from "../../config.js";
 import { decryptSocialSecret } from "../../integrations/crypto.js";
 import { ApiError } from "../../error.js";
@@ -30,7 +30,7 @@ export async function providerJson(
   const body = await response.text();
   let parsed: Record<string, any> | null;
   try {
-    parsed = parseCanonicalJson(body) as Record<string, any>;
+    parsed = parseSerdeValueJson(body) as Record<string, any>;
   } catch {
     parsed = null;
   }
@@ -456,7 +456,7 @@ export async function publishPostToLinkedin(
   let id = response.headers.get("x-restli-id");
   if (!image && !id) {
     try {
-      const parsed = parseCanonicalJson(body) as Record<string, any>;
+      const parsed = parseSerdeValueJson(body) as Record<string, any>;
       if (typeof parsed.id === "string") id = parsed.id;
     } catch {}
   }

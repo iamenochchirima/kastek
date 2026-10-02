@@ -1,7 +1,7 @@
+import { parseSerdeValueJson } from "../json.js";
 import type { FastifyInstance } from "fastify";
 import type { CoreContext } from "../context.js";
 import { ApiError } from "../error.js";
-import { parseLosslessJson } from "@kasitek/server-support/json";
 import { verifyMetaWebhookSignature } from "../services/inbox/meta-provider.js";
 import {
   processWebhookPayload,
@@ -58,7 +58,7 @@ export async function registerWhatsappWebhookRoutes(
       );
       let payload: unknown;
       try {
-        payload = parseLosslessJson(
+        payload = parseSerdeValueJson(
           new TextDecoder("utf-8", { fatal: true }).decode(raw),
         );
       } catch {
