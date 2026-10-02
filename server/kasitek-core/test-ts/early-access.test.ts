@@ -2,10 +2,16 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID, createHash } from 'node:crypto';
 import pg from 'pg';
+import { createServer } from 'node:http';
+import { readConfig } from '../src-ts/config.js';
+import { buildApp } from '../src-ts/app.js';
+import { registerEarlyAccessRoutes } from '../src-ts/routes/early-access.js';
 import { installPgTimestampParsers } from '../src-ts/db.js';
 import { getApplication, rejectApplication, recordSubmission, packageParameters,
   betaPackageSnapshot, selectedCapabilities, transitionAllowed, boundedText,
-  signupInvitationPreview, markInvitationDelivery, releaseActivationClaim } from '../src-ts/services/early-access.js';
+  signupInvitationPreview, markInvitationDelivery, releaseActivationClaim,
+  approveApplication, activateInvitation, resendInvitation, revokeApplication, restoreApplication,
+  batchApprove, statusForOrg, listApplications } from '../src-ts/services/early-access.js';
 
 test('early-access package validation refuses invalid allocations and preserves lifecycle reversals', () => {
   assert.equal(transitionAllowed('new', 'active'), false);
@@ -75,6 +81,115 @@ test('early-access rejection records one transition, retains microsecond project
       await assert.rejects(rejectApplication(pool, 'application', 'operator', { reason: 'Invalid' }), /Cannot reject.*active/);
       await assert.rejects(getApplication(pool, 'missing'), /application not found/);
     } finally {
+      await pool.end();
+      await admin.query(`DROP SCHEMA "${schema}" CASCADE`);
+      await admin.end();
+    }
+  });
+
+test('isolated early-access approval, activation, retries, revocation and expiry preserve credits and access',
+  { skip: !process.env.CORE_EARLY_ACCESS_TEST_DATABASE_URL }, async () => {
+    installPgTimestampParsers();
+    const url = process.env.CORE_EARLY_ACCESS_TEST_DATABASE_URL!;
+    const schema = `early_activation_test_${randomUUID().replaceAll('-', '')}`;
+    const admin = new pg.Pool({ connectionString: url });
+    await admin.query(`CREATE SCHEMA "${schema}"`);
+    const pool = new pg.Pool({ connectionString: url, options: `-c search_path=${schema} -c timezone=UTC` });
+    const messages: { To: { Email: string }[]; Text: string }[] = [];
+    let failMail = false;
+    const server = createServer((request, response) => {
+      const bytes: Buffer[] = [];
+      request.on('data', (chunk: Buffer) => bytes.push(chunk));
+      request.on('end', () => {
+        messages.push(JSON.parse(Buffer.concat(bytes).toString()));
+        response.writeHead(failMail ? 503 : 200, { 'content-type': 'application/json' });
+        response.end('{}');
+      });
+    });
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    const address = server.address() as { port: number };
+    const core = { pool, config: readConfig({ DATABASE_URL: url, LOG_LEVEL: 'silent',
+      LOCAL_MAILPIT_URL: `http://127.0.0.1:${address.port}` }) };
+    const app = await buildApp(core, [registerEarlyAccessRoutes]);
+    try {
+      // Clone schema definitions only. No production rows or foreign keys are copied.
+      const enumNames = ['EntitlementSource', 'OrgRole', 'NotificationScopeType', 'NotificationSeverity',
+        'NotificationRecipientType', 'NotificationChannel', 'NotificationStatus'];
+      for (const name of enumNames) {
+        const labels = (await admin.query(`SELECT enumlabel FROM pg_enum JOIN pg_type ON pg_type.oid=enumtypid
+          JOIN pg_namespace ON pg_namespace.oid=typnamespace WHERE pg_namespace.nspname='public' AND typname=$1 ORDER BY enumsortorder`, [name])).rows;
+        await pool.query(`CREATE TYPE "${name}" AS ENUM (${labels.map((row) => "'" + String(row.enumlabel).replaceAll("'", "''") + "'").join(',')})`);
+      }
+      for (const name of ['User', 'Organization', 'OrganizationMember', 'ReferralCode', 'analytics_outbox',
+        'CreditAccount', 'CreditGrant', 'CreditLedgerEntry', 'CreditReservation', 'CreditUsageEvent', 'CreditAdminOperation',
+        'OrganizationEntitlementGrant', 'ProductWaitlistEntry', 'EarlyAccessInvitation', 'ProductWaitlistEvent',
+        'AdminUser', 'NotificationEvent', 'Notification']) {
+        await pool.query(`CREATE TABLE "${name}" (LIKE public."${name}" INCLUDING ALL)`);
+      }
+      const enumColumns = (await admin.query(`SELECT table_name,column_name,udt_name FROM information_schema.columns
+        WHERE table_schema=$1 AND udt_schema='public' AND udt_name=ANY($2::text[])`, [schema, enumNames])).rows;
+      for (const column of enumColumns) {
+        await pool.query(`ALTER TABLE "${column.table_name}" ALTER COLUMN "${column.column_name}" DROP DEFAULT;
+          ALTER TABLE "${column.table_name}" ALTER COLUMN "${column.column_name}" TYPE "${column.udt_name}"
+          USING "${column.column_name}"::text::"${column.udt_name}"`);
+      }
+      await pool.query(`INSERT INTO "User"(id,name,email,"createdAt","updatedAt") VALUES
+        ('owner','Owner','Owner@example.test',NOW(),NOW()),('wrong','Wrong','wrong@example.test',NOW(),NOW());
+        INSERT INTO "AdminUser"(id,name,email,password,role,"createdAt","updatedAt")
+          VALUES('operator','Operator','operator@example.test','synthetic','admin',NOW(),NOW());
+        INSERT INTO "ProductWaitlistEntry"(id,"contactPerson",email,products,"createdAt","updatedAt")
+          VALUES('application','Owner','owner@example.test','{}',NOW(),NOW())`);
+      const headers = { cookie: 'kasitek_admin_session=operator' };
+      const unauthorized = await app.inject({ url: '/api/admin/early-access/application' });
+      assert.equal(unauthorized.statusCode, 401);
+      await pool.query(`UPDATE "AdminUser" SET role='support' WHERE id='operator'`);
+      assert.equal((await app.inject({ url: '/api/admin/early-access/application', headers })).statusCode, 403);
+      await pool.query(`UPDATE "AdminUser" SET role='admin' WHERE id='operator'`);
+      const approval = await app.inject({ method: 'POST', url: '/api/admin/early-access/application/approve', headers, payload: {} });
+      assert.equal(approval.statusCode, 200, approval.body);
+      const approved = approval.json().application;
+      assert.equal(approved.status, 'invited');
+      assert.equal(approved.invitationDeliveryStatus, 'sent');
+      assert.equal(messages.length, 1);
+      assert.equal(messages[0]!.To[0]!.Email, 'owner@example.test');
+      const token = messages[0]!.Text.match(/\/early-access\/([A-Za-z0-9_-]+)/)![1]!;
+      assert.ok(!JSON.stringify(approved).includes(token));
+      assert.equal((await app.inject({ url: `/api/early-access/invitations/${token}` })).statusCode, 200);
+      assert.equal((await app.inject({ url: '/api/admin/early-access?limit=9223372036854775808', headers })).statusCode, 400);
+      await approveApplication(core, 'application', 'operator', {});
+      assert.equal(messages.length, 1);
+      await assert.rejects(activateInvitation(core, token, 'wrong', { workspaceName: 'Wrong' }), /approved email address/);
+      const [first, repeated] = await Promise.all([
+        activateInvitation(core, token, 'owner', { workspaceName: 'Early Workspace' }),
+        activateInvitation(core, token, 'owner', { workspaceName: 'Must Not Create Another' }),
+      ]);
+      assert.equal(first.status, 'active');
+      assert.equal(first.organizationId, repeated.organizationId);
+      assert.equal((await pool.query('SELECT COUNT(*) FROM "Organization"')).rows[0].count, '1');
+      assert.equal((await pool.query('SELECT COUNT(*) FROM "OrganizationEntitlementGrant"')).rows[0].count, '5');
+      assert.equal((await pool.query('SELECT SUM(amount) AS amount FROM "CreditGrant"')).rows[0].amount, '1000');
+      assert.equal((await statusForOrg(pool, String(first.organizationId)))?.status, 'active');
+      await assert.rejects(resendInvitation(core, 'application', 'operator'), /Only approved or invited/);
+      await revokeApplication(pool, 'application', 'operator', 'Withdraw access');
+      assert.equal((await pool.query('SELECT balance FROM "CreditAccount"')).rows[0].balance, '0');
+      const revoked = await getApplication(pool, 'application');
+      assert.equal(revoked.application.status, 'revoked');
+      assert.equal((await pool.query('SELECT COUNT(*) FROM "Notification"')).rows[0].count, '1');
+      failMail = true;
+      const restored = await restoreApplication(core, 'application', 'operator', 'Retry access');
+      assert.equal(restored.status, 'approved');
+      assert.equal(restored.invitationDeliveryStatus, 'failed');
+      failMail = false;
+      await resendInvitation(core, 'application', 'operator');
+      assert.equal((await getApplication(pool, 'application')).application.status, 'invited');
+      await pool.query(`UPDATE "ProductWaitlistEntry" SET "earlyAccessEndsAt"=NOW()-INTERVAL '1 day' WHERE id='application'`);
+      assert.equal((await listApplications(pool, { status: 'expired' }))[0]?.status, 'expired');
+      const batch = await batchApprove(core, 'operator', { applicationIds: ['application', 'missing'] });
+      assert.equal(batch.alreadyProcessed, 1);
+      assert.equal(batch.failed, 1);
+    } finally {
+      await app.close();
+      await new Promise<void>((resolve) => server.close(() => resolve()));
       await pool.end();
       await admin.query(`DROP SCHEMA "${schema}" CASCADE`);
       await admin.end();
