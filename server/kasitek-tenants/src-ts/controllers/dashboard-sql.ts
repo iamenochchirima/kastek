@@ -1,0 +1,15 @@
+/** Exact queries from the source controller. */
+export const SQL = {
+  get_summary: [
+    "\n        SELECT\n            (SELECT COUNT(*) FROM tenant_clients WHERE workspace_id = $1 AND status = 'active') AS total_clients,\n            (SELECT COUNT(*) FROM workspace_agents WHERE workspace_id = $1 AND status = 'active') AS active_agents,\n            (SELECT COUNT(*) FROM conversations WHERE workspace_id = $1) AS total_conversations,\n            (SELECT COUNT(*) FROM tenant_leads WHERE workspace_id = $1) AS total_leads,\n            (\n                SELECT COALESCE(SUM(quantity), 0)::bigint\n                FROM workspace_usage_events\n                WHERE workspace_id = $1\n                  AND event_type = 'request'\n                  AND created_at >= date_trunc('month', NOW())\n            ) AS requests_this_month\n        ",
+  ],
+  get_activity: [
+    "\n        SELECT id, title, description, timestamp\n        FROM (\n            SELECT\n                tc.id AS id,\n                'Client added' AS title,\n                'Added client ' || tc.name AS description,\n                tc.created_at AS timestamp\n            FROM tenant_clients tc\n            WHERE tc.workspace_id = $1\n\n            UNION ALL\n\n            SELECT\n                i.id AS id,\n                'Client invite sent' AS title,\n                'Sent invite to ' || i.email AS description,\n                i.created_at AS timestamp\n            FROM tenant_client_invites i\n            WHERE i.workspace_id = $1\n\n            UNION ALL\n\n            SELECT\n                l.id AS id,\n                'Lead added' AS title,\n                l.name || ' for ' || COALESCE(l.company, c.name) AS description,\n                l.created_at AS timestamp\n            FROM tenant_leads l\n            JOIN tenant_clients c ON c.id = l.tenant_client_id\n            WHERE l.workspace_id = $1\n\n            UNION ALL\n\n            SELECT\n                c.id AS id,\n                'Conversation updated' AS title,\n                COALESCE(c.customer_name, c.customer_identifier) || ' on ' || c.channel AS description,\n                c.last_message_at AS timestamp\n            FROM conversations c\n            WHERE c.workspace_id = $1\n\n            UNION ALL\n\n            SELECT\n                a.id AS id,\n                'Agent updated' AS title,\n                a.name || ' is ' || a.status AS description,\n                a.updated_at AS timestamp\n            FROM workspace_agents a\n            WHERE a.workspace_id = $1\n        ) activity\n        ORDER BY timestamp DESC\n        LIMIT 12\n        ",
+  ],
+  list_services: [
+    "\n        SELECT COUNT(*)\n        FROM workspace_agents\n        WHERE workspace_id = $1 AND status = 'active'\n        ",
+    "\n        SELECT COUNT(*)\n        FROM tenant_clients\n        WHERE workspace_id = $1 AND status = 'active'\n        ",
+    "\n        SELECT COUNT(*)\n        FROM conversations\n        WHERE workspace_id = $1\n        ",
+    "\n        SELECT COUNT(*)\n        FROM tenant_leads\n        WHERE workspace_id = $1\n        ",
+  ],
+} as const;

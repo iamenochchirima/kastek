@@ -9,3 +9,7 @@
 **/*.tsbuildinfo
 *.log
 .DS_Store
+
+server/kasitek-tenants/node_modules/
+server/kasitek-tenants/dist/
+server/kasitek-tenants/.artifacts/

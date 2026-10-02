@@ -1,0 +1,17 @@
+import type {RouteRegistrar} from './app.js';
+import {registerAdminRoutes} from './controllers/admin.js';
+import {registerAdminInvitesRoutes} from './controllers/admin-invites.js';
+import {registerAgentsRoutes} from './controllers/agents.js';
+import {registerAnalyticsRoutes} from './controllers/analytics.js';
+import {registerAuthRoutes} from './controllers/auth.js';
+import {registerClientAuthRoutes} from './controllers/client-auth.js';
+import {registerClientPortalRoutes} from './controllers/client-portal.js';
+import {registerClientsRoutes} from './controllers/clients.js';
+import {registerConversationsRoutes} from './controllers/conversations.js';
+import {registerDashboardRoutes} from './controllers/dashboard.js';
+import {registerEmailSettingsRoutes} from './controllers/email-settings.js';
+import {registerLeadsRoutes} from './controllers/leads.js';
+import {registerSessionRoutes} from './controllers/session.js';
+import {registerUsageRoutes} from './controllers/usage.js';
+import {registerWorkspaceRoutes} from './controllers/workspace.js';
+export const routes:RouteRegistrar[]=[registerAdminRoutes,registerAdminInvitesRoutes,registerAgentsRoutes,registerAnalyticsRoutes,registerAuthRoutes,registerClientAuthRoutes,registerClientPortalRoutes,registerClientsRoutes,registerConversationsRoutes,registerDashboardRoutes,registerEmailSettingsRoutes,registerLeadsRoutes,registerSessionRoutes,registerUsageRoutes,registerWorkspaceRoutes];
