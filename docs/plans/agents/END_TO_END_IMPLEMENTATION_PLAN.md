@@ -38,7 +38,8 @@ or a machine credential embedded in JavaScript.
 ## Stage 1: Finish the real Playground journey
 
 - [x] Select OpenRouter for local model calls. The owner will configure the key in local backend secrets; never put keys in chat, frontend bundles or Git.
-- [ ] Start the API, database, client, Temporal server and worker using the existing documented setup. Confirm queue/namespace and billing mode; production credit enforcement stays intact.
+- [x] Verify the local API/database and Temporal server/worker by processing a persisted Playground run. Local namespace is `default` and queue is `kasitek-agents-initial-ui`.
+- [x] Confirm local `CREDIT_BILLING_MODE=disabled`, the documented local skip-settlement mode. No production billing configuration or enforcement code changed.
 - [ ] Create a fresh agent through the UI, choose its model/instructions and pin the saved version to Playground.
 - [ ] Send a message and display an actual provider response with its recorded run status and progress.
 - [x] Persist and display an actionable missing-provider-key setup error without exposing credentials. Verified with a real local Playground run while OpenRouter was unconfigured.
