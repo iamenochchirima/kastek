@@ -29,6 +29,7 @@ type AgentDeploymentLifecycleProps = {
   onVersionsChange?: (versions: AgentVersion[]) => void;
   onStatusChange?: (status: AgentDeploymentStatus | null) => void;
   compact?: boolean;
+  readOnly?: boolean;
 };
 
 function deploymentLabel(status: AgentDeploymentStatus | null, loading: boolean): string {
@@ -59,6 +60,7 @@ export function AgentDeploymentLifecycle({
   onVersionsChange,
   onStatusChange,
   compact = false,
+  readOnly = false,
 }: AgentDeploymentLifecycleProps) {
   const [status, setStatus] = useState<AgentDeploymentStatus | null>(null);
   const [loading, setLoading] = useState(true);
@@ -202,6 +204,13 @@ export function AgentDeploymentLifecycle({
       setBusy(null);
     }
   };
+
+  if (readOnly) {
+    return <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground" aria-live="polite">
+      <span>{loading ? "Checking deployments…" : status ? `Playground ${versionLabel(status.playground.version)} · Live ${versionLabel(status.live.version)}` : "Deployment status unavailable"}</span>
+      <Button type="button" variant="outline" size="sm" disabled title="Live deployment actions are not connected in this initial frontend">Deployment pending</Button>
+    </div>;
+  }
 
   const candidateDiffers = Boolean(status && selectedVersion && (
     selectedVersion.id !== status.live.version?.versionId

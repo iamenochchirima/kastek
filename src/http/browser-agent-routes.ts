@@ -9,6 +9,7 @@ export const browserAgentRoutes: [HTTPMethods, string, string][] = [
   ["POST", "/v1/agents", "/api/agents"],
   ["POST", "/v1/studio/agents", "/api/agents/studio"],
   ["PATCH", "/v1/agents/:agentId", "/api/agents/:agentId"],
+  ["GET", "/v1/agents/:agentId/deployment-status", "/api/agents/:agentId/deployment-status"],
   ["POST", "/v1/agents/:agentId/playground/ensure", "/api/agents/:agentId/playground/ensure"],
   ["GET", "/v1/agents/:agentId/versions", "/api/agents/:agentId/versions"],
   ["POST", "/v1/agents/:agentId/versions", "/api/agents/:agentId/versions"],

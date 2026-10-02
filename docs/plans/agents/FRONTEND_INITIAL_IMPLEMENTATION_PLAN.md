@@ -371,3 +371,21 @@ Playground setup and version labels, 2026-10-02:
   `/api/agents/:agentId/deployment-status` without a browser alias. Its failed
   request can show an incorrect Deployed control. Deployment integration remains
   incomplete and must be reconciled rather than inferred from saved versions.
+
+Studio deployment-status follow-up, 2026-10-02:
+
+- Connected the read-only deployment-status browser alias to the existing handler,
+  which requires agent read scope and looks up the agent within the authenticated
+  organization. Browser session admission remains shared with the explicit route
+  manifest; deployment mutation endpoints were not exposed.
+- Studio now displays actual playground/live version assignments from that status
+  response. Its copied deployment actions are explicitly pending rather than
+  showing Deployed after a failed status request. The full deployment lifecycle
+  still requires integration; this read-only mode is an interim frontend state.
+- Reloading Booking Assistant showed Playground v1 and Live v1 from the backend,
+  with no request-error notifications. Its independent readiness remained Blocked
+  because the runtime model credential is absent. Version assignment does not
+  prove execution readiness. Screenshot:
+  `.artifacts/agents-studio-deployment-status.jpg`.
+- Backend/frontend builds, focused lint and the five existing browser-admission
+  tests passed. Those admission tests do not establish complete deployment behavior.
