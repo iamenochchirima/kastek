@@ -16,4 +16,6 @@ The native comparison API uses the existing ignored `.env` and database, while R
 
 `pnpm test` runs focused checks. PostgreSQL tests run only when their explicit test database environment variables are set; each creates and removes its own schema. They must use a schema-only search path to prevent falling through to live tables. The private Keycloak integration probe and its account fixture remain outside Git in `.audit/`.
 
+The private Agents workspace reporting service is ported in `src-ts/services/workspace-reporting.ts`. It retains organization-scoped aggregate queries, distinct contact-list membership counts and exact integer JSON serialization. Its internal HTTP route is still pending; this does not replace the browser workspace summary. Set `CORE_WORKSPACE_TEST_DATABASE_URL` to run its isolated PostgreSQL check.
+
 Local package tarballs are ignored; the manifest and lockfile pin their source and artifact checksums. Authenticated private registry delivery is still pending and is required before production cutover. No tokens belong in this repository.
