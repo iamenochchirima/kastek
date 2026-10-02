@@ -44,7 +44,8 @@ or a machine credential embedded in JavaScript.
 - [ ] Create a fresh agent through the UI, choose its model/instructions and pin the saved version to Playground.
 - [ ] Send a message and display an actual provider response with its recorded run status and progress.
 - [x] Persist and display an actionable missing-provider-key setup error without exposing credentials. Verified with a real local Playground run while OpenRouter was unconfigured.
-- [ ] Verify cancellation, safe retry, stream disconnect/reconnect and the final persisted outcome using the existing controls.
+- [x] Verify the client reads durable run status after an event stream ends and recognizes terminal completion without inventing an event. Focused `agent-run-stream.test.ts` passed.
+- [ ] Verify cancellation, safe retry, stream disconnect/reconnect and the final persisted outcome through the existing Playground controls.
 - [x] Refresh and reopen the existing failed Playground conversation; its prompts, terminal status, setup guidance and durable run timeline remain visible.
 - [ ] After a successful provider reply, reopen the conversation and agent detail; confirm the selected version and run history remain visible.
 - [ ] Finish the initial frontend acceptance and remove obsolete copied files only after confirming they have no retained consumers.
