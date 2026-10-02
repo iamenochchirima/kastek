@@ -20,4 +20,6 @@ The private Agents workspace reporting service is ported in `src-ts/services/wor
 
 Connections includes the workspace projection, status/access routes, provider permission inventory, email OAuth state/credential helpers and social account persistence. Provider authorization callbacks and publishing remain in progress. The port fixes the original email projection's unquoted `healthStatus` reference to match the database column. Set `CORE_CONNECTIONS_TEST_DATABASE_URL` to run its isolated PostgreSQL check.
 
+Early-access lifecycle helpers are being ported in `src-ts/services/early-access.ts`. Package validation, application/event reads, rejection history, invitation expiry/preview, delivery bookkeeping and activation-claim cleanup have focused coverage. Approval, activation, entitlement/credit coordination and HTTP registration are still pending. Set `CORE_EARLY_ACCESS_TEST_DATABASE_URL` to run its isolated PostgreSQL check.
+
 Local package tarballs are ignored; the manifest and lockfile pin their source and artifact checksums. Authenticated private registry delivery is still pending and is required before production cutover. No tokens belong in this repository.
