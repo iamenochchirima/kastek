@@ -1,15 +1,11 @@
 "use client";
 
-// Prototype question: which settings workspace best exposes an agent's useful
-// capabilities without making users learn plugin or MCP terminology?
-
 import { createElement, useCallback, useEffect, useState, type FormEvent, type ReactNode } from "react";
 import Image from "@/components/ui/image";
-import { usePathname, useRouter, useSearchParams } from "@/lib/navigation";
+import { useSearchParams } from "@/lib/navigation";
 import {
   Activity,
   ArrowLeft,
-  ArrowRight,
   Bot,
   Check,
   CircleHelp,
@@ -93,7 +89,6 @@ import { cn } from "@/lib/utils";
 import { getPlatformBrandColor, getPlatformBrandIcon } from "@/lib/platform-icons";
 
 type SettingsSection = "overview" | "behavior" | "capabilities" | "memory" | "gateways" | "safety" | "runtime";
-type PrototypeVariant = "a" | "b" | "c";
 type ModelSelection = Pick<AgentModel, "provider" | "model">;
 
 export type StudioBehaviorDraft = {
@@ -228,12 +223,6 @@ const sections: Array<{ id: SettingsSection; label: string; description: string 
   { id: "runtime", label: "Runtime", description: "Context, budgets, and limits" },
 ];
 
-const variants: Array<{ id: PrototypeVariant; label: string }> = [
-  { id: "a", label: "Sidebar settings" },
-  { id: "b", label: "Capability center" },
-  { id: "c", label: "Setup checklist" },
-];
-
 function formatTokens(value: number | undefined) {
   if (!value || !Number.isFinite(value)) return "Not reported";
   return new Intl.NumberFormat(undefined, { notation: "compact", maximumFractionDigits: 1 }).format(value);
@@ -268,7 +257,7 @@ function googleOAuthCallbackMessage(error: string): string {
   }
 }
 
-export function StudioSettingsPrototype({
+export function StudioSettings({
   agent,
   version,
   installationId,
@@ -295,8 +284,6 @@ export function StudioSettingsPrototype({
   setModelSelection: (value: ModelSelection | null) => void;
   onClose: () => void;
 }) {
-  const router = useRouter();
-  const pathname = usePathname();
   const searchParams = useSearchParams();
   const [section, setSection] = useState<SettingsSection>("overview");
   const [capabilityDraft, setCapabilityDraft] = useState<StudioCapabilityDraft>(() => capabilityDraftFromVersion(version));
@@ -304,36 +291,12 @@ export function StudioSettingsPrototype({
   const [memoryDraft, setMemoryDraft] = useState<StudioMemoryDraft>(() => memoryDraftFromVersion(version));
   const [capabilitySaving, setCapabilitySaving] = useState(false);
   const [capabilitySaveError, setCapabilitySaveError] = useState<string | null>(null);
-  const requestedVariant = searchParams.get("studioVariant");
-  const variant: PrototypeVariant = requestedVariant === "b" || requestedVariant === "c" ? requestedVariant : "a";
   const oauthError = searchParams.get("status") === "error" ? searchParams.get("error") : null;
   const oauthFeedback = oauthError ? googleOAuthCallbackMessage(oauthError) : null;
 
   useEffect(() => {
     if (oauthFeedback) toast.error(oauthFeedback);
   }, [oauthFeedback]);
-
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      const target = event.target as HTMLElement | null;
-      if (target?.matches("input, textarea, [contenteditable='true']")) return;
-      if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
-      event.preventDefault();
-      const current = variants.findIndex((item) => item.id === variant);
-      const next = variants[(current + (event.key === "ArrowRight" ? 1 : -1) + variants.length) % variants.length].id;
-      const params = new URLSearchParams(searchParams.toString());
-      params.set("studioVariant", next);
-      router.replace(`${pathname}?${params.toString()}`, { scroll: false });
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [pathname, router, searchParams, variant]);
-
-  const chooseVariant = (next: PrototypeVariant) => {
-    const params = new URLSearchParams(searchParams.toString());
-    params.set("studioVariant", next);
-    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
-  };
 
   const availableModels = modelCatalog?.models ?? [];
   const pickerModels = modelSelection && !availableModels.some((item) => item.provider === modelSelection.provider && item.model === modelSelection.model)
@@ -392,32 +355,21 @@ export function StudioSettingsPrototype({
       <header className="flex shrink-0 items-center justify-between gap-4 border-b border-border px-5 py-4 sm:px-7">
         <div className="flex min-w-0 items-center gap-3">
           <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary"><SlidersHorizontal className="size-4" /></div>
-          <div className="min-w-0"><p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Agent settings</p><h2 className="mt-1 truncate text-base font-semibold text-foreground">{agent.name}</h2></div>
+          <div className="min-w-0"><p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Agent settings</p><h2 id="configuration-title" className="mt-1 truncate text-base font-semibold text-foreground">{agent.name}</h2></div>
         </div>
         <div className="flex items-center gap-2"><span className="hidden items-center gap-1.5 text-[11px] text-muted-foreground sm:inline-flex"><span className="size-1.5 rounded-full bg-amber-500" />Draft changes</span><button type="button" aria-label="Close settings" onClick={onClose} className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"><X className="size-4" /></button></div>
       </header>
 
       <div className="min-h-0 flex-1 overflow-hidden">
-        {variant === "a" ? <SidebarVariant content={content} section={section} setSection={setSection} /> : null}
-        {variant === "b" ? <CapabilityCenterVariant content={content} section={section} setSection={setSection} /> : null}
-        {variant === "c" ? <ChecklistVariant content={content} section={section} setSection={setSection} /> : null}
+        <SettingsLayout content={content} section={section} setSection={setSection} />
       </div>
 
-      {import.meta.env.DEV ? <PrototypeSwitcher variant={variant} onChange={chooseVariant} /> : null}
     </div>
   );
 }
 
-function SidebarVariant({ content, section, setSection }: { content: ReactNode; section: SettingsSection; setSection: (value: SettingsSection) => void }) {
-  return <div className="flex h-full min-h-0"><SettingsNavigation section={section} setSection={setSection} /><main className="min-w-0 flex-1 overflow-y-auto bg-background/40">{content}</main></div>;
-}
-
-function CapabilityCenterVariant({ content, section, setSection }: { content: ReactNode; section: SettingsSection; setSection: (value: SettingsSection) => void }) {
-  return <div className="flex h-full min-h-0 flex-col"><div className="shrink-0 overflow-x-auto border-b border-border bg-card px-5 py-3 sm:px-7"><div className="flex min-w-max items-center gap-1">{sections.map((item) => <button key={item.id} type="button" onClick={() => setSection(item.id)} className={cn("rounded-lg px-3 py-2 text-xs font-medium transition-colors", section === item.id ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-muted hover:text-foreground")}>{item.label}</button>)}</div></div><main className="min-h-0 flex-1 overflow-y-auto bg-background/40">{content}</main></div>;
-}
-
-function ChecklistVariant({ content, section, setSection }: { content: ReactNode; section: SettingsSection; setSection: (value: SettingsSection) => void }) {
-  return <div className="grid h-full min-h-0 lg:grid-cols-[minmax(260px,0.32fr)_minmax(0,0.68fr)]"><aside className="overflow-y-auto border-b border-border bg-card p-5 lg:border-b-0 lg:border-r sm:p-7"><p className="text-xs font-semibold text-foreground">Setup readiness</p><p className="mt-1 text-xs leading-5 text-muted-foreground">Review the agent before running it in Playground.</p><div className="mt-5 space-y-2">{sections.map((item, index) => { const active = item.id === section; const complete = index < 2; return <button key={item.id} type="button" onClick={() => setSection(item.id)} className={cn("flex w-full items-start gap-3 rounded-xl border p-3 text-left transition-colors", active ? "border-primary/40 bg-primary/5" : "border-border hover:bg-muted/60")}><span className={cn("mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full border text-[10px]", complete ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300" : active ? "border-primary/40 text-primary" : "border-border text-muted-foreground")}>{complete ? <Check className="size-3" /> : index + 1}</span><span className="min-w-0"><span className="block text-xs font-medium text-foreground">{item.label}</span><span className="mt-0.5 block text-[11px] leading-4 text-muted-foreground">{item.description}</span></span></button>; })}</div></aside><main className="min-w-0 overflow-y-auto bg-background/40">{content}</main></div>;
+function SettingsLayout({ content, section, setSection }: { content: ReactNode; section: SettingsSection; setSection: (value: SettingsSection) => void }) {
+  return <div className="flex h-full min-h-0"><SettingsNavigation section={section} setSection={setSection} /><main className="min-w-0 flex-1 overflow-y-auto bg-background/40"><div className="border-b border-border p-4 sm:hidden"><label htmlFor="studio-settings-section" className="text-xs font-medium">Settings section</label><select id="studio-settings-section" className="mt-2 h-9 w-full rounded-md border border-border bg-background px-2 text-sm" value={section} onChange={event => setSection(event.target.value as SettingsSection)}>{sections.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}</select></div>{content}</main></div>;
 }
 
 function SettingsNavigation({ section, setSection }: { section: SettingsSection; setSection: (value: SettingsSection) => void }) {
@@ -1139,11 +1091,4 @@ function InfoTile({ label, value, icon }: { label: string; value: string; icon: 
 
 function SettingNote({ title, detail }: { title: string; detail: string }) {
   return <div className="flex gap-3 rounded-2xl border border-primary/20 bg-primary/5 p-4"><CircleHelp className="mt-0.5 size-4 shrink-0 text-primary" /><div><p className="text-xs font-medium text-foreground">{title}</p><p className="mt-1 text-xs leading-5 text-muted-foreground">{detail}</p></div></div>;
-}
-
-function PrototypeSwitcher({ variant, onChange }: { variant: PrototypeVariant; onChange: (value: PrototypeVariant) => void }) {
-  const index = variants.findIndex((item) => item.id === variant);
-  const previous = variants[(index - 1 + variants.length) % variants.length];
-  const next = variants[(index + 1) % variants.length];
-  return <div className="fixed bottom-4 left-1/2 z-[70] flex -translate-x-1/2 items-center gap-2 rounded-full border border-primary/30 bg-slate-950 px-2 py-1.5 text-white shadow-2xl"><button type="button" aria-label={`Previous prototype: ${previous.label}`} onClick={() => onChange(previous.id)} className="rounded-full p-1.5 hover:bg-white/10"><ArrowLeft className="size-3.5" /></button><span className="px-2 text-[10px] font-medium">Prototype {variant.toUpperCase()} · {variants[index].label}</span><button type="button" aria-label={`Next prototype: ${next.label}`} onClick={() => onChange(next.id)} className="rounded-full p-1.5 hover:bg-white/10"><ArrowRight className="size-3.5" /></button></div>;
 }

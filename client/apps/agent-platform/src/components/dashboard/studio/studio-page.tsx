@@ -74,7 +74,7 @@ import { AgentChatMessageList } from "@/components/dashboard/agents/agent-chat-m
 import { AgentChatRunStatus } from "@/components/dashboard/agents/agent-chat-run-status";
 import { AgentChatSurface } from "@/components/dashboard/agents/agent-chat-surface";
 import { AgentDeploymentLifecycle } from "@/components/dashboard/agents/agent-deployment-lifecycle";
-import { StudioSettingsPrototype, type StudioSettingsDraft } from "@/components/dashboard/studio/studio-settings-prototype";
+import { StudioSettings, type StudioSettingsDraft } from "@/components/dashboard/studio/studio-settings";
 import { StudioSystemCanvas, type StudioGraphNode } from "@/components/dashboard/studio/studio-system-canvas";
 import { projectStudioObservatory } from "@/components/dashboard/studio/studio-observatory-projection";
 import { executionEventFromStream, hasExecutionSequenceGap } from "@/components/dashboard/studio/studio-execution-events";
@@ -502,6 +502,7 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
   const selectedVersion = versions.find((version) => version.id === selectedVersionId) ?? versions[0] ?? null;
   const playgroundReady = agent.installation_settings?.environment === "playground";
   const canRun = Boolean(agent.installation_id && playgroundReady);
+  const executionReady = canRun && installationReadiness?.ready === true;
   const activeModelSelection = conversationModelSelection ?? versionModelSelection;
   const pickerModels = useMemo<AgentModel[]>(() => {
     const available = modelCatalog?.models ?? [];
@@ -876,6 +877,10 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
       return;
     }
     const message = input.trim();
+    if (!executionReady) {
+      showError(installationReadiness?.blockers[0]?.detail ?? "Execution setup is not ready yet.");
+      return;
+    }
     if ((!message && !audioFile) || running || conversationLoading || modelChangePending) return;
     setRunning(true);
     setNotice(null);
@@ -1222,12 +1227,13 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
         <div className="grid h-full min-h-0 flex-1 overflow-hidden rounded-2xl border border-border bg-card xl:grid-cols-[minmax(330px,0.34fr)_minmax(0,0.66fr)]">
           <section className="flex min-h-[540px] min-w-0 flex-col border-b border-border xl:min-h-0 xl:border-b-0 xl:border-r">
             <AgentChatSurface
-              header={<div className="flex shrink-0 items-center justify-between gap-3 border-b border-border px-4 py-3"><div><SectionEyebrow>Conversation</SectionEyebrow><h1 className="mt-1 text-sm font-semibold text-foreground">{agent.name}</h1></div><span className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground"><MessageCircle className="size-3.5" />{conversationId ? "Ready" : conversationLoading ? "Loading" : "New"}</span></div>}
+              header={<div className="flex shrink-0 items-center justify-between gap-3 border-b border-border px-4 py-3"><div><SectionEyebrow>Conversation</SectionEyebrow><h1 className="mt-1 text-sm font-semibold text-foreground">{agent.name}</h1></div><span className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground"><MessageCircle className="size-3.5" />{conversationId ? "Saved conversation" : conversationLoading ? "Loading" : "New"}</span></div>}
               runtime={{ telemetry, model: selectedModelEntry, detailsOpen: telemetryDetailsOpen, onToggleDetails: () => setTelemetryDetailsOpen((current) => !current) }}
               contentClassName="space-y-3 px-4 py-5"
               autoScrollKey={`${messages.length}:${running ? "running" : "idle"}`}
               statusContent={
                 <>
+                  {!running && !executionReady ? <div role="status" className="mx-4 mb-3 rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-amber-700 dark:text-amber-300"><p className="font-medium">{effectiveConfigLoading ? "Checking execution setup" : installationReadiness ? "Execution setup required" : "Execution setup unavailable"}</p>{installationReadiness?.blockers.map(blocker => <p key={blocker.code} className="mt-1">{blocker.detail}</p>)}</div> : null}
                   {approvalGroup?.status === "pending" && observedRunId ? <div className="mx-4 mb-3 shrink-0 rounded-lg border border-status-attention/40 bg-status-attention-soft/40 px-3 py-3 text-xs" role="status" aria-live="polite"><div className="flex items-start justify-between gap-3"><div><p className="font-semibold text-foreground">Approval required</p><p className="mt-1 text-muted-foreground">Review {approvalGroup.operations.length} proposed actions.</p></div><span className="shrink-0 rounded-full border border-status-attention/40 px-2 py-0.5 text-[10px] font-medium text-status-attention">Pending</span></div><div className="mt-3"><AgentApprovalGroupActions runId={observedRunId} group={approvalGroup} onDecided={(decision) => { setApprovalGroup((current) => current ? { ...current, status: decision, decision } : current); setNotice(`Approval ${decision}`); }} /></div></div> : null}
                   <AgentChatRunStatus runId={lastRunId} progress={runProgress} events={trace.slice(-5).map((node) => ({ event: node.event, label: node.label }))} running={running} />
                   {notice ? <div className="mx-4 mb-3 flex shrink-0 items-center gap-2 rounded-lg border border-emerald-500/20 bg-emerald-500/5 px-3 py-2 text-xs text-emerald-700 dark:text-emerald-300"><Check className="size-3.5" />{notice}</div> : null}
@@ -1241,7 +1247,7 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
                 models={pickerModels}
                 onModelChange={(model, provider) => void changeModel(model, provider)}
                 modelDisabled={modelCatalogLoading || !pickerModels.length || !conversationId || modelChangePending}
-                disabled={!canRun || conversationLoading || modelChangePending}
+                disabled={!executionReady || conversationLoading || modelChangePending}
                 sending={running}
                 onStop={() => void cancelRun()}
                 onAudioReady={(file) => void runAgent(file)}
@@ -1255,13 +1261,13 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
                 messages={messages}
                 loading={conversationLoading}
                 onUiInteraction={submitUiInteraction}
-                emptyState={<div className="flex min-h-48 flex-col items-center justify-center px-5 text-center"><MessageCircle className="size-5 text-muted-foreground" /><p className="mt-3 text-sm font-medium text-foreground">Start a conversation</p><p className="mt-1 text-xs text-muted-foreground">Send a message to run this agent.</p></div>}
+                emptyState={<div className="flex min-h-48 flex-col items-center justify-center px-5 text-center"><MessageCircle className="size-5 text-muted-foreground" /><p className="mt-3 text-sm font-medium text-foreground">Start a conversation</p><p className="mt-1 text-xs text-muted-foreground">{executionReady ? "Send a message to run this agent." : "Complete execution setup to test this agent."}</p></div>}
               />
             </AgentChatSurface>
           </section>
 
           <section className="flex min-h-[620px] min-w-0 flex-col xl:min-h-0">
-            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-3"><div><SectionEyebrow>Execution observatory</SectionEyebrow><h1 className="mt-1 text-sm font-semibold text-foreground">System map</h1></div><div className="flex flex-wrap items-center justify-end gap-2"><span className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground"><CircleDot className={cn("size-3", running ? "animate-pulse text-primary" : "text-muted-foreground")} />{running ? "Live execution" : trace.length ? "Execution observed" : effectiveConfigLoading ? "Loading config" : effectiveConfigError ? "Config unavailable" : "Ready"}</span></div></div>
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-3"><div><SectionEyebrow>Execution observatory</SectionEyebrow><h1 className="mt-1 text-sm font-semibold text-foreground">System map</h1></div><div className="flex flex-wrap items-center justify-end gap-2"><span className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground"><CircleDot className={cn("size-3", running ? "animate-pulse text-primary" : "text-muted-foreground")} />{running ? "Live execution" : trace.length ? "Execution observed" : effectiveConfigLoading ? "Loading config" : effectiveConfigError ? "Config unavailable" : "Configuration loaded"}</span></div></div>
             <div className="relative min-h-[560px] min-w-0 flex-1 overflow-auto bg-[radial-gradient(circle_at_50%_45%,color-mix(in_srgb,var(--brand)_7%,transparent),transparent_58%)] xl:min-h-0">
               <StudioSystemCanvas nodes={visibleGraphNodes} edges={visibleGraphEdges} selectedNodeId={selectedNodeId} onSelect={setSelectedNodeId} running={running} traceCount={trace.length} storageKey={`kasitek:studio-layout:${agent.id}:${selectedVersionId ?? "default"}`} />
               {selectedGraphNode ? <div className="absolute bottom-4 left-4 right-4 z-10 max-h-72 overflow-auto rounded-xl border border-border bg-card/95 shadow-xl backdrop-blur"><button type="button" aria-label="Close node details" onClick={() => setSelectedNodeId(null)} className="absolute right-3 top-3 z-10 rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"><X className="size-4" /></button><StudioGraphInspector node={selectedGraphNode} telemetry={telemetry} memory={memoryObservatory} lineage={memoryLineage} approvalGroup={approvalGroup} canApprove={canApprove} runId={observedRunId} onApprovalDecided={(decision) => { setApprovalGroup((current) => current ? { ...current, status: decision, decision } : current); setNotice(`Approval ${decision}`); }} onConfigure={() => setConfigurationOpen(true)} /></div> : null}
@@ -1270,7 +1276,7 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
           </section>
         </div>
       </div>
-      {configurationOpen ? <div className="fixed inset-0 z-50" role="presentation"><button type="button" aria-label="Close settings" className="absolute inset-0 bg-black/50" onClick={() => setConfigurationOpen(false)} /><aside role="dialog" aria-modal="true" aria-labelledby="configuration-title" className="absolute inset-3 overflow-hidden rounded-2xl border border-border bg-card shadow-2xl sm:inset-6 lg:inset-10"><StudioSettingsPrototype key={selectedVersion?.id ?? "new-version"} agent={agent} version={selectedVersion} installationId={agent.installation_id ?? null} instructions={instructions} setInstructions={setInstructions} onSave={saveDraft} saving={saving} modelCatalog={modelCatalog} modelCatalogLoading={modelCatalogLoading} modelSelection={versionModelSelection} setModelSelection={setVersionModelSelection} onClose={() => setConfigurationOpen(false)} /></aside></div> : null}
+      {configurationOpen ? <div className="fixed inset-0 z-50" role="presentation"><button type="button" aria-label="Close settings" className="absolute inset-0 bg-black/50" onClick={() => setConfigurationOpen(false)} /><aside role="dialog" aria-modal="true" aria-labelledby="configuration-title" className="absolute inset-3 overflow-hidden rounded-2xl border border-border bg-card shadow-2xl sm:inset-6 lg:inset-10"><StudioSettings key={selectedVersion?.id ?? "new-version"} agent={agent} version={selectedVersion} installationId={agent.installation_id ?? null} instructions={instructions} setInstructions={setInstructions} onSave={saveDraft} saving={saving} modelCatalog={modelCatalog} modelCatalogLoading={modelCatalogLoading} modelSelection={versionModelSelection} setModelSelection={setVersionModelSelection} onClose={() => setConfigurationOpen(false)} /></aside></div> : null}
     </div>
   );
 }

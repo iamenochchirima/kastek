@@ -223,3 +223,18 @@ Model selection and local execution setup, 2026-10-02:
   billing mode or that API configured. This does not implement Agents billing or
   remove the retained production billing checks.
 - The complete create/test/response/history acceptance remains unchecked.
+
+Studio cleanup checkpoint, 2026-10-02:
+
+- Replaced the settings prototype module with `studio-settings.tsx`, retaining
+  the default sidebar layout. Removed the alternate-layout switcher, query
+  parameter and global arrow-key interception. Added a settings-section selector
+  for narrow screens where the sidebar is hidden.
+- Conversation persistence and configuration loading no longer use generic Ready
+  labels. Studio displays the backend's execution blockers and disables sending
+  until installation readiness is confirmed. The submit handler checks readiness
+  too. Existing conversation reads still load while execution is blocked.
+- Frontend typing/build, focused lint and the two existing Studio event/reducer
+  checks passed. Browser observation timed out twice on the existing tab, so
+  visual, mobile-navigation and live send-state verification for this change
+  remain pending. No additional live execution acceptance is claimed.
