@@ -8,7 +8,6 @@
   "scripts": {
     "dev": "vite --host 127.0.0.1",
     "build": "tsc --noEmit && vite build",
-    "start": "vite preview --host 127.0.0.1",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "test:studio": "tsx src/components/dashboard/studio/studio-execution-events.test.ts && tsx src/components/dashboard/studio/studio-execution-reducer.test.ts",

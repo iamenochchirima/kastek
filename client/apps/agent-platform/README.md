@@ -68,6 +68,40 @@ pnpm --filter @kasitek/agent-platform lint
 
 Production output is dist/. Use preview for a local build check, not production hosting. The production host must serve dist assets, fall back to index.html for frontend deep links, and proxy /api to the Agents backend before that fallback. Preserve cookie headers and stream responses without buffering. Missing /api routes must remain API errors, not return the frontend HTML. The local Vite dev/preview proxy forwards paths unchanged.
 
+## Production frontend container
+
+Build the dedicated frontend image from the repository root:
+
+```sh
+docker build -f client/apps/agent-platform/Dockerfile -t kasitek-agents-ui .
+docker run --rm -p 3100:8080 \
+  -e AGENTS_API_UPSTREAM=http://api:4100 \
+  --network your-private-network kasitek-agents-ui
+```
+
+Use the API's address on your private container network. The default is
+`http://api:4100`; it must resolve when Nginx starts. Set a scheme, hostname and
+optional port only, with no path or trailing slash. An HTTPS upstream uses SNI
+and verifies its certificate against the container's CA bundle. Do not expose the
+backend directly to browsers. The frontend image contains built static assets and
+the proxy configuration, with no backend environment files or model credentials.
+`AGENTS_API_UPSTREAM` is a server setting and is not embedded in browser JavaScript.
+
+The hosting edge must provide public HTTPS. Set the backend's public frontend
+origin, `AGENTS_PUBLIC_URL`, to that public domain. Register its
+`/api/auth/callback` URL with the identity provider. The proxy preserves Host,
+Origin and cookie headers; backend
+session and same-origin checks remain responsible for admission. It does not
+rewrite the configured login redirects or relax authentication.
+
+The [Nginx configuration](hosting/default.conf.template) serves frontend deep links,
+returns 404 for missing fingerprinted assets and forwards API paths unchanged.
+It disables response buffering and proxy retries. The five-minute upstream read
+timeout measures silence between reads, so live events must keep the connection
+active. Verify the real run stream and reconnect behavior when model credentials
+are configured. `pnpm preview` remains available for local build inspection;
+there is no production `vite preview` start script.
+
 See the [frontend checklist](../../../docs/plans/agents/FRONTEND_INITIAL_IMPLEMENTATION_PLAN.md) for progress and remaining integration work.
 
 ## Editing and testing a saved agent

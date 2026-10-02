@@ -30,7 +30,7 @@ Exit: a short keep/remove list and a concrete shell direction. Copy needed sourc
 - [x] Add dev, build, preview, typecheck and lint commands appropriate to Vite. Replace Next-specific CI/build/start references and update startup documentation.
 - [x] Add React Router with public and authenticated layout groups, not separate applications.
 - [x] Establish public /, /login and /signup routes and authenticated /app routes. Redirect old Agents bookmarks where still useful, without retaining two implementations.
-- [x] Configure development /api proxying to Agents and document production same-origin routing, SPA deep-link fallback and proxy handling for live event streams.
+- [x] Configure development /api proxying and a production frontend container with same-origin API routing, SPA deep-link fallback and unbuffered live event transport.
 - [x] Replace Next navigation/link hooks and server-only client helpers with browser-safe routing and API adapters. Port font/image handling and only browser-public configuration.
 - [x] Remove unused Next files, dependencies and generated configuration after equivalent behavior is available. Update source-boundary documentation to describe actual migration status.
 
@@ -516,3 +516,29 @@ Mobile Studio and setup availability, 2026-10-02:
   lint passed. No additional test suite was added for this layout/availability edit.
 - Actual response/stream/history and remaining route acceptance stay incomplete.
   No model credentials were added and no model call was submitted.
+
+
+Production frontend hosting, 2026-10-02:
+
+- Added a dedicated frontend Dockerfile and Nginx template. The build copies only
+  frontend inputs; the runtime contains static output and proxy configuration.
+  Added ignored Git/artifact directories to the container context exclusions.
+  Removed the production-looking Vite preview start script; preview stays local.
+- The server forwards API paths before SPA fallback, preserves Host/Origin and
+  cookies, disables buffering and retries, and verifies HTTPS upstream certificates.
+  Public TLS remains the hosting edge's responsibility. README records the private
+  API address, public origin and OIDC callback requirements. Nothing was deployed.
+- Local frontend build and the complete container image build passed. The built
+  image ran locally through Podman, since the Docker desktop daemon was unavailable.
+  Nginx configuration validation passed. A Studio deep link returned SPA HTML,
+  a built asset returned immutable caching, and a missing asset returned 404.
+- Against the actual local API, bare /api and an unknown API route returned JSON
+  404; unauthenticated session and run-stream routes returned JSON 401. None fell
+  through to frontend HTML. This does not prove authenticated production login.
+- A separate transport fixture verified unchanged path/query, Host, Origin,
+  Cookie and Set-Cookie headers. Its first event arrived in 0.002 seconds before
+  a second event delayed by 1.5 seconds. This proves proxy transport only, not
+  agent execution. Temporary check containers and the fixture were stopped.
+- Actual agent response, stream reconnect and reopened run-history acceptance
+  remain unchecked pending model credentials. No credentials were copied, no
+  model call was submitted, and no production login or cutover was claimed.
