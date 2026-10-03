@@ -60,6 +60,7 @@ test("HTTP/provider/worker telemetry preserves W3C context, bounded correlation 
   installErrorHandler(app);
   installHttpObservability(app);
   let seen: Record<string, string> = {};
+  let seenActiveSpan: string | undefined;
   const config = readConfig({
     DATABASE_URL: "postgresql://fixture",
     AGENTS_API_URL: "http://127.0.0.1:65500",
@@ -69,6 +70,7 @@ test("HTTP/provider/worker telemetry preserves W3C context, bounded correlation 
     assert.equal(currentCorrelationId(), "fixture-correlation");
     await new AgentPlatformClient(config, {
       fetch: async (_url, init) => {
+        seenActiveSpan = trace.getActiveSpan()?.spanContext().spanId;
         seen = Object.fromEntries(new Headers(init?.headers));
         return new Response('{"ok":true}', {
           headers: { "content-type": "application/json" },
@@ -93,6 +95,7 @@ test("HTTP/provider/worker telemetry preserves W3C context, bounded correlation 
     assert.equal(response.statusCode, 200);
     assert.equal(response.headers["x-correlation-id"], "fixture-correlation");
     assert.equal(seen["x-correlation-id"], "fixture-correlation");
+    assert.equal(seen.traceparent!.split("-")[2], seenActiveSpan);
     assert.match(seen.traceparent!, /^00-11111111111111111111111111111111-/);
     const failed = await app.inject({
       method: "GET",
@@ -151,12 +154,8 @@ test("HTTP/provider/worker telemetry preserves W3C context, bounded correlation 
       dependency.parentSpanContext.spanId,
       request.spanContext().spanId,
     );
-    const injected = spans.find(
-      (span: any) =>
-        span.spanContext().spanId === seen.traceparent!.split("-")[2],
-    );
     assert.equal(
-      injected.parentSpanContext.spanId,
+      seen.traceparent!.split("-")[2],
       dependency.spanContext().spanId,
     );
     assert.equal(

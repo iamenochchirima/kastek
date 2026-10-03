@@ -1,13 +1,13 @@
 {
   "schemaVersion": 1,
-  "sourceCommit": "3fa91eaea68636d9e32c78853ba1e457d11e9b66",
-  "sourceContentSha256": "8c9c35072d17869f043feb0248c2c17307ebc69bb5441a0be04d2342966ebd7c",
-  "node": "v24.19.0",
+  "sourceCommit": "757609ef8d27d7b3f6cbc1eba687ee5545a916ba",
+  "sourceContentSha256": "22f71d2e497c8519ffb5976fa3a53326cb450eaac208960eb8f87d262792743c",
+  "node": "v24.15.0",
   "packageManager": "pnpm@10.30.1",
   "sourceFiles": [
     {
       "path": "package.json",
-      "sha256": "a2a9d6c57e0d3e6fbc9150ce15e43d8c2daf14b9c8045aa2d562363839c6eb27"
+      "sha256": "badbad5ff8988a0db6e35a24032a764e0cc5408c1a5aee6a76c7d5244b67f354"
     },
     {
       "path": "packages/contracts/README.md",
@@ -27,7 +27,7 @@
     },
     {
       "path": "packages/server-support/README.md",
-      "sha256": "49d87b54560edfc0f6ea4a79436a97b2076f4f569e047bd2d2a08daf66ea57ef"
+      "sha256": "7829b4a4d882dc01fdb4c2029004b79b9e3fbf067fd7dfc1697cec66ea63ef59"
     },
     {
       "path": "packages/server-support/package.json",
@@ -36,6 +36,10 @@
     {
       "path": "packages/server-support/scripts/pack-shared.mjs",
       "sha256": "6e3339f02634a9f2ecd58fc55084af4864c352df6f9ff7325ad65c3c8bbe546b"
+    },
+    {
+      "path": "packages/server-support/scripts/publish-shared.mjs",
+      "sha256": "a5c43f781bd48494fc651ecc444fb5f555570e40c9d2264e5d28cd96a018ffb0"
     },
     {
       "path": "packages/server-support/src/analytics-producer.ts",
@@ -75,7 +79,7 @@
     },
     {
       "path": "packages/server-support/src/telemetry.ts",
-      "sha256": "f12127e624bfead1855f32f826ef5d473c7f83045bb1040a68987619d81718dd"
+      "sha256": "bafe5816f995c012b95e4c9544cc586f7bc105ce6b92592c8e6af0b1c1a4ade3"
     },
     {
       "path": "packages/server-support/tests/config.test.mjs",
@@ -95,7 +99,7 @@
     },
     {
       "path": "packages/server-support/tests/telemetry-lazy.test.mjs",
-      "sha256": "91aac681988811a958083e86a1814822bd6649c58e3abbd0375296b2bbe95483"
+      "sha256": "ef0b6aef5c147942e489ec5d55e3612286344e00fcb8308aa84f50bcc27a9140"
     },
     {
       "path": "packages/server-support/tsconfig.json",
@@ -126,8 +130,8 @@
       "package": "@kasitek-labs/server-support",
       "version": "0.1.0",
       "file": "kasitek-labs-server-support-0.1.0.tgz",
-      "sha256": "facc3aa632bf1c412e2a49291d499225556506e3af9eae987142cbf7e843ef33",
-      "integrity": "sha512-e4zlkjKi30PP6G9I7kRvZTPaDwZVXN9JIGCpYEbBFmElRM5/82M9g9ww+7pgy9ShXXdqDyEU/D4vj6sdwvnmLA=="
+      "sha256": "037d539e95717a1dfdc5fc81668cab191cc57b49c08537b671b97c3d9697a7fd",
+      "integrity": "sha512-T502ZvoZWrfVDH+HkGxuUkS633FMzKOONUXVtW0H5ws0prBad80vhRc0pVUfbrvIkXMJ/DBste0xKRZQf5Qg2Q=="
     }
   ]
 }
