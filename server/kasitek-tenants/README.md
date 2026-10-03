@@ -1,6 +1,8 @@
-# tenant-server
+# KasiTek Tenant API
 
-Separate Rust backend for white-label tenant services.
+TypeScript API and worker processes for white-label tenant services. The original
+Rust implementation remains only as a comparison baseline while the last parity
+checks are completed; use the TypeScript commands below to run the service.
 
 Initial scope:
 
@@ -48,22 +50,38 @@ Analytics service:
 - `ANALYTICS_TENANT_PRODUCER_ID` (default `tenant-platform-customer-analytics`)
 - `ANALYTICS_TENANT_PUBLISHER_ID` (default `tenant-platform-analytics-publisher`)
 
-Run it with `KASITEK_PROCESS=analytics-publisher cargo run`. It claims the Tenant outbox, sends
-authenticated batches, and applies each Analytics acknowledgement without affecting the API
-process.
+From the repository root, run the publisher and backfill worker as separate
+native processes:
+
+```sh
+KASITEK_PROCESS=analytics-publisher corepack pnpm --dir server/kasitek-tenants start
+KASITEK_PROCESS=analytics-backfill-worker corepack pnpm --dir server/kasitek-tenants start
+```
+
+The publisher claims the Tenant outbox, sends authenticated batches, and applies
+each Analytics acknowledgement without affecting the API process.
 
 ## Real Provisioning Flow
 
 Tenant workspaces are provisioned through the admin application, not through local bootstrap scripts.
 
-The portal can be started with `corepack pnpm --dir client dev`. The API command is
-`cargo run --manifest-path server/Cargo.toml -p kasitek-tenants`; its build is currently blocked
-on the shared Rust crates listed in [`../../docs/source-boundaries.md`](../../docs/source-boundaries.md).
-After those dependencies are available, the API uses the configured tenant PostgreSQL URL. This
-repository does not include Growth's former local stack launcher or environment files.
+The portal can be started with `corepack pnpm --dir client dev`. Prepare the
+private shared packages and install the API dependencies as described in the
+[repository README](../../README.md), then build and start the API from the
+repository root:
 
-The existing provisioning flow crosses the repository boundary and was not revalidated by this
-source move. Growth's admin application remains the provisioning consumer.
+```sh
+corepack pnpm --dir server/kasitek-tenants build
+corepack pnpm --dir server/kasitek-tenants start
+```
+
+The API uses the configured tenant PostgreSQL URL. This repository does not
+include Growth's former local stack launcher or environment files.
+
+The existing provisioning flow crosses the repository boundary and Growth's
+Labs Admin remains the provisioning consumer. Compiled consumer fixtures cover
+the Admin-to-Tenant endpoints; the full rendered Admin-to-portal journey remains
+open in the migration checklist.
 
 Expected integration flow:
 
