@@ -8,20 +8,27 @@ export async function analyticsFixture() {
   const schema = `tenant_analytics_fixture_${randomUUID().replaceAll("-", "")}`,
     url = process.env.TENANT_TEST_DATABASE_URL!;
   const admin = new pg.Pool({ connectionString: url });
-  await admin.query(`CREATE SCHEMA "${schema}"`);
-  const pool = new pg.Pool({
-    connectionString: url,
-    options: `-c search_path=${schema} -c timezone=UTC`,
-  });
+  let pool: pg.Pool | undefined;
+  let schemaCreated = false;
   const close = async () => {
-    await pool.end();
     try {
-      await admin.query(`DROP SCHEMA "${schema}" CASCADE`);
+      await pool?.end();
     } finally {
-      await admin.end();
+      try {
+        if (schemaCreated)
+          await admin.query(`DROP SCHEMA "${schema}" CASCADE`);
+      } finally {
+        await admin.end();
+      }
     }
   };
   try {
+    await admin.query(`CREATE SCHEMA "${schema}"`);
+    schemaCreated = true;
+    pool = new pg.Pool({
+      connectionString: url,
+      options: `-c search_path=${schema} -c timezone=UTC`,
+    });
     await runMigrations(pool);
     await pool.query(
       `INSERT INTO workspaces(id,slug,display_name) VALUES('w','workspace','Workspace'),('foreign','foreign','Foreign');INSERT INTO tenant_clients(id,workspace_id,name,slug) VALUES('client','w','Client','client'),('client-other','w','Other','other'),('foreign-client','foreign','Foreign','foreign')`,
