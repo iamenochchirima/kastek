@@ -26,6 +26,24 @@ function syntaxLocation(source: string, offset: number, atEnd: boolean): string 
   return `at line ${line} column ${column}`;
 }
 
+function enclosingContainer(source: string, end: number): "{" | "[" | undefined {
+  const stack: Array<"{" | "["> = [];
+  let inString = false;
+  let escaped = false;
+  for (const char of source.slice(0, end)) {
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (char === "\\") escaped = true;
+      else if (char === '"') inString = false;
+    } else if (char === '"') inString = true;
+    else if (char === "{") stack.push(char);
+    else if (char === "}" && stack.at(-1) === "{") stack.pop();
+    else if (char === "[") stack.push(char);
+    else if (char === "]" && stack.at(-1) === "[") stack.pop();
+  }
+  return stack.at(-1);
+}
+
 type JsonSyntaxKind = "a value" | "an object" | "a list" | "a string";
 
 function eofSyntaxKind(source: string): JsonSyntaxKind {
@@ -65,8 +83,11 @@ export function formatSerdeJsonSyntaxError(
   const location = syntaxLocation(source, offset, atEnd);
   const before = source.slice(0, offset).trimEnd();
   const after = source.slice(offset).trimStart();
+  const container = enclosingContainer(source, offset);
   const trailingComma =
-    before.endsWith(",") && (after.startsWith("}") || after.startsWith("]"));
+    before.endsWith(",") &&
+    ((container === "{" && after.startsWith("}")) ||
+      (container === "[" && after.startsWith("]")));
 
   if (trailingComma) return `trailing comma ${location}`;
   if (/Unexpected non-whitespace character after JSON/.test(message))
