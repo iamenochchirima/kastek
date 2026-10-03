@@ -6,7 +6,7 @@ import type {ProcessKind} from './contracts.js';
 import {MetricsAccess} from './metrics.js';
 import {registerHealthRoutes} from './health.js';
 import {RequestExtractionError,errorType} from './error.js';
-import {isSafeCorrelationId} from '@kasitek-labs/server-support/telemetry';
+import {isSafeCorrelationId,redactTelemetryLogArguments} from '@kasitek-labs/server-support/telemetry';
 import {formatSerdeJsonSyntaxError} from '@kasitek-labs/server-support/json';
 import {apiJson,parseSerdeValueJson} from './json.js';
 import {MAX_BATCH_BYTES,registerIngestionRoutes} from './ingestion.js';
@@ -23,7 +23,7 @@ export async function buildApp(context:AnalyticsContext,process:ProcessKind='ana
   bodyLimit:MAX_BATCH_BYTES,
   requestIdHeader:'x-correlation-id',
   genReqId(request){const supplied=request.headers['x-correlation-id'];return typeof supplied==='string'&&isSafeCorrelationId(supplied)?supplied:randomUUID();},
-  logger:{level:logLevel(context.config.log_filter),serializers:{req(request){return {method:request.method,url:request.url.split(/[?#]/,1)[0]};}}},
+  logger:{level:logLevel(context.config.log_filter),redact:['req.headers.authorization','req.headers.cookie','res.headers["set-cookie"]'],hooks:{logMethod(args,method){return method.apply(this,redactTelemetryLogArguments(args));}},serializers:{req(request){return {method:request.method,url:request.url.split(/[?#]/,1)[0]};}}},
   ...options,
  });
  app.setReplySerializer(apiJson);

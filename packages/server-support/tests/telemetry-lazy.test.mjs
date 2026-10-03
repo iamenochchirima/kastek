@@ -1,12 +1,27 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 // Import helper before setting a provider, as bootstrap/initTelemetry does.
-import {resultSpan,providerResultSpan,recordRetry,recordQueueAge,recordDependencyFailure} from '../dist/telemetry.js';
+import {resultSpan,providerResultSpan,recordRetry,recordQueueAge,recordDependencyFailure,redactTelemetryLogArguments} from '../dist/telemetry.js';
 import {context,metrics,trace} from '@opentelemetry/api';
 import {createRequire} from 'node:module';
 const {MeterProvider,PeriodicExportingMetricReader,InMemoryMetricExporter}=createRequire(import.meta.resolve('@opentelemetry/sdk-node'))('@opentelemetry/sdk-metrics');
 const {BasicTracerProvider,SimpleSpanProcessor,InMemorySpanExporter}=createRequire(import.meta.resolve('@opentelemetry/sdk-node'))('@opentelemetry/sdk-trace-base');
 const {AsyncLocalStorageContextManager}=createRequire(import.meta.resolve('@opentelemetry/sdk-node'))('@opentelemetry/context-async-hooks');
+test('structured log redaction preserves ordinary fields and masks nested credentials before output',()=>{
+ const original={event:'auth.callback.failed',errorCode:'invalid_grant',request:{headers:{authorization:'Bearer nested-secret',cookie:'sid=session-secret'}},access_token:'provider-secret',message:'provider rejected ?code=oauth-secret',items:[{refreshToken:'refresh-secret',label:'safe'}]};
+ const args=redactTelemetryLogArguments([original,'upstream failed with Bearer message-secret']);
+ assert.equal(original.access_token,'provider-secret');
+ assert.equal(args[0].event,'auth.callback.failed');
+ assert.equal(args[0].errorCode,'invalid_grant');
+ assert.equal(args[0].request.headers.authorization,'[REDACTED]');
+ assert.equal(args[0].request.headers.cookie,'[REDACTED]');
+ assert.equal(args[0].access_token,'[REDACTED]');
+ assert.equal(args[0].message,'provider rejected ?code=[REDACTED]');
+ assert.equal(args[0].items[0].refreshToken,'[REDACTED]');
+ assert.equal(args[0].items[0].label,'safe');
+ assert.equal(args[1],'upstream failed with Bearer [REDACTED]');
+ assert.ok(!JSON.stringify(args).includes('secret'));
+});
 test('shared telemetry preserves Rust operation fields and excludes error messages from spans',async()=>{
  const metricExporter=new InMemoryMetricExporter(),reader=new PeriodicExportingMetricReader({exporter:metricExporter,exportIntervalMillis:60000}),meterProvider=new MeterProvider({readers:[reader]});
  const spanExporter=new InMemorySpanExporter(),tracerProvider=new BasicTracerProvider({spanProcessors:[new SimpleSpanProcessor(spanExporter)]});

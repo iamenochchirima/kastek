@@ -10,13 +10,82 @@ import { resourceFromAttributes } from "@opentelemetry/resources";
 import { getNodeAutoInstrumentations } from "@opentelemetry/auto-instrumentations-node";
 import { envTruthy } from "./config.js";
 export function redactTelemetryText(value: unknown, maxLength = 4096): string {
-  return Array.from(String(value))
-    .slice(0, maxLength)
-    .join("")
-    .replace(
-      /(Bearer\s+)[^\s,;&]+|([?&](?:token|access[_-]?token|refresh[_-]?token|api[_-]?key|key|code|signature|password|secret)=)[^&\s]+|((?:authorization|token|secret|password|api[_-]?key|access[_-]?token|refresh[_-]?token|client[_-]?secret)\s*[:=])\s*(?:Bearer\s+)?(?:"[^"]*"|'[^']*'|[^,\s;&]+)/gi,
-      (_match, bearer, query, field) => `${query ?? field ?? bearer}[REDACTED]`,
-    );
+  return redactTelemetryCredentials(
+    Array.from(String(value)).slice(0, maxLength).join(""),
+  );
+}
+function redactTelemetryCredentials(value: string): string {
+  return value.replace(
+    /(Bearer\s+)[^\s,;&]+|([?&](?:token|access[_-]?token|refresh[_-]?token|api[_-]?key|key|code|signature|password|secret)=)[^&\s]+|((?:authorization|token|secret|password|api[_-]?key|access[_-]?token|refresh[_-]?token|client[_-]?secret)\s*[:=])\s*(?:Bearer\s+)?(?:"[^"]*"|'[^']*'|[^,\s;&]+)/gi,
+    (_match, bearer, query, field) => `${query ?? field ?? bearer}[REDACTED]`,
+  );
+}
+function sensitiveTelemetryField(name: string): boolean {
+  const key = name.toLowerCase().replace(/[-_]/g, "");
+  return (
+    key === "authorization" ||
+    key === "cookie" ||
+    key === "state" ||
+    key === "nonce" ||
+    key === "code" ||
+    key === "signature" ||
+    key === "session" ||
+    key === "sessionid" ||
+    key.endsWith("token") ||
+    key.endsWith("secret") ||
+    key.endsWith("password") ||
+    key.endsWith("apikey") ||
+    key.endsWith("authorization") ||
+    key.endsWith("cookie")
+  );
+}
+function redactTelemetryValue(
+  value: unknown,
+  seen: WeakMap<object, unknown>,
+): unknown {
+  if (typeof value === "string") return redactTelemetryCredentials(value);
+  if (value === null || typeof value !== "object") return value;
+  const prior = seen.get(value);
+  if (prior !== undefined) return prior;
+  if (value instanceof Error) {
+    const output = Object.create(Object.getPrototypeOf(value)) as Error;
+    seen.set(value, output);
+    for (const key of Object.getOwnPropertyNames(value)) {
+      const descriptor = Object.getOwnPropertyDescriptor(value, key);
+      if (!descriptor) continue;
+      if ("value" in descriptor) {
+        descriptor.value = sensitiveTelemetryField(key)
+          ? "[REDACTED]"
+          : redactTelemetryValue(descriptor.value, seen);
+      }
+      Object.defineProperty(output, key, descriptor);
+    }
+    return output;
+  }
+  if (Array.isArray(value)) {
+    const output: unknown[] = [];
+    seen.set(value, output);
+    for (const item of value) output.push(redactTelemetryValue(item, seen));
+    return output;
+  }
+  const prototype = Object.getPrototypeOf(value);
+  if (prototype !== Object.prototype && prototype !== null) return value;
+  const output = Object.create(prototype) as Record<string, unknown>;
+  seen.set(value, output);
+  for (const [key, item] of Object.entries(value)) {
+    output[key] = sensitiveTelemetryField(key)
+      ? "[REDACTED]"
+      : redactTelemetryValue(item, seen);
+  }
+  return output;
+}
+/** Redact structured fields and free-form messages before Pino writes or exports them. */
+export function redactTelemetryLogArguments<T extends unknown[]>(args: T): T {
+  const seen = new WeakMap<object, unknown>();
+  return args.map((value) => {
+    if (typeof value === "string") return redactTelemetryText(value);
+    return redactTelemetryValue(value, seen);
+  }) as T;
 }
 const envFirst = (names: string[]): string =>
   names.map((n) => process.env[n]?.trim()).find(Boolean) ?? "unknown";
