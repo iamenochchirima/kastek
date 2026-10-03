@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "sourceCommit": "50a869d855d7e5c77bca56dec03524de89b3c86e",
-  "sourceContentSha256": "b1881be57343ec6ae5054fb38c4dbb5e5157fb9bbb1f793e647db2ecc9dd424e",
+  "sourceCommit": "3fa91eaea68636d9e32c78853ba1e457d11e9b66",
+  "sourceContentSha256": "8c9c35072d17869f043feb0248c2c17307ebc69bb5441a0be04d2342966ebd7c",
   "node": "v24.19.0",
   "packageManager": "pnpm@10.30.1",
   "sourceFiles": [
@@ -43,7 +43,7 @@
     },
     {
       "path": "packages/server-support/src/analytics-reporting.ts",
-      "sha256": "ed14e910b8be583b4419e5a82290520ce08654c899e4ab4b4ac62866c4ef08d3"
+      "sha256": "ce8909daba9e102cff70118ddab11c56cf51bc7cb382e87620860db1592af6b3"
     },
     {
       "path": "packages/server-support/src/config.ts",
@@ -78,12 +78,16 @@
       "sha256": "f12127e624bfead1855f32f826ef5d473c7f83045bb1040a68987619d81718dd"
     },
     {
+      "path": "packages/server-support/tests/config.test.mjs",
+      "sha256": "1a6c80c198df87db7e9c77c917cd2a4b2eaf1b6fbcb00775c6537baedd69f427"
+    },
+    {
       "path": "packages/server-support/tests/outbox-postgres.test.mjs",
       "sha256": "692141f2db2cc8b9f4466de2d17ad01e240b34a767a1ae87742b0c3d438664e4"
     },
     {
       "path": "packages/server-support/tests/parity.test.mjs",
-      "sha256": "ed1972ac39fbbe4635b40caaa1ddb52d972d75789278b9da9862e015a48dd143"
+      "sha256": "e8aaa4f3d21d1db6b250a8008c1368ca77c5a6bd549157c9f95b6739849b4ea8"
     },
     {
       "path": "packages/server-support/tests/reporting-json.test.mjs",
@@ -122,8 +126,8 @@
       "package": "@kasitek-labs/server-support",
       "version": "0.1.0",
       "file": "kasitek-labs-server-support-0.1.0.tgz",
-      "sha256": "8fa25578e1c9189ea1b0b45ea1e3b876d890ce61cf1e1df95c2d1a9f733fd11b",
-      "integrity": "sha512-S3BfoDO690aqe0IQyZauO+tD25wmvG0EA7XonTVy/A3UH/q3tGPhl5N6qSueIj+Rk17akmdD4fc3M8vnl932jA=="
+      "sha256": "facc3aa632bf1c412e2a49291d499225556506e3af9eae987142cbf7e843ef33",
+      "integrity": "sha512-e4zlkjKi30PP6G9I7kRvZTPaDwZVXN9JIGCpYEbBFmElRM5/82M9g9ww+7pgy9ShXXdqDyEU/D4vj6sdwvnmLA=="
     }
   ]
 }
