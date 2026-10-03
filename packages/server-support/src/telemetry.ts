@@ -207,7 +207,8 @@ async function runResultSpan<T>(
         let outcome: "success" | "error" = "success";
         getInstruments().inFlight.add(1, attributes);
         try {
-          const value = await operation();
+          const active = trace.setSpan(context.active(), span);
+          const value = await context.with(active, operation);
           span.setStatus({ code: SpanStatusCode.OK });
           span.setAttribute("otel.status_code", "OK");
           return value;
