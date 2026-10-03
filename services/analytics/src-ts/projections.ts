@@ -8,6 +8,7 @@ import { SQL } from "./projections-sql.js";
 export const PROJECTION_NAME = "typed_domain_facts",
   PROJECTION_VERSION = "1",
   DEFAULT_SHARD_KEY = "default";
+const DELETED_SCOPE_CANCELLATION_BATCH_SIZE = 100;
 export type FactKind = "event" | "observation";
 export interface FactWindow {
   fact_kind: FactKind;
@@ -291,6 +292,15 @@ export async function claimWork(
   ).rows[0];
   return row ? claimed(row) : null;
 }
+export async function cancelDeletedScopeWork(
+  pool: Pool,
+  limit = DELETED_SCOPE_CANCELLATION_BATCH_SIZE,
+): Promise<number> {
+  if (!Number.isSafeInteger(limit) || limit < 1 || limit > 500)
+    throw Error("Invalid deleted-scope cancellation batch size");
+  const result = await pool.query(SQL.cancel_deleted_scope_work, [limit]);
+  return result.rowCount ?? 0;
+}
 export async function processOnce(
   pool: Pool,
   registry: RegistrySnapshot,
@@ -298,6 +308,7 @@ export async function processOnce(
   lease: number | bigint,
   metrics?: ResultSpanMetrics,
 ): Promise<boolean> {
+  await cancelDeletedScopeWork(pool);
   const work = await claimWork(pool, worker, lease);
   if (!work) return false;
   const age = Date.now() - work.available_at.getTime();

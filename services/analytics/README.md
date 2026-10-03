@@ -177,7 +177,9 @@ The API can start while PostgreSQL is unavailable because its pool is lazy. Read
 `503` until the database responds and the base migration is applied. Redis is an optional,
 non-authoritative reporting response cache; authorization, projection generation, freshness, and
 fallback responses come from PostgreSQL. The TypeScript worker runs durable projection and
-maintenance work, including replay, repair and backfill jobs.
+maintenance work, including replay, repair and backfill jobs. It cancels queued projection work
+when the target scope or its root is deleted; immutable source facts remain, and database triggers
+continue to block derived writes for deleted scopes.
 
 ## Rollout controls
 

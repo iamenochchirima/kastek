@@ -337,6 +337,118 @@ test(
     }
   },
 );
+
+test(
+  "deleted-scope work is cancelled and a replacement worker reclaims an expired lease",
+  { skip: !enabled },
+  async () => {
+    const f = await analyticsFixture();
+    try {
+      const registry = await loadRegistry();
+      const deletedScope = await scope(
+        f.pool,
+        "core_organization",
+        "core",
+        `deleted-projection-${Date.now()}`,
+      );
+      const deletedEvent = await event(
+        f.pool,
+        "deleted-scope-event",
+        "campaign.recipient.sent@1",
+        deletedScope,
+        deletedScope,
+        { campaign_id: "campaign", recipient_id: "recipient", channel: "whatsapp", status: "sent" },
+      );
+      await enqueue(f.pool, deletedScope, deletedScope, deletedEvent);
+      await f.pool.query(
+        "UPDATE analytics.reporting_scope SET status='deleted' WHERE scope_id=$1",
+        [deletedScope],
+      );
+      assert.equal(
+        await processOnce(f.pool, registry, "worker-after-delete", 60),
+        false,
+      );
+      assert.equal(
+        await scalar(
+          f.pool,
+          "SELECT count(*) FROM analytics.analytics_projection_contribution WHERE source_scope_id=$1",
+          [deletedScope],
+        ),
+        "0",
+      );
+      assert.equal(
+        await scalar(
+          f.pool,
+          "SELECT count(*) FROM analytics.analytics_projection_rollup WHERE source_scope_id=$1",
+          [deletedScope],
+        ),
+        "0",
+      );
+      const deletedWork = await f.pool.query<{
+        work_status: string;
+        last_error_code: string | null;
+        attempt_count: number;
+      }>(
+        "SELECT work_status,last_error_code,attempt_count FROM analytics.analytics_projection_work WHERE reporting_scope_id=$1",
+        [deletedScope],
+      );
+      assert.deepEqual(deletedWork.rows, [
+        {
+          work_status: "cancelled",
+          last_error_code: "scope_deleted",
+          attempt_count: 0,
+        },
+      ]);
+
+      const resumedScope = await scope(
+        f.pool,
+        "core_organization",
+        "core",
+        `restarted-projection-${Date.now()}`,
+      );
+      const resumedEvent = await event(
+        f.pool,
+        "restarted-worker-event",
+        "campaign.recipient.sent@1",
+        resumedScope,
+        resumedScope,
+        { campaign_id: "campaign", recipient_id: "recipient", channel: "whatsapp", status: "sent" },
+      );
+      await enqueue(f.pool, resumedScope, resumedScope, resumedEvent);
+      const abandoned = await claimWork(f.pool, "worker-before-restart", 60);
+      assert.equal(abandoned?.reporting_scope_id, resumedScope);
+      await f.pool.query(
+        "UPDATE analytics.analytics_projection_work SET lease_expires_at=NOW()-INTERVAL '1 second' WHERE work_id=$1",
+        [abandoned!.work_id],
+      );
+
+      assert.equal(
+        await processOnce(f.pool, registry, "worker-after-restart", 60),
+        true,
+      );
+      const resumedWork = (
+        await f.pool.query<{ work_status: string; attempt_count: number; lease_owner: string | null }>(
+          "SELECT work_status,attempt_count,lease_owner FROM analytics.analytics_projection_work WHERE reporting_scope_id=$1",
+          [resumedScope],
+        )
+      ).rows[0]!;
+      assert.deepEqual(resumedWork, {
+        work_status: "completed",
+        attempt_count: 2,
+        lease_owner: null,
+      });
+      assert.ok(
+        BigInt(await scalar(
+          f.pool,
+          "SELECT count(*) FROM analytics.analytics_projection_contribution WHERE source_scope_id=$1",
+          [resumedScope],
+        ) as string) > 0n,
+      );
+    } finally {
+      await f.close();
+    }
+  },
+);
 test(
   "projection ancestor/timezone buckets and observation values use source SQL and preserve bigint timezone revisions",
   { skip: !enabled },
