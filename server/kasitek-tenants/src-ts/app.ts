@@ -3,8 +3,9 @@ import cookie from '@fastify/cookie';
 import {Readable} from 'node:stream';
 import cors from '@fastify/cors';
 import { environmentAllowsLoopbackOrigins, isLoopbackOrigin } from '@kasitek-labs/server-support/config';
+import { formatSerdeJsonSyntaxError } from '@kasitek-labs/server-support/json';
 import type {TenantContext} from './context.js';
-import {installErrorHandler} from './error.js';
+import {installErrorHandler,RequestExtractionError} from './error.js';
 import {apiJson,parseSerdeValueJson} from './json.js';
 import {installHttpObservability} from './observability/http.js';
 
@@ -38,7 +39,11 @@ export async function buildApp(context:TenantContext,registrars:RouteRegistrar[]
   if(bodylessRequest(request.method,request.routeOptions.url??''))return done(null,undefined);
   const text=typeof body==='string'?body:body.toString('utf8');
   safeJson(request,text,(error,value)=>{
-   if(error)return done(error);
+   if(error){
+    try { JSON.parse(text); }
+    catch(syntaxError){return done(new RequestExtractionError('json',formatSerdeJsonSyntaxError(text,syntaxError)));}
+    return done(error);
+   }
    try {
     // Source update_workspace takes Json<Value>; scopes inside create_api_key is also Value.
     if(request.method==='PATCH'&&request.routeOptions.url==='/api/admin/workspaces/:id')value=parseSerdeValueJson(text);

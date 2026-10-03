@@ -17,7 +17,10 @@ test('native Agency HTTP keeps health, explicit errors, source CORS and method m
   const health=await app.inject('/health');assert.equal(health.statusCode,200);assert.equal(health.json().service,'tenant-server');assert.ok(health.headers['x-correlation-id']);
   const error=await app.inject({method:'POST',url:'/api/fixture',payload:{}});assert.equal(error.statusCode,403);assert.deepEqual(error.json(),{error:'forbidden'});
   const extractor=await app.inject({method:'POST',url:'/api/extractor',payload:{}});assert.equal(extractor.statusCode,400);assert.match(extractor.headers['content-type']!,/^text\/plain/);
-  const malformed=await app.inject({method:'POST',url:'/api/fixture',payload:'{',headers:{'content-type':'application/json'}});assert.equal(malformed.statusCode,400);
+  for(const [payload,detail] of [['{','EOF while parsing an object at line 1 column 1'],['[1,]','trailing comma at line 1 column 4']] as const){
+   const malformed=await app.inject({method:'POST',url:'/api/fixture',payload,headers:{'content-type':'application/json'}});
+   assert.equal(malformed.statusCode,400);assert.equal(malformed.body,`Json deserialize error: ${detail}`);
+  }
   for(const [method,path] of [['DELETE','/api/bodyless'],['POST','/api/auth/logout']] as const){
    for(const [contentType,payload] of [['application/json','{'],['text/csv','ignored'],['application/json','x'.repeat(2097153)]]){
     const result=await app.inject({method,url:path,payload,headers:{'content-type':contentType!}});assert.equal(result.statusCode,200);
