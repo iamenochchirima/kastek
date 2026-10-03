@@ -5,7 +5,7 @@ settings:
   excludeLinksFromLockfile: false
 
 overrides:
-  '@kasitek-labs/contracts': file:.artifacts/shared/kasitek-labs-contracts-0.1.0.tgz
+  '@kasitek-labs/contracts': file:.artifacts/shared/kasitek-labs-contracts-0.2.0.tgz
 
 importers:
 
@@ -24,11 +24,11 @@ importers:
         specifier: ^9.4.0
         version: 9.4.0
       '@kasitek-labs/contracts':
-        specifier: file:.artifacts/shared/kasitek-labs-contracts-0.1.0.tgz
-        version: file:.artifacts/shared/kasitek-labs-contracts-0.1.0.tgz
+        specifier: file:.artifacts/shared/kasitek-labs-contracts-0.2.0.tgz
+        version: file:.artifacts/shared/kasitek-labs-contracts-0.2.0.tgz
       '@kasitek-labs/server-support':
-        specifier: file:.artifacts/shared/kasitek-labs-server-support-0.1.0.tgz
-        version: file:.artifacts/shared/kasitek-labs-server-support-0.1.0.tgz(@opentelemetry/core@2.11.0(@opentelemetry/api@1.9.0))
+        specifier: file:.artifacts/shared/kasitek-labs-server-support-0.1.1.tgz
+        version: file:.artifacts/shared/kasitek-labs-server-support-0.1.1.tgz(@opentelemetry/core@2.11.0(@opentelemetry/api@1.9.0))
       '@opentelemetry/api':
         specifier: 1.9.0
         version: 1.9.0
@@ -283,14 +283,14 @@ packages:
   '@js-sdsl/ordered-map@4.4.2':
     resolution: {integrity: sha512-iUKgm52T8HOE/makSxjqoWhe95ZJA1/G1sYsGev2JDKUSS14KAgg1LHb+Ba+IPow0xflbnSkOsZcO08C7w1gYw==}
 
-  '@kasitek-labs/contracts@file:.artifacts/shared/kasitek-labs-contracts-0.1.0.tgz':
-    resolution: {integrity: sha512-w29UkLe3JfUr8nc1hqMDMPcisT0CDEVGdQXs9uZ3njFnEWJadVEL5ty/RJrgDpsp4gJd/y10I9MRE6F3OvsU+Q==, tarball: file:.artifacts/shared/kasitek-labs-contracts-0.1.0.tgz}
-    version: 0.1.0
+  '@kasitek-labs/contracts@file:.artifacts/shared/kasitek-labs-contracts-0.2.0.tgz':
+    resolution: {integrity: sha512-uCXppTMvXOSSTIH1eyhsa1d0WGH0VNSWaygXmvoSfuufGcXr+0fSMs3cjwbvVugJ7xVwNQyIqp0mHPoSiw6iGQ==, tarball: file:.artifacts/shared/kasitek-labs-contracts-0.2.0.tgz}
+    version: 0.2.0
     engines: {node: '>=24 <25'}
 
-  '@kasitek-labs/server-support@file:.artifacts/shared/kasitek-labs-server-support-0.1.0.tgz':
-    resolution: {integrity: sha512-T502ZvoZWrfVDH+HkGxuUkS633FMzKOONUXVtW0H5ws0prBad80vhRc0pVUfbrvIkXMJ/DBste0xKRZQf5Qg2Q==, tarball: file:.artifacts/shared/kasitek-labs-server-support-0.1.0.tgz}
-    version: 0.1.0
+  '@kasitek-labs/server-support@file:.artifacts/shared/kasitek-labs-server-support-0.1.1.tgz':
+    resolution: {integrity: sha512-2x1s2Iasy7VfJCblUtLdQW8Gl6E55Lb6oSvpk9+FgJTPehSGMqjv/sZWCgT2RWbmhH0sRuKSUmUa7IzUp8IA4Q==, tarball: file:.artifacts/shared/kasitek-labs-server-support-0.1.1.tgz}
+    version: 0.1.1
     engines: {node: '>=24 <25'}
 
   '@noble/hashes@1.8.0':
@@ -1521,11 +1521,11 @@ snapshots:
 
   '@js-sdsl/ordered-map@4.4.2': {}
 
-  '@kasitek-labs/contracts@file:.artifacts/shared/kasitek-labs-contracts-0.1.0.tgz': {}
+  '@kasitek-labs/contracts@file:.artifacts/shared/kasitek-labs-contracts-0.2.0.tgz': {}
 
-  '@kasitek-labs/server-support@file:.artifacts/shared/kasitek-labs-server-support-0.1.0.tgz(@opentelemetry/core@2.11.0(@opentelemetry/api@1.9.0))':
+  '@kasitek-labs/server-support@file:.artifacts/shared/kasitek-labs-server-support-0.1.1.tgz(@opentelemetry/core@2.11.0(@opentelemetry/api@1.9.0))':
     dependencies:
-      '@kasitek-labs/contracts': file:.artifacts/shared/kasitek-labs-contracts-0.1.0.tgz
+      '@kasitek-labs/contracts': file:.artifacts/shared/kasitek-labs-contracts-0.2.0.tgz
       '@opentelemetry/api': 1.9.0
       '@opentelemetry/auto-instrumentations-node': 0.79.0(@opentelemetry/api@1.9.0)(@opentelemetry/core@2.11.0(@opentelemetry/api@1.9.0))
       '@opentelemetry/resources': 2.10.0(@opentelemetry/api@1.9.0)
