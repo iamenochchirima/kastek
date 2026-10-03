@@ -157,7 +157,34 @@ test("framework default misses stay empty and extractor failures stay plain text
     assert.equal(wrong.statusCode, 405);
     assert.equal(wrong.headers.allow, "POST");
     assert.equal(wrong.body, "");
-    for (const payload of ["{", "{}", '{"name":false}']) {
+    const malformedBodies = [
+      ["{", "EOF while parsing an object at line 1 column 1"],
+      ["{x}", "key must be a string at line 1 column 2"],
+      ["[1,]", "trailing comma at line 1 column 4"],
+      ["[1", "EOF while parsing a list at line 1 column 2"],
+      ["[1 2]", "expected `,` or `]` at line 1 column 4"],
+      ['{"name":1', "EOF while parsing an object at line 1 column 9"],
+      ['{"a" 1}', "expected `:` at line 1 column 6"],
+      ['{"a":1 "b":2}', "expected `,` or `}` at line 1 column 8"],
+      ['{"name":1,}', "trailing comma at line 1 column 11"],
+      ["01", "invalid number at line 1 column 2"],
+      ['"x', "EOF while parsing a string at line 1 column 2"],
+      ["true false", "trailing characters at line 1 column 6"],
+      ['{"name": nope}', "expected ident at line 1 column 11"],
+      [String.raw`{"name":"\q"}`, "invalid escape at line 1 column 11"],
+    ] as const;
+    for (const [payload, detail] of malformedBodies) {
+      const response = await app.inject({
+        method: "POST",
+        url: "/fixture-dto",
+        headers: { "content-type": "application/json" },
+        payload,
+      });
+      assert.equal(response.statusCode, 400);
+      assert.match(String(response.headers["content-type"]), /^text\/plain/);
+      assert.equal(response.body, `Json deserialize error: ${detail}`);
+    }
+    for (const payload of ["{}", '{"name":false}']) {
       const response = await app.inject({
         method: "POST",
         url: "/fixture-dto",
@@ -167,6 +194,76 @@ test("framework default misses stay empty and extractor failures stay plain text
       assert.equal(response.statusCode, 400);
       assert.match(String(response.headers["content-type"]), /^text\/plain/);
       assert.match(response.body, /^Json deserialize error:/);
+      if (payload === "{")
+        assert.equal(
+          response.body,
+          "Json deserialize error: EOF while parsing an object at line 1 column 1",
+        );
+      if (payload === "{x}")
+        assert.equal(
+          response.body,
+          "Json deserialize error: key must be a string at line 1 column 2",
+        );
+      if (payload === "[1,]")
+        assert.equal(
+          response.body,
+          "Json deserialize error: trailing comma at line 1 column 4",
+        );
+      if (payload === "[1")
+        assert.equal(
+          response.body,
+          "Json deserialize error: EOF while parsing a list at line 1 column 2",
+        );
+      if (payload === "[1 2]")
+        assert.equal(
+          response.body,
+          "Json deserialize error: expected `,` or `]` at line 1 column 4",
+        );
+      if (payload === '{"name":1')
+        assert.equal(
+          response.body,
+          "Json deserialize error: EOF while parsing an object at line 1 column 9",
+        );
+      if (payload === '{"a" 1}')
+        assert.equal(
+          response.body,
+          "Json deserialize error: expected `:` at line 1 column 6",
+        );
+      if (payload === '{"a":1 "b":2}')
+        assert.equal(
+          response.body,
+          "Json deserialize error: expected `,` or `}` at line 1 column 8",
+        );
+      if (payload === '{"name":1,}')
+        assert.equal(
+          response.body,
+          "Json deserialize error: trailing comma at line 1 column 11",
+        );
+      if (payload === "true false")
+        assert.equal(
+          response.body,
+          "Json deserialize error: trailing characters at line 1 column 6",
+        );
+      if (payload === "01")
+        assert.equal(
+          response.body,
+          "Json deserialize error: invalid number at line 1 column 2",
+        );
+      if (payload === String.raw`"x`)
+        assert.equal(
+          response.body,
+          "Json deserialize error: EOF while parsing a string at line 1 column 2",
+        );
+      if (payload === '{"name": nope}')
+        assert.equal(
+          response.body,
+          "Json deserialize error: expected ident at line 1 column 11",
+        );
+      if (payload === String.raw`{"name":"\q"}`)
+        assert.equal(
+          response.body,
+          "Json deserialize error: invalid escape at line 1 column 11",
+        );
       if (payload === "{}")
         assert.match(response.body, /missing field `name`/);
       if (payload === '{"name":false}') {

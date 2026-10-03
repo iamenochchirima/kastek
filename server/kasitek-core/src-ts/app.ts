@@ -6,7 +6,11 @@ import formbody from "@fastify/formbody";
 import multipart from "@fastify/multipart";
 import { isIP } from "node:net";
 import type { CoreContext } from "./context.js";
-import { installErrorHandler, RequestExtractionError } from "./error.js";
+import {
+  installErrorHandler,
+  RequestExtractionError,
+  serdeJsonSyntaxError,
+} from "./error.js";
 import { apiJson } from "./json.js";
 import {
   parseRequestJson,
@@ -82,13 +86,17 @@ export async function buildApp(
     { parseAs: "string" },
     (request, body, done) => {
       const text = typeof body === "string" ? body : body.toString("utf8");
+      let parsed: unknown;
+      try {
+        parsed = parseRequestJson(request, text);
+      } catch (error) {
+        return done(
+          new RequestExtractionError("json", serdeJsonSyntaxError(text, error)),
+        );
+      }
       safeJson(request, text, (error) => {
         if (error) return done(error);
-        try {
-          done(null, parseRequestJson(request, text));
-        } catch {
-          done(new RequestExtractionError("json", "Invalid JSON"));
-        }
+        done(null, parsed);
       });
     },
   );
