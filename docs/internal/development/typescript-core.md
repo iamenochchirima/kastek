@@ -9,9 +9,9 @@ last_reviewed: 2026-10-03
 
 Growth Core's supported runtime is native Node.js 24 under
 `server/kasitek-core/src-ts`. The replaced Rust implementation and Growth-local
-Rust libraries are no longer in this checkout; the previous Git commit remains
-the recovery point. This local source retirement does not change the hosted
-Railway service or authorize its TypeScript cutover.
+Rust libraries are no longer in this checkout; the recoverable Rust source
+baseline is commit `abd419c6`. This local source retirement does not change
+hosted services; hosted cutover is separate release work.
 
 From `server/kasitek-core`, run `pnpm build` and `pnpm start`.
 The entrypoint loads that service's `.env` regardless of the launch directory.
@@ -79,15 +79,17 @@ and honors the disable flag. HTTP/provider traces and operation metrics export
 to an in-memory fixture. A refused Collector connection leaves health available
 and telemetry shutdown bounded.
 
-These checks do not prove every live provider integration, hosted production OTLP
-export, full frontend parity, or authenticated private-package delivery. Those
-remain migration gates.
+These checks do not prove every live provider integration, full frontend parity,
+or authenticated private-package delivery. Those remain migration gates. Hosted
+production OTLP export depends on deployed Collector configuration and is release
+work outside this implementation task.
 
 Rollout is local only. Native launchers use TypeScript; the retired Rust source
-remains recoverable from the previous Git commit. Stop TypeScript workers before
-restoring that baseline. Production deployment, private registry installation,
-and hosted configuration remain pending. Collector changes and post-release
-review dates are not applicable before deployment.
+remains recoverable from baseline commit `abd419c6`. Stop TypeScript workers
+before restoring that baseline. Private registry installation remains pending.
+Hosted deployment and configuration are outside this implementation task.
+Collector changes and post-release review dates are not applicable before
+deployment.
 
 ## Focused database fixtures
 
@@ -129,9 +131,7 @@ client lockfile/dependencies and service database credentials must be available
 to that release job. API startup does not migrate. No schema or migration files
 were changed by this runtime preparation.
 
-Railway's hosted root/build/start/release settings, secrets and private-package
-access have not been inspected or deployed. The current local file artifacts
-are not an independent Railway install. Keep the legacy hosted build record
-until private package access and the TypeScript Railway build are verified.
-Stop TypeScript effects before restoring the Rust source baseline or rolling
-back a future deployment.
+Railway's hosted root/build/start/release settings and secrets have not been
+changed. The current local file artifacts are not an independent hosted install;
+package access and hosted cutover belong to release work. Stop TypeScript effects
+before restoring the Rust source baseline or rolling back a future deployment.

@@ -6,9 +6,9 @@ Native Node.js 24 and TypeScript backend for KasiTek Growth.
 
 TypeScript registers all 537 inventoried Core operations and ten worker modes.
 The previous Rust Core and Growth-local Rust libraries have been removed from
-this checkout after local API, worker, and consumer checks. The preceding Git
-commit is the recovery point. SQL, database migrations, OpenAPI assets, and
-media storage remain in place.
+this checkout after local API, worker, and consumer checks. The Rust source
+baseline is recoverable at commit `abd419c6`. SQL, database migrations,
+OpenAPI assets, and media storage remain in place.
 
 Hosted-service cutover is separate release work and is not part of completing
 the local TypeScript implementation. Growth currently installs version-pinned
