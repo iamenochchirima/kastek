@@ -8,6 +8,7 @@ import { isIP } from "node:net";
 import type { CoreContext } from "./context.js";
 import { installErrorHandler, RequestExtractionError } from "./error.js";
 import { formatSerdeJsonSyntaxError } from "@kasitek-labs/server-support/json";
+import { redactTelemetryLogArguments } from "@kasitek-labs/server-support/telemetry";
 import { apiJson } from "./json.js";
 import {
   parseRequestJson,
@@ -46,6 +47,11 @@ export async function buildApp(
         "req.headers.cookie",
         'res.headers["set-cookie"]',
       ],
+      hooks: {
+        logMethod(args, method) {
+          return method.apply(this, redactTelemetryLogArguments(args));
+        },
+      },
     },
     disableRequestLogging: true,
   });
