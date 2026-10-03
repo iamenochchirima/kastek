@@ -8,6 +8,9 @@ const config=readConfig({TENANT_DATABASE_URL:'postgres://unused',TENANT_SERVER_E
 test('native Agency HTTP keeps health, explicit errors, source CORS and method misses',async()=>{
  const app=await buildApp({config,pool:{} as pg.Pool},[(app)=>{
   app.post('/api/fixture',async()=>{throw forbidden();});
+  app.post('/api/schema',{
+   schema:{body:{type:'object',required:['name'],properties:{name:{type:'string'}},additionalProperties:false}},
+  },async()=>({ok:true}));
   app.delete('/api/bodyless',async()=>({deleted:true}));
   app.post('/api/auth/logout',async()=>({loggedOut:true}));
   app.post('/api/extractor',async()=>{throw new RequestExtractionError('json');});
@@ -16,6 +19,11 @@ test('native Agency HTTP keeps health, explicit errors, source CORS and method m
  try {
   const health=await app.inject('/health');assert.equal(health.statusCode,200);assert.equal(health.json().service,'tenant-server');assert.ok(health.headers['x-correlation-id']);
   const error=await app.inject({method:'POST',url:'/api/fixture',payload:{}});assert.equal(error.statusCode,403);assert.deepEqual(error.json(),{error:'forbidden'});
+  for(const [payload,detail] of [['{}','missing field `name`'],['{"name":false}','invalid type: a boolean, expected a string at `body.name`']] as const){
+   const invalid=await app.inject({method:'POST',url:'/api/schema',payload,headers:{'content-type':'application/json'}});
+   assert.equal(invalid.statusCode,400);assert.equal(invalid.body,`Json deserialize error: ${detail}`);assert.match(invalid.headers['content-type']!,/^text\/plain/);
+   assert.doesNotMatch(invalid.body,/false/);
+  }
   const extractor=await app.inject({method:'POST',url:'/api/extractor',payload:{}});assert.equal(extractor.statusCode,400);assert.match(extractor.headers['content-type']!,/^text\/plain/);
   for(const [payload,detail] of [['{','EOF while parsing an object at line 1 column 1'],['[1,]','trailing comma at line 1 column 4']] as const){
    const malformed=await app.inject({method:'POST',url:'/api/fixture',payload,headers:{'content-type':'application/json'}});
