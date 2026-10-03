@@ -27,8 +27,8 @@ importers:
         specifier: file:.artifacts/shared/kasitek-labs-contracts-0.2.0.tgz
         version: file:.artifacts/shared/kasitek-labs-contracts-0.2.0.tgz
       '@kasitek-labs/server-support':
-        specifier: file:.artifacts/shared/kasitek-labs-server-support-0.1.5.tgz
-        version: file:.artifacts/shared/kasitek-labs-server-support-0.1.5.tgz(@opentelemetry/core@2.11.0(@opentelemetry/api@1.9.0))
+        specifier: file:.artifacts/shared/kasitek-labs-server-support-0.1.6.tgz
+        version: file:.artifacts/shared/kasitek-labs-server-support-0.1.6.tgz(@opentelemetry/core@2.11.0(@opentelemetry/api@1.9.0))
       '@opentelemetry/api':
         specifier: 1.9.0
         version: 1.9.0
@@ -312,9 +312,9 @@ packages:
     version: 0.2.0
     engines: {node: '>=24 <25'}
 
-  '@kasitek-labs/server-support@file:.artifacts/shared/kasitek-labs-server-support-0.1.5.tgz':
-    resolution: {integrity: sha512-65Gt7ENUSF0GBpAktDzxsHNchmJTIMJO12ACql2pMnSlhGPbz/LQMCFHJ+IWT3t+dorBXm9zfyIceLgFepm0qA==, tarball: file:.artifacts/shared/kasitek-labs-server-support-0.1.5.tgz}
-    version: 0.1.5
+  '@kasitek-labs/server-support@file:.artifacts/shared/kasitek-labs-server-support-0.1.6.tgz':
+    resolution: {integrity: sha512-D+f1Uy+FH6qI4oR42MIFMi+9WbTDt/dt/xMmzTLbDVNaJohuy83LGyuU7XbZd3qpo/V2Wg9PNOd0bzkKhSO7jQ==, tarball: file:.artifacts/shared/kasitek-labs-server-support-0.1.6.tgz}
+    version: 0.1.6
     engines: {node: '>=24 <25'}
 
   '@noble/hashes@1.8.0':
@@ -1655,7 +1655,7 @@ snapshots:
 
   '@kasitek-labs/contracts@file:.artifacts/shared/kasitek-labs-contracts-0.2.0.tgz': {}
 
-  '@kasitek-labs/server-support@file:.artifacts/shared/kasitek-labs-server-support-0.1.5.tgz(@opentelemetry/core@2.11.0(@opentelemetry/api@1.9.0))':
+  '@kasitek-labs/server-support@file:.artifacts/shared/kasitek-labs-server-support-0.1.6.tgz(@opentelemetry/core@2.11.0(@opentelemetry/api@1.9.0))':
     dependencies:
       '@kasitek-labs/contracts': file:.artifacts/shared/kasitek-labs-contracts-0.2.0.tgz
       '@opentelemetry/api': 1.9.0

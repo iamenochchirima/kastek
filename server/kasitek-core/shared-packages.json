@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "sourceCommit": "181b79d4ca8e2e242ca0feb254046b69f17e400c",
-  "sourceContentSha256": "fcef050a4d002ad0de02cf04cc9261422920b578a538bff68280543ba4f9d194",
+  "sourceCommit": "e4419a07c81c1f1d052d5354959eb9ff390f991a",
+  "sourceContentSha256": "3880e2db4f96d92be5ea7a365493bc9bd925a644c4308e48934a7c292033ac5d",
   "node": "v24.19.0",
   "packageManager": "pnpm@10.30.1",
   "sourceFiles": [
@@ -43,7 +43,7 @@
     },
     {
       "path": "packages/server-support/package.json",
-      "sha256": "3294763b6576c05563f77216c13690c7538a3b98225321e7dfb560860120a915"
+      "sha256": "7c46aa7f5fbebff99af3125b2e0b057090f8d94aa1edd3e94b2add0c7fbc8bb2"
     },
     {
       "path": "packages/server-support/scripts/pack-shared.mjs",
@@ -75,7 +75,7 @@
     },
     {
       "path": "packages/server-support/src/json.ts",
-      "sha256": "92cd7b2d1011982de92f26125e62b8fa3f5da238604efa69a9dac4f7a188402a"
+      "sha256": "5f78d76b80e87ae2fefb4a1fd897ac0d7f6ef11a8a29981e10213c53145c4430"
     },
     {
       "path": "packages/server-support/src/outbox-sql.ts",
@@ -95,7 +95,7 @@
     },
     {
       "path": "packages/server-support/tests/api-json.test.mjs",
-      "sha256": "989cc310237e39b969f245fbb278fd9fc6908007258b7ddcefac320a0777644b"
+      "sha256": "d9fbba5a90b3bd304d2d62e455953789a2a34950aa05e1c86844f2f2336e8bbe"
     },
     {
       "path": "packages/server-support/tests/config.test.mjs",
@@ -148,10 +148,10 @@
     },
     {
       "package": "@kasitek-labs/server-support",
-      "version": "0.1.5",
-      "file": "kasitek-labs-server-support-0.1.5.tgz",
-      "sha256": "1f7ac0a087674da24948afbadf12336708d82d774d22297f65a009a690af004d",
-      "integrity": "sha512-65Gt7ENUSF0GBpAktDzxsHNchmJTIMJO12ACql2pMnSlhGPbz/LQMCFHJ+IWT3t+dorBXm9zfyIceLgFepm0qA=="
+      "version": "0.1.6",
+      "file": "kasitek-labs-server-support-0.1.6.tgz",
+      "sha256": "cb0c85bc53053e5aca4b031043e446af07173a9e76a798d38859ce7ba64dfa83",
+      "integrity": "sha512-D+f1Uy+FH6qI4oR42MIFMi+9WbTDt/dt/xMmzTLbDVNaJohuy83LGyuU7XbZd3qpo/V2Wg9PNOd0bzkKhSO7jQ=="
     }
   ]
 }
