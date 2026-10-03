@@ -165,60 +165,93 @@ function createInstruments() {
 }
 let instruments: ReturnType<typeof createInstruments> | undefined;
 const getInstruments = () => instruments ??= createInstruments();
-export const recordRetry = (kind: string, name: string, count: number): void =>
-  getInstruments().retries.add(count, { kind, name });
+const operationAttributes = (kind: string, name: string) => ({
+  "operation.kind": kind,
+  "operation.name": name,
+});
+export const recordRetry = (kind: string, name: string, count: number): void => {
+  if (!Number.isSafeInteger(count) || count <= 0) return;
+  getInstruments().retries.add(count, operationAttributes(kind, name));
+};
 export const recordQueueAge = (name: string, ageSeconds: number): void =>
-  getInstruments().queue.record(ageSeconds, { queue: name });
+  getInstruments().queue.record(Math.max(0, ageSeconds), { "queue.name": name });
 export const recordDependencyFailure = (
   provider: string,
   operation: string,
-): void => getInstruments().failures.add(1, { provider, operation });
-export async function resultSpan<T>(
+): void =>
+  getInstruments().failures.add(1, {
+    "peer.service": provider,
+    "operation.name": operation,
+  });
+async function runResultSpan<T>(
   kind: string,
   name: string,
+  spanName: string,
+  spanAttributes: Record<string, string>,
   operation: () => Promise<T>,
+  onError?: () => void,
 ): Promise<T> {
   return trace
     .getTracer("kasitek")
     .startActiveSpan(
-      name,
+      spanName,
       {
         attributes: {
-          "kasitek.operation.kind": kind,
-          "kasitek.operation.name": name,
+          ...operationAttributes(kind, name),
+          ...spanAttributes,
         },
       },
       async (span) => {
-        const started = performance.now(),
-          attributes = { kind, name };
+        const started = performance.now();
+        const attributes = operationAttributes(kind, name);
+        let outcome: "success" | "error" = "success";
         getInstruments().inFlight.add(1, attributes);
         try {
-          return await operation();
+          const value = await operation();
+          span.setStatus({ code: SpanStatusCode.OK });
+          span.setAttribute("otel.status_code", "OK");
+          return value;
         } catch (error) {
-          getInstruments().errors.add(1, attributes);
-          span.setStatus({
-            code: SpanStatusCode.ERROR,
-            message: redactTelemetryText(error, 512),
-          });
+          outcome = "error";
+          getInstruments().errors.add(1, { ...attributes, outcome });
+          span.setStatus({ code: SpanStatusCode.ERROR });
+          span.setAttribute("otel.status_code", "ERROR");
+          span.setAttribute(
+            "exception.type",
+            error instanceof Error ? error.name : typeof error,
+          );
+          onError?.();
           throw error;
         } finally {
-          getInstruments().counter.add(1, attributes);
-          getInstruments().duration.record((performance.now() - started) / 1000, attributes);
+          getInstruments().counter.add(1, { ...attributes, outcome });
+          getInstruments().duration.record(
+            (performance.now() - started) / 1000,
+            { ...attributes, outcome },
+          );
           getInstruments().inFlight.add(-1, attributes);
           span.end();
         }
       },
     );
 }
+export function resultSpan<T>(
+  kind: string,
+  name: string,
+  operation: () => Promise<T>,
+): Promise<T> {
+  return runResultSpan(kind, name, "kasitek.background", {}, operation);
+}
 export async function providerResultSpan<T>(
   provider: string,
   operation: string,
   fn: () => Promise<T>,
 ): Promise<T> {
-  try {
-    return await resultSpan("provider", `${provider}.${operation}`, fn);
-  } catch (error) {
-    recordDependencyFailure(provider, operation);
-    throw error;
-  }
+  return runResultSpan(
+    "dependency",
+    operation,
+    "kasitek.provider",
+    { "peer.service": provider, "kasitek.provider.operation": operation },
+    fn,
+    () => recordDependencyFailure(provider, operation),
+  );
 }
