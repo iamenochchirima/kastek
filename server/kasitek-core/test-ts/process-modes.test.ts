@@ -11,7 +11,11 @@ import pg from 'pg';
 import { parse } from 'dotenv';
 import { isolatedDatabase } from './helpers/database-fixture.js';
 import { readConfig } from '../src-ts/config.js';
-import { createSubscription, enqueueDomainEvent } from '../src-ts/services/public-webhooks.js';
+import {
+  createSubscription,
+  enqueueDomainEvent,
+  processDueDeliveries,
+} from '../src-ts/services/public-webhooks.js';
 import { API_WORKERS, processWorkers } from '../src-ts/workers/runtime.js';
 const modes = [
   'social-publishing-worker',
@@ -349,6 +353,62 @@ test(
       dedicatedWebhookWorker = undefined;
       await stopActive(embeddedApi);
       embeddedApi = undefined;
+
+      await enqueueDomainEvent(fixture.pool, 'org-process-overlap', 'content.post.created', {
+        postId: 'embedded-worker-shutdown',
+      });
+      holdWebhook = true;
+      embeddedApi = await startActive(undefined, '');
+      const shutdownDeadline = Date.now() + 10000;
+      while (webhookCalls < 2 && Date.now() < shutdownDeadline)
+        await delay(25);
+      assert.equal(webhookCalls, 2, 'the API worker did not reach the held webhook');
+      await stopActive(embeddedApi);
+      embeddedApi = undefined;
+      const interrupted = (
+        await fixture.pool.query<{
+          status: string;
+          attemptCount: number;
+          lastStatusCode: number | null;
+          lastError: string | null;
+        }>(
+          `SELECT status, "attemptCount", "lastStatusCode", "lastError" FROM "PublicApiWebhookDelivery" WHERE "eventId"=$1`,
+          ['content.post.created:embedded-worker-shutdown'],
+        )
+      ).rows[0];
+      assert.deepEqual(interrupted, {
+        status: 'DELIVERING',
+        attemptCount: 1,
+        lastStatusCode: null,
+        lastError: null,
+      });
+      const subscription = (
+        await fixture.pool.query<{ status: string; failureCount: number }>(
+          `SELECT status, "failureCount" FROM "PublicApiWebhookSubscription" WHERE "orgId"=$1`,
+          ['org-process-overlap'],
+        )
+      ).rows[0];
+      assert.deepEqual(subscription, { status: 'ACTIVE', failureCount: 0 });
+
+      await fixture.pool.query(
+        `UPDATE "PublicApiWebhookDelivery" SET "updatedAt"=NOW()-INTERVAL '6 minutes' WHERE "eventId"=$1`,
+        ['content.post.created:embedded-worker-shutdown'],
+      );
+      releaseWebhook?.();
+      releaseWebhook = undefined;
+      holdWebhook = false;
+      assert.equal(
+        await processDueDeliveries(fixture.pool, webhookConfig, 1),
+        1,
+      );
+      const recovered = (
+        await fixture.pool.query<{ status: string; attemptCount: number }>(
+          `SELECT status, "attemptCount" FROM "PublicApiWebhookDelivery" WHERE "eventId"=$1`,
+          ['content.post.created:embedded-worker-shutdown'],
+        )
+      ).rows[0];
+      assert.deepEqual(recovered, { status: 'DELIVERED', attemptCount: 2 });
+      assert.equal(webhookCalls, 3);
     } finally {
       releaseWebhook?.();
       await Promise.all([
