@@ -75,7 +75,7 @@ test("native Agents transport preserves scoped HMAC claims, correlation, operato
   const actual = Object.getOwnPropertyNames(AgentPlatformClient.prototype)
     .filter((name) => name !== "constructor")
     .sort();
-  assert.equal(expected.length, 174);
+  assert.equal(expected.length, 176);
   assert.deepEqual(actual, expected);
 });
 test("Agents filtering, OAuth error responses and multipart/audio contract preserve raw values and scopes", async () => {

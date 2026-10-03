@@ -126,6 +126,23 @@ export function registerOperatorRoutes(
     const admin = await access(request);
     return client().operatorHealth(admin.id);
   });
+  app.get(prefix + "/notifications", async (request) => {
+    const admin = await access(request);
+    return client().operatorNotifications(admin.id);
+  });
+  app.post<{ Params: { notificationId: string } }>(
+    prefix + "/notifications/:notificationId/acknowledge",
+    async (request) => {
+      const admin = await access(request, "command");
+      const notificationId = request.params.notificationId.trim();
+      if (!notificationId || byteLength(notificationId) > 240)
+        bad("Operator notification id is invalid");
+      return client().operatorAcknowledgeNotification(
+        admin.id,
+        notificationId,
+      );
+    },
+  );
   app.get<{ Params: { organizationId: string } }>(
     prefix + "/retention/preview/:organizationId",
     async (request) => {

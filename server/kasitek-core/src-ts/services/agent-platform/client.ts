@@ -379,6 +379,27 @@ export class AgentPlatformClient extends AgentPlatformTransport {
       undefined,
     );
   }
+  async operatorNotifications(operatorId: string): Promise<unknown> {
+    return this.requestOperatorJson(
+      "GET",
+      "/v1/operator/notifications",
+      operatorId,
+      ["operator:read"],
+      undefined,
+    );
+  }
+  async operatorAcknowledgeNotification(
+    operatorId: string,
+    notificationId: string,
+  ): Promise<unknown> {
+    return this.requestOperatorJson(
+      "POST",
+      `/v1/operator/notifications/${queryEncode(notificationId)}/acknowledge`,
+      operatorId,
+      ["operator:write"],
+      {},
+    );
+  }
   async operatorCreateCommand(
     operatorId: string,
     idempotencyKey: string,
