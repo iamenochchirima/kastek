@@ -3,6 +3,7 @@ import cookie from '@fastify/cookie';
 import {Readable} from 'node:stream';
 import cors from '@fastify/cors';
 import { environmentAllowsLoopbackOrigins, isLoopbackOrigin } from '@kasitek-labs/server-support/config';
+import { redactTelemetryLogArguments } from '@kasitek-labs/server-support/telemetry';
 import { formatSerdeJsonSyntaxError } from '@kasitek-labs/server-support/json';
 import type {TenantContext} from './context.js';
 import {installErrorHandler,RequestExtractionError} from './error.js';
@@ -22,7 +23,7 @@ export function originMatchesPlatformDomain(origin:string,base:string):boolean {
 export async function buildApp(context:TenantContext,registrars:RouteRegistrar[]=[]):Promise<FastifyInstance> {
  const app=Fastify({bodyLimit:2097152,exposeHeadRoutes:false,
   ajv:{customOptions:{coerceTypes:false,removeAdditional:false,useDefaults:false}},
-  logger:{level:context.config.env.LOG_LEVEL??'info',redact:['req.headers.authorization','req.headers.cookie','res.headers["set-cookie"]']},disableRequestLogging:true});
+  logger:{level:context.config.env.LOG_LEVEL??'info',redact:['req.headers.authorization','req.headers.cookie','res.headers["set-cookie"]'],hooks:{logMethod(args,method){return method.apply(this,redactTelemetryLogArguments(args));}}},disableRequestLogging:true});
  installHttpObservability(app);installErrorHandler(app);
  app.setReplySerializer(apiJson);
  app.addHook('preParsing',async(request,_reply,payload)=>{
