@@ -179,13 +179,14 @@ export class AnalyticsReportingClient {
     new URL(this.baseUrl);
   }
   private async request(
+    operation: "reporting.resolve_scope" | "reporting.catalog" | "reporting.query",
     path: string,
     token: string,
     init: RequestInit = {},
   ): Promise<unknown> {
     return providerResultSpan(
       "kasitek-analytics",
-      "reporting.request",
+      operation,
       async () => {
         const headers = new Headers(init.headers);
         headers.set("authorization", `Bearer ${token}`);
@@ -212,6 +213,7 @@ export class AnalyticsReportingClient {
   ): Promise<ScopeResolution> {
     return decodeScopeResolution(
       await this.request(
+        "reporting.resolve_scope",
         `${SCOPE_RESOLVE_PATH}?${new URLSearchParams({ scope_kind: scopeKind, external_source_id: externalSourceId })}`,
         this.resolverToken,
         { headers: { "x-source-service": sourceService } },
@@ -220,12 +222,13 @@ export class AnalyticsReportingClient {
   }
   catalog(grant: string, scopeId: number | bigint | string): Promise<unknown> {
     return this.request(
+      "reporting.catalog",
       `${CATALOG_PATH}?reporting_scope_id=${integer(scopeId)}`,
       grant,
     );
   }
   report(grant: string, request: ReportQueryRequest): Promise<unknown> {
-    return this.request(QUERY_PATH, grant, {
+    return this.request("reporting.query", QUERY_PATH, grant, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: canonicalJson(request),
