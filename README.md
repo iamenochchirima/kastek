@@ -18,7 +18,9 @@ corepack pnpm --dir client dev
 ```
 
 The TypeScript Tenant API is implemented under `server/kasitek-tenants/src-ts/`.
-The Rust source remains while consumer and retirement checks are completed.
+The Rust implementation has been retired from the working tree after the
+TypeScript replacement and consumer checks passed. Its recoverable source
+baseline is Agency commit `2c7902170a8f75257c0e47b86ffaf38068dd2227`.
 Use Node 24.15.0 and pnpm 10.30.1:
 
 ```sh
@@ -52,8 +54,10 @@ No hosted deployment has been performed.
 
 ## Ownership and integration
 
-The source move does not change runtime behavior or deploy either service. Labs Admin consumes the Tenant API's provisioning endpoints. Portal routing, authentication cookies, tenant domains,
-Analytics publication, and the shared Rust crate boundary are recorded in
+The TypeScript migration has not deployed either service. Labs Admin consumes
+the Tenant API's provisioning endpoints. Portal routing, authentication
+cookies, tenant domains, Analytics publication, and private TypeScript package
+ownership are recorded in
 [source boundaries](docs/source-boundaries.md).
 
 For a future Railway deployment, the service root is `server/kasitek-tenants`.

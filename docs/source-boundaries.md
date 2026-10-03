@@ -1,10 +1,21 @@
-# Agency source boundaries
+# Agency source boundaries and migration notes
 
 This note records the source-only relocation covered by [Agency #2](https://github.com/Kasitek-Labs/kasitek-agency/issues/2)
 and [Agency #3](https://github.com/Kasitek-Labs/kasitek-agency/issues/3), with the later Growth
 cleanup tracked in [Growth #8](https://github.com/Kasitek-Labs/kasitek-growth/issues/8). The source
 was read from Growth's tracked `growth/main` at `0ae32bf350a074cf3c643dcf221e47f53ddb4f63`.
 Growth's active worktree was left untouched.
+
+## Current TypeScript runtime
+
+The Tenant API and its API, publisher and backfill processes run from
+`server/kasitek-tenants/src-ts/` on Node 24. The Rust service source and Cargo
+workspace have been retired; the complete Rust baseline remains recoverable in
+Agency commit `2c7902170a8f75257c0e47b86ffaf38068dd2227`. Local migration and
+consumer checks passed, but private package-registry authentication and hosted
+deployment have not been verified or performed. See the root
+[TypeScript migration plan](../../plans/typescript-migration/IMPLEMENTATION.md)
+for current parity status.
 
 ## Owned source
 
@@ -17,7 +28,13 @@ The Growth portal's tracked `client/apps/tenant-portal/dist/` files were not cop
 authorizes the portal source and assets but does not authorize generated build output. The authored
 favicon and Open Graph image under `public/` were copied.
 
-## Shared Rust dependencies
+## Original Rust dependency boundary (historical)
+
+The source-relocation implementation originally referenced these Labs crates.
+Agency's TypeScript service no longer has Cargo dependencies; it consumes the
+private TypeScript packages `@kasitek-labs/contracts` and
+`@kasitek-labs/server-support` instead. The table below records the former
+Rust dependency edges for recovery and comparison.
 
 The tenant service directly references these shared crates at `server/crates/` in Growth:
 
@@ -29,24 +46,22 @@ The tenant service directly references these shared crates at `server/crates/` i
 | `crypto-utils` | `server/crates/crypto-utils` | private Git dependency from Labs |
 | `observability` | `server/crates/observability` | private Git dependency from Labs |
 
-The Tenant API's `TenantServerConfig` and `CookieSameSitePolicy` now live in
-`server/kasitek-tenants/src/config.rs`; the service continues to depend on the existing `config`
-crate only for generic environment, error, and origin helpers. Tenant context DTOs and the simple
-health response live in `server/kasitek-tenants/src/types.rs`, so the API no longer depends on the
-shared `types` crate.
+In the former Rust implementation, `TenantServerConfig` and
+`CookieSameSitePolicy` lived in `server/kasitek-tenants/src/config.rs`; tenant
+context DTOs and health types lived in `src/types.rs`. Their current
+TypeScript counterparts are in `server/kasitek-tenants/src-ts/config.ts` and
+`src-ts/types.ts`.
 
-These generic crates remain Labs-owned and are consumed from its private Git repository at the
-immutable tag `rust-crates-v0.1.0`. They are not published to a public crate registry. Cargo records
-the selected revision in `server/Cargo.lock`. The `config` crate is
-still used only for generic helpers; tenant-specific settings remain in the Agency service.
-Building Agency requires read access to the private Labs repository, so local contributors and any
-trusted build environment need credentials with that access. Credentials must stay outside the
-repository.
+The Rust dependencies above were private and required Cargo access to Labs;
+they are not part of the current TypeScript build. TypeScript shared package
+artifacts are currently pinned local tarballs. Authenticated registry delivery
+is still pending, and credentials must stay outside the repository.
 
-The service's Analytics publisher calls the Analytics ingestion API using
-`ANALYTICS_INGESTION_URL` and tenant publisher credentials. It uses the Labs-owned
-`analytics-producer` library for the shared event contract, outbox operations, and authenticated HTTP
-client; no Analytics service source was copied into Agency.
+The TypeScript Analytics publisher calls the Analytics ingestion API using
+`ANALYTICS_INGESTION_URL` and tenant publisher credentials. It uses the Labs
+TypeScript server-support package for shared event contracts, outbox operations
+and the authenticated HTTP client; no Analytics service source was copied into
+Agency.
 
 ## Portal and Growth integration points
 
@@ -71,7 +86,7 @@ client; no Analytics service source was copied into Agency.
 These are follow-up integration paths. This change does not alter their contracts, restore
 cross-product journeys, apply migrations, or modify Growth.
 
-## Release impact
+## Original relocation release impact (historical record)
 
 - Change and owner: source relocation for the Agency Tenant Platform; Agency owns the moved source.
 - Risk: standard; no runtime or production state is changed.

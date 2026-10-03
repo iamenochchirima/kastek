@@ -1,8 +1,9 @@
 # KasiTek Tenant API
 
-TypeScript API and worker processes for white-label tenant services. The original
-Rust implementation remains only as a comparison baseline while the last parity
-checks are completed; use the TypeScript commands below to run the service.
+TypeScript API and worker processes for white-label tenant services. The Rust
+implementation was retired after the TypeScript replacement passed its local
+service and consumer checks. Its recoverable source baseline is Agency commit
+`2c7902170a8f75257c0e47b86ffaf38068dd2227`.
 
 Initial scope:
 
