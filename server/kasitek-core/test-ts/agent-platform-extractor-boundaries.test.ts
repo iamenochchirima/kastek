@@ -167,6 +167,15 @@ test("framework default misses stay empty and extractor failures stay plain text
       assert.equal(response.statusCode, 400);
       assert.match(String(response.headers["content-type"]), /^text\/plain/);
       assert.match(response.body, /^Json deserialize error:/);
+      if (payload === "{}")
+        assert.match(response.body, /missing field `name`/);
+      if (payload === '{"name":false}') {
+        assert.match(
+          response.body,
+          /invalid type: a boolean, expected a string/,
+        );
+        assert.doesNotMatch(response.body, /false/);
+      }
     }
     const typed = await app.inject({
       method: "POST",
