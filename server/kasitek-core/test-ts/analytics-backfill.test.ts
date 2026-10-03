@@ -10,7 +10,7 @@ import {epochMicros,epochMillis} from '../src-ts/analytics/facts.js';
 import {buildMetaMessageBackfillRecord} from '../src-ts/analytics/inbox.js';
 import * as connections from '../src-ts/analytics/connections.js';
 import * as campaigns from '../src-ts/analytics/campaigns.js';
-import {backfillSettings,metaResponderType,processSourceBackfillWork,buildHistoryBackfillRecord,type BackfillTransport} from '../src-ts/workers/analytics-backfill.js';
+import {backfillSettings,metaResponderType,processSourceBackfillWork,runAnalyticsBackfill,buildHistoryBackfillRecord,type BackfillTransport} from '../src-ts/workers/analytics-backfill.js';
 installPgTimestampParsers();
 const settings=backfillSettings({ANALYTICS_INGESTION_TOKEN:'synthetic-token',ANALYTICS_BACKFILL_BATCH_SIZE:'1'})!;
 function work(domain:string):SourceBackfillWork{return {job_id:'synthetic-job',source_service:'core',source_domain:domain,reporting_scope_id:1,root_scope_id:1,scope_external_id:'synthetic-org',requested_range_start:'2030-01-01T00:00:00Z',requested_range_end:'2030-01-02T00:00:00Z',contract_version:'1',method:'source_reconstruction',job_status:'running',checkpoint:{},remaining_count:100,lease_expires_at:'2030-01-02T00:00:00Z'};}
@@ -88,6 +88,58 @@ test('source backfill safely resumes after the remote commit loses its acknowled
  const replayed=[...attempts].filter(([,sequences])=>sequences.length===2);
  assert.equal(replayed.length,1);
  assert.equal(replayed[0]![1][0],replayed[0]![1][1]);
+});
+test('backfill worker reclaims a source job after remote commit with a lost HTTP acknowledgement',async()=>{
+ const workItem={...work('connections'),job_id:'worker-lost-ack-job',remaining_count:1};
+ const historyRow:AnalyticsOutboxRecord & {source_sequence:bigint}={
+  outbox_id:'synthetic-outbox',source_service:'core',source_domain:'connections',source_stream_key:'organization:synthetic-org:connections',record_category:'event',record_id:'connection:worker-fixture:connected:1893456000000',contract_name:'connection.lifecycle@1',schema_version:1,scope_kind:'core_organization',scope_external_id:'synthetic-org',idempotency_key:'worker-fixture',envelope:{},payload_hash:'a'.repeat(64),source_sequence:1n,
+ };
+ let historyQueries=0,claims=0,sendAttempts=0;
+ const remotelyCommitted=new Set<string>(),logs:{level:string;fields:Record<string,unknown>}[]=[];
+ const pool={query:async(_sql:string,values?:unknown[])=>{
+  historyQueries++;
+  const cursor=(values as unknown[]|undefined)?.[3];
+  return {rows:cursor==null?[historyRow]:[]};
+ }} as unknown as pg.Pool;
+ const controller=new AbortController(),previousFetch=globalThis.fetch;
+ let watchdog:ReturnType<typeof setTimeout>|undefined;
+ globalThis.fetch=(async(input,init)=>{
+  assert.equal(new Headers(init?.headers).get('authorization'),'Bearer synthetic-worker-token');
+  const url=new URL(String(input));
+  if(url.pathname==='/internal/backfill/v1/work'&&init?.method==='GET'){
+   claims++;
+   if(claims===1)return Response.json(workItem);
+   if(claims===2)return new Response(null,{status:204});
+   if(claims===3){controller.abort();return Response.json(workItem);}
+   throw new Error('unexpected additional backfill claim');
+  }
+  if(url.pathname==='/internal/ingest/v1/batch'&&init?.method==='POST'){
+   sendAttempts++;
+   const body=JSON.parse(String(init.body)) as {records:{record_id:string}[]};
+   assert.equal(body.records.length,1);
+   const recordId=body.records[0]!.record_id;
+   if(sendAttempts===1){remotelyCommitted.add(recordId);throw new Error('simulated response loss after commit');}
+   assert.ok(remotelyCommitted.has(recordId));
+   return Response.json({accepted_count:0,duplicate_count:1,rejected_count:0,retryable_count:0,acknowledgements:[{source_sequence:backfillSourceSequence(recordId).toString(),record_id:recordId,status:'duplicate'}]});
+  }
+  throw new Error(`unexpected Analytics request ${init?.method??'GET'} ${url.pathname}`);
+ }) as typeof fetch;
+ const logger={info:(fields:Record<string,unknown>)=>logs.push({level:'info',fields}),warn:(fields:Record<string,unknown>)=>logs.push({level:'warn',fields}),error:(fields:Record<string,unknown>)=>logs.push({level:'error',fields})};
+ try{
+  const run=runAnalyticsBackfill(pool,{ANALYTICS_INGESTION_TOKEN:'synthetic-worker-token',ANALYTICS_INGESTION_URL:'http://analytics.fixture',ANALYTICS_BACKFILL_POLL_INTERVAL_MS:'1'},logger,controller.signal);
+  const stopped=new Promise<never>((_resolve,reject)=>{watchdog=setTimeout(()=>reject(new Error('backfill worker did not stop after abort')),1500);watchdog.unref();});
+  await Promise.race([run,stopped]);
+  assert.equal(claims,3);
+  assert.equal(sendAttempts,2);
+  assert.equal(historyQueries,3);
+  assert.equal(remotelyCommitted.size,1);
+  assert.ok(logs.some(entry=>entry.level==='error'&&entry.fields.event==='queue.item.failed'));
+  assert.ok(logs.some(entry=>entry.level==='info'&&entry.fields.event==='queue.item.completed'&&entry.fields.connection_records===1));
+ }finally{
+  controller.abort();
+  globalThis.fetch=previousFetch;
+  if(watchdog)clearTimeout(watchdog);
+ }
 });
 test('isolated source reconstruction pages precise cursors, preserves history hashes and excludes foreign organization/range/channel',{skip:!process.env.CORE_ANALYTICS_TEST_DATABASE_URL},async()=>{
  const schema=`analytics_backfill_test_${randomUUID().replaceAll('-','')}`;const admin=new pg.Pool({connectionString:process.env.CORE_ANALYTICS_TEST_DATABASE_URL});await admin.query(`CREATE SCHEMA "${schema}"`);const pool=new pg.Pool({connectionString:process.env.CORE_ANALYTICS_TEST_DATABASE_URL,options:`-c search_path=${schema} -c timezone=UTC`});
