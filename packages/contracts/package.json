@@ -1,6 +1,6 @@
 {
   "name": "@kasitek-labs/contracts",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
   "repository": "https://github.com/Kasitek-Labs/kasitek-labs.git",
   "publishConfig": {
@@ -13,14 +13,23 @@
     "dist",
     "README.md"
   ],
+  "types": "./dist/index.d.ts",
+  "main": "./dist/cjs/index.js",
+  "module": "./dist/index.js",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/cjs/index.js"
+      }
     }
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.json && tsc -p tsconfig.cjs.json && node scripts/write-cjs-package-type.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   }
 }
