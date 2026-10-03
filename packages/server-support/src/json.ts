@@ -241,6 +241,31 @@ export function canonicalJson(value: unknown): string {
     );
   throw new Error("unsupported JSON value");
 }
+
+function prepareApiJson(value: unknown): unknown {
+  if (value instanceof Date) return value.toISOString();
+  if (value instanceof SerdeFloat) return value;
+  if (Array.isArray(value))
+    return value.map((item) => (item === undefined ? null : prepareApiJson(item)));
+  if (
+    value !== null &&
+    typeof value === "object" &&
+    Object.getPrototypeOf(value) === Object.prototype
+  ) {
+    return Object.fromEntries(
+      Object.entries(value)
+        .filter(([, item]) => item !== undefined)
+        .map(([key, item]) => [key, prepareApiJson(item)]),
+    );
+  }
+  return value;
+}
+
+/** JSON serializer shared by service HTTP replies: dates and i64 values stay precise. */
+export function apiJson(value: unknown): string {
+  return canonicalJson(prepareApiJson(value));
+}
+
 export const canonicalJsonSha256 = (value: unknown): string =>
   createHash("sha256").update(canonicalJson(value)).digest("hex");
 export function integer(value: Integer): bigint {
