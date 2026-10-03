@@ -1,5 +1,5 @@
 import { installHttpObservability } from "./observability/http.js";
-import Fastify, { type FastifyInstance } from "fastify";
+import Fastify, { LogController, type FastifyInstance } from "fastify";
 import cookie from "@fastify/cookie";
 import cors from "@fastify/cors";
 import formbody from "@fastify/formbody";
@@ -53,7 +53,7 @@ export async function buildApp(
         },
       },
     },
-    disableRequestLogging: true,
+    logController: new LogController({ disableRequestLogging: true }),
   });
   installHttpObservability(app);
   installErrorHandler(app);
