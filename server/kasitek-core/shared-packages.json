@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "sourceCommit": "4632ee1c0ada563498d8b1509266102451a3b5a4",
-  "sourceContentSha256": "63cc12ebba81feda1b35261f7058c9871a02c2ad11fdddd51c3a89f5492a083c",
+  "sourceCommit": "181b79d4ca8e2e242ca0feb254046b69f17e400c",
+  "sourceContentSha256": "fcef050a4d002ad0de02cf04cc9261422920b578a538bff68280543ba4f9d194",
   "node": "v24.19.0",
   "packageManager": "pnpm@10.30.1",
   "sourceFiles": [
@@ -39,11 +39,11 @@
     },
     {
       "path": "packages/server-support/README.md",
-      "sha256": "8f64056c6100d7c3165cc05c8c91fd732542efa995de6734b7ab53705f9da0f2"
+      "sha256": "ecab522f41368827f8a21c2fa0e2fb6546e9132177f85072cd423af8be319bba"
     },
     {
       "path": "packages/server-support/package.json",
-      "sha256": "fefac72e66f32460aac6b2760c9837f275f3de80162d2105e2b48e932d03f10c"
+      "sha256": "3294763b6576c05563f77216c13690c7538a3b98225321e7dfb560860120a915"
     },
     {
       "path": "packages/server-support/scripts/pack-shared.mjs",
@@ -75,7 +75,7 @@
     },
     {
       "path": "packages/server-support/src/json.ts",
-      "sha256": "c169a8e18a8488aef7171f6da3464f97920a5d0298c5ef45d8452eca87cab856"
+      "sha256": "92cd7b2d1011982de92f26125e62b8fa3f5da238604efa69a9dac4f7a188402a"
     },
     {
       "path": "packages/server-support/src/outbox-sql.ts",
@@ -92,6 +92,10 @@
     {
       "path": "packages/server-support/src/telemetry.ts",
       "sha256": "c37ab65d2cf36be4d936a8fe2ada120b60416c2203b9961c6a811b6ea802ea75"
+    },
+    {
+      "path": "packages/server-support/tests/api-json.test.mjs",
+      "sha256": "989cc310237e39b969f245fbb278fd9fc6908007258b7ddcefac320a0777644b"
     },
     {
       "path": "packages/server-support/tests/config.test.mjs",
@@ -123,7 +127,7 @@
     },
     {
       "path": "pnpm-lock.yaml",
-      "sha256": "b8149598f97a4de8af292f7253f2fca2d9a3e6c757f34ff4454cb25b0f01e11a"
+      "sha256": "f28dd42cd55aa4bd3873cc5abb2bdf99fc5f0abc315bc411f7d4b02fd79623a0"
     },
     {
       "path": "pnpm-workspace.yaml",
@@ -144,10 +148,10 @@
     },
     {
       "package": "@kasitek-labs/server-support",
-      "version": "0.1.4",
-      "file": "kasitek-labs-server-support-0.1.4.tgz",
-      "sha256": "9957527afdddc423d53b6b3ab67132a10181645898e9e23622f7c01719ee56b3",
-      "integrity": "sha512-mjZvTUJzlczwXYcWkPVTW5wpBaxn6zNpLrmFdcRYzrUjD+y+AamzQkXP6Cj/mmMTUsioBDVw1aL5XN/51ns0MA=="
+      "version": "0.1.5",
+      "file": "kasitek-labs-server-support-0.1.5.tgz",
+      "sha256": "1f7ac0a087674da24948afbadf12336708d82d774d22297f65a009a690af004d",
+      "integrity": "sha512-65Gt7ENUSF0GBpAktDzxsHNchmJTIMJO12ACql2pMnSlhGPbz/LQMCFHJ+IWT3t+dorBXm9zfyIceLgFepm0qA=="
     }
   ]
 }
