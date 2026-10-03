@@ -709,6 +709,7 @@ async function validateBackfillJob(
   tx: PoolClient,
   job: string,
   a: AuthenticatedProducer,
+  sourceDomain: string,
 ): Promise<string> {
   let row;
   try {
@@ -719,6 +720,7 @@ async function validateBackfillJob(
   if (
     !row ||
     row.source_service !== a.source_service ||
+    row.source_domain !== sourceDomain ||
     row.job_status !== "running"
   )
     fail("backfill_not_authorized");
@@ -728,8 +730,21 @@ async function updateBackfillCount(
   tx: PoolClient,
   a: AuthenticatedProducer,
   job: string,
+  r: IngestionRecord,
   accepted: boolean,
 ): Promise<void> {
+  const receipt = await tx.query(SQL.record_backfill_outcome, [
+    job,
+    a.producer_id,
+    recordSourceDomain(r),
+    r.source_stream_key,
+    r.source_sequence,
+    r.record_category,
+    r.record_id,
+    accepted ? "accepted" : "rejected",
+    a.source_service,
+  ]);
+  if (!receipt.rowCount) return;
   const column = accepted ? "accepted_count" : "rejected_count";
   const row = (
     await tx.query(SQL.update_backfill_count.replaceAll("{column}", column), [
@@ -781,7 +796,7 @@ async function rejectedOutcome(
 ): Promise<void> {
   await recordFailure(tx, r, a, failure, binding, override);
   if (job !== null && failure.class_ !== "retryable")
-    await updateBackfillCount(tx, a, job, false);
+    await updateBackfillCount(tx, a, job, r, false);
 }
 async function authorizedRejection(
   tx: PoolClient,
@@ -794,7 +809,7 @@ async function authorizedRejection(
   let domain: null | string = null;
   if (job !== null) {
     try {
-      domain = await validateBackfillJob(tx, job, a);
+      domain = await validateBackfillJob(tx, job, a, recordSourceDomain(r));
     } catch (error) {
       if (!(error instanceof ValidationFailure)) throw error;
       await recordFailure(tx, r, a, error, binding);
@@ -1192,16 +1207,7 @@ async function ingestRecord(
         existing.record_id === r.record_id &&
         existing.payload_hash === r.payload_hash
       ) {
-        if (job !== null) {
-          const jobRow = (
-            await tx.query(SQL.count_duplicate_backfill_if_running, [
-              job,
-              a.source_service,
-            ])
-          ).rows[0];
-          if (jobRow?.source_domain === recordSourceDomain(r))
-            await updateBackfillCount(tx, a, job, true);
-        }
+        if (job !== null) await updateBackfillCount(tx, a, job, r, true);
         if (repair !== null) await releaseQuarantine(tx, a, r, repair);
         await tx.query("COMMIT");
         committed = true;
@@ -1222,7 +1228,7 @@ async function ingestRecord(
     }
     if (job !== null) {
       try {
-        await validateBackfillJob(tx, job, a);
+        await validateBackfillJob(tx, job, a, recordSourceDomain(r));
       } catch (error) {
         const f =
           error instanceof ValidationFailure
@@ -1269,7 +1275,7 @@ async function ingestRecord(
       else await insertFact(tx, r, a, v, binding, job !== null);
     }
     if (job === null) await updateCursor(tx, a, r);
-    else await updateBackfillCount(tx, a, job, true);
+    else await updateBackfillCount(tx, a, job, r, true);
     if (repair !== null) await releaseQuarantine(tx, a, r, repair);
     await tx.query("COMMIT");
     committed = true;

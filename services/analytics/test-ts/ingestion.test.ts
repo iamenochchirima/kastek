@@ -447,6 +447,135 @@ test(
     }
   },
 );
+
+test(
+  "restarted source backfill counts a duplicate record once per job",
+  { skip: !enabled },
+  async () => {
+    const f = await analyticsFixture();
+    try {
+      const organization = "restart-backfill-org",
+        scope = record(
+          "scope_definition",
+          "restart-backfill-scope",
+          1n,
+          {
+            scope_kind: "core_organization",
+            scope_external_id: organization,
+            reporting_timezone: "UTC",
+            status: "active",
+            source_version: 1,
+          },
+          organization,
+          "restart-backfill-scope-stream",
+        );
+      assert.equal(
+        (await ingestBatch(f.pool, authenticated, { records: [scope] }))
+          .accepted_count,
+        1,
+      );
+      const scopeId = (
+        await f.pool.query(
+          "SELECT scope_id FROM analytics.reporting_scope WHERE external_source_id=$1",
+          [organization],
+        )
+      ).rows[0]!.scope_id;
+      await f.pool.query(
+        `INSERT INTO analytics.analytics_backfill_job(job_id,source_service,source_domain,reporting_scope_id,root_scope_id,requested_range_start,requested_range_end,contract_version,method,job_status,remaining_count,requesting_actor_type,requesting_actor_id,authorization_grant_id,started_at) VALUES('restart-backfill-job','core','campaigns',$1,$1,'2026-08-22T11:00:00Z','2026-08-22T13:00:00Z','campaign.recipient.sent@1','source_reconstruction','running',2,'test','fixture','fixture-grant',NOW())`,
+        [scopeId],
+      );
+      const first = record(
+          "event",
+          "restart-backfill-event-1",
+          1n,
+          eventData,
+          organization,
+          "restart-backfill-stream",
+        ),
+        second = record(
+          "event",
+          "restart-backfill-event-2",
+          2n,
+          eventData,
+          organization,
+          "restart-backfill-stream",
+        );
+      assert.equal(
+        (
+          await ingestBatch(f.pool, authenticated, {
+            records: [first],
+            backfill_job_id: "restart-backfill-job",
+          })
+        ).accepted_count,
+        1,
+      );
+      assert.equal(
+        (
+          await ingestBatch(f.pool, authenticated, {
+            records: [first],
+            backfill_job_id: "restart-backfill-job",
+          })
+        ).duplicate_count,
+        1,
+      );
+      const afterRetry = (
+        await f.pool.query(
+          "SELECT scanned_count,accepted_count,remaining_count,job_status FROM analytics.analytics_backfill_job WHERE job_id='restart-backfill-job'",
+        )
+      ).rows[0]!;
+      assert.deepEqual(
+        [
+          BigInt(afterRetry.scanned_count),
+          BigInt(afterRetry.accepted_count),
+          BigInt(afterRetry.remaining_count),
+          afterRetry.job_status,
+        ],
+        [1n, 1n, 1n, "running"],
+      );
+      assert.equal(
+        (
+          await ingestBatch(f.pool, authenticated, {
+            records: [second],
+            backfill_job_id: "restart-backfill-job",
+          })
+        ).accepted_count,
+        1,
+      );
+      const completed = (
+        await f.pool.query(
+          "SELECT scanned_count,accepted_count,remaining_count,job_status FROM analytics.analytics_backfill_job WHERE job_id='restart-backfill-job'",
+        )
+      ).rows[0]!;
+      assert.deepEqual(
+        [
+          BigInt(completed.scanned_count),
+          BigInt(completed.accepted_count),
+          BigInt(completed.remaining_count),
+          completed.job_status,
+        ],
+        [2n, 2n, 0n, "completed"],
+      );
+      assert.equal(
+        (
+          await f.pool.query(
+            "SELECT COUNT(*) AS count FROM analytics.analytics_backfill_record_receipt WHERE job_id='restart-backfill-job'",
+          )
+        ).rows[0]!.count,
+        "2",
+      );
+      assert.equal(
+        (
+          await f.pool.query(
+            "SELECT COUNT(*) AS count FROM analytics.analytics_event WHERE source_stream_key='restart-backfill-stream'",
+          )
+        ).rows[0]!.count,
+        "2",
+      );
+    } finally {
+      await f.close();
+    }
+  },
+);
 test(
   "competing ingestion transactions preserve one immutable identity and retry safely",
   { skip: !enabled },

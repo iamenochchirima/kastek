@@ -47,10 +47,25 @@ export const SQL = {
     "INSERT INTO analytics.analytics_ingestion_failure (\n             producer_id, source_service, source_domain, source_stream_key, source_sequence,\n             record_category, record_identity, reporting_scope_id, root_scope_id, schema_version,\n             payload_hash, failure_class, safe_error_code, safe_error_summary, quarantine_status\n           ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$13,'quarantined')",
   validate_backfill_job:
     "SELECT source_service, source_domain, job_status FROM analytics.analytics_backfill_job WHERE job_id = $1 FOR UPDATE",
+  record_backfill_outcome:
+    `WITH eligible AS (
+             SELECT job_id
+             FROM analytics.analytics_backfill_job
+             WHERE job_id = $1 AND source_service = $9 AND source_domain = $3
+               AND job_status = 'running'
+             FOR UPDATE
+           )
+           INSERT INTO analytics.analytics_backfill_record_receipt AS receipt (
+             job_id, producer_id, source_stream_key, source_sequence,
+             record_category, record_id, outcome
+           )
+           SELECT eligible.job_id, $2, $4, $5, $6, $7, $8
+           FROM eligible
+           ON CONFLICT (job_id, producer_id, source_stream_key, source_sequence, record_category, record_id)
+           DO NOTHING
+           RETURNING receipt.job_id`,
   update_backfill_count:
     "UPDATE analytics.analytics_backfill_job SET scanned_count = scanned_count + 1, {column} = {column} + 1, remaining_count = CASE WHEN remaining_count IS NULL THEN NULL ELSE GREATEST(remaining_count - 1, 0) END, job_status = CASE WHEN remaining_count IS NOT NULL AND remaining_count <= 1 THEN 'completed' ELSE job_status END, completed_at = CASE WHEN remaining_count IS NOT NULL AND remaining_count <= 1 THEN NOW() ELSE completed_at END, lease_owner = CASE WHEN remaining_count IS NOT NULL AND remaining_count <= 1 THEN NULL ELSE lease_owner END, lease_expires_at = CASE WHEN remaining_count IS NOT NULL AND remaining_count <= 1 THEN NULL ELSE lease_expires_at END WHERE job_id = $1 RETURNING source_domain, reporting_scope_id, root_scope_id, requested_range_start, requested_range_end, method, job_status, scanned_count, accepted_count, rejected_count, completed_at",
-  count_duplicate_backfill_if_running:
-    "SELECT source_domain FROM analytics.analytics_backfill_job WHERE job_id = $1 AND source_service = $2 AND job_status = 'running' FOR UPDATE",
   insert_backfill_coverage_checkpoint:
     "INSERT INTO analytics.analytics_coverage_checkpoint (\n                producer_id, source_service, source_domain, reporting_scope_id, root_scope_id,\n                coverage_layer, dimension_key, window_start, window_end,\n                expected_count, included_count, excluded_count, coverage_state,\n                complete_through, projection_version, source_manifest_id,\n                reconciliation_run_id, backfill_job_id, observed_at\n            ) VALUES ($1,$2,$3,$4,$5,'temporal',NULL,$6,$7,$8,$9,$10,$11,$12,NULL,NULL,NULL,$13,$14)",
 } as const;
