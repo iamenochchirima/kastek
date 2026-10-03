@@ -15,7 +15,7 @@ export async function POST(req: Request) {
     );
   }
 
-  // Transform listings into the format the Rust backend expects
+  // Transform listings into the format the Core API expects
   const leads = listings.map(
     (l: { name: string; website?: string; address?: string; bizbayUrl?: string; phone?: string; email?: string }) => {
       const slug = l.name
@@ -35,13 +35,13 @@ export async function POST(req: Request) {
     }
   );
 
-  const rustReq = new Request(req.url, {
+  const coreRequest = new Request(req.url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ leads }),
   });
 
-  const res = await proxyToCore(rustReq, "/api/admin/web-services/import");
+  const res = await proxyToCore(coreRequest, "/api/admin/web-services/import");
   const data = await res.json();
   return NextResponse.json(data, { status: res.status });
 }

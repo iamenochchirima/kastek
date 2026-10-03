@@ -33,7 +33,7 @@ function unavailableJsonResponse(service: string, error: unknown): Response {
 }
 
 /**
- * Reads the admin session from the Rust backend.
+ * Reads the admin session from the Core API.
  * Returns null if not authenticated.
  * Must only be called from Server Components / Route Handlers.
  */
@@ -67,7 +67,7 @@ export async function requireAdminSession(): Promise<AdminUser> {
 }
 
 /**
- * Fetches from the core Rust backend, forwarding the session cookie.
+ * Fetches from the Core API, forwarding the session cookie.
  * Use inside Server Components (no Request object needed).
  */
 export async function fetchFromCore(
@@ -90,7 +90,7 @@ export async function fetchFromCore(
 }
 
 /**
- * Fetches from the tenants Rust backend with the admin secret header.
+ * Fetches from the Tenant API with the admin secret header.
  * Use inside Server Components.
  */
 export async function fetchFromTenants(
@@ -112,7 +112,7 @@ export async function fetchFromTenants(
 }
 
 /**
- * Proxies a request to the core Rust backend, forwarding the session cookie.
+ * Proxies a request to the Core API, forwarding the session cookie.
  * Use inside Next.js Route Handlers.
  */
 export async function proxyToCore(
@@ -150,7 +150,7 @@ export async function proxyToCore(
 }
 
 /**
- * Proxies a request to the tenant Rust backend, forwarding the admin secret.
+ * Proxies a request to the Tenant API, forwarding the admin secret.
  */
 export async function proxyToTenants(
   req: Request,

@@ -51,7 +51,7 @@ export default async function WebServicesPage({
   const total = allLeads.length;
   const filteredCount = total;
 
-  // Paginate client-side (the Rust backend returns all filtered results)
+  // Paginate client-side (the Core API returns all filtered results)
   const leads = allLeads.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
   const totalPages = Math.ceil(filteredCount / PAGE_SIZE);
 
