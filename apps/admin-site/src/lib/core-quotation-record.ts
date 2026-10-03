@@ -1,4 +1,4 @@
-/** Core quotation records serialize Rust field names; PDF draft models use camelCase. */
+/** Core API quotation records use snake_case; PDF draft models use camelCase. */
 export interface CoreQuotationRecord {
   id: string;
   quote_request_id: string | null;

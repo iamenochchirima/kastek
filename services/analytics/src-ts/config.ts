@@ -54,5 +54,5 @@ export function readConfig(source:Record<string,string|undefined>=process.env):A
   database_max_connections:Number(unsigned('ANALYTICS_DATABASE_MAX_CONNECTIONS',source.ANALYTICS_DATABASE_MAX_CONNECTIONS,10,4294967295n)),
   database_acquire_timeout_ms:unsigned('ANALYTICS_DATABASE_ACQUIRE_TIMEOUT_MS',source.ANALYTICS_DATABASE_ACQUIRE_TIMEOUT_MS,5000,18446744073709551615n),
   database_connect_timeout_ms:unsigned('ANALYTICS_DATABASE_CONNECT_TIMEOUT_MS',source.ANALYTICS_DATABASE_CONNECT_TIMEOUT_MS,5000,18446744073709551615n),
-  log_filter:str(source.ANALYTICS_LOG_FILTER??source.RUST_LOG,'info')};
+  log_filter:str(source.ANALYTICS_LOG_FILTER,'info')};
 }

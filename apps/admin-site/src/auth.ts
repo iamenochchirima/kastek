@@ -1,7 +1,7 @@
 /**
  * Compatibility shim — replaces NextAuth.
  * All pages that previously called `auth()` get a session-like object
- * backed by the Rust kasitek-core admin session cookie instead.
+ * backed by the Core admin session cookie instead.
  */
 import { getAdminSession } from "@/lib/admin-auth";
 

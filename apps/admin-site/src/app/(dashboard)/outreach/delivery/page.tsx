@@ -43,7 +43,7 @@ export default async function OutreachDeliveryPage({
   const filters = await searchParams;
   const currentPage = Math.max(1, parseInt(filters.page || "1", 10));
 
-  // Build query params for Rust endpoint
+  // Build query params for the Core API endpoint.
   const q = new URLSearchParams();
   if (filters.campaignId) q.set("campaignId", filters.campaignId);
   if (filters.status) q.set("status", filters.status);
