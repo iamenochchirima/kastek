@@ -155,7 +155,7 @@ export default async function OperationsPage() {
     </section>
     <OperatorSearch canCommand={canCommand} />
     <AudioTranscriptionOperationsPanel jobs={audioTranscriptionJobs.jobs} canCommand={canCommand} provider={health.audioTranscription} />
-    <OperatorNotifications initialNotifications={notifications.notifications} />
+    <OperatorNotifications initialNotifications={notifications.notifications} canAcknowledge={canCommand} />
     <OperatorRunbooks />
     <section className="v-card overflow-hidden">
       <div className="border-b border-border px-5 py-4"><h2 className="text-sm font-semibold text-foreground">Support access</h2><p className="mt-1 text-xs text-muted-foreground">Customer content access requires a short-lived, organization or resource-scoped grant. Secrets, prompts, and tokens remain prohibited.</p></div>
