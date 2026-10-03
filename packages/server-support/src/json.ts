@@ -1,5 +1,104 @@
 import { createHash } from "node:crypto";
 import type { Integer, Timestamp } from "@kasitek-labs/contracts";
+
+function syntaxOffset(source: string, message: string): number {
+  const position = /\bposition\s+(\d+)/.exec(message);
+  if (position) return Number(position[1]);
+  const token = /Unexpected token '((?:\\.|[^'])*)'/.exec(message)?.[1];
+  if (token) {
+    const character = token.replace(/\\(.)/g, "$1");
+    const punctuation = [",", "]", "}"].includes(character);
+    const offset = punctuation
+      ? source.lastIndexOf(character)
+      : source.indexOf(character);
+    if (offset >= 0) return offset;
+  }
+  return source.length;
+}
+
+function syntaxLocation(source: string, offset: number, atEnd: boolean): string {
+  const bounded = Math.max(0, Math.min(offset, source.length));
+  const before = source.slice(0, bounded);
+  const line = (before.match(/\n/g)?.length ?? 0) + 1;
+  const lineStart = before.lastIndexOf("\n") + 1;
+  const column =
+    Buffer.byteLength(before.slice(lineStart), "utf8") + (atEnd ? 0 : 1);
+  return `at line ${line} column ${column}`;
+}
+
+type JsonSyntaxKind = "a value" | "an object" | "a list" | "a string";
+
+function eofSyntaxKind(source: string): JsonSyntaxKind {
+  const stack: string[] = [];
+  let inString = false;
+  let escaped = false;
+  for (const char of source) {
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (char === "\\") escaped = true;
+      else if (char === '"') inString = false;
+    } else if (char === '"') inString = true;
+    else if (char === "{" || char === "[") stack.push(char);
+    else if (char === "}" || char === "]") stack.pop();
+  }
+  if (inString) return "a string";
+  const last = source.trimEnd().at(-1);
+  const container = stack.at(-1);
+  if (container === "{" && last !== ":" && last !== ",") return "an object";
+  if (container === "[" && last !== ",") return "a list";
+  return "a value";
+}
+
+/** Format Node JSON.parse syntax errors without reflecting submitted values. */
+export function formatSerdeJsonSyntaxError(
+  source: string,
+  error: unknown,
+): string {
+  if (!(error instanceof SyntaxError)) return "Invalid JSON";
+  const message = error.message;
+  const offset = syntaxOffset(source, message);
+  const atEnd =
+    offset >= source.length ||
+    /Unexpected end of JSON input|Unterminated string|Unterminated fractional number|Exponent part is missing/.test(
+      message,
+    );
+  const location = syntaxLocation(source, offset, atEnd);
+  const before = source.slice(0, offset).trimEnd();
+  const after = source.slice(offset).trimStart();
+  const trailingComma =
+    before.endsWith(",") && (after.startsWith("}") || after.startsWith("]"));
+
+  if (trailingComma) return `trailing comma ${location}`;
+  if (/Unexpected non-whitespace character after JSON/.test(message))
+    return `trailing characters ${location}`;
+  if (/Unexpected number in JSON/.test(message))
+    return `invalid number ${location}`;
+  if (/Bad escaped character|Bad Unicode escape/.test(message))
+    return `invalid escape ${location}`;
+  if (/Bad control character in string literal/.test(message))
+    return `control character (\\u0000-\\u001F) found while parsing a string ${location}`;
+  if (atEnd)
+    return `EOF while parsing ${eofSyntaxKind(source)} ${location}`;
+  if (/Expected ':' after property name/.test(message))
+    return `expected \`:\` ${location}`;
+  if (/Expected ',' or ']' after array element/.test(message))
+    return `expected \`,\` or \`]\` ${location}`;
+  if (/Expected ',' or '}' after property value/.test(message))
+    return `expected \`,\` or \`}\` ${location}`;
+  if (/Expected property name|Expected double-quoted property name/.test(message))
+    return `key must be a string ${location}`;
+
+  if (/Unexpected token/.test(message)) {
+    const tokenStart = offset - 1;
+    let start = tokenStart;
+    while (start >= 0 && /[A-Za-z]/.test(source[start]!)) start--;
+    const token = source.slice(start + 1, offset + 1);
+    const detail = /^[ntf]/.test(token) ? "expected ident" : "expected value";
+    return `${detail} ${location}`;
+  }
+  return `expected value ${location}`;
+}
+
 // Object members sort lexically as serde_json's BTreeMap does. Integer values never pass through Number.
 export class SerdeFloat {
   readonly __serde_float = true as const;

@@ -6,7 +6,7 @@ Exports:
 
 - `./crypto`: SHA-256, URL-safe tokens, AES-256-GCM using the existing SHA-256 secret derivation and `nonce:tag:ciphertext` envelope. Decryption also accepts the existing `nonce:ciphertext+tag` format.
 - `./config`: environment values, origin normalization and explicit development loopback checks.
-- `./json`: sorted-key canonical JSON and exact large-integer encoding. `serdeFloat` preserves Rust floating-point spelling. `parseCanonicalJson` retains integer versus float representations for hash comparisons. `parseLosslessJson` retains unsafe JSON integers as bigint.
+- `./json`: sorted-key canonical JSON and exact large-integer encoding. `serdeFloat` preserves Rust floating-point spelling. `parseCanonicalJson` retains integer versus float representations for hash comparisons. `parseLosslessJson` retains unsafe JSON integers as bigint. `formatSerdeJsonSyntaxError` maps Node 24 JSON syntax failures to Serde-style messages without echoing request content.
 - `./analytics-producer`: event, observation, scope and manifest builders, privacy validation, payload hashes, transaction-owned enqueue, bounded leases, acknowledgement handling, retries, ingestion, reconciliation and deterministic backfill identity.
 - `./analytics-reporting`: ES256 120-second reporting grants, internal scope resolution, catalog/query transport and product response scope redaction.
 - `./telemetry`: optional OpenTelemetry, resource identity, trace headers, operation metrics and credential redaction. A missing or unavailable Collector does not block application work.
@@ -25,7 +25,7 @@ The packages use the `@kasitek-labs` scope on GitHub Packages. To publish them, 
 
 Consumers need `read:packages` access to both packages and a build-time `NODE_AUTH_TOKEN`. The first publication and GitHub package access grants still need owner setup. An authenticated clean install has not yet been verified.
 
-For local migration integration, run `pnpm pack:shared <temporary-directory>` from Labs root, then install both tarballs together into the consumer. The command builds compiled exports and writes `manifest.json` with the source Git SHA, a content digest for the actual source files including local edits, and SHA-256/SHA-512 checksums for each tarball. Consumer lockfiles pin these artifacts by integrity. Packing converts the workspace dependency to exact version `0.1.0`. This verifies compiled package exports without permanent sibling-repository paths. Keep tarballs outside source control. Production consumers must pin the version delivered by GitHub Packages, with credentials provided through the host environment; no token belongs in Git.
+For local migration integration, run `pnpm pack:shared <temporary-directory>` from Labs root, then install both tarballs together into the consumer. The command builds compiled exports and writes `manifest.json` with the source Git SHA, a content digest for the actual source files including local edits, and SHA-256/SHA-512 checksums for each tarball. Consumer lockfiles pin these artifacts by integrity. Packing converts workspace dependencies to the exact package versions in `package.json`. This verifies compiled package exports without permanent sibling-repository paths. Keep tarballs outside source control. Production consumers must pin the version delivered by GitHub Packages, with credentials provided through the host environment; no token belongs in Git.
 
 ## Parity evidence
 

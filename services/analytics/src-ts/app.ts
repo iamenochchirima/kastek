@@ -7,6 +7,7 @@ import {MetricsAccess} from './metrics.js';
 import {registerHealthRoutes} from './health.js';
 import {RequestExtractionError,errorType} from './error.js';
 import {isSafeCorrelationId} from '@kasitek-labs/server-support/telemetry';
+import {formatSerdeJsonSyntaxError} from '@kasitek-labs/server-support/json';
 import {apiJson,parseSerdeValueJson} from './json.js';
 import {MAX_BATCH_BYTES,registerIngestionRoutes} from './ingestion.js';
 import {registerReconciliationRoutes} from './reconciliation.js';
@@ -32,8 +33,11 @@ export async function buildApp(context:AnalyticsContext,process:ProcessKind='ana
  const parseRequestBody:FastifyBodyParser<string|Buffer>=(request,body,done)=>{
   const hasJsonExtractor=needsJson(request);
   if(!hasJsonExtractor){done(null,body);return;}
-  try{const text=typeof body==='string'?body:new TextDecoder('utf-8',{fatal:true}).decode(body);done(null,parseSerdeValueJson(text));}
-  catch{done(new RequestExtractionError('json'));}
+  let text:string;
+  try{text=typeof body==='string'?body:new TextDecoder('utf-8',{fatal:true}).decode(body);}
+  catch{done(new RequestExtractionError('json'));return;}
+  try{done(null,parseSerdeValueJson(text));}
+  catch(error){done(new RequestExtractionError(formatSerdeJsonSyntaxError(text,error)));}
  };
  app.addContentTypeParser(/^application\/(?:[a-z0-9.-]+\+)?json$/i,{parseAs:'string'},parseRequestBody);
  app.addContentTypeParser('*',{parseAs:'string'},(request,body,done)=>{
