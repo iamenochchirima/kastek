@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
-  "sourceCommit": "5dd64597b368155ed9cdf25cda5457321ba33bee",
-  "sourceContentSha256": "385676df972586b04a65a4eceaf23af48c20ef32efe975f262b3777c1890b54f",
-  "node": "v24.15.0",
+  "sourceCommit": "a73c1642f0fd2e33ee60db667d53cfaa4b329914",
+  "sourceContentSha256": "cf485476214dba67b3df8b0fce201b6a1b4f5a416f2395596bd65510addf3995",
+  "node": "v24.19.0",
   "packageManager": "pnpm@10.30.1",
   "sourceFiles": [
     {
@@ -43,7 +43,7 @@
     },
     {
       "path": "packages/server-support/package.json",
-      "sha256": "7c46aa7f5fbebff99af3125b2e0b057090f8d94aa1edd3e94b2add0c7fbc8bb2"
+      "sha256": "58c7dddf6cb78b504c7efb7305d749a1af8924af172b04387cad046a89bdc6a8"
     },
     {
       "path": "packages/server-support/scripts/pack-shared.mjs",
@@ -148,10 +148,10 @@
     },
     {
       "package": "@kasitek-labs/server-support",
-      "version": "0.1.6",
-      "file": "kasitek-labs-server-support-0.1.6.tgz",
-      "sha256": "9d4688fc9d2da90333df159043274dc7f10b48b067b0d27504d4b0c196d7423d",
-      "integrity": "sha512-RIzPBzz5uH6j6LfnNzsCYyjdUU2xGP+leHCDR6toWs1X8lyqUkNyXt9988AeVwmCTH0Wequnp5U1EEhdl/mKFw=="
+      "version": "0.1.7",
+      "file": "kasitek-labs-server-support-0.1.7.tgz",
+      "sha256": "767baf238c0460323ea429ee075e3d6eab32f901dfe2cb95faec939f350b93ab",
+      "integrity": "sha512-AdEDcLLzYaQoiYyuqHDse+Us4gsaUZf71QlcN6hh13KU/m+tP72PkQKx2pIkX14mVtbrY6Yo6ndR8Yj7DgacwA=="
     }
   ]
 }
