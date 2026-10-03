@@ -37,11 +37,17 @@ recoverable from Labs commit `4eb66ad`.
 Check the shared packages and Analytics TypeScript service from the repository root:
 
 ```sh
-corepack pnpm build:shared
+corepack pnpm install --frozen-lockfile
+corepack pnpm build:analytics
 corepack pnpm test:shared
-corepack pnpm --filter @kasitek/analytics typecheck
-corepack pnpm --filter @kasitek/analytics build
+corepack pnpm registry:check:analytics
 ```
+
+For local service processes, use `corepack pnpm migrate:analytics` once against the dedicated
+Analytics database, then run `corepack pnpm start:analytics` and
+`corepack pnpm start:analytics-worker` in separate terminals. The same root build and process
+commands are suitable for a native Railpack service rooted at this repository; the live Railway
+service settings still require a separately authorized cutover.
 
 ## Website
 

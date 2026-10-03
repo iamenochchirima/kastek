@@ -23,16 +23,15 @@ Node.js 24.15.0 and pnpm 10.30.1 are pinned at the repository root.
 ```bash
 cp services/analytics/.env.example services/analytics/.env
 corepack pnpm install --frozen-lockfile
-corepack pnpm build:shared
-corepack pnpm --filter @kasitek/analytics build
-corepack pnpm --filter @kasitek/analytics migrate
+corepack pnpm build:analytics
+corepack pnpm migrate:analytics
 ```
 
 After migrations complete, run the API and worker as separate native processes:
 
 ```bash
-corepack pnpm --filter @kasitek/analytics start
-corepack pnpm --filter @kasitek/analytics start:worker
+corepack pnpm start:analytics
+corepack pnpm start:analytics-worker
 ```
 
 The migration command is a one-time release job, not a long-running service. The API and worker
