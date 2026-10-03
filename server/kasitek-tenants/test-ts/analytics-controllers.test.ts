@@ -343,6 +343,16 @@ test(
         ).statusCode,
         403,
       );
+      const clientReport = await f.app.inject({
+        method: "POST",
+        url: "/api/client/analytics/query",
+        headers: f.member,
+        payload: { ...body, include_descendants: false },
+      });
+      assert.equal(clientReport.statusCode, 200, clientReport.body);
+      assert.equal(grants.at(-1)!.sub, "member");
+      assert.equal(grants.at(-1)!.descendant_mode, "none");
+      assert.equal(requestBody!.include_descendants, false);
       assert.equal(
         (
           await f.app.inject({

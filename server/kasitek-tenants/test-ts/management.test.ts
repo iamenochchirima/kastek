@@ -150,6 +150,29 @@ test(
         })
       ).lead;
       assert.equal(lead.score, 100);
+      const otherClient = (
+        await ok("POST", "/api/clients", {
+          name: "Client Two",
+          adminEmail: "second-owner@example.test",
+        })
+      ).client;
+      await ok("POST", "/api/leads", {
+        tenantClientId: otherClient.id,
+        name: "Other Client Lead",
+        email: "other-lead@example.test",
+        source: "manual",
+      });
+      await f.pool.query(
+        `INSERT INTO tenant_client_users(id,workspace_id,tenant_client_id,email,status) VALUES('client-staff','w',$1,'client-staff@example.test','active')`,
+        [id],
+      );
+      await f.pool.query(
+        `INSERT INTO tenant_client_user_roles(tenant_client_user_id,role) VALUES('client-staff','member')`,
+      );
+      await f.pool.query(
+        `INSERT INTO tenant_client_sessions(id,workspace_id,tenant_client_id,tenant_client_user_id,token_hash,expires_at) VALUES('client-session','w',$1,'client-staff',$2,NOW()+INTERVAL '1 hour')`,
+        [id, tokenHash("fixture-client-session")],
+      );
       const results = await Promise.all([
         ok("PATCH", `/api/leads/${lead.id}/status`, { status: "qualified" }),
         ok("PATCH", `/api/leads/${lead.id}/status`, { status: "qualified" }),
@@ -164,6 +187,34 @@ test(
         ).rows[0].count,
         "1",
       );
+      const workspaceStats = (
+        await call("GET", "/api/leads/stats")
+      ).json().stats;
+      assert.equal(workspaceStats.total, 2);
+      assert.equal(workspaceStats.qualified, 1);
+      assert.deepEqual(workspaceStats.byStatus, [
+        { status: "new", count: 1 },
+        { status: "qualified", count: 1 },
+      ]);
+      assert.equal(
+        workspaceStats.weeklyTrend.reduce(
+          (sum: number, day: { count: number }) => sum + day.count,
+          0,
+        ),
+        2,
+      );
+      const clientStatsResponse = await call(
+        "GET",
+        "/api/client/leads/stats",
+        undefined,
+        { cookie: "kasitenant.client.session=fixture-client-session" },
+      );
+      assert.equal(clientStatsResponse.statusCode, 200, clientStatsResponse.body);
+      const clientStats = clientStatsResponse.json().stats;
+      assert.equal(clientStats.total, 1);
+      assert.equal(clientStats.qualified, 1);
+      assert.equal(clientStats.byStatus.length, 1);
+      assert.equal(clientStats.weeklyTrend, undefined);
       assert.equal(
         (
           await call("POST", "/api/leads", {
