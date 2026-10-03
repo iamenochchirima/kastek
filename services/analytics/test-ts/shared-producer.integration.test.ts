@@ -922,6 +922,33 @@ test(
           "status" in error &&
           error.status === 403,
       );
+
+      // Growth and Agency run the real publisher, including its reconciliation pass. Confirm
+      // those authenticated summaries reached this Analytics instance; mismatch status is
+      // intentionally not constrained because source-sequence gaps are reported as the Rust
+      // baseline reports them.
+      for (const source of [
+        growthOutbox && {
+          producerId: "core-customer-analytics",
+          sourceService: "core",
+        },
+        agencyOutbox && {
+          producerId: "tenant-platform-customer-analytics",
+          sourceService: "tenant-platform",
+        },
+      ]) {
+        if (!source) continue;
+        const reconciliations = await fixture.pool.query<{ count: string }>(
+          `SELECT COUNT(*)::text AS count
+           FROM analytics.analytics_reconciliation_run
+           WHERE producer_id=$1 AND source_service=$2`,
+          [source.producerId, source.sourceService],
+        );
+        assert.ok(
+          BigInt(reconciliations.rows[0]!.count) > 0n,
+          `${source.sourceService} publisher did not reconcile with this Analytics API`,
+        );
+      }
     } finally {
       await app.close();
       await fixture.close();
