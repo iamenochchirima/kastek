@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { once } from "node:events";
+import { createServer as createHttpServer } from "node:http";
 import { createServer } from "node:net";
 import { spawn } from "node:child_process";
 import { readFileSync, existsSync } from "node:fs";
@@ -27,7 +28,7 @@ async function freePort() {
   return port;
 }
 test(
-  "compiled Labs Admin login, scoped CRM/import, CSV/PDF and activity SSE reach native TypeScript Core",
+  "compiled Labs Admin reset/login, scoped CRM/import, CSV/PDF and activity SSE reach native TypeScript Core",
   { skip: !url, timeout: 90000 },
   async () => {
     installPgTimestampParsers();
@@ -46,6 +47,22 @@ test(
     );
     const frontPort = await freePort(),
       front = `http://127.0.0.1:${frontPort}`;
+    const mailMessages: { Text?: string; To?: { Email?: string }[] }[] = [];
+    const mailSink = createHttpServer((request, response) => {
+      const chunks: Buffer[] = [];
+      request.on("data", (chunk) => chunks.push(Buffer.from(chunk)));
+      request.on("end", () => {
+        if (request.method !== "POST" || request.url !== "/api/v1/send") {
+          response.writeHead(404).end();
+          return;
+        }
+        mailMessages.push(JSON.parse(Buffer.concat(chunks).toString("utf8")));
+        response.writeHead(200, { "content-type": "application/json" }).end("{}");
+      });
+    });
+    mailSink.listen(0, "127.0.0.1");
+    await once(mailSink, "listening");
+    const mailPort = (mailSink.address() as { port: number }).port;
     const core = await buildApp(
       {
         pool: fixture.pool,
@@ -54,6 +71,8 @@ test(
           ENVIRONMENT: "test",
           LOG_LEVEL: "silent",
           FRONTEND_URL: front,
+          ADMIN_FRONTEND_URL: front,
+          LOCAL_MAILPIT_URL: `http://127.0.0.1:${mailPort}`,
         }),
       },
       [registerAdminAuthRoutes, registerAdminOperationsRoutes],
@@ -160,6 +179,55 @@ test(
         "Compiled Admin did not start: " +
           logs.replace(/postgres(?:ql)?:\/\/\S+/g, "[redacted]"),
       );
+      assert.equal((await request("/forgot-password", {}, false)).status, 200);
+      const forgot = await post(
+        "/api/core/admin/forgot-password",
+        { email: "admin@example.test" },
+        false,
+      );
+      assert.equal(forgot.status, 200);
+      assert.equal(mailMessages.length, 1);
+      assert.equal(mailMessages[0]!.To?.[0]?.Email, "admin@example.test");
+      const resetUrl = new URL(
+        String(mailMessages[0]!.Text).split(": ").slice(1).join(": "),
+      );
+      assert.equal(resetUrl.origin, front);
+      assert.equal(resetUrl.pathname, "/reset-password");
+      assert.equal(resetUrl.searchParams.get("email"), "admin@example.test");
+      assert.equal(
+        (
+          await request(
+            `/reset-password?${resetUrl.searchParams.toString()}`,
+            {},
+            false,
+          )
+        ).status,
+        200,
+      );
+      const reset = await post(
+        "/api/core/admin/reset-password",
+        {
+          email: resetUrl.searchParams.get("email"),
+          token: resetUrl.searchParams.get("token"),
+          password: "synthetic-reset-password",
+        },
+        false,
+      );
+      assert.equal(reset.status, 200);
+      assert.equal(
+        (
+          await post(
+            "/api/core/admin/reset-password",
+            {
+              email: resetUrl.searchParams.get("email"),
+              token: resetUrl.searchParams.get("token"),
+              password: "synthetic-replay-password",
+            },
+            false,
+          )
+        ).status,
+        400,
+      );
       assert.equal(
         (
           await post(
@@ -170,9 +238,19 @@ test(
         ).status,
         401,
       );
+      assert.equal(
+        (
+          await post(
+            "/api/core/admin/login",
+            { email: "admin@example.test", password: "synthetic-fixture-password" },
+            false,
+          )
+        ).status,
+        401,
+      );
       const login = await post(
         "/api/core/admin/login",
-        { email: "admin@example.test", password: "synthetic-fixture-password" },
+        { email: "admin@example.test", password: "synthetic-reset-password" },
         false,
       );
       assert.equal(login.status, 200);
@@ -419,6 +497,9 @@ test(
       }
       await core.close();
       await fixture.close();
+      await new Promise<void>((resolve, reject) =>
+        mailSink.close((error) => (error ? reject(error) : resolve())),
+      );
     }
   },
 );
