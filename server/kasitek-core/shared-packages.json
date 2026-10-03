@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
-  "sourceCommit": "529194c37b53d54ba638117728fb60827fe57dc4",
-  "sourceContentSha256": "a99029a46668d8ce4f457545a32d629fa6bae05a32bc256c22aaaadfd698926e",
-  "node": "v24.15.0",
+  "sourceCommit": "abdd0690a78ea5924135d08fab6619bb0e7baae9",
+  "sourceContentSha256": "4a0840e0b61dae71fdd3506514a8e360e40f200961240cde7c75383fe6a2c033",
+  "node": "v24.19.0",
   "packageManager": "pnpm@10.30.1",
   "sourceFiles": [
     {
@@ -39,11 +39,11 @@
     },
     {
       "path": "packages/server-support/README.md",
-      "sha256": "7829b4a4d882dc01fdb4c2029004b79b9e3fbf067fd7dfc1697cec66ea63ef59"
+      "sha256": "18c030589dafc06d7bd21ce186a6aead51f3744c2f3f6b0efa2efc9492e98332"
     },
     {
       "path": "packages/server-support/package.json",
-      "sha256": "2868de2121f1e4e34fe5b50b6bbfca4525b003aa0a31fab0fcd8f4be648e2c86"
+      "sha256": "361ac5419e34ff17cdc4ddc244b70ab7eb7fbc717e144b60bb4425a6b07b0fcf"
     },
     {
       "path": "packages/server-support/scripts/pack-shared.mjs",
@@ -75,7 +75,7 @@
     },
     {
       "path": "packages/server-support/src/json.ts",
-      "sha256": "6b06d8d7b779ed102d8cd0631a115aeb76ab6e41a6d5aae77a12fdcfd6dcbc30"
+      "sha256": "2587b4316182f5d2ab750d969b96efbf525808a7ab0e94f7309de355f65a276f"
     },
     {
       "path": "packages/server-support/src/outbox-sql.ts",
@@ -96,6 +96,10 @@
     {
       "path": "packages/server-support/tests/config.test.mjs",
       "sha256": "1a6c80c198df87db7e9c77c917cd2a4b2eaf1b6fbcb00775c6537baedd69f427"
+    },
+    {
+      "path": "packages/server-support/tests/json-syntax.test.mjs",
+      "sha256": "26c1afa8989a0181da2438776a4686913ee69000969dd2cff9d578b0fc78f04f"
     },
     {
       "path": "packages/server-support/tests/outbox-postgres.test.mjs",
@@ -140,10 +144,10 @@
     },
     {
       "package": "@kasitek-labs/server-support",
-      "version": "0.1.1",
-      "file": "kasitek-labs-server-support-0.1.1.tgz",
-      "sha256": "194fbc06b562a2361bf53b8dd510fbf9c59e2e20cdb460228d8b64e393aefb57",
-      "integrity": "sha512-2x1s2Iasy7VfJCblUtLdQW8Gl6E55Lb6oSvpk9+FgJTPehSGMqjv/sZWCgT2RWbmhH0sRuKSUmUa7IzUp8IA4Q=="
+      "version": "0.1.2",
+      "file": "kasitek-labs-server-support-0.1.2.tgz",
+      "sha256": "210188ea123a901c47d576f986028c74e3ab2dab3ea4d0bde72c9b7dd95e42d2",
+      "integrity": "sha512-o4bIhYdeDKh9BiT9X5gX4DLBnlNVuJ/D8bttnjEhMXjG0cboRCe2Lv+JGdf84i9fPtwtMyk+kMwQAWX4wn33DQ=="
     }
   ]
 }

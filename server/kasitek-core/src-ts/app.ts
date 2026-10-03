@@ -6,11 +6,8 @@ import formbody from "@fastify/formbody";
 import multipart from "@fastify/multipart";
 import { isIP } from "node:net";
 import type { CoreContext } from "./context.js";
-import {
-  installErrorHandler,
-  RequestExtractionError,
-  serdeJsonSyntaxError,
-} from "./error.js";
+import { installErrorHandler, RequestExtractionError } from "./error.js";
+import { formatSerdeJsonSyntaxError } from "@kasitek-labs/server-support/json";
 import { apiJson } from "./json.js";
 import {
   parseRequestJson,
@@ -91,7 +88,10 @@ export async function buildApp(
         parsed = parseRequestJson(request, text);
       } catch (error) {
         return done(
-          new RequestExtractionError("json", serdeJsonSyntaxError(text, error)),
+          new RequestExtractionError(
+            "json",
+            formatSerdeJsonSyntaxError(text, error),
+          ),
         );
       }
       safeJson(request, text, (error) => {
