@@ -220,6 +220,9 @@ export function canonicalJson(value: unknown): string {
   }
   if (typeof value === "string" || typeof value === "boolean")
     return JSON.stringify(value);
+  // serde serializes Vec<u8> as a JSON array; Buffer's default toJSON shape is different.
+  if (value instanceof Uint8Array)
+    return "[" + Array.from(value, (byte) => String(byte)).join(",") + "]";
   if (Array.isArray(value))
     return "[" + value.map(canonicalJson).join(",") + "]";
   if (
@@ -245,6 +248,7 @@ export function canonicalJson(value: unknown): string {
 function prepareApiJson(value: unknown): unknown {
   if (value instanceof Date) return value.toISOString();
   if (value instanceof SerdeFloat) return value;
+  if (value instanceof Uint8Array) return Array.from(value);
   if (Array.isArray(value))
     return value.map((item) => (item === undefined ? null : prepareApiJson(item)));
   if (
