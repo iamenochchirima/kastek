@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "sourceCommit": "a73c1642f0fd2e33ee60db667d53cfaa4b329914",
-  "sourceContentSha256": "cf485476214dba67b3df8b0fce201b6a1b4f5a416f2395596bd65510addf3995",
+  "sourceCommit": "8b46383ed3b73a95a908a39e42a5aeba9716a8a4",
+  "sourceContentSha256": "6c02d51a8e1ebe8b809276d9ea0e787f7c49a0ac276bbb882ff4295bdefac3f7",
   "node": "v24.19.0",
   "packageManager": "pnpm@10.30.1",
   "sourceFiles": [
@@ -43,7 +43,7 @@
     },
     {
       "path": "packages/server-support/package.json",
-      "sha256": "58c7dddf6cb78b504c7efb7305d749a1af8924af172b04387cad046a89bdc6a8"
+      "sha256": "58f637f4c4ba63a253373561ab7e021e8d31304b78c0b639bae2f32fc5a6da3b"
     },
     {
       "path": "packages/server-support/scripts/pack-shared.mjs",
@@ -75,7 +75,7 @@
     },
     {
       "path": "packages/server-support/src/json.ts",
-      "sha256": "8a438fbb1110b505263a1e1bcd094b4a37beb212473a1b3d743fa3b66039d9e9"
+      "sha256": "a4dd35bcc6f7bd00721feb4b527988a8d82448511df09451fdba4d1224e17e5d"
     },
     {
       "path": "packages/server-support/src/outbox-sql.ts",
@@ -95,7 +95,7 @@
     },
     {
       "path": "packages/server-support/tests/api-json.test.mjs",
-      "sha256": "d9fbba5a90b3bd304d2d62e455953789a2a34950aa05e1c86844f2f2336e8bbe"
+      "sha256": "bb9ec0cd6a1c6d20f3d73b0f4e9b333100d2f47f9858ad9cdd8e484c72e40e50"
     },
     {
       "path": "packages/server-support/tests/config.test.mjs",
@@ -148,10 +148,10 @@
     },
     {
       "package": "@kasitek-labs/server-support",
-      "version": "0.1.7",
-      "file": "kasitek-labs-server-support-0.1.7.tgz",
-      "sha256": "767baf238c0460323ea429ee075e3d6eab32f901dfe2cb95faec939f350b93ab",
-      "integrity": "sha512-AdEDcLLzYaQoiYyuqHDse+Us4gsaUZf71QlcN6hh13KU/m+tP72PkQKx2pIkX14mVtbrY6Yo6ndR8Yj7DgacwA=="
+      "version": "0.1.8",
+      "file": "kasitek-labs-server-support-0.1.8.tgz",
+      "sha256": "289af96f38927996dd14b6aae320b35c780de80f56cf72efcf857f4963a23c63",
+      "integrity": "sha512-HRN/u0aFpF2fOPbVtHRj40fAPyZBnAAHBlIKIwhDHUBxLjyZafKCKag9cB+BciHKR2sLFdhQi9LR1eGSI3hgog=="
     }
   ]
 }
