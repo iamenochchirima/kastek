@@ -202,7 +202,7 @@ export function isMetaAuthenticationFailure(error: string) {
   ].some((v) => s.includes(v));
 }
 
-export function rustErrorDisplay(error: unknown): string {
+export function formatDeliveryError(error: unknown): string {
   if (!(error instanceof ApiError))
     return error instanceof Error ? error.message : String(error);
   if (error.code === 'unauthorized') return 'unauthorized';

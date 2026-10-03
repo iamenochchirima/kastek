@@ -34,6 +34,10 @@ pnpm --dir server/kasitek-core build
 
 The compiler writes `server/kasitek-core/dist`. Growth no longer carries a Rust
 Core build directory. The prior Rust source remains recoverable from Git history.
+For standalone Core setup, use [`server/kasitek-core/.env.example`](../../../server/kasitek-core/.env.example)
+as the non-secret baseline. OIDC client values are listed separately in
+[`server/kasitek-core/.env.identity.example`](../../../server/kasitek-core/.env.identity.example);
+the root dotenv vault remains the source for local credentials.
 
 ## Environment files
 

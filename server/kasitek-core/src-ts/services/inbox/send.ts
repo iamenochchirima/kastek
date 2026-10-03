@@ -24,7 +24,7 @@ import {
   sendMetaTextMessage,
   sendMetaMarkSeen,
   isMetaAuthenticationFailure,
-  rustErrorDisplay,
+  formatDeliveryError,
 } from './meta-provider.js';
 import type { InboxOptions, MetaScope, SendMessageInput } from './types.js';
 export async function transaction<T>(
@@ -107,7 +107,7 @@ export async function deliverMetaTextMessage(
     const time = new Date();
     await transaction(pool, async (tx) => {
       await tx.query(sql.DELIVER_META_TEXT_MESSAGE_0, [
-        rustErrorDisplay(error),
+        formatDeliveryError(error),
         id,
       ]);
       await enqueueMessageLifecycle(
@@ -396,7 +396,7 @@ export async function deliverAgentMetaMessage(
   }
   await transaction(pool, async (tx) => {
     if (failure) {
-      const message = rustErrorDisplay(failure);
+      const message = formatDeliveryError(failure);
       await tx.query(sql.DELIVER_AGENT_META_MESSAGE_4, [
         isMetaAuthenticationFailure(message)
           ? 'AGENT_DELIVERY_AUTH_FAILED'

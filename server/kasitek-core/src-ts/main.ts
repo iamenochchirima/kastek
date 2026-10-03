@@ -88,7 +88,7 @@ async function registerWhatsappCallbacks(
 export async function start(runtime?: {
   shutdownTelemetry(): Promise<void>;
 }): Promise<void> {
-  // Match Cargo's manifest-relative environment loading when launched elsewhere.
+  // Load service-local environment settings even when launched from another directory.
   if (
     loadEnvironment({
       path: fileURLToPath(new URL("../.env", import.meta.url)),
