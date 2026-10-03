@@ -1,6 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { formatSerdeJsonSyntaxError } from "../dist/json.js";
+import {
+  formatSerdeJsonSyntaxError,
+  formatSerdeValidationError,
+} from "../dist/json.js";
 
 test("Node JSON syntax diagnostics match common Serde messages without echoing input", () => {
   const cases = [
@@ -31,4 +34,31 @@ test("Node JSON syntax diagnostics match common Serde messages without echoing i
     assert.equal(actual, expected);
     assert.equal(actual.includes(source), false);
   }
+});
+
+test("schema validation diagnostics describe types without reflecting values", () => {
+  assert.equal(
+    formatSerdeValidationError(
+      [{ keyword: "required", params: { missingProperty: "name" } }],
+      "body",
+      {},
+    ),
+    "missing field `name`",
+  );
+  const detail = formatSerdeValidationError(
+    [
+      {
+        keyword: "type",
+        instancePath: "/credentials/password",
+        params: { type: "string" },
+      },
+    ],
+    "body",
+    { credentials: { password: false } },
+  );
+  assert.equal(
+    detail,
+    "invalid type: a boolean, expected a string at `body.credentials.password`",
+  );
+  assert.equal(detail.includes("false"), false);
 });

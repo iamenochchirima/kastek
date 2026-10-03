@@ -1,5 +1,6 @@
 import { RequestExtractionError } from "./error.js";
 import { createHash } from "node:crypto";
+import { Readable } from "node:stream";
 import { createClient } from "redis";
 import type { PoolClient } from "pg";
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
@@ -938,23 +939,41 @@ export function registerRolloutRoutes(
       return respond(error, reply);
     }
   });
-  app.post(EXPIRE_PATH, async (request, reply) => {
-    try {
-      const a = actor(request),
-        response = await transaction(context.pool, (tx) =>
-          closeExpiredTransaction(
-            tx,
-            a,
-            new Date().toISOString(),
-            correlation(request),
-          ),
-        );
-      context.metrics?.recordExpiredControlsClosed(response.closed_count);
-      return response;
-    } catch (error) {
-      return respond(error, reply);
-    }
-  });
+  app.post(
+    EXPIRE_PATH,
+    {
+      // Rust has no JSON/body extractor for this operation. Drain and discard
+      // any supplied payload instead of buffering it under the global JSON cap.
+      bodyLimit: Number.MAX_SAFE_INTEGER,
+      async preParsing(_request, _reply, payload) {
+        let receivedEncodedLength = 0;
+        for await (const chunk of payload) {
+          receivedEncodedLength +=
+            typeof chunk === "string"
+              ? Buffer.byteLength(chunk)
+              : chunk.length;
+        }
+        return Object.assign(Readable.from([]), { receivedEncodedLength });
+      },
+    },
+    async (request, reply) => {
+      try {
+        const a = actor(request),
+          response = await transaction(context.pool, (tx) =>
+            closeExpiredTransaction(
+              tx,
+              a,
+              new Date().toISOString(),
+              correlation(request),
+            ),
+          );
+        context.metrics?.recordExpiredControlsClosed(response.closed_count);
+        return response;
+      } catch (error) {
+        return respond(error, reply);
+      }
+    },
+  );
   app.get(EVALUATE_PATH, async (request, reply) => {
     const q = parseEvaluationQuery(request.query);
     try {
