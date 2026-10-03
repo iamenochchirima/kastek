@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
+import { readFile } from "node:fs/promises";
 import type { AddressInfo } from "node:net";
 import { resolve } from "node:path";
 import test from "node:test";
@@ -359,6 +360,122 @@ async function publishAgencyOutbox(
   }
 }
 
+async function publishAgentOutbox(
+  fixture: Awaited<ReturnType<typeof analyticsFixture>>,
+  endpoint: string,
+  occurredAt: string,
+) {
+  const agentRoot = process.env.AGENT_PLATFORM_ROOT;
+  if (!agentRoot) return undefined;
+
+  const schema = `agent_source_${randomUUID().replaceAll("-", "")}`;
+  await fixture.pool.query(`CREATE SCHEMA "${schema}"`);
+  const sourceUrl = new URL(fixture.databaseUrl);
+  sourceUrl.searchParams.set(
+    "options",
+    `-c search_path=${schema},public -c timezone=UTC`,
+  );
+  const sourcePool = new pg.Pool({
+    connectionString: sourceUrl.toString(),
+    max: 4,
+    applicationName: "kasitek-agents-analytics-integration",
+  });
+
+  try {
+    await sourcePool.query(
+      await readFile(resolve(agentRoot, "migrations/065_analytics_outbox.sql"), "utf8"),
+    );
+    const agentAnalytics = await import(
+      pathToFileURL(resolve(agentRoot, "dist/analytics/index.js")).href
+    );
+    const record = agentAnalytics.buildCompletedAgentRunEvent({
+      runId: "shared-contract-run",
+      organizationId: "shared-contract-org",
+      agentDefinitionId: "shared-contract-definition",
+      agentVersionId: "shared-contract-version",
+      installationId: "shared-contract-installation",
+      conversationId: null,
+      triggerType: "manual",
+      executionMode: "kasitek_hosted",
+      creationProfile: "general",
+      agentAudience: "personal",
+      input: { message: "synthetic analytics integration" },
+      output: { outcome: "success" },
+      correlationId: "shared-contract-correlation",
+      causationId: null,
+      createdAt: occurredAt,
+      startedAt: occurredAt,
+      finishedAt: occurredAt,
+    });
+
+    const sourceClient = await sourcePool.connect();
+    try {
+      await sourceClient.query("BEGIN");
+      const enqueued = await agentAnalytics.enqueueOutbox(sourceClient, record);
+      assert.equal(enqueued.kind, "inserted");
+      await sourceClient.query("COMMIT");
+    } catch (error) {
+      await sourceClient.query("ROLLBACK");
+      throw error;
+    } finally {
+      sourceClient.release();
+    }
+
+    const settings = {
+      endpoint,
+      token: agentToken,
+      producerId: "agent-platform-customer-analytics",
+      publisherId: "analytics-integration-test",
+      batchSize: 25,
+      leaseDurationMs: 30_000,
+      requestTimeoutMs: 5_000,
+      retryPolicy: new agentAnalytics.RetryPolicy({
+        baseDelayMs: 0,
+        maxDelayMs: 0,
+        jitterWindowMs: 0,
+      }),
+    };
+    const client = new agentAnalytics.AnalyticsIngestionClient(settings);
+    const stats = await agentAnalytics.publishOutboxOnce(
+      sourcePool,
+      client,
+      settings,
+      new Date(),
+    );
+    const outbox = await sourcePool.query<{
+      record_id: string;
+      delivery_status: string;
+      attempt_count: number;
+      last_error_code: string | null;
+    }>(
+      "SELECT record_id,delivery_status,attempt_count,last_error_code FROM analytics_outbox WHERE record_id=$1",
+      [record.recordId],
+    );
+    assert.equal(stats.claimed, 1, JSON.stringify({ stats, rows: outbox.rows }));
+    assert.equal(stats.delivered, 1, JSON.stringify({ stats, rows: outbox.rows }));
+    assert.equal(stats.retryable, 0, JSON.stringify({ stats, rows: outbox.rows }));
+    assert.equal(stats.quarantined, 0, JSON.stringify({ stats, rows: outbox.rows }));
+    assert.deepEqual(
+      outbox.rows.map((row) => [row.record_id, row.delivery_status, row.attempt_count, row.last_error_code]),
+      [[record.recordId, "delivered", 1, null]],
+    );
+    assert.equal(
+      (
+        await fixture.pool.query(
+          `SELECT 1 FROM analytics.analytics_event
+           WHERE source_service='agent-platform' AND source_record_id=$1`,
+          [record.recordId],
+        )
+      ).rowCount,
+      1,
+    );
+    return { recordId: record.recordId };
+  } finally {
+    await sourcePool.end();
+    await fixture.pool.query(`DROP SCHEMA "${schema}" CASCADE`);
+  }
+}
+
 function leased(
   record: AnalyticsOutboxRecord,
   sourceSequence: number,
@@ -552,7 +669,6 @@ test(
         endpoint,
         timestamp,
       );
-
       const coreScope = buildScopeDefinition(coreProducerConfig(), {
         record_id: "core-scope:shared-contract-org:1",
         source_domain: "scopes",
@@ -606,6 +722,12 @@ test(
         coreRows.length,
       );
 
+      const agentOutbox = await publishAgentOutbox(
+        fixture,
+        endpoint,
+        timestamp,
+      );
+
       if (!agencyOutbox) {
         const workspaceScope = buildScopeDefinition(tenantProducerConfig(), {
           record_id: "tenant-scope:shared-contract-agency:1",
@@ -656,20 +778,23 @@ test(
         );
       }
 
-      const agentEvent = agentRun("shared-contract-org", timestamp);
-      const acceptedAgent = await agentClient.sendBatch(
-        "agent-platform-customer-analytics",
-        [leased(agentEvent, 1, timestamp)],
-      );
-      assert.equal(acceptedAgent.accepted_count, 1);
-      assert.equal(
-        (
-          await agentClient.sendBatch("agent-platform-customer-analytics", [
-            leased(agentEvent, 1, timestamp),
-          ])
-        ).duplicate_count,
-        1,
-      );
+      const agentRecordId = agentOutbox?.recordId ?? "agent-run:shared-contract-run";
+      if (!agentOutbox) {
+        const agentEvent = agentRun("shared-contract-org", timestamp);
+        const acceptedAgent = await agentClient.sendBatch(
+          "agent-platform-customer-analytics",
+          [leased(agentEvent, 1, timestamp)],
+        );
+        assert.equal(acceptedAgent.accepted_count, 1);
+        assert.equal(
+          (
+            await agentClient.sendBatch("agent-platform-customer-analytics", [
+              leased(agentEvent, 1, timestamp),
+            ])
+          ).duplicate_count,
+          1,
+        );
+      }
 
       const tenantClientRecordId =
         agencyOutbox?.eventRecordIds.find((recordId) =>
@@ -687,14 +812,14 @@ test(
           [[
             "core-event:shared-contract-recipient",
             tenantClientRecordId,
-            "agent-run:shared-contract-run",
+            agentRecordId,
           ]],
         )
       ).rows;
       assert.deepEqual(
         persisted.map((row) => [row.source_service, row.source_record_id]),
         [
-          ["agent-platform", "agent-run:shared-contract-run"],
+          ["agent-platform", agentRecordId],
           ["core", "core-event:shared-contract-recipient"],
           [
             "tenant-platform",
