@@ -28,13 +28,16 @@ export const getServerTenantContext = cache(async (): Promise<PublicTenantContex
       return FALLBACK_CONTEXT;
     }
 
-    const response = await fetch(new URL("/api/public/tenant-context", origin), {
-      method: "GET",
-      cache: "no-store",
-      headers: {
-        Accept: "application/json",
+    const response = await fetch(
+      new URL("/api/tenant/api/public/tenant-context", origin),
+      {
+        method: "GET",
+        cache: "no-store",
+        headers: {
+          Accept: "application/json",
+        },
       },
-    });
+    );
 
     if (!response.ok) {
       return FALLBACK_CONTEXT;
