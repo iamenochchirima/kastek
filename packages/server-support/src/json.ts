@@ -26,6 +26,88 @@ function syntaxLocation(source: string, offset: number, atEnd: boolean): string 
   return `at line ${line} column ${column}`;
 }
 
+type UnicodeEscapeIssue = { detail: string; offset: number };
+
+class SerdeJsonSyntaxError extends SyntaxError {
+  constructor(
+    readonly detail: string,
+    readonly offset: number,
+  ) {
+    super(detail);
+  }
+}
+
+function invalidSurrogateEscape(source: string): UnicodeEscapeIssue | undefined {
+  let inString = false;
+  for (let index = 0; index < source.length; index++) {
+    const char = source[index];
+    if (!inString) {
+      if (char === '"') inString = true;
+      continue;
+    }
+    if (char === '"') {
+      inString = false;
+      continue;
+    }
+    if (char !== "\\") continue;
+
+    if (source[index + 1] !== "u") {
+      index++;
+      continue;
+    }
+    const firstHex = source.slice(index + 2, index + 6);
+    if (!/^[\da-f]{4}$/i.test(firstHex)) {
+      index++;
+      continue;
+    }
+    const first = Number.parseInt(firstHex, 16);
+    const firstEnd = index + 6;
+    if (first >= 0xdc00 && first <= 0xdfff)
+      return {
+        detail: "lone leading surrogate in hex escape",
+        offset: firstEnd,
+      };
+    if (first < 0xd800 || first > 0xdbff) {
+      index = firstEnd - 1;
+      continue;
+    }
+
+    if (source[firstEnd] !== "\\") {
+      const next = source.codePointAt(firstEnd);
+      const consumed = next === undefined ? 0 : next > 0xffff ? 2 : 1;
+      return {
+        detail: "unexpected end of hex escape",
+        offset: firstEnd + consumed,
+      };
+    }
+    if (source[firstEnd + 1] !== "u") {
+      return {
+        detail: "unexpected end of hex escape",
+        offset: Math.min(source.length, firstEnd + 2),
+      };
+    }
+    const secondHex = source.slice(firstEnd + 2, firstEnd + 6);
+    if (!/^[\da-f]{4}$/i.test(secondHex)) {
+      index = firstEnd;
+      continue;
+    }
+    const second = Number.parseInt(secondHex, 16);
+    const secondEnd = firstEnd + 6;
+    if (second < 0xdc00 || second > 0xdfff)
+      return {
+        detail: "lone leading surrogate in hex escape",
+        offset: secondEnd,
+      };
+    index = secondEnd - 1;
+  }
+}
+
+/** Call after JSON syntax parsing to enforce serde_json's UTF-8 string rules. */
+export function assertSerdeUnicodeEscapes(source: string): void {
+  const issue = invalidSurrogateEscape(source);
+  if (issue) throw new SerdeJsonSyntaxError(issue.detail, issue.offset);
+}
+
 function enclosingContainer(source: string, end: number): "{" | "[" | undefined {
   const stack: Array<"{" | "["> = [];
   let inString = false;
@@ -72,6 +154,8 @@ export function formatSerdeJsonSyntaxError(
   source: string,
   error: unknown,
 ): string {
+  if (error instanceof SerdeJsonSyntaxError)
+    return `${error.detail} ${syntaxLocation(source, error.offset, true)}`;
   if (!(error instanceof SyntaxError)) return "Invalid JSON";
   const message = error.message;
   const offset = syntaxOffset(source, message);
@@ -325,16 +409,25 @@ export function timestamp(value: Timestamp): string {
   if (!Number.isFinite(date.getTime())) throw new Error("invalid time");
   return date.toISOString().replace(".000Z", "Z");
 }
-export function parseLosslessJson(value: string): unknown {
+
+type JsonReviver = (
+  key: string,
+  value: unknown,
+  context?: { source?: string },
+) => unknown;
+
+function parseJsonWithReviver(value: string, reviver: JsonReviver): unknown {
   const parse = JSON.parse as unknown as (
     text: string,
-    reviver: (
-      key: string,
-      value: unknown,
-      context?: { source?: string },
-    ) => unknown,
+    reviver: JsonReviver,
   ) => unknown;
-  return parse(value, (_key, current, context) =>
+  const result = parse(value, reviver);
+  assertSerdeUnicodeEscapes(value);
+  return result;
+}
+
+export function parseLosslessJson(value: string): unknown {
+  return parseJsonWithReviver(value, (_key, current, context) =>
     typeof current === "number" &&
     context?.source &&
     /^-?\d+$/.test(context.source) &&
@@ -345,15 +438,7 @@ export function parseLosslessJson(value: string): unknown {
 }
 
 export function parseCanonicalJson(value: string): unknown {
-  const parse = JSON.parse as unknown as (
-    text: string,
-    reviver: (
-      key: string,
-      value: unknown,
-      context?: { source?: string },
-    ) => unknown,
-  ) => unknown;
-  return parse(value, (_key, current, context) =>
+  return parseJsonWithReviver(value, (_key, current, context) =>
     typeof current === "number" && context?.source
       ? /^-?\d+$/.test(context.source)
         ? Number.isSafeInteger(current)
@@ -368,15 +453,7 @@ export function parseCanonicalJson(value: string): unknown {
 
 /** serde_json::Value keeps only i64/u64 integer tokens; every other numeric token is f64. */
 export function parseSerdeValueJson(text: string): unknown {
-  const parse = JSON.parse as unknown as (
-    text: string,
-    reviver: (
-      key: string,
-      value: unknown,
-      context?: { source?: string },
-    ) => unknown,
-  ) => unknown;
-  return parse(text, (_key, value, context) => {
+  return parseJsonWithReviver(text, (_key, value, context) => {
     if (typeof value !== "number" || !context?.source) return value;
     const token = context.source;
     if (/^-?\d+$/.test(token) && token !== "-0") {
