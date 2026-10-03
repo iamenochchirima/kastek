@@ -1,6 +1,6 @@
 import CampaignCreateForm from "@/components/dashboard/campaigns/campaign-create-form";
-import { getWorkspaceSession } from "@/lib/rust-auth";
-import { fetchRustJson } from "@/lib/rust-server-api";
+import { getWorkspaceSession } from "@/lib/core-auth";
+import { fetchCoreJson } from "@/lib/core-server-api";
 import { redirect } from "next/navigation";
 import { MotionReveal } from "@/components/ui/motion-reveal";
 
@@ -13,14 +13,14 @@ export default async function ReachCampaignsCreatePage() {
   if (!session?.user?.id) redirect("/login");
 
   const [connectionResponse, templateResponse, contactResponse] = await Promise.all([
-    fetchRustJson<{
+    fetchCoreJson<{
       connections: Array<{
         id: string;
         phoneDisplayNumber: string | null;
         phoneNumberId: string;
       }>;
     }>("/api/whatsapp/connections"),
-    fetchRustJson<{
+    fetchCoreJson<{
       templates: Array<{
         id: string;
         templateName: string;
@@ -33,7 +33,7 @@ export default async function ReachCampaignsCreatePage() {
         connectionLabel: string;
       }>;
     }>("/api/whatsapp/templates?status=APPROVED"),
-    fetchRustJson<{
+    fetchCoreJson<{
       contacts: Array<{
         id: string;
         fullName?: string | null;

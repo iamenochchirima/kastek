@@ -1,6 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 import { AnalyticsPlayground } from "@/components/analytics/analytics-playground";
-import { getWorkspaceSession } from "@/lib/rust-auth";
+import { getWorkspaceSession } from "@/lib/core-auth";
 
 export const metadata = { title: "Analytics Playground | KasiTek" };
 

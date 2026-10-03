@@ -1,4 +1,4 @@
-import { getWorkspaceSession } from "@/lib/rust-auth";
+import { getWorkspaceSession } from "@/lib/core-auth";
 import { fetchOrgs, fetchOrgMembers, fetchOrgInvitations, getActiveOrgId } from "@/lib/orgs";
 import { redirect } from "next/navigation";
 import { TeamPageClient } from "./team-page-client";

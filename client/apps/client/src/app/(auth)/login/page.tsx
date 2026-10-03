@@ -1,5 +1,5 @@
 import LoginForm from "@/components/auth/login-form";
-import { getRustSession } from "@/lib/rust-auth";
+import { getCoreSession } from "@/lib/core-auth";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import { safeReturnTo } from "@/lib/shared-login";
@@ -10,7 +10,7 @@ export const metadata = {
 
 export default async function LoginPage({ searchParams }: { searchParams: Promise<{ returnTo?: string; callbackUrl?: string }> }) {
   const params = await searchParams;
-  const session = await getRustSession();
+  const session = await getCoreSession();
   if (session?.user?.id) {
     redirect(safeReturnTo(params.returnTo ?? params.callbackUrl));
   }

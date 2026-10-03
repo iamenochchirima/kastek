@@ -1,6 +1,6 @@
 import ContactsManager from "@/components/dashboard/contacts/contacts-manager";
-import { getWorkspaceSession } from "@/lib/rust-auth";
-import { fetchRustJson } from "@/lib/rust-server-api";
+import { getWorkspaceSession } from "@/lib/core-auth";
+import { fetchCoreJson } from "@/lib/core-server-api";
 import { redirect } from "next/navigation";
 
 export const metadata = {
@@ -68,9 +68,9 @@ export default async function ReachContactsPage({
   if (location) searchSearch.set("location", location);
 
   const [contactsResponse, searchResponse] = await Promise.all([
-    fetchRustJson<ContactsResponse>(`/api/whatsapp/contacts${baseSearch.toString() ? `?${baseSearch.toString()}` : ""}`),
+    fetchCoreJson<ContactsResponse>(`/api/whatsapp/contacts${baseSearch.toString() ? `?${baseSearch.toString()}` : ""}`),
     query
-      ? fetchRustJson<ContactsResponse>(`/api/whatsapp/contacts?${searchSearch.toString()}`)
+      ? fetchCoreJson<ContactsResponse>(`/api/whatsapp/contacts?${searchSearch.toString()}`)
       : Promise.resolve(null),
   ]);
 

@@ -1,6 +1,6 @@
 import CampaignsPageClient from "@/components/dashboard/campaigns/campaigns-page-client";
-import { getWorkspaceSession } from "@/lib/rust-auth";
-import { fetchRustJson } from "@/lib/rust-server-api";
+import { getWorkspaceSession } from "@/lib/core-auth";
+import { fetchCoreJson } from "@/lib/core-server-api";
 import { redirect } from "next/navigation";
 
 export const metadata = {
@@ -11,7 +11,7 @@ export default async function ReachCampaignsPage() {
   const session = await getWorkspaceSession();
   if (!session?.user?.id) redirect("/login");
 
-  const campaignResponse = await fetchRustJson<{
+  const campaignResponse = await fetchCoreJson<{
     campaigns: Array<{
       id: string;
       name: string;

@@ -1,5 +1,5 @@
-import { getWorkspaceSession } from "@/lib/rust-auth";
-import { fetchRustJson } from "@/lib/rust-server-api";
+import { getWorkspaceSession } from "@/lib/core-auth";
+import { fetchCoreJson } from "@/lib/core-server-api";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { PageHeader, PageHeaderContent, PageHeaderDescription, PageHeaderTitle } from "@/components/ui/page-header";
@@ -90,7 +90,7 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
   const { id } = await params;
   let detail: CustomerDetailResponse;
   try {
-    detail = await fetchRustJson<CustomerDetailResponse>(`/api/customers/${encodeURIComponent(id)}`);
+    detail = await fetchCoreJson<CustomerDetailResponse>(`/api/customers/${encodeURIComponent(id)}`);
   } catch {
     notFound();
   }

@@ -1,5 +1,5 @@
-import { getWorkspaceSession } from "@/lib/rust-auth";
-import { fetchRustJson } from "@/lib/rust-server-api";
+import { getWorkspaceSession } from "@/lib/core-auth";
+import { fetchCoreJson } from "@/lib/core-server-api";
 import { FileText, MessageCircle, PlugZap, type LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { MotionReveal } from "@/components/ui/motion-reveal";
@@ -54,9 +54,9 @@ export default async function WorkspacePage() {
   const session = await getWorkspaceSession();
   if (!session?.user?.id) redirect("/login");
 
-  const response = await fetchRustJson<{ summary: WorkspaceSummary }>("/api/workspace/summary");
+  const response = await fetchCoreJson<{ summary: WorkspaceSummary }>("/api/workspace/summary");
   const summary = response.summary;
-  const earlyAccessResponse = await fetchRustJson<{
+  const earlyAccessResponse = await fetchCoreJson<{
     earlyAccess: { status: string; endsAt: string | null } | null;
   }>("/api/early-access/status").catch(() => null);
 

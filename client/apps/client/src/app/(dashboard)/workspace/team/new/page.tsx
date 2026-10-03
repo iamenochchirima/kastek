@@ -1,4 +1,4 @@
-import { getWorkspaceSession } from "@/lib/rust-auth";
+import { getWorkspaceSession } from "@/lib/core-auth";
 import { redirect } from "next/navigation";
 import { CreateOrgForm } from "./create-org-form";
 import { MotionReveal } from "@/components/ui/motion-reveal";

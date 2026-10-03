@@ -1,6 +1,6 @@
 import { LayoutShell } from "@/components/dashboard/layout-shell";
-import { getWorkspaceSession } from "@/lib/rust-auth";
-import { fetchRustJson } from "@/lib/rust-server-api";
+import { getWorkspaceSession } from "@/lib/core-auth";
+import { fetchCoreJson } from "@/lib/core-server-api";
 import { fetchBillingSummary } from "@/lib/billing";
 import { fetchOnboardingStatus } from "@/lib/onboarding";
 import { fetchProductTourStatus } from "@/lib/product-tour";
@@ -21,7 +21,7 @@ export default async function AuthenticatedWorkspaceLayout({
   if (!orgs.length) redirect("/onboarding");
 
   const [unreadCountResponse, activeOrgId, billingSummary, onboardingStatus, productTourStatus] = await Promise.all([
-    fetchRustJson<{ unreadCount: number }>("/api/whatsapp/inbox/unread-count").catch(
+    fetchCoreJson<{ unreadCount: number }>("/api/whatsapp/inbox/unread-count").catch(
       () => ({ unreadCount: 0 }),
     ),
     getActiveOrgId(),

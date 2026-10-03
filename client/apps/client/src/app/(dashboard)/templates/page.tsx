@@ -1,7 +1,7 @@
 import WhatsappTemplateManager from "@/components/dashboard/campaigns/whatsapp-template-manager";
 import { PageHeader, PageHeaderContent, PageHeaderDescription, PageHeaderTitle } from "@/components/ui/page-header";
-import { getWorkspaceSession } from "@/lib/rust-auth";
-import { fetchRustJson } from "@/lib/rust-server-api";
+import { getWorkspaceSession } from "@/lib/core-auth";
+import { fetchCoreJson } from "@/lib/core-server-api";
 import { redirect } from "next/navigation";
 import { MotionReveal } from "@/components/ui/motion-reveal";
 
@@ -22,7 +22,7 @@ export default async function ReachTemplatesPage({
   const allowedStatuses = new Set(["APPROVED", "PENDING", "REJECTED", "DISABLED"]);
 
   const [templateResponse, connectionResponse] = await Promise.all([
-    fetchRustJson<{
+    fetchCoreJson<{
       templates: Array<{
         id: string;
         templateName: string;
@@ -38,7 +38,7 @@ export default async function ReachTemplatesPage({
         connectionLabel: string;
       }>;
     }>(`/api/whatsapp/templates${allowedStatuses.has(requestedStatus) ? `?status=${requestedStatus}` : ""}`),
-    fetchRustJson<{
+    fetchCoreJson<{
       connections: Array<{
         id: string;
         phoneDisplayNumber: string | null;

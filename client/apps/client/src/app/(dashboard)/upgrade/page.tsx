@@ -1,6 +1,6 @@
 import { UpgradePage } from "@/components/dashboard/billing/upgrade-page";
 import { fetchBillingPlans, fetchBillingSummary } from "@/lib/billing";
-import { getWorkspaceSession } from "@/lib/rust-auth";
+import { getWorkspaceSession } from "@/lib/core-auth";
 import { redirect } from "next/navigation";
 
 export const metadata = {

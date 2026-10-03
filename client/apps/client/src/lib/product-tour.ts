@@ -1,4 +1,4 @@
-import { fetchRustJson } from "@/lib/rust-server-api";
+import { fetchCoreJson } from "@/lib/core-server-api";
 
 export type ProductTourStatus = {
   shouldShow: boolean;
@@ -7,5 +7,5 @@ export type ProductTourStatus = {
 };
 
 export function fetchProductTourStatus() {
-  return fetchRustJson<ProductTourStatus>("/api/product-tour");
+  return fetchCoreJson<ProductTourStatus>("/api/product-tour");
 }

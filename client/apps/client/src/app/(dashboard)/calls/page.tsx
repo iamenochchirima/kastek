@@ -5,8 +5,8 @@ import {
   type CallSummary,
   type VoiceConnection,
 } from "@/components/dashboard/calls/calls-workspace";
-import { getWorkspaceSession } from "@/lib/rust-auth";
-import { fetchRustJson } from "@/lib/rust-server-api";
+import { getWorkspaceSession } from "@/lib/core-auth";
+import { fetchCoreJson } from "@/lib/core-server-api";
 import { redirect } from "next/navigation";
 
 export const metadata = {
@@ -18,10 +18,10 @@ export default async function CallsPage() {
   if (!session?.user?.id) redirect("/login");
 
   const [callsResponse, summaryResponse, providerResponse, connectionsResponse] = await Promise.all([
-    fetchRustJson<{ calls: CallRecord[] }>("/api/calls").catch(() => ({ calls: [] })),
-    fetchRustJson<CallSummary>("/api/calls/summary").catch(() => null),
-    fetchRustJson<CallProviderStatus>("/api/calls/providers").catch(() => null),
-    fetchRustJson<{ connections: VoiceConnection[] }>("/api/connections").catch(() => ({ connections: [] })),
+    fetchCoreJson<{ calls: CallRecord[] }>("/api/calls").catch(() => ({ calls: [] })),
+    fetchCoreJson<CallSummary>("/api/calls/summary").catch(() => null),
+    fetchCoreJson<CallProviderStatus>("/api/calls/providers").catch(() => null),
+    fetchCoreJson<{ connections: VoiceConnection[] }>("/api/connections").catch(() => ({ connections: [] })),
   ]);
 
   return (

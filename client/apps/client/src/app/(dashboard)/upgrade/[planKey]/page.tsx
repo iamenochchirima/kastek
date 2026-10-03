@@ -1,6 +1,6 @@
 import { PlanDetailsPage } from "@/components/dashboard/billing/plan-details-page";
 import { fetchBillingPlanDetails } from "@/lib/billing";
-import { getWorkspaceSession } from "@/lib/rust-auth";
+import { getWorkspaceSession } from "@/lib/core-auth";
 import { redirect } from "next/navigation";
 
 export const metadata = { title: "Plan details | KasiTek" };

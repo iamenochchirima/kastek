@@ -1,7 +1,7 @@
-import { getWorkspaceSession } from "@/lib/rust-auth";
+import { getWorkspaceSession } from "@/lib/core-auth";
 import { fetchOrgs, fetchOrgMembers, getActiveOrgId, type Org } from "@/lib/orgs";
 import { fetchBillingCredits, fetchBillingPlans, fetchBillingSummary, fetchBillingUsage } from "@/lib/billing";
-import { fetchRustJson } from "@/lib/rust-server-api";
+import { fetchCoreJson } from "@/lib/core-server-api";
 import { redirect } from "next/navigation";
 import { WorkspaceSettingsClient, type WorkspaceProfile } from "./workspace-settings-client";
 
@@ -34,7 +34,7 @@ export default async function WorkspaceSettingsPage({
     fetchBillingPlans().catch(() => ({ plans: [] })),
     fetchBillingCredits().catch(() => null),
     fetchBillingUsage().catch(() => null),
-    fetchRustJson<WorkspaceProfile>("/api/profile").catch(() => null),
+    fetchCoreJson<WorkspaceProfile>("/api/profile").catch(() => null),
   ]);
   if (!profile?.user) redirect("/login");
   const role = members.find((member) => member.userId === session.user.id)?.role ?? "MEMBER";

@@ -1,5 +1,5 @@
 import { cookies } from "next/headers";
-import { fetchRustJson } from "@/lib/rust-server-api";
+import { fetchCoreJson } from "@/lib/core-server-api";
 
 export type OrgRole = "OWNER" | "ADMIN" | "MEMBER";
 
@@ -58,7 +58,7 @@ export async function getActiveOrgId(): Promise<string | null> {
 
 export async function fetchOrgs(): Promise<Org[]> {
   try {
-    const data = await fetchRustJson<{ orgs: Org[] }>("/api/orgs");
+    const data = await fetchCoreJson<{ orgs: Org[] }>("/api/orgs");
     return data.orgs;
   } catch {
     return [];
@@ -67,12 +67,12 @@ export async function fetchOrgs(): Promise<Org[]> {
 
 
 export async function fetchOrgMembers(orgId: string): Promise<OrgMember[]> {
-  const data = await fetchRustJson<{ members: OrgMember[] }>(`/api/orgs/${orgId}/members`);
+  const data = await fetchCoreJson<{ members: OrgMember[] }>(`/api/orgs/${orgId}/members`);
   return data.members;
 }
 
 export async function fetchOrgInvitations(orgId: string): Promise<OrgInvitation[]> {
-  const data = await fetchRustJson<{ invitations: OrgInvitation[] }>(
+  const data = await fetchCoreJson<{ invitations: OrgInvitation[] }>(
     `/api/orgs/${orgId}/invitations`,
   );
   return data.invitations;

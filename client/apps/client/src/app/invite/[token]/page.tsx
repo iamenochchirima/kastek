@@ -1,5 +1,5 @@
-import { fetchRustJson } from "@/lib/rust-server-api";
-import { getRustSession } from "@/lib/rust-auth";
+import { fetchCoreJson } from "@/lib/core-server-api";
+import { getCoreSession } from "@/lib/core-auth";
 import type { InvitationPreview } from "@/lib/orgs";
 import { AcceptInviteClient } from "./accept-invite-client";
 
@@ -11,11 +11,11 @@ export default async function InvitePage({
   params: Promise<{ token: string }>;
 }) {
   const { token } = await params;
-  const session = await getRustSession();
+  const session = await getCoreSession();
 
   let invitation: InvitationPreview | null = null;
   try {
-    const data = await fetchRustJson<{ invitation: InvitationPreview }>(
+    const data = await fetchCoreJson<{ invitation: InvitationPreview }>(
       `/api/invitations/${token}`,
     );
     invitation = data.invitation;

@@ -1,4 +1,4 @@
-import { getRustSession } from "@/lib/rust-auth";
+import { getCoreSession } from "@/lib/core-auth";
 import { fetchOnboardingStatus } from "@/lib/onboarding";
 import { redirect } from "next/navigation";
 import Link from "next/link";
@@ -10,7 +10,7 @@ import { OnboardingWizard } from "./onboarding-wizard";
 export const metadata = { title: "Set up your workspace | KasiTek" };
 
 export default async function OnboardingPage() {
-  const session = await getRustSession();
+  const session = await getCoreSession();
   if (!session?.user?.id) redirect("/login");
 
   const orgs = await fetchOrgs();

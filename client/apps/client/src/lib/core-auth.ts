@@ -1,8 +1,8 @@
 import { cache } from "react";
 import { redirect } from "next/navigation";
-import { fetchRustJson } from "@/lib/rust-server-api";
+import { fetchCoreJson } from "@/lib/core-server-api";
 
-export type RustSessionUser = {
+export type CoreSessionUser = {
   id: string;
   name: string;
   email: string;
@@ -10,13 +10,13 @@ export type RustSessionUser = {
   emailVerified: string | null;
 };
 
-export type RustSession = {
-  user: RustSessionUser;
+export type CoreSession = {
+  user: CoreSessionUser;
 };
 
-export const getRustSession = cache(async (): Promise<RustSession | null> => {
+export const getCoreSession = cache(async (): Promise<CoreSession | null> => {
   try {
-    const payload = await fetchRustJson<{ user?: RustSessionUser }>("/api/auth/me");
+    const payload = await fetchCoreJson<{ user?: CoreSessionUser }>("/api/auth/me");
     if (!payload.user) {
       return null;
     }
@@ -37,10 +37,10 @@ export const getRustSession = cache(async (): Promise<RustSession | null> => {
 
 // Server layouts and pages render concurrently. Each dashboard data loader must await
 // this guard before accessing an organization, rather than relying on its layout alone.
-export const getWorkspaceSession = cache(async (): Promise<RustSession | null> => {
-  const session = await getRustSession();
+export const getWorkspaceSession = cache(async (): Promise<CoreSession | null> => {
+  const session = await getCoreSession();
   if (!session) return null;
-  const payload = await fetchRustJson<{ orgs: Array<{ id: string }> }>("/api/orgs");
+  const payload = await fetchCoreJson<{ orgs: Array<{ id: string }> }>("/api/orgs");
   if (!payload.orgs.length) redirect("/onboarding");
   return session;
 });

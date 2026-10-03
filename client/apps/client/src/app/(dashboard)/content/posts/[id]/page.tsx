@@ -1,6 +1,6 @@
 import { notFound, redirect } from "next/navigation";
-import { getWorkspaceSession } from "@/lib/rust-auth";
-import { fetchRustJson } from "@/lib/rust-server-api";
+import { getWorkspaceSession } from "@/lib/core-auth";
+import { fetchCoreJson } from "@/lib/core-server-api";
 import { PostDetailPageClient } from "@/components/social/post-detail-page-client";
 import type { SocialPost } from "@/components/social/social-shared";
 
@@ -15,7 +15,7 @@ export default async function ContentPostDetailPage({
   if (!session?.user?.id) redirect("/login");
 
   const { id } = await params;
-  const response = await fetchRustJson<{ post?: SocialPost }>(
+  const response = await fetchCoreJson<{ post?: SocialPost }>(
     `/api/social/posts/${encodeURIComponent(id)}`,
   ).catch(() => null);
 

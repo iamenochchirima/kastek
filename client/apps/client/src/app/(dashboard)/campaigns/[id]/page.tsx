@@ -1,6 +1,6 @@
 import CampaignDetailPageClient from "@/components/dashboard/campaigns/campaign-detail-page-client";
-import { getWorkspaceSession } from "@/lib/rust-auth";
-import { fetchRustJson } from "@/lib/rust-server-api";
+import { getWorkspaceSession } from "@/lib/core-auth";
+import { fetchCoreJson } from "@/lib/core-server-api";
 import { notFound, redirect } from "next/navigation";
 
 export const metadata = {
@@ -108,7 +108,7 @@ export default async function ReachCampaignDetailPage({
 
   const { id } = await params;
 
-  const response: CampaignDetailResponse | null = await fetchRustJson<CampaignDetailResponse>(
+  const response: CampaignDetailResponse | null = await fetchCoreJson<CampaignDetailResponse>(
     `/api/whatsapp/campaigns/${id}`,
   ).catch(() => null);
 

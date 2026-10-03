@@ -1,4 +1,4 @@
-import { fetchRustJson } from "@/lib/rust-server-api";
+import { fetchCoreJson } from "@/lib/core-server-api";
 
 export type ProductAccess = {
   key: string;
@@ -229,21 +229,21 @@ export type BillingUsage = {
 };
 
 export function fetchBillingSummary() {
-  return fetchRustJson<BillingSummary>("/api/billing/summary");
+  return fetchCoreJson<BillingSummary>("/api/billing/summary");
 }
 
 export function fetchBillingPlans() {
-  return fetchRustJson<{ plans: AvailablePlan[] }>("/api/billing/plans");
+  return fetchCoreJson<{ plans: AvailablePlan[] }>("/api/billing/plans");
 }
 
 export function fetchBillingPlanDetails(planKey: string) {
-  return fetchRustJson<AvailablePlanDetails>(`/api/billing/plans/${encodeURIComponent(planKey)}`);
+  return fetchCoreJson<AvailablePlanDetails>(`/api/billing/plans/${encodeURIComponent(planKey)}`);
 }
 
 export function fetchBillingCredits() {
-  return fetchRustJson<BillingCredits>("/api/billing/credits");
+  return fetchCoreJson<BillingCredits>("/api/billing/credits");
 }
 
 export function fetchBillingUsage(range: "7d" | "30d" | "90d" = "30d") {
-  return fetchRustJson<BillingUsage>(`/api/billing/usage?range=${range}`);
+  return fetchCoreJson<BillingUsage>(`/api/billing/usage?range=${range}`);
 }

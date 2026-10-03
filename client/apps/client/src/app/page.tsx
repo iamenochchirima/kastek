@@ -4,7 +4,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ArrowRight, ArrowUpRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { getRustSession } from "@/lib/rust-auth";
+import { getCoreSession } from "@/lib/core-auth";
 import { publicSiteUrl } from "@/lib/public-site";
 
 export const metadata: Metadata = {
@@ -14,7 +14,7 @@ export const metadata: Metadata = {
 };
 
 export default async function AppGatewayPage() {
-  const session = await getRustSession();
+  const session = await getCoreSession();
 
   if (session?.user) {
     redirect("/workspace");

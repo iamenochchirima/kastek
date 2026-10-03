@@ -1,7 +1,7 @@
 import { cookies } from "next/headers";
 import { apiUrl } from "@/lib/server-api";
 
-export async function fetchRustJson<T>(path: string, init?: RequestInit): Promise<T> {
+export async function fetchCoreJson<T>(path: string, init?: RequestInit): Promise<T> {
   const cookieStore = await cookies();
   const cookieHeader = cookieStore
     .getAll()
@@ -20,7 +20,7 @@ export async function fetchRustJson<T>(path: string, init?: RequestInit): Promis
   if (!response.ok) {
     const text = await response.text().catch(() => "");
     throw new Error(
-      `Rust API request failed for ${path} (${response.status})${text ? `: ${text}` : ""}`,
+      `Core API request failed for ${path} (${response.status})${text ? `: ${text}` : ""}`,
     );
   }
 

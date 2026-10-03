@@ -1,10 +1,10 @@
-import { getWorkspaceSession } from "@/lib/rust-auth";
+import { getWorkspaceSession } from "@/lib/core-auth";
 import { redirect } from "next/navigation";
 import InboxPageClient from "@/components/dashboard/inbox-page";
 import type { WorkspaceConnection } from "@/lib/connections";
-import { fetchRustJson } from "@/lib/rust-server-api";
+import { fetchCoreJson } from "@/lib/core-server-api";
 
-type RustInboxConversation = {
+type CoreInboxConversation = {
   id: string;
   channel: "whatsapp" | "facebook" | "instagram" | "email";
   customerName: string | null;
@@ -19,7 +19,7 @@ type RustInboxConversation = {
   from?: string | null;
 };
 
-type RustEmailConnection = {
+type CoreEmailConnection = {
   id: string;
   provider: string;
   emailAddress: string;
@@ -32,7 +32,7 @@ type RustEmailConnection = {
   outboundStatus: string;
 };
 
-type RustConnection = {
+type CoreWhatsappConnection = {
   id: string;
   phoneNumberId: string;
   phoneDisplayNumber: string | null;
@@ -43,7 +43,7 @@ type RustConnection = {
   createdAt: string;
 };
 
-type RustSocialChannel = {
+type CoreSocialChannel = {
   id: string;
   platform: string;
   status: string;
@@ -61,19 +61,19 @@ export default async function InboxPage() {
     socialChannelsPayload,
     emailConnectionsPayload,
   ] = await Promise.all([
-    fetchRustJson<{ connections: RustConnection[] }>("/api/whatsapp/connections").catch(
+    fetchCoreJson<{ connections: CoreWhatsappConnection[] }>("/api/whatsapp/connections").catch(
       () => ({ connections: [] }),
     ),
-    fetchRustJson<{ connections: WorkspaceConnection[] }>("/api/connections").catch(
+    fetchCoreJson<{ connections: WorkspaceConnection[] }>("/api/connections").catch(
       () => ({ connections: [] }),
     ),
-    fetchRustJson<{ conversations: RustInboxConversation[] }>("/api/inbox/conversations").catch(
+    fetchCoreJson<{ conversations: CoreInboxConversation[] }>("/api/inbox/conversations").catch(
       () => ({ conversations: [] }),
     ),
-    fetchRustJson<{ channels: RustSocialChannel[] }>("/api/social/channels").catch(
+    fetchCoreJson<{ channels: CoreSocialChannel[] }>("/api/social/channels").catch(
       () => ({ channels: [] }),
     ),
-    fetchRustJson<{ connections: RustEmailConnection[] }>("/api/email/connections").catch(
+    fetchCoreJson<{ connections: CoreEmailConnection[] }>("/api/email/connections").catch(
       () => ({ connections: [] }),
     ),
   ]);

@@ -2,8 +2,8 @@ import WhatsappEmbeddedSignupCard from "@/components/dashboard/settings/whatsapp
 import WhatsappManualConnectionCard from "@/components/dashboard/settings/whatsapp-manual-connection-card";
 import { ConnectionsManager } from "@/components/dashboard/connections/connections-manager";
 import type { WhatsappConnectionView, WorkspaceConnection } from "@/lib/connections";
-import { getWorkspaceSession } from "@/lib/rust-auth";
-import { fetchRustJson } from "@/lib/rust-server-api";
+import { getWorkspaceSession } from "@/lib/core-auth";
+import { fetchCoreJson } from "@/lib/core-server-api";
 import { redirect } from "next/navigation";
 import {
   PageHeader,
@@ -40,10 +40,10 @@ export default async function ConnectionsPage({
   const requestedCapabilities = params.capabilities?.split(",").map((value) => value.trim().toUpperCase()).filter(Boolean);
 
   const [sharedResponse, whatsappResponse] = await Promise.all([
-    fetchRustJson<{ connections: WorkspaceConnection[] }>("/api/connections")
+    fetchCoreJson<{ connections: WorkspaceConnection[] }>("/api/connections")
       .then((response) => ({ ...response, loadFailed: false }))
       .catch(() => ({ connections: [], loadFailed: true })),
-    fetchRustJson<{ connections: WhatsappConnectionView[] }>("/api/whatsapp/connections").catch(() => ({ connections: [] })),
+    fetchCoreJson<{ connections: WhatsappConnectionView[] }>("/api/whatsapp/connections").catch(() => ({ connections: [] })),
   ]);
 
   return (

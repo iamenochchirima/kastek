@@ -1,4 +1,4 @@
-import { fetchRustJson } from "@/lib/rust-server-api";
+import { fetchCoreJson } from "@/lib/core-server-api";
 
 export type OnboardingProfile = {
   orgId: string;
@@ -20,5 +20,5 @@ export type OnboardingStatus = {
 };
 
 export function fetchOnboardingStatus() {
-  return fetchRustJson<OnboardingStatus>("/api/onboarding");
+  return fetchCoreJson<OnboardingStatus>("/api/onboarding");
 }

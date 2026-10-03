@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ACTIVE_ORG_COOKIE, fetchOrgs } from "@/lib/orgs";
-import { getRustSession } from "@/lib/rust-auth";
+import { getCoreSession } from "@/lib/core-auth";
 
 export async function POST(req: NextRequest) {
   if (req.headers.get("origin") !== req.nextUrl.origin) {
     return NextResponse.json({ error: "Invalid request origin" }, { status: 403 });
   }
-  const session = await getRustSession();
+  const session = await getCoreSession();
   if (!session?.user?.id) {
     return NextResponse.json({ error: "Sign in required" }, { status: 401 });
   }
