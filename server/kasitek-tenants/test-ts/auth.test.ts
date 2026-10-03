@@ -334,6 +334,48 @@ test(
         ).statusCode,
         401,
       );
+      await pool.query(
+        "INSERT INTO tenant_client_users(id,workspace_id,tenant_client_id,email,password_hash,status) VALUES ('revoked-client','a','client-a','revoked@example.test',NULL,'invited')",
+      );
+      await pool.query(
+        "INSERT INTO tenant_client_user_roles(tenant_client_user_id,role) VALUES ('revoked-client','client')",
+      );
+      const replacedInvite = await issueClientInvite(
+        context,
+        'a',
+        'alpha',
+        'client-a',
+        'revoked-client',
+        'revoked@example.test',
+        null,
+      );
+      const replacedToken = new URL(
+        replacedInvite.activation_url!,
+      ).searchParams.get('token')!;
+      await issueClientInvite(
+        context,
+        'a',
+        'alpha',
+        'client-a',
+        'revoked-client',
+        'revoked@example.test',
+        null,
+      );
+      assert.equal(
+        (
+          await call('GET', `/api/client-auth/invite?token=${replacedToken}`)
+        ).json().invite.isValid,
+        false,
+      );
+      assert.equal(
+        (
+          await call('POST', '/api/client-auth/accept-invite', {
+            token: replacedToken,
+            password: 'x',
+          })
+        ).statusCode,
+        401,
+      );
       const setup = await call('POST', '/api/auth/session/continue', {
         email: 'setup@example.test',
       });
