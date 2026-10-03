@@ -16,13 +16,25 @@ const addFormats=(formatsPlugin as unknown as {default:(instance:Ajv2020)=>void}
 addFormats(ajv);
 const compiledSchemas=new Map<string,{fingerprint:string;validate:ReturnType<typeof ajv.compile>}>();
 export class RegistryError extends Error {constructor(message:string){super(message);this.name='RegistryError';}}
+export function parseRegistryJsonText(path:string,raw:string):unknown {
+ try{return parseSerdeValueJson(raw);}
+ catch(error){throw new RegistryError(`failed to parse JSON registry file ${path}: ${error instanceof Error?error.message:'invalid JSON'}`);}
+}
+export function parseRegistryYamlText(path:string,raw:string):unknown {
+ let document;
+ try{document=parseDocument(raw,{intAsBigInt:true,uniqueKeys:true});}
+ catch(error){throw new RegistryError(`failed to parse YAML registry file ${path}: ${error instanceof Error?error.message:'invalid YAML'}`);}
+ if(document.errors.length)throw new RegistryError(`failed to parse YAML registry file ${path}: ${document.errors[0]?.message}`);
+ try{return normalizeYaml(document.toJS());}
+ catch(error){throw new RegistryError(`failed to parse YAML registry file ${path}: ${error instanceof Error?error.message:'invalid YAML value'}`);}
+}
 export const resolveRegistrySourcePath=(base:string,path:string):string=>{
  if(!path||path.startsWith('/')||path.split(/[\\/]/).some(part=>part==='..'||part===''))throw new RegistryError(`invalid registry source path ${path}`);
  const full=resolve(base,path),rel=relative(base,full);
  if(rel==='..'||rel.startsWith(`..${sep}`)||resolve(full)!==full)throw new RegistryError(`registry source escapes its directory: ${path}`);
  return full;
 };
-const readJson=async(path:string):Promise<unknown>=>{const raw=await readFile(path,'utf8');try{return parseSerdeValueJson(raw);}catch(error){throw new RegistryError(`failed to parse JSON registry file ${relative(root,path)}: ${error instanceof Error?error.message:'invalid JSON'}`);}};
+const readJson=async(path:string):Promise<unknown>=>parseRegistryJsonText(relative(root,path),await readFile(path,'utf8'));
 function compileSchema(path:string,schema:unknown){
  const id=(schema as {$id?:string})?.$id,key=id?`id:${id}`:resolve(path),fingerprint=canonicalJson(schema),cached=compiledSchemas.get(key);
  if(cached?.fingerprint===fingerprint)return cached.validate;
@@ -120,7 +132,7 @@ export async function loadRegistry():Promise<RegistrySnapshot>{
  const metricsSchema=await readJson(join(metricsRoot,'registry.schema.json'));compileSchema(join(metricsRoot,'registry.schema.json'),metricsSchema);
  unique(index.files,'metrics registry source path');
  const indexedFiles=new Set<string>(),metrics:MetricDefinition[]=[],dimensions:DimensionDefinition[]=[],metricSets:MetricSetDefinition[]=[];
- for(const path of index.files){const file=resolveRegistrySourcePath(metricsRoot,path);indexedFiles.add(resolve(file));const doc=parseDocument(await readFile(file,'utf8'),{intAsBigInt:true,uniqueKeys:true});if(doc.errors.length)throw new RegistryError(`failed to parse YAML registry file ${path}: ${doc.errors[0]?.message}`);const value=normalizeYaml(doc.toJS()) as {kind?:string;definitions?:unknown[]};
+ for(const path of index.files){const file=resolveRegistrySourcePath(metricsRoot,path);indexedFiles.add(resolve(file));const value=parseRegistryYamlText(path,await readFile(file,'utf8')) as {kind?:string;definitions?:unknown[]};
   validateRegistryValue(file,metricsSchema,value);
   if(!Array.isArray(value.definitions))throw new RegistryError(`definitions must be an array in ${path}`);
   if(value.kind==='metrics')metrics.push(...value.definitions.map(item=>{

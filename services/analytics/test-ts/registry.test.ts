@@ -9,6 +9,8 @@ import type {
 } from "../src-ts/registry-types.js";
 import {
   RegistryError,
+  parseRegistryJsonText,
+  parseRegistryYamlText,
   resolveRegistrySourcePath,
   validateRegistryValue,
   validateRegistrySemantics,
@@ -223,5 +225,26 @@ test("registry schema errors are reported at compilation and validation", () => 
         { unexpected: true },
       ),
     /registry validation failed.*required property/,
+  );
+});
+
+test("malformed JSON and YAML registry sources report their file context", () => {
+  assert.throws(
+    () => parseRegistryJsonText("contracts/bad.json", '{"unfinished":'),
+    (error) =>
+      error instanceof RegistryError &&
+      error.message.startsWith("failed to parse JSON registry file contracts/bad.json:"),
+  );
+  assert.throws(
+    () => parseRegistryYamlText("metrics/bad.yaml", "kind: [unfinished"),
+    (error) =>
+      error instanceof RegistryError &&
+      error.message.startsWith("failed to parse YAML registry file metrics/bad.yaml:"),
+  );
+  assert.throws(
+    () => parseRegistryYamlText("metrics/duplicate.yaml", "kind: metrics\nkind: dimensions\n"),
+    (error) =>
+      error instanceof RegistryError &&
+      error.message.startsWith("failed to parse YAML registry file metrics/duplicate.yaml:"),
   );
 });
