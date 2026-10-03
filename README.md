@@ -10,11 +10,9 @@ The Collector image, local profiles, and staging profile live in
 service declaration is the named `otel-collector` partial in [`.railway/railway.ts`](.railway/railway.ts).
 The operational notes are in [`docs/otel-collector-runbook.md`](docs/otel-collector-runbook.md).
 
-Run it locally from the repository root:
-
-```sh
-docker compose -f infra/observability/otel-collector/compose.yaml up --build
-```
+The Collector is optional during local development. Core and Analytics keep working when
+telemetry is disabled or the Collector is unavailable. Do not start the container-based local
+profile as part of this TypeScript migration.
 
 ## Analytics
 
@@ -22,24 +20,27 @@ Labs owns the Analytics API, worker, schema, migrations, and service-owned build
 [`services/analytics`](services/analytics/README.md). Growth-owned product publishers remain in
 their product repositories; hosted deployment and database cutover are separate work.
 
-## Shared Rust crates
+## Shared TypeScript packages
 
-Labs owns the cross-product Rust crates in [`crates/`](crates/): Analytics producer and reporting
-contracts, application configuration helpers, cryptographic utilities, and observability. They are
-private Git-sourced packages, pinned by consumers to the `rust-crates-v0.1.0` release tag. `publish = false`
-prevents accidental publication to a public registry. Builds that consume them need read access to
-this repository; service-to-service behavior still crosses the services' HTTP or event interfaces.
+The cross-product packages live in [`packages/contracts`](packages/contracts) and
+[`packages/server-support`](packages/server-support). They hold Analytics contracts, producer and
+reporting clients, configuration helpers, cryptography, JSON handling, and telemetry. Services keep
+product permissions and database transactions in their owning repositories; cross-service behavior
+still uses HTTP and event interfaces.
 
-Run a narrow local compile check for the shared libraries from the repository root:
+Growth and Agency currently install checksummed local package tarballs while the migration is in
+progress. GitHub Packages publication and authenticated clean installs are still pending. The
+publisher is `pnpm publish:shared`; its requirements and safety checks are in the
+[server-support README](packages/server-support/README.md). The original Rust implementation remains
+recoverable from Labs commit `4eb66ad`.
+
+Check the shared packages and Analytics TypeScript service from the repository root:
 
 ```sh
-cargo check --locked -p analytics-producer -p analytics-reporting -p config -p crypto-utils --lib
-```
-
-From the repository root, check the service package with:
-
-```sh
-cargo check -p kasitek-analytics --bins
+corepack pnpm build:shared
+corepack pnpm test:shared
+corepack pnpm --filter @kasitek/analytics typecheck
+corepack pnpm --filter @kasitek/analytics build
 ```
 
 ## Website

@@ -1,7 +1,8 @@
 # KasiTek Analytics
 
-Standalone customer-facing analytics service. The TypeScript implementation is under `src-ts/`;
-Rust remains in the repository as the parity baseline until the migration's final retirement gate.
+Standalone customer-facing analytics service. Its TypeScript implementation under `src-ts/` is the
+only runtime in this checkout. The original Rust service and shared crates remain recoverable from
+Labs commit `4eb66ad`.
 The native Node processes are:
 
 - `start`: API, health endpoints, authenticated ingestion/reconciliation, reporting and rollout routes.

@@ -23,7 +23,7 @@ Agency customer accounts remain agency-specific and isolated. Their provider iso
 
 Native local identity configuration lives in `infra/identity/`. No Docker. Production deployment is later work. The master administration realm is separate from shared KasiTek accounts. Use dedicated PostgreSQL storage and development email delivery. Production hosting, DNS, email delivery, secret storage, and rollout require separate preparation.
 
-Each product authorizes current local memberships. Existing service credentials and Core-to-Agents authentication remain separate from human login. Shared Rust crates may later hold repeated client helpers; runtime authentication uses provider HTTPS interfaces.
+Each product authorizes current local memberships. Existing service credentials and Core-to-Agents authentication remain separate from human login. Shared TypeScript packages may hold repeated client helpers; runtime authentication uses provider HTTPS interfaces.
 
 ## Observed source boundaries
 
