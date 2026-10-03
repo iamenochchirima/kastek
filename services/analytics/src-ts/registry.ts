@@ -52,16 +52,24 @@ const unique=(values:string[],description:string)=>{if(new Set(values).size!==va
 const lexical=(left:string,right:string)=>left<right?-1:left>right?1:0;
 const metricIdentity=(value:Pick<MetricDefinition,'key'|'version'>)=>`${value.key}@${value.version}`;
 const metricSetIdentity=(value:Pick<MetricSetDefinition,'key'|'version'>)=>`${value.key}@${value.version}`;
-function validateSemantics(metrics:MetricDefinition[],dimensions:DimensionDefinition[],sets:MetricSetDefinition[],contracts:ContractSummary[]):void {
+function validateContractIdentities(contracts:Pick<ContractSummary,'identity'>[]):void {
+ const identities=new Set<string>();
+ for(const contract of contracts){if(identities.has(contract.identity))throw new RegistryError(`registry identity conflict: duplicate contract identity ${contract.identity}`);identities.add(contract.identity);}
+}
+export function validateRegistrySemantics(metrics:MetricDefinition[],dimensions:DimensionDefinition[],sets:MetricSetDefinition[],contracts:ContractSummary[]):void {
+ validateContractIdentities(contracts);
  const contractKeys=new Set(contracts.map(item=>item.identity)),metricKeys=new Set(metrics.map(metricIdentity)),dimensionKeys=new Set(dimensions.map(item=>item.key));
- unique(metrics.map(metricIdentity),'metric identity');unique(dimensions.map(item=>item.key),'dimension key');unique(sets.map(metricSetIdentity),'metric-set identity');
+ const seenMetrics=new Set<string>(),seenSets=new Set<string>();
  const graph=new Map<string,string[]>();
  for(const metric of metrics){const identity=metricIdentity(metric);
+  if(seenMetrics.has(identity))throw new RegistryError(`registry identity conflict: duplicate metric identity ${identity}`);
+  seenMetrics.add(identity);
   if(metric.sources.some(source=>!contractKeys.has(source)))throw new RegistryError(`registry identity conflict: metric ${identity} references an unregistered source contract`);
   if(metric.dimensions.some(key=>!dimensionKeys.has(key)))throw new RegistryError(`registry identity conflict: metric ${identity} references an unknown dimension`);
   if(metric.coverage.required_sources.some(source=>!metric.sources.includes(source)))throw new RegistryError(`registry identity conflict: metric ${identity} coverage references a source outside its source set`);
-  if((metric.value_type==='percentage'||metric.default_aggregation==='ratio_of_sums')&&(!metric.numerator||!metric.denominator))throw new RegistryError(`registry validation failed for ${identity}: ratio metrics require numerator and denominator`);
-  for(const ref of [metric.numerator,metric.denominator])if(ref&&!metric.dependencies.includes(ref))throw new RegistryError(`registry identity conflict: metric ${identity} ratio reference ${ref} is not declared as a dependency`);
+  if((metric.value_type==='percentage'||metric.default_aggregation==='ratio_of_sums')&&(metric.numerator===null||metric.denominator===null))throw new RegistryError(`registry validation failed for ${identity}: ratio metrics require numerator and denominator`);
+  if(metric.numerator!==null&&!metric.dependencies.includes(metric.numerator))throw new RegistryError(`registry identity conflict: metric ${identity} numerator ${metric.numerator} is not declared as a dependency`);
+  if(metric.denominator!==null&&!metric.dependencies.includes(metric.denominator))throw new RegistryError(`registry identity conflict: metric ${identity} denominator ${metric.denominator} is not declared as a dependency`);
   for(const dependency of metric.dependencies)if(!metricKeys.has(dependency))throw new RegistryError(`registry identity conflict: metric ${identity} references unknown dependency ${dependency}`);
   graph.set(identity,metric.dependencies);
  }
@@ -69,7 +77,7 @@ function validateSemantics(metrics:MetricDefinition[],dimensions:DimensionDefini
  const visit=(key:string)=>{if(visited.has(key))return;if(visiting.has(key))throw new RegistryError(`registry dependency cycle: ${key}`);visiting.add(key);for(const dependency of graph.get(key)??[])visit(dependency);visiting.delete(key);visited.add(key);};
  for(const key of graph.keys())visit(key);
  for(const dimension of dimensions)for(const identity of dimension.compatible_metrics){const metric=metrics.find(item=>metricIdentity(item)===identity);if(!metric)throw new RegistryError(`registry identity conflict: dimension ${dimension.key} references unknown metric ${identity}`);if(!metric.dimensions.includes(dimension.key))throw new RegistryError(`registry identity conflict: dimension ${dimension.key} is compatible with metric ${identity} but the metric does not declare it`);}
- for(const set of sets)if(set.metrics.some(metric=>!metricKeys.has(metric)))throw new RegistryError(`registry identity conflict: metric set ${metricSetIdentity(set)} references an unknown metric`);
+ for(const set of sets){const identity=metricSetIdentity(set);if(seenSets.has(identity))throw new RegistryError(`registry identity conflict: duplicate metric-set identity ${identity}`);seenSets.add(identity);if(set.metrics.some(metric=>!metricKeys.has(metric)))throw new RegistryError(`registry identity conflict: metric set ${identity} references an unknown metric`);}
 }
 const renderTuple=(name:string,values:string[])=>`export const ${name} = [\n${values.map(value=>`  ${JSON.stringify(value)},\n`).join('')}] as const;\n\n`;
 export function renderTypescriptBindings(registry:RegistrySnapshot):string {
@@ -89,7 +97,7 @@ export async function loadRegistry():Promise<RegistrySnapshot>{
  if(contractRegistry.envelope!=='envelope.schema.json')throw new RegistryError(`contract registry envelope must be envelope.schema.json, got ${contractRegistry.envelope}`);
  const envelopePath=join(contractsRoot,'envelope.schema.json'),envelopeSchema=await readJson(envelopePath);compileSchema(envelopePath,envelopeSchema);
  validateValue(envelopePath,envelopeSchema,await readJson(join(contractsRoot,'examples/envelope.json')));
- unique(contractRegistry.contracts.map(item=>item.identity),'contract identity');
+ validateContractIdentities(contractRegistry.contracts);
  const indexedSchemas=new Set<string>(),contracts:ContractSummary[]=[];
  for(const entry of contractRegistry.contracts){
   const schemaPath=safePath(contractsRoot,entry.schema),schema=await readJson(schemaPath);indexedSchemas.add(resolve(schemaPath));
@@ -125,7 +133,7 @@ export async function loadRegistry():Promise<RegistrySnapshot>{
  const metricFiles=(await readdir(metricsRoot,{recursive:true,withFileTypes:true})).filter(entry=>entry.isFile()&&/\.ya?ml$/.test(entry.name));
  for(const entry of metricFiles){const abs=resolve(join(entry.parentPath,entry.name));if(!indexedFiles.has(abs))throw new RegistryError(`registry source file is not indexed: ${relative(metricsRoot,abs)}`);}
  metrics.sort((a,b)=>lexical(metricIdentity(a),metricIdentity(b)));dimensions.sort((a,b)=>lexical(a.key,b.key));metricSets.sort((a,b)=>lexical(metricSetIdentity(a),metricSetIdentity(b)));
- validateSemantics(metrics,dimensions,metricSets,contracts);
+ validateRegistrySemantics(metrics,dimensions,metricSets,contracts);
  const artifact={contract_registry_version:contractRegistry.registry_version,metrics_registry_version:index.registry_version,contracts,metrics,dimensions:dimensions.map(item=>({key:item.key,type:item.value_type,source:item.source,compatible_metrics:item.compatible_metrics,filterable:item.filterable,groupable:item.groupable,cardinality:item.cardinality,privacy_class:item.privacy_class,stable_key:item.stable_key,permissions:item.permissions})),metric_sets:metricSets};
  const registry:RegistrySnapshot={contract_registry_version:contractRegistry.registry_version,metrics_registry_version:index.registry_version,contracts,metrics,dimensions,metric_sets:metricSets,sha256:sha(canonicalJson(artifact))};
  await prepareValidators();
