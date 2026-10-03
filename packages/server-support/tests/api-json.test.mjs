@@ -34,3 +34,10 @@ test("service JSON replies serialize byte vectors as Rust-compatible arrays", ()
   );
   assert.equal(canonicalJson(bytes), "[0,1,127,128,255]");
 });
+
+test("service JSON replies omit zero date fractions like Chrono", () => {
+  assert.equal(
+    apiJson({ occurredAt: new Date("2030-01-02T03:04:05.000Z") }),
+    '{"occurredAt":"2030-01-02T03:04:05Z"}',
+  );
+});
