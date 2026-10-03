@@ -4,7 +4,7 @@ import {Readable} from 'node:stream';
 import cors from '@fastify/cors';
 import { environmentAllowsLoopbackOrigins, isLoopbackOrigin } from '@kasitek-labs/server-support/config';
 import { redactTelemetryLogArguments } from '@kasitek-labs/server-support/telemetry';
-import { formatSerdeJsonSyntaxError } from '@kasitek-labs/server-support/json';
+import { assertSerdeUnicodeEscapes, formatSerdeJsonSyntaxError } from '@kasitek-labs/server-support/json';
 import type {TenantContext} from './context.js';
 import {installErrorHandler,RequestExtractionError} from './error.js';
 import {apiJson,parseSerdeValueJson} from './json.js';
@@ -45,6 +45,8 @@ export async function buildApp(context:TenantContext,registrars:RouteRegistrar[]
     catch(syntaxError){return done(new RequestExtractionError('json',formatSerdeJsonSyntaxError(text,syntaxError)));}
     return done(error);
    }
+   try { assertSerdeUnicodeEscapes(text); }
+   catch(syntaxError){return done(new RequestExtractionError('json',formatSerdeJsonSyntaxError(text,syntaxError)));}
    try {
     // Source update_workspace takes Json<Value>; scopes inside create_api_key is also Value.
     if(request.method==='PATCH'&&request.routeOptions.url==='/api/admin/workspaces/:id')value=parseSerdeValueJson(text);
