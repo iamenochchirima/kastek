@@ -10,6 +10,8 @@ import { setTimeout as delay } from 'node:timers/promises';
 import pg from 'pg';
 import { parse } from 'dotenv';
 import { isolatedDatabase } from './helpers/database-fixture.js';
+import { readConfig } from '../src-ts/config.js';
+import { createSubscription, enqueueDomainEvent } from '../src-ts/services/public-webhooks.js';
 import { API_WORKERS, processWorkers } from '../src-ts/workers/runtime.js';
 const modes = [
   'social-publishing-worker',
@@ -38,13 +40,25 @@ test(
     const fixture = await isolatedDatabase(url!, 'process_modes', tables);
     const database = new URL(url!);
     database.searchParams.set('options', String(fixture.pool.options.options));
-    let analyticsClaims = 0;
-    const provider = createServer((_request, response) => {
-      analyticsClaims++;
+    let analyticsClaims = 0,
+      webhookCalls = 0,
+      holdWebhook = false,
+      releaseWebhook: (() => void) | undefined;
+    const provider = createServer(async (request, response) => {
+      for await (const _chunk of request) {
+        // Consume the body before delaying a webhook response.
+      }
+      if (request.url === '/webhook') {
+        webhookCalls++;
+        if (holdWebhook)
+          await new Promise<void>((resolve) => (releaseWebhook = resolve));
+      } else {
+        analyticsClaims++;
+      }
       response.writeHead(204);
       response.end();
     });
-    provider.listen(0, '127.0.0.1');
+    provider.listen(0, '::');
     await once(provider, 'listening');
     const providerUrl = `http://127.0.0.1:${(provider.address() as { port: number }).port}`;
     // Both entrypoints load the repository .env. Explicit empty values prevent dotenv from
@@ -67,6 +81,7 @@ test(
       PAYSTACK_MODE: 'test',
       PAYSTACK_TEST_SECRET_KEY: 'fixture',
       PAYSTACK_API_BASE_URL: providerUrl,
+      PUBLIC_WEBHOOK_ENCRYPTION_KEY: 'process-mode-webhook-fixture',
       REDIS_URL: '',
       KASITEK_DISABLE_BACKGROUND_WORKERS: '1',
     });
@@ -158,6 +173,88 @@ test(
         await finished;
       }
     }
+    type ActiveProcess = {
+      child: ReturnType<typeof spawn>;
+      finished: Promise<[number | null, NodeJS.Signals | null]>;
+      output: () => string;
+    };
+    async function startActive(
+      mode: string | undefined,
+      apiFlag: string,
+    ): Promise<ActiveProcess> {
+      const portProbe = createTcpServer();
+      portProbe.listen(0, '127.0.0.1');
+      await once(portProbe, 'listening');
+      const port = (portProbe.address() as { port: number }).port;
+      await new Promise<void>((r) => portProbe.close(() => r()));
+      const child = spawn(process.execPath, [resolve('dist/bootstrap.js')], {
+        env: {
+          ...env,
+          PORT: String(port),
+          KASITEK_PROCESS: mode ?? '',
+          KASITEK_DISABLE_BACKGROUND_WORKERS: apiFlag,
+        },
+        stdio: ['ignore', 'pipe', 'pipe'],
+      });
+      let output = '';
+      child.stdout.on('data', (chunk) => (output += chunk));
+      child.stderr.on('data', (chunk) => (output += chunk));
+      const finished = once(child, 'exit') as Promise<
+        [number | null, NodeJS.Signals | null]
+      >;
+      const expected = mode
+        ? processWorkers(mode)!
+        : apiFlag === '1'
+          ? []
+          : API_WORKERS;
+      const deadline = Date.now() + 10000;
+      try {
+        while (Date.now() < deadline && child.exitCode === null) {
+          const ready = expected.every((worker) =>
+            output.split('\n').some((line) => {
+              try {
+                const event = JSON.parse(line) as Record<string, unknown>;
+                return event.worker === worker && event.event === 'worker.started';
+              } catch {
+                return false;
+              }
+            }),
+          );
+          if (ready) {
+            if (mode) return { child, finished, output: () => output };
+            try {
+              const response = await fetch(`http://127.0.0.1:${port}/health`, {
+                signal: AbortSignal.timeout(700),
+              });
+              if (response.status === 200)
+                return { child, finished, output: () => output };
+            } catch {
+              // The worker logs can precede the API listener.
+            }
+          }
+          await delay(25);
+        }
+        throw new Error(`Process ${mode ?? 'api'} failed to start: ${output}`);
+      } catch (error) {
+        child.kill('SIGKILL');
+        await finished;
+        throw error;
+      }
+    }
+    async function stopActive(active: ActiveProcess | undefined) {
+      if (!active) return;
+      if (active.child.exitCode === null) active.child.kill('SIGTERM');
+      const [code] = await Promise.race([
+        active.finished,
+        delay(5000, undefined, { ref: false }).then(() => {
+          active.child.kill('SIGKILL');
+          throw new Error(`Process shutdown hung: ${active.output()}`);
+        }),
+      ]);
+      assert.equal(code, 0, active.output());
+    }
+    let embeddedApi: ActiveProcess | undefined,
+      dedicatedWebhookWorker: ActiveProcess | undefined;
     try {
       for (const mode of modes) {
         const before = analyticsClaims;
@@ -177,7 +274,87 @@ test(
       for (const worker of API_WORKERS)
         assert.ok(enabled.includes(`"worker":"${worker}"`));
       assert.equal(enabled.includes('"worker":"analytics_publisher"'), false);
+
+      const webhookConfig = readConfig({
+        DATABASE_URL: database.toString(),
+        ENVIRONMENT: 'test',
+        PUBLIC_WEBHOOK_ENCRYPTION_KEY: 'process-mode-webhook-fixture',
+      });
+      await createSubscription(
+        fixture.pool,
+        'org-process-overlap',
+        {
+          url: `${providerUrl.replace('127.0.0.1', 'localhost')}/webhook`,
+          secret: 's'.repeat(32),
+          eventTypes: ['content.post.created'],
+        },
+        webhookConfig,
+        'embedded-worker-overlap',
+      );
+      await enqueueDomainEvent(fixture.pool, 'org-process-overlap', 'content.post.created', {
+        postId: 'embedded-worker-overlap',
+      });
+      assert.equal(
+        (await fixture.pool.query<{ status: string }>(
+          `SELECT status FROM "PublicApiWebhookDelivery" WHERE "eventId"=$1`,
+          ['content.post.created:embedded-worker-overlap'],
+        )).rows[0]?.status,
+        'PENDING',
+      );
+      holdWebhook = true;
+      embeddedApi = await startActive(undefined, '');
+      const webhookDeadline = Date.now() + 10000;
+      while (webhookCalls === 0 && Date.now() < webhookDeadline)
+        await delay(25);
+      const firstDelivery = (
+        await fixture.pool.query<{
+          status: string;
+          attemptCount: number;
+          lastError: string | null;
+        }>(
+          `SELECT status, "attemptCount", "lastError" FROM "PublicApiWebhookDelivery" WHERE "eventId"=$1`,
+          ['content.post.created:embedded-worker-overlap'],
+        )
+      ).rows[0];
+      assert.equal(
+        webhookCalls,
+        1,
+        `the embedded API worker did not reach the webhook: ${JSON.stringify(firstDelivery)}`,
+      );
+
+      dedicatedWebhookWorker = await startActive('public-webhooks-worker', '1');
+      await delay(1250);
+      assert.equal(
+        webhookCalls,
+        1,
+        'the dedicated worker duplicated an effect held by the embedded API worker',
+      );
+      releaseWebhook?.();
+      holdWebhook = false;
+      const deliveryDeadline = Date.now() + 5000;
+      let delivery: { status: string; attemptCount: number } | undefined;
+      while (Date.now() < deliveryDeadline) {
+        delivery = (
+          await fixture.pool.query<{ status: string; attemptCount: number }>(
+            `SELECT status, "attemptCount" FROM "PublicApiWebhookDelivery" WHERE "eventId"=$1`,
+            ['content.post.created:embedded-worker-overlap'],
+          )
+        ).rows[0];
+        if (delivery?.status === 'DELIVERED') break;
+        await delay(25);
+      }
+      assert.deepEqual(delivery, { status: 'DELIVERED', attemptCount: 1 });
+      assert.equal(webhookCalls, 1);
+      await stopActive(dedicatedWebhookWorker);
+      dedicatedWebhookWorker = undefined;
+      await stopActive(embeddedApi);
+      embeddedApi = undefined;
     } finally {
+      releaseWebhook?.();
+      await Promise.all([
+        stopActive(dedicatedWebhookWorker),
+        stopActive(embeddedApi),
+      ]);
       await new Promise<void>((r) => provider.close(() => r()));
       await fixture.close();
     }
