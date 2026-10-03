@@ -209,6 +209,156 @@ async function publishGrowthOutbox(
   }
 }
 
+async function publishAgencyOutbox(
+  fixture: Awaited<ReturnType<typeof analyticsFixture>>,
+  endpoint: string,
+  occurredAt: string,
+) {
+  const tenantDist = process.env.AGENCY_TENANT_DIST;
+  if (!tenantDist) return undefined;
+
+  const schema = `tenant_source_${randomUUID().replaceAll("-", "")}`;
+  await fixture.pool.query(`CREATE SCHEMA "${schema}"`);
+  const sourceUrl = new URL(fixture.databaseUrl);
+  sourceUrl.searchParams.set(
+    "options",
+    `-c search_path=${schema} -c timezone=UTC`,
+  );
+  const tenantRoot = resolve(tenantDist);
+  const [{ createPool }, { runMigrations }, tenantAnalytics, publisher] =
+    await Promise.all([
+      import(pathToFileURL(resolve(tenantRoot, "db.js")).href),
+      import(pathToFileURL(resolve(tenantRoot, "migrate.js")).href),
+      import(pathToFileURL(resolve(tenantRoot, "analytics.js")).href),
+      import(pathToFileURL(resolve(tenantRoot, "analytics-publisher.js")).href),
+    ]);
+  const sourcePool = createPool({
+    database_url: sourceUrl.toString(),
+    database_max_connections: 4,
+  });
+
+  try {
+    await runMigrations(sourcePool);
+    await sourcePool.query(
+      `INSERT INTO workspaces(id,slug,display_name)
+       VALUES('shared-contract-agency','shared-contract-agency','Shared Contract Agency')`,
+    );
+    await sourcePool.query(
+      `INSERT INTO tenant_clients(id,workspace_id,name,slug)
+       VALUES('shared-contract-client','shared-contract-agency','Shared Contract Client','shared-contract-client')`,
+    );
+
+    const client = await sourcePool.connect();
+    try {
+      await client.query("BEGIN");
+      await tenantAnalytics.enqueueWorkspaceScopeDefinition(
+        client,
+        "shared-contract-agency",
+        1,
+        "Africa/Johannesburg",
+      );
+      await tenantAnalytics.enqueueClientScopeDefinition(
+        client,
+        "shared-contract-agency",
+        "shared-contract-client",
+        1,
+        "Africa/Johannesburg",
+        "active",
+      );
+      await tenantAnalytics.enqueueClientLifecycle(
+        client,
+        "shared-contract-agency",
+        "shared-contract-client",
+        "created",
+        "active",
+        new Date(occurredAt),
+      );
+      await tenantAnalytics.enqueueLeadCreated(
+        client,
+        "shared-contract-agency",
+        "shared-contract-client",
+        "shared-contract-agency-lead",
+        "manual",
+        "high",
+        new Date(occurredAt),
+      );
+      await client.query("COMMIT");
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
+
+    const logs: Record<string, unknown>[] = [];
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10000);
+    try {
+      await publisher.runAnalyticsPublisher(
+        sourcePool,
+        {
+          ANALYTICS_TENANT_INGESTION_TOKEN: tenantToken,
+          ANALYTICS_INGESTION_URL: endpoint,
+          ANALYTICS_PUBLISHER_POLL_INTERVAL_MS: "1",
+          ANALYTICS_RECONCILIATION_INTERVAL_MS: "60000",
+        },
+        {
+          info(fields: Record<string, unknown>) {
+            logs.push(fields);
+            if (
+              fields.phase === "publication" &&
+              Number(fields.delivered ?? 0) >= 4
+            )
+              controller.abort();
+          },
+          warn(fields: Record<string, unknown>) {
+            logs.push(fields);
+          },
+          error(fields: Record<string, unknown>) {
+            logs.push(fields);
+            controller.abort();
+          },
+        },
+        controller.signal,
+      );
+    } finally {
+      clearTimeout(timeout);
+    }
+
+    const outbox = await sourcePool.query<{
+      record_id: string;
+      record_category: string;
+      delivery_status: string;
+    }>(
+      `SELECT record_id,record_category,delivery_status
+       FROM analytics_outbox ORDER BY source_sequence`,
+    );
+    assert.equal(outbox.rowCount, 4);
+    assert.ok(
+      outbox.rows.every((row) => row.delivery_status === "delivered"),
+      `Agency publisher left records undelivered: ${JSON.stringify({ logs, outbox: outbox.rows })}`,
+    );
+    const eventRecordIds = outbox.rows
+      .filter((row) => row.record_category === "event")
+      .map((row) => row.record_id);
+    assert.equal(eventRecordIds.length, 2);
+    assert.equal(
+      (
+        await fixture.pool.query(
+          `SELECT 1 FROM analytics.analytics_event
+           WHERE source_service='tenant-platform' AND source_record_id=ANY($1::text[])`,
+          [eventRecordIds],
+        )
+      ).rowCount,
+      2,
+    );
+    return { eventRecordIds };
+  } finally {
+    await sourcePool.end();
+    await fixture.pool.query(`DROP SCHEMA "${schema}" CASCADE`);
+  }
+}
+
 function leased(
   record: AnalyticsOutboxRecord,
   sourceSequence: number,
@@ -397,6 +547,11 @@ test(
         endpoint,
         timestamp,
       );
+      const agencyOutbox = await publishAgencyOutbox(
+        fixture,
+        endpoint,
+        timestamp,
+      );
 
       const coreScope = buildScopeDefinition(coreProducerConfig(), {
         record_id: "core-scope:shared-contract-org:1",
@@ -451,53 +606,55 @@ test(
         coreRows.length,
       );
 
-      const workspaceScope = buildScopeDefinition(tenantProducerConfig(), {
-        record_id: "tenant-scope:shared-contract-agency:1",
-        source_domain: "scopes",
-        source_stream_key: "workspace:shared-contract-agency:scopes",
-        contract_name: "tenant.scope.definition@1",
-        schema_version: 1,
-        scope_kind: "tenant_workspace",
-        scope_external_id: "shared-contract-agency",
-        reporting_timezone: "Africa/Johannesburg",
-        status: "active",
-        source_version: 1,
-      });
-      const tenantEvent = buildEvent(tenantProducerConfig(), {
-        record_id: "tenant-client:shared-contract-client:lifecycle:created",
-        source_domain: "clients",
-        source_stream_key: "workspace:shared-contract-agency:clients",
-        contract_name: "tenant.client.lifecycle@1",
-        schema_version: 1,
-        scope_kind: "tenant_workspace",
-        scope_external_id: "shared-contract-agency",
-        subject_type: "tenant_client",
-        subject_id: "shared-contract-client",
-        occurred_at: timestamp,
-        attributes: {
-          tenant_client_id: "shared-contract-client",
-          action: "created",
+      if (!agencyOutbox) {
+        const workspaceScope = buildScopeDefinition(tenantProducerConfig(), {
+          record_id: "tenant-scope:shared-contract-agency:1",
+          source_domain: "scopes",
+          source_stream_key: "workspace:shared-contract-agency:scopes",
+          contract_name: "tenant.scope.definition@1",
+          schema_version: 1,
+          scope_kind: "tenant_workspace",
+          scope_external_id: "shared-contract-agency",
+          reporting_timezone: "Africa/Johannesburg",
           status: "active",
+          source_version: 1,
+        });
+        const tenantEvent = buildEvent(tenantProducerConfig(), {
+          record_id: "tenant-client:shared-contract-client:lifecycle:created",
+          source_domain: "clients",
+          source_stream_key: "workspace:shared-contract-agency:clients",
+          contract_name: "tenant.client.lifecycle@1",
+          schema_version: 1,
+          scope_kind: "tenant_workspace",
+          scope_external_id: "shared-contract-agency",
+          subject_type: "tenant_client",
+          subject_id: "shared-contract-client",
           occurred_at: timestamp,
-        },
-      });
-      const acceptedTenant = await tenantClient.sendBatch(
-        "tenant-platform-customer-analytics",
-        [
-          leased(workspaceScope, 1, timestamp),
-          leased(tenantEvent, 1, timestamp),
-        ],
-      );
-      assert.equal(acceptedTenant.accepted_count, 2);
-      assert.equal(
-        (
-          await tenantClient.sendBatch("tenant-platform-customer-analytics", [
+          attributes: {
+            tenant_client_id: "shared-contract-client",
+            action: "created",
+            status: "active",
+            occurred_at: timestamp,
+          },
+        });
+        const acceptedTenant = await tenantClient.sendBatch(
+          "tenant-platform-customer-analytics",
+          [
             leased(workspaceScope, 1, timestamp),
             leased(tenantEvent, 1, timestamp),
-          ])
-        ).duplicate_count,
-        2,
-      );
+          ],
+        );
+        assert.equal(acceptedTenant.accepted_count, 2);
+        assert.equal(
+          (
+            await tenantClient.sendBatch("tenant-platform-customer-analytics", [
+              leased(workspaceScope, 1, timestamp),
+              leased(tenantEvent, 1, timestamp),
+            ])
+          ).duplicate_count,
+          2,
+        );
+      }
 
       const agentEvent = agentRun("shared-contract-org", timestamp);
       const acceptedAgent = await agentClient.sendBatch(
@@ -514,6 +671,10 @@ test(
         1,
       );
 
+      const tenantClientRecordId =
+        agencyOutbox?.eventRecordIds.find((recordId) =>
+          recordId.startsWith("tenant-client:"),
+        ) ?? "tenant-client:shared-contract-client:lifecycle:created";
       const persisted = (
         await fixture.pool.query<{
           source_service: string;
@@ -525,9 +686,9 @@ test(
            ORDER BY source_service`,
           [[
             "core-event:shared-contract-recipient",
-          "tenant-client:shared-contract-client:lifecycle:created",
-          "agent-run:shared-contract-run",
-        ]],
+            tenantClientRecordId,
+            "agent-run:shared-contract-run",
+          ]],
         )
       ).rows;
       assert.deepEqual(
@@ -537,7 +698,7 @@ test(
           ["core", "core-event:shared-contract-recipient"],
           [
             "tenant-platform",
-            "tenant-client:shared-contract-client:lifecycle:created",
+            tenantClientRecordId,
           ],
         ],
       );
