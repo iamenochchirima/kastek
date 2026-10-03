@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
-  "sourceCommit": "e4419a07c81c1f1d052d5354959eb9ff390f991a",
-  "sourceContentSha256": "3880e2db4f96d92be5ea7a365493bc9bd925a644c4308e48934a7c292033ac5d",
-  "node": "v24.19.0",
+  "sourceCommit": "2442322836e46610cc2d6d5c8d1cb9bc31e300f4",
+  "sourceContentSha256": "0b1ecced09ba7f4160f72f10ea20c30e93889f91baefdbda0b665fc17a858c4a",
+  "node": "v24.15.0",
   "packageManager": "pnpm@10.30.1",
   "sourceFiles": [
     {
@@ -75,7 +75,7 @@
     },
     {
       "path": "packages/server-support/src/json.ts",
-      "sha256": "5f78d76b80e87ae2fefb4a1fd897ac0d7f6ef11a8a29981e10213c53145c4430"
+      "sha256": "283a18eb8a6c6397a1da6f6365818d2224e80b3e9c367895e0dbb26ab5a78e6d"
     },
     {
       "path": "packages/server-support/src/outbox-sql.ts",
@@ -103,7 +103,7 @@
     },
     {
       "path": "packages/server-support/tests/json-syntax.test.mjs",
-      "sha256": "843948a2fc51b6bbe95bc68112978829d21d2062f78d9ba68f1d0384338cdf7c"
+      "sha256": "75750b1e4d8c293b0391662a4b0b52a8e00d8a45588bf043a3794f625fd19a2e"
     },
     {
       "path": "packages/server-support/tests/outbox-postgres.test.mjs",
@@ -111,11 +111,11 @@
     },
     {
       "path": "packages/server-support/tests/parity.test.mjs",
-      "sha256": "e8aaa4f3d21d1db6b250a8008c1368ca77c5a6bd549157c9f95b6739849b4ea8"
+      "sha256": "1dd1d7cf67dfdb9f9b73c0b5b62c54fa2742b1526b4e94f1323cf0b0700e6661"
     },
     {
       "path": "packages/server-support/tests/reporting-json.test.mjs",
-      "sha256": "1f50096bedf95abf3c387f3504bebf780b1dea4b2ef647ec8174e04b409334e6"
+      "sha256": "ec1b58d6f19e18dd2f2a99cb2bdf221ed8f5a0c3e95000ae58d2f99081b7850a"
     },
     {
       "path": "packages/server-support/tests/telemetry-lazy.test.mjs",
@@ -150,8 +150,8 @@
       "package": "@kasitek-labs/server-support",
       "version": "0.1.6",
       "file": "kasitek-labs-server-support-0.1.6.tgz",
-      "sha256": "cb0c85bc53053e5aca4b031043e446af07173a9e76a798d38859ce7ba64dfa83",
-      "integrity": "sha512-D+f1Uy+FH6qI4oR42MIFMi+9WbTDt/dt/xMmzTLbDVNaJohuy83LGyuU7XbZd3qpo/V2Wg9PNOd0bzkKhSO7jQ=="
+      "sha256": "3fe3f35eefc8bfe325d5dc7d6bc1e6ba61bdc052a48df7d21676614aa1138951",
+      "integrity": "sha512-WAP7Rx+oMQFgmiMqCGgzCuLtJj7udnzVu9+9zAnZXpEj+Evh8L2Ow2q+O/nsmpedmesGNSnIusLUzY2Xk86vew=="
     }
   ]
 }

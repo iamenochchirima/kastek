@@ -289,7 +289,7 @@ packages:
     engines: {node: '>=24 <25'}
 
   '@kasitek-labs/server-support@file:.artifacts/shared/kasitek-labs-server-support-0.1.6.tgz':
-    resolution: {integrity: sha512-D+f1Uy+FH6qI4oR42MIFMi+9WbTDt/dt/xMmzTLbDVNaJohuy83LGyuU7XbZd3qpo/V2Wg9PNOd0bzkKhSO7jQ==, tarball: file:.artifacts/shared/kasitek-labs-server-support-0.1.6.tgz}
+    resolution: {integrity: sha512-WAP7Rx+oMQFgmiMqCGgzCuLtJj7udnzVu9+9zAnZXpEj+Evh8L2Ow2q+O/nsmpedmesGNSnIusLUzY2Xk86vew==, tarball: file:.artifacts/shared/kasitek-labs-server-support-0.1.6.tgz}
     version: 0.1.6
     engines: {node: '>=24 <25'}
 
