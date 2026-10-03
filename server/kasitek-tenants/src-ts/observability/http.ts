@@ -27,7 +27,6 @@ export function installHttpObservability(app: FastifyInstance): void {
       started: number;
       method: string;
       route: string;
-      id: string;
       finished: boolean;
     }
   >();
@@ -47,7 +46,7 @@ export function installHttpObservability(app: FastifyInstance): void {
     });
     count.add(1, attributes);
     duration.record(seconds, attributes);
-    if (status >= 500) errors.add(1, attributes);
+    if (status >= 500 || status === 499) errors.add(1, attributes);
     item.span.setAttribute("http.response.status_code", status);
     item.span.setAttribute("http.status_code", status);
     const statusCode =
@@ -66,7 +65,6 @@ export function installHttpObservability(app: FastifyInstance): void {
       route: item.route,
       status,
       duration_seconds: seconds,
-      correlation_id: item.id,
     };
     if (status >= 500) request.log.error(fields, "HTTP request completed");
     else if (status >= 400) request.log.warn(fields, "HTTP request completed");
@@ -102,17 +100,10 @@ export function installHttpObservability(app: FastifyInstance): void {
       started: performance.now(),
       method,
       route,
-      id,
       finished: false,
     });
     inFlight.add(1, { "http.request.method": method, "http.route": route });
-    const sc = span.spanContext();
-    request.log = request.log.child({
-      correlation_id: id,
-      ...(sc.traceId !== "00000000000000000000000000000000"
-        ? { trace_id: sc.traceId, span_id: sc.spanId }
-        : {}),
-    });
+    request.log = request.log.child({ correlation_id: id });
     reply.raw.once("close", () =>
       finish(request, reply.raw.writableFinished ? reply.statusCode : 499),
     );
