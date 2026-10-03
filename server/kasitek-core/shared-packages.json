@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "sourceCommit": "2442322836e46610cc2d6d5c8d1cb9bc31e300f4",
-  "sourceContentSha256": "0b1ecced09ba7f4160f72f10ea20c30e93889f91baefdbda0b665fc17a858c4a",
+  "sourceCommit": "5dd64597b368155ed9cdf25cda5457321ba33bee",
+  "sourceContentSha256": "385676df972586b04a65a4eceaf23af48c20ef32efe975f262b3777c1890b54f",
   "node": "v24.15.0",
   "packageManager": "pnpm@10.30.1",
   "sourceFiles": [
@@ -39,7 +39,7 @@
     },
     {
       "path": "packages/server-support/README.md",
-      "sha256": "ecab522f41368827f8a21c2fa0e2fb6546e9132177f85072cd423af8be319bba"
+      "sha256": "6f6d20e0ac51a0526cf70246d22a6a0b05dea0546d0db3ed3e20c0de2ed2b40b"
     },
     {
       "path": "packages/server-support/package.json",
@@ -75,7 +75,7 @@
     },
     {
       "path": "packages/server-support/src/json.ts",
-      "sha256": "283a18eb8a6c6397a1da6f6365818d2224e80b3e9c367895e0dbb26ab5a78e6d"
+      "sha256": "8a438fbb1110b505263a1e1bcd094b4a37beb212473a1b3d743fa3b66039d9e9"
     },
     {
       "path": "packages/server-support/src/outbox-sql.ts",
@@ -103,7 +103,7 @@
     },
     {
       "path": "packages/server-support/tests/json-syntax.test.mjs",
-      "sha256": "75750b1e4d8c293b0391662a4b0b52a8e00d8a45588bf043a3794f625fd19a2e"
+      "sha256": "d61f8cb7907591cbdc4399a749fab540deca4f8a0f3c0482bc5b4b0f12eced65"
     },
     {
       "path": "packages/server-support/tests/outbox-postgres.test.mjs",
@@ -150,8 +150,8 @@
       "package": "@kasitek-labs/server-support",
       "version": "0.1.6",
       "file": "kasitek-labs-server-support-0.1.6.tgz",
-      "sha256": "3fe3f35eefc8bfe325d5dc7d6bc1e6ba61bdc052a48df7d21676614aa1138951",
-      "integrity": "sha512-WAP7Rx+oMQFgmiMqCGgzCuLtJj7udnzVu9+9zAnZXpEj+Evh8L2Ow2q+O/nsmpedmesGNSnIusLUzY2Xk86vew=="
+      "sha256": "9d4688fc9d2da90333df159043274dc7f10b48b067b0d27504d4b0c196d7423d",
+      "integrity": "sha512-RIzPBzz5uH6j6LfnNzsCYyjdUU2xGP+leHCDR6toWs1X8lyqUkNyXt9988AeVwmCTH0Wequnp5U1EEhdl/mKFw=="
     }
   ]
 }
