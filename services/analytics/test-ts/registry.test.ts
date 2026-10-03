@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { resolve } from "node:path";
 import test from "node:test";
 import type {
   ContractSummary,
@@ -8,6 +9,8 @@ import type {
 } from "../src-ts/registry-types.js";
 import {
   RegistryError,
+  resolveRegistrySourcePath,
+  validateRegistryValue,
   validateRegistrySemantics,
 } from "../src-ts/registry.js";
 
@@ -186,5 +189,39 @@ test("registry semantics reject incompatible dimensions and unknown metric-set e
   assert.throws(
     () => validate([metric()], [dimension()], [metricSet({ metrics: ["missing@1"] })]),
     /metric set core@1 references an unknown metric/,
+  );
+});
+
+test("registry source paths reject absolute paths and traversal", () => {
+  const base = resolve("fixtures/contracts");
+  assert.equal(
+    resolveRegistrySourcePath(base, "events/core/v1.schema.json"),
+    resolve(base, "events/core/v1.schema.json"),
+  );
+  for (const path of [
+    "",
+    "/etc/passwd",
+    "../outside.json",
+    "events/../outside.json",
+    "events\\..\\outside.json",
+  ]) {
+    assert.throws(() => resolveRegistrySourcePath(base, path), RegistryError);
+  }
+});
+
+test("registry schema errors are reported at compilation and validation", () => {
+  const path = resolve("services/analytics/contracts/fixture.schema.json");
+  assert.throws(
+    () => validateRegistryValue(path, { type: "not-a-json-type" }, {}),
+    /registry schema compilation failed/,
+  );
+  assert.throws(
+    () =>
+      validateRegistryValue(
+        path,
+        { type: "object", required: ["identity"] },
+        { unexpected: true },
+      ),
+    /registry validation failed.*required property/,
   );
 });

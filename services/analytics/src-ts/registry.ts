@@ -15,7 +15,7 @@ const addFormats=(formatsPlugin as unknown as {default:(instance:Ajv2020)=>void}
 addFormats(ajv);
 const compiledSchemas=new Map<string,{fingerprint:string;validate:ReturnType<typeof ajv.compile>}>();
 export class RegistryError extends Error {constructor(message:string){super(message);this.name='RegistryError';}}
-const safePath=(base:string,path:string):string=>{
+export const resolveRegistrySourcePath=(base:string,path:string):string=>{
  if(!path||path.startsWith('/')||path.split(/[\\/]/).some(part=>part==='..'||part===''))throw new RegistryError(`invalid registry source path ${path}`);
  const full=resolve(base,path),rel=relative(base,full);
  if(rel==='..'||rel.startsWith(`..${sep}`)||resolve(full)!==full)throw new RegistryError(`registry source escapes its directory: ${path}`);
@@ -29,7 +29,7 @@ function compileSchema(path:string,schema:unknown){
  try{const validate=ajv.compile(forSchema(schema) as object);compiledSchemas.set(key,{fingerprint,validate});return validate;}
  catch(error){throw new RegistryError(`registry schema compilation failed for ${relative(root,path)}: ${error instanceof Error?error.message:'invalid schema'}`);}
 }
-function validateValue(path:string,schema:unknown,value:unknown):void {
+export function validateRegistryValue(path:string,schema:unknown,value:unknown):void {
  const check=compileSchema(path,schema),normalized=forSchema(value);
  if(check(normalized))return;
  const issue=check.errors?.[0];throw new RegistryError(`registry validation failed for ${relative(root,path)}: ${issue?.instancePath||'/'} ${issue?.message??'invalid value'}`);
@@ -93,21 +93,21 @@ export async function writeGeneratedBindings(registry:RegistrySnapshot):Promise<
 export async function loadRegistry():Promise<RegistrySnapshot>{
  const contractRegistryPath=join(contractsRoot,'registry.json'),contractRegistry=await readJson(contractRegistryPath) as {registry_version:string;envelope:string;contracts:{identity:string;schema:string;examples:string[];owner:string;category:string;privacy_class:string}[]};
  const contractRegistrySchema=await readJson(join(contractsRoot,'registry.schema.json'));
- validateValue(join(contractsRoot,'registry.schema.json'),contractRegistrySchema,contractRegistry);
+ validateRegistryValue(join(contractsRoot,'registry.schema.json'),contractRegistrySchema,contractRegistry);
  if(contractRegistry.envelope!=='envelope.schema.json')throw new RegistryError(`contract registry envelope must be envelope.schema.json, got ${contractRegistry.envelope}`);
  const envelopePath=join(contractsRoot,'envelope.schema.json'),envelopeSchema=await readJson(envelopePath);compileSchema(envelopePath,envelopeSchema);
- validateValue(envelopePath,envelopeSchema,await readJson(join(contractsRoot,'examples/envelope.json')));
+ validateRegistryValue(envelopePath,envelopeSchema,await readJson(join(contractsRoot,'examples/envelope.json')));
  validateContractIdentities(contractRegistry.contracts);
  const indexedSchemas=new Set<string>(),contracts:ContractSummary[]=[];
  for(const entry of contractRegistry.contracts){
-  const schemaPath=safePath(contractsRoot,entry.schema),schema=await readJson(schemaPath);indexedSchemas.add(resolve(schemaPath));
+  const schemaPath=resolveRegistrySourcePath(contractsRoot,entry.schema),schema=await readJson(schemaPath);indexedSchemas.add(resolve(schemaPath));
   compileSchema(schemaPath,schema);
   const meta=(schema as {['x-kasitek']?:Record<string,unknown>})['x-kasitek'];
   if(!meta||meta.identity!==entry.identity||meta.owner!==entry.owner||meta.privacy_class!==entry.privacy_class)throw new RegistryError(`registry metadata does not match ${entry.identity}`);
   const prohibited=Array.isArray(meta.prohibited_fields)?meta.prohibited_fields.filter((field):field is string=>typeof field==='string'):[];
   const properties=(schema as {properties?:Record<string,unknown>}).properties??{};
   for(const field of prohibited)if(Object.hasOwn(properties,field))throw new RegistryError(`prohibited field ${field} is declared as a property in ${entry.schema}`);
-  for(const example of entry.examples){const examplePath=safePath(contractsRoot,example);validateValue(examplePath,schema,await readJson(examplePath));}
+  for(const example of entry.examples){const examplePath=resolveRegistrySourcePath(contractsRoot,example);validateRegistryValue(examplePath,schema,await readJson(examplePath));}
   contracts.push({identity:entry.identity,owner:entry.owner,category:entry.category,privacy_class:entry.privacy_class,schema_sha256:sha(canonicalJson(schema))});
  }
  const actualSchemas=(await readdir(join(contractsRoot,'events'),{recursive:true,withFileTypes:true})).filter(entry=>entry.isFile()&&entry.name.endsWith('.schema.json'));
@@ -115,12 +115,12 @@ export async function loadRegistry():Promise<RegistrySnapshot>{
  contracts.sort((a,b)=>lexical(a.identity,b.identity));
 
  const indexPath=join(metricsRoot,'index.json'),index=await readJson(indexPath) as {registry_version:string;files:string[]};
- validateValue(join(metricsRoot,'index.schema.json'),await readJson(join(metricsRoot,'index.schema.json')),index);
+ validateRegistryValue(join(metricsRoot,'index.schema.json'),await readJson(join(metricsRoot,'index.schema.json')),index);
  const metricsSchema=await readJson(join(metricsRoot,'registry.schema.json'));compileSchema(join(metricsRoot,'registry.schema.json'),metricsSchema);
  unique(index.files,'metrics registry source path');
  const indexedFiles=new Set<string>(),metrics:MetricDefinition[]=[],dimensions:DimensionDefinition[]=[],metricSets:MetricSetDefinition[]=[];
- for(const path of index.files){const file=safePath(metricsRoot,path);indexedFiles.add(resolve(file));const doc=parseDocument(await readFile(file,'utf8'),{intAsBigInt:true,uniqueKeys:true});if(doc.errors.length)throw new RegistryError(`failed to parse YAML registry file ${path}: ${doc.errors[0]?.message}`);const value=normalizeYaml(doc.toJS()) as {kind?:string;definitions?:unknown[]};
-  validateValue(file,metricsSchema,value);
+ for(const path of index.files){const file=resolveRegistrySourcePath(metricsRoot,path);indexedFiles.add(resolve(file));const doc=parseDocument(await readFile(file,'utf8'),{intAsBigInt:true,uniqueKeys:true});if(doc.errors.length)throw new RegistryError(`failed to parse YAML registry file ${path}: ${doc.errors[0]?.message}`);const value=normalizeYaml(doc.toJS()) as {kind?:string;definitions?:unknown[]};
+  validateRegistryValue(file,metricsSchema,value);
   if(!Array.isArray(value.definitions))throw new RegistryError(`definitions must be an array in ${path}`);
   if(value.kind==='metrics')metrics.push(...value.definitions.map(item=>{
    const raw=item as MetricDefinition;
@@ -153,6 +153,6 @@ export function validateRegisteredContract(identity:string,value:unknown):void {
 }
 export async function prepareValidators():Promise<void>{
  const registry=await readJson(join(contractsRoot,'registry.json')) as {contracts:{identity:string;schema:string}[]};
- for(const entry of registry.contracts){const path=safePath(contractsRoot,entry.schema),schema=await readJson(path);validators.set(entry.identity,compileSchema(path,schema));}
+ for(const entry of registry.contracts){const path=resolveRegistrySourcePath(contractsRoot,entry.schema),schema=await readJson(path);validators.set(entry.identity,compileSchema(path,schema));}
  const path=join(contractsRoot,'envelope.schema.json');validators.set('envelope',compileSchema(path,await readJson(path)));
 }
