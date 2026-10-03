@@ -10,10 +10,11 @@ this checkout after local API, worker, and consumer checks. The preceding Git
 commit is the recovery point. SQL, database migrations, OpenAPI assets, and
 media storage remain in place.
 
-This source cleanup did not change hosted services. Railway still records the
-legacy Rust Core build until private package delivery is verified and a hosted
-TypeScript cutover is separately authorized. Some live provider setup and
-cross-service producer checks remain pending.
+Hosted-service cutover is separate release work and is not part of completing
+the local TypeScript implementation. Growth currently installs version-pinned
+Labs packages from checksummed local artifacts; authenticated GitHub Packages
+delivery remains a separate distribution task. Some live provider setup is
+still owner-configured.
 
 ## Setup
 
@@ -103,9 +104,9 @@ The Analytics publisher is independently scalable and disabled unless
 `http://127.0.0.1:4300`), `ANALYTICS_CORE_PRODUCER_ID`, and `ANALYTICS_CORE_PUBLISHER_ID` in the
 Core environment. The token must match the `core` credential configured by the Labs-owned Analytics
 service ([source and local setup](https://github.com/Kasitek-Labs/kasitek-labs/tree/main/services/analytics)).
-Growth retains the publisher and Core outbox. The actual Core publisher has been verified against
-the local TypeScript Analytics API, projection worker, and an authorized campaign report; the
-Agency and Agents producer paths remain separate follow-up work. The worker claims Core's durable outbox, sends authenticated batches,
+Growth retains the publisher and Core outbox. The Core, Agency and Agents producer paths have been
+verified against the local TypeScript Analytics API, projection worker and authorized reports.
+The worker claims Core's durable outbox, sends authenticated batches,
 applies each acknowledgement, retries transient failures, and reclaims expired leases. The same
 process also runs the bounded Core source backfill loop; deploy `analytics-backfill-worker`
 separately when historical reconstruction needs independent capacity.
