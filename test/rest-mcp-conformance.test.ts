@@ -334,11 +334,19 @@ describe("Agent REST and MCP conformance matrices", () => {
 describe.skipIf(!growthRepositoryRoot)("Core public v1 OpenAPI conformance", () => {
   it("matches every mounted route and documents a stable operation/error/security contract", async () => {
     const [source, openApiSource] = await Promise.all([
-      readFile(growthRepositoryPath("server/kasitek-core/src/api/public_v1.rs"), "utf8"),
+      readFile(growthRepositoryPath("server/kasitek-core/src-ts/routes/public-v1.ts"), "utf8"),
       readFile(growthRepositoryPath("server/kasitek-core/openapi/v1.json"), "utf8"),
     ]);
-    const routePattern = /\.route\(\s*"([^"]+)"\s*,\s*web::(get|post|patch|put|delete)\(\)/g;
-    const mounted = [...source.matchAll(routePattern)].map((match) => `${match[2]!.toUpperCase()} ${match[1]}`).sort();
+    const routePattern = /\broutes\.(get|post|patch|put|delete)\(\s*["']([^"']+)["']/g;
+    const dynamicRoutesPattern = /for\s*\(\s*const\s*\[\s*path,\s*name,\s*key,\s*hidden,\s*run\s*\]\s+of\s+\[([\s\S]*?)\]\s+as const\)\s*routes\.get\(path,/;
+    const dynamicRoutes = source.match(dynamicRoutesPattern);
+    expect(dynamicRoutes, "dynamic public API routes").not.toBeNull();
+    const dynamicPaths = [...(dynamicRoutes?.[1] ?? "").matchAll(/\[\s*"(\/[^\"]+)"\s*,\s*"[^"]+"\s*,\s*"[^"]+"/g)]
+      .map((match) => match[1]!);
+    const mounted = [
+      ...[...source.matchAll(routePattern)].map((match) => `${match[1]!.toUpperCase()} ${match[2]}`),
+      ...dynamicPaths.map((path) => `GET ${path}`),
+    ].map((route) => route.replace(/:([A-Za-z][A-Za-z0-9_]*)/g, "{$1}")).sort();
     const document = JSON.parse(openApiSource) as {
       openapi: string;
       security?: unknown;
