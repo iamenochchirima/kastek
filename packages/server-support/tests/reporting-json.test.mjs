@@ -15,12 +15,19 @@ import {
 
 async function fixture(t) {
   let body = "{}";
+  let status = 200;
   const received = [];
   const server = createServer(async (request, response) => {
     let text = "";
     for await (const chunk of request) text += chunk;
-    received.push({ path: request.url, text });
+    received.push({
+      method: request.method,
+      path: request.url,
+      headers: request.headers,
+      text,
+    });
     response.setHeader("content-type", "application/json");
+    response.statusCode = status;
     response.end(body);
   });
   server.listen(0, "127.0.0.1");
@@ -35,8 +42,9 @@ async function fixture(t) {
       "fixture-resolver",
     ),
     received,
-    respond(value) {
+    respond(value, statusCode = 200) {
       body = value;
+      status = statusCode;
     },
   };
 }
@@ -174,4 +182,71 @@ test("serde Value parser separates i64/u64 integers from out-of-range floating v
   ])
     assert.ok(parseSerdeValueJson(token) instanceof SerdeFloat);
   assert.throws(() => parseSerdeValueJson("1e999"), /finite/);
+});
+
+test("reporting HTTP requests and upstream errors retain the Rust client contract", async (t) => {
+  const f = await fixture(t);
+  f.respond(
+    '{"scope_id":7,"scope_kind":"tenant_workspace","owning_source_service":"tenant-platform","external_source_id":"acme","root_scope_id":7,"parent_scope_id":null,"reporting_timezone":"UTC"}',
+  );
+  await f.client.resolveScope("tenant-platform", "tenant workspace", "acme/a+b");
+  assert.equal(
+    f.received.at(-1).path,
+    "/internal/reporting/scopes/resolve?scope_kind=tenant+workspace&external_source_id=acme%2Fa%2Bb",
+  );
+  assert.equal(f.received.at(-1).method, "GET");
+  assert.equal(f.received.at(-1).headers.authorization, "Bearer fixture-resolver");
+  assert.equal(f.received.at(-1).headers["x-source-service"], "tenant-platform");
+
+  f.respond("{}");
+  await f.client.catalog("signed-grant", 9223372036854775807n);
+  assert.equal(
+    f.received.at(-1).path,
+    "/v1/metrics/catalog?reporting_scope_id=9223372036854775807",
+  );
+  assert.equal(f.received.at(-1).headers.authorization, "Bearer signed-grant");
+
+  const report = withScope(
+    {
+      range_start: "2026-10-01T00:00:00.123456Z",
+      range_end: "2026-10-02T00:00:00.123456Z",
+      timezone: "UTC",
+      metrics: ["events.total"],
+      breakdowns: [],
+      filters: { "z dimension": ["last"], "a dimension": ["first"] },
+      include_descendants: false,
+    },
+    9223372036854775807n,
+  );
+  f.respond("{}");
+  await f.client.report("signed-grant", report);
+  assert.equal(f.received.at(-1).method, "POST");
+  assert.equal(f.received.at(-1).headers.authorization, "Bearer signed-grant");
+  assert.equal(
+    f.received.at(-1).headers["content-type"],
+    "application/json",
+  );
+  assert.equal(f.received.at(-1).text, canonicalJson(report));
+  assert.deepEqual(parseSerdeValueJson(f.received.at(-1).text), {
+    reporting_scope_id: 9223372036854775807n,
+    range_start: "2026-10-01T00:00:00.123456Z",
+    range_end: "2026-10-02T00:00:00.123456Z",
+    timezone: "UTC",
+    metrics: ["events.total"],
+    breakdowns: [],
+    filters: { "z dimension": ["last"], "a dimension": ["first"] },
+    include_descendants: false,
+  });
+
+  const errorBody = "é🙂".repeat(260);
+  f.respond(errorBody, 502);
+  await assert.rejects(
+    f.client.catalog("signed-grant", 7),
+    (error) => {
+      assert.equal(error.status, 502);
+      assert.equal(error.body, Array.from(errorBody).slice(0, 500).join(""));
+      assert.match(error.message, /^analytics reporting returned HTTP 502: /);
+      return true;
+    },
+  );
 });

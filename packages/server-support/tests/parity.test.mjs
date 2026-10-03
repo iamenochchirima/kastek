@@ -260,8 +260,14 @@ test("reporting grant remains ES256, user scope bounded to 120 seconds", async (
   );
   assert.equal(protectedHeader.kid, "key-1");
   assert.equal(payload.exp - payload.iat, 120);
+  assert.equal(payload.principal_type, "user");
   assert.equal(payload.scope_id, 4);
+  assert.equal(payload.root_scope_id, 1);
+  assert.equal(payload.descendant_mode, "none");
+  assert.equal(payload.policy_version, "customer-reporting-v1");
   assert.deepEqual(payload.permissions, ["catalog", "query"]);
+  assert.deepEqual(payload.metric_keys, []);
+  assert.deepEqual(payload.dimension_keys, []);
   assert.equal(payload.correlation_id, null);
   await assert.rejects(() =>
     issuer.issue({
