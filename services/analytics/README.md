@@ -40,6 +40,21 @@ complete before those processes start. `scripts/local-storage.sh` only checks th
 PostgreSQL is reachable. `scripts/backup.sh` creates a custom-format dump with a checksum and
 metadata; `scripts/restore.sh` requires explicit confirmation and stopped services.
 
+## Native hosted runtime candidate
+
+For a native Railpack service sourced from this Labs repository, use repository root `/`, build
+with `corepack pnpm build:analytics`, and start the API with
+`corepack pnpm start:analytics`. Set the API health check to `/health/ready`. Start a separate
+worker service with `corepack pnpm start:analytics-worker`; run
+`corepack pnpm migrate:analytics` as a one-shot release command before starting either process.
+The API binds to `ANALYTICS_API_HOST` (default `0.0.0.0`) and reads Railway's `PORT` when
+`ANALYTICS_API_PORT` is unset (local default `4300`). Both services need the dedicated
+`ANALYTICS_DATABASE_URL`; the worker also needs
+the producer and reporting credentials described in `.env.example`.
+
+These are candidate settings only. The current production Railway API and worker still point at
+the retired Rust binaries; no hosted settings or deployments were changed.
+
 The API listens on `ANALYTICS_API_PORT` (default `4300`). Check:
 
 ```bash
