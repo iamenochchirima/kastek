@@ -50,12 +50,15 @@ export function installHttpObservability(app: FastifyInstance): void {
     if (status >= 500) errors.add(1, attributes);
     item.span.setAttribute("http.response.status_code", status);
     item.span.setAttribute("http.status_code", status);
-    item.span.setStatus({
-      code:
-        status >= 500 || status === 499
-          ? SpanStatusCode.ERROR
-          : SpanStatusCode.OK,
-    });
+    const statusCode =
+      status >= 500 || status === 499
+        ? SpanStatusCode.ERROR
+        : SpanStatusCode.OK;
+    item.span.setStatus({ code: statusCode });
+    item.span.setAttribute(
+      "otel.status_code",
+      statusCode === SpanStatusCode.ERROR ? "ERROR" : "OK",
+    );
     item.span.end();
     const fields = {
       event: "http.request.completed",
@@ -88,6 +91,7 @@ export function installHttpObservability(app: FastifyInstance): void {
             "http.method": method,
             "http.route": route,
             "http.target": route,
+            "http.flavor": request.raw.httpVersion,
             correlation_id: id,
           },
         },

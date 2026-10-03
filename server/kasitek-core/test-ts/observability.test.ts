@@ -146,6 +146,10 @@ test("HTTP/provider/worker telemetry preserves W3C context, bounded correlation 
       );
     assert(request);
     assert(dependency);
+    assert.equal(request.attributes["http.flavor"], "1.1");
+    assert.equal(request.attributes["http.target"], "/fixture/{id}");
+    assert.equal(request.attributes.correlation_id, "fixture-correlation");
+    assert.equal(request.attributes["otel.status_code"], "OK");
     assert.equal(
       request.spanContext().traceId,
       "11111111111111111111111111111111",
@@ -158,10 +162,11 @@ test("HTTP/provider/worker telemetry preserves W3C context, bounded correlation 
       seen.traceparent!.split("-")[2],
       dependency.spanContext().spanId,
     );
-    assert.equal(
-      spans.find((span: any) => span.name === "GET /failed").status.code,
-      SpanStatusCode.ERROR,
+    const failedRequest = spans.find(
+      (span: any) => span.name === "GET /failed",
     );
+    assert.equal(failedRequest.status.code, SpanStatusCode.ERROR);
+    assert.equal(failedRequest.attributes["otel.status_code"], "ERROR");
     const metricJson = JSON.stringify(metricExporter.getMetrics());
     for (const name of [
       "http.server.request.count",
