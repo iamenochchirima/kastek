@@ -554,7 +554,10 @@ test(
       const contactForm = new FormData();
       contactForm.set(
         'file',
-        new Blob(['phone,fullName\n+27820000123,Fixture Contact\n'], {
+        new Blob([
+          'phone,fullName\n+27820000123,Fixture Contact\n',
+          '\n'.repeat(5 * 1024 * 1024 + 1),
+        ], {
           type: 'text/csv',
         }),
         'fixture.csv',

@@ -180,30 +180,40 @@ export function registerWhatsappMarketingRoutes(
       contactUpdateInput(request.body),
     );
   });
-  app.post("/api/whatsapp/contacts/import", async (request) => {
-    const ctx = await scope(request, "feature.campaigns.manage");
-    let bytes: Buffer = Buffer.alloc(0),
-      defaultOptIn = false,
-      consentConfirmed = false,
-      listLabel: string | null = null;
-    for await (const part of request.parts()) {
-      if (part.type === "file") {
-        const content = await part.toBuffer();
-        if (part.fieldname === "file") bytes = content;
-      } else if (part.fieldname === "defaultOptIn")
-        defaultOptIn = parseBoolLike(String(part.value)) ?? false;
-      else if (part.fieldname === "consentConfirmed")
-        consentConfirmed = parseBoolLike(String(part.value)) ?? false;
-      else if (part.fieldname === "listLabel")
-        listLabel = String(part.value).trim() || null;
-    }
-    return contacts.importContacts(core.pool, ctx.userId, ctx.orgId, {
-      bytes,
-      defaultOptIn,
-      consentConfirmed,
-      listLabel,
-    });
-  });
+  app.post(
+    "/api/whatsapp/contacts/import",
+    {
+      // The Rust multipart handler buffers the full CSV without a file-size
+      // cap, so keep Fastify's overall parser from imposing its 2 MiB default.
+      bodyLimit: Number.MAX_SAFE_INTEGER,
+    },
+    async (request) => {
+      const ctx = await scope(request, "feature.campaigns.manage");
+      let bytes: Buffer = Buffer.alloc(0),
+        defaultOptIn = false,
+        consentConfirmed = false,
+        listLabel: string | null = null;
+      for await (const part of request.parts({
+        limits: { fileSize: Number.MAX_SAFE_INTEGER },
+      })) {
+        if (part.type === "file") {
+          const content = await part.toBuffer();
+          if (part.fieldname === "file") bytes = content;
+        } else if (part.fieldname === "defaultOptIn")
+          defaultOptIn = parseBoolLike(String(part.value)) ?? false;
+        else if (part.fieldname === "consentConfirmed")
+          consentConfirmed = parseBoolLike(String(part.value)) ?? false;
+        else if (part.fieldname === "listLabel")
+          listLabel = String(part.value).trim() || null;
+      }
+      return contacts.importContacts(core.pool, ctx.userId, ctx.orgId, {
+        bytes,
+        defaultOptIn,
+        consentConfirmed,
+        listLabel,
+      });
+    },
+  );
   app.get(
     "/api/whatsapp/contacts/lists/:label/export",
     async (request, reply) => {

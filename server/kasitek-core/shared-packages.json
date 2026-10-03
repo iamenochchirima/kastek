@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "sourceCommit": "abdd0690a78ea5924135d08fab6619bb0e7baae9",
-  "sourceContentSha256": "4a0840e0b61dae71fdd3506514a8e360e40f200961240cde7c75383fe6a2c033",
+  "sourceCommit": "1a10a7357d505e236ed524ecf61a08d2a93cf259",
+  "sourceContentSha256": "1e4bf93c18067eb0828d97bc92acddba27c883ba77b3a8cb1189082d3cd88cd7",
   "node": "v24.19.0",
   "packageManager": "pnpm@10.30.1",
   "sourceFiles": [
@@ -39,11 +39,11 @@
     },
     {
       "path": "packages/server-support/README.md",
-      "sha256": "18c030589dafc06d7bd21ce186a6aead51f3744c2f3f6b0efa2efc9492e98332"
+      "sha256": "3a2ed51a5670678e9c81c52760a99efabd0e9c3e26db051aa2a0c32b5214fbae"
     },
     {
       "path": "packages/server-support/package.json",
-      "sha256": "361ac5419e34ff17cdc4ddc244b70ab7eb7fbc717e144b60bb4425a6b07b0fcf"
+      "sha256": "3c3b5bf6ad5ef6ed79617e2e60c72626fe833067707cf5693feb85665ad0d3c8"
     },
     {
       "path": "packages/server-support/scripts/pack-shared.mjs",
@@ -75,7 +75,7 @@
     },
     {
       "path": "packages/server-support/src/json.ts",
-      "sha256": "2587b4316182f5d2ab750d969b96efbf525808a7ab0e94f7309de355f65a276f"
+      "sha256": "c169a8e18a8488aef7171f6da3464f97920a5d0298c5ef45d8452eca87cab856"
     },
     {
       "path": "packages/server-support/src/outbox-sql.ts",
@@ -99,7 +99,7 @@
     },
     {
       "path": "packages/server-support/tests/json-syntax.test.mjs",
-      "sha256": "26c1afa8989a0181da2438776a4686913ee69000969dd2cff9d578b0fc78f04f"
+      "sha256": "843948a2fc51b6bbe95bc68112978829d21d2062f78d9ba68f1d0384338cdf7c"
     },
     {
       "path": "packages/server-support/tests/outbox-postgres.test.mjs",
@@ -144,10 +144,10 @@
     },
     {
       "package": "@kasitek-labs/server-support",
-      "version": "0.1.2",
-      "file": "kasitek-labs-server-support-0.1.2.tgz",
-      "sha256": "210188ea123a901c47d576f986028c74e3ab2dab3ea4d0bde72c9b7dd95e42d2",
-      "integrity": "sha512-o4bIhYdeDKh9BiT9X5gX4DLBnlNVuJ/D8bttnjEhMXjG0cboRCe2Lv+JGdf84i9fPtwtMyk+kMwQAWX4wn33DQ=="
+      "version": "0.1.3",
+      "file": "kasitek-labs-server-support-0.1.3.tgz",
+      "sha256": "b1597fc4dcc3c3ebdb9fbfa9e77cedff0cc3183d39d429faf14e7ffbbb6b2721",
+      "integrity": "sha512-rPDWDPLkBfOr+tG4c/HJms79pCNzYAdYMP513BsYDye3xWLtUL223dMHxM7kPOBNZ6TTiJx1J387T34eqeavRg=="
     }
   ]
 }

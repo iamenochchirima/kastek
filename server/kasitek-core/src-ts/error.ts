@@ -1,57 +1,5 @@
 import type { FastifyInstance, FastifyError, FastifyRequest } from "fastify";
-
-type ValidationIssue = NonNullable<FastifyError["validation"]>[number];
-
-function pointerParts(instancePath: string | undefined): string[] {
-  if (!instancePath) return [];
-  return instancePath
-    .split("/")
-    .slice(1)
-    .map((part) => part.replace(/~1/g, "/").replace(/~0/g, "~"));
-}
-
-function valueAtPath(value: unknown, path: readonly string[]): unknown {
-  let current = value;
-  for (const part of path) {
-    if (current === null || typeof current !== "object") return undefined;
-    current = (current as Record<string, unknown>)[part];
-  }
-  return current;
-}
-
-function actualType(value: unknown): string {
-  if (value === undefined) return "a missing value";
-  if (value === null) return "null";
-  if (Array.isArray(value)) return "a sequence";
-  if (typeof value === "string") return "a string";
-  if (typeof value === "boolean") return "a boolean";
-  if (typeof value === "bigint") return "an integer";
-  if (typeof value === "number")
-    return Number.isInteger(value) ? "an integer" : "a number";
-  return "a map";
-}
-
-function expectedType(value: unknown): string {
-  const labels: Record<string, string> = {
-    array: "a sequence",
-    boolean: "a boolean",
-    integer: "an integer",
-    null: "null",
-    number: "a number",
-    object: "a map",
-    string: "a string",
-  };
-  if (Array.isArray(value))
-    return value
-      .map((item) => labels[String(item)] ?? String(item))
-      .join(" or ");
-  return labels[String(value)] ?? "a valid value";
-}
-
-function issueLocation(context: string | undefined, parts: readonly string[]) {
-  const root = context === "querystring" ? "query" : context ?? "request";
-  return parts.length ? ` at \`${root}.${parts.join(".")}\`` : "";
-}
+import { formatSerdeValidationError } from "@kasitek-labs/server-support/json";
 
 function extractionDetail(
   issues: NonNullable<FastifyError["validation"]>,
@@ -66,29 +14,7 @@ function extractionDetail(
         : context === "headers"
           ? request.headers
           : request.body;
-  const issue = issues[0] as ValidationIssue | undefined;
-  if (!issue) return "Invalid request";
-
-  const parts = pointerParts(issue.instancePath);
-  const location = issueLocation(context, parts);
-  const params = issue.params as Record<string, unknown> | undefined;
-  if (
-    issue.keyword === "required" &&
-    typeof params?.missingProperty === "string"
-  )
-    return `missing field \`${params.missingProperty}\`${location}`;
-  if (
-    issue.keyword === "additionalProperties" &&
-    typeof params?.additionalProperty === "string"
-  )
-    return `unknown field \`${params.additionalProperty}\`${location}`;
-  if (issue.keyword === "type") {
-    const actual = valueAtPath(root, parts);
-    return `invalid type: ${actualType(actual)}, expected ${expectedType(params?.type)}${location}`;
-  }
-  if (issue.keyword === "enum")
-    return `invalid value${location}; ${issue.message ?? "value is not allowed"}`;
-  return `${issue.message ?? "invalid value"}${location}`;
+  return formatSerdeValidationError(issues, context, root);
 }
 
 /** Preserve the Rust API's {error,code} response and explicit status. */
