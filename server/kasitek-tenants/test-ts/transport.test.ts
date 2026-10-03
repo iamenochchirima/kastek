@@ -25,7 +25,12 @@ test('native Agency HTTP keeps health, explicit errors, source CORS and method m
    assert.doesNotMatch(invalid.body,/false/);
   }
   const extractor=await app.inject({method:'POST',url:'/api/extractor',payload:{}});assert.equal(extractor.statusCode,400);assert.match(extractor.headers['content-type']!,/^text\/plain/);
-  for(const [payload,detail] of [['{','EOF while parsing an object at line 1 column 1'],['[1,]','trailing comma at line 1 column 4']] as const){
+  for(const [payload,detail] of [
+   ['{','EOF while parsing an object at line 1 column 1'],
+   ['[1,]','trailing comma at line 1 column 4'],
+   [String.raw`"\uDC00"`,'lone leading surrogate in hex escape at line 1 column 7'],
+   [String.raw`{"\uDC00":1}`,'lone leading surrogate in hex escape at line 1 column 8'],
+  ] as const){
    const malformed=await app.inject({method:'POST',url:'/api/fixture',payload,headers:{'content-type':'application/json'}});
    assert.equal(malformed.statusCode,400);assert.equal(malformed.body,`Json deserialize error: ${detail}`);
   }
