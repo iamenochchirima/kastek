@@ -223,6 +223,59 @@ test(
 );
 
 test(
+  "Webhook shutdown abort leaves an in-flight claim for lease recovery without counting a failure",
+  { skip: !database },
+  async () => {
+    const f = await fixture();
+    let release: (() => void) | undefined;
+    try {
+      f.setStatus(204);
+      await enqueueDomainEvent(f.pool, "org", "content.post.created", {
+        postId: "shutdown",
+      });
+      const job = (await listDeliveries(f.pool, "org", f.id))[0]!,
+        paused = f.pause(),
+        controller = new AbortController();
+      release = paused.release;
+      const inFlight = processDueDeliveries(
+        f.pool,
+        f.config,
+        1,
+        controller.signal,
+      );
+      await paused.waiting;
+      controller.abort();
+      assert.equal(await inFlight, 0);
+      const interrupted = (await listDeliveries(f.pool, "org", f.id))[0]!,
+        afterInterrupt = (await listSubscriptions(f.pool, "org"))[0]!;
+      assert.equal(interrupted.status, "DELIVERING");
+      assert.equal(interrupted.attemptCount, 1);
+      assert.equal(interrupted.lastStatusCode, null);
+      assert.equal(interrupted.lastError, null);
+      assert.equal(afterInterrupt.failureCount, 0);
+      assert.equal(afterInterrupt.status, "ACTIVE");
+
+      await f.pool.query(
+        `UPDATE "PublicApiWebhookDelivery" SET "updatedAt"=NOW()-INTERVAL '6 minutes' WHERE id=$1`,
+        [job.id],
+      );
+      release();
+      release = undefined;
+      assert.equal(await processDueDeliveries(f.pool, f.config, 1), 1);
+      const recovered = (await listDeliveries(f.pool, "org", f.id))[0]!;
+      assert.equal(recovered.status, "DELIVERED");
+      assert.equal(recovered.attemptCount, 2);
+      assert.equal(f.received.length, 2);
+      assert.equal(f.received[0]!.event, f.received[1]!.event);
+      assert.equal((await listSubscriptions(f.pool, "org"))[0]!.failureCount, 0);
+    } finally {
+      release?.();
+      await f.close();
+    }
+  },
+);
+
+test(
   "Killed native delivery process leaves durable claim for lease recovery and stable recipient identity",
   { skip: !database },
   async () => {

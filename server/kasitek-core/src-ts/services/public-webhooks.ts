@@ -453,6 +453,9 @@ export async function processDueDeliveries(
     } catch (failure) {
       error = String(failure);
     }
+    // A shutdown abort leaves the durable claim in DELIVERING so the normal
+    // five-minute lease recovery path can retry it without counting a failure.
+    if (signal?.aborted) break;
     await recordDeliveryResult(pool, job, status, error);
     processed++;
   }
