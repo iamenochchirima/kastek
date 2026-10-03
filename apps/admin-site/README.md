@@ -5,10 +5,14 @@ Central admin UI. It calls Growth Core for Growth operations and the Agency serv
 Copy `.env.example` to `.env.local`, then run:
 
 ```sh
-pnpm install --frozen-lockfile
+pnpm install --ignore-workspace --frozen-lockfile
 pnpm typecheck
 pnpm build
 ```
+
+This app has its own lockfile and is excluded from the Labs root workspace. The `--ignore-workspace`
+flag makes pnpm install this app's dependencies instead of treating it as an unlisted workspace
+package.
 
 Set `OUTREACH_DRAFTS_DIR` only when draft files are stored outside the default
 `local-work/outreach-emails/organized/categories` directory under the repository root.

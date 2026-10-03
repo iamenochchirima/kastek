@@ -9,9 +9,13 @@ Requirements: Node.js `>=22.12.0 <23` or `>=24.0.0`, and pnpm 10.30.1.
 From this directory:
 
 ```sh
-pnpm install --frozen-lockfile
+pnpm install --ignore-workspace --frozen-lockfile
 pnpm dev
 ```
+
+This app has its own lockfile and is excluded from the Labs root workspace. The `--ignore-workspace`
+flag makes pnpm install this app's dependencies instead of treating it as an unlisted workspace
+package.
 
 The development server listens on port `3007`. For checks, run:
 
