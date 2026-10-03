@@ -7,13 +7,13 @@ import {routes} from '../src-ts/routes.js';
 import {readConfig} from '../src-ts/config.js';
 
 test('native Tenant API registers every source route and method without placeholders',async()=>{
- const text=await readFile(new URL('../src/routes.rs',import.meta.url),'utf8');
- // The source's web::scope and route calls are flat, non-nested registrations.
- const tokens=[...text.matchAll(/web::scope\("([^\"]*)"\)|\.route\(\s*"([^\"]*)"\s*,\s*web::(get|post|put|patch|delete)\(\)/g)];
- let prefix='';const expected=new Set<string>();
- for(const token of tokens){if(token[1]!==undefined)prefix=token[1];else expected.add(`${token[3]!.toUpperCase()} ${prefix}${token[2]!.replace(/\{([^}]+)\}/g,':$1')}`);}
- // Root/health precede the first scope. Source cfg.route isn't dot-prefixed.
- expected.add('GET /');expected.add('GET /health');
+ const snapshot=JSON.parse(await readFile(new URL('./fixtures/rust-baseline-routes.json',import.meta.url),'utf8')) as {sourceCommit:string;sourcePath:string;sourceSha256:string;routeCount:number;routes:string[]};
+ assert.match(snapshot.sourceCommit,/^[a-f0-9]{40}$/);
+ assert.equal(snapshot.sourcePath,'server/kasitek-tenants/src/routes.rs');
+ assert.match(snapshot.sourceSha256,/^[a-f0-9]{64}$/);
+ assert.equal(snapshot.routeCount,81);
+ assert.equal(snapshot.routes.length,snapshot.routeCount);
+ const expected=new Set(snapshot.routes);
  const actual=new Set<string>();
  const config=readConfig({TENANT_DATABASE_URL:'postgres://unused',LOG_LEVEL:'silent'});
  const app=await buildApp({config,pool:{} as pg.Pool},[(app)=>{
