@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
+import { ANALYTICS_REGISTRY_SHA256 } from "@kasitek-labs/contracts";
 
 type Artifact = {
   path: string;
@@ -78,8 +79,6 @@ const packageJson = JSON.parse(readFileSync(join(agentsRoot, "package.json"), "u
 const migrationFiles = readdirSync(join(agentsRoot, "migrations"))
   .filter((file) => /^\d+_.+\.sql$/u.test(file))
   .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
-const registrySource = readFileSync(join(agentsRoot, "src/analytics/generated-registry.ts"), "utf8");
-const registrySha = registrySource.match(/ANALYTICS_REGISTRY_SHA256\s*=\s*"([a-f0-9]{64})"/u)?.[1] ?? null;
 const manifest = {
   manifestVersion: 1,
   releaseId,
@@ -93,7 +92,7 @@ const manifest = {
     agentPackageVersion: packageJson.version ?? null,
     migrations: { first: migrationFiles[0] ?? null, last: migrationFiles.at(-1) ?? null, count: migrationFiles.length },
     rolloutFlags: ["MEMORY_V2_ENABLED", "memory_v2_writes_enabled", "memory_v2_retrieval_enabled", "memory_consolidation_enabled", "memory_projection_enabled"],
-    analyticsRegistrySha256: registrySha,
+    analyticsRegistrySha256: ANALYTICS_REGISTRY_SHA256,
   },
   artifacts: [artifact(join(agentsRoot, "dist")), artifact(join(agentsRoot, "packages/mcp/dist"))],
   releaseGates: {

@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
+import { ANALYTICS_REGISTRY_SHA256 } from "@kasitek-labs/contracts";
 
 type ReleaseManifest = {
   manifestVersion?: unknown;
@@ -80,8 +81,7 @@ if (migrations?.first !== migrationFiles[0]) addFailure(`migration first mismatc
 if (migrations?.last !== migrationFiles.at(-1)) addFailure(`migration last mismatch: manifest=${String(migrations?.last)} current=${migrationFiles.at(-1) ?? "none"}`);
 if (migrations?.count !== migrationFiles.length) addFailure(`migration count mismatch: manifest=${String(migrations?.count)} current=${migrationFiles.length}`);
 
-const registrySource = readFileSync(join(agentsRoot, "src/analytics/generated-registry.ts"), "utf8");
-const currentRegistrySha = registrySource.match(/ANALYTICS_REGISTRY_SHA256\s*=\s*"([a-f0-9]{64})"/u)?.[1];
+const currentRegistrySha = ANALYTICS_REGISTRY_SHA256;
 if (manifest.runtime?.analyticsRegistrySha256 !== currentRegistrySha) addFailure("analytics registry checksum does not match the current source");
 
 for (const expected of manifest.artifacts ?? []) {

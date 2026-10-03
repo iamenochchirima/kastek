@@ -32,6 +32,7 @@
     "test:telemetry:collector-unavailable": "tsx scripts/otel-collector-unavailable-smoke.ts http-503 && tsx scripts/otel-collector-unavailable-smoke.ts connection-refused",
     "release:memory:manifest": "tsx scripts/release-memory-manifest.ts",
     "release:memory:verify": "tsx scripts/verify-memory-release-manifest.ts",
+    "prepare:shared": "node scripts/prepare-shared.mjs",
     "generate:capabilities": "tsx scripts/generate-capability-docs.ts",
     "migrate": "tsx src/db/migrate.ts",
     "bootstrap:kasiai": "tsx src/system/bootstrap-kasiai.ts",
@@ -40,6 +41,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@kasitek-labs/contracts": "file:.artifacts/shared/kasitek-labs-contracts-0.2.0.tgz",
     "@fastify/cookie": "^11.1.2",
     "@fastify/multipart": "10.1.1",
     "@opentelemetry/api": "^1.9.1",

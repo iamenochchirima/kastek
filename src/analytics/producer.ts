@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import type { PoolClient } from "pg";
-import { ANALYTICS_CONTRACT_KEYS, type AnalyticsContractKey } from "./generated-registry";
+import { ANALYTICS_CONTRACT_KEYS, type AnalyticsContractKey } from "@kasitek-labs/contracts";
 
 export const AGENT_SOURCE_SERVICE = "agent-platform" as const;
 export const AGENT_SOURCE_ORIGIN = "kasitek://agent-platform" as const;
