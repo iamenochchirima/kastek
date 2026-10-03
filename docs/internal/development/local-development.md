@@ -118,7 +118,7 @@ standalone local setup.
 
 | Service | Default port | Liveness or readiness check |
 | --- | ---: | --- |
-| Core API | 4000 | `/health/live`, `/health/ready` where enabled |
+| Core API | 4000 | `/health` (liveness; PostgreSQL is checked before the server listens) |
 | Client | 3000 | browser application |
 
 The launcher is the authoritative list for local service names and ports. If an individual
