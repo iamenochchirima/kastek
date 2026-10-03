@@ -59,10 +59,7 @@ export default async function ReachCampaignsCreatePage() {
       <div className="mx-auto max-w-[1200px] space-y-6">
         <div>
           <h1 className="text-3xl font-semibold tracking-tight text-foreground">Create campaign</h1>
-          <p className="mt-1 text-muted-foreground">
-            Build a real WhatsApp marketing campaign against the Rust backend, with the same
-            lifecycle the worker process will execute.
-          </p>
+          <p className="mt-1 text-muted-foreground">Configure your WhatsApp campaign.</p>
         </div>
 
         <CampaignCreateForm
