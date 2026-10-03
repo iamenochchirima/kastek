@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "sourceCommit": "757609ef8d27d7b3f6cbc1eba687ee5545a916ba",
-  "sourceContentSha256": "22f71d2e497c8519ffb5976fa3a53326cb450eaac208960eb8f87d262792743c",
+  "sourceCommit": "529194c37b53d54ba638117728fb60827fe57dc4",
+  "sourceContentSha256": "a99029a46668d8ce4f457545a32d629fa6bae05a32bc256c22aaaadfd698926e",
   "node": "v24.15.0",
   "packageManager": "pnpm@10.30.1",
   "sourceFiles": [
@@ -11,15 +11,27 @@
     },
     {
       "path": "packages/contracts/README.md",
-      "sha256": "a1c03d5b7b0bed7850fb4f943d8ac769f3d27b2298eac2f633956b907c767f1a"
+      "sha256": "7fb5e4caa65e993966eedc7b88ef84de86afc797fcc762a068f190b735c5dfc2"
     },
     {
       "path": "packages/contracts/package.json",
-      "sha256": "7fb389da5720227ad3e125cefc9cb72013ebec7ce0ffffbd79d107b26563429a"
+      "sha256": "5c04e1075c2cb463216848a728a3accfffe1891b33689093304604276f72fea6"
+    },
+    {
+      "path": "packages/contracts/scripts/write-cjs-package-type.mjs",
+      "sha256": "a95ed05f588d04f170ad0b009dc00784c369bd6c8cab66500e390c994fb204c4"
+    },
+    {
+      "path": "packages/contracts/src/analytics-registry.ts",
+      "sha256": "fb6fb18e13d3b49d7a10204075abd0637ece97d30ea9061273310a86048ab27c"
     },
     {
       "path": "packages/contracts/src/index.ts",
-      "sha256": "4aafdf45a50d132a8b1f24c6c4e3019d3fe815829dc5f7783a9bda8d98c8ffea"
+      "sha256": "5f3b7cc4dd42fdd5cc54374a806986f04618f71639ab301b553aa6ec85375f38"
+    },
+    {
+      "path": "packages/contracts/tsconfig.cjs.json",
+      "sha256": "9aee3cd28aeb555a33d673fcf7111f6ccbf4c92500db99bece934b2ae4059378"
     },
     {
       "path": "packages/contracts/tsconfig.json",
@@ -31,7 +43,7 @@
     },
     {
       "path": "packages/server-support/package.json",
-      "sha256": "ad330a3b3360da0ceb3f998f6fa7bb3da1630ebaa25de1724d9101a9263cd30f"
+      "sha256": "2868de2121f1e4e34fe5b50b6bbfca4525b003aa0a31fab0fcd8f4be648e2c86"
     },
     {
       "path": "packages/server-support/scripts/pack-shared.mjs",
@@ -121,17 +133,17 @@
   "artifacts": [
     {
       "package": "@kasitek-labs/contracts",
-      "version": "0.1.0",
-      "file": "kasitek-labs-contracts-0.1.0.tgz",
-      "sha256": "fc9d423cfcacd039b004b2f1711fedfab18c8b92a2a140518172fab1afb0dda2",
-      "integrity": "sha512-w29UkLe3JfUr8nc1hqMDMPcisT0CDEVGdQXs9uZ3njFnEWJadVEL5ty/RJrgDpsp4gJd/y10I9MRE6F3OvsU+Q=="
+      "version": "0.2.0",
+      "file": "kasitek-labs-contracts-0.2.0.tgz",
+      "sha256": "2530a7d631974003ac032883fbd072450ec7d868f3c3b14976c11a1f7969553c",
+      "integrity": "sha512-uCXppTMvXOSSTIH1eyhsa1d0WGH0VNSWaygXmvoSfuufGcXr+0fSMs3cjwbvVugJ7xVwNQyIqp0mHPoSiw6iGQ=="
     },
     {
       "package": "@kasitek-labs/server-support",
-      "version": "0.1.0",
-      "file": "kasitek-labs-server-support-0.1.0.tgz",
-      "sha256": "037d539e95717a1dfdc5fc81668cab191cc57b49c08537b671b97c3d9697a7fd",
-      "integrity": "sha512-T502ZvoZWrfVDH+HkGxuUkS633FMzKOONUXVtW0H5ws0prBad80vhRc0pVUfbrvIkXMJ/DBste0xKRZQf5Qg2Q=="
+      "version": "0.1.1",
+      "file": "kasitek-labs-server-support-0.1.1.tgz",
+      "sha256": "194fbc06b562a2361bf53b8dd510fbf9c59e2e20cdb460228d8b64e393aefb57",
+      "integrity": "sha512-2x1s2Iasy7VfJCblUtLdQW8Gl6E55Lb6oSvpk9+FgJTPehSGMqjv/sZWCgT2RWbmhH0sRuKSUmUa7IzUp8IA4Q=="
     }
   ]
 }
