@@ -53,6 +53,9 @@ importers:
       '@kasitek-labs/server-support':
         specifier: workspace:*
         version: link:../../packages/server-support
+      '@opentelemetry/api':
+        specifier: 1.9.0
+        version: 1.9.0
       ajv:
         specifier: 8.17.1
         version: 8.17.1

@@ -1,4 +1,4 @@
-import Fastify from 'fastify';
+import Fastify, {LogController} from 'fastify';
 import type {FastifyBodyParser,FastifyInstance,FastifyRequest,FastifyServerOptions} from 'fastify';
 import {randomUUID} from 'node:crypto';
 import type {AnalyticsContext} from './context.js';
@@ -17,6 +17,7 @@ import {registerRolloutRoutes} from './rollout.js';
 import {registerReportingRoutes} from './reporting.js';
 import type {Pool} from 'pg';
 import {SERVICE_NAME} from './contracts.js';
+import {installHttpObservability} from './http-observability.js';
 
 export async function buildApp(context:AnalyticsContext,process:ProcessKind='analytics-api',options:FastifyServerOptions={}):Promise<FastifyInstance>{
  const app=Fastify({
@@ -24,6 +25,7 @@ export async function buildApp(context:AnalyticsContext,process:ProcessKind='ana
   requestIdHeader:'x-correlation-id',
   genReqId(request){const supplied=request.headers['x-correlation-id'];return typeof supplied==='string'&&isSafeCorrelationId(supplied)?supplied:randomUUID();},
   logger:{level:logLevel(context.config.log_filter),redact:['req.headers.authorization','req.headers.cookie','res.headers["set-cookie"]'],hooks:{logMethod(args,method){return method.apply(this,redactTelemetryLogArguments(args));}},serializers:{req(request){return {method:request.method,url:request.url.split(/[?#]/,1)[0]};}}},
+  logController:new LogController({disableRequestLogging:true}),
   ...options,
  });
  app.setReplySerializer(apiJson);
@@ -51,6 +53,7 @@ export async function buildApp(context:AnalyticsContext,process:ProcessKind='ana
   request.log.error({event:'request.failed',error_type:errorType(error)},'analytics request failed');
   return reply.code(500).send({error:'internal_error'});
  });
+ installHttpObservability(app);
  const access=new MetricsAccess(context.config.metrics_token);
  app.get('/internal/metrics',async(request,reply)=>{
   const authorized=access.authorized(request.headers.authorization);

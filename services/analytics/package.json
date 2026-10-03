@@ -20,6 +20,7 @@
   "dependencies": {
     "@kasitek-labs/contracts": "workspace:*",
     "@kasitek-labs/server-support": "workspace:*",
+    "@opentelemetry/api": "1.9.0",
     "ajv": "8.17.1",
     "ajv-formats": "3.0.1",
     "dotenv": "^16.6.1",
