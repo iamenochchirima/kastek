@@ -2,12 +2,19 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createHash, createCipheriv, generateKeyPairSync } from "node:crypto";
 import { jwtVerify, importSPKI } from "jose";
-import { encryptWithAes256Gcm, decryptWithAes256Gcm } from "../dist/crypto.js";
+import {
+  encryptWithAes256Gcm,
+  decryptWithAes256Gcm,
+  generateToken,
+  sha256Hex,
+  sha256Base64Url,
+} from "../dist/crypto.js";
 import {
   canonicalJson,
   canonicalJsonSha256,
   parseCanonicalJson,
   parseLosslessJson,
+  serdeFloat,
   timestamp,
 } from "../dist/json.js";
 import {
@@ -15,6 +22,7 @@ import {
   coreProducerConfig,
   backfillSourceSequence,
   buildObservation,
+  buildManifest,
 } from "../dist/analytics-producer.js";
 import { ReportingGrantIssuer } from "../dist/analytics-reporting.js";
 import {
@@ -69,6 +77,12 @@ test("AES format matches Rust nonce:tag:ciphertext and nonce:ciphertext+tag form
       [nonce, tag, ciphertext].map((v) => v.toString("base64")).join(":"),
     ),
   );
+});
+test("shared crypto hashes and URL-safe token format match the Rust crate", () => {
+  assert.equal(sha256Hex("abc"), "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
+  assert.equal(sha256Base64Url("abc"), "ungWv48Bz-pBQUDeXa4iI7ADYaOWF3qctBD_YfIAFa0");
+  assert.match(generateToken(32), /^[A-Za-z0-9_-]{43}$/);
+  assert.equal(generateToken(0), "");
 });
 test("canonical fixtures retain serde integer and floating-point spellings", () => {
   for (const [source, expected] of [
@@ -130,6 +144,91 @@ test("producer event envelope and privacy rules match source", () => {
       .digest()
       .readBigUInt64BE(0) & 0x7fffffffffffffffn || 1n;
   assert.equal(backfillSourceSequence("record-1"), expected);
+});
+test("observation and manifest builders retain source identity and exact number/time wire values", () => {
+  const observation = buildObservation(coreProducerConfig(), {
+    record_id: "observation-1",
+    source_domain: "social",
+    source_stream_key: "core:org-1:instagram",
+    contract_name: "social.metric_observed@1",
+    schema_version: 1,
+    scope_kind: "core_organization",
+    scope_external_id: "org-1",
+    provider: "instagram",
+    provider_account_ref: "account-1",
+    connection_ref: "connection-1",
+    metric_key: "social.followers.total",
+    numeric_value: serdeFloat(12.0),
+    unit: "followers",
+    reporting_window_start: "2026-10-01T00:00:00.123456Z",
+    reporting_window_end: "2026-10-02T00:00:00.123456Z",
+    observed_at: "2026-10-02T00:00:01.000001Z",
+    synchronization_run_id: "sync-1",
+    dimensions: { account_type: "business" },
+    source_evidence: { response_status: 200 },
+  });
+  assert.equal(observation.record_category, "observation");
+  assert.equal(observation.envelope.subject, "metric:social.followers.total");
+  assert.match(canonicalJson(observation.envelope.data), /"numeric_value":12\.0/);
+  assert.match(canonicalJson(observation.envelope.data), /2026-10-02T00:00:01\.000001Z/);
+  assert.equal(observation.payload_hash, canonicalJsonSha256(observation.envelope.data));
+  assert.throws(
+    () => buildObservation(coreProducerConfig(), {
+      record_id: "observation-private",
+      source_domain: "social",
+      source_stream_key: "core:org-1:instagram",
+      contract_name: "social.metric_observed@1",
+      schema_version: 1,
+      scope_kind: "core_organization",
+      scope_external_id: "org-1",
+      provider: "instagram",
+      metric_key: "social.followers.total",
+      numeric_value: 1,
+      unit: "followers",
+      reporting_window_start: "2026-10-01T00:00:00Z",
+      reporting_window_end: "2026-10-02T00:00:00Z",
+      observed_at: "2026-10-02T00:00:01Z",
+      synchronization_run_id: "sync-private",
+      dimensions: {},
+      source_evidence: { token: "private" },
+    }),
+    /prohibited field/,
+  );
+
+  const manifest = buildManifest(coreProducerConfig(), {
+    record_id: "manifest:core:org-1:instagram:account-1:1",
+    source_domain: "social",
+    source_stream_key: "core:org-1:instagram",
+    contract_name: "source.manifest@1",
+    schema_version: 1,
+    scope_kind: "core_organization",
+    scope_external_id: "org-1",
+    manifest_key: "account-1",
+    manifest_version: 1,
+    provider: "instagram",
+    connection_ref: "connection-1",
+    supported_contracts: ["social.metric_observed@1"],
+    supported_observation_contracts: ["social.metric_observed@1"],
+    supported_metrics: ["social.followers.total"],
+    supported_dimensions: ["account_type"],
+    expected_refresh_seconds: 3600,
+    reliable_coverage_start: "2026-10-01T00:00:00.000Z",
+    highest_authoritative_source_sequence: 12,
+    approved_checkpoint_count: 1,
+    approved_checkpoint_hash: "a".repeat(64),
+    last_successful_collection_at: "2026-10-02T00:00:00.000Z",
+    last_attempted_collection_at: "2026-10-02T00:00:00.000Z",
+    safe_failure_code: null,
+    next_expected_at: "2026-10-02T01:00:00.000Z",
+    manifest_state: "active",
+    generated_at: "2026-10-02T00:00:00.000Z",
+  });
+  assert.equal(manifest.record_category, "manifest");
+  assert.equal(manifest.envelope.subject, "manifest:account-1");
+  assert.equal(manifest.record_id, "manifest:core:org-1:instagram:account-1:1");
+  assert.equal(manifest.envelope.data.expected_refresh_seconds, 3600);
+  assert.equal(manifest.envelope.data.reliable_coverage_start, "2026-10-01T00:00:00.000Z");
+  assert.equal(manifest.payload_hash, canonicalJsonSha256(manifest.envelope.data));
 });
 test("reporting grant remains ES256, user scope bounded to 120 seconds", async () => {
   const { privateKey, publicKey } = generateKeyPairSync("ec", {
