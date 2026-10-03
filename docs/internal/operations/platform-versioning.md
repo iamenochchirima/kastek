@@ -51,8 +51,8 @@ commit has passed the staging release gates.
 | Event schema version | Analytics or integration event compatibility identifier. |
 | Agent version | Customer or system agent lifecycle version, independent of the platform release. |
 
-Package versions in `package.json` and, where Rust services remain, `Cargo.toml` are package
-metadata. They are not the platform release identity.
+Package versions in `package.json` are package metadata. They are not the platform release
+identity. Retired Rust baselines remain recoverable from Git history.
 
 ## Release rules
 

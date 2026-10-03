@@ -27,10 +27,9 @@ Growth Core / Tenants / Agents / Labs Analytics
        └─ generic OTLP exporter (production template, backend decision pending)
 ```
 
-Growth Core initializes the Node SDK before Fastify and PostgreSQL modules. The remaining Rust
-source baselines for Agency and Analytics use the private `observability` crate from KasiTek Labs;
-their TypeScript service implementations follow the Node SDK pattern. Agents initializes the Node
-SDK before Fastify, PostgreSQL, Temporal, and gateway modules. HTTP instrumentation,
+Growth Core, Agency Tenant, and Labs Analytics initialize the Node SDK before their Fastify and
+PostgreSQL modules. They use telemetry helpers from the private Labs TypeScript package. Agents
+initializes its Node SDK before Fastify, PostgreSQL, Temporal, and gateway modules. HTTP instrumentation,
 Pino correlation, PostgreSQL/HTTP auto-instrumentation, provider spans, Temporal activity spans,
 background-worker spans, and graceful shutdown are enabled in the current server-side slice.
 PostgreSQL enhanced database reporting is disabled so query parameters and result data are not
@@ -89,9 +88,9 @@ traces are retained. If a deployment cannot support this boundary, its sampling 
 recorded explicitly in the release record; a ratio sampler must not be described as preserving all
 errors.
 
-Set `OTEL_SDK_DISABLED=true` or remove the OTLP endpoint to disable export. Services retain their
-structured stdout fallback for both legacy Rust `log!` records and instrumented `tracing!` events,
-and must continue to answer liveness checks when the Collector is unavailable.
+Set `OTEL_SDK_DISABLED=true` or remove the OTLP endpoint to disable export. Services retain
+structured stdout logging and must continue to answer liveness checks when the Collector is
+unavailable.
 
 ## Minimum release metadata
 
@@ -134,23 +133,19 @@ The minimum event vocabulary is:
 | Agent grounding | `agent.grounding.reviewed` |
 | Terminal failures | `operation.failed`, `operation.terminal.failure` |
 
-Event names are identifiers, not user-facing prose. Production Rust operational `log!` callsites
-have been migrated to the shared tracing API. The two remaining `log!` calls are intentional smoke
-fixture records used to verify the compatibility fallback; CI rejects new operational macros.
-New code must use this vocabulary and must not reintroduce legacy logging.
+Event names are identifiers, not user-facing prose. Current services use structured logging with
+this event vocabulary. Do not reintroduce the retired Rust logging macros.
 
 Agents uses Pino with `trace_id`, `span_id`, `trace_flags`, and `correlation_id` fields. Its
 operational logger accepts lowercase dot-separated event names and normalizes invalid event
-values to `operation.invalid.event` while retaining only a bounded diagnostic value. Rust `log`
-records are bridged into the tracing subscriber when OTLP is enabled. Core and Tenant source
-backfill workers, Core operational workers, the Growth Analytics outbox publisher, and Labs
+values to `operation.invalid.event` while retaining only a bounded diagnostic value. Core and Tenant
+source backfill workers, Core operational workers, the Growth Analytics outbox publisher, and Labs
 Analytics projection processing emit stable lifecycle/result events and shared operation metrics.
 Request summaries omit query strings and network addresses; credentials, authorization material,
 cookies, tokens, prompts, and message content are redacted in the application logger and Collector
-processor. Rust legacy `log!` messages, Rust telemetry bootstrap diagnostics, and Agents stdio or
-telemetry-bootstrap diagnostics are bounded and redacted before they reach stdout or stderr. New
-and touched provider paths record bounded status/error metadata rather than raw response bodies or
-webhook payloads.
+processor. Agents stdio and telemetry-bootstrap diagnostics are bounded and redacted before they
+reach stdout or stderr. Provider paths record bounded status/error metadata rather than raw response
+bodies or webhook payloads.
 
 Use low-cardinality attributes for metrics and spans. Keep request IDs, customer identifiers,
 provider payloads, and message text in bounded body fields only when there is a documented support
@@ -164,7 +159,8 @@ background work. Health endpoints must distinguish process liveness from depende
 
 The current shared instrumentation provides `http.server.request.count`,
 `http.server.request.duration`, `http.server.request.error.count`, and
-`http.server.request.in_flight` for Rust HTTP services. Agents provides
+`http.server.request.in_flight` for Growth Core, Agency Tenant, and Labs Analytics HTTP services.
+Agents provides
 `kasitek.operation.count`, `kasitek.operation.error.count`,
 `kasitek.operation.duration`, `kasitek.operation.in_flight`,
 `kasitek.operation.retry.count`, `kasitek.dependency.failure.count`, and
