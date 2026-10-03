@@ -23,6 +23,72 @@ test('source event timestamp identities preserve micros, pre-epoch floor, numeri
  assert.equal(backfillSettings({ANALYTICS_CORE_INGESTION_TOKEN:' ',ANALYTICS_INGESTION_TOKEN:'fallback'}),undefined);assert.equal(backfillSettings({ANALYTICS_INGESTION_TOKEN:'fixture',ANALYTICS_BACKFILL_BATCH_SIZE:'9223372036854775808'})?.batch_size,100);
  const row={...record,source_sequence:1};assert.throws(()=>buildHistoryBackfillRecord(row,'connections'),/source_identity_mismatch/);assert.equal(connections.lifecycleAction('UNKNOWN'),'needs_attention');
 });
+test('source backfill safely resumes after the remote commit loses its acknowledgement',async()=>{
+ const conversations=[
+  {id:'c1',channel:'facebook',created_at:'2030-01-01T00:00:00.123451Z'},
+  {id:'c2',channel:'instagram',created_at:'2030-01-01T00:00:00.123459Z'},
+ ];
+ const messages=[
+  {id:'m1',conversation_id:'c1',channel:'facebook',sender:'customer',message_type:'TEXT',agent_idempotency_key:null,inbox_message_kind:null,occurred_at:'2030-01-01T00:00:01.123451Z'},
+  {id:'m2',conversation_id:'c2',channel:'instagram',sender:'business',message_type:'TEXT',agent_idempotency_key:'agent-key',inbox_message_kind:null,occurred_at:'2030-01-01T00:00:01.123459Z'},
+ ];
+ const byConversation=new Map(conversations.map(row=>[row.id,row]));
+ const pool={query:async(sql:string,values?:unknown[])=>{
+  const [org,start,end,cursorTime,cursorId,limit]=values as [string,string,string,string|null,string|null,number];
+  const source=sql.includes('FROM "Message" message')
+   ? messages.flatMap(row=>{const conversation=byConversation.get(row.conversation_id);return conversation?[{...row,org_id:'synthetic-org',conversation_channel:conversation.channel}]:[];})
+   : conversations.map(row=>({...row,org_id:'synthetic-org'}));
+  const eligible=source.filter(row=>{
+   const time='occurred_at' in row?row.occurred_at:row.created_at;
+   return row.org_id===org&&Date.parse(time)>=Date.parse(start)&&Date.parse(time)<Date.parse(end)&&(!cursorTime||time>cursorTime||(time===cursorTime&&row.id>cursorId!));
+  }).sort((a,b)=>{
+   const at='occurred_at' in a?a.occurred_at:a.created_at;
+   const bt='occurred_at' in b?b.occurred_at:b.created_at;
+   return at.localeCompare(bt)||a.id.localeCompare(b.id);
+  }).slice(0,limit).map(row=>{
+   if('occurred_at' in row){const {org_id:_org,conversation_channel,...message}=row;return {...message,channel:conversation_channel};}
+   const {org_id:_org,...conversation}=row;return conversation;
+  });
+  return {rows:eligible};
+ }} as unknown as pg.Pool;
+ const persisted=new Set<string>();
+ const attempts=new Map<string,bigint[]>();
+ let loseFirstAcknowledgement=true;
+ let duplicateAcknowledgements=0;
+ let uniqueEffects=0;
+ const transport:BackfillTransport={
+  claimSourceBackfillWork:async()=>undefined,
+  sendBackfillBatch:async(producer,job,records)=>{
+   assert.equal(producer,'core-customer-analytics');
+   assert.equal(job,'lost-ack-job');
+   for(const item of records){const history=attempts.get(item.record.record_id)??[];history.push(item.source_sequence);attempts.set(item.record.record_id,history);}
+   if(loseFirstAcknowledgement){
+    loseFirstAcknowledgement=false;
+    for(const item of records){persisted.add(item.record.record_id);uniqueEffects++;}
+    throw new Error('simulated lost response after remote commit');
+   }
+   let accepted_count=0;
+   let duplicate_count=0;
+   const acknowledgements=records.map(item=>{
+    if(persisted.has(item.record.record_id)){duplicate_count++;duplicateAcknowledgements++;return {source_sequence:item.source_sequence,record_id:item.record.record_id,status:'duplicate' as const};}
+    persisted.add(item.record.record_id);uniqueEffects++;accepted_count++;
+    return {source_sequence:item.source_sequence,record_id:item.record.record_id,status:'accepted' as const};
+   });
+   return {accepted_count,duplicate_count,rejected_count:0,retryable_count:0,acknowledgements};
+  },
+ };
+ const item={...work('inbox'),job_id:'lost-ack-job',remaining_count:4};
+ await assert.rejects(processSourceBackfillWork(pool,transport,settings,item),/simulated lost response after remote commit/);
+ const resumed=await processSourceBackfillWork(pool,transport,settings,item);
+ assert.equal(resumed.conversation_records,2);
+ assert.equal(resumed.message_records,2);
+ assert.equal(duplicateAcknowledgements,1);
+ assert.equal(uniqueEffects,4);
+ assert.equal(persisted.size,4);
+ const replayed=[...attempts].filter(([,sequences])=>sequences.length===2);
+ assert.equal(replayed.length,1);
+ assert.equal(replayed[0]![1][0],replayed[0]![1][1]);
+});
 test('isolated source reconstruction pages precise cursors, preserves history hashes and excludes foreign organization/range/channel',{skip:!process.env.CORE_ANALYTICS_TEST_DATABASE_URL},async()=>{
  const schema=`analytics_backfill_test_${randomUUID().replaceAll('-','')}`;const admin=new pg.Pool({connectionString:process.env.CORE_ANALYTICS_TEST_DATABASE_URL});await admin.query(`CREATE SCHEMA "${schema}"`);const pool=new pg.Pool({connectionString:process.env.CORE_ANALYTICS_TEST_DATABASE_URL,options:`-c search_path=${schema} -c timezone=UTC`});
  try{
