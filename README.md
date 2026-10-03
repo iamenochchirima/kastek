@@ -233,7 +233,7 @@ The Next.js app is in `client/apps/agent-platform` and contains the `/agents/**`
 completed. Authentication and API integrations in the relocated app remain transitional; this
 source move does not configure a standalone production service. See [the source boundary](docs/source-boundary.md).
 
-Use Node `>=22.12.0 <23` or `>=24.0.0` and pnpm `10.30.1`.
+Use Node `24.15.0` from the repository `.nvmrc` and pnpm `10.30.1`.
 
 ```bash
 pnpm install
