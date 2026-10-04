@@ -10,7 +10,9 @@ function body(request: FastifyRequest): Record<string,unknown>{if(!request.body|
 function string(value: unknown,required=false): string|undefined {if(value===undefined||value===null){if(required)throw orgs.bad('Invalid request');return undefined;}if(typeof value!=='string')throw orgs.bad('Invalid request');return value;}
 export function registerOrganizationRoutes(app: FastifyInstance,context: CoreContext): void {
  app.get('/api/orgs',async request=>{const user=await extractUser(request,context);return {orgs:await orgs.listOrgsForUser(context.pool,user.id)};});
- app.post('/api/orgs',async(request,reply)=>{
+ app.post<{Body:{name:string;slug?:string|null;logo?:string|null}}>('/api/orgs',{
+  schema:{body:{type:'object',required:['name'],properties:{name:{type:'string'},slug:{type:['string','null']},logo:{type:['string','null']}}}},
+ },async(request,reply)=>{
   const user=await extractUser(request,context);const input=body(request);const name=string(input.name,true)!.trim();if(!name)throw orgs.bad('Organisation name is required');if(Buffer.byteLength(name)>80)throw orgs.bad('Organisation name must be 80 characters or fewer');
   const requested=string(input.slug)?.trim();const base=orgs.slugify(requested||name);if(!base)throw orgs.bad('Could not generate a valid slug from the name');const logo=string(input.logo)?.trim()||null;const trial=trialSettings(context);
   return reply.code(201).send({org:await orgs.createOrg(context,user.id,name,await orgs.uniqueSlug(context.pool,base),logo,trial.credits,trial.days)});

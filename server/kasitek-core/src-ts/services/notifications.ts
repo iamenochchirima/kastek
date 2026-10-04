@@ -88,7 +88,7 @@ export async function markNotificationRead(pool: Pool, userId: string, id: strin
 export async function markAllNotificationsRead(pool: Pool, userId: string): Promise<number> { return (await pool.query(`UPDATE "Notification" SET "readAt"=NOW(),status='READ'::"NotificationStatus","updatedAt"=NOW() WHERE "recipientType"='USER'::"NotificationRecipientType" AND "recipientId"=$1 AND channel='IN_APP'::"NotificationChannel" AND "readAt" IS NULL AND status NOT IN ('DISMISSED'::"NotificationStatus",'FAILED'::"NotificationStatus")`, [userId])).rowCount ?? 0; }
 export interface PushSubscriptionInput {
     endpoint?: string | null;
-    expirationTime?: number | null;
+    expirationTime?: number | bigint | null;
     keys?: {
         p256dh?: string | null;
         auth?: string | null;

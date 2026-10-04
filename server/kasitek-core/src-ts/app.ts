@@ -6,7 +6,7 @@ import formbody from "@fastify/formbody";
 import multipart from "@fastify/multipart";
 import { isIP } from "node:net";
 import type { CoreContext } from "./context.js";
-import { installErrorHandler, RequestExtractionError } from "./error.js";
+import { acceptsUrlencodedForm, installErrorHandler, RequestExtractionError } from "./error.js";
 import { formatSerdeJsonSyntaxError } from "@kasitek-labs/server-support/json";
 import { redactTelemetryLogArguments } from "@kasitek-labs/server-support/telemetry";
 import { apiJson } from "./json.js";
@@ -85,7 +85,7 @@ export async function buildApp(
   const safeJson = app.getDefaultJsonParser("error", "error");
   app.removeContentTypeParser("application/json");
   app.addContentTypeParser(
-    "application/json",
+    /^application\/(?:[a-z0-9.-]+\+)?json$/i,
     { parseAs: "string" },
     (request, body, done) => {
       const text = typeof body === "string" ? body : body.toString("utf8");
@@ -107,6 +107,15 @@ export async function buildApp(
     },
   );
   app.addHook("preValidation", async (request) => {
+    const mediaType = request.headers["content-type"]
+      ?.split(";", 1)[0]
+      ?.trim()
+      .toLowerCase();
+    if (
+      mediaType === "application/x-www-form-urlencoded" &&
+      !acceptsUrlencodedForm(request.routeOptions.url)
+    )
+      throw new RequestExtractionError("json", "Content type error");
     if (isSerdeValueBodyBoundary(request)) {
       normalizeSerdeValueBodyBoundary(request);
     } else {

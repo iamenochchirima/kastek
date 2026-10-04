@@ -5,12 +5,12 @@ import { ApiError } from '../error.js';
 import { extractUser,resolveActiveOrgId } from '../identity/session.js';
 import { requireMember } from '../services/orgs.js';
 import { reportForOrganization } from '../services/analytics-reporting.js';
-import { UtcTimestamp } from '../db.js';
+import { parseChronoTimestamp } from '../chrono-timestamp.js';
 const bad=()=>new ApiError(400,'bad_request','Invalid request');
 export function parseReportQuery(value:unknown):ReportQueryInput {
  if(!value||typeof value!=='object'||Array.isArray(value))throw bad();const data=value as Record<string,unknown>;
  const allowed=new Set(['range_start','range_end','timezone','interval','metrics','metric_set','breakdowns','filters','include_descendants','comparison']);if(Object.keys(data).some(key=>!allowed.has(key)))throw bad();
- const time=(value:unknown):string=>{if(typeof value!=='string'||!/^\d{4}-\d{2}-\d{2}[Tt]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:[Zz]|[+-]\d{2}:\d{2})$/.test(value))throw bad();try{return new UtcTimestamp(value,true).toJSON();}catch{throw bad();}};
+ const time=(value:unknown):string=>{try{return parseChronoTimestamp(value);}catch{throw bad();}};
  const strings=(value:unknown):string[]=>{if(value===undefined)return [];if(!Array.isArray(value)||value.some(item=>typeof item!=='string'))throw bad();return value as string[];};
  if(typeof data.timezone!=='string')throw bad();const filters=data.filters??{};if(data.filters===null||typeof filters!=='object'||Array.isArray(filters))throw bad();for(const values of Object.values(filters))strings(values);
  for(const key of ['interval','metric_set'])if(data[key]!=null&&typeof data[key]!=='string')throw bad();if(data.include_descendants!==undefined&&typeof data.include_descendants!=='boolean')throw bad();

@@ -9,9 +9,46 @@ import { readConfig } from '../src-ts/config.js';
 import { buildApp } from '../src-ts/app.js';
 import { installPgTimestampParsers } from '../src-ts/db.js';
 import { registerRealtimeRoutes } from '../src-ts/routes/realtime.js';
+import { registerNotificationRoutes } from '../src-ts/routes/notifications.js';
 import { buildInboxOrgChannel, createRealtimeStream, type RealtimeRedisClient, publishInboxEvent, enqueueWhatsappInboxMessage, drainWhatsappInboxQueue } from '../src-ts/services/realtime.js';
 import { decodeNotificationCursor, encodeNotificationCursor, listNotificationInbox, getUnreadNotificationCount, markNotificationRead, markAllNotificationsRead, savePushSubscription, deletePushSubscription, getPushSubscriptionStatus, sendPushNotificationToUser, webPushOptions } from '../src-ts/services/notifications.js';
 import type { CoreContext } from '../src-ts/context.js';
+test('push subscription expiry retains signed i64 values through the HTTP write',async()=>{
+ const written:(number|bigint|null)[]=[];
+ const pool={
+  async connect(){return {
+   async query(sql:string){
+    if(sql.includes('SELECT "userId","refreshToken"'))return {rows:[{userId:'user',refreshToken:null,check:false,refresh:false}]};
+    return {rows:[]};
+   },release(){},
+  };},
+  async query(sql:string,values?:unknown[]){
+   if(sql.includes('FROM "User"'))return {rows:[{id:'user',name:'Fixture',email:'fixture@example.test',phone:null,image:null,emailVerified:new Date(),createdAt:new Date(),updatedAt:new Date()}]};
+   if(sql.includes('INSERT INTO "PushSubscription"')){written.push(values?.[5] as number|bigint|null);return {rows:[]};}
+   throw Error(`unexpected query: ${sql}`);
+  },
+ } as unknown as pg.Pool;
+ const context={config:readConfig({DATABASE_URL:'postgres://unused',FRONTEND_URL:'http://localhost:3000',LOG_LEVEL:'silent'}),pool} as CoreContext;
+ const app=await buildApp(context,[registerNotificationRoutes]);
+ try{
+  for(const {expiry,expected} of [
+   {expiry:'100',expected:100},
+   {expiry:'9007199254740993',expected:9007199254740993n},
+   {expiry:'null',expected:null},
+   {expiry:undefined,expected:null},
+  ] as const){
+   const expiration=expiry===undefined?'':`,"expirationTime":${expiry}`;
+   const payload=`{"subscription":{"endpoint":"https://push.example.test/subscription","keys":{"p256dh":"p256dh","auth":"auth"}${expiration}}}`;
+   const response=await app.inject({method:'POST',url:'/api/notifications/push/subscribe',headers:{cookie:'kasitek_session=fixture',origin:'http://localhost:3000','content-type':'application/json'},payload});
+   assert.equal(response.statusCode,200);
+   assert.equal(written.at(-1),expected);
+  }
+  const beforeInvalid=written.length;
+  const invalid=await app.inject({method:'POST',url:'/api/notifications/push/subscribe',headers:{cookie:'kasitek_session=fixture',origin:'http://localhost:3000','content-type':'application/json'},payload:'{"subscription":{"endpoint":"https://push.example.test/invalid","keys":{"p256dh":"p","auth":"a"},"expirationTime":9223372036854775808}}'});
+  assert.equal(invalid.statusCode,400);
+  assert.equal(written.length,beforeInvalid);
+ }finally{await app.close();}
+});
 test('cursor parsing, AES128GCM encrypted push generation and stream ownership preserve the protocol', async () => {
     const timestamp = '2026-10-02T10:20:30.123456+00:00';
     assert.deepEqual(decodeNotificationCursor(encodeNotificationCursor(timestamp, 'event-id')), { timestamp, eventId: 'event-id' });

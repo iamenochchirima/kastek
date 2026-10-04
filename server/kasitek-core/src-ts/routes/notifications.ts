@@ -59,9 +59,12 @@ export function registerNotificationRoutes(app: FastifyInstance, context: CoreCo
             keys = { p256dh: optionalString(value.p256dh), auth: optionalString(value.auth) };
         }
         const expirationTime = subscription.expirationTime;
-        if (expirationTime != null && (typeof expirationTime !== 'number' || !Number.isSafeInteger(expirationTime)))
-            throw new ApiError(400, 'bad_request', 'Invalid request');
-        await notifications.savePushSubscription(context.pool, user.id, { endpoint: optionalString(subscription.endpoint), expirationTime: expirationTime as number | undefined, keys }, request.headers['user-agent']);
+        if (expirationTime != null) {
+            const validNumber = typeof expirationTime === 'number' && Number.isSafeInteger(expirationTime);
+            const validBigint = typeof expirationTime === 'bigint' && expirationTime >= -(1n << 63n) && expirationTime <= (1n << 63n) - 1n;
+            if (!validNumber && !validBigint) throw new ApiError(400, 'bad_request', 'Invalid request');
+        }
+        await notifications.savePushSubscription(context.pool, user.id, { endpoint: optionalString(subscription.endpoint), expirationTime: expirationTime as number | bigint | undefined, keys }, request.headers['user-agent']);
         return { success: true };
     });
     app.post('/api/notifications/push/unsubscribe', async (request) => { const user = await extractUser(request, context); const endpoint = optionalString(body(request).endpoint)?.trim(); if (!endpoint)

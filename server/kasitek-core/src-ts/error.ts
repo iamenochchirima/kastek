@@ -7,6 +7,10 @@ const urlencodedFormRoutes = new Set([
   "/api/social/oauth/threads/data-deletion",
 ]);
 
+export function acceptsUrlencodedForm(route: string | undefined): boolean {
+  return route !== undefined && urlencodedFormRoutes.has(route);
+}
+
 function extractionDetail(
   issues: NonNullable<FastifyError["validation"]>,
   context: string | undefined,
@@ -75,7 +79,7 @@ export function installErrorHandler(app: FastifyInstance): void {
     if (error.code === "FST_ERR_CTP_BODY_TOO_LARGE") {
       const bytes = request.headers["content-length"],
         limit = request.routeOptions.bodyLimit;
-      const form = urlencodedFormRoutes.has(request.routeOptions.url ?? "");
+      const form = acceptsUrlencodedForm(request.routeOptions.url);
       const raw =
         [
           "/api/webhooks/whatsapp",

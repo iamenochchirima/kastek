@@ -17,6 +17,12 @@ test('report input keeps Rust defaults and rejects extra scope fields or malform
  for(const [status,expected] of [[400,400],[422,400],[401,502],[403,502],[404,503],[500,503]] as const){const mapped=mapReportingError(new ReportingClientError(status,'secret upstream detail'));assert.equal(mapped.status,expected);assert.ok(!mapped.message.includes('secret'));}
  assert.equal(mapReportingError(new SyntaxError('unsafe body')).status,502);
 });
+test('report timestamps accept Chrono separators and offsets while rejecting invalid dates',()=>{
+ const query=parseReportQuery({range_start:'2030-01-01 01:30:00.123456+0130',range_end:'2030-01-01T01:30:60.000001+0130',timezone:'UTC'});
+ assert.equal(query.range_start,'2030-01-01T00:00:00.123456Z');
+ assert.equal(query.range_end,'2030-01-01T00:00:60.000001Z');
+ for(const range_start of ['2030-02-30T00:00:00Z','2030-01-01T24:00:00Z','2030-01-01T00:00:00+24:00'])assert.throws(()=>parseReportQuery({range_start,range_end:'2030-01-02T00:00:00Z',timezone:'UTC'}));
+});
 test('fixture Analytics receives only server-resolved organization grants and raw scope ID is redacted',async()=>{
  const keys=generateKeyPairSync('ec',{namedCurve:'prime256v1'});const privateKey=keys.privateKey.export({type:'pkcs8',format:'pem'}).toString();const publicKey=await importSPKI(keys.publicKey.export({type:'spki',format:'pem'}).toString(),'ES256');
  const observed:{path:string;authorization:string;source?:string;body?:unknown}[]=[];let upstreamStatus=200;let invalidResponse=false;
