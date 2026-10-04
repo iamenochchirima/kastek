@@ -30,7 +30,6 @@ import type { RequestContext } from "../identity/request-context.js";
 import type { InboxOptions } from "../services/inbox/types.js";
 import {
   bad,
-  validUint,
   guardRawPayload,
 } from "../services/agent-platform/controller-support.js";
 import * as credits from "../services/credits.js";
@@ -47,6 +46,7 @@ import * as media from "../services/social/media.js";
 import * as website from "../services/website/index.js";
 import { parseInsightsFilters } from "../services/social/insights.js";
 import { isValidPlatform } from "../services/social/common.js";
+import { queryI64, queryU16, queryU64 } from "../typed-query.js";
 import type { SocialPostUpsertRequest } from "../services/social/types.js";
 import { getCustomerDetail } from "../services/customers.js";
 import { requireMember } from "../services/orgs.js";
@@ -196,36 +196,28 @@ function typedBody(
     body.metadata = jsonValueAt(request, ["metadata"]);
   return body;
 }
+type InternalQueryNumber = "i64" | "u16" | "u64";
 function internalQuery(
   request: FastifyRequest,
-  numeric: Record<string, 16 | 64>,
+  fields: readonly string[],
+  numeric: Record<string, InternalQueryNumber> = {},
+  aliases: Record<string, string> = {},
 ): Record<string, unknown> {
-  const query: Record<string, unknown> = {};
-  for (const [key, value] of new URLSearchParams(
+  const query = Object.create(null) as Record<string, unknown>,
+    accepted = new Set(fields),
+    aliasMap = new Map(Object.entries(aliases));
+  for (const [sourceKey, value] of new URLSearchParams(
     request.raw.url?.split("?").slice(1).join("?") ?? "",
   )) {
-    if (Object.hasOwn(query, key)) throw new RequestExtractionError("query");
+    const key = aliasMap.get(sourceKey) ?? sourceKey;
+    if (!accepted.has(key)) continue;
+    if (Object.hasOwn(query, key))
+      throw new RequestExtractionError("query", `duplicate field \`${key}\``);
     query[key] = value;
-    if (numeric[key]) {
-      if (
-        numeric[key] === 16
-          ? !validUint(value, 16)
-          : !/^[-+]?\d+$/.test(value) ||
-            BigInt(value) < -9223372036854775808n ||
-            BigInt(value) > 9223372036854775807n
-      )
-        throw new RequestExtractionError("query");
-      query[key] = BigInt(value);
-    }
+    if (numeric[key] === "i64") query[key] = queryI64(value, key);
+    else if (numeric[key] === "u16") query[key] = queryU16(value, key);
+    else if (numeric[key] === "u64") query[key] = queryU64(value, key);
   }
-  for (const [canonical, alias] of [
-    ["sourceType", "source_type"],
-    ["sourceId", "source_id"],
-    ["publishedFrom", "published_from"],
-    ["publishedTo", "published_to"],
-  ] as const)
-    if (Object.hasOwn(query, canonical) && Object.hasOwn(query, alias))
-      throw new RequestExtractionError("query");
   return query;
 }
 function bounded(value: unknown): number {
@@ -405,14 +397,18 @@ export function registerAgentInternalRoutes(
     },
   );
   app.get("/api/internal/agents/v1/connections", async (request, reply) => {
+    const query = internalQuery(
+      request,
+      ["provider", "status", "limit"],
+      { limit: "u16" },
+    );
     const { organizationId: org } = await requireInternalAgent(
       request,
       core,
       "kasitek.core.connections_list",
       options.replay,
     );
-    const query = internalQuery(request, { limit: 16 }),
-      limit = bounded(query.limit);
+    const limit = bounded(query.limit);
     const filter = (value: unknown) =>
       typeof value === "string" &&
       value.trim() &&
@@ -581,6 +577,7 @@ export function registerAgentInternalRoutes(
   app.get(
     "/api/internal/agents/v1/bookings/services",
     async (request, reply) => {
+      const query = internalQuery(request, ["limit"], { limit: "u16" });
       const context = await resolveInternalAgentContext(
           request,
           core,
@@ -589,7 +586,7 @@ export function registerAgentInternalRoutes(
         ),
         org = context.organizationId;
       const values = await coreAdapter.listBookingServices(core.pool, context),
-        limit = bounded(internalQuery(request, { limit: 16 }).limit);
+        limit = bounded(query.limit);
       return reply.send({
         services: values.slice(0, limit),
         total: values.length,
@@ -614,6 +611,7 @@ export function registerAgentInternalRoutes(
     return reply.send({ booking });
   });
   app.get("/api/internal/agents/v1/bookings", async (request, reply) => {
+    const query = internalQuery(request, ["limit"], { limit: "u16" });
     const context = await resolveInternalAgentContext(
         request,
         core,
@@ -622,7 +620,7 @@ export function registerAgentInternalRoutes(
       ),
       org = context.organizationId;
     const values = await coreAdapter.listBookings(core.pool, context),
-      limit = bounded(internalQuery(request, { limit: 16 }).limit);
+      limit = bounded(query.limit);
     return reply.send({
       bookings: values.slice(0, limit),
       total: values.length,
@@ -630,6 +628,7 @@ export function registerAgentInternalRoutes(
     });
   });
   app.get("/api/internal/agents/v1/campaigns", async (request, reply) => {
+    const query = internalQuery(request, ["limit"], { limit: "u16" });
     const { organizationId: org } = await requireInternalAgent(
       request,
       core,
@@ -641,7 +640,7 @@ export function registerAgentInternalRoutes(
       boundCollection(
         values,
         "campaigns",
-        bounded(internalQuery(request, { limit: 16 }).limit),
+        bounded(query.limit),
       ),
     );
   });
@@ -657,13 +656,17 @@ export function registerAgentInternalRoutes(
     );
   });
   app.get("/api/internal/agents/v1/templates", async (request, reply) => {
+    const query = internalQuery(
+      request,
+      ["status", "limit"],
+      { limit: "i64" },
+    );
     const { organizationId: org } = await requireInternalAgent(
       request,
       core,
       "kasitek.core.templates_list",
       options.replay,
     );
-    const query = internalQuery(request, { limit: 64 });
     return reply.send(
       boundCollection(
         await templates.listTemplates(
@@ -677,6 +680,11 @@ export function registerAgentInternalRoutes(
     );
   });
   app.get("/api/internal/agents/v1/contacts", async (request, reply) => {
+    const query = internalQuery(
+      request,
+      ["q", "optIn", "excluded", "tag", "location", "listLabel", "limit", "cursor"],
+      { limit: "i64", cursor: "u64" },
+    );
     const context = await resolveInternalAgentContext(
         request,
         core,
@@ -684,8 +692,7 @@ export function registerAgentInternalRoutes(
         options.replay,
       ),
       org = context.organizationId;
-    const query = internalQuery(request, { limit: 64, cursor: 64 }),
-      limit = bounded(query.limit);
+    const limit = bounded(query.limit);
     const result = await contacts.listContacts(core.pool, org, {
       ...query,
       limit,
@@ -725,6 +732,7 @@ export function registerAgentInternalRoutes(
   app.get(
     "/api/internal/agents/v1/inbox/conversations",
     async (request, reply) => {
+      const query = internalQuery(request, ["limit"], { limit: "u16" });
       const context = await resolveInternalAgentContext(
           request,
           core,
@@ -736,7 +744,7 @@ export function registerAgentInternalRoutes(
         await inbox.listInboxConversationsBounded(
           core.pool,
           org,
-          bounded(internalQuery(request, { limit: 16 }).limit),
+          bounded(query.limit),
           options.inbox,
         ),
       );
@@ -745,6 +753,7 @@ export function registerAgentInternalRoutes(
   app.get(
     "/api/internal/agents/v1/inbox/conversations/:id/messages",
     async (request, reply) => {
+      const query = internalQuery(request, ["limit"], { limit: "u16" });
       const context = await resolveInternalAgentContext(
           request,
           core,
@@ -757,7 +766,7 @@ export function registerAgentInternalRoutes(
           core.pool,
           org,
           id(request),
-          bounded(internalQuery(request, { limit: 16 }).limit),
+          bounded(query.limit),
           options.inbox,
         ),
       );
@@ -824,6 +833,12 @@ export function registerAgentInternalRoutes(
   app.get(
     "/api/internal/agents/v1/content/posts/insights",
     async (request, reply) => {
+      const query = internalQuery(
+        request,
+        ["platform", "metrics", "publishedFrom", "publishedTo", "limit"],
+        { limit: "i64" },
+        { published_from: "publishedFrom", published_to: "publishedTo" },
+      );
       const context = await resolveInternalAgentContext(
           request,
           core,
@@ -831,7 +846,6 @@ export function registerAgentInternalRoutes(
           options.replay,
         ),
         org = context.organizationId;
-      const query = internalQuery(request, { limit: 64 });
       return reply.send(
         await content.listInsights(
           core.pool,
@@ -953,6 +967,12 @@ export function registerAgentInternalRoutes(
   app.get(
     "/api/internal/agents/v1/content/posts/:id/insights",
     async (request, reply) => {
+      const query = internalQuery(
+        request,
+        ["platform", "metrics", "publishedFrom", "publishedTo", "limit"],
+        { limit: "i64" },
+        { published_from: "publishedFrom", published_to: "publishedTo" },
+      );
       const context = await resolveInternalAgentContext(
           request,
           core,
@@ -964,7 +984,7 @@ export function registerAgentInternalRoutes(
         core.pool,
         context,
         id(request),
-        insightsFilters(internalQuery(request, { limit: 64 })),
+        insightsFilters(query),
       );
       if (!result) missing("Content post not found");
       return reply.send(result);
@@ -1289,6 +1309,12 @@ export function registerAgentInternalRoutes(
     },
   );
   app.get("/api/internal/agents/v1/credits/usage", async (request, reply) => {
+    const query = internalQuery(
+      request,
+      ["sourceType", "sourceId", "limit"],
+      { limit: "i64" },
+      { source_type: "sourceType", source_id: "sourceId" },
+    );
     const context = await resolveInternalAgentContext(
         request,
         core,
@@ -1296,9 +1322,8 @@ export function registerAgentInternalRoutes(
         options.replay,
       ),
       org = context.organizationId;
-    const query = internalQuery(request, { limit: 64 });
-    const sourceType = optionalString(query.sourceType ?? query.source_type),
-      sourceId = optionalString(query.sourceId ?? query.source_id);
+    const sourceType = optionalString(query.sourceType),
+      sourceId = optionalString(query.sourceId);
     if (sourceType === null) bad("sourceType is required");
     if (sourceId === null) bad("sourceId is required");
     const limit = Number(

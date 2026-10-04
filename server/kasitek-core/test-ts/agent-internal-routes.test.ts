@@ -65,6 +65,54 @@ test("private Agents bridge covers every source registered route except the sepa
   assert.deepEqual(actual.sort(), expected.sort());
   await app.close();
 });
+test("private Agents typed query extraction follows the Rust fields before delegated auth", async () => {
+  const app = Fastify();
+  installErrorHandler(app);
+  registerAgentInternalRoutes(
+    app,
+    { config: config(), pool: {} } as CoreContext,
+    options,
+  );
+  for (const [url, detail] of [
+    [
+      "/api/internal/agents/v1/connections?limit=65536",
+      "number too large to fit in target type",
+    ],
+    [
+      "/api/internal/agents/v1/bookings?limit=-1",
+      "invalid digit found in string",
+    ],
+    [
+      "/api/internal/agents/v1/templates?limit=9223372036854775808",
+      "number too large to fit in target type",
+    ],
+    [
+      "/api/internal/agents/v1/contacts?cursor=-1",
+      "invalid digit found in string",
+    ],
+    [
+      "/api/internal/agents/v1/content/posts/insights?publishedFrom=2026-01-01&published_from=2026-01-02",
+      "duplicate field `publishedFrom`",
+    ],
+    [
+      "/api/internal/agents/v1/credits/usage?sourceType=one&source_type=two",
+      "duplicate field `sourceType`",
+    ],
+  ] as const) {
+    const response = await app.inject({ url });
+    assert.equal(response.statusCode, 400);
+    assert.equal(response.headers["content-type"], "text/plain; charset=utf-8");
+    assert.equal(response.body, `Query deserialize error: ${detail}`);
+  }
+  for (const url of [
+    "/api/internal/agents/v1/connections?limit=0",
+    "/api/internal/agents/v1/connections?unknown=one&unknown=two",
+    "/api/internal/agents/v1/contacts?cursor=18446744073709551615",
+  ]) {
+    assert.equal((await app.inject({ url })).statusCode, 401);
+  }
+  await app.close();
+});
 test("private Agents bridge preserves scoped workspace queries, rejects missing credentials and prevents unsupported writes", async () => {
   const calls: { sql: string; values: unknown[] }[] = [];
   const app = Fastify();
