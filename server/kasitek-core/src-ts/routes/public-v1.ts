@@ -17,8 +17,13 @@ import {
 } from "../identity/principal.js";
 import * as api from "../services/public-api.js";
 import * as webhooks from "../services/public-webhooks.js";
+import { queryI64, queryU64, typedQuery } from "../typed-query.js";
 type Row = Record<string, unknown>;
-type Page = { cursor?: number; limit?: number; version?: string };
+type Page = {
+  cursor?: bigint | number;
+  limit?: bigint | number;
+  version?: string;
+};
 const bad = (message: string): never => {
   throw new ApiError(400, "bad_request", message);
 };
@@ -28,16 +33,17 @@ export function pageWindow(
 ): { cursor: number; limit: number; nextCursor: number | null } {
   if (query.version !== undefined && query.version !== "v1")
     bad("unsupported public API version");
-  const cursor = query.cursor ?? 0,
-    limit = query.limit ?? 50;
-  if (!Number.isSafeInteger(cursor) || cursor < 0 || cursor > total)
+  const cursor = BigInt(query.cursor ?? 0),
+    limit = BigInt(query.limit ?? 50);
+  if (cursor < 0n || cursor > BigInt(total))
     bad("pagination cursor is past the end of the result");
-  if (!Number.isSafeInteger(limit) || limit < 1 || limit > 100)
+  if (limit < 1n || limit > 100n)
     bad("pagination limit must be between 1 and 100");
+  const start = Number(cursor), size = Number(limit), next = cursor + limit;
   return {
-    cursor,
-    limit,
-    nextCursor: cursor + limit < total ? cursor + limit : null,
+    cursor: start,
+    limit: size,
+    nextCursor: next < BigInt(total) ? Number(next) : null,
   };
 }
 export function paginateCollection(
@@ -74,22 +80,29 @@ export function redactKeys(value: unknown, keys: string[]): unknown {
     );
   return value;
 }
-const unsigned = (value: unknown, label: string): number | undefined => {
-  if (value === undefined) return undefined;
-  if (
-    typeof value !== "string" ||
-    !/^\+?\d+$/.test(value) ||
-    !Number.isSafeInteger(Number(value))
-  )
-    bad(`Invalid ${label}`);
-  return Number(value);
-};
 function page(request: FastifyRequest): Page {
-  const query = request.query as Row;
+  const query = typedQuery<{
+    cursor?: string;
+    limit?: string;
+    version?: string;
+  }>(request.query, ["cursor", "limit", "version"]);
   return {
-    cursor: unsigned(query.cursor, "cursor"),
-    limit: unsigned(query.limit, "limit"),
-    version: query.version as string | undefined,
+    cursor: queryU64(query.cursor, "cursor"),
+    limit: queryU64(query.limit, "limit"),
+    version: query.version,
+  };
+}
+function templatePage(request: FastifyRequest): Page {
+  const query = typedQuery<{
+    status?: string;
+    cursor?: string;
+    limit?: string;
+    version?: string;
+  }>(request.query, ["status", "cursor", "limit", "version"]);
+  return {
+    cursor: queryU64(query.cursor, "cursor"),
+    limit: queryU64(query.limit, "limit"),
+    version: query.version,
   };
 }
 function body(request: FastifyRequest): Row {
@@ -269,9 +282,9 @@ export function registerPublicV1Routes(
       );
       routes.get("/capabilities", async (request) => {
         const query = page(request),
-          limit = query.limit ?? 100,
-          cursor = query.cursor ?? 0;
-        if (limit < 1 || limit > 200)
+          limit = BigInt(query.limit ?? 100),
+          cursor = BigInt(query.cursor ?? 0);
+        if (limit < 1n || limit > 200n)
           bad("capabilities limit must be between 1 and 200");
         if (query.version !== undefined && query.version !== "v1")
           bad("unsupported capabilities version");
@@ -317,10 +330,11 @@ export function registerPublicV1Routes(
               scopes.has(d.risk === "read" ? "api:read" : "api:write")) &&
             d.requiredEntitlements.every((e) => entitlements.has(e)),
         );
-        if (cursor > definitions.length)
+        if (cursor > BigInt(definitions.length))
           bad("capabilities cursor is past the end of the result");
+        const start = Number(cursor), size = Number(limit);
         const actions = definitions
-          .slice(cursor, cursor + limit)
+          .slice(start, start + size)
           .map(
             ({
               lifecycle: _,
@@ -351,26 +365,26 @@ export function registerPublicV1Routes(
           },
           actions,
           pagination: {
-            limit,
-            cursor,
+            limit: size,
+            cursor: start,
             nextCursor:
-              cursor + limit < definitions.length ? cursor + limit : null,
+              cursor + limit < BigInt(definitions.length)
+                ? Number(cursor + limit)
+                : null,
             total: definitions.length,
             version: "v1",
           },
         };
       });
-      routes.get("/content/posts", async (request) =>
-        paginateCollection(
-          {
-            posts: await domains.listContentPosts(
-              await action(request, "content.posts.list"),
-            ),
-          },
+      routes.get("/content/posts", async (request) => {
+        const query = page(request),
+          value = await action(request, "content.posts.list");
+        return paginateCollection(
+          { posts: await domains.listContentPosts(value) },
           "posts",
-          page(request),
-        ),
-      );
+          query,
+        );
+      });
       routes.get("/content/posts/:id", async (request) => {
         const post = await domains.getContentPost(
           await action(request, "content.posts.list"),
@@ -450,25 +464,52 @@ export function registerPublicV1Routes(
         contentWrite(request, false),
       );
       routes.get("/contacts", async (request) => {
-        const value = await action(request, "contacts.list"),
-          window = page(request);
-        if (window.version !== undefined && window.version !== "v1")
+        const query = typedQuery<{
+          q?: string;
+          optIn?: string;
+          excluded?: string;
+          tag?: string;
+          location?: string;
+          listLabel?: string;
+          limit?: string;
+          cursor?: string;
+          version?: string;
+        }>(request.query, [
+          "q",
+          "optIn",
+          "excluded",
+          "tag",
+          "location",
+          "listLabel",
+          "limit",
+          "cursor",
+          "version",
+        ]),
+          requestedLimit = queryI64(query.limit, "limit") ?? 50n,
+          cursor = queryU64(query.cursor, "cursor") ?? 0n,
+          value = await action(request, "contacts.list");
+        if (query.version !== undefined && query.version !== "v1")
           bad("unsupported public API version");
-        const limit = window.limit ?? 50;
-        if (limit < 1 || limit > 100)
+        if (requestedLimit < 1n || requestedLimit > 100n)
           bad("pagination limit must be between 1 and 100");
-        const filters = {
-          ...(request.query as Row),
-          limit,
-          cursor: window.cursor ?? 0,
-        };
-        delete (filters as Row).version;
+        const limit = Number(requestedLimit),
+          filters: Row = {
+            q: query.q,
+            optIn: query.optIn,
+            excluded: query.excluded,
+            tag: query.tag,
+            location: query.location,
+            listLabel: query.listLabel,
+            limit,
+            cursor:
+              cursor <= BigInt(Number.MAX_SAFE_INTEGER) ? Number(cursor) : 0,
+          };
         const contacts = await domains.listContacts(value, filters),
           total = Number(
             (contacts.stats as Row | undefined)?.filteredTotal ?? 0,
           ),
           pagination = {
-            ...pageWindow({ ...window, limit }, total),
+            ...pageWindow({ cursor, limit, version: query.version }, total),
             total,
             version: "v1",
           };
@@ -525,16 +566,15 @@ export function registerPublicV1Routes(
             ),
         ],
       ] as const)
-        routes.get(path, async (request) =>
-          redactKeys(
-            paginateCollection(
-              await run(await action(request, name), request),
-              key,
-              page(request),
-            ),
+        routes.get(path, async (request) => {
+          const query =
+              path === "/templates" ? templatePage(request) : page(request),
+            value = await action(request, name);
+          return redactKeys(
+            paginateCollection(await run(value, request), key, query),
             [...hidden],
-          ),
-        );
+          );
+        });
       routes.get("/campaigns/:id", async (request) =>
         redactKeys(
           await domains.getCampaignSummary(
@@ -549,18 +589,20 @@ export function registerPublicV1Routes(
           ],
         ),
       );
-      routes.get("/webhooks/subscriptions", async (request) =>
-        paginateCollection(
+      routes.get("/webhooks/subscriptions", async (request) => {
+        const query = page(request),
+          value = await webhookContext(request, false);
+        return paginateCollection(
           {
             subscriptions: await webhooks.listSubscriptions(
               core.pool,
-              (await webhookContext(request, false)).organizationId,
+              value.organizationId,
             ),
           },
           "subscriptions",
-          page(request),
-        ),
-      );
+          query,
+        );
+      });
       routes.post("/webhooks/subscriptions", async (request, reply) => {
         const value = await webhookContext(request, true);
         requireIdempotency(value, "webhook subscription creation");
@@ -598,19 +640,21 @@ export function registerPublicV1Routes(
         );
         return { status: "disabled" };
       });
-      routes.get("/webhooks/subscriptions/:id/deliveries", async (request) =>
-        paginateCollection(
+      routes.get("/webhooks/subscriptions/:id/deliveries", async (request) => {
+        const query = page(request),
+          value = await webhookContext(request, false);
+        return paginateCollection(
           {
             deliveries: await webhooks.listDeliveries(
               core.pool,
-              (await webhookContext(request, false)).organizationId,
+              value.organizationId,
               id(request),
             ),
           },
           "deliveries",
-          page(request),
-        ),
-      );
+          query,
+        );
+      });
     },
     { prefix: "/v1" },
   );

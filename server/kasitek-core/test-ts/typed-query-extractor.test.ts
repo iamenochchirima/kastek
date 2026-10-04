@@ -13,6 +13,7 @@ import { registerConnectionRoutes } from '../src-ts/routes/connections.js';
 import { registerAdminAnalyticsRoutes } from '../src-ts/routes/admin-analytics.js';
 import { registerEarlyAccessRoutes } from '../src-ts/routes/early-access.js';
 import { registerWhatsappMarketingRoutes } from '../src-ts/routes/whatsapp.js';
+import { registerPublicV1Routes } from '../src-ts/routes/public-v1.js';
 
 test('typed queries preserve Actix extractor errors before route effects', async () => {
   const config = readConfig({
@@ -230,5 +231,30 @@ test('typed queries preserve Actix extractor errors before route effects', async
     }
   } finally {
     await whatsappQueryApp.close();
+  }
+
+  const publicApiApp = await buildApp(context, [
+    (instance, core) => registerPublicV1Routes(instance, core, {} as never),
+  ]);
+  try {
+    for (const [url, detail] of [
+      ['/v1/content/posts?cursor=1&cursor=2', 'duplicate field `cursor`'],
+      ['/v1/contacts?limit=1&limit=2', 'duplicate field `limit`'],
+      ['/v1/templates?status=one&status=two', 'duplicate field `status`'],
+      [
+        '/v1/webhooks/subscriptions?limit=invalid',
+        'invalid digit found in string',
+      ],
+      [
+        '/v1/capabilities?cursor=18446744073709551616',
+        'number too large to fit in target type',
+      ],
+    ] as const) {
+      const response = await publicApiApp.inject({ url });
+      assert.equal(response.statusCode, 400);
+      assert.equal(response.body, `Query deserialize error: ${detail}`);
+    }
+  } finally {
+    await publicApiApp.close();
   }
 });
