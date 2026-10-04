@@ -17,6 +17,7 @@ import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import type { TenantContext } from '../context.js';
 import { createId } from '@paralleldrive/cuid2';
 import { bad, unauthorized } from '../error.js';
+import { queryStringField } from '../query.js';
 import * as middleware from '../middleware.js';
 import { workspacePortalUrl, sendClientInviteEmail } from '../mail.js';
 import {
@@ -242,7 +243,7 @@ export function registerClientAuthRoutes(
   context: TenantContext,
 ): void {
   app.get('/api/client-auth/invite', async (request) => {
-    const token = bodyText(request.query, 'token').trim();
+    const token = (queryStringField(request.raw.url, 'token') ?? '').trim();
     if (!token) throw bad('token is required');
     const i = await findInvite(request, context, token);
     if (!i) throw unauthorized();
