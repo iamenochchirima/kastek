@@ -1,4 +1,20 @@
+import { RequestExtractionError } from '../error.js';
 import { dtoSchema } from './auth.js';
+
+function adminInviteToken(rawUrl: string | undefined): string {
+  const params = new URLSearchParams(rawUrl?.split('?').slice(1).join('?') ?? '');
+  let token: string | undefined;
+  for (const [field, value] of params) {
+    if (field !== 'token') continue;
+    if (token !== undefined)
+      throw new RequestExtractionError('query', 'duplicate field `token`');
+    token = value;
+  }
+  if (token === undefined)
+    throw new RequestExtractionError('query', 'missing field `token`');
+  return token;
+}
+
 const SQL = [
   '\n        SELECT\n            i.id AS invite_id,\n            i.tenant_user_id,\n            i.email,\n            u.name,\n            i.workspace_id,\n            w.display_name AS workspace_display_name,\n            w.slug AS workspace_slug,\n            i.expires_at AS expires_at,\n            i.accepted_at AS accepted_at,\n            i.revoked_at AS revoked_at\n        FROM tenant_user_invites i\n        JOIN tenant_users u ON u.id = i.tenant_user_id\n        JOIN workspaces w ON w.id = i.workspace_id\n        WHERE i.token_hash = $1\n        LIMIT 1\n        ',
   '\n        UPDATE tenant_user_invites\n        SET revoked_at = NOW(), updated_at = NOW()\n        WHERE tenant_user_id = $1\n          AND accepted_at IS NULL\n          AND revoked_at IS NULL\n        ',
@@ -74,9 +90,8 @@ export function registerAdminInvitesRoutes(
 ): void {
   app.get(
     '/api/auth/admin-invite',
-    { schema: { querystring: dtoSchema(['token']) } },
     async (request) => {
-      const token = bodyText(request.query, 'token').trim();
+      const token = adminInviteToken(request.raw.url).trim();
       if (!token) throw bad('token is required');
       const i = (await context.pool.query(SQL[0], [tokenHash(token)])).rows[0];
       if (!i) throw missing('invite not found');
