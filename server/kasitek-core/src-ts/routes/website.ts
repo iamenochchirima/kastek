@@ -7,6 +7,7 @@ import {
   uploadContentMediaBytes,
 } from "../services/social/media.js";
 import * as website from "../services/website/index.js";
+import { stringQueryMap } from "../typed-query.js";
 import {
   websiteChannelMessagePayload,
   websiteChannelAudioPayload,
@@ -43,7 +44,7 @@ function path(request: FastifyRequest, key: string): string {
   return (request.params as Record<string, string>)[key]!.trim();
 }
 function query(request: FastifyRequest): Record<string, string> {
-  return (request.query ?? {}) as Record<string, string>;
+  return stringQueryMap(request.query);
 }
 function origin(
   request: FastifyRequest,

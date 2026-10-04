@@ -96,3 +96,19 @@ export function queryU64(
     );
   return parsed;
 }
+
+/** Decode Actix `Query<HashMap<String, String>>` semantics from Fastify's query object. */
+export function stringQueryMap(value: unknown): Record<string, string> {
+  const source =
+    value !== null && typeof value === 'object' && !Array.isArray(value)
+      ? (value as Record<string, unknown>)
+      : {};
+  const result = Object.create(null) as Record<string, string>;
+  for (const [key, entry] of Object.entries(source)) {
+    const resolved = Array.isArray(entry) ? entry.at(-1) : entry;
+    if (typeof resolved !== 'string')
+      throw new RequestExtractionError('query', 'invalid query field type');
+    result[key] = resolved;
+  }
+  return result;
+}

@@ -7,6 +7,7 @@ import {
   processWebhookPayload,
   type WhatsappWebhookOptions,
 } from "../services/whatsapp/webhooks.js";
+import { stringQueryMap } from "../typed-query.js";
 export function verifyWhatsappWebhookRequest(
   core: CoreContext,
   query: Record<string, string>,
@@ -38,7 +39,7 @@ export async function registerWhatsappWebhookRoutes(
         .send(
           verifyWhatsappWebhookRequest(
             core,
-            (request.query ?? {}) as Record<string, string>,
+            stringQueryMap(request.query),
           ),
         ),
     );

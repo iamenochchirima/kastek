@@ -6,6 +6,7 @@ import { extractUser, resolveActiveOrgId } from "../identity/session.js";
 import { canonicalJsonBody } from "../identity/json-body.js";
 import { AgentPlatformClient } from "../services/agent-platform/client.js";
 import * as calls from "../services/communications/calls.js";
+import { stringQueryMap } from "../typed-query.js";
 export async function registerCommunicationsRoutes(
   app: FastifyInstance,
   core: CoreContext,
@@ -20,9 +21,7 @@ export async function registerCommunicationsRoutes(
   app.get<{ Querystring: { days?: string } }>(
     "/api/calls/summary",
     async (request) => {
-      const value = request.query.days;
-      if (value !== undefined && typeof value !== "string")
-        throw new ApiError(400, "bad_request", "Invalid request");
+      const value = stringQueryMap(request.query).days;
       let days = 7n;
       if (value !== undefined && /^[+-]?\d+$/.test(value)) {
         const parsed = BigInt(value);

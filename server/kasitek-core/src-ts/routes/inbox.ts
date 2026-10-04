@@ -2,6 +2,7 @@ import { parseSerdeValueJson } from "../json.js";
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import type { CoreContext } from "../context.js";
 import { ApiError } from "../error.js";
+import { stringQueryMap } from "../typed-query.js";
 import { extractUser, resolveActiveOrgId } from "../identity/session.js";
 import * as inbox from "../services/inbox/index.js";
 export function registerInboxRoutes(
@@ -114,7 +115,10 @@ export function registerInboxRoutes(
   app.get<{ Querystring: Record<string, string> }>(
     "/api/webhooks/meta",
     async (request) =>
-      inbox.verifyMetaWebhookRequest(context.config, request.query),
+      inbox.verifyMetaWebhookRequest(
+        context.config,
+        stringQueryMap(request.query),
+      ),
   );
   void app.register(async (webhook) => {
     webhook.removeAllContentTypeParsers();

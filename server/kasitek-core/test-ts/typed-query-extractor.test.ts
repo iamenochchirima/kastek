@@ -14,8 +14,13 @@ import { registerAdminAnalyticsRoutes } from '../src-ts/routes/admin-analytics.j
 import { registerEarlyAccessRoutes } from '../src-ts/routes/early-access.js';
 import { registerWhatsappMarketingRoutes } from '../src-ts/routes/whatsapp.js';
 import { registerPublicV1Routes } from '../src-ts/routes/public-v1.js';
+import { stringQueryMap } from '../src-ts/typed-query.js';
 
 test('typed queries preserve Actix extractor errors before route effects', async () => {
+  const mapped = stringQueryMap({ duplicate: ['old', 'new'], only: 'value' });
+  assert.equal(mapped.duplicate, 'new');
+  assert.equal(mapped.only, 'value');
+
   const config = readConfig({
       DATABASE_URL: 'postgres://unused',
       FRONTEND_URL: 'http://localhost:3000',
