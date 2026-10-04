@@ -1,6 +1,12 @@
 import type { FastifyInstance, FastifyError, FastifyRequest } from "fastify";
 import { formatSerdeValidationError } from "@kasitek-labs/server-support/json";
 
+const urlencodedFormRoutes = new Set([
+  "/api/auth/backchannel-logout",
+  "/api/social/oauth/threads/uninstall",
+  "/api/social/oauth/threads/data-deletion",
+]);
+
 function extractionDetail(
   issues: NonNullable<FastifyError["validation"]>,
   context: string | undefined,
@@ -69,7 +75,7 @@ export function installErrorHandler(app: FastifyInstance): void {
     if (error.code === "FST_ERR_CTP_BODY_TOO_LARGE") {
       const bytes = request.headers["content-length"],
         limit = request.routeOptions.bodyLimit;
-      const form = request.routeOptions.url === "/api/auth/backchannel-logout";
+      const form = urlencodedFormRoutes.has(request.routeOptions.url ?? "");
       const raw =
         [
           "/api/webhooks/whatsapp",
@@ -91,7 +97,7 @@ export function installErrorHandler(app: FastifyInstance): void {
       return reply.code(413).type("text/plain; charset=utf-8").send(message);
     }
     if (error.code === "FST_ERR_CTP_INVALID_MEDIA_TYPE") {
-      const form = request.routeOptions.url === "/api/auth/backchannel-logout";
+      const form = urlencodedFormRoutes.has(request.routeOptions.url ?? "");
       return reply
         .code(
           form || request.routeOptions.url?.startsWith("/api/webhooks/twilio/")

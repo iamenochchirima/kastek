@@ -97,6 +97,11 @@ import * as webhooks from "../services/social/webhooks.js";
 import { resolveProductContext } from "../identity/request-context.js";
 import { syncOrgConnections } from "../services/connections.js";
 import { createId } from "@paralleldrive/cuid2";
+import {
+  requiredFormField,
+  requireUrlencodedForm,
+  URLENCODED_FORM_BODY_LIMIT,
+} from "../urlencoded-form.js";
 const conflict = (message: string) => new ApiError(409, "conflict", message);
 export function registerSocialRoutes(
   app: FastifyInstance,
@@ -572,9 +577,7 @@ export function registerSocialRoutes(
     request: FastifyRequest,
     confirmation: string | null,
   ) => {
-    const signed = (request.body as { signed_request?: unknown })
-      ?.signed_request;
-    if (typeof signed !== "string") throw bad("Invalid request");
+    const signed = requiredFormField(request, "signed_request");
     const external = auth.verifyThreadsSignedRequest(context.config, signed);
     const orgs = await publishing.removeThreadsConnectionData(
       context.pool,
@@ -597,18 +600,36 @@ export function registerSocialRoutes(
         );
       }
   };
-  app.post("/api/social/oauth/threads/uninstall", async (request) => {
-    await removed(request, null);
-    return { success: true };
-  });
-  app.post("/api/social/oauth/threads/data-deletion", async (request) => {
-    const confirmation = createId().replaceAll("-", "");
-    await removed(request, confirmation);
-    return {
-      url: auth.threadsDataDeletionStatusUrl(context.config, confirmation),
-      confirmation_code: confirmation,
-    };
-  });
+  app.post(
+    "/api/social/oauth/threads/uninstall",
+    {
+      bodyLimit: URLENCODED_FORM_BODY_LIMIT,
+      onRequest: async (request) => {
+        requireUrlencodedForm(request);
+      },
+    },
+    async (request) => {
+      await removed(request, null);
+      return { success: true };
+    },
+  );
+  app.post(
+    "/api/social/oauth/threads/data-deletion",
+    {
+      bodyLimit: URLENCODED_FORM_BODY_LIMIT,
+      onRequest: async (request) => {
+        requireUrlencodedForm(request);
+      },
+    },
+    async (request) => {
+      const confirmation = createId().replaceAll("-", "");
+      await removed(request, confirmation);
+      return {
+        url: auth.threadsDataDeletionStatusUrl(context.config, confirmation),
+        confirmation_code: confirmation,
+      };
+    },
+  );
   app.get(
     "/api/social/oauth/threads/data-deletion/status/:confirmation_code",
     async (request, reply) => {
