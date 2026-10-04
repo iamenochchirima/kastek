@@ -12,6 +12,24 @@ import {
 } from "@kasitek-labs/server-support/json";
 import { RequestExtractionError } from "../error.js";
 const canonicalBodies = new WeakMap<FastifyRequest, unknown>();
+const reportQueryBodySchema = {
+  type: "object",
+  properties: {
+    range_start: {},
+    range_end: {},
+    timezone: {},
+    interval: {},
+    metrics: { type: "array", items: {} },
+    metric_set: {},
+    breakdowns: { type: "array", items: {} },
+    filters: { type: "object", additionalProperties: { type: "array", items: {} } },
+    include_descendants: {},
+    comparison: { type: "object", properties: { kind: {} } },
+  },
+};
+const manualTypedJsonBodySchemas: Record<string, unknown> = {
+  "POST /api/analytics/query": reportQueryBodySchema,
+};
 /** Preserve JSON number kinds separately while typed DTOs keep primitive numbers for Ajv. */
 export function parseRequestJson(
   request: FastifyRequest,
@@ -19,7 +37,13 @@ export function parseRequestJson(
 ): unknown {
   const typed = parseLosslessJson(text);
   if (!isSerdeValueBodyBoundary(request))
-    assertNoDuplicateSerdeStructFields(text, request.routeOptions.schema?.body);
+    assertNoDuplicateSerdeStructFields(
+      text,
+      request.routeOptions.schema?.body ??
+        manualTypedJsonBodySchemas[
+          request.method + " " + request.routeOptions.url
+        ],
+    );
   canonicalBodies.set(request, parseSerdeValueJson(text));
   return typed;
 }
