@@ -7,6 +7,7 @@ import { ApiError } from '../error.js';
 import { provider, setting, unauthorized } from '../identity/provider.js';
 import { USER_SESSION_COOKIE, sha256, extractUser, requireOrigin } from '../identity/session.js';
 import { backchannelLogout, logoutAll } from '../identity/logout.js';
+import { typedQuery } from '../typed-query.js';
 import {
   requiredFormField,
   requireUrlencodedForm,
@@ -23,7 +24,8 @@ function cookieOptions(context: CoreContext, login = false) {
 function clearLogin(reply: FastifyReply, context: CoreContext): void { reply.clearCookie('kasitek_login', cookieOptions(context, true)); }
 export async function registerAuthRoutes(app: FastifyInstance, context: CoreContext): Promise<void> {
   app.get<{ Querystring: { returnTo?: string; screen?: string } }>('/api/auth/login', async (request, reply) => {
-    const returnTo = request.query.returnTo ?? '/';
+    const query = typedQuery(request.query, ['returnTo', 'screen']);
+    const returnTo = query.returnTo ?? '/';
     if (!safeReturnPath(returnTo)) throw new ApiError(400, 'bad_request', 'Invalid return path');
     const config = await provider(context);
     const verifier = oidc.randomPKCECodeVerifier();
@@ -37,7 +39,7 @@ export async function registerAuthRoutes(app: FastifyInstance, context: CoreCont
       if (!valid.rows[0]?.exists) parameters.prompt = 'login';
     }
     const url = oidc.buildAuthorizationUrl(config, parameters);
-    if (request.query.screen === 'signup') {
+    if (query.screen === 'signup') {
       if (!url.pathname.endsWith('/auth')) throw new ApiError(503, 'service_unavailable', 'Unsupported registration endpoint');
       url.pathname = url.pathname.slice(0, -5) + '/registrations';
     }
@@ -47,17 +49,18 @@ export async function registerAuthRoutes(app: FastifyInstance, context: CoreCont
     return reply.redirect(url.href);
   });
   app.get<{ Querystring: { state?: string; code?: string; error?: string } }>('/api/auth/callback', async (request, reply) => {
+    const query = typedQuery(request.query, ['state', 'code', 'error']);
     reply.header('Cache-Control', 'no-store');
     try {
       const browser = request.cookies.kasitek_login;
-      const state = request.query.state;
+      const state = query.state;
       if (!browser || !state) throw unauthorized();
       const transactions = await context.pool.query<{ nonce: string; verifier: string; returnTo: string }>('DELETE FROM "OidcTransaction" WHERE state=$1 AND "browserHash"=$2 AND expires>NOW() RETURNING nonce,verifier,"returnTo"', [sha256(state), sha256(browser)]);
       const tx = transactions.rows[0];
       if (!tx) throw unauthorized();
       clearLogin(reply, context);
-      if (request.query.error) return reply.redirect(`${context.config.frontendUrl.replace(/\/$/, '')}/auth-error?code=LOGIN_CANCELLED`);
-      if (!request.query.code) throw unauthorized();
+      if (query.error) return reply.redirect(`${context.config.frontendUrl.replace(/\/$/, '')}/auth-error?code=LOGIN_CANCELLED`);
+      if (!query.code) throw unauthorized();
       const config = await provider(context);
       const callback = new URL(setting(context, 'OIDC_REDIRECT_URI'));
       callback.search = new URL(request.url, 'http://internal.invalid').search;
