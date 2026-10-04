@@ -14,6 +14,7 @@ import {
   recordSyncedSourceHealth,
 } from "../services/connections.js";
 import { ApiError } from "../error.js";
+import { typedQuery } from "../typed-query.js";
 interface StartQuery {
   connectionId?: string;
   capabilities?: string;
@@ -167,8 +168,13 @@ export function registerSocialOAuthRoutes(
 ): void {
   for (const provider of ["x", "linkedin", "threads", "tiktok"] as const) {
     app.get(`/api/social/oauth/${provider}/start`, async (request, reply) => {
-      const { user, org } = await scope(request, core),
-        query = request.query as StartQuery,
+      const query = typedQuery<StartQuery>(request.query, [
+        "connectionId",
+        "capabilities",
+        "target",
+        "handle",
+      ]),
+        { user, org } = await scope(request, core),
         x = provider === "x" ? oauth.createXOAuthState() : null,
         state = x?.state ?? oauth.createLinkedinOAuthState();
       let organization = false;
@@ -223,8 +229,13 @@ export function registerSocialOAuthRoutes(
   }
   for (const provider of ["meta", "instagram"] as const) {
     app.get(`/api/social/oauth/${provider}/start`, async (request, reply) => {
-      const { user, org } = await scope(request, core),
-        query = request.query as StartQuery,
+      const query = typedQuery<StartQuery>(request.query, [
+        "connectionId",
+        "capabilities",
+        "target",
+        "handle",
+      ]),
+        { user, org } = await scope(request, core),
         target =
           provider === "instagram" ? "instagram" : (query.target ?? "facebook");
       if (!["facebook", "instagram"].includes(target))
@@ -293,8 +304,14 @@ export function registerSocialOAuthRoutes(
     app.get(
       `/api/social/oauth/${provider}/callback`,
       async (request, reply) => {
-        const { user, org } = await scope(request, core),
-          query = request.query as CallbackQuery;
+        const query = typedQuery<CallbackQuery>(request.query, [
+          "code",
+          "state",
+          "error",
+          "error_description",
+          "iss",
+        ]),
+          { user, org } = await scope(request, core);
         if (query.error !== undefined) {
           if (provider === "meta" || provider === "instagram") {
             if (query.state !== undefined) {
@@ -699,8 +716,13 @@ export function registerSocialOAuthRoutes(
     };
   });
   app.get("/api/social/oauth/bluesky/start", async (request, reply) => {
-    const { user, org } = await scope(request, core),
-      query = request.query as StartQuery,
+    const query = typedQuery<StartQuery>(request.query, [
+      "connectionId",
+      "capabilities",
+      "target",
+      "handle",
+    ]),
+      { user, org } = await scope(request, core),
       handle = trimmed(query.handle);
     if (handle === null) throw bad("Bluesky handle is required");
     const prepared =
@@ -728,7 +750,13 @@ export function registerSocialOAuthRoutes(
     return redirect(reply, url);
   });
   app.get("/api/social/oauth/bluesky/callback", async (request, reply) => {
-    const query = request.query as CallbackQuery;
+    const query = typedQuery<CallbackQuery>(request.query, [
+      "code",
+      "state",
+      "error",
+      "error_description",
+      "iss",
+    ]);
     if (query.error !== undefined)
       throw bad(
         query.error_description ??

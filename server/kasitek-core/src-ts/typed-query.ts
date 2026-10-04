@@ -1,7 +1,7 @@
 import { RequestExtractionError } from './error.js';
 
 /** Validate fields accepted by Actix `Query<T>` without rejecting unknown keys. */
-export function typedQuery<T extends Record<string, string | undefined>>(
+export function typedQuery<T extends object>(
   value: unknown,
   fields: readonly (keyof T & string)[],
 ): T {

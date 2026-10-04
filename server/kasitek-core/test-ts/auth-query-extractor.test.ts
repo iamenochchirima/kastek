@@ -4,8 +4,9 @@ import { readConfig } from '../src-ts/config.js';
 import { buildApp } from '../src-ts/app.js';
 import type { CoreContext } from '../src-ts/context.js';
 import { registerAuthRoutes } from '../src-ts/routes/auth.js';
+import { registerSocialOAuthRoutes } from '../src-ts/routes/social-oauth.js';
 
-test('OIDC query extractors reject repeated typed fields before side effects', async () => {
+test('typed OAuth query extractors reject repeated fields before side effects', async () => {
   const config = readConfig({
       DATABASE_URL: 'postgres://unused',
       FRONTEND_URL: 'http://localhost:3000',
@@ -19,7 +20,10 @@ test('OIDC query extractors reject repeated typed fields before side effects', a
         },
       },
     } as unknown as CoreContext,
-    app = await buildApp(context, [registerAuthRoutes]);
+    app = await buildApp(context, [
+      registerAuthRoutes,
+      registerSocialOAuthRoutes,
+    ]);
 
   try {
     for (const [url, field] of [
@@ -27,6 +31,16 @@ test('OIDC query extractors reject repeated typed fields before side effects', a
       ['/api/auth/login?screen=login&screen=signup', 'screen'],
       ['/api/auth/callback?state=first&state=second', 'state'],
       ['/api/auth/callback?error=denied&error=other', 'error'],
+      [
+        '/api/social/oauth/x/start?connectionId=first&connectionId=second',
+        'connectionId',
+      ],
+      ['/api/social/oauth/meta/callback?state=first&state=second', 'state'],
+      [
+        '/api/social/oauth/bluesky/start?handle=first&handle=second',
+        'handle',
+      ],
+      ['/api/social/oauth/bluesky/callback?iss=first&iss=second', 'iss'],
     ] as const) {
       const response = await app.inject({ url });
       assert.equal(response.statusCode, 400);

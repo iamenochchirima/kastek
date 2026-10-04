@@ -24,7 +24,10 @@ function cookieOptions(context: CoreContext, login = false) {
 function clearLogin(reply: FastifyReply, context: CoreContext): void { reply.clearCookie('kasitek_login', cookieOptions(context, true)); }
 export async function registerAuthRoutes(app: FastifyInstance, context: CoreContext): Promise<void> {
   app.get<{ Querystring: { returnTo?: string; screen?: string } }>('/api/auth/login', async (request, reply) => {
-    const query = typedQuery(request.query, ['returnTo', 'screen']);
+    const query = typedQuery<{ returnTo?: string; screen?: string }>(
+      request.query,
+      ['returnTo', 'screen'],
+    );
     const returnTo = query.returnTo ?? '/';
     if (!safeReturnPath(returnTo)) throw new ApiError(400, 'bad_request', 'Invalid return path');
     const config = await provider(context);
@@ -49,7 +52,10 @@ export async function registerAuthRoutes(app: FastifyInstance, context: CoreCont
     return reply.redirect(url.href);
   });
   app.get<{ Querystring: { state?: string; code?: string; error?: string } }>('/api/auth/callback', async (request, reply) => {
-    const query = typedQuery(request.query, ['state', 'code', 'error']);
+    const query = typedQuery<{ state?: string; code?: string; error?: string }>(
+      request.query,
+      ['state', 'code', 'error'],
+    );
     reply.header('Cache-Control', 'no-store');
     try {
       const browser = request.cookies.kasitek_login;
