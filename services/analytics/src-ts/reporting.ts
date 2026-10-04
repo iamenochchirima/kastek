@@ -92,7 +92,7 @@ function typedDate(value: unknown): Date {
     day > days[month - 1]! ||
     Number(match[4]) > 23 ||
     Number(match[5]) > 59 ||
-    Number(match[6]) > 59
+    Number(match[6]) > 60
   )
     throw Error('invalid calendar timestamp');
   const offset =

@@ -211,6 +211,19 @@ test('report typed decoder rejects unknown/null defaulted fields and retains i64
     decoded.range_start.toISOString(),
     '2026-08-22T10:00:00.000001Z',
   );
+  const leapSecond = decodeReportRequest({
+    ...body,
+    range_start: '2015-02-18T23:59:60.234567+05:00',
+  });
+  const sameInstant = decodeReportRequest({
+    ...body,
+    range_start: '2015-02-18T19:00:00.234567Z',
+  });
+  assert.equal(leapSecond.range_start.getTime(), sameInstant.range_start.getTime());
+  assert.equal(
+    leapSecond.range_start.toISOString(),
+    '2015-02-18T18:59:60.234567Z',
+  );
   assert.equal(
     expectedPoints(decoded.range_start, decoded.range_end, 'hour'),
     1,
