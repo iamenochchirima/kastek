@@ -8,6 +8,7 @@ import { routes } from '../src-ts/routes.js';
 
 test('registered DTO schemas reject duplicate fields before effects; Value bodies keep last value', async () => {
  let effects=0;
+ let savedScopes:unknown;
  const dtoSchemas=new Map<string,Record<string,unknown>>();
  const collectSchemas=(server:FastifyInstance)=>server.addHook('onRoute',route=>{
   if(route.url==='/typed-json'||route.url==='/value-json')return;
@@ -18,7 +19,11 @@ test('registered DTO schemas reject duplicate fields before effects; Value bodie
  });
  const app=await buildApp({
   config:readConfig({TENANT_DATABASE_URL:'postgres://unused',TENANT_SERVER_ENVIRONMENT:'test',LOG_LEVEL:'silent'}),
-  pool:{} as Pool,
+  pool:{async query(sql:string,values?:unknown[]){
+   if(sql.includes('SELECT id FROM workspaces'))return {rows:[{id:'workspace'}]};
+   if(sql.includes('INSERT INTO workspace_api_keys')){savedScopes=JSON.parse(String(values?.[5]));return {rows:[]};}
+   throw Error('unexpected database query in DTO test');
+  }} as unknown as Pool,
  },[collectSchemas,(server)=>{
   server.post('/typed-json',{schema:{body:{type:'object',properties:{token:{type:'string'}}}}},()=>{effects++;return {ok:true};});
   server.post('/value-json',(request)=>{effects++;return request.body;});
@@ -40,6 +45,14 @@ test('registered DTO schemas reject duplicate fields before effects; Value bodie
 
   const repeatedFilterMapKey=await app.inject({method:'POST',url:'/api/analytics/query',headers:{'content-type':'application/json'},payload:'{"range_start":"2026-01-01T00:00:00Z","range_end":"2026-02-01T00:00:00Z","timezone":"UTC","filters":{"channel":["first"],"channel":["last"]}}'});
   assert.equal(repeatedFilterMapKey.statusCode,401);
+
+  const repeatedRootScopes=await app.inject({method:'POST',url:'/api/admin/workspaces/workspace/api-keys',headers:{'content-type':'application/json'},payload:'{"label":"fixture","scopes":{"value":"first"},"scopes":{"value":"last"}}'});
+  assert.equal(repeatedRootScopes.statusCode,400);
+  assert.match(repeatedRootScopes.body,/duplicate field `scopes`/);
+  const repeatedValueKey=await app.inject({method:'POST',url:'/api/admin/workspaces/workspace/api-keys',headers:{'content-type':'application/json'},payload:'{"label":"fixture","scopes":{"value":"first","value":"last"}}'});
+  assert.equal(repeatedValueKey.statusCode,201);
+  assert.deepEqual(repeatedValueKey.json().apiKey.scopes,{value:'last'});
+  assert.deepEqual(savedScopes,{value:'last'});
 
   let checked=0;
   for(const [routeKey,schema] of dtoSchemas){

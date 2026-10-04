@@ -41,7 +41,7 @@ export async function buildApp(context:TenantContext,registrars:RouteRegistrar[]
  });
  const safeJson=app.getDefaultJsonParser('error','error');
  app.removeContentTypeParser('application/json');
- app.addContentTypeParser('application/json',{parseAs:'string'},(request,body,done)=>{
+ app.addContentTypeParser(/^application\/(?:[a-z0-9.-]+\+)?json$/i,{parseAs:'string'},(request,body,done)=>{
   if(bodylessRequest(request.method,request.routeOptions.url??''))return done(null,undefined);
   const text=typeof body==='string'?body:body.toString('utf8');
   safeJson(request,text,(error,value)=>{

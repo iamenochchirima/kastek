@@ -21,6 +21,27 @@ import {
   parseReportQuery,
 } from "../src-ts/controllers/analytics.js";
 const enabled = !!process.env.TENANT_TEST_DATABASE_URL;
+test("analytics timestamps accept Chrono separators and offsets while rejecting invalid dates", () => {
+  const query = parseReportQuery({
+    range_start: "2030-01-01 01:30:00.123456+0130",
+    range_end: "2030-01-01T01:30:60.000001+0130",
+    timezone: "UTC",
+  });
+  assert.equal(query.range_start, "2030-01-01T00:00:00.123456Z");
+  assert.equal(query.range_end, "2030-01-01T00:00:60.000001Z");
+  for (const range_start of [
+    "2030-02-30T00:00:00Z",
+    "2030-01-01T24:00:00Z",
+    "2030-01-01T00:00:00+24:00",
+  ])
+    assert.throws(() =>
+      parseReportQuery({
+        range_start,
+        range_end: "2030-01-02T00:00:00Z",
+        timezone: "UTC",
+      }),
+    );
+});
 async function controllerFixture(extra: Record<string, string> = {}) {
   const db = await analyticsFixture();
   const config = readConfig({

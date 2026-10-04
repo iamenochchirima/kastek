@@ -11,6 +11,9 @@ test('native Agency HTTP keeps health, explicit errors, source CORS and method m
   app.post('/api/schema',{
    schema:{body:{type:'object',required:['name'],properties:{name:{type:'string'}},additionalProperties:false}},
   },async()=>({ok:true}));
+  app.post('/api/typed-json',{
+   schema:{body:{type:'object',required:['name'],properties:{name:{type:'string'}},additionalProperties:false}},
+  },async request=>({name:(request.body as {name:string}).name}));
   app.delete('/api/bodyless',async()=>({deleted:true}));
   app.post('/api/auth/logout',async()=>({loggedOut:true}));
   app.post('/api/extractor',async()=>{throw new RequestExtractionError('json');});
@@ -25,6 +28,12 @@ test('native Agency HTTP keeps health, explicit errors, source CORS and method m
    assert.doesNotMatch(invalid.body,/false/);
   }
   const extractor=await app.inject({method:'POST',url:'/api/extractor',payload:{}});assert.equal(extractor.statusCode,400);assert.match(extractor.headers['content-type']!,/^text\/plain/);
+  for(const contentType of ['application/problem+json','application/vnd.api+json']){
+   const json=await app.inject({method:'POST',url:'/api/typed-json',headers:{'content-type':contentType},payload:'{"name":"suffix"}'});
+   assert.equal(json.statusCode,200,contentType);assert.deepEqual(json.json(),{name:'suffix'});
+  }
+  const formOnJson=await app.inject({method:'POST',url:'/api/typed-json',headers:{'content-type':'application/x-www-form-urlencoded'},payload:'name=not-json'});
+  assert.equal(formOnJson.statusCode,400);
   for(const [payload,detail] of [
    ['{','EOF while parsing an object at line 1 column 1'],
    ['[1,]','trailing comma at line 1 column 4'],

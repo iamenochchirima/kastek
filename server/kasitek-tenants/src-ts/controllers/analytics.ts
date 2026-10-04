@@ -16,7 +16,7 @@ import {
   internal,
   RequestExtractionError,
 } from "../error.js";
-import { UtcTimestamp } from "../db.js";
+import { parseChronoTimestamp } from "../chrono-timestamp.js";
 import {
   extractTenantUserSession,
   extractTenantClientUserSession,
@@ -42,15 +42,8 @@ export function parseReportQuery(value: unknown): ReportQueryInput {
   ]);
   if (Object.keys(data).some((key) => !allowed.has(key))) throw bad();
   const time = (value: unknown): string => {
-    if (
-      typeof value !== "string" ||
-      !/^\d{4}-\d{2}-\d{2}[Tt]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:[Zz]|[+-]\d{2}:\d{2})$/.test(
-        value,
-      )
-    )
-      throw bad();
     try {
-      return new UtcTimestamp(value, true).toJSON();
+      return parseChronoTimestamp(value);
     } catch {
       throw bad();
     }

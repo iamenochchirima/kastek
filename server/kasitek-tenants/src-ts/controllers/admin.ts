@@ -242,7 +242,7 @@ export function registerAdminRoutes(
         body: {
           type: "object",
           required: ["label"],
-          properties: { label: { type: "string" } },
+          properties: { label: { type: "string" }, scopes: {} },
         },
       },
     },
