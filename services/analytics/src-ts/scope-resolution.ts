@@ -3,6 +3,7 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { AnalyticsContext } from './context.js';
 import type { ReportingResolverCredential } from './config.js';
 import { apiJson } from './json.js';
+import { typedQuery } from './query.js';
 export const PATH = '/internal/reporting/scopes/resolve';
 export class ScopeResolverAuthenticator {
   constructor(
@@ -38,22 +39,21 @@ export function registerScopeResolutionRoutes(
     context.config.reporting_resolver_credentials,
   );
   app.get(PATH, async (request, reply) => {
-    const query = request.query as Record<string, unknown>;
-    if (
-      typeof query.scope_kind !== 'string' ||
-      typeof query.external_source_id !== 'string'
-    )
-      return reply.code(400).type('text/plain').send('Query deserialize error');
+    const query = typedQuery(request.raw.url, ['scope_kind', 'external_source_id'], {
+      required: ['scope_kind', 'external_source_id'],
+    });
+    const scopeKind = query.scope_kind as string,
+      externalSourceId = query.external_source_id as string;
     const source = access.authenticate(request);
     if (!source)
       return reply
         .code(401)
         .send({ error: 'scope resolver authentication failed' });
     if (
-      !query.scope_kind.trim() ||
-      Buffer.byteLength(query.scope_kind) > 128 ||
-      !query.external_source_id.trim() ||
-      Buffer.byteLength(query.external_source_id) > 512
+      !scopeKind.trim() ||
+      Buffer.byteLength(scopeKind) > 128 ||
+      !externalSourceId.trim() ||
+      Buffer.byteLength(externalSourceId) > 512
     )
       return reply
         .code(400)
@@ -61,7 +61,7 @@ export function registerScopeResolutionRoutes(
     try {
       const result = await context.pool.query(
         `SELECT scope_id,scope_kind,owning_source_service,external_source_id,root_scope_id,parent_scope_id,reporting_timezone FROM analytics.reporting_scope WHERE owning_source_service=$1 AND scope_kind=$2 AND external_source_id=$3 AND status='active' LIMIT 1`,
-        [source, query.scope_kind.trim(), query.external_source_id.trim()],
+        [source, scopeKind.trim(), externalSourceId.trim()],
       );
       const row = result.rows[0];
       if (!row)

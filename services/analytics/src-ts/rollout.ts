@@ -1,4 +1,5 @@
 import { RequestExtractionError } from "./error.js";
+import { typedQuery } from "./query.js";
 import { createHash } from "node:crypto";
 import { Readable } from "node:stream";
 import { createClient } from "redis";
@@ -825,52 +826,39 @@ export function parseRolloutMutation(value: unknown): RolloutMutationRequest {
     remove: dtoBoolean(body, "remove", false),
   };
 }
-function parseEvaluationQuery(value: unknown): {
+function parseEvaluationQuery(rawUrl: string | undefined): {
   control_key: string;
   control_kind: RolloutControlKind;
   context: EvaluationContext;
 } {
-  const body = asObject(value);
-  if (
-    !body ||
-    Object.keys(body).some(
-      (key) =>
-        ![
-          "control_key",
-          "control_kind",
-          "source_service",
-          "source_domain",
-          "reporting_scope_id",
-          "cohort_key",
-        ].includes(key),
-    )
-  )
-    throw new RequestExtractionError("query");
-  const string = (key: string, required = false) => {
-    if (body[key] === undefined && !required) return null;
-    if (typeof body[key] !== "string")
-      throw new RequestExtractionError("query");
-    return body[key] as string;
-  };
-  const control_key = string("control_key", true)!,
-    raw = string("control_kind") ?? "rollout";
-  if (raw !== "rollout" && raw !== "kill_switch")
-    throw new RequestExtractionError("query");
-  let scope: bigint | null = null;
-  if (body.reporting_scope_id !== undefined) {
-    const v = string("reporting_scope_id", true)!;
-    if (!/^[+-]?\d+$/.test(v) || asI64(BigInt(v)) === null)
-      throw new RequestExtractionError("query");
-    scope = BigInt(v);
-  }
+  const query = typedQuery(
+      rawUrl,
+      [
+        "control_key",
+        "control_kind",
+        "source_service",
+        "source_domain",
+        "reporting_scope_id",
+        "cohort_key",
+      ],
+      {
+        required: ["control_key"],
+        signedIntegers: ["reporting_scope_id"],
+        enumValues: { control_kind: ["rollout", "kill_switch"] },
+        denyUnknown: true,
+      },
+    ),
+    control_key = query.control_key as string,
+    raw = (query.control_kind as string | undefined) ?? "rollout";
   return {
     control_key,
-    control_kind: raw,
+    control_kind: raw as RolloutControlKind,
     context: {
-      source_service: string("source_service"),
-      source_domain: string("source_domain"),
-      reporting_scope_id: scope,
-      cohort_key: string("cohort_key"),
+      source_service: (query.source_service as string | undefined) ?? null,
+      source_domain: (query.source_domain as string | undefined) ?? null,
+      reporting_scope_id:
+        (query.reporting_scope_id as bigint | undefined) ?? null,
+      cohort_key: (query.cohort_key as string | undefined) ?? null,
     },
   };
 }
@@ -975,7 +963,7 @@ export function registerRolloutRoutes(
     },
   );
   app.get(EVALUATE_PATH, async (request, reply) => {
-    const q = parseEvaluationQuery(request.query);
+    const q = parseEvaluationQuery(request.raw.url);
     try {
       actor(request);
       const control = normalizeControlKey(q.control_key),

@@ -48,7 +48,7 @@ export async function buildApp(context:AnalyticsContext,process:ProcessKind='ana
   return done(null,body);
  });
  app.setErrorHandler((error,request,reply)=>{
-  if(error instanceof RequestExtractionError)return reply.code(400).type('text/plain; charset=utf-8').send(`Json deserialize error: ${error.message}`);
+  if(error instanceof RequestExtractionError){const label=error.kind==='query'?'Query deserialize error':'Json deserialize error';return reply.code(400).type('text/plain; charset=utf-8').send(`${label}: ${error.message}`);}
   if((error as {statusCode?:number}).statusCode===413)return reply.code(413).type('text/plain; charset=utf-8').send('JSON payload is too large');
   request.log.error({event:'request.failed',error_type:errorType(error)},'analytics request failed');
   return reply.code(500).send({error:'internal_error'});

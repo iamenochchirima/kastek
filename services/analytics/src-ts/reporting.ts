@@ -11,6 +11,7 @@ import type {
   MetricSetDefinition,
 } from './registry-types.js';
 import { apiJson, parseSerdeValueJson } from './json.js';
+import { typedQuery } from './query.js';
 import { SerdeFloat, canonicalJson } from '@kasitek-labs/server-support/json';
 import { UtcTimestamp, transaction } from './db.js';
 import { type ReportingGrant, validateGrant } from './scope.js';
@@ -1931,19 +1932,16 @@ export async function registerReportingRoutes(
     await cache.close();
   });
   app.get(CATALOG_PATH, async (request, reply) => {
-    let scopeId: bigint;
-    try {
-      const query = request.query as Record<string, unknown>;
-      if (
-        Object.keys(query).some((key) => key !== 'reporting_scope_id') ||
-        typeof query.reporting_scope_id !== 'string' ||
-        !/^[-+]?\d+$/.test(query.reporting_scope_id)
-      )
-        throw Error();
-      scopeId = signedId(BigInt(query.reporting_scope_id));
-    } catch {
-      return reply.code(400).type('text/plain').send('Query deserialize error');
-    }
+    const query = typedQuery(
+        request.raw.url,
+        ['reporting_scope_id'],
+        {
+          required: ['reporting_scope_id'],
+          signedIntegers: ['reporting_scope_id'],
+          denyUnknown: true,
+        },
+      ),
+      scopeId = signedId(query.reporting_scope_id as bigint);
     try {
       const grant = await access.authenticate(request),
         response = await transaction(context.pool, async (tx) =>
