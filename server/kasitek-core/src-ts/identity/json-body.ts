@@ -3,6 +3,7 @@ import {
   RUST_JSON_VALUE_ROUTES,
   RUST_JSON_VALUE_FIELDS,
 } from "./json-number-contracts.js";
+import { GENERATED_SERDE_BODY_SCHEMAS } from "./json-body-schemas.generated.js";
 import { parseSerdeValueJson } from "../json.js";
 import type { FastifyRequest } from "fastify";
 import {
@@ -36,14 +37,15 @@ export function parseRequestJson(
   text: string,
 ): unknown {
   const typed = parseLosslessJson(text);
-  if (!isSerdeValueBodyBoundary(request))
+  if (!isSerdeValueBodyBoundary(request)) {
+    const routeKey = request.method + " " + request.routeOptions.url;
     assertNoDuplicateSerdeStructFields(
       text,
       request.routeOptions.schema?.body ??
-        manualTypedJsonBodySchemas[
-          request.method + " " + request.routeOptions.url
-        ],
+        manualTypedJsonBodySchemas[routeKey] ??
+        GENERATED_SERDE_BODY_SCHEMAS[routeKey],
     );
+  }
   canonicalBodies.set(request, parseSerdeValueJson(text));
   return typed;
 }
