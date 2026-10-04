@@ -7,6 +7,7 @@ import { registerAuthRoutes } from '../src-ts/routes/auth.js';
 import { registerSocialRoutes } from '../src-ts/routes/social.js';
 import { registerSocialOAuthRoutes } from '../src-ts/routes/social-oauth.js';
 import { registerNotificationRoutes } from '../src-ts/routes/notifications.js';
+import { registerBillingRoutes } from '../src-ts/routes/billing.js';
 
 test('typed auth, provider, and media queries preserve Actix extractor errors', async () => {
   const config = readConfig({
@@ -133,5 +134,21 @@ test('typed auth, provider, and media queries preserve Actix extractor errors', 
     }
   } finally {
     await notificationApp.close();
+  }
+
+  const billingApp = await buildApp(context, [
+    (instance, core) => registerBillingRoutes(instance, core),
+  ]);
+  try {
+    const response = await billingApp.inject({
+      url: '/api/billing/usage?range=7d&range=90d',
+    });
+    assert.equal(response.statusCode, 400);
+    assert.equal(
+      response.body,
+      'Query deserialize error: duplicate field `range`',
+    );
+  } finally {
+    await billingApp.close();
   }
 });

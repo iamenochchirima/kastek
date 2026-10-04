@@ -10,6 +10,7 @@ import {
   referralRewardConfig,
 } from "../services/referrals.js";
 import { ApiError } from "../error.js";
+import { typedQuery } from "../typed-query.js";
 export function paystackProvider(
   context: CoreContext,
 ): billing.PaystackProvider {
@@ -41,8 +42,9 @@ export function registerBillingRoutes(
     billing.getBillingSummary(context.pool, (await access(request)).org),
   );
   app.get("/api/billing/usage", async (request) => {
-    const { org } = await access(request),
-      range = (request.query as { range?: string }).range ?? "30d",
+    const query = typedQuery<{ range?: string }>(request.query, ["range"]),
+      { org } = await access(request),
+      range = query.range ?? "30d",
       days =
         range === "7d"
           ? 7
