@@ -3,6 +3,7 @@ import type { CoreContext } from '../context.js';
 import { ApiError } from '../error.js';
 import { extractUser } from '../identity/session.js';
 import * as notifications from '../services/notifications.js';
+import { queryI64, typedQuery } from '../typed-query.js';
 function object(value: unknown): Record<string, unknown> { if (!value || typeof value !== 'object' || Array.isArray(value))
     throw new ApiError(400, 'bad_request', 'Invalid request'); return value as Record<string, unknown>; }
 function optionalString(value: unknown): string | undefined { if (value == null)
@@ -16,18 +17,25 @@ export function registerNotificationRoutes(app: FastifyInstance, context: CoreCo
             cursor?: string;
         };
     }>('/api/notifications', async (request) => {
+        const query = typedQuery<{ limit?: string; cursor?: string }>(
+            request.query,
+            ['limit', 'cursor'],
+        );
+        const requestedLimit = queryI64(query.limit, 'limit');
         const user = await extractUser(request, context);
-        const { limit, cursor } = request.query;
-        let value = 20;
-        if (limit !== undefined) {
-            if (typeof limit !== 'string' || !/^[-+]?\d+$/.test(limit))
-                throw new ApiError(400, 'bad_request', 'Invalid request');
-            const parsed = BigInt(limit);
-            if (parsed < -9223372036854775808n || parsed > 9223372036854775807n)
-                throw new ApiError(400, 'bad_request', 'Invalid request');
-            value = Number(parsed);
-        }
-        return notifications.listNotificationInbox(context.pool, user.id, value, cursor);
+        const limit = requestedLimit === undefined
+            ? 20
+            : requestedLimit <= 1n
+                ? 1
+                : requestedLimit >= 100n
+                    ? 100
+                    : Number(requestedLimit);
+        return notifications.listNotificationInbox(
+            context.pool,
+            user.id,
+            limit,
+            query.cursor,
+        );
     });
     app.get('/api/notifications/unread', async (request) => { const user = await extractUser(request, context); return { unreadCount: await notifications.getUnreadNotificationCount(context.pool, user.id) }; });
     app.post('/api/notifications', async (request) => { const user = await extractUser(request, context); if (optionalString(body(request).action) !== 'mark_all_read')

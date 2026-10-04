@@ -6,6 +6,7 @@ import type { CoreContext } from '../src-ts/context.js';
 import { registerAuthRoutes } from '../src-ts/routes/auth.js';
 import { registerSocialRoutes } from '../src-ts/routes/social.js';
 import { registerSocialOAuthRoutes } from '../src-ts/routes/social-oauth.js';
+import { registerNotificationRoutes } from '../src-ts/routes/notifications.js';
 
 test('typed auth, provider, and media queries preserve Actix extractor errors', async () => {
   const config = readConfig({
@@ -107,5 +108,30 @@ test('typed auth, provider, and media queries preserve Actix extractor errors', 
     }
   } finally {
     await socialApp.close();
+  }
+
+  const notificationApp = await buildApp(context, [
+    (instance, core) => registerNotificationRoutes(instance, core),
+  ]);
+  try {
+    for (const [query, detail] of [
+      ['?limit=invalid', 'invalid digit found in string'],
+      [
+        '?limit=9223372036854775808',
+        'number too large to fit in target type',
+      ],
+      ['?cursor=first&cursor=second', 'duplicate field `cursor`'],
+    ] as const) {
+      const response = await notificationApp.inject({
+        url: `/api/notifications${query}`,
+      });
+      assert.equal(response.statusCode, 400);
+      assert.equal(
+        response.body,
+        `Query deserialize error: ${detail}`,
+      );
+    }
+  } finally {
+    await notificationApp.close();
   }
 });
