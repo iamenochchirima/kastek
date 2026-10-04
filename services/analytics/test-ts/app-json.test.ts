@@ -33,6 +33,64 @@ test('Analytics API maps malformed JSON syntax to the shared Serde-style detail'
   }
 });
 
+test('Analytics DTO JSON rejects repeated typed fields but preserves Value-map duplicates', async () => {
+  const context = {
+    pool: {} as Pool,
+    config: readConfig({ ANALYTICS_DATABASE_URL: 'postgres://unused' }),
+    registry: {} as RegistrySnapshot,
+    metrics: new ProcessMetrics(),
+  } satisfies AnalyticsContext;
+  const app = await buildApp(context);
+  try {
+    const duplicateDtoField = await app.inject({
+      method: 'POST',
+      url: '/internal/ingest/v1/batch',
+      headers: { 'content-type': 'application/json' },
+      payload: '{"records":[{"producer_id":"first","producer_id":"second"}]}',
+    });
+    assert.equal(duplicateDtoField.statusCode, 400);
+    assert.match(duplicateDtoField.body, /duplicate field `producer_id`/);
+
+    for (const [url, payload, field] of [
+      [
+        '/internal/reconciliation/v1/summary',
+        '{"reconciliation_run_id":"first","reconciliation_run_id":"second"}',
+        'reconciliation_run_id',
+      ],
+      [
+        '/internal/rollouts/v1/controls',
+        '{"control_key":"first","control_key":"second"}',
+        'control_key',
+      ],
+      [
+        '/v1/reports/query',
+        '{"reporting_scope_id":1,"reporting_scope_id":2}',
+        'reporting_scope_id',
+      ],
+    ]) {
+      const duplicateField = await app.inject({
+        method: 'POST',
+        url,
+        headers: { 'content-type': 'application/json' },
+        payload,
+      });
+      assert.equal(duplicateField.statusCode, 400, url);
+      assert.ok(duplicateField.body.includes("duplicate field `" + field + "`"));
+    }
+
+    const duplicateValueMapKey = await app.inject({
+      method: 'POST',
+      url: '/internal/ingest/v1/batch',
+      headers: { 'content-type': 'application/json' },
+      payload: '{"records":[{"producer_id":"producer","source_stream_key":"stream","source_sequence":1,"record_category":"event","record_id":"record","contract_name":"contract","schema_version":1,"scope_kind":"agency","scope_external_id":"workspace","payload_hash":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","envelope":{"data":{"key":"first","key":"last"}}}]}',
+    });
+    assert.equal(duplicateValueMapKey.statusCode, 401);
+    assert.equal(duplicateValueMapKey.headers['www-authenticate'], 'Bearer');
+  } finally {
+    await app.close();
+  }
+});
+
 test('bodyless rollout expiry does not inherit the JSON extractor size cap', async () => {
   const context = {
     pool: {} as Pool,

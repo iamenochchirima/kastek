@@ -7,7 +7,7 @@ import {MetricsAccess} from './metrics.js';
 import {registerHealthRoutes} from './health.js';
 import {RequestExtractionError,errorType} from './error.js';
 import {isSafeCorrelationId,redactTelemetryLogArguments} from '@kasitek-labs/server-support/telemetry';
-import {formatSerdeJsonSyntaxError} from '@kasitek-labs/server-support/json';
+import {assertNoDuplicateSerdeStructFields,formatSerdeJsonSyntaxError} from '@kasitek-labs/server-support/json';
 import {apiJson,parseSerdeValueJson} from './json.js';
 import {MAX_BATCH_BYTES,registerIngestionRoutes} from './ingestion.js';
 import {registerReconciliationRoutes} from './reconciliation.js';
@@ -31,6 +31,32 @@ export async function buildApp(context:AnalyticsContext,process:ProcessKind='ana
  app.setReplySerializer(apiJson);
  app.removeContentTypeParser('application/json');
  const jsonRoutes=new Set(['/internal/ingest/v1/batch','/internal/reconciliation/v1/summary','/internal/rollouts/v1/controls','/v1/reports/query']);
+ const stringField={type:'string'};
+ const jsonObject=(properties:Record<string,unknown>)=>({type:'object',properties});
+ const recordSchema=jsonObject({
+  producer_id:stringField,source_stream_key:stringField,source_sequence:{},record_category:stringField,
+  record_id:stringField,contract_name:stringField,schema_version:{},scope_kind:stringField,
+  scope_external_id:stringField,payload_hash:stringField,envelope:{},
+ });
+ const typedJsonBodySchemas:Record<string,unknown>={
+  '/internal/ingest/v1/batch':jsonObject({records:{type:'array',items:recordSchema},backfill_job_id:stringField}),
+  '/internal/reconciliation/v1/summary':jsonObject({
+   reconciliation_run_id:stringField,reconciliation_work_id:{},producer_id:stringField,source_domain:stringField,
+   source_stream_key:stringField,scope_kind:stringField,scope_external_id:stringField,
+   source_highest_outbox_sequence:{},source_highest_delivered_sequence:{},authoritative_count:{},authoritative_checksum:stringField,
+  }),
+  '/internal/rollouts/v1/controls':jsonObject({
+   control_key:stringField,control_kind:stringField,
+   target:jsonObject({kind:stringField,key:stringField}),enabled:{},percentage_basis_points:{},reason:stringField,
+   issue_ref:stringField,expires_at:stringField,remove:{},
+  }),
+  '/v1/reports/query':jsonObject({
+   reporting_scope_id:{},range_start:stringField,range_end:stringField,timezone:stringField,interval:stringField,
+   metrics:{type:'array',items:stringField},metric_set:stringField,breakdowns:{type:'array',items:stringField},
+   filters:{type:'object',additionalProperties:{type:'array',items:stringField}},include_descendants:{},
+   comparison:jsonObject({kind:stringField}),
+  }),
+ };
  const needsJson=(request:Pick<FastifyRequest,'method'|'routeOptions'>)=>request.method==='POST'&&jsonRoutes.has(request.routeOptions.url??'');
  const parseRequestBody:FastifyBodyParser<string|Buffer>=(request,body,done)=>{
   const hasJsonExtractor=needsJson(request);
@@ -38,7 +64,10 @@ export async function buildApp(context:AnalyticsContext,process:ProcessKind='ana
   let text:string;
   try{text=typeof body==='string'?body:new TextDecoder('utf-8',{fatal:true}).decode(body);}
   catch{done(new RequestExtractionError('json'));return;}
-  try{done(null,parseSerdeValueJson(text));}
+  try{
+   assertNoDuplicateSerdeStructFields(text,typedJsonBodySchemas[request.routeOptions.url??'']);
+   done(null,parseSerdeValueJson(text));
+  }
   catch(error){done(new RequestExtractionError(formatSerdeJsonSyntaxError(text,error)));}
  };
  app.addContentTypeParser(/^application\/(?:[a-z0-9.-]+\+)?json$/i,{parseAs:'string'},parseRequestBody);
