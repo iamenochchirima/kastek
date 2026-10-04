@@ -70,6 +70,17 @@ export function queryString(
   return value;
 }
 
+/** Parse a Rust `bool` encoded as an Actix query-string value. */
+export function queryBool(value: string | undefined): boolean | undefined {
+  if (value === undefined) return undefined;
+  if (value === "true") return true;
+  if (value === "false") return false;
+  throw new RequestExtractionError(
+    "query",
+    "provided string was not `true` or `false`",
+  );
+}
+
 /** Parse a Rust `u64`/64-bit `usize` encoded as an Actix query-string value. */
 export function queryU64(
   value: string | undefined,

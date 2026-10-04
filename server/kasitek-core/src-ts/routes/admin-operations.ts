@@ -16,7 +16,8 @@ import * as notifications from '../services/admin/notifications.js';
 import { registerOperatorRoutes } from '../services/admin/operations.js';
 import { registerAdminBillingRoutes } from '../services/admin/billing.js';
 import { obj, type ObjectValue } from '../services/admin/common.js';
-import { validateBody, queryInteger } from '../services/admin/validation.js';
+import { validateBody } from '../services/admin/validation.js';
+import { queryBool, queryI64, typedQuery } from '../typed-query.js';
 export function registerAdminOperationsRoutes(
   app: FastifyInstance,
   context: CoreContext,
@@ -25,8 +26,7 @@ export function registerAdminOperationsRoutes(
   const param = (request: FastifyRequest, key = 'id') =>
     String(obj(request.params)[key]);
   const body = (name: string, r: FastifyRequest) => validateBody(name, r.body);
-  const query = (name: string, r: FastifyRequest) =>
-    validateBody(name, r.query);
+  const query = (name: string, value: unknown) => validateBody(name, value);
   app.get('/api/admin/stats', async (request) => {
     const principal = await resolveAdminContext(request, context);
     if (!principal.effectiveGrants.has('admin:read'))
@@ -43,8 +43,12 @@ export function registerAdminOperationsRoutes(
     };
   });
   app.get('/api/admin/leads', async (r) => {
+    const q = typedQuery<{ status?: string; source?: string; search?: string }>(
+      r.query,
+      ['status', 'source', 'search'],
+    );
     await extractAdmin(r, context);
-    return leads.listLeads(pool, query('leads.ListLeadsQuery', r));
+    return leads.listLeads(pool, query('leads.ListLeadsQuery', q));
   });
   app.get('/api/admin/leads/:id', async (r) => {
     await extractAdmin(r, context);
@@ -96,8 +100,13 @@ export function registerAdminOperationsRoutes(
     return quotations.deleteQuotation(pool, param(r));
   });
   app.get('/api/admin/web-services', async (r) => {
+    const q = typedQuery<{
+      callStatus?: string;
+      category?: string;
+      search?: string;
+    }>(r.query, ['callStatus', 'category', 'search']);
     await extractAdmin(r, context);
-    return web.listWebServices(pool, query('web_services.ListQuery', r));
+    return web.listWebServices(pool, query('web_services.ListQuery', q));
   });
   app.get('/api/admin/web-services/:id', async (r) => {
     await extractAdmin(r, context);
@@ -199,13 +208,18 @@ export function registerAdminOperationsRoutes(
         ),
       );
   });
-  app.get('/api/admin/conversations', async (r) =>
-    conversations.listConversations(
+  app.get('/api/admin/conversations', async (r) => {
+    const q = typedQuery<{
+      channel?: string;
+      search?: string;
+      organizationId?: string;
+    }>(r.query, ['channel', 'search', 'organizationId']);
+    return conversations.listConversations(
       pool,
       (await extractAdmin(r, context)).id,
-      obj(r.query),
-    ),
-  );
+      obj(q),
+    );
+  });
   app.get('/api/admin/conversations/:id', async (r) =>
     conversations.getConversation(
       pool,
@@ -235,9 +249,30 @@ export function registerAdminOperationsRoutes(
       );
   });
   app.get('/api/admin/outreach/delivery', async (r, reply) => {
+    const queryValues = typedQuery<{
+      campaignId?: string;
+      status?: string;
+      mode?: string;
+      recipient?: string;
+      domain?: string;
+      dateFrom?: string;
+      dateTo?: string;
+      format?: string;
+      limit?: string;
+    }>(r.query, [
+        'campaignId',
+        'status',
+        'mode',
+        'recipient',
+        'domain',
+        'dateFrom',
+        'dateTo',
+        'format',
+        'limit',
+      ]),
+      parsedLimit = queryI64(queryValues.limit, 'limit');
     await extractAdmin(r, context);
-    const q = obj(r.query);
-    q.limit = queryInteger(q.limit);
+    const q: ObjectValue = { ...queryValues, limit: parsedLimit ?? null };
     const result = await outreach.listDeliveryLogs(pool, q);
     return typeof result === 'string'
       ? reply
@@ -261,11 +296,15 @@ export function registerAdminOperationsRoutes(
       );
   });
   app.get('/api/admin/outreach/:id/leads', async (r) => {
+    const q = typedQuery<{ emailStatus?: string; search?: string }>(r.query, [
+      'emailStatus',
+      'search',
+    ]);
     await extractAdmin(r, context);
     return outreach.listOutreachLeads(
       pool,
       param(r),
-      query('outreach.LeadQuery', r),
+      query('outreach.LeadQuery', q),
     );
   });
   app.post('/api/admin/outreach/:id/leads', async (r, reply) => {
@@ -298,16 +337,19 @@ export function registerAdminOperationsRoutes(
     return outreach.deleteOutreachLead(pool, param(r), param(r, 'lead_id'));
   });
   app.get('/api/admin/notifications', async (r) => {
-    const admin = await extractAdmin(r, context),
-      q = obj(r.query);
-    q.limit = queryInteger(q.limit);
-    if (
-      q.unreadOnly != null &&
-      q.unreadOnly !== 'true' &&
-      q.unreadOnly !== 'false'
-    )
-      throw new ApiError(400, 'bad_request', 'Invalid request');
-    return notifications.listNotifications(pool, admin.id, q);
+    const query = typedQuery<{
+        unreadOnly?: string;
+        limit?: string;
+        channel?: string;
+      }>(r.query, ['unreadOnly', 'limit', 'channel']),
+      unreadOnly = queryBool(query.unreadOnly),
+      limit = queryI64(query.limit, 'limit');
+    const admin = await extractAdmin(r, context);
+    return notifications.listNotifications(pool, admin.id, {
+      unreadOnly,
+      limit: limit ?? null,
+      channel: query.channel ?? null,
+    });
   });
   app.post('/api/admin/notifications', async (r) =>
     notifications.readAllNotifications(

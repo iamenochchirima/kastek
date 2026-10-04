@@ -9,7 +9,8 @@ import * as credits from '../credits.js';
 import * as referrals from '../referrals.js';
 import { paystackProvider } from '../../routes/billing.js';
 import { missing, obj, type ObjectValue } from './common.js';
-import { validateBody, queryInteger } from './validation.js';
+import { validateBody } from './validation.js';
+import { queryI64, typedQuery } from '../../typed-query.js';
 export function registerAdminBillingRoutes(
   app: FastifyInstance,
   context: CoreContext,
@@ -22,7 +23,6 @@ export function registerAdminBillingRoutes(
   }
   const body = (name: string, r: FastifyRequest) =>
       validateBody('billing.' + name, r.body),
-    q = (r: FastifyRequest) => obj(r.query),
     org = (r: FastifyRequest) => String(obj(r.params).orgId),
     id = (r: FastifyRequest, key: string) => String(obj(r.params)[key]);
   app.get('/api/admin/billing/orgs/:orgId/grants', async (r) => {
@@ -60,12 +60,17 @@ export function registerAdminBillingRoutes(
     return credits.getCreditAccount(pool, org(r));
   });
   app.get('/api/admin/billing/organizations', async (r) => {
+    const query = typedQuery<{ q?: string; limit?: string }>(r.query, [
+        'q',
+        'limit',
+      ]),
+      requestedLimit = queryI64(query.limit, 'limit');
     await access(r);
     return {
       organizations: await credits.searchCreditOrganizations(
         pool,
-        typeof q(r).q === 'string' ? (q(r).q as string) : null,
-        Number(queryInteger(q(r).limit) ?? 25),
+        query.q ?? null,
+        Number(requestedLimit ?? 25n),
       ),
     };
   });
@@ -105,13 +110,19 @@ export function registerAdminBillingRoutes(
     );
   });
   app.get('/api/admin/referrals', async (r) => {
+    const query = typedQuery<{
+      orgId?: string;
+      status?: string;
+      limit?: string;
+    }>(r.query, ['orgId', 'status', 'limit']);
+    const requestedLimit = queryI64(query.limit, 'limit');
     await access(r);
     return {
       referrals: await referrals.listReferralAttributions(
         pool,
-        (q(r).orgId as string) ?? null,
-        (q(r).status as string) ?? null,
-        Number(queryInteger(q(r).limit) ?? 100),
+        query.orgId ?? null,
+        query.status ?? null,
+        Number(requestedLimit ?? 100n),
       ),
     };
   });
@@ -168,9 +179,9 @@ export function registerAdminBillingRoutes(
     };
   });
   app.get('/api/admin/billing/reconciliation-issues', async (r) => {
+    const query = typedQuery<{ status?: string }>(r.query, ['status']);
     await access(r);
-    const status =
-      typeof q(r).status === 'string' ? (q(r).status as string).trim() : '';
+    const status = query.status?.trim() ?? '';
     return {
       issues: await billing.listReconciliationIssues(pool, status || null),
     };

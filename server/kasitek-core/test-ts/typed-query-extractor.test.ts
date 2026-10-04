@@ -251,6 +251,47 @@ test('typed queries preserve Actix extractor errors before route effects', async
         '/api/admin/operations/support-grants?organizationId=a&organizationId=b',
         'duplicate field `organizationId`',
       ],
+      ['/api/admin/leads?status=new&status=active', 'duplicate field `status`'],
+      [
+        '/api/admin/web-services?callStatus=called&callStatus=pending',
+        'duplicate field `callStatus`',
+      ],
+      [
+        '/api/admin/conversations?organizationId=a&organizationId=b',
+        'duplicate field `organizationId`',
+      ],
+      [
+        '/api/admin/outreach/campaign/leads?emailStatus=sent&emailStatus=failed',
+        'duplicate field `emailStatus`',
+      ],
+      [
+        '/api/admin/outreach/delivery?limit=9223372036854775808',
+        'number too large to fit in target type',
+      ],
+      [
+        '/api/admin/billing/organizations?limit=invalid',
+        'invalid digit found in string',
+      ],
+      [
+        '/api/admin/referrals?orgId=a&orgId=b',
+        'duplicate field `orgId`',
+      ],
+      [
+        '/api/admin/billing/reconciliation-issues?status=open&status=closed',
+        'duplicate field `status`',
+      ],
+      [
+        '/api/admin/notifications?unreadOnly=true&unreadOnly=false',
+        'duplicate field `unreadOnly`',
+      ],
+      [
+        '/api/admin/notifications?unreadOnly=yes',
+        'provided string was not `true` or `false`',
+      ],
+      [
+        '/api/admin/notifications?limit=9223372036854775808',
+        'number too large to fit in target type',
+      ],
     ] as const) {
       const response = await adminOperationsApp.inject({ url });
       assert.equal(response.statusCode, 400);
