@@ -3,7 +3,7 @@ import type { CoreContext } from "../context.js";
 import { extractUser, resolveActiveOrgId } from "../identity/session.js";
 import { requireAdmin } from "../services/orgs.js";
 import { ApiError, RequestExtractionError } from "../error.js";
-import { typedQuery } from "../typed-query.js";
+import { queryI64, typedQuery } from "../typed-query.js";
 import {
   bad,
   missing,
@@ -16,6 +16,19 @@ import * as channels from "../services/social/channels.js";
 import * as posts from "../services/social/posts.js";
 import * as media from "../services/social/media.js";
 import type { SocialPostUpsertRequest } from "../services/social/types.js";
+interface InsightsQuery {
+  platform?: string;
+  metrics?: string;
+  publishedFrom?: string;
+  published_from?: string;
+  publishedTo?: string;
+  published_to?: string;
+  limit?: string;
+}
+interface InsightsQueryInput {
+  query: InsightsQuery;
+  limit: bigint;
+}
 const string = { type: ["string", "null"] };
 const json = {};
 const channelSchema = {
@@ -267,26 +280,7 @@ export function registerSocialRoutes(
       request.query,
       ["expires", "signature"],
     );
-    if (query.expires === undefined)
-      throw new RequestExtractionError("query", "missing field `expires`");
-    if (!/^[-+]?\d+$/.test(query.expires))
-      throw new RequestExtractionError(
-        "query",
-        query.expires
-          ? "invalid digit found in string"
-          : "cannot parse integer from empty string",
-      );
-    const expires = BigInt(query.expires);
-    if (expires < -(1n << 63n))
-      throw new RequestExtractionError(
-        "query",
-        "number too small to fit in target type",
-      );
-    if (expires >= 1n << 63n)
-      throw new RequestExtractionError(
-        "query",
-        "number too large to fit in target type",
-      );
+    const expires = queryI64(query.expires, "expires", true)!;
     if (query.signature === undefined)
       throw new RequestExtractionError("query", "missing field `signature`");
     const result = await media.downloadPublicContentMedia(
@@ -350,16 +344,29 @@ export function registerSocialRoutes(
       ),
     };
   });
-  const filters = (request: FastifyRequest) => {
-    const query = request.query as {
-      platform?: string;
-      metrics?: string;
-      publishedFrom?: string;
-      published_from?: string;
-      publishedTo?: string;
-      published_to?: string;
-      limit?: string;
-    };
+  const extractFilters = (request: FastifyRequest): InsightsQueryInput => {
+    const query = typedQuery<InsightsQuery>(request.query, [
+      "platform",
+      "metrics",
+      "publishedFrom",
+      "published_from",
+      "publishedTo",
+      "published_to",
+      "limit",
+    ]);
+    if (query.publishedFrom !== undefined && query.published_from !== undefined)
+      throw new RequestExtractionError(
+        "query",
+        "duplicate field `publishedFrom`",
+      );
+    if (query.publishedTo !== undefined && query.published_to !== undefined)
+      throw new RequestExtractionError(
+        "query",
+        "duplicate field `publishedTo`",
+      );
+    return { query, limit: queryI64(query.limit, "limit") ?? 50n };
+  };
+  const filters = ({ query, limit }: InsightsQueryInput) => {
     const value = insights.parseInsightsFilters(
       query.platform,
       query.metrics,
@@ -368,35 +375,34 @@ export function registerSocialRoutes(
     );
     if (value.platform !== null && !isValidPlatform(value.platform))
       throw bad("Invalid social platform");
-    let limit = 50;
-    if (query.limit !== undefined) {
-      if (!/^[-+]?\d+$/.test(query.limit)) throw bad("Invalid request");
-      const parsed = BigInt(query.limit);
-      if (parsed < -(1n << 63n) || parsed >= 1n << 63n)
-        throw bad("Invalid request");
-      limit = Number(parsed);
-    }
-    return { value, limit };
+    return {
+      value,
+      limit: limit <= 1n ? 1 : limit >= 100n ? 100 : Number(limit),
+    };
   };
   app.get("/api/social/posts/insights", async (request) => {
-    const { org } = await scope(request, context);
-    const { value, limit } = filters(request);
+    const query = extractFilters(request),
+      { org } = await scope(request, context),
+      { value, limit } = filters(query);
     return insights.listSocialPostInsights(context.pool, org, value, limit);
   });
   app.get("/api/social/posts/:id/insights", async (request) => {
-    const { org } = await scope(request, context);
+    const query = extractFilters(request),
+      { org } = await scope(request, context),
+      { value } = filters(query);
     const result = await insights.getSocialPostInsights(
       context.pool,
       org,
       id(request),
-      filters(request).value,
+      value,
     );
     if (!result) throw missing("Post not found");
     return result;
   });
   app.post("/api/social/posts/:id/insights/refresh", async (request) => {
-    const { org } = await scope(request, context),
-      value = filters(request).value;
+    const query = extractFilters(request),
+      { org } = await scope(request, context),
+      { value } = filters(query);
     await insights.forceSyncSocialPostInsights(
       context.pool,
       org,

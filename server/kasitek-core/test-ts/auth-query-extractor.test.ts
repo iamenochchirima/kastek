@@ -80,6 +80,31 @@ test('typed auth, provider, and media queries preserve Actix extractor errors', 
         `Query deserialize error: ${detail}`,
       );
     }
+
+    for (const [query, detail] of [
+      [
+        '?metrics=likes&metrics=comments',
+        'duplicate field `metrics`',
+      ],
+      [
+        '?publishedFrom=2026-01-01&published_from=2026-01-02',
+        'duplicate field `publishedFrom`',
+      ],
+      ['?limit=invalid', 'invalid digit found in string'],
+      [
+        '?limit=9223372036854775808',
+        'number too large to fit in target type',
+      ],
+    ] as const) {
+      const response = await socialApp.inject({
+        url: `/api/social/posts/insights${query}`,
+      });
+      assert.equal(response.statusCode, 400);
+      assert.equal(
+        response.body,
+        `Query deserialize error: ${detail}`,
+      );
+    }
   } finally {
     await socialApp.close();
   }

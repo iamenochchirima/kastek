@@ -26,3 +26,35 @@ export function typedQuery<T extends object>(
 
   return result as T;
 }
+
+/** Parse a Rust `i64` encoded as an Actix query-string value. */
+export function queryI64(
+  value: string | undefined,
+  field: string,
+  required = false,
+): bigint | undefined {
+  if (value === undefined) {
+    if (required)
+      throw new RequestExtractionError('query', `missing field \`${field}\``);
+    return undefined;
+  }
+  if (!/^[-+]?\d+$/.test(value))
+    throw new RequestExtractionError(
+      'query',
+      value
+        ? 'invalid digit found in string'
+        : 'cannot parse integer from empty string',
+    );
+  const parsed = BigInt(value);
+  if (parsed < -(1n << 63n))
+    throw new RequestExtractionError(
+      'query',
+      'number too small to fit in target type',
+    );
+  if (parsed >= 1n << 63n)
+    throw new RequestExtractionError(
+      'query',
+      'number too large to fit in target type',
+    );
+  return parsed;
+}
