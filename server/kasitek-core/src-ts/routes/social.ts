@@ -2,7 +2,8 @@ import type { FastifyInstance, FastifyRequest } from "fastify";
 import type { CoreContext } from "../context.js";
 import { extractUser, resolveActiveOrgId } from "../identity/session.js";
 import { requireAdmin } from "../services/orgs.js";
-import { ApiError } from "../error.js";
+import { ApiError, RequestExtractionError } from "../error.js";
+import { typedQuery } from "../typed-query.js";
 import {
   bad,
   missing,
@@ -262,16 +263,32 @@ export function registerSocialRoutes(
       .send(result.bytes);
   });
   app.get("/api/social/media/:id/public", async (request, reply) => {
-    const query = request.query as { expires?: string; signature?: string };
-    if (
-      typeof query.expires !== "string" ||
-      !/^[-+]?\d+$/.test(query.expires) ||
-      typeof query.signature !== "string"
-    )
-      throw bad("Invalid request");
+    const query = typedQuery<{ expires?: string; signature?: string }>(
+      request.query,
+      ["expires", "signature"],
+    );
+    if (query.expires === undefined)
+      throw new RequestExtractionError("query", "missing field `expires`");
+    if (!/^[-+]?\d+$/.test(query.expires))
+      throw new RequestExtractionError(
+        "query",
+        query.expires
+          ? "invalid digit found in string"
+          : "cannot parse integer from empty string",
+      );
     const expires = BigInt(query.expires);
-    if (expires < -(1n << 63n) || expires >= 1n << 63n)
-      throw bad("Invalid request");
+    if (expires < -(1n << 63n))
+      throw new RequestExtractionError(
+        "query",
+        "number too small to fit in target type",
+      );
+    if (expires >= 1n << 63n)
+      throw new RequestExtractionError(
+        "query",
+        "number too large to fit in target type",
+      );
+    if (query.signature === undefined)
+      throw new RequestExtractionError("query", "missing field `signature`");
     const result = await media.downloadPublicContentMedia(
       context.pool,
       context.config,

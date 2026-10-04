@@ -4,9 +4,10 @@ import { readConfig } from '../src-ts/config.js';
 import { buildApp } from '../src-ts/app.js';
 import type { CoreContext } from '../src-ts/context.js';
 import { registerAuthRoutes } from '../src-ts/routes/auth.js';
+import { registerSocialRoutes } from '../src-ts/routes/social.js';
 import { registerSocialOAuthRoutes } from '../src-ts/routes/social-oauth.js';
 
-test('typed OAuth query extractors reject repeated fields before side effects', async () => {
+test('typed auth, provider, and media queries preserve Actix extractor errors', async () => {
   const config = readConfig({
       DATABASE_URL: 'postgres://unused',
       FRONTEND_URL: 'http://localhost:3000',
@@ -20,7 +21,7 @@ test('typed OAuth query extractors reject repeated fields before side effects', 
         },
       },
     } as unknown as CoreContext,
-    app = await buildApp(context, [
+    oauthApp = await buildApp(context, [
       registerAuthRoutes,
       registerSocialOAuthRoutes,
     ]);
@@ -42,7 +43,7 @@ test('typed OAuth query extractors reject repeated fields before side effects', 
       ],
       ['/api/social/oauth/bluesky/callback?iss=first&iss=second', 'iss'],
     ] as const) {
-      const response = await app.inject({ url });
+      const response = await oauthApp.inject({ url });
       assert.equal(response.statusCode, 400);
       assert.equal(
         response.headers['content-type'],
@@ -54,6 +55,32 @@ test('typed OAuth query extractors reject repeated fields before side effects', 
       );
     }
   } finally {
-    await app.close();
+    await oauthApp.close();
+  }
+
+  const socialApp = await buildApp(context, [
+    (instance, core) => registerSocialRoutes(instance, core),
+  ]);
+  try {
+    for (const [query, detail] of [
+      ['', 'missing field `expires`'],
+      ['?expires=1', 'missing field `signature`'],
+      ['?expires=invalid&signature=value', 'invalid digit found in string'],
+      [
+        '?expires=9223372036854775808&signature=value',
+        'number too large to fit in target type',
+      ],
+    ] as const) {
+      const response = await socialApp.inject({
+        url: `/api/social/media/synthetic/public${query}`,
+      });
+      assert.equal(response.statusCode, 400);
+      assert.equal(
+        response.body,
+        `Query deserialize error: ${detail}`,
+      );
+    }
+  } finally {
+    await socialApp.close();
   }
 });
