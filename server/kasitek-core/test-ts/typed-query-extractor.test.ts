@@ -15,11 +15,20 @@ import { registerEarlyAccessRoutes } from '../src-ts/routes/early-access.js';
 import { registerWhatsappMarketingRoutes } from '../src-ts/routes/whatsapp.js';
 import { registerPublicV1Routes } from '../src-ts/routes/public-v1.js';
 import { stringQueryMap } from '../src-ts/typed-query.js';
+import { registerAgentPlatformRoutes } from '../src-ts/routes/agent-platform.js';
+import { validatedQuery } from '../src-ts/services/agent-platform/controller-support.js';
 
 test('typed queries preserve Actix extractor errors before route effects', async () => {
   const mapped = stringQueryMap({ duplicate: ['old', 'new'], only: 'value' });
   assert.equal(mapped.duplicate, 'new');
   assert.equal(mapped.only, 'value');
+  const agentQuery = validatedQuery(
+    { raw: { url: '/api/agents?unknown=one&unknown=two&limit=4' } } as never,
+    { limit: 32 },
+    ['limit'],
+  );
+  assert.equal(agentQuery.limit, 4);
+  assert.equal(Object.hasOwn(agentQuery, 'unknown'), false);
 
   const config = readConfig({
       DATABASE_URL: 'postgres://unused',
@@ -261,5 +270,31 @@ test('typed queries preserve Actix extractor errors before route effects', async
     }
   } finally {
     await publicApiApp.close();
+  }
+
+  const agentProxyApp = await buildApp(context, [
+    (instance, core) => registerAgentPlatformRoutes(instance, core),
+  ]);
+  try {
+    for (const [url, detail] of [
+      [
+        '/api/agents/operations/runs?limit=10&limit=20',
+        'duplicate field `limit`',
+      ],
+      [
+        '/api/agents/conversations/handoffs?status=open&status=closed',
+        'duplicate field `status`',
+      ],
+      [
+        '/api/agents/runs/synthetic/memory-observatory?afterSequence=18446744073709551616',
+        'number too large to fit in target type',
+      ],
+    ] as const) {
+      const response = await agentProxyApp.inject({ url });
+      assert.equal(response.statusCode, 400);
+      assert.equal(response.body, `Query deserialize error: ${detail}`);
+    }
+  } finally {
+    await agentProxyApp.close();
   }
 });

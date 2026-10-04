@@ -1,6 +1,7 @@
 import { Readable, Transform } from "node:stream";
 import type { FastifyRequest } from "fastify";
 import { ApiError, RequestExtractionError } from "../../error.js";
+import { queryU32, queryU64 } from "../../typed-query.js";
 export function bad(message: string): never {
   throw new ApiError(400, "bad_request", message);
 }
@@ -24,18 +25,23 @@ export function validUint(value: string, bits: number): boolean {
 export function validatedQuery(
   request: FastifyRequest,
   numeric: Record<string, 32 | 64>,
+  fields: readonly string[] = Object.keys(numeric),
 ): Record<string, unknown> {
-  const result: Record<string, unknown> = {};
+  const result = Object.create(null) as Record<string, unknown>,
+    accepted = new Set(fields);
   const params = new URLSearchParams(
     request.raw.url?.split("?").slice(1).join("?") ?? "",
   );
   for (const [key, value] of params) {
-    if (Object.hasOwn(result, key)) throw new RequestExtractionError("query");
+    if (!accepted.has(key)) continue;
+    if (Object.hasOwn(result, key))
+      throw new RequestExtractionError("query", `duplicate field \`${key}\``);
     result[key] = value;
     if (numeric[key]) {
-      if (!validUint(value, numeric[key]))
-        throw new RequestExtractionError("query");
-      result[key] = numeric[key] === 64 ? BigInt(value) : Number(value);
+      result[key] =
+        numeric[key] === 64
+          ? queryU64(value, key)
+          : queryU32(value, key);
     }
   }
   return result;

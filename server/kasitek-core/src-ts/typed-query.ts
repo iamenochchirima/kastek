@@ -97,6 +97,22 @@ export function queryU64(
   return parsed;
 }
 
+/** Parse a Rust `u32` query-string value and keep its safe JS-number representation. */
+export function queryU32(
+  value: string | undefined,
+  field: string,
+  required = false,
+): number | undefined {
+  const parsed = queryU64(value, field, required);
+  if (parsed === undefined) return undefined;
+  if (parsed > (1n << 32n) - 1n)
+    throw new RequestExtractionError(
+      'query',
+      'number too large to fit in target type',
+    );
+  return Number(parsed);
+}
+
 /** Decode Actix `Query<HashMap<String, String>>` semantics from Fastify's query object. */
 export function stringQueryMap(value: unknown): Record<string, string> {
   const source =

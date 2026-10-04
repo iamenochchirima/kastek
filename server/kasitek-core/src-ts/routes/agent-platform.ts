@@ -47,6 +47,15 @@ async function agentScope(
 }
 const param = (request: FastifyRequest, name: string) =>
   (request.params as Record<string, string>)[name]!;
+function agentListQuery(request: FastifyRequest): Record<string, unknown> {
+  try {
+    return validatedQuery(request, {}, ["environment"]);
+  } catch (error) {
+    if (error instanceof RequestExtractionError)
+      throw new ApiError(400, "bad_request", "Invalid agent list query");
+    throw error;
+  }
+}
 function requiredJson(request: FastifyRequest): unknown {
   if (request.body === undefined) bad("Invalid request");
   return canonicalJsonBody(request);
@@ -1371,7 +1380,7 @@ export function registerAgentPlatformRoutes(
   });
   app.get("/api/agents", async (request, reply) => {
     const { user, org } = await agentScope(request, core, false);
-    const query = validatedQuery(request, {});
+    const query = agentListQuery(request);
     if (
       query.environment !== null &&
       query.environment !== undefined &&
@@ -1404,8 +1413,8 @@ export function registerAgentPlatformRoutes(
     },
   );
   app.get("/api/agents/operations/runs", async (request, reply) => {
-    const { user, org } = await agentScope(request, core, false);
-    const query = validatedQuery(request, { limit: 32 });
+    const query = validatedQuery(request, { limit: 32 }, ["limit"]),
+      { user, org } = await agentScope(request, core, false);
     checkLimit(query.limit, 200, "Run limit must be between 1 and 200");
     const result = await new AgentPlatformClient(
       core.config,
@@ -1416,8 +1425,8 @@ export function registerAgentPlatformRoutes(
   app.get(
     "/api/agents/operations/effects/reconciliation",
     async (request, reply) => {
-      const { user, org } = await agentScope(request, core, false);
-      const query = validatedQuery(request, { limit: 32 });
+      const query = validatedQuery(request, { limit: 32 }, ["limit"]),
+        { user, org } = await agentScope(request, core, false);
       checkLimit(
         query.limit,
         500,
@@ -1481,8 +1490,8 @@ export function registerAgentPlatformRoutes(
   app.get(
     "/api/agents/installations/:installationId/runs",
     async (request, reply) => {
-      const { user, org } = await agentScope(request, core, false);
-      const query = validatedQuery(request, { limit: 32 });
+      const query = validatedQuery(request, { limit: 32 }, ["limit"]),
+        { user, org } = await agentScope(request, core, false);
       checkLimit(query.limit, 200, "Run limit must be between 1 and 200");
       const result = await new AgentPlatformClient(
         core.config,
@@ -1540,8 +1549,12 @@ export function registerAgentPlatformRoutes(
     },
   );
   app.get("/api/agents/knowledge/sources", async (request, reply) => {
-    const { user, org } = await agentScope(request, core, false);
-    const query = validatedQuery(request, { limit: 32 });
+    const query = validatedQuery(request, { limit: 32 }, [
+        "agentId",
+        "installationId",
+        "limit",
+      ]),
+      { user, org } = await agentScope(request, core, false);
     checkLimit(query.limit, 500, "Knowledge limit must be between 1 and 500");
     const result = await new AgentPlatformClient(
       core.config,
@@ -1629,8 +1642,12 @@ export function registerAgentPlatformRoutes(
     },
   );
   app.get("/api/agents/memory", async (request, reply) => {
-    const { user, org } = await agentScope(request, core, false);
-    const query = validatedQuery(request, { limit: 32 });
+    const query = validatedQuery(request, { limit: 32 }, [
+        "agentId",
+        "installationId",
+        "limit",
+      ]),
+      { user, org } = await agentScope(request, core, false);
     const agentId = requiredString(query, "agentId", "agentId is required");
     checkLimit(query.limit, 500, "Memory limit must be between 1 and 500");
     const result = await new AgentPlatformClient(
@@ -1646,8 +1663,20 @@ export function registerAgentPlatformRoutes(
     return reply.code(200).send(result);
   });
   app.get("/api/agents/conversations/handoffs", async (request, reply) => {
-    const { user, org } = await agentScope(request, core, false);
-    const query = validatedQuery(request, { limit: 32 });
+    const query = validatedQuery(request, { limit: 32 }, [
+        "installationId",
+        "agentId",
+        "channelType",
+        "reason",
+        "status",
+        "assignment",
+        "priority",
+        "search",
+        "limit",
+        "cursor",
+        "before",
+      ]),
+      { user, org } = await agentScope(request, core, false);
     const result = await new AgentPlatformClient(
       core.config,
       options,
@@ -1669,8 +1698,14 @@ export function registerAgentPlatformRoutes(
     return reply.code(200).send(result);
   });
   app.get("/api/agents/conversations/live", async (request, reply) => {
-    const { user, org } = await agentScope(request, core, false);
-    const query = validatedQuery(request, { limit: 32 });
+    const query = validatedQuery(request, { limit: 32 }, [
+        "installationId",
+        "agentId",
+        "channelType",
+        "search",
+        "limit",
+      ]),
+      { user, org } = await agentScope(request, core, false);
     const result = await new AgentPlatformClient(
       core.config,
       options,
@@ -1686,8 +1721,14 @@ export function registerAgentPlatformRoutes(
     return reply.code(200).send(result);
   });
   app.get("/api/agents/conversations/customer", async (request, reply) => {
-    const { user, org } = await agentScope(request, core, false);
-    const query = validatedQuery(request, { limit: 32 });
+    const query = validatedQuery(request, { limit: 32 }, [
+        "installationId",
+        "agentId",
+        "channelType",
+        "search",
+        "limit",
+      ]),
+      { user, org } = await agentScope(request, core, false);
     const result = await new AgentPlatformClient(
       core.config,
       options,
@@ -1703,8 +1744,14 @@ export function registerAgentPlatformRoutes(
     return reply.code(200).send(result);
   });
   app.get("/api/agents/conversations/summary", async (request, reply) => {
-    const { user, org } = await agentScope(request, core, false);
-    const query = validatedQuery(request, { limit: 32 });
+    const query = validatedQuery(request, { limit: 32 }, [
+        "installationId",
+        "agentId",
+        "channelType",
+        "search",
+        "limit",
+      ]),
+      { user, org } = await agentScope(request, core, false);
     const result = await new AgentPlatformClient(
       core.config,
       options,
@@ -1738,8 +1785,12 @@ export function registerAgentPlatformRoutes(
     },
   );
   app.get("/api/agents/audit", async (request, reply) => {
-    const { user, org } = await agentScope(request, core, false);
-    const query = validatedQuery(request, { limit: 32 });
+    const query = validatedQuery(request, { limit: 32 }, [
+        "action",
+        "resourceType",
+        "limit",
+      ]),
+      { user, org } = await agentScope(request, core, false);
     checkLimit(query.limit, 500, "Audit limit must be between 1 and 500");
     const result = await new AgentPlatformClient(
       core.config,
@@ -1773,8 +1824,8 @@ export function registerAgentPlatformRoutes(
     },
   );
   app.get("/api/agents/skills/directory", async (request, reply) => {
-    const { user, org } = await agentScope(request, core, false);
-    const query = validatedQuery(request, {});
+    const query = validatedQuery(request, {}, ["agentVersionId"]),
+      { user, org } = await agentScope(request, core, false);
     const result = await new AgentPlatformClient(
       core.config,
       options,
@@ -1894,8 +1945,8 @@ export function registerAgentPlatformRoutes(
   app.get(
     "/api/agents/agent-versions/:agentVersionId/effective-config",
     async (request, reply) => {
-      const { user, org } = await agentScope(request, core, false);
-      const query = validatedQuery(request, {});
+      const query = validatedQuery(request, {}, ["installationId"]),
+        { user, org } = await agentScope(request, core, false);
       const result = await new AgentPlatformClient(
         core.config,
         options,
@@ -1911,8 +1962,11 @@ export function registerAgentPlatformRoutes(
   app.get(
     "/api/agents/conversations/:conversationId",
     async (request, reply) => {
-      const { user, org } = await agentScope(request, core, false);
-      const query = validatedQuery(request, { limit: 32 });
+      const query = validatedQuery(request, { limit: 32 }, [
+          "limit",
+          "before",
+        ]),
+        { user, org } = await agentScope(request, core, false);
       checkLimit(
         query.limit,
         200,
@@ -1940,8 +1994,12 @@ export function registerAgentPlatformRoutes(
   app.get(
     "/api/agents/runs/:runId/memory-observatory",
     async (request, reply) => {
-      const { user, org } = await agentScope(request, core, false);
-      const query = validatedQuery(request, { limit: 32, afterSequence: 64 });
+      const query = validatedQuery(
+          request,
+          { limit: 32, afterSequence: 64 },
+          ["limit", "afterSequence"],
+        ),
+        { user, org } = await agentScope(request, core, false);
       checkLimit(
         query.limit,
         200,
@@ -2210,8 +2268,8 @@ export function registerAgentPlatformRoutes(
           ? "/api/agents/conversations/:conversationId/events/stream"
           : "/api/agents/runs/:runId/events/stream";
     app.get(path, async (request, reply) => {
-      const { user, org } = await agentScope(request, core);
-      const query = validatedQuery(request, { after: 64 }),
+      const query = validatedQuery(request, { after: 64 }, ["after"]),
+        { user, org } = await agentScope(request, core),
         client = new AgentPlatformClient(core.config, options);
       const response = await (kind === "feed"
         ? client.streamConversationFeedEvents(org, user.id)
