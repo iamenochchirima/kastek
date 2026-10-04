@@ -8,8 +8,9 @@ import { registerSocialRoutes } from '../src-ts/routes/social.js';
 import { registerSocialOAuthRoutes } from '../src-ts/routes/social-oauth.js';
 import { registerNotificationRoutes } from '../src-ts/routes/notifications.js';
 import { registerBillingRoutes } from '../src-ts/routes/billing.js';
+import { registerEmailRoutes } from '../src-ts/routes/email.js';
 
-test('typed auth, provider, and media queries preserve Actix extractor errors', async () => {
+test('typed queries preserve Actix extractor errors before route effects', async () => {
   const config = readConfig({
       DATABASE_URL: 'postgres://unused',
       FRONTEND_URL: 'http://localhost:3000',
@@ -26,6 +27,7 @@ test('typed auth, provider, and media queries preserve Actix extractor errors', 
     oauthApp = await buildApp(context, [
       registerAuthRoutes,
       registerSocialOAuthRoutes,
+      registerEmailRoutes,
     ]);
 
   try {
@@ -34,6 +36,15 @@ test('typed auth, provider, and media queries preserve Actix extractor errors', 
       ['/api/auth/login?screen=login&screen=signup', 'screen'],
       ['/api/auth/callback?state=first&state=second', 'state'],
       ['/api/auth/callback?error=denied&error=other', 'error'],
+      [
+        '/api/email/oauth/google/start?returnTo=%2F&returnTo=%2Fagain',
+        'returnTo',
+      ],
+      ['/api/email/oauth/google/callback?state=first&state=second', 'state'],
+      [
+        '/api/email/oauth/google/callback?error_description=first&error_description=second',
+        'error_description',
+      ],
       [
         '/api/social/oauth/x/start?connectionId=first&connectionId=second',
         'connectionId',

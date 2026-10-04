@@ -1,6 +1,7 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { CoreContext } from '../context.js';
 import { ApiError } from '../error.js';
+import { typedQuery } from '../typed-query.js';
 import { extractUser, resolveActiveOrgId } from '../identity/session.js';
 import { requireAdmin } from '../services/orgs.js';
 import * as email from '../services/email/index.js';
@@ -39,16 +40,11 @@ export function registerEmailRoutes(
   );
   app.get<{ Params: { provider: string }; Querystring: { returnTo?: string } }>(
     '/api/email/oauth/:provider/start',
-    {
-      schema: {
-        querystring: {
-          type: 'object',
-          properties: { returnTo: { type: 'string' } },
-        },
-      },
-    },
     async (request) => {
-      const { user, orgId } = await scope(request);
+      const query = typedQuery<{ returnTo?: string }>(request.query, [
+          'returnTo',
+        ]),
+        { user, orgId } = await scope(request);
       await requireAdmin(context.pool, orgId, user.id);
       const provider = email.providerConfig(
           context.config,
@@ -59,7 +55,7 @@ export function registerEmailRoutes(
           orgId,
           user.id,
           provider,
-          email.safeReturnPath(request.query.returnTo),
+          email.safeReturnPath(query.returnTo),
         );
       return {
         provider: provider.provider,
@@ -77,22 +73,14 @@ export function registerEmailRoutes(
     };
   }>(
     '/api/email/oauth/:provider/callback',
-    {
-      schema: {
-        querystring: {
-          type: 'object',
-          properties: {
-            state: { type: 'string' },
-            code: { type: 'string' },
-            error: { type: 'string' },
-            error_description: { type: 'string' },
-          },
-        },
-      },
-    },
     async (request, reply) => {
-      const query = request.query;
-      if (typeof query.state !== 'string')
+      const query = typedQuery<{
+        state?: string;
+        code?: string;
+        error?: string;
+        error_description?: string;
+      }>(request.query, ['state', 'code', 'error', 'error_description']);
+      if (query.state === undefined)
         throw new ApiError(400, 'bad_request', 'Email OAuth state is missing');
       const state = await email.consumeOAuthState(context.pool, query.state);
       if (!state)
