@@ -4,7 +4,7 @@ import {Readable} from 'node:stream';
 import cors from '@fastify/cors';
 import { environmentAllowsLoopbackOrigins, isLoopbackOrigin } from '@kasitek-labs/server-support/config';
 import { redactTelemetryLogArguments } from '@kasitek-labs/server-support/telemetry';
-import { assertSerdeUnicodeEscapes, formatSerdeJsonSyntaxError } from '@kasitek-labs/server-support/json';
+import { assertNoDuplicateSerdeStructFields, assertSerdeUnicodeEscapes, formatSerdeJsonSyntaxError } from '@kasitek-labs/server-support/json';
 import type {TenantContext} from './context.js';
 import {installErrorHandler,RequestExtractionError} from './error.js';
 import {apiJson,parseSerdeValueJson} from './json.js';
@@ -48,6 +48,12 @@ export async function buildApp(context:TenantContext,registrars:RouteRegistrar[]
    try { assertSerdeUnicodeEscapes(text); }
    catch(syntaxError){return done(new RequestExtractionError('json',formatSerdeJsonSyntaxError(text,syntaxError)));}
    try {
+    // This source handler accepts arbitrary serde_json::Value, not a typed DTO.
+    const valueBody=request.method==='PATCH'&&request.routeOptions.url==='/api/admin/workspaces/:id';
+    if(!valueBody){
+     try { assertNoDuplicateSerdeStructFields(text,request.routeOptions.schema?.body); }
+     catch(syntaxError){return done(new RequestExtractionError('json',formatSerdeJsonSyntaxError(text,syntaxError)));}
+    }
     // Source update_workspace takes Json<Value>; scopes inside create_api_key is also Value.
     if(request.method==='PATCH'&&request.routeOptions.url==='/api/admin/workspaces/:id')value=parseSerdeValueJson(text);
     else if(request.method==='POST'&&request.routeOptions.url==='/api/admin/workspaces/:id/api-keys'){
