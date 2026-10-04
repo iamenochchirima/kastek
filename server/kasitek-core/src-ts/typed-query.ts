@@ -58,3 +58,14 @@ export function queryI64(
     );
   return parsed;
 }
+
+/** Read an optional/required string field from an already validated query. */
+export function queryString(
+  value: string | undefined,
+  field: string,
+  required = false,
+): string | undefined {
+  if (value === undefined && required)
+    throw new RequestExtractionError('query', `missing field \`${field}\``);
+  return value;
+}

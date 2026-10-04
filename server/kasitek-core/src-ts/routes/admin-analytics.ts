@@ -9,6 +9,7 @@ import {
   type AdminUser,
 } from "../identity/admin-session.js";
 import { SerdeFloat } from "@kasitek-labs/server-support/json";
+import { queryI64, queryString, typedQuery } from "../typed-query.js";
 import * as analytics from "../services/admin/analytics.js";
 import * as reports from "../services/admin/reports.js";
 import * as activity from "../services/admin/activity.js";
@@ -56,22 +57,35 @@ function text(value: unknown): string {
   return value;
 }
 function activityQuery(request: FastifyRequest): activity.ActivityQuery {
-  const query = (request.query ?? {}) as Record<string, unknown>,
-    result: activity.ActivityQuery = {
-      days: signedInteger(query.days, true),
-      limit: signedInteger(query.limit, true),
-    };
-  for (const key of [
+  const query = typedQuery<{
+    days?: string;
+    limit?: string;
+    cursor?: string;
+    domain?: string;
+    action?: string;
+    status?: string;
+    severity?: string;
+    organizationId?: string;
+  }>(request.query, [
+    "days",
+    "limit",
     "cursor",
     "domain",
     "action",
     "status",
     "severity",
     "organizationId",
-  ] as const) {
-    if (query[key] != null) result[key] = text(query[key]);
-  }
-  return result;
+  ]);
+  return {
+    days: queryI64(query.days, "days") ?? null,
+    limit: queryI64(query.limit, "limit") ?? null,
+    cursor: query.cursor,
+    domain: query.domain,
+    action: query.action,
+    status: query.status,
+    severity: query.severity,
+    organizationId: query.organizationId,
+  };
 }
 export async function registerAdminAnalyticsRoutes(
   app: FastifyInstance,
@@ -85,19 +99,19 @@ export async function registerAdminAnalyticsRoutes(
   };
   for (const route of ["overview", "usage", "revenue", "customers"] as const)
     app.get(`/api/admin/analytics/${route}`, async (request) => {
+      const query = typedQuery<{ days?: string }>(request.query, ["days"]),
+        days = queryI64(query.days, "days") ?? null;
       await authorized(request);
-      return analytics[route](
-        core.pool,
-        signedInteger((request.query as Record<string, unknown>).days, true),
-      );
+      return analytics[route](core.pool, days);
     });
   app.get("/api/admin/activity", async (request) => {
+    const query = activityQuery(request);
     await authorized(request);
-    return activity.listActivity(core.pool, activityQuery(request));
+    return activity.listActivity(core.pool, query);
   });
   app.get("/api/admin/activity/stream", async (request, reply) => {
-    await authorized(request);
     const query = activityQuery(request);
+    await authorized(request);
     activity.validateActivityQuery(query);
     const controller = new AbortController();
     reply.raw.on("close", () => controller.abort());
@@ -142,14 +156,14 @@ export async function registerAdminAnalyticsRoutes(
     return reply.code(204).send();
   });
   app.get("/api/admin/reports/export", async (request, reply) => {
-    const admin = await authorized(request, true),
-      query = request.query as Record<string, unknown>,
-      result = await reports.exportReport(
-        core.pool,
-        admin.id,
-        text(query.report),
-        signedInteger(query.days, true),
-      );
+    const query = typedQuery<{ report?: string; days?: string }>(
+        request.query,
+        ["report", "days"],
+      ),
+      days = queryI64(query.days, "days") ?? null,
+      report = queryString(query.report, "report", true)!,
+      admin = await authorized(request),
+      result = await reports.exportReport(core.pool, admin.id, report, days);
     return reply
       .type("text/csv; charset=utf-8")
       .header(

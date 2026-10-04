@@ -10,6 +10,7 @@ import { registerNotificationRoutes } from '../src-ts/routes/notifications.js';
 import { registerBillingRoutes } from '../src-ts/routes/billing.js';
 import { registerEmailRoutes } from '../src-ts/routes/email.js';
 import { registerConnectionRoutes } from '../src-ts/routes/connections.js';
+import { registerAdminAnalyticsRoutes } from '../src-ts/routes/admin-analytics.js';
 
 test('typed queries preserve Actix extractor errors before route effects', async () => {
   const config = readConfig({
@@ -167,5 +168,33 @@ test('typed queries preserve Actix extractor errors before route effects', async
     );
   } finally {
     await billingApp.close();
+  }
+
+  const adminQueryApp = await buildApp(context, [
+    async (instance, core) => registerAdminAnalyticsRoutes(instance, core),
+  ]);
+  try {
+    for (const [url, detail] of [
+      [
+        '/api/admin/analytics/overview?days=7&days=30',
+        'duplicate field `days`',
+      ],
+      [
+        '/api/admin/activity?organizationId=one&organizationId=two',
+        'duplicate field `organizationId`',
+      ],
+      ['/api/admin/activity/stream?limit=invalid', 'invalid digit found in string'],
+      ['/api/admin/reports/export', 'missing field `report`'],
+      [
+        '/api/admin/reports/export?report=usage&days=9223372036854775808',
+        'number too large to fit in target type',
+      ],
+    ] as const) {
+      const response = await adminQueryApp.inject({ url });
+      assert.equal(response.statusCode, 400);
+      assert.equal(response.body, `Query deserialize error: ${detail}`);
+    }
+  } finally {
+    await adminQueryApp.close();
   }
 });
