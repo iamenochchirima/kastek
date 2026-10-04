@@ -15,7 +15,7 @@ import {
 import * as support from "./support-access.js";
 import * as replay from "./webhook-replay.js";
 import { bad, byteLength, obj, type ObjectValue } from "./common.js";
-import { queryInteger } from "./validation.js";
+import { queryU32, queryString, typedQuery } from "../../typed-query.js";
 const prefix = "/api/admin/operations";
 export function registerOperatorRoutes(
   app: FastifyInstance,
@@ -56,9 +56,12 @@ export function registerOperatorRoutes(
       );
     return admin;
   }
-  function limit(query: ObjectValue, label: string, max = 500) {
-    const raw = queryInteger(query.limit, "u32");
-    const n = raw == null ? null : Number(raw);
+  function listLimit(request: FastifyRequest) {
+    const query = typedQuery<{ limit?: string }>(request.query, ["limit"]);
+    return queryU32(query.limit, "limit");
+  }
+  function limit(raw: number | undefined, label: string, max = 500) {
+    const n = raw ?? null;
     if (n != null && (n < 1 || n > max))
       bad(`${label} limit must be between 1 and ${max}`);
     return n;
@@ -74,49 +77,76 @@ export function registerOperatorRoutes(
     return body as ObjectValue;
   }
   app.get(prefix + "/runs", async (request) => {
+    const requestedLimit = listLimit(request);
     const admin = await access(request);
-    const requestedLimit = limit(obj(request.query), "Operator run");
-    return client().operatorRuns(admin.id, requestedLimit);
+    return client().operatorRuns(
+      admin.id,
+      limit(requestedLimit, "Operator run"),
+    );
   });
   app.get(prefix + "/exports", async (request) => {
+    const requestedLimit = listLimit(request);
     const admin = await access(request);
-    const requestedLimit = limit(obj(request.query), "Operator export");
-    return client().operatorExports(admin.id, requestedLimit);
+    return client().operatorExports(
+      admin.id,
+      limit(requestedLimit, "Operator export"),
+    );
   });
   app.get(prefix + "/kill-switches", async (request) => {
+    const requestedLimit = listLimit(request);
     const admin = await access(request);
-    const requestedLimit = limit(obj(request.query), "Operator kill-switch");
-    return client().operatorKillSwitches(admin.id, requestedLimit);
+    return client().operatorKillSwitches(
+      admin.id,
+      limit(requestedLimit, "Operator kill-switch"),
+    );
   });
   app.get(prefix + "/feature-flags", async (request) => {
+    const requestedLimit = listLimit(request);
     const admin = await access(request);
-    const requestedLimit = limit(obj(request.query), "Operator feature-flag");
-    return client().operatorFeatureFlags(admin.id, requestedLimit);
+    return client().operatorFeatureFlags(
+      admin.id,
+      limit(requestedLimit, "Operator feature-flag"),
+    );
   });
   app.get(prefix + "/audio-transcription/jobs", async (request) => {
+    const requestedLimit = listLimit(request);
     const admin = await access(request);
-    const requestedLimit = limit(obj(request.query), "Audio transcription job");
-    return client().operatorAudioTranscriptionJobs(admin.id, requestedLimit);
+    return client().operatorAudioTranscriptionJobs(
+      admin.id,
+      limit(requestedLimit, "Audio transcription job"),
+    );
   });
   app.get(prefix + "/holds", async (request) => {
+    const requestedLimit = listLimit(request);
     const admin = await access(request);
-    const requestedLimit = limit(obj(request.query), "Operator hold");
-    return client().operatorHolds(admin.id, requestedLimit);
+    return client().operatorHolds(
+      admin.id,
+      limit(requestedLimit, "Operator hold"),
+    );
   });
   app.get(prefix + "/retention/policies", async (request) => {
+    const requestedLimit = listLimit(request);
     const admin = await access(request);
-    const requestedLimit = limit(obj(request.query), "Retention policy");
-    return client().operatorRetentionPolicies(admin.id, requestedLimit);
+    return client().operatorRetentionPolicies(
+      admin.id,
+      limit(requestedLimit, "Retention policy"),
+    );
   });
   app.get(prefix + "/retention/legal-holds", async (request) => {
+    const requestedLimit = listLimit(request);
     const admin = await access(request);
-    const requestedLimit = limit(obj(request.query), "Legal hold");
-    return client().operatorLegalHolds(admin.id, requestedLimit);
+    return client().operatorLegalHolds(
+      admin.id,
+      limit(requestedLimit, "Legal hold"),
+    );
   });
   app.get(prefix + "/effects/reconciliation", async (request) => {
+    const requestedLimit = listLimit(request);
     const admin = await access(request);
-    const requestedLimit = limit(obj(request.query), "Operator reconciliation");
-    return client().operatorEffectsReconciliation(admin.id, requestedLimit);
+    return client().operatorEffectsReconciliation(
+      admin.id,
+      limit(requestedLimit, "Operator reconciliation"),
+    );
   });
   app.get(prefix + "/summary", async (request) => {
     const admin = await access(request);
@@ -154,23 +184,31 @@ export function registerOperatorRoutes(
     },
   );
   app.get(prefix + "/audit", async (request) => {
-    const admin = await access(request),
-      q = obj(request.query);
-    const requestedLimit = limit(q, "Operator audit");
+    const q = typedQuery<{
+        action?: string;
+        resourceType?: string;
+        limit?: string;
+      }>(request.query, ["action", "resourceType", "limit"]),
+      parsedLimit = queryU32(q.limit, "limit");
+    const admin = await access(request);
     return client().operatorAudit(
       admin.id,
-      typeof q.action === "string" ? q.action : null,
-      typeof q.resourceType === "string" ? q.resourceType : null,
-      requestedLimit,
+      q.action ?? null,
+      q.resourceType ?? null,
+      limit(parsedLimit, "Operator audit"),
     );
   });
   app.get(prefix + "/search", async (request) => {
-    const admin = await access(request),
-      q = obj(request.query),
-      term = typeof q.q === "string" ? q.q.trim() : "";
+    const q = typedQuery<{ q?: string; limit?: string }>(request.query, [
+        "q",
+        "limit",
+      ]),
+      term = queryString(q.q, "q", true)!.trim(),
+      parsedLimit = queryU32(q.limit, "limit");
+    const admin = await access(request);
     if (byteLength(term) < 2 || byteLength(term) > 160)
       bad("Operator search requires 2-160 characters");
-    const requestedLimit = limit(q, "Operator search", 200);
+    const requestedLimit = limit(parsedLimit, "Operator search", 200);
     return client().operatorSearch(admin.id, term, requestedLimit);
   });
   app.post(prefix + "/commands", async (request, reply) => {
@@ -221,11 +259,12 @@ export function registerOperatorRoutes(
     },
   );
   app.get(prefix + "/webhooks/deliveries", async (request) => {
+    const requestedLimit = listLimit(request);
     await access(request);
     return {
       deliveries: await replay.failedDeliveries(
         context.pool,
-        limit(obj(request.query), "Webhook delivery", 100) ?? 50,
+        limit(requestedLimit, "Webhook delivery", 100) ?? 50,
       ),
     };
   });
@@ -263,12 +302,14 @@ export function registerOperatorRoutes(
         ),
   );
   app.get(prefix + "/support-grants", async (request) => {
+    const q = typedQuery<{ organizationId?: string }>(request.query, [
+      "organizationId",
+    ]);
     await access(request, "support-view");
-    const q = obj(request.query);
     return {
       grants: await support.listSupportGrants(
         context.pool,
-        typeof q.organizationId === "string" ? q.organizationId.trim() : null,
+        q.organizationId?.trim() ?? null,
       ),
     };
   });

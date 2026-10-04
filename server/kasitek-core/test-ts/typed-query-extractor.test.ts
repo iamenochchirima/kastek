@@ -14,6 +14,7 @@ import { registerAdminAnalyticsRoutes } from '../src-ts/routes/admin-analytics.j
 import { registerEarlyAccessRoutes } from '../src-ts/routes/early-access.js';
 import { registerWhatsappMarketingRoutes } from '../src-ts/routes/whatsapp.js';
 import { registerPublicV1Routes } from '../src-ts/routes/public-v1.js';
+import { registerAdminOperationsRoutes } from '../src-ts/routes/admin-operations.js';
 import { stringQueryMap } from '../src-ts/typed-query.js';
 import { registerAgentPlatformRoutes } from '../src-ts/routes/agent-platform.js';
 import { validatedQuery } from '../src-ts/services/agent-platform/controller-support.js';
@@ -218,6 +219,49 @@ test('typed queries preserve Actix extractor errors before route effects', async
     }
   } finally {
     await adminQueryApp.close();
+  }
+
+  const adminOperationsApp = await buildApp(context, [
+    (instance, core) => registerAdminOperationsRoutes(instance, core),
+  ]);
+  try {
+    for (const [url, detail] of [
+      [
+        '/api/admin/operations/runs?limit=1&limit=2',
+        'duplicate field `limit`',
+      ],
+      [
+        '/api/admin/operations/exports?limit=4294967296',
+        'number too large to fit in target type',
+      ],
+      [
+        '/api/admin/operations/audit?action=read&action=write',
+        'duplicate field `action`',
+      ],
+      ['/api/admin/operations/search', 'missing field `q`'],
+      [
+        '/api/admin/operations/search?q=first&q=second',
+        'duplicate field `q`',
+      ],
+      [
+        '/api/admin/operations/webhooks/deliveries?limit=invalid',
+        'invalid digit found in string',
+      ],
+      [
+        '/api/admin/operations/support-grants?organizationId=a&organizationId=b',
+        'duplicate field `organizationId`',
+      ],
+    ] as const) {
+      const response = await adminOperationsApp.inject({ url });
+      assert.equal(response.statusCode, 400);
+      assert.equal(
+        response.headers['content-type'],
+        'text/plain; charset=utf-8',
+      );
+      assert.equal(response.body, `Query deserialize error: ${detail}`);
+    }
+  } finally {
+    await adminOperationsApp.close();
   }
 
   const whatsappQueryApp = await buildApp(context, [
