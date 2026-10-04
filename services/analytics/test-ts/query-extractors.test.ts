@@ -76,6 +76,7 @@ test('typed query routes preserve extractor errors and authorization order', asy
         400,
         'Query deserialize error: unknown field `extra`, expected one of `control_key`, `control_kind`, `source_service`, `source_domain`, `reporting_scope_id`, `cohort_key`',
       ],
+      ['/internal/rollouts/v1/evaluate?control_key=ui', 401],
       ['/internal/rollouts/v1/evaluate?control_key=ui&control_kind=rollout', 401],
     ];
 
