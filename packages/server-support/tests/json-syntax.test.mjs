@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   parseLosslessJson,
   parseSerdeValueJson,
+  assertNoDuplicateSerdeStructFields,
   formatSerdeJsonSyntaxError,
   formatSerdeValidationError,
 } from "../dist/json.js";
@@ -40,6 +41,45 @@ test("Node JSON syntax diagnostics match common Serde messages without echoing i
     assert.equal(actual, expected);
     assert.equal(actual.includes(source), false);
   }
+});
+
+test("typed Serde fields reject duplicates while Value/map keys retain last-write semantics", () => {
+  const schema = {
+    type: "object",
+    properties: {
+      token: { type: "string" },
+      profile: {
+        type: "object",
+        properties: { displayName: { type: "string" } },
+      },
+      entries: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: { id: { type: "string" } },
+        },
+      },
+      metadata: { type: "object", additionalProperties: true },
+    },
+  };
+  for (const source of [
+    '{"token":"first","token":"second"}',
+    String.raw`{"token":"first","\u0074oken":"second"}`,
+    '{"profile":{"displayName":"first","displayName":"second"}}',
+    '{"entries":[{"id":"first","id":"second"}]}',
+  ]) {
+    assert.throws(
+      () => assertNoDuplicateSerdeStructFields(source, schema),
+      (error) =>
+        formatSerdeJsonSyntaxError(source, error).startsWith("duplicate field `"),
+    );
+  }
+  assert.doesNotThrow(() =>
+    assertNoDuplicateSerdeStructFields(
+      '{"extra":"first","extra":"last","metadata":{"key":1,"key":2}}',
+      schema,
+    ),
+  );
 });
 
 test("JSON parsers reject lone UTF-16 surrogate escapes like Serde", () => {
