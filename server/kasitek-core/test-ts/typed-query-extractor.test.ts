@@ -9,6 +9,7 @@ import { registerSocialOAuthRoutes } from '../src-ts/routes/social-oauth.js';
 import { registerNotificationRoutes } from '../src-ts/routes/notifications.js';
 import { registerBillingRoutes } from '../src-ts/routes/billing.js';
 import { registerEmailRoutes } from '../src-ts/routes/email.js';
+import { registerConnectionRoutes } from '../src-ts/routes/connections.js';
 
 test('typed queries preserve Actix extractor errors before route effects', async () => {
   const config = readConfig({
@@ -28,6 +29,7 @@ test('typed queries preserve Actix extractor errors before route effects', async
       registerAuthRoutes,
       registerSocialOAuthRoutes,
       registerEmailRoutes,
+      (instance, core) => registerConnectionRoutes(instance, core),
     ]);
 
   try {
@@ -41,6 +43,10 @@ test('typed queries preserve Actix extractor errors before route effects', async
         'returnTo',
       ],
       ['/api/email/oauth/google/callback?state=first&state=second', 'state'],
+      [
+        '/api/connections/synthetic/access/request?capabilities=read&capabilities=write',
+        'capabilities',
+      ],
       [
         '/api/email/oauth/google/callback?error_description=first&error_description=second',
         'error_description',

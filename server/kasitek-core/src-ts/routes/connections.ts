@@ -6,6 +6,7 @@ import { requireAdmin } from '../services/orgs.js';
 import * as connections from '../services/connections.js';
 import * as permissions from '../integrations/connection-permissions.js';
 import { authMode } from '../integrations/provider-permissions.js';
+import { typedQuery } from '../typed-query.js';
 
 export function registerConnectionRoutes(app: FastifyInstance, context: CoreContext): void {
   async function scope(request: FastifyRequest, admin = false): Promise<string> {
@@ -45,12 +46,12 @@ export function registerConnectionRoutes(app: FastifyInstance, context: CoreCont
   app.get<{ Params: { id: string }; Querystring: { capabilities?: string } }>(
     '/api/connections/:id/access/request',
     async (request, reply) => {
+      const queryFields = typedQuery<{ capabilities?: string }>(request.query, [
+        'capabilities',
+      ]);
       const orgId = await scope(request, true);
       await connections.syncOrgConnections(context.pool, orgId);
-      if (request.query.capabilities !== undefined && typeof request.query.capabilities !== 'string') {
-        throw new ApiError(400, 'bad_request', 'Invalid request');
-      }
-      const requested = permissions.parseRequestedCapabilities(request.query.capabilities);
+      const requested = permissions.parseRequestedCapabilities(queryFields.capabilities);
       const plan = await permissions.planAccessRequest(context.pool, orgId, request.params.id, requested);
       const id = encodeURIComponent(plan.context.id);
       const query = `connectionId=${id}&capabilities=${encodeURIComponent(requested.join(','))}`;
