@@ -5,7 +5,11 @@ import {
 } from "./json-number-contracts.js";
 import { parseSerdeValueJson } from "../json.js";
 import type { FastifyRequest } from "fastify";
-import { parseLosslessJson, SerdeFloat } from "@kasitek-labs/server-support/json";
+import {
+  assertNoDuplicateSerdeStructFields,
+  parseLosslessJson,
+  SerdeFloat,
+} from "@kasitek-labs/server-support/json";
 import { RequestExtractionError } from "../error.js";
 const canonicalBodies = new WeakMap<FastifyRequest, unknown>();
 /** Preserve JSON number kinds separately while typed DTOs keep primitive numbers for Ajv. */
@@ -14,6 +18,8 @@ export function parseRequestJson(
   text: string,
 ): unknown {
   const typed = parseLosslessJson(text);
+  if (!isSerdeValueBodyBoundary(request))
+    assertNoDuplicateSerdeStructFields(text, request.routeOptions.schema?.body);
   canonicalBodies.set(request, parseSerdeValueJson(text));
   return typed;
 }

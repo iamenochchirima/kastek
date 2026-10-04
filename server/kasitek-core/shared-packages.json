@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "sourceCommit": "8b46383ed3b73a95a908a39e42a5aeba9716a8a4",
-  "sourceContentSha256": "6c02d51a8e1ebe8b809276d9ea0e787f7c49a0ac276bbb882ff4295bdefac3f7",
+  "sourceCommit": "f56ca046889b29f936b684cc88cce0e12e20e8af",
+  "sourceContentSha256": "d6d3828088174f59daa22d69d6ef385559ce7a623953bc4b5ec5c463615255ab",
   "node": "v24.19.0",
   "packageManager": "pnpm@10.30.1",
   "sourceFiles": [
@@ -43,7 +43,7 @@
     },
     {
       "path": "packages/server-support/package.json",
-      "sha256": "58f637f4c4ba63a253373561ab7e021e8d31304b78c0b639bae2f32fc5a6da3b"
+      "sha256": "904f4a16d321a1f0b1346d9c50ec17c2ae2658a918623689f8807899ef205165"
     },
     {
       "path": "packages/server-support/scripts/pack-shared.mjs",
@@ -75,7 +75,7 @@
     },
     {
       "path": "packages/server-support/src/json.ts",
-      "sha256": "a4dd35bcc6f7bd00721feb4b527988a8d82448511df09451fdba4d1224e17e5d"
+      "sha256": "16cd19292f24d96070273fda7409242e5a686ca1706e5df991f0b959e1c14719"
     },
     {
       "path": "packages/server-support/src/outbox-sql.ts",
@@ -103,7 +103,7 @@
     },
     {
       "path": "packages/server-support/tests/json-syntax.test.mjs",
-      "sha256": "d61f8cb7907591cbdc4399a749fab540deca4f8a0f3c0482bc5b4b0f12eced65"
+      "sha256": "1870bfa3d47d844e26998283fd203f0cc8d610be851e564f82dede3df9a298bf"
     },
     {
       "path": "packages/server-support/tests/outbox-postgres.test.mjs",
@@ -148,10 +148,10 @@
     },
     {
       "package": "@kasitek-labs/server-support",
-      "version": "0.1.8",
-      "file": "kasitek-labs-server-support-0.1.8.tgz",
-      "sha256": "289af96f38927996dd14b6aae320b35c780de80f56cf72efcf857f4963a23c63",
-      "integrity": "sha512-HRN/u0aFpF2fOPbVtHRj40fAPyZBnAAHBlIKIwhDHUBxLjyZafKCKag9cB+BciHKR2sLFdhQi9LR1eGSI3hgog=="
+      "version": "0.1.9",
+      "file": "kasitek-labs-server-support-0.1.9.tgz",
+      "sha256": "c2f1c16860642e72c053959b6505496387fc26aa998004021c4908f2f8a91a84",
+      "integrity": "sha512-Am+5OKNFwfYApV5X8kxEKwcIL0gbYMWkuHFn/NgCOamZ9n3haPw20Vpqag3MwXNyuzE7NatqI77TM48LLgDkPA=="
     }
   ]
 }
