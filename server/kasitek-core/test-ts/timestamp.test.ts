@@ -20,10 +20,13 @@ test('PostgreSQL timestamps retain microseconds and chrono UTC fraction formatti
   installPgTimestampParsers();
   assert.equal(pg.types.getTypeParser(1082)('2026-01-01'), '2026-01-01');
   assert.equal(pg.types.getTypeParser(1114)('2026-01-01 12:00:00.123456').toJSON(), '2026-01-01T12:00:00.123456Z');
+  assert.equal(pg.types.getTypeParser(1184)('2026-01-01 12:00:00.123456+02').toJSON(), '2026-01-01T10:00:00.123456Z');
   assert.equal(apiJson({ amount: 9223372036854775807n, omitted: undefined,
     at: new UtcTimestamp('2026-01-01 12:00:00.123456', false) }),
   '{"amount":9223372036854775807,"at":"2026-01-01T12:00:00.123456Z"}');
-  assert.equal(pg.types.getTypeParser(3802)('{"amount":9223372036854775807}').amount, 9223372036854775807n);
+  const json = '{"amount":9223372036854775807}';
+  assert.equal(pg.types.getTypeParser(114)(json).amount, 9223372036854775807n);
+  assert.equal(pg.types.getTypeParser(3802)(json).amount, 9223372036854775807n);
 });
 
 test('Date query parameters remain UTC on a Johannesburg host', {skip:!process.env.CORE_TIMESTAMP_TEST_DATABASE_URL}, async()=>{

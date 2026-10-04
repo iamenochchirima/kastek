@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { canonicalJson, SerdeFloat } from "@kasitek-labs/server-support/json";
+import { apiJson, canonicalJson, SerdeFloat } from "@kasitek-labs/server-support/json";
 import { catalog } from "../src-ts/actions/catalog.js";
 import {
   ActionError,
@@ -49,6 +49,22 @@ const incoming = (): IncomingActionRequest => ({
   requested_at: new Date("2026-01-01Z"),
   deadline: null,
 });
+
+test("tagged action enums keep their Serde wire shape", () => {
+  assert.equal(
+    apiJson({
+      type: "tenant_staff",
+      workspace_id: "workspace",
+      client_access: { type: "assigned", client_ids: ["client-a", "client-b"] },
+    }),
+    '{"client_access":{"client_ids":["client-a","client-b"],"type":"assigned"},"type":"tenant_staff","workspace_id":"workspace"}',
+  );
+  assert.equal(
+    apiJson({ status: "approval_required", approval_id: "approval" }),
+    '{"approval_id":"approval","status":"approval_required"}',
+  );
+});
+
 function fixture(events: string[]): ExecutionPorts {
   return {
     clock: { now: () => new Date("2026-01-02Z") },
