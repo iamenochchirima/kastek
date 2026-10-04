@@ -3,7 +3,7 @@ import { createId } from '@paralleldrive/cuid2';
 import type { FastifyInstance, FastifyReply } from 'fastify';
 import * as oidc from 'openid-client';
 import type { CoreContext } from '../context.js';
-import { ApiError } from '../error.js';
+import { ApiError, RequestExtractionError } from '../error.js';
 import { provider, setting, unauthorized } from '../identity/provider.js';
 import { USER_SESSION_COOKIE, sha256, extractUser, requireOrigin } from '../identity/session.js';
 import { backchannelLogout, logoutAll } from '../identity/logout.js';
@@ -109,9 +109,25 @@ export async function registerAuthRoutes(app: FastifyInstance, context: CoreCont
     url.search = new URLSearchParams({ id_token_hint: session.idToken, client_id: setting(context, 'OIDC_CLIENT_ID'), post_logout_redirect_uri: `${context.config.frontendUrl.replace(/\/$/, '')}/login` }).toString();
     return reply.header('Cache-Control', 'no-store').clearCookie(USER_SESSION_COOKIE, cookieOptions(context)).send({ redirectUrl: url.href });
   });
-  app.post<{ Body: { logout_token?: string } }>('/api/auth/backchannel-logout', async (request, reply) => {
-    if (typeof request.body?.logout_token !== 'string') throw unauthorized();
-    await backchannelLogout(context, request.body.logout_token);
+  app.post<{ Body: { logout_token?: string | string[] } }>('/api/auth/backchannel-logout', {
+    bodyLimit: 16_384,
+    onRequest: async (request) => {
+      const contentType = request.headers['content-type'];
+      const headerValue = typeof contentType === 'string' ? contentType : '';
+      const mediaType = (headerValue.split(';', 1)[0] ?? '').trim().toLowerCase();
+      if (mediaType !== 'application/x-www-form-urlencoded') {
+        throw new RequestExtractionError('form', 'Content type error.', 415);
+      }
+    },
+  }, async (request, reply) => {
+    const token = request.body?.logout_token;
+    if (Array.isArray(token)) {
+      throw new RequestExtractionError('form', 'Parse error: duplicate field `logout_token`.');
+    }
+    if (typeof token !== 'string') {
+      throw new RequestExtractionError('form', 'Parse error: missing field `logout_token`.');
+    }
+    await backchannelLogout(context, token);
     return reply.code(200).send();
   });
 }

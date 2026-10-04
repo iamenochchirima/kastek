@@ -32,14 +32,14 @@ export class ApiError extends Error {
 /** Framework extractors in Actix return text, unlike explicit domain AppError JSON. */
 export class RequestExtractionError extends ApiError {
   constructor(
-    public readonly extractor: "json" | "query",
+    public readonly extractor: "json" | "query" | "form",
     message = "Invalid request",
+    status = 400,
   ) {
-    super(
-      400,
-      "bad_request",
-      `${extractor === "json" ? "Json" : "Query"} deserialize error: ${message}`,
-    );
+    const detail = extractor === "form"
+      ? message
+      : `${extractor === "json" ? "Json" : "Query"} deserialize error: ${message}`;
+    super(status, "bad_request", detail);
     this.name = "RequestExtractionError";
   }
 }
@@ -69,6 +69,7 @@ export function installErrorHandler(app: FastifyInstance): void {
     if (error.code === "FST_ERR_CTP_BODY_TOO_LARGE") {
       const bytes = request.headers["content-length"],
         limit = request.routeOptions.bodyLimit;
+      const form = request.routeOptions.url === "/api/auth/backchannel-logout";
       const raw =
         [
           "/api/webhooks/whatsapp",
@@ -78,22 +79,28 @@ export function installErrorHandler(app: FastifyInstance): void {
         ].includes(request.routeOptions.url ?? "") ||
         (request.method === "DELETE" &&
           request.routeOptions.url === "/api/social/posts/:id");
-      const message = raw
-        ? "payload reached size limit"
-        : bytes
-          ? `JSON payload (${bytes} bytes) is larger than allowed (limit: ${limit} bytes).`
-          : `JSON payload has exceeded limit (${limit} bytes).`;
+      const message = form
+        ? bytes
+          ? `URL encoded payload is larger (${bytes} bytes) than allowed (limit: ${limit} bytes).`
+          : `URL encoded payload has exceeded limit (limit: ${limit} bytes).`
+        : raw
+          ? "payload reached size limit"
+          : bytes
+            ? `JSON payload (${bytes} bytes) is larger than allowed (limit: ${limit} bytes).`
+            : `JSON payload has exceeded limit (${limit} bytes).`;
       return reply.code(413).type("text/plain; charset=utf-8").send(message);
     }
-    if (error.code === "FST_ERR_CTP_INVALID_MEDIA_TYPE")
+    if (error.code === "FST_ERR_CTP_INVALID_MEDIA_TYPE") {
+      const form = request.routeOptions.url === "/api/auth/backchannel-logout";
       return reply
         .code(
-          request.routeOptions.url?.startsWith("/api/webhooks/twilio/")
+          form || request.routeOptions.url?.startsWith("/api/webhooks/twilio/")
             ? 415
             : 400,
         )
         .type("text/plain; charset=utf-8")
-        .send("Content type error");
+        .send(form ? "Content type error." : "Content type error");
+    }
     if (
       error.code === "FST_ERR_CTP_INVALID_JSON_BODY" ||
       error.code === "FST_ERR_CTP_EMPTY_JSON_BODY"
