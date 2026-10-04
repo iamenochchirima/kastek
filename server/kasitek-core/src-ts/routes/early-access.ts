@@ -1,6 +1,7 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { CoreContext } from '../context.js';
 import { ApiError } from '../error.js';
+import { queryI64, typedQuery } from '../typed-query.js';
 import { extractUser, resolveActiveOrgId } from '../identity/session.js';
 import { extractAdmin, requireAdminRole } from '../identity/admin-session.js';
 import * as access from '../services/early-access.js';
@@ -37,15 +38,14 @@ export async function registerEarlyAccessRoutes(app: FastifyInstance, core: Core
     });
   const prefix = '/api/admin/early-access';
   app.get<{ Querystring: { status?: string; search?: string; cohort?: string; limit?: string } }>(prefix, async (request) => {
+    const query = typedQuery<{
+      status?: string;
+      search?: string;
+      cohort?: string;
+      limit?: string;
+    }>(request.query, ['status', 'search', 'cohort', 'limit']);
+    const limit = queryI64(query.limit, 'limit') ?? null;
     await operator(request);
-    const query = request.query;
-    for (const value of Object.values(query)) if (typeof value !== 'string') throw new ApiError(400, 'bad_request', 'Invalid request');
-    let limit: bigint | undefined;
-    if (query.limit !== undefined) {
-      if (!/^[+-]?\d+$/.test(query.limit)) throw new ApiError(400, 'bad_request', 'Invalid request');
-      limit = BigInt(query.limit);
-      if (limit < -9223372036854775808n || limit > 9223372036854775807n) throw new ApiError(400, 'bad_request', 'Invalid request');
-    }
     return { applications: await access.listApplications(core.pool, { ...query, limit }) };
   });
   app.get<{ Params: IdParams }>(`${prefix}/:id`, async (request) => {

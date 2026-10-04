@@ -11,6 +11,8 @@ import { registerBillingRoutes } from '../src-ts/routes/billing.js';
 import { registerEmailRoutes } from '../src-ts/routes/email.js';
 import { registerConnectionRoutes } from '../src-ts/routes/connections.js';
 import { registerAdminAnalyticsRoutes } from '../src-ts/routes/admin-analytics.js';
+import { registerEarlyAccessRoutes } from '../src-ts/routes/early-access.js';
+import { registerWhatsappMarketingRoutes } from '../src-ts/routes/whatsapp.js';
 
 test('typed queries preserve Actix extractor errors before route effects', async () => {
   const config = readConfig({
@@ -171,7 +173,10 @@ test('typed queries preserve Actix extractor errors before route effects', async
   }
 
   const adminQueryApp = await buildApp(context, [
-    async (instance, core) => registerAdminAnalyticsRoutes(instance, core),
+    async (instance, core) => {
+      await registerAdminAnalyticsRoutes(instance, core);
+      await registerEarlyAccessRoutes(instance, core);
+    },
   ]);
   try {
     for (const [url, detail] of [
@@ -185,6 +190,8 @@ test('typed queries preserve Actix extractor errors before route effects', async
       ],
       ['/api/admin/activity/stream?limit=invalid', 'invalid digit found in string'],
       ['/api/admin/reports/export', 'missing field `report`'],
+      ['/api/admin/early-access?status=new&status=active', 'duplicate field `status`'],
+      ['/api/admin/early-access?limit=invalid', 'invalid digit found in string'],
       [
         '/api/admin/reports/export?report=usage&days=9223372036854775808',
         'number too large to fit in target type',
@@ -196,5 +203,32 @@ test('typed queries preserve Actix extractor errors before route effects', async
     }
   } finally {
     await adminQueryApp.close();
+  }
+
+  const whatsappQueryApp = await buildApp(context, [
+    (instance, core) => registerWhatsappMarketingRoutes(instance, core),
+  ]);
+  try {
+    for (const [url, detail] of [
+      [
+        '/api/whatsapp/contacts?limit=10&limit=20',
+        'duplicate field `limit`',
+      ],
+      ['/api/whatsapp/contacts?cursor=-1', 'invalid digit found in string'],
+      [
+        '/api/whatsapp/contacts?cursor=18446744073709551616',
+        'number too large to fit in target type',
+      ],
+      [
+        '/api/whatsapp/templates?status=approved&status=pending',
+        'duplicate field `status`',
+      ],
+    ] as const) {
+      const response = await whatsappQueryApp.inject({ url });
+      assert.equal(response.statusCode, 400);
+      assert.equal(response.body, `Query deserialize error: ${detail}`);
+    }
+  } finally {
+    await whatsappQueryApp.close();
   }
 });

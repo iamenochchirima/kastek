@@ -69,3 +69,30 @@ export function queryString(
     throw new RequestExtractionError('query', `missing field \`${field}\``);
   return value;
 }
+
+/** Parse a Rust `u64`/64-bit `usize` encoded as an Actix query-string value. */
+export function queryU64(
+  value: string | undefined,
+  field: string,
+  required = false,
+): bigint | undefined {
+  if (value === undefined) {
+    if (required)
+      throw new RequestExtractionError('query', `missing field \`${field}\``);
+    return undefined;
+  }
+  if (!/^\+?\d+$/.test(value))
+    throw new RequestExtractionError(
+      'query',
+      value
+        ? 'invalid digit found in string'
+        : 'cannot parse integer from empty string',
+    );
+  const parsed = BigInt(value);
+  if (parsed > (1n << 64n) - 1n)
+    throw new RequestExtractionError(
+      'query',
+      'number too large to fit in target type',
+    );
+  return parsed;
+}

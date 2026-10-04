@@ -17,6 +17,7 @@ import type {
   WhatsappContactListQuery,
 } from "../services/whatsapp/types.js";
 import { SerdeFloat } from "@kasitek-labs/server-support/json";
+import { queryI64, queryU64, typedQuery } from "../typed-query.js";
 function object(value: unknown): Row {
   if (value === null || typeof value !== "object" || Array.isArray(value))
     throw bad("Invalid request");
@@ -65,29 +66,34 @@ export function contactUpdateInput(body: unknown) {
   };
 }
 export function contactListQuery(query: unknown): WhatsappContactListQuery {
-  const row = object(query);
-  const integer = (value: unknown, unsigned = false): bigint | null => {
-    if (value == null) return null;
-    const raw = text(value)!;
-    if (!(unsigned ? /^\+?\d+$/ : /^[+-]?\d+$/).test(raw))
-      throw bad("Invalid request");
-    const parsed = BigInt(raw);
-    if (
-      parsed < (unsigned ? 0n : -(2n ** 63n)) ||
-      parsed > (unsigned ? 2n ** 64n - 1n : 2n ** 63n - 1n)
-    )
-      throw bad("Invalid request");
-    return parsed;
-  };
+  const row = typedQuery<{
+    q?: string;
+    optIn?: string;
+    excluded?: string;
+    tag?: string;
+    location?: string;
+    listLabel?: string;
+    limit?: string;
+    cursor?: string;
+  }>(query, [
+    "q",
+    "optIn",
+    "excluded",
+    "tag",
+    "location",
+    "listLabel",
+    "limit",
+    "cursor",
+  ]);
   return {
-    q: text(row.q),
-    opt_in: text(row.optIn),
-    excluded: text(row.excluded),
-    tag: text(row.tag),
-    location: text(row.location),
-    list_label: text(row.listLabel),
-    limit: integer(row.limit),
-    cursor: integer(row.cursor, true),
+    q: row.q,
+    opt_in: row.optIn,
+    excluded: row.excluded,
+    tag: row.tag,
+    location: row.location,
+    list_label: row.listLabel,
+    limit: queryI64(row.limit, "limit") ?? null,
+    cursor: queryU64(row.cursor, "cursor") ?? null,
   };
 }
 export function campaignCreateInput(body: unknown) {
@@ -164,11 +170,12 @@ export function registerWhatsappMarketingRoutes(
       }
     ).label;
   app.get("/api/whatsapp/contacts", async (request) => {
+    const query = contactListQuery(request.query);
     const ctx = await scope(request);
     return contacts.listContacts(
       core.pool,
       ctx.orgId,
-      contactListQuery(request.query),
+      query,
     );
   });
   app.patch("/api/whatsapp/contacts/:id", async (request) => {
@@ -247,11 +254,12 @@ export function registerWhatsappMarketingRoutes(
     return contacts.deleteContactList(core.pool, ctx.orgId, label(request));
   });
   app.get("/api/whatsapp/templates", async (request) => {
+    const query = typedQuery<{ status?: string }>(request.query, ["status"]);
     const ctx = await scope(request, "feature.templates.manage");
     return templates.listTemplates(
       core.pool,
       ctx.orgId,
-      text(object(request.query).status),
+      query.status ?? null,
     );
   });
   app.post("/api/whatsapp/templates", async (request, reply) => {
