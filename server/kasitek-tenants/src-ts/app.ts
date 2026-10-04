@@ -11,6 +11,11 @@ import {apiJson,parseSerdeValueJson} from './json.js';
 import {installHttpObservability} from './observability/http.js';
 
 const bodylessRequest=(method:string,url:string)=>method==='DELETE'||(method==='POST'&&(/\/logout$/.test(url)||/\/domains\/:domain_id\/(verify|primary)$/.test(url)));
+const reportQueryBodySchema={type:'object',properties:{
+ range_start:{},range_end:{},timezone:{},interval:{},metrics:{type:'array',items:{}},metric_set:{},
+ breakdowns:{type:'array',items:{}},filters:{type:'object',additionalProperties:{type:'array',items:{}}},
+ include_descendants:{},comparison:{type:'object',properties:{kind:{}}},
+}};
 export type RouteRegistrar=(app:FastifyInstance,context:TenantContext)=>void|Promise<void>;
 /** Preserve main.rs's platform-domain matching, including its source host extraction. */
 export function originMatchesPlatformDomain(origin:string,base:string):boolean {
@@ -51,7 +56,11 @@ export async function buildApp(context:TenantContext,registrars:RouteRegistrar[]
     // This source handler accepts arbitrary serde_json::Value, not a typed DTO.
     const valueBody=request.method==='PATCH'&&request.routeOptions.url==='/api/admin/workspaces/:id';
     if(!valueBody){
-     try { assertNoDuplicateSerdeStructFields(text,request.routeOptions.schema?.body); }
+     const route=request.routeOptions.url??'';
+     const bodySchema=request.routeOptions.schema?.body??(
+      route==='/api/analytics/query'||route==='/api/client/analytics/query'?reportQueryBodySchema:undefined
+     );
+     try { assertNoDuplicateSerdeStructFields(text,bodySchema); }
      catch(syntaxError){return done(new RequestExtractionError('json',formatSerdeJsonSyntaxError(text,syntaxError)));}
     }
     // Source update_workspace takes Json<Value>; scopes inside create_api_key is also Value.
