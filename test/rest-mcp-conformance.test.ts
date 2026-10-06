@@ -334,7 +334,7 @@ describe("Agent REST and MCP conformance matrices", () => {
 describe.skipIf(!growthRepositoryRoot)("Core public v1 OpenAPI conformance", () => {
   it("matches every mounted route and documents a stable operation/error/security contract", async () => {
     const [source, openApiSource] = await Promise.all([
-      readFile(growthRepositoryPath("server/kasitek-core/src-ts/routes/public-v1.ts"), "utf8"),
+      readFile(growthRepositoryPath("server/kasitek-core/src/routes/public-v1.ts"), "utf8"),
       readFile(growthRepositoryPath("server/kasitek-core/openapi/v1.json"), "utf8"),
     ]);
     const routePattern = /\broutes\.(get|post|patch|put|delete)\(\s*["']([^"']+)["']/g;
