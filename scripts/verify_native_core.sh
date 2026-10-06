@@ -25,4 +25,4 @@ cd "$core_root"
 pnpm install --frozen-lockfile
 pnpm build
 # These checks need no database, customer accounts or live providers.
-pnpm exec tsx --test test-ts/foundation.test.ts test-ts/agent-platform-client.test.ts test-ts/observability.test.ts
+pnpm exec tsx --test tests/foundation.test.ts tests/agent-platform-client.test.ts tests/observability.test.ts

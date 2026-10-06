@@ -36,7 +36,7 @@ if (!local) throw new Error('Refusing database fixtures against a non-local data
 const env = { ...process.env };
 for (const key of profile.bindings) env[key] = connection;
 const result = spawnSync('pnpm', ['exec', 'tsx', '--test',
-  ...profile.tests.map(name => `test-ts/${name}.test.ts`)], {
+  ...profile.tests.map(name => `tests/${name}.test.ts`)], {
   cwd: resolve(dirname(fileURLToPath(import.meta.url)), '..'), env, stdio: 'inherit',
 });
 if (result.error) throw new Error('Unable to launch the native fixture runner');

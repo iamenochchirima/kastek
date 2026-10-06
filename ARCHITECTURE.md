@@ -15,9 +15,9 @@ the extracted services.
 | `client/apps/client/` | Main Next.js client, including campaigns, contacts, inbox, content, calendar, bookings, analytics, workspace, billing, and Kāsiai. | Contains Growth routes, the app shell, and product-side Agent integrations. |
 | `client/packages/` | Shared database package. | Used by the Growth client. |
 | [`kasitek-agents`](https://github.com/Kasitek-Labs/kasitek-agents) | Agent API, gateway, workers, runtime, migrations, management UI, and Temporal integration. | Agent Platform source owner; Growth consumes its API. |
-| `server/kasitek-core/` | Native TypeScript Core API and workers under `src-ts/`. | Growth product APIs, provider callbacks, Admin/website consumers and Agents bridge. |
+| `server/kasitek-core/` | Native TypeScript Core API and workers under `src/`. | Growth product APIs, provider callbacks, Admin/website consumers and Agents bridge. |
 | [`kasitek-labs`](https://github.com/Kasitek-Labs/kasitek-labs) | Labs website, Analytics, Collector, central Admin UI and shared TypeScript support packages. Rust crates remain for unmigrated consumers. | Growth consumes pinned private TypeScript packages and retains product publishers/outboxes. Admin calls Growth Core and Agency over HTTP. |
-| `server/kasitek-core/src-ts/actions`, `execution`, `capabilities` | Growth-owned action catalog, ordered execution and product adapters. | The TypeScript runtime uses these local modules. |
+| `server/kasitek-core/src/actions`, `execution`, `capabilities` | Growth-owned action catalog, ordered execution and product adapters. | The TypeScript runtime uses these local modules. |
 | `scripts/`, `.github/workflows/` | Growth local development and verification automation. | Service-specific automation belongs with its owning service. |
 | `docs/` | User and internal technical documentation. | Documents current repository behavior and interfaces. |
 | [`kasitek-agency`](https://github.com/Kasitek-Labs/kasitek-agency) | Tenant API, migrations, portal, portal-only API client, and tenant-owned configuration. | Agency owns this white-label product source. |

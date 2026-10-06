@@ -36,10 +36,10 @@ The architecture may still use the general word “capability” when describing
 
 ```text
 Growth repository (current TypeScript implementation)
-  server/kasitek-core/src-ts/actions/
-  server/kasitek-core/src-ts/execution/
-  server/kasitek-core/src-ts/capabilities/
-  server/kasitek-core/test-ts/actions*.test.ts
+  server/kasitek-core/src/actions/
+  server/kasitek-core/src/execution/
+  server/kasitek-core/src/capabilities/
+  server/kasitek-core/tests/actions*.test.ts
 
 Agency repository
   Kasitek-Labs/kasitek-agency/server/kasitek-tenants/ (tenant business logic)
@@ -118,12 +118,12 @@ Protocol adapters validate protocol-specific messages and establish the caller. 
 
 ## 5. Code organization
 
-### 5.1 `server/kasitek-core/src-ts/actions`
+### 5.1 `server/kasitek-core/src/actions`
 
 This is a small, protocol-neutral library. It contains no HTTP server, database connection, OAuth client, queue, provider adapter, or product-domain implementation.
 
 ```text
-src-ts/actions/
+src/actions/
 |-- index.ts           action identity, metadata and schema definitions
 `-- catalog.ts         deterministic registration and lookup
 ```
@@ -138,16 +138,16 @@ Responsibilities:
 - reject invalid or conflicting definitions;
 - expose no persistence or transport implementation.
 
-### 5.2 `server/kasitek-core/src-ts/execution`
+### 5.2 `server/kasitek-core/src/execution`
 
 This is the application-level orchestration layer.
 
 ```text
-src-ts/execution/
+src/execution/
 `-- index.ts            ordered invocation flow and journal/effect outcomes
 ```
 
-It uses the action definitions from `src-ts/actions`; the action catalog stays
+It uses the action definitions from `src/actions`; the action catalog stays
 independent of execution policy.
 
 Responsibilities:
@@ -163,13 +163,13 @@ It does not contain SQL tied to either product runtime.
 
 ### 5.3 Growth action checks
 
-`server/kasitek-core/test-ts/actions.test.ts` and
+`server/kasitek-core/tests/actions.test.ts` and
 `actions-batch.test.ts` cover catalog contracts and ordered execution outcomes.
 Production code does not depend on these fixtures.
 
 It must support the same isolation and execution tests against both direct and white-label runtime adapters.
 
-### 5.4 `server/kasitek-core/src-ts` runtime adapters
+### 5.4 `server/kasitek-core/src` runtime adapters
 
 The direct runtime owns:
 

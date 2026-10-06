@@ -10,9 +10,9 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "dev": "tsx watch --include .env src-ts/bootstrap.ts",
+    "dev": "tsx watch --include .env src/bootstrap.ts",
     "start": "node dist/bootstrap.js",
-    "test": "tsx --test test-ts/*.test.ts",
+    "test": "tsx --test tests/*.test.ts",
     "prepare:shared": "node scripts/prepare-shared.mjs"
   },
   "dependencies": {

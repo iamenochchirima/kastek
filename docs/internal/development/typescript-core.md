@@ -8,7 +8,7 @@ last_reviewed: 2026-10-03
 # TypeScript Core migration runtime
 
 Growth Core's supported runtime is native Node.js 24 under
-`server/kasitek-core/src-ts`. The replaced Rust implementation and Growth-local
+`server/kasitek-core/src`. The replaced Rust implementation and Growth-local
 Rust libraries are no longer in this checkout; the recoverable Rust source
 baseline is commit `abd419c6`. This local source retirement does not change
 hosted services; hosted cutover is separate release work.

@@ -25,7 +25,7 @@ look like a code or dependency problem.
 
 ## Core build output
 
-Core uses native TypeScript under `server/kasitek-core/src-ts`. Build its production
+Core uses native TypeScript under `server/kasitek-core/src`. Build its production
 JavaScript with:
 
 ```bash
