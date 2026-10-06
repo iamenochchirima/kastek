@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 import Fastify from "fastify";
 import { context, trace } from "@opentelemetry/api";
-import { installHttpObservability } from "../src-ts/observability/http.js";
+import { installHttpObservability } from "../src/observability/http.js";
 
 const require = createRequire(
   import.meta.resolve("@kasitek-labs/server-support/telemetry"),

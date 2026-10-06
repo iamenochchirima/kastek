@@ -11,11 +11,11 @@ import { existsSync, readFileSync } from 'node:fs';
 import { setTimeout as delay } from 'node:timers/promises';
 import { parse } from 'dotenv';
 import pg from 'pg';
-import { createPool } from '../src-ts/db.js';
-import { readConfig } from '../src-ts/config.js';
-import { runMigrations } from '../src-ts/migrate.js';
-import { hashPassword } from '../src-ts/controllers/auth.js';
-import { issueClientInvite } from '../src-ts/controllers/client-auth.js';
+import { createPool } from '../src/db.js';
+import { readConfig } from '../src/config.js';
+import { runMigrations } from '../src/migrate.js';
+import { hashPassword } from '../src/controllers/auth.js';
+import { issueClientInvite } from '../src/controllers/client-auth.js';
 const url = process.env.TENANT_TEST_DATABASE_URL;
 async function unusedPort() {
   const s = createServer();

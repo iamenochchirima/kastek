@@ -2,12 +2,12 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import type pg from 'pg';
-import {buildApp} from '../src-ts/app.js';
-import {routes} from '../src-ts/routes.js';
-import {readConfig} from '../src-ts/config.js';
+import {buildApp} from '../src/app.js';
+import {routes} from '../src/routes.js';
+import {readConfig} from '../src/config.js';
 
 test('native Tenant API registers every source route and method without placeholders',async()=>{
- const snapshot=JSON.parse(await readFile(new URL('./fixtures/rust-baseline-routes.json',import.meta.url),'utf8')) as {sourceCommit:string;sourcePath:string;sourceSha256:string;routeCount:number;routes:string[]};
+ const snapshot=JSON.parse(await readFile(new URL('./fixtures/routes.json',import.meta.url),'utf8')) as {sourceCommit:string;sourcePath:string;sourceSha256:string;routeCount:number;routes:string[]};
  assert.match(snapshot.sourceCommit,/^[a-f0-9]{40}$/);
  assert.equal(snapshot.sourcePath,'server/kasitek-tenants/src/routes.rs');
  assert.match(snapshot.sourceSha256,/^[a-f0-9]{64}$/);

@@ -6,8 +6,8 @@ import {spawn} from 'node:child_process';
 import {once} from 'node:events';
 import {fileURLToPath} from 'node:url';
 import pg from 'pg';
-import {createPool} from '../src-ts/db.js';
-import {readConfig} from '../src-ts/config.js';
+import {createPool} from '../src/db.js';
+import {readConfig} from '../src/config.js';
 const enabled=!!process.env.TENANT_TEST_DATABASE_URL;
 async function unusedPort():Promise<number>{const server=createServer();server.listen(0,'127.0.0.1');await once(server,'listening');const address=server.address();assert.ok(address&&typeof address==='object');await new Promise<void>((resolve,reject)=>server.close(error=>error?reject(error):resolve()));return address.port;}
 test('compiled native API and both dedicated modes apply migrations, keep scopes, and shut down', {skip:!enabled,timeout:20000},async()=>{

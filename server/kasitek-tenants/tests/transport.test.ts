@@ -1,9 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import type pg from 'pg';
-import {buildApp,originMatchesPlatformDomain} from '../src-ts/app.js';
-import {readConfig} from '../src-ts/config.js';
-import {forbidden,RequestExtractionError} from '../src-ts/error.js';
+import {buildApp,originMatchesPlatformDomain} from '../src/app.js';
+import {readConfig} from '../src/config.js';
+import {forbidden,RequestExtractionError} from '../src/error.js';
 const config=readConfig({TENANT_DATABASE_URL:'postgres://unused',TENANT_SERVER_ENVIRONMENT:'production',TENANT_ALLOWED_ORIGINS:'https://portal.example',TENANT_PLATFORM_BASE_DOMAIN:'agency.example',LOG_LEVEL:'silent'});
 test('native Agency HTTP keeps health, explicit errors, source CORS and method misses',async()=>{
  const app=await buildApp({config,pool:{} as pg.Pool},[(app)=>{

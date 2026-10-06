@@ -10,10 +10,10 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "tsx --test test-ts/*.test.ts",
+    "test": "tsx --test tests/*.test.ts",
     "prepare:shared": "node scripts/prepare-shared.mjs",
     "start": "node dist/bootstrap.js",
-    "dev": "tsx watch src-ts/bootstrap.ts"
+    "dev": "tsx watch src/bootstrap.ts"
   },
   "dependencies": {
     "@fastify/cookie": "^10.0.1",

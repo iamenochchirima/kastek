@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID, createHash } from 'node:crypto';
 import pg from 'pg';
-import { readMigrations, runMigrations, type Migration } from '../src-ts/migrate.js';
+import { readMigrations, runMigrations, type Migration } from '../src/migrate.js';
 
 async function fixture(run: (pool:pg.Pool)=>Promise<void>) {
  const admin=new pg.Pool({connectionString:process.env.TENANT_TEST_DATABASE_URL});

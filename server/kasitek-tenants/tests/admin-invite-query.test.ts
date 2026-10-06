@@ -1,12 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import type { Pool } from 'pg';
-import { buildApp } from '../src-ts/app.js';
-import type { TenantContext } from '../src-ts/context.js';
-import { readConfig } from '../src-ts/config.js';
-import { registerAdminInvitesRoutes } from '../src-ts/controllers/admin-invites.js';
-import { registerClientAuthRoutes } from '../src-ts/controllers/client-auth.js';
-import { tokenHash } from '../src-ts/middleware.js';
+import { buildApp } from '../src/app.js';
+import type { TenantContext } from '../src/context.js';
+import { readConfig } from '../src/config.js';
+import { registerAdminInvitesRoutes } from '../src/controllers/admin-invites.js';
+import { registerClientAuthRoutes } from '../src/controllers/client-auth.js';
+import { tokenHash } from '../src/middleware.js';
 
 test('admin invite query preserves Actix typed-query extraction', async () => {
   let databaseCalls = 0;

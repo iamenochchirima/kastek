@@ -3,11 +3,11 @@ import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { once } from "node:events";
 import { analyticsFixture } from "./analytics-fixture.js";
-import { UtcTimestamp, transaction } from "../src-ts/db.js";
-import { apiJson, parseSerdeValueJson } from "../src-ts/json.js";
-import { enqueueLeadCreated } from "../src-ts/analytics.js";
-import { runAnalyticsPublisher } from "../src-ts/analytics-publisher.js";
-import { runAnalyticsBackfill } from "../src-ts/analytics-backfill.js";
+import { UtcTimestamp, transaction } from "../src/db.js";
+import { apiJson, parseSerdeValueJson } from "../src/json.js";
+import { enqueueLeadCreated } from "../src/analytics.js";
+import { runAnalyticsPublisher } from "../src/analytics-publisher.js";
+import { runAnalyticsBackfill } from "../src/analytics-backfill.js";
 import { backfillSourceSequence } from "@kasitek-labs/server-support/analytics-producer";
 const enabled = !!process.env.TENANT_TEST_DATABASE_URL;
 test(

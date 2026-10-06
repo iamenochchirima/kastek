@@ -1,17 +1,17 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { analyticsFixture } from "./analytics-fixture.js";
-import { buildApp } from "../src-ts/app.js";
-import { readConfig } from "../src-ts/config.js";
-import { tokenHash } from "../src-ts/middleware.js";
-import { registerAdminRoutes } from "../src-ts/controllers/admin.js";
+import { buildApp } from "../src/app.js";
+import { readConfig } from "../src/config.js";
+import { tokenHash } from "../src/middleware.js";
+import { registerAdminRoutes } from "../src/controllers/admin.js";
 import {
   registerWorkspaceRoutes,
   verifyDomain,
-} from "../src-ts/controllers/workspace.js";
-import { registerClientsRoutes } from "../src-ts/controllers/clients.js";
-import { registerLeadsRoutes } from "../src-ts/controllers/leads.js";
-import { registerEmailSettingsRoutes } from "../src-ts/controllers/email-settings.js";
+} from "../src/controllers/workspace.js";
+import { registerClientsRoutes } from "../src/controllers/clients.js";
+import { registerLeadsRoutes } from "../src/controllers/leads.js";
+import { registerEmailSettingsRoutes } from "../src/controllers/email-settings.js";
 const url = process.env.TENANT_TEST_DATABASE_URL;
 test(
   "management routes preserve permissions, domain/staff guards, tenant scope, and transactional lifecycle/outbox rollback",

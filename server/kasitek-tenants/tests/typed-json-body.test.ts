@@ -2,9 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import type { FastifyInstance } from 'fastify';
 import type { Pool } from 'pg';
-import { readConfig } from '../src-ts/config.js';
-import { buildApp } from '../src-ts/app.js';
-import { routes } from '../src-ts/routes.js';
+import { readConfig } from '../src/config.js';
+import { buildApp } from '../src/app.js';
+import { routes } from '../src/routes.js';
 
 test('registered DTO schemas reject duplicate fields before effects; Value bodies keep last value', async () => {
  let effects=0;

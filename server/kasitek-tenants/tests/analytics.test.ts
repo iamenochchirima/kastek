@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { analyticsFixture } from "./analytics-fixture.js";
-import { UtcTimestamp, transaction } from "../src-ts/db.js";
+import { UtcTimestamp, transaction } from "../src/db.js";
 import {
   canonicalJson,
   canonicalJsonSha256,
@@ -17,14 +17,14 @@ import {
   enqueueLeadManifest,
   workspaceEventCount,
   chronoDisplay,
-} from "../src-ts/analytics.js";
+} from "../src/analytics.js";
 import {
   backfillSettings,
   processSourceReconstruction,
   sourceDomains,
   type BackfillTransport,
-} from "../src-ts/analytics-backfill.js";
-import { publisherSettings } from "../src-ts/analytics-publisher.js";
+} from "../src/analytics-backfill.js";
+import { publisherSettings } from "../src/analytics-publisher.js";
 import type { SourceBackfillWork, BackfillRecord } from "@kasitek-labs/contracts";
 const enabled = !!process.env.TENANT_TEST_DATABASE_URL;
 const time = new UtcTimestamp("2030-01-01T00:00:00.123456Z", true);

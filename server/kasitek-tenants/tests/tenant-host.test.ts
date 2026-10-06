@@ -2,10 +2,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import type { FastifyRequest } from 'fastify';
 import type { Pool } from 'pg';
-import { readConfig } from '../src-ts/config.js';
-import { TenantError } from '../src-ts/error.js';
-import { resolveWorkspaceFromRequest } from '../src-ts/middleware.js';
-import type { TenantContext } from '../src-ts/context.js';
+import { readConfig } from '../src/config.js';
+import { TenantError } from '../src/error.js';
+import { resolveWorkspaceFromRequest } from '../src/middleware.js';
+import type { TenantContext } from '../src/context.js';
 
 type WorkspaceRow = {
   workspace_id: string;

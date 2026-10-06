@@ -6,37 +6,37 @@ import { once } from 'node:events';
 import pg from 'pg';
 import Fastify from 'fastify';
 import cookie from '@fastify/cookie';
-import { readConfig } from '../src-ts/config.js';
-import { installErrorHandler } from '../src-ts/error.js';
-import { runMigrations } from '../src-ts/migrate.js';
-import { installPgTimestampParsers } from '../src-ts/db.js';
+import { readConfig } from '../src/config.js';
+import { installErrorHandler } from '../src/error.js';
+import { runMigrations } from '../src/migrate.js';
+import { installPgTimestampParsers } from '../src/db.js';
 import {
   registerAuthRoutes,
   hashPassword,
   newToken,
-} from '../src-ts/controllers/auth.js';
-import { registerSessionRoutes } from '../src-ts/controllers/session.js';
+} from '../src/controllers/auth.js';
+import { registerSessionRoutes } from '../src/controllers/session.js';
 import {
   registerClientAuthRoutes,
   issueClientInvite,
-} from '../src-ts/controllers/client-auth.js';
+} from '../src/controllers/client-auth.js';
 import {
   registerAdminInvitesRoutes,
   issueAdminInvite,
-} from '../src-ts/controllers/admin-invites.js';
+} from '../src/controllers/admin-invites.js';
 import {
   extractAccessContext,
   tokenHash,
   requireActiveTenantClient,
   requireClientScopedConversation,
-} from '../src-ts/middleware.js';
+} from '../src/middleware.js';
 import {
   createResendDomain,
   sendEmail,
   sendTenantAdminInviteEmail,
   resolveWorkspaceEmailSender,
   workspacePortalUrl,
-} from '../src-ts/mail.js';
+} from '../src/mail.js';
 const url = process.env.TENANT_TEST_DATABASE_URL;
 test(
   'Agency staff/client sessions preserve host binding, distinct audience, invitations and invalidation',

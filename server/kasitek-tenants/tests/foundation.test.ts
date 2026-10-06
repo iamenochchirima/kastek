@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readConfig } from '../src-ts/config.js';
-import { UtcTimestamp } from '../src-ts/db.js';
-import { migrationLockId, readMigrations } from '../src-ts/migrate.js';
+import { readConfig } from '../src/config.js';
+import { UtcTimestamp } from '../src/db.js';
+import { migrationLockId, readMigrations } from '../src/migrate.js';
 
 test('tenant configuration retains source fallback precedence, cookie and numeric boundaries', () => {
  const config=readConfig({TENANT_DATABASE_URL:' postgres://fixture ',TENANT_SERVER_PORT:'65536',PORT:'+8123',TENANT_SESSION_TTL_HOURS:'4294967296',TENANT_SESSION_COOKIE_SAME_SITE:'BAD',TENANT_PLATFORM_BASE_DOMAIN:' ..Agency.Example.. ',TENANT_APP_BASE_URL:'https://Portal.Example:443/login',TENANT_SERVER_ENVIRONMENT:'Production',TENANT_CORS_ALLOW_CREDENTIALS:'false',ANALYTICS_REPORTING_TIMEOUT_MS:'1'});

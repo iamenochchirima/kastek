@@ -9,7 +9,7 @@ Growth's active worktree was left untouched.
 ## Current TypeScript runtime
 
 The Tenant API and its API, publisher and backfill processes run from
-`server/kasitek-tenants/src-ts/` on Node 24. The Rust service source and Cargo
+`server/kasitek-tenants/src/` on Node 24. The Rust service source and Cargo
 workspace have been retired; the complete Rust baseline remains recoverable in
 Agency commit `2c7902170a8f75257c0e47b86ffaf38068dd2227`. Local migration and
 consumer checks passed, but private package-registry authentication and hosted
@@ -49,8 +49,8 @@ The tenant service directly references these shared crates at `server/crates/` i
 In the former Rust implementation, `TenantServerConfig` and
 `CookieSameSitePolicy` lived in `server/kasitek-tenants/src/config.rs`; tenant
 context DTOs and health types lived in `src/types.rs`. Their current
-TypeScript counterparts are in `server/kasitek-tenants/src-ts/config.ts` and
-`src-ts/types.ts`.
+TypeScript counterparts are in `server/kasitek-tenants/src/config.ts` and
+`src/types.ts`.
 
 The Rust dependencies above were private and required Cargo access to Labs;
 they are not part of the current TypeScript build. TypeScript shared package

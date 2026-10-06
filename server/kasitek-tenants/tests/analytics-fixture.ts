@@ -1,7 +1,7 @@
 import pg from "pg";
 import { randomUUID } from "node:crypto";
-import { runMigrations } from "../src-ts/migrate.js";
-import { installPgTimestampParsers } from "../src-ts/db.js";
+import { runMigrations } from "../src/migrate.js";
+import { installPgTimestampParsers } from "../src/db.js";
 /** Real Agency migrations, isolated schema only; public never appears in the test search path. */
 export async function analyticsFixture() {
   installPgTimestampParsers();

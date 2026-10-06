@@ -7,19 +7,19 @@ import { createServer } from "node:http";
 import { once } from "node:events";
 import { jwtVerify } from "jose";
 import { analyticsFixture } from "./analytics-fixture.js";
-import { readConfig } from "../src-ts/config.js";
-import { apiJson } from "../src-ts/json.js";
-import { installErrorHandler } from "../src-ts/error.js";
-import { tokenHash } from "../src-ts/middleware.js";
-import { registerDashboardRoutes } from "../src-ts/controllers/dashboard.js";
-import { registerConversationsRoutes } from "../src-ts/controllers/conversations.js";
-import { registerAgentsRoutes } from "../src-ts/controllers/agents.js";
-import { registerUsageRoutes } from "../src-ts/controllers/usage.js";
-import { registerClientPortalRoutes } from "../src-ts/controllers/client-portal.js";
+import { readConfig } from "../src/config.js";
+import { apiJson } from "../src/json.js";
+import { installErrorHandler } from "../src/error.js";
+import { tokenHash } from "../src/middleware.js";
+import { registerDashboardRoutes } from "../src/controllers/dashboard.js";
+import { registerConversationsRoutes } from "../src/controllers/conversations.js";
+import { registerAgentsRoutes } from "../src/controllers/agents.js";
+import { registerUsageRoutes } from "../src/controllers/usage.js";
+import { registerClientPortalRoutes } from "../src/controllers/client-portal.js";
 import {
   registerAnalyticsRoutes,
   parseReportQuery,
-} from "../src-ts/controllers/analytics.js";
+} from "../src/controllers/analytics.js";
 const enabled = !!process.env.TENANT_TEST_DATABASE_URL;
 test("analytics timestamps accept Chrono separators and offsets while rejecting invalid dates", () => {
   const query = parseReportQuery({

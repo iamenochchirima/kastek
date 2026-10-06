@@ -17,7 +17,7 @@ corepack pnpm --dir client install --frozen-lockfile
 corepack pnpm --dir client dev
 ```
 
-The TypeScript Tenant API is implemented under `server/kasitek-tenants/src-ts/`.
+The TypeScript Tenant API is implemented under `server/kasitek-tenants/src/`.
 The Rust implementation has been retired from the working tree after the
 TypeScript replacement and consumer checks passed. Its recoverable source
 baseline is Agency commit `2c7902170a8f75257c0e47b86ffaf38068dd2227`.

@@ -10,13 +10,13 @@ import {setTimeout as delay} from 'node:timers/promises';
 import {parse} from 'dotenv';
 import {hash} from 'bcryptjs';
 import {analyticsFixture} from './analytics-fixture.js';
-import {buildApp} from '../src-ts/app.js';
-import {readConfig} from '../src-ts/config.js';
-import {routes} from '../src-ts/routes.js';
-import {isolatedDatabase} from '../../../../kasitek-growth/server/kasitek-core/test-ts/helpers/database-fixture.js';
-import {buildApp as buildCore} from '../../../../kasitek-growth/server/kasitek-core/src-ts/app.js';
-import {readConfig as readCoreConfig} from '../../../../kasitek-growth/server/kasitek-core/src-ts/config.js';
-import {registerAdminAuthRoutes} from '../../../../kasitek-growth/server/kasitek-core/src-ts/routes/admin-auth.js';
+import {buildApp} from '../src/app.js';
+import {readConfig} from '../src/config.js';
+import {routes} from '../src/routes.js';
+import {isolatedDatabase} from '../../../../kasitek-growth/server/kasitek-core/tests/helpers/database-fixture.js';
+import {buildApp as buildCore} from '../../../../kasitek-growth/server/kasitek-core/src/app.js';
+import {readConfig as readCoreConfig} from '../../../../kasitek-growth/server/kasitek-core/src/config.js';
+import {registerAdminAuthRoutes} from '../../../../kasitek-growth/server/kasitek-core/src/routes/admin-auth.js';
 const url=process.env.TENANT_TEST_DATABASE_URL;
 async function freePort(){const server=createServer();server.listen(0,'127.0.0.1');await once(server,'listening');const port=(server.address() as {port:number}).port;await new Promise<void>(r=>server.close(()=>r()));return port;}
 test('compiled Labs Admin session and agency provisioning proxy reach native Core and Tenant APIs', {skip:!url,timeout:45000},async()=>{
