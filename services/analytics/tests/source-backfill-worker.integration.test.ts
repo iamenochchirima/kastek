@@ -12,9 +12,9 @@ import {
   buildScopeDefinition,
   coreProducerConfig,
 } from "@kasitek-labs/server-support/analytics-producer";
-import { buildApp } from "../src-ts/app.js";
-import { ProcessMetrics } from "../src-ts/metrics.js";
-import { loadRegistry } from "../src-ts/registry.js";
+import { buildApp } from "../src/app.js";
+import { ProcessMetrics } from "../src/metrics.js";
+import { loadRegistry } from "../src/registry.js";
 import { analyticsFixture } from "./database-fixture.js";
 
 const enabled =

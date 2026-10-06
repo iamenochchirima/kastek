@@ -1,12 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import type { Pool } from 'pg';
-import { buildApp } from '../src-ts/app.js';
-import type { AnalyticsContext } from '../src-ts/context.js';
-import { readConfig } from '../src-ts/config.js';
-import type { RegistrySnapshot } from '../src-ts/registry-types.js';
-import { ProcessMetrics } from '../src-ts/metrics.js';
-import { MAX_BATCH_BYTES } from '../src-ts/ingestion.js';
+import { buildApp } from '../src/app.js';
+import type { AnalyticsContext } from '../src/context.js';
+import { readConfig } from '../src/config.js';
+import type { RegistrySnapshot } from '../src/registry-types.js';
+import { ProcessMetrics } from '../src/metrics.js';
+import { MAX_BATCH_BYTES } from '../src/ingestion.js';
 
 test('Analytics API maps malformed JSON syntax to the shared Serde-style detail', async () => {
   const context = {

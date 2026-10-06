@@ -1,6 +1,6 @@
 # KasiTek Analytics
 
-Standalone customer-facing analytics service. Its TypeScript implementation under `src-ts/` is the
+Standalone customer-facing analytics service. Its TypeScript implementation under `src/` is the
 only runtime in this checkout. The original Rust service and shared crates remain recoverable from
 Labs commit `4eb66ad`.
 The native Node processes are:
@@ -173,7 +173,7 @@ including deferred worker jobs whose lease is intentionally cleared before their
 The same publisher process periodically submits the bounded reconciliation summaries described
 above; reconciliation failure does not mutate or delete source outbox facts.
 
-The cross-service producer-to-report check is `test-ts/shared-producer.integration.test.ts`. Set
+The cross-service producer-to-report check is `tests/shared-producer.integration.test.ts`. Set
 `ANALYTICS_TEST_DATABASE_URL` to a local PostgreSQL connection that can create disposable test
 databases. The fixture creates and drops a dedicated database for each run. Set `GROWTH_CORE_DIST`,
 `AGENCY_TENANT_DIST`, and `AGENT_PLATFORM_ROOT` to exercise each real producer; the Agents root must
@@ -185,7 +185,7 @@ ANALYTICS_TEST_DATABASE_URL=postgresql://localhost/postgres \
 GROWTH_CORE_DIST=/path/to/kasitek-growth/server/kasitek-core/dist \
 AGENCY_TENANT_DIST=/path/to/kasitek-agency/server/kasitek-tenants/dist \
 AGENT_PLATFORM_ROOT=/path/to/kasitek-agents \
-corepack pnpm exec tsx --test test-ts/shared-producer.integration.test.ts
+corepack pnpm exec tsx --test tests/shared-producer.integration.test.ts
 ```
 
 The API can start while PostgreSQL is unavailable because its pool is lazy. Readiness returns

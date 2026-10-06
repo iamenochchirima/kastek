@@ -21,7 +21,7 @@ test("API remains live and shuts down when the configured Collector is unavailab
   const apiPort = await freePort();
   const child = spawn(
     process.execPath,
-    ["--import", "tsx", "src-ts/api-main.ts"],
+    ["--import", "tsx", "src/api-main.ts"],
     {
       cwd: process.cwd(),
       env: {

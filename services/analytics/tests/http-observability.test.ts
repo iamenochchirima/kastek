@@ -2,10 +2,10 @@ import assert from 'node:assert/strict';
 import {createServer} from 'node:http';
 import type {Pool} from 'pg';
 import test from 'node:test';
-import type {AnalyticsContext} from '../src-ts/context.js';
-import type {RegistrySnapshot} from '../src-ts/registry-types.js';
-import {readConfig} from '../src-ts/config.js';
-import {ProcessMetrics} from '../src-ts/metrics.js';
+import type {AnalyticsContext} from '../src/context.js';
+import type {RegistrySnapshot} from '../src/registry-types.js';
+import {readConfig} from '../src/config.js';
+import {ProcessMetrics} from '../src/metrics.js';
 import {initTelemetry} from '@kasitek-labs/server-support/telemetry';
 
 test('Analytics HTTP requests export bounded spans and request metrics', async (t) => {
@@ -54,7 +54,7 @@ test('Analytics HTTP requests export bounded spans and request metrics', async (
   });
 
   const telemetry = initTelemetry('kasitek-analytics-http-fixture');
-  const {buildApp} = await import('../src-ts/app.js');
+  const {buildApp} = await import('../src/app.js');
   const context = {
     pool: {} as Pool,
     config: readConfig({ANALYTICS_DATABASE_URL: 'postgres://unused'}),

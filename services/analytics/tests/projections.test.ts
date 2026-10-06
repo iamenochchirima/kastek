@@ -1,8 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { analyticsFixture } from "./database-fixture.js";
-import { loadRegistry } from "../src-ts/registry.js";
-import { transaction } from "../src-ts/db.js";
+import { loadRegistry } from "../src/registry.js";
+import { transaction } from "../src/db.js";
 import {
   enqueueFact,
   processOnce,
@@ -11,7 +11,7 @@ import {
   enqueueReplayRange,
   enqueueReconciliationRepair,
   hourlyWindow,
-} from "../src-ts/projections.js";
+} from "../src/projections.js";
 import type { Pool } from "pg";
 const enabled = !!process.env.ANALYTICS_TEST_DATABASE_URL;
 const scalar = async (pool: Pool, sql: string, values: unknown[] = []) =>

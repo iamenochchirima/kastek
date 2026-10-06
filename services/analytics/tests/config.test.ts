@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {readConfig} from '../src-ts/config.js';
+import {readConfig} from '../src/config.js';
 const base={ANALYTICS_DATABASE_URL:'postgres://unused/analytics'};
 test('Analytics config retains dedicated DB, raw numeric parsing and optional primary precedence',()=>{
  assert.throws(()=>readConfig({DATABASE_URL:'postgres://wrong'}),/ANALYTICS_DATABASE_URL/);

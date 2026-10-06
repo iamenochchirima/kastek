@@ -2,8 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import Fastify from "fastify";
 import type { Pool } from "pg";
-import { registerHealthRoutes } from "../src-ts/health.js";
-import { ProcessMetrics } from "../src-ts/metrics.js";
+import { registerHealthRoutes } from "../src/health.js";
+import { ProcessMetrics } from "../src/metrics.js";
 
 test("liveness stays available while readiness reports database and migration failures", async () => {
   const unavailablePool = {

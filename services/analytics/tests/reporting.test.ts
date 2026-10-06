@@ -4,12 +4,12 @@ import Fastify from 'fastify';
 import { generateKeyPair, exportSPKI, CompactSign } from 'jose';
 import { randomUUID, createHash } from 'node:crypto';
 import { analyticsFixture } from './database-fixture.js';
-import { readConfig } from '../src-ts/config.js';
-import { apiJson, parseSerdeValueJson } from '../src-ts/json.js';
-import { transaction } from '../src-ts/db.js';
-import { loadRegistry } from '../src-ts/registry.js';
-import { ScopeCatalog, type ReportingGrant } from '../src-ts/scope.js';
-import { encodeScopeIds } from '../src-ts/authorization.js';
+import { readConfig } from '../src/config.js';
+import { apiJson, parseSerdeValueJson } from '../src/json.js';
+import { transaction } from '../src/db.js';
+import { loadRegistry } from '../src/registry.js';
+import { ScopeCatalog, type ReportingGrant } from '../src/scope.js';
+import { encodeScopeIds } from '../src/authorization.js';
 import {
   ReportingAuthenticator,
   ReportingCache,
@@ -19,11 +19,11 @@ import {
   reportCacheKey,
   type CacheBackend,
   type ReportResponse,
-} from '../src-ts/reporting.js';
+} from '../src/reporting.js';
 import {
   ScopeResolverAuthenticator,
   registerScopeResolutionRoutes,
-} from '../src-ts/scope-resolution.js';
+} from '../src/scope-resolution.js';
 const now = () => Math.floor(Date.now() / 1000);
 const enabled = !!process.env.ANALYTICS_TEST_DATABASE_URL;
 async function signing() {
@@ -362,7 +362,7 @@ test(
         pool: f.pool,
         config: f.config,
         registry,
-        metrics: new (await import('../src-ts/metrics.js')).ProcessMetrics(),
+        metrics: new (await import('../src/metrics.js')).ProcessMetrics(),
       };
       await registerReportingRoutes(app, context, { cache });
       registerScopeResolutionRoutes(app, context);

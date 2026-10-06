@@ -22,10 +22,10 @@ import {
   tenantProducerConfig,
 } from "@kasitek-labs/server-support/analytics-producer";
 import { exportPKCS8, exportSPKI, generateKeyPair } from "jose";
-import { buildApp } from "../src-ts/app.js";
-import { ProcessMetrics } from "../src-ts/metrics.js";
-import { processOnce } from "../src-ts/projections.js";
-import { loadRegistry } from "../src-ts/registry.js";
+import { buildApp } from "../src/app.js";
+import { ProcessMetrics } from "../src/metrics.js";
+import { processOnce } from "../src/projections.js";
+import { loadRegistry } from "../src/registry.js";
 import { analyticsFixture } from "./database-fixture.js";
 
 const enabled = !!process.env.ANALYTICS_TEST_DATABASE_URL;

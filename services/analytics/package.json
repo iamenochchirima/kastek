@@ -10,7 +10,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "tsx --test test-ts/*.test.ts",
+    "test": "tsx --test tests/*.test.ts",
     "start": "node dist/api-main.js",
     "start:worker": "node dist/worker-main.js",
     "migrate": "node dist/migrate-main.js",

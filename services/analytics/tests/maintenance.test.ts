@@ -2,8 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import Fastify from "fastify";
 import { analyticsFixture } from "./database-fixture.js";
-import { loadRegistry } from "../src-ts/registry.js";
-import { apiJson } from "../src-ts/json.js";
+import { loadRegistry } from "../src/registry.js";
+import { apiJson } from "../src/json.js";
 import {
   claimReconciliationWork,
   claimQuarantineReleaseWork,
@@ -11,8 +11,8 @@ import {
   scheduleWork,
   processBackfillOnce,
   registerMaintenanceRoutes,
-} from "../src-ts/maintenance.js";
-import { runWorker, workerOptions } from "../src-ts/worker.js";
+} from "../src/maintenance.js";
+import { runWorker, workerOptions } from "../src/worker.js";
 const enabled = !!process.env.ANALYTICS_TEST_DATABASE_URL;
 test(
   "maintenance schedule/leases isolate producers, retain safe metadata, and execute empty rebuild/replay backfills",

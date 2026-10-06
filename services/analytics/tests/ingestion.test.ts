@@ -1,5 +1,5 @@
 import test from "node:test";
-import { prepareValidators } from "../src-ts/registry.js";
+import { prepareValidators } from "../src/registry.js";
 await prepareValidators();
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
@@ -17,9 +17,9 @@ import {
   advanceCursor,
   parseIngestionBatch,
   type IngestionRecord,
-} from "../src-ts/ingestion.js";
-import { canonicalPayloadSha256, normalizedTime } from "../src-ts/records.js";
-import { reconcileStream } from "../src-ts/reconciliation.js";
+} from "../src/ingestion.js";
+import { canonicalPayloadSha256, normalizedTime } from "../src/records.js";
+import { reconcileStream } from "../src/reconciliation.js";
 const authenticated = {
   source_service: "core",
   producer_id: "core-customer-analytics",
@@ -636,13 +636,13 @@ test(
       { RequestExtractionError },
     ] = await Promise.all([
       import("fastify"),
-      import("../src-ts/ingestion.js"),
-      import("../src-ts/reconciliation.js"),
-      import("../src-ts/rollout.js"),
-      import("../src-ts/registry.js"),
-      import("../src-ts/metrics.js"),
-      import("../src-ts/json.js"),
-      import("../src-ts/error.js"),
+      import("../src/ingestion.js"),
+      import("../src/reconciliation.js"),
+      import("../src/rollout.js"),
+      import("../src/registry.js"),
+      import("../src/metrics.js"),
+      import("../src/json.js"),
+      import("../src/error.js"),
     ]);
     const f = await analyticsFixture({
       ANALYTICS_INGESTION_CREDENTIALS_JSON: JSON.stringify([

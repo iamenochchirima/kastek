@@ -6,7 +6,7 @@ import type {
   DimensionDefinition,
   MetricDefinition,
   MetricSetDefinition,
-} from "../src-ts/registry-types.js";
+} from "../src/registry-types.js";
 import {
   RegistryError,
   parseRegistryJsonText,
@@ -14,7 +14,7 @@ import {
   resolveRegistrySourcePath,
   validateRegistryValue,
   validateRegistrySemantics,
-} from "../src-ts/registry.js";
+} from "../src/registry.js";
 
 const contract: ContractSummary = {
   identity: "core.event@1",

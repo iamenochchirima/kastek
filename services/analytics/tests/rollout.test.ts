@@ -2,8 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { analyticsFixture } from "./database-fixture.js";
-import { transaction } from "../src-ts/db.js";
-import { apiJson } from "../src-ts/json.js";
+import { transaction } from "../src/db.js";
+import { apiJson } from "../src/json.js";
 import { canonicalJson, serdeFloat } from "@kasitek-labs/server-support/json";
 import {
   RolloutDecisionCache,
@@ -17,7 +17,7 @@ import {
   parseRolloutMutation,
   type StoredControl,
   type RolloutMutationRequest,
-} from "../src-ts/rollout.js";
+} from "../src/rollout.js";
 const enabled = !!process.env.ANALYTICS_TEST_DATABASE_URL;
 const actor = {
   source_service: "core",

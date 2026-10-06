@@ -1,8 +1,8 @@
 import {randomUUID} from 'node:crypto';
 import pg from 'pg';
-import {readMigrations,run} from '../src-ts/migrations.js';
-import {createPool} from '../src-ts/db.js';
-import {readConfig,type AnalyticsConfig} from '../src-ts/config.js';
+import {readMigrations,run} from '../src/migrations.js';
+import {createPool} from '../src/db.js';
+import {readConfig,type AnalyticsConfig} from '../src/config.js';
 /** Source SQL explicitly addresses analytics.*, so each fixture owns a whole disposable database. */
 export async function analyticsFixture(overrides:Record<string,string|undefined>={}) {
  const parent=process.env.ANALYTICS_TEST_DATABASE_URL;
