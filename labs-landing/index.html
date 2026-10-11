@@ -1,105 +1,47 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="robots" content="noindex,nofollow">
-<title>KasiTek Labs | Agents, Growth &amp; Agency</title>
-<meta name="description" content="AI agents, business growth tools and white-label workspaces, built by KasiTek Labs.">
-<link rel="stylesheet" href="./style.css?v=fe8d24d">
-<script src="./script.js?v=fe8d24d" defer>
-</script>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" href="./assets/logo.png" type="image/png">
+  <meta name="robots" content="noindex,nofollow">
+  <title>KasiTek Labs | Good ideas. Real working tools.</title>
+  <meta name="description" content="AI agents, business growth tools and white-label workspaces, built by KasiTek Labs.">
+  <link rel="stylesheet" href="./style.css?v=parloa-5">
+  <link rel="stylesheet" href="./motion.css?v=agents-3">
+  <link rel="stylesheet" href="./agent-operations.css?v=operations-1">
+  <script src="../shared/vendor/gsap/gsap.min.js" defer></script>
+  <script src="../shared/vendor/gsap/ScrollTrigger.min.js" defer></script>
+  <script src="./script.js?v=agents-3" defer></script>
+  <script src="./motion.js?v=operations-1" defer></script>
 </head>
 <body>
-<link rel="preload" as="image" href="assets/hero-mountain-study.jpg"/>
-<main class="page" id="top">
-<div class="heroShell">
-<header class="header">
-<a class="brand" aria-label="KasiTek Labs home" href="./">
-<img src="assets/logo.png" alt="" width="35" height="35" loading="lazy"/>
-<span>KasiTek <small>Labs</small>
-</span>
-</a>
-<nav class="nav" aria-label="Main navigation">
-<details class="productMenu">
-<summary>Products <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-down" aria-hidden="true">
-<path d="m6 9 6 6 6-6">
-</path>
-</svg>
-</summary>
-<div>
-<a href="#agents">
-<span class="productMark agentMark" aria-hidden="true">
-</span>
-<span>Agents<small>AI that knows your business.</small>
-</span>
-<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-arrow-up-right" aria-hidden="true">
-<path d="M7 7h10v10">
-</path>
-<path d="M7 17 17 7">
-</path>
-</svg>
-</a>
-<a href="#growth">
-<span class="productMark growthMark" aria-hidden="true">
-</span>
-<span>Growth<small>Your daily business workspace.</small>
-</span>
-<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-arrow-up-right" aria-hidden="true">
-<path d="M7 7h10v10">
-</path>
-<path d="M7 17 17 7">
-</path>
-</svg>
-</a>
-<a href="#agency">
-<span class="productMark agencyMark" aria-hidden="true">
-</span>
-<span>Agency<small>Client work, under your brand.</small>
-</span>
-<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-arrow-up-right" aria-hidden="true">
-<path d="M7 7h10v10">
-</path>
-<path d="M7 17 17 7">
-</path>
-</svg>
-</a>
-</div>
-</details>
-<a href="#services">Services</a>
-<a href="http://localhost:3007/about">About</a>
-</nav>
-<a class="headerCta" href="http://localhost:3007/contact">Let’s talk <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-arrow-up-right" aria-hidden="true">
-<path d="M7 7h10v10">
-</path>
-<path d="M7 17 17 7">
-</path>
-</svg>
-</a>
-</header>
-<section class="hero">
-<img class="heroImage" src="assets/hero-mountain-study.jpg" alt="" loading="eager" style="position:absolute;inset:0;width:100%;height:100%"/>
-<div class="heroContent">
-<h1>Good ideas.<br/>Real working <em>tools.</em>
-</h1>
-<div class="heroBottom">
-<p>AI agents, business growth tools<br/>and white-label workspaces.</p>
-<a href="#products" class="heroLink">Explore our products <span>
-<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-arrow-down" aria-hidden="true">
-<path d="M12 5v14">
-</path>
-<path d="m19 12-7 7-7-7">
-</path>
-</svg>
-</span>
-</a>
-</div>
-</div>
-<div class="heroCredit">KasiTek Labs <span>South Africa</span>
-</div>
-</section>
-</div>
-<section class="productDirectory" id="products" aria-label="Our products">
+  <a class="skip-link" href="#products">Skip to products</a>
+  <main id="top">
+    <section class="opening" aria-labelledby="hero-title">
+      <img class="opening-image" src="assets/service-delivery-editorial-v1.png" alt="" fetchpriority="high">
+      <header class="site-header container">
+        <a class="wordmark" href="./" aria-label="KasiTek Labs home"><img src="assets/logo.png" alt="" width="29" height="29"><span>KasiTek <small>Labs</small></span></a>
+        <nav class="main-nav" aria-label="Main navigation">
+          <details class="productMenu"><summary>Products <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></summary><div><a href="#agents"><b>Agents</b><small>Customer conversations</small><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M5 19 19 5M5 5h14v14"/></svg></a><a href="#growth"><b>Growth</b><small>The business day</small><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M5 19 19 5M5 5h14v14"/></svg></a><a href="#agency"><b>Agency</b><small>Client work, under your brand</small><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M5 19 19 5M5 5h14v14"/></svg></a></div></details>
+          <a href="#studio">The studio</a>
+          <a href="http://localhost:3007/about">About us</a>
+        </nav>
+        <a class="button header-button" href="http://localhost:3007/contact">Let’s talk <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M5 19 19 5M5 5h14v14"/></svg></a>
+      </header>
+      <div class="opening-content container">
+        <div class="opening-copy"><p class="eyebrow light">Software, with people in mind.</p><h1 id="hero-title">Good ideas.<br>Real working <em>tools.</em></h1><p class="opening-description">AI agents, business growth tools<br>and white-label workspaces.</p><a class="button button-signal" href="#products">Explore our products <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M5 19 19 5M5 5h14v14"/></svg></a></div>
+        <div class="conversation" aria-label="Illustrative customer conversation">
+          <div class="conversation-label"><span class="live-dot"></span>KasiTek Agents <span>Website chat</span></div>
+          <div class="conversation-message customer"><span>Customer</span><p>Hi, can I exchange something<br>if it doesn’t fit?</p></div>
+          <div class="conversation-message agent"><span>Acorn Store</span><p>Yes. You have 30 days from delivery.<br>I can connect you with the team<br>to arrange it.</p><small>Answered from your store policy</small></div>
+          <p class="conversation-note">Illustrative conversation</p>
+        </div>
+      </div>
+      <div class="opening-bottom container"><span>Built by KasiTek Labs</span><a href="#products">A closer look <span aria-hidden="true">↓</span></a><span>South Africa</span></div>
+    </section>
+
+    <section class="productDirectory" id="product-directory" aria-label="Our products">
 <a href="#agents" class="directoryItem">
 <span class="productMark agentMark" aria-hidden="true">
 </span>
@@ -143,197 +85,24 @@
 </svg>
 </a>
 </section>
-<section class="agentsSection" id="agents">
-<div class="productHeading">
-<div class="productName">
-<span class="productMark agentMark" aria-hidden="true">
-</span>KasiTek Agents</div>
-<h2>Knows the details.<br/>
-<em>Handles the questions.</em>
-</h2>
-<div class="headingAside">
-<p>An agent with your knowledge and tools.<br/>Ready for your website, with your team close by.</p>
-<a class="textLink" href="http://localhost:3007/early-access?product=agents">Discover Agents <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-arrow-up-right" aria-hidden="true">
-<path d="M7 7h10v10">
-</path>
-<path d="M7 17 17 7">
-</path>
-</svg>
-</a>
-</div>
-</div>
-<div data-preview="agent">
-<div class="agentScene">
-<div class="sceneTabs" role="group" aria-label="Agent preview">
-<button type="button" aria-pressed="true">
-<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-globe" aria-hidden="true">
-<circle cx="12" cy="12" r="10">
-</circle>
-<path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20">
-</path>
-<path d="M2 12h20">
-</path>
-</svg>Website chat</button>
-<button type="button" aria-pressed="false">
-<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-inbox" aria-hidden="true">
-<polyline points="22 12 16 12 14 15 10 15 8 12 2 12">
-</polyline>
-<path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z">
-</path>
-</svg>Team inbox</button>
-</div>
-<div class="agentStage">
-<div class="knowledgeCard">
-<span class="smallLabel">Knowledge</span>
-<h3>A good answer starts here.</h3>
-<div>
-<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-file-text" aria-hidden="true">
-<path d="M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z">
-</path>
-<path d="M14 2v5a1 1 0 0 0 1 1h5">
-</path>
-<path d="M10 9H8">
-</path>
-<path d="M16 13H8">
-</path>
-<path d="M16 17H8">
-</path>
-</svg>
-<span>Returns &amp; exchanges<small>Store policy</small>
-</span>
-<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-check" aria-hidden="true">
-<path d="M20 6 9 17l-5-5">
-</path>
-</svg>
-</div>
-<div>
-<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-file-text" aria-hidden="true">
-<path d="M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z">
-</path>
-<path d="M14 2v5a1 1 0 0 0 1 1h5">
-</path>
-<path d="M10 9H8">
-</path>
-<path d="M16 13H8">
-</path>
-<path d="M16 17H8">
-</path>
-</svg>
-<span>Delivery information<small>Shipping guide</small>
-</span>
-<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-check" aria-hidden="true">
-<path d="M20 6 9 17l-5-5">
-</path>
-</svg>
-</div>
-<p>Available to your agent</p>
-</div>
-<div class="chatWindow">
-<div class="windowHeader">
-<span class="storeAvatar">a.</span>
-<span>
-<b>Acorn Store</b>
-<small>Usually replies right away</small>
-</span>
-<svg xmlns="http://www.w3.org/2000/svg" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-ellipsis" aria-hidden="true">
-<circle cx="12" cy="12" r="1">
-</circle>
-<circle cx="19" cy="12" r="1">
-</circle>
-<circle cx="5" cy="12" r="1">
-</circle>
-</svg>
-</div>
-<div class="chatBody">
-<span class="chatDate">Today</span>
-<p class="customerMessage">Hi, can I return something if it doesn’t fit?</p>
-<div class="answer">
-<span class="smallStoreAvatar">a.</span>
-<p>Yes. You have 30 days from delivery. Just keep it unused and in its original packaging.</p>
-</div>
-<span class="answerSource">
-<svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-file-text" aria-hidden="true">
-<path d="M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z">
-</path>
-<path d="M14 2v5a1 1 0 0 0 1 1h5">
-</path>
-<path d="M10 9H8">
-</path>
-<path d="M16 13H8">
-</path>
-<path d="M16 17H8">
-</path>
-</svg>Returns &amp; exchanges</span>
-<p class="customerMessage">Great, thanks. I’d like help with an exchange.</p>
-<div class="answer">
-<span class="smallStoreAvatar">a.</span>
-<p>I’ll connect you with the team to arrange it.</p>
-</div>
-<span class="handoff">
-<span>
-</span>Maya has joined the conversation</span>
-</div>
-<div class="chatComposer">
-<span>Write a message…</span>
-<span>
-<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-paperclip" aria-hidden="true">
-<path d="m16 6-8.414 8.586a2 2 0 0 0 2.829 2.829l8.414-8.586a4 4 0 1 0-5.657-5.657l-8.379 8.551a6 6 0 1 0 8.485 8.485l8.379-8.551">
-</path>
-</svg>
-<i>
-<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-arrow-up" aria-hidden="true">
-<path d="m5 12 7-7 7 7">
-</path>
-<path d="M12 19V5">
-</path>
-</svg>
-</i>
-</span>
-</div>
-</div>
-<div class="handoffCard">
-<span class="personAvatar">M</span>
-<div>
-<b>A person when it matters.</b>
-<p>The conversation stays in one place.</p>
-</div>
-<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-message-square" aria-hidden="true">
-<path d="M22 17a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 21.286V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2z">
-</path>
-</svg>
-</div>
-</div>
-<span class="sampleCaption">Sample conversation</span>
-</div>
-</div>
-<div class="sectionFoot">
-<p>Your knowledge. Approved tools. Human handoff.</p>
-<span>Website chat &amp; team inbox</span>
-</div>
-</section>
-<section class="growthSection" id="growth">
-<div class="growthCopy">
-<div class="productName">
-<span class="productMark growthMark" aria-hidden="true">
-</span>KasiTek Growth</div>
-<h2>The business.<br/>
-<em>All together.</em>
-</h2>
-<p>The customer message. The next campaign. The post you meant to schedule. Keep the day’s work in one place.</p>
-<a class="textLink" href="http://localhost:3007/early-access?product=growth">Discover Growth <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-arrow-up-right" aria-hidden="true">
-<path d="M7 7h10v10">
-</path>
-<path d="M7 17 17 7">
-</path>
-</svg>
-</a>
-<div class="growthFeatures">
-<span>Contacts &amp; inbox</span>
-<span>Campaigns &amp; content</span>
-<span>Calendar &amp; bookings</span>
-</div>
-</div>
-<div data-preview="growth">
+
+
+    <div class="products container" id="products">
+      <section class="product-panel" id="agents" aria-labelledby="agents-title">
+      <div class="product-label"><span class="productMark agentMark" aria-hidden="true"></span>KasiTek Agents</div>
+      <div class="feature-heading"><h2 id="agents-title">For your customers.<br><em>Your business. And you.</em></h2><div><p>AI agents for customer support, business tasks and personal work. Each with the knowledge and tools for its job.</p><a class="text-action" href="http://localhost:3007/early-access?product=agents">Discover Agents <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M5 19 19 5M5 5h14v14"/></svg></a></div></div>
+      <div class="showcase-stage stage-agents agent-explorer"><aside class="agent-choices" aria-label="Choose an agent example"><p class="agent-choice-intro">Choose the work. See the agent in action.</p><div role="group" aria-label="Agent categories">
+<button class="agent-choice" id="choice-support" type="button" data-agent-choice="support" aria-pressed="true" aria-controls="agent-demo"><span class="agent-choice-name">Customer support <span aria-hidden="true">↗</span></span><span class="agent-choice-description">Answer customers from your knowledge, with your team ready to step in.</span><span class="agent-choice-example">Returns, answered.</span></button>
+<button class="agent-choice" id="choice-business" type="button" data-agent-choice="business" aria-pressed="false" aria-controls="agent-demo"><span class="agent-choice-name">Business <span aria-hidden="true">↗</span></span><span class="agent-choice-description">Work through tasks with your business tools and your approval.</span><span class="agent-choice-example">A meeting, arranged.</span></button>
+<button class="agent-choice" id="choice-personal" type="button" data-agent-choice="personal" aria-pressed="false" aria-controls="agent-demo"><span class="agent-choice-name">Personal <span aria-hidden="true">↗</span></span><span class="agent-choice-description">Help with your own files, questions and plans.</span><span class="agent-choice-example">A brief, prepared. · Concept</span></button>
+</div><p class="agent-choice-note">Choose an example to see it unfold.</p></aside><div id="agent-demo" data-preview="agent" role="region" aria-labelledby="choice-support"><div class="operation-demo" data-agent-scene="support"><img class="operation-photo" src="assets/agents/working-studio.png" alt="" loading="lazy"><div class="operation-shade"></div><div class="operation-caption"><span>Customer support</span><h3>For the questions<br><em>that need an answer.</em></h3><p>A closer look at an agent doing the work.</p></div><div class="operation-window"><header class="op-app-header"><a class="op-brand" href="#agents"><img src="assets/logo.png" alt="" width="20" height="20">KasiTek <small>Agents</small></a><div class="op-header-right"><span>Illustrative demo</span><button type="button" data-replay aria-label="Replay this agent operation">↻ Replay</button></div></header><div class="op-app-body"><aside class="op-sidebar"><div class="op-sidebar-label">INBOX <span>3</span></div><div class="op-contact is-current"><img class="op-avatar" src="assets/agents/customer.jpg" alt="Customer profile" width="32" height="32"><div><b>Bella M.</b><span>Returns &amp; exchanges</span></div><i></i></div><div class="op-contact"><img class="op-avatar" src="assets/agents/owner.jpg" alt="Customer profile" width="32" height="32"><div><b>Daniel S.</b><span>Delivery update</span></div></div><div class="op-contact"><img class="op-avatar" src="assets/agents/teammate.jpg" alt="Customer profile" width="32" height="32"><div><b>Sarah K.</b><span>Thank you!</span></div></div><div class="op-sidebar-bottom"><span class="op-online"></span>Acorn agent is online</div></aside>
+<section class="op-main"><header class="op-thread-header"><div><b>Bella M.</b><span>Website chat · Today</span></div><span class="op-status">Resolved</span></header><div class="op-thread"><span class="op-time-divider">Today, 09:41</span><div class="op-message op-incoming"><img class="op-avatar" src="assets/agents/customer.jpg" alt="Bella, sample customer" width="32" height="32"><div><b>Bella <time>09:41</time></b><p>Hi, this bag arrived yesterday. Can I exchange it for a different colour?</p></div></div><div class="op-order"><img src="assets/agents/product.jpg" alt="Sample handbag order" width="48" height="48"><div><b>Order #AC-1082</b><span>Everyday bag · Delivered yesterday</span></div><span>↗</span></div><div class="op-message op-response"><span class="op-agent-avatar">✳</span><div><b>Acorn agent <time>09:41</time></b><p data-typed="Yes, you can exchange it within 30 days. Keep the bag unused and in its original packaging. Maya can help you choose the colour and arrange the exchange.">Yes, you can exchange it within 30 days. Keep the bag unused and in its original packaging. Maya can help you choose the colour and arrange the exchange.</p><span class="op-source-chip">▤ Returns &amp; exchanges</span></div></div><div class="op-human-note"><img class="op-avatar" src="assets/agents/teammate.jpg" alt="Maya, sample teammate" width="32" height="32"><span>Maya joined the conversation</span><time>09:42</time></div></div><div class="op-composer"><span>Reply to Bella…</span><span class="op-send">↑</span></div></section><aside class="op-activity"><div class="op-activity-title">Activity <span class="op-live">Live demo</span></div><p class="op-run-id">Run · AC-2048</p><div class="op-log"><div class="op-step"><span class="op-step-dot"></span><time>09:41:02</time><b>Message received</b><p>Website chat · Bella M.</p></div><div class="op-step"><span class="op-step-dot"></span><time>09:41:03</time><b>Knowledge searched</b><p>Returns & exchanges · 1 source</p></div><div class="op-step"><span class="op-step-dot"></span><time>09:41:04</time><b>Policy matched</b><p>30-day exchange window</p></div><div class="op-step"><span class="op-step-dot"></span><time>09:41:06</time><b>Reply sent</b><p>Answered with a source</p></div><div class="op-step"><span class="op-step-dot"></span><time>09:41:08</time><b>Human handoff</b><p>Assigned to Maya</p></div></div><div class="op-run-complete"><span>✓</span> Run complete<small>Result saved to this conversation</small></div></aside></div><div class="op-progress" aria-hidden="true"></div></div><span class="operation-footnote">Sample workspace · Acorn</span></div></div></div>
+<p class="sr-only" data-agent-status role="status"></p>
+      <div class="feature-foot"><p>One platform. Different ways to put it to work.</p><button class="replay-motion" type="button" data-replay aria-label="Replay product animation"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M3 10a9 9 0 1 1 1 7M3 4v6h6"/></svg>Replay animation</button></div>
+    </section><section class="product-panel" id="growth" aria-labelledby="growth-title">
+      <div class="product-label"><span class="productMark growthMark" aria-hidden="true"></span>KasiTek Growth</div>
+      <div class="feature-heading"><h2 id="growth-title">The business.<br><em>All together.</em></h2><div><p>The customer message. The next campaign. The post you meant to schedule. Keep the day’s work in one place.</p><a class="text-action" href="http://localhost:3007/early-access?product=growth">Discover Growth <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M5 19 19 5M5 5h14v14"/></svg></a></div></div>
+      <div class="showcase-stage stage-growth"><div data-preview="growth">
 <div class="growthScene">
 <div class="growthWindow">
 <aside class="appSidebar">
@@ -436,7 +205,7 @@
 <div class="campaignCard">
 <div class="campaignArt campaignSand">
 <span>acorn.</span>
-<strong>A fresh<br/>
+<strong>A fresh<br>
 <em>start.</em>
 </strong>
 <div>
@@ -464,7 +233,7 @@
 <div class="campaignCard">
 <div class="campaignArt campaignOlive">
 <span>acorn.</span>
-<strong>Just<br/>
+<strong>Just<br>
 <em>for you.</em>
 </strong>
 <div>
@@ -492,7 +261,7 @@
 <div class="campaignCard">
 <div class="campaignArt campaignClay">
 <span>acorn.</span>
-<strong>Slow<br/>
+<strong>Slow<br>
 <em>Saturdays.</em>
 </strong>
 <div>
@@ -555,30 +324,12 @@
 </div>
 <span class="sampleCaption">Sample workspace</span>
 </div>
-</div>
-</section>
-<section class="agencySection" id="agency">
-<div class="agencyHeading">
-<div>
-<div class="productName">
-<span class="productMark agencyMark" aria-hidden="true">
-</span>KasiTek Agency</div>
-<h2>A home for your clients.<br/>
-<em>With your name on it.</em>
-</h2>
-</div>
-<div class="headingAside">
-<p>Separate businesses, branded portals and the right access for each team and client.</p>
-<a class="textLink" href="http://localhost:3007/contact?type=partnership">Discover Agency <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-arrow-up-right" aria-hidden="true">
-<path d="M7 7h10v10">
-</path>
-<path d="M7 17 17 7">
-</path>
-</svg>
-</a>
-</div>
-</div>
-<div data-preview="agency">
+</div></div>
+      <div class="feature-foot"><p>Contacts, campaigns, content and a calendar.</p><button class="replay-motion" type="button" data-replay aria-label="Replay product animation"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M3 10a9 9 0 1 1 1 7M3 4v6h6"/></svg>Replay animation</button></div>
+    </section><section class="product-panel" id="agency" aria-labelledby="agency-title">
+      <div class="product-label"><span class="productMark agencyMark" aria-hidden="true"></span>KasiTek Agency</div>
+      <div class="feature-heading"><h2 id="agency-title">A home for your clients.<br><em>With your name on it.</em></h2><div><p>Separate businesses, branded portals and the right access for each team and client.</p><a class="text-action" href="http://localhost:3007/contact?type=partnership">Discover Agency <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M5 19 19 5M5 5h14v14"/></svg></a></div></div>
+      <div class="showcase-stage stage-agency"><div data-preview="agency">
 <div class="agencyScene" style="--portal-accent:#697b65">
 <div class="agencyManager">
 <div class="windowHeader">
@@ -646,7 +397,7 @@
 </div>
 <div class="portalBody">
 <small>Acorn Store</small>
-<h3>Welcome back,<br/>
+<h3>Welcome back,<br>
 <em>Thandi.</em>
 </h3>
 <p>Your team, conversations and reports.</p>
@@ -721,17 +472,21 @@
 </div>
 <span class="sampleCaption">Sample business &amp; client portal</span>
 </div>
-</div>
-</section>
-<section class="services" id="services">
+</div></div>
+      <div class="feature-foot"><p>Your clients. Your workspaces. Your identity.</p><button class="replay-motion" type="button" data-replay aria-label="Replay product animation"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M3 10a9 9 0 1 1 1 7M3 4v6h6"/></svg>Replay animation</button></div>
+    </section>
+    </div>
+
+
+    <section class="services" id="studio">
 <div class="servicesImage">
-<img src="assets/service-delivery-editorial-v1.png" alt="" loading="lazy" style="position:absolute;inset:0;width:100%;height:100%"/>
+<img src="assets/service-delivery-editorial-v1.png" alt="" loading="lazy" style="position:absolute;inset:0;width:100%;height:100%">
 </div>
 <div class="servicesCopy">
 <p class="sectionLabel">Built with Labs</p>
-<h2>Some work calls<br/>for something <em>specific.</em>
+<h2>Some work calls<br>for something... <em>specific.</em>
 </h2>
-<p>Custom software, integrations and hands-on delivery.<br/>Tell us what you’re working on.</p>
+<p>Custom software, integrations and hands-on delivery.<br>Tell us what you’re working on.</p>
 <a class="textLink" href="http://localhost:3007/get-quote?service=delivery">Start a project <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-arrow-up-right" aria-hidden="true">
 <path d="M7 7h10v10">
 </path>
@@ -741,324 +496,17 @@
 </a>
 </div>
 </section>
-<footer class="footer">
-<div class="footerTop">
-<a class="footerBrand" href="./">KasiTek <em>Labs.</em>
-</a>
-<a class="footerContact" href="http://localhost:3007/contact">Have something in mind? <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-arrow-up-right" aria-hidden="true">
-<path d="M7 7h10v10">
-</path>
-<path d="M7 17 17 7">
-</path>
-</svg>
-</a>
-</div>
-<div class="footerLinks">
-<p>Good ideas. Real working tools.</p>
-<nav aria-label="Footer products">
-<a href="#agents">Agents</a>
-<a href="#growth">Growth</a>
-<a href="#agency">Agency</a>
-</nav>
-<nav aria-label="Company links">
-<a href="http://localhost:3007/about">About</a>
-<a href="http://localhost:3007/contact">Contact</a>
-<a href="http://localhost:3007/privacy-policy">Privacy</a>
-</nav>
-</div>
-<div class="footerBottom">
-<span>© 2026 KasiTek Labs</span>
-<span>Made in South Africa</span>
-<a href="#top" aria-label="Back to top">
-<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-arrow-right" aria-hidden="true">
-<path d="M5 12h14">
-</path>
-<path d="m12 5 7 7-7 7">
-</path>
-</svg>
-</a>
-</div>
-</footer>
-</main>
-<template id="agent-chat">
-<div class="agentScene">
-<div class="sceneTabs" role="group" aria-label="Agent preview">
-<button type="button" aria-pressed="true">
-<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-globe" aria-hidden="true">
-<circle cx="12" cy="12" r="10">
-</circle>
-<path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20">
-</path>
-<path d="M2 12h20">
-</path>
-</svg>Website chat</button>
-<button type="button" aria-pressed="false">
-<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-inbox" aria-hidden="true">
-<polyline points="22 12 16 12 14 15 10 15 8 12 2 12">
-</polyline>
-<path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z">
-</path>
-</svg>Team inbox</button>
-</div>
-<div class="agentStage">
-<div class="knowledgeCard">
-<span class="smallLabel">Knowledge</span>
-<h3>A good answer starts here.</h3>
-<div>
-<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-file-text" aria-hidden="true">
-<path d="M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z">
-</path>
-<path d="M14 2v5a1 1 0 0 0 1 1h5">
-</path>
-<path d="M10 9H8">
-</path>
-<path d="M16 13H8">
-</path>
-<path d="M16 17H8">
-</path>
-</svg>
-<span>Returns &amp; exchanges<small>Store policy</small>
-</span>
-<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-check" aria-hidden="true">
-<path d="M20 6 9 17l-5-5">
-</path>
-</svg>
-</div>
-<div>
-<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-file-text" aria-hidden="true">
-<path d="M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z">
-</path>
-<path d="M14 2v5a1 1 0 0 0 1 1h5">
-</path>
-<path d="M10 9H8">
-</path>
-<path d="M16 13H8">
-</path>
-<path d="M16 17H8">
-</path>
-</svg>
-<span>Delivery information<small>Shipping guide</small>
-</span>
-<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-check" aria-hidden="true">
-<path d="M20 6 9 17l-5-5">
-</path>
-</svg>
-</div>
-<p>Available to your agent</p>
-</div>
-<div class="chatWindow">
-<div class="windowHeader">
-<span class="storeAvatar">a.</span>
-<span>
-<b>Acorn Store</b>
-<small>Usually replies right away</small>
-</span>
-<svg xmlns="http://www.w3.org/2000/svg" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-ellipsis" aria-hidden="true">
-<circle cx="12" cy="12" r="1">
-</circle>
-<circle cx="19" cy="12" r="1">
-</circle>
-<circle cx="5" cy="12" r="1">
-</circle>
-</svg>
-</div>
-<div class="chatBody">
-<span class="chatDate">Today</span>
-<p class="customerMessage">Hi, can I return something if it doesn’t fit?</p>
-<div class="answer">
-<span class="smallStoreAvatar">a.</span>
-<p>Yes. You have 30 days from delivery. Just keep it unused and in its original packaging.</p>
-</div>
-<span class="answerSource">
-<svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-file-text" aria-hidden="true">
-<path d="M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z">
-</path>
-<path d="M14 2v5a1 1 0 0 0 1 1h5">
-</path>
-<path d="M10 9H8">
-</path>
-<path d="M16 13H8">
-</path>
-<path d="M16 17H8">
-</path>
-</svg>Returns &amp; exchanges</span>
-<p class="customerMessage">Great, thanks. I’d like help with an exchange.</p>
-<div class="answer">
-<span class="smallStoreAvatar">a.</span>
-<p>I’ll connect you with the team to arrange it.</p>
-</div>
-<span class="handoff">
-<span>
-</span>Maya has joined the conversation</span>
-</div>
-<div class="chatComposer">
-<span>Write a message…</span>
-<span>
-<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-paperclip" aria-hidden="true">
-<path d="m16 6-8.414 8.586a2 2 0 0 0 2.829 2.829l8.414-8.586a4 4 0 1 0-5.657-5.657l-8.379 8.551a6 6 0 1 0 8.485 8.485l8.379-8.551">
-</path>
-</svg>
-<i>
-<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-arrow-up" aria-hidden="true">
-<path d="m5 12 7-7 7 7">
-</path>
-<path d="M12 19V5">
-</path>
-</svg>
-</i>
-</span>
-</div>
-</div>
-<div class="handoffCard">
-<span class="personAvatar">M</span>
-<div>
-<b>A person when it matters.</b>
-<p>The conversation stays in one place.</p>
-</div>
-<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-message-square" aria-hidden="true">
-<path d="M22 17a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 21.286V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2z">
-</path>
-</svg>
-</div>
-</div>
-<span class="sampleCaption">Sample conversation</span>
-</div>
-</template>
-<template id="agent-inbox">
-<div class="agentScene">
-<div class="sceneTabs" role="group" aria-label="Agent preview">
-<button type="button" aria-pressed="false">
-<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-globe" aria-hidden="true">
-<circle cx="12" cy="12" r="10">
-</circle>
-<path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20">
-</path>
-<path d="M2 12h20">
-</path>
-</svg>Website chat</button>
-<button type="button" aria-pressed="true">
-<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-inbox" aria-hidden="true">
-<polyline points="22 12 16 12 14 15 10 15 8 12 2 12">
-</polyline>
-<path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z">
-</path>
-</svg>Team inbox</button>
-</div>
-<div class="agentStage">
-<div class="knowledgeCard">
-<span class="smallLabel">Knowledge</span>
-<h3>A good answer starts here.</h3>
-<div>
-<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-file-text" aria-hidden="true">
-<path d="M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z">
-</path>
-<path d="M14 2v5a1 1 0 0 0 1 1h5">
-</path>
-<path d="M10 9H8">
-</path>
-<path d="M16 13H8">
-</path>
-<path d="M16 17H8">
-</path>
-</svg>
-<span>Returns &amp; exchanges<small>Store policy</small>
-</span>
-<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-check" aria-hidden="true">
-<path d="M20 6 9 17l-5-5">
-</path>
-</svg>
-</div>
-<div>
-<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-file-text" aria-hidden="true">
-<path d="M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z">
-</path>
-<path d="M14 2v5a1 1 0 0 0 1 1h5">
-</path>
-<path d="M10 9H8">
-</path>
-<path d="M16 13H8">
-</path>
-<path d="M16 17H8">
-</path>
-</svg>
-<span>Delivery information<small>Shipping guide</small>
-</span>
-<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-check" aria-hidden="true">
-<path d="M20 6 9 17l-5-5">
-</path>
-</svg>
-</div>
-<p>Available to your agent</p>
-</div>
-<div class="chatWindow">
-<div class="windowHeader">
-<span class="storeAvatar">a.</span>
-<span>
-<b>Acorn Store</b>
-<small>Customer conversations</small>
-</span>
-<svg xmlns="http://www.w3.org/2000/svg" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-ellipsis" aria-hidden="true">
-<circle cx="12" cy="12" r="1">
-</circle>
-<circle cx="19" cy="12" r="1">
-</circle>
-<circle cx="5" cy="12" r="1">
-</circle>
-</svg>
-</div>
-<div class="chatBody">
-<span class="chatDate">Assigned to Maya</span>
-<div class="inboxPerson">
-<span class="personAvatar">TN</span>
-<span>
-<b>Thandi N.</b>
-<small>Exchange enquiry · Website</small>
-</span>
-<span class="openStatus">Open</span>
-</div>
-<p class="customerMessage">Great, thanks. I’d like help with an exchange.</p>
-<div class="answer">
-<span class="personAvatar">M</span>
-<p>Hi Thandi, I can help with that. What’s your order number?</p>
-</div>
-<div class="privateNote">
-<span>Private note</span>
-<p>Customer has read the returns policy. Confirm size availability before arranging the exchange.</p>
-</div>
-</div>
-<div class="chatComposer">
-<span>Reply to Thandi…</span>
-<span>
-<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-paperclip" aria-hidden="true">
-<path d="m16 6-8.414 8.586a2 2 0 0 0 2.829 2.829l8.414-8.586a4 4 0 1 0-5.657-5.657l-8.379 8.551a6 6 0 1 0 8.485 8.485l8.379-8.551">
-</path>
-</svg>
-<i>
-<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-arrow-up" aria-hidden="true">
-<path d="m5 12 7-7 7 7">
-</path>
-<path d="M12 19V5">
-</path>
-</svg>
-</i>
-</span>
-</div>
-</div>
-<div class="handoffCard">
-<span class="personAvatar">M</span>
-<div>
-<b>A person when it matters.</b>
-<p>The conversation stays in one place.</p>
-</div>
-<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-message-square" aria-hidden="true">
-<path d="M22 17a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 21.286V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2z">
-</path>
-</svg>
-</div>
-</div>
-<span class="sampleCaption">Sample conversation</span>
-</div>
-</template>
+
+
+    <footer class="site-footer container"><div class="footer-main"><a class="wordmark" href="./"><img src="assets/logo.png" alt="" width="30" height="30"><span>KasiTek <small>Labs</small></span></a><p>Good ideas. Real working tools.</p><nav aria-label="Footer products"><a href="#agents">Agents</a><a href="#growth">Growth</a><a href="#agency">Agency</a></nav><nav aria-label="Company links"><a href="http://localhost:3007/about">About</a><a href="http://localhost:3007/contact">Contact</a><a href="http://localhost:3007/privacy-policy">Privacy</a></nav></div><div class="footer-bottom"><span data-copyright>© 2026 KasiTek Labs</span><a href="../">Design workspace <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M5 19 19 5M5 5h14v14"/></svg></a><span>Made in South Africa</span></div></footer>
+  </main>
+  <template id="agent-support"><div class="operation-demo" data-agent-scene="support"><img class="operation-photo" src="assets/agents/working-studio.png" alt="" loading="lazy"><div class="operation-shade"></div><div class="operation-caption"><span>Customer support</span><h3>For the questions<br><em>that need an answer.</em></h3><p>A closer look at an agent doing the work.</p></div><div class="operation-window"><header class="op-app-header"><a class="op-brand" href="#agents"><img src="assets/logo.png" alt="" width="20" height="20">KasiTek <small>Agents</small></a><div class="op-header-right"><span>Illustrative demo</span><button type="button" data-replay aria-label="Replay this agent operation">↻ Replay</button></div></header><div class="op-app-body"><aside class="op-sidebar"><div class="op-sidebar-label">INBOX <span>3</span></div><div class="op-contact is-current"><img class="op-avatar" src="assets/agents/customer.jpg" alt="Customer profile" width="32" height="32"><div><b>Bella M.</b><span>Returns &amp; exchanges</span></div><i></i></div><div class="op-contact"><img class="op-avatar" src="assets/agents/owner.jpg" alt="Customer profile" width="32" height="32"><div><b>Daniel S.</b><span>Delivery update</span></div></div><div class="op-contact"><img class="op-avatar" src="assets/agents/teammate.jpg" alt="Customer profile" width="32" height="32"><div><b>Sarah K.</b><span>Thank you!</span></div></div><div class="op-sidebar-bottom"><span class="op-online"></span>Acorn agent is online</div></aside>
+<section class="op-main"><header class="op-thread-header"><div><b>Bella M.</b><span>Website chat · Today</span></div><span class="op-status">Resolved</span></header><div class="op-thread"><span class="op-time-divider">Today, 09:41</span><div class="op-message op-incoming"><img class="op-avatar" src="assets/agents/customer.jpg" alt="Bella, sample customer" width="32" height="32"><div><b>Bella <time>09:41</time></b><p>Hi, this bag arrived yesterday. Can I exchange it for a different colour?</p></div></div><div class="op-order"><img src="assets/agents/product.jpg" alt="Sample handbag order" width="48" height="48"><div><b>Order #AC-1082</b><span>Everyday bag · Delivered yesterday</span></div><span>↗</span></div><div class="op-message op-response"><span class="op-agent-avatar">✳</span><div><b>Acorn agent <time>09:41</time></b><p data-typed="Yes, you can exchange it within 30 days. Keep the bag unused and in its original packaging. Maya can help you choose the colour and arrange the exchange.">Yes, you can exchange it within 30 days. Keep the bag unused and in its original packaging. Maya can help you choose the colour and arrange the exchange.</p><span class="op-source-chip">▤ Returns &amp; exchanges</span></div></div><div class="op-human-note"><img class="op-avatar" src="assets/agents/teammate.jpg" alt="Maya, sample teammate" width="32" height="32"><span>Maya joined the conversation</span><time>09:42</time></div></div><div class="op-composer"><span>Reply to Bella…</span><span class="op-send">↑</span></div></section><aside class="op-activity"><div class="op-activity-title">Activity <span class="op-live">Live demo</span></div><p class="op-run-id">Run · AC-2048</p><div class="op-log"><div class="op-step"><span class="op-step-dot"></span><time>09:41:02</time><b>Message received</b><p>Website chat · Bella M.</p></div><div class="op-step"><span class="op-step-dot"></span><time>09:41:03</time><b>Knowledge searched</b><p>Returns & exchanges · 1 source</p></div><div class="op-step"><span class="op-step-dot"></span><time>09:41:04</time><b>Policy matched</b><p>30-day exchange window</p></div><div class="op-step"><span class="op-step-dot"></span><time>09:41:06</time><b>Reply sent</b><p>Answered with a source</p></div><div class="op-step"><span class="op-step-dot"></span><time>09:41:08</time><b>Human handoff</b><p>Assigned to Maya</p></div></div><div class="op-run-complete"><span>✓</span> Run complete<small>Result saved to this conversation</small></div></aside></div><div class="op-progress" aria-hidden="true"></div></div><span class="operation-footnote">Sample workspace · Acorn</span></div></template>
+<template id="agent-business"><div class="operation-demo" data-agent-scene="business"><img class="operation-photo" src="assets/agents/working-studio.png" alt="" loading="lazy"><div class="operation-shade"></div><div class="operation-caption"><span>Business agents</span><h3>A request in.<br><em>A task taken care of.</em></h3><p>A closer look at an agent doing the work.</p></div><div class="operation-window"><header class="op-app-header"><a class="op-brand" href="#agents"><img src="assets/logo.png" alt="" width="20" height="20">KasiTek <small>Agents</small></a><div class="op-header-right"><span>Illustrative demo</span><button type="button" data-replay aria-label="Replay this agent operation">↻ Replay</button></div></header><div class="op-app-body"><aside class="op-sidebar"><div class="op-sidebar-label">WORKSPACE</div><div class="op-side-item">◷ <span>Conversations</span></div><div class="op-side-item is-current">▦ <span>Calendar</span></div><div class="op-side-item">▤ <span>Knowledge</span></div><div class="op-side-item">↗ <span>Connected tools</span></div><div class="op-sidebar-bottom"><img class="op-avatar" src="assets/agents/owner.jpg" alt="Sample workspace owner" width="32" height="32"><span>Daniel<br><small>Acorn workspace</small></span></div></aside>
+<section class="op-main"><header class="op-thread-header"><div><b>Acorn calendar</b><span>Thursday, 15 October</span></div><span class="op-status">Event created</span></header><div class="op-business-body"><div class="op-request-bar"><img class="op-avatar" src="assets/agents/owner.jpg" alt="Daniel, sample requester" width="32" height="32"><p>Book our planning meeting for Thursday at 10. Allow 45 minutes.</p></div><div class="op-calendar"><div class="op-calendar-day"><span>THURSDAY</span><b>15</b></div><div class="op-calendar-grid"><div><time>09:00</time><span></span></div><div><time>10:00</time><span class="op-calendar-event"><b>Acorn planning</b><small>10:00–10:45 · 45 min</small><span class="op-event-people"><img class="op-avatar" src="assets/agents/owner.jpg" alt="Sample attendee" width="32" height="32"><img class="op-avatar" src="assets/agents/teammate.jpg" alt="Sample attendee" width="32" height="32"><i>+1</i></span></span></div><div><time>11:00</time><span></span></div><div><time>12:00</time><span></span></div></div></div><div class="op-approval"><div><b>Ready to add to your calendar</b><span>Acorn planning · Thursday, 10:00</span></div><span class="op-approval-action" data-final-action="✓ Approved">✓ Approved</span><svg class="op-demo-cursor" viewBox="0 0 24 28" fill="currentColor" stroke="white" stroke-width="1.5" aria-hidden="true"><path d="m3 2 17 13-8 1-4 8z"/></svg></div><div class="op-success"><span>✓</span><div><b>Meeting created</b><small>Event AC-482 · Saved after approval</small></div></div></div></section><aside class="op-activity"><div class="op-activity-title">Activity <span class="op-live">Live demo</span></div><p class="op-run-id">Run · AC-2049</p><div class="op-log"><div class="op-step"><span class="op-step-dot"></span><time>10:02:11</time><b>Request received</b><p>Acorn planning · 45 minutes</p></div><div class="op-step"><span class="op-step-dot"></span><time>10:02:12</time><b>Event prepared</b><p>Thursday, 15 October · 10:00</p></div><div class="op-step"><span class="op-step-dot"></span><time>10:02:14</time><b>Approval requested</b><p>Waiting for your review</p></div><div class="op-step"><span class="op-step-dot"></span><time>10:02:17</time><b>Approved by Daniel</b><p>Calendar action authorised</p></div><div class="op-step"><span class="op-step-dot"></span><time>10:02:18</time><b>Event created</b><p>Receipt · AC-482</p></div></div><div class="op-run-complete"><span>✓</span> Run complete<small>Result saved to this conversation</small></div></aside></div><div class="op-progress" aria-hidden="true"></div></div><span class="operation-footnote">Sample workspace · Acorn</span></div></template>
+<template id="agent-personal"><div class="operation-demo" data-agent-scene="personal"><img class="operation-photo" src="assets/agents/working-studio.png" alt="" loading="lazy"><div class="operation-shade"></div><div class="operation-caption"><span>Personal concept</span><h3>Your files. Your plans.<br><em>A little help with both.</em></h3><p>An illustrative personal experience in development.</p></div><div class="operation-window"><header class="op-app-header"><a class="op-brand" href="#agents"><img src="assets/logo.png" alt="" width="20" height="20">KasiTek <small>Agents</small></a><div class="op-header-right"><span>Personal concept</span><button type="button" data-replay aria-label="Replay this agent operation">↻ Replay</button></div></header><div class="op-app-body"><aside class="op-sidebar"><div class="op-sidebar-label">YOUR FILES</div><div class="op-file is-current"><span>▤</span><div><b>Project notes.md</b><small>Updated today</small></div></div><div class="op-file"><span>▤</span><div><b>Questions.txt</b><small>4 open questions</small></div></div><div class="op-file"><span>▤</span><div><b>Meeting brief</b><small>Created just now</small></div></div><div class="op-sidebar-bottom"><img class="op-avatar" src="assets/agents/teammate.jpg" alt="Sample personal assistant user" width="32" height="32"><span>Your private space</span></div></aside>
+<section class="op-main"><header class="op-thread-header"><div><b>Tomorrow’s meeting</b><span>Personal assistant · Concept</span></div><span class="op-status">Brief ready</span></header><div class="op-personal-body"><div class="op-request-bar"><img class="op-avatar" src="assets/agents/teammate.jpg" alt="Sample requester" width="32" height="32"><p>Use my project notes to help me prepare for tomorrow’s meeting.</p></div><article class="op-document"><div class="op-document-meta">MEETING BRIEF <span>Saved to your workspace</span></div><h3>Website launch.<br><em>Ready for the discussion.</em></h3><p class="op-document-lead" data-typed="The landing page is ready for review. Tomorrow’s meeting needs a decision on the final copy and launch date.">The landing page is ready for review. Tomorrow’s meeting needs a decision on the final copy and launch date.</p><div class="op-doc-section"><b>Decisions to make</b><p>Confirm the final copy.<br>Agree on a launch date.</p></div><div class="op-doc-section"><b>Your next step</b><p>Share feedback before Friday.</p></div><div class="op-document-sources"><span>▤ Project notes.md</span><span>▤ Questions.txt</span></div></article></div></section><aside class="op-activity"><div class="op-activity-title">Activity <span class="op-live">Live demo</span></div><p class="op-run-id">Run · AC-2049</p><div class="op-log"><div class="op-step"><span class="op-step-dot"></span><time>08:12:01</time><b>Request received</b><p>Prepare a meeting brief</p></div><div class="op-step"><span class="op-step-dot"></span><time>08:12:02</time><b>Files opened</b><p>Project notes.md · Questions.txt</p></div><div class="op-step"><span class="op-step-dot"></span><time>08:12:04</time><b>Open points collected</b><p>Copy approval · Launch date</p></div><div class="op-step"><span class="op-step-dot"></span><time>08:12:07</time><b>Brief written</b><p>Decisions and next steps</p></div><div class="op-step"><span class="op-step-dot"></span><time>08:12:08</time><b>Document saved</b><p>Meeting brief · Ready to edit</p></div></div><div class="op-run-complete"><span>✓</span> Run complete<small>Result saved to this conversation</small></div></aside></div><div class="op-progress" aria-hidden="true"></div></div><span class="operation-footnote">Personal experience · Planned</span></div></template>
+
 <template id="growth-campaigns">
 <div class="growthScene">
 <div class="growthWindow">
@@ -1162,7 +610,7 @@
 <div class="campaignCard">
 <div class="campaignArt campaignSand">
 <span>acorn.</span>
-<strong>A fresh<br/>
+<strong>A fresh<br>
 <em>start.</em>
 </strong>
 <div>
@@ -1190,7 +638,7 @@
 <div class="campaignCard">
 <div class="campaignArt campaignOlive">
 <span>acorn.</span>
-<strong>Just<br/>
+<strong>Just<br>
 <em>for you.</em>
 </strong>
 <div>
@@ -1218,7 +666,7 @@
 <div class="campaignCard">
 <div class="campaignArt campaignClay">
 <span>acorn.</span>
-<strong>Slow<br/>
+<strong>Slow<br>
 <em>Saturdays.</em>
 </strong>
 <div>
