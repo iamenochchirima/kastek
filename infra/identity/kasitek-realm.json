@@ -70,6 +70,49 @@
       "optionalClientScopes": []
     },
     {
+      "clientId": "agency-partner",
+      "name": "KasiTek Agency partner accounts",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "secret": "${AGENCY_PARTNER_OIDC_CLIENT_SECRET}",
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "redirectUris": [
+        "http://localhost:3010/api/tenant/api/partner/auth/callback"
+      ],
+      "webOrigins": [
+        "http://localhost:3010"
+      ],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "http://localhost:3010/login?audience=partner",
+        "backchannel.logout.url": "http://localhost:8090/api/partner/auth/backchannel-logout",
+        "backchannel.logout.session.required": "true",
+        "backchannel.logout.revoke.offline.tokens": "true"
+      },
+      "defaultClientScopes": [
+        "web-origins",
+        "acr",
+        "profile",
+        "email",
+        "basic"
+      ],
+      "optionalClientScopes": []
+    },
+    {
+      "clientId": "agency-partner-session-admin",
+      "name": "Agency partner session revocation",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "secret": "${AGENCY_PARTNER_SESSION_ADMIN_SECRET}",
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true
+    },
+    {
       "clientId": "growth-session-admin",
       "name": "Growth session revocation",
       "enabled": true,

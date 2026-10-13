@@ -8,6 +8,62 @@ import urllib.parse
 import urllib.request
 
 
+def smtp_settings(env, defaults):
+    """Build Keycloak SMTP settings, retaining Mailpit defaults when unset."""
+    def boolean(key, default):
+        value = env.get(key, default).strip().lower()
+        if value in ('1', 'true', 'yes', 'on'):
+            return True
+        if value in ('0', 'false', 'no', 'off', ''):
+            return False
+        raise RuntimeError(key + ' must be true or false')
+
+    result = dict(defaults)
+    host = env.get('IDENTITY_SMTP_HOST', '').strip()
+    port = env.get('IDENTITY_SMTP_PORT', '').strip()
+    sender = env.get('IDENTITY_SMTP_FROM', '').strip()
+    display_name = env.get('IDENTITY_SMTP_FROM_DISPLAY_NAME', '').strip()
+    reply_to = env.get('IDENTITY_SMTP_REPLY_TO', '').strip()
+    username = env.get('IDENTITY_SMTP_USERNAME', '').strip()
+    password = env.get('IDENTITY_SMTP_PASSWORD', '')
+    ssl = boolean('IDENTITY_SMTP_SSL', result.get('ssl', 'false'))
+    starttls = boolean('IDENTITY_SMTP_STARTTLS', result.get('starttls', 'false'))
+
+    if any((host, port, sender)) and not all((host, port, sender)):
+        raise RuntimeError('Set IDENTITY_SMTP_HOST, IDENTITY_SMTP_PORT, and IDENTITY_SMTP_FROM together')
+    if bool(username) != bool(password):
+        raise RuntimeError('IDENTITY_SMTP_USERNAME and IDENTITY_SMTP_PASSWORD must be set together')
+    if ssl and starttls:
+        raise RuntimeError('Use either IDENTITY_SMTP_SSL or IDENTITY_SMTP_STARTTLS, not both')
+    if (username or ssl or starttls) and not host:
+        raise RuntimeError('Set IDENTITY_SMTP_HOST when enabling SMTP authentication or TLS')
+    if username and not (ssl or starttls):
+        raise RuntimeError('Authenticated SMTP requires SSL or STARTTLS')
+    if host:
+        result['host'] = host
+    if port:
+        if not port.isdecimal() or not 1 <= int(port) <= 65535:
+            raise RuntimeError('IDENTITY_SMTP_PORT must be between 1 and 65535')
+        result['port'] = str(int(port))
+    if sender:
+        result['from'] = sender
+    if display_name:
+        result['fromDisplayName'] = display_name
+    if reply_to:
+        result['replyTo'] = reply_to
+    else:
+        result.pop('replyTo', None)
+    result['ssl'] = str(ssl).lower()
+    result['starttls'] = str(starttls).lower()
+    result['auth'] = str(bool(username and password)).lower()
+    result.pop('user', None)
+    result.pop('password', None)
+    if username and password:
+        result['user'] = username
+        result['password'] = password
+    return result
+
+
 def environment():
     values = {}
     for line in (Path(__file__).parent / '.env').read_text().splitlines():
@@ -17,8 +73,27 @@ def environment():
     return {**values, **os.environ}
 
 
+def validate_local_configuration(env):
+    required = (
+        'IDENTITY_DB_PASSWORD',
+        'KEYCLOAK_ADMIN',
+        'KEYCLOAK_ADMIN_PASSWORD',
+        'GROWTH_OIDC_CLIENT_SECRET',
+        'GROWTH_SESSION_ADMIN_SECRET',
+        'AGENCY_PARTNER_OIDC_CLIENT_SECRET',
+        'AGENCY_PARTNER_SESSION_ADMIN_SECRET',
+    )
+    missing = [key for key in required if not env.get(key) or env[key].startswith('replace-')]
+    if missing:
+        raise RuntimeError('Set required local identity settings in .env: ' + ', '.join(missing))
+    template = json.loads((Path(__file__).parent / 'kasitek-realm.json').read_text())
+    smtp = smtp_settings(env, template['smtpServer'])
+    return template, smtp
+
+
 def configure():
     env = environment()
+    template, smtp = validate_local_configuration(env)
     base = 'http://localhost:8080'
     credentials = urllib.parse.urlencode({'grant_type': 'password', 'client_id': 'admin-cli',
         'username': env['KEYCLOAK_ADMIN'], 'password': env['KEYCLOAK_ADMIN_PASSWORD']}).encode()
@@ -34,7 +109,6 @@ def configure():
             content = response.read()
             return json.loads(content) if content else None
 
-    template = json.loads((Path(__file__).parent / 'kasitek-realm.json').read_text())
     scopes = {item['name']: item for item in admin('client-scopes')}
     for desired in template['clientScopes']:
         if desired['name'] not in scopes:
@@ -75,14 +149,49 @@ def configure():
         admin('clients/' + current['id'], 'PUT', current)
     for scope_name in template['clients'][0]['defaultClientScopes']:
         admin('clients/' + by_name['growth']['id'] + '/default-client-scopes/' + scopes[scope_name]['id'], 'PUT')
+    partner_template = next(client for client in template['clients'] if client['clientId'] == 'agency-partner')
+    clients = admin('clients')
+    by_name = {client['clientId']: client for client in clients}
+    if 'agency-partner' not in by_name:
+        new_client = {key: value for key, value in partner_template.items()
+                      if key not in ('defaultClientScopes', 'optionalClientScopes')}
+        new_client['secret'] = env['AGENCY_PARTNER_OIDC_CLIENT_SECRET']
+        admin('clients', 'POST', new_client)
+        by_name = {client['clientId']: client for client in admin('clients')}
+    partner = admin('clients/' + by_name['agency-partner']['id'])
+    for key in ('name', 'enabled', 'protocol', 'publicClient', 'secret', 'standardFlowEnabled',
+                'directAccessGrantsEnabled', 'serviceAccountsEnabled', 'redirectUris', 'webOrigins', 'attributes'):
+        partner[key] = env['AGENCY_PARTNER_OIDC_CLIENT_SECRET'] if key == 'secret' else partner_template[key]
+    admin('clients/' + partner['id'], 'PUT', partner)
+    for scope_name in partner_template['defaultClientScopes']:
+        admin('clients/' + partner['id'] + '/default-client-scopes/' + scopes[scope_name]['id'], 'PUT')
+    session_admin_template = next(client for client in template['clients']
+                                  if client['clientId'] == 'agency-partner-session-admin')
+    clients = admin('clients')
+    by_name = {client['clientId']: client for client in clients}
+    if 'agency-partner-session-admin' not in by_name:
+        session_admin = {key: value for key, value in session_admin_template.items()
+                         if key not in ('defaultClientScopes', 'optionalClientScopes')}
+        session_admin['secret'] = env['AGENCY_PARTNER_SESSION_ADMIN_SECRET']
+        admin('clients', 'POST', session_admin)
+        by_name = {client['clientId']: client for client in admin('clients')}
+    session_admin = admin('clients/' + by_name['agency-partner-session-admin']['id'])
+    session_admin['secret'] = env['AGENCY_PARTNER_SESSION_ADMIN_SECRET']
+    session_admin['serviceAccountsEnabled'] = True
+    session_admin['standardFlowEnabled'] = False
+    session_admin['directAccessGrantsEnabled'] = False
+    admin('clients/' + session_admin['id'], 'PUT', session_admin)
+    session_admin_user = admin('clients/' + session_admin['id'] + '/service-account-user')
     service_client = by_name['growth-session-admin']
     service_user = admin('clients/' + service_client['id'] + '/service-account-user')
     management = by_name['realm-management']
     role = admin('clients/' + management['id'] + '/roles/manage-users')
+    admin('users/' + session_admin_user['id'] + '/role-mappings/clients/' + management['id'], 'POST', [role])
     admin('users/' + service_user['id'] + '/role-mappings/clients/' + management['id'], 'POST', [role])
     realm = admin('')
     for key in ['eventsEnabled', 'eventsExpiration', 'enabledEventTypes']:
         realm[key] = template[key]
+    realm['smtpServer'] = smtp
     admin('', 'PUT', realm)
     assert realm['registrationAllowed'] and realm['verifyEmail'] and realm['resetPasswordAllowed']
     assert realm['ssoSessionIdleTimeout'] == 604800 and realm['ssoSessionMaxLifespan'] == 2592000
@@ -98,13 +207,17 @@ def configure():
     assert actions['CONFIGURE_RECOVERY_AUTHN_CODES']['enabled']
     assert not actions['CONFIGURE_TOTP']['defaultAction']
     assert actions['CONFIGURE_TOTP']['config'].get('add-recovery-codes') == 'true'
-    print('Realm checked; optional OTP and recovery-code flow configured.')
+    smtp_mode = 'external SMTP' if env.get('IDENTITY_SMTP_HOST', '').strip() else 'Mailpit'
+    print('Realm checked; Agency partner clients, optional OTP, and ' + smtp_mode + ' email configured.')
     print('Google enabled.' if google_ready else 'Google remains disabled until development OAuth credentials are supplied.')
 
 
 if __name__ == '__main__':
     try:
         configure()
-    except (urllib.error.HTTPError, urllib.error.URLError, RuntimeError, AssertionError) as error:
+    except (urllib.error.HTTPError, urllib.error.URLError, AssertionError) as error:
         # Never output response bodies containing secrets or request payloads.
         raise SystemExit('Identity configuration failed: ' + type(error).__name__)
+    except RuntimeError as error:
+        # Local validation errors contain setting names only, never submitted values.
+        raise SystemExit('Identity configuration failed: ' + str(error))

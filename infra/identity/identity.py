@@ -11,7 +11,7 @@ import subprocess
 import tarfile
 import time
 import urllib.request
-from configure import environment, configure
+from configure import environment, configure, validate_local_configuration
 
 ROOT = Path(__file__).resolve().parent
 STATE = ROOT / '.runtime'
@@ -91,9 +91,7 @@ def spawn(name, args, env):
 
 def start():
     env = environment()
-    for key in ['IDENTITY_DB_PASSWORD', 'KEYCLOAK_ADMIN_PASSWORD', 'GROWTH_OIDC_CLIENT_SECRET', 'GROWTH_SESSION_ADMIN_SECRET']:
-        if not env.get(key) or env[key].startswith('replace-'):
-            raise RuntimeError('Set independent secrets in .env before starting')
+    validate_local_configuration(env)
     STATE.mkdir(mode=0o700, exist_ok=True)
     pg = postgres_bin()
     data = STATE / 'postgres'
