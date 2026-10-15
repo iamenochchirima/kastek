@@ -1,0 +1,470 @@
+import { queueSpan } from "../observability/operations.js";
+import type { Pool } from "pg";
+import type {
+  AnalyticsOutboxRecord,
+  SourceBackfillWork,
+  BackfillRecord,
+  BackfillBatchResponse,
+  Timestamp,
+} from "@kasitek-labs/contracts";
+import {
+  AnalyticsIngestionClient,
+  backfillSourceSequence,
+} from "@kasitek-labs/server-support/analytics-producer";
+import {
+  buildMetaConversationBackfillRecord,
+  buildMetaMessageBackfillRecord,
+} from "../analytics/inbox.js";
+import { epochMicros, iso } from "../analytics/facts.js";
+import { envUnsigned } from "../analytics/publisher.js";
+export interface BackfillTransport {
+  sendBackfillBatch(
+    producerId: string,
+    jobId: string,
+    records: BackfillRecord[],
+  ): Promise<BackfillBatchResponse>;
+  claimSourceBackfillWork(): Promise<SourceBackfillWork | undefined>;
+}
+export interface BackfillSettings {
+  endpoint: string;
+  token: string;
+  producer_id: string;
+  batch_size: number;
+  request_timeout_ms: number;
+}
+export interface BackfillStats {
+  conversation_records: number;
+  message_records: number;
+  connection_records: number;
+  campaign_records: number;
+  rejected_records: number;
+}
+const emptyStats = (): BackfillStats => ({
+  conversation_records: 0,
+  message_records: 0,
+  connection_records: 0,
+  campaign_records: 0,
+  rejected_records: 0,
+});
+type Env = Record<string, string | undefined>;
+export function backfillSettings(env: Env): BackfillSettings | undefined {
+  const token =
+    env.ANALYTICS_CORE_INGESTION_TOKEN ?? env.ANALYTICS_INGESTION_TOKEN;
+  if (!token?.trim()) return undefined;
+  const raw = env.ANALYTICS_BACKFILL_BATCH_SIZE;
+  const parsed = raw && /^[-+]?\d+$/.test(raw) ? BigInt(raw) : 100n;
+  const valid = parsed >= -(1n << 63n) && parsed < 1n << 63n ? parsed : 100n;
+  return {
+    endpoint: env.ANALYTICS_INGESTION_URL ?? "http://127.0.0.1:4300",
+    token,
+    producer_id: env.ANALYTICS_CORE_PRODUCER_ID?.trim()
+      ? env.ANALYTICS_CORE_PRODUCER_ID
+      : "core-customer-analytics",
+    batch_size: Number(valid < 1n ? 1n : valid > 500n ? 500n : valid),
+    request_timeout_ms: envUnsigned(
+      env,
+      "ANALYTICS_BACKFILL_REQUEST_TIMEOUT_MS",
+      10000,
+    ),
+  };
+}
+function validateWork(work: SourceBackfillWork) {
+  if (
+    !work.scope_external_id.trim() ||
+    epochMicros(work.requested_range_end) <=
+      epochMicros(work.requested_range_start)
+  )
+    throw new Error("invalid_source_backfill_scope_or_range");
+  if (work.remaining_count == null)
+    throw new Error("source_backfill_requires_expected_count");
+}
+function validateTransport(producer: string, batch: number) {
+  if (!producer.trim() || !Number.isInteger(batch) || batch < 1 || batch > 500)
+    throw new Error("invalid_source_backfill_transport_settings");
+}
+export function metaResponderType(
+  sender: string,
+  agent: string | null,
+  kind: string | null,
+): string {
+  return sender === "customer"
+    ? "customer"
+    : agent !== null && agent !== ""
+      ? "agent"
+      : kind === "template"
+        ? "system"
+        : "human";
+}
+function asciiLower(value: string): string {
+  return value.replace(/[A-Z]/g, (char) => char.toLowerCase());
+}
+async function contextual<T>(label: string, run: () => Promise<T>): Promise<T> {
+  try {
+    return await run();
+  } catch (error) {
+    throw new Error(
+      `${label}: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+}
+export interface HistoryRow extends AnalyticsOutboxRecord {
+  source_sequence: string | bigint | number;
+}
+export function buildHistoryBackfillRecord(
+  row: HistoryRow,
+  domain: "connections" | "campaigns",
+): AnalyticsOutboxRecord {
+  if (row.source_service !== "core" || row.source_domain !== domain)
+    throw new Error(`${domain}_source_identity_mismatch`);
+  if (
+    row.source_stream_key !== `organization:${row.scope_external_id}:${domain}`
+  )
+    throw new Error(`${domain}_source_stream_mismatch`);
+  if (!row.outbox_id.trim())
+    throw new Error(`${domain}_outbox_identity_missing`);
+  if (
+    !["event", "observation", "scope_definition", "manifest"].includes(
+      row.record_category,
+    )
+  )
+    throw new Error("invalid_record_category");
+  if (row.record_category !== "event")
+    throw new Error(`${domain}_backfill_requires_event_record`);
+  if (
+    !["core_organization", "tenant_workspace", "tenant_client"].includes(
+      row.scope_kind,
+    )
+  )
+    throw new Error("invalid_scope_kind");
+  const { source_sequence, ...record } = row;
+  return record;
+}
+const LOAD_CONNECTIONS_HISTORY =
+  "\n        SELECT source_sequence,\n               outbox_id,\n               source_service,\n               source_domain,\n               source_stream_key,\n               record_category,\n               record_id,\n               contract_name,\n               schema_version,\n               scope_kind,\n               scope_external_id,\n               idempotency_key,\n               envelope,\n               payload_hash\n        FROM analytics_outbox\n        WHERE source_service = 'core'\n          AND source_domain = 'connections'\n          AND record_category = 'event'\n          AND source_stream_key = 'organization:' || $1 || ':connections'\n          AND scope_external_id = $1\n          AND NULLIF(envelope ->> 'time', '')::timestamptz >= $2\n          AND NULLIF(envelope ->> 'time', '')::timestamptz < $3\n          AND ($4::bigint IS NULL OR source_sequence > $4)\n        ORDER BY source_sequence\n        LIMIT $5\n    ";
+const LOAD_CAMPAIGN_HISTORY =
+  "\n        SELECT source_sequence,\n               outbox_id,\n               source_service,\n               source_domain,\n               source_stream_key,\n               record_category,\n               record_id,\n               contract_name,\n               schema_version,\n               scope_kind,\n               scope_external_id,\n               idempotency_key,\n               envelope,\n               payload_hash\n        FROM analytics_outbox\n        WHERE source_service = 'core'\n          AND source_domain = 'campaigns'\n          AND record_category = 'event'\n          AND source_stream_key = 'organization:' || $1 || ':campaigns'\n          AND scope_external_id = $1\n          AND NULLIF(envelope ->> 'time', '')::timestamptz >= $2\n          AND NULLIF(envelope ->> 'time', '')::timestamptz < $3\n          AND ($4::bigint IS NULL OR source_sequence > $4)\n        ORDER BY source_sequence\n        LIMIT $5\n    ";
+const LOAD_META_CONVERSATIONS =
+  '\n        SELECT id, channel, "createdAt" AS created_at\n        FROM "Conversation"\n        WHERE "orgId" = $1\n          AND channel IN (\'facebook\', \'instagram\')\n          AND "createdAt" >= $2\n          AND "createdAt" < $3\n          AND ($4::timestamptz IS NULL OR ("createdAt", id) > ($4, $5))\n        ORDER BY "createdAt", id\n        LIMIT $6\n    ';
+const LOAD_META_MESSAGES =
+  '\n        SELECT message.id,\n               message."conversationId" AS conversation_id,\n               conversation.channel,\n               message.sender,\n               message."contentType"::text AS message_type,\n               message."providerMetadata" ->> \'_kasitek_agent_idempotency_key\'\n                   AS agent_idempotency_key,\n               message."providerMetadata" ->> \'_kasitek_inbox_message_kind\'\n                   AS inbox_message_kind,\n               message.timestamp AS occurred_at\n        FROM "Message" message\n        JOIN "Conversation" conversation ON conversation.id = message."conversationId"\n        WHERE conversation."orgId" = $1\n          AND conversation.channel IN (\'facebook\', \'instagram\')\n          AND message.timestamp >= $2\n          AND message.timestamp < $3\n          AND ($4::timestamptz IS NULL OR (message.timestamp, message.id) > ($4, $5))\n        ORDER BY message.timestamp, message.id\n        LIMIT $6\n    ';
+export async function processMetaSourceReconstruction(
+  pool: Pool,
+  client: BackfillTransport,
+  settings: BackfillSettings,
+  work: SourceBackfillWork,
+): Promise<BackfillStats> {
+  validateWork(work);
+  const stats = emptyStats();
+  let cursor: [Timestamp, string] | undefined;
+  while (true) {
+    const { rows } = await contextual("load_meta_conversations", () =>
+      pool.query(LOAD_META_CONVERSATIONS, [
+        work.scope_external_id,
+        iso(work.requested_range_start),
+        iso(work.requested_range_end),
+        cursor ? iso(cursor[0]) : null,
+        cursor?.[1] ?? null,
+        settings.batch_size,
+      ]),
+    );
+    if (!rows.length) break;
+    const last = rows.at(-1)!;
+    const records = await contextual("build_meta_conversation_fact", async () =>
+      rows.map((row) => {
+        const record = buildMetaConversationBackfillRecord(
+          work.scope_external_id,
+          row.id,
+          row.channel,
+          "active",
+          row.created_at,
+        );
+        return {
+          source_sequence: backfillSourceSequence(record.record_id),
+          record,
+        };
+      }),
+    );
+    const response = await contextual("send_meta_conversation_batch", () =>
+      client.sendBackfillBatch(settings.producer_id, work.job_id, records),
+    );
+    if (response.retryable_count > 0)
+      throw new Error("meta_conversation_batch_has_retryable_records");
+    stats.conversation_records += records.length;
+    stats.rejected_records += response.rejected_count;
+    cursor = [last.created_at, last.id];
+  }
+  cursor = undefined;
+  while (true) {
+    const { rows } = await contextual("load_meta_messages", () =>
+      pool.query(LOAD_META_MESSAGES, [
+        work.scope_external_id,
+        iso(work.requested_range_start),
+        iso(work.requested_range_end),
+        cursor ? iso(cursor[0]) : null,
+        cursor?.[1] ?? null,
+        settings.batch_size,
+      ]),
+    );
+    if (!rows.length) break;
+    const last = rows.at(-1)!;
+    const records = await contextual("build_meta_message_fact", async () =>
+      rows.map((row) => {
+        const record = buildMetaMessageBackfillRecord(
+          work.scope_external_id,
+          row.id,
+          row.conversation_id,
+          row.channel,
+          row.sender === "customer" ? "inbound" : "outbound",
+          metaResponderType(
+            row.sender,
+            row.agent_idempotency_key,
+            row.inbox_message_kind,
+          ),
+          asciiLower(row.message_type ?? "TEXT"),
+          row.occurred_at,
+        );
+        return {
+          source_sequence: backfillSourceSequence(record.record_id),
+          record,
+        };
+      }),
+    );
+    const response = await contextual("send_meta_message_batch", () =>
+      client.sendBackfillBatch(settings.producer_id, work.job_id, records),
+    );
+    if (response.retryable_count > 0)
+      throw new Error("meta_message_batch_has_retryable_records");
+    stats.message_records += records.length;
+    stats.rejected_records += response.rejected_count;
+    cursor = [last.occurred_at, last.id];
+  }
+  return stats;
+}
+async function processHistory(
+  pool: Pool,
+  client: BackfillTransport,
+  producerId: string,
+  batchSize: number,
+  work: SourceBackfillWork,
+  domain: "connections" | "campaigns",
+): Promise<BackfillStats> {
+  validateTransport(producerId, batchSize);
+  validateWork(work);
+  const stats = emptyStats();
+  let cursor: HistoryRow["source_sequence"] | null = null;
+  while (true) {
+    const { rows } = await contextual(
+      domain === "campaigns"
+        ? "load_campaign_history"
+        : "load_connections_history",
+      () =>
+        pool.query<HistoryRow>(
+          domain === "connections"
+            ? LOAD_CONNECTIONS_HISTORY
+            : LOAD_CAMPAIGN_HISTORY,
+          [
+            work.scope_external_id,
+            iso(work.requested_range_start),
+            iso(work.requested_range_end),
+            cursor,
+            batchSize,
+          ],
+        ),
+    );
+    if (!rows.length) break;
+    const last = rows.at(-1)!;
+    const records = await contextual(
+      domain === "campaigns" ? "build_campaign_fact" : "build_connections_fact",
+      async () =>
+        rows.map((row) => {
+          const record = buildHistoryBackfillRecord(row, domain);
+          return {
+            source_sequence: backfillSourceSequence(record.record_id),
+            record,
+          };
+        }),
+    );
+    const response = await contextual(
+      domain === "campaigns" ? "send_campaign_batch" : "send_connections_batch",
+      () => client.sendBackfillBatch(producerId, work.job_id, records),
+    );
+    if (response.retryable_count > 0)
+      throw new Error(
+        `${domain === "campaigns" ? "campaign" : "connections"}_batch_has_retryable_records`,
+      );
+    stats[
+      domain === "connections" ? "connection_records" : "campaign_records"
+    ] += records.length;
+    stats.rejected_records += response.rejected_count;
+    cursor = last.source_sequence;
+  }
+  return stats;
+}
+export function processConnectionsSourceReconstruction(
+  pool: Pool,
+  client: BackfillTransport,
+  producerId: string,
+  batchSize: number,
+  work: SourceBackfillWork,
+) {
+  return processHistory(
+    pool,
+    client,
+    producerId,
+    batchSize,
+    work,
+    "connections",
+  );
+}
+export function processCampaignSourceReconstruction(
+  pool: Pool,
+  client: BackfillTransport,
+  producerId: string,
+  batchSize: number,
+  work: SourceBackfillWork,
+) {
+  return processHistory(pool, client, producerId, batchSize, work, "campaigns");
+}
+export async function processSourceBackfillWork(
+  pool: Pool,
+  client: BackfillTransport,
+  settings: BackfillSettings,
+  work: SourceBackfillWork,
+): Promise<BackfillStats> {
+  if (work.method !== "source_reconstruction")
+    throw new Error("unsupported_source_job");
+  switch (work.source_domain) {
+    case "inbox":
+      return processMetaSourceReconstruction(pool, client, settings, work);
+    case "connections":
+      return processConnectionsSourceReconstruction(
+        pool,
+        client,
+        settings.producer_id,
+        settings.batch_size,
+        work,
+      );
+    case "campaigns":
+      return processCampaignSourceReconstruction(
+        pool,
+        client,
+        settings.producer_id,
+        settings.batch_size,
+        work,
+      );
+    default:
+      throw new Error("unsupported_source_job");
+  }
+}
+interface Log {
+  info(fields: Record<string, unknown>, message?: string): void;
+  warn(fields: Record<string, unknown>, message?: string): void;
+  error(fields: Record<string, unknown>, message?: string): void;
+}
+export async function runAnalyticsBackfill(
+  pool: Pool,
+  env: Env,
+  log: Log,
+  signal?: AbortSignal,
+): Promise<void> {
+  const settings = backfillSettings(env);
+  if (!settings) {
+    log.warn(
+      {
+        event: "worker.disabled",
+        worker: "analytics_backfill",
+        reason: "missing_ingestion_token",
+      },
+      "analytics backfill disabled",
+    );
+    return;
+  }
+  let client: AnalyticsIngestionClient;
+  try {
+    client = new AnalyticsIngestionClient(
+      settings.endpoint,
+      settings.token,
+      settings.request_timeout_ms,
+    );
+  } catch (error) {
+    log.error(
+      {
+        event: "worker.failed",
+        worker: "analytics_backfill",
+        phase: "configuration",
+        error_type: error instanceof Error ? error.name : "unknown",
+      },
+      "analytics backfill configuration invalid",
+    );
+    return;
+  }
+  log.info(
+    {
+      event: "worker.started",
+      worker: "analytics_backfill",
+      producer_id: settings.producer_id,
+      batch_size: settings.batch_size,
+    },
+    "analytics backfill started",
+  );
+  while (!signal?.aborted) {
+    let work: SourceBackfillWork | undefined;
+    try {
+      work = await client.claimSourceBackfillWork();
+    } catch (error) {
+      log.error(
+        {
+          event: "queue.claim.failed",
+          worker: "analytics_backfill",
+          error_type: error instanceof Error ? error.name : "unknown",
+        },
+        "analytics source work claim failed",
+      );
+    }
+    if (work) {
+      try {
+        const stats = await queueSpan("analytics_backfill.process", () =>
+          processSourceBackfillWork(pool, client, settings, work),
+        );
+        log.info(
+          {
+            event: "queue.item.completed",
+            worker: "analytics_backfill",
+            job_id: work.job_id,
+            source_domain: work.source_domain,
+            ...stats,
+          },
+          "analytics source backfill completed",
+        );
+      } catch (error) {
+        log.error(
+          {
+            event: "queue.item.failed",
+            worker: "analytics_backfill",
+            job_id: work.job_id,
+            source_domain: work.source_domain,
+            error_code: "backfill_processing_failed",
+            error_type: error instanceof Error ? error.name : "unknown",
+          },
+          "analytics source backfill failed",
+        );
+      }
+    }
+    await new Promise<void>((resolve) => {
+      if (signal?.aborted) {
+        resolve();
+        return;
+      }
+      const done = () => {
+        clearTimeout(timer);
+        signal?.removeEventListener("abort", done);
+        resolve();
+      };
+      const timer = setTimeout(
+        done,
+        envUnsigned(env, "ANALYTICS_BACKFILL_POLL_INTERVAL_MS", 5000),
+      );
+      signal?.addEventListener("abort", done, { once: true });
+    });
+  }
+}

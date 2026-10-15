@@ -1,0 +1,41 @@
+import { createId } from '@paralleldrive/cuid2';
+import type { Pool } from 'pg';
+import { listBookingsForCustomer } from './bookings.js';
+export const whatsappIdentityKey=(phone:string):string=>`whatsapp:${phone.trim()}`;
+export const metaIdentityKey=(channel:string,scopeId:string,externalId:string):string=>`${channel.trim().replace(/[A-Z]/g,char=>char.toLowerCase())}:${scopeId.trim()}:${externalId.trim()}`;
+export const CUSTOMER_DETAIL_QUERIES:readonly string[]=[
+  "\n        SELECT id, \"displayName\" AS display_name, metadata,\n               \"createdAt\" AT TIME ZONE 'UTC' AS created_at,\n               \"updatedAt\" AT TIME ZONE 'UTC' AS updated_at\n        FROM \"Customer\"\n        WHERE id = $1 AND \"orgId\" = $2\n        LIMIT 1\n    ",
+  "\n        SELECT id, channel, \"scopeId\" AS scope_id, \"externalId\" AS external_id,\n               \"displayName\" AS display_name, metadata,\n               \"createdAt\" AT TIME ZONE 'UTC' AS created_at\n        FROM \"CustomerIdentity\"\n        WHERE \"customerId\" = $1 AND \"orgId\" = $2\n        ORDER BY channel ASC, \"createdAt\" ASC\n    ",
+  "\n        SELECT id, phone, \"fullName\" AS full_name, COALESCE(tags, ARRAY[]::text[]) AS tags,\n               \"listLabel\" AS list_label, \"optIn\" AS opt_in, \"optInSource\" AS opt_in_source,\n               \"optInDate\" AT TIME ZONE 'UTC' AS opt_in_date, excluded, notes,\n               \"lastMarketingSent\" AT TIME ZONE 'UTC' AS last_marketing_sent\n        FROM \"WhatsappContact\"\n        WHERE \"customerId\" = $1 AND \"orgId\" = $2\n        ORDER BY \"updatedAt\" DESC\n    ",
+  "\n        SELECT conversation.id, conversation.channel,\n               conversation.\"customerIdentifier\" AS customer_identifier,\n               conversation.\"customerName\" AS customer_name,\n               conversation.status,\n               conversation.\"lastMessageAt\" AT TIME ZONE 'UTC' AS last_message_at,\n               conversation.\"unreadCount\" AS unread_count,\n               connection.\"displayName\" AS connection_label\n        FROM \"Conversation\" conversation\n        LEFT JOIN \"ExternalConnection\" connection\n          ON connection.id = conversation.\"externalConnectionId\"\n         AND connection.\"orgId\" = conversation.\"orgId\"\n        WHERE conversation.\"customerId\" = $1 AND conversation.\"orgId\" = $2\n        ORDER BY conversation.\"lastMessageAt\" DESC\n        LIMIT 25\n    ",
+  "\n        SELECT campaign.id, campaign.name, campaign.status::text AS status,\n               campaign.\"templateName\" AS template_name,\n               campaign.\"sentCount\" AS sent_count,\n               campaign.\"deliveredCount\" AS delivered_count,\n               campaign.\"readCount\" AS read_count,\n               MAX(recipient.\"sentAt\") AT TIME ZONE 'UTC' AS last_sent_at\n        FROM \"WhatsappCampaignRecipient\" recipient\n        JOIN \"WhatsappContact\" contact ON contact.id = recipient.\"contactId\"\n        JOIN \"WhatsappCampaign\" campaign ON campaign.id = recipient.\"campaignId\"\n        WHERE contact.\"customerId\" = $1\n          AND contact.\"orgId\" = $2\n          AND campaign.\"orgId\" = $2\n        GROUP BY campaign.id\n        ORDER BY MAX(recipient.\"sentAt\") DESC NULLS LAST, campaign.\"updatedAt\" DESC\n        LIMIT 25\n    "
+];
+export async function ensureCustomerIdentity(pool:Pool,orgId:string,channel:string,scopeId:string|null,externalId:string,identityKey:string,displayName:string|null,preferredCustomerId:string|null):Promise<string> {
+ const label=displayName?.trim()||null;
+ const existing=(await pool.query('UPDATE "CustomerIdentity" SET "displayName"=COALESCE("displayName",$1),"updatedAt"=NOW() WHERE "orgId"=$2 AND "identityKey"=$3 RETURNING "customerId"',[label,orgId,identityKey])).rows[0]?.customerId;
+ if(existing){await pool.query('UPDATE "Customer" SET "displayName"=COALESCE("displayName",$1),"updatedAt"=NOW() WHERE id=$2 AND "orgId"=$3',[label,existing,orgId]);return existing;}
+ const preferred=preferredCustomerId?(await pool.query('SELECT id FROM "Customer" WHERE id=$1 AND "orgId"=$2 LIMIT 1',[preferredCustomerId,orgId])).rows[0]?.id:null;
+ const created=preferred?null:createId();const customerId=preferred??created;
+ if(created)await pool.query('INSERT INTO "Customer"(id,"orgId","displayName","createdAt","updatedAt") VALUES($1,$2,$3,NOW(),NOW())',[customerId,orgId,label]);
+ const resolved=(await pool.query(`INSERT INTO "CustomerIdentity"(id,"orgId","customerId",channel,"scopeId","externalId","identityKey","displayName","createdAt","updatedAt") VALUES($1,$2,$3,$4,$5,$6,$7,$8,NOW(),NOW()) ON CONFLICT("orgId","identityKey") DO UPDATE SET "displayName"=COALESCE("CustomerIdentity"."displayName",EXCLUDED."displayName"),"updatedAt"=NOW() RETURNING "customerId"`,[createId(),orgId,customerId,channel,scopeId,externalId,identityKey,label])).rows[0]!.customerId as string;
+ if(created&&created!==resolved)await pool.query('DELETE FROM "Customer" WHERE id=$1 AND "orgId"=$2 AND NOT EXISTS(SELECT 1 FROM "CustomerIdentity" identity WHERE identity."customerId"=$1)',[customerId,orgId]);
+ await pool.query('UPDATE "Customer" SET "displayName"=COALESCE("displayName",$1),"updatedAt"=NOW() WHERE id=$2 AND "orgId"=$3',[label,resolved,orgId]);return resolved;
+}
+export async function ensureWhatsappCustomer(pool:Pool,orgId:string,phone:string,displayName:string|null,preferredCustomerId:string|null=null):Promise<string> {return ensureCustomerIdentity(pool,orgId,'whatsapp',null,phone,whatsappIdentityKey(phone),displayName,preferredCustomerId);}
+export async function ensureMetaCustomer(pool:Pool,orgId:string,channel:string,scopeId:string,externalId:string,displayName:string|null):Promise<string> {return ensureCustomerIdentity(pool,orgId,channel,scopeId,externalId,metaIdentityKey(channel,scopeId,externalId),displayName,null);}
+export async function linkWhatsappContact(pool:Pool,orgId:string,contactId:string,phone:string,displayName:string|null):Promise<string> {
+ const preferred=(await pool.query('SELECT "customerId" FROM "WhatsappContact" WHERE id=$1 AND "orgId"=$2 AND "customerId" IS NOT NULL LIMIT 1',[contactId,orgId])).rows[0]?.customerId??null;const customerId=await ensureWhatsappCustomer(pool,orgId,phone,displayName,preferred);await pool.query('UPDATE "WhatsappContact" SET "customerId"=$1,"updatedAt"=NOW() WHERE id=$2 AND "orgId"=$3',[customerId,contactId,orgId]);return customerId;
+}
+function fields(row:Record<string,unknown>,mapping:Record<string,string>):Record<string,unknown> {return Object.fromEntries(Object.entries(mapping).map(([output,input])=>[output,row[input]??null]));}
+export async function getCustomerDetail(pool:Pool,orgId:string,customerId:string):Promise<Record<string,unknown>|undefined> {
+ const customer=(await pool.query(CUSTOMER_DETAIL_QUERIES[0]!,[customerId,orgId])).rows[0];if(!customer)return undefined;
+ const results=await Promise.all(CUSTOMER_DETAIL_QUERIES.slice(1).map(sql=>pool.query(sql,[customerId,orgId])));const [identities,contacts,conversations,campaigns]=results;
+ return {
+  customer:fields(customer,{id:'id',displayName:'display_name',metadata:'metadata',createdAt:'created_at',updatedAt:'updated_at'}),
+  identities:identities!.rows.map(row=>fields(row,{id:'id',channel:'channel',scopeId:'scope_id',externalId:'external_id',displayName:'display_name',metadata:'metadata',createdAt:'created_at'})),
+  contacts:contacts!.rows.map(row=>fields(row,{id:'id',phone:'phone',fullName:'full_name',tags:'tags',listLabel:'list_label',optIn:'opt_in',optInSource:'opt_in_source',optInDate:'opt_in_date',excluded:'excluded',notes:'notes',lastMarketingSent:'last_marketing_sent'})),
+  conversations:conversations!.rows.map(row=>fields(row,{id:'id',channel:'channel',customerIdentifier:'customer_identifier',customerName:'customer_name',status:'status',lastMessageAt:'last_message_at',unreadCount:'unread_count',connectionLabel:'connection_label'})),
+  campaigns:campaigns!.rows.map(row=>fields(row,{id:'id',name:'name',status:'status',templateName:'template_name',sentCount:'sent_count',deliveredCount:'delivered_count',readCount:'read_count',lastSentAt:'last_sent_at'})),
+  bookings:await listBookingsForCustomer(pool,orgId,customerId),agentEvents:[],
+ };
+}

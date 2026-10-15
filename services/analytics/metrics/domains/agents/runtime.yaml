@@ -1,0 +1,661 @@
+kind: metrics
+definitions:
+  - key: agent.runs.completed
+    version: 1
+    domain: agents
+    owner: agent-platform
+    lifecycle: active
+    description: Completed agent runs.
+    value_type: integer
+    unit: count
+    precision: 0
+    sources:
+      - agent.run.completed@1
+    formula: count(agent.run.completed@1)
+    eligible_population: eligible agent runs emitted by active installations
+    exclusions: []
+    time_semantics: event_time
+    default_aggregation: count
+    temporal_aggregation: sum
+    comparison: previous_period
+    deduplication: none
+    descendant_aggregation: sum
+    supported_intervals: [hour, day, week, month]
+    scope_kinds: [core_organization, tenant_workspace, tenant_client]
+    dimensions: [agent_definition, agent_version, agent_installation, outcome, status]
+    permissions: [analytics:read]
+    privacy_class: aggregate
+    exactness: exact
+    freshness: {max_age_seconds: 3600, late_data_window_seconds: 86400}
+    coverage: {mode: partial, required_sources: [agent.run.completed@1]}
+    availability: when_instrumented
+    effective_from: "2026-08-22T00:00:00Z"
+    applicability: agent installation emits completed-run facts
+    dependencies: []
+
+  - key: agent.runs.failed
+    version: 1
+    domain: agents
+    owner: agent-platform
+    lifecycle: active
+    description: Failed agent runs.
+    value_type: integer
+    unit: count
+    precision: 0
+    sources:
+      - agent.run.failed@1
+    formula: count(agent.run.failed@1)
+    eligible_population: eligible agent runs emitted by active installations
+    exclusions: []
+    time_semantics: event_time
+    default_aggregation: count
+    temporal_aggregation: sum
+    comparison: previous_period
+    deduplication: none
+    descendant_aggregation: sum
+    supported_intervals: [hour, day, week, month]
+    scope_kinds: [core_organization, tenant_workspace, tenant_client]
+    dimensions: [agent_definition, agent_version, agent_installation, failure_class, status]
+    permissions: [analytics:read]
+    privacy_class: aggregate
+    exactness: exact
+    freshness: {max_age_seconds: 3600, late_data_window_seconds: 86400}
+    coverage: {mode: partial, required_sources: [agent.run.failed@1]}
+    availability: when_instrumented
+    effective_from: "2026-08-22T00:00:00Z"
+    applicability: agent installation emits failed-run facts
+    dependencies: []
+
+  - key: agent.model_calls.completed
+    version: 1
+    domain: agents
+    owner: agent-platform
+    lifecycle: active
+    description: Completed model calls made by Agent Platform.
+    value_type: integer
+    unit: count
+    precision: 0
+    sources:
+      - agent.model_call.completed@1
+    formula: count(agent.model_call.completed@1)
+    eligible_population: model calls with a committed completed response
+    exclusions: []
+    time_semantics: event_time
+    default_aggregation: count
+    temporal_aggregation: sum
+    comparison: previous_period
+    deduplication: none
+    descendant_aggregation: sum
+    supported_intervals: [hour, day, week, month]
+    scope_kinds: [core_organization, tenant_workspace, tenant_client]
+    dimensions: [agent_definition, agent_version, agent_installation, model_provider, model, funding_source, status]
+    permissions: [analytics:read]
+    privacy_class: aggregate
+    exactness: exact
+    freshness: {max_age_seconds: 3600, late_data_window_seconds: 86400}
+    coverage: {mode: partial, required_sources: [agent.model_call.completed@1]}
+    availability: when_instrumented
+    effective_from: "2026-08-22T00:00:00Z"
+    applicability: Agent Platform records completed model-call facts
+    dependencies: []
+
+  - key: agent.model_calls.failed
+    version: 1
+    domain: agents
+    owner: agent-platform
+    lifecycle: active
+    description: Failed model calls made by Agent Platform.
+    value_type: integer
+    unit: count
+    precision: 0
+    sources:
+      - agent.model_call.failed@1
+    formula: count(agent.model_call.failed@1)
+    eligible_population: model calls with a committed failure outcome
+    exclusions: []
+    time_semantics: event_time
+    default_aggregation: count
+    temporal_aggregation: sum
+    comparison: previous_period
+    deduplication: none
+    descendant_aggregation: sum
+    supported_intervals: [hour, day, week, month]
+    scope_kinds: [core_organization, tenant_workspace, tenant_client]
+    dimensions: [agent_definition, agent_version, agent_installation, model_provider, model, funding_source, status]
+    permissions: [analytics:read]
+    privacy_class: aggregate
+    exactness: exact
+    freshness: {max_age_seconds: 3600, late_data_window_seconds: 86400}
+    coverage: {mode: partial, required_sources: [agent.model_call.failed@1]}
+    availability: when_instrumented
+    effective_from: "2026-08-22T00:00:00Z"
+    applicability: Agent Platform records failed model-call facts
+    dependencies: []
+
+  - key: agent.tokens.input
+    version: 1
+    domain: agents
+    owner: agent-platform
+    lifecycle: active
+    description: Input tokens consumed by completed model calls.
+    value_type: integer
+    unit: tokens
+    precision: 0
+    sources:
+      - agent.model_call.completed@1
+    formula: sum(agent.model_call.completed@1, input_tokens)
+    eligible_population: completed model calls with token usage
+    exclusions: [provider calls without usage data]
+    time_semantics: event_time
+    default_aggregation: sum
+    temporal_aggregation: sum
+    comparison: previous_period
+    deduplication: none
+    descendant_aggregation: sum
+    supported_intervals: [hour, day, week, month]
+    scope_kinds: [core_organization, tenant_workspace, tenant_client]
+    dimensions: [agent_definition, agent_version, agent_installation, model_provider, model, funding_source]
+    permissions: [analytics:read]
+    privacy_class: aggregate
+    exactness: exact
+    freshness: {max_age_seconds: 3600, late_data_window_seconds: 86400}
+    coverage: {mode: partial, required_sources: [agent.model_call.completed@1]}
+    availability: when_instrumented
+    effective_from: "2026-08-22T00:00:00Z"
+    applicability: completed model calls include provider token usage
+    dependencies: []
+
+  - key: agent.tokens.output
+    version: 1
+    domain: agents
+    owner: agent-platform
+    lifecycle: active
+    description: Output tokens produced by completed model calls.
+    value_type: integer
+    unit: tokens
+    precision: 0
+    sources:
+      - agent.model_call.completed@1
+    formula: sum(agent.model_call.completed@1, output_tokens)
+    eligible_population: completed model calls with token usage
+    exclusions: [provider calls without usage data]
+    time_semantics: event_time
+    default_aggregation: sum
+    temporal_aggregation: sum
+    comparison: previous_period
+    deduplication: none
+    descendant_aggregation: sum
+    supported_intervals: [hour, day, week, month]
+    scope_kinds: [core_organization, tenant_workspace, tenant_client]
+    dimensions: [agent_definition, agent_version, agent_installation, model_provider, model, funding_source]
+    permissions: [analytics:read]
+    privacy_class: aggregate
+    exactness: exact
+    freshness: {max_age_seconds: 3600, late_data_window_seconds: 86400}
+    coverage: {mode: partial, required_sources: [agent.model_call.completed@1]}
+    availability: when_instrumented
+    effective_from: "2026-08-22T00:00:00Z"
+    applicability: completed model calls include provider token usage
+    dependencies: []
+
+  - key: agent.cost.usd
+    version: 1
+    domain: agents
+    owner: agent-platform
+    lifecycle: active
+    description: Estimated USD cost of completed model calls.
+    value_type: currency
+    unit: USD
+    precision: 8
+    sources:
+      - agent.model_call.completed@1
+    formula: sum(agent.model_call.completed@1, estimated_cost_usd)
+    eligible_population: completed model calls with an estimated USD cost
+    exclusions: [provider calls without pricing data]
+    time_semantics: event_time
+    default_aggregation: sum
+    temporal_aggregation: sum
+    comparison: previous_period
+    deduplication: none
+    descendant_aggregation: sum
+    supported_intervals: [hour, day, week, month]
+    scope_kinds: [core_organization, tenant_workspace, tenant_client]
+    dimensions: [agent_definition, agent_version, agent_installation, model_provider, model, funding_source]
+    permissions: [analytics:read]
+    privacy_class: aggregate
+    exactness: estimated
+    freshness: {max_age_seconds: 3600, late_data_window_seconds: 86400}
+    coverage: {mode: partial, required_sources: [agent.model_call.completed@1]}
+    availability: when_instrumented
+    effective_from: "2026-08-22T00:00:00Z"
+    applicability: pricing is available for the selected provider and model
+    dependencies: []
+
+  - key: agent.tools.lifecycle_events
+    version: 1
+    domain: agents
+    owner: agent-platform
+    lifecycle: active
+    description: Tool invocation lifecycle facts emitted by Agent Platform.
+    value_type: integer
+    unit: count
+    precision: 0
+    sources:
+      - agent.tool_invocation.lifecycle@1
+    formula: count(agent.tool_invocation.lifecycle@1)
+    eligible_population: persisted tool invocation lifecycle facts
+    exclusions: []
+    time_semantics: event_time
+    default_aggregation: count
+    temporal_aggregation: sum
+    comparison: previous_period
+    deduplication: none
+    descendant_aggregation: sum
+    supported_intervals: [hour, day, week, month]
+    scope_kinds: [core_organization, tenant_workspace, tenant_client]
+    dimensions: [agent_definition, agent_version, agent_installation, tool_name, tool_risk_class, lifecycle_action, status, failure_class]
+    permissions: [analytics:read]
+    privacy_class: aggregate
+    exactness: exact
+    freshness: {max_age_seconds: 3600, late_data_window_seconds: 86400}
+    coverage: {mode: partial, required_sources: [agent.tool_invocation.lifecycle@1]}
+    availability: when_instrumented
+    effective_from: "2026-08-22T00:00:00Z"
+    applicability: an Agent invocation reaches a persisted proposal or terminal outcome
+    dependencies: []
+
+  - key: agent.approvals.lifecycle_events
+    version: 1
+    domain: agents
+    owner: agent-platform
+    lifecycle: active
+    description: Approval lifecycle facts for Agent actions.
+    value_type: integer
+    unit: count
+    precision: 0
+    sources:
+      - agent.approval.lifecycle@1
+    formula: count(agent.approval.lifecycle@1)
+    eligible_population: persisted Agent approval lifecycle facts
+    exclusions: []
+    time_semantics: event_time
+    default_aggregation: count
+    temporal_aggregation: sum
+    comparison: previous_period
+    deduplication: none
+    descendant_aggregation: sum
+    supported_intervals: [hour, day, week, month]
+    scope_kinds: [core_organization, tenant_workspace, tenant_client]
+    dimensions: [agent_definition, agent_version, agent_installation, capability, lifecycle_action, status, approval_actor_type]
+    permissions: [analytics:read]
+    privacy_class: aggregate
+    exactness: exact
+    freshness: {max_age_seconds: 3600, late_data_window_seconds: 86400}
+    coverage: {mode: partial, required_sources: [agent.approval.lifecycle@1]}
+    availability: when_instrumented
+    effective_from: "2026-08-22T00:00:00Z"
+    applicability: an Agent action requires or records an approval decision
+    dependencies: []
+
+  - key: agent.effects.lifecycle_events
+    version: 1
+    domain: agents
+    owner: agent-platform
+    lifecycle: active
+    description: External-effect reservation, execution, outcome, and reconciliation facts.
+    value_type: integer
+    unit: count
+    precision: 0
+    sources:
+      - agent.effect.lifecycle@1
+    formula: count(agent.effect.lifecycle@1)
+    eligible_population: persisted external-effect lifecycle facts
+    exclusions: []
+    time_semantics: event_time
+    default_aggregation: count
+    temporal_aggregation: sum
+    comparison: previous_period
+    deduplication: none
+    descendant_aggregation: sum
+    supported_intervals: [hour, day, week, month]
+    scope_kinds: [core_organization, tenant_workspace, tenant_client]
+    dimensions: [agent_definition, agent_version, agent_installation, capability, lifecycle_action, status, failure_class, effect_reconciliation]
+    permissions: [analytics:read]
+    privacy_class: aggregate
+    exactness: exact
+    freshness: {max_age_seconds: 3600, late_data_window_seconds: 86400}
+    coverage: {mode: partial, required_sources: [agent.effect.lifecycle@1]}
+    availability: when_instrumented
+    effective_from: "2026-08-22T00:00:00Z"
+    applicability: an external effect is reserved, executed, completed, failed, or reconciled
+    dependencies: []
+
+  - key: agent.schedules.lifecycle_events
+    version: 1
+    domain: agents
+    owner: agent-platform
+    lifecycle: active
+    description: Agent schedule configuration lifecycle facts.
+    value_type: integer
+    unit: count
+    precision: 0
+    sources:
+      - agent.schedule.lifecycle@1
+    formula: count(agent.schedule.lifecycle@1)
+    eligible_population: persisted schedule creation and status transition facts
+    exclusions: [schedule dispatches, missed executions, and run creation until an authoritative scheduler exists]
+    time_semantics: event_time
+    default_aggregation: count
+    temporal_aggregation: sum
+    comparison: previous_period
+    deduplication: none
+    descendant_aggregation: sum
+    supported_intervals: [hour, day, week, month]
+    scope_kinds: [core_organization, tenant_workspace, tenant_client]
+    dimensions: [agent_definition, agent_version, agent_installation, lifecycle_action, status]
+    permissions: [analytics:read]
+    privacy_class: aggregate
+    exactness: exact
+    freshness: {max_age_seconds: 3600, late_data_window_seconds: 86400}
+    coverage: {mode: partial, required_sources: [agent.schedule.lifecycle@1]}
+    availability: when_instrumented
+    effective_from: "2026-08-22T00:00:00Z"
+    applicability: a hosted agent schedule is created or changes status
+    dependencies: []
+
+  - key: agent.installations.lifecycle_events
+    version: 1
+    domain: agents
+    owner: agent-platform
+    lifecycle: active
+    description: Agent installation creation and status lifecycle facts.
+    value_type: integer
+    unit: count
+    precision: 0
+    sources:
+      - agent.installation.lifecycle@1
+    formula: count(agent.installation.lifecycle@1)
+    eligible_population: persisted Agent installation lifecycle facts
+    exclusions: [installation settings, credentials, prompts, responses, and raw configuration]
+    time_semantics: event_time
+    default_aggregation: count
+    temporal_aggregation: sum
+    comparison: previous_period
+    deduplication: none
+    descendant_aggregation: sum
+    supported_intervals: [hour, day, week, month]
+    scope_kinds: [core_organization, tenant_workspace, tenant_client]
+    dimensions: [agent_definition, agent_version, agent_installation, agent_execution_mode, agent_creation_profile, agent_audience, installation_scope, lifecycle_action, status]
+    permissions: [analytics:read]
+    privacy_class: aggregate
+    exactness: exact
+    freshness: {max_age_seconds: 3600, late_data_window_seconds: 86400}
+    coverage: {mode: partial, required_sources: [agent.installation.lifecycle@1]}
+    availability: when_instrumented
+    effective_from: "2026-08-22T00:00:00Z"
+    applicability: an Agent installation is created or changes status
+    dependencies: []
+
+  - key: agent.installations.version_deployments
+    version: 1
+    domain: agents
+    owner: agent-platform
+    lifecycle: active
+    description: Agent installation version deployment attempts.
+    value_type: integer
+    unit: count
+    precision: 0
+    sources:
+      - agent.installation.deployment@1
+    formula: count(agent.installation.deployment@1)
+    eligible_population: persisted installation deployment outcomes
+    exclusions: [version instructions, settings, credentials, prompts, responses, and raw configuration]
+    time_semantics: event_time
+    default_aggregation: count
+    temporal_aggregation: sum
+    comparison: previous_period
+    deduplication: source_entity
+    descendant_aggregation: sum
+    supported_intervals: [hour, day, week, month]
+    scope_kinds: [core_organization, tenant_workspace, tenant_client]
+    dimensions: [agent_definition, agent_version, agent_installation, lifecycle_action, outcome]
+    permissions: [analytics:read]
+    privacy_class: aggregate
+    exactness: exact
+    freshness: {max_age_seconds: 3600, late_data_window_seconds: 86400}
+    coverage: {mode: partial, required_sources: [agent.installation.deployment@1]}
+    availability: when_instrumented
+    effective_from: "2026-08-31T00:00:00Z"
+    applicability: an Agent installation is deployed, rolled back, or a deployment fails
+    dependencies: []
+
+  - key: agent.versions.lifecycle_events
+    version: 1
+    domain: agents
+    owner: agent-platform
+    lifecycle: active
+    description: Agent version creation and release lifecycle facts.
+    value_type: integer
+    unit: count
+    precision: 0
+    sources:
+      - agent.version.lifecycle@1
+    formula: count(agent.version.lifecycle@1)
+    eligible_population: persisted Agent version lifecycle facts
+    exclusions: [instructions, configuration, policy, checksums, prompts, responses, and credentials]
+    time_semantics: event_time
+    default_aggregation: count
+    temporal_aggregation: sum
+    comparison: previous_period
+    deduplication: none
+    descendant_aggregation: sum
+    supported_intervals: [hour, day, week, month]
+    scope_kinds: [core_organization, tenant_workspace, tenant_client]
+    dimensions: [agent_definition, agent_version, lifecycle_action, status]
+    permissions: [analytics:read]
+    privacy_class: aggregate
+    exactness: exact
+    freshness: {max_age_seconds: 3600, late_data_window_seconds: 86400}
+    coverage: {mode: partial, required_sources: [agent.version.lifecycle@1]}
+    availability: when_instrumented
+    effective_from: "2026-08-22T00:00:00Z"
+    applicability: an Agent version is created or changes release status
+    dependencies: []
+
+  - key: agent.definitions.lifecycle_events
+    version: 1
+    domain: agents
+    owner: agent-platform
+    lifecycle: active
+    description: Agent definition creation and lifecycle facts.
+    value_type: integer
+    unit: count
+    precision: 0
+    sources:
+      - agent.definition.lifecycle@1
+    formula: count(agent.definition.lifecycle@1)
+    eligible_population: persisted Agent definition lifecycle facts
+    exclusions: [names, slugs, descriptions, instructions, configuration, policy, checksums, prompts, responses, and credentials]
+    time_semantics: event_time
+    default_aggregation: count
+    temporal_aggregation: sum
+    comparison: previous_period
+    deduplication: none
+    descendant_aggregation: sum
+    supported_intervals: [hour, day, week, month]
+    scope_kinds: [core_organization, tenant_workspace, tenant_client]
+    dimensions: [agent_definition, agent_owner_type, agent_creation_profile, agent_audience, lifecycle_action, status]
+    permissions: [analytics:read]
+    privacy_class: aggregate
+    exactness: exact
+    freshness: {max_age_seconds: 3600, late_data_window_seconds: 86400}
+    coverage: {mode: partial, required_sources: [agent.definition.lifecycle@1]}
+    availability: when_instrumented
+    effective_from: "2026-08-22T00:00:00Z"
+    applicability: an Agent definition is created or changes lifecycle state
+    dependencies: []
+
+  - key: agent.readiness.evaluations
+    version: 1
+    domain: agents
+    owner: agent-platform
+    lifecycle: active
+    description: Deduplicated Agent readiness state evaluations.
+    value_type: integer
+    unit: count
+    precision: 0
+    sources:
+      - agent.readiness.snapshot@1
+    formula: count(agent.readiness.snapshot@1)
+    eligible_population: successful readiness evaluations that produce a new state snapshot
+    exclusions: [repeated reads of an unchanged readiness state, readiness detail, workflow errors, credentials, and raw capability configuration]
+    time_semantics: event_time
+    default_aggregation: count
+    temporal_aggregation: sum
+    comparison: previous_period
+    deduplication: source_entity
+    descendant_aggregation: sum
+    supported_intervals: [hour, day, week, month]
+    scope_kinds: [core_organization, tenant_workspace, tenant_client]
+    dimensions: [agent_definition, agent_version, agent_installation, status, readiness_workflow_status, readiness_credential_status, readiness_blocker_set]
+    permissions: [analytics:read]
+    privacy_class: aggregate
+    exactness: exact
+    freshness: {max_age_seconds: 3600, late_data_window_seconds: 86400}
+    coverage: {mode: partial, required_sources: [agent.readiness.snapshot@1]}
+    availability: when_instrumented
+    effective_from: "2026-08-22T00:00:00Z"
+    applicability: the readiness route successfully evaluates an Agent installation
+    dependencies: []
+
+  - key: agent.conversations.lifecycle_events
+    version: 1
+    domain: agents
+    owner: agent-platform
+    lifecycle: active
+    description: Agent conversation creation, access, and retention lifecycle facts.
+    value_type: integer
+    unit: count
+    precision: 0
+    sources:
+      - agent.conversation.lifecycle@1
+    formula: count(agent.conversation.lifecycle@1)
+    eligible_population: persisted Agent conversation lifecycle facts
+    exclusions: [conversation titles, previews, customer identifiers, and message content]
+    time_semantics: event_time
+    default_aggregation: count
+    temporal_aggregation: sum
+    comparison: previous_period
+    deduplication: none
+    descendant_aggregation: sum
+    supported_intervals: [hour, day, week, month]
+    scope_kinds: [core_organization, tenant_workspace, tenant_client]
+    dimensions: [agent_definition, agent_version, agent_installation, agent_audience, agent_conversation_kind, agent_conversation_channel, conversation_handoff_state, lifecycle_action, status]
+    permissions: [analytics:read]
+    privacy_class: aggregate
+    exactness: exact
+    freshness: {max_age_seconds: 3600, late_data_window_seconds: 86400}
+    coverage: {mode: partial, required_sources: [agent.conversation.lifecycle@1]}
+    availability: when_instrumented
+    effective_from: "2026-08-22T00:00:00Z"
+    applicability: an Agent conversation is created, opened, archived, restored, or deleted
+    dependencies: []
+
+  - key: agent.conversation_messages.lifecycle_events
+    version: 1
+    domain: agents
+    owner: agent-platform
+    lifecycle: active
+    description: Agent conversation message creation and delivery lifecycle facts.
+    value_type: integer
+    unit: count
+    precision: 0
+    sources:
+      - agent.conversation.message@1
+    formula: count(agent.conversation.message@1)
+    eligible_population: persisted Agent conversation message lifecycle facts
+    exclusions: [message content, provider message identifiers, customer identifiers, and internal payloads]
+    time_semantics: event_time
+    default_aggregation: count
+    temporal_aggregation: sum
+    comparison: previous_period
+    deduplication: source_entity
+    descendant_aggregation: sum
+    supported_intervals: [hour, day, week, month]
+    scope_kinds: [core_organization, tenant_workspace, tenant_client]
+    dimensions: [agent_definition, agent_version, agent_installation, agent_audience, agent_conversation_kind, agent_conversation_channel, message_action, message_direction, message_responder_type, message_type, message_delivery_status]
+    permissions: [analytics:read]
+    privacy_class: aggregate
+    exactness: exact
+    freshness: {max_age_seconds: 3600, late_data_window_seconds: 86400}
+    coverage: {mode: partial, required_sources: [agent.conversation.message@1]}
+    availability: when_instrumented
+    effective_from: "2026-08-22T00:00:00Z"
+    applicability: an Agent conversation message is persisted or its delivery status changes
+    dependencies: []
+
+  - key: agent.conversation.response_time_ms
+    version: 1
+    domain: agents
+    owner: agent-platform
+    lifecycle: active
+    description: Time from the latest customer message to an Agent or human response.
+    value_type: duration
+    unit: milliseconds
+    precision: 0
+    sources:
+      - agent.conversation.message@1
+    formula: average(agent.conversation.message@1, response_time_ms)
+    eligible_population: outbound Agent or human messages with a measured preceding customer message
+    exclusions: [messages without a preceding customer message, delivery updates, personal-agent messages]
+    time_semantics: event_time
+    default_aggregation: weighted_average
+    temporal_aggregation: weighted_average
+    comparison: previous_period
+    deduplication: source_entity
+    descendant_aggregation: weighted_average
+    supported_intervals: [hour, day, week, month]
+    scope_kinds: [core_organization, tenant_workspace, tenant_client]
+    dimensions: [agent_definition, agent_version, agent_installation, agent_audience, agent_conversation_channel, message_responder_type]
+    permissions: [analytics:read]
+    privacy_class: aggregate
+    exactness: exact
+    freshness: {max_age_seconds: 3600, late_data_window_seconds: 86400}
+    coverage: {mode: partial, required_sources: [agent.conversation.message@1]}
+    availability: when_applicable
+    effective_from: "2026-08-22T00:00:00Z"
+    applicability: a customer-service conversation has an outbound Agent or human response after a customer message
+    dependencies: []
+
+  - key: agent.handoffs.lifecycle_events
+    version: 1
+    domain: agents
+    owner: agent-platform
+    lifecycle: active
+    description: Customer-service Agent handoff request, takeover, response, and resolution facts.
+    value_type: integer
+    unit: count
+    precision: 0
+    sources:
+      - agent.handoff.lifecycle@1
+    formula: count(agent.handoff.lifecycle@1)
+    eligible_population: handoff facts emitted by customer-service Agents with handoff enabled
+    exclusions: [generic human waits, personal Agent conversations, test conversations, transcript content, customer identifiers, and free-form resolution text]
+    time_semantics: event_time
+    default_aggregation: count
+    temporal_aggregation: sum
+    comparison: previous_period
+    deduplication: none
+    descendant_aggregation: sum
+    supported_intervals: [hour, day, week, month]
+    scope_kinds: [core_organization, tenant_workspace, tenant_client]
+    dimensions: [agent_definition, agent_version, agent_installation, agent_audience, handoff_channel, handoff_conversation_state, handoff_reason, handoff_priority, handoff_actor_type, handoff_resolution_code, lifecycle_action, status]
+    permissions: [analytics:read]
+    privacy_class: aggregate
+    exactness: exact
+    freshness: {max_age_seconds: 3600, late_data_window_seconds: 86400}
+    coverage: {mode: partial, required_sources: [agent.handoff.lifecycle@1]}
+    availability: when_instrumented
+    effective_from: "2026-08-24T00:00:00Z"
+    applicability: a customer-service Agent requests, receives, or completes a human takeover
+    dependencies: []

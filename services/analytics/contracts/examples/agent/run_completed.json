@@ -1,0 +1,14 @@
+{
+  "run_id": "run_01HZX8Y0K7",
+  "installation_id": "installation_01HZX8W2K4",
+  "agent_definition_id": "agent_01HZX8VZ0M",
+  "status": "completed",
+  "outcome": "success",
+  "trigger_type": "message",
+  "execution_mode": "kasitek_hosted",
+  "creation_profile": "custom",
+  "agent_audience": "customer_service",
+  "deployment_surface": "conversation",
+  "occurred_at": "2026-08-22T09:59:58Z",
+  "duration_ms": 1840
+}

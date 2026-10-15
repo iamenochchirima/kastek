@@ -1,0 +1,22 @@
+export const SQL = {
+  reconcile_stream:
+    "SELECT identity.source_service, producer.active\n           FROM analytics.producer AS producer\n           JOIN analytics.service_identity AS identity\n             ON identity.service_identity_id = producer.service_identity_id\n           WHERE producer.producer_id = $1 AND identity.status = 'active'",
+  reconcile_stream_2:
+    "SELECT EXISTS (\n                 SELECT 1\n                 FROM analytics.analytics_reconciliation_work\n                 WHERE work_id = $1 AND producer_id = $2 AND source_service = $3\n                   AND source_stream_key = $4 AND work_status = 'leased'\n                   AND lease_owner = $2 AND lease_expires_at > NOW()\n               )",
+  reconcile_stream_3:
+    "SELECT highest_received_sequence, highest_contiguous_sequence, known_gap_ranges\n           FROM analytics.analytics_source_cursor\n           WHERE producer_id = $1 AND source_stream_key = $2\n           FOR UPDATE",
+  reconcile_stream_4:
+    "SELECT COUNT(*)\n           FROM analytics.analytics_ingestion_failure\n           WHERE producer_id = $1 AND source_stream_key = $2 AND quarantine_status = 'quarantined'",
+  reconcile_stream_5:
+    "INSERT INTO analytics.analytics_reconciliation_run (\n             reconciliation_run_id, producer_id, source_service, source_domain, source_stream_key,\n             reporting_scope_id, root_scope_id, source_highest_outbox_sequence,\n             source_highest_delivered_sequence, analytics_highest_received_sequence,\n             analytics_highest_contiguous_sequence, missing_sequence_ranges,\n             unresolved_quarantine_count, authoritative_count, analytics_count,\n             authoritative_checksum, reconciliation_status, safe_failure_code,\n             started_at, completed_at\n           ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$19)\n           ON CONFLICT (reconciliation_run_id) DO NOTHING",
+  reconcile_stream_6:
+    "UPDATE analytics.analytics_source_cursor SET latest_reconciliation_at = NOW() WHERE producer_id = $1 AND source_stream_key = $2",
+  reconcile_stream_7:
+    "UPDATE analytics.analytics_reconciliation_work\n               SET work_status = 'completed', lease_owner = NULL, lease_expires_at = NULL,\n                   completed_at = NOW(), last_error_code = $2\n               WHERE work_id = $1 AND work_status = 'leased' AND lease_owner = $3",
+  count_stream_facts:
+    "SELECT COUNT(*) FROM (\n             SELECT storage_id FROM analytics.analytics_event\n             WHERE producer_id = $1 AND source_stream_key = $2 AND backfilled = FALSE\n             UNION ALL\n             SELECT storage_id FROM analytics.analytics_metric_observation\n             WHERE producer_id = $1 AND source_stream_key = $2 AND backfilled = FALSE\n             UNION ALL\n             SELECT storage_id FROM analytics.analytics_scope_definition_receipt\n             WHERE producer_id = $1 AND source_stream_key = $2\n             UNION ALL\n             SELECT manifest_id FROM analytics.analytics_source_manifest\n             WHERE producer_id = $1 AND source_stream_key = $2\n           ) records",
+  reconciliation_fact_window:
+    "SELECT MIN(window_start) AS window_start, MAX(window_end) AS window_end\n           FROM (\n             SELECT occurred_at AS window_start,\n                    occurred_at + INTERVAL '1 microsecond' AS window_end\n             FROM analytics.analytics_event\n             WHERE producer_id = $1 AND source_domain = $3 AND source_stream_key = $2\n               AND backfilled = FALSE\n             UNION ALL\n             SELECT reporting_window_start AS window_start,\n                    reporting_window_end AS window_end\n             FROM analytics.analytics_metric_observation\n             WHERE producer_id = $1 AND source_domain = $3 AND source_stream_key = $2\n               AND backfilled = FALSE\n           ) facts",
+  insert_reconciliation_coverage_checkpoint:
+    "INSERT INTO analytics.analytics_coverage_checkpoint (\n                producer_id, source_service, source_domain, reporting_scope_id, root_scope_id,\n                coverage_layer, dimension_key, window_start, window_end,\n                expected_count, included_count, excluded_count, coverage_state,\n                complete_through, projection_version, source_manifest_id,\n                reconciliation_run_id, observed_at\n            ) VALUES ($1,$2,$3,$4,$5,'reconciliation',NULL,$6,$7,$8,$9,$10,$11,$12,NULL,NULL,$13,$14)",
+} as const;

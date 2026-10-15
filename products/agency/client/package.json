@@ -1,0 +1,13 @@
+{
+  "name": "@kasitek/agency-client-workspace",
+  "private": true,
+  "engines": {
+    "node": ">=24 <25"
+  },
+  "scripts": {
+    "dev": "pnpm --filter tenant-portal dev",
+    "build": "pnpm --filter tenant-portal build",
+    "lint": "pnpm --filter tenant-portal lint",
+    "typecheck": "pnpm --filter tenant-portal typecheck"
+  }
+}

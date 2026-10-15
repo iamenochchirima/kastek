@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kasitek.co.za/analytics/contracts/events/tenant/client_lifecycle/v1.schema.json",
+  "title": "Tenant client lifecycle attributes",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["tenant_client_id", "action", "status", "occurred_at"],
+  "properties": {
+    "tenant_client_id": { "type": "string", "minLength": 1 },
+    "action": { "type": "string", "enum": ["created", "activated", "suspended", "deleted"] },
+    "status": { "type": "string", "enum": ["active", "suspended", "deleted"] },
+    "occurred_at": { "type": "string", "format": "date-time" }
+  },
+  "x-kasitek": {
+    "identity": "tenant.client.lifecycle@1",
+    "owner": "tenant-platform-clients",
+    "privacy_class": "aggregate",
+    "prohibited_fields": ["name", "email", "phone", "metadata", "external_ref", "credential", "token"]
+  }
+}

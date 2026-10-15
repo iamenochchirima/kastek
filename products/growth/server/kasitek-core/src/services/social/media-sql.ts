@@ -1,0 +1,13 @@
+// Retained Rust media queries.
+export const SQL = [
+  '\n        SELECT id, kind::text AS kind, "mimeType" AS mime_type, "fileName" AS file_name,\n               "byteSize" AS byte_size, checksum, width, height, "durationMs" AS duration_ms,\n               "processingStatus"::text AS processing_status, "scanStatus"::text AS scan_status,\n               "createdAt"::text AS created_at\n        FROM "ContentMediaAsset"\n        WHERE id = $1 AND "orgId" = $2\n        ',
+  'SELECT "storageKey"\n           FROM "ContentMediaAsset"\n           WHERE id = $1 AND "orgId" = $2',
+  'SELECT id, "mimeType" AS mime_type, "byteSize" AS byte_size, checksum,\n                      "storageKey" AS storage_key\n               FROM "ContentMediaAsset"\n               WHERE "orgId" = $1 AND metadata->>\'sourceKey\' = $2\n               ORDER BY "createdAt" DESC LIMIT 1',
+  '\n        INSERT INTO "ContentMediaAsset" (\n            id, "orgId", "uploadedById", kind, "fileName", "mimeType", "byteSize", checksum,\n            width, height, "durationMs", "storageKey", "processingStatus", "scanStatus", metadata,\n            "createdAt", "updatedAt"\n        ) VALUES (\n            $1, $2, $3, CAST($4 AS "ContentMediaKind"), $5, $6, $7, $8, $9, $10, $11, $12,\n            \'READY\'::"ContentMediaProcessingStatus", \'CLEAN\'::"ContentMediaScanStatus", $13, NOW(), NOW()\n        )\n        ',
+  '\n        SELECT "storageKey" AS storage_key, "mimeType" AS mime_type, "fileName" AS file_name, checksum,\n               "processingStatus"::text AS processing_status, "scanStatus"::text AS scan_status\n        FROM "ContentMediaAsset"\n        WHERE id = $1 AND "orgId" = $2\n        ',
+  '\n        SELECT "storageKey" AS storage_key, "mimeType" AS mime_type, "fileName" AS file_name, checksum,\n               "processingStatus"::text AS processing_status, "scanStatus"::text AS scan_status\n        FROM "ContentMediaAsset"\n        WHERE id = $1 AND "orgId" = $2\n        ',
+  '\n        SELECT kind::text AS kind, "storageKey" AS storage_key,\n               "previewStorageKey" AS preview_storage_key\n        FROM "ContentMediaAsset"\n        WHERE id = $1 AND "orgId" = $2\n        FOR UPDATE\n        ',
+  'SELECT EXISTS(\n             SELECT 1 FROM "SocialPostMedia" WHERE "assetId" = $1\n           )',
+  'DELETE FROM "ContentMediaAsset" WHERE id = $1 AND "orgId" = $2',
+  '\n            SELECT "storageKey" AS storage_key, "mimeType" AS mime_type, "fileName" AS file_name,\n                   checksum, "processingStatus"::text AS processing_status,\n                   "scanStatus"::text AS scan_status\n            FROM "ContentMediaAsset"\n            WHERE id = $1\n            ',
+] as const;

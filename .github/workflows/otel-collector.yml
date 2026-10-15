@@ -1,0 +1,154 @@
+name: OpenTelemetry Collector
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/otel-collector.yml"
+      - "README.md"
+      - ".railway/**"
+      - "infra/observability/otel-collector/**"
+      - "scripts/verify_otel_collector.py"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/otel-collector.yml"
+      - "README.md"
+      - ".railway/**"
+      - "infra/observability/otel-collector/**"
+      - "scripts/verify_otel_collector.py"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  validate-and-smoke:
+    name: Validate and smoke test Collector
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Validate Compose shape
+        run: docker compose -f infra/observability/otel-collector/compose.yaml config --quiet
+
+      - name: Set up Node for Railway IaC typecheck
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: .railway/package-lock.json
+
+      - name: Install Railway IaC dependencies
+        run: npm ci --prefix .railway
+
+      - name: Typecheck Railway service partial
+        run: npm --prefix .railway run typecheck
+
+      - name: Validate Collector profiles
+        env:
+          OTEL_BACKEND_ENDPOINT: http://127.0.0.1:4318
+          OTEL_BACKEND_AUTH: ci-placeholder
+        run: |
+          for config in config.yaml config.local.yaml config.staging.yaml config.production.template.yaml; do
+            docker run --rm \
+              -e PORT=13133 \
+              -e OTEL_BACKEND_ENDPOINT \
+              -e OTEL_BACKEND_AUTH \
+              -v "$PWD/infra/observability/otel-collector:/work:ro" \
+              otel/opentelemetry-collector-contrib:0.158.0 \
+              validate --config="/work/$config"
+          done
+
+      - name: Build Collector image
+        run: docker build -t kasitek-otel-collector:ci infra/observability/otel-collector
+
+      - name: Check staging profile starts healthy
+        run: |
+          set -euo pipefail
+          docker run -d --name kasitek-otel-collector-staging-ci \
+            -e PORT=13133 \
+            -p 13134:13133 -p 14318:4318 \
+            kasitek-otel-collector:ci \
+            --config=/etc/otelcol/config.staging.yaml
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:13134/ >/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          docker logs kasitek-otel-collector-staging-ci
+          exit 1
+
+      - name: Send log, metric, and trace smoke signals to staging profile
+        run: python3 scripts/verify_otel_collector.py --endpoint http://127.0.0.1:14318
+
+      - name: Verify staging profile received all three signals
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 20); do
+            docker logs kasitek-otel-collector-staging-ci > staging-collector.log 2>&1 || true
+            if grep -Fq '"otelcol.signal": "logs"' staging-collector.log \
+              && grep -Fq '"otelcol.signal": "metrics"' staging-collector.log \
+              && grep -Fq '"otelcol.signal": "traces"' staging-collector.log; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat staging-collector.log
+          echo 'Staging profile did not export every smoke signal before the timeout.'
+          exit 1
+
+      - name: Start local Collector
+        run: |
+          set -euo pipefail
+          docker run -d --name kasitek-otel-collector-local-ci \
+            -e PORT=13133 \
+            -p 4318:4318 -p 13133:13133 \
+            -v "$PWD/infra/observability/otel-collector/config.local.yaml:/etc/otelcol/config.yaml:ro" \
+            kasitek-otel-collector:ci
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:13133/ >/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          docker logs kasitek-otel-collector-local-ci
+          exit 1
+
+      - name: Send log, metric, and trace smoke signals
+        run: python3 scripts/verify_otel_collector.py --endpoint http://127.0.0.1:4318
+
+      - name: Verify Collector received all three signals
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 20); do
+            docker logs kasitek-otel-collector-local-ci > collector.log 2>&1 || true
+            if grep -Fq 'kasitek-otel-smoke' collector.log \
+              && grep -Fq 'signal.kind: Str(logs)' collector.log \
+              && grep -Fq 'kasitek.otel.smoke.count' collector.log \
+              && grep -Fq 'kasitek-otel-smoke-span' collector.log; then
+              if grep -Fq 'kasitek-otel-redaction-sentinel' collector.log; then
+                echo 'Collector exported an attribute that its redaction processor should remove.'
+                cat collector.log
+                exit 1
+              fi
+              exit 0
+            fi
+            sleep 1
+          done
+          cat collector.log
+          echo 'Collector did not export every smoke signal before the timeout.'
+          exit 1
+
+      - name: Stop local Collector
+        if: always()
+        run: docker rm -f kasitek-otel-collector-local-ci || true
+
+      - name: Stop staging Collector
+        if: always()
+        run: docker rm -f kasitek-otel-collector-staging-ci || true

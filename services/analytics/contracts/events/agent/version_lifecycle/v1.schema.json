@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kasitek.co.za/analytics/contracts/events/agent/version_lifecycle/v1.schema.json",
+  "title": "Agent version lifecycle attributes",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "agent_definition_id",
+    "agent_version_id",
+    "version_number",
+    "status",
+    "action",
+    "actor_type",
+    "occurred_at"
+  ],
+  "properties": {
+    "agent_definition_id": { "type": "string", "minLength": 1 },
+    "agent_version_id": { "type": "string", "minLength": 1 },
+    "version_number": { "type": "integer", "minimum": 1 },
+    "status": { "type": "string", "enum": ["draft", "published", "retired"] },
+    "action": { "type": "string", "enum": ["created", "published", "retired", "rolled_back"] },
+    "actor_type": { "type": "string", "enum": ["human", "system"] },
+    "occurred_at": { "type": "string", "format": "date-time" }
+  },
+  "x-kasitek": {
+    "identity": "agent.version.lifecycle@1",
+    "owner": "agent-platform",
+    "privacy_class": "aggregate",
+    "prohibited_fields": ["instructions", "configuration", "policy", "checksum", "input", "prompt", "response", "content", "credential", "token", "phone_number", "email"]
+  }
+}

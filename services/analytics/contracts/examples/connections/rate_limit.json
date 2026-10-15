@@ -1,0 +1,8 @@
+{
+  "connection_id": "ext_connection-123",
+  "provider": "WHATSAPP",
+  "operation": "connection_refresh",
+  "rate_limit_scope": "provider",
+  "retry_after_seconds": null,
+  "observed_at": "2026-08-24T10:00:00Z"
+}

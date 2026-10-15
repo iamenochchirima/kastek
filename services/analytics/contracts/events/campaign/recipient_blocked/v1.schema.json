@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kasitek.co.za/analytics/contracts/events/campaign/recipient_blocked/v1.schema.json",
+  "title": "Campaign recipient blocked attributes",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["campaign_id", "recipient_id", "channel", "occurred_at", "status", "block_class"],
+  "properties": {
+    "campaign_id": { "type": "string", "minLength": 1 },
+    "recipient_id": { "type": "string", "minLength": 1 },
+    "channel": { "type": "string", "enum": ["email", "sms", "whatsapp", "social"] },
+    "provider": { "type": "string", "minLength": 1 },
+    "occurred_at": { "type": "string", "format": "date-time" },
+    "status": { "const": "blocked" },
+    "block_class": { "type": "string", "enum": ["provider_blocked", "unknown"] }
+  },
+  "x-kasitek": {
+    "identity": "campaign.recipient.blocked@1",
+    "owner": "core-campaigns",
+    "privacy_class": "aggregate",
+    "prohibited_fields": ["phone_number", "email", "message_body", "credential", "token", "raw_error"]
+  }
+}

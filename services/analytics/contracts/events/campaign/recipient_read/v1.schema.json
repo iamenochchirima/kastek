@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kasitek.co.za/analytics/contracts/events/campaign/recipient_read/v1.schema.json",
+  "title": "Campaign recipient read attributes",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["campaign_id", "recipient_id", "channel", "occurred_at", "status"],
+  "properties": {
+    "campaign_id": { "type": "string", "minLength": 1 },
+    "recipient_id": { "type": "string", "minLength": 1 },
+    "channel": { "type": "string", "enum": ["email", "sms", "whatsapp", "social"] },
+    "provider": { "type": "string", "minLength": 1 },
+    "occurred_at": { "type": "string", "format": "date-time" },
+    "status": { "const": "read" }
+  },
+  "x-kasitek": {
+    "identity": "campaign.recipient.read@1",
+    "owner": "core-campaigns",
+    "privacy_class": "aggregate",
+    "prohibited_fields": ["phone_number", "email", "message_body", "credential", "token"]
+  }
+}

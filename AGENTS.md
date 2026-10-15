@@ -5,19 +5,19 @@ This file defines the default working structure for implementation tasks in this
 ## Project Direction
 
 For a multi-PR program that needs one shared execution sequence,
-[`docs/plans/templates/PROJECT_PLAN.md`](docs/plans/templates/PROJECT_PLAN.md) is an optional
+[`products/growth/docs/plans/templates/PROJECT_PLAN.md`](products/growth/docs/plans/templates/PROJECT_PLAN.md) is an optional
 starting point. It contains no active product decisions.
 
 ## Documentation and Release Impact
 
 For feature, API, data, integration, observability, deployment, or user-workflow changes:
 
-- Read [`docs/internal/operations/release-process.md`](docs/internal/operations/release-process.md)
+- Read [`products/growth/docs/internal/operations/release-process.md`](products/growth/docs/internal/operations/release-process.md)
   and include its release-record decisions in the plan or pull request.
-- Update current technical documentation in `docs/internal/` or supported user/API documentation
-  in `docs/public/docs/` in the same change when behavior or contracts change.
-- Do not create routine task plans in `docs/plans/active/`. Former plans are preserved in
-  [`docs/plans/parked/`](docs/plans/parked/README.md) and are not an active work queue.
+- Update current technical documentation in `products/growth/docs/internal/` or supported user/API documentation
+  in `products/growth/docs/public/docs/` in the same change when behavior or contracts change.
+- Do not create routine task plans in `products/growth/docs/plans/active/`. Former plans are preserved in
+  [`products/growth/docs/plans/parked/`](products/growth/docs/plans/parked/README.md) and are not an active work queue.
 - Do not add roadmaps, go-to-market material, strategy, or historical execution notes to live
   documentation navigation.
 - Add or update analytics, logging, metrics, runbook, version, migration, and rollback evidence
@@ -36,7 +36,7 @@ request, and current shipped behavior in the feature map.
 
 A separate program plan is warranted only when several dependent changes need one shared
 sequence, ownership boundary, and verification rule. Link it to the tracker items and agree its
-location before creating it. Do not use `docs/plans/active/` or the uninstalled
+location before creating it. Do not use `products/growth/docs/plans/active/` or the uninstalled
 `long-running-work` skill as a default workflow.
 
 ## Execution Order
@@ -323,7 +323,7 @@ be improved.
 ## Release completeness
 
 For any non-trivial feature, API, data, integration, background-worker, or operational change,
-read [`docs/internal/operations/release-process.md`](docs/internal/operations/release-process.md)
+read [`products/growth/docs/internal/operations/release-process.md`](products/growth/docs/internal/operations/release-process.md)
 and account for release impact in the written plan. Before considering the work complete, record
 the decisions for documentation, analytics, structured logging, version/release identity,
 validation, rollout, and rollback. Use `not applicable` explicitly when a concern does not apply.
@@ -359,13 +359,13 @@ Not:
 ## PROJECT FOUNDATION
 
 Use the current repository map in [`ARCHITECTURE.md`](ARCHITECTURE.md), the user-facing route
-inventory in [`docs/features/README.md`](docs/features/README.md), and the commands in
-[`docs/internal/development/local-development.md`](docs/internal/development/local-development.md).
-Read [`CODING_STANDARDS.md`](CODING_STANDARDS.md) for project-specific review rules and
-[`docs/adr/README.md`](docs/adr/README.md) before recording a product-level architecture decision.
+inventory in [`products/growth/docs/features/README.md`](products/growth/docs/features/README.md), and the commands in
+[`products/growth/docs/internal/development/local-development.md`](products/growth/docs/internal/development/local-development.md).
+Read [`products/growth/CODING_STANDARDS.md`](products/growth/CODING_STANDARDS.md) for project-specific review rules and
+[`products/growth/docs/adr/README.md`](products/growth/docs/adr/README.md) before recording a product-level architecture decision.
 The project-local skill revisions and notices are in
-[`docs/agents/skill-sources.md`](docs/agents/skill-sources.md).
-The root [`CONTEXT.md`](CONTEXT.md) is intentionally empty at the owner's direction. Do not fill
+[`products/growth/docs/agents/skill-sources.md`](products/growth/docs/agents/skill-sources.md).
+The root [`products/growth/CONTEXT.md`](products/growth/CONTEXT.md) is intentionally empty at the owner's direction. Do not fill
 it with guessed or generic terms; add domain language only after it is agreed.
 
 ## KEEP PROJECT RECORDS CURRENT
@@ -381,11 +381,11 @@ Update affected records in the same pull request:
 - Keep approval, assignee, and work status in the Growth Project linked below.
   Only the owner moves an implementation issue to `Ready`. Agents must not infer approval from
   a label, a parent spec, or an unblocked dependency.
-- Update [the feature map](docs/features/README.md) when shipped user behavior, entry points,
+- Update [the feature map](products/growth/docs/features/README.md) when shipped user behavior, entry points,
   or verification paths change. It describes what exists, not planned features.
 - Update architecture, contracts, development instructions, and runbooks when the change makes
   their current descriptions inaccurate. Follow
-  [documentation maintenance](docs/internal/operations/documentation-maintenance.md).
+  [documentation maintenance](products/growth/docs/internal/operations/documentation-maintenance.md).
 - Record a new ADR only for a qualifying architecture decision, not every implementation choice.
 
 Before requesting review, state in the pull request which records changed, link the changes,
@@ -430,6 +430,17 @@ trail only when the reviewer needs it. Never claim a check passed without eviden
 ## CODE REVIEWS
 
 When reviewing a branch or pull request, use the project-installed `code-review` skill and compare
-the change with its base branch. Read `CODING_STANDARDS.md` and its linked standards before the
+the change with its base branch. Read `products/growth/CODING_STANDARDS.md` and its linked standards before the
 Standards review. Supply the originating issue or spec for the Spec review. Report Standards and
 Spec findings separately. If no issue or spec exists, say the Spec review was skipped.
+
+## Monorepo ownership
+
+Read `MONOREPO_MIGRATION_PLAN.md` and root `ARCHITECTURE.md` for the current source layout.
+Product instructions remain under `products/growth/AGENTS.md` and existing scoped site files.
+Run commands from the root Node 24/pnpm workspace unless a documented isolated tool requires
+otherwise. Keep product databases, sessions, permissions and deployment lifecycles separate.
+Use shared package exports; never import another product's private runtime source.
+Run `pnpm verify:boundaries` and focused affected checks before handing back changes.
+The owner directly authorized this source migration in chat; this does not require inventing
+Ready status for an issue or imply authorization to delete source repositories.
