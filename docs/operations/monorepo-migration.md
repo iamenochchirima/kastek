@@ -84,7 +84,10 @@ The current Vercel token was rejected with HTTP 403; the accessible Railway acco
 the KasiTek projects. No hosted settings were changed. Required-check protection, source
 connections, runtime credentials and provider webhook/OIDC bindings still require live inventory.
 
-Do not delete or archive the old repositories now. Complete provider access, source publication,
+The branch is published for review in [draft PR 20](https://github.com/Kasitek-Labs/kasitek-growth/pull/20),
+targeting Growth `rewrite`. It is not merged.
+
+Do not delete or archive the old repositories now. Complete provider access, migration merge,
 required-check configuration, isolated runtime/staging acceptance, per-service cutover and final
 source reconciliation first. Keep old deployment artifacts and private recovery bundles available.
 Repository rename remains a later separately controlled step.

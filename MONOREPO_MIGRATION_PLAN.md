@@ -359,8 +359,9 @@ change must be separated and governed by its own rollout and recovery plan.
 This draft is based on local Git status/history, tracked manifests, workspace definitions, package
 scripts, shared-artifact scripts, current workflows and Growth's architecture/release rules. A
 read-only GitHub query found no open Growth issues; Project items returned earlier split work.
-Recheck the tracker before publishing a migration spec. No source files were moved, tests run,
-worktrees created, branches changed, commits made or provider settings modified for this draft.
+The initial planning checkpoint did not change source or hosting. Implementation is now published
+in [draft PR 20](https://github.com/Kasitek-Labs/kasitek-growth/pull/20); the execution record below
+identifies the completed local work and remaining cutover gates. No hosted settings have changed.
 
 Execution update: phases 0–4 have local source and build evidence; phase 5 has CI and packaging
 changes, with image smoke and hosted settings unverified. Phase 6 cutover and phase 7 rename
