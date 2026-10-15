@@ -1,0 +1,10 @@
+{
+  "connection_id": "ext_connection-123",
+  "provider": "WHATSAPP",
+  "action": "connected",
+  "status": "CONNECTED",
+  "credential_status": "ACTIVE",
+  "health_status": "HEALTHY",
+  "webhook_status": "UNKNOWN",
+  "occurred_at": "2026-08-24T10:00:00Z"
+}

@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kasitek.co.za/analytics/contracts/events/agent/approval_lifecycle/v1.schema.json",
+  "title": "Agent approval lifecycle attributes",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "approval_id",
+    "run_id",
+    "agent_definition_id",
+    "agent_version_id",
+    "installation_id",
+    "provider_tool_call_id",
+    "capability",
+    "capability_version",
+    "action",
+    "status",
+    "actor_type",
+    "occurred_at"
+  ],
+  "properties": {
+    "approval_id": { "type": "string", "minLength": 1 },
+    "run_id": { "type": "string", "minLength": 1 },
+    "agent_definition_id": { "type": "string", "minLength": 1 },
+    "agent_version_id": { "type": "string", "minLength": 1 },
+    "installation_id": { "type": "string", "minLength": 1 },
+    "provider_tool_call_id": { "type": "string", "minLength": 1 },
+    "capability": { "type": "string", "minLength": 1 },
+    "capability_version": { "type": "string", "minLength": 1 },
+    "action": { "type": "string", "enum": ["requested", "approved", "denied", "cancelled", "expired", "consumed"] },
+    "status": { "type": "string", "enum": ["pending", "approved", "denied", "expired", "consumed", "cancelled"] },
+    "actor_type": { "type": "string", "enum": ["human", "system"] },
+    "actor_ref": { "type": ["string", "null"], "minLength": 1 },
+    "expires_at": { "type": ["string", "null"], "format": "date-time" },
+    "occurred_at": { "type": "string", "format": "date-time" }
+  },
+  "x-kasitek": {
+    "identity": "agent.approval.lifecycle@1",
+    "owner": "agent-platform",
+    "privacy_class": "aggregate",
+    "prohibited_fields": ["resource_snapshot", "arguments", "error", "error_message", "content", "prompt", "response", "credential", "token", "phone_number", "email"]
+  }
+}

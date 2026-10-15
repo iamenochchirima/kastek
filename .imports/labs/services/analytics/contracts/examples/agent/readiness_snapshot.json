@@ -1,0 +1,19 @@
+{
+  "installation_id": "installation_01HZX8W2K4",
+  "agent_definition_id": "agent_01HZX8VZ0M",
+  "agent_version_id": "version_01HZX8W8Q2",
+  "execution_mode": "kasitek_hosted",
+  "status": "blocked",
+  "workflow_status": "ready",
+  "credential_status": "ready",
+  "blocker_codes": ["connection_not_configured"],
+  "blocker_set": "connection_not_configured",
+  "blocker_count": 1,
+  "required_capability_count": 3,
+  "missing_capability_count": 0,
+  "required_connection_count": 1,
+  "missing_connection_count": 1,
+  "evaluation_source": "readiness_route",
+  "state_fingerprint": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+  "observed_at": "2026-08-22T10:04:00Z"
+}

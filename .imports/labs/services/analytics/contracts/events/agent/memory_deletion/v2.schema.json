@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kasitek.co.za/analytics/contracts/events/agent/memory_deletion/v2.schema.json",
+  "title": "Agent memory deletion attributes",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "workspace_id",
+    "agent_definition_id",
+    "agent_version_id",
+    "installation_id",
+    "scope_resolution",
+    "deletion_id",
+    "target_type",
+    "status",
+    "legal_hold",
+    "attempt_count",
+    "occurred_at"
+  ],
+  "properties": {
+    "workspace_id": { "type": ["string", "null"], "minLength": 1 },
+    "agent_definition_id": { "type": ["string", "null"], "minLength": 1 },
+    "agent_version_id": { "type": ["string", "null"], "minLength": 1 },
+    "installation_id": { "type": ["string", "null"], "minLength": 1 },
+    "scope_resolution": { "type": "string", "enum": ["installation", "organization_aggregate"] },
+    "deletion_id": { "type": "string", "minLength": 1 },
+    "target_type": { "type": "string", "enum": ["memory", "revision", "conversation", "end_user", "user", "knowledge_source", "agent", "workspace", "organization"] },
+    "status": { "type": "string", "enum": ["requested", "held", "canonical_purged", "projections_purged", "provider_confirmed", "completed", "blocked", "failed", "retrying"] },
+    "legal_hold": { "type": "boolean" },
+    "target_count": { "type": "integer", "minimum": 0 },
+    "purged_revision_count": { "type": "integer", "minimum": 0 },
+    "purged_projection_count": { "type": "integer", "minimum": 0 },
+    "provider_job_count": { "type": "integer", "minimum": 0 },
+    "residual_count": { "type": "integer", "minimum": 0 },
+    "provider_name": { "type": "string", "minLength": 1, "maxLength": 160 },
+    "attempt_count": { "type": "integer", "minimum": 0 },
+    "retryable": { "type": "boolean" },
+    "latency_ms": { "type": "integer", "minimum": 0 },
+    "error_code": { "type": "string", "pattern": "^[A-Z][A-Z0-9_.-]{0,119}$" },
+    "occurred_at": { "type": "string", "format": "date-time" }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "scope_resolution": { "const": "installation" } } },
+      "then": {
+        "properties": {
+          "workspace_id": { "type": "string", "minLength": 1 },
+          "agent_definition_id": { "type": "string", "minLength": 1 },
+          "installation_id": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "scope_resolution": { "const": "organization_aggregate" } } },
+      "then": {
+        "properties": {
+          "workspace_id": { "type": "null" },
+          "agent_definition_id": { "type": "null" },
+          "agent_version_id": { "type": "null" },
+          "installation_id": { "type": "null" }
+        }
+      }
+    }
+  ],
+  "x-kasitek": {
+    "identity": "agent.memory.deletion@2",
+    "owner": "agent-platform",
+    "privacy_class": "aggregate",
+    "prohibited_fields": ["body", "content", "canonical_text", "evidence", "provider_payload", "prompt", "query", "response", "error_message", "credential", "token", "phone_number", "email"]
+  }
+}

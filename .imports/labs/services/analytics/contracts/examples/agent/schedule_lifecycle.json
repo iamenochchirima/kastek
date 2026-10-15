@@ -1,0 +1,13 @@
+{
+  "schedule_id": "schedule_01HZX91Q0N",
+  "agent_definition_id": "agent_01HZX8VZ0M",
+  "agent_version_id": "version_01HZX8W8Q2",
+  "installation_id": "installation_01HZX8W2K4",
+  "action": "paused",
+  "status": "paused",
+  "previous_status": "active",
+  "timezone": "Africa/Johannesburg",
+  "next_run_at": "2026-08-23T06:00:00Z",
+  "actor_type": "human",
+  "occurred_at": "2026-08-22T10:03:00Z"
+}

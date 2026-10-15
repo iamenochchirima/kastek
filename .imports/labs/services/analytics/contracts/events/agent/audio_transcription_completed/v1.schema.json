@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kasitek.co.za/analytics/contracts/events/agent/audio_transcription_completed/v1.schema.json",
+  "title": "Agent audio transcription completed attributes",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["job_id", "provider", "channel", "duration_bucket", "latency_bucket", "occurred_at"],
+  "properties": {
+    "job_id": { "type": "string", "minLength": 1 },
+    "provider": { "const": "elevenlabs" },
+    "channel": { "type": "string", "enum": ["whatsapp", "telegram", "discord", "platform", "website"] },
+    "duration_bucket": { "type": "string", "enum": ["unknown", "0_5s", "5_30s", "30_60s", "60_180s", "over_180s"] },
+    "latency_bucket": { "type": "string", "enum": ["under_1s", "1_5s", "5_15s", "15_60s", "over_60s"] },
+    "language": { "type": "string", "pattern": "^[a-zA-Z]{2,8}$" },
+    "occurred_at": { "type": "string", "format": "date-time" }
+  },
+  "x-kasitek": {
+    "identity": "agent.audio_transcription.completed@1",
+    "owner": "agent-platform",
+    "privacy_class": "aggregate",
+    "prohibited_fields": ["transcript", "audio_url", "storage_key", "filename", "provider_job_id", "credential", "token", "phone_number", "email"]
+  }
+}

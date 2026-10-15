@@ -1,0 +1,41 @@
+# Shared server support
+
+Private Node 24 ESM helpers replacing the generic Labs Rust crate behavior. Product permissions and domain transactions stay in each service.
+
+Exports:
+
+- `./crypto`: SHA-256, URL-safe tokens, AES-256-GCM using the existing SHA-256 secret derivation and `nonce:tag:ciphertext` envelope. Decryption also accepts the existing `nonce:ciphertext+tag` format.
+- `./config`: environment values, origin normalization and explicit development loopback checks.
+- `./json`: `apiJson` serializes service HTTP replies with UTC dates, exact large-integer encoding, Rust-compatible floats, null array entries and omitted undefined object fields. Sorted-key canonical JSON supports hashing and parity checks. `serdeFloat` preserves Rust floating-point spelling. `parseCanonicalJson` retains integer versus float representations for hash comparisons. `parseLosslessJson` retains unsafe JSON integers as bigint. The request parsers reject lone UTF-16 surrogate escapes like Serde, and `formatSerdeJsonSyntaxError` maps Node 24 syntax failures to Serde-style messages. `formatSerdeValidationError` formats schema field/type errors without echoing submitted values.
+- `./analytics-producer`: event, observation, scope and manifest builders, privacy validation, payload hashes, transaction-owned enqueue, bounded leases, acknowledgement handling, retries, ingestion, reconciliation and deterministic backfill identity.
+- `./analytics-reporting`: ES256 120-second reporting grants, internal scope resolution, catalog/query transport and product response scope redaction.
+- `./telemetry`: optional OpenTelemetry, resource identity, trace headers, operation metrics and credential redaction. A missing or unavailable Collector does not block application work.
+
+Structured Pino logs pass through `redactTelemetryLogArguments` before stdout or OpenTelemetry export. It redacts credential-shaped text and nested credential fields while retaining safe diagnostic fields such as event names, status codes and error codes.
+
+Use `pnpm build:shared` and `pnpm test:shared` from Labs root. Enqueue requires the caller's checked-out transaction connection. Lease updates retain the source SQL and require the current publisher owner. Database schemas and migrations remain service-owned.
+
+## Number and time contracts
+
+JavaScript cannot distinguish integer `1` from floating point `1.0`. Rust Analytics hashes can. Wrap domain values that the Rust implementation constructed as f64 with `serdeFloat`, or parse original JSON with `parseCanonicalJson` when comparing immutable records. Ordinary safe integer inputs stay integers. Large i64s use bigint or exact decimal strings internally, then `canonicalJson` emits unquoted numeric tokens. Do not use ordinary `JSON.stringify` for these records or turn bigint into quoted strings.
+
+Timestamp strings preserve their UTC fractional precision when already valid RFC3339. Date inputs serialize in UTC, omitting `.000` as chrono does. If a source fact stores microsecond precision, pass its timestamp string rather than a JavaScript Date.
+
+## Private delivery
+
+The packages use the `@kasitek-labs` scope on GitHub Packages. To publish them, use a clean Labs `main` checkout, set `NODE_AUTH_TOKEN` to a classic GitHub token with `write:packages`, then run `pnpm publish:shared`. The command builds and publishes `@kasitek-labs/contracts` before `@kasitek-labs/server-support`, with restricted access. It writes the token to a mode-0600 temporary npm config and removes that file when it exits. Never commit the token. Bump each package version before publishing a later release because registries reject overwriting a published version.
+
+Consumers need `read:packages` access to both packages and a build-time `NODE_AUTH_TOKEN`. Keep the auth entry in the user's trusted npm configuration, not in the repository's project `.npmrc`:
+
+```ini
+@kasitek-labs:registry=https://npm.pkg.github.com
+//npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}
+```
+
+Set `NODE_AUTH_TOKEN` from the local secret store or CI secret before installation. The project `.npmrc` files only select the package registry and never contain credentials. The first publication and GitHub package access grants still need owner setup. An authenticated clean install has not yet been verified.
+
+For local migration integration, run `pnpm pack:shared <temporary-directory>` from Labs root, then install both tarballs together into the consumer. The command builds compiled exports and writes `manifest.json` with the source Git SHA, a content digest for the actual source files including local edits, and SHA-256/SHA-512 checksums for each tarball. Consumer lockfiles pin these artifacts by integrity. Packing converts workspace dependencies to the exact package versions in `package.json`. This verifies compiled package exports without permanent sibling-repository paths. Keep tarballs outside source control. Production consumers must pin the version delivered by GitHub Packages, with credentials provided through the host environment; no token belongs in Git.
+
+## Parity evidence
+
+`tests/parity.test.mjs` checks the two existing encryption envelopes and tampering, serde_json numeric/hash fixtures, privacy rejection, deterministic backfill IDs, ES256 scopes/TTL, exact i64 HTTP ingestion and acknowledgement mapping, and disabled telemetry. Source SQL is retained in `src/outbox-sql.ts`. `tests/outbox-postgres.test.mjs` verified enqueue rollback, duplicate/conflict detection, leases, ownership rejection and reconciliation against a temporary table cloned from the actual local Growth schema. It rolls back all fixture work. Set `SHARED_TEST_DATABASE_URL` to rerun it. Service integrations still need reporting authorization checks before retiring Rust consumers.

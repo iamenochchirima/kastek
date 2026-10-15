@@ -1,0 +1,10 @@
+{
+  "attempt_id": "sync-attempt-123",
+  "connection_id": "ext_connection-123",
+  "provider": "WHATSAPP",
+  "operation": "connection_refresh",
+  "outcome": "succeeded",
+  "failure_class": "none",
+  "duration_ms": 284,
+  "occurred_at": "2026-08-24T10:00:00Z"
+}

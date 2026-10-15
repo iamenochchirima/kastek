@@ -1,0 +1,10 @@
+{
+  "campaign_id": "campaign-123",
+  "recipient_id": "recipient-123",
+  "channel": "whatsapp",
+  "provider": "meta",
+  "occurred_at": "2026-08-24T10:00:00Z",
+  "status": "timing",
+  "timing_kind": "send_to_delivered",
+  "duration_ms": 4200
+}

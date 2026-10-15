@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kasitek.co.za/analytics/contracts/events/inbox/conversation_message_lifecycle/v1.schema.json",
+  "title": "Core Inbox conversation message lifecycle attributes",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "message_id",
+    "conversation_id",
+    "channel",
+    "action",
+    "direction",
+    "responder_type",
+    "message_type",
+    "delivery_status",
+    "response_time_ms",
+    "occurred_at"
+  ],
+  "properties": {
+    "message_id": { "type": "string", "minLength": 1 },
+    "conversation_id": { "type": "string", "minLength": 1 },
+    "channel": { "type": "string", "minLength": 1 },
+    "action": { "type": "string", "enum": ["created", "delivery_updated", "retried", "deleted"] },
+    "direction": { "type": "string", "enum": ["inbound", "outbound", "system"] },
+    "responder_type": { "type": "string", "enum": ["customer", "human", "agent", "system"] },
+    "message_type": { "type": "string", "minLength": 1 },
+    "delivery_status": { "type": ["string", "null"] },
+    "response_time_ms": { "type": ["integer", "null"], "minimum": 0 },
+    "occurred_at": { "type": "string", "format": "date-time" }
+  },
+  "x-kasitek": {
+    "identity": "conversation.message.lifecycle@1",
+    "owner": "core-inbox",
+    "privacy_class": "aggregate",
+    "prohibited_fields": ["content", "body", "message_body", "preview", "provider_message_id", "customer_identifier", "phone_number", "email", "credential", "token"]
+  }
+}

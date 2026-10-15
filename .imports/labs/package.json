@@ -1,0 +1,23 @@
+{
+  "name": "@kasitek/labs",
+  "private": true,
+  "packageManager": "pnpm@10.30.1",
+  "engines": {
+    "node": ">=24 <25"
+  },
+  "scripts": {
+    "build:shared": "pnpm --filter @kasitek-labs/contracts build && pnpm --filter @kasitek-labs/server-support build",
+    "build:analytics": "pnpm build:shared && pnpm --filter @kasitek/analytics build",
+    "test:shared": "pnpm --filter @kasitek-labs/server-support test",
+    "pack:shared": "node packages/server-support/scripts/pack-shared.mjs",
+    "publish:shared": "node packages/server-support/scripts/publish-shared.mjs",
+    "start:analytics": "pnpm --filter @kasitek/analytics start",
+    "start:analytics-worker": "pnpm --filter @kasitek/analytics start:worker",
+    "migrate:analytics": "pnpm --filter @kasitek/analytics migrate",
+    "registry:check:analytics": "pnpm --filter @kasitek/analytics registry:check"
+  },
+  "devDependencies": {
+    "typescript": "5.9.3",
+    "@types/node": "24.10.1"
+  }
+}

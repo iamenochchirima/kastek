@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kasitek.co.za/analytics/contracts/events/agent/effect_lifecycle/v1.schema.json",
+  "title": "Agent external effect lifecycle attributes",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "effect_id",
+    "run_id",
+    "agent_definition_id",
+    "agent_version_id",
+    "installation_id",
+    "provider_tool_call_id",
+    "capability",
+    "capability_version",
+    "action",
+    "status",
+    "reconciliation_required",
+    "occurred_at"
+  ],
+  "properties": {
+    "effect_id": { "type": "string", "minLength": 1 },
+    "run_id": { "type": "string", "minLength": 1 },
+    "agent_definition_id": { "type": "string", "minLength": 1 },
+    "agent_version_id": { "type": "string", "minLength": 1 },
+    "installation_id": { "type": "string", "minLength": 1 },
+    "provider_tool_call_id": { "type": "string", "minLength": 1 },
+    "capability": { "type": "string", "minLength": 1 },
+    "capability_version": { "type": "string", "minLength": 1 },
+    "action": { "type": "string", "enum": ["reserved", "executing", "succeeded", "failed", "unknown", "reconciled"] },
+    "status": { "type": "string", "enum": ["reserved", "executing", "succeeded", "failed", "unknown"] },
+    "reconciliation_required": { "type": "boolean" },
+    "failure_class": { "type": ["string", "null"], "enum": ["validation", "provider", "tool", "timeout", "policy", "unknown", null] },
+    "occurred_at": { "type": "string", "format": "date-time" },
+    "completed_at": { "type": ["string", "null"], "format": "date-time" }
+  },
+  "x-kasitek": {
+    "identity": "agent.effect.lifecycle@1",
+    "owner": "agent-platform",
+    "privacy_class": "aggregate",
+    "prohibited_fields": ["provider_receipt", "error", "error_message", "arguments", "output", "content", "prompt", "response", "credential", "token", "phone_number", "email"]
+  }
+}
