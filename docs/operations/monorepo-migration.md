@@ -96,7 +96,7 @@ The current Vercel token was rejected with HTTP 403; the accessible Railway acco
 the KasiTek projects. No hosted settings were changed. Required-check protection, source
 connections, runtime credentials and provider webhook/OIDC bindings still require live inventory.
 
-[PR 20](https://github.com/Kasitek-Labs/kasitek-growth/pull/20) is merged into Growth `rewrite`
+[PR 20](https://github.com/Kasitek-Labs/kastek/pull/20) is merged into Growth `rewrite`
 using a merge commit, preserving source ancestry. The original Growth checkout is synchronized
 and its root frozen install and product-boundary check passed. Growth `main` and all hosting
 settings remain unchanged.
@@ -128,4 +128,13 @@ Remote deletion was attempted but GitHub returned HTTP 403 because the current C
 lacks `delete_repo`, despite reporting repository admin permission. None of the four remote
 repositories was deleted. Complete the user's GitHub authorization update, then retry only
 `Kasitek-Labs/kasitek-agents`, `Kasitek-Labs/kasitek-agency`, `Kasitek-Labs/kasitek-labs` and
-`Kasitek-Labs/designs`. Keep `Kasitek-Labs/kasitek-growth`. Deployment is not required.
+`Kasitek-Labs/designs`. Keep `Kasitek-Labs/kastek`. Deployment is not required.
+
+## Repository rename
+
+On 2026-10-15 the owner requested the exact name `kastek`. GitHub now uses
+`Kasitek-Labs/kastek`, and the primary local folder is `kastek`. The Git origin and worktree
+metadata were updated. Old local Growth/Labs paths are aliases to this same repository for
+existing tools and chat references. The `rewrite` development branch, `main` and hosted settings
+were not changed by this rename. GitHub deletion of the four retired repositories is still
+awaiting the owner, who chose to perform that step personally.

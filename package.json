@@ -46,5 +46,6 @@
       "fastify": "5.12.5",
       "@types/pg": "8.23.1"
     }
-  }
+  },
+  "repository": "https://github.com/Kasitek-Labs/kastek.git"
 }

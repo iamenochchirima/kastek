@@ -3,7 +3,7 @@
 Status: Source consolidation complete in Growth `rewrite`, merged through PR 20. Deployment is explicitly deferred by the owner.
 Owner: Enoch Chirima. Integration and verification: the agent executing each approved slice.
 Created: 2026-10-15. Execution authorized by the owner in chat on 2026-10-15.
-Destination: `Kasitek-Labs/kasitek-growth`, renamed to `kasitek` only after migration and cutover.
+Destination: `Kasitek-Labs/kastek`, renamed from `kasitek-growth` on 2026-10-15 at the owner’s request.
 
 ## Outcome and scope
 
@@ -294,14 +294,13 @@ on its existing source configuration. Fresh deployment of the other products is 
 a source-regrouping gate. Keep old repositories available as recovery copies until retired. Do
 not delete them as part of this source-only request.
 
-### 7. Rename the repository later
+### 7. Repository rename completed
 
-Rename `Kasitek-Labs/kasitek-growth` to `Kasitek-Labs/kasitek` only after phase 6 and explicit owner
-authorization. Check destination-name availability and inventory remotes, CI references, badges,
-documentation, repository permissions, package repository metadata, deployment integrations,
-webhooks, OIDC subject/trust rules and issue/Project links. Update and test each actual dependency;
-do not depend solely on URL redirects. Keep package scopes, domains and service names unchanged
-unless a separate change calls for them. Record recovery for provider reconnection or rename.
+The owner explicitly requested `kastek` on 2026-10-15. The repository is now
+`Kasitek-Labs/kastek`, with local folder `kastek`. Git origin and worktree metadata are updated;
+old local paths are aliases for existing tools. Package scopes, service names, the `rewrite`
+development branch, `main` and hosted settings are unchanged. The earlier proposed `kasitek`
+spelling was superseded by the owner's exact requested name.
 
 ## Verification matrix
 
@@ -367,13 +366,13 @@ This draft is based on local Git status/history, tracked manifests, workspace de
 scripts, shared-artifact scripts, current workflows and Growth's architecture/release rules. A
 read-only GitHub query found no open Growth issues; Project items returned earlier split work.
 The initial planning checkpoint did not change source or hosting. Implementation is now published
-in [draft PR 20](https://github.com/Kasitek-Labs/kasitek-growth/pull/20); the execution record below
+in [draft PR 20](https://github.com/Kasitek-Labs/kastek/pull/20); the execution record below
 identifies the completed local work and remaining cutover gates. No hosted settings have changed.
 
 Execution update: source imports, workspace, local builds and all 15 GitHub checks have passed.
 The preserved histories are merged into Growth `rewrite`, and the original Growth checkout
 has been synchronized with the unified source.
-Deployment and the later repository rename are separate, deferred work. See
+The requested rename to `kastek` is complete. Deployment is deferred. See
 [the execution record](docs/operations/monorepo-migration.md). Each
 implementation issue should include its source/destination paths, prerequisite gate, exact
 verification and recovery method. Keep issue cards assigned to `iamenochchirima` while working

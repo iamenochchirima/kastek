@@ -2,7 +2,7 @@
   "name": "@kasitek-labs/server-support",
   "version": "0.1.9",
   "type": "module",
-  "repository": "https://github.com/Kasitek-Labs/kasitek-labs.git",
+  "repository": "https://github.com/Kasitek-Labs/kastek.git",
   "publishConfig": {
     "registry": "https://npm.pkg.github.com"
   },

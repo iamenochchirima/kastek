@@ -4,7 +4,7 @@ Status: Deferred. The owner requested source consolidation only, with no deploym
 Only Growth is known to have been deployed. This runbook is for future fresh product deployments
 and any later update to Growth hosting; it is not a gate for source consolidation.
 
-The destination remains `Kasitek-Labs/kasitek-growth`. The migration does not rename the repository,
+The repository is now `Kasitek-Labs/kastek`. The source-only regrouping and rename do not
 merge databases, rotate secrets, change domains or deploy services. Keep existing repositories
 available until every source consumer is reconciled and rollback is tested.
 
@@ -41,9 +41,9 @@ root, or root commands with an explicit output path. Verify the provider-specifi
 preview before recording it as canonical. Growth client, Agency portal and Admin currently disable
 Git deployments in their checked-in Vercel files; Labs enables them. Preserve this intent.
 
-The Collector Railway IaC still identifies the old Labs repository. Change that source in the
-approved cutover, after confirming the exact target branch and environment. Do not apply unrelated
-resources from the shared Railway project.
+The Collector Railway IaC now identifies `Kasitek-Labs/kastek` on `rewrite`, where its source
+exists. This prepares future deployment only; no provider setting has been applied. Confirm the
+exact environment before applying it, and do not apply unrelated Railway resources.
 
 Agents Docker builds use a root allowlist that excludes environment files, Git metadata, databases,
 local artifacts and dependency directories. Runtime images contain packaged production dependencies,

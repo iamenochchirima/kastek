@@ -398,11 +398,11 @@ declare the work complete.
 
 ## SPECS AND ISSUES
 
-Store specs, tasks, and bugs in [GitHub Issues](https://github.com/Kasitek-Labs/kasitek-growth/issues).
+Store specs, tasks, and bugs in [GitHub Issues](https://github.com/Kasitek-Labs/kastek/issues).
 The [Kasitek Growth Project](https://github.com/orgs/Kasitek-Labs/projects/1) owns approval,
 assignee, and work status; pull requests hold changes and review evidence. Query the live issue
 list and Project before choosing work. Do not copy their current contents into repository docs.
-Use `gh issue list --repo Kasitek-Labs/kasitek-growth --state open` and
+Use `gh issue list --repo Kasitek-Labs/kastek --state open` and
 `gh project item-list 1 --owner Kasitek-Labs --format json` to inspect them.
 
 Use `to-spec` for settled multi-session work and `to-tickets` when a split is useful. Get owner

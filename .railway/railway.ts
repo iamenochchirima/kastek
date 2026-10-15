@@ -14,8 +14,8 @@ export default defineRailway((context) => {
   }
 
   const collector = service("otel-collector", {
-    source: github("Kasitek-Labs/kasitek-labs", {
-      branch: "main",
+    source: github("Kasitek-Labs/kastek", {
+      branch: "rewrite",
       rootDirectory: "infra/observability/otel-collector",
     }),
     build: {

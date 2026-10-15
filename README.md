@@ -2,7 +2,8 @@
 
 Growth, Agents, Agency, shared platform services and the Labs websites live in one Git repository.
 Each product keeps its own database, authorization, environment and deployment lifecycle.
-The GitHub repository remains `Kasitek-Labs/kasitek-growth` until the later rename is approved.
+The GitHub repository is [`Kasitek-Labs/kastek`](https://github.com/Kasitek-Labs/kastek).
+The unified development branch remains `rewrite`.
 
 ## Layout
 
