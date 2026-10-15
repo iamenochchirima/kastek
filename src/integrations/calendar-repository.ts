@@ -1,5 +1,6 @@
 import type { Pool } from "pg";
 import { query } from "../db/pool";
+import type { DatabaseTimestamp } from "../db/timestamps";
 
 export interface InternalCalendarEvent {
   id: string;
@@ -7,15 +8,15 @@ export interface InternalCalendarEvent {
   installation_id: string;
   title: string;
   description: string;
-  start_at: string;
-  end_at: string;
+  start_at: DatabaseTimestamp;
+  end_at: DatabaseTimestamp;
   timezone: string;
   location: string;
   attendees: string[];
   status: "active" | "cancelled";
   created_by: string;
-  created_at: string;
-  updated_at: string;
+  created_at: DatabaseTimestamp;
+  updated_at: DatabaseTimestamp;
 }
 
 export class CalendarRepository {

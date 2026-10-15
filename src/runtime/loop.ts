@@ -330,7 +330,10 @@ function attachRuntimeOperationIds(response: ModelResponse, operationKey: string
 }
 
 export async function runBoundedAgentLoop(input: AgentLoopInput): Promise<AgentLoopResult> {
-  const limits = { ...defaultLimits, ...input.limits };
+  // Callers pass optional configuration fields explicitly. Unset fields must
+  // preserve the defaults; an intentional zero still remains an execution limit.
+  const limits: AgentLoopLimits = { ...defaultLimits,
+    ...Object.fromEntries(Object.entries(input.limits ?? {}).filter(([, value]) => value !== undefined)) };
   const budget = input.budgetLedger ?? createAgentBudgetLedger({ contextTokens: limits.maxTotalTokens, modelTokens: limits.maxTotalTokens, toolCalls: limits.maxToolCalls, wallTimeMs: limits.maxWallTimeMs });
   const messages = [...input.messages];
   const usage = { inputTokens: 0, outputTokens: 0, totalTokens: 0, estimatedCostUsd: 0 };
@@ -994,7 +997,7 @@ export async function runBoundedAgentLoop(input: AgentLoopInput): Promise<AgentL
             creditReservation = await input.reserveModelCall?.({ request, credentials: attempt.credentials, operationKey });
           } else {
             creditReservation = await input.reserveModelCall?.({ request, credentials: attempt.credentials, operationKey });
-            const shouldStream = input.streamModel === true && input.gateway.capabilities(request.provider)?.streaming === true;
+            const shouldStream = input.streamModel === true && input.gateway.capabilities(request.provider, request.model)?.streaming === true;
             if (shouldStream) {
               response = (await input.gateway.stream(request, attempt.credentials, async (delta) => {
                 if (firstTokenAt || (delta.type !== "text_delta" && delta.type !== "tool_call_delta")) return;

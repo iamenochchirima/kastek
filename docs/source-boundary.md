@@ -1,6 +1,6 @@
 # Agents client integration status
 
-Updated: 2026-10-02.
+Updated: 2026-10-06.
 
 The client lives in client/apps/agent-platform and now uses React/TypeScript, Vite and React Router. Next.js routing, server cookie helpers, font/image imports and dependencies have been replaced. Existing agent, Studio, workflow and activity components remain product-local source, adapted to browser route loaders.
 
@@ -26,30 +26,28 @@ The Knowledge page lists hosted agents and opens their source controls. Agent
 detail now connects source list/create/read/delete, manual text ingestion, file/URL
 ingestion, website crawl and durable-memory controls through the same scoped
 manifest. A signed-in member's manual FAQ create/list/delete path was verified in
-the browser. File/site ingestion, cross-workspace denial through these controls,
-and retrieval-backed model answers remain unverified.
+the browser. File and single-URL ingestion, cross-workspace denial and retrieval-backed model answers passed locally. Firecrawl crawling still needs provider configuration.
 
 Retained integration source such as `src/lib/connections.ts` still describes
 Growth's `/api/connections` contract. It is not an enabled part of this slice.
 Do not redirect that contract to another service or turn its settings on without
 an Agents-owned connection design and scoped browser endpoints.
 
-Initial execution needs a backend model credential, a working Temporal server
-and worker with matching namespace/queue, and the configured billing dependency
-or the explicitly documented isolated development billing mode. The owner selected
-OpenRouter for local development and is configuring its key. A real no-key Playground
-run now terminates promptly with an actionable setup message; a provider-backed reply
-remains unverified until the key is available.
+Execution needs a configured model provider and the configured billing dependency
+or the explicit isolated development billing mode. Simple runs execute in the API;
+durable runs also require Temporal and its matching worker. Real OpenRouter replies,
+cancellation/retry/reconnect and simple process interruption are verified. Other
+providers have independent adapters and credentials; their live acceptance remains
+pending their own credentials. See the end-to-end plan for current evidence.
 
-Inherited rich-response controls call `platform/ui-interactions` and run approval
-routes that are not in the initial browser manifest. Those paths still need scoped
-admission and ordinary verification before interactive tool/approval journeys can
-be accepted. The first text-response journey does not establish their completion.
-Capability grants, credentials/channels, live promotion, inbox and personal runtime
-controls remain later work as described below. Independent machine APIs remain
-available under their existing authentication.
+Studio approval groups now have explicit browser admission. Calendar approve/reject
+and MCP approval transport passed locally. Rich `platform/ui-interactions` remain
+outside the browser manifest. Tool grants, website chat and the inbox now work locally. Discord connection
+setup is enabled, while real messaging acceptance, general live promotion and
+personal runtimes remain later work.
+Independent machine APIs keep their existing authentication.
 
-Account settings provide current account/workspace information and logout. Workspace creation, selection and activity reporting use the real backend. Invitations and role management remain planned. Inbox, connections and usage pages are pending integration. Knowledge source management is available per hosted agent; end-to-end retrieval-backed answers remain pending. Personal runtime deployments are a later platform capability.
+Account settings provide current account/workspace information and logout. Workspace creation, selection and activity reporting use the real backend. Invitations and role management remain planned. Inbox now uses scoped Agents conversations and handoff controls. Connections and usage pages remain pending integration. Knowledge source management and retrieval-backed answers work locally. Personal runtime deployments are a later platform capability.
 
 ## UI retention decisions
 
@@ -67,7 +65,8 @@ reference checkout; runtime imports and changes to that repo are excluded.
 
 ## Evidence
 
-The migration passed frontend typecheck, production build and existing Studio event/reducer checks. Landing and signup navigation were inspected in the browser. The dashboard and account screen rendered with real session/workspace records. A 390-pixel viewport check confirmed no horizontal page overflow and working mobile navigation dismissal. A Booking Assistant was created through the real standalone backend, reopened in Studio after refresh and shown in its workspace list. Model execution remains unverified.
+The migration passed frontend typecheck, production build and existing Studio event/reducer checks. Landing and signup navigation were inspected in the browser. The dashboard and account screen rendered with real session/workspace records. A 390-pixel viewport check confirmed no horizontal page overflow and working mobile navigation dismissal. A Booking Assistant was created through the real standalone backend, reopened in Studio after refresh and shown in its workspace list. This migration evidence preceded the real OpenRouter acceptance now recorded in
+`docs/plans/agents/END_TO_END_IMPLEMENTATION_PLAN.md`.
 
 Follow the [frontend checklist](plans/agents/FRONTEND_INITIAL_IMPLEMENTATION_PLAN.md). Growth's styling is reference material; no Growth files were modified by this frontend migration.
 
@@ -104,3 +103,113 @@ and channel setup, audio submission and detailed safety-policy review have expli
 pending states. Their future source/backend paths remain intact, and frontend
 availability does not replace backend authorization. Mobile Studio panels scroll
 vertically so the conversation and observatory are both reachable.
+
+### Frontend cleanup, 2026-10-06
+
+Removed the superseded creation-flow/profile/general wizard and their exclusive
+configuration/website-preview helpers. Both old creation routes now redirect to
+Studio. Removed unused Next loading route modules and their skeleton component.
+The workflow editor, website appearance and conversation source remains available
+for later delivery; those product routes still show pending availability.
+
+
+## Hosted installation API keys
+
+Agent Settings uses explicit browser aliases to list/create/revoke
+`/v1/installations/:installationId/api-keys`. Browser membership, role and
+same-origin mutation checks still apply. Hosted keys have a separate table and
+authenticate only the explicit `/api/v1/agent` aliases in
+`src/http/hosted-agent-api-routes.ts`. They do not open the internal `/v1` routes,
+external MCP interfaces, model vault, or agent administration.
+
+Each key belongs to one custom hosted installation and its creating account.
+Authentication reads only its lookup row in operator discovery scope, then returns
+to tenant scope for usage and product operations. Public requests validate run and
+conversation installation ownership, reject browser requests and model overrides,
+and recheck expiry/revocation during streams. The public message path always uses
+persisted conversation admission. Model/provider secrets remain in the backend.
+Real key invocation, response and revocation passed locally on 2026-10-06.
+See README for requests/errors and the implementation checklist for remaining work.
+
+
+Studio's retained external-event action now has an explicit browser alias for
+`POST /v1/runs/:runId/external-event`. It uses the existing workspace/session,
+write-role and same-origin admission. Expected event keys are checked against
+persisted wait metadata before signaling Temporal. Actual waiting, worker restart,
+browser resume and terminal response are verified locally. Approval-group browser
+routes are separately admitted and verified as recorded below.
+
+## Website and live inbox contracts (local implementation, 2026-10-06)
+
+Agents owns website deployment, visitor capability and customer conversation storage.
+Management uses the signed-in workspace under explicit browser aliases. Public widget
+routes under `/api/widget/v1` use exact allowed origins and one-day visitor capabilities
+stored as hashes. The widget never receives administrator cookies or provider keys.
+Website creation pins a separate published installation; drafts do not change it.
+
+Teammates read `/api/agents/conversations/customer`, scoped conversation history,
+`conversations/events/stream` and per-conversation `events/stream?after=N`.
+The organization feed is a wake-up hint; reload the authoritative list after reconnect.
+Per-conversation lifecycle events have durable sequence cursors. Message notifications
+trigger history reload; message IDs identify rows and prevent duplicate rendering.
+Browser streams recheck the signed-in session. A periodic history reload catches missed
+message notifications. The initial inbox lists at most 200 conversations/latest messages;
+larger-history pagination and per-teammate unread tracking remain follow-up work.
+
+Mutation contracts:
+
+- `POST conversations/:id/takeover` and `/reopen`: explicit teammate commands with
+  an idempotency key. Reopen targets resolved conversations; takeover claims an
+  existing pending request or creates a request with `request_source=operator`.
+- `POST conversations/:id/notes`: an idempotent `private_note` system message.
+  Only teammates can read it. Visitor history excludes it, and agent context skips it.
+- `POST conversations/handoffs/:id/messages`: assigned teammate reply with an
+  idempotency key. The message keeps its retry identity; the delivery attempt holds
+  the provider receipt. Website publication sets the saved message to `sent`.
+- Handoff `/resolve`, `/release`, `/claim` and `/continue` use the existing state
+  machine. Continue uses the shared simple/durable dispatcher when it creates a run.
+
+Customer inbound messages persist even while a human owns replies; no agent run is
+created in that state. Ownership changes suppress queued automation replies, and
+local website publication checks ownership inside the transaction. Sent historical
+messages remain facts. An external provider send already in flight cannot be recalled;
+actual channel acceptance remains pending a test account.
+
+Growth can consume these APIs/events later under its own service admission. This
+implementation does not read Growth tables or change Growth. Human write aliases
+require a non-viewer workspace role and same-origin admission; channel ingestion and
+operator administration remain outside the browser manifest.
+
+
+## Remote MCP setup and deferred execution
+
+Agent Tools uses explicit browser aliases for custom MCP providers, discovery,
+health, published versions and per-version pins. Viewers can read; member writes
+require same-origin admission. Global revocation is not exposed by these aliases.
+Published Playground pin changes create a new candidate/version and preserve old
+pins. Website installations retain their independent published versions.
+
+Execution and approval revalidation both register only healthy, published,
+organization-scoped pins. Deferred activities reload the run version's pins on a
+fresh worker and reject no-longer-effective remote tools before dispatch. A local
+separate-service read fixture passed through browser approval and durable execution.
+The restricted MCP manifest still redacts the raw result. Before publication,
+a member can explicitly review top-level scalar JSON fields for each discovered
+tool. The separately projected reviewedResult reaches the model, while nested
+objects, credential-shaped fields and redacted values stay excluded. A real
+booking lookup returned its reviewed reference/status after browser approval;
+the approval preview displayed its bounded reference. Inbox backend cursor
+replay and browser recovery passed. Widget interruption recovery also passed after transient-error retry and
+bounded fetch/history reload repairs.
+
+## Customer channel setup
+
+Channel list/create/pairing/disconnect browser aliases reuse the existing
+installation and organization checks. Viewers have channels:read only; members
+have channels:write with same-origin mutation admission. No browser aliases
+expose inbound ingestion, pairing consumption or provider delivery callbacks.
+The channel setup screen reads Agents-owned connections without calling
+Growth’s /api/connections. Discord requires its own bot token, the gateway
+process and an authorized test account; browser setup and invalid-token failure passed; actual message delivery is unverified.
+Shared WhatsApp/Facebook/Instagram account linking remains pending an
+Agents-owned contract.

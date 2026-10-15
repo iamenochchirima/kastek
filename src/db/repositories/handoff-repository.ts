@@ -481,6 +481,58 @@ export class HandoffRepository {
     throw handoffError("Customer consent is required before creating a handoff request", "handoff_consent_required", 409);
   }
 
+  /** Explicit teammate ownership, separate from model offers/customer consent. */
+  public async takeOver(input: { organizationId: string; conversationId: string; actorId: string; idempotencyKey: string; reopen?: boolean }): Promise<HandoffMutationResult> {
+    return withTransaction(this.pool, async client => {
+      const target = await client.query<ConversationRecord & { agent_definition_id: string; agent_version_id: string }>(
+        `SELECT c.*, ai.agent_definition_id, ai.agent_version_id FROM conversations c
+         JOIN agent_installations ai ON ai.id = c.installation_id AND ai.organization_id = c.organization_id
+         JOIN agent_definitions ad ON ad.id = ai.agent_definition_id AND ad.agent_audience = 'customer_service'
+         WHERE c.organization_id = $1 AND c.id = $2 AND c.conversation_kind = 'customer' AND c.status = 'active'
+         FOR UPDATE OF c`, [input.organizationId, input.conversationId]);
+      const conversation = target.rows[0];
+      if (!conversation) throw handoffError("Customer conversation not found", "conversation_not_found", 404);
+      const active = await client.query<HandoffRequestRecord>(
+        `SELECT * FROM agent_handoff_requests WHERE organization_id = $1 AND conversation_id = $2
+         AND status IN ('pending', 'claimed') FOR UPDATE`, [input.organizationId, input.conversationId]);
+      let handoff = active.rows[0];
+      if (handoff?.status === 'claimed') {
+        if (handoff.claimed_by !== input.actorId) throw handoffError("Another teammate owns this conversation", "handoff_not_assigned", 403);
+        return { handoff, conversation, changed: false };
+      }
+      const prior = await client.query<HandoffRequestRecord>(
+        `SELECT * FROM agent_handoff_requests WHERE organization_id = $1 AND installation_id = $2 AND idempotency_key = $3`,
+        [input.organizationId, conversation.installation_id, input.idempotencyKey]);
+      if (prior.rows[0]) {
+        if (prior.rows[0].conversation_id !== conversation.id || prior.rows[0].requested_by !== input.actorId)
+          throw handoffError("Takeover key belongs to another command", "handoff_idempotency_conflict");
+        return { handoff: prior.rows[0], conversation, changed: false };
+      }
+      if (input.reopen && conversation.handoff_state !== 'resolved') throw handoffError("Only a resolved conversation can be reopened", "conversation_not_resolved");
+      if (!handoff) {
+        const created = await client.query<HandoffRequestRecord>(
+          `INSERT INTO agent_handoff_requests (organization_id, installation_id, conversation_id, agent_definition_id,
+           agent_version_id, channel_type, reason, summary, requested_by, idempotency_key, request_source)
+           VALUES ($1,$2,$3,$4,$5,$6,'other',$7,$8,$9,'operator') RETURNING *`,
+          [input.organizationId, conversation.installation_id, conversation.id, conversation.agent_definition_id,
+           conversation.agent_version_id, conversation.channel_type, input.reopen ? 'Teammate reopened the conversation.' : 'Teammate took over the conversation.', input.actorId, input.idempotencyKey]);
+        handoff = created.rows[0]!;
+      }
+      const claimed = await client.query<HandoffRequestRecord>(
+        `UPDATE agent_handoff_requests SET status = 'claimed', claimed_by = $3, claimed_at = now(), updated_at = now()
+         WHERE organization_id = $1 AND id = $2 RETURNING *`, [input.organizationId, handoff.id, input.actorId]);
+      const changed = await client.query<ConversationRecord>(
+        `UPDATE conversations SET handoff_state = 'human_owned', assigned_actor_id = $3,
+         handoff_revision = handoff_revision + 1, handoff_requested_at = now(), handoff_resolved_at = NULL, updated_at = now()
+         WHERE organization_id = $1 AND id = $2 RETURNING *`, [input.organizationId, conversation.id, input.actorId]);
+      await this.suppressQueuedAgentReplies(client, input.organizationId, conversation.id);
+      await this.appendLifecycleEvent(client, { eventType: 'conversation.handoff.claimed', handoff: claimed.rows[0]!,
+        conversation: changed.rows[0]!, actorType: 'user', actorId: input.actorId,
+        payload: { status: 'claimed', requestSource: 'operator', reopened: Boolean(input.reopen) } });
+      return { handoff: claimed.rows[0]!, conversation: changed.rows[0]!, changed: true };
+    });
+  }
+
   public async claim(input: { organizationId: string; handoffId: string; actorId: string }): Promise<HandoffMutationResult> {
     return withTransaction(this.pool, async (client) => {
       const current = await this.lockMutationTarget(client, input.organizationId, input.handoffId);
@@ -505,6 +557,7 @@ export class HandoffRepository {
         [input.organizationId, current.conversation.id, input.actorId],
       );
       if (!handoff.rows[0] || !conversation.rows[0]) throw handoffError("Handoff claim could not be committed", "handoff_claim_conflict");
+      await this.suppressQueuedAgentReplies(client, input.organizationId, current.conversation.id);
       await this.appendLifecycleEvent(client, {
         eventType: "conversation.handoff.claimed",
         handoff: handoff.rows[0],
@@ -822,6 +875,24 @@ export class HandoffRepository {
         created: true,
       };
     });
+  }
+
+  private async suppressQueuedAgentReplies(client: PoolClient, organizationId: string, conversationId: string): Promise<void> {
+    // Website publication is local, so even a sending attempt can be safely
+    // suppressed before commit. Already sent messages remain historical facts.
+    await client.query(`UPDATE delivery_attempts da SET status = 'failed', error = '{"code":"AGENT_REPLY_SUPPRESSED"}'::jsonb
+      FROM messages m WHERE da.message_id = m.id AND da.organization_id = $1 AND m.conversation_id = $2
+      AND m.direction = 'outbound' AND m.provider IS DISTINCT FROM 'kasitek-human'
+      AND m.provider IS DISTINCT FROM 'kasitek-handoff'
+      AND (da.status = 'queued' OR (da.status = 'sending' AND da.channel_type = 'website'))`, [organizationId, conversationId]);
+    const messages = await client.query<MessageRecord>(`UPDATE messages m SET delivery_status = 'failed'
+      WHERE m.organization_id = $1 AND m.conversation_id = $2 AND m.direction = 'outbound'
+      AND EXISTS (SELECT 1 FROM delivery_attempts da WHERE da.message_id = m.id AND da.error->>'code' = 'AGENT_REPLY_SUPPRESSED')
+      AND m.delivery_status IN ('queued','sending') RETURNING *`, [organizationId, conversationId]);
+    if (messages.rows.length) {
+      const context = await loadAgentConversationAnalyticsContext(client, organizationId, conversationId);
+      for (const message of messages.rows) await enqueueAgentConversationMessage(client, context, message, 'delivery_updated');
+    }
   }
 
   private async closeClaim(

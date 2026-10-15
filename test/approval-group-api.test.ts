@@ -83,7 +83,7 @@ function operation(index = 1) {
   };
 }
 
-function buildFixture(currentSnapshot = resourceSnapshot, options: { status?: FixtureGroupStatus; expiresAt?: string; runStatus?: string; decideError?: string; operationCount?: number; runInstallationId?: string; conversationId?: string | null; authMode?: "headers" | "token"; missingGroup?: boolean } = {}) {
+function buildFixture(currentSnapshot = resourceSnapshot, options: { status?: FixtureGroupStatus; expiresAt?: string; runStatus?: string; decideError?: string; operationCount?: number; runInstallationId?: string; conversationId?: string | null; authMode?: "headers" | "token"; missingGroup?: boolean; pinnedRemoteTool?: boolean } = {}) {
   const currentGroup = group(options.status, options.expiresAt);
   const currentOperations = Array.from({ length: options.operationCount ?? 1 }, (_, index) => ({
     ...operation(index + 1),
@@ -121,7 +121,7 @@ function buildFixture(currentSnapshot = resourceSnapshot, options: { status?: Fi
   const signalApprovalGroup = vi.fn(async () => undefined);
   const appendEvent = vi.fn(async () => undefined);
   const registry = new ToolRegistry();
-  registry.registerManifest({
+  const registerCapability = () => registry.registerManifest({
     name: capability,
     version: "1.0.0",
     description: "Approval API test capability",
@@ -139,6 +139,13 @@ function buildFixture(currentSnapshot = resourceSnapshot, options: { status?: Fi
       auditClassification: "full",
       redaction: [],
     },
+  });
+  if (!options.pinnedRemoteTool) registerCapability();
+  const registerPinnedTools = vi.fn(async (_org: string, _version: string, target: ToolRegistry) => {
+    if (!options.pinnedRemoteTool) return [];
+    expect(target).toBe(registry);
+    registerCapability();
+    return [capability];
   });
   const fixtureConfig: AppConfig = options.authMode === "token"
     ? { ...config, AUTH_MODE: "token", INTERNAL_AUTH_SECRET: "approval-api-secret" }
@@ -163,16 +170,29 @@ function buildFixture(currentSnapshot = resourceSnapshot, options: { status?: Fi
       invalidateGroup,
     } as never,
     toolInvocations: { getProposal: async () => ({ organizationId, runId, providerToolCallId: "provider-1", runtimeOperationId: "operation-1", sequenceNumber: 1, toolName: capability, toolVersion: "1.0.0", riskClass: "external-effect", argumentsHash: "b".repeat(64), arguments: argumentsValue, requiresApproval: true }) } as never,
-    toolGrants: { effectiveTools: async () => new Set([capability]) } as never,
+    toolGrants: { effectiveTools: async () => new Set(options.pinnedRemoteTool ? [] : [capability]) } as never,
+    remoteMcpProviders: { registerPinnedTools } as never,
     installationGrants: { effective: async () => ({ resources: [], connectors: [] }) } as never,
     toolRegistry: registry,
     effectReceipts: { markNotExecuted: async () => undefined } as never,
     signalApprovalGroup,
   });
-  return { app, config: fixtureConfig, getGroup, listGroupOperations, decideGroup, invalidateGroup, signalApprovalGroup, appendEvent };
+  return { app, config: fixtureConfig, getGroup, listGroupOperations, decideGroup, invalidateGroup, signalApprovalGroup, appendEvent, registerPinnedTools };
 }
 
 describe("approval-group API", () => {
+  it("revalidates pinned remote tools through the same registration used by execution", async () => {
+    const fixture = buildFixture(resourceSnapshot, { pinnedRemoteTool: true });
+    try {
+      const response = await fixture.app.inject({ method: "POST", url: `/v1/runs/${runId}/approval-group`,
+        headers: { "x-organization-id": organizationId, "x-actor-id": "operator-1" },
+        payload: { groupId, planDigest, decision: "approved" } });
+      expect(response.statusCode).toBe(202);
+      expect(fixture.registerPinnedTools).toHaveBeenCalledWith(organizationId, "version-1", expect.any(ToolRegistry));
+      expect(fixture.decideGroup).toHaveBeenCalledOnce();
+    } finally { await fixture.app.close(); }
+  });
+
   it("invalidates a group when the reviewed resource changed before approval", async () => {
     const fixture = buildFixture({ capability, request: { resourceId: "changed-resource" } });
     try {

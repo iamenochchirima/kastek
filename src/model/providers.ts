@@ -55,7 +55,7 @@ export const MODEL_PROVIDER_DEFINITIONS: Record<ModelProvider, ModelProviderDefi
     verificationAuth: "x-api-key",
     defaultModel: "claude-sonnet-5",
     fastModel: "claude-haiku-4-5-20251001",
-    catalogUrl: "https://api.anthropic.com/v1/models",
+    catalogUrl: "https://api.anthropic.com/v1/models?limit=1000",
   },
   gemini: {
     id: "gemini",
@@ -93,6 +93,7 @@ export const MODEL_PROVIDER_DEFINITIONS: Record<ModelProvider, ModelProviderDefi
     verificationAuth: "bearer",
     defaultModel: "glm-5.2",
     fastModel: "glm-5-turbo",
+    catalogUrl: "https://api.z.ai/api/paas/v4/models",
   },
   kimi: {
     id: "kimi",
@@ -101,7 +102,7 @@ export const MODEL_PROVIDER_DEFINITIONS: Record<ModelProvider, ModelProviderDefi
     apiKeyEnv: "MOONSHOT_API_KEY",
     baseUrl: "https://api.moonshot.ai/anthropic/v1",
     verificationUrl: "https://api.moonshot.ai/v1/models",
-    verificationAuth: "x-api-key",
+    verificationAuth: "bearer",
     defaultModel: "kimi-k3",
     fastModel: "kimi-k2.7-code-highspeed",
     catalogUrl: "https://api.moonshot.ai/v1/models",
@@ -128,7 +129,7 @@ export const MODEL_PROVIDER_DEFINITIONS: Record<ModelProvider, ModelProviderDefi
     verificationAuth: "bearer",
     defaultModel: "grok-4.6",
     fastModel: "grok-4.6",
-    catalogUrl: "https://api.x.ai/v1/models",
+    catalogUrl: "https://api.x.ai/v1/language-models",
   },
   opencode_go: {
     id: "opencode_go",
@@ -140,6 +141,7 @@ export const MODEL_PROVIDER_DEFINITIONS: Record<ModelProvider, ModelProviderDefi
     verificationAuth: "bearer",
     defaultModel: "deepseek-v4-flash",
     fastModel: "deepseek-v4-flash",
+    catalogUrl: "https://opencode.ai/zen/go/v1/models",
   },
   opencode_zen: {
     id: "opencode_zen",
@@ -151,6 +153,7 @@ export const MODEL_PROVIDER_DEFINITIONS: Record<ModelProvider, ModelProviderDefi
     verificationAuth: "bearer",
     defaultModel: "deepseek-v4-flash-free",
     fastModel: "deepseek-v4-flash-free",
+    catalogUrl: "https://opencode.ai/zen/v1/models",
   },
 };
 

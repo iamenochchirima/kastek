@@ -2,6 +2,7 @@ import { AnthropicAdapter } from "./anthropic";
 import Ajv from "ajv";
 import { createOpenAIAdapter, createOpenAICompatibleAdapter, createOpenRouterAdapter } from "./openai-compatible";
 import { GeminiAdapter } from "./gemini";
+import { OpenCodeAdapter } from "./opencode";
 import { ModelProviderError, type ModelAdapter, type ModelCapabilities, type ModelCredentials, type ModelPricing, type ModelProvider, type ModelRequest, type ModelResponse, type ModelStreamDelta, type ModelStreamResult } from "./types";
 import { withProviderSpan } from "../telemetry/spans";
 
@@ -21,8 +22,8 @@ export class ModelGateway {
     new GeminiAdapter(),
     createOpenAICompatibleAdapter("deepseek", "https://api.deepseek.com"),
     createOpenAICompatibleAdapter("xai", "https://api.x.ai/v1"),
-    createOpenAICompatibleAdapter("opencode_go", "https://opencode.ai/zen/go/v1"),
-    createOpenAICompatibleAdapter("opencode_zen", "https://opencode.ai/zen/v1"),
+    new OpenCodeAdapter("opencode_go", "https://opencode.ai/zen/go/v1"),
+    new OpenCodeAdapter("opencode_zen", "https://opencode.ai/zen/v1"),
     new AnthropicAdapter({ provider: "glm", baseUrl: "https://api.z.ai/api/anthropic/v1", authHeader: "bearer" }),
     new AnthropicAdapter({ provider: "kimi", baseUrl: "https://api.moonshot.ai/anthropic/v1" }),
     new AnthropicAdapter({ provider: "minimax", baseUrl: "https://api.minimaxi.com/anthropic/v1" }),
@@ -65,8 +66,10 @@ export class ModelGateway {
     this.circuits.set(key, current);
   }
 
-  public capabilities(provider: ModelProvider): ModelCapabilities | undefined {
-    return this.adapters.get(provider)?.capabilities;
+  public capabilities(provider: ModelProvider, model?: string): ModelCapabilities | undefined {
+    const adapter = this.adapters.get(provider);
+    if (!adapter) return undefined;
+    return model && adapter.capabilitiesForModel ? adapter.capabilitiesForModel(model) : adapter.capabilities;
   }
 
   /**
@@ -92,10 +95,11 @@ export class ModelGateway {
     if (!adapter) throw new Error(`No model adapter configured for provider ${request.provider}`);
     if (!credentials.apiKey) throw new Error(`No credential supplied for provider ${request.provider}`);
     this.assertCircuitClosed(request, credentials);
-    if (request.tools?.length && !adapter.capabilities.toolCalling) {
+    const capabilities = this.capabilities(request.provider, request.model) ?? adapter.capabilities;
+    if (request.tools?.length && !capabilities.toolCalling) {
       throw new ModelProviderError("Provider does not support tool calling", "MODEL_CAPABILITY_UNSUPPORTED", false, request.provider);
     }
-    if (request.responseFormat && !adapter.capabilities.structuredOutput) {
+    if (request.responseFormat && !capabilities.structuredOutput) {
       throw new ModelProviderError("Provider does not support structured output", "MODEL_CAPABILITY_UNSUPPORTED", false, request.provider);
     }
     const maxAttempts = Math.max(1, Math.min(request.maxAttempts ?? 3, 5));
@@ -152,7 +156,8 @@ export class ModelGateway {
   public async stream(request: ModelRequest, credentials: ModelCredentials, onDelta: (delta: ModelStreamDelta) => void | Promise<void>): Promise<ModelStreamResult> {
     const adapter = this.adapters.get(request.provider);
     if (!adapter) throw new Error(`No model adapter configured for provider ${request.provider}`);
-    if (!adapter.capabilities.streaming || !adapter.stream) {
+    const capabilities = this.capabilities(request.provider, request.model) ?? adapter.capabilities;
+    if (!capabilities.streaming || !adapter.stream) {
       throw new ModelProviderError("Provider does not support streaming", "MODEL_CAPABILITY_UNSUPPORTED", false, request.provider);
     }
     if (!credentials.apiKey) throw new Error(`No credential supplied for provider ${request.provider}`);

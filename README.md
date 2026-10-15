@@ -1,5 +1,12 @@
 # KasiTek Agent Platform
 
+Development model policy, agreed 2026-10-07: use OpenRouter
+`nvidia/nemotron-3-super-120b-a12b:free` for synthetic local checks. Local
+`KASIAI_MODEL` selects this exact endpoint. Do not use paid models or paid
+fallbacks for development checks without the user's approval. Free endpoint
+availability and limits can change; fail visibly rather than substitute a paid model.
+Historical runs retain the model they actually used.
+
 This is the separately deployable Agent Platform service. It owns agent definitions,
 durable run orchestration, conversations, memory, and operational records for the direct
 KasiTek product. It does not query or mutate `kasitek-core` tables; consequential product
@@ -11,7 +18,7 @@ The platform supports two planned delivery tracks: hosted API-based agents with 
 
 Use the [current architecture](docs/architecture/agent-platform-architecture.md) and [delivery checklist](docs/plans/agents/AGENT_PLATFORM_DELIVERY_PLAN.md). They replace the older broad rewrite roadmap. Personal runtime development has a [linked checklist](docs/plans/agents/PERSONAL_AGENT_RUNTIME_PLAN.md).
 
-This repository owns the API, database migrations, Temporal worker, MCP gateway, knowledge/memory modules, channel adapters and management UI. Existing relocated source must be verified before claiming a working standalone product. Some client authentication/API adapters still require replacing; see [client integration status](docs/source-boundary.md).
+This repository owns the API, database migrations, Temporal worker, MCP gateway, knowledge/memory modules, channel adapters and management UI. The local standalone journey now supports shared sign-in, agent configuration, real model replies, knowledge retrieval, approved tools, website publication and inbox teammate replies. External provider/channel acceptance remains explicit; see [client integration status](docs/source-boundary.md) and the [end-to-end checklist](docs/plans/agents/END_TO_END_IMPLEMENTATION_PLAN.md).
 
 Growth and Agency are optional product-tool integrations through authenticated interfaces, not runtime or database dependencies for every agent. Shared login comes from Labs Keycloak; Analytics uses its configured ingestion endpoint, and telemetry uses the Labs Collector. Agents owns its organization authorization and sessions.
 
@@ -39,6 +46,69 @@ dedicated Temporal Cloud development namespace. Set `TEMPORAL_MODE=local`,
 `TEMPORAL_ADDRESS=localhost:7233`, and `TEMPORAL_NAMESPACE=default` when a completely local
 Temporal Server is needed. A hosted runtime needs a dedicated namespace and task queue; configuring
 or changing that runtime is separate work.
+
+For the local management app, start PostgreSQL and Labs identity, then the local
+Temporal server, API, worker and `pnpm dev` in separate terminals. The current
+Playground setup uses Temporal namespace `default` and queue
+`kasitek-agents-initial-ui`. Keep local secrets in the ignored `.env`. Use
+`http://localhost:3100` consistently with `AGENTS_PUBLIC_URL`; starting login on
+`127.0.0.1` and returning to `localhost` loses the login transaction cookie.
+Check API `/health/live` and `/health/ready` before opening Studio.
+
+For a fully local durable setup, configure these non-secret values in the root `.env`:
+
+```dotenv
+HOST=127.0.0.1
+PORT=4100
+AUTH_MODE=hmac
+AGENTS_PUBLIC_URL=http://localhost:3100
+TEMPORAL_ENABLED=true
+TEMPORAL_MODE=local
+TEMPORAL_ADDRESS=127.0.0.1:7233
+TEMPORAL_NAMESPACE=default
+TEMPORAL_TASK_QUEUE=kasitek-agents-initial-ui
+CREDIT_BILLING_MODE=disabled
+```
+
+Also configure the separate Agents PostgreSQL URL, internal authentication secret,
+credential encryption key and Labs OIDC client settings listed in `.env.example`.
+Use each model provider's own key. The disabled billing setting above is for local
+development only. Start PostgreSQL and Labs Keycloak using their existing setup.
+
+Run each process in its own terminal from the repository root:
+
+```bash
+temporal server start-dev --ip 127.0.0.1 --port 7233 --ui-port 8233
+```
+
+```bash
+pnpm run dev:api
+```
+
+```bash
+pnpm run dev:worker
+```
+
+```bash
+pnpm dev
+```
+
+The API command applies Agents migrations. Open `http://localhost:3100`, sign in,
+and select the workspace. Simple agents run inside the API; durable agents require
+the Temporal server and worker. The MCP gateway is needed only for external MCP
+clients. Website chat and Discord have separate startup instructions below.
+
+Agent Knowledge creates agent-scoped sources, so the same facts are available in
+Playground and separately published website installations. Conversation memory
+keeps its own scope. Add page reads one URL through the existing bounded fetch
+and indexing path without a crawler key. To try it with the included sample, add
+`http://localhost:3200/faq.txt`, then ask website chat about the return period.
+
+Full website knowledge crawling uses `FIRECRAWL_API_KEY` and optionally
+`FIRECRAWL_API_BASE_URL`. Without a configured crawler the screen explains the
+setup and disables crawl submission. While a crawl runs, the source displays the
+provider's processed/total page counts when available. A completed crawl with no
+readable pages is a failed source, not ready knowledge.
 
 The gateway is a separate process. It owns no database, Temporal, Core, or product state:
 `POST /mcp` forwards the authenticated JSON-RPC request to the private Agent API, and `/health`
@@ -124,8 +194,18 @@ Cloud mode requires `TEMPORAL_ADDRESS`, `TEMPORAL_NAMESPACE`, and `TEMPORAL_API_
 `.env` (or the environment used to launch the processes). Never commit the API key.
 
 KasiAi uses `KASIAI_MODEL_PROVIDER` and `KASIAI_MODEL` for its pinned initial model target. The
-matching KasiTek-funded provider key, such as `OPENROUTER_API_KEY`, is resolved only inside worker
-activities and is never stored in an agent definition or workflow input.
+matching provider key is resolved only inside worker activities and is never stored in an agent
+definition or workflow input. The Agents model gateway supports independent OpenRouter, OpenAI,
+Anthropic, Gemini, DeepSeek, GLM, Kimi, MiniMax, xAI, OpenCode Go and OpenCode Zen credentials.
+For local managed credentials, configure only the corresponding key from `.env.example`. An
+organization can instead save a provider-specific BYOK key in Agents > Models. A key for one
+provider does not enable another provider; OpenRouter is only the sample workspace default.
+The model list is discovered from each provider's own catalog when its key is available. Saved
+organization keys are resolved server-side for that provider only; when a catalog is unavailable,
+the UI keeps that provider's preset models available.
+OpenCode Go and Zen route Chat Completions, Responses, Anthropic Messages and Gemini models through
+the matching runtime adapter. Typed System One models and unclassified model IDs remain hidden
+from the chat picker until their protocol is supported.
 
 Credit settlement is enforced by default. Set `CREDIT_BILLING_MODE=shadow` to calculate pricing
 without debiting, or `CREDIT_BILLING_MODE=disabled` to skip credit settlement. User-funded BYOK
@@ -250,3 +330,144 @@ pnpm build:ui
 
 `pnpm build` builds the API and worker. The UI's `pnpm lint:ui` command is available, while
 the relocated source currently reports existing React-hook lint errors.
+
+## Simple and durable agent runs
+
+In Studio Settings → Runtime, choose Simple or Durable, save the version, then
+use that version in Playground. The version keeps the execution choice. Simple
+Playground and authenticated `/v1/runs` requests use the shared agent harness
+inside the API process, without a Temporal workflow. Durability remains explicit
+for approvals, waits and workflow graphs. Both paths save their run evidence.
+
+Simple runs honor configured model/tool/token limits and `maxWallTimeMs`, capped
+at five minutes, and support cancellation. A graceful API shutdown records an
+interrupted failure. On startup and every 30 seconds, the API checks persisted
+simple dispatches whose deadlines passed with an additional 30-second grace.
+It records an interrupted failure and releases the conversation lease. It never
+restarts the request automatically. Check external actions before retrying.
+Agent Settings provides server-side API keys for one custom hosted installation.
+The public API always attaches messages to a saved conversation. Internal `/v1/runs`
+remains a separate service-token interface with runs:write and runs:read. Never give the signing secret to browsers
+or customer websites. Agents-owned website replies use the shared simple/durable dispatcher; other channel adapters still need their own end-to-end acceptance.
+
+
+### Invoke an agent from your server
+
+In Agent details → Settings → Agent API keys, create a labelled key and choose
+its expiry. Copy it immediately; refresh/hiding clears the displayed value.
+The default expiry is 90 days, with a maximum of 365. Save the key in your server's
+secret configuration. It is never a model-provider key and never belongs in a
+browser widget. Revoking it stops new requests and closes admitted event streams
+at their next authorization check. Accepted runs continue unless separately cancelled.
+
+Send a first message, then reuse the returned `conversation.id` as `conversationId`
+on subsequent messages. Use a fresh idempotency key for each new message and reuse
+that same key when retrying its delivery. The agent uses its pinned installation
+version, model and execution choice.
+
+```sh
+AGENTS_ORIGIN='http://127.0.0.1:4100'
+# Supply AGENT_API_KEY through your server's secret configuration.
+curl "$AGENTS_ORIGIN/api/v1/agent/messages" \
+  -H "Authorization: Bearer $AGENT_API_KEY" \
+  -H 'Content-Type: application/json' \
+  -d '{"message":"Hello","createNew":true,"idempotencyKey":"first-request-001"}'
+
+# Replace RUN_ID with the returned runId to read status and the completed answer.
+curl "$AGENTS_ORIGIN/api/v1/agent/runs/RUN_ID" \
+  -H "Authorization: Bearer $AGENT_API_KEY"
+```
+
+| Endpoint | Purpose |
+|---|---|
+| `POST /api/v1/agent/messages` | Send `message`, `idempotencyKey`, and either `conversationId` or `createNew:true`; returns 202 with conversation and run |
+| `POST /api/v1/agent/conversations` | Create an empty saved conversation with `{}` |
+| `GET /api/v1/agent/conversations/:conversationId` | Read the saved chat for this installation |
+| `GET /api/v1/agent/runs/:runId` | Read persisted run status, output/error and events |
+| `GET /api/v1/agent/runs/:runId/events/stream?after=0` | Stream recorded events; reconnect with the last event cursor |
+| `POST /api/v1/agent/runs/:runId/cancel` | Cancel an active run with `{}` |
+
+Ordinary errors are 400 for invalid input, 401 for an invalid/expired/revoked key
+or inactive installation/member, 403 for browser use, and 404 for a run/conversation
+outside the key's installation. A 202 response means accepted; inspect persisted
+run status for completion or failure. Provider errors belong to the run outcome.
+Keys cannot override model settings, manage agents, authorize tools or call the
+internal `/v1` interface. Website customer sessions use their separate scoped
+visitor admission below.
+
+
+Studio shows a durable workflow's saved wait state and offers Send event for its
+expected event key. Workspace write permission is required. A mismatched key
+returns 409 and does not signal the run. A real local workflow survived worker
+restart and resumed through this control; its model reply and terminal state
+remained available after reload. Tool-specific approval setup/acceptance remains
+part of the tools implementation stage.
+
+### Local website chat and inbox
+
+For a custom customer-service agent, publish its Playground version, open Agent
+details → Website chat, add the sample website origin `http://localhost:3200`,
+then copy the embed. Each website has an independent live installation pinned to
+that published version. Pause/resume acts on backend state. Later draft edits do
+not change the live version.
+
+Run the included sample separately from the management app:
+
+```bash
+python3 -m http.server 3200 --bind 127.0.0.1 --directory examples/website-chat
+```
+
+Open `http://localhost:3200`, paste the public deployment ID and open chat.
+`AGENTS_PUBLIC_URL` must be the management origin (`http://localhost:3100` locally);
+the sample's loader uses that origin. Apply migrations 182/183 to the Agents DB.
+Public visitor capabilities expire after one day, are origin/session scoped and
+are stored as hashes on the server. No model key belongs in an embed.
+
+Open `/app/inbox` to view the same customer conversation, take over, reply, add a
+private note, resolve/reopen or return replies to the agent. Notes remain internal.
+Known successful human writes are deduplicated. Live updates reconnect using
+lifecycle cursors and saved history. Real visitor API/SSE replies, browser teammate
+controls, embedded browser submission, refresh continuity and private-note
+isolation passed locally. Temporary failures display a readable error; bounded
+streams and periodic history reload recover replies after an interruption. Share links, voice and uploads
+are not enabled by this slice. See the end-to-end checklist for external setup and
+remaining acceptance.
+
+### Reviewed remote MCP tool results
+
+Open Agent Tools → Remote MCP, discover a provider and check its health. Before
+publishing the discovered revision, enter only the top-level result fields the
+agent needs, such as `reference,status`. Publication stores those selections in
+that immutable provider revision. Pin the published revision to a new agent
+version and publish it. Existing live versions keep their earlier pins.
+
+The raw response stays redacted. Reviewed results support bounded JSON scalar
+fields, including a JSON object in MCP text or structuredContent. Nested objects
+and credential-shaped fields are excluded. A tool reporting isError fails its
+attempt instead of producing a success answer. Remote arguments still pass
+through the existing grants and approval policy.
+
+### Discord setup prerequisites
+
+The retained Discord dialog and channel list now use scoped Agents browser
+endpoints. Use a dedicated bot and an authorized test account. Put the bot token
+in the dialog or server credential store; never in a public widget or document.
+Enable Message Content Intent for the bot. Configure explicit allowed user and
+server-channel IDs; empty server-channel IDs deny server traffic. The default
+server policy requires a mention.
+
+Alongside the API, start the retained gateway with its matching Agents database
+and internal authentication configuration:
+
+```bash
+DISCORD_GATEWAY_ENABLED=true pnpm run dev:discord
+```
+
+`DISCORD_GATEWAY_PLATFORM_URL` points to the API, locally
+`http://127.0.0.1:4100`. Saving a verified token creates a connection with
+`waiting_for_gateway` status. A saved connection alone does not prove inbound
+messages or outbound delivery. Check the gateway status, then perform the real
+incoming message → reply → inbox takeover → human reply journey before claiming
+Discord acceptance. Inbox teammate replies use the matching Discord bot credential
+and the retained Discord API adapter directly; they do not depend on Growth. Growth's shared social-account connection contract remains
+pending and is not called by this screen.

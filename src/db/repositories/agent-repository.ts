@@ -1351,7 +1351,8 @@ export class AgentRepository {
          SELECT ai.* FROM agent_installations ai
          WHERE ai.agent_definition_id = ad.id AND ai.organization_id = $1
            AND ($2::text IS NULL OR COALESCE(ai.settings ->> 'environment', 'live') = $2)
-         ORDER BY ai.updated_at DESC LIMIT 1
+         ORDER BY CASE WHEN $2::text IS NULL AND ai.settings ->> 'environment' = 'playground' THEN 0 ELSE 1 END,
+                  ai.updated_at DESC LIMIT 1
        ) ai ON TRUE
        LEFT JOIN agent_versions av ON av.id = ai.agent_version_id
        LEFT JOIN agent_versions published_av
@@ -1610,6 +1611,7 @@ export class AgentRepository {
       installationId?: string;
       agentVersionId?: string;
       extension: PlaygroundExtensionActivation;
+      remove?: boolean;
     },
   ): Promise<PlaygroundExtensionActivationResult> {
     return withTransaction(this.pool, async (client) => {
@@ -1666,7 +1668,7 @@ export class AgentRepository {
           [input.organizationId, source.id, input.extension.providerVersionId],
         )).rows[0])
         : false;
-      extensionChanged ||= input.extension.kind === "skill" ? !skillAlreadyPinned : input.extension.kind === "mcp" ? !mcpAlreadyPinned : false;
+      extensionChanged ||= input.extension.kind === "skill" ? !skillAlreadyPinned : input.extension.kind === "mcp" ? (input.remove ? mcpAlreadyPinned : !mcpAlreadyPinned) : false;
       if (!extensionChanged) return { installation, version: source, createdCandidate: false };
 
       if (source.status === "draft") {
@@ -1769,7 +1771,7 @@ export class AgentRepository {
 
   private async applyPlaygroundExtensionPin(
     client: PoolClient,
-    input: { organizationId: string; actorId: string; extension: PlaygroundExtensionActivation },
+    input: { organizationId: string; actorId: string; extension: PlaygroundExtensionActivation; remove?: boolean },
     agentVersionId: string,
     installationId: string,
   ): Promise<void> {
@@ -1791,6 +1793,11 @@ export class AgentRepository {
       return;
     }
     if (input.extension.kind === "mcp") {
+      if (input.remove) {
+        await client.query("DELETE FROM agent_version_mcp_providers WHERE organization_id = $1 AND agent_version_id = $2 AND provider_version_id = $3",
+          [input.organizationId, agentVersionId, input.extension.providerVersionId]);
+        return;
+      }
       const result = await client.query(
         `INSERT INTO agent_version_mcp_providers (organization_id, agent_version_id, provider_version_id, pinned_by)
          SELECT $1, $2, provider_version.id, $3

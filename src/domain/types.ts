@@ -122,6 +122,9 @@ const legacyCreateVersionInputSchema = z.object({
       : undefined
   );
   const configuration = value.configuration;
+  if (configuration.executionStrategy !== undefined && !["simple", "durable"].includes(String(configuration.executionStrategy))) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ["configuration", "executionStrategy"], message: "Choose simple or durable execution" });
+  }
   const policy = value.policy;
   const nestedRuntime = record(configuration.runtime);
   const modelPolicy = record(policy.modelPolicy);

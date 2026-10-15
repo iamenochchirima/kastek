@@ -194,16 +194,18 @@ export class MemorySourceEventRepository {
         `SELECT ${columns} FROM memory_source_events
          WHERE organization_id = $1 AND (
            idempotency_key = $2
-           OR (evidence_digest = $3 AND source_boundary = $4)
+           OR (evidence_digest = $3 AND source_boundary = $4
+             AND installation_id = $7 AND run_id IS NOT DISTINCT FROM $5::uuid AND turn_id IS NOT DISTINCT FROM $8::text)
            OR (run_id = $5::uuid AND event_sequence = $6::bigint)
          )
          ORDER BY CASE
            WHEN idempotency_key = $2 THEN 0
-           WHEN evidence_digest = $3 AND source_boundary = $4 THEN 1
+           WHEN evidence_digest = $3 AND source_boundary = $4
+             AND installation_id = $7 AND run_id IS NOT DISTINCT FROM $5::uuid AND turn_id IS NOT DISTINCT FROM $8::text THEN 1
            ELSE 2
          END, created_at ASC
          LIMIT 1 FOR UPDATE`,
-        [input.scope.organizationId, input.idempotencyKey, input.evidence.evidenceDigest, input.sourceBoundary, input.scope.runId ?? null, input.eventSequence ?? null],
+        [input.scope.organizationId, input.idempotencyKey, input.evidence.evidenceDigest, input.sourceBoundary, input.scope.runId ?? null, input.eventSequence ?? null, input.scope.installationId, input.scope.turnId ?? null],
       );
       const row = existing.rows[0];
       if (!row) throw new Error("MEMORY_SOURCE_EVENT_REPLAY_NOT_FOUND");

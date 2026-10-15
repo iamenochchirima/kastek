@@ -101,6 +101,18 @@ export interface ChannelPairingResult {
 export class ChannelRepository {
   public constructor(private readonly pool: Pool) {}
 
+  /** Null means this is a product-owned website connection, outside Agents widget delivery. */
+  public async localWebsiteDeliveryState(organizationId: string, installationId: string, conversationId: string): Promise<{ active: boolean } | null> {
+    return (await query<{ active: boolean }>(this.pool,
+      `SELECT deployment.status = 'ACTIVE' AND installation.status = 'active'
+         AND EXISTS (SELECT 1 FROM agent_website_visitor_sessions session
+           WHERE session.deployment_id = deployment.id AND session.conversation_id = $3 AND session.expires_at > now()) AS active
+       FROM agent_website_deployments deployment
+       JOIN agent_installations installation ON installation.id = deployment.installation_id
+       WHERE deployment.organization_id = $1 AND deployment.installation_id = $2`,
+      [organizationId, installationId, conversationId])).rows[0] ?? null;
+  }
+
   public async createConnection(input: {
     organizationId: string;
     installationId: string;
@@ -396,6 +408,7 @@ export class ChannelRepository {
         [input.attemptId, input.organizationId],
       )).rows[0];
       if (!target) throw Object.assign(new Error("Delivery attempt not found"), { statusCode: 404 });
+      if (target.error?.code === "AGENT_REPLY_SUPPRESSED") throw Object.assign(new Error("This reply was suppressed by an ownership change"), { statusCode: 409, code: "AGENT_REPLY_SUPPRESSED" });
       if (input.expectedStatus && target.status !== input.expectedStatus) {
         throw Object.assign(new Error(`Delivery attempt state changed from expected ${input.expectedStatus}`), { statusCode: 409 });
       }
@@ -516,8 +529,26 @@ export class ChannelRepository {
     return result.rows[0] ?? null;
   }
 
+  private async assertReplyOwner(client: import("pg").PoolClient, organizationId: string, attemptId: string): Promise<void> {
+    // Serialize publication with ownership changes. In particular, local website
+    // messages become visitor-visible only after this transaction commits.
+    const result = await client.query<{ conversation_kind: string; handoff_state: string; provider: string | null; assigned_actor_id: string | null; participant_actor: string | null }>(
+      `SELECT c.conversation_kind, c.handoff_state, m.provider, c.assigned_actor_id, p.external_id AS participant_actor
+       FROM delivery_attempts da JOIN messages m ON m.id = da.message_id
+       JOIN conversations c ON c.id = m.conversation_id AND c.organization_id = da.organization_id
+       LEFT JOIN participants p ON p.id = m.participant_id
+       WHERE da.organization_id = $1 AND da.id = $2 FOR UPDATE OF c`, [organizationId, attemptId]);
+    const row = result.rows[0];
+    if (!row || row.conversation_kind !== 'customer' || row.provider === 'kasitek-handoff') return;
+    const allowed = row.provider === 'kasitek-human'
+      ? row.handoff_state === 'human_owned' && row.assigned_actor_id === row.participant_actor
+      : row.handoff_state === 'agent_active';
+    if (!allowed) throw Object.assign(new Error('Reply owner changed before delivery'), { code: 'CONVERSATION_REPLY_OWNER_CHANGED', statusCode: 409 });
+  }
+
   public async claimDelivery(organizationId: string, attemptId: string): Promise<DeliveryAttemptRecord> {
     return withTransaction(this.pool, async (client) => {
+      await this.assertReplyOwner(client, organizationId, attemptId);
       const result = await client.query<DeliveryAttemptRecord>(
         `UPDATE delivery_attempts SET status = 'sending'
          WHERE id = $1 AND organization_id = $2 AND status = 'queued'
@@ -539,6 +570,7 @@ export class ChannelRepository {
 
   public async markDelivered(input: { organizationId: string; attemptId: string; providerMessageId?: string }): Promise<DeliveryAttemptRecord> {
     return withTransaction(this.pool, async (client) => {
+      await this.assertReplyOwner(client, input.organizationId, input.attemptId);
       const result = await client.query<DeliveryAttemptRecord>(
         `UPDATE delivery_attempts SET status = 'sent', provider_message_id = COALESCE($3, provider_message_id), sent_at = now()
          WHERE id = $1 AND organization_id = $2 AND status = 'sending'
@@ -548,7 +580,7 @@ export class ChannelRepository {
       if (!result.rows[0]) throw new Error("Delivery attempt is not sending");
       const message = await client.query<ConversationMessageAnalyticsRecord>(
         `UPDATE messages SET delivery_status = 'sent',
-           provider_message_id = COALESCE($2, provider_message_id)
+           provider_message_id = CASE WHEN provider = 'kasitek-human' THEN provider_message_id ELSE COALESCE($2, provider_message_id) END
          WHERE id = $1 AND delivery_status IS DISTINCT FROM 'sent'
          RETURNING *`,
         [result.rows[0].message_id, input.providerMessageId ?? null],
@@ -613,7 +645,9 @@ export class ChannelRepository {
       const current = await client.query<{ id: string; delivery_status: string | null }>(
         `SELECT id, delivery_status
          FROM messages
-         WHERE organization_id = $1 AND provider_message_id = $2
+         WHERE organization_id = $1 AND (provider_message_id = $2 OR EXISTS (
+           SELECT 1 FROM delivery_attempts da WHERE da.message_id = messages.id AND da.organization_id = $1 AND da.provider_message_id = $2
+         ))
          FOR UPDATE`,
         [input.organizationId, input.providerMessageId],
       );
@@ -627,9 +661,9 @@ export class ChannelRepository {
              THEN delivery_status
            ELSE $3
          END
-         WHERE organization_id = $1 AND provider_message_id = $2
+         WHERE organization_id = $1 AND id = $2
          RETURNING id, organization_id, conversation_id, provider_message_id, delivery_status`,
-        [input.organizationId, input.providerMessageId, input.status],
+        [input.organizationId, current.rows[0].id, input.status],
       );
       if (!message.rows[0]) throw new Error("Provider message not found");
       await client.query(

@@ -117,6 +117,8 @@ export interface ModelCredentials {
 export interface ModelAdapter {
   readonly provider: ModelProvider;
   readonly capabilities: ModelCapabilities;
+  /** Provider gateways with model-specific wire protocols can expose the exact route capabilities. */
+  capabilitiesForModel?(model: string): ModelCapabilities;
   /** Redacted provider-envelope size used by the context runtime's final byte gate. */
   estimateRequestBytes?(request: ModelRequest): number;
   complete(request: ModelRequest, credentials: ModelCredentials): Promise<ModelResponse>;

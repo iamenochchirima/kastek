@@ -22,6 +22,23 @@ function response(toolCalls: ModelResponse["toolCalls"], content = ""): ModelRes
 }
 
 describe("Tool Gateway and bounded runtime", () => {
+  it("uses default loop limits when a caller passes optional limits as undefined", async () => {
+    const adapter: ModelAdapter = {
+      provider: "openai",
+      capabilities: { toolCalling: true, structuredOutput: true, streaming: false, vision: false },
+      complete: async () => response([], "Cobalt Lantern costs 37 credits per month."),
+    };
+    const result = await runBoundedAgentLoop({
+      model: { provider: "openai", model: "test-model" }, credentials,
+      messages: [{ role: "user", content: "What does Cobalt Lantern cost?" }],
+      gateway: new ModelGateway([adapter]), tools: new ToolRegistry(), grantedTools: new Set(),
+      toolContext: { organizationId: "org", agentId: "agent", agentVersionId: "version", installationId: "install", runId: "run", correlationId: "corr" },
+      limits: { maxIterations: undefined, maxWallTimeMs: undefined, maxTotalTokens: 32_000 },
+    });
+    expect(result.status).toBe("completed");
+    expect(result.iterations).toBe(1);
+    expect(result.response?.message.content).toContain("37");
+  });
   it("carries a tool authorization requirement into the durable final response", async () => {
     const registry = new ToolRegistry();
     registry.register({

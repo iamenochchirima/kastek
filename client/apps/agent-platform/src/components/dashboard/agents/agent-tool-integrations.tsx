@@ -59,7 +59,7 @@ function isConnected(integration: AgentIntegration): boolean {
   return integration.status === "connected" && integration.available;
 }
 
-export function AgentToolIntegrations({ installationId, embedded = false, refreshKey, onChannelAction, directory, channelsOnly = false }: { installationId: string; embedded?: boolean; refreshKey?: string; onChannelAction?: (integration: AgentIntegration) => void; directory?: AgentCapabilityDirectoryEntry[]; channelsOnly?: boolean }) {
+export function AgentToolIntegrations({ installationId, embedded = false, refreshKey, onChannelAction, directory, channelsOnly = false, enabledChannelTypes }: { installationId: string; embedded?: boolean; refreshKey?: string; onChannelAction?: (integration: AgentIntegration) => void; directory?: AgentCapabilityDirectoryEntry[]; channelsOnly?: boolean; enabledChannelTypes?: string[] }) {
   const [integrations, setIntegrations] = useState<AgentIntegration[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -191,11 +191,12 @@ export function AgentToolIntegrations({ installationId, embedded = false, refres
         {visibleIntegrations.map((integration) => {
           const connected = isConnected(integration);
           const pending = busyIntegration === integration.id;
+          const channelPending = integration.kind === "channel" && enabledChannelTypes !== undefined && !enabledChannelTypes.includes(integration.channelType ?? "");
           const canConfigure = integration.kind !== "channel" && integration.configurable && integration.auth !== "observability" && integration.auth !== "oauth2";
           return <Card key={integration.id} className="gap-0 border-border bg-card transition-colors hover:border-primary/30">
             <CardContent className={`flex min-h-[84px] items-center gap-3 p-2.5 ${channelsOnly ? "md:min-h-[104px] md:flex-col md:items-start" : ""}`}>
               <div className="flex min-w-0 flex-1 items-center gap-3"><IntegrationLogo integration={integration} /><div className="min-w-0 flex-1"><h4 className="truncate text-sm font-semibold leading-5 text-foreground">{integration.name}</h4><p className="mt-0.5 line-clamp-2 text-xs leading-4 text-muted-foreground">{integration.description}</p></div></div><div className={`flex shrink-0 items-center gap-2 ${channelsOnly ? "w-full justify-between" : "flex-col items-end"}`}><span className="inline-flex items-center gap-1.5 text-[11px] leading-4 text-muted-foreground"><span className={`h-1.5 w-1.5 rounded-full ${connected ? "bg-status-success" : "bg-muted-foreground/50"}`} />{statusLabel(integration)}</span>
-                {integration.kind === "channel" ? <Button type="button" size="sm" onClick={() => onChannelAction?.(integration)} disabled={pending || !onChannelAction}>{pending ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : null}{connected ? "Manage" : "Connect"}</Button> : null}
+                {integration.kind === "channel" ? <Button type="button" size="sm" onClick={() => onChannelAction?.(integration)} disabled={pending || !onChannelAction || channelPending}>{pending ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : null}{channelPending ? "Pending" : connected ? "Manage" : "Connect"}</Button> : null}
                 {integration.kind !== "channel" && connected && integration.auth !== "internal" ? <Button type="button" size="sm" variant="ghost" onClick={() => setDisconnecting(integration)} disabled={pending}><Unplug className="h-3.5 w-3.5" />Disconnect</Button> : null}
                 {integration.auth === "oauth2" && integration.oauthProvider && !connected ? <Button type="button" size="sm" onClick={() => void connectGoogle(integration)} disabled={pending}>{pending ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : null}Connect</Button> : null}
                 {canConfigure && !connected ? <Button type="button" size="sm" onClick={() => openConfiguration(integration)}>Configure</Button> : null}

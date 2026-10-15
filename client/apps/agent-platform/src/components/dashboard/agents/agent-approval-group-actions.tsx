@@ -1,5 +1,6 @@
 "use client";
 
+import { AgentApprovalPreview } from "./agent-approval-preview";
 import { useState } from "react";
 import { useRouter } from "@/lib/navigation";
 import { Check, X } from "lucide-react";
@@ -39,6 +40,7 @@ export function AgentApprovalGroupActions({ runId, group, onDecided }: { runId: 
   const allSelected = selected.length === allOperationIds.length;
   const sessionGrantEligible = group.operations.length > 0 && group.operations.every((operation) => Boolean(operation.resourceSelector));
   return <div className="flex flex-wrap items-center gap-2">
+    <div className="basis-full space-y-2">{group.operations.map((operation) => <AgentApprovalPreview key={operation.runtimeOperationId ?? operation.providerToolCallId} snapshot={operation.resourceSnapshot} />)}</div>
     {group.operations.length > 1 ? <div className="basis-full space-y-1.5 rounded-md border border-border/70 bg-background/30 p-2">
       <p className="text-xs font-medium text-foreground">Approve selected</p>
       {group.operations.map((operation) => {

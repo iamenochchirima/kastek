@@ -10,6 +10,9 @@ import { synchronizeKasiAi } from "../system/kasiai";
 import { connectTemporal, signalRunApprovalGroup, signalRunCancellation, signalRunExternalEvent, startDurableRun } from "../temporal/client";
 import { operationalLogger } from "../telemetry/logger";
 import { runWithRequiredDatabaseContext } from "../db/context";
+import { createActivities } from "../temporal/activities";
+import { SimpleRunExecutor } from "../runtime/simple-run-executor";
+import { reconcileSimpleRuns } from "../runtime/simple-run-reconciliation";
 
 async function main(): Promise<void> {
   const config = loadConfig();
@@ -42,9 +45,47 @@ async function main(): Promise<void> {
   }
   let temporalConnection: Awaited<ReturnType<typeof connectTemporal>> | undefined;
   if (config.TEMPORAL_ENABLED) temporalConnection = await connectTemporal(config);
+  const simpleRuns = new SimpleRunExecutor({
+    runs,
+    activities: createActivities(pool, { config, simpleExecution: true }),
+    onError: (error, runId) => operationalLogger.error({ err: error, run_id: runId, event: "simple.execution.failed" }, "Simple run persistence failed"),
+  });
+  // A restarted API does not assume it owned every direct run. Reconcile only
+  // recorded simple dispatches that exceeded their bounded deadline and grace.
+  let reconciliation: Promise<void> | undefined;
+  const reconcile = (): Promise<void> => {
+    if (reconciliation) return reconciliation;
+    reconciliation = reconcileSimpleRuns(runs)
+      .then(() => undefined)
+      .catch(error => operationalLogger.error({ err: error, event: "simple.reconciliation.failed" }, "Simple run reconciliation failed"))
+      .finally(() => { reconciliation = undefined; });
+    return reconciliation;
+  };
+  await reconcile();
+  const reconciliationTimer = setInterval(() => { void reconcile(); }, 30_000);
+  reconciliationTimer.unref();
   const app = buildApp({
     config,
     pool,
+    dispatchRun: async (runId) => {
+      const run = await runs.getRuntimeRunById(runId);
+      if (!run) throw new Error("Cannot dispatch a missing run");
+      const durable = run.configuration.executionStrategy !== "simple";
+      if (run.status !== "received") return { durable };
+      try {
+        if (!durable) {
+          await simpleRuns.start(run);
+          return { durable: false };
+        }
+        if (!temporalConnection) throw Object.assign(new Error("Durable execution requires Temporal"), { statusCode: 503, code: "temporal_not_configured" });
+        await startDurableRun(temporalConnection.client, config, { runId, organizationId: run.organization_id, actorId: run.created_by });
+        return { durable: true };
+      } catch (error) {
+        await runs.failRun(run.id, { code: (error as { code?: string }).code ?? "RUN_DISPATCH_FAILED", message: "The selected execution mode could not start" });
+        throw error;
+      }
+    },
+    cancelSimpleRun: runId => simpleRuns.cancel(runId),
     startWorkflow: temporalConnection
       ? async (runId) => {
         const run = await runs.getRunById(runId);
@@ -67,6 +108,9 @@ async function main(): Promise<void> {
       : undefined,
   });
   const close = async (): Promise<void> => {
+    clearInterval(reconciliationTimer);
+    await reconciliation;
+    await simpleRuns.close();
     await app.close();
     temporalConnection?.connection.close();
     await pool.end();

@@ -747,53 +747,6 @@ export class PlatformChatRepository {
         if (reopened.rows[0]) resolved.conversation = reopened.rows[0];
       }
 
-      if (
-        resolved.conversation.conversation_kind === "customer"
-        && ["handoff_requested", "human_owned"].includes(resolved.conversation.handoff_state)
-      ) {
-        const activeHandoff = await client.query<{ id: string }>(
-          `SELECT id
-           FROM agent_handoff_requests
-           WHERE organization_id = $1 AND conversation_id = $2
-             AND status IN ('pending', 'claimed')
-           ORDER BY created_at DESC, id DESC
-           LIMIT 1
-           FOR UPDATE`,
-          [input.organizationId, resolved.conversation.id],
-        );
-        const handoffId = activeHandoff.rows[0]?.id;
-        const handoffAcknowledgement = handoffId && input.channelType !== "website"
-          ? await this.queueHandoffAcknowledgement(client, {
-            organizationId: input.organizationId,
-            channelType: input.channelType,
-            externalConversationId: input.externalConversationId,
-            route,
-            conversation: resolved.conversation,
-            agentParticipant: resolved.agentParticipant,
-            handoffId,
-          })
-          : undefined;
-        const latestMessage = handoffAcknowledgement?.message ?? (await client.query<MessageRecord>(
-          `SELECT * FROM messages
-           WHERE conversation_id = $1
-           ORDER BY sequence_number DESC, created_at DESC
-           LIMIT 1`,
-          [resolved.conversation.id],
-        )).rows[0];
-        if (!latestMessage) throw new Error("Active handoff has no conversation message");
-        recordConversationAdmission({ outcome: "redelivery", channel: input.channelType });
-        return {
-          ...resolved,
-          sourceParticipant,
-          message: latestMessage,
-          run: null,
-          handoffActive: true,
-          ...(handoffId ? { handoffRequestId: handoffId } : {}),
-          ...(handoffAcknowledgement ? { handoffAcknowledgement } : {}),
-          created: false,
-        };
-      }
-
       const idempotencyKey = `channel:${input.provider}:${input.providerEventId}`;
       const nextSequence = await this.nextSequence(client, resolved.conversation.id);
       const messageResult = await client.query<MessageRecord>(
@@ -838,6 +791,47 @@ export class PlatformChatRepository {
           input.messageType,
         ],
       );
+      if (
+        resolved.conversation.conversation_kind === "customer"
+        && ["handoff_requested", "human_owned"].includes(resolved.conversation.handoff_state)
+      ) {
+        const activeHandoff = await client.query<{ id: string }>(
+          `SELECT id
+           FROM agent_handoff_requests
+           WHERE organization_id = $1 AND conversation_id = $2
+             AND status IN ('pending', 'claimed')
+           ORDER BY created_at DESC, id DESC
+           LIMIT 1
+           FOR UPDATE`,
+          [input.organizationId, resolved.conversation.id],
+        );
+        const handoffId = activeHandoff.rows[0]?.id;
+        const handoffAcknowledgement = handoffId && input.channelType !== "website"
+          ? await this.queueHandoffAcknowledgement(client, {
+            organizationId: input.organizationId,
+            channelType: input.channelType,
+            externalConversationId: input.externalConversationId,
+            route,
+            conversation: resolved.conversation,
+            agentParticipant: resolved.agentParticipant,
+            handoffId,
+          })
+          : undefined;
+        const context = await loadAgentConversationAnalyticsContext(client, input.organizationId, resolved.conversation.id);
+        await enqueueAgentConversationMessage(client, context, message, "created");
+        recordConversationAdmission({ outcome: "accepted", channel: input.channelType });
+        return {
+          ...resolved,
+          sourceParticipant,
+          message,
+          run: null,
+          handoffActive: true,
+          ...(handoffId ? { handoffRequestId: handoffId } : {}),
+          ...(handoffAcknowledgement ? { handoffAcknowledgement } : {}),
+          created: true,
+        };
+      }
+
       const customerMessage = typeof input.content.text === "string" ? input.content.text : "";
       const handoffDecision = this.options.isHandoffEnabled && !await this.options.isHandoffEnabled(input.organizationId, route.installation_id)
         ? { kind: "none" as const, intent: { kind: "other" as const, classifierVersion: "v1-en" as const, matchedRule: "handoff_feature_disabled" } }

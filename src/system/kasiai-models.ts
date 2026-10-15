@@ -1,10 +1,12 @@
 import type { AppConfig } from "../config";
-import type { ModelProvider } from "../model/types";
-import { MODEL_PROVIDER_DEFINITIONS, modelProviderEnvironmentKey } from "../model/providers";
+import { MODEL_PROVIDERS, type ModelProvider } from "../model/types";
+import { MODEL_PROVIDER_DEFINITIONS } from "../model/providers";
+import { openCodeModelProtocol } from "../model/opencode-route";
 
-const OPENROUTER_CATALOG_URL = "https://openrouter.ai/api/v1/models?output_modalities=text";
 const CACHE_TTL_MS = 5 * 60_000;
 const FAILURE_CACHE_TTL_MS = 60_000;
+const CATALOG_TIMEOUT_MS = 10_000;
+const MAX_MODELS_PER_PROVIDER = 500;
 
 export interface KasiAiModelOption {
   provider: ModelProvider;
@@ -22,126 +24,220 @@ export interface KasiAiModelOption {
   outputUsdPerMillion?: number;
 }
 
-export interface KasiAiModelCatalog {
-  models: KasiAiModelOption[];
+export type ModelCatalogSource = "live" | "fallback" | "mixed";
+
+export interface ProviderModelCatalogStatus {
   source: "live" | "fallback";
   fetchedAt: string;
   error?: string;
 }
 
-interface OpenRouterModel {
-  id?: string;
-  name?: string;
-  description?: string;
-  context_length?: number;
-  max_output_tokens?: number;
-  top_provider?: { max_completion_tokens?: number; max_output_tokens?: number };
-  pricing?: { prompt?: string; completion?: string };
-  supported_parameters?: string[];
+export interface ProviderKasiAiModelCatalog extends ProviderModelCatalogStatus {
+  provider: ModelProvider;
+  models: KasiAiModelOption[];
 }
+
+export interface KasiAiModelCatalog {
+  models: KasiAiModelOption[];
+  source: ModelCatalogSource;
+  fetchedAt: string;
+  error?: string;
+  providers: Partial<Record<ModelProvider, ProviderModelCatalogStatus>>;
+}
+
+type UnknownRecord = Record<string, unknown>;
 
 interface CachedCatalog {
   expiresAt: number;
-  catalog: KasiAiModelCatalog;
+  status: ProviderModelCatalogStatus;
+  models: KasiAiModelOption[];
 }
 
-const cache = new Map<string, CachedCatalog>();
-
-const directModels: KasiAiModelOption[] = [
-  { provider: "openai", model: MODEL_PROVIDER_DEFINITIONS.openai.defaultModel, label: "OpenAI", description: "Direct OpenAI connection.", tier: "advanced", supportsTools: true },
-  { provider: "anthropic", model: MODEL_PROVIDER_DEFINITIONS.anthropic.defaultModel, label: "Claude", description: "Direct Anthropic connection.", tier: "advanced", supportsTools: true },
-  { provider: "gemini", model: MODEL_PROVIDER_DEFINITIONS.gemini.defaultModel, label: "Gemini", description: "Direct Gemini connection.", tier: "fast", supportsTools: true },
-  { provider: "deepseek", model: MODEL_PROVIDER_DEFINITIONS.deepseek.defaultModel, label: "DeepSeek", description: "Direct DeepSeek connection.", tier: "advanced", supportsTools: true },
-  { provider: "glm", model: MODEL_PROVIDER_DEFINITIONS.glm.defaultModel, label: "GLM", description: "Direct GLM connection.", tier: "advanced", supportsTools: true },
-  { provider: "kimi", model: MODEL_PROVIDER_DEFINITIONS.kimi.defaultModel, label: "Kimi", description: "Direct Kimi connection.", tier: "advanced", supportsTools: true },
-  { provider: "minimax", model: MODEL_PROVIDER_DEFINITIONS.minimax.defaultModel, label: "MiniMax", description: "Direct MiniMax connection.", tier: "advanced", supportsTools: true },
-  { provider: "xai", model: MODEL_PROVIDER_DEFINITIONS.xai.defaultModel, label: "Grok", description: "Direct xAI connection.", tier: "advanced", supportsTools: true },
-  { provider: "opencode_go", model: MODEL_PROVIDER_DEFINITIONS.opencode_go.defaultModel, label: "OpenCode Go", description: "OpenCode Go connection.", tier: "balanced", supportsTools: true },
-  { provider: "opencode_zen", model: MODEL_PROVIDER_DEFINITIONS.opencode_zen.defaultModel, label: "OpenCode Zen", description: "OpenCode Zen connection.", tier: "fast", isFree: true, supportsTools: true },
-];
+const cache = new Map<ModelProvider, CachedCatalog>();
 
 const openRouterFallback: KasiAiModelOption[] = [
-  { provider: "openrouter", model: "openai/gpt-4o-mini", label: "GPT-4o mini", description: "Fallback catalog entry while OpenRouter is unavailable.", tier: "balanced", supportsTools: true },
-  { provider: "openrouter", model: "google/gemma-3-27b-it:free", label: "Gemma 3 27B", description: "Fallback catalog entry while OpenRouter is unavailable.", tier: "fast", isFree: true, supportsTools: true },
-  { provider: "openrouter", model: "meta-llama/llama-3.3-70b-instruct", label: "Llama 3.3 70B", description: "Fallback catalog entry while OpenRouter is unavailable.", tier: "advanced", supportsTools: true },
+  { provider: "openrouter", model: "openai/gpt-4o-mini", label: "GPT-4o mini", description: "OpenRouter preset model; live catalog unavailable.", tier: "balanced", supportsTools: true },
+  { provider: "openrouter", model: "google/gemma-3-27b-it:free", label: "Gemma 3 27B", description: "OpenRouter preset model; live catalog unavailable.", tier: "fast", isFree: true, supportsTools: true },
+  { provider: "openrouter", model: "meta-llama/llama-3.3-70b-instruct", label: "Llama 3.3 70B", description: "OpenRouter preset model; live catalog unavailable.", tier: "advanced", supportsTools: true },
 ];
 
-function hasProviderCredential(provider: ModelProvider): boolean {
-  const key = modelProviderEnvironmentKey(provider);
-  return Boolean(key && process.env[key]?.trim());
+function fallbackModels(provider: ModelProvider): KasiAiModelOption[] {
+  if (provider === "openrouter") return openRouterFallback;
+  const definition = MODEL_PROVIDER_DEFINITIONS[provider];
+  const ids = [...new Set([definition.defaultModel, definition.fastModel])];
+  return ids.map((model, index) => ({
+    provider,
+    model,
+    label: model,
+    description: `${definition.label} preset model; connect a ${definition.label} credential to load its live catalog.`,
+    tier: index === 0 ? "advanced" : "fast",
+    supportsTools: true,
+  }));
 }
 
-function pricePerMillion(value?: string): number | undefined {
-  const parsed = Number(value);
+function isRecord(value: unknown): value is UnknownRecord {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function firstString(...values: unknown[]): string | undefined {
+  return values.find((value): value is string => typeof value === "string" && Boolean(value.trim()))?.trim();
+}
+
+function positiveInteger(...values: unknown[]): number | undefined {
+  for (const value of values) {
+    if (typeof value === "number" && Number.isSafeInteger(value) && value > 0) return value;
+  }
+  return undefined;
+}
+
+function pricePerMillion(value: unknown): number | undefined {
+  const parsed = typeof value === "number" || typeof value === "string" ? Number(value) : Number.NaN;
   return Number.isFinite(parsed) && parsed >= 0 ? Number((parsed * 1_000_000).toFixed(4)) : undefined;
 }
 
-function tierFor(model: OpenRouterModel, isFree: boolean, supportsTools: boolean): KasiAiModelOption["tier"] {
-  if (isFree) return "fast";
-  if (supportsTools && (model.context_length ?? 0) >= 100_000) return "advanced";
+function catalogRows(payload: unknown): UnknownRecord[] {
+  if (!isRecord(payload)) return [];
+  const rows = Array.isArray(payload.data) ? payload.data : Array.isArray(payload.models) ? payload.models : [];
+  return rows.filter(isRecord);
+}
+
+function isOpenAiNonChatModel(id: string): boolean {
+  return /(?:^|[-_/])(embedding|embed|whisper|transcri(?:be|ption)|moderation|tts|dall-e|image|realtime|audio|sora)(?:$|[-_/])/i.test(id);
+}
+
+function tierFor(id: string, contextWindow?: number): KasiAiModelOption["tier"] {
+  if (/(?:mini|flash|haiku|fast|lite|nano)/i.test(id)) return "fast";
+  if (/(?:opus|pro|reasoner|ultra|advanced)/i.test(id) || (contextWindow ?? 0) >= 100_000) return "advanced";
   return "balanced";
 }
 
-function normalizeOpenRouterModel(model: OpenRouterModel): KasiAiModelOption | null {
-  const id = model.id?.trim();
-  if (!id) return null;
-  const parameters = new Set(model.supported_parameters ?? []);
-  const inputPrice = pricePerMillion(model.pricing?.prompt);
-  const outputPrice = pricePerMillion(model.pricing?.completion);
-  const isFree = id.endsWith(":free") || (inputPrice === 0 && outputPrice === 0);
-  const supportsTools = parameters.has("tools") && parameters.has("tool_choice");
-  const maxOutputTokens = model.max_output_tokens
-    ?? model.top_provider?.max_completion_tokens
-    ?? model.top_provider?.max_output_tokens;
+function normalizeModel(provider: ModelProvider, row: UnknownRecord): KasiAiModelOption | null {
+  const rawId = firstString(row.id, row.name, row.model);
+  if (!rawId) return null;
+  const id = provider === "gemini" ? rawId.replace(/^models\//, "") : rawId;
+  if ((provider === "openai" || provider === "xai") && isOpenAiNonChatModel(id)) return null;
+  if ((provider === "opencode_go" || provider === "opencode_zen") && !openCodeModelProtocol(provider, id)) return null;
+
+  const methods = Array.isArray(row.supportedGenerationMethods)
+    ? row.supportedGenerationMethods.filter((method): method is string => typeof method === "string")
+    : [];
+  if (provider === "gemini" && methods.length && !methods.includes("generateContent")) return null;
+
+  const contextWindow = positiveInteger(row.context_length, row.context_window, row.context_window_tokens, row.inputTokenLimit, row.max_input_tokens);
+  const maxOutputTokens = positiveInteger(row.max_output_tokens, row.maxOutputTokens, row.outputTokenLimit, row.max_tokens);
+  const parameters = Array.isArray(row.supported_parameters)
+    ? row.supported_parameters.filter((parameter): parameter is string => typeof parameter === "string")
+    : [];
+  const capabilities = isRecord(row.capabilities) ? row.capabilities : {};
+  const toolUse = isRecord(capabilities.tool_use) ? capabilities.tool_use : undefined;
+  const supportedTools = row.supports_tools ?? row.supportsTools ?? toolUse?.supported
+    ?? (parameters.includes("tools") && parameters.includes("tool_choice") ? true : undefined);
+  const isFree = id.endsWith(":free") || row.is_free === true || row.isFree === true;
+  const pricing = provider === "openrouter" && isRecord(row.pricing) ? row.pricing : undefined;
+  const inputPrice = pricePerMillion(pricing?.prompt);
+  const outputPrice = pricePerMillion(pricing?.completion);
+
   return {
-    provider: "openrouter",
+    provider,
     model: id,
-    label: model.name?.trim() || id,
-    description: (model.description?.replace(/\s+/g, " ").trim().slice(0, 280) || "OpenRouter text model."),
-    tier: tierFor(model, isFree, supportsTools),
-    isFree,
-    supportsTools,
-    supportsReasoning: parameters.has("reasoning"),
-    contextWindow: model.context_length,
-    ...(typeof maxOutputTokens === "number" && Number.isSafeInteger(maxOutputTokens) && maxOutputTokens > 0 ? { maxOutputTokens } : {}),
-    inputUsdPerMillion: inputPrice,
-    outputUsdPerMillion: outputPrice,
+    label: firstString(row.display_name, row.displayName, row.name, row.label) ?? id,
+    description: firstString(row.description) ?? `${MODEL_PROVIDER_DEFINITIONS[provider].label} model.`,
+    tier: tierFor(id, contextWindow),
+    ...(isFree ? { isFree: true } : {}),
+    ...(typeof supportedTools === "boolean" ? { supportsTools: supportedTools } : {}),
+    ...(parameters.includes("reasoning") || row.supports_reasoning === true ? { supportsReasoning: true } : {}),
+    ...(contextWindow ? { contextWindow } : {}),
+    ...(maxOutputTokens ? { maxOutputTokens } : {}),
+    ...(inputPrice !== undefined ? { inputUsdPerMillion: inputPrice } : {}),
+    ...(outputPrice !== undefined ? { outputUsdPerMillion: outputPrice } : {}),
   };
 }
 
-async function listOpenRouterModels(): Promise<KasiAiModelCatalog> {
-  const cacheKey = "openrouter";
-  const cached = cache.get(cacheKey);
-  if (cached && cached.expiresAt > Date.now()) return cached.catalog;
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 10_000);
-  try {
-    const apiKey = process.env.OPENROUTER_API_KEY?.trim();
-    const response = await fetch(OPENROUTER_CATALOG_URL, {
-      signal: controller.signal,
-      headers: {
-        ...(apiKey ? { authorization: `Bearer ${apiKey}` } : {}),
-        "x-title": "KasiTek Agent Platform",
-      },
-    });
-    if (!response.ok) throw new Error(`OpenRouter model catalog returned HTTP ${response.status}`);
-    const payload = await response.json() as { data?: OpenRouterModel[] };
-    const models = (payload.data ?? []).map(normalizeOpenRouterModel).filter((model): model is KasiAiModelOption => Boolean(model));
-    if (!models.length) throw new Error("OpenRouter returned no text models");
-    const catalog: KasiAiModelCatalog = { models, source: "live", fetchedAt: new Date().toISOString() };
-    cache.set(cacheKey, { catalog, expiresAt: Date.now() + CACHE_TTL_MS });
-    return catalog;
-  } catch (cause) {
-    const catalog: KasiAiModelCatalog = {
-      models: openRouterFallback,
-      source: "fallback",
-      fetchedAt: new Date().toISOString(),
-      error: cause instanceof Error ? cause.message : "Unable to load the OpenRouter model catalog",
+function catalogRequest(provider: ModelProvider, apiKey: string): { url: string; headers: Record<string, string> } {
+  const definition = MODEL_PROVIDER_DEFINITIONS[provider];
+  if (!definition.catalogUrl) throw new Error("Catalog endpoint is not configured");
+  if (definition.verificationAuth === "gemini-query") {
+    const url = new URL(definition.catalogUrl);
+    url.searchParams.set("key", apiKey);
+    url.searchParams.set("pageSize", "1000");
+    return { url: url.toString(), headers: {} };
+  }
+  if (definition.verificationAuth === "x-api-key") {
+    return {
+      url: definition.catalogUrl,
+      headers: { "x-api-key": apiKey, "anthropic-version": "2023-06-01" },
     };
-    cache.set(cacheKey, { catalog, expiresAt: Date.now() + FAILURE_CACHE_TTL_MS });
-    return catalog;
+  }
+  return { url: definition.catalogUrl, headers: { authorization: `Bearer ${apiKey}` } };
+}
+
+function safeCatalogError(provider: ModelProvider, responseStatus?: number): string {
+  const label = MODEL_PROVIDER_DEFINITIONS[provider].label;
+  return responseStatus
+    ? `${label} model catalog returned HTTP ${responseStatus}.`
+    : `Unable to load the ${label} model catalog.`;
+}
+
+async function fetchProviderModels(provider: ModelProvider, apiKey: string): Promise<KasiAiModelOption[]> {
+  const request = catalogRequest(provider, apiKey);
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), CATALOG_TIMEOUT_MS);
+  try {
+    const response = await fetch(request.url, {
+      method: "GET",
+      signal: controller.signal,
+      headers: request.headers,
+    });
+    if (!response.ok) throw Object.assign(new Error("Catalog request failed"), { statusCode: response.status });
+    const payload: unknown = await response.json();
+    const models = catalogRows(payload)
+      .map((row) => normalizeModel(provider, row))
+      .filter((model): model is KasiAiModelOption => model !== null)
+      .slice(0, MAX_MODELS_PER_PROVIDER);
+    if (!models.length) throw new Error("Provider returned no usable chat models");
+    return models;
   } finally {
     clearTimeout(timeout);
+  }
+}
+
+/** Fetch a single provider's catalog with an organization-scoped credential.
+ * BYOK catalogs are deliberately uncached so one organization's model access
+ * is never reused for another credential.
+ */
+export async function getProviderKasiAiModelCatalog(provider: ModelProvider, apiKey: string): Promise<ProviderKasiAiModelCatalog> {
+  const fetchedAt = new Date().toISOString();
+  try {
+    const models = await fetchProviderModels(provider, apiKey.trim());
+    return { provider, models, source: "live", fetchedAt };
+  } catch (cause) {
+    const responseStatus = isRecord(cause) && typeof cause.statusCode === "number" ? cause.statusCode : undefined;
+    return { provider, models: fallbackModels(provider), source: "fallback", fetchedAt, error: safeCatalogError(provider, responseStatus) };
+  }
+}
+
+async function providerCatalog(provider: ModelProvider): Promise<{ models: KasiAiModelOption[]; status: ProviderModelCatalogStatus }> {
+  const apiKey = process.env[MODEL_PROVIDER_DEFINITIONS[provider].apiKeyEnv]?.trim();
+  if (!apiKey) {
+    const fetchedAt = new Date().toISOString();
+    return { models: fallbackModels(provider), status: { source: "fallback", fetchedAt } };
+  }
+
+  const cached = cache.get(provider);
+  if (cached && cached.expiresAt > Date.now()) return { models: cached.models, status: cached.status };
+
+  const fetchedAt = new Date().toISOString();
+  try {
+    const models = await fetchProviderModels(provider, apiKey);
+    const status: ProviderModelCatalogStatus = { source: "live", fetchedAt };
+    cache.set(provider, { models, status, expiresAt: Date.now() + CACHE_TTL_MS });
+    return { models, status };
+  } catch (cause) {
+    const responseStatus = isRecord(cause) && typeof cause.statusCode === "number" ? cause.statusCode : undefined;
+    const models = fallbackModels(provider);
+    const status: ProviderModelCatalogStatus = { source: "fallback", fetchedAt, error: safeCatalogError(provider, responseStatus) };
+    cache.set(provider, { models, status, expiresAt: Date.now() + FAILURE_CACHE_TTL_MS });
+    return { models, status };
   }
 }
 
@@ -160,14 +256,21 @@ function configuredDefault(config: AppConfig, models: KasiAiModelOption[]): Kasi
 }
 
 export async function getKasiAiModelCatalog(config: AppConfig): Promise<KasiAiModelCatalog> {
-  const openRouter = hasProviderCredential("openrouter") ? await listOpenRouterModels() : null;
-  const models = [
-    ...(openRouter?.models ?? []),
-    ...directModels,
-  ];
-  const defaultModel = configuredDefault(config, models);
-  const deduplicated = [defaultModel, ...models.filter((model) => !(model.provider === defaultModel.provider && model.model === defaultModel.model))];
-  return { ...openRouter, models: deduplicated, source: openRouter?.source ?? "fallback", fetchedAt: openRouter?.fetchedAt ?? new Date().toISOString() };
+  const catalogs = await Promise.all(MODEL_PROVIDERS.map(async (provider) => [provider, await providerCatalog(provider)] as const));
+  const providers = Object.fromEntries(catalogs.map(([provider, catalog]) => [provider, catalog.status])) as KasiAiModelCatalog["providers"];
+  const providerModels = catalogs.flatMap(([, catalog]) => catalog.models);
+  const defaultModel = configuredDefault(config, providerModels);
+  const models = [defaultModel, ...providerModels.filter((model) => !(model.provider === defaultModel.provider && model.model === defaultModel.model))];
+  const liveCount = catalogs.filter(([, catalog]) => catalog.status.source === "live").length;
+  const source: ModelCatalogSource = liveCount === 0 ? "fallback" : liveCount === MODEL_PROVIDERS.length ? "live" : "mixed";
+  const errors = catalogs.flatMap(([provider, catalog]) => catalog.status.error ? [catalog.status.error] : []);
+  return {
+    models,
+    source,
+    fetchedAt: new Date().toISOString(),
+    ...(errors.length ? { error: errors.join(" ") } : {}),
+    providers,
+  };
 }
 
 export async function availableKasiAiModels(config: AppConfig): Promise<KasiAiModelOption[]> {

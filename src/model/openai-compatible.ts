@@ -47,7 +47,7 @@ function providerToolName(name: string): string {
   return `kasitek_${createHash("sha256").update(name).digest("hex").slice(0, 32)}`;
 }
 
-function toolNameMaps(tools: ModelRequest["tools"]): {
+export function toolNameMaps(tools: ModelRequest["tools"]): {
   toProvider: (name: string) => string;
   toCanonical: (name: string) => string;
 } {

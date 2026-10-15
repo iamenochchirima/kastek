@@ -519,6 +519,7 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
   const effectiveModelSelection = selectedModelEntry
     ? { provider: selectedModelEntry.provider, model: selectedModelEntry.model }
     : activeModelSelection;
+  const selectedRun = runHistory.find((run) => run.id === (activeRunId ?? selectedRunId)) ?? null;
   const runProgress = useMemo(() => {
     if (execution.runStatus === "failed") return "Run failed";
     if (execution.runStatus === "cancelled") return "Run cancelled";
@@ -526,8 +527,12 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
     if (execution.runStatus === "completed") return "Run completed";
     const activeStage = Object.values(execution.topology).find((stage) => stage.status === "running" || stage.status === "waiting");
     if (activeStage) return `${activeStage.status === "waiting" ? "Waiting" : "Running"}: ${activeStage.label}`;
+    if (selectedRun?.status === "awaiting_external_event") return "Waiting for an event";
+    if (selectedRun?.status === "awaiting_approval") return "Waiting for approval";
+    if (selectedRun?.status === "awaiting_human") return "Waiting for a human";
+    if (selectedRun?.status === "received" || selectedRun?.status === "queued") return "Run queued";
     return running ? "Agent is running" : "Ready";
-  }, [execution, running]);
+  }, [execution, running, selectedRun]);
 
   useEffect(() => {
     if (agent.installation_id || !agent.published_version_id) return;
@@ -733,6 +738,10 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
         return;
       }
       const timeline = timelineResult.value;
+      if (timeline.run.conversation_id && timeline.run.conversation_id !== conversationId) {
+        await refreshConversation(timeline.run.conversation_id);
+        if (cancelled) return;
+      }
       const detail = detailResult.status === "fulfilled" ? detailResult.value : null;
       setEventSequences((current) => Array.from(new Set([
         ...current,
@@ -786,7 +795,7 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
       cancelled = true;
       if (timer !== undefined) window.clearInterval(timer);
     };
-  }, [activeRunId, agent.installation_id, selectedRunId]);
+  }, [activeRunId, agent.installation_id, selectedRunId, conversationId, refreshConversation]);
 
   const selectVersion = (versionId: string) => {
     const nextVersion = versions.find((version) => version.id === versionId) ?? null;
@@ -1028,7 +1037,7 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
 
   const cancelRun = async () => {
     if (!activeRunId || cancelling) return;
-    if (!await confirm({ title: "Cancel run?", description: "The durable run will be marked cancelled.", confirmLabel: "Cancel run", variant: "destructive" })) return;
+    if (!await confirm({ title: "Cancel run?", description: "The current run will be stopped and marked cancelled.", confirmLabel: "Cancel run", variant: "destructive" })) return;
     setCancelling(true);
     try {
       await cancelAgentRun(activeRunId, "Cancelled from Playground");
@@ -1122,6 +1131,7 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
                 role: behaviorDraft.role,
               },
             } : {}),
+            runtime: { ...((configuredSpec as AgentSpecInput).runtime ?? {}), executionStrategy: settingsDraft?.executionStrategy ?? (selectedVersion?.configuration?.executionStrategy === "simple" ? "simple" : "durable") },
             behavior: {
               ...((configuredSpec as AgentSpecInput).behavior ?? {}),
               instructions: behaviorInstructions,
@@ -1159,6 +1169,7 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
           instructions: behaviorInstructions,
           configuration: {
             ...(selectedVersion?.configuration ?? {}),
+            executionStrategy: settingsDraft?.executionStrategy ?? (selectedVersion?.configuration?.executionStrategy === "simple" ? "simple" : "durable"),
             ...(versionModelSelection ? { provider: versionModelSelection.provider, model: versionModelSelection.model } : {}),
             ...(behaviorDraft ? { behavior: { ...behaviorDraft, rules: behaviorDraft.rules } } : {}),
             ...(memoryPolicy ? { memory: memoryPolicy } : {}),
@@ -1202,7 +1213,6 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
 
   const selectedGraphNode = visibleGraphNodes.find((node) => node.id === selectedNodeId) ?? null;
   const observedRunId = activeRunId ?? selectedRunId;
-  const selectedRun = runHistory.find((run) => run.id === (activeRunId ?? selectedRunId)) ?? null;
   const selectedMemoryRevisionId = selectedGraphNode?.evidence?.memory?.revisionIds[0] ?? null;
 
   useEffect(() => {
@@ -1236,7 +1246,7 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
           {deploymentStatus?.live.version ? <span className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-[11px] text-muted-foreground" title={`Live candidate ${deploymentStatus.live.version.digest}`}><CircleDot className="size-3 text-status-success" />Live · v{deploymentStatus.live.version.versionNumber}</span> : null}
           <DialogTrigger asChild><Button type="button" variant="outline" size="sm"><SlidersHorizontal className="mr-1.5 size-3.5" />Settings</Button></DialogTrigger>
           {activeRunId ? <Button type="button" variant="outline" size="sm" onClick={() => void cancelRun()} disabled={cancelling}><X className="mr-1.5 size-3.5" />{cancelling ? "Cancelling…" : "Cancel"}</Button> : null}
-          {!activeRunId && selectedRun && ["failed", "expired"].includes(selectedRun.status) ? <Button type="button" variant="outline" size="sm" onClick={() => void retryRun()} disabled={retrying}><ArrowRight className="mr-1.5 size-3.5" />{retrying ? "Retrying…" : "Retry"}</Button> : null}
+          {!activeRunId && selectedRun && ["failed", "cancelled", "expired"].includes(selectedRun.status) ? <Button type="button" variant="outline" size="sm" onClick={() => void retryRun()} disabled={retrying}><ArrowRight className="mr-1.5 size-3.5" />{retrying ? "Retrying…" : "Retry"}</Button> : null}
           {selectedRun && ["awaiting_external_event", "awaiting_human"].includes(selectedRun.status) ? <AgentRunActions runId={selectedRun.id} status={selectedRun.status} waitingFor={typeof selectedRun.output?.waitingFor === "string" ? selectedRun.output.waitingFor : undefined} showCancel={!activeRunId} /> : null}
           <AgentDeploymentLifecycle agent={agent} versions={versions} selectedVersionId={selectedVersionId} onVersionsChange={setVersions} onStatusChange={setDeploymentStatus} compact playgroundOnly />
         </div>
@@ -1253,7 +1263,7 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
               statusContent={
                 <>
                   {!running && !executionReady ? <div role="status" className="mx-4 mb-3 rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-amber-700 dark:text-amber-300"><p className="font-medium">{effectiveConfigLoading ? "Checking execution setup" : installationReadiness ? "Execution setup required" : "Execution setup unavailable"}</p>{!playgroundVersionSelected ? <p className="mt-1">Use the selected version in Playground before sending a test message.</p> : null}{installationReadiness?.blockers.map(blocker => <p key={blocker.code} className="mt-1">{blocker.detail}</p>)}</div> : null}
-                  {approvalGroup?.status === "pending" && observedRunId ? <div className="mx-4 mb-3 shrink-0 rounded-lg border border-status-attention/40 bg-status-attention-soft/40 px-3 py-3 text-xs" role="status" aria-live="polite"><div className="flex items-start justify-between gap-3"><div><p className="font-semibold text-foreground">Approval required</p><p className="mt-1 text-muted-foreground">Review {approvalGroup.operations.length} proposed actions.</p></div><span className="shrink-0 rounded-full border border-status-attention/40 px-2 py-0.5 text-[10px] font-medium text-status-attention">Pending</span></div><div className="mt-3"><AgentApprovalGroupActions runId={observedRunId} group={approvalGroup} onDecided={(decision) => { setApprovalGroup((current) => current ? { ...current, status: decision, decision } : current); setNotice(`Approval ${decision}`); }} /></div></div> : null}
+                  {approvalGroup?.status === "pending" && observedRunId ? <div className="mx-4 mb-3 shrink-0 rounded-lg border border-status-attention/40 bg-status-attention-soft/40 px-3 py-3 text-xs" role="status" aria-live="polite"><div className="flex items-start justify-between gap-3"><div><p className="font-semibold text-foreground">Approval required</p><p className="mt-1 text-muted-foreground">Review {approvalGroup.operations.length} proposed actions.</p></div><span className="shrink-0 rounded-full border border-status-attention/40 px-2 py-0.5 text-[10px] font-medium text-status-attention">Pending</span></div><div className="mt-3">{canApprove ? <AgentApprovalGroupActions runId={observedRunId} group={approvalGroup} onDecided={(decision) => { setApprovalGroup((current) => current ? { ...current, status: decision, decision } : current); setNotice(`Approval ${decision}`); }} /> : <p className="text-muted-foreground">Workspace write access is required to approve these actions.</p>}</div></div> : null}
                   <AgentChatRunStatus runId={lastRunId} progress={runProgress} events={trace.slice(-5).map((node) => ({ event: node.event, label: node.label }))} running={running} />
                   {notice ? <div className="mx-4 mb-3 flex shrink-0 items-center gap-2 rounded-lg border border-emerald-500/20 bg-emerald-500/5 px-3 py-2 text-xs text-emerald-700 dark:text-emerald-300"><Check className="size-3.5" />{notice}</div> : null}
                 </>

@@ -13,7 +13,7 @@ describe("provider credential verification", () => {
     ["gemini", "https://generativelanguage.googleapis.com/v1beta/models?key=secret-key", undefined],
     ["deepseek", "https://api.deepseek.com/models", "authorization"],
     ["glm", "https://api.z.ai/api/paas/v4/models", "authorization"],
-    ["kimi", "https://api.moonshot.ai/v1/models", "x-api-key"],
+    ["kimi", "https://api.moonshot.ai/v1/models", "authorization"],
     ["minimax", "https://api.minimaxi.com/anthropic/v1/models", "x-api-key"],
     ["xai", "https://api.x.ai/v1/models", "authorization"],
     ["opencode_go", "https://opencode.ai/zen/go/v1/models", "authorization"],

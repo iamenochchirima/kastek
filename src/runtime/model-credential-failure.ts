@@ -14,8 +14,8 @@ export function modelCredentialFailureResult(error: ModelCredentialMissingError)
       code: error.code,
       message: error.message,
       failureClass: "terminal",
-      userMessage: `${provider.label} is not configured for this Agents runtime. Add ${provider.apiKeyEnv} to its local backend environment, then try again.`,
-      remediation: `Set ${provider.apiKeyEnv} for both the Agents API and Temporal worker, then restart both processes.`,
+      userMessage: `${provider.label} is not configured for this agent. Add a ${provider.label} API key in Models settings or configure ${provider.apiKeyEnv} locally. Keys from different providers are not interchangeable.`,
+      remediation: `Use a ${provider.label} key for this model. For locally managed credentials, set ${provider.apiKeyEnv} for the Agents API and Temporal worker, then restart both processes.`,
     },
   };
 }

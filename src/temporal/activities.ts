@@ -1,4 +1,5 @@
 import type { Pool } from "pg";
+import { currentExecutionSignal } from "../runtime/execution-signal";
 import { RunRepository } from "../db/repositories/run-repository";
 import { ModelCallRepository } from "../db/repositories/model-call-repository";
 import { RunBudgetRepository } from "../db/repositories/run-budget-repository";
@@ -137,6 +138,8 @@ import { classifyToolFailure, type ToolFailureClass } from "../runtime/tool-fail
 import { compareSessionTranscriptShadow, type SessionTranscriptShadowEntry } from "../runtime/session-transcript-shadow";
 
 export interface ActivityOptions {
+  /** Use the same harness directly instead of yielding model/tool slices to Temporal. */
+  simpleExecution?: boolean;
   gateway?: ModelGateway;
   providerMetadata?: ProviderMetadataClient;
   credentials?: CredentialResolver;
@@ -2171,9 +2174,12 @@ export function projectContentApprovalOperation(
  * provide a read projection captured at proposal time.
  */
 export function buildApprovalResourceSnapshot(capability: string, argumentsValue: Record<string, unknown>, resource?: Record<string, unknown>): Record<string, unknown> {
+  const previewKeys = capability.startsWith("kasitek.calendar.")
+    ? new Set([...approvalPreviewKeys, "source", "title", "start", "end", "timezone", "location", "eventId"])
+    : capability.startsWith("remote_mcp.") ? new Set([...approvalPreviewKeys, "reference"]) : approvalPreviewKeys;
   const request = Object.fromEntries(
     Object.entries(argumentsValue)
-      .filter(([key, value]) => approvalPreviewKeys.has(key) && (typeof value === "string" || typeof value === "number" || typeof value === "boolean"))
+      .filter(([key, value]) => previewKeys.has(key) && (typeof value === "string" || typeof value === "number" || typeof value === "boolean"))
       .map(([key, value]) => [key, typeof value === "string" ? value.slice(0, 256) : value]),
   );
   return {
@@ -2254,6 +2260,8 @@ function restrictiveLimit(...values: unknown[]): number | undefined {
 }
 
 function currentActivitySignal(): AbortSignal | undefined {
+  const directSignal = currentExecutionSignal();
+  if (directSignal) return directSignal;
   try {
     return cancellationSignal();
   } catch {
@@ -2372,7 +2380,7 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
       const contextWindowTokens = model?.contextWindow;
       const fetchedAt = Date.parse(catalog.fetchedAt);
       if (!model || typeof contextWindowTokens !== "number" || !Number.isSafeInteger(contextWindowTokens) || contextWindowTokens <= 0 || !Number.isFinite(fetchedAt)) return undefined;
-      const ttlMs = catalog.source === "live" ? 5 * 60_000 : 60_000;
+      const ttlMs = catalog.source === "fallback" ? 60_000 : 5 * 60_000;
       const expiresAt = new Date(fetchedAt + ttlMs).toISOString();
       if (Date.parse(expiresAt) <= Date.now()) return undefined;
       return {
@@ -2624,7 +2632,7 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
           options.config,
         );
       }
-      return await executeLoopForRun(run, input.resumeApprovedToolCall, input.resumeExternalEvent, input.loopStep, runs, modelCalls, contextCapabilities, providerMetadata, runBudgets, conversations, knowledge, skills, remoteMcpProviders, toolInvocations, approvals, effectReceipts, runSteps, toolGrants, installationGrants, summaries, sessionTranscripts, killSwitches, controls, kasiaiPreferences, gateway, credentials, tools, harness, workflowState, workflowCheckpoints, modelPricing, creditPricing, creditBillingMode, coreClient, conversationActions, true, toolInvocationLifecycle, integrationReadinessForRequest, pluginReadinessForRequest, sessionLease, new ContextCompactionRepository(pool, run.organization_id), new ContextManifestRepository(pool, run.organization_id), new ContextAttemptBudgetRepository(pool, run.organization_id, { maxAttempts: restrictiveLimit(run.configuration.maxModelCalls, run.installation_settings?.maxModelCalls) ?? 8 }), memoryCheckpointPort, memoryRetrievalPort, sessionGuard, memoryJournalSourceCapture, options.config, memoryConsolidationJobs, integrationRepository, integrationTools, extensionSnapshots);
+      return await executeLoopForRun(run, input.resumeApprovedToolCall, input.resumeExternalEvent, input.loopStep, runs, modelCalls, contextCapabilities, providerMetadata, runBudgets, conversations, knowledge, skills, remoteMcpProviders, toolInvocations, approvals, effectReceipts, runSteps, toolGrants, installationGrants, summaries, sessionTranscripts, killSwitches, controls, kasiaiPreferences, gateway, credentials, tools, harness, workflowState, workflowCheckpoints, modelPricing, creditPricing, creditBillingMode, coreClient, conversationActions, !options.simpleExecution, toolInvocationLifecycle, integrationReadinessForRequest, pluginReadinessForRequest, sessionLease, new ContextCompactionRepository(pool, run.organization_id), new ContextManifestRepository(pool, run.organization_id), new ContextAttemptBudgetRepository(pool, run.organization_id, { maxAttempts: restrictiveLimit(run.configuration.maxModelCalls, run.installation_settings?.maxModelCalls) ?? 8 }), memoryCheckpointPort, memoryRetrievalPort, sessionGuard, memoryJournalSourceCapture, options.config, memoryConsolidationJobs, integrationRepository, integrationTools, extensionSnapshots);
     } finally {
       sessionGuard?.stop();
     }
@@ -2650,6 +2658,8 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
       if (!run) throw new Error("Run not found");
       const executionScope = runtimeExecutionScopeFromRun(run, input.sessionLease ? { sessionKey: input.sessionLease.sessionKey, fencingToken: input.sessionLease.fencingToken } : undefined);
       await assertRunEnvironmentBoundary(run, runs);
+      // Each activity may run on a fresh worker after approval or recovery.
+      await remoteMcpProviders.registerPinnedTools(run.organization_id, run.agent_version_id, tools);
       await assertCurrentSessionLease({ organizationId: run.organization_id, runId: run.id, sessionLease: input.sessionLease });
       const state = await workflowState.get(run.organization_id, run.id);
       const checkpoint = readDurableAgentLoopCheckpoint(state?.state?.__agentLoop);
@@ -2879,6 +2889,7 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
       await assertRunEnvironmentBoundary(run, runs);
       await assertCurrentSessionLease({ organizationId: run.organization_id, runId: run.id, sessionLease: input.sessionLease });
       if (run.installation_status !== "active") throw new Error("INSTALLATION_NOT_ACTIVE");
+      const pinnedRemoteTools = new Set(await remoteMcpProviders.registerPinnedTools(run.organization_id, run.agent_version_id, tools));
       const call = input.call;
       const providerToolCallId = call.providerToolCallId ?? call.id;
       const callApprovalGroupId = input.approvalGroupId ?? input.approval?.approvalGroupId ?? call.approvalGroupId;
@@ -2931,6 +2942,9 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
         };
       };
       if (!manifest) return failure({ code: "TOOL_NOT_FOUND", message: `Tool is not registered: ${call.name}` }, "blocked");
+      if (call.name.startsWith("remote_mcp.") && !pinnedRemoteTools.has(call.name)) {
+        return failure({ code: "TOOL_NOT_GRANTED", message: "Remote tool is no longer published, healthy and pinned for this run" }, "blocked");
+      }
       if (!authorizedToolNames?.length) return failure({ code: "TOOL_AUTHORIZATION_SNAPSHOT_MISSING", message: "The deferred tool batch has no pinned authorization snapshot" }, "blocked");
       const authorizedTools = new Set(authorizedToolNames);
       if (!authorizedTools.has(call.name)) return failure({ code: "TOOL_NOT_GRANTED", message: `Tool is not in the pinned capability snapshot: ${call.name}` }, "blocked");
@@ -3278,6 +3292,27 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
         if (!result) continue;
         if (result.name !== call.name || result.providerToolCallId !== (call.providerToolCallId ?? call.id)) {
           throw new Error("SESSION_TRANSCRIPT_TOOL_RESULT_CONFLICT");
+        }
+        // The workflow settles rejected/unselected approvals without invoking
+        // executeToolCall. Persist those terminal outcomes here too, so the
+        // saved attempt cannot remain awaiting approval after the run finishes.
+        if (result.status === "blocked" && result.error && [
+          "APPROVAL_REJECTED", "APPROVAL_OPERATION_NOT_SELECTED", "APPROVAL_GROUP_INVALIDATED",
+          "APPROVAL_CANCELLED", "APPROVAL_EXPIRED",
+        ].includes(result.error.code)) {
+          const error = { ...result.error, failureClass: result.failureClass ?? "blocked" };
+          await toolInvocations.recordFailed({ runId: run.id, providerToolCallId: call.providerToolCallId ?? call.id,
+            runtimeOperationId: call.id, error, status: "failed" });
+          if (tools.get(call.name)?.riskClass === "external-effect") {
+            await effectReceipts.markNotExecutedByKey(run.organization_id, `${run.id}:${call.name}:${call.argumentsHash}`, error);
+          }
+          const step = await runSteps.findStartedToolStep(run.id, call.id);
+          if (step) await runSteps.finishStep({ stepId: step.id, status: "failed", error });
+          await runs.appendEventOnce({ organizationId: run.organization_id, runId: run.id,
+            installationId: run.installation_id, eventType: "agent.tool.failed",
+            idempotencyKey: `approval-tool-outcome:${input.batchId}:${call.id}`,
+            payload: { batchId: input.batchId, operationId: call.id, toolCallId: call.providerToolCallId ?? call.id,
+              name: call.name, error, failureClass: result.failureClass ?? "blocked" } });
         }
         const resultMessage = durableToolResultMessage(result);
         const checkpointResultMessage = checkpointToolResultMessage(result);
@@ -3716,6 +3751,9 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
       }
       const response = parseAgentResponse(pending.content);
       const channelType = pending.channel_type.trim().toLowerCase();
+      const localWebsite = channelType === "website"
+        ? await channels.localWebsiteDeliveryState?.(pending.organization_id, pending.installation_id, pending.conversation_id) : null;
+      if (localWebsite && !localWebsite.active) throw new Error("WEBSITE_DELIVERY_INACTIVE");
       const mediaProfile = channelMediaProfile(channelType);
       const coreMediaChannel = channelType === "whatsapp" || channelType === "website";
       const linkChannel = channelType === "telegram" || channelType === "discord";
@@ -3785,7 +3823,11 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
         const claim = await deliveryObligations.claim({ obligationId: obligation.id, claimId: obligationClaimId, workerId: "temporal:agent-delivery" });
         if (claim.status !== "applied" && claim.status !== "idempotent") throw new Error(`DELIVERY_OBLIGATION_${claim.status.toUpperCase()}`);
         claimed = true;
-        const result = channelType === "telegram"
+        // An Agents-owned website reply is already persisted in the conversation.
+        // Publishing its delivery status makes it available to the scoped visitor reader.
+        const result = localWebsite
+          ? { status: "sent" as const, providerMessageId: `website:${pending.message_id}` }
+          : channelType === "telegram"
           ? await (async () => {
             if (!channelCredentials || !telegramClient || !pending.credential_reference) throw new Error("Telegram channel delivery is not configured");
             const token = await channelCredentials.resolve(pending.organization_id, pending.credential_reference, "telegram");
@@ -4113,7 +4155,21 @@ async function executeMcpToolRun(
   // New direct calls must be granted before a proposal is created. Resumed
   // approvals are re-authorized in the guarded path below so revocation closes
   // the reserved effect as unexecuted without reaching the provider.
-  if (!resumeApprovedToolCall && !grantedTools.has(invocation.name)) throw new Error(`Tool is not granted: ${invocation.name}`);
+  if (!resumeApprovedToolCall && !grantedTools.has(invocation.name)) {
+    return {
+      status: "failed" as const,
+      messages: [],
+      usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0, estimatedCostUsd: 0 },
+      iterations: 0,
+      toolCalls: 0,
+      error: {
+        code: "TOOL_NOT_GRANTED",
+        message: `Tool is not granted: ${invocation.name}`,
+        userMessage: "This agent does not have access to the requested tool. Connect and authorize the integration before trying again.",
+      },
+      provenance: buildGroundingProvenance({ authorizedTools: grantedTools, usedTools: [], retrievalRequested: false, knowledgeMatchCount: 0 }),
+    };
+  }
   if (!resumeApprovedToolCall && run.installation_status !== "active") throw new Error("INSTALLATION_NOT_ACTIVE");
 
   let stepId: string | undefined;
@@ -4780,6 +4836,9 @@ async function executeLoopForRun(
       runId: run.id,
     },
     registryGeneration: tools.generation,
+    // Context schema limits must retain tools the agent author explicitly named
+    // before optional defaults. This does not make an ungranted tool callable.
+    preferredToolNames: effectiveToolDefinitions.filter(tool => run.instructions.includes(tool.name)).map(tool => tool.name),
     tools: effectiveToolDefinitions,
     descriptors: tools.descriptors(),
     grantedTools: allowedTools,
@@ -4834,6 +4893,7 @@ async function executeLoopForRun(
     ? await conversations.listMessages(run.organization_id, run.conversation_id)
     : [];
   const durableMessages = allConversationMessages
+    .filter((message) => message.message_type !== "private_note")
     .filter((message) => message.run_id !== run.id)
     .filter((message) => {
       if (isKasiAiInstallation || message.direction !== "outbound") return true;
@@ -4918,7 +4978,11 @@ async function executeLoopForRun(
     const currentModelMessage = currentDisplayMessage
       ? durableConversationMessageToModelMessage(currentDisplayMessage)
       : { role: "user" as const, content: currentMessage };
-    const currentIdempotencyKey = currentDisplayMessage ? `display-message:${currentDisplayMessage.id}` : `run-user:${run.id}`;
+    // A retry reuses the display message but creates a new canonical turn.
+    // Reusing the original key would conflict with its original run/turn payload.
+    const currentIdempotencyKey = currentDisplayMessage?.run_id === run.id
+      ? `display-message:${currentDisplayMessage.id}`
+      : `run-user:${run.id}`;
     await sessionTranscripts.append({
       ...transcriptScope,
       turnId: `${run.id}:turn`,
@@ -5845,7 +5909,11 @@ async function executeLoopForRun(
     // non-conversation runs and for replaying an in-flight activity, but it
     // must not hide a committed result or bypass a newly activated compaction
     // checkpoint.
-    const modelMessages = activeSessionProjection?.messages ?? loopCheckpoint?.messages ?? context.sourceMessages;
+    // The context builder already includes the canonical session transcript.
+    // Selecting that transcript alone loses fresh system instructions and retrieved evidence.
+    const modelMessages = activeSessionProjection
+      ? context.sourceMessages
+      : loopCheckpoint?.messages ?? context.sourceMessages;
     return harness.runTurn({
       plan: executionPlan,
       messages: resumeExternalEvent
@@ -6086,6 +6154,15 @@ async function executeLoopForRun(
     },
     });
   });
+  // Deferred batches execute in separate activities. Rebuild evidence from this
+  // run's durable attempts, rather than the final model slice's empty callbacks.
+  const recordedToolEvidence = await toolInvocations.evidenceForRun(run.organization_id, run.id);
+  for (const attempt of recordedToolEvidence) {
+    usedTools.add(attempt.tool_name);
+    if (attempt.status === "completed") completedTools.add(attempt.tool_name);
+  }
+  const sliceToolCalls = loopResult.toolCalls;
+  loopResult.toolCalls = Math.max(recordedToolEvidence.length, (loopCheckpoint?.toolCalls ?? 0) + sliceToolCalls);
   loopResult.provenance = buildGroundingProvenance({
     authorizedTools: allowedTools,
     usedTools,
@@ -6108,7 +6185,7 @@ async function executeLoopForRun(
       || reviewedLoopResult.status === "awaiting_external_event";
     const nextState = { ...(storedWorkflowState?.state ?? {}) };
     if (shouldContinue || shouldPause) {
-      nextState.__agentLoop = durableAgentLoopCheckpoint(reviewedLoopResult, loopCheckpoint, {
+      nextState.__agentLoop = durableAgentLoopCheckpoint({ ...reviewedLoopResult, toolCalls: sliceToolCalls }, loopCheckpoint, {
         stepIndex: activeLoopStep,
         turnId: `${run.id}:turn:${activeLoopStep}`,
         compactionGeneration,

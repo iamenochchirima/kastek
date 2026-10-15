@@ -16,6 +16,17 @@ describe("approval preview projection", () => {
     });
   });
 
+  it("shows the proposed calendar event without credentials or arbitrary payloads", () => {
+    expect(buildApprovalResourceSnapshot("kasitek.calendar.create", { source: "internal", title: "Demo booking", start: "2026-10-07T10:00:00Z", end: "2026-10-07T10:30:00Z", timezone: "UTC", location: "Online", accessToken: "secret", metadata: { secret: "hidden" }, idempotencyKey: "private-key" })).toEqual({
+      capability: "kasitek.calendar.create", request: { source: "internal", title: "Demo booking", start: "2026-10-07T10:00:00Z", end: "2026-10-07T10:30:00Z", timezone: "UTC", location: "Online" },
+    });
+  });
+
+  it("shows a bounded remote booking reference while omitting arbitrary remote payloads", () => {
+    expect(buildApprovalResourceSnapshot("remote_mcp.version.lookup", { reference: "BOOK-739", apiKey: "hidden", body: "private" }))
+      .toEqual({ capability: "remote_mcp.version.lookup", request: { reference: "BOOK-739" } });
+  });
+
   it("bounds string selectors without changing the effect argument hash", () => {
     const preview = buildApprovalResourceSnapshot("kasitek.core.content_post_schedule", {
       postId: "post-123",

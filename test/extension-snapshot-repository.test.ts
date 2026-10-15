@@ -143,7 +143,8 @@ describe("ExtensionSnapshotRepository", () => {
     const [sql, values] = pool.query.mock.calls[0];
     expect(sql).toContain("version.extension_snapshot_id = $3");
     expect(sql).toContain("snapshot.agent_version_id = version.id");
-    expect(sql).toContain("FOR SHARE OF version, snapshot");
+    expect(sql).toContain("FOR SHARE OF version");
+    expect(sql).not.toContain("FOR SHARE OF version, snapshot");
     expect(sql).not.toContain("version.configuration");
     expect(sql).not.toContain("version.policy");
     expect(values).toEqual([organizationId, versionId, snapshotId]);

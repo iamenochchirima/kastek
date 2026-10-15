@@ -1,7 +1,7 @@
 # Agents frontend initial implementation
 
-Updated: 2026-10-02.
-Status: In progress. Vite, local login/workspaces and saved-agent creation are verified; real model execution and remaining frontend acceptance are pending.
+Updated: 2026-10-06.
+Status: Initial frontend acceptance, cancellation/retry/reconnect and cleanup are complete through OpenRouter. Provider-neutral code covers 11 providers; additional-provider live acceptance and production proxy verification remain separate checks.
 Priority: First implementation slice of the platform delivery plan.
 
 ## Outcome and scope
@@ -73,10 +73,11 @@ Exit: a user reaches the dashboard with an actual Agents session and organizatio
 
 - [x] Reuse the existing agent list, creation, Studio and Playground components where they fit; adapt their routing and data fetching to Vite and Agents APIs.
 - [x] Create an agent with name, instructions and supported model/settings; persist it through the real backend and reopen it after refresh.
-- [ ] Connect Playground message submission and actual run status/output. Preserve working execution visualizations where useful; do not rebuild the full editor for this slice.
-- [ ] Display progress, actual response, relevant tool/error results and cancellation where supported. Use the backend's streaming/history interfaces rather than simulated execution.
-- [ ] Return to the agent list/detail and retain the saved agent and visible run history.
-- [ ] Remove unused copied modules/assets and update the local frontend run instructions after the journey works.
+- [x] Connect Playground message submission and actual run status/output. Preserve working execution visualizations where useful; do not rebuild the full editor for this slice.
+- [x] Display actual response, run progress and the verified provider setup error through backend streaming/history interfaces. Tool-result acceptance follows the tool stage.
+- [x] Verify the existing cancellation and retry controls against the final persisted outcome. Fixed the cancelled-run Retry button and canonical transcript retry key; real cancellation and successful retry passed on 2026-10-06.
+- [x] Return to the agent list/detail and retain the saved agent and visible run history. Verified after the completed retry.
+- [x] Remove unused copied modules/assets and update the local frontend run instructions after the journey works. Removed ten superseded creation/Next loading files; retained later-stage workflow, inbox and website modules. README includes canonical login hostname and local stack instructions.
 
 Exit: authenticated user → create agent → send a test message → see a real response/status → refresh and reopen saved agent.
 
@@ -88,9 +89,11 @@ Run once after the relevant changes; repeat only after failures or new edits.
 - [x] Open landing, login/signup entry, dashboard and agent routes. Verify navigation, back/forward, direct URL refresh and an unknown route.
 - [x] Inspect the landing and shell at desktop and mobile widths; verify menu, forms, dialogs and basic keyboard focus.
 - [x] Complete real login and logout with a test account when the shared provider/backend are available. Check the signed-out dashboard redirect.
-- [ ] Create and reopen an agent, execute one real Playground message, observe its response/status and reload its history.
+- [x] Create and reopen an agent, execute one real Playground message, observe its response/status and reload its history. Verified through OpenRouter on 2026-10-05.
 - [x] Check one normal validation error, an empty agent list and backend-unavailable feedback. Confirm unfinished features do not look operational.
-- [ ] Verify development and production API routing and a live stream/reconnect on the first working journey.
+- [x] Verify development API routing and live event display during the real Playground journey.
+- [x] Verify development stream disconnect/reconnect. A real run completed after interruption/restart of the local API, with replayed events and no duplicate prompt or completion event.
+- [ ] Verify production proxy behavior during later deployment acceptance. Production deployment is outside this slice.
 - [x] Adapt existing Studio reducer/event tests if their logic changed and run those focused checks. Add a small regression test only for behavior that warrants one; do not create a broad test program for the UI port.
 - [x] Record commands, browser outcomes and external setup blockers. Mocked APIs or credentials do not establish real integration success.
 
@@ -665,3 +668,79 @@ Initial-slice dependency checkpoint, 2026-10-02:
   finish it. Continue when the owner chooses existing development credentials or
   supplies separate credentials in the backend environment, then restart affected
   runtime processes as needed and run the actual journey.
+
+Provider-neutral model continuation, 2026-10-03:
+
+- OpenRouter is the current test workspace default, not a requirement for the
+  product. The Agents/Growth provider set is OpenRouter, OpenAI, Anthropic,
+  Gemini, DeepSeek, GLM, Kimi, MiniMax, xAI, OpenCode Go and OpenCode Zen.
+- The selected model's own provider must have its own configured key, either in
+  that provider's local runtime environment or as an organization-scoped key in
+  Agents Models settings. Provider credentials do not substitute for one another.
+- Code-level provider/credential checks and independent catalog discovery now
+  cover all 11 providers. Saved BYOK catalog lookup is organization/provider
+  scoped and uncached across credentials. Live provider replies and real upstream
+  catalog checks remain separate unchecked acceptance items in the
+  [end-to-end plan](END_TO_END_IMPLEMENTATION_PLAN.md).
+- OpenCode Go/Zen live catalogs include multiple wire protocols. The runtime now
+  routes Chat Completions, Responses, Anthropic Messages and Gemini model
+  families; typed System One models and unclassified IDs remain hidden.
+
+Initial real Playground journey, 2026-10-05:
+
+- Found the OpenRouter credential in the separate Agents Lab environment and
+  configured it only in the ignored, permission-restricted Agents .env. Its
+  value is not recorded here. OpenRouter accepted it; this does not verify any
+  other provider's credential or live completion path.
+- Started the isolated Agents database, local Temporal server/worker, API and
+  Vite app. The OIDC callback requires the configured `http://localhost:3100`
+  origin; starting the flow from `127.0.0.1` loses the login transaction cookie.
+- Created a dedicated local test account/workspace and `E2E FAQ Assistant
+  2026-10-05` through the UI, using the OpenRouter `openai/gpt-4o-mini` model.
+  Asked how long an office open from 09:00 to 17:00 is open; the live response
+  calculated 8 hours. The Temporal run reached completed and persisted the
+  model and response events.
+- Refreshed and reopened the same conversation. The prompt, answer, selected
+  version, completed status and run event history loaded from the backend.
+- Remaining: real calls with other providers using their own credentials,
+  organization BYOK checks across providers, cancellation/retry/reconnect, and
+  the broader later platform journeys. No broad test suite was added for this
+  checkpoint.
+
+## Checklist audit, 2026-10-06
+
+Corrected stale unchecked items for the real Playground reply and persisted reload.
+At the start of this audit, cancellation/retry, reconnect, list/detail navigation
+and unused-file cleanup lacked evidence. The completion checkpoint below records
+the subsequent fixes and successful checks. The OpenRouter key is configured;
+other-provider live checks require their own credentials and do not block further
+implementation. See the current blockers section in the end-to-end plan.
+
+API liveness and database readiness returned 200 during this audit. Frontend,
+identity and Temporal UI responded. Attaching to the saved Studio browser tab timed out initially. A fresh tab then
+recovered the session; the completion checkpoint below records its browser acceptance.
+Earlier dated missing-key notes remain historical evidence, not current blockers.
+
+## Playground completion, 2026-10-06
+
+- A fresh localhost Studio tab reused the existing signed-in session. The stale
+  authentication callback did not block execution.
+- Cancelled an active OpenRouter run through Stop/Cancel run. The saved outcome
+  was cancelled, with a persisted run.cancelled event.
+- Enabled Retry for cancelled runs, which the backend already supports. Fixed
+  canonical transcript admission so a retry receives a new run-user key rather
+  than conflicting with the original display message's run/turn payload.
+- The real retry completed. Refreshing while it ran recovered its active run,
+  streamed progress, final answer and history. The conversation resolution route
+  now returns activeRuns, matching subsequent conversation reads.
+- Interrupted the local API during a separate model run, then restarted it.
+  The worker continued, and Playground recovered completed output through cursor
+  75 without duplicating the displayed prompt or completion event.
+- Agent list/detail navigation retained the saved agent. Removed ten unreferenced
+  files from the superseded creation wizard and Next loading system.
+- Backend compilation, frontend typing/production build and the focused conversation
+  HTTP regression passed. Existing Studio stream/reducer checks passed in the audit.
+  The installed Node version remains outside the declared range; builds worked,
+  but this is not a claim of supported runtime compatibility.
+- Stage 1 is complete. Additional-provider keys and production proxy acceptance
+  are separate pending checks. Continue Stage 2 without waiting on those keys.

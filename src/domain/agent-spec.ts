@@ -128,6 +128,7 @@ export const agentSpecSchema = z.object({
   behavior: agentBehaviorSettingsSchema,
   model: modelPolicySchema.strict(),
   runtime: z.object({
+    executionStrategy: z.enum(["simple", "durable"]).optional(),
     maxContextMessages: z.number().int().positive().max(500).optional(),
     maxContextTokens: z.number().int().positive().max(100_000).optional(),
     maxIterations: z.number().int().nonnegative().max(100).optional(),

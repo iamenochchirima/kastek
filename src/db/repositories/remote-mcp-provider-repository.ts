@@ -1,3 +1,4 @@
+import { projectReviewedMcpResult, reviewedRemoteMcpToolsSchema, remoteMcpPublicationSchema } from "../../mcp/reviewed-result";
 import { createHash } from "node:crypto";
 import type { Pool } from "pg";
 import { query, withTransaction } from "../pool";
@@ -59,7 +60,7 @@ export interface RemoteMcpProviderVersionRecord {
   revision: number;
   status: "draft" | "published" | "revoked";
   protocol_version: string;
-  tools: RemoteMcpTool[];
+  tools: Array<RemoteMcpTool & { reviewedResultFields?: string[] }>;
   checksum: string;
   created_by: string;
   created_at: string;
@@ -159,8 +160,15 @@ export class RemoteMcpProviderRepository {
     }
   }
 
-  public async publish(organizationId: string, actorId: string, providerId: string, versionId: string): Promise<RemoteMcpProviderVersionRecord> {
+  public async publish(organizationId: string, actorId: string, providerId: string, versionId: string, review: unknown = {}): Promise<RemoteMcpProviderVersionRecord> {
+    const policy = remoteMcpPublicationSchema.parse(review);
     return withTransaction(this.pool, async (client) => {
+      const draft = (await client.query<RemoteMcpProviderVersionRecord>("SELECT * FROM agent_mcp_provider_versions WHERE id=$1 AND provider_id=$2 AND organization_id=$3 AND status='draft' FOR UPDATE", [versionId, providerId, organizationId])).rows[0];
+      if (!draft) throw new Error("REMOTE_MCP_PROVIDER_VERSION_NOT_FOUND_OR_NOT_DRAFT_OR_UNHEALTHY");
+      const tools = hydrateVersion(draft).tools.map(tool => ({ ...tool, reviewedResultFields: policy.resultFields[tool.name] ?? [] }));
+      if (Object.keys(policy.resultFields).some(name => !tools.some(tool => tool.name === name))) throw new Error("REMOTE_MCP_REVIEW_UNKNOWN_TOOL");
+      const checksum = createHash("sha256").update(JSON.stringify({ providerId, revision: draft.revision, protocolVersion: draft.protocol_version, tools })).digest("hex");
+      await client.query("UPDATE agent_mcp_provider_versions SET tools=$2::jsonb, checksum=$3 WHERE id=$1", [versionId, JSON.stringify(tools), checksum]);
       const result = await client.query<RemoteMcpProviderVersionRecord>(`UPDATE agent_mcp_provider_versions version SET status = 'published', published_at = COALESCE(published_at, now()) WHERE version.id = $1 AND version.provider_id = $2 AND version.organization_id = $3 AND version.status = 'draft' AND EXISTS (SELECT 1 FROM agent_mcp_providers provider WHERE provider.id = version.provider_id AND provider.organization_id = version.organization_id AND provider.health_status = 'healthy') RETURNING version.*`, [versionId, providerId, organizationId]);
       if (!result.rows[0]) throw new Error("REMOTE_MCP_PROVIDER_VERSION_NOT_FOUND_OR_NOT_DRAFT_OR_UNHEALTHY");
       await client.query("UPDATE agent_mcp_providers SET status = 'approved', updated_at = now() WHERE id = $1 AND organization_id = $2", [providerId, organizationId]);
@@ -243,7 +251,7 @@ export class RemoteMcpProviderRepository {
           requiresApproval: true,
           timeoutMs: provider.timeout_ms ?? 15_000,
           inputSchema: tool.inputSchema,
-          outputSchema: { type: "object", properties: { result: {} }, required: ["result"], additionalProperties: false },
+          outputSchema: { type: "object", properties: { result: {}, reviewedResult: { type: "object" } }, required: ["result", "reviewedResult"], additionalProperties: false },
           catalog: {
             kind: "mcp_tool",
             category: "mcp",
@@ -262,9 +270,10 @@ export class RemoteMcpProviderRepository {
             auditClassification: "restricted",
             redaction: ["result"],
           },
-          handler: async (context: ToolInvocationContext, argumentsValue: Record<string, unknown>) => ({
-            result: await this.callPinnedTool({ organizationId: context.organizationId, agentVersionId: context.agentVersionId, providerVersionId: provider.id, toolName: tool.name, argumentsValue, operationId: context.operationId, runId: context.runId }),
-          }),
+          handler: async (context: ToolInvocationContext, argumentsValue: Record<string, unknown>) => {
+            const result = await this.callPinnedTool({ organizationId: context.organizationId, agentVersionId: context.agentVersionId, providerVersionId: provider.id, toolName: tool.name, argumentsValue, operationId: context.operationId, runId: context.runId });
+            return { result, reviewedResult: projectReviewedMcpResult(result, tool.reviewedResultFields ?? []) };
+          },
         });
       }
       const toolsetId = `mcp.${provider.id}`;
@@ -375,7 +384,7 @@ export class RemoteMcpProviderRepository {
 }
 
 function hydrateVersion(row: RemoteMcpProviderVersionRecord): RemoteMcpProviderVersionRecord {
-  return { ...row, tools: remoteMcpToolsSchema.parse(typeof row.tools === "string" ? JSON.parse(row.tools) : row.tools ?? []) };
+  return { ...row, tools: reviewedRemoteMcpToolsSchema.parse(typeof row.tools === "string" ? JSON.parse(row.tools) : row.tools ?? []) };
 }
 
 function remoteMcpErrorCode(error: unknown): string {

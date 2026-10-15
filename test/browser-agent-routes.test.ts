@@ -24,8 +24,23 @@ function setup(role = "member") {
   registerBrowserAgentRoutes(app, login);
   app.get("/v1/agents", request => browserAuthContext(request) ?? { machineRoute: true });
   app.post("/v1/agents", request => browserAuthContext(request));
+  app.post("/v1/models/catalog", request => browserAuthContext(request));
   app.post("/v1/runs/:runId/retry", request => browserAuthContext(request));
   app.post("/v1/runs/:runId/cancel", request => browserAuthContext(request));
+  app.post("/v1/runs/:runId/external-event", request => browserAuthContext(request));
+  app.get("/v1/installations/:installationId/integrations", request => browserAuthContext(request));
+  app.get("/v1/installations/:installationId/channels", request => browserAuthContext(request));
+  app.post("/v1/installations/:installationId/channels", request => browserAuthContext(request));
+  app.post("/v1/installations/:installationId/channels/:connectionId/pairing", request => browserAuthContext(request));
+  app.delete("/v1/installations/:installationId/channels/:connectionId", request => browserAuthContext(request));
+  app.delete("/v1/channel-bindings/:bindingId", request => browserAuthContext(request));
+  app.post("/v1/installations/:installationId/integrations/:integrationId/oauth/start", request => browserAuthContext(request));
+  app.post("/v1/installations/:installationId/tools", request => browserAuthContext(request));
+  app.post("/v1/runs/:runId/approval-group", request => browserAuthContext(request));
+  app.get("/v1/installations/:installationId/website-deployments", request => browserAuthContext(request));
+  app.post("/v1/installations/:installationId/website-deployments", request => browserAuthContext(request));
+  app.patch("/v1/installations/:installationId/website-deployments/:deploymentId", request => browserAuthContext(request));
+  app.post("/v1/installations/:installationId/website-deployments/:deploymentId/status/:status", request => browserAuthContext(request));
   app.get("/v1/knowledge/sources", request => browserAuthContext(request));
   app.post("/v1/knowledge/sources", request => browserAuthContext(request));
   app.get("/v1/runs/:runId/events/stream", async request => {
@@ -33,6 +48,18 @@ function setup(role = "member") {
     await recheckBrowserRequest(request);
     return { unexpected: true };
   });
+  app.get("/v1/conversations/customer", request => browserAuthContext(request));
+  app.post("/v1/conversations/:conversationId/takeover", request => browserAuthContext(request));
+  app.post("/v1/conversations/:conversationId/notes", request => browserAuthContext(request));
+  app.post("/v1/conversations/handoffs/:handoffId/messages", request => browserAuthContext(request));
+  app.get("/v1/mcp/providers", request => browserAuthContext(request));
+  app.get("/v1/mcp/providers/:providerId/versions", request => browserAuthContext(request));
+  app.post("/v1/mcp/providers", request => browserAuthContext(request));
+  app.post("/v1/mcp/providers/:providerId/discover", request => browserAuthContext(request));
+  app.post("/v1/mcp/providers/:providerId/health", request => browserAuthContext(request));
+  app.post("/v1/mcp/providers/:providerId/versions/:versionId/publish", request => browserAuthContext(request));
+  app.post("/v1/agent-versions/:agentVersionId/mcp-providers/:providerVersionId", request => browserAuthContext(request));
+  app.delete("/v1/agent-versions/:agentVersionId/mcp-providers/:providerVersionId", request => browserAuthContext(request));
   app.get("/v1/operator/summary", () => ({ private: true }));
   return { app, check };
 }
@@ -55,16 +82,17 @@ describe("standalone browser agent admission", () => {
   it("allows viewer reads but denies writes", async () => {
     const { app } = setup("viewer");
     expect((await app.inject({ url: "/api/agents", headers })).statusCode).toBe(200);
+    expect((await app.inject({ method: "POST", url: "/api/agents/models/catalog", headers, payload: { provider: "openai", credentialReference: "credential-1" } })).statusCode).toBe(200);
     expect((await app.inject({ method: "POST", url: "/api/agents", headers, payload: { name: "Denied" } })).statusCode).toBe(403);
   });
   it("admits member run recovery controls and rejects viewer or cross-origin writes", async () => {
     const { app } = setup();
     const viewer = setup("viewer").app;
-    for (const action of ["cancel", "retry"]) {
+    for (const action of ["cancel", "retry", "external-event"]) {
       const url = `/api/agents/runs/run-1/${action}`;
       const response = await app.inject({ method: "POST", url, headers, payload: {} });
       expect(response.statusCode).toBe(200);
-      expect(response.json().scopes).toContain(action === "cancel" ? "runs:cancel" : "chat:write");
+      expect(response.json().scopes).toContain(action === "cancel" ? "runs:cancel" : action === "external-event" ? "runs:write" : "chat:write");
       expect((await viewer.inject({ method: "POST", url, headers, payload: {} })).statusCode).toBe(403);
       expect((await app.inject({ method: "POST", url, headers: { ...headers, origin: "https://foreign.example" }, payload: {} })).statusCode).toBe(403);
     }
@@ -79,11 +107,82 @@ describe("standalone browser agent admission", () => {
     expect((await viewer.inject({ method: "POST", url: "/api/agents/knowledge/sources", headers, payload: { agentId: "agent-1" } })).statusCode).toBe(403);
     expect((await app.inject({ method: "POST", url: "/api/agents/knowledge/sources", headers: { ...headers, origin: "https://foreign.example" }, payload: {} })).statusCode).toBe(403);
   });
+  it("admits tool connections, grants and approvals with member and origin checks", async () => {
+    const { app } = setup();
+    const viewer = setup("viewer").app;
+    const read = "/api/agents/installations/install-1/integrations";
+    expect((await viewer.inject({ url: read, headers })).statusCode).toBe(200);
+    for (const url of ["/api/agents/installations/install-1/integrations/google.calendar/oauth/start", "/api/agents/installations/install-1/tools", "/api/agents/runs/run-1/approval-group"]) {
+      const response = await app.inject({ method: "POST", url, headers, payload: {} });
+      expect(response.statusCode).toBe(200);
+      expect(response.json().scopes).toContain(url.endsWith("approval-group") ? "runs:approve" : "agents:write");
+      expect((await viewer.inject({ method: "POST", url, headers, payload: {} })).statusCode).toBe(403);
+      expect((await app.inject({ method: "POST", url, headers: { ...headers, origin: "https://foreign.example" }, payload: {} })).statusCode).toBe(403);
+      expect((await app.inject({ method: "POST", url, headers: { origin: headers.origin }, payload: {} })).statusCode).toBe(401);
+    }
+    expect((await app.inject({ url: "/api/agents/installations/install-1/integrations/google.calendar/oauth/start", headers })).statusCode).toBe(404);
+  });
+
+  it("admits teammate inbox commands while rejecting viewers and foreign origins", async () => {
+    const { app } = setup(); const viewer = setup("viewer").app;
+    expect((await viewer.inject({ url: "/api/agents/conversations/customer", headers })).statusCode).toBe(200);
+    for (const url of ["/api/agents/conversations/conv-1/takeover", "/api/agents/conversations/conv-1/notes", "/api/agents/conversations/handoffs/handoff-1/messages"]) {
+      expect((await app.inject({ method: "POST", url, headers, payload: {} })).statusCode).toBe(200);
+      expect((await viewer.inject({ method: "POST", url, headers, payload: {} })).statusCode).toBe(403);
+      expect((await app.inject({ method: "POST", url, headers: { ...headers, origin: "https://foreign.example" }, payload: {} })).statusCode).toBe(403);
+    }
+    expect((await app.inject({ method: "POST", url: "/api/agents/channels/delivery-status", headers, payload: {} })).statusCode).toBe(404);
+  });
+  it("admits explicit MCP setup routes without exposing global revocation", async () => {
+    const { app } = setup(); const viewer = setup("viewer").app;
+    expect((await viewer.inject({ url: "/api/agents/mcp/providers", headers })).statusCode).toBe(200);
+    for (const [method, url] of [
+      ["POST", "/api/agents/mcp/providers"],
+      ["POST", "/api/agents/mcp/providers/provider-1/discover"],
+      ["POST", "/api/agents/mcp/providers/provider-1/health"],
+      ["POST", "/api/agents/mcp/providers/provider-1/versions/version-1/publish"],
+      ["POST", "/api/agents/agent-versions/agent-version-1/mcp-providers/version-1"],
+      ["DELETE", "/api/agents/agent-versions/agent-version-1/mcp-providers/version-1"],
+    ] as const) {
+      expect((await app.inject({ method, url, headers, payload: {} })).statusCode).toBe(200);
+      expect((await viewer.inject({ method, url, headers, payload: {} })).statusCode).toBe(403);
+      expect((await app.inject({ method, url, headers: { ...headers, origin: "https://foreign.example" }, payload: {} })).statusCode).toBe(403);
+    }
+    expect((await app.inject({ method: "POST", url: "/api/agents/mcp/providers/provider-1/revoke", headers, payload: {} })).statusCode).toBe(404);
+  });
+
   it("rejects foreign origins before checking memberships", async () => {
     const { app, check } = setup();
     const response = await app.inject({ method: "POST", url: "/api/agents", headers: { ...headers, origin: "https://foreign.example" }, payload: {} });
     expect(response.statusCode).toBe(403);
     expect(check).not.toHaveBeenCalled();
+  });
+  it("allows scoped channel setup without exposing channel ingestion", async () => {
+    const { app } = setup(), viewer = setup("viewer").app;
+    const path = "/api/agents/installations/install-1/channels";
+    const read = await viewer.inject({ url: path, headers });
+    expect(read.statusCode).toBe(200);
+    expect(read.json().scopes).toContain("channels:read");
+    expect(read.json().scopes).not.toContain("channels:write");
+    for (const [method, url] of [["POST", path], ["POST", `${path}/connection-1/pairing`], ["DELETE", `${path}/connection-1`], ["DELETE", "/api/agents/channel-bindings/binding-1"]] as const) {
+      const response = await app.inject({ method, url, headers, ...(method === "POST" ? {payload:{}} : {}) });
+      expect(response.statusCode).toBe(200);
+      expect(response.json().scopes).toContain("channels:write");
+      expect(response.json().scopes).not.toContain("channels:ingest");
+      expect((await viewer.inject({ method, url, headers })).statusCode).toBe(403);
+      expect((await app.inject({ method, url, headers: {...headers, origin:"https://foreign.example"} })).statusCode).toBe(403);
+    }
+    expect((await app.inject({method:"POST",url:"/api/agents/channel-pairing/consume",headers,payload:{}})).statusCode).toBe(404);
+  });
+  it("requires member access and same origin for publishing and changing website chat", async () => {
+    const { app } = setup(), viewer = setup("viewer").app;
+    const path = "/api/agents/installations/install-1/website-deployments";
+    expect((await viewer.inject({ url: path, headers })).statusCode).toBe(200);
+    for (const [method, url] of [["POST", path], ["PATCH", `${path}/deployment-1`], ["POST", `${path}/deployment-1/status/PAUSED`]] as const) {
+      expect((await app.inject({ method, url, headers, payload: {} })).statusCode).toBe(200);
+      expect((await viewer.inject({ method, url, headers, payload: {} })).statusCode).toBe(403);
+      expect((await app.inject({ method, url, headers: { ...headers, origin: "https://foreign.example" }, payload: {} })).statusCode).toBe(403);
+    }
   });
   it("rechecks streaming authorization and rejects changed workspace context", async () => {
     const { app } = setup();

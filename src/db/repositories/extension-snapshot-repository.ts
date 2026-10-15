@@ -699,6 +699,8 @@ export class ExtensionSnapshotRepository {
     agentVersionId: string,
     snapshotId: string,
   ): Promise<ExtensionSnapshotRecord | null> {
+    // Lock the version pin. Snapshots are immutable and have no runtime UPDATE
+    // policy; a row lock on snapshot would make scoped SELECT admission fail RLS.
     const result = await executor.query<ExtensionSnapshotRow>(
       `SELECT snapshot.*
        FROM agent_versions version
@@ -710,7 +712,7 @@ export class ExtensionSnapshotRepository {
        WHERE definition.organization_id = $1
          AND version.id = $2
          AND version.extension_snapshot_id = $3
-       FOR SHARE OF version, snapshot`,
+       FOR SHARE OF version`,
       [organizationId, agentVersionId, snapshotId],
     );
     return result.rows[0] ? hydrateSnapshot(result.rows[0]) : null;

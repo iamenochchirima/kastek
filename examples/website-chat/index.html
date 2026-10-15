@@ -1,0 +1,13 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Cobalt Lantern test website</title>
+<style>body{font-family:system-ui,sans-serif;margin:0;background:#f7f8fc;color:#1f1f1f}main{max-width:760px;margin:12vh auto;padding:32px}h1{font-size:46px}p{line-height:1.7;color:#555}label{display:block;margin-top:28px}input{padding:12px;border:1px solid #ccc;border-radius:8px;min-width:300px}button{padding:12px 18px;border:0;border-radius:8px;background:#3730a3;color:white;margin-left:8px}</style></head>
+<body><main><p>Local customer website</p><h1>Cobalt Lantern</h1><p>Ask our assistant about the product using the chat button. This website runs separately from the Agents management app.</p>
+<form id="setup"><label for="deployment">Website deployment public ID</label><input id="deployment" name="deployment" required><button>Load chat</button></form><p id="notice" role="status"></p></main>
+<script>
+const params=new URLSearchParams(location.search),deployment=params.get('deployment');
+document.querySelector('#deployment').value=deployment||'';
+if(deployment&&/^[0-9a-f-]{36}$/.test(deployment)){
+  const script=document.createElement('script');script.src='http://localhost:3100/api/widget/v1/loader.js';script.async=true;script.dataset.kasitekDeployment=deployment;document.body.appendChild(script);
+  document.querySelector('#notice').textContent='Chat connects to the local Agents app.';
+}
+</script></body></html>

@@ -526,8 +526,10 @@ export class RunRepository {
         );
         const inboundRoute = replySuppressed ? null : await client.query<{ external_conversation_id: string | null }>(
           `SELECT external_conversation_id FROM messages
-           WHERE run_id = $1 AND direction = 'inbound' LIMIT 1`,
-          [run.id],
+           WHERE organization_id = $2 AND conversation_id = $3 AND direction = 'inbound'
+             AND (run_id = $1 OR (source_binding_id = $4 AND source_channel = $5))
+           ORDER BY (run_id = $1) DESC NULLS LAST, sequence_number DESC LIMIT 1`,
+          [run.id, run.organization_id, run.conversation_id, run.reply_binding_id ?? null, run.reply_channel_type ?? "platform"],
         );
         const outbound = replySuppressed ? { rows: [] as Array<{ id: string }> } : await client.query<{ id: string }>(
           `INSERT INTO messages
@@ -754,6 +756,30 @@ export class RunRepository {
     return result.rows;
   }
 
+  /** Only direct runs with persisted dispatch evidence can be reconciled here.
+   * The deadline plus grace avoids failing runs owned by another healthy API.
+   */
+  public async listOverdueSimpleRuns(): Promise<Array<Pick<RunRecord, "id" | "organization_id" | "created_by">>> {
+    const result = await query<Pick<RunRecord, "id" | "organization_id" | "created_by">>(
+      this.pool,
+      `SELECT ar.id, ar.organization_id, ar.created_by
+       FROM agent_runs ar
+       WHERE ar.status IN ('received', 'queued', 'running')
+         AND EXISTS (
+           SELECT 1 FROM agent_events event
+           WHERE event.run_id = ar.id AND event.organization_id = ar.organization_id
+             AND event.event_type = 'run.execution_selected'
+             AND event.payload ->> 'strategy' = 'simple'
+             AND event.created_at +
+               LEAST(300000, GREATEST(1, COALESCE((event.payload ->> 'maxWallTimeMs')::double precision, 60000))) * interval '1 millisecond'
+               + interval '30 seconds' < now()
+         )
+       ORDER BY ar.created_at
+       LIMIT 100`,
+    );
+    return result.rows;
+  }
+
   public async failRun(runId: string, error: Record<string, unknown>): Promise<RunRecord> {
     return withTransaction(this.pool, async (client) => {
       const current = await client.query<RunRecord>(
@@ -791,8 +817,10 @@ export class RunRepository {
         );
         const inboundRoute = await client.query<{ external_conversation_id: string | null }>(
           `SELECT external_conversation_id FROM messages
-           WHERE run_id = $1 AND direction = 'inbound' LIMIT 1`,
-          [run.id],
+           WHERE organization_id = $2 AND conversation_id = $3 AND direction = 'inbound'
+             AND (run_id = $1 OR (source_binding_id = $4 AND source_channel = $5))
+           ORDER BY (run_id = $1) DESC NULLS LAST, sequence_number DESC LIMIT 1`,
+          [run.id, run.organization_id, run.conversation_id, run.reply_binding_id ?? null, run.reply_channel_type ?? "platform"],
         );
         const outbound = await client.query<{ id: string }>(
           `INSERT INTO messages

@@ -518,11 +518,16 @@ describe.skipIf(!runIntegration)("platform chat durability (integration)", () =>
       content: { text: "Do not start another agent run while a human owns this thread." },
     });
     expect(activeHandoff).toMatchObject({
-      created: false,
+      created: true,
+      run: null,
+      message: { direction: "inbound", content: { text: "Do not start another agent run while a human owns this thread." } },
       handoffActive: true,
       handoffRequestId: handoffThread.handoffRequestId,
       handoffAcknowledgement: { deliveryAttemptId: expect.any(String) },
     });
+
+    expect((await conversations.listMessages(organizationId, handoffThread.conversation.id))
+      .filter(message => message.id === activeHandoff.message.id)).toHaveLength(1);
 
     await handoffs.claim({ organizationId, handoffId: handoffThread.handoffRequestId!, actorId: "operator-1" });
     const resolvedHandoff = await handoffs.resolve({ organizationId, handoffId: handoffThread.handoffRequestId!, actorId: "operator-1", resolution: "Customer interaction completed" });

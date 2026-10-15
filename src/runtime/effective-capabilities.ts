@@ -147,6 +147,8 @@ export interface EffectiveCapabilitySnapshot {
 export interface EffectiveCapabilitySnapshotInput {
   readonly scope: CapabilitySnapshotScope;
   readonly registryGeneration?: string | number;
+  /** Authored priorities affect schema budgeting only; grants still filter first. */
+  readonly preferredToolNames?: readonly string[];
   /** All executable definitions in the registry, before grant filtering. */
   readonly tools: readonly Omit<ToolDefinition, "handler">[];
   /** Optional canonical catalog metadata for source/provider projection. */
@@ -404,7 +406,9 @@ export function createEffectiveCapabilitySnapshot(input: EffectiveCapabilitySnap
     maxCharacters: input.maxSkillCharacters,
   });
   const callableTools = executionTools.filter((tool) => tool.readiness === "callable");
-  const modelTools = input.tools.filter((tool) => callableTools.some((candidate) => candidate.id === tool.name)).sort((left, right) => left.name.localeCompare(right.name));
+  const preferred = new Set(input.preferredToolNames ?? []);
+  const modelTools = input.tools.filter((tool) => callableTools.some((candidate) => candidate.id === tool.name))
+    .sort((left, right) => Number(preferred.has(right.name)) - Number(preferred.has(left.name)) || left.name.localeCompare(right.name));
   const unavailable = [
     ...executionTools.flatMap((tool) => tool.readiness === "unavailable" && tool.reason
       ? [{ id: tool.id, kind: "tool" as const, reason: tool.reason }]

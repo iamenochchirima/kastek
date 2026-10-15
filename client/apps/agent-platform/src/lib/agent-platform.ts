@@ -166,6 +166,7 @@ export type AgentConversation = {
   model_provider?: AgentModelProvider | null;
   model?: string | null;
   conversation_kind?: "personal" | "customer" | "test" | "external";
+  handoff_state?: "agent_active" | "handoff_requested" | "human_owned" | "resolved" | "expired" | "cancelled";
   assigned_actor_id?: string | null;
   last_message_at?: string | null;
   last_message_direction?: "inbound" | "outbound" | "system" | null;
@@ -913,13 +914,18 @@ export type AgentModel = {
 
 export type AgentModelCatalog = {
   models: AgentModel[];
-  source: "live" | "fallback";
+  source: "live" | "fallback" | "mixed";
   fetchedAt: string;
   error?: string;
+  providers?: Partial<Record<AgentModelProvider, { source: "live" | "fallback"; fetchedAt: string; error?: string }>>;
 };
 
 export function getAgentModelCatalog(): Promise<AgentModelCatalog> {
   return request("/api/agents/models/catalog");
+}
+
+export function getAgentProviderModelCatalog(input: { provider: AgentModelProvider; credentialReference: string }): Promise<AgentModelCatalog & { provider: AgentModelProvider }> {
+  return request("/api/agents/models/catalog", { method: "POST", body: JSON.stringify(input) });
 }
 
 export type AgentCredentialVerification = {
@@ -1040,6 +1046,7 @@ export type AgentSpecInput = {
     maxEstimatedCostUsd?: number;
   };
   runtime?: {
+    executionStrategy?: "simple" | "durable";
     maxContextMessages?: number;
     maxContextTokens?: number;
     maxIterations?: number;
@@ -1513,7 +1520,7 @@ export type AgentMcpProviderVersion = {
   revision: number;
   status: "draft" | "published" | "revoked" | string;
   protocol_version: string;
-  tools: Array<{ name: string; description?: string; inputSchema: Record<string, unknown> }>;
+  tools: Array<{ name: string; description?: string; inputSchema: Record<string, unknown>; reviewedResultFields?: string[] }>;
   checksum: string;
   provider_name?: string;
   endpoint_url?: string;
@@ -1542,8 +1549,8 @@ export function listAgentMcpProviderVersions(providerId: string): Promise<{ vers
   return request(`/api/agents/mcp/providers/${encodeURIComponent(providerId)}/versions`);
 }
 
-export function publishAgentMcpProviderVersion(providerId: string, versionId: string): Promise<AgentMcpProviderVersion> {
-  return request(`/api/agents/mcp/providers/${encodeURIComponent(providerId)}/versions/${encodeURIComponent(versionId)}/publish`, { method: "POST" });
+export function publishAgentMcpProviderVersion(providerId: string, versionId: string, resultFields: Record<string, string[]> = {}): Promise<AgentMcpProviderVersion> {
+  return request(`/api/agents/mcp/providers/${encodeURIComponent(providerId)}/versions/${encodeURIComponent(versionId)}/publish`, { method: "POST", body: JSON.stringify({ resultFields }) });
 }
 
 export function revokeAgentMcpProvider(providerId: string): Promise<{ revoked: boolean }> {
@@ -1683,7 +1690,7 @@ export function saveAgentIntegrationLocalConnector(installationId: string, integ
 }
 
 export function startAgentIntegrationOAuth(installationId: string, integrationId: string): Promise<{ authorizationUrl: string }> {
-  return request(`/api/agents/installations/${encodeURIComponent(installationId)}/integrations/${encodeURIComponent(integrationId)}/oauth/start`);
+  return request(`/api/agents/installations/${encodeURIComponent(installationId)}/integrations/${encodeURIComponent(integrationId)}/oauth/start`, { method: "POST" });
 }
 
 export function bindAgentWorkspaceEmail(installationId: string, integrationId: string, connectionId: string): Promise<{ integration: AgentIntegration }> {
@@ -1802,6 +1809,10 @@ export function createAgentKnowledgeSource(input: { agentId: string; installatio
 }
 
 export type AgentWebsiteMapLink = { url: string; title?: string; description?: string };
+export function getAgentWebsiteCrawlerReadiness(): Promise<{ provider: string; configured: boolean; message: string }> {
+  return request("/api/agents/knowledge/websites/readiness");
+}
+
 export type AgentWebsiteCrawl = { source: AgentKnowledgeSource; crawlId: string; status: string };
 
 export function mapAgentWebsite(input: { agentId: string; installationId?: string; url: string; limit?: number; includeSubdomains?: boolean }): Promise<{ url: string; links: AgentWebsiteMapLink[] }> {
@@ -1898,7 +1909,12 @@ export type KasiAiHome = {
   channelDefaultConversationId: string | null;
   preferences: KasiAiPreferences | null;
   models: KasiAiModel[];
-  modelCatalog?: { source: "live" | "fallback"; fetchedAt: string; error?: string };
+  modelCatalog?: {
+    source: "live" | "fallback" | "mixed";
+    fetchedAt: string;
+    error?: string;
+    providers?: Partial<Record<AgentModelProvider, { source: "live" | "fallback"; fetchedAt: string; error?: string }>>;
+  };
 };
 
 export function updateAgentInstallationSettings(installationId: string, settings: AgentInstallationSettings): Promise<AgentInstallation> {
@@ -2125,7 +2141,7 @@ export function createAgentWebsiteDeployment(installationId: string, input: {
   avatarUrl?: string;
   privacyPolicyUrl?: string;
   appearance?: Partial<AgentWebsiteDeployment["appearance"]>;
-}): Promise<{ deployment: AgentWebsiteDeployment; embedCode: string; shareUrl: string }> {
+}): Promise<{ deployment: AgentWebsiteDeployment; embedCode: string; shareUrl?: string }> {
   return request(`/api/agents/installations/${encodeURIComponent(installationId)}/website-deployments`, {
     method: "POST",
     body: JSON.stringify(input),
@@ -2482,4 +2498,31 @@ export async function streamAgentConversation(
       return lastSequence;
     }
   }
+}
+
+export type HostedAgentApiKey = {
+  id: string; label: string; created_at: string; expires_at: string;
+  last_used_at: string | null; revoked_at: string | null;
+};
+export function listHostedAgentApiKeys(installationId: string) {
+  return request<{ keys: HostedAgentApiKey[] }>(`/api/agents/installations/${encodeURIComponent(installationId)}/api-keys`);
+}
+export function createHostedAgentApiKey(installationId: string, label: string, expiresAt: string) {
+  return request<{ key: HostedAgentApiKey; secret: string }>(`/api/agents/installations/${encodeURIComponent(installationId)}/api-keys`, {
+    method: "POST", body: JSON.stringify({ label, expiresAt }),
+  });
+}
+export function revokeHostedAgentApiKey(installationId: string, keyId: string) {
+  return request<void>(`/api/agents/installations/${encodeURIComponent(installationId)}/api-keys/${encodeURIComponent(keyId)}`, { method: "DELETE" });
+}
+
+export function takeOverAgentConversation(conversationId: string, idempotencyKey: string, reopen = false): Promise<AgentHandoffMutation> {
+  return request(`/api/agents/conversations/${encodeURIComponent(conversationId)}/${reopen ? "reopen" : "takeover"}`, {
+    method: "POST", body: JSON.stringify({ idempotencyKey }),
+  });
+}
+export function addAgentPrivateNote(conversationId: string, text: string, idempotencyKey: string): Promise<AgentMessage> {
+  return request(`/api/agents/conversations/${encodeURIComponent(conversationId)}/notes`, {
+    method: "POST", body: JSON.stringify({ text, idempotencyKey }),
+  });
 }

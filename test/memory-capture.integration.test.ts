@@ -47,6 +47,8 @@ describe.skipIf(!runIntegration)("memory capture and checkpoint boundaries (inte
   const runId = randomUUID();
   const admissionRunId = randomUUID();
   const processKillRunId = randomUUID();
+  const standaloneRunId = randomUUID();
+  const secondStandaloneRunId = randomUUID();
   let conversationId = "";
 
   beforeAll(async () => {
@@ -64,6 +66,8 @@ describe.skipIf(!runIntegration)("memory capture and checkpoint boundaries (inte
        VALUES ($1,$2,$3,$4,$5,$6,'message','completed',$7,'test')`,
       [processKillRunId, organizationId, agentId, versionId, installationId, conversationId, randomUUID()],
     );
+    await pool.query(`INSERT INTO agent_runs (id, organization_id, agent_definition_id, agent_version_id, installation_id, trigger_type, status, correlation_id, created_by)
+      SELECT id, $2, $3, $4, $5, 'manual', 'completed', id, 'test' FROM unnest($1::uuid[]) AS id`, [[standaloneRunId, secondStandaloneRunId], organizationId, agentId, versionId, installationId]);
   });
 
   it("deduplicates concurrent checkpoints and preserves the source boundary", async () => {
@@ -98,6 +102,18 @@ describe.skipIf(!runIntegration)("memory capture and checkpoint boundaries (inte
     expect((await pool.query("SELECT id FROM memory_source_events WHERE organization_id = $1 AND source_boundary = $2", [organizationId, request.sourceBoundary])).rows).toHaveLength(1);
     await checkpoints.markFailed({ organizationId, idempotencyKey: request.idempotencyKey, errorCode: "MEMORY_TEST_RETRY" });
     await expect(checkpoints.commit(request)).resolves.toMatchObject({ status: "replayed" });
+  });
+
+  it("keeps identical conversation-less evidence separate across runs and turns", async () => {
+    const scope = { organizationId, workspaceId: organizationId, agentDefinitionId: agentId, agentVersionId: versionId, installationId };
+    const evidence = { contractVersion: "memory-v2" as const, scope, sourceEventIds: [], items: [], evidenceDigest: evidenceDigest([]), redaction: "content_redacted" as const, capturedAt: "2026-10-06T00:00:00.000Z" };
+    const request = { scope, runId: standaloneRunId, turnId: "empty-turn-1", compactionGeneration: 0, sourceBoundary: "empty-boundary", evidence, idempotencyKey: `checkpoint:${standaloneRunId}:empty-turn-1` };
+    const first = await checkpoints.commit(request);
+    const otherRun = await checkpoints.commit({ ...request, runId: secondStandaloneRunId, idempotencyKey: `checkpoint:${secondStandaloneRunId}:empty-turn-1` });
+    const otherTurn = await checkpoints.commit({ ...request, turnId: "empty-turn-2", idempotencyKey: `checkpoint:${standaloneRunId}:empty-turn-2` });
+    expect(new Set([first.checkpointId, otherRun.checkpointId, otherTurn.checkpointId]).size).toBe(3);
+    await expect(checkpoints.commit(request)).resolves.toMatchObject({ status: "replayed", checkpointId: first.checkpointId });
+    expect((await pool.query("SELECT id FROM memory_source_events WHERE organization_id = $1 AND source_boundary = $2", [organizationId, request.sourceBoundary])).rows).toHaveLength(3);
   });
 
   it("keeps concurrently arriving source events ordered and replayable", async () => {
@@ -342,7 +358,7 @@ describe.skipIf(!runIntegration)("memory capture and checkpoint boundaries (inte
 
   afterAll(async () => {
     await deleteMemoryCaptureRows(pool, organizationId);
-    await pool.query("DELETE FROM agent_runs WHERE id IN ($1, $2, $3)", [runId, admissionRunId, processKillRunId]);
+    await pool.query("DELETE FROM agent_runs WHERE id = ANY($1::uuid[])", [[runId, admissionRunId, processKillRunId, standaloneRunId, secondStandaloneRunId]]);
     await pool.query("DELETE FROM conversations WHERE id = $1", [conversationId]);
     await pool.query("DELETE FROM agent_installations WHERE id = $1", [installationId]);
     await pool.query("DELETE FROM agent_versions WHERE id = $1", [versionId]);

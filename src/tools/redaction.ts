@@ -2,6 +2,7 @@ const SECRET_KEY = /(api[_-]?key|secret|token|password|authorization|cookie|priv
 
 export function redactSensitiveValue(value: unknown, depth = 0): unknown {
   if (depth > 8) return "[REDACTED_DEPTH]";
+  if (value instanceof Date) return Number.isFinite(value.getTime()) ? value.toISOString() : null;
   if (Array.isArray(value)) return value.map((entry) => redactSensitiveValue(entry, depth + 1));
   if (!value || typeof value !== "object") return value;
   const result: Record<string, unknown> = {};

@@ -18,7 +18,7 @@ export function AgentRunActions({ runId, status, waitingFor, showCancel = true }
   if (terminalStatuses.has(status) && !error) return null;
 
   const cancel = async () => {
-    if (busy || !await confirm({ title: "Cancel run?", description: "The durable run will be marked cancelled.", confirmLabel: "Cancel run", variant: "destructive" })) return;
+    if (busy || !await confirm({ title: "Cancel run?", description: "The run will be stopped and marked cancelled.", confirmLabel: "Cancel run", variant: "destructive" })) return;
     setBusy(true);
     setError(null);
     try {

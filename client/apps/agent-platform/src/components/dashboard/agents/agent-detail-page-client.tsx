@@ -28,18 +28,22 @@ import { AgentWorkflowEditor, type WorkflowGraphValue } from "./agent-workflow-e
 import { AgentChatPanel } from "./agent-chat-panel";
 import { AgentAnalyticsPanel } from "./agent-analytics-panel";
 import { AgentModelPicker } from "./agent-model-picker";
+import { HostedAgentApiKeys } from "./hosted-agent-api-keys";
 import { AgentRuntimeLimits, defaultAgentRuntimeLimits, parseAgentRuntimeLimits, type AgentRuntimeLimitsValue } from "./agent-runtime-limits";
+import { AgentRemoteMcp } from "./agent-remote-mcp";
 import { AgentToolIntegrations } from "./agent-tool-integrations";
 import { AgentMessageMedia, agentMessageHasMedia } from "./agent-message-media";
 import { AgentAuthorizationAction } from "./agent-authorization-action";
-import { listWorkspaceConnections, type WorkspaceConnection } from "@/lib/connections";
+import { type WorkspaceConnection } from "@/lib/connections";
 import {
+  AgentRequestError,
   archiveAgent,
   deleteAgent,
   archiveExternalAgent,
   updateAgent,
   getExternalAgentHealth,
   getAgentModelCatalog,
+  getAgentProviderModelCatalog,
   listAgentProviderCredentials,
   verifyAgentProviderCredential,
   createAgentProviderCredential,
@@ -81,8 +85,10 @@ import {
   createAgentKnowledgeSource,
   startAgentWebsiteCrawl,
   getAgentWebsiteCrawl,
+  getAgentWebsiteCrawlerReadiness,
   cancelAgentWebsiteCrawl,
   ingestAgentKnowledgeSourceFile,
+  ingestAgentKnowledgeSourceUrl,
   ingestAgentKnowledgeSourceText,
   deleteAgentKnowledgeSource,
   listAgentMemory,
@@ -180,7 +186,7 @@ function ApiKeyConfigurationDialog({
     <DialogContent className="max-w-xl">
       <DialogHeader>
         <DialogTitle>{providerLabel(provider)} API key</DialogTitle>
-        <DialogDescription>API key</DialogDescription>
+      <DialogDescription>Use a {providerLabel(provider)} key for this provider's models. Credentials for other providers are separate.</DialogDescription>
       </DialogHeader>
       <div className="space-y-4">
         <label className="text-xs font-medium text-foreground">API key<Input type="password" value={credentialKey} onChange={(event) => onCredentialKeyChange(event.target.value)} autoComplete="new-password" className="mt-1" placeholder={`Your ${providerLabel(provider)} key`} /></label>
@@ -198,6 +204,17 @@ function ApiKeyConfigurationDialog({
 function capabilityGroup(capability: AgentCapability) {
   const scope = capability.permission?.scope || capability.name.split(".")[2] || "platform";
   return scope.split(".")[0] || "platform";
+}
+
+function replaceProviderModels(home: KasiAiHome, provider: AgentModelProvider, models: AgentModel[]): KasiAiHome {
+  const workspaceDefault = home.models.find((model) => model.provider === provider && model.isWorkspaceDefault);
+  return {
+    ...home,
+    models: [
+      ...models.map((model) => model.model === workspaceDefault?.model ? { ...model, isWorkspaceDefault: true } : model),
+      ...home.models.filter((model) => model.provider !== provider),
+    ],
+  };
 }
 
 function KasiAiModels({ installationId }: { installationId: string }) {
@@ -303,7 +320,13 @@ function KasiAiModels({ installationId }: { installationId: string }) {
       setCredentialError(null);
       try {
         const response = await updateKasiAiPreferences(installationId, { defaultCredentialReference: null });
-        setHome((current) => current ? { ...current, preferences: response.preferences } : current);
+        const catalog = await getAgentModelCatalog();
+        setHome((current) => current ? {
+          ...current,
+          models: catalog.models,
+          modelCatalog: { source: catalog.source, fetchedAt: catalog.fetchedAt, error: catalog.error, providers: catalog.providers },
+          preferences: response.preferences,
+        } : current);
         setCredentialReference("");
         setCredentialMode("platform");
       } catch (cause) {
@@ -320,11 +343,13 @@ function KasiAiModels({ installationId }: { installationId: string }) {
     setSaving(true);
     setCredentialError(null);
     try {
+      const catalog = await getAgentProviderModelCatalog({ provider: selectedProvider, credentialReference: reference });
       const response = await updateKasiAiPreferences(installationId, { defaultCredentialReference: reference });
-      setHome((current) => current ? { ...current, preferences: response.preferences } : current);
+      setHome((current) => current ? { ...replaceProviderModels(current, selectedProvider, catalog.models), preferences: response.preferences } : current);
       setCredentialReference(reference);
       setCredentialMode("user");
       setCredentialSaved(true);
+      setCredentialError(catalog.error ?? null);
       setApiKeyDialogOpen(false);
     } catch (cause) {
       setCredentialError(cause instanceof Error ? cause.message : "Unable to select this API key");
@@ -341,20 +366,23 @@ function KasiAiModels({ installationId }: { installationId: string }) {
     try {
       await verifyAgentProviderCredential({ provider: credentialProvider, apiKey: credentialKey.trim() });
       const created = await createAgentProviderCredential({ provider: credentialProvider, apiKey: credentialKey.trim() });
+      const catalog = await getAgentProviderModelCatalog({ provider: credentialProvider, credentialReference: created.id });
       const response = credentialProvider === selectedProvider
         ? await updateKasiAiPreferences(installationId, { defaultCredentialReference: created.id })
         : null;
       const metadata: AgentProviderCredential = { ...created, funding_source: "user", status: "active", created_at: new Date().toISOString() };
       setProviderCredentials((current) => [metadata, ...current.filter((credential) => credential.id !== created.id)]);
       if (response) {
-        setHome((current) => current ? { ...current, preferences: response.preferences } : current);
+        setHome((current) => current ? { ...replaceProviderModels(current, credentialProvider, catalog.models), preferences: response.preferences } : current);
         setCredentialReference(created.id);
       } else {
+        setHome((current) => current ? replaceProviderModels(current, credentialProvider, catalog.models) : current);
         setCredentialReference("");
       }
       setCredentialMode("user");
       setCredentialKey("");
       setCredentialSaved(true);
+      setCredentialError(catalog.error ?? null);
       setApiKeyDialogOpen(false);
     } catch (cause) {
       setCredentialError(cause instanceof Error ? cause.message : "Unable to save this API key");
@@ -373,7 +401,7 @@ function KasiAiModels({ installationId }: { installationId: string }) {
       </div>
       <p className="mt-2 text-xs text-muted-foreground">Used for new chats and connected channels.</p>
       {loading ? <p className="mt-2 text-xs text-muted-foreground">Loading available models…</p> : null}
-      {home?.modelCatalog?.error ? <p className="mt-2 text-xs text-status-attention">Showing fallback models while the live catalog is unavailable.</p> : null}
+      {home?.modelCatalog?.error ? <p className="mt-2 text-xs text-status-attention">Some provider catalogs are unavailable; preset models are shown for those providers.</p> : null}
       {error ? <p className="mt-2 text-xs text-destructive" role="alert">{error}</p> : null}
     </div>
     <div className="rounded-xl border border-border bg-secondary/20 p-4">
@@ -483,7 +511,7 @@ function sanitizeAgentSlug(value: string): string {
   return value.toLowerCase().replace(/[^a-z0-9-]/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "").slice(0, 80);
 }
 
-type DetailSection = "overview" | "analytics" | "activity" | "conversations" | "operations" | "knowledge" | "behavior" | "models" | "tools" | "integrations" | "appearance" | "deployment" | "connection" | "settings" | "advanced";
+type DetailSection = "overview" | "analytics" | "activity" | "conversations" | "operations" | "knowledge" | "behavior" | "models" | "tools" | "integrations" | "website" | "appearance" | "deployment" | "connection" | "settings" | "advanced";
 
 // Initial browser integration. Keep later feature controls unavailable until
 // their scoped endpoints are connected and their product journey is verified.
@@ -492,8 +520,6 @@ const pendingDetailSections: Partial<Record<DetailSection, string>> = {
   conversations: "Customer conversation management will be connected with the shared inbox.",
   behavior: "Use Studio settings to edit instructions. The full workflow editor is not connected yet.",
   models: "Use Studio to choose a model. Saving your own provider credentials from this screen is not available yet.",
-  tools: "Tool grants and connection management are not available from this screen yet.",
-  integrations: "Channel and tool connections are not available from this screen yet.",
   appearance: "Website chat appearance controls are not connected yet.",
   deployment: "Live deployment and rollback controls are not available yet. You can inspect the saved agent in Studio.",
   connection: "External runtime credentials and connection health are not available from this screen yet.",
@@ -512,7 +538,7 @@ type DetailNavigationGroup = {
 };
 
 function isDetailSection(value: string | null): value is DetailSection {
-  return value === "overview" || value === "analytics" || value === "activity" || value === "conversations" || value === "operations" || value === "knowledge" || value === "behavior" || value === "models" || value === "tools" || value === "integrations" || value === "appearance" || value === "deployment" || value === "connection" || value === "settings" || value === "advanced";
+  return value === "overview" || value === "analytics" || value === "activity" || value === "conversations" || value === "operations" || value === "knowledge" || value === "behavior" || value === "models" || value === "tools" || value === "integrations" || value === "website" || value === "appearance" || value === "deployment" || value === "connection" || value === "settings" || value === "advanced";
 }
 
 export function AgentDetailPageClient({ agent, initialVersions }: { agent: AgentDefinition; initialVersions: AgentVersion[] }) {
@@ -590,6 +616,7 @@ export function AgentDetailPageClient({ agent, initialVersions }: { agent: Agent
   const normalizedSection: DetailSection = requestedDetailSection === "advanced" ? "settings" : requestedDetailSection;
   const activeSection: DetailSection = (
     (normalizedSection === "conversations" && !customerConversationSurface)
+    || (normalizedSection === "website" && !customerConversationSurface)
     || (normalizedSection === "tools" && !hostedAgent)
     || (["integrations", "appearance"].includes(normalizedSection) && !channelSurface)
     || (normalizedSection === "deployment" && !hostedAgent)
@@ -736,6 +763,7 @@ export function AgentDetailPageClient({ agent, initialVersions }: { agent: Agent
         {
           label: "Deployment",
           items: [
+            ...(customerConversationSurface ? [{ section: "website" as const, label: "Website chat", description: "Publish chat to a website", icon: Globe2 }] : []),
             ...(channelSurface ? [{ section: "integrations" as const, label: "Integrations", description: "Connect channels and surfaces", icon: PlugZap }] : []),
             ...(websiteChatConfigured ? [{ section: "appearance" as const, label: "Appearance", description: "Customize Website Chat", icon: Sparkles }] : []),
             { section: "deployment" as const, label: "Deploy", description: "Playground, Live, and rollback", icon: Rocket },
@@ -940,7 +968,7 @@ export function AgentDetailPageClient({ agent, initialVersions }: { agent: Agent
           <main className="min-w-0 space-y-6">
         {pendingSection ? <Card><CardContent className="space-y-4 p-6"><Badge variant="secondary">Not available yet</Badge><h2 className="text-xl font-semibold">{navigationGroups.flatMap(group => group.items).find(item => item.section === activeSection)?.label ?? "Agent feature"}</h2><p className="max-w-2xl text-sm leading-6 text-muted-foreground">{pendingSection}</p>{hostedAgent ? <Button asChild variant="outline"><Link href={`/studio?agent=${encodeURIComponent(agent.id)}`}>Open Studio</Link></Button> : null}</CardContent></Card> : <>
 
-        {activeSection === "overview" ? <Card><CardContent className="space-y-5 p-6"><div><p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-primary">Overview</p><h2 className="mt-1 text-xl font-semibold text-foreground">Manage {agentName}</h2><p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">Open Studio to edit instructions and model settings. Review recent runs under Operations; other sections show their current availability.</p></div><div className="grid gap-3 sm:grid-cols-3"><button type="button" onClick={() => selectSection(hostedAgent ? "knowledge" : "connection")} className="rounded-xl border border-border bg-secondary/20 p-4 text-left transition-colors hover:border-primary/40 hover:bg-primary/5"><BookOpen className="h-5 w-5 text-primary" /><p className="mt-3 text-sm font-semibold text-foreground">{hostedAgent ? "Knowledge · Pending" : "Connect runtime · Pending"}</p><p className="mt-1 text-xs leading-5 text-muted-foreground">{hostedAgent ? "Source management will be connected later." : "Runtime connection controls will be connected later."}</p></button><button type="button" onClick={() => hostedAgent ? router.push(`/studio?agent=${encodeURIComponent(agent.id)}`) : selectSection("settings")} className="rounded-xl border border-border bg-secondary/20 p-4 text-left transition-colors hover:border-primary/40 hover:bg-primary/5"><SlidersHorizontal className="h-5 w-5 text-primary" /><p className="mt-3 text-sm font-semibold text-foreground">{hostedAgent ? "Open Studio" : "Review identity"}</p><p className="mt-1 text-xs leading-5 text-muted-foreground">{hostedAgent ? "Edit instructions and model settings." : "Review this agent’s name and description."}</p></button><button type="button" onClick={() => selectSection(hostedAgent ? "activity" : externalAgent ? "operations" : "activity")} className="rounded-xl border border-border bg-secondary/20 p-4 text-left transition-colors hover:border-primary/40 hover:bg-primary/5"><MessageSquare className="h-5 w-5 text-primary" /><p className="mt-3 text-sm font-semibold text-foreground">{hostedAgent ? "Test chat" : externalAgent ? "View operations" : "Private chat"}</p><p className="mt-1 text-xs leading-5 text-muted-foreground">{hostedAgent ? "Try a conversation with this agent." : externalAgent ? "Review calls, outcomes, and usage." : "Test this private platform agent."}</p></button></div></CardContent></Card> : null}
+        {activeSection === "overview" ? <Card><CardContent className="space-y-5 p-6"><div><p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-primary">Overview</p><h2 className="mt-1 text-xl font-semibold text-foreground">Manage {agentName}</h2><p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">Open Studio to edit instructions and model settings. Review recent runs under Operations; other sections show their current availability.</p></div><div className="grid gap-3 sm:grid-cols-3"><button type="button" onClick={() => selectSection(hostedAgent ? "knowledge" : "connection")} className="rounded-xl border border-border bg-secondary/20 p-4 text-left transition-colors hover:border-primary/40 hover:bg-primary/5"><BookOpen className="h-5 w-5 text-primary" /><p className="mt-3 text-sm font-semibold text-foreground">{hostedAgent ? "Knowledge" : "Connect runtime · Pending"}</p><p className="mt-1 text-xs leading-5 text-muted-foreground">{hostedAgent ? "Add files, text and FAQs for this agent." : "Runtime connection controls will be connected later."}</p></button><button type="button" onClick={() => hostedAgent ? router.push(`/studio?agent=${encodeURIComponent(agent.id)}`) : selectSection("settings")} className="rounded-xl border border-border bg-secondary/20 p-4 text-left transition-colors hover:border-primary/40 hover:bg-primary/5"><SlidersHorizontal className="h-5 w-5 text-primary" /><p className="mt-3 text-sm font-semibold text-foreground">{hostedAgent ? "Open Studio" : "Review identity"}</p><p className="mt-1 text-xs leading-5 text-muted-foreground">{hostedAgent ? "Edit instructions and model settings." : "Review this agent’s name and description."}</p></button><button type="button" onClick={() => selectSection(hostedAgent ? "activity" : externalAgent ? "operations" : "activity")} className="rounded-xl border border-border bg-secondary/20 p-4 text-left transition-colors hover:border-primary/40 hover:bg-primary/5"><MessageSquare className="h-5 w-5 text-primary" /><p className="mt-3 text-sm font-semibold text-foreground">{hostedAgent ? "Test chat" : externalAgent ? "View operations" : "Private chat"}</p><p className="mt-1 text-xs leading-5 text-muted-foreground">{hostedAgent ? "Try a conversation with this agent." : externalAgent ? "Review calls, outcomes, and usage." : "Test this private platform agent."}</p></button></div></CardContent></Card> : null}
 
         {activeSection === "settings" && !protectedAgent ? <Card><CardContent className="space-y-4 p-6"><div><p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-primary">Settings</p><h2 className="mt-1 text-xl font-semibold text-foreground">Agent identity</h2><p className="mt-2 text-sm text-muted-foreground">Change the name, description, or public slug for this agent.</p></div><div className="grid gap-4 sm:grid-cols-2"><label className="text-sm font-medium text-foreground">Name<Input value={agentName} onChange={(event) => { const next = event.target.value; setAgentName(next); if (!slugEdited) setAgentSlug(slugifyAgentName(next)); }} maxLength={160} className="mt-2" /></label><label className="text-sm font-medium text-foreground">Slug<Input value={agentSlug} onChange={(event) => { setSlugEdited(true); setAgentSlug(sanitizeAgentSlug(event.target.value)); }} maxLength={80} className="mt-2" /><span className="mt-1 block text-xs text-muted-foreground">Updates automatically from the name until you edit it.</span></label></div><label className="text-sm font-medium text-foreground">Description<Textarea value={agentDescription} onChange={(event) => setAgentDescription(event.target.value)} rows={4} maxLength={2000} className="mt-2 resize-y" /></label><div className="flex items-center justify-between gap-3"><button type="button" className="text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline" onClick={() => { setSlugEdited(false); setAgentSlug(slugifyAgentName(agentName)); }}>Reset slug from name</button><Button type="button" onClick={() => void saveIdentity()} disabled={savingIdentity || !agentName.trim() || !agentSlug.trim()}>{savingIdentity ? "Saving…" : "Save details"}</Button></div></CardContent></Card> : null}
 
@@ -964,12 +992,15 @@ export function AgentDetailPageClient({ agent, initialVersions }: { agent: Agent
 
         {activeSection === "tools" && hostedAgent && agent.installation_id ? <section className="space-y-3" aria-labelledby="agent-tools-title">
           <div><h2 id="agent-tools-title" className="text-lg font-semibold text-foreground">Tools</h2><p className="text-sm text-muted-foreground">{protectedAgent ? "Platform-approved capabilities." : "Capabilities, resource grants, and connectors."}</p></div>
+          {!protectedAgent ? <AgentToolIntegrations installationId={agent.installation_id} /> : null}
+          {!protectedAgent ? <AgentRemoteMcp installationId={agent.installation_id} /> : null}
           <InstallationCapabilities installationId={agent.installation_id} protectedAgent={protectedAgent} />
           {!protectedAgent ? <InstallationAccessScope installationId={agent.installation_id} /> : null}
         </section> : null}
 
         {activeSection === "settings" && agent.installation_id ? <section className="space-y-3" aria-labelledby="additional-settings-title">
           <div><h2 id="additional-settings-title" className="text-lg font-semibold text-foreground">Additional settings</h2><p className="text-sm text-muted-foreground">Access, schedules, and activation controls.</p></div>
+          {kasitekHostedAgent && !protectedAgent ? <HostedAgentApiKeys installationId={agent.installation_id} /> : null}
           {kasitekHostedAgent ? <details className="group rounded-xl border border-border bg-card">
             <summary className="cursor-pointer list-none p-5 [&::-webkit-details-marker]:hidden"><div className="flex items-center justify-between gap-3"><div><h3 className="font-semibold text-foreground">Schedules</h3><p className="mt-1 text-sm text-muted-foreground">Scheduled triggers are not connected yet.</p></div><span className="text-xs font-medium text-primary group-open:hidden">Open</span><span className="hidden text-xs font-medium text-primary group-open:inline">Close</span></div></summary>
             <div className="border-t border-border p-5"><p className="text-sm text-muted-foreground">Scheduled triggers are not connected yet.</p></div>
@@ -985,6 +1016,8 @@ export function AgentDetailPageClient({ agent, initialVersions }: { agent: Agent
         {activeSection === "conversations" && customerConversationSurface && agent.installation_id ? <AgentConversationHistory agentId={agent.id} installationId={agent.installation_id} /> : null}
 
         {activeSection === "integrations" && agent.installation_id ? channelSurface ? <InstallationIntegrations agentId={agent.id} installationId={agent.installation_id} personal={executionMode === "system_hosted"} agentName={agent.name} onWebsiteDeploymentStateChange={setWebsiteChatConfigured} /> : <AgentToolIntegrations installationId={agent.installation_id} /> : null}
+
+        {activeSection === "website" && customerConversationSurface && agent.installation_id ? <WebsiteChatDeployments agentId={agent.id} installationId={agent.installation_id} agentName={agent.name} onClose={() => selectSection("overview")} /> : null}
 
         {activeSection === "deployment" && hostedAgent ? <AgentDeploymentLifecycle agent={agent} versions={versions} onVersionsChange={setVersions} /> : null}
 
@@ -1606,8 +1639,14 @@ function InstallationRuns({ installationId }: { installationId: string }) {
 }
 
 function knowledgeSourceReadiness(source: AgentKnowledgeSource): string {
-  if (source.status === "processing") return "Processing source content";
-  if (source.status === "failed") return "Ingestion failed";
+  if (source.status === "processing") {
+    const completed = source.provenance.crawlCompleted;
+    const total = source.provenance.crawlTotal;
+    if (typeof completed === "number" && typeof total === "number") return `Crawling · ${completed} of ${total} pages processed`;
+    if (typeof completed === "number") return `Crawling · ${completed} pages processed`;
+    return "Processing source content";
+  }
+  if (source.status === "failed") return typeof source.provenance.error === "string" ? source.provenance.error : "Ingestion failed";
   if (source.revision === 0) return "No content indexed yet";
 
   const value = source.provenance.indexing;
@@ -1615,6 +1654,8 @@ function knowledgeSourceReadiness(source: AgentKnowledgeSource): string {
     ? value as Record<string, unknown>
     : undefined;
   const chunkCount = typeof indexing?.chunkCount === "number" ? indexing.chunkCount : undefined;
+  if (!indexing) return "No indexing result recorded";
+  if (chunkCount === 0) return "No content indexed yet";
   const sectionLabel = chunkCount === undefined ? "" : ` · ${chunkCount} sections`;
 
   if (indexing?.status === "ready") return `Search ready · semantic and keyword${sectionLabel}`;
@@ -1627,6 +1668,7 @@ function InstallationKnowledge({ agentId, installationId }: { agentId: string; i
   const [memories, setMemories] = useState<AgentMemory[]>([]);
   const [articleText, setArticleText] = useState("");
   const [websiteUrl, setWebsiteUrl] = useState("");
+  const [crawlerReadiness, setCrawlerReadiness] = useState<{ configured: boolean; message: string } | null>(null);
   const [knowledgeFile, setKnowledgeFile] = useState<File | null>(null);
   const [fileInputKey, setFileInputKey] = useState(0);
   const [busy, setBusy] = useState<string | null>(null);
@@ -1640,11 +1682,13 @@ function InstallationKnowledge({ agentId, installationId }: { agentId: string; i
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
-      const [sourceResponse, memoryResponse] = await Promise.all([
+      const [sourceResponse, memoryResponse, crawler] = await Promise.all([
         listAgentKnowledgeSources(agentId, installationId),
         listAgentMemory(agentId, installationId),
+        getAgentWebsiteCrawlerReadiness(),
       ]);
       setSources(sourceResponse.sources);
+      setCrawlerReadiness(crawler);
       setMemories(memoryResponse.memories);
       setError(null);
     } catch (cause) {
@@ -1661,7 +1705,7 @@ function InstallationKnowledge({ agentId, installationId }: { agentId: string; i
   useEffect(() => {
     if (!processingWebsiteId) return;
     const timer = setInterval(() => {
-      void getAgentWebsiteCrawl(processingWebsiteId).then(() => refresh()).catch(() => undefined);
+      void getAgentWebsiteCrawl(processingWebsiteId).then(() => refresh()).catch((cause) => setError(cause instanceof Error ? cause.message : 'Unable to check website crawl progress'));
     }, 4_000);
     return () => clearInterval(timer);
   }, [processingWebsiteId, refresh]);
@@ -1706,7 +1750,7 @@ function InstallationKnowledge({ agentId, installationId }: { agentId: string; i
     setBusy("article");
     setError(null);
     try {
-      const source = await createAgentKnowledgeSource({ agentId, installationId, name: "Information encyclopedia", sourceType: "manual" });
+      const source = await createAgentKnowledgeSource({ agentId, name: "Information encyclopedia", sourceType: "manual" });
       await ingestAgentKnowledgeSourceText(source.id, articleText.trim());
       setArticleText("");
       await refresh();
@@ -1721,14 +1765,45 @@ function InstallationKnowledge({ agentId, installationId }: { agentId: string; i
     if (!knowledgeFile || busy) return;
     setBusy("file");
     setError(null);
+    let createdSource: AgentKnowledgeSource | undefined;
     try {
-      const source = await createAgentKnowledgeSource({ agentId, installationId, name: "Information upload", sourceType: "upload" });
-      await ingestAgentKnowledgeSourceFile(source.id, knowledgeFile);
+      createdSource = await createAgentKnowledgeSource({ agentId, name: knowledgeFile.name, sourceType: "upload" });
+      await ingestAgentKnowledgeSourceFile(createdSource.id, knowledgeFile);
       setKnowledgeFile(null);
       setFileInputKey((current) => current + 1);
       await refresh();
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Unable to index the selected file");
+      const message = cause instanceof Error ? cause.message : "Unable to index the selected file";
+      // These responses occur before indexing. An uncertain network result may
+      // have saved content, so keep its source for inspection instead.
+      if (createdSource && cause instanceof AgentRequestError && [413, 422].includes(cause.status)) {
+        await deleteAgentKnowledgeSource(createdSource.id, agentId, installationId).catch(() => {});
+      }
+      await refresh();
+      setError(message);
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const addPage = async () => {
+    if (!websiteUrl.trim() || busy) return;
+    setBusy("page");
+    setError(null);
+    let createdSource: AgentKnowledgeSource | undefined;
+    try {
+      const url = new URL(websiteUrl.trim()).toString();
+      createdSource = await createAgentKnowledgeSource({ agentId, name: `Page: ${new URL(url).hostname}`, sourceType: "url", sourceUri: url });
+      await ingestAgentKnowledgeSourceUrl(createdSource.id, url);
+      setWebsiteUrl("");
+      await refresh();
+    } catch (cause) {
+      const message = cause instanceof Error ? cause.message : "Unable to read the page";
+      if (createdSource && cause instanceof AgentRequestError && [413, 422].includes(cause.status)) {
+        await deleteAgentKnowledgeSource(createdSource.id, agentId, installationId).catch(() => {});
+      }
+      await refresh();
+      setError(message);
     } finally {
       setBusy(null);
     }
@@ -1739,7 +1814,7 @@ function InstallationKnowledge({ agentId, installationId }: { agentId: string; i
     setBusy("website");
     setError(null);
     try {
-      await startAgentWebsiteCrawl({ agentId, installationId, name: "Website knowledge", url: websiteUrl.trim() });
+      await startAgentWebsiteCrawl({ agentId, name: "Website knowledge", url: websiteUrl.trim() });
       setWebsiteUrl("");
       await refresh();
     } catch (cause) {
@@ -1830,7 +1905,7 @@ function InstallationKnowledge({ agentId, installationId }: { agentId: string; i
         </div>
       </div>
       <div className="flex flex-col gap-3 rounded-xl border border-border bg-secondary/10 p-4 sm:flex-row sm:items-center"><div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary"><Upload className="h-5 w-5" /></div><div className="min-w-0 flex-1"><p className="text-sm font-semibold text-foreground">Upload information</p><p className="mt-1 truncate text-xs text-muted-foreground">{knowledgeFile ? knowledgeFile.name : "TXT, Markdown, CSV, PDF, DOCX, or Excel · up to 20 MB"}</p></div><label className="cursor-pointer rounded-lg border border-border bg-background px-3 py-2 text-sm font-medium text-foreground hover:border-primary/50"><span>Choose file</span><input key={fileInputKey} type="file" className="sr-only" accept=".txt,.text,.md,.markdown,.csv,.pdf,.docx,.xlsx,.xls,text/plain,text/markdown,text/csv,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" onChange={(event) => { const file = event.target.files?.[0] ?? null; if (file && file.size > 20 * 1024 * 1024) { setError("Files must be 20 MB or smaller."); setKnowledgeFile(null); return; } setError(null); setKnowledgeFile(file); }} /></label><Button type="button" size="sm" disabled={busy !== null || !knowledgeFile} onClick={() => void addFile()}>{busy === "file" ? "Indexing…" : "Add file"}</Button></div>
-      <div className="rounded-xl border border-border bg-secondary/10 p-4"><div className="flex items-start gap-3"><div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary"><Globe2 className="h-4 w-4" /></div><div><p className="text-sm font-semibold text-foreground">Website source</p><p className="mt-1 text-xs leading-5 text-muted-foreground">Crawl public pages and add their content and links to knowledge.</p></div></div><div className="mt-3 flex flex-col gap-2 sm:flex-row"><Input type="url" value={websiteUrl} onChange={(event) => setWebsiteUrl(event.target.value)} placeholder="https://example.com" className="h-10" /><Button type="button" size="sm" disabled={busy !== null || !websiteUrl.trim()} onClick={() => void addWebsite()}>{busy === "website" ? "Starting…" : "Crawl website"}</Button></div>{processingWebsite ? <p className="mt-2 text-xs text-primary">Crawling {processingWebsite.source_uri}…</p> : null}</div>
+      <div className="rounded-xl border border-border bg-secondary/10 p-4"><div className="flex items-start gap-3"><div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary"><Globe2 className="h-4 w-4" /></div><div><p className="text-sm font-semibold text-foreground">Website source</p><p className="mt-1 text-xs leading-5 text-muted-foreground">Add one public page, or crawl an entire website with a configured crawler.</p></div></div><div className="mt-3 flex flex-col gap-2 sm:flex-row"><Input type="url" value={websiteUrl} onChange={(event) => setWebsiteUrl(event.target.value)} placeholder="https://example.com" className="h-10" /><Button type="button" size="sm" variant="outline" disabled={busy !== null || !websiteUrl.trim()} onClick={() => void addPage()}>{busy === "page" ? "Reading…" : "Add page"}</Button><Button type="button" size="sm" disabled={busy !== null || !websiteUrl.trim() || !crawlerReadiness?.configured} onClick={() => void addWebsite()}>{busy === "website" ? "Starting…" : "Crawl website"}</Button></div>{!crawlerReadiness?.configured ? <p className="mt-2 text-xs text-muted-foreground">{crawlerReadiness?.message ?? "Checking website crawler availability…"}</p> : null}{processingWebsite ? <p className="mt-2 text-xs text-primary">Crawling {processingWebsite.source_uri}…</p> : null}</div>
       {loading ? <p className="text-sm text-muted-foreground">Loading knowledge and memory…</p> : <div className="grid gap-4 lg:grid-cols-2">
         <div className="space-y-2"><p className="text-sm font-semibold text-foreground">Knowledge sources</p>{sources.length ? sources.map((source) => <div key={source.id} className="flex items-start justify-between gap-3 rounded-lg border border-border p-3"><div className="min-w-0"><p className="font-medium text-foreground">{source.name}</p><p className="mt-1 truncate text-xs text-muted-foreground">{source.source_uri || source.source_type} · revision {source.revision}</p><p className="mt-1 text-xs text-muted-foreground" role="status">{knowledgeSourceReadiness(source)}</p></div><div className="flex shrink-0 gap-2">{source.status === "processing" && source.source_type === "url" ? <Button type="button" variant="outline" size="sm" disabled={busy !== null} onClick={() => void cancelWebsite(source)}>{busy === `cancel-website:${source.id}` ? "Cancelling…" : "Cancel"}</Button> : <Button type="button" variant="outline" size="sm" disabled={busy !== null} onClick={() => void openSource(source)}>{busy === `open-source:${source.id}` ? "Opening…" : source.source_type === "manual" ? "Edit" : "Open"}</Button>}<Button type="button" variant="outline" size="sm" disabled={busy !== null} onClick={() => void removeSource(source)}>{busy === `source:${source.id}` ? "Removing…" : "Remove"}</Button></div></div>) : <p className="text-sm text-muted-foreground">No knowledge sources are attached.</p>}</div>
         <div className="space-y-2"><p className="text-sm font-semibold text-foreground">Durable memories</p>{memories.length ? memories.slice(0, 20).map((memory) => <div key={memory.id} className="rounded-lg border border-border p-3"><p className="line-clamp-2 text-sm text-foreground">{memory.canonical_text}</p><div className="mt-2 flex flex-wrap items-center justify-between gap-2"><p className="text-[11px] text-muted-foreground">{memory.namespace} · {memory.memory_type} · {memory.status}{memory.expires_at ? ` · expires ${new Date(memory.expires_at).toLocaleDateString()}` : ""}</p><div className="flex flex-wrap justify-end gap-1">{memory.status === "review_pending" || memory.status === "quarantined" ? <><Button type="button" variant="outline" size="sm" disabled={busy !== null} onClick={() => void review(memory, "approve")}>{busy === `review:${memory.id}:approve` ? "…" : "Approve"}</Button><Button type="button" variant="ghost" size="sm" disabled={busy !== null} onClick={() => void review(memory, "reject")}>{busy === `review:${memory.id}:reject` ? "…" : "Reject"}</Button></> : <Button type="button" variant="ghost" size="sm" disabled={busy !== null} onClick={() => void revalidate(memory)}>{busy === `revalidate:${memory.id}` ? "…" : "Revalidate"}</Button>}<Button type="button" variant="ghost" size="sm" disabled={busy !== null} onClick={() => void removeMemory(memory)}>Delete</Button></div></div></div>) : <p className="text-sm text-muted-foreground">No memories are recorded for this installation.</p>}</div>
@@ -1908,11 +1983,9 @@ export function InstallationIntegrations({ agentId, installationId, personal, ag
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
-      const [workspace, agent] = await Promise.all([
-        listWorkspaceConnections(),
-        listKasiAiChannels(installationId),
-      ]);
-      setWorkspaceConnections(workspace.connections);
+      const agent = await listKasiAiChannels(installationId);
+      // Shared social account connections need an Agents-owned contract first.
+      setWorkspaceConnections([]);
       setAgentConnections(agent.connections);
       setBindings(agent.bindings);
       setError(null);
@@ -2099,7 +2172,11 @@ export function InstallationIntegrations({ agentId, installationId, personal, ag
       <CardContent className="space-y-4 p-6">
         <div><p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">{gatewaysOnly ? "Gateways" : "Deployment"}</p><h2 className="mt-1 text-lg font-semibold text-foreground">{gatewaysOnly ? "Communication channels" : "Integrations"}</h2><p className="mt-1 text-sm text-muted-foreground">{personal ? "Connect private channels to this agent." : gatewaysOnly ? "Connect channels where customers can reach this agent." : "Assign workspace channels to this agent. Everyone who messages an assigned business number will reach this agent."}</p></div>
         {error ? <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive" role="alert">{error}</p> : null}
-        <div className="flex flex-wrap items-center justify-between gap-3"><h3 className="text-sm font-semibold text-foreground">Connected accounts</h3><Link href="/connections" className="text-sm font-medium text-foreground underline-offset-4 hover:underline">Manage connections</Link></div>
+        {agentConnections.filter(connection => connection.channel_type === "discord" && connection.status !== "revoked").map(connection => {
+          const gateway = connection.metadata.gateway as Record<string, unknown> | undefined;
+          return <div key={connection.id} className="flex items-center justify-between gap-3 rounded-lg border border-border p-3"><div><p className="text-sm font-medium">Discord</p><p className="mt-1 text-xs text-muted-foreground">{connection.status} · gateway {typeof gateway?.status === "string" ? gateway.status.replaceAll("_", " ") : "unknown"}</p></div><Button type="button" variant="outline" size="sm" onClick={() => setDiscordSetupOpen(true)}>Manage Discord</Button></div>;
+        })}
+        <div className="flex flex-wrap items-center justify-between gap-3"><h3 className="text-sm font-semibold text-foreground">Connected accounts</h3><Button type="button" variant="outline" size="sm" disabled={loading} onClick={() => void refresh()}>Refresh connections</Button></div>
         {loading ? <p className="text-sm text-muted-foreground">Loading…</p> : linkedGroups.length ? <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">{linkedGroups.map((group) => {
           const Icon = integrationIcon(group.provider);
           const connectedCount = group.connections.filter((connection) => connection.status === "CONNECTED").length;
@@ -2112,11 +2189,11 @@ export function InstallationIntegrations({ agentId, installationId, personal, ag
             const available = connection.status === "CONNECTED";
             return <div key={connection.id} className="flex flex-wrap items-center justify-between gap-3 px-3 py-2.5"><div className="min-w-0"><p className="truncate text-sm text-foreground">{connection.displayName}</p>{connection.handle ? <p className="truncate text-xs text-muted-foreground">{connection.handle}</p> : null}<p className={`mt-0.5 text-[11px] ${available ? "text-status-success" : "text-status-warning"}`}>{available ? "Connected" : connection.status.replaceAll("_", " ").toLowerCase()}</p></div>{isWhatsApp && available ? personal ? paired ? <div className="flex items-center gap-2"><Button type="button" variant="outline" size="sm" className="h-7 shrink-0 px-2.5 text-xs" disabled={busy !== null} onClick={() => openWhatsAppSetup(connection)}>Manage</Button><Button type="button" variant="outline" size="sm" className="h-7 shrink-0 px-2.5 text-xs" disabled={busy !== null} onClick={() => void removeWhatsApp(connection, channel)}>{busy === connection.id ? "…" : "Release"}</Button></div> : <Button type="button" variant="outline" size="sm" className="h-7 shrink-0 px-2.5 text-xs" disabled={busy !== null} onClick={() => openWhatsAppSetup(connection)}>{channel ? "Configure" : "Use"}</Button> : assigned ? <div className="flex items-center gap-2"><span className="shrink-0 text-xs font-medium text-status-success">Assigned</span><Button type="button" variant="outline" size="sm" className="h-7 shrink-0 px-2.5 text-xs" disabled={busy !== null} onClick={() => void removeWhatsApp(connection, channel)}>{busy === connection.id ? "…" : "Remove"}</Button></div> : <Button type="button" variant="outline" size="sm" className="h-7 shrink-0 px-2.5 text-xs" disabled={busy !== null} onClick={() => void assignWhatsApp(connection)}>{busy === connection.id ? "…" : "Use for agent"}</Button> : isSocial ? personal ? <span className="shrink-0 text-xs text-muted-foreground">Customer agent only</span> : assigned ? <div className="flex items-center gap-2"><span className="shrink-0 text-xs font-medium text-status-success">Assigned</span><Button type="button" variant="outline" size="sm" className="h-7 shrink-0 px-2.5 text-xs" disabled={busy !== null} onClick={() => openSocialSetup(connection)}>Manage</Button><Button type="button" variant="outline" size="sm" className="h-7 shrink-0 px-2.5 text-xs" disabled={busy !== null} onClick={() => void removeSocial(connection, channel)}>{busy === connection.id ? "…" : "Remove"}</Button></div> : <Button type="button" variant="outline" size="sm" className="h-7 shrink-0 px-2.5 text-xs" disabled={busy !== null} onClick={() => openSocialSetup(connection)}>{available ? "Use" : "Check setup"}</Button> : <Link href="/connections" className="shrink-0 text-xs font-medium text-foreground underline-offset-4 hover:underline">Manage</Link>}</div>;
           })}</div></div>;
-        })}</div> : <div className="rounded-lg border border-dashed border-border p-4"><p className="text-sm text-muted-foreground">No connected accounts yet.</p><Link href="/connections" className="mt-2 inline-flex text-sm font-medium text-foreground underline-offset-4 hover:underline">Open connections</Link></div>}
+        })}</div> : <div className="rounded-lg border border-dashed border-border p-4"><p className="text-sm text-muted-foreground">No connected accounts yet.</p><p className="mt-2 text-xs text-muted-foreground">Shared social account linking is pending. Configure Discord below for the first messaging journey.</p></div>}
       </CardContent>
     </Card>
     <Card>
-      <CardContent className="space-y-4 p-6"><div><h3 className="text-sm font-semibold text-foreground">{gatewaysOnly ? "Available gateways" : "Available integrations"}</h3><p className="mt-1 text-sm text-muted-foreground">{gatewaysOnly ? "Web and messaging channels." : "More ways to deploy this agent."}</p></div>{!personal ? <div role="button" tabIndex={0} onClick={openWebsiteChat} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); openWebsiteChat(); } }} className="rounded-xl border border-border p-4 cursor-pointer transition-colors hover:border-primary/60 hover:bg-secondary/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><div className="flex items-start justify-between gap-3"><div className="rounded-lg border border-border bg-secondary p-2"><Globe2 className="h-5 w-5 text-[#06B6D4]" /></div><Badge className="border-border bg-secondary text-muted-foreground">{websiteStatus}</Badge></div><p className="mt-3 font-medium text-foreground">Website Chat</p><p className="mt-1 text-sm text-muted-foreground">Add this agent to any website.</p><span className="mt-3 inline-flex text-xs font-medium text-foreground">{websiteConfigured ? "Manage Website Chat" : "Configure Website Chat"}<span aria-hidden="true" className="ml-1">→</span></span></div> : null}<AgentToolIntegrations installationId={installationId} embedded refreshKey={agentConnections.map((connection) => `${connection.id}:${connection.status}`).join(",")} onChannelAction={openCatalogChannel} channelsOnly={gatewaysOnly} /></CardContent>
+      <CardContent className="space-y-4 p-6"><div><h3 className="text-sm font-semibold text-foreground">{gatewaysOnly ? "Available gateways" : "Available integrations"}</h3><p className="mt-1 text-sm text-muted-foreground">{gatewaysOnly ? "Web and messaging channels." : "More ways to deploy this agent."}</p></div>{!personal ? <div role="button" tabIndex={0} onClick={openWebsiteChat} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); openWebsiteChat(); } }} className="rounded-xl border border-border p-4 cursor-pointer transition-colors hover:border-primary/60 hover:bg-secondary/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><div className="flex items-start justify-between gap-3"><div className="rounded-lg border border-border bg-secondary p-2"><Globe2 className="h-5 w-5 text-[#06B6D4]" /></div><Badge className="border-border bg-secondary text-muted-foreground">{websiteStatus}</Badge></div><p className="mt-3 font-medium text-foreground">Website Chat</p><p className="mt-1 text-sm text-muted-foreground">Add this agent to any website.</p><span className="mt-3 inline-flex text-xs font-medium text-foreground">{websiteConfigured ? "Manage Website Chat" : "Configure Website Chat"}<span aria-hidden="true" className="ml-1">→</span></span></div> : null}<AgentToolIntegrations installationId={installationId} embedded refreshKey={agentConnections.map((connection) => `${connection.id}:${connection.status}`).join(",")} onChannelAction={openCatalogChannel} channelsOnly={gatewaysOnly} enabledChannelTypes={["discord"]} /></CardContent>
     </Card>
     <TelegramSetupDialog open={telegramSetupOpen} onOpenChange={setTelegramSetupOpen} installationId={installationId} personal={personal} existingConnection={telegramConnection} onConnected={() => void refresh()} onDisconnected={() => void refresh()} />
     <DiscordSetupDialog open={discordSetupOpen} onOpenChange={setDiscordSetupOpen} installationId={installationId} personal={personal} existingConnection={discordConnection} onConnected={() => void refresh()} onDisconnected={() => void refresh()} />
@@ -2259,7 +2336,7 @@ function WebsiteChatDeployments({ agentId, installationId, agentName, onClose }:
 
   const editDeployment = (deployment: AgentWebsiteDeployment) => {
     if (!deployment.id) return;
-    window.location.assign(`/agents/${encodeURIComponent(agentId)}/appearance`);
+    window.location.assign(`/app/agents/${encodeURIComponent(agentId)}/appearance`);
   };
 
   const saveAppearance = async () => {
@@ -2308,6 +2385,7 @@ function WebsiteChatDeployments({ agentId, installationId, agentName, onClose }:
         <DialogHeader><p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Deployment</p><DialogTitle>Website Chat</DialogTitle></DialogHeader>
       </div>
       <div className="min-h-0 space-y-4 overflow-y-auto p-5 sm:p-6">
+        <p className="text-sm text-muted-foreground">Website chat uses the published version selected in Playground when you add the website. Later draft edits leave that live version unchanged.</p>
         {error ? <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive" role="alert">{error}</p> : null}
         <div className="flex flex-col gap-2 sm:flex-row"><label className="sr-only" htmlFor="website-chat-origin">Website origin</label><Input id="website-chat-origin" value={origin} onChange={(event) => setOrigin(event.target.value)} placeholder="https://example.com" className="h-10 min-w-0 flex-1" /><Button type="button" disabled={!origin.trim() || creating} onClick={() => void createDeployment()}>{creating ? "Adding…" : "Add origin"}</Button></div>
         {loading ? <p className="text-sm text-muted-foreground">Loading…</p> : deployments.length ? <div className="space-y-3">{deployments.map((deployment) => {
@@ -2678,8 +2756,8 @@ function DiscordSetupDialog({ open, onOpenChange, installationId, personal, exis
         </div>
         <DialogFooter className="mt-6"><Button type="button" variant="outline" onClick={() => handleOpenChange(false)}>Cancel</Button><Button type="submit" disabled={busy || !botToken.trim()}>{busy ? "Connecting…" : "Connect Discord"}</Button></DialogFooter>
       </form> : <>
-        <DialogHeader><div className="mb-2 flex h-10 w-10 items-center justify-center rounded-xl border border-status-success/30 bg-status-success-soft"><CheckCircle2 className="h-5 w-5 text-status-success" /></div><DialogTitle>Discord connected</DialogTitle><DialogDescription>{botName} is connected to this agent.</DialogDescription></DialogHeader>
-        {personal ? pairing ? <div className="mt-5 space-y-2"><p className="text-sm font-medium text-foreground">Send this code in a Discord DM</p><code className="block overflow-x-auto rounded-lg border border-border bg-secondary p-3 text-xs text-foreground">{pairing.token}</code><p className="text-xs text-muted-foreground">Expires {new Date(pairing.expires_at).toLocaleString()}.</p></div> : <p className="mt-5 text-sm text-muted-foreground">Preparing pairing code…</p> : <div className="mt-5 rounded-lg border border-status-success/30 bg-status-success-soft/40 p-3 text-sm text-muted-foreground">Messages sent to this bot will be routed to this agent.</div>}
+        <DialogHeader><div className="mb-2 flex h-10 w-10 items-center justify-center rounded-xl border border-status-success/30 bg-status-success-soft"><CheckCircle2 className="h-5 w-5 text-status-success" /></div><DialogTitle>Discord connection saved</DialogTitle><DialogDescription>{botName} is assigned to this agent. Gateway status: {typeof (connection.metadata.gateway as Record<string, unknown> | undefined)?.status === "string" ? String((connection.metadata.gateway as Record<string, unknown>).status).replaceAll("_", " ") : "unknown"}.</DialogDescription></DialogHeader>
+        {personal ? pairing ? <div className="mt-5 space-y-2"><p className="text-sm font-medium text-foreground">Send this code in a Discord DM</p><code className="block overflow-x-auto rounded-lg border border-border bg-secondary p-3 text-xs text-foreground">{pairing.token}</code><p className="text-xs text-muted-foreground">Expires {new Date(pairing.expires_at).toLocaleString()}.</p></div> : <p className="mt-5 text-sm text-muted-foreground">Preparing pairing code…</p> : <div className="mt-5 rounded-lg border border-status-success/30 bg-status-success-soft/40 p-3 text-sm text-muted-foreground">The gateway must be connected before this bot can receive and send agent replies. Allow the test channel and send a message to verify delivery.</div>}
         {error ? <p className="mt-4 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive" role="alert">{error}</p> : null}
         <DialogFooter className="mt-6"><Button type="button" variant="outline" onClick={() => handleOpenChange(false)}>Close</Button><Button type="button" variant="destructive" disabled={busy} onClick={() => void disconnect()}>{busy ? "Disconnecting…" : "Disconnect"}</Button></DialogFooter>
       </>}

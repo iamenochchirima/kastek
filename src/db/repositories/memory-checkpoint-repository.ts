@@ -106,7 +106,7 @@ export class MemoryCheckpointRepository implements MemoryCheckpointPort {
          source_boundary, external_event_ids, evidence, evidence_digest,
          redaction, occurred_at
        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::text[], $12::jsonb, $13, $14, $15)
-       ON CONFLICT (organization_id, evidence_digest, source_boundary)
+       ON CONFLICT (organization_id, installation_id, run_id, turn_id, evidence_digest, source_boundary)
        DO NOTHING
        RETURNING id, organization_id, workspace_id, agent_definition_id, agent_version_id,
                  installation_id, conversation_id, end_user_id, run_id, turn_id,
@@ -137,8 +137,9 @@ export class MemoryCheckpointRepository implements MemoryCheckpointPort {
                 source_boundary, evidence_digest
          FROM memory_source_events
          WHERE organization_id = $1 AND evidence_digest = $2 AND source_boundary = $3
+           AND installation_id = $4 AND run_id = $5 AND turn_id = $6
          FOR UPDATE`,
-        [request.scope.organizationId, request.evidence.evidenceDigest, request.sourceBoundary],
+        [request.scope.organizationId, request.evidence.evidenceDigest, request.sourceBoundary, request.scope.installationId, request.runId, request.turnId],
       )).rows[0];
     }
     if (sourceEventRow && (

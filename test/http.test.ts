@@ -104,6 +104,33 @@ const hostedInstallationIdentity = {
 };
 
 describe("Agent Platform HTTP foundation", () => {
+  it.each([
+    { providerStatus: "scraping", data: [], expectedStatus: "scraping", expectedSourceStatus: "processing" },
+    { providerStatus: "completed", data: [], expectedStatus: "failed", expectedSourceStatus: "failed" },
+  ])("preserves website crawl progress and reports an empty $providerStatus result truthfully", async ({ providerStatus, data, expectedStatus, expectedSourceStatus }) => {
+    const source = {
+      id: "33333333-3333-4333-8333-333333333333", organization_id: "org-1",
+      agent_definition_id: "22222222-2222-4222-8222-222222222222",
+      installation_id: "11111111-1111-4111-8111-111111111111", source_type: "url",
+      status: "processing", revision: 1, provenance: { crawlId: "crawl-1" },
+    };
+    const updateSource = vi.fn(async (input) => ({ ...source, status: input.status ?? source.status, provenance: { ...source.provenance, ...input.provenance } }));
+    const addChunks = vi.fn();
+    const app = buildApp({ config, pool: fakePool,
+      agents: { getInstallation: async () => ({ id: source.installation_id, status: "active", ...hostedInstallationIdentity }) } as unknown as AgentRepository,
+      knowledge: { getSource: async () => source, updateSource, addChunks } as never,
+      websiteCrawler: { isConfigured: () => true, getCrawlStatus: async () => ({ status: providerStatus, total: 5, completed: 2, data }) } as never,
+    });
+    try {
+      const response = await app.inject({ method: "GET", url: `/v1/knowledge/websites/crawl/${source.id}`, headers: { "x-organization-id": "org-1", "x-actor-id": "user-1" } });
+      expect(response.statusCode).toBe(200);
+      expect(response.json()).toMatchObject({ status: expectedStatus, source: { status: expectedSourceStatus } });
+      expect(addChunks).not.toHaveBeenCalled();
+      if (providerStatus === "scraping") expect(response.json().source.provenance).toMatchObject({ crawlCompleted: 2, crawlTotal: 5 });
+      else expect(response.json().source.provenance.error).toBe("Firecrawl returned no readable pages");
+    } finally { await app.close(); }
+  });
+
   it("serves an authenticated organization-aware capability catalog without an installation", async () => {
     const registry = new ToolRegistry();
     registry.register({
@@ -1085,6 +1112,20 @@ describe("Agent Platform HTTP foundation", () => {
     await app.close();
   });
 
+  it("rejects an external event that does not match the saved wait", async () => {
+    const signalExternalEvent = vi.fn();
+    const app = buildApp({ config, pool: fakePool,
+      runs: { getRun: async () => ({ id: "wait-1", status: "awaiting_external_event", output: { waitingFor: "acceptance.continue" } }) } as never,
+      signalExternalEvent,
+    });
+    const response = await app.inject({ method: "POST", url: "/v1/runs/wait-1/external-event",
+      headers: { "x-organization-id": "org-1", "x-actor-id": "user-1" }, payload: { key: "wrong.event" } });
+    expect(response.statusCode).toBe(409);
+    expect(response.json().code).toBe("external_event_key_mismatch");
+    expect(signalExternalEvent).not.toHaveBeenCalled();
+    await app.close();
+  });
+
   it("requires an explicit organization and actor scope", async () => {
     const app = buildApp({ config, pool: fakePool });
     const response = await app.inject({ method: "POST", url: "/v1/agents", payload: { name: "Test" } });
@@ -1789,6 +1830,23 @@ describe("Agent Platform HTTP foundation", () => {
     await urlSourceApp.close();
   });
 
+  it("returns actionable URL ingestion failures instead of a generic server error", async () => {
+    const installationId = "11111111-1111-4111-8111-111111111111";
+    const agentId = "22222222-2222-4222-8222-222222222222";
+    const source = { id: "33333333-3333-4333-8333-333333333333", agent_definition_id: agentId, installation_id: installationId, source_type: "url", revision: 1 };
+    const addChunks = vi.fn();
+    const app = buildApp({ config, pool: fakePool,
+      agents: { getInstallation: async () => ({ id: installationId, organization_id: "org-1", agent_definition_id: agentId, status: "active", ...hostedInstallationIdentity }) } as unknown as AgentRepository,
+      knowledge: { getSource: async () => source, addChunks } as never });
+    const fetcher = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("Missing", { status: 404 }));
+    try {
+      const response = await app.inject({ method: "POST", url: `/v1/knowledge/sources/${source.id}/ingest-url`, headers: { "x-organization-id": "org-1", "x-actor-id": "user-1" }, payload: { url: "https://example.com/missing" } });
+      expect(response.statusCode).toBe(422);
+      expect(response.json()).toMatchObject({ error: "Knowledge fetch failed with HTTP 404", code: "knowledge_url_ingestion_failed" });
+      expect(addChunks).not.toHaveBeenCalled();
+    } finally { fetcher.mockRestore(); await app.close(); }
+  });
+
   it("indexes uploaded encyclopedia files through the multipart boundary", async () => {
     const installationId = "11111111-1111-4111-8111-111111111111";
     const agentId = "22222222-2222-4222-8222-222222222222";
@@ -1882,6 +1940,22 @@ describe("Agent Platform HTTP foundation", () => {
       channelDefaultConversationId: "chat-1",
       preferences: { tone: "balanced" },
     });
+    await app.close();
+  });
+
+  it("dispatches a simple REST run without Temporal", async () => {
+    const dispatchRun = vi.fn(async () => ({ durable: false }));
+    const app = buildApp({ config: { ...config, TEMPORAL_ENABLED: false }, pool: fakePool, dispatchRun,
+      runs: { createRun: async () => ({ id: "simple-run", status: "received", created: true }) } as never,
+      agents: { getInstallation: async () => ({ id: "11111111-1111-4111-8111-111111111111", organization_id: "org-1", status: "active", ...hostedInstallationIdentity }) } as never,
+    });
+    const response = await app.inject({ method: "POST", url: "/v1/runs",
+      headers: { "x-organization-id": "org-1", "x-actor-id": "user-1" },
+      payload: { installationId: "11111111-1111-4111-8111-111111111111", input: { message: "hello" } },
+    });
+    expect(response.statusCode).toBe(202);
+    expect(response.json()).toMatchObject({ runId: "simple-run", durable: false });
+    expect(dispatchRun).toHaveBeenCalledWith("simple-run");
     await app.close();
   });
 
@@ -2003,7 +2077,10 @@ describe("Agent Platform HTTP foundation", () => {
       payload: { message: "Hello", idempotencyKey: "message-key-1", createNew: true, context: { route: "/dashboard" } },
     });
     expect(resolved.statusCode).toBe(200);
-    expect(resolved.json()).toMatchObject({ conversation: { id: "conversation-1" }, messages: [] });
+    expect(resolved.json()).toMatchObject({
+      conversation: { id: "conversation-1" }, messages: [],
+      activeRuns: [{ id: "active-run", status: "awaiting_approval" }],
+    });
     expect(accepted.statusCode).toBe(202);
     expect(accepted.json()).toMatchObject({ runId: "run-1", created: true, durable: true });
     expect(started).toEqual(["run-1"]);
@@ -2645,6 +2722,37 @@ describe("Agent Platform HTTP foundation", () => {
     expect(controls.claim).toHaveBeenCalledWith({ organizationId: "org-1", handoffId: "11111111-1111-4111-8111-111111111111", actorId: "user-1" });
     expect(controls.sendHumanMessage).toHaveBeenCalledWith({ organizationId: "org-1", handoffId: "11111111-1111-4111-8111-111111111111", actorId: "user-1", text: "I can help.", idempotencyKey: "human-message-1" });
     await app.close();
+  });
+
+  it.each([false, true])("delivers Discord teammate replies using the conversation's own bot, failure=%s", async (fail) => {
+    const sendMessage = vi.fn(async () => { if (fail) throw new Error("Discord unavailable"); return { providerMessageId: "discord-message-1", status: "sent" }; });
+    const resolve = vi.fn(async () => "test-only-token");
+    const markDelivered = vi.fn(async () => undefined), markDeliveryFailed = vi.fn(async () => undefined);
+    const app = buildApp({ config, pool: fakePool,
+      conversationControls: { sendHumanMessage: async () => ({
+        handoff: { id: "11111111-1111-4111-8111-111111111111", status: "claimed" },
+        conversation: { id: "conversation-1", installation_id: "installation-1", channel_type: "discord", channel_key: "correct-bot", external_conversation_id: "discord-channel-1" },
+        message: { id: "message-1", content: { text: "Teammate reply" }, delivery_status: "queued" },
+        deliveryAttemptId: "attempt-1", deliveryAttemptStatus: "queued", created: true,
+      }) } as never,
+      channels: { claimDelivery: async () => undefined, markDelivered, markDeliveryFailed,
+        listConnections: async () => [
+          { channel_type: "discord", channel_key: "other-bot", status: "active", credential_reference: "wrong-reference" },
+          { channel_type: "discord", channel_key: "correct-bot", status: "active", credential_reference: "correct-reference" },
+        ],
+      } as never,
+      channelCredentials: { resolve } as never, discordClient: { sendMessage } as never,
+    });
+    try {
+      const response = await app.inject({ method: "POST", url: "/v1/conversations/handoffs/11111111-1111-4111-8111-111111111111/messages",
+        headers: { "x-organization-id": "org-1", "x-actor-id": "user-1", "idempotency-key": "discord-human-1" }, payload: { text: "Teammate reply" } });
+      expect(resolve).toHaveBeenCalledWith("org-1", "correct-reference", "discord");
+      expect(sendMessage).toHaveBeenCalledWith("test-only-token", "discord-channel-1", "Teammate reply");
+      expect(response.statusCode).toBe(fail ? 202 : 201);
+      expect(response.json().message.delivery_status).toBe(fail ? "failed" : "sent");
+      if (fail) { expect(markDeliveryFailed).toHaveBeenCalled(); expect(markDelivered).not.toHaveBeenCalled(); }
+      else { expect(markDelivered).toHaveBeenCalledWith(expect.objectContaining({ providerMessageId: "discord-message-1" })); expect(markDeliveryFailed).not.toHaveBeenCalled(); }
+    } finally { await app.close(); }
   });
 
   it("returns a visible failed message when provider delivery fails after persistence", async () => {

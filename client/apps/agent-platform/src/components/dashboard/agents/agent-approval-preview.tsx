@@ -15,6 +15,8 @@ export function AgentApprovalPreview({ snapshot }: ApprovalPreviewProps) {
   const resource = snapshot.resource && typeof snapshot.resource === "object" && !Array.isArray(snapshot.resource)
     ? snapshot.resource as Record<string, unknown>
     : null;
+  const request = snapshot.request && typeof snapshot.request === "object" ? snapshot.request as Record<string, unknown> : {};
+  const calendar = text(snapshot.capability).startsWith("kasitek.calendar.");
   const variants = resource?.variants && Array.isArray(resource.variants)
     ? resource.variants.filter((entry): entry is Record<string, unknown> => Boolean(entry) && typeof entry === "object" && !Array.isArray(entry))
     : [];
@@ -29,7 +31,7 @@ export function AgentApprovalPreview({ snapshot }: ApprovalPreviewProps) {
         </div>
         {resource?.status ? <span className="rounded-full border border-border bg-background px-2 py-1 text-[11px] font-medium capitalize text-muted-foreground">{text(resource.status).replaceAll("_", " ")}</span> : null}
       </div>
-      {resource?.kind === "content_post" ? (
+      {calendar ? <dl className="mt-3 grid gap-3 sm:grid-cols-2">{[["Title", request.title], ["Calendar", request.source], ["Starts", request.start], ["Ends", request.end], ["Timezone", request.timezone], ["Location", request.location]].filter(([, value]) => typeof value === "string" && value).map(([label, value]) => <div key={String(label)}><dt className="text-xs text-muted-foreground">{String(label)}</dt><dd className="mt-1 break-words text-sm text-foreground">{String(value)}</dd></div>)}</dl> : resource?.kind === "content_post" ? (
         <div className="mt-4 space-y-3">
           <div className="grid gap-3 sm:grid-cols-2">
             <div><p className="text-[11px] uppercase tracking-wide text-muted-foreground">Post</p><p className="mt-1 break-all text-sm font-medium text-foreground">{text(resource.postId, "Unknown post")}</p></div>

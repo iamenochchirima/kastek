@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { createBrowserRouter, Navigate, Link, useLoaderData, useRouteLoaderData, useRouteError, isRouteErrorResponse, type LoaderFunctionArgs } from "react-router-dom";
 import { AppShell } from "@/components/platform/app-shell";
+import { LiveInbox } from "@/components/platform/live-inbox";
 import { PersonalDeployments } from "@/components/platform/personal-deployments";
 import { Overview, PlannedFeature } from "@/components/platform/overview";
 import { Landing, SignIn } from "@/components/platform/landing";
@@ -102,7 +103,7 @@ export const router = createBrowserRouter([
       const page = await import("./screens/studio/page");
       return { loader: (args: LoaderFunctionArgs) => loadPage(page.default as unknown as PageController, args), Component: LoadedScreen };
     } },
-    { path: "inbox", element: <PlannedFeature title="Inbox" description="Live customer conversations, teammate replies and human handoff. The Agents-owned inbox will also connect to Growth." /> },
+    { path: "inbox", Component: LiveInbox },
     { path: "knowledge", lazy: async () => {
       const page = await import("./screens/knowledge/page");
       return { loader: (args: LoaderFunctionArgs) => loadPage(page.default as unknown as PageController, args), Component: LoadedScreen };

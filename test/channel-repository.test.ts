@@ -66,3 +66,23 @@ describe("ChannelRepository delivery outcomes", () => {
     expect(clientQuery).not.toHaveBeenCalledWith(expect.stringContaining("status = 'failed'"), expect.anything());
   });
 });
+
+describe("customer reply ownership at delivery", () => {
+  it.each(["claim", "publish"])("blocks %s of an agent reply after human takeover", async action => {
+    const clientQuery = vi.fn(async (sql: string) => {
+      if (["BEGIN", "COMMIT", "ROLLBACK"].includes(sql)) return { rows: [] };
+      if (sql.includes("FOR UPDATE OF c")) return { rows: [{ conversation_kind: "customer", handoff_state: "human_owned", provider: "kasitek-agent", assigned_actor_id: "teammate-1", participant_actor: null }] };
+      return { rows: [{ id: "attempt-1", message_id: "message-1" }] };
+    });
+    const repository = new ChannelRepository({ connect: async () => ({ query: clientQuery, release() {} }) } as never);
+    await expect(action === "claim" ? repository.claimDelivery("org-1", "attempt-1") : repository.markDelivered({ organizationId: "org-1", attemptId: "attempt-1" }))
+      .rejects.toMatchObject({ code: "CONVERSATION_REPLY_OWNER_CHANGED" });
+    expect(clientQuery.mock.calls.some(([sql]) => sql.startsWith("UPDATE delivery_attempts"))).toBe(false);
+  });
+  it("blocks publication of a reply from a teammate who no longer owns the conversation", async () => {
+    const clientQuery = vi.fn(async (sql: string) => ({ rows: sql.includes("FOR UPDATE OF c")
+      ? [{ conversation_kind: "customer", handoff_state: "human_owned", provider: "kasitek-human", assigned_actor_id: "new-owner", participant_actor: "old-owner" }] : [] }));
+    const repository = new ChannelRepository({ connect: async () => ({ query: clientQuery, release() {} }) } as never);
+    await expect(repository.markDelivered({ organizationId: "org-1", attemptId: "attempt-1" })).rejects.toMatchObject({ code: "CONVERSATION_REPLY_OWNER_CHANGED" });
+  });
+});

@@ -15,6 +15,12 @@ const spec = {
 };
 
 describe("AgentSpec", () => {
+  it("persists the execution strategy and rejects unknown strategies", () => {
+    const parsed = createVersionInputSchema.parse({ spec: { ...spec, runtime: { ...spec.runtime, executionStrategy: "simple" } } });
+    expect(parsed.configuration.executionStrategy).toBe("simple");
+    expect(() => createVersionInputSchema.parse({ spec: { ...spec, runtime: { executionStrategy: "unlimited" } } })).toThrow();
+    expect(() => createVersionInputSchema.parse({ instructions: "test", configuration: { executionStrategy: "unlimited" } })).toThrow();
+  });
   it("compiles a strict typed spec into the immutable version contract", () => {
     const parsed = createVersionInputSchema.parse({ spec });
 

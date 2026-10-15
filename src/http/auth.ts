@@ -19,7 +19,7 @@ export interface AuthContext {
   correlationId?: string;
   scopes: string[];
   operator?: boolean;
-  source?: "browser";
+  source?: "browser" | "installation_api";
 }
 
 // Only backend session admission can populate these contexts. Browser headers
@@ -32,6 +32,18 @@ export function admitBrowserRequest(request: object, context: AuthContext, reche
 }
 export function browserAuthContext(request: object): AuthContext | undefined { return browserContexts.get(request); }
 export async function recheckBrowserRequest(request: object): Promise<void> { await browserRechecks.get(request)?.(); }
+
+const apiContexts = new WeakMap<object, AuthContext>();
+const apiRechecks = new WeakMap<object, () => Promise<void>>();
+export function admitInstallationApiRequest(request: object, context: AuthContext, recheck: () => Promise<void>): void {
+  apiContexts.set(request, { ...context, source: "installation_api", operator: false });
+  apiRechecks.set(request, recheck);
+}
+export function installationApiAuthContext(request: object): AuthContext | undefined { return apiContexts.get(request); }
+export async function recheckAdmittedRequest(request: object): Promise<void> {
+  await recheckBrowserRequest(request);
+  await apiRechecks.get(request)?.();
+}
 
 function encode(value: string): string {
   return Buffer.from(value).toString("base64url");

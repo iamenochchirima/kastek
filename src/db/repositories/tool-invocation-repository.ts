@@ -52,6 +52,16 @@ interface PersistedToolInvocation {
 export class ToolInvocationRepository {
   public constructor(private readonly pool: Pool) {}
 
+  public async evidenceForRun(organizationId: string, runId: string): Promise<Array<{ tool_name: string; status: ToolInvocationStatus }>> {
+    const result = await query<{ tool_name: string; status: ToolInvocationStatus }>(this.pool,
+      `SELECT tool_name, status FROM tool_invocations
+       WHERE organization_id = $1 AND run_id = $2
+         AND status IN ('completed', 'failed', 'unknown')
+       ORDER BY sequence_number, id`,
+      [organizationId, runId]);
+    return result.rows;
+  }
+
   public async recordProposal(input: ToolProposalRecord): Promise<void> {
     await withTransaction(this.pool, async (client) => {
       const inserted = await client.query<{ provider_tool_call_id: string }>(

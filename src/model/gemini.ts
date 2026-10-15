@@ -1,4 +1,4 @@
-import type { ModelAdapter, ModelCredentials, ModelRequest, ModelResponse } from "./types";
+import type { ModelAdapter, ModelCredentials, ModelProvider, ModelRequest, ModelResponse } from "./types";
 import { ModelProviderError } from "./types";
 
 interface GeminiResponse {
@@ -12,8 +12,17 @@ interface GeminiResponse {
 }
 
 export class GeminiAdapter implements ModelAdapter {
-  public readonly provider = "gemini" as const;
+  public readonly provider: ModelProvider;
   public readonly capabilities = { toolCalling: true, structuredOutput: false, streaming: false, vision: true } as const;
+
+  private readonly baseUrl: string;
+  private readonly apiKeyInQuery: boolean;
+
+  public constructor(options: { provider?: ModelProvider; baseUrl?: string; apiKeyInQuery?: boolean } = {}) {
+    this.provider = options.provider ?? "gemini";
+    this.baseUrl = (options.baseUrl ?? "https://generativelanguage.googleapis.com/v1beta").replace(/\/$/, "");
+    this.apiKeyInQuery = options.apiKeyInQuery ?? true;
+  }
 
   public estimateRequestBytes(request: ModelRequest): number {
     const system = request.messages.filter((message) => message.role === "system").map((message) => message.content).join("\n\n");
@@ -73,12 +82,14 @@ export class GeminiAdapter implements ModelAdapter {
         }
         return { role: message.role === "assistant" ? "model" : "user", parts: [{ text: message.content }] };
       });
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(request.model)}:generateContent?key=${encodeURIComponent(credentials.apiKey)}`,
-      {
+    const url = new URL(`${this.baseUrl}/models/${encodeURIComponent(request.model)}:generateContent`);
+    const headers: Record<string, string> = { "content-type": "application/json" };
+    if (this.apiKeyInQuery) url.searchParams.set("key", credentials.apiKey);
+    else headers.authorization = `Bearer ${credentials.apiKey}`;
+    const response = await fetch(url.toString(), {
         method: "POST",
         signal: request.signal,
-        headers: { "content-type": "application/json" },
+        headers,
         body: JSON.stringify({
           ...(system ? { systemInstruction: { parts: [{ text: system }] } } : {}),
           contents: messages,
@@ -90,8 +101,7 @@ export class GeminiAdapter implements ModelAdapter {
             ...(request.maxTokens === undefined ? {} : { maxOutputTokens: request.maxTokens }),
           },
         }),
-      },
-    );
+      });
     const body = (await response.json()) as GeminiResponse;
     if (!response.ok) {
       throw new ModelProviderError(

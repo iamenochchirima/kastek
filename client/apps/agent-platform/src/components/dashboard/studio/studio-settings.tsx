@@ -130,6 +130,7 @@ export type StudioCapabilityDraft = {
 };
 
 export type StudioSettingsDraft = {
+  executionStrategy: "simple" | "durable";
   capabilities: StudioCapabilityDraft;
   behavior: StudioBehaviorDraft;
   memory: StudioMemoryDraft;
@@ -282,6 +283,7 @@ export function StudioSettings({
   const [capabilityDraft, setCapabilityDraft] = useState<StudioCapabilityDraft>(() => capabilityDraftFromVersion(version));
   const [behaviorDraft, setBehaviorDraft] = useState<StudioBehaviorDraft>(() => behaviorDraftFromVersion(agent, version, instructions));
   const [memoryDraft, setMemoryDraft] = useState<StudioMemoryDraft>(() => memoryDraftFromVersion(version));
+  const [executionStrategy, setExecutionStrategy] = useState<"simple" | "durable">(version?.configuration?.executionStrategy === "simple" ? "simple" : "durable");
   const [capabilitySaving, setCapabilitySaving] = useState(false);
   const [capabilitySaveError, setCapabilitySaveError] = useState<string | null>(null);
   const oauthError = searchParams.get("status") === "error" ? searchParams.get("error") : null;
@@ -303,7 +305,7 @@ export function StudioSettings({
   const saveSettings = async () => {
     setCapabilitySaveError(null);
     setInstructions(behaviorDraft.advancedInstructions);
-    const next = await onSave({ capabilities: capabilityDraft, behavior: behaviorDraft, memory: memoryDraft });
+    const next = await onSave({ capabilities: capabilityDraft, behavior: behaviorDraft, memory: memoryDraft, executionStrategy });
     if (!next) return;
     setCapabilitySaving(true);
     try {
@@ -327,6 +329,8 @@ export function StudioSettings({
       setSection={setSection}
       onSave={saveSettings}
       saving={saving || capabilitySaving}
+      executionStrategy={executionStrategy}
+      setExecutionStrategy={setExecutionStrategy}
       capabilitySaveError={capabilitySaveError}
       capabilityDraft={capabilityDraft}
       setCapabilityDraft={setCapabilityDraft}
@@ -399,6 +403,8 @@ function SettingsContent({
   setBehaviorDraft,
   memoryDraft,
   setMemoryDraft,
+  executionStrategy,
+  setExecutionStrategy,
   capabilitySaveError,
 }: {
   agent: AgentDefinition;
@@ -420,11 +426,13 @@ function SettingsContent({
   setBehaviorDraft: (value: StudioBehaviorDraft | ((current: StudioBehaviorDraft) => StudioBehaviorDraft)) => void;
   memoryDraft: StudioMemoryDraft;
   setMemoryDraft: (value: StudioMemoryDraft | ((current: StudioMemoryDraft) => StudioMemoryDraft)) => void;
+  executionStrategy: "simple" | "durable";
+  setExecutionStrategy: (value: "simple" | "durable") => void;
   capabilitySaveError: string | null;
 }) {
   const title = sections.find((item) => item.id === section)?.label ?? "Settings";
   const description = sections.find((item) => item.id === section)?.description ?? "";
-  return <div className="mx-auto max-w-4xl px-5 py-6 pb-24 sm:px-8 sm:py-8"><div className="mb-7 flex items-start justify-between gap-4"><div><p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Agent settings</p><h3 className="mt-2 text-2xl font-semibold tracking-[-0.03em] text-foreground">{title}</h3><p className="mt-1 text-sm text-muted-foreground">{description}</p></div><span className="hidden items-center gap-1.5 rounded-full border border-border px-2.5 py-1 text-[10px] text-muted-foreground sm:inline-flex"><span className="size-1.5 rounded-full bg-amber-500" />Draft</span></div>{capabilitySaveError ? <div className="mb-4 rounded-xl border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">{capabilitySaveError}</div> : null}{section === "overview" ? <OverviewSection agent={agent} version={version} selectedModel={selectedModel} capabilityDraft={capabilityDraft} behaviorDraft={behaviorDraft} memoryDraft={memoryDraft} /> : null}{section === "behavior" ? <BehaviorSection draft={behaviorDraft} onDraftChange={setBehaviorDraft} /> : null}{section === "capabilities" ? connectionSettingsAvailable ? <CapabilitiesSection installationId={installationId} versionId={version?.id ?? null} draft={capabilityDraft} onDraftChange={setCapabilityDraft} /> : <SettingNote title="Capability setup pending" detail="Tool, skill, plugin and connection setup is not connected in this initial frontend. Existing version configuration is retained when editing behavior, memory or model settings." /> : null}{section === "memory" ? <MemorySection draft={memoryDraft} onDraftChange={setMemoryDraft} /> : null}{section === "gateways" ? connectionSettingsAvailable ? <GatewaysSection agent={agent} installationId={installationId} /> : <SettingNote title="Gateway setup pending" detail="Website and social-channel setup is not connected yet. Test text conversations in the playground before configuring external delivery." /> : null}{section === "safety" ? <SafetySection /> : null}{section === "runtime" ? <RuntimeSection selectedModel={selectedModel} pickerModels={pickerModels} modelCatalog={modelCatalog} modelCatalogLoading={modelCatalogLoading} effectiveSelection={effectiveSelection} setModelSelection={setModelSelection} /> : null}<div className="mt-8 flex flex-wrap items-center justify-end gap-3 border-t border-border pt-5"><div className="flex items-center gap-2"><Button type="button" variant="outline" size="sm" onClick={() => setSection("overview")}><ArrowLeft className="mr-1.5 size-3.5" />Overview</Button><Button type="button" size="sm" onClick={onSave} disabled={saving || section === "safety" || (!connectionSettingsAvailable && (section === "capabilities" || section === "gateways"))}>{saving ? <Clock3 className="mr-1.5 size-3.5 animate-pulse" /> : <Save className="mr-1.5 size-3.5" />}{saving ? "Saving…" : "Save draft"}</Button></div></div></div>;
+  return <div className="mx-auto max-w-4xl px-5 py-6 pb-24 sm:px-8 sm:py-8"><div className="mb-7 flex items-start justify-between gap-4"><div><p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Agent settings</p><h3 className="mt-2 text-2xl font-semibold tracking-[-0.03em] text-foreground">{title}</h3><p className="mt-1 text-sm text-muted-foreground">{description}</p></div><span className="hidden items-center gap-1.5 rounded-full border border-border px-2.5 py-1 text-[10px] text-muted-foreground sm:inline-flex"><span className="size-1.5 rounded-full bg-amber-500" />Draft</span></div>{capabilitySaveError ? <div className="mb-4 rounded-xl border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">{capabilitySaveError}</div> : null}{section === "overview" ? <OverviewSection agent={agent} version={version} selectedModel={selectedModel} capabilityDraft={capabilityDraft} behaviorDraft={behaviorDraft} memoryDraft={memoryDraft} /> : null}{section === "behavior" ? <BehaviorSection draft={behaviorDraft} onDraftChange={setBehaviorDraft} /> : null}{section === "capabilities" ? connectionSettingsAvailable ? <CapabilitiesSection installationId={installationId} versionId={version?.id ?? null} draft={capabilityDraft} onDraftChange={setCapabilityDraft} /> : <SettingNote title="Capability setup pending" detail="Tool, skill, plugin and connection setup is not connected in this initial frontend. Existing version configuration is retained when editing behavior, memory or model settings." /> : null}{section === "memory" ? <MemorySection draft={memoryDraft} onDraftChange={setMemoryDraft} /> : null}{section === "gateways" ? connectionSettingsAvailable ? <GatewaysSection agent={agent} installationId={installationId} /> : <SettingNote title="Gateway setup pending" detail="Website and social-channel setup is not connected yet. Test text conversations in the playground before configuring external delivery." /> : null}{section === "safety" ? <SafetySection /> : null}{section === "runtime" ? <div><section className="mb-4 rounded-xl border border-border p-4"><label htmlFor="execution-strategy" className="text-sm font-medium">Execution</label><select id="execution-strategy" value={executionStrategy} onChange={event => setExecutionStrategy(event.target.value as "simple" | "durable")} className="mt-2 block h-10 w-full rounded-md border border-border bg-background px-3 text-sm"><option value="simple">Simple</option><option value="durable">Durable</option></select><p className="mt-2 text-xs text-muted-foreground">Simple runs finish within a bounded request. Choose durable for approvals, workflow waits and automatic recovery. Save the version and use it in Playground to apply this setting.</p></section><RuntimeSection selectedModel={selectedModel} pickerModels={pickerModels} modelCatalog={modelCatalog} modelCatalogLoading={modelCatalogLoading} effectiveSelection={effectiveSelection} setModelSelection={setModelSelection} /></div> : null}<div className="mt-8 flex flex-wrap items-center justify-end gap-3 border-t border-border pt-5"><div className="flex items-center gap-2"><Button type="button" variant="outline" size="sm" onClick={() => setSection("overview")}><ArrowLeft className="mr-1.5 size-3.5" />Overview</Button><Button type="button" size="sm" onClick={onSave} disabled={saving || section === "safety" || (!connectionSettingsAvailable && (section === "capabilities" || section === "gateways"))}>{saving ? <Clock3 className="mr-1.5 size-3.5 animate-pulse" /> : <Save className="mr-1.5 size-3.5" />}{saving ? "Saving…" : "Save draft"}</Button></div></div></div>;
 }
 
 function OverviewSection({ agent, version, selectedModel, capabilityDraft, behaviorDraft, memoryDraft }: { agent: AgentDefinition; version: AgentVersion | null; selectedModel?: AgentModel; capabilityDraft: StudioCapabilityDraft; behaviorDraft: StudioBehaviorDraft; memoryDraft: StudioMemoryDraft }) {

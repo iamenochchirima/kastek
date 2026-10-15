@@ -31,6 +31,14 @@ function tool(name: string, catalog?: ToolDefinition["catalog"]): Omit<ToolDefin
 }
 
 describe("effective capability discovery", () => {
+  it("budgets explicitly configured tools first without admitting ungranted priorities", () => {
+    const snapshot = createEffectiveCapabilitySnapshot({ scope,
+      tools: [tool("a.default"), tool("z.configured"), tool("z.denied")],
+      grantedTools: new Set(["a.default", "z.configured"]), preferredToolNames: ["z.configured", "z.denied"] });
+    expect(snapshot.model.callableTools.map(tool => tool.name)).toEqual(["z.configured", "a.default"]);
+    expect(snapshot.execution.unavailableTools.map(tool => tool.name)).toContain("z.denied");
+  });
+
   it("projects grants, readiness reasons, and progressive skills from one immutable snapshot", () => {
     const snapshot = createEffectiveCapabilitySnapshot({
       scope,

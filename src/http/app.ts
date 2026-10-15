@@ -52,9 +52,15 @@ import { KillSwitchRepository } from "../db/repositories/kill-switch-repository"
 import { OperatorControlRepository } from "../db/repositories/operator-control-repository";
 import { RetentionRepository } from "../db/repositories/retention-repository";
 import { parseCanonicalMessageContent } from "../channels/messages";
-import { authenticateRequest, browserAuthContext, recheckBrowserRequest, type AuthContext } from "./auth";
+import { authenticateRequest, browserAuthContext, installationApiAuthContext, recheckAdmittedRequest, type AuthContext } from "./auth";
 import { registerPlatformLogin } from "./platform-login";
 import { registerBrowserAgentRoutes } from "./browser-agent-routes";
+import { registerHostedAgentApiRoutes } from "./hosted-agent-api-routes";
+import { HostedAgentApiKeyRepository } from "../db/repositories/hosted-agent-api-key-repository";
+import { WebsiteDeploymentRepository } from "../db/repositories/website-deployment-repository";
+import { registerWebsiteDeploymentRoutes } from "./website-deployment-routes";
+import { registerWebsiteWidgetRoutes } from "./website-widget-routes";
+import { WebsiteVisitorRepository } from "../db/repositories/website-visitor-repository";
 import type { ApprovalGroupSignal, CancellationSignal, ExternalEventSignal } from "../temporal/contracts";
 import { advanceSseCursor, formatSseComment, formatSseEvent, toPublicEvent } from "./sse";
 import { KASIAI_SLUG } from "../system/kasiai";
@@ -62,7 +68,7 @@ import { PlatformChatRepository, type AcceptedExternalMessage, type HandoffAckno
 import { HANDOFF_ACKNOWLEDGEMENT_TEXT, HANDOFF_ACTIVE_TEXT } from "../handoff/messages";
 import { listAgentTemplates, parseTemplateSettings } from "../system/templates";
 import { KasiAiPreferenceRepository } from "../db/repositories/kasiai-preference-repository";
-import { availableKasiAiModels, getKasiAiModelCatalog, isAllowedKasiAiModel } from "../system/kasiai-models";
+import { availableKasiAiModels, getKasiAiModelCatalog, getProviderKasiAiModelCatalog, isAllowedKasiAiModel } from "../system/kasiai-models";
 import { verifyProviderCredential, type CredentialVerificationResult, type CredentialVerificationInput } from "../model/credential-verification";
 import { MODEL_PROVIDERS } from "../model/types";
 import { modelProviderEnvironmentKey } from "../model/providers";
@@ -208,6 +214,7 @@ export interface AppDependencies {
   /** Provider preflight used before a model credential is persisted. */
   verifyCredential?: (input: CredentialVerificationInput) => Promise<CredentialVerificationResult>;
   installationCredentials?: InstallationCredentialRepository;
+  hostedApiKeys?: HostedAgentApiKeyRepository;
   developerApiKeyResolver?: DeveloperApiKeyResolver;
   installationGrants?: InstallationGrantRepository;
   toolRegistry?: ToolRegistry;
@@ -249,6 +256,8 @@ export interface AppDependencies {
   remoteMcpProviders?: RemoteMcpProviderRepository;
   draftEvaluator?: DraftEvaluationRunner;
   startWorkflow?: (runId: string) => Promise<void>;
+  dispatchRun?: (runId: string) => Promise<{ durable: boolean }>;
+  cancelSimpleRun?: (runId: string) => boolean;
   signalApprovalGroup?: (runId: string, signal: ApprovalGroupSignal) => Promise<void>;
   signalCancellation?: (runId: string, signal: CancellationSignal) => Promise<void>;
   signalExternalEvent?: (runId: string, signal: ExternalEventSignal) => Promise<void>;
@@ -268,7 +277,7 @@ function secretHeaderMatches(expected: string | undefined, provided: string | un
 }
 
 function requireAuth(request: FastifyRequest, config: AppConfig): AuthContext {
-  const auth = browserAuthContext(request) ?? authenticateRequest(
+  const auth = browserAuthContext(request) ?? installationApiAuthContext(request) ?? authenticateRequest(
     {
       authorization: headerValue(request, "authorization"),
       organizationId: headerValue(request, "x-organization-id"),
@@ -283,7 +292,7 @@ function requireAuth(request: FastifyRequest, config: AppConfig): AuthContext {
 }
 
 function requireScope(auth: AuthContext, config: AppConfig, scope: string): void {
-  if (config.AUTH_MODE === "headers" && auth.source !== "browser") return;
+  if (config.AUTH_MODE === "headers" && !auth.source) return;
   if (!auth.scopes.includes(scope)) {
     throw Object.assign(new Error(`Missing internal scope: ${scope}`), { statusCode: 403 });
   }
@@ -677,11 +686,58 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
   const credentials = dependencies.credentials ?? new CredentialVaultRepository(dependencies.pool, dependencies.config.AGENTS_CREDENTIAL_ENCRYPTION_KEY);
   const verifyCredential = dependencies.verifyCredential ?? ((input: CredentialVerificationInput) => verifyProviderCredential(input));
   const installationCredentials = dependencies.installationCredentials ?? new InstallationCredentialRepository(dependencies.pool);
+  const hostedApiKeys = dependencies.hostedApiKeys ?? new HostedAgentApiKeyRepository(dependencies.pool);
+  registerHostedAgentApiRoutes(app, { keys: hostedApiKeys, runs, conversations });
+  registerWebsiteDeploymentRoutes(app, {
+    websites: new WebsiteDeploymentRepository(dependencies.pool),
+    publicOrigin: dependencies.config.AGENTS_PUBLIC_URL,
+    authorize: (request, writing) => {
+      const auth = requireAuth(request, dependencies.config);
+      requireScope(auth, dependencies.config, writing ? "agents:write" : "agents:read");
+      return auth;
+    },
+  });
+  async function authorizeHostedKey(request: FastifyRequest, writing: boolean) {
+    const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, writing ? "agents:write" : "agents:read");
+    const installationId = z.string().uuid().parse((request.params as { installationId: string }).installationId);
+    const installation = await agents.getInstallation(auth.organizationId, installationId);
+    if (!installation) throw Object.assign(new Error("Installation not found"), { statusCode: 404 });
+    if (installation.execution_mode !== "kasitek_hosted" || installation.agent_protected) {
+      throw Object.assign(new Error("API keys require a custom hosted installation"), { statusCode: 409 });
+    }
+    return { auth, installationId };
+  }
+  app.get("/v1/installations/:installationId/api-keys", async (request, reply) => {
+    const { auth, installationId } = await authorizeHostedKey(request, false);
+    reply.header("cache-control", "no-store");
+    return { keys: await hostedApiKeys.list(auth.organizationId, installationId) };
+  });
+  app.post("/v1/installations/:installationId/api-keys", async (request, reply) => {
+    const { auth, installationId } = await authorizeHostedKey(request, true);
+    const input = z.object({ label: z.string().trim().min(1).max(160), expiresAt: z.string().datetime({ offset: true }).optional() }).strict().parse(request.body);
+    const expiresAt = input.expiresAt ?? new Date(Date.now() + 90 * 86400000).toISOString();
+    const duration = Date.parse(expiresAt) - Date.now();
+    if (duration <= 0 || duration > 365 * 86400000) return reply.code(400).send({ error: "Choose an expiry within the next 365 days" });
+    reply.header("cache-control", "no-store");
+    return reply.code(201).send(await hostedApiKeys.create({ organizationId: auth.organizationId, installationId, actorId: auth.actorId, label: input.label, expiresAt }));
+  });
+  app.delete("/v1/installations/:installationId/api-keys/:keyId", async (request, reply) => {
+    const { auth, installationId } = await authorizeHostedKey(request, true);
+    const keyId = z.string().uuid().parse((request.params as { keyId: string }).keyId);
+    if (!await hostedApiKeys.revoke(auth.organizationId, installationId, keyId, auth.actorId)) return reply.code(404).send({ error: "API key not found" });
+    return reply.code(204).send();
+  });
+
   const developerApiKeyResolver = dependencies.developerApiKeyResolver ?? new KasitekCoreDeveloperApiKeyResolver(dependencies.config);
   const installationGrants = dependencies.installationGrants ?? new InstallationGrantRepository(dependencies.pool);
   const controls = dependencies.controls ?? new OperatorControlRepository(dependencies.pool);
   const platformChat = dependencies.platformChat ?? new PlatformChatRepository(dependencies.pool, {
     isHandoffEnabled: (organizationId, installationId) => controls.isFeatureEnabled(organizationId, "customer_handoff_enabled", installationId),
+  });
+  registerWebsiteWidgetRoutes(app, {
+    visitors: new WebsiteVisitorRepository(dependencies.pool), chat: platformChat, conversations,
+    dispatch: dependencies.dispatchRun ?? (dependencies.config.TEMPORAL_ENABLED ? dependencies.startWorkflow : undefined),
   });
   const uiInteractions = dependencies.uiInteractions ?? new UiInteractionRepository(dependencies.pool);
   const uiInteractionCoordinator = dependencies.uiInteractionCoordinator ?? new AgentUiInteractionCoordinator({
@@ -1165,7 +1221,13 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     if (!installation || installation.status !== "active") {
       throw Object.assign(new Error("installation_not_active"), { statusCode: 403, code: "installation_not_active" });
     }
-    const grantedTools = await toolGrants.effectiveTools(input.organizationId, installation.agent_version_id, installation.id);
+    const grantedTools = new Set(await toolGrants.effectiveTools(input.organizationId, installation.agent_version_id, installation.id));
+    // Execution admits reviewed MCP pins separately from ordinary tool grants.
+    // Revalidation must load those same current, healthy pins into this API's
+    // registry and allowlist, without trusting the proposed capability itself.
+    for (const name of await remoteMcpProviders.registerPinnedTools(input.organizationId, installation.agent_version_id, toolRegistry)) {
+      grantedTools.add(name);
+    }
     for (const approval of active.approvals) {
       const proposal = await toolInvocations.getProposal(input.organizationId, input.runId, approval.provider_tool_call_id, approval.runtime_operation_id);
       if (!proposal || proposal.toolName !== approval.capability || proposal.toolVersion !== approval.capability_version || proposal.argumentsHash !== approval.arguments_hash) {
@@ -1695,7 +1757,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       : null;
     const providerValue = kasiaiPreference?.default_model_provider
       ?? modelPolicy.provider
-      ?? (modelPolicy.primary && typeof modelPolicy.primary === "object" && !Array.isArray(modelPolicy.primary) ? (modelPolicy.primary as Record<string, unknown>).provider : configuration.provider);
+      ?? (modelPolicy.primary && typeof modelPolicy.primary === "object" && !Array.isArray(modelPolicy.primary) ? (modelPolicy.primary as Record<string, unknown>).provider : configuration.provider ?? configuration.modelProvider);
     const provider = conversation?.model_provider ?? (typeof providerValue === "string" ? providerValue : undefined);
     const credentialReference = conversation?.model_provider && conversation.model_provider !== providerValue
       ? undefined
@@ -3330,6 +3392,22 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     return getKasiAiModelCatalog(dependencies.config);
   });
 
+  app.post("/v1/models/catalog", async (request) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:read");
+    const input = z.object({
+      provider: z.enum([...MODEL_PROVIDERS]),
+      credentialReference: z.string().trim().min(1).max(240),
+    }).strict().parse(request.body);
+    const ownedCredential = (await credentials.list(auth.organizationId)).some((credential) =>
+      credential.id === input.credentialReference
+      && credential.provider === input.provider
+      && credential.status === "active");
+    if (!ownedCredential) throw Object.assign(new Error("Provider credential not found"), { statusCode: 404 });
+    const resolved = await credentials.resolve(auth.organizationId, input.provider, input.credentialReference);
+    return getProviderKasiAiModelCatalog(input.provider, resolved.apiKey);
+  });
+
   app.get<{ Params: { installationId: string } }>("/v1/external-agents/:installationId", async (request, reply) => {
     const auth = requireAuth(request, dependencies.config);
     requireScope(auth, dependencies.config, "agents:read");
@@ -3608,7 +3686,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
   app.post<{ Params: { providerId: string; versionId: string } }>("/v1/mcp/providers/:providerId/versions/:versionId/publish", async (request) => {
     const auth = requireAuth(request, dependencies.config);
     requireScope(auth, dependencies.config, "agents:write");
-    return remoteMcpProviders.publish(auth.organizationId, auth.actorId, request.params.providerId, request.params.versionId);
+    return remoteMcpProviders.publish(auth.organizationId, auth.actorId, request.params.providerId, request.params.versionId, request.body ?? {});
   });
 
   app.post<{ Params: { providerId: string } }>("/v1/mcp/providers/:providerId/revoke", async (request) => {
@@ -3633,7 +3711,8 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
   app.delete<{ Params: { agentVersionId: string; providerVersionId: string } }>("/v1/agent-versions/:agentVersionId/mcp-providers/:providerVersionId", async (request, reply) => {
     const auth = requireAuth(request, dependencies.config);
     requireScope(auth, dependencies.config, "agents:write");
-    await remoteMcpProviders.unpin(auth.organizationId, request.params.agentVersionId, request.params.providerVersionId);
+    await agents.activatePlaygroundExtension({ organizationId: auth.organizationId, actorId: auth.actorId,
+      agentVersionId: request.params.agentVersionId, extension: { kind: "mcp", providerVersionId: request.params.providerVersionId }, remove: true });
     return reply.code(204).send();
   });
 
@@ -4139,7 +4218,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     }
   });
 
-  app.get<{ Params: { installationId: string; integrationId: string } }>("/v1/installations/:installationId/integrations/:integrationId/oauth/start", async (request, reply) => {
+  app.route<{ Params: { installationId: string; integrationId: string } }>({ method: ["GET", "POST"], url: "/v1/installations/:installationId/integrations/:integrationId/oauth/start", handler: async (request, reply) => {
     const auth = requireAuth(request, dependencies.config);
     requireScope(auth, dependencies.config, "agents:write");
     const installation = await agents.getInstallation(auth.organizationId, request.params.installationId);
@@ -4161,7 +4240,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     const authorizationUrl = new URL(oauthProvider === "microsoft" ? "https://login.microsoftonline.com/common/oauth2/v2.0/authorize" : "https://accounts.google.com/o/oauth2/v2/auth");
     authorizationUrl.search = new URLSearchParams({ client_id: clientId, redirect_uri: redirectUri, response_type: "code", ...(oauthProvider === "microsoft" ? { response_mode: "query" } : { access_type: "offline", prompt: "consent", include_granted_scopes: "true" }), scope: entry.requiredScopes.join(" "), state }).toString();
     return { authorizationUrl: authorizationUrl.toString() };
-  });
+  }});
 
   app.post<{ Params: { installationId: string; catalogId: string }; Body: { agentVersionId?: string; apiKey?: string } }>("/v1/installations/:installationId/mcp/catalog/:catalogId/connect", async (request, reply) => {
     const auth = requireAuth(request, dependencies.config);
@@ -4582,7 +4661,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
         channelDefaultConversationId: activeConversations.find((conversation) => conversation.is_primary)?.id ?? null,
         preferences,
         models: modelCatalog.models,
-        modelCatalog: { source: modelCatalog.source, fetchedAt: modelCatalog.fetchedAt, error: modelCatalog.error },
+        modelCatalog: { source: modelCatalog.source, fetchedAt: modelCatalog.fetchedAt, error: modelCatalog.error, providers: modelCatalog.providers },
       };
     },
   );
@@ -4634,8 +4713,26 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       if (Boolean(input.defaultModelProvider) !== Boolean(input.defaultModel)) {
         throw Object.assign(new Error("Model provider and model must be changed together"), { statusCode: 400 });
       }
-      if (input.defaultModelProvider && input.defaultModel && !await isAllowedKasiAiModel(dependencies.config, input.defaultModelProvider, input.defaultModel)) {
-        throw Object.assign(new Error("Selected model is not available for this workspace"), { statusCode: 403 });
+      if (input.defaultModelProvider && input.defaultModel) {
+        const existingPreferences = await kasiaiPreferences.get(auth.organizationId, request.params.installationId, auth.actorId);
+        const credentialReference = input.defaultCredentialReference !== undefined
+          ? input.defaultCredentialReference
+          : existingPreferences?.default_credential_reference;
+        let allowed = false;
+        if (credentialReference) {
+          const ownedCredential = (await credentials.list(auth.organizationId)).some((credential) =>
+            credential.id === credentialReference
+            && credential.provider === input.defaultModelProvider
+            && credential.status === "active");
+          if (ownedCredential) {
+            const resolved = await credentials.resolve(auth.organizationId, input.defaultModelProvider, credentialReference);
+            const catalog = await getProviderKasiAiModelCatalog(input.defaultModelProvider, resolved.apiKey);
+            allowed = catalog.models.some((model) => model.model === input.defaultModel);
+          }
+        } else {
+          allowed = await isAllowedKasiAiModel(dependencies.config, input.defaultModelProvider, input.defaultModel);
+        }
+        if (!allowed) throw Object.assign(new Error("Selected model is not available for this provider credential"), { statusCode: 403 });
       }
       const preferences = await kasiaiPreferences.upsert(auth.organizationId, request.params.installationId, auth.actorId, {
         language: input.language,
@@ -4758,7 +4855,10 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       const messages = conversations.listMessagesPage
         ? await conversations.listMessagesPage(auth.organizationId, resolved.conversation.id)
         : { messages: await conversations.listMessages(auth.organizationId, resolved.conversation.id), hasMore: false, nextBefore: null };
-      return reply.send({ ...resolved, ...messages });
+      const activeRuns = typeof runs.listActiveConversationRuns === "function"
+        ? await runs.listActiveConversationRuns(auth.organizationId, resolved.conversation.id)
+        : [];
+      return reply.send({ ...resolved, ...messages, activeRuns });
     },
   );
 
@@ -5011,6 +5111,29 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     },
   );
 
+  for (const action of ["takeover", "reopen"] as const) {
+    app.post<{ Params: { conversationId: string } }>(`/v1/conversations/:conversationId/${action}`, async request => {
+      const auth = requireAuth(request, dependencies.config);
+      requireScope(auth, dependencies.config, "agents:write");
+      const conversationId = z.string().uuid().parse(request.params.conversationId);
+      const input = z.object({ idempotencyKey: z.string().trim().min(8).max(240) }).strict().parse(request.body);
+      return handoffs.takeOver({ organizationId: auth.organizationId, actorId: auth.actorId, conversationId,
+        idempotencyKey: input.idempotencyKey, reopen: action === "reopen" });
+    });
+  }
+  app.post<{ Params: { conversationId: string } }>("/v1/conversations/:conversationId/notes", async (request, reply) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:write");
+    const conversationId = z.string().uuid().parse(request.params.conversationId);
+    if (!await handoffs.conversationExists(auth.organizationId, conversationId)) return reply.code(404).send({ error: "conversation_not_found" });
+    const input = z.object({ text: z.string().trim().min(1).max(20_000), idempotencyKey: z.string().trim().min(8).max(240) }).strict().parse(request.body);
+    const participant = await conversations.createParticipant({ organizationId: auth.organizationId, conversationId,
+      participantType: "staff", externalId: auth.actorId });
+    return reply.code(201).send(await conversations.appendMessage({ organizationId: auth.organizationId, conversationId,
+      participantId: participant.id, direction: "system", messageType: "private_note", content: { text: input.text },
+      provider: "kasitek-note", providerMessageId: `${auth.actorId}:${conversationId}:${input.idempotencyKey}` }));
+  });
+
   app.get<{ Querystring: { installationId?: string; agentId?: string; channelType?: string; reason?: string; status?: string; assignment?: string; priority?: string; search?: string; limit?: string; cursor?: string; before?: string } }>(
     "/v1/conversations/handoffs",
     async (request) => {
@@ -5104,7 +5227,9 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       let closed = false;
       let unsubscribe: (() => void) | undefined;
       const keepAliveTimer = setInterval(() => {
-        if (!closed) response.write(formatSseComment("keep-alive"));
+        void recheckAdmittedRequest(request).then(() => {
+          if (!closed) response.write(formatSseComment("keep-alive"));
+        }).catch(() => close());
       }, 15_000);
       const close = (): void => {
         if (closed) return;
@@ -5155,7 +5280,9 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       let polling = false;
       let unsubscribe: (() => void) | undefined;
       const keepAliveTimer = setInterval(() => {
-        if (!closed) response.write(formatSseComment("keep-alive"));
+        void recheckAdmittedRequest(request).then(() => {
+          if (!closed) response.write(formatSseComment("keep-alive"));
+        }).catch(() => close());
       }, 15_000);
       const close = (): void => {
         if (closed) return;
@@ -5168,6 +5295,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
         if (closed || polling) return;
         polling = true;
         try {
+          await recheckAdmittedRequest(request);
           const events = await handoffs.listConversationEventsAfter(auth.organizationId, conversationId, cursor);
           for (const event of events) response.write(formatSseEvent(event));
           cursor = advanceSseCursor(cursor, events);
@@ -5190,7 +5318,9 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
         unsubscribe = await eventNotifications.subscribe((event) => {
           if (closed || event.organizationId !== auth.organizationId || event.subject !== `conversation:${conversationId}`) return;
           if (event.eventType === "conversation.message.changed") {
-            response.write(`event: conversation.message.changed\ndata: ${JSON.stringify(event)}\n\n`);
+            void recheckAdmittedRequest(request).then(() => {
+              if (!closed) response.write(`event: conversation.message.changed\ndata: ${JSON.stringify(event)}\n\n`);
+            }).catch(() => close());
           } else {
             void poll();
           }
@@ -5240,9 +5370,9 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     const handoffId = z.string().uuid().parse(request.params.handoffId);
     const input = z.object({ resolution: z.string().trim().max(2_000).optional() }).parse(request.body ?? {});
     const result = await conversationControls.continueWithAgent({ organizationId: auth.organizationId, handoffId, actorId: auth.actorId, resolution: input.resolution });
-    if (result.continuationRunId && result.continuationRunCreated && dependencies.config.TEMPORAL_ENABLED && dependencies.startWorkflow) {
+    if (result.continuationRunId && result.continuationRunCreated && (dependencies.dispatchRun || (dependencies.config.TEMPORAL_ENABLED && dependencies.startWorkflow))) {
       try {
-        await dependencies.startWorkflow(result.continuationRunId);
+        await (dependencies.dispatchRun ?? dependencies.startWorkflow)!(result.continuationRunId);
       } catch (error) {
         await runs.failRun(result.continuationRunId, {
           code: "WORKFLOW_START_FAILED",
@@ -5309,7 +5439,12 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       await channels.claimDelivery(auth.organizationId, deliveryAttemptId);
       claimed = true;
       const text = typeof result.message.content.text === "string" ? result.message.content.text : input.text;
-      const delivery = result.conversation.channel_type === "telegram"
+      const ownedWebsite = result.conversation.channel_type === "website"
+        ? await channels.localWebsiteDeliveryState(auth.organizationId, result.conversation.installation_id, result.conversation.id) : null;
+      if (ownedWebsite && !ownedWebsite.active) throw new Error("Website chat is paused or the visitor session expired");
+      const delivery = ownedWebsite
+        ? { providerMessageId: `website:${result.message.id}`, status: "sent" }
+        : result.conversation.channel_type === "telegram"
         ? await (async () => {
           const connection = (await channels.listConnections(auth.organizationId, result.conversation.installation_id))
             .find((candidate) => candidate.channel_type === "telegram" && candidate.status === "active");
@@ -5317,6 +5452,16 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
           const token = await channelCredentials.resolve(auth.organizationId, connection.credential_reference, "telegram");
           if (!result.conversation.external_conversation_id) throw new Error("Conversation has no external recipient");
           return telegramClient.sendMessage(token, result.conversation.external_conversation_id, text);
+        })()
+        : result.conversation.channel_type === "discord"
+        ? await (async () => {
+          const connection = (await channels.listConnections(auth.organizationId, result.conversation.installation_id))
+            .find((candidate) => candidate.channel_type === "discord" && candidate.status === "active"
+              && candidate.channel_key === result.conversation.channel_key);
+          if (!connection?.credential_reference) throw new Error("Discord channel delivery is not configured");
+          if (!result.conversation.external_conversation_id) throw new Error("Conversation has no external recipient");
+          const token = await channelCredentials.resolve(auth.organizationId, connection.credential_reference, "discord");
+          return discordClient.sendMessage(token, result.conversation.external_conversation_id, text);
         })()
         : await coreClient.deliverChannelMessage({
           organizationId: auth.organizationId,
@@ -5333,7 +5478,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
         attemptId: deliveryAttemptId,
         providerMessageId: delivery.providerMessageId,
       });
-      return reply.code(201).send({ ...result, deliveryAttemptId, message: { ...result.message, delivery_status: "sent", provider_message_id: delivery.providerMessageId ?? result.message.provider_message_id }, delivery: { status: delivery.status } });
+      return reply.code(201).send({ ...result, deliveryAttemptId, message: { ...result.message, delivery_status: "sent", provider_message_id: result.message.provider_message_id }, delivery: { status: delivery.status } });
     } catch (error) {
       if (claimed) {
         await channels.markDeliveryFailed({
@@ -5477,10 +5622,11 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
         correlationId: auth.correlationId,
         ...input,
       });
-      const workflowEnabled = dependencies.config.TEMPORAL_ENABLED && Boolean(dependencies.startWorkflow);
-      if (workflowEnabled && dependencies.startWorkflow && accepted.run?.status === "received") {
+      let workflowEnabled = dependencies.config.TEMPORAL_ENABLED && Boolean(dependencies.startWorkflow);
+      if ((dependencies.dispatchRun || workflowEnabled) && accepted.run?.status === "received") {
         try {
-          await dependencies.startWorkflow(accepted.run.id);
+          if (dependencies.dispatchRun) workflowEnabled = (await dependencies.dispatchRun(accepted.run.id)).durable;
+          else await dependencies.startWorkflow!(accepted.run.id);
         } catch (error) {
           await runs.appendEvent({
             organizationId: auth.organizationId,
@@ -6018,9 +6164,11 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     if (!installation) return reply.code(404).send({ error: "installation_not_found" });
     requireHostedInstallation(installation);
     const run = await runs.createRun(auth.organizationId, auth.actorId, input);
-    if (run.created !== false && dependencies.config.TEMPORAL_ENABLED && dependencies.startWorkflow) {
+    let durable = dependencies.config.TEMPORAL_ENABLED && Boolean(dependencies.startWorkflow);
+    if (dependencies.dispatchRun || (run.created !== false && durable)) {
       try {
-        await dependencies.startWorkflow(run.id);
+        if (dependencies.dispatchRun) durable = (await dependencies.dispatchRun(run.id)).durable;
+        else await dependencies.startWorkflow!(run.id);
       } catch (error) {
         await runs.failRun(run.id, {
           code: "WORKFLOW_START_FAILED",
@@ -6029,7 +6177,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
         throw error;
       }
     }
-    return reply.code(202).send({ runId: run.id, status: run.status, admission: run.admission, durable: Boolean(dependencies.startWorkflow) });
+    return reply.code(202).send({ runId: run.id, status: run.status, admission: run.admission, durable });
   });
 
   app.get<{ Params: { runId: string } }>("/v1/runs/:runId", async (request, reply) => {
@@ -6048,6 +6196,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     )));
     return {
       run,
+      canApprove: auth.scopes.includes("runs:approve") || (dependencies.config.AUTH_MODE === "headers" && !auth.source),
       approvalGroup: publicApprovalGroup(approvalGroup?.group ?? null, approvalGroup?.approvals ?? []),
       approvalGroups: approvalGroupHistory,
       events,
@@ -6328,6 +6477,13 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     return reply.code(201).send(credential);
   });
 
+  app.get("/v1/knowledge/websites/readiness", async (request) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:read");
+    const configured = websiteCrawler.isConfigured();
+    return { provider: "firecrawl", configured, message: configured ? "Website crawling is configured." : "Website crawling needs to be enabled by the platform administrator." };
+  });
+
   app.post("/v1/knowledge/websites/map", async (request, reply) => {
     const auth = requireAuth(request, dependencies.config);
     requireScope(auth, dependencies.config, "agents:write");
@@ -6467,13 +6623,23 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
         sourceId: source.id,
         scope: { organizationId: auth.organizationId, agentId: source.agent_definition_id, installationId: source.installation_id ?? undefined },
         status: "failed",
-        provenance: { crawlStatus: status.status },
+        provenance: { crawlStatus: status.status, error: status.status === "cancelled" ? "Website crawl cancelled" : "Website crawl failed. Check the crawler service and try again." },
+      });
+    } else if (!isComplete && !isFailed && source.status === "processing") {
+      updatedSource = await knowledge.updateSource({
+        sourceId: source.id,
+        scope: { organizationId: auth.organizationId, agentId: source.agent_definition_id, installationId: source.installation_id ?? undefined },
+        provenance: {
+          crawlStatus: status.status,
+          ...(status.total === undefined ? {} : { crawlTotal: status.total }),
+          ...(status.completed === undefined ? {} : { crawlCompleted: status.completed }),
+        },
       });
     }
     return {
       source: updatedSource,
       crawlId,
-      status: isComplete ? "completed" : status.status,
+      status: updatedSource.status === "failed" ? "failed" : status.status,
       total: status.total ?? status.data.length,
       completed: status.completed ?? (isComplete ? status.data.length : 0),
       pages: status.data.length,
@@ -6524,7 +6690,15 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     if (!source) return reply.code(404).send({ error: "knowledge_source_not_found" });
     if (!source.agent_definition_id) return reply.code(422).send({ error: "knowledge_source_agent_scope_required" });
     await requireHostedResourceScope(agents, auth.organizationId, { installationId: source.installation_id ?? undefined, agentId: source.agent_definition_id });
-    const document = await fetchBoundedKnowledgeDocument(input.url, { maxBytes: input.maxBytes, timeoutMs: input.timeoutMs });
+    let document;
+    try {
+      document = await fetchBoundedKnowledgeDocument(input.url, { maxBytes: input.maxBytes, timeoutMs: input.timeoutMs });
+    } catch (error) {
+      return reply.code(422).send({
+        error: error instanceof Error ? error.message : "Unable to fetch this knowledge URL",
+        code: "knowledge_url_ingestion_failed",
+      });
+    }
     const chunks = chunkKnowledgeText(document.text);
     if (!chunks.length) return reply.code(422).send({ error: "knowledge_document_empty" });
     const stored = await knowledge.addChunks({
@@ -6799,7 +6973,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       if (closed || polling) return;
       polling = true;
       try {
-        await recheckBrowserRequest(request);
+        await recheckAdmittedRequest(request);
         const events = await runs.listEventsAfter(auth.organizationId, run.id, cursor);
         for (const event of events) {
           response.write(formatSseEvent(event));
@@ -6921,6 +7095,9 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     if (["completed", "failed", "cancelled", "expired"].includes(run.status)) {
       return reply.code(409).send({ error: "run_terminal" });
     }
+    if (dependencies.cancelSimpleRun?.(request.params.runId)) {
+      return reply.code(202).send({ runId: request.params.runId, status: "cancellation_signalled" });
+    }
     if (!dependencies.signalCancellation) return reply.code(503).send({ error: "temporal_not_configured" });
     const input = z.object({ reason: z.string().trim().max(500).optional() }).parse(request.body ?? {});
     await dependencies.signalCancellation(request.params.runId, { reason: `${auth.actorId}: ${input.reason ?? "cancelled"}` });
@@ -6941,10 +7118,11 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       actorId: auth.actorId,
       correlationId: auth.correlationId,
     });
-    const workflowEnabled = dependencies.config.TEMPORAL_ENABLED && Boolean(dependencies.startWorkflow);
-    if (workflowEnabled && dependencies.startWorkflow && retried.run.status === "received") {
+    let workflowEnabled = dependencies.config.TEMPORAL_ENABLED && Boolean(dependencies.startWorkflow);
+    if ((dependencies.dispatchRun || workflowEnabled) && retried.run.status === "received") {
       try {
-        await dependencies.startWorkflow(retried.run.id);
+        if (dependencies.dispatchRun) workflowEnabled = (await dependencies.dispatchRun(retried.run.id)).durable;
+        else await dependencies.startWorkflow!(retried.run.id);
       } catch (error) {
         await runs.appendEvent({
           organizationId: auth.organizationId,
@@ -6977,6 +7155,9 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     if (run.status !== "awaiting_external_event" && run.status !== "awaiting_human") return reply.code(409).send({ error: "run_not_waiting_for_event", status: run.status });
     if (!dependencies.signalExternalEvent) return reply.code(503).send({ error: "temporal_not_configured" });
     const input = z.object({ key: z.string().trim().min(1).max(160), payload: z.record(z.string(), z.unknown()).default({}) }).strict().parse(request.body ?? {});
+    if (typeof run.output?.waitingFor === "string" && input.key !== run.output.waitingFor) {
+      return reply.code(409).send({ error: "The event does not match this run's current wait", code: "external_event_key_mismatch" });
+    }
     await dependencies.signalExternalEvent(request.params.runId, input);
     return reply.code(202).send({ runId: request.params.runId, status: run.status === "awaiting_human" ? "handoff_signalled" : "external_event_signalled", key: input.key });
   });
