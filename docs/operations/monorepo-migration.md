@@ -112,3 +112,20 @@ CI and source accounting. It found incomplete import checks and relocated docume
 and ignore rules; these were fixed and rechecked. No further material structural blocker was
 reported. This was an evidence review, not live product or hosted acceptance. The local decision
 trail was checked against tool output and saved artifacts rather than an inaccessible transcript.
+
+## Old repository removal
+
+The owner explicitly authorized deletion of the old Agents, Agency, Labs and Designs repositories
+on 2026-10-15. Their source snapshots were verified as ancestors of published Growth `rewrite`,
+and no source changes had appeared since those imported checkpoints.
+
+The four duplicate local checkouts were removed from the workspace and retained in the private
+`.preservation/removed-repositories-20261015` recovery area. Useful ignored environment settings
+were copied into the unified product paths without entering Git. The current chat's old Labs
+path is now a symlink to Growth, not a second repository.
+
+Remote deletion was attempted but GitHub returned HTTP 403 because the current CLI credential
+lacks `delete_repo`, despite reporting repository admin permission. None of the four remote
+repositories was deleted. Complete the user's GitHub authorization update, then retry only
+`Kasitek-Labs/kasitek-agents`, `Kasitek-Labs/kasitek-agency`, `Kasitek-Labs/kasitek-labs` and
+`Kasitek-Labs/designs`. Keep `Kasitek-Labs/kasitek-growth`. Deployment is not required.
