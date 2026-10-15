@@ -1,7 +1,9 @@
 # Monorepo migration execution record
 
 Updated 2026-10-15. Source migration is implemented on `codex/monorepo-migration` in a Growth
-worktree. This record does not establish hosted cutover or permission to delete old repositories.
+worktree. The owner explicitly deferred deployment on 2026-10-15. Completion of this source regrouping
+does not depend on deploying the products. Only Growth is known to have been deployed; its
+existing `main` branch and hosting settings remain unchanged.
 
 ## Preserved source
 
@@ -71,7 +73,7 @@ Prisma generation is required before building Growth. It exposes source-schema/g
 drift already present at the source snapshot. Verification-generated files were restored after
 builds so this migration does not silently include unrelated generated changes.
 
-## Release and cutover state
+## Source completion and deferred deployment
 
 No customer behavior, API route, schema migration ID, cookie scope, event schema, database
 ownership or production service name was intentionally changed. Existing platform VERSION remains
@@ -79,7 +81,12 @@ at the root; per-product source, secrets and deployment lifecycles remain indepe
 per-service, using the exact verified artifact and its recorded configuration revision. New customer
 analytics events and feature flags are not applicable to source relocation.
 
-See [hosting cutover](hosting-cutover.md) for provider inventory and recovery requirements.
+All 15 GitHub checks on PR 20 passed, including every product build, both documentation builds,
+shared checks, Agents checks, release identity and the Collector image/configuration smoke.
+Local Docker image smoke and the existing runtime test limits above remain recorded; they do
+not establish a need to deploy now.
+
+See [future hosting setup](hosting-cutover.md) when deployment is requested later.
 The current Vercel token was rejected with HTTP 403; the accessible Railway account did not list
 the KasiTek projects. No hosted settings were changed. Required-check protection, source
 connections, runtime credentials and provider webhook/OIDC bindings still require live inventory.
@@ -87,10 +94,11 @@ connections, runtime credentials and provider webhook/OIDC bindings still requir
 The branch is published for review in [draft PR 20](https://github.com/Kasitek-Labs/kasitek-growth/pull/20),
 targeting Growth `rewrite`. It is not merged.
 
-Do not delete or archive the old repositories now. Complete provider access, migration merge,
-required-check configuration, isolated runtime/staging acceptance, per-service cutover and final
-source reconciliation first. Keep old deployment artifacts and private recovery bundles available.
-Repository rename remains a later separately controlled step.
+Complete the migration merge into Growth `rewrite` and synchronize the original Growth checkout.
+Preserve the original dirty checkout state privately before fast-forwarding; the selected source
+changes already exist in their new product paths. Keep the old repositories and private recovery
+bundles as recovery copies. No provider access, production deployment, repository deletion or
+repository rename is needed to finish source consolidation.
 
 ## Independent evidence review
 

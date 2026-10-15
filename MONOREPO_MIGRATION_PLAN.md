@@ -1,6 +1,6 @@
 # KasiTek monorepo migration plan
 
-Status: Local source migration implemented on `codex/monorepo-migration`. Hosted cutover and repository retirement remain blocked.
+Status: Source consolidation implemented. Integrating into Growth `rewrite`. Deployment is explicitly deferred by the owner.
 Owner: Enoch Chirima. Integration and verification: the agent executing each approved slice.
 Created: 2026-10-15. Execution authorized by the owner in chat on 2026-10-15.
 Destination: `Kasitek-Labs/kasitek-growth`, renamed to `kasitek` only after migration and cutover.
@@ -14,6 +14,11 @@ Preserve current work, source history, product behavior, data ownership, and rel
 Use Growth's current `rewrite` line as the starting source for Growth, after auditing its
 relationship to `main`. Do not rebuild the destination from Growth's older `main` or restore
 previously extracted copies over the newer Agents, Agency, and Labs implementations.
+
+The owner clarified on 2026-10-15 that this request is source consolidation only. Only Growth
+is known to have been deployed. Deployment, hosting access and live rollout are not prerequisites
+for completing this regrouping. Keep Growth `main` and existing deployment settings unchanged;
+`rewrite` is the unified development line.
 
 This program changes source organisation and delivery wiring. It does not combine databases,
 authentication permissions, billing accounts, or deployment lifecycles. Building a shared payment
@@ -243,7 +248,7 @@ Gate: a clean root frozen install plus the documented exception installs can bui
 deployable. Root checks detect undeclared cross-product imports. Each product can be run alone
 with only its documented runtime dependencies.
 
-### 5. Rebuild affected checks and deployment artifacts
+### 5. Rebuild affected checks and prepare deployment artifacts
 
 1. Add CI selection for changed products and transitive consumers of shared packages. A change
    to contracts must test its consumers. Root lockfile/toolchain changes trigger the full relevant
@@ -261,7 +266,7 @@ with only its documented runtime dependencies.
    Keycloak retains its own configuration and lifecycle. Do not bundle all services into one
    release or expose unrelated product secrets in a build context.
 
-Gate: builds from a clean clone produce complete per-service artifacts. CI selection proves
+Gate for source consolidation: builds from a clean clone produce complete per-service artifacts. CI selection proves
 that unrelated changes can skip safely and shared changes reach affected consumers. Hosted
 configuration changes and deployments remain separately authorized actions.
 
@@ -283,9 +288,11 @@ configuration changes and deployments remain separately authorized actions.
 6. After source and hosted consumers have switched, mark old repos read-only or archive them only
    with explicit owner authorization. Keep local recovery copies until recovery is demonstrated.
 
-Gate: one canonical source repository, no required sibling checkout or duplicate active source,
-independent deployment verified, and every service has a usable rollback record. Do not archive
-repositories while any CI, hosting or external consumer still requires them.
+Gate for source consolidation: one canonical development repository and branch, all selected
+source and history preserved, and no required sibling checkout for builds. Growth hosting stays
+on its existing source configuration. Fresh deployment of the other products is later work, not
+a source-regrouping gate. Keep old repositories available as recovery copies until retired. Do
+not delete them as part of this source-only request.
 
 ### 7. Rename the repository later
 
@@ -363,9 +370,10 @@ The initial planning checkpoint did not change source or hosting. Implementation
 in [draft PR 20](https://github.com/Kasitek-Labs/kasitek-growth/pull/20); the execution record below
 identifies the completed local work and remaining cutover gates. No hosted settings have changed.
 
-Execution update: phases 0–4 have local source and build evidence; phase 5 has CI and packaging
-changes, with image smoke and hosted settings unverified. Phase 6 cutover and phase 7 rename
-are not complete. See [the execution record](docs/operations/monorepo-migration.md). Each
+Execution update: source imports, workspace, local builds and all 15 GitHub checks have passed.
+Integrate the preserved history into Growth `rewrite` to complete the source-only request.
+Deployment and the later repository rename are separate, deferred work. See
+[the execution record](docs/operations/monorepo-migration.md). Each
 implementation issue should include its source/destination paths, prerequisite gate, exact
 verification and recovery method. Keep issue cards assigned to `iamenochchirima` while working
 solo. Do not treat the approved plan location as approval to merge, deploy, rename or archive.

@@ -1,6 +1,8 @@
 # Monorepo hosting cutover
 
-Status: Source wiring prepared locally. Hosted cutover is blocked pending access and staging verification.
+Status: Deferred. The owner requested source consolidation only, with no deployment now.
+Only Growth is known to have been deployed. This runbook is for future fresh product deployments
+and any later update to Growth hosting; it is not a gate for source consolidation.
 
 The destination remains `Kasitek-Labs/kasitek-growth`. The migration does not rename the repository,
 merge databases, rotate secrets, change domains or deploy services. Keep existing repositories
