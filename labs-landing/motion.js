@@ -26,9 +26,10 @@
     if (previous) { previous.progress(1); previous.kill(); scenes.delete(preview); }
   }
   function scene(preview, replacing = false) {
-    if (!active || !preview) return;
+    if (!active || !preview || preview.dataset.sequence) return;
     stopScene(preview);
-    const find = selector => preview.querySelectorAll(selector);
+    const sceneRoot = preview.dataset.preview === 'agent' ? preview.firstElementChild : preview;
+    const find = selector => sceneRoot.querySelectorAll(selector);
     const tl = gsap.timeline({ defaults: { ease: 'power3.out', duration: recipe.duration } });
     scenes.set(preview, tl);
     if (preview.dataset.preview === 'agent') {
@@ -36,8 +37,10 @@
       const status = preview.querySelector('.op-status');
       status.dataset.finalStatus ||= status.textContent;
       tl.call(() => { status.textContent = 'Working…'; preview.classList.add('op-typing'); }, null, 0)
-        .from(find('.operation-window'), { y: 22, autoAlpha: 0, duration: 1 }, 0)
-        .fromTo(find('.op-progress'), { scaleX: 0 }, { scaleX: 1, duration: 7, ease: 'none' }, 0);
+        .from(find(kind === 'personal' ? '.personal-phone' : '.operation-window'), { y: 22, autoAlpha: 0, duration: 1 }, 0)
+;
+      if (find('.op-progress').length) tl.fromTo(find('.op-progress'), { scaleX: 0 }, { scaleX: 1, duration: 7, ease: 'none' }, 0);
+      if (replacing) tl.fromTo(find('.operation-photo'), { scale: 1.035 }, { scale: 1, duration: 6, ease: 'power1.out' }, 0);
       find('.op-step').forEach((step, i) => tl.from(step, { y: 6, autoAlpha: 0, duration: 0.35 }, 0.8 + i * 1.25));
       if (kind === 'support') {
         tl.from(find('.op-incoming'), { y: 12, autoAlpha: 0, duration: 0.65 }, 0.5)
@@ -55,10 +58,17 @@
           .to(find('.op-demo-cursor'), { opacity: 0, duration: 0.3 }, 4.9)
           .from(find('.op-success'), { y: 8, autoAlpha: 0, duration: 0.7 }, 5.8);
       } else {
-        tl.from(find('.op-request-bar'), { y: 8, autoAlpha: 0, duration: 0.6 }, 0.5)
-          .from(find('.op-document'), { y: 14, autoAlpha: 0, duration: 0.8 }, 2)
-          .from(find('.op-doc-section'), { y: 8, autoAlpha: 0, stagger: 0.65, duration: 0.6 }, 4)
-          .from(find('.op-document-sources'), { autoAlpha: 0, duration: 0.5 }, 5.8);
+        tl.from(find('.phone-context'), { y: 6, autoAlpha: 0, duration: 0.5 }, 0.5)
+          .from(find('.phone-user-message'), { y: 10, autoAlpha: 0, duration: 0.65 }, 1)
+          .from(find('.phone-agent-message'), { y: 10, autoAlpha: 0, duration: 0.6 }, 2.4)
+          .from(find('.phone-brief'), { y: 16, autoAlpha: 0, duration: 0.9 }, 4.6)
+          .from(find('.phone-brief-line'), { y: 5, autoAlpha: 0, stagger: 0.25, duration: 0.5 }, 5)
+          .from(find('.phone-delivered'), { autoAlpha: 0, duration: 0.5 }, 6.2)
+          .from(find('.personal-outcome'), { x: 12, autoAlpha: 0, rotation: -5, duration: 0.9 }, 5.8)
+          .from(find('.personal-check'), { y: 4, autoAlpha: 0, stagger: 0.2, duration: 0.5 }, 6);
+        const chat = sceneRoot.querySelector('.phone-chat');
+        tl.set(chat, { scrollTop: 0 }, 0)
+          .to(chat, { scrollTop: () => chat.scrollHeight - chat.clientHeight, duration: 1.5, ease: 'power2.inOut' }, 5.1);
       }
       if (kind === 'business') {
         const approval = preview.querySelector('.op-approval-action');
@@ -73,8 +83,8 @@
         const copy = node.dataset.typed;
         tl.fromTo(state, { characters: 0 }, { characters: copy.length, duration: 2.5, ease: 'none', onUpdate: () => { node.textContent = copy.slice(0, Math.floor(state.characters)); } }, kind === 'support' ? 2.7 : 2.5);
       });
-      tl.from(find('.op-run-complete'), { y: 5, autoAlpha: 0, duration: 0.5 }, 6.5)
-        .call(() => { status.textContent = status.dataset.finalStatus; preview.classList.remove('op-typing'); }, null, 7);
+      if (find('.op-run-complete').length) tl.from(find('.op-run-complete'), { y: 5, autoAlpha: 0, duration: 0.5 }, 6.5);
+      tl.call(() => { status.textContent = status.dataset.finalStatus; preview.classList.remove('op-typing'); }, null, 7);
     } else if (preview.dataset.preview === 'growth') {
       if (!replacing) tl.from(find('.growthWindow'), { y: recipe.distance * 0.6, autoAlpha: 0 }, 0);
       tl.from(find('.campaignCard, .calendarPreview > div'), { y: recipe.distance * 0.6, autoAlpha: 0, stagger: recipe.stagger, duration: 0.8 }, replacing ? 0 : 0.3);
@@ -117,7 +127,7 @@
     document.querySelectorAll('.product-panel').forEach(panel => {
       gsap.from(panel.querySelectorAll('.product-label, .feature-heading h2, .feature-heading > div'), { y: recipe.distance * 0.6, autoAlpha: 0, stagger: 0.13, duration: recipe.duration, ease: 'power3.out', scrollTrigger: { trigger: panel, start: 'top 86%', once: true } });
       const preview = panel.querySelector('[data-preview]');
-      ScrollTrigger.create({ trigger: preview.querySelector('.operation-window') || panel.querySelector('.showcase-stage'), start: 'top 78%', once: true, onEnter: () => inContext(() => scene(preview)) });
+      if (preview) ScrollTrigger.create({ trigger: preview.querySelector('.operation-window') || panel.querySelector('.showcase-stage'), start: 'top 78%', once: true, onEnter: () => inContext(() => scene(preview)) });
     });
     const service = gsap.timeline({ defaults: { duration: recipe.duration, ease: 'power3.out' }, scrollTrigger: { trigger: '.services', start: 'top 85%', once: true } });
     service.from('.servicesImage img', { scale: 1.08, duration: 1.8 }, 0)
@@ -141,7 +151,7 @@
     document.addEventListener('labs:brandchange', brand);
     const focus = event => {
       const preview = event.target.closest('[data-preview]');
-      if (preview) stopScene(preview);
+      if (preview && !event.target.closest('#agents [data-replay]')) stopScene(preview);
     };
     document.addEventListener('focusin', focus);
     return () => {
@@ -158,6 +168,6 @@
       document.removeEventListener('focusin', focus);
     };
   });
-  window.LabsMotion = { stop: stopScene, mode, enabled: () => active };
+  window.LabsMotion = { stop: stopScene, mode, enabled: () => active, setPaused: (preview, paused) => { scenes.get(preview)?.paused(paused); } };
   window.addEventListener('load', () => ScrollTrigger.refresh(), { once: true });
 })();

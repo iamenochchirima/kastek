@@ -29,3 +29,11 @@ cp -R designs/_starter designs/your-design-name
 Change its title, then add a link in `designs/index.html`. Keep alternate directions in separate folders so we can compare them in the browser.
 
 The earlier OpenPencil files remain in `../design/openpencil/` as reference. New design work belongs here.
+
+## Agents presentation
+
+The Labs landing Agents section cycles through Support, Business and Personal while visible. Each scene has its own photograph and operation. Support answers an order question and hands over to a teammate. Business creates a calendar event after approval. Personal builds a meeting brief inside a phone, scrolling the conversation as the brief arrives.
+
+The examples remain on screen for 13, 14 and 15 seconds respectively, with a crossfade between them. Pause holds the current operation and sequence. A compact next-example control and replay remain available. Automatic changes stop while keyboard focus is inside a demo, while the section is out of view, or while the browser tab is hidden. Reduced motion and `?motion=off` show static examples with manual selection.
+
+Scene assets and exact image-generation prompts are recorded in [the imagery notes](labs-landing/assets/agents/README.md).

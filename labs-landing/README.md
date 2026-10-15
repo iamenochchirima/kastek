@@ -29,3 +29,13 @@ The Agents scene is now an authored glass motion graphic in `agent-film.css`. SV
 The Agents section now has three always-visible category descriptions beside a shared demo stage. Customer support retains the glass conversation, Business shows a meeting request, approval and event receipt, and Personal shows a file-based meeting brief marked as a concept for a planned experience. Category selection is manual and supports keyboard arrows, Home and End. The stage keeps a consistent height across choices.
 
 The current Agents treatment replaces the glass maps with a photographic setting and animated product workspace in `agent-operations.css`. Customer support shows a threaded reply, sample order thumbnail, profile photos, human handoff and timed activity log. Business shows a prepared calendar event, review/approval and creation receipt. Personal shows a typed meeting brief and source files, explicitly marked as a planned concept. These are scripted illustrative demos, not connected backend runs. Image provenance and the generated photo prompt are in `assets/agents/README.md`.
+
+## Growth and Agency HTML presentations
+
+The Growth and Agency sections now reproduce the image studies with HTML/CSS interfaces and photographic assets in `assets/presentations/`. They use their own `product-presentations.css` and `product-presentations.js`; Agents keeps its existing operation controller.
+
+Growth shows a conversation, campaign editor and content calendar. The shell stays fixed while messages, fields, creative and scheduled cards enter. On small screens the campaign preview scrolls into view. Agency uses an ink canvas and layered client portals. Its sequence previews a studio identity change and brings Kaya Dental forward. The workspace buttons also select Acorn Home or Lena Studio, and the identity swatches change portal accents.
+
+Each section has pause, next and replay. Autoplay runs only while visible and stops when the tab is hidden. It retains the focused view, respects reduced motion and `?motion=off`, and leaves a readable opening state without JavaScript. These are illustrative frontend demos; the controls do not call product APIs.
+
+Verified all three views at 1440, 1024, 900, 760, 640, 390 and 320 pixels, including asset loading, client selection, accent changes, autoplay, pause/replay and mobile campaign scrolling. Exact generated-image prompts are in [the asset notes](assets/presentations/README.md).

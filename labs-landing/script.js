@@ -1,57 +1,4 @@
 // Illustrative product previews. Product navigation uses ordinary section anchors.
-document.addEventListener('click', event => {
-  const button = event.target.closest('button');
-  if (!button) return;
-  const category = button.closest('[data-agent-choice]');
-  if (category) {
-    const preview = document.getElementById('agent-demo');
-    const selected = category.dataset.agentChoice;
-    if (category.getAttribute('aria-pressed') === 'true') return;
-    window.LabsMotion?.stop(preview);
-    preview.replaceChildren(document.getElementById(`agent-${selected}`).content.cloneNode(true));
-    preview.setAttribute('aria-labelledby', category.id);
-    document.querySelectorAll('[data-agent-choice]').forEach(choice => choice.setAttribute('aria-pressed', String(choice === category)));
-    document.querySelector('[data-agent-status]').textContent = `${category.querySelector('.agent-choice-name').firstChild.textContent.trim()} example selected.`;
-    document.dispatchEvent(new CustomEvent('labs:previewchange', { detail: { preview } }));
-    return;
-  }
-  const preview = button.closest('[data-preview]');
-  if (!preview) return;
-
-  let templateId;
-  let buttonIndex;
-  if (preview.dataset.preview === 'growth') {
-    buttonIndex = [...preview.querySelectorAll('.sideItems button')].indexOf(button);
-    if (buttonIndex < 0) return;
-    templateId = buttonIndex === 0 ? 'growth-campaigns' : 'growth-calendar';
-  } else if (preview.dataset.preview === 'agency') {
-    const palette = button.closest('.palette');
-    if (!palette) return;
-    preview.querySelector('.agencyScene').style.setProperty('--portal-accent', button.style.backgroundColor);
-    for (const swatch of palette.querySelectorAll('button')) {
-      const active = swatch === button;
-      swatch.setAttribute('aria-pressed', String(active));
-      swatch.querySelector('svg')?.remove();
-      if (active) {
-        swatch.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m20 6-11 11-5-5"/></svg>';
-      }
-    }
-    document.dispatchEvent(new CustomEvent('labs:brandchange', { detail: { preview } }));
-    return;
-  }
-
-  if (!templateId) return;
-  const template = document.getElementById(templateId);
-  window.LabsMotion?.stop(preview);
-  const restoreFocus = document.activeElement === button;
-  preview.replaceChildren(template.content.cloneNode(true));
-  if (restoreFocus) {
-    const selector = '.sideItems button';
-    preview.querySelectorAll(selector)[buttonIndex].focus({ preventScroll: true });
-  }
-  document.dispatchEvent(new CustomEvent('labs:previewchange', { detail: { preview } }));
-});
-
 document.querySelectorAll('.productMenu a').forEach(link => {
   link.addEventListener('click', () => link.closest('details').removeAttribute('open'));
 });
@@ -67,13 +14,42 @@ document.addEventListener('keydown', event => {
 const copyright = document.querySelector('[data-copyright]');
 copyright.textContent = `© ${new Date().getFullYear()} KasiTek Labs`;
 
-// Arrow keys offer a shortcut between the category buttons; Tab reaches each one.
-document.querySelector('.agent-choices').addEventListener('keydown', event => {
-  const choices = [...document.querySelectorAll('[data-agent-choice]')];
-  const current = choices.indexOf(event.target.closest('[data-agent-choice]'));
-  if (current < 0 || !['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
-  event.preventDefault();
-  const next = event.key === 'Home' ? 0 : event.key === 'End' ? choices.length - 1 : (current + (['ArrowUp', 'ArrowLeft'].includes(event.key) ? -1 : 1) + choices.length) % choices.length;
-  choices[next].focus({ preventScroll: true });
-  choices[next].click();
-});
+// Manual and automatic scene changes share the same selection path.
+(() => {
+  const preview = document.getElementById('agent-demo');
+  let transition;
+  let current = 'support';
+  const names = { support: 'Customer support', business: 'Business', personal: 'Personal' };
+  const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
+  function select(selected, { automatic = false } = {}) {
+    if (!names[selected]) return;
+    if (current === selected) {
+      document.dispatchEvent(new CustomEvent('labs:agentselected', { detail: { selected, automatic } }));
+      return;
+    }
+    transition?.progress(1).kill();
+    window.LabsMotion?.stop(preview);
+    const outgoing = preview.firstElementChild.cloneNode(true);
+    outgoing.classList.add('agent-outgoing');
+    outgoing.setAttribute('aria-hidden', 'true');
+    outgoing.inert = true;
+    preview.replaceChildren(document.getElementById(`agent-${selected}`).content.cloneNode(true));
+    current = selected;
+    preview.setAttribute('aria-label', `${names[selected]} example`);
+    // Announce manual choices; repeated autoplay announcements would interrupt reading.
+    if (!automatic) document.querySelector('[data-agent-status]').textContent = `${names[selected]} example selected.`;
+    const incoming = preview.firstElementChild;
+    const phoneChat = incoming.querySelector('.phone-chat');
+    if (phoneChat && (reducedMotion.matches || document.documentElement.dataset.motion === 'off')) phoneChat.scrollTop = phoneChat.scrollHeight;
+    if (window.gsap && !reducedMotion.matches && document.documentElement.dataset.motion !== 'off') {
+      preview.append(outgoing);
+      transition = gsap.timeline({ onComplete: () => { outgoing.remove(); incoming.style.removeProperty('opacity'); incoming.style.removeProperty('visibility'); } });
+      transition.fromTo(incoming, { opacity: 0 }, { opacity: 1, duration: 0.8, ease: 'power2.inOut' }, 0)
+        .to(outgoing, { opacity: 0, duration: 0.8, ease: 'power2.inOut' }, 0);
+    }
+    document.dispatchEvent(new CustomEvent('labs:previewchange', { detail: { preview } }));
+    document.dispatchEvent(new CustomEvent('labs:agentselected', { detail: { selected, automatic } }));
+  }
+  reducedMotion.addEventListener('change', () => transition?.progress(1).kill());
+  window.LabsAgents = { select, finishTransition: () => transition?.progress(1).kill() };
+})();
