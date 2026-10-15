@@ -1,0 +1,44 @@
+name: Agent Platform UI
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/agent-platform-ui.yml"
+      - "client/apps/agent-platform/**"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/agent-platform-ui.yml"
+      - "client/apps/agent-platform/**"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify-agent-platform-ui:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.15.0
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @kasitek/agent-platform typecheck
+      - run: pnpm --filter @kasitek/agent-platform test:studio
+      - run: pnpm --filter @kasitek/agent-platform build

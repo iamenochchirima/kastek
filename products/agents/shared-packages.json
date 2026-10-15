@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "sourceCommit": "529194c37b53d54ba638117728fb60827fe57dc4",
+  "sourceContentSha256": "a99029a46668d8ce4f457545a32d629fa6bae05a32bc256c22aaaadfd698926e",
+  "node": "v24.15.0",
+  "packageManager": "pnpm@10.30.1",
+  "artifacts": [
+    {
+      "package": "@kasitek-labs/contracts",
+      "version": "0.2.0",
+      "file": "kasitek-labs-contracts-0.2.0.tgz",
+      "sha256": "2530a7d631974003ac032883fbd072450ec7d868f3c3b14976c11a1f7969553c",
+      "integrity": "sha512-uCXppTMvXOSSTIH1eyhsa1d0WGH0VNSWaygXmvoSfuufGcXr+0fSMs3cjwbvVugJ7xVwNQyIqp0mHPoSiw6iGQ=="
+    }
+  ]
+}
