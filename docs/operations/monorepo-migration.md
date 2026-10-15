@@ -1,7 +1,8 @@
 # Monorepo migration execution record
 
-Updated 2026-10-15. Source migration is implemented on `codex/monorepo-migration` in a Growth
-worktree. The owner explicitly deferred deployment on 2026-10-15. Completion of this source regrouping
+Updated 2026-10-15. Source consolidation is complete in Growth `rewrite`, merged through PR 20 at
+`c4876f1eb6a0baadd58d5d8c7bd5abea617f8110`. The original Growth checkout now contains
+the unified source. The owner explicitly deferred deployment on 2026-10-15. Completion of this source regrouping
 does not depend on deploying the products. Only Growth is known to have been deployed; its
 existing `main` branch and hosting settings remain unchanged.
 
@@ -11,7 +12,11 @@ Growth, Agents, Agency, Labs and the discovered Designs repository were saved as
 bundles and source-working-tree archives before imports. Each bundle was verified and its selected
 snapshot fetched into a bare recovery repository; restored tree IDs matched. Ignored local
 settings have separate private recovery archives. Secrets and runtime state were not imported.
-The original working directories and their uncommitted changes remain untouched.
+The other source working directories remain untouched. Growth was fast-forwarded only after
+its original dirty state was additionally saved in recovery stash
+`8f5e833edd0caf6a396d0ea1092d367d5cb20b2f`. Its selected edits are present at the new product
+paths. Old ignored Growth build/dependency folders were moved into the private recovery area;
+useful local environment files were copied to product paths without entering Git.
 
 All original HEADs and selected snapshot commits remain reachable through non-squashed imports.
 [Provenance](../source-repositories/imports.json) lists full SHAs and original file counts. Growth
@@ -91,14 +96,14 @@ The current Vercel token was rejected with HTTP 403; the accessible Railway acco
 the KasiTek projects. No hosted settings were changed. Required-check protection, source
 connections, runtime credentials and provider webhook/OIDC bindings still require live inventory.
 
-The branch is published for review in [draft PR 20](https://github.com/Kasitek-Labs/kasitek-growth/pull/20),
-targeting Growth `rewrite`. It is not merged.
+[PR 20](https://github.com/Kasitek-Labs/kasitek-growth/pull/20) is merged into Growth `rewrite`
+using a merge commit, preserving source ancestry. The original Growth checkout is synchronized
+and its root frozen install and product-boundary check passed. Growth `main` and all hosting
+settings remain unchanged.
 
-Complete the migration merge into Growth `rewrite` and synchronize the original Growth checkout.
-Preserve the original dirty checkout state privately before fast-forwarding; the selected source
-changes already exist in their new product paths. Keep the old repositories and private recovery
-bundles as recovery copies. No provider access, production deployment, repository deletion or
-repository rename is needed to finish source consolidation.
+The source regrouping is complete. Keep the old repositories and private recovery bundles as
+recovery copies for now. No provider access, deployment, repository deletion or repository rename
+is required for this completed source-only scope.
 
 ## Independent evidence review
 

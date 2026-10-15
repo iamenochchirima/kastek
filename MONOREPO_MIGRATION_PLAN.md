@@ -1,6 +1,6 @@
 # KasiTek monorepo migration plan
 
-Status: Source consolidation implemented. Integrating into Growth `rewrite`. Deployment is explicitly deferred by the owner.
+Status: Source consolidation complete in Growth `rewrite`, merged through PR 20. Deployment is explicitly deferred by the owner.
 Owner: Enoch Chirima. Integration and verification: the agent executing each approved slice.
 Created: 2026-10-15. Execution authorized by the owner in chat on 2026-10-15.
 Destination: `Kasitek-Labs/kasitek-growth`, renamed to `kasitek` only after migration and cutover.
@@ -371,7 +371,8 @@ in [draft PR 20](https://github.com/Kasitek-Labs/kasitek-growth/pull/20); the ex
 identifies the completed local work and remaining cutover gates. No hosted settings have changed.
 
 Execution update: source imports, workspace, local builds and all 15 GitHub checks have passed.
-Integrate the preserved history into Growth `rewrite` to complete the source-only request.
+The preserved histories are merged into Growth `rewrite`, and the original Growth checkout
+has been synchronized with the unified source.
 Deployment and the later repository rename are separate, deferred work. See
 [the execution record](docs/operations/monorepo-migration.md). Each
 implementation issue should include its source/destination paths, prerequisite gate, exact
