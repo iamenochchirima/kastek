@@ -1,0 +1,57 @@
+{
+  "source": "User-supplied screenshot, saved as source.png",
+  "method": "Centre-pixel samples of the ten swatches, left to right",
+  "official_brand_tokens": false,
+  "colours": [
+    {
+      "name": "Ivory",
+      "token": "--reference-ivory",
+      "hex": "#FBFAF6"
+    },
+    {
+      "name": "Deep brown",
+      "token": "--reference-deep-brown",
+      "hex": "#443221"
+    },
+    {
+      "name": "Brown",
+      "token": "--reference-brown",
+      "hex": "#65503E"
+    },
+    {
+      "name": "Taupe",
+      "token": "--reference-taupe",
+      "hex": "#846D58"
+    },
+    {
+      "name": "Slate",
+      "token": "--reference-slate",
+      "hex": "#6F7695"
+    },
+    {
+      "name": "Navy",
+      "token": "--reference-navy",
+      "hex": "#0E152A"
+    },
+    {
+      "name": "Orange",
+      "token": "--reference-orange",
+      "hex": "#E67E41"
+    },
+    {
+      "name": "Peach",
+      "token": "--reference-peach",
+      "hex": "#F3AA80"
+    },
+    {
+      "name": "Vermilion",
+      "token": "--reference-vermilion",
+      "hex": "#DB4B1D"
+    },
+    {
+      "name": "Coral",
+      "token": "--reference-coral",
+      "hex": "#E76B49"
+    }
+  ]
+}

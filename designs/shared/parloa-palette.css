@@ -1,0 +1,14 @@
+/* Sampled from the supplied screenshot. Reference values, not official brand tokens.
+   Import explicitly when a design is ready to use this palette. */
+:root {
+  --reference-ivory: #FBFAF6;
+  --reference-deep-brown: #443221;
+  --reference-brown: #65503E;
+  --reference-taupe: #846D58;
+  --reference-slate: #6F7695;
+  --reference-navy: #0E152A;
+  --reference-orange: #E67E41;
+  --reference-peach: #F3AA80;
+  --reference-vermilion: #DB4B1D;
+  --reference-coral: #E76B49;
+}

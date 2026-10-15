@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Motion studies | KasiTek designs</title>
+  <link rel="stylesheet" href="../shared/base.css">
+  <link rel="stylesheet" href="style.css">
+  <script src="script.js" defer></script>
+</head>
+<body>
+  <header class="toolbar">
+    <div class="heading"><a href="../">← Designs</a><h1>Motion studies</h1><a id="open-design" href="../labs-landing/?motion=editorial" target="_blank" rel="noopener">Open full page ↗</a></div>
+    <div class="controls">
+      <div class="treatments" role="group" aria-label="Motion treatment">
+        <button type="button" data-treatment="calm" aria-pressed="false">Calm</button>
+        <button type="button" data-treatment="editorial" aria-pressed="true">Editorial</button>
+        <button type="button" data-treatment="expressive" aria-pressed="false">Expressive</button>
+        <button type="button" data-treatment="off" aria-pressed="false">Off</button>
+      </div>
+      <div class="view-controls"><button type="button" id="replay">Replay entrance ↻</button><button type="button" id="mobile" aria-pressed="false">Mobile preview</button></div>
+    </div>
+    <div class="notes"><p id="description">Measured headline reveals, staged product stories and restrained image movement.</p><nav aria-label="Preview section"><button type="button" data-jump="top">Hero</button><button type="button" data-jump="agents">Agents</button><button type="button" data-jump="growth">Growth</button><button type="button" data-jump="agency">Agency</button><button type="button" data-jump="studio">Services</button></nav></div>
+    <p class="reduced-note" hidden>Your device requests reduced motion, so animations are disabled in every treatment.</p>
+  </header>
+  <main class="preview-shell"><iframe id="preview" src="../labs-landing/?motion=editorial" title="KasiTek Labs animation preview"></iframe></main>
+</body>
+</html>
