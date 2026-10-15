@@ -45,7 +45,7 @@ test(
     await inspector.end();
     const fixture = await isolatedDatabase(url!, "website_consumer", names),
       media = await mkdtemp(join(tmpdir(), "kasitek-widget-fixture-"));
-    const siteDir = resolve("../../../kasitek-labs/apps/labs-site");
+    const siteDir = resolve("../../../../apps/labs-site");
     assert.ok(
       existsSync(resolve(siteDir, ".next/BUILD_ID")),
       "Build actual Labs site first",

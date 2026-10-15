@@ -1,61 +1,64 @@
-# KasiTek Labs
+# KasiTek
 
-Shared infrastructure and platform services owned outside the Growth, Agents, and Agency
-products.
+Growth, Agents, Agency, shared platform services and the Labs websites live in one Git repository.
+Each product keeps its own database, authorization, environment and deployment lifecycle.
+The GitHub repository remains `Kasitek-Labs/kasitek-growth` until the later rename is approved.
 
-## OpenTelemetry Collector
+## Layout
 
-The Collector image, local profiles, and staging profile live in
-[`infra/observability/otel-collector`](infra/observability/otel-collector/README.md). Railway's
-service declaration is the named `otel-collector` partial in [`.railway/railway.ts`](.railway/railway.ts).
-The operational notes are in [`docs/otel-collector-runbook.md`](docs/otel-collector-runbook.md).
+| Location | Owns |
+| --- | --- |
+| `products/growth/` | Growth client, database package, Core API and workers |
+| `products/agents/` | Agent API, gateway, workers, MCP bridge and management UI |
+| `products/agency/` | Agency tenant API, portal and private React API client |
+| `apps/labs-site/`, `apps/admin-site/` | Public website and central administration |
+| `packages/contracts/`, `packages/server-support/` | Explicit shared TypeScript interfaces and implementation |
+| `services/analytics/` | Analytics API, workers, contracts registry and migrations |
+| `infra/identity/`, `infra/observability/` | Shared identity and telemetry configuration |
+| `designs/` | Design previews, storyboards and source references, outside runtime builds |
+| `docs/programs/` | Cross-product program records carried from the workspace |
 
-The Collector is optional during local development. Core and Analytics keep working when
-telemetry is disabled or the Collector is unavailable. Do not start the container-based local
-profile as part of this TypeScript migration.
+## Local development
 
-## Analytics
-
-Labs owns the Analytics API, worker, schema, migrations, and service-owned build configuration in
-[`services/analytics`](services/analytics/README.md). Growth-owned product publishers remain in
-their product repositories; hosted deployment and database cutover are separate work.
-
-## Shared TypeScript packages
-
-The cross-product packages live in [`packages/contracts`](packages/contracts) and
-[`packages/server-support`](packages/server-support). They hold Analytics contracts, producer and
-reporting clients, configuration helpers, cryptography, JSON handling, and telemetry. Services keep
-product permissions and database transactions in their owning repositories; cross-service behavior
-still uses HTTP and event interfaces.
-
-Growth and Agency currently install checksummed local package tarballs while the migration is in
-progress. GitHub Packages publication and authenticated clean installs are still pending. The
-publisher is `pnpm publish:shared`; its requirements and safety checks are in the
-[server-support README](packages/server-support/README.md). The original Rust implementation remains
-recoverable from Labs commit `4eb66ad`.
-
-Check the shared packages and Analytics TypeScript service from the repository root:
+Use Node 24.15.0 and pnpm 10.30.1. From this repository root:
 
 ```sh
-corepack pnpm install --frozen-lockfile
-corepack pnpm build:analytics
-corepack pnpm test:shared
-corepack pnpm registry:check:analytics
+nvm use
+pnpm install --frozen-lockfile
+pnpm build:shared
+pnpm verify:boundaries
 ```
 
-For local service processes, use `corepack pnpm migrate:analytics` once against the dedicated
-Analytics database, then run `corepack pnpm start:analytics` and
-`corepack pnpm start:analytics-worker` in separate terminals. The same root build and process
-commands are suitable for a native Railpack service rooted at this repository; the live Railway
-service settings still require a separately authorized cutover.
+Start one product with `pnpm dev:growth`, `pnpm dev:agents`, or `pnpm dev:agency`.
+Their APIs use `pnpm dev:growth-api`, `pnpm dev:agents-api`, or `pnpm dev:agency-api`.
+The Agents API development command runs its existing migration step, so configure an isolated
+local database first. `pnpm dev:labs` and `pnpm dev:admin` start the standalone sites.
+Each package retains its product-specific commands and environment template. Never copy a
+production environment into a test run. Backend migrations and external dependencies remain
+product-specific; a root install does not start databases, Temporal or Keycloak.
 
-## Website
+Build a product with `pnpm build:growth`, `pnpm build:agents`, or `pnpm build:agency`.
+`pnpm build:analytics` and `pnpm build:sites` cover platform applications. Shared packages build
+before consumers; internal dependencies use `workspace:*` rather than archived tarballs.
 
-The standalone Next.js website lives in [`apps/labs-site`](apps/labs-site/README.md).
-Its quote-request, waitlist, and chat integrations retain their existing upstream API contracts.
-Hosting, domains, and deployed environments remain separate cutover work.
+Growth documentation sites remain isolated Node 22 installs under
+`products/growth/docs/internal-site/` and `products/growth/docs/public/`. Their own frozen lockfiles
+and build commands still apply. Use `pnpm --ignore-workspace install --frozen-lockfile` and
+`pnpm --ignore-workspace build` from each documentation site so pnpm does not select the
+application workspace. Railway IaC under `.railway/` retains its npm lockfile and separate
+install. These are deliberate exceptions to the application workspace.
 
-## Admin UI
+Read [the current architecture](ARCHITECTURE.md), [the migration plan](MONOREPO_MIGRATION_PLAN.md),
+[Growth setup](products/growth/docs/internal/development/local-development.md),
+[Agents setup](products/agents/README.md), [Agency setup](products/agency/README.md), and
+[the hosting cutover record](docs/operations/hosting-cutover.md).
 
-The standalone admin application lives in [`apps/admin-site`](apps/admin-site/README.md). It
-uses Growth Core and Agency HTTP APIs; hosting cutover remains separate work.
+## Migration and source recovery
+
+Original source histories remain reachable through non-squashed import commits.
+[Import provenance](docs/source-repositories/imports.json) identifies the source checkpoints.
+Local working changes were preserved before import. Credential files, runtime databases and
+build output are excluded from the source tree.
+
+A local source migration does not establish that hosting has switched. Keep the old repositories
+and deployment artifacts until the cutover record proves no provider or consumer needs them.

@@ -4,28 +4,34 @@ on:
   pull_request:
     paths:
       - ".github/workflows/agents.yml"
-      - "migrations/**"
-      - "packages/**"
-      - "scripts/**"
-      - "src/**"
+      - "products/agents/**"
+      - "products/agents/packages/**"
+      - "products/agents/scripts/**"
+      - "products/agents/src/**"
+      - "products/agents/package.json"
+      - "packages/contracts/**"
+      - "packages/server-support/**"
       - "package.json"
       - "pnpm-lock.yaml"
-      - "tsconfig.json"
-      - "tsconfig.scripts.json"
-      - "vitest.config.ts"
+      - "products/agents/tsconfig.json"
+      - "products/agents/tsconfig.scripts.json"
+      - "products/agents/vitest.config.ts"
   push:
     branches: [main]
     paths:
       - ".github/workflows/agents.yml"
-      - "migrations/**"
-      - "packages/**"
-      - "scripts/**"
-      - "src/**"
+      - "products/agents/**"
+      - "products/agents/packages/**"
+      - "products/agents/scripts/**"
+      - "products/agents/src/**"
+      - "products/agents/package.json"
+      - "packages/contracts/**"
+      - "packages/server-support/**"
       - "package.json"
       - "pnpm-lock.yaml"
-      - "tsconfig.json"
-      - "tsconfig.scripts.json"
-      - "vitest.config.ts"
+      - "products/agents/tsconfig.json"
+      - "products/agents/tsconfig.scripts.json"
+      - "products/agents/vitest.config.ts"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -33,7 +39,7 @@ concurrency:
 
 jobs:
   build:
-    name: Build standalone source
+    name: Build Agents source
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -53,14 +59,20 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Build shared contracts
+        run: pnpm --filter @kasitek-labs/contracts build
+
       - name: Type-check Agents source
-        run: pnpm exec tsc -p tsconfig.json --noEmit
+        run: pnpm --dir products/agents exec tsc -p tsconfig.json --noEmit
 
       - name: Type-check repository scripts
-        run: pnpm exec tsc -p tsconfig.scripts.json
+        run: pnpm --dir products/agents exec tsc -p tsconfig.scripts.json
 
       - name: Verify API health when Collector is unavailable
-        run: pnpm run test:telemetry:collector-unavailable
+        run: pnpm --dir products/agents run test:telemetry:collector-unavailable
+
+      - name: Verify independent deployment descriptors
+        run: pnpm --dir products/agents exec vitest run test/deployment-config.test.ts
 
       - name: Build local MCP package
-        run: pnpm run build:mcp
+        run: pnpm --dir products/agents run build:mcp

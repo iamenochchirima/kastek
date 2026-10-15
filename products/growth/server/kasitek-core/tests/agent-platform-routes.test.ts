@@ -32,7 +32,7 @@ test("all registered Rust Agent product routes are present with their exact meth
   registerAgentPlatformRoutes(app, core);
   await app.ready();
   const fixture = JSON.parse(
-    readFileSync("../../../plans/typescript-migration/ROUTES.json", "utf8"),
+    readFileSync("../../../../docs/programs/typescript-migration/ROUTES.json", "utf8"),
   ).rows as { owner: string; handler: string; method: string; path: string }[];
   const expected = fixture
     .filter(

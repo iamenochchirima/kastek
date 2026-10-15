@@ -32,16 +32,16 @@
     "test:telemetry:collector-unavailable": "tsx scripts/otel-collector-unavailable-smoke.ts http-503 && tsx scripts/otel-collector-unavailable-smoke.ts connection-refused",
     "release:memory:manifest": "tsx scripts/release-memory-manifest.ts",
     "release:memory:verify": "tsx scripts/verify-memory-release-manifest.ts",
-    "prepare:shared": "node scripts/prepare-shared.mjs",
     "generate:capabilities": "tsx scripts/generate-capability-docs.ts",
     "migrate": "tsx src/db/migrate.ts",
     "bootstrap:kasiai": "tsx src/system/bootstrap-kasiai.ts",
     "release:kasiai": "tsx src/system/release-kasiai.ts",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "typecheck:api": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@kasitek-labs/contracts": "file:.artifacts/shared/kasitek-labs-contracts-0.2.0.tgz",
+    "@kasitek-labs/contracts": "workspace:*",
     "@fastify/cookie": "^11.1.2",
     "@fastify/multipart": "10.1.1",
     "@opentelemetry/api": "^1.9.1",
@@ -74,6 +74,5 @@
     "tsx": "^4.20.3",
     "typescript": "^5.9.2",
     "vitest": "^3.2.4"
-  },
-  "packageManager": "pnpm@10.30.1+sha512.3590e550d5384caa39bd5c7c739f72270234b2f6059e13018f975c313b1eb9fefcc09714048765d4d9efe961382c312e624572c0420762bdc5d5940cdf9be73a"
+  }
 }

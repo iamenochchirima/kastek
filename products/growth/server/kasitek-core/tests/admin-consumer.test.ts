@@ -40,7 +40,7 @@ test(
     ).rows.map((row) => row.tablename);
     await inspector.end();
     const fixture = await isolatedDatabase(url!, "admin_consumer", names);
-    const adminDir = resolve("../../../kasitek-labs/apps/admin-site");
+    const adminDir = resolve("../../../../apps/admin-site");
     assert.ok(
       existsSync(resolve(adminDir, ".next/BUILD_ID")),
       "Build the actual Admin app before running this compiled consumer fixture",

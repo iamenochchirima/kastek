@@ -33,8 +33,19 @@ make_launcher() {
   cat > "$script" <<SCRIPT
 #!/usr/bin/env bash
 cd '$dir'
-source '$ROOT_DIR/scripts/node24.sh'
-kasitek_use_node24 || exit 1
+if [[ '$name' == 'internal-docs' ]]; then
+  if [[ -s "\${NVM_DIR:-\$HOME/.nvm}/nvm.sh" ]]; then
+    source "\${NVM_DIR:-\$HOME/.nvm}/nvm.sh"
+    nvm use --silent 22 >/dev/null || exit 1
+  fi
+  if [[ "\$(node -p 'process.versions.node.split(".")[0]')" != 22 ]]; then
+    echo 'Node.js 22 is required for the documentation site.' >&2
+    exit 1
+  fi
+else
+  source '$ROOT_DIR/scripts/node24.sh'
+  kasitek_use_node24 || exit 1
+fi
 $cmd
 echo
 echo "[$name] process exited. Press Enter to close."
@@ -47,7 +58,7 @@ SCRIPT
 declare -a tabs=()
 declare -A services
 # Growth-owned services only. Labs, Agency, and Agents services are launched
-# from their owning repositories.
+# from their product or platform directories in this workspace.
 printf -v quoted_core_token '%q' "$LOCAL_CORE_AGENT_TOKEN"
 services["core"]="$ROOT_DIR/server/kasitek-core|KASITEK_AGENTS_INTERNAL_TOKEN=$quoted_core_token pnpm dev"
 # These optional Core workers publish Growth data to Labs Analytics; they do
@@ -55,7 +66,7 @@ services["core"]="$ROOT_DIR/server/kasitek-core|KASITEK_AGENTS_INTERNAL_TOKEN=$q
 services["core-analytics-publisher"]="$ROOT_DIR/server/kasitek-core|KASITEK_PROCESS=analytics-publisher pnpm dev"
 services["core-analytics-backfill"]="$ROOT_DIR/server/kasitek-core|KASITEK_PROCESS=analytics-backfill-worker pnpm dev"
 services["client"]="$ROOT_DIR/client|pnpm run dev"
-services["internal-docs"]="$ROOT_DIR/docs/internal-site|pnpm dev"
+services["internal-docs"]="$ROOT_DIR/docs/internal-site|pnpm --ignore-workspace dev"
 
 service_port() {
   case "$1" in
@@ -147,7 +158,7 @@ show_usage() {
     echo "  - $service"
   done | sort
   echo ""
-  echo "Start shared login separately from Labs: infra/identity/identity.sh start"
+  echo "Start shared login from the workspace root: infra/identity/identity.sh start"
   echo "Core needs the OIDC settings documented in docs/internal/architecture/shared-login.md."
   echo ""
   echo "Examples:"

@@ -13,10 +13,10 @@ import {analyticsFixture} from './analytics-fixture.js';
 import {buildApp} from '../src/app.js';
 import {readConfig} from '../src/config.js';
 import {routes} from '../src/routes.js';
-import {isolatedDatabase} from '../../../../kasitek-growth/server/kasitek-core/tests/helpers/database-fixture.js';
-import {buildApp as buildCore} from '../../../../kasitek-growth/server/kasitek-core/src/app.js';
-import {readConfig as readCoreConfig} from '../../../../kasitek-growth/server/kasitek-core/src/config.js';
-import {registerAdminAuthRoutes} from '../../../../kasitek-growth/server/kasitek-core/src/routes/admin-auth.js';
+import {isolatedDatabase} from '../../../../growth/server/kasitek-core/tests/helpers/database-fixture.js';
+import {buildApp as buildCore} from '../../../../growth/server/kasitek-core/src/app.js';
+import {readConfig as readCoreConfig} from '../../../../growth/server/kasitek-core/src/config.js';
+import {registerAdminAuthRoutes} from '../../../../growth/server/kasitek-core/src/routes/admin-auth.js';
 const url=process.env.TENANT_TEST_DATABASE_URL;
 async function freePort(){const server=createServer();server.listen(0,'127.0.0.1');await once(server,'listening');const port=(server.address() as {port:number}).port;await new Promise<void>(r=>server.close(()=>r()));return port;}
 test('compiled Labs Admin session and agency provisioning proxy reach native Core and Tenant APIs', {skip:!url,timeout:45000},async()=>{
@@ -27,7 +27,7 @@ test('compiled Labs Admin session and agency provisioning proxy reach native Cor
  const tenants=await buildApp({pool:tenant.pool,config:readConfig({TENANT_DATABASE_URL:url!,TENANT_ADMIN_SECRET:secret,TENANT_APP_BASE_URL:'http://localhost:3010',LOG_LEVEL:'silent'})},routes);
  const coreUrl=await core.listen({host:'127.0.0.1',port:0});
  const tenantsUrl=await tenants.listen({host:'127.0.0.1',port:0});
- const adminDir=resolve('../../../kasitek-labs/apps/admin-site');
+ const adminDir=resolve('../../../../apps/admin-site');
  assert.ok(existsSync(resolve(adminDir,'.next/BUILD_ID')),'Build Labs Admin before this compiled consumer fixture');
  const port=await freePort();const front=`http://127.0.0.1:${port}`;
  const env:NodeJS.ProcessEnv={PATH:process.env.PATH,HOME:process.env.HOME};

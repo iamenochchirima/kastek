@@ -50,7 +50,7 @@ test('isolated database connection projections, revocation/reconnect, one-time e
     await admin.query(`CREATE SCHEMA "${schema}"`);
     const pool = new pg.Pool({ connectionString: url, options: `-c search_path=${schema} -c timezone=UTC` });
     try {
-        const migrations = resolve(process.cwd(), '../../../kasitek-growth/client/packages/database/prisma/migrations');
+        const migrations = resolve(process.cwd(), '../../client/packages/database/prisma/migrations');
         for (const folder of ['20260717120000_add_shared_connections', '20260831150000_add_connection_permission_center', '20260910100000_add_workspace_email_connections', '20260910120000_add_email_inbox_bindings']) {
             const source = readFileSync(resolve(migrations, folder, 'migration.sql'), 'utf8');
             const definitions = source.match(/CREATE (?:TYPE|TABLE|UNIQUE INDEX|INDEX)[\s\S]*?;/g) ?? [];

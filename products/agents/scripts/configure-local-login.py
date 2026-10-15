@@ -24,7 +24,7 @@ def read_environment(file):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--identity-env', type=Path,
-                        default=ROOT.parent / 'kasitek-labs/infra/identity/.env')
+                        default=ROOT.parent.parent / 'infra/identity/.env')
     args = parser.parse_args()
     identity = read_environment(args.identity_env)
     local_file = ROOT / '.env'

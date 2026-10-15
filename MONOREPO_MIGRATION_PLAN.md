@@ -1,8 +1,8 @@
 # KasiTek monorepo migration plan
 
-Status: Draft for review. Planning is authorized; source migration has not started.
+Status: Local source migration implemented on `codex/monorepo-migration`. Hosted cutover and repository retirement remain blocked.
 Owner: Enoch Chirima. Integration and verification: the agent executing each approved slice.
-Created: 2026-10-15.
+Created: 2026-10-15. Execution authorized by the owner in chat on 2026-10-15.
 Destination: `Kasitek-Labs/kasitek-growth`, renamed to `kasitek` only after migration and cutover.
 
 ## Outcome and scope
@@ -362,7 +362,9 @@ read-only GitHub query found no open Growth issues; Project items returned earli
 Recheck the tracker before publishing a migration spec. No source files were moved, tests run,
 worktrees created, branches changed, commits made or provider settings modified for this draft.
 
-Next: review this sequence, approve the implementation issue split, then perform phase 0. Each
+Execution update: phases 0–4 have local source and build evidence; phase 5 has CI and packaging
+changes, with image smoke and hosted settings unverified. Phase 6 cutover and phase 7 rename
+are not complete. See [the execution record](docs/operations/monorepo-migration.md). Each
 implementation issue should include its source/destination paths, prerequisite gate, exact
 verification and recovery method. Keep issue cards assigned to `iamenochchirima` while working
 solo. Do not treat the approved plan location as approval to merge, deploy, rename or archive.

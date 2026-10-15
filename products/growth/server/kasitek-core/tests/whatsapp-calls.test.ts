@@ -106,7 +106,7 @@ test(
     try {
       const migrations = resolve(
           process.cwd(),
-          '../../../kasitek-growth/client/packages/database/prisma/migrations',
+          '../../client/packages/database/prisma/migrations',
         ),
         initial = readFileSync(
           resolve(

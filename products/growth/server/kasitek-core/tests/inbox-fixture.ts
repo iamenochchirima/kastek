@@ -20,7 +20,7 @@ export async function inboxFixture(
   try {
     const migrations = resolve(
       process.cwd(),
-      '../../../kasitek-growth/client/packages/database/prisma/migrations',
+      '../../client/packages/database/prisma/migrations',
     );
     for (const folder of [
       '20260717120000_add_shared_connections',

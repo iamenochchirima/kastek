@@ -1,0 +1,36 @@
+{
+  "importedAt": "2026-10-15",
+  "method": "Non-squashed merge ancestry with original source commits",
+  "repositories": {
+    "kasitek-growth": {
+      "head": "380cd4daadc870c18d67d97474822ebea6281d64",
+      "snapshot": "5b98fc5a1d600204128d8112f0dbe9afb391fd7e",
+      "tree": "1fad1c2a09d5cd0d00c10b3fd4585b92100ef4ef",
+      "files": 1184
+    },
+    "kasitek-agents": {
+      "head": "21945044d95d912d57cb60e40475adcf616cec8d",
+      "snapshot": "e602375e5fe95bcf643df5ede8237906d1de33e0",
+      "tree": "922bda044b81c4b44004ddb2c8c0815844ff8fc9",
+      "files": 965
+    },
+    "kasitek-agency": {
+      "head": "31dd0c1f5fddf7f3fa808952789c9ac76496f888",
+      "snapshot": "44c2f4de7998307877619f891b7c490e5a676a4d",
+      "tree": "7c9172170a70179588f598ea596e0957fbf454e9",
+      "files": 219
+    },
+    "kasitek-labs": {
+      "head": "cffa65872a6314c9a18716a4c425a7d9d70825fe",
+      "snapshot": "cc6033f17206eb14e3ef0144f41d4061c8dc5cf2",
+      "tree": "dabfd92670960531ae6c7f1c7ab350d7702eb9ca",
+      "files": 559
+    },
+    "designs": {
+      "head": "99e7749da9bd65df6b8bc6745a92b650cf252c74",
+      "snapshot": "f4803d67fd1f2850c2d5c7e536a0237f57ff95ae",
+      "tree": "4f3b02d533b39b29bb792406a409d14266de745b",
+      "files": 82
+    }
+  }
+}

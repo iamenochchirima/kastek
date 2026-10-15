@@ -51,7 +51,7 @@ test("private Agents bridge covers every source registered route except the sepa
   );
   await app.ready();
   const rows = JSON.parse(
-    readFileSync("../../../plans/typescript-migration/ROUTES.json", "utf8"),
+    readFileSync("../../../../docs/programs/typescript-migration/ROUTES.json", "utf8"),
   ).rows as { owner: string; handler: string; method: string; path: string }[];
   const expected = rows
     .filter(

@@ -77,7 +77,7 @@ test(
       app = await buildApp(context, [registerAdminOperationsRoutes]);
     const migrations = resolve(
       process.cwd(),
-      '../../../kasitek-growth/client/packages/database/prisma/migrations',
+      '../../client/packages/database/prisma/migrations',
     );
     const request = (
       method: any,

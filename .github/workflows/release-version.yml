@@ -5,7 +5,7 @@ on:
     paths:
       - VERSION
       - scripts/release-version.mjs
-      - docs/internal/operations/platform-versioning.md
+      - products/growth/docs/internal/operations/platform-versioning.md
       - .github/workflows/release-version.yml
   push:
     branches: [main]

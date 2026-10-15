@@ -65,3 +65,12 @@ outreach-emails/
 
 .flaskenv*
 !.env.project
+
+# Monorepo runtime and private migration artifacts
+**/.runtime/
+**/coverage/
+**/build/
+**/.audit/
+!**/.env.identity.example
+
+**/.docusaurus/

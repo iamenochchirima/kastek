@@ -4,7 +4,10 @@ on:
   pull_request:
     paths:
       - ".github/workflows/agent-platform-ui.yml"
-      - "client/apps/agent-platform/**"
+      - "products/agents/client/apps/agent-platform/**"
+      - "products/agents/package.json"
+      - "packages/contracts/**"
+      - "packages/server-support/**"
       - "package.json"
       - "pnpm-lock.yaml"
       - "pnpm-workspace.yaml"
@@ -13,7 +16,10 @@ on:
       - main
     paths:
       - ".github/workflows/agent-platform-ui.yml"
-      - "client/apps/agent-platform/**"
+      - "products/agents/client/apps/agent-platform/**"
+      - "products/agents/package.json"
+      - "packages/contracts/**"
+      - "packages/server-support/**"
       - "package.json"
       - "pnpm-lock.yaml"
       - "pnpm-workspace.yaml"

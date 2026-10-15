@@ -6,12 +6,10 @@
   "engines": {
     "node": ">=24 <25"
   },
-  "packageManager": "pnpm@10.30.1",
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "tsx --test tests/*.test.ts",
-    "prepare:shared": "node scripts/prepare-shared.mjs",
     "start": "node dist/bootstrap.js",
     "dev": "tsx watch src/bootstrap.ts"
   },
@@ -20,8 +18,8 @@
     "@fastify/cors": "^11.1.0",
     "@fastify/formbody": "^8.0.2",
     "@fastify/multipart": "^9.4.0",
-    "@kasitek-labs/contracts": "file:.artifacts/shared/kasitek-labs-contracts-0.2.0.tgz",
-    "@kasitek-labs/server-support": "file:.artifacts/shared/kasitek-labs-server-support-0.1.9.tgz",
+    "@kasitek-labs/contracts": "workspace:*",
+    "@kasitek-labs/server-support": "workspace:*",
     "@opentelemetry/api": "1.9.0",
     "@paralleldrive/cuid2": "^2.3.1",
     "ajv": "8.17.1",
@@ -38,10 +36,5 @@
     "@types/pg": "^8.15.5",
     "tsx": "^4.20.6",
     "typescript": "^5.9.3"
-  },
-  "pnpm": {
-    "overrides": {
-      "@kasitek-labs/contracts": "file:.artifacts/shared/kasitek-labs-contracts-0.2.0.tgz"
-    }
   }
 }

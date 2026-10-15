@@ -12,7 +12,7 @@ describe("Agent Platform deployment descriptors", () => {
     const worker = descriptor("railway.worker.json");
     const gateway = descriptor("railway.gateway.json");
     for (const service of [api, worker, gateway]) {
-      expect(service.build).toMatchObject({ builder: "DOCKERFILE", dockerfilePath: "Dockerfile" });
+      expect(service.build).toMatchObject({ builder: "DOCKERFILE", dockerfilePath: "products/agents/Dockerfile" });
       expect(service.deploy).toMatchObject({ restartPolicyType: "ON_FAILURE", restartPolicyMaxRetries: 10 });
     }
     expect(api.deploy).toMatchObject({ startCommand: "node dist/http/server.js", healthcheckPath: "/health/ready" });

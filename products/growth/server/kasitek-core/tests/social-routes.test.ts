@@ -28,7 +28,7 @@ test("Social registration matches authoritative Rust route inventory including p
   try {
     await app.ready();
     const fixture = JSON.parse(
-      readFileSync("../../../plans/typescript-migration/ROUTES.json", "utf8"),
+      readFileSync("../../../../docs/programs/typescript-migration/ROUTES.json", "utf8"),
     );
     const expected = new Set<string>(
       fixture.rows

@@ -1,27 +1,19 @@
 {
-  "name": "kasitek-monorepo",
+  "name": "@kasitek/growth-client-workspace",
   "private": true,
   "engines": {
-    "node": ">=22.12.0 <23 || >=24.0.0"
+    "node": ">=24 <25"
   },
   "scripts": {
     "dev": "pnpm --filter client dev",
-    "dev:all": "pnpm --parallel --filter './apps/*' dev",
+    "dev:all": "pnpm --filter client dev",
     "dev:worker:whatsapp": "KASITEK_PROCESS=whatsapp-marketing-worker bash ../scripts/dev_core_watch.sh",
-    "build": "pnpm db:generate && pnpm --filter './apps/*' build",
+    "build": "pnpm db:generate && pnpm --filter client build",
     "build:client": "pnpm db:generate && pnpm --filter client build",
     "db:generate": "pnpm --filter @kasitek/database generate",
     "db:push": "pnpm --filter @kasitek/database db:push",
     "db:migrate": "pnpm --filter @kasitek/database db:migrate",
     "db:studio": "pnpm --filter @kasitek/database studio",
     "db:seed": "pnpm --filter @kasitek/database seed"
-  },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "prisma",
-      "@prisma/engines",
-      "esbuild"
-    ]
-  },
-  "packageManager": "pnpm@10.30.1+sha512.3590e550d5384caa39bd5c7c739f72270234b2f6059e13018f975c313b1eb9fefcc09714048765d4d9efe961382c312e624572c0420762bdc5d5940cdf9be73a"
+  }
 }
