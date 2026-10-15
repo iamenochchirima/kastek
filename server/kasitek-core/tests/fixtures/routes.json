@@ -552,14 +552,14 @@
     {
       "method": "GET",
       "path": "/api/admin/operations/notifications",
-      "source": "server/kasitek-core/src-ts/services/admin/operations.ts",
+      "source": "server/kasitek-core/src/services/admin/operations.ts",
       "sourceCommit": "3d7715df41ab20a949cb83c9969d7a7e5524c5c7",
       "reason": "Post-retirement Labs Admin operator-notification forwarding added after the pinned Rust route baseline."
     },
     {
       "method": "POST",
       "path": "/api/admin/operations/notifications/{notificationId}/acknowledge",
-      "source": "server/kasitek-core/src-ts/services/admin/operations.ts",
+      "source": "server/kasitek-core/src/services/admin/operations.ts",
       "sourceCommit": "3d7715df41ab20a949cb83c9969d7a7e5524c5c7",
       "reason": "Post-retirement Labs Admin operator-notification forwarding added after the pinned Rust route baseline."
     }
