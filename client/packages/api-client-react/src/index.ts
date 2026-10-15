@@ -2,6 +2,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 
 const placeholder = <T,>(data: T) => data;
 const DEFAULT_TENANT_API_BASE_URL = "/api/tenant";
+const ACTIVE_WORKSPACE_KEY = "kasitek.agency.selected-workspace-slug";
 
 function getTenantApiBaseUrl() {
   return DEFAULT_TENANT_API_BASE_URL;
@@ -12,13 +13,19 @@ function tenantApiUrl(path: string) {
 }
 
 async function fetchTenantJson<T>(path: string, init?: RequestInit): Promise<T> {
+  const headers = new Headers(init?.headers);
+  headers.set("Content-Type", "application/json");
+  if (typeof window !== "undefined") {
+    const routeSlug = window.location.pathname.match(/^\/portal\/([^/]+)/)?.[1];
+    const selectedSlug = routeSlug
+      ? decodeURIComponent(routeSlug)
+      : window.localStorage.getItem(ACTIVE_WORKSPACE_KEY);
+    if (selectedSlug) headers.set("x-kasitek-tenant-slug", selectedSlug);
+  }
   const response = await fetch(tenantApiUrl(path), {
     credentials: "include",
     ...init,
-    headers: {
-      "Content-Type": "application/json",
-      ...(init?.headers ?? {}),
-    },
+    headers,
   });
 
   const payload = (await response.json().catch(() => ({}))) as T & { error?: string };
@@ -181,7 +188,12 @@ export function useCreateTenantClient(..._args: any[]) {
         };
       }>("/api/clients", {
         method: "POST",
-        body: JSON.stringify(input),
+        body: JSON.stringify({
+          name: input.name,
+          slug: input.slug,
+          external_ref: input.external_ref,
+          adminEmail: input.admin_email,
+        }),
       }),
   });
 }

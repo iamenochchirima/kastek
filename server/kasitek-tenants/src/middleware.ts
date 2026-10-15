@@ -17,6 +17,10 @@ export const appConfig = (_request: FastifyRequest, context: TenantContext) =>
   context.config;
 export const tokenHash = (token: string) =>
   createHash('sha256').update(token).digest('hex');
+export const hasAgencyPartnerCookie = (
+  request: FastifyRequest,
+  context: TenantContext,
+) => !!request.cookies[context.config.partner_session_cookie_name]?.trim();
 export function tenantUserHasAnyRole(
   roles: string[],
   allowed: readonly string[],
@@ -159,6 +163,9 @@ export async function resolveWorkspaceFromRequest(
       }
     }
   }
+  const selectedSlug = request.headers['x-kasitek-tenant-slug'];
+  if (typeof selectedSlug === 'string' && selectedSlug.trim())
+    return resolveBySlug(context, selectedSlug.trim().toLowerCase());
   if (context.config.default_workspace_slug)
     return resolveBySlug(context, context.config.default_workspace_slug);
   throw missing('workspace could not be resolved from request host');
@@ -195,8 +202,42 @@ export async function extractTenantUserSession(
   request: FastifyRequest,
   context: TenantContext,
 ): Promise<TenantUserSessionContext> {
-  const token = extractTenantSessionToken(request, context),
-    workspace = await resolveWorkspaceFromRequest(request, context);
+  const tenantToken = request.cookies[context.config.session_cookie_name]?.trim();
+  const partnerToken = request.cookies[context.config.partner_session_cookie_name]?.trim();
+  const workspace = await resolveWorkspaceFromRequest(request, context);
+  if (!tenantToken && partnerToken) {
+    const partner = (
+      await context.pool.query(
+        `SELECT s.expires_at,s.last_used_at,p.status AS partner_status,p.email_verified,
+                u.id AS tenant_user_id,u.email,u.name,u.status AS user_status,w.id AS workspace_id,w.slug AS workspace_slug
+         FROM agency_partner_sessions s
+         JOIN agency_partners p ON p.id=s.partner_id
+         JOIN agency_partner_memberships m ON m.partner_id=p.id AND m.workspace_id=$2
+         JOIN tenant_users u ON u.id=m.tenant_user_id AND u.workspace_id=m.workspace_id
+         JOIN workspaces w ON w.id=m.workspace_id
+         WHERE s.token_hash=$1 AND s.revoked_at IS NULL LIMIT 1`,
+        [tokenHash(partnerToken), workspace.workspace_id],
+      )
+    ).rows[0];
+    const idleCutoff = new Date(Date.now() - context.config.partner_session_idle_days * 86400000);
+    if (
+      !partner || partner.partner_status !== 'active' || partner.user_status !== 'active' ||
+      partner.email_verified !== true || partner.expires_at <= new Date() || partner.last_used_at <= idleCutoff
+    ) throw unauthorized();
+    return {
+      workspace_id: partner.workspace_id,
+      workspace_slug: partner.workspace_slug,
+      tenant_user_id: partner.tenant_user_id,
+      email: partner.email,
+      name: partner.name,
+      roles: (await context.pool.query(
+        'SELECT role FROM tenant_user_roles WHERE tenant_user_id=$1 ORDER BY role ASC',
+        [partner.tenant_user_id],
+      )).rows.map((row) => row.role),
+      agency_partner: true,
+    };
+  }
+  const token = extractTenantSessionToken(request, context);
   const row = (
     await context.pool.query(
       'SELECT s.workspace_id,w.slug AS workspace_slug,s.tenant_user_id,u.email,u.name,u.status AS user_status,s.id AS session_id,s.expires_at FROM tenant_sessions s JOIN tenant_users u ON u.id=s.tenant_user_id JOIN workspaces w ON w.id=s.workspace_id WHERE s.token_hash=$1 AND s.workspace_id=$2 LIMIT 1',
@@ -221,6 +262,7 @@ export async function extractTenantUserSession(
         [row.tenant_user_id],
       )
     ).rows.map((row) => row.role),
+    agency_partner: false,
   };
 }
 export async function extractTenantClientUserSession(
@@ -261,7 +303,10 @@ export async function extractAccessContext(
   request: FastifyRequest,
   context: TenantContext,
 ): Promise<TenantAccessContext> {
-  if (Object.hasOwn(request.cookies, context.config.session_cookie_name)) {
+  if (
+    Object.hasOwn(request.cookies, context.config.session_cookie_name) ||
+    hasAgencyPartnerCookie(request, context)
+  ) {
     const session = await extractTenantUserSession(request, context);
     return {
       workspace_id: session.workspace_id,

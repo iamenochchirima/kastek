@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import Link from "@/lib/link";
 import { MessageSquare, ShieldCheck, Sparkles, Users } from "lucide-react";
 import {
   useGetClientLeadStats,
@@ -33,8 +33,7 @@ export default function ClientHomeScreen() {
               {overview?.tenantClientName ?? brandName}
             </h1>
             <p className="mt-3 max-w-2xl text-muted-foreground">
-              Your client-facing portal is now connected to tenant-scoped data. Only records linked
-              to this client account are visible here.
+              Your leads, conversations and activity, together in one workspace.
             </p>
           </div>
 

@@ -23,7 +23,8 @@ export function TenantAnalyticsPanel({ audience, includeDescendants = false }: {
       setCatalog(result.catalog);
       setReport(result.report);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Analytics are unavailable");
+      const message = cause instanceof Error ? cause.message : '';
+      setError(message.includes('not configured') ? 'Analytics is not available for this workspace yet.' : 'Analytics could not be loaded. Please try again.');
     } finally {
       setLoading(false);
       setRefreshing(false);

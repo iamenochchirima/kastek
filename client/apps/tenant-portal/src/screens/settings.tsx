@@ -1,5 +1,6 @@
 "use client";
 
+import { AppearanceSettings } from "@/components/appearance-settings";
 import { useEffect, useMemo, useState } from "react";
 import {
   CheckCircle2,
@@ -124,6 +125,7 @@ type StaffResponse = {
 type StaffInviteResponse = {
   staff: StaffMember;
   inviteSent: boolean;
+  invite?: { emailSent: boolean; activationUrl: string | null; expiresAt: string };
 };
 
 function statusTone(status: string) {
@@ -154,6 +156,7 @@ function emailStatusTone(status: string) {
 
 export default function SettingsScreen() {
   const { user } = useAuth();
+  const isAgencyPartner = user?.agencyPartner ?? false;
   const [hostedDomain, setHostedDomain] = useState<string | null>(null);
   const [expectedTargetHost, setExpectedTargetHost] = useState<string | null>(null);
   const [workspaceSlug, setWorkspaceSlug] = useState<string>("");
@@ -184,6 +187,7 @@ export default function SettingsScreen() {
   const [staffSaving, setStaffSaving] = useState(false);
   const [staffRemovingId, setStaffRemovingId] = useState<string | null>(null);
   const [staffError, setStaffError] = useState("");
+  const [staffInviteUrl, setStaffInviteUrl] = useState<string | null>(null);
   const [newStaffEmail, setNewStaffEmail] = useState("");
   const [newStaffName, setNewStaffName] = useState("");
   const [newStaffRole, setNewStaffRole] = useState("admin");
@@ -215,7 +219,7 @@ export default function SettingsScreen() {
     setPlatformFromEmail(payload.platformFromEmail);
     setEmailSender(payload.sender);
     setEmailDomains(payload.customDomains ?? []);
-    setSendingMode(payload.settings.sendingMode === "custom" ? "custom" : "shared");
+    setSendingMode(!isAgencyPartner && payload.settings.sendingMode === "custom" ? "custom" : "shared");
     setSenderName(payload.settings.senderName ?? payload.sender.senderName ?? "");
     setReplyToEmail(payload.settings.replyToEmail ?? "");
     setSharedSenderLocalPart(payload.settings.sharedSenderLocalPart ?? "no-reply");
@@ -340,6 +344,7 @@ export default function SettingsScreen() {
       setNewStaffEmail("");
       setNewStaffName("");
       setNewStaffRole("admin");
+      setStaffInviteUrl(response.invite?.emailSent ? null : response.invite?.activationUrl ?? null);
       setStaffMembers((current) => {
         const next = current.filter((member) => member.id !== response.staff.id);
         return [response.staff, ...next];
@@ -374,11 +379,11 @@ export default function SettingsScreen() {
       const response = await tenantFetch<EmailSettingsResponse>("/api/workspace/email-sending", {
         method: "PUT",
         body: JSON.stringify({
-          sendingMode,
+          sendingMode: isAgencyPartner ? "shared" : sendingMode,
           senderName,
           replyToEmail: replyToEmail || null,
           sharedSenderLocalPart,
-          customDomainId: selectedCustomDomainId || null,
+          customDomainId: isAgencyPartner ? null : selectedCustomDomainId || null,
         }),
       });
 
@@ -463,6 +468,7 @@ export default function SettingsScreen() {
   return (
     <ProtectedRoute allowedRoles={SETTINGS_ROLES}>
       <Layout>
+        <div className="px-4 pt-6 sm:px-7"><AppearanceSettings /></div>
         <div className="space-y-8 p-8 animate-in fade-in duration-500">
           <div className="flex flex-col gap-2 lg:flex-row lg:items-end lg:justify-between">
             <div>
@@ -483,6 +489,19 @@ export default function SettingsScreen() {
             </div>
           ) : null}
 
+          {isAgencyPartner ? (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2"><ShieldCheck className="h-5 w-5" />Portal address</CardTitle>
+                <CardDescription>Your hosted Agency portal is ready to use. Custom-domain activation will be available after domain ownership verification is supported.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                <p className="font-mono text-sm text-foreground">{loading ? "Loading..." : `/portal/${workspaceSlug || "your-business"}`}</p>
+                <p className="text-sm text-muted-foreground">You can share this link with clients now.</p>
+              </CardContent>
+            </Card>
+          ) : (
+            <>
           <div className="grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
             <Card>
               <CardHeader>
@@ -638,6 +657,8 @@ export default function SettingsScreen() {
               </div>
             </CardContent>
           </Card>
+            </>
+          )}
 
           <Card>
             <CardHeader>
@@ -653,6 +674,11 @@ export default function SettingsScreen() {
               {staffError ? (
                 <div className="rounded-xl border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive">
                   {staffError}
+                </div>
+              ) : null}
+              {staffInviteUrl ? (
+                <div role="status" className="rounded-xl border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
+                  Email delivery is unavailable in this environment. <a className="font-semibold underline" href={staffInviteUrl} target="_blank" rel="noreferrer">Open the staff activation link</a> before it expires.
                 </div>
               ) : null}
 
@@ -684,7 +710,7 @@ export default function SettingsScreen() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="admin">Admin</SelectItem>
-                      <SelectItem value="owner">Owner</SelectItem>
+                      {!isAgencyPartner ? <SelectItem value="owner">Owner</SelectItem> : null}
                       <SelectItem value="account_manager">Account Manager</SelectItem>
                       <SelectItem value="support">Support</SelectItem>
                       <SelectItem value="viewer">Viewer</SelectItem>
@@ -766,7 +792,7 @@ export default function SettingsScreen() {
             <div>
               <h2 className="text-2xl font-semibold tracking-tight">Email Sending</h2>
               <p className="text-sm text-muted-foreground">
-                Start on KasiTek-managed sending, then switch to your own verified domain when ready.
+                {isAgencyPartner ? "Configure the sender details for invitations sent from your business." : "Start on KasiTek-managed sending, then switch to your own verified domain when ready."}
               </p>
             </div>
 
@@ -778,7 +804,7 @@ export default function SettingsScreen() {
 
             {!resendConfigured ? (
               <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-300">
-                Resend is not configured on the backend yet, so email sending cannot be activated from this workspace.
+                Email delivery is not enabled for this workspace. Invitations can still be opened using their setup links during local development.
               </div>
             ) : null}
 
@@ -789,8 +815,8 @@ export default function SettingsScreen() {
                     <Mail className="h-5 w-5" />
                     Sender Configuration
                   </CardTitle>
-                  <CardDescription>
-                    Configure the branded sender tenants use from the portal before they connect a custom domain.
+                      <CardDescription>
+                    {isAgencyPartner ? "Set the sender name and reply-to address used for business invitations." : "Configure the branded sender tenants use from the portal before they connect a custom domain."}
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
@@ -848,7 +874,11 @@ export default function SettingsScreen() {
                           Shared preview: {workspaceSlug || "workspace"}-{sharedSenderLocalPart || "no-reply"}@{sharedEmailDomain}
                         </p>
                       </div>
-                      <div className="space-y-2">
+                      {isAgencyPartner ? (
+                        <div className="rounded-xl border border-border bg-background/60 p-4 text-sm text-muted-foreground">
+                          Invitations use KasiTek-managed sending. Custom sending domains will be available after domain ownership verification is supported.
+                        </div>
+                      ) : <div className="space-y-2">
                         <Label>Sending mode</Label>
                         <div className="grid grid-cols-2 gap-2">
                           <Button
@@ -867,10 +897,10 @@ export default function SettingsScreen() {
                             Use your domain
                           </Button>
                         </div>
-                      </div>
+                      </div>}
                     </div>
 
-                    <div className="space-y-3">
+                    {!isAgencyPartner ? <div className="space-y-3">
                       <Label>Verified custom domains</Label>
                       {verifiedEmailDomains.length === 0 ? (
                         <div className="rounded-xl border border-dashed border-border px-4 py-3 text-sm text-muted-foreground">
@@ -904,7 +934,7 @@ export default function SettingsScreen() {
                           ))}
                         </div>
                       )}
-                    </div>
+                    </div> : null}
 
                     <div className="flex flex-wrap gap-3">
                       <Button
@@ -977,7 +1007,7 @@ export default function SettingsScreen() {
               </Card>
             </div>
 
-            <Card>
+            {!isAgencyPartner ? <Card>
                 <CardHeader>
                   <CardTitle>Custom Sending Domain</CardTitle>
                   <CardDescription>
@@ -1103,7 +1133,7 @@ export default function SettingsScreen() {
                   </div>
                 )}
               </CardContent>
-            </Card>
+            </Card> : null}
           </div>
         </div>
       </Layout>

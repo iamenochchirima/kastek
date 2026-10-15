@@ -1,7 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import type { TenantContext } from "../context.js";
 import { transaction } from "../db.js";
-import { bad, missing } from "../error.js";
+import { bad, forbidden, missing } from "../error.js";
 import * as middleware from "../middleware.js";
 import * as mail from "../mail.js";
 import { asciiLower, normalizeDomain } from "./workspace.js";
@@ -143,6 +143,9 @@ export function registerEmailSettingsRoutes(
     middleware.requireTenantRoles(a.tenant_user_roles, ["owner", "admin"]);
     return a;
   };
+  const requirePartnerDomainsReady = (r: import("fastify").FastifyRequest) => {
+    if (middleware.hasAgencyPartnerCookie(r, context)) throw forbidden();
+  };
   app.get("/api/workspace/email-sending", async (r) => {
     const a = await access(r);
     return loadEmailSettings(context, a.workspace_id, a.workspace_slug);
@@ -179,6 +182,7 @@ export function registerEmailSettingsRoutes(
         domain = b.customDomainId?.trim() || null;
       if (!["shared", "custom"].includes(mode))
         throw bad("sending mode must be shared or custom");
+      if (mode === "custom") requirePartnerDomainsReady(r);
       if (mode === "custom") {
         if (!domain)
           throw bad(
@@ -212,8 +216,9 @@ export function registerEmailSettingsRoutes(
     "/api/workspace/email-sending/domains",
     { schema: { body: schema(["domain"]) } },
     async (r) => {
-      const a = await access(r),
-        domain = normalizeDomain(r.body.domain);
+      const a = await access(r);
+      requirePartnerDomainsReady(r);
+      const domain = normalizeDomain(r.body.domain);
       if (
         (
           await context.pool.query(
@@ -233,13 +238,14 @@ export function registerEmailSettingsRoutes(
   app.post<{ Params: { domain_id: string } }>(
     "/api/workspace/email-sending/domains/:domain_id/verify",
     async (r) => {
-      const a = await access(r),
-        domain = (
-          await context.pool.query(
-            `SELECT id,provider_domain_id FROM workspace_email_domains WHERE workspace_id=$1 AND id=$2 LIMIT 1`,
-            [a.workspace_id, r.params.domain_id],
-          )
-        ).rows[0];
+      const a = await access(r);
+      requirePartnerDomainsReady(r);
+      const domain = (
+        await context.pool.query(
+          `SELECT id,provider_domain_id FROM workspace_email_domains WHERE workspace_id=$1 AND id=$2 LIMIT 1`,
+          [a.workspace_id, r.params.domain_id],
+        )
+      ).rows[0];
       if (!domain) throw missing("email domain not found");
       const result = await mail.verifyResendDomain(
         context,
@@ -265,13 +271,14 @@ export function registerEmailSettingsRoutes(
   app.delete<{ Params: { domain_id: string } }>(
     "/api/workspace/email-sending/domains/:domain_id",
     async (r) => {
-      const a = await access(r),
-        domain = (
-          await context.pool.query(
-            `SELECT id,provider_domain_id FROM workspace_email_domains WHERE workspace_id=$1 AND id=$2 LIMIT 1`,
-            [a.workspace_id, r.params.domain_id],
-          )
-        ).rows[0];
+      const a = await access(r);
+      requirePartnerDomainsReady(r);
+      const domain = (
+        await context.pool.query(
+          `SELECT id,provider_domain_id FROM workspace_email_domains WHERE workspace_id=$1 AND id=$2 LIMIT 1`,
+          [a.workspace_id, r.params.domain_id],
+        )
+      ).rows[0];
       if (!domain) throw missing("email domain not found");
       await mail.deleteResendDomain(
         context,

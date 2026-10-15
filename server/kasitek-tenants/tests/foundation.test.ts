@@ -16,9 +16,12 @@ test('tenant PostgreSQL timestamps retain source microseconds and UTC offset nor
  assert.equal(new UtcTimestamp('2026-10-02 18:20:30.123456',false).toISOString(),'2026-10-02T18:20:30.123456Z');
  assert.equal(new UtcTimestamp('2026-10-02 20:20:30.123456+02',true).toISOString(),'2026-10-02T18:20:30.123456Z');
 });
-test('native migrations retain all twelve source scripts and SQLx lock identity',async()=>{
- const migrations=await readMigrations();assert.equal(migrations.length,12);
- assert.equal(migrations[0]!.version,'20260409120000');assert.equal(migrations.at(-1)!.version,'20260824120000');
+test('native migrations retain all twelve source scripts and append Agency partner migrations',async()=>{
+ const migrations=await readMigrations();
+ const source=migrations.filter(m=>BigInt(m.version)<20261006090000n);
+ assert.equal(source.length,12);
+ assert.equal(source[0]!.version,'20260409120000');assert.equal(source.at(-1)!.version,'20260824120000');
+ assert.deepEqual(migrations.slice(-2).map(m=>m.version),['20261006090000','20261006110000']);
  assert.ok(migrations.every(m=>m.checksum.length===48&&!m.down&&!m.noTransaction));
  // CRC32('123456789') = cbf43926, the standard ISO-HDLC check value.
  assert.equal(migrationLockId('123456789'),(0xcbf43926n*0x3d32ad9en).toString());

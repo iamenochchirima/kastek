@@ -7,7 +7,7 @@ import { createId } from "@paralleldrive/cuid2";
 import type { TenantContext } from "../context.js";
 import type { TenantAccessContext } from "../types.js";
 import { transaction } from "../db.js";
-import { bad, missing } from "../error.js";
+import { bad, forbidden, missing } from "../error.js";
 import * as middleware from "../middleware.js";
 import { issueAdminInvite } from "./admin-invites.js";
 export const asciiLower = (s: string) =>
@@ -121,6 +121,16 @@ export async function addStaff(
       [access.workspace_id, email],
     )
   ).rows[0];
+  if (
+    existing &&
+    (
+      await context.pool.query(
+        `SELECT 1 FROM agency_partner_memberships WHERE workspace_id=$1 AND tenant_user_id=$2 LIMIT 1`,
+        [access.workspace_id, existing.id],
+      )
+    ).rowCount
+  )
+    throw forbidden();
   let userId: string;
   if (
     existing &&
@@ -197,20 +207,16 @@ export async function removeStaff(
   actorId: string | null,
 ) {
   if (actorId === userId) throw bad("you cannot remove your own account");
-  const owners = (
-    await context.pool.query(
-      `SELECT COUNT(*) AS count FROM tenant_users u JOIN tenant_user_roles r ON r.tenant_user_id=u.id WHERE u.workspace_id=$1 AND r.role='owner'`,
-      [workspaceId],
-    )
-  ).rows[0].count;
   const target = (
     await context.pool.query(
-      `SELECT COUNT(*) AS count FROM tenant_user_roles WHERE tenant_user_id=$1 AND role='owner'`,
-      [userId],
+      `SELECT
+         EXISTS(SELECT 1 FROM tenant_user_roles WHERE tenant_user_id=$1 AND role='owner') AS is_owner,
+         EXISTS(SELECT 1 FROM agency_partner_memberships WHERE workspace_id=$2 AND tenant_user_id=$1) AS is_primary_partner`,
+      [userId, workspaceId],
     )
-  ).rows[0].count;
-  if (BigInt(target) > 0n && BigInt(owners) <= 1n)
-    throw bad("you must keep at least one owner on the workspace");
+  ).rows[0];
+  if (target.is_owner || target.is_primary_partner)
+    throw bad("owner access must be transferred before this account can be removed");
   if (
     !(
       await context.pool.query(
@@ -223,6 +229,27 @@ export async function removeStaff(
   return { deleted: true };
 }
 const domainSelect = `SELECT id,domain,is_primary,dns_status,verified_at,created_at FROM workspace_domains`;
+const PUBLIC_PORTAL_FEATURES = new Set([
+  "dashboard", "clients", "leads", "content", "reporting", "nurturing",
+  "aeo", "voice", "reviews", "adcreative",
+]);
+function publicWidgetConfig(value: unknown): Record<string, unknown> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  const source = value as Record<string, unknown>;
+  const safe: Record<string, unknown> = {};
+  if (typeof source.tagline === "string") safe.tagline = source.tagline.trim().slice(0, 160);
+  if (source.features && typeof source.features === "object" && !Array.isArray(source.features)) {
+    const features = Object.fromEntries(Object.entries(source.features)
+      .filter(([key, enabled]) => PUBLIC_PORTAL_FEATURES.has(key) && typeof enabled === "boolean"));
+    if (Object.keys(features).length) safe.features = features;
+  }
+  if (Array.isArray(source.enabledModules)) {
+    const modules = source.enabledModules.filter((item): item is string =>
+      typeof item === "string" && PUBLIC_PORTAL_FEATURES.has(item));
+    if (modules.length) safe.enabledModules = [...new Set(modules)];
+  }
+  return safe;
+}
 export function domainView(context: TenantContext, row: QueryResultRow) {
   return {
     id: row.id,
@@ -457,6 +484,10 @@ export function registerWorkspaceRoutes(
       ]);
     return result;
   };
+  const requirePartnerDomainSetup = (request: Parameters<typeof middleware.extractAccessContext>[0]) => {
+    if (middleware.hasAgencyPartnerCookie(request, context))
+      throw forbidden();
+  };
   app.get("/api/workspace", async (request) => {
     const a = await access(request, false),
       row = (
@@ -543,7 +574,7 @@ export function registerWorkspaceRoutes(
             primaryColor: b.primary_color,
             secondaryColor: b.secondary_color,
             logoUrl: b.logo_url,
-            widgetConfig: b.widget_config,
+            widgetConfig: publicWidgetConfig(b.widget_config),
           }
         : null,
     };
@@ -557,9 +588,14 @@ export function registerWorkspaceRoutes(
     "/api/workspace/staff",
     { schema: { body: staffSchema } },
     async (request, reply) => {
+      const a = await access(request, true);
+      if (
+        middleware.hasAgencyPartnerCookie(request, context) &&
+        normalizeStaffRole(request.body.role) === 'owner'
+      ) throw forbidden();
       const result = await addStaff(
         context,
-        await access(request, true),
+        a,
         request.body,
       );
       return reply.code(result.status).send(result.body);
@@ -584,43 +620,39 @@ export function registerWorkspaceRoutes(
   app.post<{ Body: { domain: string; makePrimary?: boolean | null } }>(
     "/api/workspace/domains",
     { schema: { body: domainSchema } },
-    async (request, reply) =>
-      reply
-        .code(201)
-        .send(
-          await addDomain(
-            context,
-            (await access(request, true)).workspace_id,
-            request.body.domain,
-            request.body.makePrimary ?? false,
-          ),
-        ),
+    async (request, reply) => {
+      const a = await access(request, true);
+      requirePartnerDomainSetup(request);
+      return reply.code(201).send(await addDomain(
+        context,
+        a.workspace_id,
+        request.body.domain,
+        request.body.makePrimary ?? false,
+      ));
+    },
   );
   app.post<{ Params: { domain_id: string } }>(
     "/api/workspace/domains/:domain_id/verify",
-    async (request) =>
-      verifyDomain(
-        context,
-        (await access(request, true)).workspace_id,
-        request.params.domain_id,
-      ),
+    async (request) => {
+      const a = await access(request, true);
+      requirePartnerDomainSetup(request);
+      return verifyDomain(context, a.workspace_id, request.params.domain_id);
+    },
   );
   app.post<{ Params: { domain_id: string } }>(
     "/api/workspace/domains/:domain_id/primary",
-    async (request) =>
-      setPrimaryDomain(
-        context,
-        (await access(request, true)).workspace_id,
-        request.params.domain_id,
-      ),
+    async (request) => {
+      const a = await access(request, true);
+      requirePartnerDomainSetup(request);
+      return setPrimaryDomain(context, a.workspace_id, request.params.domain_id);
+    },
   );
   app.delete<{ Params: { domain_id: string } }>(
     "/api/workspace/domains/:domain_id",
-    async (request) =>
-      removeDomain(
-        context,
-        (await access(request, true)).workspace_id,
-        request.params.domain_id,
-      ),
+    async (request) => {
+      const a = await access(request, true);
+      requirePartnerDomainSetup(request);
+      return removeDomain(context, a.workspace_id, request.params.domain_id);
+    },
   );
 }

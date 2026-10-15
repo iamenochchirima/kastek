@@ -305,7 +305,7 @@ export default function Reporting() {
                               <XAxis dataKey="month" stroke="#888888" fontSize={12} tickLine={false} axisLine={false} />
                               <YAxis stroke="#888888" fontSize={12} tickLine={false} axisLine={false} />
                               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.1)" />
-                              <RechartsTooltip contentStyle={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))' }} />
+                              <RechartsTooltip contentStyle={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)' }} />
                               <Area type="monotone" dataKey="sessions" stroke={activeDashboard.brandColor} fillOpacity={1} fill="url(#colorSessions)" />
                             </AreaChart>
                           </ResponsiveContainer>

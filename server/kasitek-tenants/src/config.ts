@@ -16,6 +16,17 @@ export interface TenantConfig {
   session_ttl_hours: number;
   client_session_cookie_name: string;
   client_session_ttl_hours: number;
+  partner_session_cookie_name: string;
+  partner_session_idle_days: number;
+  partner_session_absolute_days: number;
+  partner_max_businesses: number;
+  partner_oidc_issuer_url: string;
+  partner_oidc_client_id: string;
+  partner_oidc_client_secret: string | null;
+  partner_oidc_admin_client_id: string;
+  partner_oidc_admin_client_secret: string | null;
+  partner_oidc_redirect_uri: string;
+  partner_app_base_url: string;
   invite_ttl_hours: number;
   admin_secret: string | null;
   resend_api_key: string | null;
@@ -47,6 +58,11 @@ export function readConfig(source: Record<string,string|undefined> = process.env
  const inferredHost = app_base_url?.replace(/^http:\/\//,'').replace(/^https:\/\//,'').split('/')[0]?.split(':')[0]?.toLowerCase() || null;
  const origins = (env.TENANT_ALLOWED_ORIGINS ?? '').split(',').map(v=>v.trim()).filter(Boolean);
  const site = str('TENANT_SESSION_COOKIE_SAME_SITE','lax').toLowerCase();
+ const partner_session_cookie_name=str('TENANT_PARTNER_SESSION_COOKIE_NAME','kasitek.agency.partner');
+ const session_cookie_name=str('TENANT_SESSION_COOKIE_NAME','kasitenant.session');
+ const client_session_cookie_name=str('TENANT_CLIENT_SESSION_COOKIE_NAME','kasitenant.client.session');
+ if(new Set([session_cookie_name,client_session_cookie_name,partner_session_cookie_name]).size!==3)
+  throw Error('Tenant, client, and partner session cookies must use different names');
  return {
   port: uint(env.TENANT_SERVER_PORT,65535) ?? uint(env.PORT,65535) ?? 8090,
   environment,database_url,
@@ -56,13 +72,25 @@ export function readConfig(source: Record<string,string|undefined> = process.env
   portal_host_target:optional('TENANT_PORTAL_HOST_TARGET') ?? inferredHost,
   platform_base_domain:env.TENANT_PLATFORM_BASE_DOMAIN?.replace(/^\.+|\.+$/g,'').toLowerCase() || null,
   default_workspace_slug:optional('TENANT_DEFAULT_WORKSPACE_SLUG'),
-  session_cookie_name:str('TENANT_SESSION_COOKIE_NAME','kasitenant.session'),
+  session_cookie_name,
   session_cookie_domain:optional('TENANT_SESSION_COOKIE_DOMAIN'),
   session_cookie_secure:bool('TENANT_SESSION_COOKIE_SECURE',environment.toLowerCase()==='production'),
   session_cookie_same_site:site==='strict'||site==='none' ? site : 'lax',
   session_ttl_hours:n('TENANT_SESSION_TTL_HOURS',336),
-  client_session_cookie_name:str('TENANT_CLIENT_SESSION_COOKIE_NAME','kasitenant.client.session'),
-  client_session_ttl_hours:n('TENANT_CLIENT_SESSION_TTL_HOURS',336),invite_ttl_hours:n('TENANT_INVITE_TTL_HOURS',168),
+  client_session_cookie_name,
+  client_session_ttl_hours:n('TENANT_CLIENT_SESSION_TTL_HOURS',336),
+  partner_session_cookie_name,
+  partner_session_idle_days:n('TENANT_PARTNER_SESSION_IDLE_DAYS',7),
+  partner_session_absolute_days:n('TENANT_PARTNER_SESSION_ABSOLUTE_DAYS',30),
+  partner_max_businesses:n('TENANT_PARTNER_MAX_BUSINESSES',10),
+  partner_oidc_issuer_url:str('TENANT_PARTNER_OIDC_ISSUER_URL','http://localhost:8080/realms/kasitek').replace(/\/$/,''),
+  partner_oidc_client_id:str('TENANT_PARTNER_OIDC_CLIENT_ID','agency-partner'),
+  partner_oidc_client_secret:optional('TENANT_PARTNER_OIDC_CLIENT_SECRET'),
+  partner_oidc_admin_client_id:str('TENANT_PARTNER_OIDC_ADMIN_CLIENT_ID','agency-partner-session-admin'),
+  partner_oidc_admin_client_secret:optional('TENANT_PARTNER_OIDC_ADMIN_CLIENT_SECRET'),
+  partner_oidc_redirect_uri:str('TENANT_PARTNER_OIDC_REDIRECT_URI','http://localhost:3010/api/tenant/api/partner/auth/callback'),
+  partner_app_base_url:str('TENANT_PARTNER_APP_BASE_URL','http://localhost:3010').replace(/\/$/,''),
+  invite_ttl_hours:n('TENANT_INVITE_TTL_HOURS',168),
   admin_secret:optional('TENANT_ADMIN_SECRET'),resend_api_key:optional('TENANT_RESEND_API_KEY') ?? optional('AUTH_RESEND_KEY'),
   resend_from_email:env.TENANT_RESEND_FROM_EMAIL ?? env.RESEND_FROM_EMAIL ?? 'KasiTek <onboarding@resend.dev>',
   shared_email_domain:str('TENANT_SHARED_EMAIL_DOMAIN','send.kasitek.co.za').replace(/^\.+|\.+$/g,'').toLowerCase(),

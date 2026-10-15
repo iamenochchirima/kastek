@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/lib/navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
@@ -23,8 +23,9 @@ const passwordSchema = z.object({
 });
 
 type ContinueResponse = {
-  audience?: "tenant" | "client";
-  nextStep: "password" | "setup_link_sent" | "not_found";
+  audience?: "tenant" | "client" | "partner";
+  availableAudiences?: Array<"tenant" | "client" | "partner">;
+  nextStep: "password" | "setup_link_sent" | "partner_login" | "choose_audience" | "not_found";
   email?: string;
 };
 
@@ -32,9 +33,11 @@ export default function Login() {
   const router = useRouter();
   const { login, isAuthenticated, defaultRoute } = useAuth();
   const { brandName, tagline, context, isLoading } = useTenantContext();
-  const [stage, setStage] = useState<"email" | "password" | "setup_link_sent">("email");
+  const [stage, setStage] = useState<"email" | "password" | "setup_link_sent" | "partner_login" | "choose_audience">("email");
   const [email, setEmail] = useState("");
-  const [audience, setAudience] = useState<"tenant" | "client" | null>(null);
+  const [audience, setAudience] = useState<"tenant" | "client" | "partner" | null>(null);
+  const [availableAudiences, setAvailableAudiences] = useState<Array<"tenant" | "client" | "partner">>([]);
+  const [choosingAudience, setChoosingAudience] = useState(false);
 
   const emailForm = useForm<z.infer<typeof emailSchema>>({
     resolver: zodResolver(emailSchema),
@@ -60,26 +63,53 @@ export default function Login() {
       });
 
       setEmail(values.email);
-      setAudience(payload.audience ?? null);
-
-      if (payload.nextStep === "password") {
-        setStage("password");
-        passwordForm.reset({ password: "" });
+      if (payload.nextStep === "choose_audience") {
+        setAvailableAudiences(payload.availableAudiences ?? []);
+        setStage("choose_audience");
         return;
       }
-
-      if (payload.nextStep === "setup_link_sent") {
-        setStage("setup_link_sent");
-        return;
-      }
-
-      emailForm.setError("root", {
-        message: "No access was found for that email in this portal.",
-      });
+      applyContinueResponse(payload);
     } catch (error) {
       emailForm.setError("root", {
         message: error instanceof Error ? error.message : "Unable to continue with that email",
       });
+    }
+  }
+
+  function applyContinueResponse(payload: ContinueResponse) {
+    setAudience(payload.audience ?? null);
+    if (payload.nextStep === "password") {
+      setStage("password");
+      passwordForm.reset({ password: "" });
+    } else if (payload.nextStep === "setup_link_sent") {
+      setStage("setup_link_sent");
+    } else if (payload.nextStep === "partner_login") {
+      setStage("partner_login");
+    } else {
+      setStage("email");
+      emailForm.setError("root", { message: "No access was found for that email in this portal." });
+    }
+  }
+
+  async function continueAsAudience(selectedAudience: "tenant" | "client" | "partner") {
+    if (selectedAudience === "partner") {
+      setAudience("partner");
+      setStage("partner_login");
+      return;
+    }
+    setChoosingAudience(true);
+    emailForm.clearErrors("root");
+    try {
+      const payload = await tenantFetch<ContinueResponse>("/api/auth/session/continue", {
+        method: "POST",
+        body: JSON.stringify({ email, audience: selectedAudience }),
+      });
+      applyContinueResponse(payload);
+    } catch (error) {
+      emailForm.setError("root", { message: error instanceof Error ? error.message : "Unable to continue with that account." });
+      setStage("email");
+    } finally {
+      setChoosingAudience(false);
     }
   }
 
@@ -97,6 +127,7 @@ export default function Login() {
   function resetToEmail() {
     setStage("email");
     setAudience(null);
+    setAvailableAudiences([]);
     passwordForm.reset({ password: "" });
   }
 
@@ -173,12 +204,16 @@ export default function Login() {
           <Card className="border-border/50 bg-card/80 shadow-2xl backdrop-blur-xl">
               <CardHeader>
                 <CardTitle>
-                  {stage === "email" ? "Access your portal" : stage === "password" ? "Enter your password" : "Check your inbox"}
+                  {stage === "email" ? "Access your portal" : stage === "password" ? "Enter your password" : stage === "partner_login" ? "Agency partner account" : stage === "choose_audience" ? "Choose your account" : "Check your inbox"}
                 </CardTitle>
               <CardDescription>
                 {stage === "email"
                   ? `Use the email address connected to ${brandName}.`
-                  : stage === "password"
+                  : stage === "partner_login"
+                    ? "This business is connected to your KasiTek partner account. Continue with secure partner sign-in."
+                    : stage === "choose_audience"
+                      ? "This email has more than one account in this business. Choose which one to use."
+                    : stage === "password"
                     ? "This email already has access. Enter the password to continue."
                     : "We’ve sent a secure setup link so you can finish creating your access."}
               </CardDescription>
@@ -275,6 +310,31 @@ export default function Login() {
                       Use a different email
                     </Button>
                   </div>
+                </div>
+              ) : null}
+
+              {stage === "partner_login" ? (
+                <div className="space-y-4">
+                  <div className="rounded-xl border border-primary/20 bg-primary/5 px-4 py-5 text-center text-sm text-muted-foreground">
+                    <span className="font-medium text-foreground">{email}</span> signs in through KasiTek Login. This account does not use a separate portal password.
+                  </div>
+                  <a
+                    href={`/api/tenant/api/partner/auth/start?returnTo=${encodeURIComponent(context.workspace?.slug ? `/portal/${context.workspace.slug}` : '/app/businesses')}`}
+                    className="block w-full rounded-xl bg-primary px-4 py-3 text-center text-sm font-semibold text-primary-foreground hover:opacity-90"
+                  >
+                    Continue with KasiTek Login
+                  </a>
+                  <div className="text-center"><Button type="button" variant="outline" onClick={resetToEmail}>Use a different email</Button></div>
+                </div>
+              ) : null}
+              {stage === "choose_audience" ? (
+                <div className="space-y-3">
+                  {availableAudiences.map((available) => (
+                    <Button key={available} type="button" className="w-full" variant={available === "partner" ? "default" : "outline"} disabled={choosingAudience} onClick={() => void continueAsAudience(available)}>
+                      {choosingAudience ? "Checking account…" : available === "partner" ? "Agency partner account" : available === "tenant" ? "Agency team account" : "Client account"}
+                    </Button>
+                  ))}
+                  <div className="text-center"><Button type="button" variant="ghost" onClick={resetToEmail}>Use a different email</Button></div>
                 </div>
               ) : null}
             </CardContent>

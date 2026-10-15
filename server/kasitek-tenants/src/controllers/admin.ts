@@ -5,8 +5,8 @@ import { randomBytes, createHash } from "node:crypto";
 import { hash } from "bcryptjs";
 import { transaction } from "../db.js";
 import { apiJson } from "../json.js";
-import { bad, missing, forbidden, internal } from "../error.js";
-import * as analytics from "../analytics.js";
+import { bad, missing, forbidden } from "../error.js";
+import { createWorkspaceBase } from "../workspace-provisioning.js";
 import { issueAdminInvite } from "./admin-invites.js";
 import {
   asciiLower,
@@ -34,7 +34,7 @@ export function requireAdminSecret(
   context: TenantContext,
 ) {
   if (
-    context.config.admin_secret !== null &&
+    context.config.admin_secret === null ||
     request.headers["x-admin-secret"] !== context.config.admin_secret
   )
     throw forbidden();
@@ -448,24 +448,24 @@ export function registerAdminRoutes(
           "portal:bootstrap",
         ],
         time = new Date(),
-        timezone = normalizeReportingTimezone(b.reportingTimezone);
+        timezone = normalizeReportingTimezone(b.reportingTimezone),
+        domain = b.domain === undefined || b.domain === null
+          ? null
+          : normalizeDomain(b.domain);
       await transaction(context.pool, async (tx) => {
-        await tx.query(
-          `INSERT INTO workspaces(id,slug,display_name,status,reporting_timezone,created_at,updated_at) VALUES($1,$2,$3,'active',$4,NOW(),NOW())`,
-          [id, slug, name, timezone],
-        );
-        await tx.query(
-          `INSERT INTO workspace_branding(workspace_id,display_name,primary_color,custom_domain,created_at,updated_at) VALUES($1,$2,$3,$4,NOW(),NOW())`,
-          [id, name, b.primaryColor ?? null, b.domain ?? null],
-        );
-        await tx.query(
-          `INSERT INTO workspace_usage_limits(workspace_id,requests_per_month,tokens_per_month,conversations_per_month,created_at,updated_at) VALUES($1,0,0,0,NOW(),NOW())`,
-          [id],
-        );
-        if (b.domain !== undefined && b.domain !== null)
+        await createWorkspaceBase(tx, {
+          id,
+          slug,
+          name,
+          reportingTimezone: timezone,
+          primaryColor: b.primaryColor ?? null,
+          customDomain: domain,
+          createdAt: time,
+        });
+        if (domain)
           await tx.query(
             `INSERT INTO workspace_domains(id,workspace_id,domain,is_primary,dns_status,created_at,updated_at) VALUES($1,$2,$3,TRUE,'pending',NOW(),NOW())`,
-            [createId(), id, normalizeDomain(b.domain)],
+            [createId(), id, domain],
           );
         await tx.query(
           `INSERT INTO tenant_users(id,workspace_id,email,password_hash,status,created_at,updated_at) VALUES($1,$2,$3,'','invited',NOW(),NOW())`,
@@ -479,23 +479,6 @@ export function registerAdminRoutes(
           `INSERT INTO workspace_api_keys(id,workspace_id,label,key_prefix,key_hash,scopes,created_at,updated_at) VALUES($1,$2,'initial-provisioning-key',$3,$4,$5,NOW(),NOW())`,
           [keyId, id, prefix, keyHash, apiJson(scopes)],
         );
-        try {
-          await analytics.enqueueWorkspaceScopeDefinition(
-            tx,
-            id,
-            time.getTime(),
-            timezone,
-          );
-        } catch (error) {
-          throw internal(`analytics workspace scope enqueue failed: ${error}`);
-        }
-        try {
-          await analytics.enqueueScopeManifest(tx, id, 1n, time);
-        } catch (error) {
-          throw internal(
-            `analytics workspace manifest enqueue failed: ${error}`,
-          );
-        }
       });
       const invite = await issueAdminInvite(
         context,
@@ -515,7 +498,7 @@ export function registerAdminRoutes(
             slug,
             context.config.platform_base_domain,
           ),
-          domains: b.domain?.trim() ? [b.domain.trim()] : [],
+          domains: domain ? [domain] : [],
           createdAt: time,
         },
         adminUser: { id: userId, email, role: "owner", status: "invited" },

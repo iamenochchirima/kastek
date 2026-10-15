@@ -1,7 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter } from "@/lib/navigation";
 import { tenantFetch } from "@/lib/api";
 
 type TenantUser = {
@@ -11,6 +11,7 @@ type TenantUser = {
   email: string;
   name?: string | null;
   roles: string[];
+  agencyPartner: boolean;
 };
 
 type ClientUser = {
@@ -99,15 +100,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = async () => {
     setIsLoading(true);
+    let logoutUrl: string | null = null;
     try {
-      await tenantFetch<{ message: string }>("/api/auth/session/logout", {
-        method: "POST",
-      });
+      if (user?.agencyPartner) {
+        const result = await tenantFetch<{ logoutUrl: string }>("/api/partner/auth/logout", {
+          method: "POST",
+        });
+        logoutUrl = result.logoutUrl;
+      } else {
+        await tenantFetch<{ message: string }>("/api/auth/session/logout", {
+          method: "POST",
+        });
+      }
     } finally {
       setUser(null);
       setClientUser(null);
       setIsLoading(false);
-      router.replace("/login");
+      if (logoutUrl) window.location.assign(logoutUrl);
+      else router.replace("/login");
     }
   };
 

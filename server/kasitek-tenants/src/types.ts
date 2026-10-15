@@ -20,6 +20,7 @@ export interface TenantUserSessionContext {
   email: string;
   name: string | null;
   roles: string[];
+  agency_partner: boolean;
 }
 export interface TenantAccessContext {
   workspace_id: string;

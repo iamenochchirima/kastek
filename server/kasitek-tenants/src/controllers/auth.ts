@@ -15,6 +15,7 @@ export interface TenantUserPayload {
   email: string;
   name: string | null;
   roles: string[];
+  agencyPartner: boolean;
 }
 export const newToken = () => randomBytes(48).toString('base64url');
 export function cookieOptions(
@@ -148,6 +149,7 @@ export async function authenticateTenantUser(
   if (
     !user ||
     user.status !== 'active' ||
+    typeof user.password_hash !== 'string' ||
     !(await verifyPassword(password, user.password_hash))
   )
     return null;
@@ -172,6 +174,7 @@ export async function authenticateTenantUser(
       email: user.email,
       name: user.name,
       roles: await tenantRoles(context.pool, user.id),
+      agencyPartner: false,
     },
     token,
   ];
@@ -186,6 +189,7 @@ export function sessionPayload(
     email: session.email,
     name: session.name,
     roles: session.roles,
+    agencyPartner: session.agency_partner,
   };
 }
 export function loginInput(body: unknown): { email: string; password: string } {

@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import Link from "@/lib/link";
 import { useState } from "react";
 import { useListClientConversations } from "@workspace/api-client-react";
 import { ProtectedRoute } from "@/lib/auth";

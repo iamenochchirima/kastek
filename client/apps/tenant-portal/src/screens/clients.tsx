@@ -1,7 +1,7 @@
 "use client";
 
-import Link from "next/link";
-import { useRouter } from "next/navigation";
+import Link from "@/lib/link";
+import { useRouter } from "@/lib/navigation";
 import { useMemo, useState } from "react";
 import { getListTenantClientsQueryKey, useCreateTenantClient, useListTenantClients } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";

@@ -2,7 +2,9 @@
 
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 
-import { tenantFetch } from "@/lib/api";
+import { useLocation } from "react-router-dom";
+import { useAppearance } from "@/lib/appearance";
+import { getAgencyWorkspaceSlug, tenantFetch } from "@/lib/api";
 import {
   buildTenantThemeStyle,
   getTenantDisplayName,
@@ -48,6 +50,8 @@ export function TenantContextProvider({
   children: React.ReactNode;
   initialContext?: PublicTenantContext | null;
 }) {
+  const location = useLocation();
+  const appearance = useAppearance();
   const [context, setContext] = useState<PublicTenantContext>(initialContext ?? DEFAULT_CONTEXT);
   const [isLoading, setIsLoading] = useState(!initialContext?.workspace && !initialContext?.branding);
   const shouldRefreshOnMount = !initialContext?.workspace && !initialContext?.branding;
@@ -63,23 +67,26 @@ export function TenantContextProvider({
   }, []);
 
   useEffect(() => {
-    if (shouldRefreshOnMount) {
-      void refresh();
+    const selectedSlug = getAgencyWorkspaceSlug();
+    if (shouldRefreshOnMount || (selectedSlug && selectedSlug !== initialContext?.workspace?.slug)) {
+      void refresh().catch(() => {});
     }
-  }, [refresh, shouldRefreshOnMount]);
+  }, [initialContext?.workspace?.slug, refresh, shouldRefreshOnMount]);
 
   useEffect(() => {
-    const style = buildTenantThemeStyle(context);
+    // Partner preferences are independent of a business's branded workspace.
+    const partnerPage = location.pathname.startsWith('/app/') || location.pathname === '/onboarding' || location.pathname === '/register' || (location.pathname === '/login' && new URLSearchParams(location.search).get('audience') === 'partner');
+    const style = partnerPage ? {} : buildTenantThemeStyle(context);
     const root = document.documentElement;
-
-    Object.entries(style).forEach(([key, value]) => {
-      root.style.setProperty(key, value);
-    });
-  }, [context]);
+    const keys = ['--primary','--ring','--sidebar-primary','--sidebar-ring','--chart-1','--primary-foreground','--sidebar-primary-foreground','--secondary','--accent','--sidebar-accent','--chart-2'];
+    keys.forEach(key => root.style.removeProperty(key));
+    Object.entries(style).forEach(([key,value]) => root.style.setProperty(key,value));
+  }, [context, location.pathname, location.search, appearance]);
 
   useEffect(() => {
-    document.title = getTenantDisplayName(context);
-  }, [context]);
+    const partnerPage = location.pathname.startsWith('/app/') || location.pathname === '/onboarding' || location.pathname === '/register' || (location.pathname === '/login' && new URLSearchParams(location.search).get('audience') === 'partner');
+    document.title = partnerPage || (!context.workspace && !context.branding) ? 'KasiTek Agency' : getTenantDisplayName(context);
+  }, [context, location.pathname, location.search]);
 
   const value = useMemo<TenantContextValue>(() => {
     return {

@@ -371,7 +371,7 @@ export default function LeadsScreen() {
                       <Line
                         type="monotone"
                         dataKey="count"
-                        stroke="hsl(var(--primary))"
+                        stroke="var(--primary)"
                         strokeWidth={2}
                         dot={false}
                       />
@@ -402,7 +402,7 @@ export default function LeadsScreen() {
                         width={90}
                       />
                       <Tooltip />
-                      <Bar dataKey="count" fill="hsl(var(--primary))" radius={[0, 6, 6, 0]} />
+                      <Bar dataKey="count" fill="var(--primary)" radius={[0, 6, 6, 0]} />
                     </BarChart>
                   </ResponsiveContainer>
                 )}

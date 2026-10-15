@@ -85,5 +85,17 @@
     "POST /api/workspace/email-sending/test",
     "POST /api/workspace/staff",
     "PUT /api/workspace/email-sending"
+  ],
+  "typescriptExtensions": [
+    { "method": "GET", "path": "/api/partner/auth/start", "reason": "Agency partner OIDC login start." },
+    { "method": "GET", "path": "/api/partner/auth/callback", "reason": "Agency partner OIDC callback." },
+    { "method": "GET", "path": "/api/partner/auth/me", "reason": "Agency partner session lookup." },
+    { "method": "POST", "path": "/api/partner/auth/logout", "reason": "Agency partner browser logout." },
+    { "method": "POST", "path": "/api/partner/auth/logout-all", "reason": "Agency partner all-session logout." },
+    { "method": "POST", "path": "/api/partner/auth/backchannel-logout", "reason": "Keycloak backchannel session revocation." },
+    { "method": "GET", "path": "/api/partner/businesses", "reason": "List only businesses owned by the partner." },
+    { "method": "POST", "path": "/api/partner/businesses", "reason": "Create an owned business workspace." },
+    { "method": "GET", "path": "/api/partner/businesses/:id", "reason": "Read an owned business and branding." },
+    { "method": "PATCH", "path": "/api/partner/businesses/:id/branding", "reason": "Update owned business branding." }
   ]
 }

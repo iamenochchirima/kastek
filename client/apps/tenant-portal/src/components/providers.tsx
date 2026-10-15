@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "@/components/ui/toaster";
 import { AuthProvider } from "@/lib/auth";
+import PartnerSessionActivity from "@/components/partner-session-activity";
 import { TenantContextProvider } from "@/lib/tenant-context-provider";
 import type { PublicTenantContext } from "@/lib/tenant-context";
 import { useState } from "react";
@@ -21,6 +22,7 @@ export default function Providers({
     <QueryClientProvider client={queryClient}>
       <TenantContextProvider initialContext={initialTenantContext}>
         <AuthProvider>
+          <PartnerSessionActivity />
           <TooltipProvider>
             {children}
             <Toaster />

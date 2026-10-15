@@ -40,7 +40,16 @@ Useful auth and portal settings:
 - `TENANT_SESSION_TTL_HOURS`
 - `TENANT_CLIENT_SESSION_COOKIE_NAME`
 - `TENANT_CLIENT_SESSION_TTL_HOURS`
+- `TENANT_PARTNER_SESSION_COOKIE_NAME`
+- `TENANT_PARTNER_SESSION_IDLE_DAYS` (default 7)
+- `TENANT_PARTNER_SESSION_ABSOLUTE_DAYS` (default 30)
+- `TENANT_PARTNER_MAX_BUSINESSES` (default 10)
+- `TENANT_PARTNER_OIDC_ISSUER_URL`, `TENANT_PARTNER_OIDC_CLIENT_ID`, `TENANT_PARTNER_OIDC_CLIENT_SECRET`
+- `TENANT_PARTNER_OIDC_ADMIN_CLIENT_ID` and `TENANT_PARTNER_OIDC_ADMIN_CLIENT_SECRET` for all-device provider logout
+- `TENANT_PARTNER_OIDC_REDIRECT_URI` and `TENANT_PARTNER_APP_BASE_URL`
 - `TENANT_INVITE_TTL_HOURS`
+
+Agency partner sign-in uses the Labs Keycloak client `agency-partner`. Set its client secret in the ignored Labs identity `.env` and in this service's ignored `.env`, then run the Labs identity configuration script. The partner's Keycloak identity is separate from agency-specific staff and client accounts. Workspace membership is checked for every owner operation.
 
 Analytics publication is a separate worker process. To enable it, set these values in the Tenant
 service environment; the token must match the `tenant-platform` credential configured in the
@@ -62,35 +71,31 @@ KASITEK_PROCESS=analytics-backfill-worker corepack pnpm --dir server/kasitek-ten
 The publisher claims the Tenant outbox, sends authenticated batches, and applies
 each Analytics acknowledgement without affecting the API process.
 
-## Real Provisioning Flow
+## Partner signup and self-service provisioning
 
-Tenant workspaces are provisioned through the admin application, not through local bootstrap scripts.
+Agency partners register through Labs Keycloak and create their own businesses
+from the Agency portal. The partner becomes the primary owner. Workspace
+creation does not require Labs Admin, an admin secret, or a manual database
+insert. Internal admin provisioning remains available for platform support.
 
-The portal can be started with `corepack pnpm --dir client dev`. Prepare the
-private shared packages and install the API dependencies as described in the
-[repository README](../../README.md), then build and start the API from the
-repository root:
+Start native Keycloak and Mailpit from the Labs checkout, configure the
+`agency-partner` client, then start the Tenant API and portal using the
+[repository setup](../../README.md). In local development, visit
+`http://localhost:3010/register`, complete email verification from
+`http://localhost:8025`, sign in, and create a business. Keep the browser,
+Keycloak and WebAuthn relying-party hostname on `localhost`.
 
-```sh
-corepack pnpm --dir server/kasitek-tenants build
-corepack pnpm --dir server/kasitek-tenants start
-```
+The local Mailpit inbox captures verification messages; it does not deliver to
+the address's external inbox. Real inbox delivery needs a configured production
+email service. Google login also needs the authorized Google callback URI to
+match the Labs Keycloak broker. Partners can manage branding, invite staff,
+create clients, and preview `/portal/<slug>` from their Agency workspace.
 
-The API uses the configured tenant PostgreSQL URL. This repository does not
-include Growth's former local stack launcher or environment files.
-
-The existing provisioning flow crosses the repository boundary and Growth's
-Labs Admin remains the provisioning consumer. Compiled consumer fixtures cover
-the Admin-to-Tenant endpoints; the full rendered Admin-to-portal journey remains
-open in the migration checklist.
-
-Expected integration flow:
-
-1. Start `kasitek-core`, `kasitek-tenants`, the admin app, and the tenant portal app.
-2. In the admin UI, create a new agency workspace from `/agencies/new`.
-3. Use the tenant admin email and password entered there to sign into the tenant portal.
-4. Inside the tenant portal, create tenant clients from the Clients screen.
-5. Invite client users from the same screen and complete activation through `/activate?token=...`.
+Business creation saves an automatically generated portal slug, the selected
+IANA reporting time zone, initial brand color, owner membership, and default
+workspace limits in one transaction. Repeated submits reuse an idempotency key.
+Custom-domain activation stays disabled until ownership verification is
+implemented.
 
 ## Local Testing Notes
 
@@ -101,13 +106,10 @@ Expected integration flow:
 - Client-user invites send through Resend when `TENANT_APP_BASE_URL` and `TENANT_RESEND_API_KEY` or `AUTH_RESEND_KEY` are configured.
 - If invite email delivery is not configured locally, the API and portal UI fall back to exposing the activation link directly so the account-activation flow can still be tested.
 
-## Local Trial Flow
+## Existing staff and client accounts
 
-1. Start the tenant backend with a tenant database configured.
-2. Start the admin app and provision a workspace from the admin UI.
-3. Start `client/apps/tenant-portal`.
-4. Use the hosted portal domain returned by the admin app when `TENANT_PLATFORM_BASE_DOMAIN` is configured, or sign in at `/login` using the local fallback host.
-5. If the workspace does not have its own mapped domain locally, set `TENANT_DEFAULT_WORKSPACE_SLUG` to the new workspace slug before testing the portal.
-6. Inspect dashboard, clients, leads, and tenant activity.
-7. Create a tenant client and invite a client user.
-8. Open the activation link, or receive the real invite email if Resend is configured, create the client-user password, and verify `/client`, `/client/leads`, and `/client/conversations`.
+Staff and client accounts remain workspace-specific and continue to use the
+existing invitation and password activation flow. If Resend is not configured,
+the portal displays a development activation link. A local default workspace
+slug is only needed when testing legacy staff/client routes without a selected
+portal URL; partner registration and business creation do not need it.

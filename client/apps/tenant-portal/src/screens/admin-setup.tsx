@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "@/lib/navigation";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -129,8 +129,8 @@ export default function AdminSetupScreen() {
             <CardTitle>{brandName}</CardTitle>
             <CardDescription>
               {workspaceDisplayName
-                ? `Create your admin password for ${workspaceDisplayName}.`
-                : `Create your admin password for ${tagline.toLowerCase()}.`}
+                ? `Create your workspace password for ${workspaceDisplayName}.`
+                : `Create your workspace password for ${tagline.toLowerCase()}.`}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -152,7 +152,7 @@ export default function AdminSetupScreen() {
                   {inviteEmail ? (
                     <div className="rounded-xl border border-border bg-muted/40 px-4 py-3 text-sm">
                       <div className="font-medium">{inviteEmail}</div>
-                      <div className="text-muted-foreground">This email will be used for admin sign-in.</div>
+                      <div className="text-muted-foreground">This email will be used for workspace sign-in.</div>
                     </div>
                   ) : null}
                   <FormField

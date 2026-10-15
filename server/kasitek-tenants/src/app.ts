@@ -1,5 +1,6 @@
 import Fastify, {LogController,type FastifyInstance} from 'fastify';
 import cookie from '@fastify/cookie';
+import formbody from '@fastify/formbody';
 import {Readable} from 'node:stream';
 import cors from '@fastify/cors';
 import { environmentAllowsLoopbackOrigins, isLoopbackOrigin } from '@kasitek-labs/server-support/config';
@@ -10,7 +11,7 @@ import {installErrorHandler,RequestExtractionError} from './error.js';
 import {apiJson,parseSerdeValueJson} from './json.js';
 import {installHttpObservability} from './observability/http.js';
 
-const bodylessRequest=(method:string,url:string)=>method==='DELETE'||(method==='POST'&&(/\/logout$/.test(url)||/\/domains\/:domain_id\/(verify|primary)$/.test(url)));
+const bodylessRequest=(method:string,url:string)=>method==='DELETE'||(method==='POST'&&(/\/(?:logout|logout-all)$/.test(url)||/\/domains\/:domain_id\/(verify|primary)$/.test(url)));
 const reportQueryBodySchema={type:'object',properties:{
  range_start:{},range_end:{},timezone:{},interval:{},metrics:{type:'array',items:{}},metric_set:{},
  breakdowns:{type:'array',items:{}},filters:{type:'object',additionalProperties:{type:'array',items:{}}},
@@ -76,6 +77,7 @@ export async function buildApp(context:TenantContext,registrars:RouteRegistrar[]
  app.setNotFoundHandler((_request,reply)=>reply.code(404).send());
  app.addHook('onRequest',async(request,reply)=>{if(request.is404)return reply.code(404).send();});
  await app.register(cookie);
+ await app.register(formbody);
  const config=context.config;
  await app.register(cors,{origin:(origin,done)=>done(null,!!origin&&(config.allowed_origins.includes(origin)||
   (environmentAllowsLoopbackOrigins(config.environment)&&isLoopbackOrigin(origin))||

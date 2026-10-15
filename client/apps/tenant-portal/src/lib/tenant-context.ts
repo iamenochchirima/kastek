@@ -192,20 +192,20 @@ export function buildTenantThemeStyle(context: PublicTenantContext | null | unde
   const style: TenantThemeStyle = {};
 
   if (primaryColor) {
-    style["--primary"] = primaryColor;
-    style["--ring"] = primaryColor;
-    style["--sidebar-primary"] = primaryColor;
-    style["--sidebar-ring"] = primaryColor;
-    style["--chart-1"] = primaryColor;
-    style["--primary-foreground"] = getReadableForeground(primaryColor);
-    style["--sidebar-primary-foreground"] = getReadableForeground(primaryColor);
+    style["--primary"] = `hsl(${primaryColor})`;
+    style["--ring"] = `hsl(${primaryColor})`;
+    style["--sidebar-primary"] = `hsl(${primaryColor})`;
+    style["--sidebar-ring"] = `hsl(${primaryColor})`;
+    style["--chart-1"] = `hsl(${primaryColor})`;
+    style["--primary-foreground"] = `hsl(${getReadableForeground(primaryColor)})`;
+    style["--sidebar-primary-foreground"] = `hsl(${getReadableForeground(primaryColor)})`;
   }
 
   if (secondaryColor) {
-    style["--secondary"] = secondaryColor;
-    style["--accent"] = secondaryColor;
-    style["--sidebar-accent"] = secondaryColor;
-    style["--chart-2"] = secondaryColor;
+    style["--secondary"] = `hsl(${secondaryColor})`;
+    style["--accent"] = `hsl(${secondaryColor})`;
+    style["--sidebar-accent"] = `hsl(${secondaryColor})`;
+    style["--chart-2"] = `hsl(${secondaryColor})`;
   }
 
   return style;
