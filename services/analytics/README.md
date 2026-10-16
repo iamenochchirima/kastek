@@ -182,8 +182,8 @@ producer uses a synthetic contract fixture.
 
 ```bash
 ANALYTICS_TEST_DATABASE_URL=postgresql://localhost/postgres \
-GROWTH_CORE_DIST=/path/to/kasitek-growth/server/kasitek-core/dist \
-AGENCY_TENANT_DIST=/path/to/kasitek-agency/server/kasitek-tenants/dist \
+GROWTH_CORE_DIST=/path/to/kasitek-growth/api/dist \
+AGENCY_TENANT_DIST=/path/to/kasitek-agency/api/dist \
 AGENT_PLATFORM_ROOT=/path/to/kasitek-agents \
 corepack pnpm exec tsx --test tests/shared-producer.integration.test.ts
 ```

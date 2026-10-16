@@ -23,7 +23,7 @@
     "dev:agency-api": "pnpm --filter @kasitek/agency-tenants dev",
     "dev:labs": "pnpm --filter labs dev",
     "dev:admin": "pnpm --filter @kasitek/admin-site dev",
-    "build:growth": "pnpm build:shared && pnpm --filter @kasitek/growth-core build && pnpm --filter @kasitek/growth-client-workspace build",
+    "build:growth": "pnpm build:shared && pnpm --filter @kasitek/database generate && pnpm --filter @kasitek/growth-core build && pnpm --filter client build",
     "build:agents": "pnpm build:shared && pnpm --filter @kasitek/agents build && pnpm --filter @kasitek/mcp build && pnpm --filter @kasitek/agent-platform build",
     "build:agency": "pnpm build:shared && pnpm --filter @kasitek/agency-tenants build && pnpm --filter tenant-portal build",
     "build:sites": "pnpm --filter @kasitek/admin-site build && pnpm --filter labs build",

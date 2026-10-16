@@ -34,5 +34,5 @@
 **/*.key
 **/*.sqlite*
 **/*.sql.gz
-products/agents/test
+products/agents/api/test
 products/agents/docs

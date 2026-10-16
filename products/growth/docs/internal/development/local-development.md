@@ -12,12 +12,16 @@ This page describes the supported local development paths for the KasiTek monore
 the services needed for the change; the complete stack is useful for integration work but is not
 required for ordinary UI or library changes.
 
+Paths and commands on this page are relative to `products/growth/` unless stated otherwise.
+Install dependencies from the repository root with `pnpm install --frozen-lockfile`. Root
+`pnpm dev:growth` and `pnpm dev:growth-api` also start the frontend and API directly.
+
 ## Toolchain
 
 Use the versions pinned by the repository where they exist:
 
-- Node.js: `.nvmrc`
-- pnpm: `package.json` `packageManager`
+- Node.js: root `.nvmrc`
+- pnpm: root `package.json` `packageManager`
 - PostgreSQL and Redis for services that require them
 
 Check the installed versions before debugging application failures. A mismatched toolchain can
@@ -25,18 +29,18 @@ look like a code or dependency problem.
 
 ## Core build output
 
-Core uses native TypeScript under `server/kasitek-core/src`. Build its production
+Core uses native TypeScript under `api/src`. Build its production
 JavaScript with:
 
 ```bash
-pnpm --dir server/kasitek-core build
+pnpm --dir api build
 ```
 
-The compiler writes `server/kasitek-core/dist`. Growth no longer carries a Rust
+The compiler writes `api/dist`. Growth no longer carries a Rust
 Core build directory. The prior Rust source remains recoverable from Git history.
-For standalone Core setup, use [`server/kasitek-core/.env.example`](../../../server/kasitek-core/.env.example)
+For standalone Core setup, use [`api/.env.example`](../../../api/.env.example)
 as the non-secret baseline. OIDC client values are listed separately in
-[`server/kasitek-core/.env.identity.example`](../../../server/kasitek-core/.env.identity.example);
+[`api/.env.identity.example`](../../../api/.env.identity.example);
 the root dotenv vault remains the source for local credentials.
 
 ## Environment files
@@ -61,16 +65,16 @@ Never paste credentials into a plan, issue, log, test fixture, or documentation 
 
 ## Shared login
 
-Growth login requires the native Labs Keycloak service. Start it from the Labs repository before
-starting Core and the client:
+Growth login requires the native shared Keycloak service. From the repository root, start it
+before Core and the client:
 
 ```bash
-cd ../kasitek-labs/infra/identity
+cd infra/identity
 ./identity.sh start
 ```
 
 The first setup requires explicit `./identity.sh install` and secret configuration described in
-Labs' `infra/identity/README.md`. No Docker. Identity PostgreSQL is a separate local cluster on
+root `infra/identity/README.md`. No Docker. Identity PostgreSQL is a separate local cluster on
 port 55432; Growth's existing database is unchanged. Stop identity with `./identity.sh stop` when
 it is not needed.
 
@@ -86,10 +90,9 @@ The launcher uses the native Node.js 24 Core. See
 process already using port 4000 before starting it.
 
 The launcher opens requested Growth processes in their own terminals. It does not start the moved
-Analytics, Agency, or Agent services. Analytics source and local commands are in the
-[Labs Analytics service](https://github.com/Kasitek-Labs/kasitek-labs/tree/main/services/analytics).
-Agency and Agent service source and local commands are in their owning repositories. Growth retains
-product publishers and consumer integrations; reconnecting their delivery paths is separate work.
+Analytics, Agency, or Agent services. Their source and local commands are under root
+`services/analytics/`, `products/agency/` and `products/agents/`. Growth retains its product
+publishers and consumer integrations.
 
 ```bash
 ./scripts/run_local_stack.sh core client
@@ -98,21 +101,19 @@ product publishers and consumer integrations; reconnecting their delivery paths 
 ```
 
 This launcher does not start the tenant API or portal. Their source and local commands are in the
-Agency repository's README.
+`products/agency/README.md`.
 
 The default no-argument invocation starts Growth-owned Core, client apps, and internal docs. The
-moved services and their migrations are maintained in their owner repositories.
+moved services and their migrations are maintained in their owning product packages.
 
 For focused work, manual commands are also supported:
 
 ```bash
 ./scripts/dev_core_watch.sh
-pnpm --dir client run dev
+pnpm --dir web run dev
 ```
 
-The central Admin UI is maintained in the Labs repository. See the
-[Admin app guide](https://github.com/Kasitek-Labs/kasitek-labs/tree/main/apps/admin-site) for its
-standalone local setup.
+The central Admin UI is under root `apps/admin-site/`. Run `pnpm dev:admin` from the repository root.
 
 ## Local service ports
 
@@ -126,8 +127,8 @@ service changes its port, update the launcher and this table together.
 
 ## Local OpenTelemetry export
 
-The Collector is owned by the Labs repository. Start it from a separate Labs checkout using the
-[Collector local-run instructions](https://github.com/Kasitek-Labs/kasitek-labs/blob/main/infra/observability/otel-collector/README.md).
+The Collector is under root `infra/observability/`. Use its
+[local-run instructions](https://github.com/Kasitek-Labs/kastek/blob/main/infra/observability/otel-collector/README.md).
 It accepts OTLP over gRPC on `4317`, OTLP over HTTP/protobuf on `4318`, and exposes its health
 endpoint on `13133`. The debug exporter is for local inspection only; it is not durable storage.
 When a local Collector is running, point a Growth producer at it with:
@@ -142,7 +143,7 @@ export OTEL_SERVICE_NAME=kasitek-core
 For Core also set `KASITEK_VERSION`, `KASITEK_RELEASE_ID`, and `KASITEK_COMMIT_SHA`
 when testing release identity. The application continues with stdout logging when these
 variables are absent or `OTEL_SDK_DISABLED=true`. For Collector operation, see the
-[Labs Collector runbook](https://github.com/Kasitek-Labs/kasitek-labs/blob/main/docs/otel-collector-runbook.md).
+[Labs Collector runbook](https://github.com/Kasitek-Labs/kastek/blob/main/docs/labs/otel-collector-runbook.md).
 
 ## Verification before opening a pull request
 

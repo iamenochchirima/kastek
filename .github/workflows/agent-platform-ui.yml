@@ -4,8 +4,8 @@ on:
   pull_request:
     paths:
       - ".github/workflows/agent-platform-ui.yml"
-      - "products/agents/client/apps/agent-platform/**"
-      - "products/agents/package.json"
+      - "products/agents/web/**"
+      - "products/agents/api/package.json"
       - "packages/contracts/**"
       - "packages/server-support/**"
       - "package.json"
@@ -16,8 +16,8 @@ on:
       - main
     paths:
       - ".github/workflows/agent-platform-ui.yml"
-      - "products/agents/client/apps/agent-platform/**"
-      - "products/agents/package.json"
+      - "products/agents/web/**"
+      - "products/agents/api/package.json"
       - "packages/contracts/**"
       - "packages/server-support/**"
       - "package.json"

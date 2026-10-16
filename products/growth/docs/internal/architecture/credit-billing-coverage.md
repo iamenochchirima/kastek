@@ -34,9 +34,9 @@ for the worker configuration and pricing decision.
 
 Core owns the credit ledger and exposes reserve, capture, and release operations, but the only
 customer-usage call sites found are the internal Agents endpoints in
-[`agent-internal.ts`](../../../server/kasitek-core/src/routes/agent-internal.ts). Ledger
+[`agent-internal.ts`](../../../api/src/routes/agent-internal.ts). Ledger
 operations are implemented in
-[`credits.ts`](../../../server/kasitek-core/src/services/credits.ts). The ledger does not
+[`credits.ts`](../../../api/src/services/credits.ts). The ledger does not
 charge a feature merely because that feature exists in Core.
 
 ## Current charging matrix
@@ -47,7 +47,7 @@ charge a feature merely because that feature exists in Core.
 | Agents model calls using BYOK | Preserves `fundingSource = user` and skips the KasiTek credit reservation. | **Not charged by design.** |
 | Agent read tools | No direct credit reservation or capture. | **Not charged.** |
 | Agent outbound tool effects | The tool itself does not use the credit ledger. A downstream action may use a separate meter or provider-specific policy. | **No general credit charge.** |
-| Core social ideas and captions | Core calls OpenRouter directly from [`ai.ts`](../../../server/kasitek-core/src/services/ai.ts). No credit reserve, capture, or provider-usage settlement is present in that path. | **Not charged. This is an implementation gap.** |
+| Core social ideas and captions | Core calls OpenRouter directly from [`ai.ts`](../../../api/src/services/ai.ts). No credit reserve, capture, or provider-usage settlement is present in that path. | **Not charged. This is an implementation gap.** |
 | Website chat | The intended plan says to charge AI response usage through the Agent boundary, but the credit implementation checklist still marks website-chat enforcement incomplete. | **Not confirmed as a complete credit contract.** Platform-funded model calls may be charged after reaching the worker; anonymous and end-to-end behavior need explicit tests. |
 | WhatsApp campaign recipients | Checks and records the monthly `campaign_recipients` meter around accepted sends. | **Not charged as credits.** Uses a separate monthly meter. |
 | Social publishing | Records the monthly `social_publishes` meter after successful publication. | **Not charged as credits.** |

@@ -33,7 +33,7 @@ Capability keys describe stable user actions:
 - `feature.templates.manage`
 
 The canonical registry is in
-`server/kasitek-core/src/services/billing.ts`. A new capability must be registered there before
+`api/src/services/billing.ts`. A new capability must be registered there before
 it can be assigned to a plan or workspace.
 
 Backend code calls `billing::require_capability`. The frontend reads

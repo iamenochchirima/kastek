@@ -125,7 +125,7 @@ root in a second terminal:
 
 ```text
 railway connect core-db --environment production --tunnel-only --ssh --port 15432
-railway run --project <project-id> --environment production --service core --no-local -- sh -c 'url=$(printf "%s" "$DATABASE_URL" | sed "s/@[^/]*:5432/@127.0.0.1:15432/"); DIRECT_URL="$url" pnpm --dir client/packages/database exec prisma migrate deploy'
+railway run --project <project-id> --environment production --service core --no-local -- sh -c 'url=$(printf "%s" "$DATABASE_URL" | sed "s/@[^/]*:5432/@127.0.0.1:15432/"); DIRECT_URL="$url" pnpm --dir database exec prisma migrate deploy'
 ```
 
 Verify `No pending migrations to apply` before deploying or restarting Core. Existing databases must
@@ -135,7 +135,7 @@ including backup and schema review before `migrate resolve`.
 
 The migration chain includes `analytics_outbox`, so a Core deployment must not be considered ready
 until the migration command reports success. Do not apply the standalone files under
-`server/kasitek-core/sql/` as a substitute for the Prisma migration history; those files remain the
+`api/sql/` as a substitute for the Prisma migration history; those files remain the
 source-service SQL inventory and are useful for isolated SQL verification.
 
 ## MCP deployment
@@ -176,7 +176,7 @@ isolation, or reliability evidence justifies it.
 The Core API row above records the legacy Rust hosted baseline. The Rust source has been removed
 from the current Growth checkout, but this local cleanup did not change or authorize changing the
 hosted service. Growth's TypeScript package is
-`server/kasitek-core`; its compiled API commands are `pnpm build` and `pnpm start` from that
+`api`; its compiled API commands are `pnpm build` and `pnpm start` from that
 directory. The API serves `/health` on `PORT` (default `4000`). A separate publisher process uses
 the same Node entrypoint with `KASITEK_PROCESS=analytics-publisher pnpm start`; this mode publishes
 and backfills Analytics outbox data without opening an HTTP listener.

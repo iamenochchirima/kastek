@@ -4,7 +4,7 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "$repo_root/scripts/node24.sh"
 kasitek_use_node24
 workspace_root="$(cd "$repo_root/../.." && pwd)"
-core_root="$repo_root/server/kasitek-core"
+core_root="$repo_root/api"
 cd "$core_root"
 # Runtime bundles can put a newer pnpm before the project's installed tooling.
 # A temporary shim pins workspace commands without changing global tools.

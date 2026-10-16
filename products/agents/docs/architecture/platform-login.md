@@ -12,7 +12,7 @@ The same user does not automatically gain access to a Growth or Agency workspace
 ## Implemented foundation
 
 Migration `178_platform_identity_sessions.sql` adds accounts, organizations,
-memberships and browser sessions. `src/identity/platform-access.ts` owns their
+memberships and browser sessions. `api/src/identity/platform-access.ts` owns their
 database operations. The identity tables are backend infrastructure accessed
 before tenant context is established; they do not have tenant RLS policies or
 public CRUD routes. Every subsequent product operation must derive its tenant
@@ -79,7 +79,7 @@ temporary session. Existing internal service authentication remains independent.
 
 ## Authenticated agent routes
 
-`src/http/browser-agent-routes.ts` lists the initial browser endpoints explicitly.
+`api/src/http/browser-agent-routes.ts` lists the initial browser endpoints explicitly.
 The registration hook adds aliases sharing the canonical /v1 handlers, schemas
 and product checks. It does not proxy arbitrary paths or generate internal tokens.
 Operators, credential administration, external channel ingestion and unrelated
@@ -110,7 +110,7 @@ remain platform delivery work.
 ## Focused verification
 
 Backend TypeScript build passed. Five tests in
-`test/platform-access.integration.test.ts` passed against an isolated PostgreSQL 18
+`api/test/platform-access.integration.test.ts` passed against an isolated PostgreSQL 18
 cluster on 2026-10-02. The suite creates/removes a unique schema and covers identity
 separation, stored-token hashing, workspace denial and revoked membership,
 disabled/unverified accounts, idle/absolute expiry, and local/provider-session

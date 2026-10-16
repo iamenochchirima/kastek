@@ -9,15 +9,22 @@ The unified development branch remains `rewrite`.
 
 | Location | Owns |
 | --- | --- |
-| `products/growth/` | Growth client, database package, Core API and workers |
-| `products/agents/` | Agent API, gateway, workers, MCP bridge and management UI |
-| `products/agency/` | Agency tenant API, portal and private React API client |
+| `products/growth/web/`, `api/`, `database/` | Growth UI, API and workers, and database package |
+| `products/agents/web/`, `api/`, `mcp/` | Agents management UI, runtime services, and MCP bridge |
+| `products/agency/web/`, `api/`, `api-client/` | Agency portal, tenant API, and private React API client |
 | `apps/labs-site/`, `apps/admin-site/` | Public website and central administration |
 | `packages/contracts/`, `packages/server-support/` | Explicit shared TypeScript interfaces and implementation |
 | `services/analytics/` | Analytics API, workers, contracts registry and migrations |
 | `infra/identity/`, `infra/observability/` | Shared identity and telemetry configuration |
 | `designs/` | Design previews, storyboards and source references, outside runtime builds |
-| `docs/programs/` | Cross-product program records carried from the workspace |
+| `docs/` | Repository-wide operations, source provenance and imported program records |
+| `scripts/` | Workspace tooling and boundary checks |
+
+Backend source, migrations, tests and process scripts stay under their owning `api/` package.
+Product documentation stays under each product's `docs/`; Agents examples remain under
+`products/agents/examples/`. Root workspace files, `.github/`, `.railway/`, `.agents/` and `.codex/`
+retain their existing roles. See the [directory restructure record](docs/operations/directory-restructure.md)
+for the old-to-new path mapping.
 
 ## Local development
 

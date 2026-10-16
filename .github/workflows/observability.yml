@@ -30,7 +30,7 @@ jobs:
       - name: Build shared packages
         run: pnpm --filter @kasitek-labs/contracts build && pnpm --filter @kasitek-labs/server-support build
       - name: Build Core
-        run: pnpm --dir products/growth/server/kasitek-core build
+        run: pnpm --dir products/growth/api build
       - name: Verify native Core telemetry
-        working-directory: products/growth/server/kasitek-core
+        working-directory: products/growth/api
         run: pnpm exec tsx --test tests/foundation.test.ts tests/agent-platform-client.test.ts tests/observability.test.ts

@@ -1,4 +1,4 @@
-import { prisma } from "../packages/database/src/client";
+import { prisma } from "../database/src/client";
 
 type LeadRow = {
   id: string;

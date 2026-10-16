@@ -8,23 +8,26 @@ Growth's active worktree was left untouched.
 
 ## Current TypeScript runtime
 
+Current paths below are relative to `products/agency/`. Historical Rust source paths retain
+their original context. The root workspace owns shared packages and dependency installation.
+
 The Tenant API and its API, publisher and backfill processes run from
-`server/kasitek-tenants/src/` on Node 24. The Rust service source and Cargo
+`api/src/` on Node 24. The Rust service source and Cargo
 workspace have been retired; the complete Rust baseline remains recoverable in
 Agency commit `2c7902170a8f75257c0e47b86ffaf38068dd2227`. Local migration and
 consumer checks passed, but private package-registry authentication and hosted
 deployment have not been verified or performed. See the root
-[TypeScript migration plan](../../plans/typescript-migration/IMPLEMENTATION.md)
+[TypeScript migration plan](../../../docs/programs/typescript-migration/IMPLEMENTATION.md)
 for current parity status.
 
 ## Owned source
 
-- `server/kasitek-tenants/` contains the tenant API, SQL schema changes, and migrations.
-- `client/apps/tenant-portal/` contains the portal source and its authored `public/` assets.
-- `client/packages/api-client-react/` is the one internal frontend package imported by the
+- `api/` contains the tenant API, SQL schema changes, and migrations.
+- `web/` contains the portal source and its authored `public/` assets.
+- `api-client/` is the one internal frontend package imported by the
   portal. It makes same-origin requests under `/api/tenant`.
 
-The Growth portal's tracked `client/apps/tenant-portal/dist/` files were not copied. Agency #3
+The Growth portal's tracked `web/dist/` files were not copied. Agency #3
 authorizes the portal source and assets but does not authorize generated build output. The authored
 favicon and Open Graph image under `public/` were copied.
 
@@ -47,15 +50,14 @@ The tenant service directly references these shared crates at `server/crates/` i
 | `observability` | `server/crates/observability` | private Git dependency from Labs |
 
 In the former Rust implementation, `TenantServerConfig` and
-`CookieSameSitePolicy` lived in `server/kasitek-tenants/src/config.rs`; tenant
+`CookieSameSitePolicy` lived in `api/src/config.rs`; tenant
 context DTOs and health types lived in `src/types.rs`. Their current
-TypeScript counterparts are in `server/kasitek-tenants/src/config.ts` and
+TypeScript counterparts are in `api/src/config.ts` and
 `src/types.ts`.
 
 The Rust dependencies above were private and required Cargo access to Labs;
-they are not part of the current TypeScript build. TypeScript shared package
-artifacts are currently pinned local tarballs. Authenticated registry delivery
-is still pending, and credentials must stay outside the repository.
+they are not part of the current TypeScript build. TypeScript shared packages now resolve from the root workspace through explicit exports.
+Credentials stay outside the repository.
 
 The TypeScript Analytics publisher calls the Analytics ingestion API using
 `ANALYTICS_INGESTION_URL` and tenant publisher credentials. It uses the Labs

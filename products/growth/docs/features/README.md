@@ -14,7 +14,7 @@ that guide.
 
 ## Main client
 
-Routes below are under `client/apps/client/src/app/`.
+Routes below are under `web/src/app/`.
 
 | Feature area | User entry point | Source route | Verification starting point |
 | --- | --- | --- | --- |

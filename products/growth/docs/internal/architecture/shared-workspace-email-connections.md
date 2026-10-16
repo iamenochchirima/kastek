@@ -51,7 +51,7 @@ sync, not the browser.
 
 ## Local rollout
 
-Apply the Prisma migrations in `client/packages/database/prisma/migrations`, run Core and Agents
+Apply the Prisma migrations in `database/prisma/migrations`, run Core and Agents
 locally, and use the existing development proxy/tunnel for browser OAuth callbacks. Set
 `EMAIL_INBOX_POLL_INTERVAL_MS` and `EMAIL_INBOX_BATCH_SIZE` only when a local worker needs a
 different cadence. Custom Email is shown as Coming soon until an IMAP/SMTP adapter and its

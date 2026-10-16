@@ -437,6 +437,8 @@ Spec findings separately. If no issue or spec exists, say the Spec review was sk
 ## Monorepo ownership
 
 Read `MONOREPO_MIGRATION_PLAN.md` and root `ARCHITECTURE.md` for the current source layout.
+Products use `web/` and `api/`; Growth also owns `database/`, Agents `mcp/`, and Agency
+`api-client/`. Agents backend source, tests, migrations and scripts are inside `products/agents/api/`.
 Product instructions remain under `products/growth/AGENTS.md` and existing scoped site files.
 Run commands from the root Node 24/pnpm workspace unless a documented isolated tool requires
 otherwise. Keep product databases, sessions, permissions and deployment lifecycles separate.

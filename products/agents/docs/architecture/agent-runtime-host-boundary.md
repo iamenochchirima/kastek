@@ -15,21 +15,21 @@ not choose an organization, installation, credential, or host from model argumen
 
 The runtime implementation lives in this repository:
 
-- [`ExecutionScope`](../../src/runtime/execution-scope.ts) is the canonical run identity.
-- [`AgentHarness`](../../src/runtime/harness.ts) is the narrow model-loop composition surface.
-- [`HostCapabilityRouter`](../../src/hosts/capabilities.ts) returns typed succeeded, denied,
+- [`ExecutionScope`](../../api/src/runtime/execution-scope.ts) is the canonical run identity.
+- [`AgentHarness`](../../api/src/runtime/harness.ts) is the narrow model-loop composition surface.
+- [`HostCapabilityRouter`](../../api/src/hosts/capabilities.ts) returns typed succeeded, denied,
   unavailable, and failed outcomes.
-- [`CoreHostAdapter`](../../src/hosts/core-host-adapter.ts) owns the first migrated Core
+- [`CoreHostAdapter`](../../api/src/hosts/core-host-adapter.ts) owns the first migrated Core
   capability: `kasitek.core.workspace_status`.
-- [`NativeHostAdapter`](../../src/hosts/native-host-adapter.ts) owns the Core-free
+- [`NativeHostAdapter`](../../api/src/hosts/native-host-adapter.ts) owns the Core-free
   `platform.current_time` capability.
-- [`TenantHostFixtureAdapter`](../../src/hosts/tenant-host-fixture.ts) is the local conformance
+- [`TenantHostFixtureAdapter`](../../api/src/hosts/tenant-host-fixture.ts) is the local conformance
   host for organization and installation checks.
 - Migration `110_agent_run_identity_and_extension_snapshots.sql` pins an optional extension
   snapshot reference on versions and admitted runs and prevents immutable run identity changes.
-- [`execution-evidence.ts`](../../src/runtime/execution-evidence.ts) adds the canonical scoped
+- [`execution-evidence.ts`](../../api/src/runtime/execution-evidence.ts) adds the canonical scoped
   identity to durable execution events.
-- [`AgentSpec`](../../src/domain/agent-spec.ts) is the typed authoring boundary for a profile-first
+- [`AgentSpec`](../../api/src/domain/agent-spec.ts) is the typed authoring boundary for a profile-first
   agent. Workflow graphs are optional; the normal hosted path is an agent profile, capability
   grants, and a pinned version.
 - Temporal child activation creates an idempotent child run for the requested hosted version and

@@ -8,12 +8,12 @@ last_reviewed: 2026-10-03
 # TypeScript Core migration runtime
 
 Growth Core's supported runtime is native Node.js 24 under
-`server/kasitek-core/src`. The replaced Rust implementation and Growth-local
+`api/src`. The replaced Rust implementation and Growth-local
 Rust libraries are no longer in this checkout; the recoverable Rust source
 baseline is commit `abd419c6`. This local source retirement does not change
 hosted services; hosted cutover is separate release work.
 
-From `server/kasitek-core`, run `pnpm build` and `pnpm start`.
+From `api`, run `pnpm build` and `pnpm start`.
 The entrypoint loads that service's `.env` regardless of the launch directory.
 Existing process environment variables take precedence. It connects to the
 configured PostgreSQL database before starting HTTP or workers. It does not
@@ -103,35 +103,26 @@ seed SQL remains available as source evidence.
 
 ## Native build and Railway preparation
 
-Run `bash scripts/verify_native_core.sh /path/to/kasitek-labs` from the Growth
-checkout to prepare pinned shared artifacts, install the frozen lockfile, build
-Core and check transport/telemetry without database or provider effects. Omit
-the Labs path only when the pinned local artifacts are already prepared.
+Run `bash products/growth/scripts/verify_native_core.sh` from the repository root. It installs
+from the frozen root workspace lockfile, builds shared packages and Core, and checks
+transport/telemetry without database or provider effects. It no longer accepts an external Labs
+source directory. The observability workflow uses the same workspace-owned sources.
 
-The observability workflow is manual and runs the same command. It requires
-`LABS_SOURCE_READ_TOKEN` with read access to the private Labs repository and the
-pinned commit to be available remotely. Neither is claimed verified by local
-builds. No Actions run is required for local migration verification. This paired
-source preparation remains temporary pending the private package delivery choice.
-
-For Railway, use service root `server/kasitek-core`, Node 24 and pnpm 10.30.1.
-The native build is `pnpm install --frozen-lockfile && pnpm build`, after private
-packages are made available. Start with `pnpm start`; HTTP binds to `0.0.0.0`
-and reads `PORT`. Configure `/health` as the health path. Keep `openapi/` beside
-`dist/` and preserve durable media storage and its environment path.
+For Railway, use the monorepo root as the build context and the Growth API package at
+`products/growth/api/`. Build shared packages then `@kasitek/growth-core`; start in the API package
+with `pnpm start`. HTTP binds to `0.0.0.0` and reads `PORT`. Configure `/health` as the health path.
+Keep `openapi/` beside `dist/` and preserve durable media storage and its environment path.
+See the root hosting cutover record before changing any hosted settings.
 
 Set `KASITEK_DISABLE_BACKGROUND_WORKERS=1` for an API deployed with separate
 workers. Each worker uses the same artifact/start command with its documented
 `KASITEK_PROCESS`. These commands must not run both old and new effect producers.
 
-Prisma migration ownership stays in `client/packages/database`. From the Growth
-repository root, the predeploy command is
-`pnpm --dir client --filter @kasitek/database exec prisma migrate deploy`; its
-client lockfile/dependencies and service database credentials must be available
-to that release job. API startup does not migrate. No schema or migration files
-were changed by this runtime preparation.
+Prisma migration ownership stays in `products/growth/database/`. From the repository root,
+the release command is `pnpm --dir products/growth/database exec prisma migrate deploy`.
+The root lockfile/dependencies and service database credentials must be available to that job.
+API startup does not migrate. No schema or migration content changes are part of this restructure.
 
 Railway's hosted root/build/start/release settings and secrets have not been
-changed. The current local file artifacts are not an independent hosted install;
-package access and hosted cutover belong to release work. Stop TypeScript effects
+changed. Provider source paths and hosted cutover belong to release work. Stop TypeScript effects
 before restoring the Rust source baseline or rolling back a future deployment.
