@@ -116,16 +116,14 @@
       .from('.opening-copy .eyebrow', { y: 10, autoAlpha: 0 }, 0.2)
       .from('.motion-line', { yPercent: 112, stagger: recipe.stagger, duration: recipe.duration + 0.15 }, 0.3)
       .from('.opening-description, .opening-copy .button', { y: 20, autoAlpha: 0, stagger: 0.12 }, 0.9)
-      .from('.conversation-label', { autoAlpha: 0, duration: 0.6 }, 1.2)
-      .from('.conversation-message.customer', { y: 18, autoAlpha: 0, duration: 0.7 }, 1.45)
-      .from('.conversation-message.agent', { y: 20, autoAlpha: 0, duration: 0.9 }, 2.3)
-      .from('.conversation-note, .opening-bottom', { autoAlpha: 0, duration: 0.7 }, 2.7);
+      .from('.opening-bottom', { autoAlpha: 0, duration: 0.7 }, 2.7);
 
     // Image-only parallax preserves normal document scrolling.
     if (desktop) gsap.to('.opening-image', { yPercent: 7, ease: 'none', scrollTrigger: { trigger: '.opening', start: 'top top', end: 'bottom top', scrub: 0.7 } });
     gsap.from('.directoryItem', { y: 18, autoAlpha: 0, stagger: 0.1, duration: 0.8, scrollTrigger: { trigger: '.productDirectory', start: 'top 94%', once: true } });
     document.querySelectorAll('.product-panel').forEach(panel => {
-      gsap.from(panel.querySelectorAll('.product-label, .feature-heading h2, .feature-heading > div'), { y: recipe.distance * 0.6, autoAlpha: 0, stagger: 0.13, duration: recipe.duration, ease: 'power3.out', scrollTrigger: { trigger: panel, start: 'top 86%', once: true } });
+      const introductions = panel.querySelectorAll('.product-label, .feature-heading h2, .feature-heading > div');
+      if (introductions.length) gsap.from(introductions, { y: recipe.distance * 0.6, autoAlpha: 0, stagger: 0.13, duration: recipe.duration, ease: 'power3.out', scrollTrigger: { trigger: panel, start: 'top 86%', once: true } });
       const preview = panel.querySelector('[data-preview]');
       if (preview) ScrollTrigger.create({ trigger: preview.querySelector('.operation-window') || panel.querySelector('.showcase-stage'), start: 'top 78%', once: true, onEnter: () => inContext(() => scene(preview)) });
     });

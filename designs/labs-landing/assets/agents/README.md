@@ -41,3 +41,7 @@ Final generation prompt, preserved as submitted:
 > Use case: photorealistic-natural. Editorial lifestyle photograph for a premium South African personal assistant product. Wide landscape 3:2. A young dark-skinned woman in a relaxed cream cardigan sitting comfortably on a sofa in a quiet sunlit apartment, holding and reading a smartphone, with a notebook and ceramic tea cup nearby. Candid real-life moment, attentive natural expression, believable hands holding phone, no gaze at camera. Person on the LEFT quarter, face fully visible, right half calm softly blurred apartment interior reserved for an overlaid mobile UI. Warm afternoon light, warm cream, soft caramel, subtle moss-green accents, tactile linen, natural skin texture, editorial magazine photography, no bright purple, no tech effects, no legible writing, no branding, no exaggerated smile.
 
 The generation prompts above are historical records. Landing page copy and sample names are geographically neutral.
+
+## Web delivery copies
+
+The landing page uses sibling `.webp` delivery copies of the generated photographs, with the same pixel dimensions. PNG originals and exact generation prompts remain preserved. These are format conversions at quality 87; no new image-generation prompt was used.

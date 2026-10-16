@@ -11,23 +11,25 @@ overrides:
   '@types/pg': 8.23.1
 
 importers:
+
   .:
     devDependencies:
-      "@types/node":
+      '@types/node':
         specifier: 24.10.1
         version: 24.10.1
       typescript:
         specifier: 5.9.3
         version: 5.9.3
+
   apps/admin-site:
     dependencies:
-      "@tiptap/extension-link":
+      '@tiptap/extension-link':
         specifier: ^3.20.0
         version: 3.31.4(@tiptap/core@3.31.4(@tiptap/pm@3.31.4))(@tiptap/pm@3.31.4)
-      "@tiptap/react":
+      '@tiptap/react':
         specifier: ^3.20.0
         version: 3.31.4(@floating-ui/dom@1.8.0)(@tiptap/core@3.31.4(@tiptap/pm@3.31.4))(@tiptap/pm@3.31.4)(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
-      "@tiptap/starter-kit":
+      '@tiptap/starter-kit':
         specifier: ^3.20.0
         version: 3.31.4
       bcryptjs:
@@ -52,19 +54,19 @@ importers:
         specifier: 19.2.3
         version: 19.2.3(react@19.2.3)
     devDependencies:
-      "@tailwindcss/postcss":
+      '@tailwindcss/postcss':
         specifier: ^4
         version: 4.3.3
-      "@types/bcryptjs":
+      '@types/bcryptjs':
         specifier: ^3.0.0
         version: 3.0.0
-      "@types/node":
+      '@types/node':
         specifier: ^20
         version: 20.19.43
-      "@types/react":
+      '@types/react':
         specifier: 19.2.14
         version: 19.2.14
-      "@types/react-dom":
+      '@types/react-dom':
         specifier: 19.2.3
         version: 19.2.3(@types/react@19.2.14)
       eslint:
@@ -79,6 +81,7 @@ importers:
       typescript:
         specifier: ^5
         version: 5.9.3
+
   apps/labs-site:
     dependencies:
       gsap:
@@ -100,16 +103,16 @@ importers:
         specifier: 19.2.3
         version: 19.2.3(react@19.2.3)
     devDependencies:
-      "@tailwindcss/postcss":
+      '@tailwindcss/postcss':
         specifier: ^4
         version: 4.1.18
-      "@types/node":
+      '@types/node':
         specifier: ^20
         version: 20.19.33
-      "@types/react":
+      '@types/react':
         specifier: 19.2.14
         version: 19.2.14
-      "@types/react-dom":
+      '@types/react-dom':
         specifier: 19.2.3
         version: 19.2.3(@types/react@19.2.14)
       eslint:
@@ -124,22 +127,24 @@ importers:
       typescript:
         specifier: ^5
         version: 5.9.3
+
   packages/contracts: {}
+
   packages/server-support:
     dependencies:
-      "@kasitek-labs/contracts":
+      '@kasitek-labs/contracts':
         specifier: workspace:*
         version: link:../contracts
-      "@opentelemetry/api":
+      '@opentelemetry/api':
         specifier: 1.9.0
         version: 1.9.0
-      "@opentelemetry/auto-instrumentations-node":
+      '@opentelemetry/auto-instrumentations-node':
         specifier: 0.79.0
         version: 0.79.0(@opentelemetry/api@1.9.0)(@opentelemetry/core@2.11.0(@opentelemetry/api@1.9.0))
-      "@opentelemetry/resources":
+      '@opentelemetry/resources':
         specifier: 2.10.0
         version: 2.10.0(@opentelemetry/api@1.9.0)
-      "@opentelemetry/sdk-node":
+      '@opentelemetry/sdk-node':
         specifier: 0.221.0
         version: 0.221.0(@opentelemetry/api@1.9.0)
       jose:
@@ -149,108 +154,183 @@ importers:
         specifier: 8.16.3
         version: 8.16.3
     devDependencies:
-      "@types/pg":
+      '@types/pg':
         specifier: 8.23.1
         version: 8.23.1
-  products/agency/web:
+
+  products/agency/api:
     dependencies:
-      "@fontsource/geist":
-        specifier: ^5.0.0
-        version: 5.3.0
-      "@fontsource/geist-mono":
-        specifier: ^5.0.0
-        version: 5.3.0
-      "@hookform/resolvers":
-        specifier: ^3.10.0
-        version: 3.10.0(react-hook-form@7.72.1(react@19.2.3))
-      "@radix-ui/react-accordion":
-        specifier: ^1.2.4
-        version: 1.2.12(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
-      "@radix-ui/react-alert-dialog":
-        specifier: ^1.1.7
-        version: 1.1.15(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
-      "@radix-ui/react-aspect-ratio":
-        specifier: ^1.1.3
-        version: 1.1.8(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
-      "@radix-ui/react-avatar":
-        specifier: ^1.1.4
-        version: 1.1.11(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
-      "@radix-ui/react-checkbox":
-        specifier: ^1.1.5
-        version: 1.3.3(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
-      "@radix-ui/react-collapsible":
-        specifier: ^1.1.4
-        version: 1.1.12(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
-      "@radix-ui/react-context-menu":
-        specifier: ^2.2.7
-        version: 2.2.16(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
-      "@radix-ui/react-dialog":
-        specifier: ^1.1.7
-        version: 1.1.15(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
-      "@radix-ui/react-dropdown-menu":
-        specifier: ^2.1.7
-        version: 2.1.16(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
-      "@radix-ui/react-hover-card":
-        specifier: ^1.1.7
-        version: 1.1.15(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
-      "@radix-ui/react-label":
-        specifier: ^2.1.3
-        version: 2.1.8(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
-      "@radix-ui/react-menubar":
-        specifier: ^1.1.7
-        version: 1.1.16(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
-      "@radix-ui/react-navigation-menu":
-        specifier: ^1.2.6
-        version: 1.2.14(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
-      "@radix-ui/react-popover":
-        specifier: ^1.1.7
-        version: 1.1.15(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
-      "@radix-ui/react-progress":
-        specifier: ^1.1.3
-        version: 1.1.8(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
-      "@radix-ui/react-radio-group":
-        specifier: ^1.2.4
-        version: 1.3.8(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
-      "@radix-ui/react-scroll-area":
-        specifier: ^1.2.4
-        version: 1.2.10(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
-      "@radix-ui/react-select":
-        specifier: ^2.1.7
-        version: 2.2.6(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
-      "@radix-ui/react-separator":
-        specifier: ^1.1.3
-        version: 1.1.8(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
-      "@radix-ui/react-slider":
-        specifier: ^1.2.4
-        version: 1.3.6(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
-      "@radix-ui/react-slot":
-        specifier: ^1.2.0
-        version: 1.2.4(@types/react@19.2.14)(react@19.2.3)
-      "@radix-ui/react-switch":
-        specifier: ^1.1.4
-        version: 1.2.6(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
-      "@radix-ui/react-tabs":
-        specifier: ^1.1.4
-        version: 1.1.13(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
-      "@radix-ui/react-toast":
-        specifier: ^1.2.7
-        version: 1.2.15(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
-      "@radix-ui/react-toggle":
-        specifier: ^1.1.3
-        version: 1.1.10(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
-      "@radix-ui/react-toggle-group":
-        specifier: ^1.1.3
-        version: 1.1.11(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
-      "@radix-ui/react-tooltip":
-        specifier: ^1.2.0
-        version: 1.2.8(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
-      "@tailwindcss/typography":
-        specifier: ^0.5.15
-        version: 0.5.19(tailwindcss@4.1.18)
-      "@tanstack/react-query":
+      '@fastify/cookie':
+        specifier: ^10.0.1
+        version: 10.0.1
+      '@fastify/cors':
+        specifier: ^11.1.0
+        version: 11.3.0
+      '@fastify/formbody':
+        specifier: ^8.0.2
+        version: 8.0.2
+      '@fastify/multipart':
+        specifier: ^9.4.0
+        version: 9.4.0
+      '@kasitek-labs/contracts':
+        specifier: workspace:*
+        version: link:../../../packages/contracts
+      '@kasitek-labs/server-support':
+        specifier: workspace:*
+        version: link:../../../packages/server-support
+      '@opentelemetry/api':
+        specifier: 1.9.0
+        version: 1.9.0
+      '@paralleldrive/cuid2':
+        specifier: ^2.3.1
+        version: 2.3.1
+      ajv:
+        specifier: 8.17.1
+        version: 8.17.1
+      ajv-formats:
+        specifier: 3.0.1
+        version: 3.0.1(ajv@8.17.1)
+      bcryptjs:
+        specifier: ^3.0.2
+        version: 3.0.3
+      dotenv:
+        specifier: ^16.6.1
+        version: 16.6.1
+      fastify:
+        specifier: 5.12.5
+        version: 5.12.5
+      jose:
+        specifier: ^6.1.0
+        version: 6.2.12
+      pg:
+        specifier: ^8.16.3
+        version: 8.23.1
+      undici:
+        specifier: 8.11.2
+        version: 8.11.2
+    devDependencies:
+      '@types/node':
+        specifier: ^24.6.0
+        version: 24.19.1
+      '@types/pg':
+        specifier: 8.23.1
+        version: 8.23.1
+      tsx:
+        specifier: ^4.20.6
+        version: 4.23.15
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
+  products/agency/api-client:
+    dependencies:
+      '@tanstack/react-query':
         specifier: ^5.90.5
         version: 5.97.0(react@19.2.3)
-      "@workspace/api-client-react":
+    devDependencies:
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
+  products/agency/web:
+    dependencies:
+      '@fontsource/geist':
+        specifier: ^5.0.0
+        version: 5.3.0
+      '@fontsource/geist-mono':
+        specifier: ^5.0.0
+        version: 5.3.0
+      '@hookform/resolvers':
+        specifier: ^3.10.0
+        version: 3.10.0(react-hook-form@7.72.1(react@19.2.3))
+      '@radix-ui/react-accordion':
+        specifier: ^1.2.4
+        version: 1.2.12(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      '@radix-ui/react-alert-dialog':
+        specifier: ^1.1.7
+        version: 1.1.15(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      '@radix-ui/react-aspect-ratio':
+        specifier: ^1.1.3
+        version: 1.1.8(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      '@radix-ui/react-avatar':
+        specifier: ^1.1.4
+        version: 1.1.11(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      '@radix-ui/react-checkbox':
+        specifier: ^1.1.5
+        version: 1.3.3(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      '@radix-ui/react-collapsible':
+        specifier: ^1.1.4
+        version: 1.1.12(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      '@radix-ui/react-context-menu':
+        specifier: ^2.2.7
+        version: 2.2.16(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      '@radix-ui/react-dialog':
+        specifier: ^1.1.7
+        version: 1.1.15(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      '@radix-ui/react-dropdown-menu':
+        specifier: ^2.1.7
+        version: 2.1.16(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      '@radix-ui/react-hover-card':
+        specifier: ^1.1.7
+        version: 1.1.15(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      '@radix-ui/react-label':
+        specifier: ^2.1.3
+        version: 2.1.8(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      '@radix-ui/react-menubar':
+        specifier: ^1.1.7
+        version: 1.1.16(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      '@radix-ui/react-navigation-menu':
+        specifier: ^1.2.6
+        version: 1.2.14(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      '@radix-ui/react-popover':
+        specifier: ^1.1.7
+        version: 1.1.15(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      '@radix-ui/react-progress':
+        specifier: ^1.1.3
+        version: 1.1.8(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      '@radix-ui/react-radio-group':
+        specifier: ^1.2.4
+        version: 1.3.8(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      '@radix-ui/react-scroll-area':
+        specifier: ^1.2.4
+        version: 1.2.10(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      '@radix-ui/react-select':
+        specifier: ^2.1.7
+        version: 2.2.6(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      '@radix-ui/react-separator':
+        specifier: ^1.1.3
+        version: 1.1.8(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      '@radix-ui/react-slider':
+        specifier: ^1.2.4
+        version: 1.3.6(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      '@radix-ui/react-slot':
+        specifier: ^1.2.0
+        version: 1.2.4(@types/react@19.2.14)(react@19.2.3)
+      '@radix-ui/react-switch':
+        specifier: ^1.1.4
+        version: 1.2.6(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      '@radix-ui/react-tabs':
+        specifier: ^1.1.4
+        version: 1.1.13(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      '@radix-ui/react-toast':
+        specifier: ^1.2.7
+        version: 1.2.15(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      '@radix-ui/react-toggle':
+        specifier: ^1.1.3
+        version: 1.1.10(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      '@radix-ui/react-toggle-group':
+        specifier: ^1.1.3
+        version: 1.1.11(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      '@radix-ui/react-tooltip':
+        specifier: ^1.2.0
+        version: 1.2.8(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      '@tailwindcss/typography':
+        specifier: ^0.5.15
+        version: 0.5.19(tailwindcss@4.1.18)
+      '@tanstack/react-query':
+        specifier: ^5.90.5
+        version: 5.97.0(react@19.2.3)
+      '@workspace/api-client-react':
         specifier: workspace:*
         version: link:../api-client
       class-variance-authority:
@@ -320,19 +400,19 @@ importers:
         specifier: ^3.25.76
         version: 3.25.76
     devDependencies:
-      "@tailwindcss/vite":
+      '@tailwindcss/vite':
         specifier: ^4.0.0
         version: 4.3.3(vite@7.3.2(@types/node@20.19.33)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.49.2)(tsx@4.23.15)(yaml@2.9.1))
-      "@types/node":
+      '@types/node':
         specifier: ^20.19.22
         version: 20.19.33
-      "@types/react":
+      '@types/react':
         specifier: 19.2.14
         version: 19.2.14
-      "@types/react-dom":
+      '@types/react-dom':
         specifier: 19.2.3
         version: 19.2.3(@types/react@19.2.14)
-      "@vitejs/plugin-react":
+      '@vitejs/plugin-react':
         specifier: ^5.0.0
         version: 5.2.0(vite@7.3.2(@types/node@20.19.33)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.49.2)(tsx@4.23.15)(yaml@2.9.1))
       eslint:
@@ -350,129 +430,58 @@ importers:
       vite:
         specifier: ^7.1.12
         version: 7.3.2(@types/node@20.19.33)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.49.2)(tsx@4.23.15)(yaml@2.9.1)
-  products/agency/api-client:
-    dependencies:
-      "@tanstack/react-query":
-        specifier: ^5.90.5
-        version: 5.97.0(react@19.2.3)
-    devDependencies:
-      typescript:
-        specifier: ^5.9.3
-        version: 5.9.3
-  products/agency/api:
-    dependencies:
-      "@fastify/cookie":
-        specifier: ^10.0.1
-        version: 10.0.1
-      "@fastify/cors":
-        specifier: ^11.1.0
-        version: 11.3.0
-      "@fastify/formbody":
-        specifier: ^8.0.2
-        version: 8.0.2
-      "@fastify/multipart":
-        specifier: ^9.4.0
-        version: 9.4.0
-      "@kasitek-labs/contracts":
-        specifier: workspace:*
-        version: link:../../../packages/contracts
-      "@kasitek-labs/server-support":
-        specifier: workspace:*
-        version: link:../../../packages/server-support
-      "@opentelemetry/api":
-        specifier: 1.9.0
-        version: 1.9.0
-      "@paralleldrive/cuid2":
-        specifier: ^2.3.1
-        version: 2.3.1
-      ajv:
-        specifier: 8.17.1
-        version: 8.17.1
-      ajv-formats:
-        specifier: 3.0.1
-        version: 3.0.1(ajv@8.17.1)
-      bcryptjs:
-        specifier: ^3.0.2
-        version: 3.0.3
-      dotenv:
-        specifier: ^16.6.1
-        version: 16.6.1
-      fastify:
-        specifier: 5.12.5
-        version: 5.12.5
-      jose:
-        specifier: ^6.1.0
-        version: 6.2.12
-      pg:
-        specifier: ^8.16.3
-        version: 8.23.1
-      undici:
-        specifier: 8.11.2
-        version: 8.11.2
-    devDependencies:
-      "@types/node":
-        specifier: ^24.6.0
-        version: 24.19.1
-      "@types/pg":
-        specifier: 8.23.1
-        version: 8.23.1
-      tsx:
-        specifier: ^4.20.6
-        version: 4.23.15
-      typescript:
-        specifier: ^5.9.3
-        version: 5.9.3
+
   products/agents/api:
     dependencies:
-      "@fastify/cookie":
+      '@fastify/cookie':
         specifier: ^11.1.2
         version: 11.1.2
-      "@fastify/multipart":
+      '@fastify/multipart':
         specifier: 10.1.1
         version: 10.1.1
-      "@kasitek-labs/contracts":
+      '@kasitek-labs/contracts':
         specifier: workspace:*
         version: link:../../../packages/contracts
-      "@opentelemetry/api":
+      '@opentelemetry/api':
         specifier: ^1.9.1
         version: 1.9.1
-      "@opentelemetry/api-logs":
+      '@opentelemetry/api-logs':
         specifier: ^0.221.0
         version: 0.221.0
-      "@opentelemetry/auto-instrumentations-node":
+      '@opentelemetry/auto-instrumentations-node':
         specifier: ^0.79.0
         version: 0.79.0(@opentelemetry/api@1.9.1)(@opentelemetry/core@2.11.0(@opentelemetry/api@1.9.1))
-      "@opentelemetry/exporter-logs-otlp-http":
+      '@opentelemetry/exporter-logs-otlp-http':
         specifier: ^0.221.0
         version: 0.221.0(@opentelemetry/api@1.9.1)
-      "@opentelemetry/exporter-metrics-otlp-http":
+      '@opentelemetry/exporter-metrics-otlp-http':
         specifier: ^0.221.0
         version: 0.221.0(@opentelemetry/api@1.9.1)
-      "@opentelemetry/exporter-trace-otlp-http":
+      '@opentelemetry/exporter-trace-otlp-http':
         specifier: ^0.221.0
         version: 0.221.0(@opentelemetry/api@1.9.1)
-      "@opentelemetry/instrumentation-pino":
+      '@opentelemetry/instrumentation-pino':
         specifier: ^0.67.0
         version: 0.67.0(@opentelemetry/api@1.9.1)
-      "@opentelemetry/resources":
+      '@opentelemetry/resources':
         specifier: ^2.10.0
         version: 2.10.0(@opentelemetry/api@1.9.1)
-      "@opentelemetry/sdk-node":
+      '@opentelemetry/sdk-node':
         specifier: ^0.221.0
         version: 0.221.0(@opentelemetry/api@1.9.1)
-      "@opentelemetry/semantic-conventions":
+      '@opentelemetry/semantic-conventions':
         specifier: ^1.43.0
         version: 1.43.0
-      "@temporalio/activity":
+      '@temporalio/activity':
         specifier: ^1.13.0
         version: 1.22.0
-      "@temporalio/client":
+      '@temporalio/client':
         specifier: ^1.13.0
         version: 1.22.0
-      "@temporalio/worker":
+      '@temporalio/worker':
         specifier: ^1.13.0
         version: 1.22.0(@swc/helpers@0.5.23)(lightningcss@1.32.0)
-      "@temporalio/workflow":
+      '@temporalio/workflow':
         specifier: ^1.13.0
         version: 1.22.0
       ajv:
@@ -503,10 +512,10 @@ importers:
         specifier: ^4.0.0
         version: 4.4.3
     devDependencies:
-      "@types/node":
+      '@types/node':
         specifier: ^24.0.0
         version: 24.13.3
-      "@types/pg":
+      '@types/pg':
         specifier: 8.23.1
         version: 8.23.1
       tsx:
@@ -518,36 +527,39 @@ importers:
       vitest:
         specifier: ^3.2.4
         version: 3.2.7(@types/debug@4.1.13)(@types/node@24.13.3)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.49.2)(tsx@4.23.12)(yaml@2.9.1)
+
+  products/agents/mcp: {}
+
   products/agents/web:
     dependencies:
-      "@fontsource/geist":
+      '@fontsource/geist':
         specifier: ^5.0.0
         version: 5.3.0
-      "@fontsource/geist-mono":
+      '@fontsource/geist-mono':
         specifier: ^5.0.0
         version: 5.3.0
-      "@radix-ui/react-alert-dialog":
+      '@radix-ui/react-alert-dialog':
         specifier: ^1.1.15
         version: 1.1.23(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
-      "@radix-ui/react-avatar":
+      '@radix-ui/react-avatar':
         specifier: ^1.1.11
         version: 1.2.6(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
-      "@radix-ui/react-checkbox":
+      '@radix-ui/react-checkbox':
         specifier: ^1.3.3
         version: 1.3.11(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
-      "@radix-ui/react-dialog":
+      '@radix-ui/react-dialog':
         specifier: ^1.1.15
         version: 1.1.23(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
-      "@radix-ui/react-select":
+      '@radix-ui/react-select':
         specifier: ^2.2.6
         version: 2.3.7(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
-      "@radix-ui/react-slot":
+      '@radix-ui/react-slot':
         specifier: ^1.2.4
         version: 1.3.3(@types/react@19.2.14)(react@19.2.3)
-      "@radix-ui/react-tabs":
+      '@radix-ui/react-tabs':
         specifier: ^1.1.13
         version: 1.1.21(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
-      "@xyflow/react":
+      '@xyflow/react':
         specifier: ^12.11.6
         version: 12.12.0(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       class-variance-authority:
@@ -590,19 +602,19 @@ importers:
         specifier: ^1.4.0
         version: 1.4.0
     devDependencies:
-      "@tailwindcss/vite":
+      '@tailwindcss/vite':
         specifier: ^4.0.0
         version: 4.3.3(vite@7.3.6(@types/node@20.19.43)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.49.2)(tsx@4.23.12)(yaml@2.9.1))
-      "@types/node":
+      '@types/node':
         specifier: ^20
         version: 20.19.43
-      "@types/react":
+      '@types/react':
         specifier: 19.2.14
         version: 19.2.14
-      "@types/react-dom":
+      '@types/react-dom':
         specifier: 19.2.3
         version: 19.2.3(@types/react@19.2.14)
-      "@vitejs/plugin-react":
+      '@vitejs/plugin-react':
         specifier: ^5.0.0
         version: 5.2.0(vite@7.3.6(@types/node@20.19.43)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.49.2)(tsx@4.23.12)(yaml@2.9.1))
       eslint:
@@ -626,58 +638,180 @@ importers:
       vite:
         specifier: ^7.0.0
         version: 7.3.6(@types/node@20.19.43)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.49.2)(tsx@4.23.12)(yaml@2.9.1)
-  products/agents/mcp: {}
+
+  products/growth/api:
+    dependencies:
+      '@fastify/cookie':
+        specifier: ^10.0.1
+        version: 10.0.1
+      '@fastify/cors':
+        specifier: ^11.1.0
+        version: 11.3.0
+      '@fastify/formbody':
+        specifier: ^8.0.2
+        version: 8.0.2
+      '@fastify/multipart':
+        specifier: ^9.4.0
+        version: 9.4.0
+      '@kasitek-labs/contracts':
+        specifier: workspace:*
+        version: link:../../../packages/contracts
+      '@kasitek-labs/server-support':
+        specifier: workspace:*
+        version: link:../../../packages/server-support
+      '@opentelemetry/api':
+        specifier: 1.9.0
+        version: 1.9.0
+      '@paralleldrive/cuid2':
+        specifier: ^2.3.1
+        version: 2.3.1
+      ajv:
+        specifier: 8.17.1
+        version: 8.17.1
+      ajv-formats:
+        specifier: 3.0.1
+        version: 3.0.1(ajv@8.17.1)
+      bcryptjs:
+        specifier: ^3.0.2
+        version: 3.0.3
+      csv-parse:
+        specifier: ^7.0.3
+        version: 7.0.3
+      csv-stringify:
+        specifier: ^6.9.0
+        version: 6.9.0
+      dotenv:
+        specifier: ^16.6.1
+        version: 16.6.1
+      fastify:
+        specifier: 5.12.5
+        version: 5.12.5
+      jose:
+        specifier: ^6.1.0
+        version: 6.2.12
+      openid-client:
+        specifier: ^6.8.1
+        version: 6.8.8
+      pg:
+        specifier: ^8.16.3
+        version: 8.23.1
+      redis:
+        specifier: ^5.9.0
+        version: 5.12.1(@opentelemetry/api@1.9.0)
+      semver:
+        specifier: 7.7.2
+        version: 7.7.2
+      undici:
+        specifier: 8.11.2
+        version: 8.11.2
+      web-push:
+        specifier: ^3.6.7
+        version: 3.6.7
+    devDependencies:
+      '@types/node':
+        specifier: ^24.6.0
+        version: 24.19.1
+      '@types/pg':
+        specifier: 8.23.1
+        version: 8.23.1
+      '@types/semver':
+        specifier: 7.7.0
+        version: 7.7.0
+      '@types/web-push':
+        specifier: ^3.6.4
+        version: 3.6.4
+      tsx:
+        specifier: ^4.20.6
+        version: 4.23.15
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
+  products/growth/database:
+    dependencies:
+      '@prisma/adapter-pg':
+        specifier: ^7.4.0
+        version: 7.8.0
+      '@prisma/client':
+        specifier: ^7.3.0
+        version: 7.4.0(prisma@7.4.0(@types/react@19.3.0)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(typescript@5.9.3))(typescript@5.9.3)
+      bcryptjs:
+        specifier: ^3.0.3
+        version: 3.0.3
+      dotenv:
+        specifier: ^16.4.0
+        version: 16.6.1
+      pg:
+        specifier: ^8.16.3
+        version: 8.22.0
+    devDependencies:
+      '@types/bcryptjs':
+        specifier: ^3.0.0
+        version: 3.0.0
+      '@types/pg':
+        specifier: 8.23.1
+        version: 8.23.1
+      prisma:
+        specifier: ^7.3.0
+        version: 7.4.0(@types/react@19.3.0)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(typescript@5.9.3)
+      tsx:
+        specifier: ^4.0.0
+        version: 4.21.0
+      typescript:
+        specifier: ^5
+        version: 5.9.3
+
   products/growth/web:
     dependencies:
-      "@emoji-mart/data":
+      '@emoji-mart/data':
         specifier: ^1.2.1
         version: 1.2.1
-      "@emoji-mart/react":
+      '@emoji-mart/react':
         specifier: ^1.1.1
         version: 1.1.1(emoji-mart@5.6.0)(react@19.2.3)
-      "@kasitek/database":
+      '@kasitek/database':
         specifier: workspace:*
         version: link:../database
-      "@radix-ui/react-alert-dialog":
+      '@radix-ui/react-alert-dialog':
         specifier: ^1.1.15
         version: 1.1.15(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
-      "@radix-ui/react-avatar":
+      '@radix-ui/react-avatar':
         specifier: ^1.1.11
         version: 1.1.11(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
-      "@radix-ui/react-checkbox":
+      '@radix-ui/react-checkbox':
         specifier: ^1.3.3
         version: 1.3.3(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
-      "@radix-ui/react-dialog":
+      '@radix-ui/react-dialog':
         specifier: ^1.1.15
         version: 1.1.15(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
-      "@radix-ui/react-dropdown-menu":
+      '@radix-ui/react-dropdown-menu':
         specifier: ^2.1.16
         version: 2.1.16(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
-      "@radix-ui/react-progress":
+      '@radix-ui/react-progress':
         specifier: ^1.1.8
         version: 1.1.8(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
-      "@radix-ui/react-radio-group":
+      '@radix-ui/react-radio-group':
         specifier: ^1.3.8
         version: 1.3.8(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
-      "@radix-ui/react-scroll-area":
+      '@radix-ui/react-scroll-area':
         specifier: ^1.2.10
         version: 1.2.10(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
-      "@radix-ui/react-select":
+      '@radix-ui/react-select':
         specifier: ^2.2.6
         version: 2.2.6(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
-      "@radix-ui/react-slot":
+      '@radix-ui/react-slot':
         specifier: ^1.2.4
         version: 1.2.4(@types/react@19.2.14)(react@19.2.3)
-      "@radix-ui/react-tabs":
+      '@radix-ui/react-tabs':
         specifier: ^1.1.13
         version: 1.1.13(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
-      "@radix-ui/react-tooltip":
+      '@radix-ui/react-tooltip':
         specifier: ^1.2.8
         version: 1.2.8(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
-      "@twilio/voice-sdk":
+      '@twilio/voice-sdk':
         specifier: ^2.18.3
         version: 2.18.3
-      "@xyflow/react":
+      '@xyflow/react':
         specifier: ^12.11.6
         version: 12.11.6(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       class-variance-authority:
@@ -726,19 +860,19 @@ importers:
         specifier: ^1.4.0
         version: 1.4.0
     devDependencies:
-      "@playwright/test":
+      '@playwright/test':
         specifier: ^1.62.1
         version: 1.62.1
-      "@tailwindcss/postcss":
+      '@tailwindcss/postcss':
         specifier: ^4
         version: 4.1.18
-      "@types/node":
+      '@types/node':
         specifier: ^20
         version: 20.19.33
-      "@types/react":
+      '@types/react':
         specifier: 19.2.14
         version: 19.2.14
-      "@types/react-dom":
+      '@types/react-dom':
         specifier: 19.2.3
         version: 19.2.3(@types/react@19.2.14)
       eslint:
@@ -753,135 +887,16 @@ importers:
       typescript:
         specifier: ^5
         version: 5.9.3
-  products/growth/database:
-    dependencies:
-      "@prisma/adapter-pg":
-        specifier: ^7.4.0
-        version: 7.8.0
-      "@prisma/client":
-        specifier: ^7.3.0
-        version: 7.4.0(prisma@7.4.0(@types/react@19.3.0)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(typescript@5.9.3))(typescript@5.9.3)
-      bcryptjs:
-        specifier: ^3.0.3
-        version: 3.0.3
-      dotenv:
-        specifier: ^16.4.0
-        version: 16.6.1
-      pg:
-        specifier: ^8.16.3
-        version: 8.22.0
-    devDependencies:
-      "@types/bcryptjs":
-        specifier: ^3.0.0
-        version: 3.0.0
-      "@types/pg":
-        specifier: 8.23.1
-        version: 8.23.1
-      prisma:
-        specifier: ^7.3.0
-        version: 7.4.0(@types/react@19.3.0)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(typescript@5.9.3)
-      tsx:
-        specifier: ^4.0.0
-        version: 4.21.0
-      typescript:
-        specifier: ^5
-        version: 5.9.3
-  products/growth/api:
-    dependencies:
-      "@fastify/cookie":
-        specifier: ^10.0.1
-        version: 10.0.1
-      "@fastify/cors":
-        specifier: ^11.1.0
-        version: 11.3.0
-      "@fastify/formbody":
-        specifier: ^8.0.2
-        version: 8.0.2
-      "@fastify/multipart":
-        specifier: ^9.4.0
-        version: 9.4.0
-      "@kasitek-labs/contracts":
-        specifier: workspace:*
-        version: link:../../../packages/contracts
-      "@kasitek-labs/server-support":
-        specifier: workspace:*
-        version: link:../../../packages/server-support
-      "@opentelemetry/api":
-        specifier: 1.9.0
-        version: 1.9.0
-      "@paralleldrive/cuid2":
-        specifier: ^2.3.1
-        version: 2.3.1
-      ajv:
-        specifier: 8.17.1
-        version: 8.17.1
-      ajv-formats:
-        specifier: 3.0.1
-        version: 3.0.1(ajv@8.17.1)
-      bcryptjs:
-        specifier: ^3.0.2
-        version: 3.0.3
-      csv-parse:
-        specifier: ^7.0.3
-        version: 7.0.3
-      csv-stringify:
-        specifier: ^6.9.0
-        version: 6.9.0
-      dotenv:
-        specifier: ^16.6.1
-        version: 16.6.1
-      fastify:
-        specifier: 5.12.5
-        version: 5.12.5
-      jose:
-        specifier: ^6.1.0
-        version: 6.2.12
-      openid-client:
-        specifier: ^6.8.1
-        version: 6.8.8
-      pg:
-        specifier: ^8.16.3
-        version: 8.23.1
-      redis:
-        specifier: ^5.9.0
-        version: 5.12.1(@opentelemetry/api@1.9.0)
-      semver:
-        specifier: 7.7.2
-        version: 7.7.2
-      undici:
-        specifier: 8.11.2
-        version: 8.11.2
-      web-push:
-        specifier: ^3.6.7
-        version: 3.6.7
-    devDependencies:
-      "@types/node":
-        specifier: ^24.6.0
-        version: 24.19.1
-      "@types/pg":
-        specifier: 8.23.1
-        version: 8.23.1
-      "@types/semver":
-        specifier: 7.7.0
-        version: 7.7.0
-      "@types/web-push":
-        specifier: ^3.6.4
-        version: 3.6.4
-      tsx:
-        specifier: ^4.20.6
-        version: 4.23.15
-      typescript:
-        specifier: ^5.9.3
-        version: 5.9.3
+
   services/analytics:
     dependencies:
-      "@kasitek-labs/contracts":
+      '@kasitek-labs/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
-      "@kasitek-labs/server-support":
+      '@kasitek-labs/server-support':
         specifier: workspace:*
         version: link:../../packages/server-support
-      "@opentelemetry/api":
+      '@opentelemetry/api':
         specifier: 1.9.0
         version: 1.9.0
       ajv:
@@ -909,10 +924,10 @@ importers:
         specifier: ^2.8.1
         version: 2.9.1
     devDependencies:
-      "@types/node":
+      '@types/node':
         specifier: ^24.6.0
         version: 24.10.1
-      "@types/pg":
+      '@types/pg':
         specifier: 8.23.1
         version: 8.23.1
       tsx:
@@ -14351,7 +14366,7 @@ snapshots:
       eslint: 9.39.2(jiti@2.7.0)
       eslint-import-resolver-node: 0.3.10
       eslint-import-resolver-typescript: 3.10.1(eslint-plugin-import@2.32.0)(eslint@9.39.2(jiti@2.7.0))
-      eslint-plugin-import: 2.32.0(eslint-import-resolver-typescript@3.10.1)(eslint@9.39.2(jiti@2.7.0))
+      eslint-plugin-import: 2.32.0(eslint@9.39.2(jiti@2.7.0))
       eslint-plugin-jsx-a11y: 6.10.2(eslint@9.39.2(jiti@2.7.0))
       eslint-plugin-react: 7.37.5(eslint@9.39.2(jiti@2.7.0))
       eslint-plugin-react-hooks: 7.1.1(eslint@9.39.2(jiti@2.7.0))
@@ -14371,7 +14386,7 @@ snapshots:
       eslint: 9.39.5(jiti@2.7.0)
       eslint-import-resolver-node: 0.3.10
       eslint-import-resolver-typescript: 3.10.1(eslint-plugin-import@2.32.0)(eslint@9.39.5(jiti@2.7.0))
-      eslint-plugin-import: 2.32.0(eslint@9.39.5(jiti@2.7.0))
+      eslint-plugin-import: 2.32.0(eslint-import-resolver-typescript@3.10.1)(eslint@9.39.5(jiti@2.7.0))
       eslint-plugin-jsx-a11y: 6.10.2(eslint@9.39.5(jiti@2.7.0))
       eslint-plugin-react: 7.37.5(eslint@9.39.5(jiti@2.7.0))
       eslint-plugin-react-hooks: 7.1.1(eslint@9.39.5(jiti@2.7.0))
@@ -14404,7 +14419,7 @@ snapshots:
       tinyglobby: 0.2.17
       unrs-resolver: 1.12.2
     optionalDependencies:
-      eslint-plugin-import: 2.32.0(eslint-import-resolver-typescript@3.10.1)(eslint@9.39.2(jiti@2.7.0))
+      eslint-plugin-import: 2.32.0(eslint@9.39.2(jiti@2.7.0))
     transitivePeerDependencies:
       - supports-color
 
@@ -14419,7 +14434,7 @@ snapshots:
       tinyglobby: 0.2.17
       unrs-resolver: 1.12.2
     optionalDependencies:
-      eslint-plugin-import: 2.32.0(eslint@9.39.5(jiti@2.7.0))
+      eslint-plugin-import: 2.32.0(eslint-import-resolver-typescript@3.10.1)(eslint@9.39.5(jiti@2.7.0))
     transitivePeerDependencies:
       - supports-color
 
@@ -14443,7 +14458,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  eslint-plugin-import@2.32.0(eslint-import-resolver-typescript@3.10.1)(eslint@9.39.2(jiti@2.7.0)):
+  eslint-plugin-import@2.32.0(eslint-import-resolver-typescript@3.10.1)(eslint@9.39.5(jiti@2.7.0)):
     dependencies:
       '@rtsao/scc': 1.1.0
       array-includes: 3.2.0
@@ -14452,9 +14467,9 @@ snapshots:
       array.prototype.flatmap: 1.3.3
       debug: 3.2.7
       doctrine: 2.1.0
-      eslint: 9.39.2(jiti@2.7.0)
+      eslint: 9.39.5(jiti@2.7.0)
       eslint-import-resolver-node: 0.3.10
-      eslint-module-utils: 2.14.0(eslint-import-resolver-node@0.3.10)(eslint-import-resolver-typescript@3.10.1)(eslint@9.39.2(jiti@2.7.0))
+      eslint-module-utils: 2.14.0(eslint-import-resolver-node@0.3.10)(eslint-import-resolver-typescript@3.10.1)(eslint@9.39.5(jiti@2.7.0))
       hasown: 2.0.4
       is-core-module: 2.17.0
       is-glob: 4.0.3
@@ -14470,7 +14485,7 @@ snapshots:
       - eslint-import-resolver-webpack
       - supports-color
 
-  eslint-plugin-import@2.32.0(eslint@9.39.5(jiti@2.7.0)):
+  eslint-plugin-import@2.32.0(eslint@9.39.2(jiti@2.7.0)):
     dependencies:
       '@rtsao/scc': 1.1.0
       array-includes: 3.2.0
@@ -14479,9 +14494,9 @@ snapshots:
       array.prototype.flatmap: 1.3.3
       debug: 3.2.7
       doctrine: 2.1.0
-      eslint: 9.39.5(jiti@2.7.0)
+      eslint: 9.39.2(jiti@2.7.0)
       eslint-import-resolver-node: 0.3.10
-      eslint-module-utils: 2.14.0(eslint-import-resolver-node@0.3.10)(eslint-import-resolver-typescript@3.10.1)(eslint@9.39.5(jiti@2.7.0))
+      eslint-module-utils: 2.14.0(eslint-import-resolver-node@0.3.10)(eslint-import-resolver-typescript@3.10.1)(eslint@9.39.2(jiti@2.7.0))
       hasown: 2.0.4
       is-core-module: 2.17.0
       is-glob: 4.0.3
