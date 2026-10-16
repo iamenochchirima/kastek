@@ -121,20 +121,36 @@ and no source changes had appeared since those imported checkpoints.
 
 The four duplicate local checkouts were removed from the workspace and retained in the private
 `.preservation/removed-repositories-20261015` recovery area. Useful ignored environment settings
-were copied into the unified product paths without entering Git. The current chat's old Labs
-path is now a symlink to Growth, not a second repository.
+were copied into the unified product paths without entering Git. Temporary old-name aliases
+were removed during the local layout cleanup on 2026-10-16.
 
 Remote deletion was attempted but GitHub returned HTTP 403 because the current CLI credential
 lacks `delete_repo`, despite reporting repository admin permission. None of the four remote
-repositories was deleted. Complete the user's GitHub authorization update, then retry only
-`Kasitek-Labs/kasitek-agents`, `Kasitek-Labs/kasitek-agency`, `Kasitek-Labs/kasitek-labs` and
-`Kasitek-Labs/designs`. Keep `Kasitek-Labs/kastek`. Deployment is not required.
+repositories was deleted by that attempt. The owner chose to handle remote deletion personally.
+Keep `Kasitek-Labs/kastek`; remote deletion is separate from the local cleanup.
 
 ## Repository rename
 
 On 2026-10-15 the owner requested the exact name `kastek`. GitHub now uses
 `Kasitek-Labs/kastek`, and the primary local folder is `kastek`. The Git origin and worktree
-metadata were updated. Old local Growth/Labs paths are aliases to this same repository for
-existing tools and chat references. The `rewrite` development branch, `main` and hosted settings
+metadata were updated. Temporary old Growth/Labs aliases were retired after the workspace
+switched to the canonical `kastek` path. The `rewrite` development branch, `main` and hosted settings
 were not changed by this rename. GitHub deletion of the four retired repositories is still
 awaiting the owner, who chose to perform that step personally.
+
+## Local layout cleanup
+
+On 2026-10-16 the parent workspace was reduced to one visible entry, `kastek/`. The obsolete
+`kasitek-growth` and `kasitek-labs` aliases and the clean, merged `monorepo-migration` worktree
+were removed. The outer plans, design references, old split checklist and original Stitch setup
+file were moved into the private `.preservation/local-layout-cleanup-20261016` area.
+
+All 30 plan files and 11 design files were accounted for inside the repository before moving
+the outer copies. The only design difference was trailing whitespace. Migration verification
+evidence was retained privately before removing the temporary worktree. No source, credentials,
+local database state or recovery history was discarded.
+
+The root product-boundary check and TypeScript launcher both pass without the aliases. One
+primary Git worktree remains. This changes local organisation only, with no deployment, schema,
+analytics, logging, package-version or runtime-behavior change. Recovery material remains in the
+hidden preservation area if a retired outer file is needed later.

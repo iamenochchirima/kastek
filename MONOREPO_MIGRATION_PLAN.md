@@ -298,7 +298,8 @@ not delete them as part of this source-only request.
 
 The owner explicitly requested `kastek` on 2026-10-15. The repository is now
 `Kasitek-Labs/kastek`, with local folder `kastek`. Git origin and worktree metadata are updated;
-old local paths are aliases for existing tools. Package scopes, service names, the `rewrite`
+temporary old-path aliases were removed on 2026-10-16 after the workspace switched to the
+canonical path. Package scopes, service names, the `rewrite`
 development branch, `main` and hosted settings are unchanged. The earlier proposed `kasitek`
 spelling was superseded by the owner's exact requested name.
 
