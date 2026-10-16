@@ -1,50 +1,48 @@
-# Current repository architecture
+# KasiTek source and runtime architecture
 
-This document describes code that remains in the Growth checkout. Sources extracted to another
-repository are maintained by their destination owners.
+KasiTek uses a Git monorepo with independently deployable products. Source ownership is expressed
+by product directories and shared package exports. Co-location does not grant cross-product
+membership, database access or permission to call internal operations.
 
-## Product direction
+## Source owners
 
-The owner is refocusing this repository as a standalone KasiTek Growth product. Some Agency,
-Agents, and Admin code remains here while its ownership moves are completed. Keep this map aligned
-with the source that actually remains in the checkout.
+| Path | Responsibility |
+| --- | --- |
+| `products/growth/client/apps/client/` | Growth UI and product-side Agents integrations |
+| `products/growth/client/packages/database/` | Growth Prisma database package |
+| `products/growth/server/kasitek-core/` | Growth API, provider callbacks and workers |
+| `products/agents/` | Agent API, gateway, Temporal workers, local MCP package and management UI |
+| `products/agency/` | Tenant API, partner/tenant portal and private API client |
+| `apps/admin-site/` | Privileged UI using Growth and Agency over HTTP |
+| `apps/labs-site/` | Public Labs website |
+| `packages/contracts/` | Shared transport and event contracts |
+| `packages/server-support/` | Shared server implementation behind explicit exports |
+| `services/analytics/` | Analytics ingestion, publishing, registry and query service |
+| `infra/identity/` | Keycloak development identity configuration |
+| `infra/observability/` | Collector configuration and deployment source |
 
-## Current component map
+## Dependency and data rules
 
-| Path | What is present in this checkout | Boundary status |
-| --- | --- | --- |
-| `client/apps/client/` | Main Next.js client, including campaigns, contacts, inbox, content, calendar, bookings, analytics, workspace, billing, and agent-facing routes. | Growth-facing routes and agent-facing routes coexist. Final ownership is not fully mapped. |
-| `client/apps/admin/` | Next.js admin application with agency, lead, outreach, quotation, invoice, operations, analytics, and access routes. | Present in the repo. Long-term product/repo ownership is not recorded here. |
-| `client/apps/tenant-portal/` | Next.js portal package for the white-label business product. | The owner intends this product to be separate from Growth. Its code remains here until a separately approved extraction. |
-| `client/packages/` | Shared client packages, including database and API-client packages. | Consumers and extraction constraints must be checked before moving a package. |
-| `agents/` | TypeScript Agent Platform API, gateway, workers, runtime, migrations, tests, and Temporal integration. | The owner intends Agents to be a separate product. Its code remains here until a separately approved extraction. |
-| `server/kasitek-core/` | Rust Core service. | Service boundary exists in code; final product/repository ownership is not decided here. |
-| `server/kasitek-analytics/` | Rust Analytics API, workers, migrations, and reporting code. | Present in the shared Rust workspace. Future product boundary is not recorded here. |
-| `server/kasitek-tenants/` | Rust service and migrations supporting the white-label business product. | The product is intended to be separate from Growth. Its code remains here until a separately approved extraction. |
-| `server/crates/` | Rust crates shared by server workspace members. | Check dependencies and ownership before extraction. |
-| `scripts/`, `infra/` | Local development, verification, and infrastructure support. | Some scripts may span several services; check their consumers before moving them. |
-| `docs/` | User, internal, and temporary planning documents. | Existing documents have not been reconciled by this setup. Use the new entry points linked from the root README and `AGENTS.md`. |
+Runtime product code may import its own private packages and explicit shared package exports.
+It may not import another product's private source. `pnpm verify:boundaries` checks these imports;
+integration tests may cross product seams to pin consumer contracts.
 
-## Runtime and dependency notes
+Service-to-service integration remains over the existing authenticated HTTP interfaces. Product
+migrations, organizations, memberships, sessions, databases and secrets remain separately owned.
+Shared login does not synchronize product permissions. Agency customer identity remains scoped
+according to its existing contracts. Source relocation does not change cookie scopes or callbacks.
 
-- The frontend is a pnpm workspace under `client/`.
-- Rust services are members of `server/Cargo.toml`.
-- Agent workflows use Temporal code under `agents/src/temporal/`.
-- Local service startup, environment requirements, ports, and verification commands are recorded
-  in [Local Development](docs/internal/development/local-development.md). Treat that file as the
-  command source instead of copying its setup details into new docs.
-- Service-to-service calls, data ownership, authentication boundaries, deployment ownership, and
-  the final split between product repositories need to be verified for the specific change. This
-  setup does not infer those contracts from directory names.
+## Build and release rules
 
-## Change boundaries
+Runtime apps use the root Node 24/pnpm workspace and lockfile. Shared exports build first, then
+consumer packages. Prisma generation belongs to Growth. The documentation sites and Railway IaC
+remain isolated tooling installs, as recorded in the root README.
 
-1. Work in the code that currently owns the behavior. Do not move it merely because its eventual
-   product boundary is expected to change.
-2. A component extraction needs an approved issue that names the source and destination, callers,
-   data or identity boundary, deployment path, and verification needed to avoid breaking the
-   current product.
-3. When code and documentation disagree, inspect the implementation and its callers. Do not
-   silently treat an older architecture document as proof of current behavior.
-4. Record only settled domain vocabulary in [`CONTEXT.md`](CONTEXT.md). It is intentionally empty
-   at the owner's direction.
+CI selects changed products and transitive shared-package consumers. Required aggregate checks
+remain present even when unrelated jobs skip. Deployments remain per-service with explicit source
+paths and runtime dependencies. [Hosting cutover](docs/operations/hosting-cutover.md) records the
+unverified provider connections; source import alone is not a production cutover.
+
+The original [Growth architecture](products/growth/ARCHITECTURE.md) and imported product docs
+contain historical source-split context. For current repository ownership, this map takes
+precedence. Existing ADR numbers retain their original product or platform scope.

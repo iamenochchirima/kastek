@@ -1,0 +1,28 @@
+packages:
+  - products/growth/client
+  - products/growth/client/apps/client
+  - products/growth/client/packages/database
+  - products/growth/server/kasitek-core
+  - products/agents
+  - products/agents/client/apps/agent-platform
+  - products/agents/packages/mcp
+  - products/agency/client
+  - products/agency/client/apps/tenant-portal
+  - products/agency/client/packages/api-client-react
+  - products/agency/server/kasitek-tenants
+  - apps/admin-site
+  - apps/labs-site
+  - packages/contracts
+  - packages/server-support
+  - services/analytics
+
+onlyBuiltDependencies:
+  - '@prisma/client'
+  - '@prisma/engines'
+  - '@swc/core'
+  - '@temporalio/core-bridge'
+  - esbuild
+  - prisma
+  - protobufjs
+  - sharp
+  - unrs-resolver

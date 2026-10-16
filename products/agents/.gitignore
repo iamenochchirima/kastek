@@ -1,0 +1,11 @@
+node_modules/
+dist/
+*.tsbuildinfo
+.env
+.env.*
+!.env.example
+.backups/
+.artifacts/
+
+# Ignore leftovers from the removed frontend build system.
+**/.next/

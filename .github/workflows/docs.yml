@@ -3,17 +3,21 @@ name: Documentation
 on:
   pull_request:
     paths:
-      - "docs/**"
+      - "products/growth/docs/**"
       - "AGENTS.md"
       - ".gitignore"
       - ".github/workflows/docs.yml"
   push:
     branches: [main]
     paths:
-      - "docs/**"
+      - "products/growth/docs/**"
       - "AGENTS.md"
       - ".gitignore"
       - ".github/workflows/docs.yml"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
@@ -22,9 +26,10 @@ jobs:
   internal:
     name: Build internal documentation
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     defaults:
       run:
-        working-directory: docs/internal-site
+        working-directory: products/growth/docs/internal-site
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -37,22 +42,23 @@ jobs:
       - name: Install Node
         uses: actions/setup-node@v4
         with:
-          node-version-file: docs/internal-site/.nvmrc
+          node-version-file: products/growth/docs/internal-site/.nvmrc
           cache: pnpm
-          cache-dependency-path: docs/internal-site/pnpm-lock.yaml
+          cache-dependency-path: products/growth/docs/internal-site/pnpm-lock.yaml
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm --ignore-workspace install --frozen-lockfile
 
       - name: Build site
-        run: pnpm build
+        run: pnpm --ignore-workspace build
 
   public:
     name: Build public documentation
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     defaults:
       run:
-        working-directory: docs/public
+        working-directory: products/growth/docs/public
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -65,12 +71,12 @@ jobs:
       - name: Install Node
         uses: actions/setup-node@v4
         with:
-          node-version-file: docs/public/.nvmrc
+          node-version-file: products/growth/docs/public/.nvmrc
           cache: pnpm
-          cache-dependency-path: docs/public/pnpm-lock.yaml
+          cache-dependency-path: products/growth/docs/public/pnpm-lock.yaml
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm --ignore-workspace install --frozen-lockfile
 
       - name: Build site
-        run: pnpm build
+        run: pnpm --ignore-workspace build

@@ -1,0 +1,101 @@
+name: Monorepo validation
+
+on:
+  pull_request:
+  push:
+    branches: [main, rewrite]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  select:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.changes.outputs.matrix }}
+      any: ${{ steps.changes.outputs.any }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: changes
+        name: Select changed products and shared consumers
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          python3 - <<'PY'
+          import json, os, subprocess
+          base = os.environ.get('BASE_SHA', '')
+          full = os.environ['EVENT_NAME'] == 'workflow_dispatch' or not base.strip('0')
+          paths = [] if full else subprocess.check_output(['git', 'diff', '--name-only', base, 'HEAD'], text=True).splitlines()
+          shared = full or any(p.startswith(('packages/', 'scripts/', '.github/workflows/monorepo.yml')) or p in ('package.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', '.nvmrc') for p in paths)
+          groups = {
+            'growth': ('products/growth/', 'pnpm --filter @kasitek/database generate && pnpm --filter @kasitek/growth-core build && pnpm --filter client build'),
+            'agents': ('products/agents/', 'pnpm --filter @kasitek/agents build && pnpm --filter @kasitek/agents build:mcp && pnpm --filter @kasitek/agent-platform build'),
+            'agency': ('products/agency/', 'pnpm --filter @kasitek/agency-tenants build && pnpm --filter tenant-portal build'),
+            'analytics': ('services/analytics/', 'pnpm --filter @kasitek/analytics build'),
+            'labs-site': ('apps/labs-site/', 'pnpm --filter labs build'),
+            'admin-site': ('apps/admin-site/', 'pnpm --filter @kasitek/admin-site build'),
+          }
+          selected = [{'name': name, 'command': command} for name, (prefix, command) in groups.items() if shared or any(p.startswith(prefix) for p in paths)]
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as out:
+            out.write('matrix=' + json.dumps({'include': selected}) + '\n')
+            out.write('any=' + str(bool(selected)).lower() + '\n')
+          PY
+  shared:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.30.1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm verify:boundaries
+      - run: pnpm build:shared
+      - run: pnpm test:shared
+  products:
+    needs: select
+    if: needs.select.outputs.any == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.select.outputs.matrix) }}
+    name: Build ${{ matrix.name }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.30.1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build:shared
+      - name: Build selected product
+        run: ${{ matrix.command }}
+  required:
+    name: Monorepo required checks
+    needs: [select, shared, products]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require successful selected checks
+        env:
+          SELECT: ${{ needs.select.result }}
+          SHARED: ${{ needs.shared.result }}
+          PRODUCTS: ${{ needs.products.result }}
+        run: |
+          test "$SELECT" = success
+          test "$SHARED" = success
+          test "$PRODUCTS" = success || test "$PRODUCTS" = skipped

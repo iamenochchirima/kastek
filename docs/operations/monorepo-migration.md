@@ -1,0 +1,156 @@
+# Monorepo migration execution record
+
+Updated 2026-10-15. Source consolidation is complete in Growth `rewrite`, merged through PR 20 at
+`c4876f1eb6a0baadd58d5d8c7bd5abea617f8110`. The original Growth checkout now contains
+the unified source. The owner explicitly deferred deployment on 2026-10-15. Completion of this source regrouping
+does not depend on deploying the products. Only Growth is known to have been deployed; its
+existing `main` branch and hosting settings remain unchanged.
+
+## Preserved source
+
+Growth, Agents, Agency, Labs and the discovered Designs repository were saved as private Git
+bundles and source-working-tree archives before imports. Each bundle was verified and its selected
+snapshot fetched into a bare recovery repository; restored tree IDs matched. Ignored local
+settings have separate private recovery archives. Secrets and runtime state were not imported.
+The other source working directories remain untouched. Growth was fast-forwarded only after
+its original dirty state was additionally saved in recovery stash
+`8f5e833edd0caf6a396d0ea1092d367d5cb20b2f`. Its selected edits are present at the new product
+paths. Old ignored Growth build/dependency folders were moved into the private recovery area;
+useful local environment files were copied to product paths without entering Git.
+
+All original HEADs and selected snapshot commits remain reachable through non-squashed imports.
+[Provenance](../source-repositories/imports.json) lists full SHAs and original file counts. Growth
+`rewrite` contains its `main` history. The source-accounting check accounts for every selected
+file; retired files are old lockfiles, nested workspace declarations and archive-preparation
+metadata superseded by the root workspace. Current path and build edits are reviewable in Git.
+
+The non-Git workspace `plans` records were copied to `docs/programs`, original design references
+to `designs/source-references`, and the old split checklist to `docs/source-repositories`.
+
+## Dependency reconciliation
+
+Existing lockfile resolutions were merged before installing the root workspace. Internal contracts
+and server support now resolve through `workspace:*`; consumers no longer build archives from
+sibling checkouts. Nested application workspaces/lockfiles are removed. Documentation sites retain
+isolated Node 22 frozen installs with `--ignore-workspace`; Railway IaC retains npm.
+
+The merged graph exposed incompatible React types, PostgreSQL types and Fastify declarations.
+Root overrides align React types to 19.2.14/19.2.3, PostgreSQL types to 8.23.1 and Fastify to 5.12.5.
+Fastify 5.12.5 was already selected by Growth and Agency; this updates Agents from its locked
+5.11.3 within its declared compatible range. Shared and product builds passed after alignment.
+Existing third-party peer-range warnings remain visible during installation.
+
+A separate prerequisite fix restores the exact removed shared duplicate-JSON-field validator.
+Growth, Agency and Analytics call this export. Its original tests and API checks are retained.
+
+## Verification
+
+Evidence is saved locally under ignored `.audit/`, including the decision trail
+`.audit/monorepo-migration.tsv`, source-accounting report and full build/test logs.
+
+| Check | Result |
+| --- | --- |
+| Root workspace install | Passed; final frozen install confirmed lockfile consistency |
+| Internal and public documentation sites | Both isolated Node 22 production builds passed |
+| Shared contracts and server support builds | Passed |
+| Growth Core, Agents, Agency and Analytics backend builds | Passed |
+| Growth, Agents, Agency, Admin and Labs frontend production builds | Passed, including TypeScript checks |
+| Growth route check | Passed; 45 Growth pages generated |
+| Shared tests | 24 passed; 1 database check skipped |
+| Growth broader no-database suite plus focused relocation reruns | 110 passed; 59 skipped; 4 existing failures |
+| Agency broader no-database suite | 11 passed; 13 skipped; 3 existing failures |
+| Analytics broader suite plus import rerun | 23 passed; 15 skipped; no remaining failures |
+| Agents descriptor and MCP checks | 7 passed |
+| Agents Studio/stream and Agency portal-server checks | Passed |
+| Isolated Agents production package | Passed; local dependency imports, worker/API/gateway entrypoints and 175 SQL migrations present |
+| Workflow YAML and affected-selection cases | Passed |
+| Product import checks | Passed; negative checks reject side-effect imports and private package dependencies |
+| Native login, database and hosted end-to-end paths | Not accepted by build-only checks; isolated runtime verification remains outstanding |
+| Docker image build/start | Not run; Docker daemon unavailable |
+
+All seven remaining Growth/Agency functional test failures were reproduced on the untouched
+original sources. Growth's four failures use mocks without `request.routeOptions`; Agency's
+three concern route-fixture coverage, transport status and JSON authentication status. These are
+existing product issues, not waived green checks. Original and migrated outputs are recorded in
+`.audit/verification-baseline-failures.log` and `.audit/verification-builds.log`.
+
+Prisma generation is required before building Growth. It exposes source-schema/generated-client
+drift already present at the source snapshot. Verification-generated files were restored after
+builds so this migration does not silently include unrelated generated changes.
+
+## Source completion and deferred deployment
+
+No customer behavior, API route, schema migration ID, cookie scope, event schema, database
+ownership or production service name was intentionally changed. Existing platform VERSION remains
+at the root; per-product source, secrets and deployment lifecycles remain independent. Rollout is
+per-service, using the exact verified artifact and its recorded configuration revision. New customer
+analytics events and feature flags are not applicable to source relocation.
+
+All 15 GitHub checks on PR 20 passed, including every product build, both documentation builds,
+shared checks, Agents checks, release identity and the Collector image/configuration smoke.
+Local Docker image smoke and the existing runtime test limits above remain recorded; they do
+not establish a need to deploy now.
+
+See [future hosting setup](hosting-cutover.md) when deployment is requested later.
+The current Vercel token was rejected with HTTP 403; the accessible Railway account did not list
+the KasiTek projects. No hosted settings were changed. Required-check protection, source
+connections, runtime credentials and provider webhook/OIDC bindings still require live inventory.
+
+[PR 20](https://github.com/Kasitek-Labs/kastek/pull/20) is merged into Growth `rewrite`
+using a merge commit, preserving source ancestry. The original Growth checkout is synchronized
+and its root frozen install and product-boundary check passed. Growth `main` and all hosting
+settings remain unchanged.
+
+The source regrouping is complete. Keep the old repositories and private recovery bundles as
+recovery copies for now. No provider access, deployment, repository deletion or repository rename
+is required for this completed source-only scope.
+
+## Independent evidence review
+
+A separate agent reviewed ancestry, tree IDs, original private hash manifests, workspace settings,
+CI and source accounting. It found incomplete import checks and relocated documentation command
+and ignore rules; these were fixed and rechecked. No further material structural blocker was
+reported. This was an evidence review, not live product or hosted acceptance. The local decision
+trail was checked against tool output and saved artifacts rather than an inaccessible transcript.
+
+## Old repository removal
+
+The owner explicitly authorized deletion of the old Agents, Agency, Labs and Designs repositories
+on 2026-10-15. Their source snapshots were verified as ancestors of published Growth `rewrite`,
+and no source changes had appeared since those imported checkpoints.
+
+The four duplicate local checkouts were removed from the workspace and retained in the private
+`.preservation/removed-repositories-20261015` recovery area. Useful ignored environment settings
+were copied into the unified product paths without entering Git. Temporary old-name aliases
+were removed during the local layout cleanup on 2026-10-16.
+
+Remote deletion was attempted but GitHub returned HTTP 403 because the current CLI credential
+lacks `delete_repo`, despite reporting repository admin permission. None of the four remote
+repositories was deleted by that attempt. The owner chose to handle remote deletion personally.
+Keep `Kasitek-Labs/kastek`; remote deletion is separate from the local cleanup.
+
+## Repository rename
+
+On 2026-10-15 the owner requested the exact name `kastek`. GitHub now uses
+`Kasitek-Labs/kastek`, and the primary local folder is `kastek`. The Git origin and worktree
+metadata were updated. Temporary old Growth/Labs aliases were retired after the workspace
+switched to the canonical `kastek` path. The `rewrite` development branch, `main` and hosted settings
+were not changed by this rename. GitHub deletion of the four retired repositories is still
+awaiting the owner, who chose to perform that step personally.
+
+## Local layout cleanup
+
+On 2026-10-16 the parent workspace was reduced to one visible entry, `kastek/`. The obsolete
+`kasitek-growth` and `kasitek-labs` aliases and the clean, merged `monorepo-migration` worktree
+were removed. The outer plans, design references, old split checklist and original Stitch setup
+file were moved into the private `.preservation/local-layout-cleanup-20261016` area.
+
+All 30 plan files and 11 design files were accounted for inside the repository before moving
+the outer copies. The only design difference was trailing whitespace. Migration verification
+evidence was retained privately before removing the temporary worktree. No source, credentials,
+local database state or recovery history was discarded.
+
+The root product-boundary check and TypeScript launcher both pass without the aliases. One
+primary Git worktree remains. This changes local organisation only, with no deployment, schema,
+analytics, logging, package-version or runtime-behavior change. Recovery material remains in the
+hidden preservation area if a retired outer file is needed later.

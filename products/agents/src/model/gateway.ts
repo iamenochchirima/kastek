@@ -1,0 +1,188 @@
+import { AnthropicAdapter } from "./anthropic";
+import Ajv from "ajv";
+import { createOpenAIAdapter, createOpenAICompatibleAdapter, createOpenRouterAdapter } from "./openai-compatible";
+import { GeminiAdapter } from "./gemini";
+import { OpenCodeAdapter } from "./opencode";
+import { ModelProviderError, type ModelAdapter, type ModelCapabilities, type ModelCredentials, type ModelPricing, type ModelProvider, type ModelRequest, type ModelResponse, type ModelStreamDelta, type ModelStreamResult } from "./types";
+import { withProviderSpan } from "../telemetry/spans";
+
+export class ModelGateway {
+  private readonly adapters: Map<ModelProvider, ModelAdapter>;
+  private readonly retryBaseDelayMs: number;
+  private readonly pricing: Record<string, ModelPricing>;
+  private readonly ajv = new Ajv({ allErrors: true, strict: false });
+  private readonly circuitFailureThreshold: number;
+  private readonly circuitCooldownMs: number;
+  private readonly circuits = new Map<string, { failures: number; openedAt?: number }>();
+
+  public constructor(adapters: ModelAdapter[] = [
+    createOpenRouterAdapter(),
+    createOpenAIAdapter(),
+    new AnthropicAdapter(),
+    new GeminiAdapter(),
+    createOpenAICompatibleAdapter("deepseek", "https://api.deepseek.com"),
+    createOpenAICompatibleAdapter("xai", "https://api.x.ai/v1"),
+    new OpenCodeAdapter("opencode_go", "https://opencode.ai/zen/go/v1"),
+    new OpenCodeAdapter("opencode_zen", "https://opencode.ai/zen/v1"),
+    new AnthropicAdapter({ provider: "glm", baseUrl: "https://api.z.ai/api/anthropic/v1", authHeader: "bearer" }),
+    new AnthropicAdapter({ provider: "kimi", baseUrl: "https://api.moonshot.ai/anthropic/v1" }),
+    new AnthropicAdapter({ provider: "minimax", baseUrl: "https://api.minimaxi.com/anthropic/v1" }),
+  ], options: { retryBaseDelayMs?: number; pricing?: Record<string, ModelPricing>; circuitFailureThreshold?: number; circuitCooldownMs?: number } = {}) {
+    this.adapters = new Map(adapters.map((adapter) => [adapter.provider, adapter]));
+    this.retryBaseDelayMs = options.retryBaseDelayMs ?? 250;
+    this.pricing = options.pricing ?? {};
+    this.circuitFailureThreshold = Math.max(1, options.circuitFailureThreshold ?? 3);
+    this.circuitCooldownMs = Math.max(100, options.circuitCooldownMs ?? 30_000);
+  }
+
+  private circuitKey(request: ModelRequest, credentials: ModelCredentials): string {
+    // BYOK credentials are tenant-owned and must not share breaker state. The
+    // process environment credential intentionally remains provider-wide so a
+    // genuine upstream outage can be dampened across requests.
+    const credentialScope = credentials.credentialReference
+      ? `credential:${credentials.credentialReference}`
+      : `funding:${credentials.fundingSource}`;
+    return `${request.provider}:${request.model}:${credentialScope}`;
+  }
+
+  private assertCircuitClosed(request: ModelRequest, credentials: ModelCredentials): void {
+    const key = this.circuitKey(request, credentials);
+    const circuit = this.circuits.get(key);
+    if (!circuit?.openedAt) return;
+    if (Date.now() - circuit.openedAt >= this.circuitCooldownMs) {
+      this.circuits.delete(key);
+      return;
+    }
+    throw new ModelProviderError("Model provider circuit is open", "MODEL_CIRCUIT_OPEN", false, request.provider);
+  }
+
+  private recordCircuitSuccess(request: ModelRequest, credentials: ModelCredentials): void { this.circuits.delete(this.circuitKey(request, credentials)); }
+
+  private recordCircuitFailure(request: ModelRequest, credentials: ModelCredentials): void {
+    const key = this.circuitKey(request, credentials);
+    const current = this.circuits.get(key) ?? { failures: 0 };
+    current.failures += 1;
+    if (current.failures >= this.circuitFailureThreshold) current.openedAt = Date.now();
+    this.circuits.set(key, current);
+  }
+
+  public capabilities(provider: ModelProvider, model?: string): ModelCapabilities | undefined {
+    const adapter = this.adapters.get(provider);
+    if (!adapter) return undefined;
+    return model && adapter.capabilitiesForModel ? adapter.capabilitiesForModel(model) : adapter.capabilities;
+  }
+
+  /**
+   * Returns the provider-envelope size without credentials or prompt content
+   * leaving the caller's process. The context planner uses this as its final
+   * byte-pressure measurement when the adapter exposes the provider shape.
+   */
+  public estimateRequestBytes(request: ModelRequest): number {
+    const adapter = this.adapters.get(request.provider);
+    if (adapter?.estimateRequestBytes) return adapter.estimateRequestBytes(request);
+    return Buffer.byteLength(JSON.stringify({
+      model: request.model,
+      messages: request.messages,
+      tools: request.tools,
+      temperature: request.temperature,
+      max_tokens: request.maxTokens,
+      response_format: request.responseFormat,
+    }), "utf8");
+  }
+
+  public async complete(request: ModelRequest, credentials: ModelCredentials): Promise<ModelResponse> {
+    const adapter = this.adapters.get(request.provider);
+    if (!adapter) throw new Error(`No model adapter configured for provider ${request.provider}`);
+    if (!credentials.apiKey) throw new Error(`No credential supplied for provider ${request.provider}`);
+    this.assertCircuitClosed(request, credentials);
+    const capabilities = this.capabilities(request.provider, request.model) ?? adapter.capabilities;
+    if (request.tools?.length && !capabilities.toolCalling) {
+      throw new ModelProviderError("Provider does not support tool calling", "MODEL_CAPABILITY_UNSUPPORTED", false, request.provider);
+    }
+    if (request.responseFormat && !capabilities.structuredOutput) {
+      throw new ModelProviderError("Provider does not support structured output", "MODEL_CAPABILITY_UNSUPPORTED", false, request.provider);
+    }
+    const maxAttempts = Math.max(1, Math.min(request.maxAttempts ?? 3, 5));
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+      const controller = new AbortController();
+      const timeout = request.timeoutMs && request.timeoutMs > 0
+        ? setTimeout(() => controller.abort(), request.timeoutMs)
+        : undefined;
+      const abortParent = (): void => controller.abort();
+      request.signal?.addEventListener("abort", abortParent, { once: true });
+      try {
+        const response = await withProviderSpan(request.provider, "model.complete", () => adapter.complete({ ...request, signal: controller.signal }, credentials));
+        if (request.responseFormat) {
+          let structured: unknown;
+          try {
+            structured = JSON.parse(response.message.content);
+          } catch {
+            throw new ModelProviderError("Provider returned invalid structured JSON", "INVALID_STRUCTURED_OUTPUT", false, request.provider);
+          }
+          const validate = this.ajv.compile(request.responseFormat.schema);
+          if (!validate(structured)) {
+            throw new ModelProviderError("Provider returned schema-invalid structured output", "INVALID_STRUCTURED_OUTPUT", false, request.provider);
+          }
+          response.structuredOutput = structured;
+        }
+        if (response.usage.estimatedCostUsd === undefined
+          && response.usage.inputTokensReported !== false
+          && response.usage.outputTokensReported !== false) {
+          response.usage.estimatedCostUsd = response.usage.providerCostUsd
+            ?? this.estimateCost(response.provider, response.model, response.usage.inputTokens, response.usage.outputTokens);
+        }
+        this.recordCircuitSuccess(request, credentials);
+        return response;
+      } catch (error) {
+        const providerError = error instanceof ModelProviderError ? error : undefined;
+        if (controller.signal.aborted && !request.signal?.aborted) {
+          throw new ModelProviderError("Model request timed out", "MODEL_TIMEOUT", true, request.provider);
+        }
+        if (!providerError || !providerError.retryable || attempt >= maxAttempts) {
+          if (providerError) this.recordCircuitFailure(request, credentials);
+          throw error;
+        }
+        const retryDelay = this.retryBaseDelayMs * 2 ** (attempt - 1);
+        const jitteredDelay = retryDelay > 0 ? retryDelay + Math.random() * retryDelay : 0;
+        await new Promise((resolve) => setTimeout(resolve, jitteredDelay));
+      } finally {
+        if (timeout) clearTimeout(timeout);
+        request.signal?.removeEventListener("abort", abortParent);
+      }
+    }
+    throw new Error("Model gateway exhausted attempts");
+  }
+
+  public async stream(request: ModelRequest, credentials: ModelCredentials, onDelta: (delta: ModelStreamDelta) => void | Promise<void>): Promise<ModelStreamResult> {
+    const adapter = this.adapters.get(request.provider);
+    if (!adapter) throw new Error(`No model adapter configured for provider ${request.provider}`);
+    const capabilities = this.capabilities(request.provider, request.model) ?? adapter.capabilities;
+    if (!capabilities.streaming || !adapter.stream) {
+      throw new ModelProviderError("Provider does not support streaming", "MODEL_CAPABILITY_UNSUPPORTED", false, request.provider);
+    }
+    if (!credentials.apiKey) throw new Error(`No credential supplied for provider ${request.provider}`);
+    this.assertCircuitClosed(request, credentials);
+    let deltas = 0;
+    let response: ModelResponse;
+    try {
+      response = await withProviderSpan(request.provider, "model.stream", () => adapter.stream!(request, credentials, async (delta) => { deltas += 1; await onDelta(delta); }));
+    } catch (error) {
+      if (error instanceof ModelProviderError) this.recordCircuitFailure(request, credentials);
+      throw error;
+    }
+    this.recordCircuitSuccess(request, credentials);
+    if (response.usage.estimatedCostUsd === undefined
+      && response.usage.inputTokensReported !== false
+      && response.usage.outputTokensReported !== false) {
+      response.usage.estimatedCostUsd = response.usage.providerCostUsd
+        ?? this.estimateCost(response.provider, response.model, response.usage.inputTokens, response.usage.outputTokens);
+    }
+    return { response, deltas };
+  }
+
+  public estimateCost(provider: ModelProvider, model: string, inputTokens: number, outputTokens: number): number {
+    const pricing = this.pricing[`${provider}:${model}`] ?? this.pricing[`${provider}:*`];
+    if (!pricing) return 0;
+    return (inputTokens / 1_000_000) * pricing.inputUsdPerMillion + (outputTokens / 1_000_000) * pricing.outputUsdPerMillion;
+  }
+}

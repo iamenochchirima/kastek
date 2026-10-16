@@ -1,0 +1,14 @@
+import React from "react";
+import ReactDOM from "react-dom/client";
+import { RouterProvider } from "react-router-dom";
+import "@fontsource/geist/latin-400.css";
+import "@fontsource/geist/latin-500.css";
+import "@fontsource/geist/latin-600.css";
+import "@fontsource/geist-mono/latin-400.css";
+import "./styles/app.css";
+import { bootstrapAppearance } from "./components/theme-script";
+import { ConfirmationProvider } from "./components/ui/confirmation-provider";
+import { Toaster } from "./components/ui/sonner";
+import { router } from "./routes/router";
+bootstrapAppearance();
+ReactDOM.createRoot(document.getElementById("root")!).render(<React.StrictMode><ConfirmationProvider><RouterProvider router={router} /><Toaster /></ConfirmationProvider></React.StrictMode>);

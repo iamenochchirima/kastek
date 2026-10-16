@@ -1,0 +1,151 @@
+import { SerdeFloat } from "@kasitek-labs/server-support/json";
+import type { Pool } from "pg";
+import { createId } from "@paralleldrive/cuid2";
+import { SQL } from "./channels-sql.js";
+import type { SocialChannel } from "./types.js";
+import { missing } from "./common.js";
+import { canonicalJson } from "@kasitek-labs/server-support/json";
+export function platformCapabilities(
+  platform: string,
+): Record<string, unknown> {
+  const known = [
+    "FACEBOOK",
+    "INSTAGRAM",
+    "THREADS",
+    "TIKTOK",
+    "BLUESKY",
+    "LINKEDIN",
+    "X",
+  ].includes(platform);
+  const meta = platform === "FACEBOOK" || platform === "INSTAGRAM";
+  const images = ["INSTAGRAM", "TIKTOK", "LINKEDIN"].includes(platform);
+  const videos = platform === "TIKTOK";
+  return {
+    canPublish: known,
+    supportsManualPublish: known,
+    supportsMediaUpload: images,
+    supportsComments: meta || platform === "X",
+    supportsDMs: meta,
+    supportsAnalytics: known,
+    supportsInbox: meta,
+    supportsVariants: known,
+    ...(known
+      ? {
+          media: {
+            images: {
+              supported: images,
+              maxCount: images ? 1 : platform === "FACEBOOK" ? 1 : 0,
+            },
+            videos: { supported: videos, maxCount: videos ? 1 : 0 },
+          },
+        }
+      : {}),
+  };
+}
+export function mergeChannelMetadataWithCapabilities(
+  platform: string,
+  metadata: unknown,
+): Record<string, unknown> {
+  const capabilities = platformCapabilities(platform);
+  return metadata !== null &&
+    metadata !== undefined &&
+    !(
+      typeof metadata === "object" &&
+      !(metadata instanceof SerdeFloat) &&
+      !Array.isArray(metadata)
+    )
+    ? { value: metadata, capabilities }
+    : { ...((metadata as Record<string, unknown>) ?? {}), capabilities };
+}
+export function sanitizePublicChannelMetadata(metadata: unknown): unknown {
+  if (
+    metadata &&
+    typeof metadata === "object" &&
+    !(metadata instanceof SerdeFloat) &&
+    !Array.isArray(metadata)
+  ) {
+    const copy = { ...metadata };
+    for (const key of [
+      "scope",
+      "permissions",
+      "tasks",
+      "tokenType",
+      "dpopPrivateKey",
+      "dpopAuthorizationNonce",
+    ])
+      delete (copy as Record<string, unknown>)[key];
+    return copy;
+  }
+  return metadata;
+}
+export async function listSocialChannels(
+  pool: Pool,
+  orgId: string,
+): Promise<SocialChannel[]> {
+  const rows = (await pool.query<SocialChannel>(SQL[0], [orgId])).rows;
+  return rows.map((row) => ({
+    ...row,
+    metadata: sanitizePublicChannelMetadata(row.metadata),
+  }));
+}
+export async function getSocialChannel(
+  pool: Pool,
+  orgId: string,
+  id: string,
+): Promise<SocialChannel | undefined> {
+  return (await pool.query<SocialChannel>(SQL[1], [id, orgId])).rows[0];
+}
+export async function createSocialChannel(
+  pool: Pool,
+  userId: string,
+  orgId: string,
+  platform: string,
+  displayName: string,
+  handle: string | null,
+  externalAccountId: string | null,
+  status: string,
+  metadata: unknown,
+): Promise<SocialChannel> {
+  await pool.query(SQL[2], [
+    createId(),
+    userId,
+    orgId,
+    platform,
+    status,
+    displayName,
+    handle,
+    externalAccountId,
+    canonicalJson(mergeChannelMetadataWithCapabilities(platform, metadata)),
+  ]);
+  return (await pool.query<SocialChannel>(SQL[3], [orgId])).rows[0]!;
+}
+export async function updateSocialChannel(
+  pool: Pool,
+  orgId: string,
+  id: string,
+  platform: string,
+  displayName: string,
+  handle: string | null,
+  status: string,
+  metadata: unknown,
+): Promise<SocialChannel> {
+  await pool.query(SQL[4], [
+    platform,
+    displayName,
+    handle,
+    status,
+    canonicalJson(mergeChannelMetadataWithCapabilities(platform, metadata)),
+    id,
+    orgId,
+  ]);
+  const row = await getSocialChannel(pool, orgId, id);
+  if (!row) throw missing("Channel not found");
+  return row;
+}
+export async function deleteSocialChannel(
+  pool: Pool,
+  orgId: string,
+  id: string,
+): Promise<boolean> {
+  return (await pool.query(SQL[5], [id, orgId])).rowCount === 1;
+}

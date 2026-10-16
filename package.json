@@ -1,0 +1,51 @@
+{
+  "name": "@kasitek/workspace",
+  "private": true,
+  "packageManager": "pnpm@10.30.1",
+  "engines": {
+    "node": ">=24 <25"
+  },
+  "scripts": {
+    "build:shared": "pnpm --filter @kasitek-labs/contracts build && pnpm --filter @kasitek-labs/server-support build",
+    "build:analytics": "pnpm build:shared && pnpm --filter @kasitek/analytics build",
+    "test:shared": "pnpm --filter @kasitek-labs/server-support test",
+    "pack:shared": "node packages/server-support/scripts/pack-shared.mjs",
+    "publish:shared": "node packages/server-support/scripts/publish-shared.mjs",
+    "start:analytics": "pnpm --filter @kasitek/analytics start",
+    "start:analytics-worker": "pnpm --filter @kasitek/analytics start:worker",
+    "migrate:analytics": "pnpm --filter @kasitek/analytics migrate",
+    "registry:check:analytics": "pnpm --filter @kasitek/analytics registry:check",
+    "dev:growth": "pnpm --filter client dev",
+    "dev:growth-api": "pnpm --filter @kasitek/growth-core dev",
+    "dev:agents": "pnpm --filter @kasitek/agent-platform dev",
+    "dev:agents-api": "pnpm --filter @kasitek/agents dev:api",
+    "dev:agency": "pnpm --filter tenant-portal dev",
+    "dev:agency-api": "pnpm --filter @kasitek/agency-tenants dev",
+    "dev:labs": "pnpm --filter labs dev",
+    "dev:admin": "pnpm --filter @kasitek/admin-site dev",
+    "build:growth": "pnpm build:shared && pnpm --filter @kasitek/growth-core build && pnpm --filter @kasitek/growth-client-workspace build",
+    "build:agents": "pnpm build:shared && pnpm --filter @kasitek/agents build && pnpm --filter @kasitek/mcp build && pnpm --filter @kasitek/agent-platform build",
+    "build:agency": "pnpm build:shared && pnpm --filter @kasitek/agency-tenants build && pnpm --filter tenant-portal build",
+    "build:sites": "pnpm --filter @kasitek/admin-site build && pnpm --filter labs build",
+    "build:all": "pnpm build:shared && pnpm --filter @kasitek/database generate && pnpm --workspace-concurrency=2 --filter @kasitek/growth-core --filter client --filter @kasitek/agents --filter @kasitek/mcp --filter @kasitek/agent-platform --filter @kasitek/agency-tenants --filter tenant-portal --filter @kasitek/analytics --filter @kasitek/admin-site --filter labs -r build",
+    "verify:boundaries": "node scripts/check-boundaries.mjs",
+    "typecheck:all": "pnpm build:shared && pnpm -r --if-present typecheck",
+    "test:growth": "pnpm --filter @kasitek/growth-core test",
+    "test:agents": "pnpm --filter @kasitek/agents test",
+    "test:agency": "pnpm --filter @kasitek/agency-tenants test",
+    "release:check": "node scripts/release-version.mjs check"
+  },
+  "devDependencies": {
+    "typescript": "5.9.3",
+    "@types/node": "24.10.1"
+  },
+  "pnpm": {
+    "overrides": {
+      "@types/react": "19.2.14",
+      "@types/react-dom": "19.2.3",
+      "fastify": "5.12.5",
+      "@types/pg": "8.23.1"
+    }
+  },
+  "repository": "https://github.com/Kasitek-Labs/kastek.git"
+}

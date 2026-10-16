@@ -1,0 +1,17 @@
+[
+  {
+    "name": "keycloak",
+    "url": "https://github.com/keycloak/keycloak/releases/download/26.6.0/keycloak-26.6.0.tar.gz",
+    "sha256": "f4aabdbdf3d51e6a3725b15d2bc54816c79db835527201f2b73412acc44eb216"
+  },
+  {
+    "name": "mailpit",
+    "url": "https://github.com/axllent/mailpit/releases/download/v1.27.8/mailpit-linux-amd64.tar.gz",
+    "sha256": "34bda662d27dca6381e2d8e2acac9d43aedb263c470a2b74919df32abb50ce47"
+  },
+  {
+    "name": "java",
+    "url": "https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.12.1%2B1/OpenJDK21U-jdk_x64_linux_hotspot_21.0.12.1_1.tar.gz",
+    "sha256": "ce79869e1307ed8ee1e2baa86a412b1eb5b75d10a01006d788a6f968bcfaee94"
+  }
+]

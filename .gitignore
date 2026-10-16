@@ -43,6 +43,7 @@ yarn-error.log*
 !.env.vault
 !**/.env.vault
 !**/.env.example
+!server/kasitek-core/.env.identity.example
 
 # vercel
 .vercel
@@ -52,6 +53,9 @@ yarn-error.log*
 next-env.d.ts
 
 **/generated/prisma
+**/dist/
+**/.backups/
+**/.artifacts/
 
 # local-only working files (prompts, experiments, drafts)
 local-work/
@@ -61,3 +65,12 @@ outreach-emails/
 
 .flaskenv*
 !.env.project
+
+# Monorepo runtime and private migration artifacts
+**/.runtime/
+**/coverage/
+**/build/
+**/.audit/
+!**/.env.identity.example
+
+**/.docusaurus/
