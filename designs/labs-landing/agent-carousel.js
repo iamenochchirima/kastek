@@ -5,6 +5,8 @@
   const control = document.querySelector('[data-agent-autoplay]');
   const label = control.querySelector('[data-autoplay-label]');
   const icon = control.querySelector('[data-autoplay-icon]');
+  const sceneLabel = document.querySelector('[data-agent-scene-label]');
+  const sceneNames = { support: 'Customer support', business: 'Business agents', personal: 'Personal agents' };
   const preference = matchMedia('(prefers-reduced-motion: reduce)');
   const duration = { support: 13000, business: 14000, personal: 15000 };
   let visible = false;
@@ -18,9 +20,10 @@
   function updateControl() {
     const stopped = userPaused || disabled();
     control.setAttribute('aria-pressed', String(stopped));
-    label.textContent = stopped ? 'Play sequence' : 'Pause sequence';
-    icon.textContent = stopped ? '▷' : 'Ⅱ';
+    label.textContent = disabled() ? 'Motion off' : stopped ? 'Play demo' : 'Pause demo';
+    icon.textContent = disabled() ? '' : stopped ? '▷' : 'Ⅱ';
     control.disabled = disabled();
+    control.setAttribute('aria-label', disabled() ? 'Motion off for Agents demo' : stopped ? 'Play demo for Agents' : 'Pause demo for Agents');
     control.title = disabled() ? 'Automatic motion is off with your current motion preference.' : '';
   }
   function tick(now) {
@@ -58,11 +61,16 @@
   });
   document.addEventListener('labs:agentselected', event => {
     selected = event.detail.selected;
+    sceneLabel.textContent = sceneNames[selected];
     elapsed = 0;
-    window.LabsMotion?.setPaused(preview, !visible || document.hidden);
+    if (userPaused) window.LabsMotion?.stop(preview);
+    window.LabsMotion?.setPaused(preview, userPaused || !visible || document.hidden);
   });
   document.addEventListener('click', event => {
-    if (event.target.closest('#agents [data-replay]')) { elapsed = 0; window.LabsMotion?.setPaused(preview, false); }
+    if (event.target.closest('#agents [data-replay]')) {
+      elapsed = 0; userPaused = false; updateControl();
+      window.LabsMotion?.setPaused(preview, !visible || document.hidden);
+    }
   });
   document.addEventListener('visibilitychange', () => window.LabsMotion?.setPaused(preview, userPaused || document.hidden || !visible));
   preference.addEventListener('change', () => { elapsed = 0; updateControl(); });

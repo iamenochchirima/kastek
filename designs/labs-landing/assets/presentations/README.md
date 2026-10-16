@@ -17,3 +17,7 @@ Use case: photorealistic-natural. Asset type: photographic image inside an HTML 
 ## lena.png
 
 Use case: product-mockup. Asset type: photographic image inside an HTML product demonstration. Wide landscape editorial beauty product photograph. Unbranded amber glass dropper bottle, understated cream ceramic jar, beige travertine block and delicate olive branch on a cream background in natural afternoon light. Rich tactile shadows, muted warm sand and brown, magazine beauty art direction. No text, no labels, no branding, no people. Landscape 3:2.
+
+## Web delivery copies
+
+The landing page uses sibling `.webp` delivery copies of the generated photographs, with the same pixel dimensions. PNG originals and exact generation prompts remain preserved. These are format conversions at quality 87; no new image-generation prompt was used.

@@ -1,6 +1,10 @@
 # KasiTek monorepo migration plan
 
-Status: Source consolidation complete in Growth `rewrite`, merged through PR 20. Deployment is explicitly deferred by the owner.
+Status: Source consolidation completed through PR 20 and merged to `main` through PR 21. Deployment remains explicitly deferred by the owner.
+
+The owner approved compact product directories on 2026-10-16. The current layout and release-impact
+decisions are recorded in [the directory restructure record](docs/operations/directory-restructure.md).
+The original migration sequence below is retained as execution history.
 Owner: Enoch Chirima. Integration and verification: the agent executing each approved slice.
 Created: 2026-10-15. Execution authorized by the owner in chat on 2026-10-15.
 Destination: `Kasitek-Labs/kastek`, renamed from `kasitek-growth` on 2026-10-15 at the owner’s request.
@@ -61,7 +65,7 @@ No tracked Cargo manifests were found in the inspected current trees. Some archi
 external plan documents still describe Rust or earlier source splits. Reconcile those descriptions
 with the selected source tree instead of resurrecting removed implementations.
 
-## Target layout
+## Original migration layout
 
 Keep product internals recognisable in the first migration. Product-private packages stay with
 their product. Only genuinely shared packages belong in root `packages/`.

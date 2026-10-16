@@ -84,6 +84,9 @@ importers:
 
   apps/labs-site:
     dependencies:
+      gsap:
+        specifier: 3.15.0
+        version: 3.15.0
       libphonenumber-js:
         specifier: ^1.13.12
         version: 1.13.12
@@ -155,9 +158,81 @@ importers:
         specifier: 8.23.1
         version: 8.23.1
 
-  products/agency/client: {}
+  products/agency/api:
+    dependencies:
+      '@fastify/cookie':
+        specifier: ^10.0.1
+        version: 10.0.1
+      '@fastify/cors':
+        specifier: ^11.1.0
+        version: 11.3.0
+      '@fastify/formbody':
+        specifier: ^8.0.2
+        version: 8.0.2
+      '@fastify/multipart':
+        specifier: ^9.4.0
+        version: 9.4.0
+      '@kasitek-labs/contracts':
+        specifier: workspace:*
+        version: link:../../../packages/contracts
+      '@kasitek-labs/server-support':
+        specifier: workspace:*
+        version: link:../../../packages/server-support
+      '@opentelemetry/api':
+        specifier: 1.9.0
+        version: 1.9.0
+      '@paralleldrive/cuid2':
+        specifier: ^2.3.1
+        version: 2.3.1
+      ajv:
+        specifier: 8.17.1
+        version: 8.17.1
+      ajv-formats:
+        specifier: 3.0.1
+        version: 3.0.1(ajv@8.17.1)
+      bcryptjs:
+        specifier: ^3.0.2
+        version: 3.0.3
+      dotenv:
+        specifier: ^16.6.1
+        version: 16.6.1
+      fastify:
+        specifier: 5.12.5
+        version: 5.12.5
+      jose:
+        specifier: ^6.1.0
+        version: 6.2.12
+      pg:
+        specifier: ^8.16.3
+        version: 8.23.1
+      undici:
+        specifier: 8.11.2
+        version: 8.11.2
+    devDependencies:
+      '@types/node':
+        specifier: ^24.6.0
+        version: 24.19.1
+      '@types/pg':
+        specifier: 8.23.1
+        version: 8.23.1
+      tsx:
+        specifier: ^4.20.6
+        version: 4.23.15
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
 
-  products/agency/client/apps/tenant-portal:
+  products/agency/api-client:
+    dependencies:
+      '@tanstack/react-query':
+        specifier: ^5.90.5
+        version: 5.97.0(react@19.2.3)
+    devDependencies:
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
+  products/agency/web:
     dependencies:
       '@fontsource/geist':
         specifier: ^5.0.0
@@ -257,7 +332,7 @@ importers:
         version: 5.97.0(react@19.2.3)
       '@workspace/api-client-react':
         specifier: workspace:*
-        version: link:../../packages/api-client-react
+        version: link:../api-client
       class-variance-authority:
         specifier: ^0.7.1
         version: 0.7.1
@@ -356,81 +431,7 @@ importers:
         specifier: ^7.1.12
         version: 7.3.2(@types/node@20.19.33)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.49.2)(tsx@4.23.15)(yaml@2.9.1)
 
-  products/agency/client/packages/api-client-react:
-    dependencies:
-      '@tanstack/react-query':
-        specifier: ^5.90.5
-        version: 5.97.0(react@19.2.3)
-    devDependencies:
-      typescript:
-        specifier: ^5.9.3
-        version: 5.9.3
-
-  products/agency/server/kasitek-tenants:
-    dependencies:
-      '@fastify/cookie':
-        specifier: ^10.0.1
-        version: 10.0.1
-      '@fastify/cors':
-        specifier: ^11.1.0
-        version: 11.3.0
-      '@fastify/formbody':
-        specifier: ^8.0.2
-        version: 8.0.2
-      '@fastify/multipart':
-        specifier: ^9.4.0
-        version: 9.4.0
-      '@kasitek-labs/contracts':
-        specifier: workspace:*
-        version: link:../../../../packages/contracts
-      '@kasitek-labs/server-support':
-        specifier: workspace:*
-        version: link:../../../../packages/server-support
-      '@opentelemetry/api':
-        specifier: 1.9.0
-        version: 1.9.0
-      '@paralleldrive/cuid2':
-        specifier: ^2.3.1
-        version: 2.3.1
-      ajv:
-        specifier: 8.17.1
-        version: 8.17.1
-      ajv-formats:
-        specifier: 3.0.1
-        version: 3.0.1(ajv@8.17.1)
-      bcryptjs:
-        specifier: ^3.0.2
-        version: 3.0.3
-      dotenv:
-        specifier: ^16.6.1
-        version: 16.6.1
-      fastify:
-        specifier: 5.12.5
-        version: 5.12.5
-      jose:
-        specifier: ^6.1.0
-        version: 6.2.12
-      pg:
-        specifier: ^8.16.3
-        version: 8.23.1
-      undici:
-        specifier: 8.11.2
-        version: 8.11.2
-    devDependencies:
-      '@types/node':
-        specifier: ^24.6.0
-        version: 24.19.1
-      '@types/pg':
-        specifier: 8.23.1
-        version: 8.23.1
-      tsx:
-        specifier: ^4.20.6
-        version: 4.23.15
-      typescript:
-        specifier: ^5.9.3
-        version: 5.9.3
-
-  products/agents:
+  products/agents/api:
     dependencies:
       '@fastify/cookie':
         specifier: ^11.1.2
@@ -440,7 +441,7 @@ importers:
         version: 10.1.1
       '@kasitek-labs/contracts':
         specifier: workspace:*
-        version: link:../../packages/contracts
+        version: link:../../../packages/contracts
       '@opentelemetry/api':
         specifier: ^1.9.1
         version: 1.9.1
@@ -527,7 +528,9 @@ importers:
         specifier: ^3.2.4
         version: 3.2.7(@types/debug@4.1.13)(@types/node@24.13.3)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.49.2)(tsx@4.23.12)(yaml@2.9.1)
 
-  products/agents/client/apps/agent-platform:
+  products/agents/mcp: {}
+
+  products/agents/web:
     dependencies:
       '@fontsource/geist':
         specifier: ^5.0.0
@@ -636,11 +639,129 @@ importers:
         specifier: ^7.0.0
         version: 7.3.6(@types/node@20.19.43)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.49.2)(tsx@4.23.12)(yaml@2.9.1)
 
-  products/agents/packages/mcp: {}
+  products/growth/api:
+    dependencies:
+      '@fastify/cookie':
+        specifier: ^10.0.1
+        version: 10.0.1
+      '@fastify/cors':
+        specifier: ^11.1.0
+        version: 11.3.0
+      '@fastify/formbody':
+        specifier: ^8.0.2
+        version: 8.0.2
+      '@fastify/multipart':
+        specifier: ^9.4.0
+        version: 9.4.0
+      '@kasitek-labs/contracts':
+        specifier: workspace:*
+        version: link:../../../packages/contracts
+      '@kasitek-labs/server-support':
+        specifier: workspace:*
+        version: link:../../../packages/server-support
+      '@opentelemetry/api':
+        specifier: 1.9.0
+        version: 1.9.0
+      '@paralleldrive/cuid2':
+        specifier: ^2.3.1
+        version: 2.3.1
+      ajv:
+        specifier: 8.17.1
+        version: 8.17.1
+      ajv-formats:
+        specifier: 3.0.1
+        version: 3.0.1(ajv@8.17.1)
+      bcryptjs:
+        specifier: ^3.0.2
+        version: 3.0.3
+      csv-parse:
+        specifier: ^7.0.3
+        version: 7.0.3
+      csv-stringify:
+        specifier: ^6.9.0
+        version: 6.9.0
+      dotenv:
+        specifier: ^16.6.1
+        version: 16.6.1
+      fastify:
+        specifier: 5.12.5
+        version: 5.12.5
+      jose:
+        specifier: ^6.1.0
+        version: 6.2.12
+      openid-client:
+        specifier: ^6.8.1
+        version: 6.8.8
+      pg:
+        specifier: ^8.16.3
+        version: 8.23.1
+      redis:
+        specifier: ^5.9.0
+        version: 5.12.1(@opentelemetry/api@1.9.0)
+      semver:
+        specifier: 7.7.2
+        version: 7.7.2
+      undici:
+        specifier: 8.11.2
+        version: 8.11.2
+      web-push:
+        specifier: ^3.6.7
+        version: 3.6.7
+    devDependencies:
+      '@types/node':
+        specifier: ^24.6.0
+        version: 24.19.1
+      '@types/pg':
+        specifier: 8.23.1
+        version: 8.23.1
+      '@types/semver':
+        specifier: 7.7.0
+        version: 7.7.0
+      '@types/web-push':
+        specifier: ^3.6.4
+        version: 3.6.4
+      tsx:
+        specifier: ^4.20.6
+        version: 4.23.15
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
 
-  products/growth/client: {}
+  products/growth/database:
+    dependencies:
+      '@prisma/adapter-pg':
+        specifier: ^7.4.0
+        version: 7.8.0
+      '@prisma/client':
+        specifier: ^7.3.0
+        version: 7.4.0(prisma@7.4.0(@types/react@19.3.0)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(typescript@5.9.3))(typescript@5.9.3)
+      bcryptjs:
+        specifier: ^3.0.3
+        version: 3.0.3
+      dotenv:
+        specifier: ^16.4.0
+        version: 16.6.1
+      pg:
+        specifier: ^8.16.3
+        version: 8.22.0
+    devDependencies:
+      '@types/bcryptjs':
+        specifier: ^3.0.0
+        version: 3.0.0
+      '@types/pg':
+        specifier: 8.23.1
+        version: 8.23.1
+      prisma:
+        specifier: ^7.3.0
+        version: 7.4.0(@types/react@19.3.0)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(typescript@5.9.3)
+      tsx:
+        specifier: ^4.0.0
+        version: 4.21.0
+      typescript:
+        specifier: ^5
+        version: 5.9.3
 
-  products/growth/client/apps/client:
+  products/growth/web:
     dependencies:
       '@emoji-mart/data':
         specifier: ^1.2.1
@@ -650,7 +771,7 @@ importers:
         version: 1.1.1(emoji-mart@5.6.0)(react@19.2.3)
       '@kasitek/database':
         specifier: workspace:*
-        version: link:../../packages/database
+        version: link:../database
       '@radix-ui/react-alert-dialog':
         specifier: ^1.1.15
         version: 1.1.15(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
@@ -765,128 +886,6 @@ importers:
         version: 4.1.18
       typescript:
         specifier: ^5
-        version: 5.9.3
-
-  products/growth/client/packages/database:
-    dependencies:
-      '@prisma/adapter-pg':
-        specifier: ^7.4.0
-        version: 7.8.0
-      '@prisma/client':
-        specifier: ^7.3.0
-        version: 7.4.0(prisma@7.4.0(@types/react@19.3.0)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(typescript@5.9.3))(typescript@5.9.3)
-      bcryptjs:
-        specifier: ^3.0.3
-        version: 3.0.3
-      dotenv:
-        specifier: ^16.4.0
-        version: 16.6.1
-      pg:
-        specifier: ^8.16.3
-        version: 8.22.0
-    devDependencies:
-      '@types/bcryptjs':
-        specifier: ^3.0.0
-        version: 3.0.0
-      '@types/pg':
-        specifier: 8.23.1
-        version: 8.23.1
-      prisma:
-        specifier: ^7.3.0
-        version: 7.4.0(@types/react@19.3.0)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(typescript@5.9.3)
-      tsx:
-        specifier: ^4.0.0
-        version: 4.21.0
-      typescript:
-        specifier: ^5
-        version: 5.9.3
-
-  products/growth/server/kasitek-core:
-    dependencies:
-      '@fastify/cookie':
-        specifier: ^10.0.1
-        version: 10.0.1
-      '@fastify/cors':
-        specifier: ^11.1.0
-        version: 11.3.0
-      '@fastify/formbody':
-        specifier: ^8.0.2
-        version: 8.0.2
-      '@fastify/multipart':
-        specifier: ^9.4.0
-        version: 9.4.0
-      '@kasitek-labs/contracts':
-        specifier: workspace:*
-        version: link:../../../../packages/contracts
-      '@kasitek-labs/server-support':
-        specifier: workspace:*
-        version: link:../../../../packages/server-support
-      '@opentelemetry/api':
-        specifier: 1.9.0
-        version: 1.9.0
-      '@paralleldrive/cuid2':
-        specifier: ^2.3.1
-        version: 2.3.1
-      ajv:
-        specifier: 8.17.1
-        version: 8.17.1
-      ajv-formats:
-        specifier: 3.0.1
-        version: 3.0.1(ajv@8.17.1)
-      bcryptjs:
-        specifier: ^3.0.2
-        version: 3.0.3
-      csv-parse:
-        specifier: ^7.0.3
-        version: 7.0.3
-      csv-stringify:
-        specifier: ^6.9.0
-        version: 6.9.0
-      dotenv:
-        specifier: ^16.6.1
-        version: 16.6.1
-      fastify:
-        specifier: 5.12.5
-        version: 5.12.5
-      jose:
-        specifier: ^6.1.0
-        version: 6.2.12
-      openid-client:
-        specifier: ^6.8.1
-        version: 6.8.8
-      pg:
-        specifier: ^8.16.3
-        version: 8.23.1
-      redis:
-        specifier: ^5.9.0
-        version: 5.12.1(@opentelemetry/api@1.9.0)
-      semver:
-        specifier: 7.7.2
-        version: 7.7.2
-      undici:
-        specifier: 8.11.2
-        version: 8.11.2
-      web-push:
-        specifier: ^3.6.7
-        version: 3.6.7
-    devDependencies:
-      '@types/node':
-        specifier: ^24.6.0
-        version: 24.19.1
-      '@types/pg':
-        specifier: 8.23.1
-        version: 8.23.1
-      '@types/semver':
-        specifier: 7.7.0
-        version: 7.7.0
-      '@types/web-push':
-        specifier: ^3.6.4
-        version: 3.6.4
-      tsx:
-        specifier: ^4.20.6
-        version: 4.23.15
-      typescript:
-        specifier: ^5.9.3
         version: 5.9.3
 
   services/analytics:
@@ -6224,6 +6223,9 @@ packages:
 
   graphmatch@1.1.1:
     resolution: {integrity: sha512-5ykVn/EXM1hF0XCaWh05VbYvEiOL2lY1kBxZtaYsyvjp7cmWOU1XsAdfQBwClraEofXDT197lFbXOEVMHpvQOg==}
+
+  gsap@3.15.0:
+    resolution: {integrity: sha512-dMW4CWBTUK1AEEDeZc1g4xpPGIrSf9fJF960qbTZmN/QwZIWY5wgliS6JWl9/25fpTGJrMRtSjGtOmPnfjZB+A==}
 
   has-bigints@1.1.0:
     resolution: {integrity: sha512-R3pbpkcIqv2Pm3dUwgjclDRVmWpTJW2DcMzcIhEXEx1oh/CEMObMm3KLmRJOdvhM7o4uQBnwr8pzRK2sJWIqfg==}
@@ -14364,7 +14366,7 @@ snapshots:
       eslint: 9.39.2(jiti@2.7.0)
       eslint-import-resolver-node: 0.3.10
       eslint-import-resolver-typescript: 3.10.1(eslint-plugin-import@2.32.0)(eslint@9.39.2(jiti@2.7.0))
-      eslint-plugin-import: 2.32.0(eslint-import-resolver-typescript@3.10.1)(eslint@9.39.2(jiti@2.7.0))
+      eslint-plugin-import: 2.32.0(eslint@9.39.2(jiti@2.7.0))
       eslint-plugin-jsx-a11y: 6.10.2(eslint@9.39.2(jiti@2.7.0))
       eslint-plugin-react: 7.37.5(eslint@9.39.2(jiti@2.7.0))
       eslint-plugin-react-hooks: 7.1.1(eslint@9.39.2(jiti@2.7.0))
@@ -14384,7 +14386,7 @@ snapshots:
       eslint: 9.39.5(jiti@2.7.0)
       eslint-import-resolver-node: 0.3.10
       eslint-import-resolver-typescript: 3.10.1(eslint-plugin-import@2.32.0)(eslint@9.39.5(jiti@2.7.0))
-      eslint-plugin-import: 2.32.0(eslint@9.39.5(jiti@2.7.0))
+      eslint-plugin-import: 2.32.0(eslint-import-resolver-typescript@3.10.1)(eslint@9.39.5(jiti@2.7.0))
       eslint-plugin-jsx-a11y: 6.10.2(eslint@9.39.5(jiti@2.7.0))
       eslint-plugin-react: 7.37.5(eslint@9.39.5(jiti@2.7.0))
       eslint-plugin-react-hooks: 7.1.1(eslint@9.39.5(jiti@2.7.0))
@@ -14417,7 +14419,7 @@ snapshots:
       tinyglobby: 0.2.17
       unrs-resolver: 1.12.2
     optionalDependencies:
-      eslint-plugin-import: 2.32.0(eslint-import-resolver-typescript@3.10.1)(eslint@9.39.2(jiti@2.7.0))
+      eslint-plugin-import: 2.32.0(eslint@9.39.2(jiti@2.7.0))
     transitivePeerDependencies:
       - supports-color
 
@@ -14432,7 +14434,7 @@ snapshots:
       tinyglobby: 0.2.17
       unrs-resolver: 1.12.2
     optionalDependencies:
-      eslint-plugin-import: 2.32.0(eslint@9.39.5(jiti@2.7.0))
+      eslint-plugin-import: 2.32.0(eslint-import-resolver-typescript@3.10.1)(eslint@9.39.5(jiti@2.7.0))
     transitivePeerDependencies:
       - supports-color
 
@@ -14456,7 +14458,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  eslint-plugin-import@2.32.0(eslint-import-resolver-typescript@3.10.1)(eslint@9.39.2(jiti@2.7.0)):
+  eslint-plugin-import@2.32.0(eslint-import-resolver-typescript@3.10.1)(eslint@9.39.5(jiti@2.7.0)):
     dependencies:
       '@rtsao/scc': 1.1.0
       array-includes: 3.2.0
@@ -14465,9 +14467,9 @@ snapshots:
       array.prototype.flatmap: 1.3.3
       debug: 3.2.7
       doctrine: 2.1.0
-      eslint: 9.39.2(jiti@2.7.0)
+      eslint: 9.39.5(jiti@2.7.0)
       eslint-import-resolver-node: 0.3.10
-      eslint-module-utils: 2.14.0(eslint-import-resolver-node@0.3.10)(eslint-import-resolver-typescript@3.10.1)(eslint@9.39.2(jiti@2.7.0))
+      eslint-module-utils: 2.14.0(eslint-import-resolver-node@0.3.10)(eslint-import-resolver-typescript@3.10.1)(eslint@9.39.5(jiti@2.7.0))
       hasown: 2.0.4
       is-core-module: 2.17.0
       is-glob: 4.0.3
@@ -14483,7 +14485,7 @@ snapshots:
       - eslint-import-resolver-webpack
       - supports-color
 
-  eslint-plugin-import@2.32.0(eslint@9.39.5(jiti@2.7.0)):
+  eslint-plugin-import@2.32.0(eslint@9.39.2(jiti@2.7.0)):
     dependencies:
       '@rtsao/scc': 1.1.0
       array-includes: 3.2.0
@@ -14492,9 +14494,9 @@ snapshots:
       array.prototype.flatmap: 1.3.3
       debug: 3.2.7
       doctrine: 2.1.0
-      eslint: 9.39.5(jiti@2.7.0)
+      eslint: 9.39.2(jiti@2.7.0)
       eslint-import-resolver-node: 0.3.10
-      eslint-module-utils: 2.14.0(eslint-import-resolver-node@0.3.10)(eslint-import-resolver-typescript@3.10.1)(eslint@9.39.5(jiti@2.7.0))
+      eslint-module-utils: 2.14.0(eslint-import-resolver-node@0.3.10)(eslint-import-resolver-typescript@3.10.1)(eslint@9.39.2(jiti@2.7.0))
       hasown: 2.0.4
       is-core-module: 2.17.0
       is-glob: 4.0.3
@@ -15043,6 +15045,8 @@ snapshots:
   grammex@3.1.12: {}
 
   graphmatch@1.1.1: {}
+
+  gsap@3.15.0: {}
 
   has-bigints@1.1.0: {}
 

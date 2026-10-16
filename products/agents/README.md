@@ -22,7 +22,22 @@ This repository owns the API, database migrations, Temporal worker, MCP gateway,
 
 Growth and Agency are optional product-tool integrations through authenticated interfaces, not runtime or database dependencies for every agent. Shared login comes from Labs Keycloak; Analytics uses its configured ingestion endpoint, and telemetry uses the Labs Collector. Agents owns its organization authorization and sessions.
 
+## Source layout
+
+- `api/`: backend source, migrations, tests, process scripts and environment templates.
+- `web/`: management UI.
+- `mcp/`: stdio MCP bridge package.
+- `docs/` and `examples/`: product documentation and integration examples.
+
+Use the root Node 24/pnpm workspace to install and build dependencies. From the repository root,
+`pnpm dev:agents` starts the UI and `pnpm dev:agents-api` starts the API with its local migration
+step. Keep backend secrets in `api/.env`, using `api/.env.example` as the template.
+
 ## Processes
+
+The backend commands below run from `products/agents/api/` unless otherwise specified.
+The stdio bridge command runs from `products/agents/mcp/`; UI commands run from
+`products/agents/web/`.
 
 - `pnpm run dev:api` applies pending local migrations, then starts the HTTP API.
 - `pnpm run dev:gateway` starts the stateless external MCP gateway.
@@ -37,9 +52,8 @@ Growth and Agency are optional product-tool integrations through authenticated i
 - `RUN_AGENTS_DB_INTEGRATION_TESTS=true AGENTS_DATABASE_URL=... pnpm test` enables the
   opt-in PostgreSQL isolation/deletion tests; the normal test command never mutates a database.
 
-The Core public-v1 conformance check is skipped in a standalone checkout unless
-`KASITEK_GROWTH_REPO_ROOT` points to a Growth checkout. Run it explicitly with
-`KASITEK_GROWTH_REPO_ROOT=/path/to/kasitek-growth pnpm exec vitest run test/rest-mcp-conformance.test.ts`.
+The Core public-v1 conformance check consumes the Growth product source. From the API package,
+run `KASITEK_GROWTH_REPO_ROOT=../../growth pnpm exec vitest run test/rest-mcp-conformance.test.ts`.
 
 The API and worker are separate process types. The default local-stack mode connects them to a
 dedicated Temporal Cloud development namespace. Set `TEMPORAL_MODE=local`,
@@ -50,12 +64,12 @@ or changing that runtime is separate work.
 For the local management app, start PostgreSQL and Labs identity, then the local
 Temporal server, API, worker and `pnpm dev` in separate terminals. The current
 Playground setup uses Temporal namespace `default` and queue
-`kasitek-agents-initial-ui`. Keep local secrets in the ignored `.env`. Use
+`kasitek-agents-initial-ui`. Keep local secrets in the ignored `api/.env`. Use
 `http://localhost:3100` consistently with `AGENTS_PUBLIC_URL`; starting login on
 `127.0.0.1` and returning to `localhost` loses the login transaction cookie.
 Check API `/health/live` and `/health/ready` before opening Studio.
 
-For a fully local durable setup, configure these non-secret values in the root `.env`:
+For a fully local durable setup, configure these non-secret values in `api/.env`:
 
 ```dotenv
 HOST=127.0.0.1
@@ -71,26 +85,27 @@ CREDIT_BILLING_MODE=disabled
 ```
 
 Also configure the separate Agents PostgreSQL URL, internal authentication secret,
-credential encryption key and Labs OIDC client settings listed in `.env.example`.
+credential encryption key and Labs OIDC client settings listed in `api/.env.example`.
 Use each model provider's own key. The disabled billing setting above is for local
 development only. Start PostgreSQL and Labs Keycloak using their existing setup.
 
-Run each process in its own terminal from the repository root:
+Run Temporal in its own terminal. From the repository root, start each application process in
+a separate terminal:
 
 ```bash
 temporal server start-dev --ip 127.0.0.1 --port 7233 --ui-port 8233
 ```
 
 ```bash
-pnpm run dev:api
+pnpm dev:agents-api
 ```
 
 ```bash
-pnpm run dev:worker
+pnpm --dir products/agents/api run dev:worker
 ```
 
 ```bash
-pnpm dev
+pnpm dev:agents
 ```
 
 The API command applies Agents migrations. Open `http://localhost:3100`, sign in,
@@ -154,7 +169,7 @@ never logs the bearer token. Before forwarding an old-client message it probes `
 once (configurable with `MCP_STDIO_PROBE=false`); a modern-only endpoint produces a bounded local
 unsupported-version error instead of sending an incompatible initialize request.
 
-The publishable package boundary is being prepared in [`packages/mcp`](packages/mcp). Build its
+The publishable package boundary is being prepared in [`mcp`](mcp). Build its
 standalone local adapter with `pnpm run build:mcp`. It is intentionally separate from the Agent API
 runtime and does not contain tools, authorization, product data, or a REST client; publication is
 blocked until the Developers authentication/setup flow is wired and tested.
@@ -177,8 +192,8 @@ require Temporal.
 After migrations, start the API, worker, and gateway in separate terminals:
 
 ```bash
-pnpm run dev:api
-pnpm run dev:worker
+pnpm dev:agents-api
+pnpm --dir products/agents/api run dev:worker
 pnpm run dev:gateway
 ```
 
@@ -297,8 +312,8 @@ worker process. API responses contain only opaque credential IDs; revoke the ID 
 model calls.
 
 Agent integrations use the same encrypted-secret boundary without adding provider-specific
-credential tables. The catalog in `src/integrations/catalog.ts` describes each provider, the
-connection API stores installation-scoped state, and `src/integrations/tools.ts` exposes provider
+credential tables. The catalog in `api/src/integrations/catalog.ts` describes each provider, the
+connection API stores installation-scoped state, and `api/src/integrations/tools.ts` exposes provider
 operations through the existing capability registry and approval policy. OAuth-backed Google
 connections use `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`, and
 `GOOGLE_OAUTH_REDIRECT_URI`; each catalog entry supplies its own requested scopes through the
@@ -308,7 +323,7 @@ adapters are KasiTek Calendar, Google Calendar, Gmail, Google Drive, Tavily Sear
 
 ## Management UI
 
-The Next.js app is in `client/apps/agent-platform` and contains the `/agents/**`, `/studio`,
+The Next.js app is in `web` and contains the `/agents/**`, `/studio`,
 `/studio/new`, and `/playground` routes. Growth retains its copy until the separate cleanup is
 completed. Authentication and API integrations in the relocated app remain transitional; this
 source move does not configure a standalone production service. See [the source boundary](docs/source-boundary.md).
@@ -317,7 +332,7 @@ Use Node `24.15.0` from the repository `.nvmrc` and pnpm `10.30.1`.
 
 ```bash
 pnpm install
-pnpm dev
+pnpm dev:agents
 ```
 
 Focused UI commands:
@@ -414,7 +429,7 @@ not change the live version.
 Run the included sample separately from the management app:
 
 ```bash
-python3 -m http.server 3200 --bind 127.0.0.1 --directory examples/website-chat
+python3 -m http.server 3200 --bind 127.0.0.1 --directory products/agents/examples/website-chat
 ```
 
 Open `http://localhost:3200`, paste the public deployment ID and open chat.
@@ -460,7 +475,7 @@ Alongside the API, start the retained gateway with its matching Agents database
 and internal authentication configuration:
 
 ```bash
-DISCORD_GATEWAY_ENABLED=true pnpm run dev:discord
+DISCORD_GATEWAY_ENABLED=true pnpm --dir products/agents/api run dev:discord
 ```
 
 `DISCORD_GATEWAY_PLATFORM_URL` points to the API, locally

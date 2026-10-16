@@ -8,15 +8,15 @@ ROOT_LOCAL_ENV="$ROOT_DIR/.env.local"
 
 declare -a SOURCE_ENV_FILES=(
   ".env.local"
-  "server/kasitek-core/.env"
-  "client/.env.local"
+  "api/.env"
+  "web/.env.local"
 )
 
 declare -a GENERATED_ENV_FILES=(
   ".env.local"
-  "server/kasitek-core/.env"
-  "client/.env"
-  "client/.env.local"
+  "api/.env"
+  "web/.env"
+  "web/.env.local"
 )
 
 usage() {

@@ -22,14 +22,14 @@ previous artifact and rollback source settings. Record names and references with
 
 | Deployable | Source/build root | Configuration or command |
 | --- | --- | --- |
-| Growth client | Monorepo root | Build shared packages, generate `@kasitek/database`, then build `client`; app path `products/growth/client/apps/client` |
-| Growth Core | Monorepo root | Build shared packages then `@kasitek/growth-core`; run in `products/growth/server/kasitek-core` |
-| Agents API | Monorepo root | `products/agents/railway.api.json`; Dockerfile `products/agents/Dockerfile` |
-| Agents gateway | Monorepo root | `products/agents/railway.gateway.json`; same backend image, separate process |
-| Agents worker | Monorepo root | `products/agents/railway.worker.json`; same backend image, separate process |
-| Agents UI | Monorepo root | Dockerfile `products/agents/client/apps/agent-platform/Dockerfile` |
-| Agency API | Monorepo root | Build shared packages then `@kasitek/agency-tenants`; run in `products/agency/server/kasitek-tenants` |
-| Agency portal | Monorepo root | Build `tenant-portal`; app path `products/agency/client/apps/tenant-portal` |
+| Growth client | Monorepo root | Build shared packages, generate `@kasitek/database`, then build `client`; app path `products/growth/web` |
+| Growth Core | Monorepo root | Build shared packages then `@kasitek/growth-core`; run in `products/growth/api` |
+| Agents API | Monorepo root | `products/agents/api/railway.api.json`; Dockerfile `products/agents/api/Dockerfile` |
+| Agents gateway | Monorepo root | `products/agents/api/railway.gateway.json`; same backend image, separate process |
+| Agents worker | Monorepo root | `products/agents/api/railway.worker.json`; same backend image, separate process |
+| Agents UI | Monorepo root | Dockerfile `products/agents/web/Dockerfile` |
+| Agency API | Monorepo root | Build shared packages then `@kasitek/agency-tenants`; run in `products/agency/api` |
+| Agency portal | Monorepo root | Build `tenant-portal`; app path `products/agency/web` |
 | Analytics API/workers | Monorepo root | Build shared packages then `@kasitek/analytics`; keep independent start commands |
 | Labs site | Monorepo root | Build `labs`; app path `apps/labs-site` |
 | Admin site | Monorepo root | Build `@kasitek/admin-site`; app path `apps/admin-site` |

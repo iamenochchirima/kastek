@@ -15,7 +15,7 @@ PostgreSQL database with:
 
 ```text
 DIRECT_URL=<disposable-local-url> DATABASE_URL=<disposable-local-url> \
-  pnpm --dir client/packages/database exec prisma migrate deploy
+  pnpm --dir database exec prisma migrate deploy
 ```
 
 The command completed successfully, including the baseline and every current
@@ -26,7 +26,7 @@ baseline tables. Before their first deploy after this change, an operator must
 review the migration status and resolve the baseline as applied once:
 
 ```text
-pnpm --dir client/packages/database exec prisma migrate resolve \
+pnpm --dir database exec prisma migrate resolve \
   --applied 20260301000000_initial_client_schema
 ```
 

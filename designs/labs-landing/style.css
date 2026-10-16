@@ -1,5 +1,5 @@
 @import url('./previews.css?v=parloa-1');
-:root { --paper:#faf9f6; --ink:#25221f; --muted:#7a7269; --rule:#e5e1da; --signal:#ef552f; --serif:Georgia,'Times New Roman',serif; --sans:'Helvetica Neue','Arial Nova',Arial,sans-serif; }
+:root { --paper:#faf9f6; --ink:#25221f; --muted:#71695f; --rule:#e5e1da; --signal:#ef552f; --serif:Georgia,'Times New Roman',serif; --sans:'Helvetica Neue','Arial Nova',Arial,sans-serif; }
 * { box-sizing:border-box; }
 html { scroll-behavior:smooth; }
 body { margin:0; background:var(--paper); color:var(--ink); font-family:var(--sans); -webkit-font-smoothing:antialiased; }
@@ -48,7 +48,7 @@ h2 { font-size:clamp(39px,4.25vw,60px); line-height:1.05; margin-bottom:0; }
 .productMenu b { font-size:14px; font-weight:500; }
 .productMenu small { font-size:11px; color:var(--muted); grid-column:1; }
 .productMenu a svg { grid-column:2; grid-row:1/3; align-self:center; }
-.opening-content { margin-top:auto; display:grid; grid-template-columns:1.45fr 1fr; gap:80px; align-items:end; padding-top:110px; padding-bottom:60px; }
+.opening-content { margin-top:auto; display:block; padding-top:110px; padding-bottom:60px; }
 .opening-copy h1 { font-size:clamp(54px,5.8vw,84px); line-height:1.04; margin:0 0 26px; max-width:730px; }
 .opening-copy .eyebrow { margin-bottom:20px; }
 .opening-description { font-size:14px; line-height:1.7; color:#f8f1e5d0; margin-bottom:26px; }
@@ -122,10 +122,10 @@ h2 { font-size:clamp(39px,4.25vw,60px); line-height:1.05; margin-bottom:0; }
   .header-button { font-size:10px; padding:10px 12px; gap:8px; min-height:32px; }
   .header-button svg { width:12px; height:12px; }
   .productMenu>div { left:auto; right:-75px; width:275px; }
-  .opening { height:auto; min-height:900px; max-height:none; }
+  .opening { height:auto; min-height:min(760px,92svh); max-height:none; }
   .opening-image { object-position:82% center; }
   .opening::before { background:#19191060; }
-  .opening-content { display:flex; flex-direction:column; align-items:stretch; gap:45px; padding-top:135px; padding-bottom:45px; margin-top:0; }
+  .opening-content { display:flex; flex-direction:column; align-items:stretch; gap:45px; padding-top:clamp(90px,15svh,135px); padding-bottom:55px; margin-top:auto; }
   .opening-copy h1 { font-size:clamp(48px,8.5vw,65px); line-height:1.04; }
   .opening-copy .eyebrow { font-size:10px; }
   .opening-description { font-size:13px; }
@@ -211,3 +211,6 @@ h2 { font-size:clamp(39px,4.25vw,60px); line-height:1.05; margin-bottom:0; }
   .servicesCopy > p:not(.sectionLabel) { font-size:12px; }
   .sectionLabel { font-size:10px; margin-bottom:23px; }
 }
+
+
+.feature-foot,.footer-main p,.footer-main nav,.footer-bottom{color:var(--muted)}

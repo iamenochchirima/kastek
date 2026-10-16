@@ -2,7 +2,7 @@
 
 Updated: 2026-10-06.
 
-The client lives in client/apps/agent-platform and now uses React/TypeScript, Vite and React Router. Next.js routing, server cookie helpers, font/image imports and dependencies have been replaced. Existing agent, Studio, workflow and activity components remain product-local source, adapted to browser route loaders.
+The client lives in web and now uses React/TypeScript, Vite and React Router. Next.js routing, server cookie helpers, font/image imports and dependencies have been replaced. Existing agent, Studio, workflow and activity components remain product-local source, adapted to browser route loaders.
 
 ## Preserved UI
 
@@ -20,7 +20,7 @@ The mounted initial journey uses Agents-owned `/api/auth/me`, workspace
 creation/selection, activity and logout routes. Agent list, creation, version
 editing, playground pinning, conversations, run detail/timeline, streaming,
 retry and cancellation use the explicit `/api/agents` manifest in
-`src/http/browser-agent-routes.ts`. Browser sessions supply account and workspace
+`api/src/http/browser-agent-routes.ts`. Browser sessions supply account and workspace
 context; no Growth Core session or service credential is required by these screens.
 The Knowledge page lists hosted agents and opens their source controls. Agent
 detail now connects source list/create/read/delete, manual text ingestion, file/URL
@@ -28,7 +28,7 @@ ingestion, website crawl and durable-memory controls through the same scoped
 manifest. A signed-in member's manual FAQ create/list/delete path was verified in
 the browser. File and single-URL ingestion, cross-workspace denial and retrieval-backed model answers passed locally. Firecrawl crawling still needs provider configuration.
 
-Retained integration source such as `src/lib/connections.ts` still describes
+Retained integration source such as `web/src/lib/connections.ts` still describes
 Growth's `/api/connections` contract. It is not an enabled part of this slice.
 Do not redirect that contract to another service or turn its settings on without
 an Agents-owned connection design and scoped browser endpoints.
@@ -119,7 +119,7 @@ Agent Settings uses explicit browser aliases to list/create/revoke
 `/v1/installations/:installationId/api-keys`. Browser membership, role and
 same-origin mutation checks still apply. Hosted keys have a separate table and
 authenticate only the explicit `/api/v1/agent` aliases in
-`src/http/hosted-agent-api-routes.ts`. They do not open the internal `/v1` routes,
+`api/src/http/hosted-agent-api-routes.ts`. They do not open the internal `/v1` routes,
 external MCP interfaces, model vault, or agent administration.
 
 Each key belongs to one custom hosted installation and its creating account.

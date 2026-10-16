@@ -58,7 +58,7 @@ The browser callback is `${FRONTEND_URL}/billing?payment=complete`. Paystack add
 Pending checkout transactions older than 30 seconds and active provider subscriptions are rechecked by the billing reconciliation worker. In the API process this worker starts with the other background workers. It can also run as a separate process:
 
 ```text
-KASITEK_PROCESS=billing-reconciliation-worker pnpm --dir server/kasitek-core start
+KASITEK_PROCESS=billing-reconciliation-worker pnpm --dir api start
 ```
 
 This starts the compiled TypeScript worker after the Core dependencies are installed and built.
@@ -78,13 +78,13 @@ Workspace owners and admins can cancel or reactivate an active Paystack subscrip
 Run billing schema checks only against a disposable local database:
 
 ```text
-BILLING_TEST_DATABASE_URL=postgresql://.../disposable_db server/kasitek-core/scripts/test-billing-db.sh
+BILLING_TEST_DATABASE_URL=postgresql://.../disposable_db api/scripts/test-billing-db.sh
 ```
 
 The script refuses non-local database URLs. It checks organisation isolation, usage and checkout idempotency, plan entitlements, and reconciliation issue lifecycle inside a rolled-back transaction.
 
 The repository now includes the historical client-schema baseline in
-`client/packages/database/prisma/migrations/20260301000000_initial_client_schema`.
+`database/prisma/migrations/20260301000000_initial_client_schema`.
 Fresh disposable databases can use `prisma migrate deploy` before running the
 integration SQL. Existing deployed databases already contain those baseline
 tables; review migration status and backup before resolving that baseline as

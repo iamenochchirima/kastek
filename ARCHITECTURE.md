@@ -8,11 +8,15 @@ membership, database access or permission to call internal operations.
 
 | Path | Responsibility |
 | --- | --- |
-| `products/growth/client/apps/client/` | Growth UI and product-side Agents integrations |
-| `products/growth/client/packages/database/` | Growth Prisma database package |
-| `products/growth/server/kasitek-core/` | Growth API, provider callbacks and workers |
-| `products/agents/` | Agent API, gateway, Temporal workers, local MCP package and management UI |
-| `products/agency/` | Tenant API, partner/tenant portal and private API client |
+| `products/growth/web/` | Growth UI and product-side Agents integrations |
+| `products/growth/database/` | Growth Prisma database package |
+| `products/growth/api/` | Growth API, provider callbacks and workers |
+| `products/agents/api/` | Agent API, gateway, Temporal workers, migrations and tests |
+| `products/agents/web/` | Agents management UI |
+| `products/agents/mcp/` | Local MCP bridge |
+| `products/agency/api/` | Tenant API, migrations and workers |
+| `products/agency/web/` | Partner and tenant portal |
+| `products/agency/api-client/` | Private React tenant API client |
 | `apps/admin-site/` | Privileged UI using Growth and Agency over HTTP |
 | `apps/labs-site/` | Public Labs website |
 | `packages/contracts/` | Shared transport and event contracts |
@@ -43,6 +47,6 @@ remain present even when unrelated jobs skip. Deployments remain per-service wit
 paths and runtime dependencies. [Hosting cutover](docs/operations/hosting-cutover.md) records the
 unverified provider connections; source import alone is not a production cutover.
 
-The original [Growth architecture](products/growth/ARCHITECTURE.md) and imported product docs
-contain historical source-split context. For current repository ownership, this map takes
-precedence. Existing ADR numbers retain their original product or platform scope.
+Product architecture documentation remains under each product. Historical plans and ADRs may
+refer to earlier repository splits; the [directory restructure record](docs/operations/directory-restructure.md)
+maps the previous package paths. Existing ADR numbers retain their original product or platform scope.

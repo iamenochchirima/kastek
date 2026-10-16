@@ -36,13 +36,13 @@ The architecture may still use the general word “capability” when describing
 
 ```text
 Growth repository (current TypeScript implementation)
-  server/kasitek-core/src/actions/
-  server/kasitek-core/src/execution/
-  server/kasitek-core/src/capabilities/
-  server/kasitek-core/tests/actions*.test.ts
+  api/src/actions/
+  api/src/execution/
+  api/src/capabilities/
+  api/tests/actions*.test.ts
 
 Agency repository
-  Kasitek-Labs/kasitek-agency/server/kasitek-tenants/ (tenant business logic)
+  Kasitek-Labs/kasitek-agency/api/ (tenant business logic)
 
 Agents repository
   gateway adapters for REST and MCP
@@ -118,7 +118,7 @@ Protocol adapters validate protocol-specific messages and establish the caller. 
 
 ## 5. Code organization
 
-### 5.1 `server/kasitek-core/src/actions`
+### 5.1 `api/src/actions`
 
 This is a small, protocol-neutral library. It contains no HTTP server, database connection, OAuth client, queue, provider adapter, or product-domain implementation.
 
@@ -138,7 +138,7 @@ Responsibilities:
 - reject invalid or conflicting definitions;
 - expose no persistence or transport implementation.
 
-### 5.2 `server/kasitek-core/src/execution`
+### 5.2 `api/src/execution`
 
 This is the application-level orchestration layer.
 
@@ -163,13 +163,13 @@ It does not contain SQL tied to either product runtime.
 
 ### 5.3 Growth action checks
 
-`server/kasitek-core/tests/actions.test.ts` and
+`api/tests/actions.test.ts` and
 `actions-batch.test.ts` cover catalog contracts and ordered execution outcomes.
 Production code does not depend on these fixtures.
 
 It must support the same isolation and execution tests against both direct and white-label runtime adapters.
 
-### 5.4 `server/kasitek-core/src` runtime adapters
+### 5.4 `api/src` runtime adapters
 
 The direct runtime owns:
 
@@ -180,7 +180,7 @@ The direct runtime owns:
 - direct database migrations;
 - direct audit and outbox integration.
 
-### 5.5 Agency repository: `Kasitek-Labs/kasitek-agency/server/kasitek-tenants/src/actions`
+### 5.5 Agency repository: `Kasitek-Labs/kasitek-agency/api/src/actions`
 
 The white-label runtime owns:
 

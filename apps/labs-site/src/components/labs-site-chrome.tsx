@@ -1,6 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import { appUrl } from "@/lib/site-config";
+import { appUrl, productUrls } from "@/lib/site-config";
 
 type LabsHeaderProps = {
   home?: boolean;
@@ -33,9 +33,9 @@ export function LabsHeader({ home = false, tone = "dark" }: LabsHeaderProps) {
       </Link>
 
       <nav className="desktop-nav" aria-label="Main navigation">
-        <a href={`${sectionPrefix}#kasitek`}>Platform</a>
-        <a href={`${sectionPrefix}#approach`}>Services</a>
-        <a href={`${sectionPrefix}#partners`}>Partnership</a>
+        <a href={productUrls.growth}>Growth</a>
+        <a href={`${sectionPrefix}#studio`}>Services</a>
+        <a href={productUrls.agency}>Agency</a>
         <Link href="/pricing">Pricing</Link>
         <Link href="/get-quote">Get a quote</Link>
       </nav>
@@ -50,9 +50,9 @@ export function LabsHeader({ home = false, tone = "dark" }: LabsHeaderProps) {
       <details className="mobile-nav">
         <summary>Menu</summary>
         <div className="mobile-nav-panel">
-          <a href={`${sectionPrefix}#kasitek`}>Platform</a>
-          <a href={`${sectionPrefix}#approach`}>Services</a>
-          <a href={`${sectionPrefix}#partners`}>Partnership</a>
+          <a href={productUrls.growth}>Growth</a>
+          <a href={`${sectionPrefix}#studio`}>Services</a>
+          <a href={productUrls.agency}>Agency</a>
           <Link href="/pricing">Pricing</Link>
           <Link href="/early-access">Early access</Link>
           <Link href="/get-quote">Get a quote</Link>
@@ -94,14 +94,14 @@ export function LabsFooter() {
         <nav className="footer-nav" aria-label="Footer navigation">
           <div className="footer-column">
             <p>Work with us</p>
-            <Link href="/#kasitek">Platform</Link>
-            <Link href="/#approach">Services</Link>
-            <Link href="/#partners">Partnership</Link>
+            <a href={productUrls.growth}>Growth</a>
+            <Link href="/#studio">Services</Link>
+            <a href={productUrls.agency}>Agency</a>
             <Link href="/get-quote">Request a quote</Link>
           </div>
           <div className="footer-column">
             <p>Platform</p>
-            <Link href="/#kasitek">Overview</Link>
+            <a href={productUrls.agents}>Agents</a>
             <Link href="/pricing">Pricing</Link>
             <a href={appUrl} target="_blank" rel="noreferrer">
               Open Kasitek app ↗
@@ -124,7 +124,7 @@ export function LabsFooter() {
 
       <div className="footer-bottom">
         <p>© {new Date().getFullYear()} Kasitek Labs</p>
-        <p>South Africa</p>
+        <p>Independent software studio</p>
         <a href="#top">Back to top ↑</a>
       </div>
     </footer>

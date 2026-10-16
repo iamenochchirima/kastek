@@ -2,6 +2,10 @@
 document.querySelectorAll('.productMenu a').forEach(link => {
   link.addEventListener('click', () => link.closest('details').removeAttribute('open'));
 });
+document.addEventListener('pointerdown', event => {
+  const menu = document.querySelector('.productMenu[open]');
+  if (menu && !menu.contains(event.target)) menu.removeAttribute('open');
+});
 document.addEventListener('keydown', event => {
   if (event.key === 'Escape') {
     const menu = document.querySelector('.productMenu[open]');
