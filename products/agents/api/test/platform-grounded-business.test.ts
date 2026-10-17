@@ -76,7 +76,7 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
     else if(message.method==="initialize")send({protocolVersion:"2025-11-25",capabilities:{tools:{}},serverInfo:{name:"explicit-github-http-fixture",version:"1"}});
     else if(message.method==="notifications/initialized")res.writeHead(202).end();
     else if(message.method==="tools/list")send({tools:[{name:"get_file_contents",description:"Approved fixture file",inputSchema:{type:"object",properties:{owner:{type:"string"},repo:{type:"string"},path:{type:"string"},ref:{type:"string"}},required:["owner","repo","path","ref"],additionalProperties:false}}]});
-    else if(message.method==="tools/call"){remoteCalls.push(message.params.arguments);send({content:[{type:"text",text:content}]});}else res.writeHead(400).end("{}");return;
+    else if(message.method==="tools/call"){remoteCalls.push(message.params.arguments);send({content:[{type:"text",text:`successfully downloaded text file (SHA: ${blob})`},{type:"resource",resource:{uri:`repo://approved/public/sha/${commit}/contents/guide.md`,mimeType:"text/plain; charset=utf-8",text:content}}]});}else res.writeHead(400).end("{}");return;
    }
    if(req.url==="/repos/approved/public")res.end(JSON.stringify({id:1,private:false,visibility:"public",full_name:"approved/public",description:"Fixture",default_branch:"main",updated_at:"2026-10-17T00:00:00Z",stargazers_count:1}));
    else if(req.url==="/repos/approved/public/commits/main")res.end(JSON.stringify({sha:commit,commit:{tree:{sha:tree}}}));

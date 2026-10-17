@@ -28,6 +28,11 @@ MCP 2026-07-28 and explicitly supports the 2025-11-25 HTTP negotiation path. Onl
 selected trusted GitHub read operations are available. Provider read-only headers
 and tool filters supplement local validation. Sampling, roots, elicitation, stdio,
 subscriptions, arbitrary remote writes and resource-link traversal are denied.
+For `get_file_contents`, the executor reads the returned inline text resource.
+It requires the accepted repository, commit and file path in the resource URI,
+then verifies the UTF-8 byte count and Git blob digest against the issued file
+handle. Status messages do not count as file evidence. Binary, linked, missing
+or mismatched bodies fail explicitly; the executor does not fetch resource URIs.
 
 Discovery creates an immutable candidate catalog. Selecting operations and
 publishing a new AgentVersion are separate owner actions. Remote hints do not
