@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { api, ApiError, message, readStored, terminal, writeStored, type Task, type TaskEvent, type TaskOperation } from "./api";
+import { api, ApiError, message, readStored, terminal, writeStored, type Task, type TaskDetail } from "./api";
 import { ErrorMessage } from "./shell";
+import { cleanupPending, TaskActivity } from "./task-activity";
 
 type Entry = { requestKey: string; input: string; versionId?: string; versionNumber?: number; task?: Task };
 export function Chat({ endpoint, storageKey, token, versionId, versionNumber, cancellable = false }: {
@@ -14,6 +15,7 @@ export function Chat({ endpoint, storageKey, token, versionId, versionNumber, ca
   const [error, setError] = useState("");
   const [sending, setSending] = useState(false);
   const [continuing, setContinuing] = useState(false);
+  const [refreshGeneration, setRefreshGeneration] = useState(0);
   const lock = useRef(false);
   const last = entries.at(-1);
   const followedId = last?.task?.id;
@@ -43,18 +45,22 @@ export function Chat({ endpoint, storageKey, token, versionId, versionNumber, ca
     if (!followedId) return;
     let closed = false;
     let timer: ReturnType<typeof setTimeout>;
+    let uncertainPolls = 0;
     const poll = async () => {
-      try { const { task, events, operations } = await api<{ task: Task; events?: TaskEvent[]; operations?: TaskOperation[] }>(`${endpoint}/${encodeURIComponent(followedId)}`, undefined, "GET", token);
+      try { const { task, events, operations, children, resources, artifacts } = await api<TaskDetail>(`${endpoint}/${encodeURIComponent(followedId)}`, undefined, "GET", token);
         if (closed) return;
-        setEntries(current => { const next = current.map(entry => entry.task?.id === task.id ? { ...entry, task: { ...task, events: events ?? task.events, operations: operations ?? task.operations } } : entry); writeStored(storageKey, next); return next; });
+        setEntries(current => { const next = current.map(entry => entry.task?.id === task.id ? { ...entry, task: { ...task, events: events ?? task.events, operations: operations ?? task.operations, children: children ?? task.children, resources: resources ?? task.resources, artifacts: artifacts ?? task.artifacts } } : entry); writeStored(storageKey, next); return next; });
         setError("");
-        if (terminal(task.state)) return;
+        if (terminal(task.state)) {
+          if (!cleanupPending({ ...task, resources: resources ?? task.resources })) return;
+          if (resources?.some(resource => resource.cleanupState === "uncertain") && ++uncertainPolls >= 3) return;
+        }
       } catch (e) { if (closed) return; setError(message(e)); if (e instanceof ApiError && [401, 403, 404].includes(e.status)) return; }
       timer = setTimeout(() => void poll(), 1_200);
     };
     void poll();
     return () => { closed = true; clearTimeout(timer); };
-  }, [followedId, endpoint, storageKey, token]);
+  }, [followedId, endpoint, storageKey, token, refreshGeneration]);
   function archiveCurrent() {
     if (!entries.length || !conversationId) return savedChats;
     const next = [{ id: conversationId, label: entries[0].input.slice(0, 70), entries }, ...savedChats.filter(chat => chat.id !== conversationId)].slice(0, 20);
@@ -102,6 +108,7 @@ export function Chat({ endpoint, storageKey, token, versionId, versionNumber, ca
         <div><p className="mb-1 text-xs font-medium text-muted-foreground">You</p><p className="whitespace-pre-wrap break-words text-sm">{entry.input}</p></div>
         {entry.task?.output ? <div><p className="mb-1 text-xs font-medium text-muted-foreground">Assistant</p><p className="whitespace-pre-wrap break-words text-sm leading-6">{entry.task.output}</p></div> : null}
         {entry.task && (cancellable || !entry.task.output || entry.task.state !== "completed") ? <div className="space-y-1 text-xs text-muted-foreground"><p>{entry.task.state.replaceAll("_", " ")}{entry.versionNumber ? ` · Version ${entry.versionNumber}` : ""}{entry.task.errorCode ? ` · ${entry.task.errorCode.replaceAll("_", " ").toLowerCase()}` : ""}</p><details><summary className="cursor-pointer">Task details</summary><code className="mt-2 block break-all">{entry.task.id}</code>{entry.task.turnSequence ? <p className="mt-2">Conversation turn {entry.task.turnSequence}</p> : null}{entry.task.operations?.length ? <ol className="mt-3 space-y-2" aria-label="Task operations">{entry.task.operations.map((operation, index) => <li key={operation.operationId ?? operation.id ?? index} className="flex flex-wrap justify-between gap-x-4 gap-y-1 border-t border-border pt-2"><span className="break-all">{operation.toolName ?? operation.name ?? operation.kind ?? "Operation"}</span><span>{operation.state.replaceAll("_", " ")}{operation.errorCode ? ` · ${operation.errorCode.replaceAll("_", " ").toLowerCase()}` : ""}</span>{operation.inputTokens != null || operation.outputTokens != null ? <span className="basis-full">{operation.inputTokens ?? 0} input tokens · {operation.outputTokens ?? 0} output tokens</span> : null}</li>)}</ol> : null}{entry.task.events?.length ? <ol className="mt-3 space-y-1" aria-label="Task history">{entry.task.events.map(event => <li key={event.sequence}>{event.kind.replaceAll("_", " ")}</li>)}</ol> : null}</details></div> : !entry.task ? <p className="text-xs text-muted-foreground">{sending ? "Submitting…" : "Request outcome unknown"}</p> : null}
+        {entry.task ? <TaskActivity task={entry.task} onRefresh={() => setRefreshGeneration(value => value + 1)} /> : null}
       </article>)}
     </div>
     <ErrorMessage value={error} />

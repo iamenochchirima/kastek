@@ -1,3 +1,5 @@
+export type DelegationBinding = { id: string; versionId: string; knowledgeIds: string[]; tools: ("knowledge.search" | "knowledge.read")[]; maxTokens: number; maxActiveMs: number };
+export type DelegationConfiguration = { enabled: false } | { enabled: true; bindings: DelegationBinding[]; maxChildren: 2; maxDepth: 1 };
 export type Configuration = {
   executionKind: "business" | "workspace";
   instructions: string;
@@ -5,9 +7,9 @@ export type Configuration = {
   knowledgeIds: string[];
   memory?: { enabled: boolean };
   context?: { maxInputTokens: number; compactAtTokens: number };
-  tools?: ("knowledge.search" | "knowledge.read" | "memory.search" | "memory.propose")[];
+  tools?: ("knowledge.search" | "knowledge.read" | "memory.search" | "memory.propose" | "agents.delegate" | "sandbox.analyze")[];
   skillIds?: string[];
-  capabilities: { delegation: { enabled: false }; sandbox: { enabled: false }; businessActions: { enabled: false }; workflows: { enabled: false }; schedules: { enabled: false } };
+  capabilities: { delegation: DelegationConfiguration; sandbox: { enabled: false } | { enabled: true; profileId: "python-analysis-v1" }; businessActions: { enabled: false }; workflows: { enabled: false }; schedules: { enabled: false } };
 };
 export type Agent = { id: string; name: string; draft: Configuration; draftRevision: number; updatedAt: string };
 export type Version = { id: string; number: number; configuration: Configuration };
@@ -19,7 +21,11 @@ export type Memory = { id: string; kind: "semantic" | "episodic"; content: strin
 export type Skill = { id: string; name: string; description: string; body: string; revision: number; contentDigest: string; createdAt: string };
 export type TaskOperation = { id?: string; operationId?: string; kind?: string; name?: string; toolName?: string; state: string; errorCode?: string | null; inputTokens?: number | null; outputTokens?: number | null };
 export type TaskEvent = { sequence: string | number; kind: string; payload?: Record<string, unknown> | null };
-export type Task = { id: string; state: string; output: string | null; errorCode: string | null; conversationId: string; input?: string; requestKey?: string; versionId?: string; turnSequence?: number; phase?: string; outcome?: string | null; operations?: TaskOperation[]; events?: TaskEvent[] };
+export type ChildTask = { id: string; agentName: string; versionId: string; versionNumber: number; bindingId: string; state: string; output: string | null; errorCode: string | null; rootTaskId: string; parentTaskId: string };
+export type TaskResource = { id: string; taskId: string; profile: string; state: string; cleanupState: string; errorCode?: string | null; expiresAt: string };
+export type TaskArtifact = { id: string; taskId: string; name: string; contentType: string; bytes: number; downloadPath: string };
+export type TaskDetail = { task: Task; events?: TaskEvent[]; operations?: TaskOperation[]; children?: ChildTask[]; resources?: TaskResource[]; artifacts?: TaskArtifact[] };
+export type Task = { id: string; state: string; output: string | null; errorCode: string | null; conversationId: string; input?: string; requestKey?: string; versionId?: string; turnSequence?: number; phase?: string; outcome?: string | null; operations?: TaskOperation[]; events?: TaskEvent[]; children?: ChildTask[]; resources?: TaskResource[]; artifacts?: TaskArtifact[] };
 export class ApiError extends Error {
   constructor(public status: number, message: string, public code?: string) { super(message); }
 }
