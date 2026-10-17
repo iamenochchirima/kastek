@@ -5,10 +5,11 @@ import { agentConfigurationSchema, executionGrantSchema, assertGrantAuthority, a
 import type { TaskRecord } from "./store";
 
 import {transaction} from "./database";
+import {assertAutomationAuthority} from "./automation-authority";
 export {transaction} from "./database";
 
-export const HARNESS_RELEASE = "delegated-analysis-v1";
-export const WORKFLOW_NAME = "AgentsBusinessRunV2";
+export const HARNESS_RELEASE = "owned-report-v1";
+export const WORKFLOW_NAME = "AgentsBusinessRunV3";
 export interface Execution { task: TaskRecord & { turn_sequence: string; history_cutoff: string | null;
   tokens_used: number; tokens_reserved: number; root_token_limit: number; model_calls: number; tool_calls: number;
   deadline_at: Date; harness_release: string; control_generation: string }; configuration: AgentConfiguration; agentId: string;
@@ -42,7 +43,7 @@ export async function assertCurrentAuthority(db: Pool | PoolClient, execution: E
   if (new Date(task.deadline_at).getTime() <= Date.now()) throw new PlatformError("TASK_DEADLINE", 409, "Task deadline reached");
   if (task.parent_task_id) {
     const root = await loadExecution(db, task.root_task_id);
-    if (root.task.parent_task_id || root.task.organization_id !== task.organization_id || root.task.principal.kind !== "human" || task.depth !== 1) throw new PlatformError("DELEGATION_SCOPE_DENIED",403,"Delegation is unavailable");
+    if (root.task.parent_task_id || root.task.organization_id !== task.organization_id || !["human","automation"].includes(root.task.principal.kind) || task.depth !== 1) throw new PlatformError("DELEGATION_SCOPE_DENIED",403,"Delegation is unavailable");
     await assertCurrentAuthority(db, root);
   } else {
     const sources=(await db.query(`SELECT v.deleted_at FROM agents_platform.tasks c JOIN agents_platform.conversations v ON v.id=c.conversation_id
@@ -72,10 +73,11 @@ export async function assertCurrentAuthority(db: Pool | PoolClient, execution: E
       WHERE d.organization_id=$1 AND d.id=$2 AND d.version_id=$3 AND d.agent_id=$4 AND d.revoked_at IS NULL
       AND s.id=$5 AND s.expires_at>now() FOR SHARE OF d`,
     [task.organization_id, task.principal.deploymentId, task.version_id, agentId, task.principal.sessionId]);
-    if (!allowed.rowCount || configuration.memory.enabled || configuration.skillIds.length || configuration.capabilities.delegation.enabled || configuration.capabilities.sandbox.enabled || configuration.tools.some(t => t.startsWith("memory."))) {
+    if (!allowed.rowCount || configuration.memory.enabled || configuration.skillIds.length || configuration.capabilities.delegation.enabled || configuration.capabilities.sandbox.enabled || configuration.capabilities.workflows.enabled || configuration.tools.some(t => t.startsWith("memory."))) {
       throw new PlatformError("DEPLOYMENT_SCOPE_DENIED", 403, "Website execution access is unavailable");
     }
-  } else throw new PlatformError("AUTOMATION_UNAVAILABLE", 403, "Automation execution is unavailable");
+  } else if(task.principal.kind==="automation")await assertAutomationAuthority(db,execution);
+  else throw new PlatformError("AUTOMATION_UNAVAILABLE", 403, "Automation execution is unavailable");
 }
 
 export async function beginOperation(pool: Pool, taskId: string, input: OperationRequest): Promise<{ replayed: boolean; operation: OperationRecord }> {

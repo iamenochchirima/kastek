@@ -191,9 +191,9 @@ CREATE TABLE agents_platform.tasks (
   request_key text NOT NULL CHECK (length(request_key) BETWEEN 1 AND 128),
   request_digest text NOT NULL CHECK (request_digest ~ '^[a-f0-9]{64}$'),
   input text NOT NULL CHECK (octet_length(input) BETWEEN 1 AND 16384),
-  state text NOT NULL DEFAULT 'accepted' CHECK (state IN ('accepted', 'running', 'waiting_children', 'waiting_authority', 'cancel_requested', 'completed', 'incomplete', 'refused', 'failed', 'cancelled', 'uncertain')),
+  state text NOT NULL DEFAULT 'accepted' CHECK (state IN ('accepted', 'running', 'waiting_children', 'waiting_authority', 'waiting_review', 'reconciling', 'cancel_requested', 'completed', 'incomplete', 'refused', 'failed', 'cancelled', 'uncertain')),
   turn_sequence bigint NOT NULL DEFAULT 1,
-  harness_release text NOT NULL DEFAULT 'delegated-analysis-v1',
+  harness_release text NOT NULL DEFAULT 'owned-report-v1',
   root_task_id uuid NOT NULL REFERENCES agents_platform.tasks(id),
   parent_task_id uuid REFERENCES agents_platform.tasks(id),
   depth integer NOT NULL DEFAULT 0 CHECK(depth BETWEEN 0 AND 1),
@@ -283,6 +283,7 @@ CREATE INDEX task_outbox_due ON agents_platform.task_outbox(available_at) WHERE 
 CREATE TABLE agents_platform.task_controls (
   task_id uuid NOT NULL REFERENCES agents_platform.tasks(id),
   generation bigint NOT NULL,
+  kind text NOT NULL DEFAULT 'authority' CHECK(kind IN ('authority','review')),
   dispatched_at timestamptz,
   PRIMARY KEY(task_id,generation)
 );

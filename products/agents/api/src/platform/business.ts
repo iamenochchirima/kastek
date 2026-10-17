@@ -14,7 +14,16 @@ export { retrieveFaqKnowledge } from "./tools";
 import {fitUtf8,toolsFor,knowledge,executeTool,assertPublishedTools} from "./tools";
 import { admitChildren, readChildResults, type DelegatedChild } from "./delegation";
 import { toolDescriptor } from "./tool-descriptors";
+export interface ActionState {id:string;state:"pending_review"|"approved"|"rejected"|"expired"|"invalidated"|"claimed"|"delivered"|"failed"|"uncertain";expiresAt:string;errorCode?:string|null}
+export interface ActionRuntime {
+  prepare(taskId:string,operationId:string,input:{connectionId:string;artifactId:string;title?:string}):Promise<ActionState>;
+  getReview(taskId:string,reviewId:string):Promise<ActionState>;
+  execute(taskId:string,actionId:string):Promise<ActionState>;
+  reconcile(actionId:string):Promise<ActionState>;
+}
 export interface BusinessOptions extends ModelAdapterOptions {
+  actions?:ActionRuntime;
+  selectReportArtifact?:(taskId:string,name:string,generatedOutput:string)=>Promise<{id:string}>;
   executeSandbox?: (taskId:string,operationId:string,args:{code:string;inputArtifactIds?:string[]})=>Promise<unknown>;
 }
 type Result<T> = { ok: true; value: T } | { ok: false; code: string; uncertain: boolean };
@@ -65,7 +74,7 @@ async function awaitAuthority(ctx: restate.WorkflowContext, pool: Pool, taskId: 
       } catch (error) {
         if (!(error instanceof PlatformError)) throw error;
         if (error.code !== "AUTHORITY_EXPIRED") return { denied: error.code };
-        await pool.query("UPDATE agents_platform.tasks SET state='waiting_authority' WHERE id=$1 AND state IN ('accepted','running')", [taskId]);
+        await pool.query("UPDATE agents_platform.tasks SET state='waiting_authority' WHERE id=$1 AND state IN ('accepted','running','waiting_review')", [taskId]);
         await event(pool, taskId, `authority-wait:${loaded.task.control_generation}`, "authority.required");
         return { generation: loaded.task.control_generation, deadline: new Date(loaded.task.deadline_at).getTime() };
       }
@@ -98,7 +107,9 @@ async function buildSnapshot(pool: Pool, taskId: string, step: number, working: 
       ...(expiries.length ? { expiresAt: Math.min(...expiries) } : {}) };
     sources.push(...selected.memories.slice(0, 8).map(item => ({ id: item.id, revision: item.revision, kind: "memory" as const, content: fitUtf8(item.content, 512) })));
   }
-  const skills = config.skillIds.length ? await memory.readSkills({ organizationId: task.organization_id, agentId: execution.agentId, principal: task.principal }, config.skillIds) : [];
+  const skills = !config.skillIds.length ? [] : task.principal.kind==="automation" ?
+    (await pool.query<{id:string;revision:number;body:string}>("SELECT id,revision,body FROM agents_platform.skill_revisions WHERE organization_id=$1 AND agent_id=$2 AND id=ANY($3::uuid[]) ORDER BY id",[task.organization_id,execution.agentId,config.skillIds])).rows :
+    await memory.readSkills({ organizationId: task.organization_id, agentId: execution.agentId, principal: task.principal }, config.skillIds);
   const invalidated = (knownGeneration !== undefined && knownGeneration !== memoryFence?.generation) ||
     (knownExpiry !== undefined && Date.now() >= knownExpiry);
   const prior = (await pool.query(`SELECT t.id,t.input,t.output,t.state FROM agents_platform.tasks t
@@ -147,6 +158,70 @@ function failed(result: { code: string; uncertain: boolean }): TaskOutcome {
   return { state: "failed", errorCode: result.code };
 }
 
+function actionState(value:ActionState):ActionState {return{id:value.id,state:value.state,expiresAt:value.expiresAt,...(value.errorCode?{errorCode:value.errorCode}:{})};}
+
+async function runRequiredReport(ctx:restate.WorkflowContext,pool:Pool,taskId:string,options:BusinessOptions,outcome:TaskOutcome,memoryFence?:MemoryFence):Promise<TaskOutcome> {
+  const execution=await awaitAuthority(ctx,pool,taskId,"report-authority");
+  if(!("configuration" in execution))return execution;
+  const profile=execution.configuration.capabilities.workflows;
+  if(!profile.enabled)return outcome;
+  assertPublishedTools(execution.configuration,execution.toolBindings);
+  if(!options.actions||!options.selectReportArtifact)throw new PlatformError("REPORT_WORKFLOW_UNAVAILABLE",503,"Report delivery is unavailable");
+  const actions=options.actions;
+  const prepared=await operation<ActionState>(ctx,pool,taskId,{id:`report:${taskId}:prepare`,kind:"tool",name:"report.prepare",request:{profile},reservedTokens:0,reservedMs:60000,retrySafe:true,maxResultBytes:8192,memoryFence},async()=>{
+    const artifact=await options.selectReportArtifact!(taskId,profile.reportArtifactName,outcome.output??"");
+    return{value:actionState(await actions.prepare(taskId,`report:${taskId}:deliver`,{connectionId:profile.connectionId,artifactId:artifact.id,title:profile.title})),tokens:0};
+  });
+  if(!prepared.ok)return failed(prepared);
+  let action=prepared.value;
+  for(let check=0;check<64;check++) {
+    const status=await ctx.run(`report-review:${check}`,async()=>{
+      let fresh:ActionState;
+      try{fresh=actionState(await actions.getReview(taskId,action.id));}catch(error){if(error instanceof PlatformError)return{denied:error.code};throw error;}
+      const task=(await pool.query("SELECT state,control_generation,deadline_at FROM agents_platform.tasks WHERE id=$1",[taskId])).rows[0];
+      if(!task)throw new PlatformError("TASK_NOT_FOUND",404,"Task not found");
+      if(fresh.state==="pending_review" && task.state!=="cancel_requested") {
+        await pool.query("UPDATE agents_platform.tasks SET state='waiting_review',updated_at=now() WHERE id=$1 AND state='running'",[taskId]);
+        await event(pool,taskId,`review:${fresh.id}`,"review.required",{reviewId:fresh.id,expiresAt:fresh.expiresAt});
+      }
+      return{action:fresh,state:task.state,generation:task.control_generation,deadline:Math.min(new Date(task.deadline_at).getTime(),new Date(fresh.expiresAt).getTime())};
+    });
+    if(status.denied) return failed({code:status.denied,uncertain:false});
+    action=status.action!;
+    if(status.state==="cancel_requested")return {state:"cancelled"};
+    if(action.state!=="pending_review")break;
+    await restate.RestatePromise.race([ctx.promise(`review:${status.generation}`).get(),ctx.sleep(Math.max(1,status.deadline!-await ctx.date.now()))]);
+  }
+  if(action.state==="pending_review")return{state:"incomplete",errorCode:"REVIEW_WAIT_LIMIT"};
+  if(["rejected","expired","invalidated","failed"].includes(action.state))return{state:"incomplete",errorCode:action.errorCode??`ACTION_${action.state.toUpperCase()}`};
+  if(action.state==="delivered")return outcome;
+  if(action.state==="approved") {
+    const authorized=await awaitAuthority(ctx,pool,taskId,"report-claim-authority");
+    if(!("configuration" in authorized))return authorized;
+    const descriptor=toolDescriptor("report.deliver")!;
+    await ctx.run("report-dispatch-stage",()=>pool.query("UPDATE agents_platform.tasks SET state='running',updated_at=now() WHERE id=$1 AND state='waiting_review'",[taskId]).then(()=>undefined));
+    const delivered=await operation<ActionState>(ctx,pool,taskId,{id:`report:${taskId}:dispatch`,kind:"tool",name:"report.deliver",request:{actionId:action.id},reservedTokens:0,reservedMs:descriptor.maxDurationMs,retrySafe:true,maxResultBytes:descriptor.maxResultBytes},async()=>({value:actionState(await actions.execute(taskId,action.id)),tokens:0}));
+    if(!delivered.ok) {
+      const recorded=await ctx.run("report-postclaim-inspection",()=>actions.getReview(taskId,action.id).then(actionState));
+      if(!["claimed","uncertain","delivered"].includes(recorded.state))return failed(delivered);
+      action=recorded;
+    } else action=delivered.value;
+  }
+  for(let attempt=0;attempt<3 && ["claimed","uncertain"].includes(action.state);attempt++) {
+    await ctx.run(`report-reconcile-stage:${attempt}`,()=>pool.query("UPDATE agents_platform.tasks SET state='reconciling',updated_at=now() WHERE id=$1 AND state='running'",[taskId]).then(()=>undefined));
+    await ctx.sleep(1000*(attempt+1));
+    action=await ctx.run(`report-reconcile:${attempt}`,async()=>{try{return actionState(await actions.reconcile(action.id));}catch(error){if(error instanceof PlatformError)return{...action,state:"uncertain" as const,errorCode:error.code};throw error;}});
+  }
+  await ctx.run("report-operation-receipt",async()=>{
+    const pending=(await pool.query("SELECT state FROM agents_platform.operations WHERE id=$1 AND task_id=$2",[`report:${taskId}:dispatch`,taskId])).rows[0];
+    if(pending?.state==="started")await finishOperation(pool,taskId,`report:${taskId}:dispatch`,action.state==="delivered"?"completed":"uncertain",actionState(action),action.errorCode??null,0);
+  });
+  await ctx.run("report-outcome",()=>event(pool,taskId,`report:${action.id}:outcome`,"action.outcome",{actionId:action.id,state:action.state}));
+  if(action.state==="delivered")return outcome;
+  if(["claimed","uncertain"].includes(action.state))return{state:"uncertain",errorCode:action.errorCode??"ACTION_OUTCOME_UNCERTAIN"};
+  return{state:"incomplete",errorCode:action.errorCode??`ACTION_${action.state.toUpperCase()}`};
+}
+
 export function createBusinessWorkflow(pool: Pool, options: BusinessOptions) {
   return restate.workflow({ name: WORKFLOW_NAME, options: { workflowRetention: { days: 7 }, journalRetention: { days: 7 } }, handlers: {
     run: async (ctx: restate.WorkflowContext, input: { taskId: string }) => {
@@ -154,12 +229,12 @@ export function createBusinessWorkflow(pool: Pool, options: BusinessOptions) {
       const taskId = input.taskId;
       await ctx.run("bind-invocation", async () => {
         const updated = await pool.query(`UPDATE agents_platform.tasks SET runtime_invocation_id=$2 WHERE id=$1
-          AND harness_release='delegated-analysis-v1' AND (runtime_invocation_id IS NULL OR runtime_invocation_id=$2)`, [taskId, ctx.request().id]);
+          AND harness_release='owned-report-v1' AND (runtime_invocation_id IS NULL OR runtime_invocation_id=$2)`, [taskId, ctx.request().id]);
         if (!updated.rowCount) throw new restate.TerminalError("Runtime identity mismatch", { errorCode: 409 });
       });
       let outcome: TaskOutcome = { state: "incomplete", errorCode: "ROOT_LIMIT" };
       let working: ContextGroup[] = [], summary: ContextSource | undefined, omitted: string[] = [], knownGeneration: number | undefined, knownExpiry: number | undefined;
-      let partialChildren=false;
+      let partialChildren=false,finalMemoryFence:MemoryFence|undefined;
       try {
         // Durable ordered waits release the worker. PostgreSQL only selects the predecessor; it does not advance the loop.
         const predecessor = await ctx.run("conversation-order", async () => {
@@ -195,6 +270,7 @@ export function createBusinessWorkflow(pool: Pool, options: BusinessOptions) {
           if (!contextResult.ok) { outcome=failed({code:contextResult.code,uncertain:false}); break; }
           const assembled = contextResult.value;
           if (assembled.invalidated) { working = assembled.working; summary = undefined; omitted = []; }
+          finalMemoryFence=assembled.memoryFence;
           knownGeneration = assembled.memoryFence?.generation;
           knownExpiry = assembled.memoryFence?.expiresAt;
           if (assembled.needsCompaction) {
@@ -304,6 +380,7 @@ export function createBusinessWorkflow(pool: Pool, options: BusinessOptions) {
           if (refreshContext) continue;
           working.push({ id: `round:${taskId}:${step}`, messages });
         }
+        if(outcome.state==="completed")outcome=await runRequiredReport(ctx,pool,taskId,options,outcome,finalMemoryFence);
       } catch (error) {
         if (error instanceof restate.CancelledError) {
           await ctx.run("settle-cancellation", () => settleTask(pool, taskId, { state: "cancelled" })); throw error;
@@ -313,6 +390,13 @@ export function createBusinessWorkflow(pool: Pool, options: BusinessOptions) {
       }
       await ctx.run("settle-task", () => settleTask(pool, taskId, outcome));
       return outcome;
+    },
+    review: async (ctx:restate.WorkflowSharedContext,input:{generation:number})=>{
+      if(!Number.isSafeInteger(input.generation)||input.generation<0)throw new restate.TerminalError("Invalid review control",{errorCode:409});
+      const allowed=await ctx.run("verify-review-control",async()=>Boolean((await pool.query(`SELECT 1 FROM agents_platform.task_controls c JOIN agents_platform.tasks t ON t.id=c.task_id
+        WHERE c.task_id=$1 AND c.generation=$2 AND c.kind='review' AND c.generation<t.control_generation`,[ctx.key,input.generation])).rowCount));
+      if(!allowed)throw new restate.TerminalError("Review control unavailable",{errorCode:409});
+      await ctx.promise(`review:${input.generation}`).resolve(true);return{accepted:true};
     },
     resume: async (ctx: restate.WorkflowSharedContext, input: { generation: number }) => {
       const execution = await ctx.run("verify-current-grant", async () => {

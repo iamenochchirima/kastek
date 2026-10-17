@@ -4,13 +4,15 @@ import { PlatformError, requestDigest, type AgentConfiguration } from "./contrac
 import { loadExecution } from "./execution";
 import { MemoryStore } from "./memory";
 import type { ToolDefinition } from "./model";
-import { toolDescriptor } from "./tool-descriptors";
+import { toolDescriptor, REPORT_WORKFLOW_BINDING } from "./tool-descriptors";
 
 export function publishedToolBindings(config:AgentConfiguration):{name:string;version:string;digest:string}[] {
-  return toolsFor(config).map(tool=>{
+  const bindings=toolsFor(config).map(tool=>{
     const name=tool.function.name.replaceAll("_","."),descriptor=toolDescriptor(name)!;
     return {name,version:descriptor.version,digest:requestDigest({descriptor,definition:tool,outputSchema:{type:"object"}})};
   });
+  if(config.capabilities.workflows.enabled) bindings.push({name:"report.deliver",version:"1",digest:requestDigest({descriptor:toolDescriptor("report.deliver"),workflow:REPORT_WORKFLOW_BINDING})});
+  return bindings;
 }
 export function assertPublishedTools(config:AgentConfiguration,bindings:{name:string;version:string;digest:string}[]):void {
   for(const expected of publishedToolBindings(config)) {

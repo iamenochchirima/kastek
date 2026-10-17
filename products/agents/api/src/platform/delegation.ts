@@ -27,7 +27,7 @@ export async function admitChildren(pool: Pool, parentId: string, operationId: s
       return existing.map(row=>({taskId:row.child_task_id,slot:row.slot,bindingId:row.binding_id,versionId:row.version_id}));
     }
     await assertCurrentAuthority(db,parent);
-    if(task.depth!==0 || task.parent_task_id || task.principal.kind!=="human" || !config.capabilities.delegation.enabled) throw new PlatformError("DELEGATION_DENIED",403,"Delegation is unavailable");
+    if(task.depth!==0 || task.parent_task_id || !["human","automation"].includes(task.principal.kind) || !config.capabilities.delegation.enabled) throw new PlatformError("DELEGATION_DENIED",403,"Delegation is unavailable");
     const active=(await db.query("SELECT count(*)::int AS count FROM agents_platform.tasks WHERE root_task_id=$1 AND parent_task_id IS NOT NULL AND state NOT IN ('completed','incomplete','refused','failed','cancelled','uncertain')",[task.id])).rows[0].count;
     if(active+parsed.requests.length>2) throw new PlatformError("CHILD_LIMIT",429,"Only two specialists may run at once");
     const prepared=[];
@@ -38,7 +38,7 @@ export async function admitChildren(pool: Pool, parentId: string, operationId: s
       if(!version) throw new PlatformError("DELEGATION_BINDING_DENIED",403,"Specialist version is unavailable");
       const childConfig=agentConfigurationSchema.parse(version.configuration);
       const knowledgeIds=request.knowledgeIds??binding.knowledgeIds;
-      if(childConfig.executionKind!=="business" || childConfig.memory.enabled || childConfig.capabilities.delegation.enabled || childConfig.capabilities.sandbox.enabled ||
+      if(childConfig.executionKind!=="business" || childConfig.memory.enabled || childConfig.capabilities.delegation.enabled || childConfig.capabilities.sandbox.enabled || childConfig.capabilities.workflows.enabled ||
         knowledgeIds.some(id=>!binding.knowledgeIds.includes(id)||!childConfig.knowledgeIds.includes(id)||!config.knowledgeIds.includes(id)) ||
         binding.tools.some(name=>!childConfig.tools.includes(name)) || Buffer.byteLength(request.brief)>childConfig.model.maxInputBytes ||
         (request.maxTokens??binding.maxTokens)>binding.maxTokens) throw new PlatformError("DELEGATION_SCOPE_DENIED",403,"Specialist request exceeds its published scope");

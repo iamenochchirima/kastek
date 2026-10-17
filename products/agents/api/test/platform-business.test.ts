@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { randomUUID } from "node:crypto";
+import { randomUUID, randomBytes } from "node:crypto";
 import { createServer, type ServerHttp2Session } from "node:http2";
 import { createEndpointHandler } from "@restatedev/restate-sdk";
 import { Pool } from "pg";
@@ -9,6 +9,11 @@ import { defaultFaqConfiguration, terminalTaskStates, type AgentConfiguration, t
 import { dispatchTasksOnce } from "../src/platform/dispatcher";
 import { beginOperation, finishOperation, settleTask, requestTreeCancellation, reconcilePendingRoots } from "../src/platform/execution";
 import { admitChildren, readChildResults } from "../src/platform/delegation";
+import {ActionService} from "../src/platform/actions";
+import {ConnectionStore} from "../src/platform/connections";
+import {ConnectionVault} from "../src/platform/vault";
+import {TaskArtifactStore} from "../src/platform/task-artifacts";
+import {createReportReceiver,initializeReportReceiver} from "../src/acceptance/report-receiver";
 import { MemoryStore } from "../src/platform/memory";
 import { setupPlatformSchema } from "../src/platform/setup";
 import { PlatformStore } from "../src/platform/store";
@@ -17,6 +22,10 @@ import { requestDigest as modelRequestDigest, type ModelRequest } from "../src/p
 const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
 (databaseUrl ? describe : describe.skip)("common harness with real PostgreSQL/Restate and fixture model", () => {
   let admin: Pool, pool: Pool, store: PlatformStore, memory: MemoryStore;
+  let receiver:ReturnType<typeof createReportReceiver>,actions:ActionService,connections:ConnectionStore,artifacts:TaskArtifactStore;
+  const receiverKey=randomUUID(),objects=new Map<string,Uint8Array>();
+  let afterAccept:((id:string)=>Promise<void>)|undefined;
+  let inFlightActionCalls=0;
   let server: ReturnType<typeof createServer>;
   let workflow: ReturnType<typeof createBusinessWorkflow>;
   let ingressUrl: string, adminUrl: string;
@@ -56,7 +65,13 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     pool = new Pool({ connectionString: url.href });
     await setupPlatformSchema(pool);
     store = new PlatformStore(pool); memory = new MemoryStore(pool);
-    workflow = createBusinessWorkflow(pool, { openRouterApiKey: "fixture", fetch: async (_url, request) => {
+    await initializeReportReceiver(pool);
+    receiver=createReportReceiver({pool,keys:[{apiKey:receiverKey,resource:"reports:controller"}],afterAccept:async id=>{await afterAccept?.(id);}});
+    const address=await receiver.listen({host:"127.0.0.1",port:0});
+    const vault=new ConnectionVault("v1",{v1:randomBytes(32).toString("base64")}),targets=[{id:"reports",label:"Reports",url:address+"/deliveries",resource:"reports:controller"}];
+    artifacts=new TaskArtifactStore(pool,{async put(key,value){objects.set(key,Buffer.from(value));},async get(key){const value=objects.get(key);if(!value)throw Error("Missing fixture object");return value;},async delete(key){objects.delete(key);}});
+    connections=new ConnectionStore(pool,vault,targets);actions=new ActionService(pool,{vault,targets,artifacts});
+    workflow = createBusinessWorkflow(pool, {actions:{prepare:(...args)=>actions.prepare(...args),getReview:(...args)=>actions.getReview(...args),reconcile:(...args)=>actions.reconcile(...args),execute:async(...args)=>{inFlightActionCalls++;try{return await actions.execute(...args);}finally{inFlightActionCalls--;}}},selectReportArtifact:(...args)=>artifacts.prepareReport(...args), openRouterApiKey: "fixture", fetch: async (_url, request) => {
       const body = JSON.parse(String(request?.body)); calls.push(body); return provider(body, request!);
     } });
     await listen();
@@ -74,6 +89,7 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     for (const session of sessions) session.destroy();
     if (server) await new Promise<void>(resolve => server.close(() => resolve()));
     if (containerStarted) docker("rm", "-f", containerName);
+    await receiver?.close();
     await pool?.end();
     if (admin) { await admin.query(`DROP DATABASE IF EXISTS "${databaseName}" WITH (FORCE)`); await admin.end(); }
   });
@@ -124,6 +140,58 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     const {task}=await store.admitTask(request);
     return {...f,task,request,grant,agent,version,config,versions,managed:{...f.managed,agentId:agent.id},scoped:{...f.scoped,agentId:agent.id}};
   }
+  async function reportFixture() {
+    const f=await fixture();await settleTask(pool,f.task.id,{state:"cancelled"});
+    const scope={accountId:f.account.id,organizationId:f.org.id};
+    const connection=await connections.create(scope,{operationId:randomUUID(),name:"Reports",targetId:"reports",apiKey:receiverKey});
+    const config:AgentConfiguration={...f.config,capabilities:{...f.config.capabilities,workflows:{enabled:true,profileId:"report-delivery-v1",connectionId:connection.id,reportArtifactName:"report.md",title:"Opening hours report"}}};
+    const agent=await store.createAgent({...scope,name:"Report agent",configuration:config});
+    const version=await store.createVersion({...scope,agentId:agent.id,expectedRevision:1});
+    const authority={...f.request.authority,resourceId:agent.id};
+    const grant:ExecutionGrant={...f.grant,...authority,id:randomUUID(),versionId:version.id,operations:["model.reply","knowledge.read","effect.deliver","artifact.read","artifact.write"]};
+    await store.createGrant({...scope,grant});
+    const request={...f.request,authority,grantId:grant.id,versionId:version.id,requestKey:randomUUID()};const{task}=await store.admitTask(request);
+    return{...f,task,grant,request,config,scope,connection};
+  }
+  async function waitForReview(taskId:string) {
+    await dispatchTasksOnce(pool,{ingressUrl,adminUrl});
+    return eventually(async()=>{const task=(await pool.query("SELECT state FROM agents_platform.tasks WHERE id=$1",[taskId])).rows[0];
+      if(task.state!=="waiting_review")return false;const action=(await pool.query("SELECT id FROM agents_platform.actions WHERE task_id=$1",[taskId])).rows[0];return action?actions.getReview(taskId,action.id):false;});
+  }
+  async function finishWithControls(taskId:string) {
+    return eventually(async()=>{await dispatchTasksOnce(pool,{ingressUrl,adminUrl});const task=(await pool.query("SELECT * FROM agents_platform.tasks WHERE id=$1",[taskId])).rows[0];return terminalTaskStates.has(task.state)?task:false;});
+  }
+  it("resumes the same exact report after worker restart and records one actual HTTP delivery",async()=>{
+    const f=await reportFixture(),review=await waitForReview(f.task.id);expect(calls).toHaveLength(1);
+    expect(review.preview.content).toBe("Open at nine.");
+    const capacity=(await pool.query("SELECT active_reserved_ms FROM agents_platform.execution_roots WHERE root_task_id=$1",[f.task.id])).rows[0];expect(capacity.active_reserved_ms).toBe(0);
+    await restart();await actions.decide(f.scope,f.task.id,review.id,{operationId:randomUUID(),decision:"approve",expectedDigest:review.reviewDigest});
+    expect((await finishWithControls(f.task.id)).state).toBe("completed");expect(calls).toHaveLength(1);
+    const rows=(await pool.query("SELECT payload FROM report_delivery_receiver.deliveries WHERE id=$1",[review.id])).rows;expect(rows).toHaveLength(1);
+    expect(Buffer.from(rows[0].payload.report.contentBase64,"base64").toString()).toBe("Open at nine.");
+    expect((await actions.getReview(f.task.id,review.id)).state).toBe("delivered");
+  },30000);
+  it("reconciles an already accepted report after response loss, restart and grant revocation without resending",async()=>{
+    const f=await reportFixture(),review=await waitForReview(f.task.id);
+    let accepted=false,posts=0,release!:()=>void;const blocked=new Promise<void>(resolve=>{release=resolve;});
+    afterAccept=async id=>{if(id===review.id){posts++;accepted=true;await blocked;}};
+    try {
+      await actions.decide(f.scope,f.task.id,review.id,{operationId:randomUUID(),decision:"approve",expectedDigest:review.reviewDigest});
+      await dispatchTasksOnce(pool,{ingressUrl,adminUrl});await eventually(async()=>accepted);
+      await store.revokeGrant(f.account.id,f.org.id,f.grant.id);await restart();
+      const result=await eventually(async()=>{const task=(await pool.query("SELECT * FROM agents_platform.tasks WHERE id=$1",[f.task.id])).rows[0];return terminalTaskStates.has(task.state)?task:false;});
+      expect(result.state).toBe("completed");expect(posts).toBe(1);expect(calls).toHaveLength(1);
+      expect((await pool.query("SELECT count(*)::int AS count FROM report_delivery_receiver.deliveries WHERE id=$1",[review.id])).rows[0].count).toBe(1);
+      expect((await actions.getReview(f.task.id,review.id)).state).toBe("delivered");
+    } finally {release();afterAccept=undefined;await eventually(async()=>inFlightActionCalls===0);}
+  },30000);
+  it("accepts an exact rejection after grant revocation without dispatch or report regeneration",async()=>{
+    const f=await reportFixture(),review=await waitForReview(f.task.id);
+    await actions.decide(f.scope,f.task.id,review.id,{operationId:randomUUID(),decision:"reject",expectedDigest:review.reviewDigest});
+    await store.revokeGrant(f.account.id,f.org.id,f.grant.id);
+    expect(await finishWithControls(f.task.id)).toMatchObject({state:"incomplete",error_code:"ACTION_REJECTED"});expect(calls).toHaveLength(1);
+    expect((await pool.query("SELECT count(*)::int AS count FROM report_delivery_receiver.deliveries WHERE id=$1",[review.id])).rows[0].count).toBe(0);
+  },30000);
   const childRequests={requests:[{bindingId:"first",brief:"Read the approved source and identify opening hours."},{bindingId:"second",brief:"Independently verify opening hours from your approved source."}]};
   function researchProvider() {
     provider=async body=>body.messages[0].content.startsWith("ROOT_RESEARCH") ?
@@ -417,7 +485,7 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     const replacement = { ...f.grant, id: randomUUID(), expiresAt: new Date(Date.now() + 300_000).toISOString() };
     await store.createGrant({ accountId: f.account.id, grant: replacement });
     await pool.query("UPDATE agents_platform.tasks SET grant_id=$2,control_generation=control_generation+1 WHERE id=$1", [f.task.id, replacement.id]);
-    const resumed = await fetch(`${ingressUrl}/AgentsBusinessRunV2/${f.task.id}/resume`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ generation: 0 }) });
+    const resumed = await fetch(`${ingressUrl}/AgentsBusinessRunV3/${f.task.id}/resume`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ generation: 0 }) });
     expect(resumed.ok, await resumed.text()).toBe(true);
     expect(await execute(f.task.id)).toMatchObject({ state: "completed", output: "The confirmed opening time is nine." });
     expect(calls).toHaveLength(2);
@@ -465,7 +533,7 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
       const replacement = { ...f.grant, id: randomUUID(), expiresAt: new Date(Date.now() + 300_000).toISOString() };
       await store.createGrant({ accountId: f.account.id, grant: replacement });
       await pool.query("UPDATE agents_platform.tasks SET grant_id=$2,control_generation=control_generation+1 WHERE id=$1", [next.task.id, replacement.id]);
-      const resumed = await fetch(`${ingressUrl}/AgentsBusinessRunV2/${next.task.id}/resume`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ generation: 0 }) });
+      const resumed = await fetch(`${ingressUrl}/AgentsBusinessRunV3/${next.task.id}/resume`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ generation: 0 }) });
       expect(resumed.ok, await resumed.text()).toBe(true);
       expect((await execute(next.task.id)).state).toBe("completed");
       expect(calls.filter(call => call.messages[0]!.content?.startsWith("Summarize"))).toHaveLength(1);

@@ -37,7 +37,8 @@ export const faqCapabilitiesSchema = z.strictObject({
     maxChildren: z.literal(2), maxDepth: z.literal(1) })]),
   sandbox: z.discriminatedUnion("enabled", [unavailableCapability, z.strictObject({ enabled: z.literal(true), profileId: z.literal("python-analysis-v1") })]),
   businessActions: unavailableCapability,
-  workflows: unavailableCapability,
+  workflows: z.discriminatedUnion("enabled", [unavailableCapability, z.strictObject({enabled:z.literal(true),profileId:z.literal("report-delivery-v1"),
+    connectionId:z.uuid(),reportArtifactName:z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$/).default("report.md"),title:z.string().trim().min(1).max(120).default("Report")})]),
   schedules: unavailableCapability,
 });
 
@@ -81,16 +82,18 @@ export class PlatformError extends Error {
 }
 
 export const taskStateSchema = z.enum([
-  "accepted", "running", "waiting_children", "waiting_authority", "cancel_requested", "completed", "incomplete", "refused", "failed", "cancelled", "uncertain",
+  "accepted", "running", "waiting_children", "waiting_authority", "waiting_review", "reconciling", "cancel_requested", "completed", "incomplete", "refused", "failed", "cancelled", "uncertain",
 ]);
 export type TaskState = z.infer<typeof taskStateSchema>;
 export const terminalTaskStates: ReadonlySet<TaskState> = new Set(["completed", "incomplete", "refused", "failed", "cancelled", "uncertain"]);
 
 const transitions: Record<TaskState, ReadonlySet<TaskState>> = {
   accepted: new Set(["running", "waiting_authority", "cancel_requested", "incomplete", "refused", "uncertain", "failed", "cancelled"]),
-  running: new Set(["waiting_children", "waiting_authority", "cancel_requested", "completed", "incomplete", "refused", "failed", "cancelled", "uncertain"]),
+  running: new Set(["waiting_children", "waiting_authority", "waiting_review", "reconciling", "cancel_requested", "completed", "incomplete", "refused", "failed", "cancelled", "uncertain"]),
   waiting_children: new Set(["running", "waiting_authority", "cancel_requested", "completed", "incomplete", "failed", "cancelled", "uncertain"]),
-  waiting_authority: new Set(["running", "cancel_requested", "failed", "cancelled"]),
+  waiting_review: new Set(["running", "reconciling", "cancel_requested", "completed", "incomplete", "refused", "failed", "cancelled", "uncertain"]),
+  reconciling: new Set(["running", "cancel_requested", "completed", "incomplete", "failed", "cancelled", "uncertain"]),
+  waiting_authority: new Set(["running", "waiting_review", "reconciling", "cancel_requested", "failed", "cancelled", "incomplete", "uncertain", "refused"]),
   cancel_requested: new Set(["completed", "incomplete", "refused", "failed", "cancelled", "uncertain"]),
   completed: new Set(), incomplete: new Set(), refused: new Set(), failed: new Set(), cancelled: new Set(), uncertain: new Set(),
 };
@@ -116,7 +119,7 @@ export const executionGrantSchema = z.strictObject({
   callerClientId: z.string().min(1).max(128),
   principal: principalSchema,
   versionId: z.uuid(),
-  operations: z.array(z.enum(["knowledge.read", "model.reply", "memory.read", "memory.propose", "delegation.execute", "sandbox.execute", "artifact.read", "artifact.write"])).min(1).max(8),
+  operations: z.array(z.enum(["knowledge.read", "model.reply", "memory.read", "memory.propose", "delegation.execute", "sandbox.execute", "artifact.read", "artifact.write", "effect.deliver"])).min(1).max(9),
   knowledgeIds: z.array(z.uuid()).max(20),
   maxInputBytes: z.number().int().positive().max(initialLimits.maxInputBytes),
   maxOutputTokens: z.number().int().positive().max(initialLimits.maxOutputTokens),
@@ -153,6 +156,7 @@ export function assertGrantAuthority(
       configuration.context.maxInputTokens > grant.maxContextTokens ||
       (configuration.capabilities.delegation.enabled && !grant.operations.includes("delegation.execute")) ||
       (configuration.capabilities.sandbox.enabled && (!grant.operations.includes("sandbox.execute") || !grant.operations.includes("artifact.read") || !grant.operations.includes("artifact.write"))) ||
+      (configuration.capabilities.workflows.enabled && (!grant.operations.includes("effect.deliver") || !grant.operations.includes("artifact.read") || !grant.operations.includes("artifact.write"))) ||
       (configuration.memory.enabled && (!grant.operations.includes("memory.read") || !grant.operations.includes("memory.propose")))) {
     throw new PlatformError("GRANT_CAPABILITY_DENIED", 403, "Execution exceeds the authorized capabilities or limits");
   }

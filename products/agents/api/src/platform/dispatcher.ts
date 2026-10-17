@@ -18,7 +18,7 @@ export async function dispatchTasksOnce(pool: Pool, options: DispatcherOptions):
   const row = (await pool.query(`WITH candidate AS (
     SELECT o.task_id FROM agents_platform.task_outbox o JOIN agents_platform.tasks t ON t.id=o.task_id
     WHERE o.dispatched_at IS NULL AND o.available_at<=now() AND (o.lease_until IS NULL OR o.lease_until<now())
-      AND t.state IN ('accepted','running','waiting_children','waiting_authority','cancel_requested')
+      AND t.state IN ('accepted','running','waiting_children','waiting_authority','waiting_review','reconciling','cancel_requested')
     ORDER BY o.created_at FOR UPDATE OF o SKIP LOCKED LIMIT 1
   ) UPDATE agents_platform.task_outbox o SET lease_until=now()+interval '30 seconds',lease_owner=$1,attempts=attempts+1
     FROM candidate c WHERE o.task_id=c.task_id RETURNING o.task_id,o.created_at`, [owner])).rows[0];
@@ -52,18 +52,18 @@ export async function dispatchTasksOnce(pool: Pool, options: DispatcherOptions):
     }
   }
   await reconcilePendingRoots(pool);
-  const controls = (await pool.query(`SELECT c.task_id,c.generation FROM agents_platform.task_controls c JOIN agents_platform.tasks t ON t.id=c.task_id
+  const controls = (await pool.query(`SELECT c.task_id,c.generation,c.kind FROM agents_platform.task_controls c JOIN agents_platform.tasks t ON t.id=c.task_id
     WHERE c.dispatched_at IS NULL AND t.state NOT IN ('completed','incomplete','refused','failed','cancelled','uncertain') LIMIT 10`)).rows;
   for (const control of controls) {
     try {
-      const response = await request(`${options.ingressUrl.replace(/\/$/, "")}/${WORKFLOW_NAME}/${control.task_id}/resume`, {
+      const response = await request(`${options.ingressUrl.replace(/\/$/, "")}/${WORKFLOW_NAME}/${control.task_id}/${control.kind==="review"?"review":"resume"}`, {
         method: "POST", headers: {"content-type":"application/json", "idempotency-key":`continue:${control.task_id}:${control.generation}`},
         body:JSON.stringify({generation:Number(control.generation)}), signal:AbortSignal.timeout(5000) });
       if(response.ok) await pool.query("UPDATE agents_platform.task_controls SET dispatched_at=now() WHERE task_id=$1 AND generation=$2",[control.task_id,control.generation]);
     } catch { options.onError?.("RUNTIME_CONTINUATION_FAILED"); }
   }
   await pool.query(`WITH expired AS (UPDATE agents_platform.tasks SET state='cancel_requested',error_code='TASK_DEADLINE',updated_at=now()
-    WHERE deadline_at<now() AND state IN ('accepted','running','waiting_authority') RETURNING id)
+    WHERE deadline_at<now() AND state IN ('accepted','running','waiting_authority','waiting_review','waiting_children','reconciling') RETURNING id)
     INSERT INTO agents_platform.task_events(task_id,event_key,kind) SELECT id,'deadline-stop','cancel_requested' FROM expired ON CONFLICT DO NOTHING`);
 
   const cancellations = (await pool.query(`SELECT id,runtime_invocation_id,created_at FROM agents_platform.tasks
