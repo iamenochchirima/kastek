@@ -8,7 +8,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createBusinessWorkflow, type BusinessOptions } from "../src/platform/business";
 import { defaultFaqConfiguration, terminalTaskStates, type AgentConfiguration, type AdmissionAuthority, type ExecutionGrant } from "../src/platform/contracts";
 import { dispatchTasksOnce } from "../src/platform/dispatcher";
-import { beginOperation, finishOperation, settleTask, requestTreeCancellation, reconcilePendingRoots } from "../src/platform/execution";
+import { beginOperation, finishOperation, settleTask, requestTreeCancellation, reconcilePendingRoots, WORKFLOW_NAME } from "../src/platform/execution";
 import { admitChildren, readChildResults } from "../src/platform/delegation";
 import {ActionService} from "../src/platform/actions";
 import {ConnectionStore} from "../src/platform/connections";
@@ -314,6 +314,38 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     const resultMessage=calls.find(call=>call.messages[0]!.content?.startsWith("ROOT_RESEARCH")&&call.messages.some(message=>message.role==="tool"))!.messages.find(message=>message.role==="tool")!;
     expect(JSON.parse(resultMessage.content!).children.map((child:any)=>child.bindingId)).toEqual(["first","second"]);
   },30000);
+  it("keeps SDK child submission exclusive while root outbox acceptance is lost and retried",async()=>{
+    const f=await researchFixture();researchProvider();const normal=provider;
+    let release!:()=>void;const barrier=new Promise<void>(resolve=>{release=resolve;});
+    provider=async(body,request)=>{if(body.messages[0].content.startsWith("SPECIALIST"))await barrier;return normal(body,request);};
+    const submissions:string[]=[],acceptedIds:string[]=[];
+    const observed:typeof fetch=async(url,init)=>{
+      if(String(url).includes("/restate/send/"))submissions.push(String(url));
+      const response=await fetch(url,init);
+      if(String(url).includes("/restate/send/"))acceptedIds.push((await response.clone().json() as {invocationId:string}).invocationId);
+      return response;
+    };
+    try{
+      await dispatchTasksOnce(pool,{ingressUrl,adminUrl,fetch:async(url,init)=>{const response=await observed(url,init);if(String(url).includes("/restate/send/")){await response.text();throw new TypeError("Controlled lost root acceptance ACK");}return response;}});
+      await eventually(async()=>calls.filter(call=>call.messages[0]!.content?.startsWith("SPECIALIST")).length===2);
+      const children=(await pool.query("SELECT id,runtime_invocation_id,state FROM agents_platform.tasks WHERE parent_task_id=$1 ORDER BY id",[f.task.id])).rows;
+      expect(children).toHaveLength(2);expect(children.every(child=>child.runtime_invocation_id?.startsWith("inv_")&&child.state==="running")).toBe(true);
+      await pool.query("UPDATE agents_platform.task_outbox SET available_at=now(),lease_until=NULL WHERE task_id=$1",[f.task.id]);
+      for(let attempt=0;attempt<5;attempt++)await dispatchTasksOnce(pool,{ingressUrl,adminUrl,fetch:observed});
+      expect(submissions.length).toBeGreaterThanOrEqual(2);expect(acceptedIds).toHaveLength(submissions.length);
+      expect(submissions.every(url=>url.endsWith(`/${f.task.id}/run`)),JSON.stringify(submissions)).toBe(true);
+      const canonical=(await pool.query("SELECT t.runtime_invocation_id,o.dispatched_at,o.last_error_code FROM agents_platform.tasks t JOIN agents_platform.task_outbox o ON o.task_id=t.id WHERE t.id=$1",[f.task.id])).rows[0];
+      expect(canonical.runtime_invocation_id).toBe(acceptedIds[0]);expect(canonical.dispatched_at).not.toBeNull();expect(canonical.last_error_code).toBeNull();
+      expect(acceptedIds.every(id=>id===canonical.runtime_invocation_id)).toBe(true);
+
+      const after=(await pool.query("SELECT id,runtime_invocation_id,state FROM agents_platform.tasks WHERE parent_task_id=$1 ORDER BY id",[f.task.id])).rows;
+      expect(after).toEqual(children);expect(calls).toHaveLength(3);
+      release();expect(await finishWithControls(f.task.id)).toMatchObject({state:"completed",output:"Both approved specialists confirm opening at nine."});
+      expect(calls).toHaveLength(4);
+      expect((await pool.query("SELECT state,error_code FROM agents_platform.tasks WHERE parent_task_id=$1",[f.task.id])).rows).toEqual([{state:"completed",error_code:null},{state:"completed",error_code:null}]);
+      expect((await pool.query("SELECT count(*)::int AS count FROM agents_platform.operations WHERE task_id=ANY($1::uuid[]) AND kind='model'",[children.map(child=>child.id)])).rows[0].count).toBe(2);
+    }finally{release();}
+  },30000);
   it("recovers stable child slots after repeated admission and children do not consume root admission slots",async()=>{
     const f=await researchFixture(); const operationId=`delegation:${randomUUID()}`;
     const first=await admitChildren(pool,f.task.id,operationId,childRequests);
@@ -593,7 +625,7 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     const replacement = { ...f.grant, id: randomUUID(), expiresAt: new Date(Date.now() + 300_000).toISOString() };
     await store.createGrant({ accountId: f.account.id, grant: replacement });
     await pool.query("UPDATE agents_platform.tasks SET grant_id=$2,control_generation=control_generation+1 WHERE id=$1", [f.task.id, replacement.id]);
-    const resumed = await fetch(`${ingressUrl}/AgentsBusinessRunV4/${f.task.id}/resume`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ generation: 0 }) });
+    const resumed = await fetch(`${ingressUrl}/${WORKFLOW_NAME}/${f.task.id}/resume`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ generation: 0 }) });
     expect(resumed.ok, await resumed.text()).toBe(true);
     expect(await execute(f.task.id)).toMatchObject({ state: "completed", output: "The confirmed opening time is nine." });
     expect(calls).toHaveLength(2);
@@ -640,7 +672,7 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
       const replacement = { ...f.grant, id: randomUUID(), expiresAt: new Date(Date.now() + 300_000).toISOString() };
       await store.createGrant({ accountId: f.account.id, grant: replacement });
       await pool.query("UPDATE agents_platform.tasks SET grant_id=$2,control_generation=control_generation+1 WHERE id=$1", [next.task.id, replacement.id]);
-      const resumed = await fetch(`${ingressUrl}/AgentsBusinessRunV4/${next.task.id}/resume`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ generation: 0 }) });
+      const resumed = await fetch(`${ingressUrl}/${WORKFLOW_NAME}/${next.task.id}/resume`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ generation: 0 }) });
       expect(resumed.ok, await resumed.text()).toBe(true);
       expect((await execute(next.task.id)).state).toBe("completed");
       expect(calls.filter(call => call.messages[0]!.content?.startsWith("Summarize"))).toHaveLength(1);

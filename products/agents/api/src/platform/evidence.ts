@@ -143,7 +143,11 @@ function memoryVisible(value:unknown,id:string,content:string):boolean{
   return false;
 }
 export class EvidenceStore {
-  constructor(private readonly pool: Pool, private readonly objects: PrivateObjectStore) {}
+  constructor(private readonly pool: Pool, private readonly objects?: PrivateObjectStore) {}
+  private objectStore(): PrivateObjectStore {
+    if (!this.objects) throw new PlatformError("OBJECT_STORE_UNAVAILABLE",503,"Private evidence storage is unavailable");
+    return this.objects;
+  }
   private async scoped<T>(taskId: string, work: (db: PoolClient, execution: Execution) => Promise<T>): Promise<T> {
     return transaction(this.pool, async db => {
       const initial = await loadExecution(db, taskId);
@@ -160,7 +164,7 @@ export class EvidenceStore {
   private async insert(db: PoolClient, execution: Execution, operationId: string, input: {
     sourceId?: string; revisionId?: string; chunkId?: string; start: number; end: number; text: string; title: string;
     acquiredAt: string; manifest: DependencyManifest; page?: number | null; section?: string | null;
-    bindingId?: string; resource?: ResourceHandle; receiptDigest?: string; objectKey?: string;
+    bindingId?: string; resource?: ResourceHandle; receiptDigest?: string; objectKey?: string; inlineContent?: string;
   }): Promise<EvidencePassage> {
     boundedText(input.text);
     const digest = requestDigest(input);
@@ -174,8 +178,8 @@ export class EvidenceStore {
       (id,organization_id,root_task_id,task_id,operation_id,citation_label,request_digest,source_id,revision_id,chunk_id,start_offset,end_offset,content_digest,acquired_at,manifest)
       VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) RETURNING *`,
     [id, execution.task.organization_id, execution.task.root_task_id, execution.task.id, operationId, label, digest, input.sourceId ?? null, input.revisionId ?? null, input.chunkId ?? null, input.start, input.end, textDigest(input.text), input.acquiredAt, input.manifest])).rows[0];
-    await db.query(`INSERT INTO agents_platform.evidence_contents(reference_id,object_key,title,content_bytes,page,section,binding_id,resource,receipt_digest)
-      VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)`, [id, input.objectKey ?? null, input.title.slice(0,200), Buffer.byteLength(input.text), input.page ?? null, input.section ?? null, input.bindingId ?? null, input.resource ?? null, input.receiptDigest ?? null]);
+    await db.query(`INSERT INTO agents_platform.evidence_contents(reference_id,object_key,title,content_bytes,page,section,binding_id,resource,receipt_digest,inline_content)
+      VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`, [id, input.objectKey ?? null, input.title.slice(0,200), Buffer.byteLength(input.text), input.page ?? null, input.section ?? null, input.bindingId ?? null, input.resource ?? null, input.receiptDigest ?? null, input.inlineContent ?? null]);
     return { reference: dto(row), label, text: input.text, title: input.title.slice(0,200), page: input.page ?? null, section: input.section ?? null };
   }
   async recordChunk(taskId: string, operationId: string, chunkId: string, span: {start?: number; end?: number} = {}): Promise<EvidencePassage> {
@@ -200,7 +204,7 @@ export class EvidenceStore {
     const initial = await loadExecution(this.pool, taskId);
     const objectKey = `evidence/${initial.task.organization_id}/${initial.task.root_task_id}/${textDigest(input.text)}`;
     // Content-addressed bytes are immutable; policy is checked again before the reference is published.
-    await writeExecutionObject(this.pool,this.objects,{taskId,operationId,key:objectKey,bytes:Buffer.from(input.text),contentType:"text/plain; charset=utf-8"});
+    await writeExecutionObject(this.pool,this.objectStore(),{taskId,operationId,key:objectKey,bytes:Buffer.from(input.text),contentType:"text/plain; charset=utf-8"});
     return this.scoped(taskId, async (db, execution) => {
       const binding = await bindingAllowed(db, execution, input.bindingId);
       await this.operation(db, taskId, operationId, [binding.alias]);
@@ -217,26 +221,26 @@ export class EvidenceStore {
       JOIN agents_platform.memory_scopes s ON s.id=m.scope_id WHERE m.id=$1`,[memoryId])).rows[0];
     if(!row||row.organization_id!==initial.task.organization_id||row.agent_id!==initial.agentId||row.account_id!==await owner(this.pool,initial)||row.status!=="accepted"||row.expires_at&&new Date(row.expires_at).getTime()<=Date.now())throw denied();
     if(textDigest(row.content)!==row.content_digest)throw integrity();
-    const objectKey=`evidence/${initial.task.organization_id}/${initial.task.root_task_id}/${textDigest(row.content)}`;
-    await writeExecutionObject(this.pool,this.objects,{taskId,operationId,key:objectKey,bytes:Buffer.from(row.content),contentType:"text/plain; charset=utf-8"});
+    boundedText(row.content);
     return this.scoped(taskId,async(db,execution)=>{
       await this.operation(db,taskId,operationId,["memory.search"]);
       const grant=(await db.query("SELECT operations FROM agents_platform.execution_grants WHERE id=$1",[execution.task.grant_id])).rows[0];
       if(!grant?.operations.includes("memory.read"))throw denied();
       const origin=await this.memoryOrigin(db,execution,memoryId);if(origin.row.revision!==row.revision||origin.row.content_digest!==row.content_digest)throw integrity();
-      return this.insert(db,execution,operationId,{start:0,end:row.content.length,text:row.content,title:"Personal memory",acquiredAt:new Date(row.updated_at).toISOString(),objectKey,
+      return this.insert(db,execution,operationId,{start:0,end:row.content.length,text:row.content,title:"Personal memory",acquiredAt:new Date(row.updated_at).toISOString(),inlineContent:row.content,
         manifest:origin.manifest});
     });
   }
   private async passage(db: Db, taskId: string, evidenceId: string): Promise<EvidencePassage> {
     const execution = await loadExecution(db, taskId);
-    const row = (await db.query(`SELECT e.*,c.object_key,c.title,c.page,c.section FROM agents_platform.evidence_references e
+    const row = (await db.query(`SELECT e.*,c.object_key,c.inline_content,c.title,c.page,c.section FROM agents_platform.evidence_references e
       JOIN agents_platform.evidence_contents c ON c.reference_id=e.id WHERE e.id=$1 AND e.organization_id=$2 AND (e.root_task_id=$3 OR EXISTS(
         SELECT 1 FROM agents_platform.evidence_nodes n WHERE n.task_id=$4 AND e.id=ANY(n.evidence_ids)))`, [evidenceId,execution.task.organization_id,execution.task.root_task_id,taskId])).rows[0];
     if (!row) throw denied();
     const reference = dto(row); await assertCurrentEvidence(db, taskId, reference.manifest, {requireActiveTask:false});
     let text: string;
-    if (row.object_key) text = Buffer.from(await this.objects.get(row.object_key)).toString("utf8");
+    if (row.inline_content !== null) text = row.inline_content;
+    else if (row.object_key) text = Buffer.from(await this.objectStore().get(row.object_key)).toString("utf8");
     else {
       const chunk = (await db.query("SELECT content,start_offset FROM agents_platform.source_chunks WHERE id=$1 AND organization_id=$2", [row.chunk_id,execution.task.organization_id])).rows[0];
       if (!chunk) throw unavailable();

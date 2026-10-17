@@ -8,6 +8,8 @@ ALTER TABLE agents_platform.evidence_references
 
 CREATE TABLE agents_platform.evidence_contents (
  reference_id uuid PRIMARY KEY REFERENCES agents_platform.evidence_references(id),
+ inline_content text CHECK(inline_content IS NULL OR octet_length(inline_content) BETWEEN 1 AND 8192),
+ CHECK(inline_content IS NULL OR object_key IS NULL),
  object_key text, title text NOT NULL CHECK(length(title) BETWEEN 1 AND 200),
  content_bytes integer NOT NULL CHECK(content_bytes BETWEEN 1 AND 1048576),
  page integer, section text, binding_id uuid REFERENCES agents_platform.capability_bindings(id),

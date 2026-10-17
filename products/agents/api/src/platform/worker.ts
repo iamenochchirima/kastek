@@ -37,9 +37,9 @@ async function main(): Promise<void> {
   const objects=privateStoreFromEnvironment(),artifacts=new TaskArtifactStore(pool,objects),actionServices=actionsFromEnvironment(pool,artifacts);
   const documents=documentRuntimeFromEnvironment(),sourceObjects=privateStoreFromEnvironment(process.env,10_485_760);
   const ingestion=documents&&sourceObjects?new IngestionService(pool,sourceObjects,documents,new KnowledgeStore(pool,sourceObjects)):undefined;
-  const evidence=sourceObjects?new EvidenceStore(pool,sourceObjects):undefined;
+  const evidence=new EvidenceStore(pool,sourceObjects);
   const embeddings=documents&&sourceObjects?new QueryEmbeddingService(pool,sourceObjects,documents):undefined;
-  const knowledgeRuntime=evidence?new KnowledgeRuntime(pool,evidence,embeddings):undefined;
+  const knowledgeRuntime=sourceObjects?new KnowledgeRuntime(pool,evidence,embeddings):undefined;
   const connected=actionServices&&sourceObjects&&evidence?new ConnectedExecutor(pool,actionServices.connections,sourceObjects,evidence):undefined;
   const automations=new AutomationService(pool,async configuration=>{
     if(!process.env.OPENROUTER_API_KEY)throw new PlatformError('MODEL_CREDENTIAL_UNAVAILABLE',503,'Model connection is unavailable');

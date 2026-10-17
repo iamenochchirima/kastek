@@ -51,7 +51,7 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
   const taskArtifacts = new TaskArtifactStore(pool, objects);
   const sandbox = sandboxManagerFromEnvironment(pool);
   const actionServices=actionsFromEnvironment(pool,taskArtifacts);
-  const evidence = sourceObjects ? new EvidenceStore(pool, sourceObjects) : undefined;
+  const evidence = new EvidenceStore(pool, sourceObjects);
   // API and worker use the same execution mode/build: source and compiled artifact digests intentionally differ.
   const connected = actionServices && sourceObjects && evidence ? new ConnectedExecutor(pool, actionServices.connections, sourceObjects, evidence) : undefined;
   const grantOperations=operationsForConfiguration;

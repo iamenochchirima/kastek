@@ -38,7 +38,7 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
     expect((await app.inject({url,headers:{cookie:other.cookie}})).statusCode).toBe(403);
     expect((await app.inject({url,headers})).json()).toEqual({state:"available",passages:[]});
     await pool.query("UPDATE agents_platform.tasks SET output=$2 WHERE id=$1",[taskId,`Unverified citation [E${"a".repeat(32)}]`]);
-    expect((await app.inject({url,headers})).json()).toEqual({state:"unavailable",code:"EVIDENCE_BACKEND_UNAVAILABLE",passages:[]});
+    expect((await app.inject({url,headers})).json()).toEqual({state:"unavailable",code:"CITATION_UNKNOWN",passages:[]});
   });
   it("returns explicit disabled metadata without credentials, after authenticating current membership",async()=>{
     const owner=await actor(),other=await actor();
