@@ -1,3 +1,5 @@
+import {mkdir,writeFile} from "node:fs/promises";
+import {resolve} from "node:path";
 import { execFileSync } from "node:child_process";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { createServer as httpServer, type Server } from "node:http";
@@ -45,7 +47,16 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
   if(isRoot){
    if(orphanMode)return reply(null,"stop",activeBindings.find(binding=>binding.definition.providerOperation==="resolve_ref")!.alias,{repository:"approved/public"});
    if(!results.length)return reply(null,"stop","agents_delegate",{requests:[{bindingId:"native",brief:"decisive"},{bindingId:"mcp",brief:"decisive"}]});
-   expect(results[0].children).toHaveLength(2);expect(results[0].partial).toBe(partial);
+   expect(results[0].children).toHaveLength(2);
+   if(results[0].partial!==partial){
+    const ids=results[0].children.map((child:any)=>child.taskId);
+    const tasks=(await pool.query("SELECT id,parent_task_id,root_task_id,state,error_code,disposition,tokens_used,tokens_reserved,active_ms,active_reserved_ms,root_token_limit,allocation_active_ms,octet_length(output) AS output_bytes,created_at,updated_at FROM agents_platform.tasks WHERE id=ANY($1::uuid[])",[ids])).rows;
+    const operations=(await pool.query("SELECT id,task_id,kind,name,state,error_code,reserved_tokens,accounted_tokens,reserved_ms,started_at,completed_at FROM agents_platform.operations WHERE task_id=ANY($1::uuid[]) ORDER BY started_at",[ids])).rows;
+    const proof={expectedPartial:partial,observed:results[0],tasks,operations},directory=resolve(__dirname,"../../../../.audit");await mkdir(directory,{recursive:true});
+    await writeFile(resolve(directory,`grounded-controller-partial-${tasks[0]?.root_task_id??randomUUID()}.json`),JSON.stringify(proof,null,2),{mode:0o600});
+    console.error("Unexpected specialist outcome",JSON.stringify(proof));
+   }
+   expect(results[0].partial,JSON.stringify(results[0])).toBe(partial);
    return reply(`Decisive synthesis${partial?"; MCP result is partial":""}. ${labels.map(label=>`[${label}]`).join(" ")}`);
   }
   expect(serialized).toContain(native?"NATIVE_ONLY":"MCP_ONLY");expect(serialized).not.toContain(native?"MCP_ONLY":"NATIVE_ONLY");

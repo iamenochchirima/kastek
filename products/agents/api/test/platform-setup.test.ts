@@ -1,3 +1,4 @@
+import {dropClosedTestDatabase} from "./support/database-cleanup";
 import {publishFixtureSource} from "./knowledge-fixture";
 import { createHash, randomUUID } from "node:crypto";
 import { readFile, readdir } from "node:fs/promises";
@@ -18,10 +19,10 @@ suite("fresh platform setup and database snapshot boundaries", () => {
   beforeAll(() => { admin = new Pool({ connectionString: databaseUrl }); });
   afterAll(async () => {
     for (const pool of pools) await pool.end();
-    for (const name of databases) await admin.query(`DROP DATABASE IF EXISTS "${name}" WITH (FORCE)`);
+    for (const name of databases) await dropClosedTestDatabase(admin,name);
     for (const name of roles) await admin.query(`DROP ROLE IF EXISTS "${name}"`);
     await admin?.end();
-  });
+  },30_000);
   async function freshDatabase() {
     const name = `agents_setup_${randomUUID().replaceAll("-", "")}`;
     await admin.query(`CREATE DATABASE "${name}"`);

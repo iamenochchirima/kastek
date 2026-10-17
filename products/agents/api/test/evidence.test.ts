@@ -1,3 +1,4 @@
+import {dropClosedTestDatabase} from "./support/database-cleanup";
 import {randomBytes,randomUUID} from "node:crypto";
 import {Pool} from "pg";
 import {afterAll,beforeAll,describe,expect,it} from "vitest";
@@ -35,7 +36,12 @@ const url=process.env.AGENTS_TEST_DATABASE_URL;
   await initializeReportReceiver(pool);receiver=createReportReceiver({pool,keys:[{apiKey:reportKey,resource:"reports:evidence"}],afterAccept:async()=>{if(loseDelivery)throw Error("fixture lost response");}});const address=await receiver.listen({host:"127.0.0.1",port:0});target={id:"evidence-reports",label:"Fixture receiver",resource:"reports:evidence",url:address+"/deliveries"};
   reportConnections=new ConnectionStore(pool,vault,[target]);actions=new ActionService(pool,{vault,targets:[target],artifacts:taskArtifacts});
  });
- afterAll(async()=>{await receiver?.close();await pool?.end();if(admin){await admin.query(`DROP DATABASE IF EXISTS "${database}" WITH(FORCE)`);await admin.end();}});
+ afterAll(async()=>{
+  await receiver?.close();await pool?.end();
+  if(admin){
+   await dropClosedTestDatabase(admin,database);await admin.end();
+  }
+ });
  async function fixture(memoryEnabled=false,connected=false,effects=false){
   const account=await platform.ensureAccount({issuer:"http://localhost/evidence",subject:randomUUID(),email:"owner@example.test",displayName:"Owner"});
   const org=await platform.createOrganization(account.id,"Evidence"),scope={accountId:account.id,organizationId:org.id};
