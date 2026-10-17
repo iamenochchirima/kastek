@@ -20,7 +20,7 @@ export const selectCatalogBindingsSchema = z.strictObject({ operationId: z.strin
   expectedRevision: z.number().int().positive(), catalogId: z.uuid(), selections: z.array(selectionSchema).min(1).max(8)
     .refine(selections => new Set(selections.map(selection => selection.providerOperation)).size === selections.length, "Duplicate selected operation") });
 export type SelectCatalogBindingsInput = z.infer<typeof selectCatalogBindingsSchema>;
-export interface CatalogCandidateDTO { id: string; connectionId: string; credentialRevision: number; policyRevision: number; createdAt: string; catalog: CapabilityCatalog }
+export interface CatalogCandidateDTO { id: string; connectionId: string; credentialRevision: number; policyRevision: number; createdAt: string; selectableOperations: string[]; catalog: CapabilityCatalog }
 function resourceKey(resource: ResourceHandle): string { return requestDigest(resource); }
 
 export class ConnectedCatalogStore {
@@ -37,7 +37,9 @@ export class ConnectedCatalogStore {
   }
   private dto(row: Record<string, any>): CatalogCandidateDTO {
     return { id: row.id, connectionId: row.connection_id, credentialRevision: row.credential_revision,
-      policyRevision: row.policy_revision, createdAt: new Date(row.created_at).toISOString(), catalog: capabilityCatalogSchema.parse(row.catalog) };
+      policyRevision: row.policy_revision, createdAt: new Date(row.created_at).toISOString(),
+      selectableOperations: row.catalog.tools.filter((tool: { providerOperation: string }) => githubProviderOperationAllowed(row.catalog.transport, tool.providerOperation)).map((tool: { providerOperation: string }) => tool.providerOperation),
+      catalog: capabilityCatalogSchema.parse(row.catalog) };
   }
   private async replay(db: PoolClient, scope: ActionScope, operationId: string, digest: string): Promise<unknown> {
     const old = (await db.query("SELECT request_digest,result FROM agents_platform.capability_mutations WHERE organization_id=$1 AND account_id=$2 AND operation_id=$3", [scope.organizationId, scope.accountId, operationId])).rows[0];

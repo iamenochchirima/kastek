@@ -1,10 +1,13 @@
-export type DelegationBinding = { id: string; label?: string; description?: string; versionNumber?: number; versionId: string; knowledgeIds: string[]; tools: ("knowledge.search" | "knowledge.read")[]; maxTokens: number; maxActiveMs: number };
+export type DelegationBinding = { id: string; label?: string; description?: string; versionNumber?: number; versionId: string; knowledgeIds: string[]; sourceRevisionIds?: string[]; connectedToolBindingIds?: string[]; tools: ("knowledge.search" | "knowledge.read")[]; maxTokens: number; maxActiveMs: number };
 export type DelegationConfiguration = { enabled: false } | { enabled: true; bindings: DelegationBinding[]; maxChildren: 2; maxDepth: 1 };
 export type Configuration = {
   executionKind: "business" | "workspace";
   instructions: string;
   model: { provider: "openrouter"; model: "nvidia/nemotron-3-super-120b-a12b:free"; maxInputBytes: number; maxOutputTokens: number; maxDurationSeconds: number };
   knowledgeIds: string[];
+  sourceRevisionIds?: string[];
+  connectedToolBindingIds?: string[];
+  retrievalProfile?: { kind: "lexical-v1" } | { kind: "hybrid-v1"; embeddingRelease: string };
   memory?: { enabled: boolean };
   context?: { maxInputTokens: number; compactAtTokens: number };
   tools?: ("knowledge.search" | "knowledge.read" | "memory.search" | "memory.propose" | "agents.delegate" | "sandbox.analyze")[];
@@ -25,7 +28,18 @@ export type ChildTask = { id: string; agentName: string; versionId: string; vers
 export type TaskResource = { id: string; taskId: string; profile: string; state: string; cleanupState: "active" | "pending" | "completed" | "uncertain"; errorCode?: string | null; expiresAt: string };
 export type TaskArtifact = { id: string; taskId: string; name: string; contentType: string; bytes: number; downloadPath: string };
 export type ConnectionTarget = { id: string; label: string; resource: string };
-export type Connection = { id: string; name: string; targetId: string; targetLabel: string; resource: string; revision: number; state: "active" | "revoked"; expiresAt: string; createdAt: string };
+export type ResourceHandle = { kind: string; id: string };
+export type RepositorySelection = { owner: string; repository: string; ref: string };
+export type ConnectionProfile = { id: "report-delivery-v1" | "github-public-read-v1"; label: string; allowedTransports: string[] };
+export type Connection = { id: string; name: string; targetId: string; targetLabel: string; resource: string; profileId?: ConnectionProfile["id"]; policyRevision?: number; resources?: ResourceHandle[]; selections?: RepositorySelection[]; revision: number; state: "active" | "revoked"; expiresAt: string; createdAt: string };
+export type ConnectionList = { connections: Connection[]; targets: ConnectionTarget[]; profiles?: ConnectionProfile[] };
+export type CapabilityBinding = { id: string; alias: string; digest: string; transport: "builtin" | "native_http" | "mcp_http"; definition: { providerOperation: string; description: string }; connection: { id: string; profileId: string; policyRevision: number } | null; resources: ResourceHandle[] };
+export type CatalogCandidate = { id: string; connectionId: string; credentialRevision: number; policyRevision: number; createdAt: string; selectableOperations: string[]; catalog: { revision: number; transport: "native_http" | "mcp_http"; tools: { providerOperation: string; description: string }[] } };
+export type KnowledgeRevision = { id: string; revision: number; state: "candidate" | "approved" | "withdrawn"; acquiredAt: string; embeddingRelease?: string | null };
+export type KnowledgeSource = { id: string; organizationId: string; importerAccountId: string; title: string; kind: "upload" | "public_url" | "provider_snapshot"; generation: number; state: "active" | "withdrawn"; visibility: "private" | "public"; createdAt: string; canApprove: boolean; revisions: KnowledgeRevision[] };
+export type KnowledgeImport = { id: string; sourceId: string; revisionId: string; revision: number; acceptedGeneration: number; state: "queued" | "acquiring" | "extracting" | "indexing" | "ready" | "failed" | "cancelled"; parserRelease: string; deadline: string; contentType: string; errorCode: string | null; createdAt: string };
+export type KnowledgeSources = { sources: KnowledgeSource[]; imports: KnowledgeImport[] };
+export type KnowledgePreview = { text: string; chunks: { id: string; page: number | null; start: number; end: number; text: string }[]; acquiredAt: string; revisionId: string; revision: number };
 export type AutomationSchedule = { kind: "once"; at: string } | { kind: "interval"; anchor: string; everySeconds: number } | { kind: "event" };
 export type Automation = { id: string; name: string; versionId: string; ownerAccountId: string; reviewerAccountId: string; input: string; expiresAt: string; maxOccurrencesPerDay: number; schedule: AutomationSchedule; revision: number; state: "active" | "paused" | "revoked" };
 export type AutomationOccurrence = { id: string; automationId: string; revision: number; status: "accepted" | "skipped_overlap" | "blocked" | "skipped_coalesced"; taskId: string | null; scheduledAt: string; errorCode: string | null; createdAt: string };

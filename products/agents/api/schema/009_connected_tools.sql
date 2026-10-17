@@ -24,7 +24,8 @@ CREATE TABLE agents_platform.capability_bindings (
  alias text NOT NULL UNIQUE, digest text NOT NULL CHECK(length(digest)=64), binding jsonb NOT NULL,
  created_at timestamptz NOT NULL DEFAULT now(),
  FOREIGN KEY(organization_id,connection_id) REFERENCES agents_platform.connections(organization_id,id),
- FOREIGN KEY(organization_id,catalog_id) REFERENCES agents_platform.capability_catalogs(organization_id,id)
+ FOREIGN KEY(organization_id,catalog_id) REFERENCES agents_platform.capability_catalogs(organization_id,id),
+ UNIQUE(organization_id,id)
 );
 CREATE TABLE agents_platform.capability_mutations (
  organization_id uuid NOT NULL, account_id uuid NOT NULL REFERENCES agents_platform.accounts(id),
