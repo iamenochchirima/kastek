@@ -63,6 +63,8 @@ export interface AgentRecord {
   installation_status?: string | null;
   installation_settings?: Record<string, unknown> | null;
   installation_version_id?: string | null;
+  live_installation_id?: string | null;
+  live_installation_status?: string | null;
   published_version_id?: string | null;
   version_number?: number | null;
   published_version_number?: number | null;
@@ -475,7 +477,7 @@ export class AgentRepository {
       name: input.name,
       description: input.description,
       creationProfile: "custom",
-      agentAudience: "personal",
+      agentAudience: "customer_service",
       protected: false,
     });
 
@@ -493,22 +495,8 @@ export class AgentRepository {
         executionMode: "kasitek_hosted",
         releaseMode: "pinned",
       });
-      // Every hosted agent has a separate Live target from its first
-      // published candidate. Future edits update Playground only; the
-      // explicit promotion contract moves the pinned Live pointer.
-      await this.createInstallation(organizationId, actorId, {
-        agentVersionId: version.id,
-        scopeType: "organization",
-        settings: {
-          environment: "live",
-          source: "studio",
-          executionProfile: "autonomous",
-          bindingRevision: "initial",
-          bindingStatus: "ready",
-        },
-        executionMode: "kasitek_hosted",
-        releaseMode: "pinned",
-      });
+      // Studio creation provisions only the isolated test target.
+      // A website deployment is created later through the explicit deploy flow.
       return { agent, version, installation };
     } catch (error) {
       await this.deleteAgent(organizationId, actorId, agent.id).catch(() => undefined);
@@ -1343,6 +1331,8 @@ export class AgentRepository {
       `SELECT ad.*, ai.id AS installation_id, ai.execution_mode, ai.status AS installation_status,
               ai.settings AS installation_settings, ai.release_mode,
               ai.agent_version_id AS installation_version_id,
+              live_installation.id AS live_installation_id,
+              live_installation.status AS live_installation_status,
               av.version_number,
               published_av.id AS published_version_id,
               published_av.version_number AS published_version_number
@@ -1354,6 +1344,12 @@ export class AgentRepository {
          ORDER BY CASE WHEN $2::text IS NULL AND ai.settings ->> 'environment' = 'playground' THEN 0 ELSE 1 END,
                   ai.updated_at DESC LIMIT 1
        ) ai ON TRUE
+       LEFT JOIN LATERAL (
+         SELECT live_ai.id, live_ai.status FROM agent_installations live_ai
+         WHERE live_ai.agent_definition_id = ad.id AND live_ai.organization_id = $1
+           AND COALESCE(live_ai.settings ->> 'environment', 'live') = 'live'
+         ORDER BY live_ai.updated_at DESC LIMIT 1
+       ) live_installation ON TRUE
        LEFT JOIN agent_versions av ON av.id = ai.agent_version_id
        LEFT JOIN agent_versions published_av
          ON published_av.agent_definition_id = ad.id AND published_av.status = 'published'

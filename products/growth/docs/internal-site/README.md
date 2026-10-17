@@ -12,5 +12,6 @@ pnpm dev
 
 Then open `http://localhost:3006`.
 
-The [Agent Platform plans and research](https://github.com/Kasitek-Labs/kasitek-agents/tree/main/docs/plans/agents)
-are maintained in the Agents repository.
+The current Agents architecture and implementation status are in
+[`products/agents/docs`](../../../../products/agents/docs/README.md). The active implementation
+plan is in the Kasitek Agents Stash project.

@@ -2,12 +2,16 @@
 
 Status: implementation baseline; production security review still required.
 
+This threat model describes the current service. Temporal references below are current-code
+controls; the target business-agent runtime is self-hosted Restate. See the [platform
+architecture](architecture/agent-platform-architecture.md).
+
 ## Trust boundaries
 
 1. Browser and external channels are untrusted input. They can submit messages, webhooks,
    attachments, and replayed delivery events.
 2. `kasitek-agents-api` authenticates callers and writes scoped records. It owns Agents organization authorization and validates shared-provider identities. Growth/Agency enforce authorization for their own product tools.
-3. Temporal workflows carry durable orchestration state; their database and external calls happen in activities. Direct hosted execution and the personal runtime enforce their own scoped tool interfaces.
+3. Temporal workflows carry current durable orchestration state; their database and external calls happen in activities. The target Restate runtime is not implemented. The Lina workspace integration is also not implemented, so its controls have not been verified in this service.
 4. Labs Keycloak owns shared identity. Agents owns platform access; Growth Core and Agency enforce their respective business entitlements and consequential product actions.
 5. Model providers, retrieved documents, tool results, and future MCP servers are untrusted
    content even when their transport is authenticated.
@@ -39,8 +43,13 @@ Status: implementation baseline; production security review still required.
   production agents can execute consequential or untrusted custom code.
 - Treat an unreviewed model output as a proposal; the owning product must enforce authorization, with explicit approvals for actions whose policy requires them.
 
-## Filesystem personal runtime scope
+## Isolated Lina workspace scope
 
-The planned personal runtime adds persistent workspaces, user-editable skills, browser/code execution and authenticated task/control interfaces. Enforce cross-deployment filesystem and credential isolation, scoped tool grants, resource/network limits, task deduplication, workspace deletion and secret revocation. Model output and editable files cannot grant new authority.
+Personal assistance may use an isolated Lina workspace. Before enabling that path, verify workspace
+and credential isolation, scoped tool grants, resource and network limits, task deduplication,
+workspace deletion, and secret revocation. Model output and workspace files cannot grant new
+authority.
 
-Local Docker development is not evidence of production isolation for hostile customer code. Select and verify production hosting before exposing that capability. Platform contracts and the delivery checklist take precedence over historical assumptions that every run is hosted through Temporal or every credential belongs to Core.
+Local Docker development does not prove production isolation for hostile code. Verify production
+hosting before exposing code execution. The [platform architecture](architecture/agent-platform-architecture.md)
+defines the current target.

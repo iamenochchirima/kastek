@@ -5,26 +5,18 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogDescription,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import {
   PageHeader,
   PageHeaderActions,
   PageHeaderContent,
   PageHeaderDescription,
   PageHeaderTitle,
 } from "@/components/ui/page-header";
-import { Bot, Info, MessageSquare, Sparkles, X } from "lucide-react";
+import { Bot, Info, MessageSquare, Sparkles } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { useRouter } from "@/lib/navigation";
 import { setAgentInstallationStatus, type AgentAudienceCounts, type AgentDefinition, type AgentOperationsSummary } from "@/lib/agent-platform";
 import { MotionReveal } from "@/components/ui/motion-reveal";
-import { AgentChatPanel } from "./agent-chat-panel";
 import { listAgentCreationDrafts, type AgentCreationDraftSummary } from "@/lib/agent-creation-drafts";
 
 export type AgentListItem = AgentDefinition;
@@ -33,6 +25,20 @@ export type AgentView = "agents" | "external" | "personal";
 function statusClass(status: string) {
   if (status === "active") return "border-status-success/30 bg-status-success-soft text-status-success";
   if (status === "paused") return "border-status-attention/30 bg-status-attention-soft text-status-attention";
+  return "border-border bg-secondary text-muted-foreground";
+}
+
+function liveStatusLabel(agent: AgentDefinition): string | null {
+  if (agent.agent_audience !== "customer_service") return null;
+  if (!agent.live_installation_id) return "Draft · not published";
+  if (agent.live_installation_status === "active") return "Live";
+  if (agent.live_installation_status === "paused") return "Live · paused";
+  return "Live · disabled";
+}
+
+function liveStatusClass(agent: AgentDefinition): string {
+  if (!agent.live_installation_id || agent.live_installation_status === "paused") return "border-status-attention/30 bg-status-attention-soft text-status-attention";
+  if (agent.live_installation_status === "active") return "border-status-success/30 bg-status-success-soft text-status-success";
   return "border-border bg-secondary text-muted-foreground";
 }
 
@@ -103,10 +109,13 @@ export function AgentsPageClient({
   initialOperations?: AgentOperationsSummary | null;
 }) {
   const router = useRouter();
-  const [chatAgent, setChatAgent] = useState<AgentDefinition | null>(null);
   const [activeView, setActiveView] = useState<AgentView>(initialView);
   const [browserDrafts, setBrowserDrafts] = useState<AgentCreationDraftSummary[]>([]);
-  const visibleAgents = initialAgents.filter((agent) => activeView === "external" ? isExternalAgent(agent) : !isExternalAgent(agent));
+  const visibleAgents = initialAgents.filter((agent) => {
+    if (activeView === "external") return isExternalAgent(agent);
+    if (isExternalAgent(agent)) return false;
+    return activeView === "personal" ? agent.agent_audience !== "customer_service" : agent.agent_audience === "customer_service";
+  });
 
   useEffect(() => {
     const refreshDrafts = () => setBrowserDrafts(listAgentCreationDrafts(userId));
@@ -126,7 +135,7 @@ export function AgentsPageClient({
     router.replace(`/agents/new?flow=custom&audience=personal&template=${encodeURIComponent(initialTemplateKey)}`);
   }, [initialTemplateKey, router]);
 
-  const openCreate = () => router.push("/studio/new");
+  const openCreate = () => router.push("/app/agents/new");
 
   return (
     <div className="min-h-[100dvh] p-4 sm:p-6">
@@ -134,35 +143,26 @@ export function AgentsPageClient({
         <PageHeader>
           <PageHeaderContent>
             <PageHeaderTitle>Agents</PageHeaderTitle>
-            <PageHeaderDescription>Hosted agents, external connections and personal runtime deployments.</PageHeaderDescription>
+            <PageHeaderDescription>Support assistants for your customers and website.</PageHeaderDescription>
           </PageHeaderContent>
           <PageHeaderActions>
-          {activeView !== "personal" ? <Button type="button" onClick={openCreate}>Create agent</Button> : null}
+          {activeView === "agents" ? <Button type="button" onClick={openCreate}>Create support assistant</Button> : null}
           </PageHeaderActions>
         </PageHeader>
 
-        {activeView !== "personal" && initialOperations ? <OperationsSummary summary={initialOperations} /> : null}
-        {activeView !== "personal" && initialCounts ? <AudienceSummary counts={initialCounts} /> : null}
+        {activeView === "agents" && (initialOperations || initialCounts) ? <details className="rounded-lg border border-border bg-card px-4 py-3">
+          <summary className="cursor-pointer text-sm font-medium text-muted-foreground hover:text-foreground">Workspace summary</summary>
+          <div className="mt-4 space-y-4">{initialOperations ? <OperationsSummary summary={initialOperations} /> : null}{initialCounts ? <AudienceSummary counts={initialCounts} /> : null}</div>
+        </details> : null}
 
-        <div role="group" aria-label="Agent views" className="flex w-fit max-w-full items-center gap-1 overflow-x-auto rounded-lg border border-border bg-secondary/40 p-1">
-          <button
-            type="button"
-            aria-pressed={activeView === "agents"}
-            onClick={() => setActiveView("agents")}
-            className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${activeView === "agents" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
-          >
-            API-based agents
-          </button>
-          <button
-            type="button"
-            aria-pressed={activeView === "external"}
-            onClick={() => setActiveView("external")}
-            className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${activeView === "external" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
-          >
-            External agents
-          </button>
-          <button type="button" aria-pressed={activeView === "personal"} onClick={() => setActiveView("personal")} className={`whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${activeView === "personal" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}>Personal deployments · Planned</button>
-        </div>
+        <details open={activeView !== "agents"} className="rounded-lg border border-border bg-card px-4 py-3">
+          <summary className="cursor-pointer text-sm font-medium text-muted-foreground hover:text-foreground">Other agent records</summary>
+          <div role="group" aria-label="Other agent records" className="mt-3 flex flex-wrap gap-2">
+            <Button type="button" size="sm" variant={activeView === "agents" ? "default" : "outline"} onClick={() => setActiveView("agents")}>Support assistants</Button>
+            <Button type="button" size="sm" variant={activeView === "external" ? "default" : "outline"} onClick={() => setActiveView("external")}>External agents</Button>
+            <Button type="button" size="sm" variant={activeView === "personal" ? "default" : "outline"} onClick={() => setActiveView("personal")}>Personal agents</Button>
+          </div>
+        </details>
 
         {activeView === "agents" && browserDrafts.length ? <section aria-labelledby="unfinished-drafts-heading" className="space-y-3">
           <div className="flex flex-wrap items-end justify-between gap-3">
@@ -171,27 +171,27 @@ export function AgentsPageClient({
           <div className="grid gap-4 lg:grid-cols-2">{browserDrafts.map((draft) => <CreationDraftCard key={draft.key} draft={draft} onResume={() => router.push(draftPath(draft))} />)}</div>
         </section> : null}
 
-        {activeView === "personal" ? <PersonalDeploymentSummary /> : agentsUnavailable ? (
+        {agentsUnavailable ? (
           <Card><CardContent className="flex flex-col items-start gap-4 p-8"><Info className="h-7 w-7 text-status-attention" /><div><h2 className="text-xl font-semibold text-foreground">Agents are unavailable</h2><p className="mt-1 max-w-xl text-sm leading-6 text-muted-foreground">The Agent Platform could not be reached. Your existing installations are unchanged; try refreshing in a moment.</p></div><Button type="button" variant="outline" onClick={() => router.refresh()}>Retry</Button></CardContent></Card>
         ) : visibleAgents.length ? (
           <section className="grid gap-4 lg:grid-cols-2" aria-label="Installed agents">
-            {visibleAgents.map((agent, index) => <AgentCard key={agent.id} agent={agent} onChanged={() => router.refresh()} onChat={() => setChatAgent(agent)} onOpenDetails={() => router.push(`/agents/${encodeURIComponent(agent.id)}`)} delay={0.08 + index * 0.06} />)}
+            {visibleAgents.map((agent, index) => <AgentCard key={agent.id} agent={agent} onChanged={() => router.refresh()} onTest={() => router.push(`/agents/${encodeURIComponent(agent.id)}?section=test`)} onOpenDetails={() => router.push(`/agents/${encodeURIComponent(agent.id)}`)} delay={0.08 + index * 0.06} />)}
           </section>
         ) : (
           <Card>
             <CardContent className="flex flex-col items-start gap-4 p-8">
               <Sparkles className="h-7 w-7 text-primary" />
               <div>
-                <h2 className="text-xl font-semibold text-foreground">{activeView === "external" ? "No external agents yet" : "No installed agents yet"}</h2>
-                <p className="mt-1 max-w-xl text-sm leading-6 text-muted-foreground">{activeView === "external" ? "External connections will appear here." : "Create an agent and try it in the playground."}</p>
+                <h2 className="text-xl font-semibold text-foreground">{activeView === "external" ? "No external agents yet" : activeView === "personal" ? "No personal agents yet" : "No support assistants yet"}</h2>
+                <p className="mt-1 max-w-xl text-sm leading-6 text-muted-foreground">{activeView === "external" ? "Existing external agent connections will appear here." : activeView === "personal" ? "Existing personal agent records remain available here." : "Create your first support assistant, configure its knowledge, and test it before publishing to your website."}</p>
               </div>
-              {activeView === "agents" ? <Button type="button" onClick={openCreate}>Create agent</Button> : null}
+              {activeView === "agents" ? <Button type="button" onClick={openCreate}>Create support assistant</Button> : null}
             </CardContent>
           </Card>
         )}
+        {activeView === "personal" ? <PersonalDeploymentSummary /> : null}
       </div>
 
-      {chatAgent?.installation_id ? <AgentChatDialog agent={chatAgent} onClose={() => setChatAgent(null)} /> : null}
     </div>
   );
 }
@@ -239,11 +239,12 @@ function AudienceSummary({ counts }: { counts: AgentAudienceCounts }) {
   </section>;
 }
 
-function AgentCard({ agent, onChanged, onChat, onOpenDetails, delay = 0 }: { agent: AgentDefinition; onChanged: () => void; onChat: () => void; onOpenDetails: () => void; delay?: number }) {
+function AgentCard({ agent, onChanged, onTest, onOpenDetails, delay = 0 }: { agent: AgentDefinition; onChanged: () => void; onTest: () => void; onOpenDetails: () => void; delay?: number }) {
   const isKasiAi = agentExecutionMode(agent) === "system_hosted";
-  const canChat = Boolean(agent.installation_id) && !isExternalAgent(agent);
+  const canTest = Boolean(agent.installation_id) && !isExternalAgent(agent);
   const [updating, setUpdating] = useState(false);
   const installationStatus = agent.installation_status ?? "disabled";
+  const targetName = agent.installation_settings?.environment === "playground" ? "Test" : "Live";
   const toggleStatus = async () => {
     if (!agent.installation_id || updating) return;
     setUpdating(true);
@@ -290,7 +291,7 @@ function AgentCard({ agent, onChanged, onChat, onOpenDetails, delay = 0 }: { age
             <Badge className={modeClass(agent)}>{modeLabel(agent)}</Badge>
             <Badge className={audienceClass(agent)}>{audienceLabel(agent)}</Badge>
             {creationProfileLabel(agent) ? <Badge className="border-border bg-secondary text-muted-foreground">{creationProfileLabel(agent)}</Badge> : null}
-            <Badge className={statusClass(agent.installation_status ?? agent.status)}>{agent.installation_status ?? agent.status}</Badge>
+            <Badge className={liveStatusLabel(agent) ? liveStatusClass(agent) : statusClass(agent.installation_status ?? agent.status)}>{liveStatusLabel(agent) ?? agent.installation_status ?? agent.status}</Badge>
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-muted-foreground">
@@ -298,33 +299,15 @@ function AgentCard({ agent, onChanged, onChat, onOpenDetails, delay = 0 }: { age
           {agent.version_number ? <span>Version {agent.version_number}</span> : null}
         </div>
         <div className="flex flex-wrap gap-2">
-          {canChat ? <Button type="button" size="sm" onClick={onChat}><MessageSquare className="mr-1.5 h-3.5 w-3.5" />Chat</Button> : null}
+          {canTest ? <Button type="button" size="sm" onClick={onTest}><MessageSquare className="mr-1.5 h-3.5 w-3.5" />Test</Button> : null}
           {!isKasiAi ? (
             <Button type="button" variant="outline" size="sm" disabled={!agent.installation_id || updating} onClick={() => void toggleStatus()}>
-              {updating ? "Updating…" : installationStatus === "active" ? "Pause agent" : "Resume agent"}
+              {updating ? "Updating…" : installationStatus === "active" ? `Pause ${targetName}` : `Resume ${targetName}`}
             </Button>
           ) : null}
         </div>
       </CardContent>
     </Card>
     </MotionReveal>
-  );
-}
-
-function AgentChatDialog({ agent, onClose }: { agent: AgentDefinition; onClose: () => void }) {
-  const active = (agent.installation_status ?? agent.status) === "active";
-  return (
-    <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent showCloseButton={false} className="h-[calc(100dvh-1rem)] max-h-[calc(100dvh-1rem)] max-w-5xl gap-0 overflow-hidden p-0 sm:h-[min(820px,calc(100dvh-2rem))] sm:max-h-[calc(100dvh-2rem)]">
-        <DialogTitle className="sr-only">{agent.name} chat</DialogTitle>
-        <DialogDescription className="sr-only">Chat with {agent.name}.</DialogDescription>
-        <DialogClose asChild>
-          <Button type="button" variant="ghost" size="icon" className="absolute right-3 top-3 z-20 bg-card/90" aria-label="Close chat">
-            <X className="h-4 w-4" />
-          </Button>
-        </DialogClose>
-        <AgentChatPanel installationId={agent.installation_id!} active={active} agentName={agent.name} modal />
-      </DialogContent>
-    </Dialog>
   );
 }

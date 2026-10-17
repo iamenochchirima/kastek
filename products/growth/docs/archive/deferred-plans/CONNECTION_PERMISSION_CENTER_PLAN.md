@@ -22,11 +22,6 @@ The remaining implementation phase extends that seam to every connected provider
 WhatsApp Embedded Signup, provider-specific permission adapters, and one access endpoint that the
 client can use without knowing which OAuth or setup flow a provider needs.
 
-The cross-agent execution follow-up is tracked in
-[`AGENT_TOOL_ACTION_READINESS_PLAN.md`](../../plans/completed/AGENT_TOOL_ACTION_READINESS_PLAN.md). That plan extends
-the connection access result into a universal preflight and terminal-remediation contract for
-provider-backed tools and gateways.
-
 ## Current boundary
 
 The existing `ExternalConnectionCapability` inventory describes KasiTek product capabilities such

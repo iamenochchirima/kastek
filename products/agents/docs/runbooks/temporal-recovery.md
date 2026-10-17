@@ -6,6 +6,10 @@ last_reviewed: 2026-09-01
 
 # Agent Temporal recovery
 
+This runbook applies to the current Temporal-backed service. The target architecture uses
+self-hosted Restate for business-agent durable execution. Do not use this runbook as the
+recovery procedure for that target runtime.
+
 This runbook covers worker loss, activity retries, model-operation uncertainty, and run-budget
 reconciliation. It applies to the Agents API and Agents Worker in every environment.
 
@@ -247,7 +251,7 @@ retry the same provider event/message identity after the active run reaches a te
 provider identity makes a redelivery idempotent; a transaction that was rejected for backpressure
 does not leave a partial message behind.
 
-The Studio, Playground, and platform chat clients reconcile `activeRuns` when a conversation opens
+The Test and platform chat clients reconcile `activeRuns` when a conversation opens
 and while it is visible. They attach the live activity view to the existing run and expose its Stop
 action. After Stop is requested, the client keeps a cancellation latch until the durable run is
 terminal, so polling cannot re-attach the same run while the signal is being applied. A queued

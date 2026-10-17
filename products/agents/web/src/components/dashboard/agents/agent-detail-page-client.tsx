@@ -5,7 +5,7 @@ import Image from "@/components/ui/image";
 import { useRouter } from "@/lib/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useSearchParams } from "@/lib/navigation";
-import { Archive, ArrowLeft, BarChart3, BookOpen, CheckCircle2, Copy, Cpu, Globe2, History, KeyRound, LayoutDashboard, MessageSquare, PlugZap, RefreshCw, Rocket, Settings2, SlidersHorizontal, Sparkles, Trash2, Upload, Workflow, Wrench } from "lucide-react";
+import { ArrowLeft, BarChart3, BookOpen, CheckCircle2, Copy, Cpu, Globe2, History, KeyRound, LayoutDashboard, MessageSquare, PlugZap, RefreshCw, Rocket, Settings2, SlidersHorizontal, Sparkles, Trash2, Upload, Wrench } from "lucide-react";
 import type { IconType } from "react-icons";
 import { SiDiscord, SiInstagram, SiMessenger, SiModelcontextprotocol, SiTelegram, SiWhatsapp } from "react-icons/si";
 import { Badge } from "@/components/ui/badge";
@@ -37,9 +37,6 @@ import { AgentAuthorizationAction } from "./agent-authorization-action";
 import { type WorkspaceConnection } from "@/lib/connections";
 import {
   AgentRequestError,
-  archiveAgent,
-  deleteAgent,
-  archiveExternalAgent,
   updateAgent,
   getExternalAgentHealth,
   getAgentModelCatalog,
@@ -512,16 +509,14 @@ function sanitizeAgentSlug(value: string): string {
 }
 
 type DetailSection = "overview" | "analytics" | "activity" | "conversations" | "operations" | "knowledge" | "behavior" | "models" | "tools" | "integrations" | "website" | "appearance" | "deployment" | "connection" | "settings" | "advanced";
+type CanonicalDetailSection = DetailSection | "configuration" | "test" | "deploy";
 
 // Initial browser integration. Keep later feature controls unavailable until
 // their scoped endpoints are connected and their product journey is verified.
 const pendingDetailSections: Partial<Record<DetailSection, string>> = {
   analytics: "Detailed analytics are not available in this app yet. Recent runs are available under Operations.",
   conversations: "Customer conversation management will be connected with the shared inbox.",
-  behavior: "Use Studio settings to edit instructions. The full workflow editor is not connected yet.",
-  models: "Use Studio to choose a model. Saving your own provider credentials from this screen is not available yet.",
   appearance: "Website chat appearance controls are not connected yet.",
-  deployment: "Live deployment and rollback controls are not available yet. You can inspect the saved agent in Studio.",
   connection: "External runtime credentials and connection health are not available from this screen yet.",
 };
 
@@ -537,8 +532,8 @@ type DetailNavigationGroup = {
   items: DetailNavigationItem[];
 };
 
-function isDetailSection(value: string | null): value is DetailSection {
-  return value === "overview" || value === "analytics" || value === "activity" || value === "conversations" || value === "operations" || value === "knowledge" || value === "behavior" || value === "models" || value === "tools" || value === "integrations" || value === "website" || value === "appearance" || value === "deployment" || value === "connection" || value === "settings" || value === "advanced";
+function isDetailSection(value: string | null): value is CanonicalDetailSection {
+  return value === "overview" || value === "analytics" || value === "activity" || value === "conversations" || value === "operations" || value === "knowledge" || value === "behavior" || value === "models" || value === "tools" || value === "integrations" || value === "website" || value === "appearance" || value === "deployment" || value === "connection" || value === "settings" || value === "advanced" || value === "configuration" || value === "test" || value === "deploy";
 }
 
 export function AgentDetailPageClient({ agent, initialVersions }: { agent: AgentDefinition; initialVersions: AgentVersion[] }) {
@@ -552,6 +547,8 @@ export function AgentDetailPageClient({ agent, initialVersions }: { agent: Agent
   const [agentSlug, setAgentSlug] = useState(agent.slug);
   const [slugEdited, setSlugEdited] = useState(false);
   const [savingIdentity, setSavingIdentity] = useState(false);
+  const [websiteChatOpen, setWebsiteChatOpen] = useState(false);
+  const [deploymentRefreshKey, setDeploymentRefreshKey] = useState(0);
   const [installationStatus, setInstallationStatus] = useState(agent.installation_status ?? "disabled");
   const [tone, setTone] = useState(String(agent.installation_settings?.tone ?? "balanced"));
   const [responseDetail, setResponseDetail] = useState(String(agent.installation_settings?.responseDetail ?? "standard"));
@@ -593,15 +590,11 @@ export function AgentDetailPageClient({ agent, initialVersions }: { agent: Agent
   const [workflow, setWorkflow] = useState<WorkflowGraphValue | null>(null);
   const [workflowValid, setWorkflowValid] = useState(true);
   const [workflowReady, setWorkflowReady] = useState(false);
-  const [deleteConfirmationOpen, setDeleteConfirmationOpen] = useState(false);
-  const [deleteConfirmationValue, setDeleteConfirmationValue] = useState("");
-  const [websiteChatConfigured, setWebsiteChatConfigured] = useState(false);
   const protectedAgent = agent.protected;
   const executionMode = agent.execution_mode ?? (protectedAgent ? "system_hosted" : "kasitek_hosted");
   const externalAgent = executionMode === "external_connected";
   const hostedAgent = executionMode === "system_hosted" || executionMode === "kasitek_hosted";
   const kasitekHostedAgent = executionMode === "kasitek_hosted";
-  const customHostedAgent = kasitekHostedAgent && agent.creation_profile === "custom";
   const customerServiceAgent = agent.agent_audience === "customer_service";
   // KasiAi is a system-hosted personal agent with private pairing controls.
   // Custom personal agents stay in the private/test surface and never expose
@@ -609,11 +602,15 @@ export function AgentDetailPageClient({ agent, initialVersions }: { agent: Agent
   const privateSystemAgent = executionMode === "system_hosted";
   const customerConversationSurface = kasitekHostedAgent && customerServiceAgent;
   const channelSurface = hostedAgent && (customerServiceAgent || privateSystemAgent);
-  const deletableAgent = !protectedAgent && agent.owner_type === "organization";
   const requestedSection = searchParams.get("section");
-  const requestedDetailSection: DetailSection = isDetailSection(requestedSection) ? requestedSection : "overview";
-  // Keep old deep links working while presenting one Settings destination.
-  const normalizedSection: DetailSection = requestedDetailSection === "advanced" ? "settings" : requestedDetailSection;
+  const requestedDetailSection: CanonicalDetailSection = isDetailSection(requestedSection) ? requestedSection : "overview";
+  // Keep existing section bookmarks while exposing the setup journey's canonical names.
+  const normalizedSection: DetailSection = requestedDetailSection === "advanced" ? "settings"
+    : requestedDetailSection === "configuration" ? "behavior"
+      : requestedDetailSection === "test" ? "activity"
+        : requestedDetailSection === "deploy" ? (customerConversationSurface ? "website" : "deployment")
+          : requestedDetailSection === "appearance" ? (customerConversationSurface ? "website" : "settings")
+          : requestedDetailSection;
   const activeSection: DetailSection = (
     (normalizedSection === "conversations" && !customerConversationSurface)
     || (normalizedSection === "website" && !customerConversationSurface)
@@ -713,24 +710,31 @@ export function AgentDetailPageClient({ agent, initialVersions }: { agent: Agent
     }
   };
 
-  useEffect(() => {
-    if (!customerServiceAgent || !hostedAgent || protectedAgent || !agent.installation_id) {
-      setWebsiteChatConfigured(false);
-      return;
-    }
-    let cancelled = false;
-    void listAgentWebsiteDeployments(agent.installation_id)
-      .then((result) => {
-        if (!cancelled) setWebsiteChatConfigured(result.deployments.some((deployment) => deployment.status !== "REVOKED"));
-      })
-      .catch(() => {
-        if (!cancelled) setWebsiteChatConfigured(false);
-      });
-    return () => { cancelled = true; };
-  }, [agent.installation_id, customerServiceAgent, hostedAgent, protectedAgent]);
-
   const navigationGroups = useMemo<DetailNavigationGroup[]>(() => {
-    const activityItems: DetailNavigationItem[] = [{ section: "activity", label: "Test chat", description: "Chat with this agent privately", icon: MessageSquare }];
+    const settingsGroup: DetailNavigationGroup = {
+      label: "Settings",
+      items: [{ section: "settings", label: "Settings", description: "Access and platform settings", icon: Settings2 }],
+    };
+    if (customerConversationSurface) {
+      return [
+        { items: [
+          { section: "overview", label: "Overview", description: "Agent status and setup", icon: LayoutDashboard },
+          { section: "behavior", label: "Configuration", description: "Instructions, knowledge, model and tools", icon: SlidersHorizontal },
+          { section: "activity", label: "Test", description: "Try a private conversation", icon: MessageSquare },
+        ] },
+        { label: "Deploy", items: [
+          { section: "website", label: "Website", description: "Publish this version to a website", icon: Globe2 },
+          { section: "integrations", label: "Channels", description: "Connect messaging channels", icon: PlugZap },
+        ] },
+        { label: "More", items: [
+          { section: "conversations", label: "Chat history", description: "Customer conversations with this agent", icon: MessageSquare },
+          { section: "operations", label: "Operations", description: "Runs and delivery activity", icon: History },
+          { section: "analytics", label: "Analytics", description: "Runs, usage, outcomes and health", icon: BarChart3 },
+        ] },
+        settingsGroup,
+      ];
+    }
+    const activityItems: DetailNavigationItem[] = [{ section: "activity", label: "Test", description: "Try a private conversation before publishing", icon: MessageSquare }];
     if (customerConversationSurface) {
       activityItems.push({ section: "conversations", label: "Chat history", description: "Customer conversations with this agent", icon: MessageSquare });
     }
@@ -755,21 +759,21 @@ export function AgentDetailPageClient({ agent, initialVersions }: { agent: Agent
       },
     ];
     if (hostedAgent) {
-      groups.push(
-        { label: "Training data", items: [{ section: "knowledge", label: "Knowledge", description: "Files, text, and Q&A", icon: BookOpen }] },
-        ...(kasitekHostedAgent ? [{ label: "Behaviour", items: [{ section: "behavior" as const, label: "Tune agent", description: "Instructions, runtime, and workflow", icon: SlidersHorizontal }] }] : []),
-        { label: "Models", items: [{ section: "models", label: "Models", description: "Model and API key", icon: Cpu }] },
-        { label: "Tools", items: [{ section: "tools", label: "Tools", description: "Capabilities and access", icon: Wrench }] },
-        {
-          label: "Deployment",
-          items: [
-            ...(customerConversationSurface ? [{ section: "website" as const, label: "Website chat", description: "Publish chat to a website", icon: Globe2 }] : []),
-            ...(channelSurface ? [{ section: "integrations" as const, label: "Integrations", description: "Connect channels and surfaces", icon: PlugZap }] : []),
-            ...(websiteChatConfigured ? [{ section: "appearance" as const, label: "Appearance", description: "Customize Website Chat", icon: Sparkles }] : []),
-            { section: "deployment" as const, label: "Deploy", description: "Playground, Live, and rollback", icon: Rocket },
-          ],
-        },
+      const configurationItems: DetailNavigationItem[] = [
+        { section: "knowledge", label: "Knowledge", description: "Approved sources for this agent", icon: BookOpen },
+      ];
+      if (kasitekHostedAgent) configurationItems.push(
+        { section: "behavior", label: "Instructions", description: "Purpose, instructions and limits", icon: SlidersHorizontal },
+        { section: "models", label: "Model", description: "Model and provider settings", icon: Cpu },
+        { section: "tools", label: "Tools", description: "Permitted capabilities and access", icon: Wrench },
       );
+      groups.push({ label: "Configuration", items: configurationItems });
+      const deploymentItems: DetailNavigationItem[] = [
+        ...(customerConversationSurface ? [{ section: "website" as const, label: "Website", description: "Publish this version to a website", icon: Globe2 }] : []),
+        ...(channelSurface ? [{ section: "integrations" as const, label: "Integrations", description: "Connect channels and surfaces", icon: PlugZap }] : []),
+        ...(!customerConversationSurface ? [{ section: "deployment" as const, label: "Deploy", description: "Publish and rollback", icon: Rocket }] : []),
+      ];
+      if (deploymentItems.length) groups.push({ label: "Deploy", items: deploymentItems });
     } else {
       groups.push({ label: "Connection", items: [{ section: "connection", label: "Credentials", description: "Connect and monitor runtime", icon: KeyRound }] });
     }
@@ -784,7 +788,24 @@ export function AgentDetailPageClient({ agent, initialVersions }: { agent: Agent
       groups.push({ label: "Settings", items: [{ section: "settings", label: "Settings", description: "Access and platform settings", icon: Settings2 }] });
     }
     return groups;
-  }, [channelSurface, customerConversationSurface, externalAgent, hostedAgent, kasitekHostedAgent, protectedAgent, websiteChatConfigured]);
+  }, [channelSurface, customerConversationSurface, externalAgent, hostedAgent, kasitekHostedAgent, protectedAgent]);
+
+  const navigationActiveSection: DetailSection = customerConversationSurface && ["knowledge", "behavior", "models", "tools"].includes(activeSection)
+    ? "behavior"
+    : activeSection;
+
+  const renderNavigationItem = (item: DetailNavigationItem) => {
+    const Icon = item.icon;
+    const active = navigationActiveSection === item.section;
+    return <button key={item.section} type="button" aria-current={active ? "page" : undefined} title={item.description} onClick={() => selectSection(item.section)} className={`flex min-w-max items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm transition-colors lg:min-w-0 lg:w-full ${active ? "bg-primary/10 font-semibold text-primary" : "text-foreground/80 hover:bg-secondary hover:text-foreground"}`}><Icon className="h-4 w-4 shrink-0" /><span>{item.label}</span>{pendingDetailSections[item.section] ? <span className="ml-auto text-[10px] text-muted-foreground">Pending</span> : null}</button>;
+  };
+
+  const configurationTabs: Array<{ section: DetailSection; label: string }> = [
+    { section: "knowledge", label: "Knowledge" },
+    { section: "behavior", label: "Instructions" },
+    { section: "models", label: "Model" },
+    { section: "tools", label: "Tools" },
+  ];
 
   const selectSection = (section: DetailSection) => {
     if (section === "appearance") {
@@ -793,7 +814,7 @@ export function AgentDetailPageClient({ agent, initialVersions }: { agent: Agent
     }
     const query = new URLSearchParams(searchParams.toString());
     if (section === "overview") query.delete("section");
-    else query.set("section", section);
+    else query.set("section", section === "behavior" ? "configuration" : section === "activity" ? "test" : section === "website" ? "deploy" : section);
     const suffix = query.toString();
     router.push(`${window.location.pathname}${suffix ? `?${suffix}` : ""}`);
   };
@@ -830,31 +851,14 @@ export function AgentDetailPageClient({ agent, initialVersions }: { agent: Agent
       else setVersions((current) => current.map((version) => {
         if (action === `publish:${version.id}` || action === `rollback:${version.id}`) return { ...version, status: "published", published_at: new Date().toISOString() };
         if (action === `retire:${version.id}`) return { ...version, status: "retired", retired_at: new Date().toISOString() };
-        return action === "archive" ? current[0] ?? version : version;
+        return version;
       }));
-      if (action === "archive" || action === "delete") router.push("/agents");
       return true;
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Agent operation failed");
       return false;
     } finally {
       setBusy(null);
-    }
-  };
-
-  const deleteCurrentAgent = () => {
-    if (busy || !deletableAgent) return;
-    setError(null);
-    setDeleteConfirmationValue("");
-    setDeleteConfirmationOpen(true);
-  };
-
-  const confirmDeleteCurrentAgent = async () => {
-    if (busy || !deleteConfirmationOpen || deleteConfirmationValue !== agentName) return;
-    const deleted = await mutate("delete", () => deleteAgent(agent.id));
-    if (deleted) {
-      setDeleteConfirmationOpen(false);
-      setDeleteConfirmationValue("");
     }
   };
 
@@ -948,27 +952,38 @@ export function AgentDetailPageClient({ agent, initialVersions }: { agent: Agent
                   <p className="mt-1 text-sm leading-6 text-muted-foreground">{agentDescription || "Installed Agent Platform agent"}</p>
                 </div>
               </div>
-              <div className="flex flex-wrap items-center justify-end gap-2">{hostedAgent ? <Button type="button" variant="outline" onClick={() => selectSection("deployment")}><Rocket className="mr-2 h-4 w-4" />Deploy · Pending</Button> : null}{customHostedAgent ? <Button asChild><Link href={`/studio?agent=${encodeURIComponent(agent.id)}`}><Workflow className="mr-2 h-4 w-4" />Open Studio</Link></Button> : null}{agent.installation_id && installationStatus !== "disabled" ? <Button type="button" variant="outline" disabled={busy !== null} onClick={() => void toggleInstallation()}>{busy === "installation-status" ? "Updating…" : installationStatus === "active" ? "Pause installation" : "Resume installation"}</Button> : null}{protectedAgent ? <Badge className="w-fit border-primary/20 bg-primary/10 text-primary">Protected system agent</Badge> : deletableAgent ? <Button type="button" variant="outline" disabled title="Archive is not connected yet" onClick={() => void mutate("archive", () => externalAgent && agent.installation_id ? archiveExternalAgent(agent.installation_id) : archiveAgent(agent.id))}><Archive className="mr-2 h-4 w-4" />{busy === "archive" ? "Archiving…" : "Archive agent"}</Button> : null}</div>
+              <div className="flex flex-wrap items-center justify-end gap-2">{agent.installation_id && installationStatus !== "disabled" ? <Button type="button" variant="outline" disabled={busy !== null} onClick={() => void toggleInstallation()}>{busy === "installation-status" ? "Updating…" : installationStatus === "active" ? "Pause installation" : "Resume installation"}</Button> : null}{protectedAgent ? <Badge className="w-fit border-primary/20 bg-primary/10 text-primary">Protected system agent</Badge> : null}</div>
             </div>
             {externalAgent ? <p className="rounded-lg border border-status-info/20 bg-status-info-soft/40 px-3 py-2 text-sm text-muted-foreground">This is an external-connected installation. It calls KasiTek through MCP or REST and does not run hosted chat, channels, schedules, knowledge, or model workflows here.</p> : null}
           </CardContent>
         </Card>
 
         {error ? <p className="mt-4 rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive" role="alert">{error}</p> : null}
-        <div className="mt-6 grid items-start gap-6 lg:grid-cols-[230px_minmax(0,1fr)]">
-          <aside className="lg:sticky lg:top-6">
-            <Card className="overflow-hidden border-border/80 shadow-sm"><CardContent className="p-3 sm:p-4">
+        <div className="mt-6 grid min-w-0 items-start gap-6 lg:grid-cols-[230px_minmax(0,1fr)]">
+          <div className="min-w-0 lg:hidden">
+            <label htmlFor="agent-section" className="sr-only">Agent section</label>
+            <select id="agent-section" value={navigationActiveSection} onChange={(event) => selectSection(event.target.value as DetailSection)} className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm text-foreground">
+              {navigationGroups.flatMap((group) => group.items).map((item) => <option key={item.section} value={item.section}>{item.label}</option>)}
+            </select>
+          </div>
+          <aside className="hidden min-w-0 lg:sticky lg:top-6 lg:block">
+            <Card className="w-full min-w-0 overflow-hidden border-border/80 shadow-sm"><CardContent className="min-w-0 p-3 sm:p-4">
               <div className="mb-3 px-2"><p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Manage agent</p><p className="mt-1 truncate text-sm font-medium text-foreground">{agentName}</p></div>
-              <nav aria-label="Agent management" className="flex gap-1 overflow-x-auto lg:block">
-                {navigationGroups.map((group, groupIndex) => <div key={group.label ?? `group-${groupIndex}`} className="lg:mt-4 first:mt-0">{group.label ? <p className="mb-1 px-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">{group.label}</p> : null}{group.items.map((item) => { const Icon = item.icon; const active = activeSection === item.section; return <button key={item.section} type="button" aria-current={active ? "page" : undefined} title={item.description} onClick={() => selectSection(item.section)} className={`flex min-w-max items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm transition-colors lg:min-w-0 lg:w-full ${active ? "bg-primary/10 font-semibold text-primary" : "text-foreground/80 hover:bg-secondary hover:text-foreground"}`}><Icon className="h-4 w-4 shrink-0" /><span>{item.label}</span>{pendingDetailSections[item.section] ? <span className="ml-auto text-[10px] text-muted-foreground">Pending</span> : null}</button>; })}{group.label === "Settings" && deletableAgent ? <><div className="my-2 border-t border-border/70" /><button type="button" title="Deletion is not connected yet" onClick={() => void deleteCurrentAgent()} disabled className="flex min-w-max items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm text-destructive transition-colors hover:bg-destructive/10 disabled:cursor-not-allowed disabled:opacity-50 lg:min-w-0 lg:w-full"><Trash2 className="h-4 w-4 shrink-0" /><span>{busy === "delete" ? "Deleting…" : "Delete agent"}</span></button></> : null}</div>)}
+              <nav aria-label="Agent management" className="flex min-w-0 max-w-full gap-1 overflow-x-auto lg:block">
+                {navigationGroups.map((group, groupIndex) => {
+                  const items = group.items.map(renderNavigationItem);
+                  if (group.label === "More") return <details key={group.label} className="lg:mt-4" open={group.items.some((item) => item.section === activeSection)}><summary className="cursor-pointer px-2 py-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground hover:text-foreground">More</summary><div className="space-y-1">{items}</div></details>;
+                  return <div key={group.label ?? `group-${groupIndex}`} className="lg:mt-4 first:mt-0">{group.label ? <p className="mb-1 px-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">{group.label}</p> : null}{items}</div>;
+                })}
               </nav>
               <div className="mt-4 hidden rounded-xl border border-border bg-secondary/30 p-3 lg:block"><p className="text-xs text-muted-foreground">{protectedAgent ? "Protected platform agent" : externalAgent ? "External runtime" : "Hosted runtime"}</p><p className="mt-1 text-xs font-medium capitalize text-foreground">{installationStatus.replaceAll("_", " ")}</p></div>
             </CardContent></Card>
           </aside>
           <main className="min-w-0 space-y-6">
-        {pendingSection ? <Card><CardContent className="space-y-4 p-6"><Badge variant="secondary">Not available yet</Badge><h2 className="text-xl font-semibold">{navigationGroups.flatMap(group => group.items).find(item => item.section === activeSection)?.label ?? "Agent feature"}</h2><p className="max-w-2xl text-sm leading-6 text-muted-foreground">{pendingSection}</p>{hostedAgent ? <Button asChild variant="outline"><Link href={`/studio?agent=${encodeURIComponent(agent.id)}`}>Open Studio</Link></Button> : null}</CardContent></Card> : <>
+        {customerConversationSurface && ["knowledge", "behavior", "models", "tools"].includes(activeSection) ? <nav aria-label="Agent configuration" className="flex gap-2 overflow-x-auto border-b border-border pb-2">{configurationTabs.map((tab) => <button key={tab.section} type="button" aria-current={activeSection === tab.section ? "page" : undefined} onClick={() => selectSection(tab.section)} className={`shrink-0 rounded-full px-3 py-1.5 text-sm ${activeSection === tab.section ? "bg-primary/10 font-medium text-primary" : "text-muted-foreground hover:bg-secondary hover:text-foreground"}`}>{tab.label}</button>)}</nav> : null}
+        {pendingSection ? <Card><CardContent className="space-y-4 p-6"><Badge variant="secondary">Not available yet</Badge><h2 className="text-xl font-semibold">{navigationGroups.flatMap(group => group.items).find(item => item.section === activeSection)?.label ?? "Agent feature"}</h2><p className="max-w-2xl text-sm leading-6 text-muted-foreground">{pendingSection}</p>{hostedAgent ? <Button asChild variant="outline"><Link href={`/app/agents/${encodeURIComponent(agent.id)}?section=overview`}>Back to agent</Link></Button> : null}</CardContent></Card> : <>
 
-        {activeSection === "overview" ? <Card><CardContent className="space-y-5 p-6"><div><p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-primary">Overview</p><h2 className="mt-1 text-xl font-semibold text-foreground">Manage {agentName}</h2><p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">Open Studio to edit instructions and model settings. Review recent runs under Operations; other sections show their current availability.</p></div><div className="grid gap-3 sm:grid-cols-3"><button type="button" onClick={() => selectSection(hostedAgent ? "knowledge" : "connection")} className="rounded-xl border border-border bg-secondary/20 p-4 text-left transition-colors hover:border-primary/40 hover:bg-primary/5"><BookOpen className="h-5 w-5 text-primary" /><p className="mt-3 text-sm font-semibold text-foreground">{hostedAgent ? "Knowledge" : "Connect runtime · Pending"}</p><p className="mt-1 text-xs leading-5 text-muted-foreground">{hostedAgent ? "Add files, text and FAQs for this agent." : "Runtime connection controls will be connected later."}</p></button><button type="button" onClick={() => hostedAgent ? router.push(`/studio?agent=${encodeURIComponent(agent.id)}`) : selectSection("settings")} className="rounded-xl border border-border bg-secondary/20 p-4 text-left transition-colors hover:border-primary/40 hover:bg-primary/5"><SlidersHorizontal className="h-5 w-5 text-primary" /><p className="mt-3 text-sm font-semibold text-foreground">{hostedAgent ? "Open Studio" : "Review identity"}</p><p className="mt-1 text-xs leading-5 text-muted-foreground">{hostedAgent ? "Edit instructions and model settings." : "Review this agent’s name and description."}</p></button><button type="button" onClick={() => selectSection(hostedAgent ? "activity" : externalAgent ? "operations" : "activity")} className="rounded-xl border border-border bg-secondary/20 p-4 text-left transition-colors hover:border-primary/40 hover:bg-primary/5"><MessageSquare className="h-5 w-5 text-primary" /><p className="mt-3 text-sm font-semibold text-foreground">{hostedAgent ? "Test chat" : externalAgent ? "View operations" : "Private chat"}</p><p className="mt-1 text-xs leading-5 text-muted-foreground">{hostedAgent ? "Try a conversation with this agent." : externalAgent ? "Review calls, outcomes, and usage." : "Test this private platform agent."}</p></button></div></CardContent></Card> : null}
+        {activeSection === "overview" ? <Card><CardContent className="space-y-5 p-6"><div><p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-primary">Overview</p><h2 className="mt-1 text-xl font-semibold text-foreground">Manage {agentName}</h2><p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">Configure instructions, model, approved knowledge and permitted tools. Test a saved version privately, then publish it to your website when it is ready.</p></div><div className="grid gap-3 sm:grid-cols-3"><button type="button" onClick={() => selectSection(hostedAgent ? "knowledge" : "connection")} className="rounded-xl border border-border bg-secondary/20 p-4 text-left transition-colors hover:border-primary/40 hover:bg-primary/5"><BookOpen className="h-5 w-5 text-primary" /><p className="mt-3 text-sm font-semibold text-foreground">{hostedAgent ? "Knowledge" : "Connect runtime · Pending"}</p><p className="mt-1 text-xs leading-5 text-muted-foreground">{hostedAgent ? "Add approved sources for this agent." : "Runtime connection controls will be connected later."}</p></button><button type="button" onClick={() => hostedAgent ? selectSection("behavior") : selectSection("settings")} className="rounded-xl border border-border bg-secondary/20 p-4 text-left transition-colors hover:border-primary/40 hover:bg-primary/5"><SlidersHorizontal className="h-5 w-5 text-primary" /><p className="mt-3 text-sm font-semibold text-foreground">{hostedAgent ? "Configuration" : "Review identity"}</p><p className="mt-1 text-xs leading-5 text-muted-foreground">{hostedAgent ? "Edit instructions and runtime limits." : "Review this agent’s name and description."}</p></button><button type="button" onClick={() => selectSection(hostedAgent ? "activity" : externalAgent ? "operations" : "activity")} className="rounded-xl border border-border bg-secondary/20 p-4 text-left transition-colors hover:border-primary/40 hover:bg-primary/5"><MessageSquare className="h-5 w-5 text-primary" /><p className="mt-3 text-sm font-semibold text-foreground">{hostedAgent ? "Test" : externalAgent ? "View operations" : "Private chat"}</p><p className="mt-1 text-xs leading-5 text-muted-foreground">{hostedAgent ? "Try the saved version privately." : externalAgent ? "Review calls, outcomes, and usage." : "Test this private platform agent."}</p></button></div></CardContent></Card> : null}
 
         {activeSection === "settings" && !protectedAgent ? <Card><CardContent className="space-y-4 p-6"><div><p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-primary">Settings</p><h2 className="mt-1 text-xl font-semibold text-foreground">Agent identity</h2><p className="mt-2 text-sm text-muted-foreground">Change the name, description, or public slug for this agent.</p></div><div className="grid gap-4 sm:grid-cols-2"><label className="text-sm font-medium text-foreground">Name<Input value={agentName} onChange={(event) => { const next = event.target.value; setAgentName(next); if (!slugEdited) setAgentSlug(slugifyAgentName(next)); }} maxLength={160} className="mt-2" /></label><label className="text-sm font-medium text-foreground">Slug<Input value={agentSlug} onChange={(event) => { setSlugEdited(true); setAgentSlug(sanitizeAgentSlug(event.target.value)); }} maxLength={80} className="mt-2" /><span className="mt-1 block text-xs text-muted-foreground">Updates automatically from the name until you edit it.</span></label></div><label className="text-sm font-medium text-foreground">Description<Textarea value={agentDescription} onChange={(event) => setAgentDescription(event.target.value)} rows={4} maxLength={2000} className="mt-2 resize-y" /></label><div className="flex items-center justify-between gap-3"><button type="button" className="text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline" onClick={() => { setSlugEdited(false); setAgentSlug(slugifyAgentName(agentName)); }}>Reset slug from name</button><Button type="button" onClick={() => void saveIdentity()} disabled={savingIdentity || !agentName.trim() || !agentSlug.trim()}>{savingIdentity ? "Saving…" : "Save details"}</Button></div></CardContent></Card> : null}
 
@@ -1015,11 +1030,20 @@ export function AgentDetailPageClient({ agent, initialVersions }: { agent: Agent
 
         {activeSection === "conversations" && customerConversationSurface && agent.installation_id ? <AgentConversationHistory agentId={agent.id} installationId={agent.installation_id} /> : null}
 
-        {activeSection === "integrations" && agent.installation_id ? channelSurface ? <InstallationIntegrations agentId={agent.id} installationId={agent.installation_id} personal={executionMode === "system_hosted"} agentName={agent.name} onWebsiteDeploymentStateChange={setWebsiteChatConfigured} /> : <AgentToolIntegrations installationId={agent.installation_id} /> : null}
+        {activeSection === "integrations" && agent.installation_id ? channelSurface ? <InstallationIntegrations installationId={agent.installation_id} personal={executionMode === "system_hosted"} agentName={agent.name} /> : <AgentToolIntegrations installationId={agent.installation_id} /> : null}
 
-        {activeSection === "website" && customerConversationSurface && agent.installation_id ? <WebsiteChatDeployments agentId={agent.id} installationId={agent.installation_id} agentName={agent.name} onClose={() => selectSection("overview")} /> : null}
+        {activeSection === "website" && customerConversationSurface && agent.installation_id ? <div className="space-y-4">
+          <AgentDeploymentLifecycle agent={agent} versions={versions} onVersionsChange={setVersions} refreshKey={deploymentRefreshKey} />
+          <Card><CardContent className="flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:justify-between">
+            <div><h2 className="font-semibold text-foreground">Website chat</h2><p className="mt-1 text-sm text-muted-foreground">Manage allowed websites, the embed code, and appearance.</p></div>
+            <Button type="button" variant="outline" onClick={() => setWebsiteChatOpen(true)}>Manage website chat</Button>
+          </CardContent></Card>
+          <WebsiteChatDeployments open={websiteChatOpen} installationId={agent.installation_id} agentName={agent.name} onCreated={() => setDeploymentRefreshKey((current) => current + 1)} onClose={() => setWebsiteChatOpen(false)} />
+        </div> : null}
 
         {activeSection === "deployment" && hostedAgent ? <AgentDeploymentLifecycle agent={agent} versions={versions} onVersionsChange={setVersions} /> : null}
+
+        {activeSection === "activity" && customerConversationSurface ? <AgentDeploymentLifecycle agent={agent} versions={versions} onVersionsChange={setVersions} testOnly /> : null}
 
         {activeSection === "deployment" && channelSurface && agent.installation_id ? <InstallationChannels installationId={agent.installation_id} personal={executionMode === "system_hosted"} /> : null}
 
@@ -1027,7 +1051,7 @@ export function AgentDetailPageClient({ agent, initialVersions }: { agent: Agent
 
         {activeSection === "activity" && agent.installation_id && hostedAgent ? <AgentChatPanel installationId={agent.installation_id} active={installationStatus === "active"} initialModelProvider={modelProvider} initialModel={model} /> : null}
 
-        {activeSection === "behavior" && kasitekHostedAgent ? <AgentWorkflowEditor configuration={baseConfiguration} onChange={handleWorkflowChange} onValidityChange={handleWorkflowValidity} onTestRun={agent.installation_id && installationStatus === "active" ? runWorkflowTest : undefined} /> : null}
+        {activeSection === "behavior" && kasitekHostedAgent ? <details className="rounded-xl border border-border bg-card"><summary className="cursor-pointer list-none px-5 py-4 text-sm font-medium text-foreground marker:hidden">Advanced workflow controls</summary><div className="border-t border-border p-4"><AgentWorkflowEditor configuration={baseConfiguration} onChange={handleWorkflowChange} onValidityChange={handleWorkflowValidity} onTestRun={agent.installation_id && installationStatus === "active" ? runWorkflowTest : undefined} /></div></details> : null}
 
         {activeSection === "models" && executionMode === "system_hosted" && agent.installation_id ? <KasiAiModels installationId={agent.installation_id} /> : null}
 
@@ -1100,8 +1124,8 @@ export function AgentDetailPageClient({ agent, initialVersions }: { agent: Agent
           <Card>
             <CardContent className="space-y-4 p-6">
               <div>
-                <h2 className="text-lg font-semibold text-foreground">Agent behaviour</h2>
-                <p className="mt-1 text-sm text-muted-foreground">Set instructions and runtime limits for this agent.</p>
+                <h2 className="text-lg font-semibold text-foreground">Instructions and limits</h2>
+                <p className="mt-1 text-sm text-muted-foreground">Edit the assistant's purpose, response guidance and execution limits.</p>
               </div>
               <AgentRuntimeLimits value={runtimeLimits} onChange={setRuntimeLimits} />
               <Textarea value={instructions} onChange={(event) => setInstructions(event.target.value)} rows={8} maxLength={200000} className="resize-y font-mono leading-6" aria-label="Agent instructions" />
@@ -1131,18 +1155,6 @@ export function AgentDetailPageClient({ agent, initialVersions }: { agent: Agent
         </>}
           </main>
         </div>
-        <Dialog open={deleteConfirmationOpen} onOpenChange={(open) => {
-          if (!open && busy === null) { setDeleteConfirmationOpen(false); setDeleteConfirmationValue(""); }
-        }}>
-          <DialogContent className="max-w-md border-destructive/30">
-            <div className="flex h-11 w-11 items-center justify-center rounded-full bg-destructive/10 text-destructive"><Trash2 className="h-5 w-5" aria-hidden="true" /></div>
-            <DialogHeader className="mt-4"><DialogTitle>Delete agent permanently?</DialogTitle><DialogDescription>This permanently removes the agent, its versions, installations, conversations, knowledge, credentials, and run history.</DialogDescription></DialogHeader>
-            <p className="mt-4 text-sm text-foreground">Type <code className="rounded bg-secondary px-1.5 py-0.5 font-mono text-xs">{agentName}</code> to continue.</p>
-            <Input autoFocus value={deleteConfirmationValue} onChange={(event) => setDeleteConfirmationValue(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") void confirmDeleteCurrentAgent(); }} className="mt-2" aria-label={`Type ${agentName} to confirm deletion`} placeholder={agentName} />
-            {error ? <p className="mt-3 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive" role="alert">{error}</p> : null}
-            <DialogFooter className="mt-6"><Button type="button" variant="outline" disabled={busy !== null} onClick={() => { setDeleteConfirmationOpen(false); setDeleteConfirmationValue(""); }}>Cancel</Button><Button type="button" variant="destructive" disabled={busy !== null || deleteConfirmationValue !== agentName} onClick={() => void confirmDeleteCurrentAgent()}>{busy === "delete" ? "Deleting…" : "Delete permanently"}</Button></DialogFooter>
-          </DialogContent>
-        </Dialog>
       </div>
     </div>
   );
@@ -1969,7 +1981,7 @@ function IntegrationIcon({ provider, className }: { provider: string; className?
   }
 }
 
-export function InstallationIntegrations({ agentId, installationId, personal, agentName, onWebsiteDeploymentStateChange, gatewaysOnly = false }: { agentId: string; installationId: string; personal: boolean; agentName: string; onWebsiteDeploymentStateChange?: (configured: boolean) => void; gatewaysOnly?: boolean }) {
+export function InstallationIntegrations({ installationId, personal, agentName, gatewaysOnly = false }: { installationId: string; personal: boolean; agentName: string; gatewaysOnly?: boolean }) {
   const [workspaceConnections, setWorkspaceConnections] = useState<WorkspaceConnection[]>([]);
   const [agentConnections, setAgentConnections] = useState<AgentChannelConnection[]>([]);
   const [bindings, setBindings] = useState<AgentChannelBinding[]>([]);
@@ -2006,12 +2018,11 @@ export function InstallationIntegrations({ agentId, installationId, personal, ag
     try {
       const result = await listAgentWebsiteDeployments(installationId);
       setWebsiteDeployments(result.deployments);
-      onWebsiteDeploymentStateChange?.(result.deployments.some((deployment) => deployment.status !== "REVOKED"));
     } catch {
       // Keep the integration card usable if the deployment status request fails.
       setWebsiteDeployments([]);
     }
-  }, [installationId, onWebsiteDeploymentStateChange, personal]);
+  }, [installationId, personal]);
 
   useEffect(() => { void refreshWebsiteDeployments(); }, [refreshWebsiteDeployments]);
 
@@ -2199,7 +2210,7 @@ export function InstallationIntegrations({ agentId, installationId, personal, ag
     <DiscordSetupDialog open={discordSetupOpen} onOpenChange={setDiscordSetupOpen} installationId={installationId} personal={personal} existingConnection={discordConnection} onConnected={() => void refresh()} onDisconnected={() => void refresh()} />
     {whatsappSetupConnection ? <WhatsAppAccessDialog open={whatsappSetupOpen} onOpenChange={setWhatsappSetupOpen} installationId={installationId} workspaceConnection={whatsappSetupConnection} existingConnection={agentChannelFor(whatsappSetupConnection)} onSaved={() => void refresh()} onDisconnected={() => void refresh()} /> : null}
     {socialSetupConnection ? <SocialAgentAccessDialog open={socialSetupOpen} onOpenChange={setSocialSetupOpen} personal={personal} workspaceConnection={socialSetupConnection} existingConnection={agentChannelFor(socialSetupConnection)} onAssign={() => void assignSocial(socialSetupConnection)} onRemove={() => void removeSocial(socialSetupConnection, agentChannelFor(socialSetupConnection))} busy={busy === socialSetupConnection.id} error={socialSetupError} /> : null}
-    {!personal && websiteChatOpen ? <WebsiteChatDeployments agentId={agentId} installationId={installationId} agentName={agentName} onClose={() => { setWebsiteChatOpen(false); void refreshWebsiteDeployments(); }} /> : null}
+    {!personal && websiteChatOpen ? <WebsiteChatDeployments open={websiteChatOpen} installationId={installationId} agentName={agentName} onCreated={() => void refreshWebsiteDeployments()} onClose={() => { setWebsiteChatOpen(false); void refreshWebsiteDeployments(); }} /> : null}
   </div>;
 }
 
@@ -2283,10 +2294,10 @@ function websiteAppearance(deployment: AgentWebsiteDeployment) {
   return { ...DEFAULT_WEBSITE_APPEARANCE, ...(deployment.appearance || {}) };
 }
 
-function WebsiteChatDeployments({ agentId, installationId, agentName, onClose }: { agentId: string; installationId: string; agentName: string; onClose: () => void }) {
+function WebsiteChatDeployments({ open, installationId, agentName, onCreated, onClose }: { open: boolean; installationId: string; agentName: string; onCreated: () => void; onClose: () => void }) {
   const [deployments, setDeployments] = useState<AgentWebsiteDeployment[]>([]);
   const [origin, setOrigin] = useState("");
-  const [selectedId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [draft, setDraft] = useState<AgentWebsiteDeployment | null>(null);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
@@ -2308,12 +2319,13 @@ function WebsiteChatDeployments({ agentId, installationId, agentName, onClose }:
     }
   }, [installationId]);
 
-  useEffect(() => { void refresh(); }, [refresh]);
+  useEffect(() => { if (open) void refresh(); }, [open, refresh]);
   useEffect(() => {
+    if (!open) return;
     const onKeyDown = (event: KeyboardEvent) => { if (event.key === "Escape") onClose(); };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [onClose]);
+  }, [open, onClose]);
 
   const createDeployment = async () => {
     if (!origin.trim() || creating) return;
@@ -2327,6 +2339,7 @@ function WebsiteChatDeployments({ agentId, installationId, agentName, onClose }:
       });
       setDeployments((current) => [{ ...result.deployment, embedCode: result.embedCode, shareUrl: result.shareUrl }, ...current]);
       setOrigin("");
+      onCreated();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Unable to create Website Chat deployment");
     } finally {
@@ -2336,7 +2349,8 @@ function WebsiteChatDeployments({ agentId, installationId, agentName, onClose }:
 
   const editDeployment = (deployment: AgentWebsiteDeployment) => {
     if (!deployment.id) return;
-    window.location.assign(`/app/agents/${encodeURIComponent(agentId)}/appearance`);
+    setSelectedId(deployment.id);
+    setDraft(deployment);
   };
 
   const saveAppearance = async () => {
@@ -2379,22 +2393,22 @@ function WebsiteChatDeployments({ agentId, installationId, agentName, onClose }:
   const updateAppearance = (changes: Partial<AgentWebsiteDeployment["appearance"]>) => setDraft((current) => current ? { ...current, appearance: { ...websiteAppearance(current), ...changes } } : current);
   const preview = draft ? websiteAppearance(draft) : DEFAULT_WEBSITE_APPEARANCE;
 
-  return <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
+  return <Dialog open={open} onOpenChange={(nextOpen) => { if (!nextOpen) onClose(); }}>
     <DialogContent className="flex max-h-[calc(100svh-2rem)] max-w-3xl flex-col overflow-hidden p-0">
       <div className="flex items-center justify-between gap-4 border-b border-border px-5 py-4">
         <DialogHeader><p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Deployment</p><DialogTitle>Website Chat</DialogTitle></DialogHeader>
       </div>
       <div className="min-h-0 space-y-4 overflow-y-auto p-5 sm:p-6">
-        <p className="text-sm text-muted-foreground">Website chat uses the published version selected in Playground when you add the website. Later draft edits leave that live version unchanged.</p>
+        <p className="text-sm text-muted-foreground">Publishing adds website chat with the tested version. Later changes stay private until you publish again.</p>
         {error ? <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive" role="alert">{error}</p> : null}
-        <div className="flex flex-col gap-2 sm:flex-row"><label className="sr-only" htmlFor="website-chat-origin">Website origin</label><Input id="website-chat-origin" value={origin} onChange={(event) => setOrigin(event.target.value)} placeholder="https://example.com" className="h-10 min-w-0 flex-1" /><Button type="button" disabled={!origin.trim() || creating} onClick={() => void createDeployment()}>{creating ? "Adding…" : "Add origin"}</Button></div>
+        <div className="flex flex-col gap-2 sm:flex-row"><label className="sr-only" htmlFor="website-chat-origin">Website origin</label><Input id="website-chat-origin" value={origin} onChange={(event) => setOrigin(event.target.value)} placeholder="https://example.com" className="h-10 min-w-0 flex-1" /><Button type="button" disabled={!origin.trim() || creating} onClick={() => void createDeployment()}>{creating ? "Publishing…" : "Publish to website"}</Button></div>
         {loading ? <p className="text-sm text-muted-foreground">Loading…</p> : deployments.length ? <div className="space-y-3">{deployments.map((deployment) => {
           const embed = websiteEmbedCode(deployment);
           const shareUrl = deployment.shareUrl && absoluteOrigin(deployment.shareUrl) ? deployment.shareUrl : null;
           return <div key={deployment.id} className="rounded-xl border border-border p-4">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div className="min-w-0"><p className="font-medium text-foreground">{deployment.displayName || agentName}</p><p className="mt-1 truncate font-mono text-xs text-muted-foreground">{deployment.publicId}</p><p className="mt-2 text-xs text-muted-foreground">{deployment.allowedOrigins.join(", ")}</p></div>
-              <div className="flex flex-wrap items-center gap-2"><Badge className="border-border bg-secondary text-muted-foreground">{deployment.status.toLowerCase()}</Badge><Button type="button" variant="outline" size="sm" onClick={() => editDeployment(deployment)}>Appearance</Button><Button type="button" variant="outline" size="sm" disabled={!embed} onClick={() => embed && void navigator.clipboard?.writeText(embed)}><Copy className="mr-1.5 h-3.5 w-3.5" />Copy embed</Button><Button type="button" variant="outline" size="sm" disabled={!shareUrl} onClick={() => shareUrl && void navigator.clipboard?.writeText(shareUrl)}>Copy share link</Button>{deployment.status === "ACTIVE" ? <Button type="button" variant="outline" size="sm" disabled={changingStatus === deployment.id} onClick={() => void changeStatus(deployment, "PAUSED")}>Pause</Button> : null}{deployment.status === "PAUSED" ? <Button type="button" variant="outline" size="sm" disabled={changingStatus === deployment.id} onClick={() => void changeStatus(deployment, "ACTIVE")}>Resume</Button> : null}{deployment.status !== "REVOKED" ? <Button type="button" variant="ghost" size="sm" disabled={changingStatus === deployment.id} onClick={() => void changeStatus(deployment, "REVOKED")}>Revoke</Button> : null}</div>
+              <div className="flex flex-wrap items-center gap-2"><Badge className="border-border bg-secondary text-muted-foreground">{deployment.status.toLowerCase()}</Badge><Button type="button" variant="outline" size="sm" onClick={() => editDeployment(deployment)}>Edit</Button><Button type="button" variant="outline" size="sm" disabled={!embed} onClick={() => embed && void navigator.clipboard?.writeText(embed)}><Copy className="mr-1.5 h-3.5 w-3.5" />Copy embed</Button><Button type="button" variant="outline" size="sm" disabled={!shareUrl} onClick={() => shareUrl && void navigator.clipboard?.writeText(shareUrl)}>Copy share link</Button>{deployment.status === "ACTIVE" ? <Button type="button" variant="outline" size="sm" disabled={changingStatus === deployment.id} onClick={() => void changeStatus(deployment, "PAUSED")}>Pause</Button> : null}{deployment.status === "PAUSED" ? <Button type="button" variant="outline" size="sm" disabled={changingStatus === deployment.id} onClick={() => void changeStatus(deployment, "ACTIVE")}>Resume</Button> : null}{deployment.status !== "REVOKED" ? <Button type="button" variant="ghost" size="sm" disabled={changingStatus === deployment.id} onClick={() => void changeStatus(deployment, "REVOKED")}>Revoke</Button> : null}</div>
             </div>
             {selectedId === deployment.id && draft ? <div className="mt-4 grid gap-4 border-t border-border pt-4 lg:grid-cols-[1fr_220px]">
               <div className="space-y-3">

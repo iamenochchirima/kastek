@@ -26,17 +26,18 @@ version. The provider must also have a healthy reachability projection.
 
 ## Reviewed catalogue and OAuth
 
-The Studio reviewed directory is imported from a pinned external manifest revision as metadata. A
+The reviewed provider directory is imported from a pinned external manifest revision as metadata. A
 catalogue entry is not an active provider until a user connects it. HTTP OAuth entries use the browser
 callback flow with protected-resource metadata, authorization-server discovery, PKCE, dynamic
 client registration, one-use state, and encrypted token storage. The callback then runs the same
 discover, publish, health, and version-pin lifecycle described above.
 
-If a provider does not expose dynamic client registration, Studio accepts a user-supplied OAuth
+If a provider does not expose dynamic client registration, the connection flow accepts a user-supplied OAuth
 client ID and optional secret and uses the same PKCE callback. The secret exists only in encrypted
 one-use OAuth state until token exchange completes.
 
-Studio only opens that manual client form for the explicit dynamic-registration-unsupported result.
+The connection flow opens that manual client form only for the explicit
+dynamic-registration-unsupported result.
 Missing platform OAuth configuration and provider registration failures remain connection errors;
 they must not be presented as a request for user-supplied OAuth credentials.
 

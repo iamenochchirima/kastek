@@ -8,5 +8,5 @@ export default async function AgentFeaturePage({ params }: { params: Promise<{ a
   const { agents } = await fetchApiJson<{ agents: AgentDefinition[] }>("/api/agents");
   const agent = agents.find(candidate => candidate.id === agentId);
   if (!agent) notFound();
-  return <PlannedFeature title={"Workflow editor · " + agent.name} description="The workflow canvas test and deployment flow is not integrated in this initial frontend. Use Studio for supported version editing and playground tests." action={{ href: `/app/studio?agent=${encodeURIComponent(agent.id)}`, label: "Open Studio" }} />;
+  return <PlannedFeature title={"Workflow editor · " + agent.name} description="The workflow canvas is not part of the current setup flow. Configure the agent and test its saved version from the agent page." action={{ href: `/app/agents/${encodeURIComponent(agent.id)}?section=configuration`, label: "Back to configuration" }} />;
 }

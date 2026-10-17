@@ -1,11 +1,8 @@
 # Parked plans
 
-These four plans were moved from `docs/plans/active/` on 2026-09-28. Their contents are retained
-for reference. Each plan now carries a Parked status and its prior state. That is not permission
-to resume work. Confirm the current owner, decisions, code, and tracker item before using one.
+These two plans were moved from `docs/plans/active/` on 2026-09-28. They are not a current task
+queue. Confirm the owner, current decisions, code, and tracker item before resuming either one.
 
-- [Parallel tool execution](AGENT_HERMES_ALIGNED_PARALLEL_TOOL_EXECUTION_PLAN.md)
-- [Session context and compaction](AGENT_HERMES_ALIGNED_SESSION_CONTEXT_AND_COMPACTION_PLAN.md)
 - [Growth project foundation setup](GROWTH_PROJECT_FOUNDATION_SETUP.md)
 - [Railway account migration](RAILWAY_ACCOUNT_MIGRATION_PLAN.md)
 

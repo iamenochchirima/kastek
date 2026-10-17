@@ -24,7 +24,7 @@ tokens, provider credentials, or raw customer payloads into tickets or chat.
 ## Database authorization or tenant-isolation alert
 
 See the detailed
-[Agents database isolation runbook](https://github.com/Kasitek-Labs/kasitek-agents/blob/main/docs/runbooks/database-isolation.md)
+[Agents database isolation runbook](https://github.com/Kasitek-Labs/kastek/blob/main/products/agents/docs/runbooks/database-isolation.md)
 for signal names, staged rollout, disable, and rollback procedures.
 
 1. Check `kasitek.database.authorization_failure.count` and

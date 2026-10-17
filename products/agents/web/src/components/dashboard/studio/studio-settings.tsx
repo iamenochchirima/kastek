@@ -1071,7 +1071,7 @@ function MemorySection({ draft, onDraftChange }: { draft: StudioMemoryDraft; onD
 
 function GatewaysSection({ agent, installationId }: { agent: AgentDefinition; installationId: string | null }) {
   if (!installationId) return <p className="rounded-xl border border-dashed border-border px-4 py-6 text-center text-xs text-muted-foreground">No agent installation.</p>;
-  return <InstallationIntegrations agentId={agent.id} installationId={installationId} personal={agent.execution_mode === "system_hosted"} agentName={agent.name} gatewaysOnly />;
+  return <InstallationIntegrations installationId={installationId} personal={agent.execution_mode === "system_hosted"} agentName={agent.name} gatewaysOnly />;
 }
 
 function SafetySection() {

@@ -3,7 +3,7 @@ import { createBrowserRouter, Navigate, Link, useLoaderData, useRouteLoaderData,
 import { AppShell } from "@/components/platform/app-shell";
 import { LiveInbox } from "@/components/platform/live-inbox";
 import { PersonalDeployments } from "@/components/platform/personal-deployments";
-import { Overview, PlannedFeature } from "@/components/platform/overview";
+import { PlannedFeature } from "@/components/platform/overview";
 import { Landing, SignIn } from "@/components/platform/landing";
 import { WorkspaceAccess, AccountSettings } from "@/components/platform/workspace-access";
 import { getSession, type Session } from "@/lib/session";
@@ -41,7 +41,7 @@ export const router = createBrowserRouter([
   { path: "/signup", element: <SignIn signup /> },
   { path: "/onboarding", Component: WorkspaceAccess, loader: requireSession, errorElement: <RouteError /> },
   { id: "workspace", path: "/app", Component: AppShell, loader: requireWorkspace, errorElement: <RouteError />, children: [
-    { index: true, Component: Overview },
+    { index: true, element: <Navigate to="agents" replace /> },
     { path: "agents/personal", Component: PersonalDeployments },
     { path: "agents/:agentId/appearance", lazy: async () => {
       const page = await import("./screens/agents/[agentId]/appearance/page");
@@ -114,6 +114,6 @@ export const router = createBrowserRouter([
   ] },
   { path: "/agents/*", loader: ({ request }) => { const url = new URL(request.url); redirect(`/app${url.pathname}${url.search}`); } },
   { path: "/studio/*", loader: ({ request }) => { const url = new URL(request.url); redirect(`/app${url.pathname}${url.search}`); } },
-  { path: "/playground", element: <Navigate to="/app/playground" replace /> },
+  { path: "/playground", loader: ({ request }) => { const url = new URL(request.url); redirect(`/app/playground${url.search}`); } },
   { path: "*", Component: PageNotFound },
 ]);

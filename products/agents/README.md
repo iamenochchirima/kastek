@@ -1,4 +1,4 @@
-# KasiTek Agent Platform
+# Kasitek Agents
 
 Development model policy, agreed 2026-10-07: use OpenRouter
 `nvidia/nemotron-3-super-120b-a12b:free` for synthetic local checks. Local
@@ -7,20 +7,25 @@ fallbacks for development checks without the user's approval. Free endpoint
 availability and limits can change; fail visibly rather than substitute a paid model.
 Historical runs retain the model they actually used.
 
-This is the separately deployable Agent Platform service. It owns agent definitions,
-durable run orchestration, conversations, memory, and operational records for the direct
-KasiTek product. It does not query or mutate `kasitek-core` tables; consequential product
-actions will go through authenticated internal contracts exposed by `kasitek-core`.
+Agents provides a shared backend for the public Agents product, Growth, Agencies, and
+authorized API clients. Each product keeps its own interface, permissions, and business
+records. Agents does not query or mutate another product's database.
 
 ## Product direction and current status
 
-The platform supports two planned delivery tracks: hosted API-based agents with short-run or durable execution, and deployment/management of our own filesystem-based personal runtime.
+The target architecture uses self-hosted Restate for business-agent durable execution.
+Personal assistance is one offering and may use connected APIs or an isolated Lina workspace.
+It is not a separate filesystem-agent product.
 
-Use the [current architecture](docs/architecture/agent-platform-architecture.md) and [delivery checklist](docs/plans/agents/AGENT_PLATFORM_DELIVERY_PLAN.md). They replace the older broad rewrite roadmap. Personal runtime development has a [linked checklist](docs/plans/agents/PERSONAL_AGENT_RUNTIME_PLAN.md).
+The [platform architecture](docs/architecture/agent-platform-architecture.md) is the maintained
+target reference. The [implementation status](docs/source-boundary.md) records what this checkout
+does today.
 
-This repository owns the API, database migrations, Temporal worker, MCP gateway, knowledge/memory modules, channel adapters and management UI. The local standalone journey now supports shared sign-in, agent configuration, real model replies, knowledge retrieval, approved tools, website publication and inbox teammate replies. External provider/channel acceptance remains explicit; see [client integration status](docs/source-boundary.md) and the [end-to-end checklist](docs/plans/agents/END_TO_END_IMPLEMENTATION_PLAN.md).
+The current code uses Temporal for durable business-agent runs. Restate and Lina workspace
+integration are not implemented in this checkout. Temporal-based checks describe current code;
+they do not meet the target runtime gate.
 
-Growth and Agency are optional product-tool integrations through authenticated interfaces, not runtime or database dependencies for every agent. Shared login comes from Labs Keycloak; Analytics uses its configured ingestion endpoint, and telemetry uses the Labs Collector. Agents owns its organization authorization and sessions.
+Growth and Agencies use the shared backend from their own product experiences. Each product owns its business records and authorization; Agents calls their authenticated APIs instead of reading their databases. Shared login comes from Labs Keycloak. Analytics uses its configured ingestion endpoint, and telemetry uses the Labs Collector. Agents owns its organization authorization and sessions.
 
 ## Source layout
 
@@ -61,13 +66,14 @@ dedicated Temporal Cloud development namespace. Set `TEMPORAL_MODE=local`,
 Temporal Server is needed. A hosted runtime needs a dedicated namespace and task queue; configuring
 or changing that runtime is separate work.
 
-For the local management app, start PostgreSQL and Labs identity, then the local
+For local agent testing, start PostgreSQL and Labs identity, then the local
 Temporal server, API, worker and `pnpm dev` in separate terminals. The current
-Playground setup uses Temporal namespace `default` and queue
-`kasitek-agents-initial-ui`. Keep local secrets in the ignored `api/.env`. Use
+test execution path uses Temporal namespace `default` and queue
+`kasitek-agents-initial-ui`; it is a transitional runtime, not acceptance of the
+Restate architecture target. Keep local secrets in the ignored `api/.env`. Use
 `http://localhost:3100` consistently with `AGENTS_PUBLIC_URL`; starting login on
 `127.0.0.1` and returning to `localhost` loses the login transaction cookie.
-Check API `/health/live` and `/health/ready` before opening Studio.
+Check API `/health/live` and `/health/ready` before opening `/app/agents`.
 
 For a fully local durable setup, configure these non-secret values in `api/.env`:
 
@@ -114,7 +120,7 @@ the Temporal server and worker. The MCP gateway is needed only for external MCP
 clients. Website chat and Discord have separate startup instructions below.
 
 Agent Knowledge creates agent-scoped sources, so the same facts are available in
-Playground and separately published website installations. Conversation memory
+Test and separately published website installations. Conversation memory
 keeps its own scope. Add page reads one URL through the existing bounded fetch
 and indexing path without a crawler key. To try it with the included sample, add
 `http://localhost:3200/faq.txt`, then ask website chat about the return period.
@@ -153,10 +159,6 @@ catalog contents.
 
 The machine-readable integration guide for external MCP clients is in
 [`docs/mcp-integration.md`](docs/mcp-integration.md).
-The rollout-focused migration note is in
-[`docs/mcp-2026-migration.md`](docs/mcp-2026-migration.md).
-The runtime/Core ownership seam is documented in
-[`docs/architecture/agent-runtime-host-boundary.md`](docs/architecture/agent-runtime-host-boundary.md).
 The [technical documentation index](docs/README.md) links to the Agent architecture, operations,
 and runbooks.
 
@@ -177,7 +179,7 @@ blocked until the Developers authentication/setup flow is wired and tested.
 The capability catalog used by MCP discovery, public tool discovery, permission UI, audit
 descriptions, and agent documentation is generated from the runtime manifest registry. Regenerate
 the checked-in catalog with `pnpm generate:capabilities`; the output is
-[`docs/generated-capabilities.md`](docs/generated-capabilities.md).
+[`api/generated/capabilities.md`](api/generated/capabilities.md).
 
 Approval decisions have a separate bounded per-organization/run/actor fixed-window guard. Tune it
 with `APPROVAL_DECISION_RATE_LIMIT_PER_WINDOW`, `APPROVAL_DECISION_RATE_LIMIT_WINDOW_MS`, and
@@ -323,10 +325,13 @@ adapters are KasiTek Calendar, Google Calendar, Gmail, Google Drive, Tavily Sear
 
 ## Management UI
 
-The Next.js app is in `web` and contains the `/agents/**`, `/studio`,
-`/studio/new`, and `/playground` routes. Growth retains its copy until the separate cleanup is
-completed. Authentication and API integrations in the relocated app remain transitional; this
-source move does not configure a standalone production service. See [the source boundary](docs/source-boundary.md).
+The React, TypeScript, Vite and React Router app is in `web`. The current
+customer journey starts at `/app/agents`, creates a support assistant at
+`/app/agents/new`, then uses the agent's Configuration, Test and Website sections.
+Old `/agents`, `/studio` and `/playground` bookmarks remain compatibility routes
+that redirect into the agent experience. Authentication and API integrations
+remain a standalone service boundary; this source does not configure a production
+deployment. See [the source boundary](docs/source-boundary.md).
 
 Use Node `24.15.0` from the repository `.nvmrc` and pnpm `10.30.1`.
 
@@ -348,9 +353,8 @@ the relocated source currently reports existing React-hook lint errors.
 
 ## Simple and durable agent runs
 
-In Studio Settings → Runtime, choose Simple or Durable, save the version, then
-use that version in Playground. The version keeps the execution choice. Simple
-Playground and authenticated `/v1/runs` requests use the shared agent harness
+Existing versions retain their saved Simple or Durable execution choice. Simple
+agent tests and authenticated `/v1/runs` requests use the shared agent harness
 inside the API process, without a Temporal workflow. Durability remains explicit
 for approvals, waits and workflow graphs. Both paths save their run evidence.
 
@@ -368,7 +372,7 @@ or customer websites. Agents-owned website replies use the shared simple/durable
 
 ### Invoke an agent from your server
 
-In Agent details → Settings → Agent API keys, create a labelled key and choose
+In agent details → Settings → API keys, create a labelled key and choose
 its expiry. Copy it immediately; refresh/hiding clears the displayed value.
 The default expiry is 90 days, with a maximum of 365. Save the key in your server's
 secret configuration. It is never a model-provider key and never belongs in a
@@ -411,7 +415,7 @@ internal `/v1` interface. Website customer sessions use their separate scoped
 visitor admission below.
 
 
-Studio shows a durable workflow's saved wait state and offers Send event for its
+The agent's Test section shows a durable workflow's saved wait state and offers Send event for its
 expected event key. Workspace write permission is required. A mismatched key
 returns 409 and does not signal the run. A real local workflow survived worker
 restart and resumed through this control; its model reply and terminal state
@@ -420,11 +424,11 @@ part of the tools implementation stage.
 
 ### Local website chat and inbox
 
-For a custom customer-service agent, publish its Playground version, open Agent
-details → Website chat, add the sample website origin `http://localhost:3200`,
-then copy the embed. Each website has an independent live installation pinned to
-that published version. Pause/resume acts on backend state. Later draft edits do
-not change the live version.
+For a custom customer-service agent, test its saved version, open the agent's
+Deploy → Website section, and explicitly publish to the sample website origin
+`http://localhost:3200`. Copy the embed to try it. Each website has an independent
+live installation pinned to the tested version. Pause/resume acts on backend
+state. Later draft edits do not change the live version.
 
 Run the included sample separately from the management app:
 
@@ -445,12 +449,12 @@ lifecycle cursors and saved history. Real visitor API/SSE replies, browser teamm
 controls, embedded browser submission, refresh continuity and private-note
 isolation passed locally. Temporary failures display a readable error; bounded
 streams and periodic history reload recover replies after an interruption. Share links, voice and uploads
-are not enabled by this slice. See the end-to-end checklist for external setup and
-remaining acceptance.
+are not enabled by this slice. See the [implementation status](docs/source-boundary.md)
+for current acceptance limits.
 
 ### Reviewed remote MCP tool results
 
-Open Agent Tools → Remote MCP, discover a provider and check its health. Before
+Open the agent's Configuration → Tools → Remote MCP, discover a provider and check its health. Before
 publishing the discovered revision, enter only the top-level result fields the
 agent needs, such as `reference,status`. Publication stores those selections in
 that immutable provider revision. Pin the published revision to a new agent

@@ -22,7 +22,7 @@ From the repository root, run the API in a separate terminal:
 pnpm dev:agents-api
 ```
 
-For playground execution, the retained runtime also needs a Temporal server and
+For agent testing, the retained runtime also needs a Temporal server and
 worker. Set `TEMPORAL_ENABLED=true`, the server address, namespace and task queue
 in the backend `.env`, then start the worker in another terminal:
 
@@ -41,21 +41,30 @@ alone does not establish that execution is ready.
 ## Routes and state
 
 - / is the public landing page; /login and /signup enter backend-owned shared login.
-- /app is the authenticated shell, with agent screens under /app/agents, /app/studio and /app/playground.
-- Existing /agents and /studio bookmarks redirect into /app.
+- /app is the authenticated shell and redirects to /app/agents. Agents, Inbox, Knowledge and Settings are the primary navigation destinations.
+- Create a support assistant from /app/agents/new. It saves a customer-service agent with a private test target; it does not create a website deployment. Choose a model and configure sources/tools from the agent's Configuration sections, test privately, then publish through Website.
+- Canonical agent destinations use /app/agents/:agentId with section=configuration, section=test and section=deploy. Existing detail-section values remain accepted.
+- Existing /agents and /studio bookmarks redirect into /app. /app/studio/new redirects to /app/agents/new; /app/studio?agent=… and /app/playground?agent=… open that agent's Test section. Personal and external records remain available under Other agent records; /app/agents/personal remains supported.
 - /onboarding creates or selects a permitted workspace before agent screens load.
 - Settings shows the account/workspace and provides logout. Team administration,
-  Knowledge, Connections, Usage and Inbox retain pending states. Personal deployments are labelled planned under Agents and have a separate
-  explanation page at /app/agents/personal.
+  Connections and Usage remain available by direct route while their product flows are pending.
 
 The session loader uses GET /api/auth/me from the standalone Agents backend. Local
 password login, workspace onboarding, dashboard access and logout are verified.
 The initial /api/agents facade now uses real session/membership admission and the
-existing Agents backend handlers. Agent creation, Studio reopening after refresh
-and workspace listing are verified. Other inherited integration endpoints still
-need review. Vite does not manufacture a session or inject service credentials.
-With an absent backend, protected routes display a connection error. Actual model
-execution and streaming/history acceptance remain unverified.
+existing Agents backend handlers. The support-assistant creation contract keeps
+the customer-service audience and creates only a private test installation; the
+website publisher creates Live when the user explicitly publishes. Other
+inherited integration endpoints still need review. Vite does not manufacture a
+session or inject service credentials.
+With an absent backend, protected routes display a connection error. A real
+OpenRouter reply, stream recovery, and history reload were verified in the
+earlier local acceptance recorded in the end-to-end plan. The newer disposable UI
+acceptance used a separate workspace without a provider credential. Its Test run
+ended with `MODEL_CREDENTIAL_MISSING`. Treat that run as a setup error, not a
+successful model reply. Its Live preflight exposed missing default binding
+metadata in website creation; that path now initializes the ready default binding,
+with an authenticated preflight/promotion rerun still pending.
 
 ## Normal checks
 
@@ -63,6 +72,7 @@ execution and streaming/history acceptance remain unverified.
 pnpm --filter @kasitek/agent-platform typecheck
 pnpm --filter @kasitek/agent-platform build
 pnpm --filter @kasitek/agent-platform test:studio
+pnpm --filter @kasitek/agent-platform test:agent-ui
 pnpm --filter @kasitek/agent-platform lint
 ```
 
@@ -102,16 +112,19 @@ active. Verify the real run stream and reconnect behavior when model credentials
 are configured. `pnpm preview` remains available for local build inspection;
 there is no production `vite preview` start script.
 
-See the [frontend checklist](../docs/plans/agents/FRONTEND_INITIAL_IMPLEMENTATION_PLAN.md) for progress and remaining integration work.
+See the [current implementation status](../docs/source-boundary.md) for known verification limits.
 
 ## Editing and testing a saved agent
 
-Open the agent in Studio, edit Behavior/Runtime settings and save a draft. Select
-**Use version in Playground** to publish and pin that version for testing. Saving
-alone does not change the playground installation. Studio requires the selected
-version to match the playground before sending a message, and also checks runtime
-readiness. Live promotion/rollback controls are pending in this initial frontend.
+Open an agent and use **Configuration** to edit its instructions, model, knowledge,
+and permitted tools. Save a draft, then choose that saved version in **Test** and
+select **Use in Test** before sending a message. Saving alone does not change the
+test target. Test checks that its selected version is active on the private test
+installation and that the runtime is ready. The **Website** section shows Test and
+Live versions together. The backend checks readiness and workspace roles before
+Live preflight, publish, or rollback. Website chat settings remain
+behind **Manage website chat**.
 
-The playground model picker changes only the saved conversation's model. **Use
+The test model picker changes only the saved conversation's model. **Use
 agent model** clears that override and follows the agent version. Readiness checks
 use the conversation selection; changing providers does not configure credentials.

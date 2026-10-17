@@ -824,6 +824,8 @@ export type AgentDefinition = {
   installation_status?: string | null;
   installation_settings?: Record<string, unknown> | null;
   installation_version_id?: string | null;
+  live_installation_id?: string | null;
+  live_installation_status?: string | null;
   published_version_id?: string | null;
   version_number?: number | null;
   published_version_number?: number | null;

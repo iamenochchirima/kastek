@@ -25,6 +25,9 @@ function setup(role = "member") {
   app.get("/v1/agents", request => browserAuthContext(request) ?? { machineRoute: true });
   app.post("/v1/agents", request => browserAuthContext(request));
   app.post("/v1/models/catalog", request => browserAuthContext(request));
+  app.post("/v1/installations/:installationId/preflight", request => browserAuthContext(request));
+  app.post("/v1/installations/:installationId/promote", request => browserAuthContext(request));
+  app.post("/v1/installations/:installationId/rollback", request => browserAuthContext(request));
   app.post("/v1/runs/:runId/retry", request => browserAuthContext(request));
   app.post("/v1/runs/:runId/cancel", request => browserAuthContext(request));
   app.post("/v1/runs/:runId/external-event", request => browserAuthContext(request));
@@ -183,6 +186,23 @@ describe("standalone browser agent admission", () => {
       expect((await viewer.inject({ method, url, headers, payload: {} })).statusCode).toBe(403);
       expect((await app.inject({ method, url, headers: { ...headers, origin: "https://foreign.example" }, payload: {} })).statusCode).toBe(403);
     }
+  });
+  it("admits Live deployment checks and changes only to same-origin workspace members", async () => {
+    const { app } = setup(), viewer = setup("viewer").app;
+    const actions = [
+      ["preflight", "agents:read"],
+      ["promote", "agents:write"],
+      ["rollback", "agents:write"],
+    ] as const;
+    for (const [action, scope] of actions) {
+      const url = `/api/agents/installations/live-1/${action}`;
+      const response = await app.inject({ method: "POST", url, headers, payload: {} });
+      expect(response.statusCode).toBe(200);
+      expect(response.json().scopes).toContain(scope);
+      if (action !== "preflight") expect((await viewer.inject({ method: "POST", url, headers, payload: {} })).statusCode).toBe(403);
+      expect((await app.inject({ method: "POST", url, headers: { ...headers, origin: "https://foreign.example" }, payload: {} })).statusCode).toBe(403);
+    }
+    expect((await app.inject({ method: "POST", url: "/api/agents/installations/live-1/promote", headers: { origin: headers.origin }, payload: {} })).statusCode).toBe(401);
   });
   it("rechecks streaming authorization and rejects changed workspace context", async () => {
     const { app } = setup();

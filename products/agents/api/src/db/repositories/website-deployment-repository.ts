@@ -30,13 +30,15 @@ export class WebsiteDeploymentRepository {
     return withTransaction(this.pool, async client => {
       const publicId = randomUUID();
       // Validate the source and its published version in the same transaction that pins it.
+      // The new Live installation starts with the same ready default binding
+      // used by other hosted-agent creation paths. Model credentials are checked
+      // separately at execution time and are never copied from the Test target.
       const installation = await client.query<{ id: string }>(
         `INSERT INTO agent_installations
           (organization_id, agent_definition_id, agent_version_id, scope_type, scope_id,
            execution_mode, release_mode, settings, created_by)
          SELECT source.organization_id, source.agent_definition_id, source.agent_version_id,
-                'organization', $4, 'kasitek_hosted', 'pinned',
-                '{"environment":"live","source":"website"}'::jsonb, $3
+                'organization', $4, 'kasitek_hosted', 'pinned', $5::jsonb, $3
          FROM agent_installations source
          JOIN agent_definitions definition ON definition.id = source.agent_definition_id
          JOIN agent_versions version ON version.id = source.agent_version_id
@@ -44,9 +46,20 @@ export class WebsiteDeploymentRepository {
            AND source.execution_mode = 'kasitek_hosted' AND definition.protected = false
            AND definition.status = 'active' AND definition.agent_audience = 'customer_service'
            AND version.status = 'published' AND version.agent_definition_id = definition.id
-         RETURNING id`, [input.organizationId, input.sourceInstallationId, input.actorId, `website:${publicId}`]);
+         RETURNING id`, [
+          input.organizationId,
+          input.sourceInstallationId,
+          input.actorId,
+          `website:${publicId}`,
+          JSON.stringify({
+            environment: "live",
+            source: "website",
+            bindingRevision: "system-default",
+            bindingStatus: "ready",
+          }),
+        ]);
       const live = installation.rows[0];
-      if (!live) throw Object.assign(new Error("Publish a customer-service agent version to Playground first"), { statusCode: 409 });
+      if (!live) throw Object.assign(new Error("Make a tested customer-service agent version available first"), { statusCode: 409 });
       await client.query("INSERT INTO agent_principals (installation_id, organization_id) VALUES ($1, $2)", [live.id, input.organizationId]);
       const connection = await client.query<{ id: string }>(
         `INSERT INTO channel_connections (organization_id, installation_id, channel_type, channel_key, metadata, created_by)

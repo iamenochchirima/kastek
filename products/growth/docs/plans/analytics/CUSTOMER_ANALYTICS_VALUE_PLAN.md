@@ -392,6 +392,6 @@ Post-release review date: TBD, within 14 days of production release
 ## Related documents
 
 - [Customer analytics architecture](../../internal/architecture/customer-analytics.md)
-- [Agent platform architecture audit](https://github.com/Kasitek-Labs/kasitek-agents/blob/main/docs/architecture/agent-platform-architecture-audit.md)
+- [Agents target architecture summary](https://github.com/Kasitek-Labs/kastek/blob/main/products/agents/docs/architecture/agent-platform-architecture.md)
 - [Analytics metric definitions](https://github.com/Kasitek-Labs/kasitek-labs/tree/main/services/analytics/metrics)
 - [Feature and platform release process](../../internal/operations/release-process.md)

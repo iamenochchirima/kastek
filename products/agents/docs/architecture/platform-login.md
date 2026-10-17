@@ -66,16 +66,15 @@ so the frontend can leave the revoked session and report incomplete shared logou
 Without OIDC configuration, auth endpoints report 503 rather than creating a
 temporary session. Existing internal service authentication remains independent.
 
-## Next integration steps
+## Remaining identity work
 
-1. Add signed backchannel logout handling. Initial password login, onboarding,
-   account actions and activity integration are implemented. Verify multiple
-   workspace switching and all-device provider logout in the browser.
-2. Finish the initial execution path and prove a real playground response,
-   stream/reconnect and reopening history. Saved-agent creation and reopening are
-   verified; they do not establish execution acceptance.
-3. Review additional inherited screen endpoints before expanding the explicit
-   browser route manifest. Preserve independent internal machine authentication.
+1. Add signed backchannel logout handling.
+2. Verify workspace switching and provider-wide logout in the browser.
+3. Review inherited screen endpoints before expanding the browser route manifest.
+4. Keep internal machine authentication independent from browser sessions.
+
+The current Test journey and its execution gates are recorded in the
+[implementation status](../source-boundary.md).
 
 ## Authenticated agent routes
 
@@ -178,5 +177,4 @@ Implementation references: [openid-client](https://github.com/panva/openid-clien
 [Keycloak registration prompt](https://www.keycloak.org/docs/latest/release_notes/index),
 [Keycloak logout parameters](https://www.keycloak.org/docs/24.0.5/securing_apps/).
 
-See the [frontend checklist](../plans/agents/FRONTEND_INITIAL_IMPLEMENTATION_PLAN.md)
-and [platform delivery checklist](../plans/agents/AGENT_PLATFORM_DELIVERY_PLAN.md).
+See the [current implementation status](../source-boundary.md).

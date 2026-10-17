@@ -23,7 +23,7 @@ availability, feature policy, and approval requirements.
 
 The versioned capability catalog, including permission scopes, resource selectors, audit
 classification, redaction metadata, and JSON Schemas, is generated at
-[`docs/generated-capabilities.md`](generated-capabilities.md). Discovery responses are projections
+[`api/generated/capabilities.md`](../api/generated/capabilities.md). Discovery responses are projections
 of the same registry, so a capability is not separately redefined for MCP or the Agent UI.
 
 The management UI can preflight the same projection with `GET /v1/external-agents/catalog` before

@@ -1,11 +1,12 @@
 import { redirect } from "@/lib/navigation";
-import { getSession } from "@/lib/session";
-import { StudioAgentCreationPage } from "@/components/dashboard/studio/studio-agent-creation-page";
 
-export const metadata = { title: "Create agent | Studio | KasiTek" };
+export const metadata = { title: "Create agent | KasiTek" };
 
-export default async function StudioAgentCreationRoute() {
-  const session = await getSession();
-  if (!session?.user?.id) redirect("/login");
-  return <StudioAgentCreationPage />;
+export default async function StudioAgentCreationRoute({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
+  const queryParams = new URLSearchParams();
+  for (const [key, value] of Object.entries(await searchParams)) {
+    if (value !== undefined) queryParams.set(key, value);
+  }
+  const query = queryParams.toString();
+  redirect(`/app/agents/new${query ? `?${query}` : ""}`);
 }

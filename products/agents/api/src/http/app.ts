@@ -3277,7 +3277,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       identity: {
         displayName: input.name,
         purpose: input.description,
-        audience: "personal",
+        audience: "customer_service",
       },
       behavior: { instructions: input.instructions },
       model: {

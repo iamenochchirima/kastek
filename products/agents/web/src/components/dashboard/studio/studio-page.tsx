@@ -1248,7 +1248,7 @@ function StudioWorkspace({ agent, onBack, surface }: { agent: AgentDefinition; o
           {activeRunId ? <Button type="button" variant="outline" size="sm" onClick={() => void cancelRun()} disabled={cancelling}><X className="mr-1.5 size-3.5" />{cancelling ? "Cancelling…" : "Cancel"}</Button> : null}
           {!activeRunId && selectedRun && ["failed", "cancelled", "expired"].includes(selectedRun.status) ? <Button type="button" variant="outline" size="sm" onClick={() => void retryRun()} disabled={retrying}><ArrowRight className="mr-1.5 size-3.5" />{retrying ? "Retrying…" : "Retry"}</Button> : null}
           {selectedRun && ["awaiting_external_event", "awaiting_human"].includes(selectedRun.status) ? <AgentRunActions runId={selectedRun.id} status={selectedRun.status} waitingFor={typeof selectedRun.output?.waitingFor === "string" ? selectedRun.output.waitingFor : undefined} showCancel={!activeRunId} /> : null}
-          <AgentDeploymentLifecycle agent={agent} versions={versions} selectedVersionId={selectedVersionId} onVersionsChange={setVersions} onStatusChange={setDeploymentStatus} compact playgroundOnly />
+          <AgentDeploymentLifecycle agent={agent} versions={versions} selectedVersionId={selectedVersionId} onVersionsChange={setVersions} onStatusChange={setDeploymentStatus} compact testOnly />
         </div>
       </header>
 

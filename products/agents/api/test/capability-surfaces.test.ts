@@ -19,7 +19,7 @@ describe("generated capability surfaces", () => {
       projection: "workspace_connections",
       mode: "inline",
     });
-    const generated = await readFile(new URL("../../docs/generated-capabilities.md", import.meta.url), "utf8");
+    const generated = await readFile(new URL("../generated/capabilities.md", import.meta.url), "utf8");
     expect(generated).toBe(generateCapabilityDocumentation(manifests));
   });
 });

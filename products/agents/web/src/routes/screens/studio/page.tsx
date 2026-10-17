@@ -2,7 +2,6 @@ import { getSession } from "@/lib/session";
 import { fetchApiJson } from "@/lib/api-client";
 import type { AgentDefinition } from "@/lib/agent-platform";
 import { redirect } from "@/lib/navigation";
-import { StudioPage } from "@/components/dashboard/studio/studio-page";
 
 export const metadata = { title: "Studio | KasiTek" };
 
@@ -22,5 +21,6 @@ export default async function StudioRoute({
     ? result.agents.find((candidate) => candidate.installation_id === installationId)?.id
     : undefined);
 
-  return <StudioPage initialAgents={result.agents} initialAgentId={returnAgentId} agentsUnavailable={result.unavailable} />;
+  if (!returnAgentId) redirect("/agents");
+  redirect(`/agents/${encodeURIComponent(returnAgentId)}?section=test`);
 }

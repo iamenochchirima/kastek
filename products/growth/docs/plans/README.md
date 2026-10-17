@@ -26,9 +26,10 @@ and verification evidence. When that program is complete:
 3. Move the file into `completed/`.
 4. Remove stale navigation and references.
 
-Exploration and research belong in the owning product repository or a scoped Growth planning
-directory such as `analytics/`. Current Agent Platform plans and research live in the
-[Agents repository](https://github.com/Kasitek-Labs/kasitek-agents/tree/main/docs/plans/agents).
+Exploration and research belong in the owning product's Stash project or a scoped Growth planning
+directory such as `analytics/`. The current Agents architecture and implementation plan live in
+the Kasitek Agents Stash project. The repository keeps the [architecture summary](../../../agents/docs/architecture/agent-platform-architecture.md)
+and [implementation status](../../../agents/docs/source-boundary.md).
 Do not move a parked plan back into active use simply because a related task resumes; reconcile
 it with the current issue and code first.
 

@@ -74,7 +74,7 @@ provider publication is preserved when another target fails or becomes indetermi
 ## Gateway profiles
 
 Profiles are explicit in the
-[Agents media profile registry](https://github.com/Kasitek-Labs/kasitek-agents/blob/main/src/media/profiles.ts)
+[Agents media profile registry](https://github.com/Kasitek-Labs/kastek/blob/main/products/agents/api/src/media/profiles.ts)
 and are evaluated before delivery:
 
 | Gateway | Native handling | Fallback |

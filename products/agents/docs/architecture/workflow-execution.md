@@ -6,6 +6,8 @@ last_reviewed: 2026-09-01
 
 # Agent workflow execution
 
+This document describes the current Temporal implementation. The target architecture selects self-hosted Restate for business-agent durable execution. See the [platform architecture](agent-platform-architecture.md).
+
 Hosted workflow runs are coordinated by a Temporal workflow and execute runtime work in the
 Agents worker. PostgreSQL stores run state, ordered steps, model and tool lifecycle records, run
 budgets, and workflow node checkpoints.
@@ -159,7 +161,7 @@ not publish an authoritative limit. Unknown capacity remains a typed fail-closed
 telemetry preserves queue delay, prompt/prefill time-to-first-token, total provider latency, output
 throughput, and the context measurement basis in the same durable read model. That read model keeps
 current context occupancy, cumulative provider usage, and the configured run-token budget as
-separate values; the Playground does not substitute one for another.
+separate values; the Test UI does not substitute one for another.
 
 ## Durable session transcript
 

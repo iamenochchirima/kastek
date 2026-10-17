@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { agentVersionOptionLabel } from "./agent-version-state";
 import {
   deployAgentInstallation,
   ensureKasiAiLive,
@@ -28,8 +29,9 @@ type AgentDeploymentLifecycleProps = {
   selectedVersionId?: string | null;
   onVersionsChange?: (versions: AgentVersion[]) => void;
   onStatusChange?: (status: AgentDeploymentStatus | null) => void;
+  refreshKey?: number;
   compact?: boolean;
-  playgroundOnly?: boolean;
+  testOnly?: boolean;
 };
 
 function deploymentLabel(status: AgentDeploymentStatus | null, loading: boolean): string {
@@ -59,28 +61,30 @@ export function AgentDeploymentLifecycle({
   selectedVersionId,
   onVersionsChange,
   onStatusChange,
+  refreshKey = 0,
   compact = false,
-  playgroundOnly = false,
+  testOnly = false,
 }: AgentDeploymentLifecycleProps) {
   const [status, setStatus] = useState<AgentDeploymentStatus | null>(null);
   const [loading, setLoading] = useState(true);
-  const [busy, setBusy] = useState<"playground" | "preflight" | "promote" | "rollback" | null>(null);
+  const [busy, setBusy] = useState<"test" | "preflight" | "promote" | "rollback" | null>(null);
   const [preflight, setPreflight] = useState<AgentDeploymentPreflight | null>(null);
   const [promotionOpen, setPromotionOpen] = useState(false);
   const [rollbackOpen, setRollbackOpen] = useState(false);
   const [candidateVersionId, setCandidateVersionId] = useState(selectedVersionId ?? versions[0]?.id ?? "");
+  const availableVersions = useMemo(() => versions.filter((version) => version.status !== "retired"), [versions]);
 
   useEffect(() => {
     setCandidateVersionId((current) => {
-      if (selectedVersionId) return selectedVersionId;
-      if (current && versions.some((version) => version.id === current)) return current;
-      return versions[0]?.id ?? "";
+      if (selectedVersionId && availableVersions.some((version) => version.id === selectedVersionId)) return selectedVersionId;
+      if (current && availableVersions.some((version) => version.id === current)) return current;
+      return availableVersions[0]?.id ?? "";
     });
-  }, [selectedVersionId, versions]);
+  }, [availableVersions, selectedVersionId]);
 
   const selectedVersion = useMemo(
-    () => versions.find((version) => version.id === candidateVersionId) ?? versions[0] ?? null,
-    [candidateVersionId, versions],
+    () => availableVersions.find((version) => version.id === candidateVersionId) ?? availableVersions[0] ?? null,
+    [availableVersions, candidateVersionId],
   );
 
   const refresh = useCallback(async () => {
@@ -101,7 +105,7 @@ export function AgentDeploymentLifecycle({
 
   useEffect(() => {
     void refresh().catch((cause) => toast.error(cause instanceof Error ? cause.message : "Unable to load deployment status"));
-  }, [candidateVersionId, refresh]);
+  }, [refresh, refreshKey]);
 
   const publishCandidate = useCallback(async (version: AgentVersion): Promise<AgentVersion> => {
     if (version.status !== "draft") return version;
@@ -111,22 +115,22 @@ export function AgentDeploymentLifecycle({
     return published;
   }, [agent.id, onVersionsChange, versions]);
 
-  const updatePlayground = async () => {
+  const updateTestVersion = async () => {
     if (!selectedVersion || busy) return;
-    setBusy("playground");
+    setBusy("test");
     try {
       const candidate = await publishCandidate(selectedVersion);
       const latest = await refresh();
       const sourceInstallationId = latest?.playground.installationId;
-      if (!sourceInstallationId) throw new Error("Playground is not available for this agent");
+      if (!sourceInstallationId) throw new Error("The test installation is not available for this agent");
       const currentVersionId = latest.playground.version?.versionId;
       if (currentVersionId !== candidate.id) {
         await deployAgentInstallation(sourceInstallationId, candidate.id, currentVersionId ?? undefined);
       }
       await refresh();
-      toast.success("Playground updated");
+      toast.success("Test version updated");
     } catch (cause) {
-      toast.error(cause instanceof Error ? cause.message : "Unable to update Playground");
+      toast.error(cause instanceof Error ? cause.message : "Unable to update the test version");
     } finally {
       setBusy(null);
     }
@@ -139,7 +143,7 @@ export function AgentDeploymentLifecycle({
       const candidate = await publishCandidate(selectedVersion);
       let latest = await refresh();
       const sourceInstallationId = latest?.playground.installationId;
-      if (!sourceInstallationId) throw new Error("Playground is not available for this agent");
+      if (!sourceInstallationId) throw new Error("The test installation is not available for this agent");
       if (latest.playground.version?.versionId !== candidate.id) {
         await deployAgentInstallation(sourceInstallationId, candidate.id, latest.playground.version?.versionId ?? undefined);
         latest = await refresh();
@@ -205,13 +209,19 @@ export function AgentDeploymentLifecycle({
     }
   };
 
-  if (playgroundOnly) {
-    return <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground" aria-live="polite">
-      <span>{loading ? "Checking deployments…" : status ? `Playground ${versionLabel(status.playground.version)} · Live ${versionLabel(status.live.version)}` : "Deployment status unavailable"}</span>
-      <Button type="button" variant="outline" size="sm" onClick={() => void updatePlayground()} disabled={!selectedVersion || loading || busy !== null || !status?.playground.installationId || selectedVersion.id === status.playground.version?.versionId}>
-        {busy === "playground" ? "Updating…" : "Use version in Playground"}
-      </Button>
-      <Button type="button" variant="outline" size="sm" disabled title="Live deployment actions are not connected in this initial frontend">Live deployment pending</Button>
+  if (testOnly) {
+    return <div className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4 sm:flex-row sm:items-end sm:justify-between" aria-live="polite">
+        <label className="block max-w-xs text-xs font-medium text-muted-foreground">Version to test
+          <select value={candidateVersionId} onChange={(event) => setCandidateVersionId(event.target.value)} className="mt-1 h-9 w-full rounded-md border border-border bg-background px-2 text-sm font-medium text-foreground outline-none focus:border-primary" disabled={!availableVersions.length || loading || busy !== null}>
+          {availableVersions.map((version) => <option key={version.id} value={version.id}>{agentVersionOptionLabel(version, status)}</option>)}
+          </select>
+        </label>
+      <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+        <span>{loading ? "Checking version…" : `Test uses v${status?.playground.version?.versionNumber ?? "—"}`}</span>
+        {selectedVersion?.id !== status?.playground.version?.versionId ? <Button type="button" size="sm" onClick={() => void updateTestVersion()} disabled={!selectedVersion || loading || busy !== null || !status?.playground.installationId}>
+          {busy === "test" ? "Updating…" : "Use in Test"}
+        </Button> : null}
+      </div>
     </div>;
   }
 
@@ -238,8 +248,8 @@ export function AgentDeploymentLifecycle({
   </div>;
 
   const controls = <div className="flex flex-wrap items-center gap-2">
-    <Button type="button" variant="outline" size="sm" onClick={() => void updatePlayground()} disabled={!selectedVersion || busy !== null}>
-      <Rocket className="mr-1.5 size-3.5" />{busy === "playground" ? "Updating…" : "Update Playground"}
+    <Button type="button" variant="outline" size="sm" onClick={() => void updateTestVersion()} disabled={!selectedVersion || busy !== null}>
+      <Rocket className="mr-1.5 size-3.5" />{busy === "test" ? "Updating…" : "Update test version"}
     </Button>
     {canPromote ? <Button type="button" size="sm" onClick={() => void preparePromotion()} disabled={busy !== null || loading}>
       <Rocket className="mr-1.5 size-3.5" />{busy === "preflight" ? "Checking…" : "Deploy to Live"}
@@ -254,7 +264,7 @@ export function AgentDeploymentLifecycle({
 
   const summary = <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
     <Badge className={deploymentBadge(status, loading)}>{deploymentLabel(status, loading)}</Badge>
-    <span>Playground {versionLabel(status?.playground.version ?? null)}</span>
+    <span>Test {versionLabel(status?.playground.version ?? null)}</span>
     <span>Live {versionLabel(status?.live.version ?? null)}</span>
   </div>;
 
@@ -264,13 +274,13 @@ export function AgentDeploymentLifecycle({
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-primary">Deployment</p>
-            <h2 className="mt-1 text-lg font-semibold text-foreground">Playground to Live</h2>
-            <p className="mt-1 text-sm text-muted-foreground">Publish a candidate, test it in Playground, then activate the exact version in Live.</p>
+            <h2 className="mt-1 text-lg font-semibold text-foreground">Test and publish</h2>
+            <p className="mt-1 text-sm text-muted-foreground">Test a saved version privately, then publish it to your website when it is ready.</p>
           </div>
           {summary}
         </div>
-        {versions.length ? <label className="block max-w-xs text-xs font-medium text-muted-foreground">Candidate version<select value={candidateVersionId} onChange={(event) => setCandidateVersionId(event.target.value)} className="mt-1 h-9 w-full rounded-md border border-border bg-background px-2 text-sm font-medium text-foreground outline-none focus:border-primary">{versions.map((version) => <option key={version.id} value={version.id}>v{version.version_number} · {version.status}</option>)}</select></label> : null}
-        {status?.state === "blocked" ? <p className="rounded-lg border border-status-attention/30 bg-status-attention-soft px-3 py-2 text-xs text-status-attention">Live or Playground is not ready for promotion.</p> : null}
+        {availableVersions.length ? <label className="block max-w-xs text-xs font-medium text-muted-foreground">Candidate version<select value={candidateVersionId} onChange={(event) => setCandidateVersionId(event.target.value)} className="mt-1 h-9 w-full rounded-md border border-border bg-background px-2 text-sm font-medium text-foreground outline-none focus:border-primary">{availableVersions.map((version) => <option key={version.id} value={version.id}>{agentVersionOptionLabel(version, status)}</option>)}</select></label> : null}
+        {status?.state === "blocked" ? <p className="rounded-lg border border-status-attention/30 bg-status-attention-soft px-3 py-2 text-xs text-status-attention">Test or Live is not ready for publishing.</p> : null}
         {controls}
       </CardContent>
     </Card>}
@@ -281,7 +291,7 @@ export function AgentDeploymentLifecycle({
           <div className="flex items-center justify-between gap-3 rounded-lg border border-border px-3 py-2"><span className="text-muted-foreground">Preflight</span><span className={preflight?.ready ? "font-medium text-status-success" : "font-medium text-status-attention"}>{preflight?.status ?? "Checking"}</span></div>
           {preflight?.candidate ? <div className="flex items-center justify-between gap-3 text-xs"><span className="text-muted-foreground">Candidate</span><span className="font-medium text-foreground">v{preflight.candidate.versionNumber}</span></div> : null}
           {preflight?.current ? <div className="flex items-center justify-between gap-3 text-xs"><span className="text-muted-foreground">Current Live</span><span className="font-medium text-foreground">v{preflight.current.versionNumber}</span></div> : null}
-          {preflight?.blockers.length ? <ul className="space-y-1 rounded-lg border border-status-attention/30 bg-status-attention-soft p-3 text-xs text-status-attention">{preflight.blockers.map((blocker) => <li key={`${blocker.code}:${blocker.detail}`}>{blocker.detail}</li>)}</ul> : <p className="text-xs text-muted-foreground">Only the tested immutable Playground candidate will become Live.</p>}
+          {preflight?.blockers.length ? <ul className="space-y-1 rounded-lg border border-status-attention/30 bg-status-attention-soft p-3 text-xs text-status-attention">{preflight.blockers.map((blocker) => <li key={`${blocker.code}:${blocker.detail}`}>{blocker.detail}</li>)}</ul> : <p className="text-xs text-muted-foreground">Only the tested version will be published.</p>}
         </div>
         <DialogFooter><Button type="button" variant="ghost" onClick={() => setPromotionOpen(false)} disabled={busy !== null}>Cancel</Button><Button type="button" onClick={() => void promote()} disabled={busy !== null || !preflight?.ready}>{busy === "promote" ? "Deploying…" : "Deploy to Live"}</Button></DialogFooter>
       </DialogContent>
@@ -289,7 +299,7 @@ export function AgentDeploymentLifecycle({
     <Dialog open={rollbackOpen} onOpenChange={(open) => { if (!busy) setRollbackOpen(open); }}>
       <DialogContent>
         <DialogHeader><DialogTitle>Rollback Live?</DialogTitle></DialogHeader>
-        <p className="text-sm text-muted-foreground">Restore the previous tested Live version. Playground, conversations, memories, and active runs remain unchanged.</p>
+        <p className="text-sm text-muted-foreground">Restore the previous tested Live version. Conversations, memories, and active runs remain unchanged.</p>
         <DialogFooter><Button type="button" variant="ghost" onClick={() => setRollbackOpen(false)} disabled={busy !== null}>Cancel</Button><Button type="button" variant="destructive" onClick={() => void rollback()} disabled={busy !== null}>{busy === "rollback" ? "Rolling back…" : "Rollback Live"}</Button></DialogFooter>
       </DialogContent>
     </Dialog>
