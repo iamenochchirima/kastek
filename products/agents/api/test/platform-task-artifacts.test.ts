@@ -1,12 +1,14 @@
 import { randomUUID } from "node:crypto";
 import { Pool } from "pg";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { setupPlatformSchema } from "../src/platform/setup";
 import { PlatformStore } from "../src/platform/store";
 import { defaultFaqConfiguration, executionGrantSchema } from "../src/platform/contracts";
 import { beginOperation, finishOperation, settleTask } from "../src/platform/execution";
 import { TaskArtifactStore } from "../src/platform/task-artifacts";
 import { ArtifactStore, type PrivateObjectStore } from "../src/platform/artifacts";
+import { createSandboxExecutor } from "../src/platform/sandbox-executor";
+import type { SandboxManager } from "../src/platform/sandbox";
 
 const dbUrl=process.env.AGENTS_TEST_DATABASE_URL;
 (dbUrl?describe:describe.skip)("task artifact authorization with real PostgreSQL and controlled object transport",()=>{
@@ -66,5 +68,20 @@ const dbUrl=process.env.AGENTS_TEST_DATABASE_URL;
       if(mode==="grant")await pool.query("UPDATE agents_platform.execution_grants SET revoked_at=now() WHERE id=$1",[f.task.grant_id]);
       await expect(artifacts.download(f.account.id,f.organization.id,f.task.id,a.id)).rejects.toMatchObject({code:"ARTIFACT_NOT_FOUND"});
     }
+  });
+  it("never launches analysis after the outer operation deadline expires during an input read",async()=>{
+    const f=await fixture(),artifact=await artifacts.put(f.task.id,f.operationId,input);
+    let entered!:()=>void,release!:(value:any)=>void;
+    const reading=new Promise<void>(resolve=>{entered=resolve;}),blocked=new Promise<any>(resolve=>{release=resolve;});
+    const read=vi.spyOn(TaskArtifactStore.prototype,"readForTask").mockImplementation(async()=>{entered();return blocked;});
+    const manager={analyze:vi.fn(),finalize:vi.fn()} as unknown as SandboxManager;
+    vi.useFakeTimers();
+    try {
+      const execution=createSandboxExecutor(pool,manager,objects)(f.task.id,f.operationId,{code:"print(60)",inputArtifactIds:[artifact.id]});
+      const outcome=expect(execution).rejects.toMatchObject({code:"SANDBOX_OPERATION_TIMEOUT",outcome:"uncertain"});
+      await reading;await vi.advanceTimersByTimeAsync(240000);await outcome;
+      release({artifact,content:input.content});await Promise.resolve();await Promise.resolve();
+      expect(manager.analyze).not.toHaveBeenCalled();expect(manager.finalize).not.toHaveBeenCalled();
+    } finally {read.mockRestore();vi.useRealTimers();}
   });
 });
