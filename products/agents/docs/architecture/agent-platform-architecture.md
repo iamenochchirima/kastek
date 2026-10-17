@@ -439,20 +439,36 @@ implementation is removed. No existing database is migrated or modified.
 
 The connected-knowledge foundation separates mutable import jobs and source policy from sealed
 source revisions and chunks. Imports start private and unapproved. Current organization owners
-approve candidates, change visibility and withdraw sources; importers can inspect and cancel their
-pending work. Publication checks the accepted source generation and job deadline under the
+approve candidates, change visibility and withdraw sources; each revision's importer can inspect
+that candidate and cancel their pending work. Refreshing a source does not give its original
+importer access to another account's candidate. Publication checks the accepted source generation and job deadline under the
 organization lock. A cancelled or withdrawn import cannot seal a late result. Revision bodies use
 private, content-addressed object keys; chunk offsets count UTF-16 text units and bind a text hash.
-These storage contracts do not yet expose document ingestion through the running API.
+The authenticated Knowledge API admits uploads and exact public HTTPS URLs. AgentsKnowledgeImportV1
+runs acquisition, isolated parsing, token-aware chunking, local embedding and atomic index publication.
+Text, Markdown, static HTML and text PDFs are supported. OCR, encrypted PDFs, DOCX, archives,
+authenticated crawling and script-rendered pages are unavailable. Import readiness, owner approval
+and AgentVersion publication are separate actions.
+
+The pinned document runtime uses rootless gVisor with no network, one CPU, 512 MiB of memory,
+no swap and 64 processes. PDF.js, Readability, the tokenizer and the local FP32 BGE model have
+hashed release manifests. The runtime checks installed package bytes, helper/model/tokenizer and
+gVisor bundle hashes before launch, with stat-sensitive digest caching. Older profiles without a
+package manifest remain inspectable for cleanup but cannot launch new inference. Private stage receipts survive worker loss and physical resource
+destruction. A resource reaper runs independently of storage credentials; a separate object reaper
+tracks write intents and repeated deletion tombstones for interrupted uploads. Active sealed
+raw/text objects remain private. Replay stage objects remain available for seven days plus a
+15-minute cleanup allowance.
 
 Capability catalogs pin explicit model aliases, schema digests, resource handles and executable
 adapter releases. Recorded receipts resolve before the live adapter registry, so a catalog change
 cannot alter replay. Evidence manifests retain influencing source, connection and memory policy
 generations separately from model-visible text. Dependency collection deduplicates shared ancestors
-and rejects cycles, missing records and conflicting generations. Runtime adoption and connected
-provider acceptance remain pending until the corresponding execution paths are verified.
+and rejects cycles, missing records and conflicting generations. Native/MCP reads share the
+business operation controller and root budgets. API and worker pin matching executable artifacts;
+recorded receipts resolve before registry lookup. Authenticated GitHub acceptance remains pending.
 
-The versioned AgentsBusinessRunV3 Restate workflow owns repeated model/tool execution. Each task
+The versioned AgentsBusinessRunV4 Restate workflow owns repeated model/tool execution. Each task
 pins its agent configuration and harness release. Ordered conversation turns wait for the preceding
 execution and its recorded result. A short database transaction assigns order and freezes eligible
 history; it does not run the agent loop or hold a lock during external work.
@@ -462,6 +478,9 @@ reviewed pinned skills and complete tool-call/result groups. Each ordinary or co
 request has an immutable context snapshot, digest, source references and memory invalidation fence.
 Recorded compaction reduces older groups while retaining unresolved requests and operation/artifact
 references. Summaries are derived data and never grant authority or prove an effect succeeded.
+Every influencing source/connection/memory dependency survives the summary and child join.
+Once consumed evidence is withdrawn or forgotten, the current task stops incomplete rather than
+discarding its dependency records. A fresh turn can select current evidence and omit invalid history.
 
 Personal semantic/episodic memory uses scoped PostgreSQL records and transactional full-text search.
 Model proposals remain candidates until authenticated management acceptance. Correction uses an
@@ -475,7 +494,7 @@ The trusted executor exposes selected knowledge.search/read, memory.search/propo
 Tool schemas, arguments, current grants, memory fences, time and root usage are checked before
 admission. Model names and prompt instructions cannot grant a tool. The minimal FAQ uses the same
 controller with its optional capabilities disabled. Website publication rejects personal memory,
-memory tools and private skill bindings.
+memory tools, private skill bindings, connected reads and private source revisions.
 
 Operation receipts and per-operation settlement survive retries. A started model request without a
 confirmed receipt becomes uncertain instead of generating again. Expected denials are recorded

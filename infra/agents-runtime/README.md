@@ -109,7 +109,7 @@ References: [HTTP invocation](https://docs.restate.dev/services/invocation/http)
 
 ## Report and automation recovery
 
-Worker registration discovers `AgentsBusinessRunV3` and `AgentsAutomationV1`.
+Worker registration discovers `AgentsBusinessRunV4`, `AgentsAutomationV1` and, when configured, `AgentsKnowledgeImportV1`.
 Use a fresh dedicated development database after schema changes; setup rejects
 an incompatible checksum. Keep immutable worker endpoints for journal replay.
 Do not point old journals at changed workflow/descriptor code.
@@ -245,3 +245,56 @@ The independent reaper stops expired or cancelled allocations. Cleanup failure
 remains visible and is retried; stopping new admission must not stop the reaper
 or discard receipts. Production isolation, capacity and operational certification
 remain separately verified deployment gates.
+
+## Knowledge and connected-read recovery
+
+`AgentsBusinessRunV4` uses harness release `connected-research-v1`.
+`AgentsKnowledgeImportV1` coordinates owner imports separately from task roots.
+Fresh schema bootstrap pins all ordered SQL files; this product does not migrate
+an earlier Agents database. Keep the old database separate when testing a new
+schema release.
+
+Prepare document processing after the gVisor runtime:
+
+```sh
+bash infra/agents-runtime/document-prepare.sh
+```
+
+The preparation step downloads pinned build artifacts and verifies their hashes.
+The execution profile has no network. Its manifest binds the Docker image ID,
+canonical rootfs export, Node hash, package lock, model revision and complete
+gVisor bundle. Digest-specific paths preserve previously accepted profiles.
+Repreparing the same inputs produces the same profile identity. Do not edit a
+cached release or retarget its artifact paths to newer files.
+
+Enable `AGENTS_DOCUMENT_RUNTIME_ENABLED=1` and configure the private S3 adapter.
+Run the independent physical reaper even if the business worker is unavailable:
+
+```sh
+pnpm --filter @kasitek/agents start:document-reaper
+pnpm --filter @kasitek/agents start:source-object-reaper
+```
+
+The worker also starts separate cleanup lanes. Physical document/query cleanup
+requires the database and accepted local runtime; it does not require S3 or model
+credentials. The object lane requires S3 and retries deletion tombstones. A stale
+allocation retains capacity until physical destruction is confirmed. Do not
+release a slot by editing its database state alone.
+
+Import recovery uses the original revision, stage and allocation identities.
+Unknown URL acquisition is not silently fetched again. Interrupted object PUTs
+retain ownership before any bytes are sent. Sealed active raw/text objects remain
+private; stage receipts have seven days plus a fifteen-minute cleanup allowance.
+Withdrawal blocks new consumption before retained bytes are deleted.
+
+Connected reads persist every physical-attempt claim before sending. A complete
+receipt replays without rediscovery; an orphan started claim stays uncertain.
+API and worker executable manifests must match, including TypeScript versus
+compiled mode. Use matching compiled artifacts for acceptance and production.
+Stop new connections/publication independently of receipt inspection. Never repair
+a missing receipt by repeating an uncertain send or changing an accepted binding.
+
+Diagnostics expose bounded job/error/state and provider attempt/byte/timing data.
+They exclude credentials, source bodies, prompts and raw private URLs. Production
+retention, alerting, capacity and key custody remain deployment work. No analytics
+exporter or provider billing system is added by this feature.

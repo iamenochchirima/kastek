@@ -100,7 +100,7 @@ API diagnostics are `http://127.0.0.1:4100/health` and `/ready`.
 The worker needs `OPENROUTER_API_KEY`. Development permits only
 `nvidia/nemotron-3-super-120b-a12b:free`, with reasoning disabled and no paid fallback.
 
-Private artifact storage is required for isolated analysis and optional for ordinary conversation. Configure all five `AGENTS_S3_*` settings
+Private storage is required for knowledge, connected evidence and isolated analysis. Conversations without those capabilities can run without it. Configure all five `AGENTS_S3_*` settings
 from the environment example and provision a private S3-compatible bucket.
 Without them, artifact storage remains unavailable. Context snapshots and memory
 revisions remain in private PostgreSQL records.
@@ -220,3 +220,47 @@ bash infra/agents-runtime/verify-identity.sh
 [Runtime setup and recovery limits](../../infra/agents-runtime/README.md) cover
 pinned versions, worker signatures, duplicate delivery, cancellation, storage, and
 retention. Local checks do not establish production deployment readiness.
+
+## Verify connected knowledge
+
+The ordinary backend suite uses explicit protocol/model/storage fixtures where
+noted. It never turns on paid provider calls:
+
+```sh
+pnpm --filter @kasitek/agents exec vitest run --maxWorkers=1
+```
+
+Actual document, local embedding, PostgreSQL/pgvector, private MinIO and compiled
+worker checks are opt-in. In `api/`, load your approved local configuration and
+point `AGENTS_TEST_DATABASE_URL` at an owned disposable-database-capable server:
+
+```sh
+AGENTS_INGESTION_LIVE=1 AGENTS_INGESTION_FREE_MODEL=1 \
+  node --env-file-if-exists=.env node_modules/vitest/vitest.mjs run \
+  test/platform-ingestion-live.test.ts --maxWorkers=1
+```
+
+The fixture expects private MinIO at port 19000 with the explicit test credentials
+in its source. It creates and deletes its own bucket/database/Restate/worker. It
+checks PDF tail evidence, private candidates, duplicate admission, worker SIGKILL
+recovery and a real free-model website FAQ. No external connector is mocked into
+that free-model proof. `AGENTS_INGESTION_BROWSER=1` additionally requires the local
+Vite fixture on port 3113 and drives import, preview, approval and withdrawal.
+
+The real GitHub check requires a separately approved fine-grained read-only PAT
+in `AGENTS_GITHUB_ACCEPTANCE_TOKEN` and its actual finite ISO expiry in
+`AGENTS_GITHUB_ACCEPTANCE_EXPIRES_AT`. It reads the default approved public
+`github/github-mcp-server` repository; the test header lists explicit overrides.
+Never put the token in a command argument or chat. From `api/`:
+
+```sh
+AGENTS_GITHUB_LIVE=1 node --env-file-if-exists=.env \
+  node_modules/vitest/vitest.mjs run test/github-live-acceptance.test.ts --maxWorkers=1
+```
+
+That check uses fixed official native/hosted-MCP endpoints, records negotiated
+protocol/schema hashes and has no model calls. A skipped check is not provider
+acceptance. The scheduled knowledge journey has passed with the free model, two
+specialists, gVisor analysis, exact report review and delivery recovery across two
+worker restarts. The combined real-provider journey remains incomplete until the
+credential gate and authenticated native/MCP reads pass.

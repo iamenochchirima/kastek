@@ -2,13 +2,13 @@
 
 The current business harness supports contextual conversations, reviewed personal
 memory, pinned skills, bounded tool rounds, and recorded compaction. Optional
-delegation, isolated analysis, reviewed report delivery, and durable automation are opt-in. These documents describe the maintained
+delegation, isolated analysis, reviewed report delivery, durable automation, approved knowledge revisions and connected read tools are opt-in. These documents describe the maintained
 implementation and boundaries:
 
 - [Platform architecture](architecture/agent-platform-architecture.md): target contracts and execution categories.
 - [Implementation boundary](source-boundary.md): current modules, verification, and remaining work.
 - [Platform login](architecture/platform-login.md): identity, sessions, and product authorization.
-- [Integration boundaries](mcp-integration.md): external MCP and future product connections.
+- [Integration boundaries](mcp-integration.md): outbound read adapters, provider acceptance gates and future product connections.
 - [Threat model](THREAT_MODEL.md): enforced controls and release limits.
 
 Use the [product setup](../README.md) to run the application and the

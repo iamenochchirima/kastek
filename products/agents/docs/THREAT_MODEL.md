@@ -121,8 +121,9 @@ Root settlement waits for dependent work and cleanup accounting; a cancellation
 request is not evidence that compute already stopped. Receipts and exported
 artifact references survive destruction for the permitted replay window.
 
-Destination writes, in-task action approval, outbound MCP, automation and Lina
-execution remain disabled. Their future adapters require separate verification.
+Lina execution remains unavailable. Report writes require exact approval;
+connected native/MCP tools are restricted reads. Local fixtures verify transport
+controls; authenticated GitHub acceptance remains a release gate.
 
 ## Connected action and automation authority
 
@@ -149,7 +150,40 @@ Personal memory and owner history are excluded. A designated reviewer needs curr
 membership and exact packet identity, independently of execution ownership. Reviewer downloads are limited to the prepared report artifact; other root inputs remain owner-only.
 
 The local persistent HTTP receiver establishes idempotency/status behavior for
-ReportDeliveryHTTP. No arbitrary provider, OAuth flow or external MCP connection
-is claimed. Production key custody/rotation, destination provisioning, durable
+ReportDeliveryHTTP. No arbitrary provider or OAuth flow is claimed. Production key custody/rotation, destination provisioning, durable
 receiver storage, ingress rate limiting and operational monitoring remain release
 work for their selected deployment.
+
+## Imported and connected evidence
+
+Every upload and public page starts as a private candidate. Only current
+organization owners approve revisions or publish source visibility. A revision's
+importer and current owners can inspect it; the original source importer cannot
+inspect another account's refresh candidate. Delayed publication rechecks job,
+source generation, membership, deadline and cancellation under the organization
+lock. Partial indexes are never published.
+
+Parsing, tokenization and embedding run in a pinned no-network gVisor profile.
+Host credentials and writable host mounts are absent. Raw/text/stage bodies stay
+private; persisted write intents and cleanup tombstones cover interrupted PUTs.
+Physical cleanup is independent of S3 availability. Object cleanup has a separate
+lane so a storage outage cannot hold physical allocation capacity indefinitely.
+
+Public acquisition pins and validates DNS/IP destinations, TLS hosts, HTTPS port,
+redirect authorization and byte/time bounds. The model cannot encode private
+facts into paths, queries, headers or subdomains: connected reads accept only
+owner-selected public identifiers and server-issued revision/file handles.
+There is no arbitrary model URL or free-text external search tool.
+
+Hostile MCP schemas are validated in a bounded child process before SDK schema
+registration. Trusted local policy classifies effects. Remote annotations cannot
+enable writes. Per-send durable admission covers all setup/read messages; local
+cancellation does not claim remote cancellation. Unknown started reads retain
+explicit uncertainty rather than issuing another physical request.
+
+Evidence manifests are separate from model text. All influencing dependencies
+survive truncation, compaction, joins, history and artifacts. Current policy and
+content hashes gate future context, review and dispatch. Exact approval cannot
+restore withdrawn access. An already claimed effect remains reconcilable after
+revocation; a historical receipt does not authorize another send or content read.
+Citation validation establishes supplied provenance, not factual correctness.

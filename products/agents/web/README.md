@@ -22,7 +22,10 @@ opaque HTTP-only product session, never a service or model credential.
 - `/login`: provider sign-in.
 - `/app/agents`: workspace selection and agent creation.
 - `/app/agents/:agentId`: configuration, private Test and explicit Publish.
-- `/app/knowledge`: approved public or private text sources.
+- `/app/knowledge`: private imports, candidate review, revision approval and withdrawal.
+- `/app/connections`: scoped report/GitHub credentials and selected API/MCP tools.
+- `/app/automations`: pinned UTC/event occurrences and report reviewer controls.
+- `/app/tasks/:taskId`: operation activity, citations, child/resource state and exact report review.
 - `/chat/:deploymentId`: anonymous chat for an explicitly published version.
 
 Saving a draft and testing a version never change a publication. Website

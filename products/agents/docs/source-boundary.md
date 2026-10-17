@@ -11,7 +11,7 @@ startup. It does not migrate an older database or import Growth state.
 | --- | --- |
 | `contracts.ts` | Agent configuration, two execution kinds, grants, limits, and task states. |
 | `auth.ts`, `config.ts` | OIDC login, product sessions, identity configuration, and backchannel logout. |
-| `store.ts` | Membership, drafts, immutable publication, knowledge, ordered admission, and root reservations. |
+| `store.ts` | Membership, drafts, immutable publication, revision pins, ordered admission, and root reservations. |
 | `app.ts`, `server.ts`, `widget.ts` | Management and website APIs, continuation, history deletion, progress, cancellation, and widget delivery. |
 | `execution.ts` | Current authority, task and operation identities, claims, receipts, and usage settlement. |
 | `business.ts` | Restate business controller, model and tool rounds, ordered turns, and compaction coordination. |
@@ -23,6 +23,11 @@ startup. It does not migrate an older database or import Growth state.
 | `dispatcher.ts`, `worker.ts`, `worker-security.ts` | Leased outbox delivery, runtime identity, cancellation reconciliation, request signatures, and worker lifecycle. |
 | `connections.ts`, `vault.ts`, `actions.ts`, `report-delivery.ts` | Scoped encrypted credentials, exact report review, atomic dispatch claims and read-only receipt reconciliation. |
 | `automations.ts`, `automation-authority.ts`, `automation-runtime.ts` | Immutable owner authorization, occurrence inbox, shared admission and Restate UTC timers. |
+| `capability-catalog.ts`, `connected-catalog-store.ts`, `connected-executor.ts` | Immutable selected tools, executable releases, issued handles and durable connected receipts. |
+| `connected-network.ts`, `github-adapter.ts`, `mcp-adapter.ts` | Bounded public egress, native GitHub reads and isolated official MCP SDK execution. |
+| `knowledge.ts`, `knowledge-routes.ts`, `ingestion-runtime.ts` | Private candidates, owner approval, revision policy and durable import stages. |
+| `document-runtime.ts`, `document-reaper.ts`, `source-objects.ts`, `execution-objects.ts` | Pinned no-network parsing/embedding, physical cleanup and object write/deletion intents. |
+| `retrieval.ts`, `query-embedding.ts`, `knowledge-runtime.ts`, `evidence.ts` | Scoped lexical/hybrid retrieval, passage references and transitive policy dependencies. |
 | `setup.ts` | Fresh database initialization and schema checks. |
 
 The management client is in `web/`. Its create, configure, Test, and website
@@ -32,7 +37,8 @@ membership, permissions, and domain records. Embedded execution remains unavaila
 | User entry point | Current behavior | Verification |
 | --- | --- | --- |
 | `/app/agents` | Configure/publish business versions, manual Test and website publication. | Platform/harness browser suites and live fixtures. |
-| `/app/connections` | Create scoped report connections, rotate credentials and revoke. | Automation browser suite plus actual HTTP/credential tests. |
+| `/app/knowledge` | Upload text/PDF/HTML, import one public URL, inspect candidates, approve, adopt revisions and withdraw. | Actual compiled ingestion, crash recovery and responsive browser acceptance. |
+| `/app/connections` | Create report/GitHub profiles, select API/MCP tools, rotate and revoke. | Browser mocks and actual local HTTP/SDK/credential checks; authenticated GitHub pending. |
 | `/app/automations` | Pin report versions, authorize UTC/event triggers, inspect occurrences and control future runs. | Actual Restate timer/event HTTP checks and scheduled-report fixture. |
 | `/app/tasks/:taskId` | Inspect root/children/resources, exact report review, permitted downloads and delivery receipts. | Real compiled-worker scheduled-report acceptance and assigned-reviewer regressions. |
 
@@ -81,7 +87,9 @@ The development profile allows a root allocation up to 32,000 accounted tokens,
 12 model calls including compaction and children, and 24 tool calls. Its model input allowance
 is at most 8,192 conservative estimated tokens, with 1,024 output tokens and a
 120-second deadline per model call. Root wall lifetime is 24 hours. Accounted
-active operation time is bounded to 15 minutes. Organization limits are two
+active operation time is bounded to 15 minutes. Every operation reserves time before claim. A late known completion is charged its
+actual elapsed time; an uncertain operation consumes at least its reservation. A timeout cannot
+hide overspent time or grant more root capacity. Organization limits are two
 accepted active roots, two model operations, and four tool operations in flight.
 
 The 100,000-token organization allowance applies to the UTC admission day.
@@ -112,9 +120,67 @@ and dispatch checks. Conversation deletion tombstones its source history, cancel
 open tasks, and invalidates linked memory. It does not physically erase old
 revisions, completed provider requests, journals, or backups.
 
+## Knowledge and connected evidence
+
+Inline text, uploaded files and exact public HTTPS URLs use one private candidate
+pipeline. `AgentsKnowledgeImportV1` owns acquisition, extraction, normalization,
+chunking and local embedding. Approval does not follow from readiness or internet
+availability. A refresh reserves a new immutable revision; versions and grants
+pin approved revisions explicitly. The old scalar knowledge API is removed.
+
+Imports allow 10 MiB raw, 1 MiB extracted text, 200 PDF pages and 1,000 chunks.
+An organization has at most 200 active sources, 100,000 chunks and two physical
+document/query allocations. A version pins at most 20 source revisions. Text,
+Markdown, static HTML and text PDFs are supported; OCR, encrypted PDF, DOCX,
+archives, authenticated crawling and browser rendering are rejected.
+
+The document profile runs no-network rootless gVisor with one CPU, 512 MiB,
+no swap, 64 processes and a 60-second stage limit. Release manifests pin the
+Node filesystem provenance, parser/tokenizer packages, BGE FP32 model and gVisor
+bundle. Profiles preserve immutable artifact paths across preparation. Worker
+recovery attaches to accepted allocation IDs and stored stage receipts.
+Independent physical and object cleanup lanes remain responsible after worker
+loss. Uncertain writes have tracked intents and repeated deletion tombstones. Connected/evidence/query
+bodies also acquire durable object ownership before PUT. Raw-response links require current scope,
+a started operation and a live intent row. Root and child settlement wait for query compute to be
+confirmed destroyed; neither storage failure nor cancellation releases a physical slot early.
+
+PostgreSQL 17 with pgvector stores immutable chunks, full-text indexes and scoped
+384-dimensional vectors. `lexical-v1` returns only text matches. `hybrid-v1` uses
+the explicitly pinned local BGE release, exact vector search and RRF (k=60),
+at most 20 candidates per retriever and five results. Missing semantic runtime
+fails visibly; there is no network embedding download or paid/lexical fallback.
+The small English benchmark passed twelve held-out positives and three negatives
+at 20,000 eligible chunks; measured warm end-to-end p95 was 1,325 ms. These results
+do not establish general answer quality or multilingual semantic quality.
+
+Each actual retrieval/read operation issues span/hash/date-bound evidence IDs.
+Useful tail passages replace prefix context. A bounded continuation reads by
+issued evidence ID and UTF-16 offset. Context snapshots persist exact model tool
+definitions and selected evidence. Immutable dependency graphs preserve all
+influences through history, summaries, specialists, memory proposals and artifacts,
+including influences omitted from final citations. Shared ancestors deduplicate;
+cycles, missing records and conflicting policies fail closed.
+
+Source withdrawal, visibility changes, connection policy and Forget block future
+consumption. Model/effect claims recheck current dependencies atomically. A final
+answer cannot publish after its source is withdrawn during generation. A consumed dependency
+invalidated by withdrawal or Forget ends the current task incomplete; a fresh turn can rebuild
+current context without reusing the invalid history. Historical task state and receipts remain,
+but current-policy API reads redact unavailable derived output. Browser recovery caches retain
+identities and owner inputs rather than derived answers or report bodies. Citations
+must name supplied evidence; valid provenance does not prove factual entailment.
+Report reviewers receive only the prepared report's cited passages. Owner and
+visitor passage previews recheck current scope and expose no storage keys.
+
+Connected tools use immutable selected aliases and server-issued public resource
+handles. Every read consumes the same root operation budget; credentials stay in
+the trusted transport. See [integration boundaries](mcp-integration.md) for protocol,
+wire-request bounds and the pending authenticated provider acceptance.
+
 ## Connected reports and automation
 
-`AgentsBusinessRunV3` (`owned-report-v1`) runs the trusted `report-delivery-v1`
+`AgentsBusinessRunV4` (`connected-research-v1`) runs the trusted `report-delivery-v1`
 workflow after the ordinary agent loop. Required stages select or create a private
 report, validate its sources, prepare an exact action packet, wait for human
 review, and deliver or reconcile it. A sandbox-enabled report must select one
@@ -190,7 +256,7 @@ conversations, a completed memory.search tool receipt, pinned skills and correct
 The website/widget journey and real Keycloak checks remain distinct acceptance paths. Worker signature
 fixtures do not certify cluster key distribution or a production deployment.
 
-Outbound MCP, arbitrary destination writes, local-time cron/DST schedules, Lina execution and evaluation adapters remain unavailable. Subagents require explicit published bindings; analysis also requires the pinned backend, resource controls and private storage.
+Authenticated GitHub native/hosted-MCP acceptance remains pending. Arbitrary destination writes, local-time cron/DST schedules, Lina execution and evaluation adapters remain unavailable. Subagents require explicit published bindings; analysis also requires the pinned backend, resource controls and private storage.
 Production rollout, secret management, durable log retention, monitoring, backups,
 and signup-email delivery require separate verification. There are no active OTLP
 exporters. Services emit bounded structured stdout diagnostics.
