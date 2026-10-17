@@ -141,18 +141,18 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     const {task}=await store.admitTask(request);
     return {...f,task,request,grant,agent,version,config,versions,managed:{...f.managed,agentId:agent.id},scoped:{...f.scoped,agentId:agent.id}};
   }
-  async function reportFixture() {
-    const f=await fixture();await settleTask(pool,f.task.id,{state:"cancelled"});
+  async function reportFixture(enableMemory=false) {
+    const f=await fixture({memory:{enabled:enableMemory}});await settleTask(pool,f.task.id,{state:"cancelled"});
     const scope={accountId:f.account.id,organizationId:f.org.id};
     const connection=await connections.create(scope,{operationId:randomUUID(),name:"Reports",targetId:"reports",apiKey:receiverKey});
     const config:AgentConfiguration={...f.config,capabilities:{...f.config.capabilities,workflows:{enabled:true,profileId:"report-delivery-v1",connectionId:connection.id,reportArtifactName:"report.md",title:"Opening hours report"}}};
     const agent=await store.createAgent({...scope,name:"Report agent",configuration:config});
     const version=await store.createVersion({...scope,agentId:agent.id,expectedRevision:1});
     const authority={...f.request.authority,resourceId:agent.id};
-    const grant:ExecutionGrant={...f.grant,...authority,id:randomUUID(),versionId:version.id,operations:["model.reply","knowledge.read","effect.deliver","artifact.read","artifact.write"]};
+    const grant:ExecutionGrant={...f.grant,...authority,id:randomUUID(),versionId:version.id,operations:["model.reply","knowledge.read","effect.deliver","artifact.read","artifact.write",...(enableMemory?["memory.read" as const,"memory.propose" as const]:[])]};
     await store.createGrant({...scope,grant});
     const request={...f.request,authority,grantId:grant.id,versionId:version.id,requestKey:randomUUID()};const{task}=await store.admitTask(request);
-    return{...f,task,grant,request,config,scope,connection};
+    return{...f,task,grant,request,config,scope,connection,agent,managed:{...f.managed,agentId:agent.id},scoped:{...f.scoped,agentId:agent.id}};
   }
   async function waitForReview(taskId:string) {
     await dispatchTasksOnce(pool,{ingressUrl,adminUrl});
@@ -162,6 +162,27 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
   async function finishWithControls(taskId:string) {
     return eventually(async()=>{await dispatchTasksOnce(pool,{ingressUrl,adminUrl});const task=(await pool.query("SELECT * FROM agents_platform.tasks WHERE id=$1",[taskId])).rows[0];return terminalTaskStates.has(task.state)?task:false;});
   }
+  it("does not prepare a report from memory forgotten while the final model call was in flight",async()=>{
+    const f=await reportFixture(true),saved=await acceptedMemory(f,"Private report dependency.");
+    provider=async()=>{await memory.mutate(f.managed,saved.id,{operationId:randomUUID(),expectedRevision:saved.revision,action:"forget"});return reply("A report derived from the private dependency.");};
+    expect(await execute(f.task.id)).toMatchObject({state:"failed",error_code:"CONTEXT_INVALIDATED"});expect(calls).toHaveLength(1);
+    expect((await pool.query("SELECT count(*)::int AS count FROM agents_platform.actions WHERE task_id=$1",[f.task.id])).rows[0].count).toBe(0);
+    expect((await artifacts.listForRoot(f.task.id))).toHaveLength(0);
+  },30000);
+  it("expires a pending exact review through a durable timer without keeping a provider slot",async()=>{
+    const f=await reportFixture();await pool.query("UPDATE agents_platform.tasks SET deadline_at=now()+interval '3 seconds' WHERE id=$1",[f.task.id]);
+    const review=await waitForReview(f.task.id);
+    const task=await eventually(async()=>{const row=(await pool.query("SELECT * FROM agents_platform.tasks WHERE id=$1",[f.task.id])).rows[0];return terminalTaskStates.has(row.state)?row:false;});
+    expect(task).toMatchObject({state:"incomplete",error_code:"ACTION_EXPIRED"});expect(calls).toHaveLength(1);
+    expect((await actions.getReview(f.task.id,review.id)).state).toBe("expired");
+    expect((await pool.query("SELECT count(*)::int AS count FROM report_delivery_receiver.deliveries WHERE id=$1",[review.id])).rows[0].count).toBe(0);
+  },30000);
+  it("cancels an exact review wait and prevents a later approval from starting delivery",async()=>{
+    const f=await reportFixture(),review=await waitForReview(f.task.id);await requestTreeCancellation(pool,f.task.id);
+    expect((await finishWithControls(f.task.id)).state).toBe("cancelled");expect(calls).toHaveLength(1);
+    await expect(actions.decide(f.scope,f.task.id,review.id,{operationId:randomUUID(),decision:"approve",expectedDigest:review.reviewDigest})).rejects.toMatchObject({code:"TASK_SETTLED"});
+    expect((await pool.query("SELECT count(*)::int AS count FROM report_delivery_receiver.deliveries WHERE id=$1",[review.id])).rows[0].count).toBe(0);
+  },30000);
   it.each(["approve","reject"] as const)("does not lose a %s decision between reading pending review and installing its durable wait",async decision=>{
     const f=await reportFixture();let entered=false,release!:()=>void;const barrier=new Promise<void>(resolve=>{release=resolve;});
     let captured:Awaited<ReturnType<ActionService["getReview"]>>|undefined;
