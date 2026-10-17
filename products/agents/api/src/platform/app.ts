@@ -20,6 +20,12 @@ import { MemoryStore } from "./memory";
 import { TaskArtifactStore } from "./task-artifacts";
 import { queueChildContinuations, requestTreeCancellation } from "./execution";
 import { sandboxManagerFromEnvironment } from "./sandbox";
+import { KnowledgeStore } from "./knowledge";
+import { registerKnowledgeRoutes } from "./knowledge-routes";
+import { documentRuntimeFromEnvironment } from "./document-runtime";
+import { EvidenceStore } from "./evidence";
+import { ConnectedExecutor } from "./connected-executor";
+import { capabilityBindingSchema } from "./capability-catalog";
 
 const uuid = z.uuid();
 const taskInput = z.strictObject({ versionId: uuid, input: z.string().min(1).max(16_384),
@@ -39,11 +45,30 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
   const { config, pool } = options;
   const store = new PlatformStore(pool);
   const objects = privateStoreFromEnvironment();
+  const sourceObjects = privateStoreFromEnvironment(process.env, 10_485_760);
+  const knowledge = new KnowledgeStore(pool, sourceObjects);
+  const documentRuntime = documentRuntimeFromEnvironment();
   const taskArtifacts = new TaskArtifactStore(pool, objects);
   const sandbox = sandboxManagerFromEnvironment(pool);
   const actionServices=actionsFromEnvironment(pool,taskArtifacts);
+  const evidence = sourceObjects ? new EvidenceStore(pool, sourceObjects) : undefined;
+  // API and worker use the same execution mode/build: source and compiled artifact digests intentionally differ.
+  const connected = actionServices && sourceObjects && evidence ? new ConnectedExecutor(pool, actionServices.connections, sourceObjects, evidence) : undefined;
   const grantOperations=operationsForConfiguration;
+  async function assertBindings(configuration: AgentConfiguration): Promise<void> {
+    if (configuration.sourceRevisionIds.length && !sourceObjects) throw new PlatformError("OBJECT_STORE_UNAVAILABLE", 503, "Private storage is unavailable");
+    if (configuration.retrievalProfile.kind === "hybrid-v1" && (!documentRuntime || !await documentRuntime.available(configuration.retrievalProfile.embeddingRelease))) {
+      throw new PlatformError("RETRIEVAL_BACKEND_UNAVAILABLE", 503, "The selected semantic search profile is unavailable");
+    }
+    if (configuration.connectedToolBindingIds.length) {
+      if (!connected) throw new PlatformError("CONNECTED_TOOLS_UNAVAILABLE", 503, "Connected tools are unavailable");
+      const rows = (await pool.query("SELECT binding FROM agents_platform.capability_bindings WHERE id=ANY($1::uuid[])", [configuration.connectedToolBindingIds])).rows;
+      if (rows.length !== configuration.connectedToolBindingIds.length) throw new PlatformError("ADAPTER_RELEASE_UNAVAILABLE", 503, "A selected tool binding is unavailable");
+      connected.assertAvailable(rows.map(row => capabilityBindingSchema.parse(row.binding)));
+    }
+  }
   async function assertServices(configuration:AgentConfiguration):Promise<void> {
+    await assertBindings(configuration);
     if(!config.OPENROUTER_API_KEY)throw new PlatformError("MODEL_CREDENTIAL_UNAVAILABLE",503,"Model connection is unavailable");
     if((configuration.capabilities.sandbox.enabled||configuration.capabilities.workflows.enabled)&&!objects)throw new PlatformError("OBJECT_STORE_UNAVAILABLE",503,"Private storage is unavailable");
     if(configuration.capabilities.workflows.enabled&&!actionServices)throw new PlatformError("ACTIONS_UNAVAILABLE",503,"Report delivery is unavailable");
@@ -110,7 +135,15 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
   }
   async function resolveScope(request:FastifyRequest) {const user=await account(request),org=organizationId(request);await store.requireMembership(user.id,org);return {accountId:user.id,organizationId:org};}
   registerAutomationRoutes(app,automations,resolveScope);
-  if(actionServices)registerActionRoutes(app,{...actionServices,resolveScope,resolveTask:async request=>({...await resolveScope(request),taskId:uuid.parse(parameters(request).taskId)})});
+  if(actionServices)registerActionRoutes(app,{...actionServices,catalogs:connected?.catalogs,
+    discoverCatalog:connected?(scope,input)=>connected.discover(scope,input):undefined,
+    resolveScope,resolveTask:async request=>({...await resolveScope(request),taskId:uuid.parse(parameters(request).taskId)})});
+  else app.get("/api/organizations/:organizationId/connections",async request=>{
+    await resolveScope(request);return{connections:[],targets:[],profiles:[],available:false};
+  });
+  if(!connected)app.get("/api/organizations/:organizationId/tool-bindings",async request=>{
+    await resolveScope(request);return{bindings:[],available:false};
+  });
   app.get("/health", async () => ({ status: "ok", service: "agents-platform", schema: "001_platform" }));
   app.get("/ready", async (_request, reply) => {
     const result = await pool.query("SELECT version FROM agents_platform.schema_version");
@@ -169,6 +202,7 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
       organizationId: organizationId(request), agentId: uuid.parse(parameters(request).agentId) })) };
   });
   app.get(`${base}/knowledge`, async (request) => ({ knowledge: (await store.listKnowledge((await account(request)).id, organizationId(request))).map(dto) }));
+  registerKnowledgeRoutes(app, { knowledge, runtime: documentRuntime, resolveScope: async request => ({ accountId: (await account(request)).id, organizationId: organizationId(request) }) });
   app.post(`${base}/knowledge`, async (request, reply) => {
     const input = z.strictObject({ title: z.string().min(1).max(200), content: z.string().min(1).max(100_000),
       visibility: z.enum(["private", "public"]) }).parse(request.body);
@@ -177,8 +211,11 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
   });
   app.post(`${base}/agents/:agentId/versions`, async (request, reply) => {
     const input = z.strictObject({ expectedRevision: z.number().int().positive() }).parse(request.body);
-    return reply.code(201).send({ version: dto(await store.createVersion({ ...input, accountId: (await account(request)).id,
-      organizationId: organizationId(request), agentId: uuid.parse(parameters(request).agentId) })) });
+    const user = await account(request), org = organizationId(request), agentId = uuid.parse(parameters(request).agentId);
+    const agent = await store.getAgent(user.id, org, agentId);
+    await assertBindings(agentConfigurationSchema.parse(agent.draft));
+    return reply.code(201).send({ version: dto(await store.createVersion({ ...input, accountId: user.id,
+      organizationId: org, agentId })) });
   });
   app.post(`${base}/agents/:agentId/deployments`, async (request, reply) => {
     const input = z.strictObject({ versionId: uuid, allowedOrigins: z.array(z.string()).min(1).max(10) }).parse(request.body);
@@ -192,7 +229,7 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
     await assertServices(version.configuration);
     const authority = humanAuthority(user, org, version.agent_id);
     const grant = executionGrantSchema.parse({ ...authority, id: randomUUID(), versionId: version.id,
-      operations: grantOperations(version.configuration), knowledgeIds: version.configuration.knowledgeIds,
+      operations: grantOperations(version.configuration), knowledgeIds: version.configuration.knowledgeIds, sourceRevisionIds: version.configuration.sourceRevisionIds, connectedToolBindingIds: version.configuration.connectedToolBindingIds,
       maxInputBytes: version.configuration.model.maxInputBytes, maxOutputTokens: version.configuration.model.maxOutputTokens,
       expiresAt: new Date(Date.now() + 30 * 60_000).toISOString(), revokedAt: null });
     await store.createGrant({ accountId: user.id, grant });
@@ -244,7 +281,7 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
     const version = await store.getVersion(user.id, task.organization_id, task.version_id);
     const grant = executionGrantSchema.parse({ ...authority, id: randomUUID(), versionId: version.id,
       operations: grantOperations(version.configuration),
-      knowledgeIds: version.configuration.knowledgeIds, maxInputBytes: version.configuration.model.maxInputBytes,
+      knowledgeIds: version.configuration.knowledgeIds, sourceRevisionIds: version.configuration.sourceRevisionIds, connectedToolBindingIds: version.configuration.connectedToolBindingIds, maxInputBytes: version.configuration.model.maxInputBytes,
       maxOutputTokens: version.configuration.model.maxOutputTokens, maxContextTokens: version.configuration.context.maxInputTokens,
       rootTokenLimit: (task as TaskRecord & {root_token_limit:number}).root_token_limit,
       expiresAt: new Date(Math.min(Date.now()+30*60_000, new Date((task as TaskRecord & {deadline_at:Date}).deadline_at).getTime())).toISOString(), revokedAt: null });
