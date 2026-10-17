@@ -1,10 +1,11 @@
+import {publishFixtureSource} from "./knowledge-fixture";
 import { execFileSync } from "node:child_process";
 import { randomUUID, randomBytes } from "node:crypto";
 import { createServer, type ServerHttp2Session } from "node:http2";
 import { createEndpointHandler } from "@restatedev/restate-sdk";
 import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { createBusinessWorkflow, retrieveFaqKnowledge } from "../src/platform/business";
+import { createBusinessWorkflow, type BusinessOptions } from "../src/platform/business";
 import { defaultFaqConfiguration, terminalTaskStates, type AgentConfiguration, type AdmissionAuthority, type ExecutionGrant } from "../src/platform/contracts";
 import { dispatchTasksOnce } from "../src/platform/dispatcher";
 import { beginOperation, finishOperation, settleTask, requestTreeCancellation, reconcilePendingRoots } from "../src/platform/execution";
@@ -14,6 +15,10 @@ import {ConnectionStore} from "../src/platform/connections";
 import {ConnectionVault} from "../src/platform/vault";
 import {TaskArtifactStore} from "../src/platform/task-artifacts";
 import {createReportReceiver,initializeReportReceiver} from "../src/acceptance/report-receiver";
+import { KnowledgeStore } from "../src/platform/knowledge";
+import { KnowledgeRuntime } from "../src/platform/knowledge-runtime";
+import { EvidenceStore } from "../src/platform/evidence";
+import { textDigest } from "../src/platform/source-contracts";
 import { MemoryStore } from "../src/platform/memory";
 import { setupPlatformSchema } from "../src/platform/setup";
 import { PlatformStore } from "../src/platform/store";
@@ -29,6 +34,7 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
   let afterReviewRead:((review:Awaited<ReturnType<ActionService["getReview"]>>)=>Promise<void>)|undefined;
   let server: ReturnType<typeof createServer>;
   let workflow: ReturnType<typeof createBusinessWorkflow>;
+  let businessOptions: BusinessOptions;
   let ingressUrl: string, adminUrl: string;
   let containerStarted = false;
   const sessions = new Set<ServerHttp2Session>();
@@ -72,9 +78,10 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     const vault=new ConnectionVault("v1",{v1:randomBytes(32).toString("base64")}),targets=[{id:"reports",label:"Reports",url:address+"/deliveries",resource:"reports:controller"}];
     artifacts=new TaskArtifactStore(pool,{async put(key,value){objects.set(key,Buffer.from(value));},async get(key){const value=objects.get(key);if(!value)throw Error("Missing fixture object");return value;},async delete(key){objects.delete(key);}});
     connections=new ConnectionStore(pool,vault,targets);actions=new ActionService(pool,{vault,targets,artifacts});
-    workflow = createBusinessWorkflow(pool, {actions:{prepare:(...args)=>actions.prepare(...args),getReview:async(...args)=>{const review=await actions.getReview(...args);await afterReviewRead?.(review);return review;},reconcile:(...args)=>actions.reconcile(...args),execute:async(...args)=>{inFlightActionCalls++;try{return await actions.execute(...args);}finally{inFlightActionCalls--;}}},selectReportArtifact:(...args)=>artifacts.prepareReport(...args), openRouterApiKey: "fixture", fetch: async (_url, request) => {
+    businessOptions = {evidence:new EvidenceStore(pool,artifacts.objects),knowledgeRuntime:new KnowledgeRuntime(pool,new EvidenceStore(pool,artifacts.objects)),actions:{prepare:(...args)=>actions.prepare(...args),getReview:async(...args)=>{const review=await actions.getReview(...args);await afterReviewRead?.(review);return review;},reconcile:(...args)=>actions.reconcile(...args),execute:async(...args)=>{inFlightActionCalls++;try{return await actions.execute(...args);}finally{inFlightActionCalls--;}}},selectReportArtifact:(...args)=>artifacts.prepareReport(...args), openRouterApiKey: "fixture", fetch: async (_url, request) => {
       const body = JSON.parse(String(request?.body)); calls.push(body); return provider(body, request!);
-    } });
+    } };
+    workflow = createBusinessWorkflow(pool,businessOptions);
     await listen();
     const port = (server.address() as { port: number }).port;
     docker("run", "-d", "--name", containerName, "--cpus", "2", "--memory", "768m", "--add-host", "host.docker.internal:host-gateway",
@@ -98,15 +105,15 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     provider = async () => reply(); calls.length = 0;
     const account = await store.ensureAccount({ issuer: "http://localhost:8080/realms/test", subject: randomUUID(), email: "fixture@example.com", displayName: "Owner" });
     const org = await store.createOrganization(account.id, "Harness fixture");
-    const source = await store.approveKnowledge({ accountId: account.id, organizationId: org.id, title: "Hours", content: "Open at nine.", visibility: "public" });
-    const config = { ...defaultFaqConfiguration(), knowledgeIds: [source.id], ...changes };
+    const source = await publishFixtureSource(pool,{ accountId: account.id, organizationId: org.id, title: "Hours", content: "Opening hours. Open at nine.", visibility: "public" }, artifacts.objects);
+    const config = { ...defaultFaqConfiguration(), sourceRevisionIds: [source.id], ...changes };
     const agent = await store.createAgent({ accountId: account.id, organizationId: org.id, name: "Agent", configuration: config });
     const version = await store.createVersion({ accountId: account.id, organizationId: org.id, agentId: agent.id, expectedRevision: 1 });
     const authority: AdmissionAuthority = { product: "agents", organizationId: org.id, resourceId: agent.id, callerClientId: "agents-execution",
       principal: { kind: "human", issuer: account.issuer, subject: account.subject } };
     const grant: ExecutionGrant = { ...authority, id: randomUUID(), versionId: version.id,
       operations: config.memory.enabled ? ["model.reply", "knowledge.read", "memory.read", "memory.propose"] : ["model.reply", "knowledge.read"],
-      knowledgeIds: [source.id], maxInputBytes: config.model.maxInputBytes, maxOutputTokens: config.model.maxOutputTokens,
+      sourceRevisionIds: config.sourceRevisionIds, connectedToolBindingIds: config.connectedToolBindingIds, maxInputBytes: config.model.maxInputBytes, maxOutputTokens: config.model.maxOutputTokens,
       maxContextTokens: config.context.maxInputTokens, rootTokenLimit, expiresAt: new Date(Date.now() + 300_000).toISOString(), revokedAt: null };
     await store.createGrant({ accountId: account.id, grant });
     const request = { authority, grantId: grant.id, versionId: version.id, requestKey: randomUUID(), input: "What are the opening hours?" };
@@ -119,6 +126,12 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     await dispatchTasksOnce(pool, { ingressUrl, adminUrl });
     return eventually(async () => { const row = (await pool.query("SELECT * FROM agents_platform.tasks WHERE id=$1", [taskId])).rows[0]; return terminalTaskStates.has(row.state) ? row : false; });
   }
+  function holdPreparedContext(taskId:string,compact=false){
+    const evidence=businessOptions.evidence!,original=evidence.supplyContext.bind(evidence);let release!:()=>void,entered!:()=>void,held=false;
+    const barrier=new Promise<void>(resolve=>{release=resolve;}),ready=new Promise<void>(resolve=>{entered=resolve;});
+    evidence.supplyContext=async(...args)=>{await original(...args);if(!held&&args[0]===taskId&&args[1].startsWith("context:compact:")===compact){held=true;entered();await barrier;}};
+    return{ready,release,restore(){release();evidence.supplyContext=original;}};
+  }
   async function acceptedMemory(f: Awaited<ReturnType<typeof fixture>>, content: string, expiresAt?: string) {
     const candidate = await memory.proposeManaged(f.managed, { operationId: randomUUID(), kind: "semantic", content, expiresAt });
     return memory.mutate(f.managed, candidate.id, { operationId: randomUUID(), expectedRevision: candidate.revision, action: "accept" });
@@ -127,11 +140,11 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     const f=await fixture(); await settleTask(pool,f.task.id,{state:"cancelled"});
     const versions=[];
     for(const name of ["FIRST","SECOND"]) {
-      const agent=await store.createAgent({accountId:f.account.id,organizationId:f.org.id,name,configuration:{...defaultFaqConfiguration(),instructions:`SPECIALIST_${name}: Answer from the provided source.`,knowledgeIds:[f.source.id],tools:["knowledge.search","knowledge.read"]}});
+      const agent=await store.createAgent({accountId:f.account.id,organizationId:f.org.id,name,configuration:{...defaultFaqConfiguration(),instructions:`SPECIALIST_${name}: Answer from the provided source.`,sourceRevisionIds:[f.source.id],tools:["knowledge.search","knowledge.read"]}});
       versions.push(await store.createVersion({accountId:f.account.id,organizationId:f.org.id,agentId:agent.id,expectedRevision:1}));
     }
-    const config:AgentConfiguration={...defaultFaqConfiguration(),instructions:"ROOT_RESEARCH: Delegate work to both approved specialists, then synthesize their confirmed evidence.",memory:{enabled:enableMemory},knowledgeIds:[f.source.id],tools:["agents.delegate"],
-      capabilities:{...defaultFaqConfiguration().capabilities,delegation:{enabled:true,maxChildren:2,maxDepth:1,bindings:versions.map((version,index)=>({id:index===0?"first":"second",versionId:version.id,knowledgeIds:[f.source.id],tools:["knowledge.search"],maxTokens:8000,maxActiveMs:240000}))}}};
+    const config:AgentConfiguration={...defaultFaqConfiguration(),instructions:"ROOT_RESEARCH: Delegate work to both approved specialists, then synthesize their confirmed evidence.",memory:{enabled:enableMemory},sourceRevisionIds:[f.source.id],tools:["agents.delegate"],
+      capabilities:{...defaultFaqConfiguration().capabilities,delegation:{enabled:true,maxChildren:2,maxDepth:1,bindings:versions.map((version,index)=>({id:index===0?"first":"second",versionId:version.id,sourceRevisionIds:[f.source.id],connectedToolBindingIds:[],tools:["knowledge.search"],maxTokens:8000,maxActiveMs:240000}))}}};
     const agent=await store.createAgent({accountId:f.account.id,organizationId:f.org.id,name:"Research",configuration:config});
     const version=await store.createVersion({accountId:f.account.id,organizationId:f.org.id,agentId:agent.id,expectedRevision:1});
     const authority={...f.request.authority,resourceId:agent.id};
@@ -162,6 +175,56 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
   async function finishWithControls(taskId:string) {
     return eventually(async()=>{await dispatchTasksOnce(pool,{ingressUrl,adminUrl});const task=(await pool.query("SELECT * FROM agents_platform.tasks WHERE id=$1",[taskId])).rows[0];return terminalTaskStates.has(task.state)?task:false;});
   }
+  async function groundedFixture() {
+    const f=await fixture(); await settleTask(pool,f.task.id,{state:"cancelled"});
+    const storage={async put(key:string,value:Uint8Array){objects.set(key,Buffer.from(value));},async get(key:string){const value=objects.get(key);if(!value)throw Error("Missing fixture object");return value;},async delete(key:string){objects.delete(key);}};
+    const knowledge=new KnowledgeStore(pool,storage),evidence=new EvidenceStore(pool,storage),scope={accountId:f.account.id,organizationId:f.org.id};
+    const text="An irrelevant introduction.\n".repeat(100)+"The decisive opening hour is 09:17. The tail includes Unicode 🧪.";
+    const job=await knowledge.admitUpload(scope,{operationId:randomUUID(),title:"Opening hours guide",contentType:"text/markdown",content:Buffer.from(text),parserRelease:"test-document-v1"});
+    await pool.query("UPDATE agents_platform.ingestion_jobs SET state='extracting' WHERE id=$1",[job.id]);
+    const start=text.indexOf("The decisive"),body=text.slice(start);
+    await knowledge.publishExtraction(job.id,{text,acquiredAt:new Date().toISOString(),normalizerRelease:"test-normalizer-v1",chunks:[{id:randomUUID(),revisionId:job.revisionId,ordinal:0,start,end:text.length,page:3,section:null,text:body,digest:textDigest(body),tokens:30}]});
+    await knowledge.setPolicy(scope,job.sourceId,{operationId:randomUUID(),expectedGeneration:1,action:"approve",revisionId:job.revisionId});
+    const config={...defaultFaqConfiguration(),instructions:"Answer only from supplied passages; cite their exact bracketed evidence labels.",sourceRevisionIds:[job.revisionId],tools:["knowledge.search" as const,"knowledge.read" as const]};
+    const agent=await store.createAgent({...scope,name:"Grounded controller",configuration:config});
+    const version=await store.createVersion({...scope,agentId:agent.id,expectedRevision:1});
+    const authority={...f.request.authority,resourceId:agent.id},grant={...f.grant,...authority,id:randomUUID(),versionId:version.id,sourceRevisionIds:[job.revisionId],connectedToolBindingIds:[]};
+    await store.createGrant({accountId:f.account.id,grant});
+    const {task}=await store.admitTask({authority,grantId:grant.id,versionId:version.id,requestKey:randomUUID(),input:"What is the decisive opening hour?"});
+    businessOptions.evidence=evidence;businessOptions.knowledgeRuntime=new KnowledgeRuntime(pool,evidence);
+    return{...f,task,job,knowledge,evidence,scope};
+  }
+  function resetGrounding(){businessOptions.evidence=new EvidenceStore(pool,artifacts.objects);businessOptions.knowledgeRuntime=new KnowledgeRuntime(pool,businessOptions.evidence);}
+  it("uses indexed tail evidence in the same controller, with immutable tools, citations and budgeted retrieval",async()=>{
+    const f=await groundedFixture();
+    try {
+      let label="";
+      provider=async body=>{
+        const packed=JSON.stringify(body.messages);expect(packed).toContain("09:17");expect(packed).not.toContain("An irrelevant introduction");
+        label=packed.match(/E[a-f0-9]{32}/)![0];return reply(`Open at 09:17 [${label}]`);
+      };
+      const task=await execute(f.task.id);expect(task.state).toBe("completed");expect(task.output).toContain(`[${label}]`);
+      const operations=(await pool.query("SELECT name,state FROM agents_platform.operations WHERE task_id=$1 ORDER BY started_at",[task.id])).rows;
+      expect(operations).toEqual([{name:"knowledge.search",state:"completed"},{name:"model.generate",state:"completed"}]);
+      const snapshot=(await pool.query("SELECT payload,source_references FROM agents_platform.context_snapshots WHERE task_id=$1",[task.id])).rows[0];
+      expect(snapshot.payload.tools.map((tool:any)=>tool.function.name)).toEqual(["knowledge_search","knowledge_read"]);
+      expect(snapshot.source_references.some((reference:any)=>reference.revision===f.job.revisionId&&reference.evidenceId)).toBe(true);
+      expect((await f.evidence.taskManifest(task.id)).dependencies).toMatchObject([{kind:"source",revisionId:f.job.revisionId}]);
+    } finally {resetGrounding();}
+  });
+  it("does not publish a final model answer when its source was withdrawn while generation was in flight",async()=>{
+    const f=await groundedFixture();
+    try {
+      provider=async body=>{const label=JSON.stringify(body.messages).match(/E[a-f0-9]{32}/)![0];await f.knowledge.setPolicy(f.scope,f.job.sourceId,{operationId:randomUUID(),expectedGeneration:1,action:"withdraw"});return reply(`Open at 09:17 [${label}]`);};
+      const task=await execute(f.task.id);expect(task.state).not.toBe("completed");expect(task.output).toBeNull();expect(task.error_code).toBe("EVIDENCE_UNAVAILABLE");
+      expect((await pool.query("SELECT id FROM agents_platform.actions WHERE task_id=$1",[task.id])).rowCount).toBe(0);
+    } finally {resetGrounding();}
+  });
+  it("rejects invented answer citations before task publication",async()=>{
+    const f=await groundedFixture();
+    try{provider=async()=>reply("An unsupported fact [E12345]");const task=await execute(f.task.id);expect(task.state).toBe("failed");expect(task.error_code).toBe("CITATION_UNKNOWN");expect(task.output).toBeNull();}
+    finally{resetGrounding();}
+  });
   it("does not prepare a report from memory forgotten while the final model call was in flight",async()=>{
     const f=await reportFixture(true),saved=await acceptedMemory(f,"Private report dependency.");
     provider=async()=>{await memory.mutate(f.managed,saved.id,{operationId:randomUUID(),expectedRevision:saved.revision,action:"forget"});return reply("A report derived from the private dependency.");};
@@ -351,13 +414,13 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
   }, 30_000);
   it("executes multiple model/tool rounds with validated structured tool results", async () => {
     const f = await fixture({ tools: ["knowledge.search", "knowledge.read"] });
-    provider = async body => calls.length === 1 ? reply("", "tool_calls", [tool("knowledge_search", { query: "hours" })]) :
-      calls.length === 2 ? reply("", "tool_calls", [tool("knowledge_read", { sourceId: f.source.id }, "call2")]) : reply("Open at nine, from the approved source.");
+    provider = async body => calls.length === 1 ? reply("", "tool_calls", [tool("knowledge_search", { query: "open" })]) :
+      calls.length === 2 ? reply("", "tool_calls", [tool("knowledge_read", { evidenceId: JSON.parse(body.messages.findLast((message:any)=>message.role==="tool").content).passages[0].evidenceId }, "call2")]) : reply("Open at nine, from the approved source.");
     expect((await execute(f.task.id)).state).toBe("completed");
     expect(calls).toHaveLength(3);
     expect((calls[1]!.messages as any[]).some(m => m.role === "tool" && m.content.includes("Open at nine"))).toBe(true);
     expect((await pool.query("SELECT kind,count(*)::int AS count FROM agents_platform.operations WHERE task_id=$1 GROUP BY kind ORDER BY kind", [f.task.id])).rows)
-      .toEqual([{ kind: "model", count: 3 }, { kind: "tool", count: 2 }]);
+      .toEqual([{ kind: "model", count: 3 }, { kind: "tool", count: 3 }]);
     expect((await pool.query("SELECT accounted_tokens FROM agents_platform.usage_ledger WHERE task_id=$1", [f.task.id])).rows[0].accounted_tokens).toBe(168);
   }, 30_000);
   it("serializes concurrent conversation turns and includes predecessor context", async () => {
@@ -388,7 +451,7 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     const f = await fixture(); provider = async () => { throw new TypeError("lost provider response"); };
     expect(await execute(f.task.id)).toMatchObject({ state: "uncertain", error_code: "MODEL_OUTCOME_UNCERTAIN" });
     expect(calls).toHaveLength(1);
-    const op = (await pool.query("SELECT reserved_tokens,accounted_tokens,state FROM agents_platform.operations WHERE task_id=$1", [f.task.id])).rows[0];
+    const op = (await pool.query("SELECT reserved_tokens,accounted_tokens,state FROM agents_platform.operations WHERE task_id=$1 AND kind='model'", [f.task.id])).rows[0];
     expect(op.state).toBe("uncertain"); expect(op.accounted_tokens).toBe(op.reserved_tokens); expect(op.reserved_tokens).toBeLessThan(32000);
     await dispatchTasksOnce(pool, { ingressUrl, adminUrl }); expect(calls).toHaveLength(1);
   }, 30_000);
@@ -415,7 +478,7 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     await dispatchTasksOnce(pool, { ingressUrl, adminUrl });
     const result = await execute(f.task.id); release?.();
     expect(result.state).toBe("uncertain"); expect(calls).toHaveLength(1);
-    expect((await pool.query("SELECT count(*)::int AS count FROM agents_platform.operation_usage WHERE task_id=$1", [f.task.id])).rows[0].count).toBe(1);
+    expect((await pool.query("SELECT count(*)::int AS count FROM agents_platform.operation_usage u JOIN agents_platform.operations o ON o.id=u.operation_id WHERE u.task_id=$1 AND o.kind='model'", [f.task.id])).rows[0].count).toBe(1);
   }, 30_000);
   it("ends truthfully when root budget cannot admit even the first model request", async () => {
     const f = await fixture({ instructions: "Mandatory policy ".repeat(100) }, 2048);
@@ -449,31 +512,29 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     expect((await pool.query("SELECT accounted_tokens FROM agents_platform.usage_ledger WHERE task_id=$1", [f.task.id])).rows[0].accounted_tokens).toBe(1500);
   });
   it("invalidates a prepared memory snapshot before dispatch when Forget wins admission", async () => {
-    const f = await fixture({ memory: { enabled: true } }); const item = await acceptedMemory(f, "My preferred report language is Shona.");
-    const blocker = await pool.connect();
+    const f = await fixture({ memory: { enabled: true } , sourceRevisionIds: [] }); const item = await acceptedMemory(f, "My preferred report language is Shona.");
+    const held=holdPreparedContext(f.task.id,false);
     try {
-      await blocker.query("BEGIN"); await blocker.query("SELECT id FROM agents_platform.organizations WHERE id=$1 FOR UPDATE", [f.org.id]);
       await dispatchTasksOnce(pool, { ingressUrl, adminUrl });
-      await eventually(async () => Boolean((await pool.query("SELECT 1 FROM agents_platform.context_snapshots WHERE task_id=$1", [f.task.id])).rowCount));
+      await held.ready;
       await memory.mutate(f.managed, item.id, { operationId: randomUUID(), expectedRevision: item.revision, action: "forget" });
-      await blocker.query("COMMIT");
-      expect((await execute(f.task.id)).state).toBe("completed"); expect(calls).toHaveLength(1);
-      expect(JSON.stringify(calls[0]!.messages)).not.toContain("preferred report language is Shona");
-    } finally { await blocker.query("ROLLBACK"); blocker.release(); }
+      held.release();
+      expect(await execute(f.task.id)).toMatchObject({state:"incomplete",error_code:"EVIDENCE_UNAVAILABLE"});expect(calls).toHaveLength(0);
+      expect(JSON.stringify(calls)).not.toContain("preferred report language is Shona");
+    } finally { held.restore(); }
   }, 30_000);
   it("expires a prepared memory dependency before provider admission", async () => {
-    const f = await fixture({ memory: { enabled: true } });
+    const f = await fixture({ memory: { enabled: true } , sourceRevisionIds: [] });
     const item = await acceptedMemory(f, "My temporary preference is Shona.", new Date(Date.now() + 2500).toISOString());
-    const blocker = await pool.connect();
+    const held=holdPreparedContext(f.task.id,false);
     try {
-      await blocker.query("BEGIN"); await blocker.query("SELECT id FROM agents_platform.organizations WHERE id=$1 FOR UPDATE", [f.org.id]);
       await dispatchTasksOnce(pool, { ingressUrl, adminUrl });
-      await eventually(async () => Boolean((await pool.query("SELECT 1 FROM agents_platform.context_snapshots WHERE task_id=$1", [f.task.id])).rowCount));
+      await held.ready;
       await eventually(async () => (await pool.query("SELECT expires_at<=clock_timestamp() AS expired FROM agents_platform.memories WHERE id=$1", [item.id])).rows[0].expired);
-      await blocker.query("COMMIT");
-      expect((await execute(f.task.id)).state).toBe("completed"); expect(calls).toHaveLength(1);
-      expect(JSON.stringify(calls[0]!.messages)).not.toContain("My temporary preference is Shona");
-    } finally { await blocker.query("ROLLBACK"); blocker.release(); }
+      held.release();
+      expect(await execute(f.task.id)).toMatchObject({state:"incomplete",error_code:"EVIDENCE_UNAVAILABLE"});expect(calls).toHaveLength(0);
+      expect(JSON.stringify(calls)).not.toContain("My temporary preference is Shona");
+    } finally { held.restore(); }
   }, 30_000);
   it("keeps a successful memory proposal receipt in the next model context", async () => {
     const f = await fixture({ memory: { enabled: true }, tools: ["memory.propose"] });
@@ -496,9 +557,12 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     await dispatchTasksOnce(pool, { ingressUrl, adminUrl }); await eventually(async () => calls.length === 1);
     await memory.mutate(f.managed, item.id, { operationId: randomUUID(), expectedRevision: item.revision, action: "forget" });
     release();
-    expect((await execute(f.task.id)).state).toBe("completed"); expect(calls).toHaveLength(2);
+    expect(await execute(f.task.id)).toMatchObject({state:"incomplete",error_code:"EVIDENCE_UNAVAILABLE"});expect(calls).toHaveLength(1);
     expect((await memory.list(f.managed)).candidates).toEqual([]);
+    const followup=await store.admitTask({...f.request,requestKey:randomUUID(),conversationId:f.task.conversation_id,input:"Continue with current retained information"});
+    expect((await execute(followup.task.id)).state).toBe("completed");expect(calls).toHaveLength(2);
     expect(JSON.stringify(calls[1]!.messages)).not.toContain("Reports should be written in Shona");
+    expect(JSON.stringify(calls[1]!.messages)).not.toContain("preferred report language is Shona");
     expect((await pool.query("SELECT count(*)::int AS count FROM agents_platform.operations WHERE task_id=$1 AND name='memory.propose'", [f.task.id])).rows[0].count).toBe(0);
   }, 30_000);
   it("resumes a pending tool decision after authority expiry without regenerating that decision", async () => {
@@ -507,7 +571,7 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     provider = async () => {
       if (calls.length === 1) {
         await new Promise<void>(resolve => { release = resolve; });
-        return reply("", "tool_calls", [tool("knowledge_search", { query: "opening hours" })]);
+        return reply("", "tool_calls", [tool("knowledge_search", { query: "open" })]);
       }
       return reply("The confirmed opening time is nine.");
     };
@@ -520,12 +584,12 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     const replacement = { ...f.grant, id: randomUUID(), expiresAt: new Date(Date.now() + 300_000).toISOString() };
     await store.createGrant({ accountId: f.account.id, grant: replacement });
     await pool.query("UPDATE agents_platform.tasks SET grant_id=$2,control_generation=control_generation+1 WHERE id=$1", [f.task.id, replacement.id]);
-    const resumed = await fetch(`${ingressUrl}/AgentsBusinessRunV3/${f.task.id}/resume`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ generation: 0 }) });
+    const resumed = await fetch(`${ingressUrl}/AgentsBusinessRunV4/${f.task.id}/resume`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ generation: 0 }) });
     expect(resumed.ok, await resumed.text()).toBe(true);
     expect(await execute(f.task.id)).toMatchObject({ state: "completed", output: "The confirmed opening time is nine." });
     expect(calls).toHaveLength(2);
     expect(calls[1]!.messages.some(message => message.role === "tool" && message.content?.includes("Open at nine"))).toBe(true);
-    expect((await pool.query("SELECT count(*)::int AS count FROM agents_platform.operations WHERE task_id=$1 AND kind='tool'", [f.task.id])).rows[0].count).toBe(1);
+    expect((await pool.query("SELECT count(*)::int AS count FROM agents_platform.operations WHERE task_id=$1 AND kind='tool'", [f.task.id])).rows[0].count).toBe(2);
   }, 30_000);
   it("reads accepted personal memory in another authorized conversation", async () => {
     const f = await fixture({ memory: { enabled: true } }); await acceptedMemory(f, "My preferred report language is Shona.");
@@ -546,39 +610,38 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     expect(JSON.stringify(calls[1]!.messages)).not.toContain("Derived remembered preference is Shona");
   }, 30_000);
   it("waits for fresh authority when a prepared compaction cannot yet be admitted", async () => {
-    const f = await fixture({ context: { maxInputTokens: 4096, compactAtTokens: 1024 } });
+    const f = await fixture({ context: { maxInputTokens: 4096, compactAtTokens: 1024 } , sourceRevisionIds: [] });
     await execute(f.task.id);
     for (let index = 0; index < 2; index++) {
-      const prior = await store.admitTask({ ...f.request, requestKey: randomUUID(), conversationId: f.task.conversation_id, input: `Earlier ${index} ` + "facts ".repeat(30) });
+      const prior = await store.admitTask({ ...f.request, requestKey: randomUUID(), conversationId: f.task.conversation_id, input: `Earlier ${index} ` + "facts ".repeat(80) });
       await execute(prior.task.id);
     }
     calls.length = 0;
     const next = await store.admitTask({ ...f.request, requestKey: randomUUID(), conversationId: f.task.conversation_id, input: "Continue" });
     provider = async body => reply(body.messages[0].content.startsWith("Summarize") ? "Earlier opening hours were confirmed nine." : "Continued after renewal.");
-    const blocker = await pool.connect();
+    const held=holdPreparedContext(next.task.id,true);
     try {
-      await blocker.query("BEGIN"); await blocker.query("SELECT id FROM agents_platform.organizations WHERE id=$1 FOR UPDATE", [f.org.id]);
       await dispatchTasksOnce(pool, { ingressUrl, adminUrl });
-      await eventually(async () => Boolean((await pool.query("SELECT 1 FROM agents_platform.context_snapshots WHERE task_id=$1 AND step<0", [next.task.id])).rowCount));
+      await held.ready;
       await pool.query("UPDATE agents_platform.execution_grants SET expires_at=now()+interval '500 milliseconds' WHERE id=$1", [f.grant.id]);
       await eventually(async () => (await pool.query("SELECT expires_at<=clock_timestamp() AS expired FROM agents_platform.execution_grants WHERE id=$1", [f.grant.id])).rows[0].expired);
-      await blocker.query("COMMIT");
+      held.release();
       await eventually(async () => (await pool.query("SELECT state FROM agents_platform.tasks WHERE id=$1", [next.task.id])).rows[0].state === "waiting_authority");
       expect(calls).toHaveLength(0);
       const replacement = { ...f.grant, id: randomUUID(), expiresAt: new Date(Date.now() + 300_000).toISOString() };
       await store.createGrant({ accountId: f.account.id, grant: replacement });
       await pool.query("UPDATE agents_platform.tasks SET grant_id=$2,control_generation=control_generation+1 WHERE id=$1", [next.task.id, replacement.id]);
-      const resumed = await fetch(`${ingressUrl}/AgentsBusinessRunV3/${next.task.id}/resume`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ generation: 0 }) });
+      const resumed = await fetch(`${ingressUrl}/AgentsBusinessRunV4/${next.task.id}/resume`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ generation: 0 }) });
       expect(resumed.ok, await resumed.text()).toBe(true);
       expect((await execute(next.task.id)).state).toBe("completed");
       expect(calls.filter(call => call.messages[0]!.content?.startsWith("Summarize"))).toHaveLength(1);
-    } finally { await blocker.query("ROLLBACK"); blocker.release(); }
+    } finally { held.restore(); }
   }, 30_000);
   it("replays a completed compaction without repeating its model request after worker restart", async () => {
     const f = await fixture({ context: { maxInputTokens: 4096, compactAtTokens: 1024 } });
     await execute(f.task.id);
     for (let index = 0; index < 2; index++) {
-      const t = await store.admitTask({ ...f.request, requestKey: randomUUID(), conversationId: f.task.conversation_id, input: `Earlier request ${index} ` + "facts ".repeat(30) }); await execute(t.task.id);
+      const t = await store.admitTask({ ...f.request, requestKey: randomUUID(), conversationId: f.task.conversation_id, input: `Earlier request ${index} ` + "facts ".repeat(80) }); await execute(t.task.id);
     }
     calls.length = 0;
     const next = await store.admitTask({ ...f.request, requestKey: randomUUID(), conversationId: f.task.conversation_id, input: "Continue from the earlier work" });
@@ -606,12 +669,4 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     expect(calls.filter(c => c.messages[0]!.content?.startsWith("Summarize"))).toHaveLength(before.length);
     expect((await pool.query("SELECT id,output FROM agents_platform.operations WHERE task_id=$1 AND kind='compaction' AND state='completed'", [next.task.id])).rows).toEqual(before);
   }, 30_000);
-});
-
-describe("bounded authorized-source retrieval", () => {
-  it("ranks paragraphs and preserves Unicode within a byte limit", () => {
-    expect(retrieveFaqKnowledge("refund policy", [{ id: "hours", title: "Hours", content: "Open at nine" }, { id: "refund", title: "Payments", content: "Refund policy allows seven days" }], 90)).toMatch(/^\[source:refund\]/);
-    const text = retrieveFaqKnowledge("flowers", [{ id: "flowers", title: "Flowers", content: "🌸é".repeat(1000) }], 101);
-    expect(Buffer.byteLength(text)).toBeLessThanOrEqual(101); expect(text).not.toContain("�");
-  });
 });

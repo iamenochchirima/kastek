@@ -1,3 +1,4 @@
+import {publishFixtureSource} from "./knowledge-fixture";
 import { createHash, randomUUID } from "node:crypto";
 import { readFile, readdir } from "node:fs/promises";
 import { resolve } from "node:path";
@@ -34,8 +35,8 @@ suite("fresh platform setup and database snapshot boundaries", () => {
     const store = new PlatformStore(pool);
     const account = await store.ensureAccount({ issuer: "http://localhost:8080/realms/setup-test", subject: randomUUID(), email: "setup@example.com", displayName: "Setup fixture" });
     const org = await store.createOrganization(account.id, "Setup verification");
-    const knowledge = await store.approveKnowledge({ accountId: account.id, organizationId: org.id, title: "Returns", content: "Returns within 30 days.", visibility: "public" });
-    const configuration = defaultFaqConfiguration(); configuration.knowledgeIds = [knowledge.id];
+    const knowledge = await publishFixtureSource(pool,{ accountId: account.id, organizationId: org.id, title: "Returns", content: "Returns within 30 days.", visibility: "public" });
+    const configuration = defaultFaqConfiguration(); configuration.sourceRevisionIds = [knowledge.id];
     const agent = await store.createAgent({ accountId: account.id, organizationId: org.id, name: "FAQ", configuration });
     const version = await store.createVersion({ accountId: account.id, organizationId: org.id, agentId: agent.id, expectedRevision: 1 });
     return { store, account, org, knowledge, agent, version };
@@ -94,15 +95,15 @@ suite("fresh platform setup and database snapshot boundaries", () => {
       "DELETE FROM agents_platform.agent_versions WHERE id=$1",
     ]) await expect(pool.query(statement, [f.version.id])).rejects.toMatchObject({ code: "23514" });
     for (const statement of [
-      "UPDATE agents_platform.knowledge_sources SET content='changed' WHERE id=$1",
-      "DELETE FROM agents_platform.knowledge_sources WHERE id=$1",
+      "UPDATE agents_platform.source_revisions SET text_digest=repeat('a',64) WHERE id=$1",
+      "DELETE FROM agents_platform.source_revisions WHERE id=$1",
     ]) await expect(pool.query(statement, [f.knowledge.id])).rejects.toMatchObject({ code: "23514" });
     for (const statement of [
-      "DELETE FROM agents_platform.version_knowledge WHERE version_id=$1",
-      "UPDATE agents_platform.version_knowledge SET knowledge_id=knowledge_id WHERE version_id=$1",
+      "DELETE FROM agents_platform.version_sources WHERE version_id=$1",
+      "UPDATE agents_platform.version_sources SET revision_id=revision_id WHERE version_id=$1",
     ]) await expect(pool.query(statement, [f.version.id])).rejects.toMatchObject({ code: "23514" });
-    expect((await pool.query("SELECT knowledge_id FROM agents_platform.version_knowledge WHERE version_id=$1", [f.version.id])).rows).toEqual([{ knowledge_id: f.knowledge.id }]);
-    expect((await pool.query("SELECT content FROM agents_platform.knowledge_sources WHERE id=$1", [f.knowledge.id])).rows[0].content).toBe("Returns within 30 days.");
+    expect((await pool.query("SELECT revision_id FROM agents_platform.version_sources WHERE version_id=$1", [f.version.id])).rows).toEqual([{ revision_id: f.knowledge.id }]);
+    expect((await pool.query("SELECT text_digest FROM agents_platform.source_revisions WHERE id=$1", [f.knowledge.id])).rows[0].text_digest).toBe(createHash("sha256").update("Returns within 30 days.").digest("hex"));
   });
 
   it("rejects a website binding to a different agent's version in the same organization", async () => {

@@ -1,3 +1,5 @@
+import {assertConnectedBindingDependencies} from "./connected-tool-schema";
+import {capabilityBindingSchema} from "./capability-catalog";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import type { Pool, PoolClient } from "pg";
 import { agentConfigurationSchema, assertGrantAuthority, assertRuntimeAvailable, canonicalJson, defaultFaqConfiguration,
@@ -16,8 +18,6 @@ export interface AgentRecord { id: string; organization_id: string; name: string
   draft_revision: number; created_by: string; created_at: Date; updated_at: Date }
 export interface VersionRecord { id: string; organization_id: string; agent_id: string; number: number;
   draft_revision: number; execution_kind: "business" | "workspace"; configuration: AgentConfiguration; created_by: string; created_at: Date }
-export interface KnowledgeRecord { id: string; organization_id: string; title: string; content: string; digest: string;
-  visibility: "public" | "private"; approved_by: string; created_at: Date }
 export interface WebsiteDeployment { id: string; organization_id: string; agent_id: string; version_id: string;
   allowed_origins: string[]; published_by: string; published_at: Date; revoked_at: Date | null }
 export interface TaskRecord { id: string; product: AdmissionAuthority["product"]; organization_id: string; resource_id: string;
@@ -41,7 +41,7 @@ function tokenHash(token: string): string | null { return /^[A-Za-z0-9_-]{43}$/.
 function grantFromRow(row: Record<string, unknown>): ExecutionGrant {
   return executionGrantSchema.parse({ id: row.id, product: row.product, organizationId: row.organization_id,
     resourceId: row.resource_id, callerClientId: row.caller_client_id, principal: row.principal, versionId: row.version_id,
-    operations: row.operations, knowledgeIds: row.knowledge_ids, maxInputBytes: row.max_input_bytes,
+    operations: row.operations, sourceRevisionIds: row.source_revision_ids, connectedToolBindingIds: row.connected_tool_binding_ids, maxInputBytes: row.max_input_bytes,
     maxOutputTokens: row.max_output_tokens, maxContextTokens: row.max_context_tokens, rootTokenLimit: row.root_token_limit, expiresAt: (row.expires_at as Date).toISOString(),
     revokedAt: row.revoked_at ? (row.revoked_at as Date).toISOString() : null });
 }
@@ -127,19 +127,9 @@ export class PlatformStore {
       if (!row) throw new PlatformError("DRAFT_CONFLICT", 409, "The draft has changed. Refresh and try again.");
       return row; });
   }
-  async approveKnowledge(input: { accountId: string; organizationId: string; title: string; content: string; visibility: "public" | "private" }): Promise<KnowledgeRecord> {
-    const content = input.content.trim();
-    if (!content || Buffer.byteLength(content) > 100_000 || !["public", "private"].includes(input.visibility)) throw new PlatformError("INVALID_KNOWLEDGE", 400, "Enter knowledge text up to 100000 bytes");
-    return this.transaction(async (db) => { await this.membership(db, input.accountId, input.organizationId);
-      return (await db.query<KnowledgeRecord>(`INSERT INTO agents_platform.knowledge_sources(id,organization_id,title,content,digest,visibility,approved_by)
-        VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING *`, [randomUUID(), input.organizationId, text(input.title, 200), content, hash(content), input.visibility, input.accountId])).rows[0]!; });
-  }
-  async listKnowledge(accountId: string, organizationId: string): Promise<KnowledgeRecord[]> {
-    return this.transaction(async (db) => { await this.membership(db, accountId, organizationId);
-      return (await db.query<KnowledgeRecord>("SELECT * FROM agents_platform.knowledge_sources WHERE organization_id=$1 ORDER BY created_at,id", [organizationId])).rows; });
-  }
   async createVersion(input: { accountId: string; organizationId: string; agentId: string; expectedRevision: number }): Promise<VersionRecord> {
     return this.transaction(async (db) => {
+      await db.query("SELECT id FROM agents_platform.organizations WHERE id=$1 FOR UPDATE", [input.organizationId]);
       await this.membership(db, input.accountId, input.organizationId);
       const agent = (await db.query<AgentRecord>("SELECT * FROM agents_platform.agents WHERE organization_id=$1 AND id=$2 FOR UPDATE", [input.organizationId, input.agentId])).rows[0] ?? absent();
       if (agent.draft_revision !== input.expectedRevision) throw new PlatformError("DRAFT_CONFLICT", 409, "The draft has changed. Refresh and try again.");
@@ -154,19 +144,32 @@ export class PlatformStore {
           if (!child || child.agent_id === agent.id) throw new PlatformError("DELEGATION_BINDING_INVALID",409,"Choose a published specialist from this workspace");
           const childConfig = agentConfigurationSchema.parse(child.configuration);
           if (childConfig.executionKind !== "business" || childConfig.memory.enabled || childConfig.capabilities.delegation.enabled || childConfig.capabilities.sandbox.enabled || childConfig.capabilities.workflows.enabled ||
-              binding.knowledgeIds.some(id => !config.knowledgeIds.includes(id) || !childConfig.knowledgeIds.includes(id)) ||
+              binding.sourceRevisionIds.some(id => !config.sourceRevisionIds.includes(id) || !childConfig.sourceRevisionIds.includes(id)) ||
+              binding.connectedToolBindingIds.some(id => !config.connectedToolBindingIds.includes(id) || !childConfig.connectedToolBindingIds.includes(id)) ||
               binding.tools.some(tool => !childConfig.tools.includes(tool))) throw new PlatformError("DELEGATION_BINDING_INVALID",409,"Specialist binding exceeds the published scope");
+          const effectiveBindings=(await db.query("SELECT binding FROM agents_platform.capability_bindings WHERE organization_id=$1 AND id=ANY($2::uuid[])",[input.organizationId,binding.connectedToolBindingIds])).rows;
+          assertConnectedBindingDependencies(effectiveBindings.map(row=>capabilityBindingSchema.parse(row.binding)));
           binding.label=child.agent_name;
           binding.description=Array.from(childConfig.instructions.replace(/\s+/g," ")).slice(0,512).join("");
           binding.versionNumber=child.number;
         }
       }
       if(config.capabilities.workflows.enabled) {
-        const connection=await db.query("SELECT id FROM agents_platform.connections WHERE id=$1 AND organization_id=$2 AND account_id=$3 AND state='active' FOR SHARE",[config.capabilities.workflows.connectionId,input.organizationId,input.accountId]);
+        const connection=await db.query("SELECT id FROM agents_platform.connections WHERE id=$1 AND organization_id=$2 AND account_id=$3 AND state='active' AND profile_id='report-delivery-v1' AND expires_at>now() FOR SHARE",[config.capabilities.workflows.connectionId,input.organizationId,input.accountId]);
         if(!connection.rowCount)throw new PlatformError("WORKFLOW_CONNECTION_UNAVAILABLE",409,"Choose an active report connection owned by this account");
       }
-      const knowledge = await db.query("SELECT id FROM agents_platform.knowledge_sources WHERE organization_id=$1 AND id=ANY($2::uuid[]) FOR SHARE", [input.organizationId, config.knowledgeIds]);
-      if (knowledge.rows.length !== config.knowledgeIds.length) denied();
+      const sources = (await db.query(`SELECT r.id,r.source_id,r.embedding_release,s.visibility FROM agents_platform.source_revisions r
+        JOIN agents_platform.sources s ON s.id=r.source_id AND s.organization_id=r.organization_id
+        JOIN agents_platform.source_revision_policy p ON p.revision_id=r.id AND p.organization_id=r.organization_id
+        WHERE r.organization_id=$1 AND r.id=ANY($2::uuid[]) AND s.state='active' AND p.state='approved' ORDER BY s.id FOR SHARE OF s,p`, [input.organizationId, config.sourceRevisionIds])).rows;
+      if (sources.length !== config.sourceRevisionIds.length || new Set(sources.map(source => source.source_id)).size !== sources.length) throw new PlatformError("SOURCE_REVISION_UNAVAILABLE", 409, "Choose one approved revision per source");
+      if (sources.some(source => source.visibility === "private") && !(await db.query("SELECT 1 FROM agents_platform.memberships WHERE organization_id=$1 AND account_id=$2 AND role='owner' AND revoked_at IS NULL", [input.organizationId, input.accountId])).rowCount) throw new PlatformError("SOURCE_GRANT_DENIED", 403, "An owner must publish private knowledge grants");
+      const retrieval = config.retrievalProfile;
+      if (retrieval.kind === "hybrid-v1" && sources.some(source => source.embedding_release !== retrieval.embeddingRelease)) throw new PlatformError("RETRIEVAL_PROFILE_CONFLICT", 409, "Source indexes do not match the retrieval profile");
+      const connected = (await db.query(`SELECT b.id FROM agents_platform.capability_bindings b JOIN agents_platform.connections c ON c.id=b.connection_id
+        WHERE b.organization_id=$1 AND b.account_id=$2 AND b.id=ANY($3::uuid[]) AND c.state='active' AND c.expires_at>now()
+        AND c.policy_revision=(b.binding->'connection'->>'policyRevision')::integer ORDER BY c.id FOR SHARE OF c`, [input.organizationId, input.accountId, config.connectedToolBindingIds])).rows;
+      if (connected.length !== config.connectedToolBindingIds.length) throw new PlatformError("CAPABILITY_SCOPE_DENIED", 403, "Choose current connected tools owned by this account");
       if (config.skillIds.length) {
         const skills = await db.query("SELECT id FROM agents_platform.skill_revisions WHERE organization_id=$1 AND agent_id=$2 AND id=ANY($3::uuid[]) FOR SHARE", [input.organizationId,input.agentId,config.skillIds]);
         if (skills.rowCount !== new Set(config.skillIds).size) denied();
@@ -174,7 +177,8 @@ export class PlatformStore {
       const version = (await db.query<VersionRecord>(`INSERT INTO agents_platform.agent_versions(id,organization_id,agent_id,number,execution_kind,configuration,created_by,draft_revision,tool_bindings)
         SELECT $1,$2,$3,coalesce(max(number),0)+1,$4,$5,$6,$7,$8 FROM agents_platform.agent_versions WHERE agent_id=$3 RETURNING *`,
       [randomUUID(), input.organizationId, input.agentId, config.executionKind, config, input.accountId, agent.draft_revision,JSON.stringify(publishedToolBindings(config))])).rows[0]!;
-      for (const id of config.knowledgeIds) await db.query("INSERT INTO agents_platform.version_knowledge(organization_id,version_id,knowledge_id) VALUES($1,$2,$3)", [input.organizationId, version.id, id]);
+      for (const source of sources) await db.query("INSERT INTO agents_platform.version_sources(organization_id,version_id,source_id,revision_id) VALUES($1,$2,$3,$4)", [input.organizationId, version.id, source.source_id, source.id]);
+      for (const binding of connected) await db.query("INSERT INTO agents_platform.version_connected_tools(organization_id,version_id,binding_id) VALUES($1,$2,$3)", [input.organizationId, version.id, binding.id]);
       return version;
     });
   }
@@ -208,10 +212,10 @@ export class PlatformStore {
       if (version.configuration.capabilities.delegation.enabled || version.configuration.capabilities.sandbox.enabled || version.configuration.capabilities.workflows.enabled) throw new PlatformError("WEBSITE_CAPABILITY_DENIED",409,"Website agents cannot delegate or run analysis");
       assertRuntimeAvailable(version.configuration);
       const websiteConfig = agentConfigurationSchema.parse(version.configuration);
-      if (websiteConfig.memory.enabled || websiteConfig.skillIds.length || websiteConfig.tools.some(name=>name.startsWith("memory.")))
+      if (websiteConfig.memory.enabled || websiteConfig.skillIds.length || websiteConfig.connectedToolBindingIds.length || websiteConfig.tools.some(name=>name.startsWith("memory.")))
         throw new PlatformError("PRIVATE_AGENT_CONFIGURATION",409,"Website agents cannot use personal memory or private skills");
-      if ((await db.query(`SELECT k.id FROM agents_platform.version_knowledge v JOIN agents_platform.knowledge_sources k ON k.id=v.knowledge_id
-        WHERE v.version_id=$1 AND k.visibility<>'public'`, [version.id])).rows.length) throw new PlatformError("PRIVATE_KNOWLEDGE", 409, "Website agents require public knowledge");
+      if ((await db.query(`SELECT 1 FROM agents_platform.version_sources v JOIN agents_platform.sources s ON s.id=v.source_id
+        JOIN agents_platform.source_revision_policy p ON p.revision_id=v.revision_id WHERE v.version_id=$1 AND (s.state<>'active' OR s.visibility<>'public' OR p.state<>'approved')`, [version.id])).rowCount) throw new PlatformError("PRIVATE_KNOWLEDGE", 409, "Website agents require approved public knowledge");
       return (await db.query<WebsiteDeployment>(`INSERT INTO agents_platform.website_deployments(id,organization_id,agent_id,version_id,allowed_origins,published_by)
         VALUES($1,$2,$3,$4,$5,$6) RETURNING *`, [randomUUID(), input.organizationId, input.agentId, version.id, JSON.stringify(origins), input.accountId])).rows[0]!;
     });
@@ -221,10 +225,10 @@ export class PlatformStore {
   }
   private async insertGrant(db: Db, grant: ExecutionGrant): Promise<ExecutionGrant> {
     await db.query(`INSERT INTO agents_platform.execution_grants(id,product,organization_id,resource_id,caller_client_id,principal,
-      version_id,operations,knowledge_ids,max_input_bytes,max_output_tokens,expires_at,revoked_at,max_context_tokens,root_token_limit)
-      VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)`, [grant.id, grant.product, grant.organizationId, grant.resourceId,
-      grant.callerClientId, grant.principal, grant.versionId, JSON.stringify(grant.operations), JSON.stringify(grant.knowledgeIds),
-      grant.maxInputBytes, grant.maxOutputTokens, grant.expiresAt, grant.revokedAt, grant.maxContextTokens, grant.rootTokenLimit]);
+      version_id,operations,max_input_bytes,max_output_tokens,expires_at,revoked_at,max_context_tokens,root_token_limit,source_revision_ids,connected_tool_binding_ids)
+      VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`, [grant.id, grant.product, grant.organizationId, grant.resourceId,
+      grant.callerClientId, grant.principal, grant.versionId, JSON.stringify(grant.operations),
+      grant.maxInputBytes, grant.maxOutputTokens, grant.expiresAt, grant.revokedAt, grant.maxContextTokens, grant.rootTokenLimit, grant.sourceRevisionIds, grant.connectedToolBindingIds]);
     return grant;
   }
   async createGrant(input: { accountId: string; grant: ExecutionGrant }): Promise<ExecutionGrant> {
@@ -248,7 +252,7 @@ export class PlatformStore {
       assertRuntimeAvailable(version.configuration);
       const grant = executionGrantSchema.parse({ id: randomUUID(), product: "agents", organizationId: deployment.organization_id,
         resourceId: deployment.id, callerClientId: "agents-website", principal: { kind: "visitor", deploymentId: deployment.id, sessionId: input.sessionId },
-        versionId: version.id, operations: ["model.reply", "knowledge.read"], knowledgeIds: version.configuration.knowledgeIds,
+        versionId: version.id, operations: ["model.reply", "knowledge.read"], sourceRevisionIds: version.configuration.sourceRevisionIds, connectedToolBindingIds: [],
         maxInputBytes: version.configuration.model.maxInputBytes, maxOutputTokens: version.configuration.model.maxOutputTokens,
         expiresAt: new Date(Date.now() + 10 * 60_000).toISOString(), revokedAt: null });
       return this.insertGrant(db, grant);

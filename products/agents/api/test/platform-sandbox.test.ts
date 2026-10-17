@@ -32,7 +32,7 @@ suite("real gVisor Python analysis and independent resource lifecycle",()=>{
     const agent=await platform.createAgent({accountId:account.id,organizationId:org.id,name:"Analyst",configuration:config});
     const version=await platform.createVersion({accountId:account.id,organizationId:org.id,agentId:agent.id,expectedRevision:1});
     const authority={product:"agents" as const,organizationId:org.id,resourceId:agent.id,callerClientId:"agents-execution",principal:{kind:"human" as const,issuer:account.issuer,subject:account.subject}};
-    const grant={...authority,id:randomUUID(),versionId:version.id,operations:["model.reply" as const,"knowledge.read" as const,"sandbox.execute" as const,"artifact.read" as const,"artifact.write" as const],knowledgeIds:[],maxInputBytes:16384,maxOutputTokens:1024,maxContextTokens:8192,rootTokenLimit:32000,expiresAt:new Date(Date.now()+600_000).toISOString(),revokedAt:null};
+    const grant={...authority,id:randomUUID(),versionId:version.id,operations:["model.reply" as const,"knowledge.read" as const,"sandbox.execute" as const,"artifact.read" as const,"artifact.write" as const],maxInputBytes:16384,maxOutputTokens:1024,maxContextTokens:8192,rootTokenLimit:32000,expiresAt:new Date(Date.now()+600_000).toISOString(),revokedAt:null};
     await platform.createGrant({accountId:account.id,grant});const admitted=await platform.admitTask({authority,versionId:version.id,grantId:grant.id,requestKey:randomUUID(),input:"Analyze the authorized input"});
     return{organizationId:org.id,rootTaskId:admitted.task.id,taskId:admitted.task.id,deadlineAt:new Date(Date.now()+600_000)};
   }

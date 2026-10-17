@@ -39,7 +39,7 @@ export function createSandboxExecutor(pool:Pool,manager:SandboxManager|undefined
     for(const output of result.exports) {
       checkDeadline();
       const artifact=await artifacts.put(taskId,operationId,{...output,sourceReferences:[
-        ...execution.configuration.knowledgeIds.map(id=>({kind:"knowledge",id})),...(args.inputArtifactIds??[]).map(id=>({kind:"artifact",id}))]});
+        ...(args.inputArtifactIds??[]).map(id=>({kind:"artifact",id}))]});
       checkDeadline();
       refs.push({id:artifact.id,name:artifact.name,contentType:artifact.contentType,bytes:artifact.bytes,contentDigest:artifact.contentDigest,taskId,rootTaskId:artifact.rootTaskId});
     }

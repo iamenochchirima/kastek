@@ -1,6 +1,8 @@
+import {publishFixtureSource} from "./knowledge-fixture";
+import * as artifactModule from "../src/platform/artifacts";
 import { randomUUID } from "node:crypto";
 import { Pool } from "pg";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { buildPlatformApp } from "../src/platform/app";
 import { loadPlatformConfig } from "../src/platform/config";
 import { defaultFaqConfiguration } from "../src/platform/contracts";
@@ -18,6 +20,7 @@ suite("Agents HTTP and PostgreSQL integration", () => {
   let store: PlatformStore;
   let app: Awaited<ReturnType<typeof buildPlatformApp>>;
   let endpoint: string;
+  const bodies=new Map<string,Uint8Array>(),objects={async put(key:string,value:Uint8Array){bodies.set(key,value);},async get(key:string){const body=bodies.get(key);if(!body)throw Error("Missing fixture source");return body;},async delete(key:string){bodies.delete(key);}};
   const name = `agents_http_test_${randomUUID().replaceAll("-", "")}`;
   beforeAll(async () => {
     admin = new Pool({ connectionString: databaseUrl });
@@ -28,12 +31,13 @@ suite("Agents HTTP and PostgreSQL integration", () => {
     const config = loadPlatformConfig({ NODE_ENV: "test", AGENTS_DATABASE_URL: url.href,
       AGENTS_PUBLIC_URL: browserOrigin, AGENTS_OIDC_CLIENT_SECRET: "offline-integration-test-secret-only",
       OPENROUTER_API_KEY: "offline-test-key-never-sent" });
+    vi.spyOn(artifactModule,"privateStoreFromEnvironment").mockReturnValue(objects);
     app = await buildPlatformApp({ config, pool, logging: false });
     endpoint = await app.listen({ port: 0, host: "127.0.0.1" });
     store = new PlatformStore(pool);
   });
   afterAll(async () => {
-    await app?.close(); await pool?.end();
+    await app?.close(); await pool?.end(); vi.restoreAllMocks();
     if (admin) { await admin.query(`DROP DATABASE IF EXISTS "${name}" WITH (FORCE)`); await admin.end(); }
   });
   async function request(path: string, options: { method?: string; payload?: unknown; cookie?: string; origin?: string; token?: string } = {}) {
@@ -59,10 +63,8 @@ suite("Agents HTTP and PostgreSQL integration", () => {
     const user = await actor(), base = `/api/organizations/${user.org}`;
     const create = await request(`${base}/agents`, { method: "POST", cookie: user.cookie, origin: browserOrigin, payload: { name: "Opening hours" } });
     expect(create.status).toBe(201);
-    const knowledge = await request(`${base}/knowledge`, { method: "POST", cookie: user.cookie, origin: browserOrigin,
-      payload: { title: "Hours", content: "The shop opens Monday at nine.", visibility } });
-    expect(knowledge.status).toBe(201);
-    const configuration = { ...defaultFaqConfiguration(), knowledgeIds: [knowledge.body.knowledge.id] };
+    const source=await publishFixtureSource(pool,{accountId:user.account.id,organizationId:user.org,title:"Hours",content:"The shop opens Monday at nine.",visibility},objects);
+    const configuration = { ...defaultFaqConfiguration(), sourceRevisionIds: [source.id] };
     const update = await request(`${base}/agents/${create.body.agent.id}`, { method: "PUT", cookie: user.cookie, origin: browserOrigin,
       payload: { configuration, expectedRevision: create.body.agent.draftRevision } });
     expect(update.status).toBe(200);
@@ -182,7 +184,7 @@ suite("Agents HTTP and PostgreSQL integration", () => {
     const specialist=await store.createAgent({accountId:f.account.id,organizationId:f.org,name:"Research specialist",configuration:f.configuration});
     const specialistVersion=await store.createVersion({accountId:f.account.id,organizationId:f.org,agentId:specialist.id,expectedRevision:1});
     const configuration={...f.configuration,tools:["agents.delegate"],capabilities:{...f.configuration.capabilities,
-      delegation:{enabled:true,maxChildren:2,maxDepth:1,bindings:[{id:"research",versionId:specialistVersion.id,knowledgeIds:f.configuration.knowledgeIds,tools:[],maxTokens:8000,maxActiveMs:240000}]}}};
+      delegation:{enabled:true,maxChildren:2,maxDepth:1,bindings:[{id:"research",versionId:specialistVersion.id,sourceRevisionIds:f.configuration.sourceRevisionIds,tools:[],maxTokens:8000,maxActiveMs:240000}]}}};
     const update=await request(`${f.base}/agents/${f.agent.id}`,{method:"PUT",cookie:f.cookie,origin:browserOrigin,payload:{configuration,expectedRevision:f.agent.draftRevision}});
     expect(update.status).toBe(200);
     const version=await request(`${f.base}/agents/${f.agent.id}/versions`,{method:"POST",cookie:f.cookie,origin:browserOrigin,payload:{expectedRevision:update.body.agent.draftRevision}});

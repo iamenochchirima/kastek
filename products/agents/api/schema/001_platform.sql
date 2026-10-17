@@ -61,18 +61,6 @@ CREATE TABLE agents_platform.agents (
   UNIQUE (organization_id, id)
 );
 
-CREATE TABLE agents_platform.knowledge_sources (
-  id uuid PRIMARY KEY,
-  organization_id uuid NOT NULL REFERENCES agents_platform.organizations(id),
-  title text NOT NULL CHECK (length(title) BETWEEN 1 AND 200),
-  content text NOT NULL CHECK (octet_length(content) BETWEEN 1 AND 100000),
-  digest text NOT NULL CHECK (digest ~ '^[a-f0-9]{64}$'),
-  visibility text NOT NULL CHECK (visibility IN ('private', 'public')),
-  approved_by uuid NOT NULL REFERENCES agents_platform.accounts(id),
-  created_at timestamptz NOT NULL DEFAULT now(),
-  UNIQUE (organization_id, id)
-);
-
 CREATE TABLE agents_platform.agent_versions (
   id uuid PRIMARY KEY,
   organization_id uuid NOT NULL,
@@ -91,15 +79,6 @@ CREATE TABLE agents_platform.agent_versions (
   UNIQUE (organization_id, id)
 );
 
-CREATE TABLE agents_platform.version_knowledge (
-  organization_id uuid NOT NULL,
-  version_id uuid NOT NULL,
-  knowledge_id uuid NOT NULL,
-  PRIMARY KEY (version_id, knowledge_id),
-  FOREIGN KEY (organization_id, version_id) REFERENCES agents_platform.agent_versions(organization_id, id),
-  FOREIGN KEY (organization_id, knowledge_id) REFERENCES agents_platform.knowledge_sources(organization_id, id)
-);
-
 CREATE FUNCTION agents_platform.reject_snapshot_update() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
   RAISE EXCEPTION 'Published configuration and approved knowledge are immutable' USING ERRCODE = '23514';
@@ -107,11 +86,6 @@ END;
 $$;
 CREATE TRIGGER immutable_agent_version BEFORE UPDATE OR DELETE ON agents_platform.agent_versions
   FOR EACH ROW EXECUTE FUNCTION agents_platform.reject_snapshot_update();
-CREATE TRIGGER immutable_knowledge BEFORE UPDATE OR DELETE ON agents_platform.knowledge_sources
-  FOR EACH ROW EXECUTE FUNCTION agents_platform.reject_snapshot_update();
-CREATE TRIGGER immutable_version_knowledge BEFORE UPDATE OR DELETE ON agents_platform.version_knowledge
-  FOR EACH ROW EXECUTE FUNCTION agents_platform.reject_snapshot_update();
-
 CREATE TABLE agents_platform.execution_grants (
   id uuid PRIMARY KEY,
   product text NOT NULL CHECK (product IN ('agents', 'growth', 'agencies')),
@@ -121,7 +95,6 @@ CREATE TABLE agents_platform.execution_grants (
   principal jsonb NOT NULL CHECK (principal->>'kind' IN ('human', 'automation', 'visitor')),
   version_id uuid NOT NULL,
   operations jsonb NOT NULL CHECK (jsonb_typeof(operations) = 'array'),
-  knowledge_ids jsonb NOT NULL CHECK (jsonb_typeof(knowledge_ids) = 'array'),
   max_input_bytes integer NOT NULL CHECK (max_input_bytes BETWEEN 1 AND 16384),
   max_output_tokens integer NOT NULL CHECK (max_output_tokens BETWEEN 1 AND 1024),
   max_context_tokens integer NOT NULL DEFAULT 8192 CHECK (max_context_tokens BETWEEN 2048 AND 8192),
@@ -193,7 +166,7 @@ CREATE TABLE agents_platform.tasks (
   input text NOT NULL CHECK (octet_length(input) BETWEEN 1 AND 16384),
   state text NOT NULL DEFAULT 'accepted' CHECK (state IN ('accepted', 'running', 'waiting_children', 'waiting_authority', 'waiting_review', 'reconciling', 'cancel_requested', 'completed', 'incomplete', 'refused', 'failed', 'cancelled', 'uncertain')),
   turn_sequence bigint NOT NULL DEFAULT 1,
-  harness_release text NOT NULL DEFAULT 'owned-report-v1',
+  harness_release text NOT NULL DEFAULT 'connected-research-v1',
   root_task_id uuid NOT NULL REFERENCES agents_platform.tasks(id),
   parent_task_id uuid REFERENCES agents_platform.tasks(id),
   depth integer NOT NULL DEFAULT 0 CHECK(depth BETWEEN 0 AND 1),

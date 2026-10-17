@@ -26,7 +26,8 @@ const unavailableCapability = z.strictObject({ enabled: z.literal(false) });
 export const baseToolNameSchema = z.enum(["knowledge.search", "knowledge.read", "memory.search", "memory.propose"]);
 export const toolNameSchema = z.enum(["knowledge.search", "knowledge.read", "memory.search", "memory.propose", "agents.delegate", "sandbox.analyze"]);
 export const delegationBindingSchema = z.strictObject({
-  id: z.string().regex(/^[A-Za-z0-9_-]{1,64}$/), versionId: z.uuid(), knowledgeIds: z.array(z.uuid()).max(20),
+  id: z.string().regex(/^[A-Za-z0-9_-]{1,64}$/), versionId: z.uuid(),
+  sourceRevisionIds: z.array(z.uuid()).max(20).default([]), connectedToolBindingIds: z.array(z.uuid()).max(8).default([]),
   label: z.string().min(1).max(120).optional(), description: z.string().max(512).optional(), versionNumber: z.number().int().positive().optional(),
   tools: z.array(z.enum(["knowledge.search", "knowledge.read"])).max(2),
   maxTokens: z.number().int().min(2048).max(12000), maxActiveMs: z.number().int().min(1000).max(300000),
@@ -46,7 +47,10 @@ export const agentConfigurationSchema = z.strictObject({
   executionKind: executionKindSchema,
   instructions: z.string().trim().min(1).max(8_000),
   model: modelSchema,
-  knowledgeIds: z.array(z.uuid()).max(20).refine((ids) => new Set(ids).size === ids.length, "Duplicate knowledge source"),
+  sourceRevisionIds: z.array(z.uuid()).max(20).refine(ids => new Set(ids).size === ids.length, "Duplicate source revision").default([]),
+  connectedToolBindingIds: z.array(z.uuid()).max(8).refine(ids => new Set(ids).size === ids.length, "Duplicate connected tool").default([]),
+  retrievalProfile: z.discriminatedUnion("kind", [z.strictObject({ kind: z.literal("lexical-v1") }),
+    z.strictObject({ kind: z.literal("hybrid-v1"), embeddingRelease: z.string().min(1).max(256) })]).default({ kind: "lexical-v1" }),
   capabilities: faqCapabilitiesSchema,
   memory: z.strictObject({ enabled: z.boolean() }).default({ enabled: false }),
   context: z.strictObject({ maxInputTokens: z.number().int().min(2048).max(8192),
@@ -65,7 +69,7 @@ export function defaultFaqConfiguration(): AgentConfiguration {
       maxInputBytes: initialLimits.maxInputBytes, maxOutputTokens: initialLimits.maxOutputTokens,
       maxDurationSeconds: initialLimits.maxDurationSeconds,
     },
-    knowledgeIds: [],
+    sourceRevisionIds: [], connectedToolBindingIds: [], retrievalProfile: { kind: "lexical-v1" },
     memory: { enabled: false }, context: { maxInputTokens: 8192, compactAtTokens: 6144 }, tools: [], skillIds: [],
     capabilities: {
       delegation: { enabled: false }, sandbox: { enabled: false }, businessActions: { enabled: false },
@@ -119,8 +123,8 @@ export const executionGrantSchema = z.strictObject({
   callerClientId: z.string().min(1).max(128),
   principal: principalSchema,
   versionId: z.uuid(),
-  operations: z.array(z.enum(["knowledge.read", "model.reply", "memory.read", "memory.propose", "delegation.execute", "sandbox.execute", "artifact.read", "artifact.write", "effect.deliver"])).min(1).max(9),
-  knowledgeIds: z.array(z.uuid()).max(20),
+  operations: z.array(z.enum(["knowledge.read", "model.reply", "memory.read", "memory.propose", "delegation.execute", "sandbox.execute", "artifact.read", "artifact.write", "effect.deliver", "connected.read"])).min(1).max(10),
+  sourceRevisionIds: z.array(z.uuid()).max(20).default([]), connectedToolBindingIds: z.array(z.uuid()).max(8).default([]),
   maxInputBytes: z.number().int().positive().max(initialLimits.maxInputBytes),
   maxOutputTokens: z.number().int().positive().max(initialLimits.maxOutputTokens),
   maxContextTokens: z.number().int().min(2048).max(8192).default(8192),
@@ -150,8 +154,10 @@ export function assertGrantAuthority(
     throw new PlatformError("GRANT_SCOPE_DENIED", 403, "Execution authorization does not cover this request");
   }
   if (!grant.operations.includes("model.reply") ||
-      (configuration.knowledgeIds.length > 0 && !grant.operations.includes("knowledge.read")) ||
-      configuration.knowledgeIds.some((id) => !grant.knowledgeIds.includes(id)) ||
+      configuration.sourceRevisionIds.some(id => !grant.sourceRevisionIds.includes(id)) ||
+      (configuration.sourceRevisionIds.length > 0 && !grant.operations.includes("knowledge.read")) ||
+      configuration.connectedToolBindingIds.some(id => !grant.connectedToolBindingIds.includes(id)) ||
+      (configuration.connectedToolBindingIds.length > 0 && !grant.operations.includes("connected.read")) ||
       configuration.model.maxInputBytes > grant.maxInputBytes || configuration.model.maxOutputTokens > grant.maxOutputTokens ||
       configuration.context.maxInputTokens > grant.maxContextTokens ||
       (configuration.capabilities.delegation.enabled && !grant.operations.includes("delegation.execute")) ||

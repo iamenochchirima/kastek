@@ -81,7 +81,7 @@ suite("scoped PostgreSQL memory and immutable skills", () => {
     const f = await fixture(), config=defaultFaqConfiguration();
     const version=await platform.createVersion({accountId:f.account.id,organizationId:f.organization.id,agentId:f.agent.id,expectedRevision:1});
     const authority={product:"agents" as const,organizationId:f.organization.id,resourceId:f.agent.id,callerClientId:"agents-execution",principal:f.scope.principal};
-    const grant={...authority,id:randomUUID(),versionId:version.id,operations:["model.reply" as const,"knowledge.read" as const],knowledgeIds:[],maxInputBytes:config.model.maxInputBytes,maxOutputTokens:config.model.maxOutputTokens,maxContextTokens:8192,rootTokenLimit:32000,expiresAt:new Date(Date.now()+60_000).toISOString(),revokedAt:null};
+    const grant={...authority,id:randomUUID(),versionId:version.id,operations:["model.reply" as const,"knowledge.read" as const],maxInputBytes:config.model.maxInputBytes,maxOutputTokens:config.model.maxOutputTokens,maxContextTokens:8192,rootTokenLimit:32000,expiresAt:new Date(Date.now()+60_000).toISOString(),revokedAt:null};
     await platform.createGrant({accountId:f.account.id,grant});
     const admitted=await platform.admitTask({authority,grantId:grant.id,versionId:version.id,requestKey:randomUUID(),input:"My preference is detailed reports."});
     const proposed=await memory.propose(f.scope,{operationId:randomUUID(),kind:"semantic",content:"Prefer detailed reports.",sourceTaskId:admitted.task.id});

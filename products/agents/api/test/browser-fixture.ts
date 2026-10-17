@@ -18,6 +18,13 @@ import { PlatformStore } from "../src/platform/store";
 import { createBusinessWorkflow } from "../src/platform/business";
 import { startDispatcher } from "../src/platform/dispatcher";
 import { defaultFaqConfiguration, type AgentConfiguration } from "../src/platform/contracts";
+import { KnowledgeStore } from "../src/platform/knowledge";
+import { EvidenceStore } from "../src/platform/evidence";
+import { KnowledgeRuntime } from "../src/platform/knowledge-runtime";
+import { QueryEmbeddingService } from "../src/platform/query-embedding";
+import { documentRuntimeFromEnvironment } from "../src/platform/document-runtime";
+import { IngestionService, createIngestionWorkflow, startIngestionDispatcher, reapDocumentResources } from "../src/platform/ingestion-runtime";
+import { reapQueryEmbeddingResources } from "../src/platform/query-embedding";
 import { privateStoreFromEnvironment } from "../src/platform/artifacts";
 import { sandboxManagerFromEnvironment } from "../src/platform/sandbox";
 import { createSandboxExecutor } from "../src/platform/sandbox-executor";
@@ -33,6 +40,7 @@ let admin: Pool | undefined;
 let pool: Pool | undefined;
 let app: Awaited<ReturnType<typeof buildPlatformApp>> | undefined;
 let dispatcher: ReturnType<typeof startDispatcher> | undefined;
+let ingestionDispatcher: ReturnType<typeof startIngestionDispatcher> | undefined;
 let workerProcess: ChildProcess | undefined;
 let receiverProcess: ChildProcess | undefined;
 let workerEnvironment: NodeJS.ProcessEnv | undefined;
@@ -68,6 +76,8 @@ async function cleanupResources() {
   await stopWorkerProcess();
   if (receiverProcess?.pid && receiverProcess.exitCode === null && receiverProcess.signalCode === null) { receiverProcess.kill("SIGTERM"); await once(receiverProcess, "exit"); }
   await dispatcher?.stop();
+  await ingestionDispatcher?.stop();
+  if(pool){const runtime=documentRuntimeFromEnvironment();if(runtime){await reapDocumentResources(pool,runtime);await reapQueryEmbeddingResources(pool,runtime);}}
   await app?.close();
   if (site) await new Promise<void>(resolve => site!.close(() => resolve()));
   for (const session of connections) session.destroy();
@@ -141,11 +151,14 @@ async function prepareAdvancedFixture(token: string): Promise<{ agentPath: strin
   const { organization } = await request<{ organization: { id: string } }>("/api/organizations", { name: "Advanced browser verification" });
   const base = `/api/organizations/${organization.id}`;
   const sourceTitle = "Browser analysis data";
-  const { knowledge } = await request<{ knowledge: { id: string } }>(`${base}/knowledge`, { title: sourceTitle, content: "Approved numeric dataset: [10, 20, 30]. Each number is one observation. Use only these values for the analysis.", visibility: "private" });
+  const { job } = await request<{ job: { id: string; sourceId: string; revisionId: string } }>(`${base}/knowledge/imports`, { operationId: randomUUID(), title: sourceTitle, kind: "upload", contentType: "text/plain", contentBase64: Buffer.from("Approved numeric dataset: [10, 20, 30]. Each number is one observation. Use only these values for the analysis.").toString("base64") });
+  await ready(async()=> (await pool!.query("SELECT state FROM agents_platform.ingestion_jobs WHERE id=$1",[job.id])).rows[0]?.state==="ready","actual isolated advanced source import");
+  await request(`${base}/knowledge/sources/${job.sourceId}/policy`,{operationId:randomUUID(),expectedGeneration:1,action:"approve",revisionId:job.revisionId});
+  const knowledge={id:job.revisionId};
   async function create(name: string, instructions: string, specialist: boolean) {
     const { agent } = await request<{ agent: { id: string; draftRevision: number } }>(`${base}/agents`, { name });
     const defaults = defaultFaqConfiguration();
-    const configuration: AgentConfiguration = { ...defaults, instructions, knowledgeIds: [knowledge.id], tools: specialist ? ["knowledge.search", "knowledge.read"] : [], model: { ...defaults.model, maxOutputTokens: specialist ? 192 : 768 } };
+    const configuration: AgentConfiguration = { ...defaults, instructions, sourceRevisionIds: [knowledge.id], tools: specialist ? ["knowledge.search", "knowledge.read"] : [], model: { ...defaults.model, maxOutputTokens: specialist ? 192 : 768 } };
     const updated = await request<{ agent: { draftRevision: number } }>(`${base}/agents/${agent.id}`, { name, configuration, expectedRevision: agent.draftRevision }, "PUT");
     const { version } = await request<{ version: { id: string } }>(`${base}/agents/${agent.id}/versions`, { expectedRevision: updated.agent.draftRevision });
     return { agent, version };
@@ -185,13 +198,15 @@ async function main() {
   const session = await store.createSession({ accountId: account.id, providerSessionId: randomUUID(), expiresAt: new Date(Date.now() + 3_600_000) });
   privateDirectory = await mkdtemp(join(tmpdir(), "agents-browser-fixture-"));
   await writeFile(join(privateDirectory, "session.json"), JSON.stringify({ cookie: session.token }), { mode: 0o600 });
-  if (advancedJourney) await prepareAdvancedStorage(privateDirectory);
+  await prepareAdvancedStorage(privateDirectory);
+  process.env.AGENTS_DOCUMENT_RUNTIME_ENABLED="1";
+  const documents=documentRuntimeFromEnvironment();assert.ok(documents&&await documents.available(),"Browser fixture requires actual pinned document isolation");
   const deliveryKey = automationJourney ? await prepareDeliveryFixture(privateDirectory) : undefined;
   sandboxManager = sandboxManagerFromEnvironment(pool);
   if (advancedJourney) assert.ok(sandboxManager && await sandboxManager.available(), "Advanced fixture requires actual gVisor isolation");
   app = await buildPlatformApp({ config, pool, logging: false });
   await app.listen({ host: "127.0.0.1", port: 4100 });
-  const advanced = advancedJourney ? await prepareAdvancedFixture(session.token) : undefined;
+  let advanced: Awaited<ReturnType<typeof prepareAdvancedFixture>> | undefined;
   const fixtureFetch: typeof fetch = async (_url, request) => {
     const body = JSON.parse(String(request?.body)) as { model: string; messages: { content: string }[] };
     const knowledge = body.messages.map(message=>message.content??"").join("\n");
@@ -199,7 +214,7 @@ async function main() {
     modelCalls.push({ model: body.model, approvedKnowledgePresent: Boolean(answer) });
     assert.ok(answer, "Model transport must receive the approved public knowledge source");
     await new Promise(resolve => setTimeout(resolve, 1_500));
-    return new Response(JSON.stringify({ choices: [{ message: { role: "assistant", content: answer }, finish_reason: "stop" }], usage: { prompt_tokens: 100, completion_tokens: 20 } }), { headers: { "content-type": "application/json" } });
+    return new Response(JSON.stringify({ choices: [{ message: { role: "assistant", content: answer+" ["+knowledge.match(/E[a-f0-9]{32}/)![0]+"]" }, finish_reason: "stop" }], usage: { prompt_tokens: 100, completion_tokens: 20 } }), { headers: { "content-type": "application/json" } });
   };
   const observedModelFetch: typeof fetch = async (url, request) => {
     const started = Date.now();
@@ -219,11 +234,13 @@ async function main() {
       throw error;
     }
   };
+  const sourceObjects=privateStoreFromEnvironment(process.env,10_485_760)!;
+  const evidence=new EvidenceStore(pool,sourceObjects),ingestion=new IngestionService(pool,sourceObjects,documents,new KnowledgeStore(pool,sourceObjects));
   if (automationJourney) {
     workerEnvironment = { ...process.env, AGENTS_DATABASE_URL: database.href, OPENROUTER_API_KEY: modelKey, RESTATE_INGRESS_URL: ingress, RESTATE_ADMIN_URL: runtimeAdmin, RESTATE_WORKER_PORT: "9080", RESTATE_WORKER_HOST: "0.0.0.0", AGENTS_ALLOW_UNSIGNED_WORKER: "1" };
     await startWorkerProcess();
   } else {
-  worker = createServer(createEndpointHandler({ services: [createBusinessWorkflow(pool, { openRouterApiKey: modelKey, signal: fixtureAbort.signal, executeSandbox: createSandboxExecutor(pool, sandboxManager, privateStoreFromEnvironment()), fetch: realModel ? observedModelFetch : fixtureFetch })] }));
+  worker = createServer(createEndpointHandler({ services: [createBusinessWorkflow(pool, { openRouterApiKey: modelKey, signal: fixtureAbort.signal, executeSandbox: createSandboxExecutor(pool, sandboxManager, privateStoreFromEnvironment()), evidence,knowledgeRuntime:new KnowledgeRuntime(pool,evidence,new QueryEmbeddingService(pool,sourceObjects,documents)),fetch: realModel ? observedModelFetch : fixtureFetch }),createIngestionWorkflow(ingestion)] }));
   worker.on("session", session => { connections.add(session); session.once("close", () => connections.delete(session)); });
   await new Promise<void>((resolve, reject) => { worker!.once("error", reject); worker!.listen(9080, "0.0.0.0", resolve); });
   }
@@ -242,7 +259,11 @@ async function main() {
       cwd: root, stdio: ["ignore", "ignore", "inherit"], env: { ...process.env, AGENTS_DATABASE_URL: database.href },
     });
   }
-  if (!automationJourney) dispatcher = startDispatcher(pool, { ingressUrl: ingress, adminUrl: runtimeAdmin, onError: code => console.error(`Fixture dispatcher: ${code}`) });
+  if (!automationJourney) {
+    dispatcher = startDispatcher(pool, { ingressUrl: ingress, adminUrl: runtimeAdmin, onError: code => console.error(`Fixture dispatcher: ${code}`) });
+    ingestionDispatcher=startIngestionDispatcher(ingestion,ingress,code=>console.error(`Fixture import dispatcher: ${code}`));
+  }
+  advanced = advancedJourney ? await prepareAdvancedFixture(session.token) : undefined;
   site = createHttpServer((request, response) => {
     if (automationJourney && request.method === "POST" && request.url?.startsWith("/fixture/")) {
       void (async () => {

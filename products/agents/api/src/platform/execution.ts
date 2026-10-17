@@ -6,17 +6,19 @@ import type { TaskRecord } from "./store";
 
 import {transaction} from "./database";
 import {assertAutomationAuthority} from "./automation-authority";
+import { capabilityBindingSchema, type CapabilityBinding } from "./capability-catalog";
+import type { DependencyManifest } from "./source-contracts";
 export {transaction} from "./database";
 
-export const HARNESS_RELEASE = "owned-report-v1";
-export const WORKFLOW_NAME = "AgentsBusinessRunV3";
+export const HARNESS_RELEASE = "connected-research-v1";
+export const WORKFLOW_NAME = "AgentsBusinessRunV4";
 export interface Execution { task: TaskRecord & { turn_sequence: string; history_cutoff: string | null;
   tokens_used: number; tokens_reserved: number; root_token_limit: number; model_calls: number; tool_calls: number;
-  deadline_at: Date; harness_release: string; control_generation: string }; configuration: AgentConfiguration; agentId: string;
-  toolBindings:{name:string;version:string;digest:string}[] }
+  deadline_at: Date; harness_release: string; control_generation: string; pending_outcome: TaskOutcome | null }; configuration: AgentConfiguration; agentId: string;
+  toolBindings:{name:string;version:string;digest:string}[]; connectedBindings: CapabilityBinding[] }
 export interface MemoryFence { id: string; generation: number; expiresAt?: number }
 export interface OperationRequest { id: string; kind: "model" | "compaction" | "tool" | "delegation" | "resource"; name: string;
-  request: unknown; reservedTokens: number; reservedMs: number; memoryFence?: MemoryFence; retrySafe?: boolean; reconcile?: boolean; maxResultBytes?:number }
+  request: unknown; reservedTokens: number; reservedMs: number; memoryFence?: MemoryFence; evidenceManifest?: DependencyManifest; retrySafe?: boolean; reconcile?: boolean; maxResultBytes?:number }
 export interface OperationRecord { id: string; task_id: string; state: "started" | "completed" | "failed" | "uncertain";
   output: unknown; error_code: string | null; reserved_tokens: number; reserved_ms: number; accounted_tokens: number; started_at: Date }
 export interface TaskOutcome { state: "completed" | "incomplete" | "refused" | "failed" | "cancelled" | "uncertain"; output?: string; errorCode?: string }
@@ -33,7 +35,11 @@ export async function loadExecution(db: Pool | PoolClient, taskId: string, lock 
   if (!task) throw new PlatformError("TASK_NOT_FOUND", 404, "Task not found");
   if (task.harness_release !== HARNESS_RELEASE) throw new PlatformError("HARNESS_RELEASE_UNAVAILABLE", 503, "Execution release is unavailable");
   const configuration = agentConfigurationSchema.parse(task.effective_configuration ?? task.configuration); assertRuntimeAvailable(configuration);
-  return { task, configuration, agentId: task.agent_id,toolBindings:task.tool_bindings };
+  const rows = configuration.connectedToolBindingIds.length ? (await db.query(`SELECT b.binding FROM agents_platform.version_connected_tools v
+    JOIN agents_platform.capability_bindings b ON b.id=v.binding_id AND b.organization_id=v.organization_id
+    WHERE v.organization_id=$1 AND v.version_id=$2 AND b.id=ANY($3::uuid[]) ORDER BY b.alias`, [task.organization_id, task.version_id, configuration.connectedToolBindingIds])).rows : [];
+  if (rows.length !== configuration.connectedToolBindingIds.length) throw new PlatformError("CAPABILITY_BINDING_UNAVAILABLE", 409, "Published connected tools are unavailable");
+  return { task, configuration, agentId: task.agent_id,toolBindings:task.tool_bindings, connectedBindings: rows.map(row => capabilityBindingSchema.parse(row.binding)) };
 }
 
 export async function assertCurrentAuthority(db: Pool | PoolClient, execution: Execution): Promise<void> {
@@ -58,7 +64,7 @@ export async function assertCurrentAuthority(db: Pool | PoolClient, execution: E
   if (new Date(row.expires_at).getTime() <= Date.now()) throw new PlatformError("AUTHORITY_EXPIRED", 403, "Continue with current access");
   const grant = executionGrantSchema.parse({ id: row.id, product: row.product, principal: row.principal, operations: row.operations,
     organizationId: row.organization_id, resourceId: row.resource_id,
-    callerClientId: row.caller_client_id, versionId: row.version_id, knowledgeIds: row.knowledge_ids,
+    callerClientId: row.caller_client_id, versionId: row.version_id, sourceRevisionIds: row.source_revision_ids, connectedToolBindingIds: row.connected_tool_binding_ids,
     maxInputBytes: row.max_input_bytes, maxOutputTokens: row.max_output_tokens, maxContextTokens: row.max_context_tokens,
     rootTokenLimit: row.root_token_limit, expiresAt: row.expires_at.toISOString(), revokedAt: null });
   assertGrantAuthority(grant, { product: task.product, organizationId: task.organization_id,
@@ -73,7 +79,7 @@ export async function assertCurrentAuthority(db: Pool | PoolClient, execution: E
       WHERE d.organization_id=$1 AND d.id=$2 AND d.version_id=$3 AND d.agent_id=$4 AND d.revoked_at IS NULL
       AND s.id=$5 AND s.expires_at>now() FOR SHARE OF d`,
     [task.organization_id, task.principal.deploymentId, task.version_id, agentId, task.principal.sessionId]);
-    if (!allowed.rowCount || configuration.memory.enabled || configuration.skillIds.length || configuration.capabilities.delegation.enabled || configuration.capabilities.sandbox.enabled || configuration.capabilities.workflows.enabled || configuration.tools.some(t => t.startsWith("memory."))) {
+    if (!allowed.rowCount || configuration.memory.enabled || configuration.skillIds.length || configuration.connectedToolBindingIds.length || configuration.capabilities.delegation.enabled || configuration.capabilities.sandbox.enabled || configuration.capabilities.workflows.enabled || configuration.tools.some(t => t.startsWith("memory."))) {
       throw new PlatformError("DEPLOYMENT_SCOPE_DENIED", 403, "Website execution access is unavailable");
     }
   } else if(task.principal.kind==="automation")await assertAutomationAuthority(db,execution);
@@ -93,7 +99,10 @@ export async function beginOperation(pool: Pool, taskId: string, input: Operatio
       if (existing.state === "started") {
         if ((input.kind === "tool" || input.kind === "delegation") && input.retrySafe || input.kind === "resource" && input.reconcile) {
           await assertCurrentAuthority(db, execution);
-          try { await checkMemoryFence(db, input.memoryFence); }
+          try {
+            await checkMemoryFence(db, input.memoryFence);
+            if (input.evidenceManifest) await (await import("./evidence")).assertCurrentEvidence(db, taskId, input.evidenceManifest);
+          }
           catch(error) {
             if (!(error instanceof PlatformError)) throw error;
             await finishOperationInTransaction(db,execution,existing,"uncertain",null,"OPERATION_OUTCOME_UNCERTAIN",existing.reserved_tokens);
@@ -108,6 +117,7 @@ export async function beginOperation(pool: Pool, taskId: string, input: Operatio
     }
     await assertCurrentAuthority(db, execution);
     await checkMemoryFence(db, input.memoryFence);
+    if (input.evidenceManifest) await (await import("./evidence")).assertCurrentEvidence(db, taskId, input.evidenceManifest);
     const model = input.kind === "model" || input.kind === "compaction";
     const root = (await db.query("SELECT root_token_limit FROM agents_platform.tasks WHERE id=$1", [task.root_task_id])).rows[0];
     const child = Boolean(task.parent_task_id);
@@ -191,10 +201,27 @@ export async function settleTask(pool: Pool, taskId: string, requested: TaskOutc
     const execution = await loadExecution(db, taskId, true), task = execution.task;
     if (terminalTaskStates.has(task.state)) return;
     let outcome = requested;
+    if (task.pending_outcome && (await db.query("SELECT 1 FROM agents_platform.task_events WHERE task_id=$1 AND kind='cancel_requested'",[taskId])).rowCount) {
+      outcome={state:"cancelled"};
+    }
+    if (outcome.output) {
+      try {
+        const {assertCurrentEvidence}=await import("./evidence");
+        const {createDependencyManifest}=await import("./source-contracts");
+        const nodes=(await db.query("SELECT manifest FROM agents_platform.evidence_nodes WHERE task_id=$1",[taskId])).rows;
+        if(nodes.length) await assertCurrentEvidence(db,taskId,createDependencyManifest(nodes.flatMap(node=>node.manifest.dependencies)),{requireActiveTask:!task.pending_outcome});
+      } catch(error) {
+        if(!(error instanceof PlatformError)) throw error;
+        const delivered=(await db.query("SELECT 1 FROM agents_platform.actions WHERE root_task_id=$1 AND state='delivered'",[task.root_task_id])).rowCount;
+        outcome=delivered && outcome.state==="completed" ? {state:"completed"} : {state:"incomplete",errorCode:error.code};
+      }
+    }
     const children = !task.parent_task_id ? (await db.query("SELECT id,state FROM agents_platform.tasks WHERE parent_task_id=$1 ORDER BY id FOR UPDATE",[taskId])).rows : [];
     const activeChildren = children.filter(child=>!terminalTaskStates.has(child.state));
     const resources=!task.parent_task_id?(await db.query("SELECT id FROM agents_platform.sandbox_allocations WHERE root_task_id=$1 AND state<>'destroyed'",[taskId])).rows:[];
-    if (activeChildren.length || resources.length) {
+    const queryResources=(await db.query(`SELECT q.id FROM agents_platform.query_embedding_allocations q JOIN agents_platform.tasks t ON t.id=q.task_id
+      WHERE t.root_task_id=$1 AND ($2::uuid IS NULL OR t.id=$2) AND q.state<>'destroyed'`,[task.root_task_id,task.parent_task_id?taskId:null])).rows;
+    if (activeChildren.length || resources.length || queryResources.length) {
       await db.query("UPDATE agents_platform.tasks SET state='cancel_requested',pending_outcome=$2,disposition=$3,updated_at=now() WHERE id=$1",[taskId,JSON.stringify(outcome),activeChildren.length?'pending_children':'pending_resources']);
       await db.query("UPDATE agents_platform.tasks SET state='cancel_requested',updated_at=now() WHERE id=ANY($1::uuid[]) AND state NOT IN ('completed','incomplete','refused','failed','cancelled','uncertain')",[activeChildren.map(child=>child.id)]);
       await event(db,taskId,`dependent-stop:${taskId}`,"children.stopping",{count:activeChildren.length});
@@ -236,7 +263,11 @@ export async function settleTask(pool: Pool, taskId: string, requested: TaskOutc
 export async function reconcilePendingRoots(pool:Pool):Promise<void> {
   const rows=(await pool.query(`SELECT r.id,r.pending_outcome FROM agents_platform.tasks r WHERE r.parent_task_id IS NULL AND r.pending_outcome IS NOT NULL
     AND NOT EXISTS(SELECT 1 FROM agents_platform.tasks c WHERE c.parent_task_id=r.id AND c.state NOT IN ('completed','incomplete','refused','failed','cancelled','uncertain'))
-    AND NOT EXISTS(SELECT 1 FROM agents_platform.sandbox_allocations a WHERE a.root_task_id=r.id AND a.state<>'destroyed') LIMIT 10`)).rows;
+    AND NOT EXISTS(SELECT 1 FROM agents_platform.sandbox_allocations a WHERE a.root_task_id=r.id AND a.state<>'destroyed')
+    AND NOT EXISTS(SELECT 1 FROM agents_platform.query_embedding_allocations q JOIN agents_platform.tasks c ON c.id=q.task_id WHERE c.root_task_id=r.id AND q.state<>'destroyed') LIMIT 10`)).rows;
+  const children=(await pool.query(`SELECT t.id,t.pending_outcome FROM agents_platform.tasks t WHERE t.parent_task_id IS NOT NULL AND t.pending_outcome IS NOT NULL
+    AND NOT EXISTS(SELECT 1 FROM agents_platform.query_embedding_allocations q WHERE q.task_id=t.id AND q.state<>'destroyed') LIMIT 20`)).rows;
+  for(const row of children) await settleTask(pool,row.id,row.pending_outcome);
   for(const row of rows) await settleTask(pool,row.id,row.pending_outcome);
 }
 

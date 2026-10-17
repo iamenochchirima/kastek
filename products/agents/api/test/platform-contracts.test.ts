@@ -8,7 +8,7 @@ import {
 
 function authorizedRequest() {
   const configuration = defaultFaqConfiguration();
-  configuration.knowledgeIds = [randomUUID()];
+  configuration.sourceRevisionIds = [randomUUID()];
   const authority: AdmissionAuthority = {
     product: "agents", organizationId: randomUUID(), resourceId: randomUUID(), callerClientId: "agents-execution",
     principal: { kind: "human", issuer: "https://identity.example/realms/kasitek", subject: "user-1" },
@@ -16,7 +16,7 @@ function authorizedRequest() {
   const versionId = randomUUID();
   const grant = executionGrantSchema.parse({
     ...authority, id: randomUUID(), versionId, operations: ["knowledge.read", "model.reply"],
-    knowledgeIds: configuration.knowledgeIds, maxInputBytes: configuration.model.maxInputBytes,
+    sourceRevisionIds: configuration.sourceRevisionIds, maxInputBytes: configuration.model.maxInputBytes,
     maxOutputTokens: configuration.model.maxOutputTokens, expiresAt: "2026-10-17T14:00:00Z", revokedAt: null,
   });
   return { authority, configuration, versionId, grant };
@@ -82,7 +82,7 @@ describe("fresh platform execution contract", () => {
   it("rejects knowledge, model operations and budgets outside the grant", () => {
     const { authority, configuration, versionId, grant } = authorizedRequest();
     for (const invalid of [
-      { ...grant, knowledgeIds: [] }, { ...grant, operations: ["model.reply"] as const },
+      { ...grant, sourceRevisionIds: [] }, { ...grant, operations: ["model.reply"] as const },
       { ...grant, operations: ["knowledge.read"] as const }, { ...grant, maxOutputTokens: 1 },
       { ...grant, maxInputBytes: 1 },
     ]) expect(() => assertGrantAuthority(invalid as typeof grant, authority, versionId, configuration, now))

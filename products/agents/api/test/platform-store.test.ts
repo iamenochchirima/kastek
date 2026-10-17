@@ -1,10 +1,10 @@
+import {publishFixtureSource} from "./knowledge-fixture";
 import { randomUUID } from "node:crypto";
-import { readFile } from "node:fs/promises";
-import { resolve } from "node:path";
 import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { defaultFaqConfiguration, type AdmissionAuthority, type ExecutionGrant } from "../src/platform/contracts";
 import { PlatformStore } from "../src/platform/store";
+import { setupPlatformSchema } from "../src/platform/setup";
 
 const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
 const suite = databaseUrl ? describe : describe.skip;
@@ -18,7 +18,7 @@ suite("fresh platform PostgreSQL store", () => {
     await admin.query(`CREATE DATABASE "${databaseName}"`);
     const url = new URL(databaseUrl!); url.pathname = `/${databaseName}`;
     pool = new Pool({ connectionString: url.href, max: 10 });
-    await pool.query(await readFile(resolve(__dirname, "../schema/001_platform.sql"), "utf8"));
+    await setupPlatformSchema(pool);
     store = new PlatformStore(pool);
   });
   afterAll(async () => {
@@ -35,7 +35,7 @@ suite("fresh platform PostgreSQL store", () => {
     const authority: AdmissionAuthority = { product: "agents", organizationId: org.id, resourceId: agent.id, callerClientId: "agents-execution",
       principal: { kind: "human", issuer: account.issuer, subject: account.subject } };
     const grant: ExecutionGrant = { ...authority, id: randomUUID(), versionId: version.id, operations: ["model.reply", "knowledge.read"],
-      knowledgeIds: [], maxInputBytes: config.model.maxInputBytes, maxOutputTokens: config.model.maxOutputTokens,
+      maxInputBytes: config.model.maxInputBytes, maxOutputTokens: config.model.maxOutputTokens,
       expiresAt: new Date(Date.now() + 20 * 60_000).toISOString(), revokedAt: null };
     await store.createGrant({ accountId: account.id, grant });
     return { account, org, config, agent, version, authority, grant,
@@ -63,24 +63,24 @@ suite("fresh platform PostgreSQL store", () => {
     const duplicate = await store.createVersion({ accountId: f.account.id, organizationId: f.org.id, agentId: f.agent.id, expectedRevision: 1 });
     expect(duplicate.id).toBe(f.version.id);
     expect(await store.listVersions(f.account.id, f.org.id, f.agent.id)).toHaveLength(1);
-    const publicKnowledge = await store.approveKnowledge({ accountId: f.account.id, organizationId: f.org.id, title: "Hours", content: "Open Monday.", visibility: "public" });
-    const config = { ...f.config, instructions: "Updated instructions", knowledgeIds: [publicKnowledge.id] };
+    const publicKnowledge = await publishFixtureSource(pool,{ accountId: f.account.id, organizationId: f.org.id, title: "Hours", content: "Open Monday.", visibility: "public" });
+    const config = { ...f.config, instructions: "Updated instructions", sourceRevisionIds: [publicKnowledge.id] };
     const updated = await store.updateDraft({ accountId: f.account.id, organizationId: f.org.id, agentId: f.agent.id, configuration: config, expectedRevision: 1 });
     expect(updated.draft_revision).toBe(2);
-    expect((await store.getVersion(f.account.id, f.org.id, f.version.id)).configuration.knowledgeIds).toEqual([]);
+    expect((await store.getVersion(f.account.id, f.org.id, f.version.id)).configuration.sourceRevisionIds).toEqual([]);
     await expect(store.updateDraft({ accountId: f.account.id, organizationId: f.org.id, agentId: f.agent.id, configuration: config, expectedRevision: 1 })).rejects.toMatchObject({ code: "DRAFT_CONFLICT" });
     await expect(pool.query("UPDATE agents_platform.agent_versions SET configuration=$2 WHERE id=$1", [f.version.id, config])).rejects.toMatchObject({ code: "23514" });
-    await expect(pool.query("UPDATE agents_platform.knowledge_sources SET content='replacement' WHERE id=$1", [publicKnowledge.id])).rejects.toMatchObject({ code: "23514" });
-    const foreign = await store.approveKnowledge({ accountId: other.account.id, organizationId: other.org.id, title: "Secret", content: "Private.", visibility: "private" });
-    await store.updateDraft({ accountId: f.account.id, organizationId: f.org.id, agentId: f.agent.id, configuration: { ...config, knowledgeIds: [foreign.id] }, expectedRevision: 2 });
-    await expect(store.createVersion({ accountId: f.account.id, organizationId: f.org.id, agentId: f.agent.id, expectedRevision: 3 })).rejects.toMatchObject({ code: "ACCESS_DENIED" });
+    await expect(pool.query("UPDATE agents_platform.source_revisions SET text_digest=repeat('a',64) WHERE id=$1", [publicKnowledge.id])).rejects.toMatchObject({ code: "23514" });
+    const foreign = await publishFixtureSource(pool,{ accountId: other.account.id, organizationId: other.org.id, title: "Secret", content: "Private.", visibility: "private" });
+    await store.updateDraft({ accountId: f.account.id, organizationId: f.org.id, agentId: f.agent.id, configuration: { ...config, sourceRevisionIds: [foreign.id] }, expectedRevision: 2 });
+    await expect(store.createVersion({ accountId: f.account.id, organizationId: f.org.id, agentId: f.agent.id, expectedRevision: 3 })).rejects.toMatchObject({ code: "SOURCE_REVISION_UNAVAILABLE" });
     await expect(store.listAgents(other.account.id, f.org.id)).rejects.toMatchObject({ code: "ACCESS_DENIED" });
   });
 
   it("publishes only matching business versions and public knowledge; drafts cannot move live", async () => {
     const f = await fixture();
-    const knowledge = await store.approveKnowledge({ accountId: f.account.id, organizationId: f.org.id, title: "Internal", content: "Private.", visibility: "private" });
-    await store.updateDraft({ accountId: f.account.id, organizationId: f.org.id, agentId: f.agent.id, configuration: { ...f.config, knowledgeIds: [knowledge.id] }, expectedRevision: 1 });
+    const knowledge = await publishFixtureSource(pool,{ accountId: f.account.id, organizationId: f.org.id, title: "Internal", content: "Private.", visibility: "private" });
+    await store.updateDraft({ accountId: f.account.id, organizationId: f.org.id, agentId: f.agent.id, configuration: { ...f.config, sourceRevisionIds: [knowledge.id] }, expectedRevision: 1 });
     const privateVersion = await store.createVersion({ accountId: f.account.id, organizationId: f.org.id, agentId: f.agent.id, expectedRevision: 2 });
     await expect(store.publishWebsite({ accountId: f.account.id, organizationId: f.org.id, agentId: f.agent.id, versionId: privateVersion.id, allowedOrigins: ["https://example.com"] })).rejects.toMatchObject({ code: "PRIVATE_KNOWLEDGE" });
     const deployed = await store.publishWebsite({ accountId: f.account.id, organizationId: f.org.id, agentId: f.agent.id, versionId: f.version.id, allowedOrigins: ["https://example.com"] });

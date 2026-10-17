@@ -90,7 +90,7 @@ suite("local hybrid retrieval quality, eligibility and resource recovery",()=>{
  }
  async function operation(query:string){
   const authority={product:"agents" as const,organizationId:owner.organizationId,resourceId:agentId,callerClientId:"agents-execution",principal:{kind:"human" as const,issuer:account.issuer,subject:account.subject}};
-  const grant=executionGrantSchema.parse({...authority,id:randomUUID(),versionId,operations:["model.reply","knowledge.read"],knowledgeIds:[],sourceRevisionIds:scope.sourceRevisionIds,maxInputBytes:16384,maxOutputTokens:1024,expiresAt:new Date(Date.now()+600000).toISOString(),revokedAt:null});await platform.createGrant({...owner,grant});const admitted=await platform.admitTask({authority,versionId,grantId:grant.id,requestKey:randomUUID(),input:query});
+  const grant=executionGrantSchema.parse({...authority,id:randomUUID(),versionId,operations:["model.reply","knowledge.read"],sourceRevisionIds:scope.sourceRevisionIds,maxInputBytes:16384,maxOutputTokens:1024,expiresAt:new Date(Date.now()+600000).toISOString(),revokedAt:null});await platform.createGrant({...owner,grant});const admitted=await platform.admitTask({authority,versionId,grantId:grant.id,requestKey:randomUUID(),input:query});
   const operationId=`tool:${admitted.task.id}:search`;await beginOperation(pool,admitted.task.id,{id:operationId,kind:"tool",name:"knowledge.search",request:{query},reservedTokens:0,reservedMs:30000,retrySafe:true});return{taskId:admitted.task.id,operationId,grant};
  }
  it("calibrates the pinned semantic gate on separate development passages",async()=>{

@@ -1,3 +1,5 @@
+import {assertConnectedBindingDependencies} from "./connected-tool-schema";
+import {capabilityBindingSchema} from "./capability-catalog";
 import { randomUUID } from "node:crypto";
 import type { Pool } from "pg";
 import { z } from "zod";
@@ -7,7 +9,8 @@ import { fitUtf8 } from "./tools";
 
 export const delegationRequestSchema = z.strictObject({ requests: z.array(z.strictObject({
   bindingId: z.string().regex(/^[A-Za-z0-9_-]{1,64}$/), brief: z.string().trim().min(1).max(8192),
-  maxTokens: z.number().int().min(2048).max(12000).optional(), knowledgeIds: z.array(z.uuid()).max(20).optional(),
+  maxTokens: z.number().int().min(2048).max(12000).optional(),
+  sourceRevisionIds: z.array(z.uuid()).max(20).optional(), connectedToolBindingIds: z.array(z.uuid()).max(8).optional(),
 })).min(1).max(2) });
 export interface DelegatedChild { taskId: string; slot: number; bindingId: string; versionId: string }
 
@@ -37,12 +40,15 @@ export async function admitChildren(pool: Pool, parentId: string, operationId: s
       const version=(await db.query("SELECT * FROM agents_platform.agent_versions WHERE organization_id=$1 AND id=$2 FOR SHARE",[task.organization_id,binding.versionId])).rows[0];
       if(!version) throw new PlatformError("DELEGATION_BINDING_DENIED",403,"Specialist version is unavailable");
       const childConfig=agentConfigurationSchema.parse(version.configuration);
-      const knowledgeIds=request.knowledgeIds??binding.knowledgeIds;
+      const sourceRevisionIds=request.sourceRevisionIds??binding.sourceRevisionIds, connectedToolBindingIds=request.connectedToolBindingIds??binding.connectedToolBindingIds;
       if(childConfig.executionKind!=="business" || childConfig.memory.enabled || childConfig.capabilities.delegation.enabled || childConfig.capabilities.sandbox.enabled || childConfig.capabilities.workflows.enabled ||
-        knowledgeIds.some(id=>!binding.knowledgeIds.includes(id)||!childConfig.knowledgeIds.includes(id)||!config.knowledgeIds.includes(id)) ||
+        sourceRevisionIds.some(id=>!binding.sourceRevisionIds.includes(id)||!childConfig.sourceRevisionIds.includes(id)||!config.sourceRevisionIds.includes(id)) ||
+        connectedToolBindingIds.some(id=>!binding.connectedToolBindingIds.includes(id)||!childConfig.connectedToolBindingIds.includes(id)||!config.connectedToolBindingIds.includes(id)) ||
         binding.tools.some(name=>!childConfig.tools.includes(name)) || Buffer.byteLength(request.brief)>childConfig.model.maxInputBytes ||
         (request.maxTokens??binding.maxTokens)>binding.maxTokens) throw new PlatformError("DELEGATION_SCOPE_DENIED",403,"Specialist request exceeds its published scope");
-      const effective={...childConfig,knowledgeIds,tools:binding.tools,memory:{enabled:false}};
+      const effectiveBindings=(await db.query("SELECT binding FROM agents_platform.capability_bindings WHERE organization_id=$1 AND id=ANY($2::uuid[])",[task.organization_id,connectedToolBindingIds])).rows;
+      assertConnectedBindingDependencies(effectiveBindings.map(row=>capabilityBindingSchema.parse(row.binding)));
+      const effective={...childConfig,sourceRevisionIds,connectedToolBindingIds,tools:binding.tools,memory:{enabled:false}};
       prepared.push({request,binding,version,effective,maxTokens:request.maxTokens??binding.maxTokens});
     }
     const tokens=prepared.reduce((sum,item)=>sum+item.maxTokens,0), ms=prepared.reduce((sum,item)=>sum+item.binding.maxActiveMs,0);
@@ -52,13 +58,13 @@ export async function admitChildren(pool: Pool, parentId: string, operationId: s
     for(const [slot,item] of prepared.entries()) {
       const id=randomUUID(),conversationId=randomUUID();
       const grant=executionGrantSchema.parse({id:randomUUID(),product:task.product,organizationId:task.organization_id,resourceId:item.version.agent_id,
-        callerClientId:"agents-delegation",principal:task.principal,versionId:item.version.id,operations:["model.reply","knowledge.read"],knowledgeIds:item.effective.knowledgeIds,
+        callerClientId:"agents-delegation",principal:task.principal,versionId:item.version.id,operations:["model.reply","knowledge.read",...(item.effective.connectedToolBindingIds.length?["connected.read"]:[])],sourceRevisionIds:item.effective.sourceRevisionIds,connectedToolBindingIds:item.effective.connectedToolBindingIds,
         maxInputBytes:item.effective.model.maxInputBytes,maxOutputTokens:item.effective.model.maxOutputTokens,maxContextTokens:item.effective.context.maxInputTokens,
         rootTokenLimit:item.maxTokens,expiresAt:new Date(task.deadline_at).toISOString(),revokedAt:null});
-      await db.query(`INSERT INTO agents_platform.execution_grants(id,product,organization_id,resource_id,caller_client_id,principal,version_id,operations,knowledge_ids,
-        max_input_bytes,max_output_tokens,max_context_tokens,root_token_limit,expires_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
-      [grant.id,grant.product,grant.organizationId,grant.resourceId,grant.callerClientId,grant.principal,grant.versionId,JSON.stringify(grant.operations),JSON.stringify(grant.knowledgeIds),
-        grant.maxInputBytes,grant.maxOutputTokens,grant.maxContextTokens,grant.rootTokenLimit,grant.expiresAt]);
+      await db.query(`INSERT INTO agents_platform.execution_grants(id,product,organization_id,resource_id,caller_client_id,principal,version_id,operations,
+        max_input_bytes,max_output_tokens,max_context_tokens,root_token_limit,expires_at,source_revision_ids,connected_tool_binding_ids) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)`,
+      [grant.id,grant.product,grant.organizationId,grant.resourceId,grant.callerClientId,grant.principal,grant.versionId,JSON.stringify(grant.operations),
+        grant.maxInputBytes,grant.maxOutputTokens,grant.maxContextTokens,grant.rootTokenLimit,grant.expiresAt,grant.sourceRevisionIds,grant.connectedToolBindingIds]);
       await db.query("INSERT INTO agents_platform.conversations(id,organization_id,agent_id,principal,next_sequence) VALUES($1,$2,$3,$4,2)",[conversationId,task.organization_id,item.version.agent_id,task.principal]);
       await db.query(`INSERT INTO agents_platform.tasks(id,product,organization_id,resource_id,caller_client_id,principal,version_id,grant_id,conversation_id,request_key,
         request_digest,input,root_task_id,parent_task_id,depth,delegation_operation_id,effective_configuration,root_token_limit,allocation_active_ms,deadline_at,harness_release)
@@ -86,11 +92,16 @@ export async function readChildResults(pool:Pool,parentId:string,children:Delega
         WHERE t.id=$1 AND d.parent_task_id=$2 AND t.root_task_id=$2 AND t.organization_id=$3 FOR SHARE OF c`,[child.taskId,parentId,parent.task.organization_id])).rows[0];
       if(!row || !terminalTaskStates.has(row.state)) throw new PlatformError("CHILD_OUTCOME_PENDING",409,"Specialist outcome is not yet available");
       const configuration=agentConfigurationSchema.parse(row.effective_configuration);
-      const grant=(await db.query("SELECT knowledge_ids FROM agents_platform.execution_grants WHERE id=$1 AND revoked_at IS NULL",[parent.task.grant_id])).rows[0];
-      if(!grant || configuration.knowledgeIds.some(id=>!grant.knowledge_ids.includes(id))) throw new PlatformError("DELEGATION_SCOPE_DENIED",403,"Specialist sources are no longer permitted");
-      results.push({taskId:row.id,bindingId:row.binding_id,state:row.state,output:fitUtf8(row.output??"",1024),errorCode:row.error_code,
-        sourceIds:configuration.knowledgeIds,usage:{tokens:row.tokens_used,modelCalls:row.model_calls,toolCalls:row.tool_calls}});
+      const grant=(await db.query("SELECT source_revision_ids,connected_tool_binding_ids FROM agents_platform.execution_grants WHERE id=$1 AND revoked_at IS NULL",[parent.task.grant_id])).rows[0];
+      const {assertCurrentEvidence}=await import("./evidence");
+      const {createDependencyManifest}=await import("./source-contracts");
+      const nodes=(await db.query("SELECT manifest FROM agents_platform.evidence_nodes WHERE task_id=$1",[row.id])).rows;
+      if(nodes.length) await assertCurrentEvidence(db,row.id,createDependencyManifest(nodes.flatMap(node=>node.manifest.dependencies)),{requireActiveTask:false});
+      const originalOutput=row.output??"", originalBytes=Buffer.byteLength(originalOutput);
+      const output=fitUtf8(originalOutput,2048).replace(/\[E[a-f0-9]{0,32}$/,"");
+      results.push({taskId:row.id,bindingId:row.binding_id,state:row.state,output,outputTruncated:output!==originalOutput,originalBytes,errorCode:row.error_code,
+        sourceRevisionIds:configuration.sourceRevisionIds,connectedToolBindingIds:configuration.connectedToolBindingIds,usage:{tokens:row.tokens_used,modelCalls:row.model_calls,toolCalls:row.tool_calls}});
     }
-    return {children:results,partial:results.some(child=>child.state!=="completed")};
+    return {children:results,partial:results.some(child=>child.state!=="completed"||child.outputTruncated)};
   });
 }
