@@ -14,6 +14,7 @@ export interface TrustedNetworkPolicy {
   headers?: Record<string, string>;
   maxRequestBytes: number;
   maxResponseBytes: number;
+  responseProfile?: "native-read-v1" | "source-import-v1";
   deadlineAt: number;
   maxAttempts?: number;
   maxRequests?: number;
@@ -84,7 +85,7 @@ async function physical(url: URL, init: RequestInit, body: Buffer, policy: Trust
   });
 }
 export function createBoundedFetch(policy: TrustedNetworkPolicy): typeof fetch {
-  policy = { ...policy, deadlineAt: Math.min(policy.deadlineAt, Date.now() + 30000), maxRequestBytes: Math.min(policy.maxRequestBytes, 32768), maxResponseBytes: Math.min(policy.maxResponseBytes, 2097152), maxRequests: Math.min(policy.maxRequests ?? 16, 32) };
+  policy = { ...policy, deadlineAt: Math.min(policy.deadlineAt, Date.now() + 30000), maxRequestBytes: Math.min(policy.maxRequestBytes, 32768), maxResponseBytes: Math.min(policy.maxResponseBytes, policy.responseProfile === "source-import-v1" ? 10485760 : 2097152), maxRequests: Math.min(policy.maxRequests ?? 16, 32) };
   let requests = 0;
   return async (input, init = {}) => {
     stopped(policy);
@@ -121,6 +122,8 @@ export function createBoundedFetch(policy: TrustedNetworkPolicy): typeof fetch {
         await new Promise<void>((resolve, reject) => { const timer = setTimeout(() => { policy.signal?.removeEventListener("abort", cancel); resolve(); }, retryAfterMs); const cancel = () => { clearTimeout(timer); reject(new ConnectedNetworkError("CANCELLED")); }; policy.signal?.addEventListener("abort", cancel, { once: true }); });
         continue;
       }
+      Object.defineProperty(response, "url", { value: current.href });
+      Object.defineProperty(response, "redirected", { value: redirects > 0 });
       return response;
     }
     throw new ConnectedNetworkError("NETWORK_UNAVAILABLE");
