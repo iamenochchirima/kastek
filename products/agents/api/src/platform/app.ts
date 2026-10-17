@@ -222,7 +222,8 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
     const reviewerReports=!canControl?(await pool.query("SELECT artifact_id FROM agents_platform.actions WHERE root_task_id=$1 AND reviewer_account_id=$2",[task.root_task_id,viewer.id])).rows.map(row=>row.artifact_id):null;
     const artifacts = visibleArtifacts.filter(a=>(!task.parent_task_id||a.taskId===task.id)&&(!reviewerReports||reviewerReports.includes(a.id)))
       .map(a=>({...a,downloadPath:`/api/organizations/${task.organization_id}/tasks/${task.id}/artifacts/${a.id}`}));
-    return { canControl,canDownloadArtifacts:true,task: dto(task), events: events.map(dto), operations: operations.map(dto),children:children.map(dto),resources:resources.map(dto),artifacts };
+    const actions=actionServices?await actionServices.actions.listForTask({accountId:viewer.id,organizationId:task.organization_id},task.id):[];
+    return { actions,canControl,canDownloadArtifacts:true,task: dto(task), events: events.map(dto), operations: operations.map(dto),children:children.map(dto),resources:resources.map(dto),artifacts };
   });
   app.get(`${base}/tasks/:taskId/artifacts/:artifactId`, async (request,reply) => {
     const {task}=await humanTask(request), user=await account(request);
