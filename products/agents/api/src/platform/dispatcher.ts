@@ -19,15 +19,18 @@ export async function dispatchTasksOnce(pool: Pool, options: DispatcherOptions):
     SELECT o.task_id FROM agents_platform.task_outbox o JOIN agents_platform.tasks t ON t.id=o.task_id
     WHERE o.dispatched_at IS NULL AND o.available_at<=now() AND (o.lease_until IS NULL OR o.lease_until<now())
       AND t.state IN ('accepted','running','waiting_children','waiting_authority','waiting_review','reconciling','cancel_requested')
+      AND (t.parent_task_id IS NULL OR t.state='cancel_requested')
     ORDER BY o.created_at FOR UPDATE OF o SKIP LOCKED LIMIT 1
   ) UPDATE agents_platform.task_outbox o SET lease_until=now()+interval '30 seconds',lease_owner=$1,attempts=attempts+1
     FROM candidate c WHERE o.task_id=c.task_id RETURNING o.task_id,o.created_at`, [owner])).rows[0];
   if (row) {
     try {
-      const task = (await pool.query(`SELECT state,runtime_invocation_id,harness_release FROM agents_platform.tasks WHERE id=$1`, [row.task_id])).rows[0];
+      const task = (await pool.query(`SELECT state,runtime_invocation_id,harness_release,parent_task_id FROM agents_platform.tasks WHERE id=$1`, [row.task_id])).rows[0];
       if (task?.harness_release !== HARNESS_RELEASE) throw new Error("HARNESS_RELEASE_UNAVAILABLE");
       if (Date.now() - new Date(row.created_at).getTime() >= 24 * 60 * 60 * 1000) {
         await settleTask(pool, row.task_id, { state: "uncertain", errorCode: "DISPATCH_WINDOW_EXPIRED" });
+      } else if (task?.parent_task_id) {
+        if(task.state==="cancel_requested"&&!task.runtime_invocation_id)await settleTask(pool,row.task_id,{state:"cancelled"});
       } else if (task?.state === "cancel_requested" && !task.runtime_invocation_id &&
           (await pool.query(`SELECT attempts FROM agents_platform.task_outbox WHERE task_id=$1`, [row.task_id])).rows[0]?.attempts === 1) {
         await settleTask(pool, row.task_id, { state: "cancelled" });
@@ -37,8 +40,16 @@ export async function dispatchTasksOnce(pool: Pool, options: DispatcherOptions):
           body: JSON.stringify({ taskId: row.task_id }), signal: AbortSignal.timeout(5000),
         });
         if (!response.ok) throw new Error("RUNTIME_DISPATCH_FAILED");
-        const body = await response.json() as { invocationId?: unknown };
-        if (typeof body.invocationId !== "string" || !body.invocationId.startsWith("inv_")) throw new Error("RUNTIME_INVALID_RESPONSE");
+        const sent = await response.json() as { invocationId?: unknown };
+        if (typeof sent.invocationId !== "string" || !sent.invocationId.startsWith("inv_")) throw new Error("RUNTIME_INVALID_RESPONSE");
+        // A duplicate send has its own invocation ID; only workflow lookup identifies the accepted run.
+        const lookup = await request(`${options.ingressUrl.replace(/\/$/, "")}/restate/lookup`, {
+          method:"POST",headers:{"content-type":"application/json"},
+          body:JSON.stringify({target:"workflow",workflowName:WORKFLOW_NAME,workflowKey:row.task_id}),signal:AbortSignal.timeout(5000),
+        });
+        if(!lookup.ok)throw new Error("RUNTIME_LOOKUP_PENDING");
+        const body=await lookup.json() as {invocationId?:unknown};
+        if(typeof body.invocationId!=="string"||!body.invocationId.startsWith("inv_"))throw new Error("RUNTIME_INVALID_RESPONSE");
         const bound = await pool.query(`UPDATE agents_platform.tasks SET runtime_invocation_id=$2,updated_at=now()
           WHERE id=$1 AND (runtime_invocation_id IS NULL OR runtime_invocation_id=$2)`, [row.task_id, body.invocationId]);
         if (bound.rowCount !== 1) throw new Error("RUNTIME_IDENTITY_CONFLICT");

@@ -290,15 +290,19 @@ export function createBusinessWorkflow(pool: Pool, options: BusinessOptions) {
             [task.conversation_id, task.turn_sequence])).rows[0]?.id as string | undefined;
         });
         if (predecessor) {
-          const reference = await ctx.run("predecessor-runtime", async () => (await pool.query("SELECT runtime_invocation_id,state FROM agents_platform.tasks WHERE id=$1", [predecessor])).rows[0]);
-          if (!terminalTaskStates.has(reference.state)) {
-            // A stable keyed workflow call follows the same predecessor even if its outbox response was lost.
-            try { await ctx.workflowClient<{ run: (ctx: restate.WorkflowContext, input: {taskId:string}) => Promise<TaskOutcome> }>({ name: WORKFLOW_NAME }, predecessor).run({ taskId: predecessor }); }
-            catch (error) {
-              if (!(error instanceof restate.TerminalError)) throw error;
-              if (error.code !== 409) throw new PlatformError("PREDECESSOR_UNAVAILABLE",503,"Previous turn outcome is unavailable");
-              await ctx.run("repair-cancelled-predecessor",()=>settleTask(pool,predecessor,{state:"cancelled"}));
+          for(let wait=0;;wait++){
+            const reference=await ctx.run(`predecessor-runtime:${wait}`,async()=>(await pool.query("SELECT runtime_invocation_id,state FROM agents_platform.tasks WHERE id=$1",[predecessor])).rows[0]);
+            if(terminalTaskStates.has(reference.state))break;
+            if(reference.runtime_invocation_id){
+              try{await ctx.invocation(reference.runtime_invocation_id).attach<TaskOutcome>();}
+              catch(error){
+                if(!(error instanceof restate.TerminalError))throw error;
+                if(error.code!==409||!/cancel/i.test(error.message))throw new PlatformError("PREDECESSOR_UNAVAILABLE",503,"Previous turn outcome is unavailable");
+                await ctx.run("repair-cancelled-predecessor",()=>settleTask(pool,predecessor,{state:"cancelled"}));
+              }
+              break;
             }
+            await ctx.sleep(1000);
           }
         }
         await ctx.run("freeze-history-cutoff", async () => {
@@ -449,7 +453,7 @@ export function createBusinessWorkflow(pool: Pool, options: BusinessOptions) {
               for(const [index,invocation] of pending.entries()) {
                 try{await invocation;}catch(error){
                   if(!(error instanceof restate.TerminalError)) throw error;
-                  await ctx.run(`child-terminal:${children[index]!.taskId}`,()=>settleTask(pool,children[index]!.taskId,{state:error.code===409?"cancelled":"uncertain",errorCode:"CHILD_RUNTIME_TERMINAL"}));
+                  await ctx.run(`child-terminal:${children[index]!.taskId}`,()=>settleTask(pool,children[index]!.taskId,{state:error.code===409&&/cancel/i.test(error.message)?"cancelled":"uncertain",errorCode:"CHILD_RUNTIME_TERMINAL"}));
                 }
               }
               const authorized=await awaitAuthority(ctx,pool,taskId,`children-result-authority:${step}:${callIndex}`);
