@@ -42,10 +42,15 @@ export class GithubAdapterError extends Error {
 }
 export interface GithubAdapterOptions {
   authorization: string; selections: readonly GithubRepositorySelection[]; deadlineAt: number; signal?: AbortSignal;
+  maxPhysicalRequests?: number;
+  beforeAttempt?: () => Promise<void>;
+  onAttempt?: (attempt: NetworkAttempt) => Promise<void>;
+  onResponse?: (response: GithubProviderResponse) => Promise<void>;
   /** Dedicated integration fixture; the production origin cannot be configured through a connection or model. */
   testLoopbackOrigin?: string;
 }
-interface ResponseRecord { body: unknown; etag: string | null; digest: string; observedAt: string; headers: Headers }
+export interface GithubProviderResponse { body: unknown; etag: string | null; digest: string; observedAt: string }
+interface ResponseRecord extends GithubProviderResponse { headers: Headers }
 type Repository = { id: number; fullName: string; description: string | null; defaultBranch: string; updatedAt: string; stars: number };
 type Release = { id: number; tag: string; name: string | null; body: string | null; publishedAt: string | null; prerelease: boolean };
 function failure(code: string): never { throw new GithubAdapterError(code); }
@@ -68,6 +73,7 @@ export class GithubReadAdapter {
   private readonly origin: string;
   private readonly selections: readonly GithubRepositorySelection[];
   constructor(private readonly options: GithubAdapterOptions) {
+    if (options.maxPhysicalRequests !== undefined && (!Number.isInteger(options.maxPhysicalRequests) || options.maxPhysicalRequests < 1 || options.maxPhysicalRequests > GITHUB_LIMITS.physicalRequests)) failure("REQUEST_LIMIT");
     if (!options.authorization || /[\r\n]/.test(options.authorization) || Buffer.byteLength(options.authorization) > 4096) failure("CREDENTIAL_INVALID");
     this.selections = options.selections.map(selection => Object.freeze(githubRepositorySelectionSchema.parse(selection)));
     if (!this.selections.length || this.selections.length > 20 || new Set(this.selections.map(selection => githubRepositoryHandle(selection).id)).size !== this.selections.length) failure("REPOSITORY_SELECTION_INVALID");
@@ -98,9 +104,10 @@ export class GithubReadAdapter {
     const fetcher = createBoundedFetch({ authorizeUrl: url => authorized.has(url.href),
       headers: { authorization: `Bearer ${this.options.authorization}`, accept: "application/vnd.github+json", "x-github-api-version": "2022-11-28", "user-agent": "Kasitek-Agents" },
       maxRequestBytes: 0, maxResponseBytes: GITHUB_LIMITS.responseBytes,
-      deadlineAt: Math.min(this.options.deadlineAt, Date.now() + GITHUB_LIMITS.wallMs), maxAttempts: 3, maxRequests: GITHUB_LIMITS.physicalRequests,
+      deadlineAt: Math.min(this.options.deadlineAt, Date.now() + GITHUB_LIMITS.wallMs), maxAttempts: 3, maxRequests: this.options.maxPhysicalRequests ?? GITHUB_LIMITS.physicalRequests,
       signal: this.options.signal, testLoopback: this.options.testLoopbackOrigin !== undefined,
-      onAttempt: attempt => attempts.push(attempt) });
+      beforeAttempt: this.options.beforeAttempt,
+      onAttempt: async attempt => { attempts.push(attempt); await this.options.onAttempt?.(attempt); } });
     const read = async (path: string): Promise<ResponseRecord> => {
       const url = new URL(path, this.origin);
       if (url.origin !== this.origin || !path.startsWith("/repos/")) failure("DESTINATION_DENIED");
@@ -111,6 +118,7 @@ export class GithubReadAdapter {
       let body: unknown;
       try { body = await response.json(); } catch { failure("PROVIDER_RESPONSE_INVALID"); }
       const value = { body, etag: response.headers.get("etag"), digest: requestDigest(body), observedAt: new Date().toISOString(), headers: response.headers };
+      await this.options.onResponse?.({ body: value.body, etag: value.etag, digest: value.digest, observedAt: value.observedAt });
       responses.push(value); return value;
     };
     const observe = <T>(value: T, provenance: GithubObservation<T>["provenance"]): GithubObservation<T> => ({ value,

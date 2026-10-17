@@ -3,7 +3,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import type { AddressInfo } from "node:net";
 import { describe, expect, it } from "vitest";
 import { GithubReadAdapter, githubRepositoryHandle, projectGithubObservation, assertGithubOperation,
-  type GithubRepositorySelection } from "../src/platform/github-adapter";
+  type GithubRepositorySelection, type GithubProviderResponse } from "../src/platform/github-adapter";
 
 const selection: GithubRepositorySelection = { owner: "approved", repository: "public-repo", ref: "main" };
 const commitA = "a".repeat(40), commitB = "b".repeat(40), treeA = "c".repeat(40), treeB = "d".repeat(40);
@@ -148,6 +148,32 @@ describe("native GitHub public read profile over actual bounded HTTP", () => {
       if (requests < 3) { response.writeHead(503, { "retry-after": "0" }); response.end(); }
       else json(response, metadata);
     });
+  });
+
+  it("persists per-attempt admission before wire IO and supports a one-request publicness check", async () => {
+    let admitted = 0, recorded = 0;
+    await fixture(async (_adapter, seen, origin) => {
+      const bounded = new GithubReadAdapter({ authorization: "fixture-public-repo-only-token", selections: [selection], deadlineAt: Date.now() + 10000,
+        testLoopbackOrigin: origin, maxPhysicalRequests: 1, beforeAttempt: async () => { admitted++; }, onAttempt: async () => { recorded++; } });
+      await expect(bounded.getRepository(selection)).rejects.toMatchObject({ code: "REQUEST_LIMIT" });
+      expect(seen).toHaveLength(1); expect(admitted).toBe(1); expect(recorded).toBe(1);
+      const denied = new GithubReadAdapter({ authorization: "fixture-public-repo-only-token", selections: [selection], deadlineAt: Date.now() + 10000,
+        testLoopbackOrigin: origin, beforeAttempt: async () => { throw new Error("Durable attempt allocation denied"); } });
+      await expect(denied.getRepository(selection)).rejects.toThrow("Durable attempt allocation denied"); expect(seen).toHaveLength(1);
+    }, (_request, response) => { expect(admitted).toBeGreaterThan(recorded); response.writeHead(503, { "retry-after": "0" }); response.end(); });
+  });
+
+  it("awaits full provider-body storage before returning a normalized model observation", async () => {
+    await fixture(async (_adapter, _seen, origin) => {
+      let stored: GithubProviderResponse | undefined;
+      const adapter = new GithubReadAdapter({ authorization: "fixture-public-repo-only-token", selections: [selection], deadlineAt: Date.now() + 10000,
+        testLoopbackOrigin: origin, onResponse: async response => { await new Promise(resolve => setTimeout(resolve, 5)); stored = response; } });
+      const observation = await adapter.getRepository(selection);
+      expect(stored?.body).toMatchObject({ ...metadata, license: { key: "mit", name: "MIT License" } });
+      expect(stored?.digest).toBe(observation.responses[0]!.digest);
+      expect(observation.value).not.toHaveProperty("license");
+      expect(observation).not.toHaveProperty("rawResponses");
+    }, (_request, response) => json(response, { ...metadata, license: { key: "mit", name: "MIT License" } }));
   });
 
   it("rejects truncated trees and corrupt immutable blobs without retaining usable content", async () => {
