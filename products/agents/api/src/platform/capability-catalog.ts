@@ -137,7 +137,7 @@ export const capabilityPolicySchema = z.strictObject({
   if (policy.effect === "reviewed_write" && (policy.approval !== "exact_single_use" || policy.retry !== "status_only" || policy.disclosure !== "exact_reviewed_payload" || policy.cancel !== "reconcile_claimed")) ctx.addIssue({ code: "custom", message: "Writes require exact review and status-only recovery" });
   if (policy.retry === "safe_read" && policy.effect !== "read") ctx.addIssue({ code: "custom", message: "Only reads may use safe-read retry" });
 });
-export const capabilityBindingSchema = z.strictObject({
+const bindingFields = {
   schemaVersion: z.literal(1), id: z.uuid(), organizationId: z.uuid(), alias: z.string().regex(/^t_[a-f0-9]{32}$/),
   catalog: z.strictObject({ id: z.uuid(), revision: z.number().int().positive(), digest: digestSchema }),
   definition: catalogToolSchema, adapter: adapterReferenceSchema, transport: capabilityTransportSchema,
@@ -147,7 +147,8 @@ export const capabilityBindingSchema = z.strictObject({
   limits: z.strictObject({ timeoutMs: z.number().int().min(1).max(240000), maxPhysicalAttempts: z.number().int().min(1).max(3),
     maxResponseBytes: z.number().int().min(1).max(2097152), maxModelResultBytes: z.number().int().min(1).max(capabilityLimits.maxModelResultBytes) }),
   digest: digestSchema,
-}).superRefine((binding, ctx) => {
+};
+export const capabilityBindingSchema = z.strictObject(bindingFields).superRefine((binding, ctx) => {
   const { digest, ...content } = binding;
   if (digest !== requestDigest(content)) ctx.addIssue({ code: "custom", message: "Binding digest mismatch" });
   if (binding.alias !== createModelAlias(binding.id)) ctx.addIssue({ code: "custom", message: "Alias must match the immutable binding identity" });
@@ -163,9 +164,11 @@ function freeze<T>(value: T): T {
 }
 export function createModelAlias(bindingId: string): string { return `t_${z.uuid().parse(bindingId).replaceAll("-", "").toLowerCase()}`; }
 export function createCatalog(input: Omit<CapabilityCatalog, "digest">): CapabilityCatalog {
-  return freeze(capabilityCatalogSchema.parse({ ...input, digest: requestDigest(input) }));
+  const content = z.strictObject(catalogFields).omit({ digest: true }).parse(input);
+  return freeze(capabilityCatalogSchema.parse({ ...content, digest: requestDigest(content) }));
 }
 export function createBinding(input: Omit<CapabilityBinding, "digest" | "alias">, catalog: CapabilityCatalog): CapabilityBinding {
+  input = z.strictObject(bindingFields).omit({ digest: true, alias: true }).parse(input);
   const pinned = capabilityCatalogSchema.parse(catalog);
   if (input.organizationId !== pinned.organizationId || input.catalog.id !== pinned.id || input.catalog.revision !== pinned.revision || input.catalog.digest !== pinned.digest || input.transport !== pinned.transport || input.protocolVersion !== pinned.protocolVersion || canonicalJson(input.adapter) !== canonicalJson(pinned.adapter) || (input.connection?.id ?? null) !== pinned.connectionId || !pinned.tools.some(tool => canonicalJson(tool) === canonicalJson(input.definition))) throw new PlatformError("CATALOG_BINDING_MISMATCH", 409, "Binding does not match the approved catalog revision");
   const content = { ...input, alias: createModelAlias(input.id) };
