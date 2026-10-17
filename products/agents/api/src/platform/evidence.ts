@@ -61,14 +61,33 @@ async function bindingAllowed(db: Db, execution: Execution, bindingId: string): 
   if (execution.task.parent_task_id) await bindingAllowed(db, await loadExecution(db, execution.task.root_task_id), bindingId);
   return binding;
 }
+async function delegationInput(db:Db,childTaskId:string){
+ const child=await loadExecution(db,childTaskId);if(!child.task.parent_task_id)return;
+ const row=(await db.query("SELECT parent_task_id,input_manifest FROM agents_platform.delegations WHERE child_task_id=$1",[childTaskId])).rows[0];
+ if(!row||row.parent_task_id!==child.task.parent_task_id||row.parent_task_id!==child.task.root_task_id)throw integrity();
+ const parent=await loadExecution(db,row.parent_task_id);if(parent.task.organization_id!==child.task.organization_id||await owner(db,parent)!==await owner(db,child))throw integrity();
+ return{parentTaskId:row.parent_task_id as string,manifest:assertDependencyManifest(row.input_manifest),child};
+}
+export async function assertDelegationInputEvidence(db:Db,childTaskId:string,expectedDigest?:string,trail:readonly string[]=[],consumerTaskId=childTaskId):Promise<void>{
+ const input=await delegationInput(db,childTaskId);if(!input){if(expectedDigest)throw integrity();return;}
+ const consumer=consumerTaskId===childTaskId?input.child:await loadExecution(db,consumerTaskId);
+ if(consumer.task.organization_id!==input.child.task.organization_id||await owner(db,consumer)!==await owner(db,input.child))throw denied();
+ if(expectedDigest&&expectedDigest!==input.manifest.digest||trail.includes(childTaskId)||trail.length>=32)throw integrity();
+ // Inspection validates the original actor and live policies, even after the parent task completes.
+ await assertCurrentEvidence(db,input.parentTaskId,input.manifest,{requireActiveTask:false,delegationTrail:[...trail,childTaskId]});
+}
+async function delegationDependency(db:Db,taskId:string):Promise<EvidenceDependency[]>{
+ const input=await delegationInput(db,taskId);return input?[{kind:"delegation_input",referenceId:taskId,manifestDigest:input.manifest.digest}]:[];
+}
 /** Call inside the same transaction as the consuming model/effect claim, holding the organization lock. */
-export async function assertCurrentEvidence(db: Db, taskId: string, input: DependencyManifest, options: { requireActiveTask?: boolean } = {}): Promise<void> {
+export async function assertCurrentEvidence(db: Db, taskId: string, input: DependencyManifest, options: { requireActiveTask?: boolean; delegationTrail?:readonly string[] } = {}): Promise<void> {
   const manifest = assertDependencyManifest(input), execution = await loadExecution(db, taskId);
-  if (options.requireActiveTask !== false) await assertCurrentAuthority(db, execution); else await inspectionAuthority(db, execution);
+  if (options.requireActiveTask !== false) await assertCurrentAuthority(db, execution); else {await inspectionAuthority(db, execution);if(execution.task.parent_task_id)await assertDelegationInputEvidence(db,taskId,undefined,options.delegationTrail);}
   const dependencies = [...manifest.dependencies].sort((a, b) => {
     const key = (value: EvidenceDependency) => value.kind === "source" ? value.sourceId : value.kind === "connection" ? value.connectionId : value.referenceId;
     return key(a).localeCompare(key(b));
   });
+  for(const dependency of dependencies)if(dependency.kind==="delegation_input")await assertDelegationInputEvidence(db,dependency.referenceId,dependency.manifestDigest,options.delegationTrail,taskId);
   for (const dependency of dependencies.filter(item => item.kind === "source")) {
     if (dependency.kind !== "source") continue;
     await sourceAllowed(db, execution, dependency.revisionId);
@@ -98,7 +117,8 @@ export async function assertCurrentEvidence(db: Db, taskId: string, input: Depen
 export async function taskEvidenceManifest(db:Db,taskId:string):Promise<DependencyManifest>{
   const execution=await loadExecution(db,taskId);
   const rows=(await db.query("SELECT * FROM agents_platform.evidence_nodes WHERE root_task_id=$1",[execution.task.root_task_id])).rows.map(nodeDto);
-  return collectDependencyGraph(rows.filter(node=>node.taskId===taskId).map(node=>node.id),new Map(rows.map(node=>[node.id,node])));
+  const own=collectDependencyGraph(rows.filter(node=>node.taskId===taskId).map(node=>node.id),new Map(rows.map(node=>[node.id,node])));
+  return createDependencyManifest([...own.dependencies,...await delegationDependency(db,taskId)]);
 }
 export function citationLabels(text: string): string[] {
   return [...new Set([...text.matchAll(/\[(E(?:[a-f0-9]{32}|[0-9]+))\]/g)].map(match => match[1]!))];
@@ -228,7 +248,7 @@ export class EvidenceStore {
   private async node(db: PoolClient, execution: Execution, kind: EvidenceKind, ownerId: string, evidenceIds: string[], parents: EvidenceNode[], inherited?:{evidenceIds:string[];manifest:DependencyManifest}): Promise<EvidenceNode> {
     const ids = [...new Set([...evidenceIds,...(inherited?.evidenceIds??[])])].sort(), parentIds = [...new Set(parents.map(parent=>parent.id))].sort();
     if (ids.length > SOURCE_LIMITS.manifestNodes || parentIds.length > SOURCE_LIMITS.manifestNodes) throw new PlatformError("EVIDENCE_LIMIT",413,"Evidence graph exceeds its limit");
-    const dependencies: EvidenceDependency[] = [...parents.flatMap(parent=>parent.manifest.dependencies),...(inherited?.manifest.dependencies??[])];
+    const dependencies: EvidenceDependency[] = [...await delegationDependency(db,execution.task.id),...parents.flatMap(parent=>parent.manifest.dependencies),...(inherited?.manifest.dependencies??[])];
     for (const id of evidenceIds) dependencies.push(...(await this.passage(db,execution.task.id,id)).reference.manifest.dependencies);
     const manifest = createDependencyManifest(dependencies);
     await assertCurrentEvidence(db,execution.task.id,manifest);

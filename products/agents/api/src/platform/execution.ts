@@ -84,6 +84,7 @@ export async function assertCurrentAuthority(db: Pool | PoolClient, execution: E
     }
   } else if(task.principal.kind==="automation")await assertAutomationAuthority(db,execution);
   else throw new PlatformError("AUTOMATION_UNAVAILABLE", 403, "Automation execution is unavailable");
+  if(task.parent_task_id)await (await import("./evidence")).assertDelegationInputEvidence(db,task.id);
 }
 
 export async function beginOperation(pool: Pool, taskId: string, input: OperationRequest): Promise<{ replayed: boolean; operation: OperationRecord }> {
@@ -207,10 +208,9 @@ export async function settleTask(pool: Pool, taskId: string, requested: TaskOutc
     }
     if (outcome.output) {
       try {
-        const {assertCurrentEvidence}=await import("./evidence");
-        const {createDependencyManifest}=await import("./source-contracts");
+        const {assertCurrentEvidence,taskEvidenceManifest}=await import("./evidence");
         const nodes=(await db.query("SELECT manifest FROM agents_platform.evidence_nodes WHERE task_id=$1",[taskId])).rows;
-        if(nodes.length) await assertCurrentEvidence(db,taskId,createDependencyManifest(nodes.flatMap(node=>node.manifest.dependencies)),{requireActiveTask:!task.pending_outcome});
+        if(nodes.length||task.parent_task_id) await assertCurrentEvidence(db,taskId,await taskEvidenceManifest(db,taskId),{requireActiveTask:!task.pending_outcome});
       } catch(error) {
         if(!(error instanceof PlatformError)) throw error;
         const delivered=(await db.query("SELECT 1 FROM agents_platform.actions WHERE root_task_id=$1 AND state='delivered'",[task.root_task_id])).rowCount;

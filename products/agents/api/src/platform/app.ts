@@ -137,6 +137,7 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
     return { task: source?.deleted_at ? {...task,input:"[Deleted conversation]",output:null} : task, authority, reviewOnly };
   }
   async function readableOutput(taskId:string,output:string|null) {
+    try{await (await import("./evidence")).assertDelegationInputEvidence(pool,taskId);}catch(error){if(error instanceof PlatformError)return {output:null,outputAvailability:"unavailable"};throw error;}
     if(!output)return {output};
     const influenced=(await pool.query("SELECT 1 FROM agents_platform.evidence_nodes WHERE task_id=$1 LIMIT 1",[taskId])).rowCount;
     if(!influenced)return {output};
@@ -144,7 +145,11 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
     try {await assertCurrentEvidence(pool,taskId,await evidence.taskManifest(taskId),{requireActiveTask:false});return {output,outputAvailability:"available"};}
     catch(error) {if(error instanceof PlatformError)return {output:null,outputAvailability:"unavailable"};throw error;}
   }
-  async function readableTask(task:TaskRecord){return {...dto(task),...await readableOutput(task.id,task.output)};}
+  async function readableTask(task:TaskRecord){
+    let input:unknown=task.input,inputAvailability="available";
+    if(task.parent_task_id)try{await (await import("./evidence")).assertDelegationInputEvidence(pool,task.id);}catch(error){if(!(error instanceof PlatformError))throw error;input=task.input==="[Deleted conversation]"?task.input:null;inputAvailability="unavailable";}
+    return {...dto(task),input,inputAvailability,...await readableOutput(task.id,task.output)};
+  }
   async function resolveScope(request:FastifyRequest) {const user=await account(request),org=organizationId(request);await store.requireMembership(user.id,org);return {accountId:user.id,organizationId:org};}
   registerAutomationRoutes(app,automations,resolveScope);
   if(actionServices)registerActionRoutes(app,{...actionServices,catalogs:connected?.catalogs,

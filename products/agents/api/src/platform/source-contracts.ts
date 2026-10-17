@@ -43,8 +43,9 @@ export const sourceChunkSchema = z.strictObject({
 const sourceDependency = z.strictObject({ kind: z.literal("source"), sourceId: id, revisionId: id, generation, visibility: z.enum(["private", "public"]) });
 const connectionDependency = z.strictObject({ kind: z.literal("connection"), connectionId: id, policyRevision: generation,
   resource: z.string().min(1).max(2048), catalogDigest: digest });
+const delegationDependency = z.strictObject({kind:z.literal("delegation_input"),referenceId:id,manifestDigest:digest});
 const memoryDependency = z.strictObject({ kind: z.literal("memory"), referenceId: id, generation });
-export const evidenceDependencySchema = z.discriminatedUnion("kind", [sourceDependency, connectionDependency, memoryDependency]);
+export const evidenceDependencySchema = z.discriminatedUnion("kind", [sourceDependency, connectionDependency, memoryDependency, delegationDependency]);
 export const dependencyManifestSchema = z.strictObject({ version: z.literal(1), dependencies: z.array(evidenceDependencySchema).max(SOURCE_LIMITS.manifestNodes), digest });
 export const evidenceReferenceSchema = z.strictObject({
   id, organizationId: id, rootTaskId: id, operationId: z.string().min(1).max(256),
@@ -73,6 +74,7 @@ function dependencyKey(dependency: EvidenceDependency): string {
     case "source": return `source:${dependency.sourceId}:${dependency.revisionId}`;
     case "connection": return `connection:${dependency.connectionId}:${dependency.resource}:${dependency.catalogDigest}`;
     case "memory": return `memory:${dependency.referenceId}`;
+    case "delegation_input": return `delegation_input:${dependency.referenceId}`;
   }
 }
 export function createDependencyManifest(inputs: readonly EvidenceDependency[]): DependencyManifest {

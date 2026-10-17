@@ -30,6 +30,8 @@ export async function admitChildren(pool: Pool, parentId: string, operationId: s
       return existing.map(row=>({taskId:row.child_task_id,slot:row.slot,bindingId:row.binding_id,versionId:row.version_id}));
     }
     await assertCurrentAuthority(db,parent);
+    const {taskEvidenceManifest,assertCurrentEvidence}=await import("./evidence");
+    const inputManifest=await taskEvidenceManifest(db,parentId);await assertCurrentEvidence(db,parentId,inputManifest);
     if(task.depth!==0 || task.parent_task_id || !["human","automation"].includes(task.principal.kind) || !config.capabilities.delegation.enabled) throw new PlatformError("DELEGATION_DENIED",403,"Delegation is unavailable");
     const active=(await db.query("SELECT count(*)::int AS count FROM agents_platform.tasks WHERE root_task_id=$1 AND parent_task_id IS NOT NULL AND state NOT IN ('completed','incomplete','refused','failed','cancelled','uncertain')",[task.id])).rows[0].count;
     if(active+parsed.requests.length>2) throw new PlatformError("CHILD_LIMIT",429,"Only two specialists may run at once");
@@ -71,7 +73,7 @@ export async function admitChildren(pool: Pool, parentId: string, operationId: s
         VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,1,$15,$16,$17,$18,$19,$20)`,
       [id,task.product,task.organization_id,item.version.agent_id,grant.callerClientId,task.principal,item.version.id,grant.id,conversationId,`child:${id}`,digest,
         item.request.brief,task.root_task_id,parentId,operationId,item.effective,item.maxTokens,item.binding.maxActiveMs,task.deadline_at,HARNESS_RELEASE]);
-      await db.query("INSERT INTO agents_platform.delegations(parent_task_id,operation_id,slot,child_task_id,binding_id,request_digest) VALUES($1,$2,$3,$4,$5,$6)",[parentId,operationId,slot,id,item.binding.id,digest]);
+      await db.query("INSERT INTO agents_platform.delegations(parent_task_id,operation_id,slot,child_task_id,binding_id,request_digest,input_manifest) VALUES($1,$2,$3,$4,$5,$6,$7)",[parentId,operationId,slot,id,item.binding.id,digest,inputManifest]);
       await db.query("INSERT INTO agents_platform.task_outbox(task_id) VALUES($1)",[id]);
       await event(db,id,"accepted","accepted",{rootTaskId:task.root_task_id,parentTaskId:parentId,slot});
       children.push({taskId:id,slot,bindingId:item.binding.id,versionId:item.version.id});
@@ -92,11 +94,8 @@ export async function readChildResults(pool:Pool,parentId:string,children:Delega
         WHERE t.id=$1 AND d.parent_task_id=$2 AND t.root_task_id=$2 AND t.organization_id=$3 FOR SHARE OF c`,[child.taskId,parentId,parent.task.organization_id])).rows[0];
       if(!row || !terminalTaskStates.has(row.state)) throw new PlatformError("CHILD_OUTCOME_PENDING",409,"Specialist outcome is not yet available");
       const configuration=agentConfigurationSchema.parse(row.effective_configuration);
-      const grant=(await db.query("SELECT source_revision_ids,connected_tool_binding_ids FROM agents_platform.execution_grants WHERE id=$1 AND revoked_at IS NULL",[parent.task.grant_id])).rows[0];
-      const {assertCurrentEvidence}=await import("./evidence");
-      const {createDependencyManifest}=await import("./source-contracts");
-      const nodes=(await db.query("SELECT manifest FROM agents_platform.evidence_nodes WHERE task_id=$1",[row.id])).rows;
-      if(nodes.length) await assertCurrentEvidence(db,row.id,createDependencyManifest(nodes.flatMap(node=>node.manifest.dependencies)),{requireActiveTask:false});
+      const {assertCurrentEvidence,taskEvidenceManifest}=await import("./evidence");
+      await assertCurrentEvidence(db,row.id,await taskEvidenceManifest(db,row.id),{requireActiveTask:false});
       const originalOutput=row.output??"", originalBytes=Buffer.byteLength(originalOutput);
       const output=fitUtf8(originalOutput,2048).replace(/\[E[a-f0-9]{0,32}$/,"");
       results.push({taskId:row.id,bindingId:row.binding_id,state:row.state,output,outputTruncated:output!==originalOutput,originalBytes,errorCode:row.error_code,

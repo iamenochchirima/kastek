@@ -227,10 +227,14 @@ CREATE TABLE agents_platform.delegations (
   slot integer NOT NULL CHECK(slot BETWEEN 0 AND 1),
   child_task_id uuid NOT NULL UNIQUE REFERENCES agents_platform.tasks(id),
   binding_id text NOT NULL,
+  input_manifest jsonb NOT NULL CHECK(jsonb_typeof(input_manifest)='object'),
   request_digest text NOT NULL,
   created_at timestamptz NOT NULL DEFAULT now(),
   PRIMARY KEY(parent_task_id,operation_id,slot)
 );
+
+CREATE TRIGGER immutable_delegation BEFORE UPDATE OR DELETE ON agents_platform.delegations
+  FOR EACH ROW EXECUTE FUNCTION agents_platform.reject_snapshot_update();
 
 CREATE TABLE agents_platform.task_events (
   sequence bigserial PRIMARY KEY,
