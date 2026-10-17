@@ -1,3 +1,7 @@
+import { actionsFromEnvironment } from "./actions";
+import { TaskArtifactStore } from "./task-artifacts";
+import { AutomationService } from "./automations";
+import { createAutomationWorkflow,startAutomationDispatcher } from "./automation-runtime";
 import { createServer, type ServerHttp2Session } from "node:http2";
 import { createEndpointHandler } from "@restatedev/restate-sdk";
 import { Pool } from "pg";
@@ -19,10 +23,18 @@ async function main(): Promise<void> {
     connectionTimeoutMillis: 5000, statement_timeout: 15000, query_timeout: 20000 });
   const abort = new AbortController();
   const sandbox = sandboxManagerFromEnvironment(pool);
+  const objects=privateStoreFromEnvironment(),artifacts=new TaskArtifactStore(pool,objects),actionServices=actionsFromEnvironment(pool,artifacts);
+  const automations=new AutomationService(pool,async configuration=>{
+    if(!process.env.OPENROUTER_API_KEY)throw new (await import('./contracts')).PlatformError('MODEL_CREDENTIAL_UNAVAILABLE',503,'Model connection is unavailable');
+    if((configuration.capabilities.sandbox.enabled||configuration.capabilities.workflows.enabled)&&!objects)throw new (await import('./contracts')).PlatformError('OBJECT_STORE_UNAVAILABLE',503,'Private storage is unavailable');
+    if(configuration.capabilities.workflows.enabled&&!actionServices)throw new (await import('./contracts')).PlatformError('ACTIONS_UNAVAILABLE',503,'Delivery is unavailable');
+    if(configuration.capabilities.sandbox.enabled&&(!sandbox||!await sandbox.available()))throw new (await import('./contracts')).PlatformError('SANDBOX_UNAVAILABLE',503,'Analysis is unavailable');
+  });
   const workflow = createBusinessWorkflow(pool, { openRouterApiKey: process.env.OPENROUTER_API_KEY, signal: abort.signal,
-    executeSandbox: createSandboxExecutor(pool,sandbox,privateStoreFromEnvironment()) });
+    actions:actionServices?.actions,selectReportArtifact:(taskId,name,output)=>artifacts.prepareReport(taskId,name,output),
+    executeSandbox: createSandboxExecutor(pool,sandbox,objects) });
   const {host,identityKeys} = workerSecurityFromEnvironment();
-  const server = createServer(createEndpointHandler({ services: [workflow], identityKeys }));
+  const server = createServer(createEndpointHandler({ services: [workflow,createAutomationWorkflow(automations)], identityKeys }));
   const sessions = new Set<ServerHttp2Session>();
   server.on("session", session => { sessions.add(session); session.once("close", () => sessions.delete(session)); });
   try {
@@ -34,12 +46,14 @@ async function main(): Promise<void> {
     adminUrl: process.env.RESTATE_ADMIN_URL ?? "http://127.0.0.1:19070",
     onError: code => console.error(JSON.stringify({ ...diagnosticIdentity, event: "runtime_publisher_error", code })),
   });
+  const automationDispatcher=startAutomationDispatcher(pool,automations,process.env.RESTATE_INGRESS_URL??"http://127.0.0.1:18080",
+    code=>console.error(JSON.stringify({...diagnosticIdentity,event:"automation_publisher_error",code})),()=>actionServices?.actions.reconcilePending()??Promise.resolve());
   let closing = false;
   const close = async (): Promise<void> => {
     if (closing) return;
     closing = true;
     abort.abort();
-    await dispatcher.stop();
+    await Promise.all([dispatcher.stop(),automationDispatcher.stop()]);
     await new Promise<void>(resolve => {
       const deadline = setTimeout(() => { for (const session of sessions) session.destroy(); }, 10_000);
       server.close(() => { clearTimeout(deadline); resolve(); });

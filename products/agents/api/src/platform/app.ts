@@ -1,3 +1,8 @@
+import { actionsFromEnvironment } from "./actions";
+import { registerActionRoutes } from "./actions-routes";
+import { AutomationService,operationsForConfiguration } from "./automations";
+import { registerAutomationRoutes } from "./automation-routes";
+import { resolveAutomationOwner,resolveAutomationReviewer } from "./automation-authority";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import Fastify, { type FastifyRequest } from "fastify";
 import cookie from "@fastify/cookie";
@@ -36,11 +41,15 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
   const objects = privateStoreFromEnvironment();
   const taskArtifacts = new TaskArtifactStore(pool, objects);
   const sandbox = sandboxManagerFromEnvironment(pool);
-  function grantOperations(configuration: AgentConfiguration): ExecutionGrant["operations"] {
-    return ["model.reply", "knowledge.read", ...(configuration.memory.enabled ? ["memory.read", "memory.propose"] as const : []),
-      ...(configuration.capabilities.delegation.enabled ? ["delegation.execute"] as const : []),
-      ...(configuration.capabilities.sandbox.enabled ? ["sandbox.execute", "artifact.read", "artifact.write"] as const : [])];
+  const actionServices=actionsFromEnvironment(pool,taskArtifacts);
+  const grantOperations=operationsForConfiguration;
+  async function assertServices(configuration:AgentConfiguration):Promise<void> {
+    if(!config.OPENROUTER_API_KEY)throw new PlatformError("MODEL_CREDENTIAL_UNAVAILABLE",503,"Model connection is unavailable");
+    if((configuration.capabilities.sandbox.enabled||configuration.capabilities.workflows.enabled)&&!objects)throw new PlatformError("OBJECT_STORE_UNAVAILABLE",503,"Private storage is unavailable");
+    if(configuration.capabilities.workflows.enabled&&!actionServices)throw new PlatformError("ACTIONS_UNAVAILABLE",503,"Report delivery is unavailable");
+    if(configuration.capabilities.sandbox.enabled&&(!sandbox||!await sandbox.available()))throw new PlatformError("SANDBOX_UNAVAILABLE",503,"Analysis is unavailable");
   }
+  const automations=new AutomationService(pool,assertServices);
   const identity = options.identity ?? new PlatformIdentity(config, pool);
   const origin = new URL(config.AGENTS_PUBLIC_URL).origin;
   const secure = origin.startsWith("https:");
@@ -68,7 +77,7 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
     reply.header("cache-control", "no-store");
     reply.header("x-content-type-options", "nosniff");
     if (["POST", "PUT", "PATCH", "DELETE"].includes(request.method) &&
-        !request.url.startsWith("/api/website/") && request.url.split("?")[0] !== "/api/auth/backchannel-logout" && request.headers.origin !== origin) {
+        !request.url.startsWith("/api/website/") && !request.url.startsWith("/api/automation-events/") && request.url.split("?")[0] !== "/api/auth/backchannel-logout" && request.headers.origin !== origin) {
       throw new PlatformError("ORIGIN_DENIED", 403, "Request origin is not allowed");
     }
   });
@@ -90,11 +99,18 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
     if (!task) throw new PlatformError("NOT_FOUND", 404, "Task not found");
     const root = task.parent_task_id ? (await pool.query<TaskRecord>("SELECT * FROM agents_platform.tasks WHERE id=$1 AND organization_id=$2", [task.root_task_id,org])).rows[0] : task;
     if (!root || canonicalJson(root.principal)!==canonicalJson(task.principal)) throw new PlatformError("NOT_FOUND",404,"Task not found");
-    const authority = humanAuthority(user, org, root.resource_id);
-    await store.getTask(authority, root.id);
+    let authority = humanAuthority(user, org, root.resource_id);
+    if(root.principal.kind==="automation") {
+      const owner=await resolveAutomationOwner(pool,org,root.principal),reviewer=await resolveAutomationReviewer(pool,org,root.id);
+      if(user.id!==owner&&user.id!==reviewer)throw new PlatformError("NOT_FOUND",404,"Task not found");
+      authority={product:root.product,organizationId:org,resourceId:root.resource_id,callerClientId:root.caller_client_id,principal:root.principal};
+    } else await store.getTask(authority, root.id);
     const source=(await pool.query("SELECT deleted_at FROM agents_platform.conversations WHERE id=$1",[task.conversation_id])).rows[0];
     return { task: source?.deleted_at ? {...task,input:"[Deleted conversation]",output:null} : task, authority };
   }
+  async function resolveScope(request:FastifyRequest) {const user=await account(request),org=organizationId(request);await store.requireMembership(user.id,org);return {accountId:user.id,organizationId:org};}
+  registerAutomationRoutes(app,automations,resolveScope);
+  if(actionServices)registerActionRoutes(app,{...actionServices,resolveScope,resolveTask:async request=>({...await resolveScope(request),taskId:uuid.parse(parameters(request).taskId)})});
   app.get("/health", async () => ({ status: "ok", service: "agents-platform", schema: "001_platform" }));
   app.get("/ready", async (_request, reply) => {
     const result = await pool.query("SELECT version FROM agents_platform.schema_version");
@@ -173,9 +189,7 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
     const input = taskInput.parse(request.body), user = await account(request), org = organizationId(request);
     const version = await store.getVersion(user.id, org, input.versionId);
     assertRuntimeAvailable(version.configuration);
-    if (!config.OPENROUTER_API_KEY) throw new PlatformError("MODEL_CREDENTIAL_UNAVAILABLE", 503, "Model connection is unavailable");
-    if (version.configuration.capabilities.sandbox.enabled && !objects) throw new PlatformError("OBJECT_STORE_UNAVAILABLE",503,"Private storage is unavailable");
-    if (version.configuration.capabilities.sandbox.enabled && (!sandbox || !await sandbox.available())) throw new PlatformError("SANDBOX_UNAVAILABLE",503,"Analysis is unavailable");
+    await assertServices(version.configuration);
     const authority = humanAuthority(user, org, version.agent_id);
     const grant = executionGrantSchema.parse({ ...authority, id: randomUUID(), versionId: version.id,
       operations: grantOperations(version.configuration), knowledgeIds: version.configuration.knowledgeIds,
@@ -216,6 +230,7 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
   });
   app.post(`${base}/tasks/:taskId/continue`, async request => {
     const { task, authority } = await humanTask(request);
+    if(task.principal.kind!=="human")throw new PlatformError("AUTOMATION_CONTROL_REQUIRED",403,"Manage access on the automation");
     if(task.parent_task_id) throw new PlatformError("ROOT_CONTROL_REQUIRED",409,"Continue the main task");
     const user = await account(request);
     const childNeedsAuthority = task.state === "waiting_children" && Boolean((await pool.query(
@@ -243,7 +258,7 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
       await db.query("COMMIT");
     } catch(error) { await db.query("ROLLBACK"); throw error; } finally { db.release(); }
     await queueChildContinuations(pool,task.id);
-    return { task: dto(await store.getTask(authority, task.id)) };
+    return { task: dto((await humanTask(request)).task) };
   });
   app.get(`${base}/conversations/:conversationId`, async (request) => {
     const user = await account(request), org = organizationId(request), conversationId = uuid.parse(parameters(request).conversationId);
@@ -260,11 +275,12 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
   });
   app.post(`${base}/tasks/:taskId/cancel`, async (request) => {
     const { task, authority } = await humanTask(request);
+    if(task.principal.kind==="automation"&&(await account(request)).id!==task.principal.ownerAccountId)throw new PlatformError("ACCESS_DENIED",403,"Only the owner can stop this task");
     if(task.parent_task_id) throw new PlatformError("ROOT_CONTROL_REQUIRED",409,"Cancel the main task");
     if (!terminalTaskStates.has(task.state)) {
       await requestTreeCancellation(pool,task.id);
     }
-    return { task: dto(await store.getTask(authority, task.id)) };
+    return { task: dto((await humanTask(request)).task) };
   });
 
   async function websiteContext(request: FastifyRequest, reply?: { header: (key: string, value: string) => unknown }) {

@@ -1,3 +1,4 @@
+import { resolveAutomationOwner } from "./automation-authority";
 import { createHash } from "node:crypto";
 import type { Pool, PoolClient } from "pg";
 import { z } from "zod";
@@ -23,11 +24,12 @@ export class TaskArtifactStore {
   private async owner(db: Pool | PoolClient, taskId: string): Promise<{ task: Record<string, any>; scope: ManagementScope }> {
     const task = (await db.query(`SELECT t.*,v.agent_id,a.id AS account_id,c.deleted_at AS source_deleted
       FROM agents_platform.tasks t JOIN agents_platform.agent_versions v ON v.id=t.version_id
-      JOIN agents_platform.accounts a ON a.issuer=t.principal->>'issuer' AND a.subject=t.principal->>'subject'
+      JOIN agents_platform.accounts a ON ((t.principal->>'kind'='human' AND a.issuer=t.principal->>'issuer' AND a.subject=t.principal->>'subject') OR (t.principal->>'kind'='automation' AND a.id::text=t.principal->>'ownerAccountId'))
       JOIN agents_platform.conversations c ON c.id=t.conversation_id
       JOIN agents_platform.memberships m ON m.organization_id=t.organization_id AND m.account_id=a.id AND m.revoked_at IS NULL
-      WHERE t.id=$1 AND t.principal->>'kind'='human'`, [taskId])).rows[0];
+      WHERE t.id=$1 AND t.principal->>'kind' IN ('human','automation')`, [taskId])).rows[0];
     if (!task || task.source_deleted) throw missing();
+    if(task.principal.kind==="automation")await resolveAutomationOwner(db,task.organization_id,task.principal);
     const root = (await db.query(`SELECT t.principal,c.deleted_at,g.revoked_at FROM agents_platform.tasks t
       JOIN agents_platform.conversations c ON c.id=t.conversation_id JOIN agents_platform.execution_grants g ON g.id=t.grant_id
       WHERE t.id=$1 AND t.organization_id=$2`, [task.root_task_id,task.organization_id])).rows[0];
@@ -41,18 +43,32 @@ export class TaskArtifactStore {
       const execution=await loadExecution(db,taskId,true);await assertCurrentAuthority(db,execution);
       const grant=(await db.query("SELECT operations FROM agents_platform.execution_grants WHERE id=$1",[execution.task.grant_id])).rows[0];
       if(!grant?.operations.includes("artifact.write")) throw new PlatformError("ARTIFACT_SCOPE_DENIED",403,"Artifact access is unavailable");
-      if(!(await db.query("SELECT id FROM agents_platform.operations WHERE id=$1 AND task_id=$2 AND name='sandbox.analyze' AND state IN ('started','completed')",[operationId,taskId])).rowCount) throw missing();
+      if(!(await db.query("SELECT id FROM agents_platform.operations WHERE id=$1 AND task_id=$2 AND name IN ('sandbox.analyze','report.prepare') AND state IN ('started','completed')",[operationId,taskId])).rowCount) throw missing();
       return this.owner(db,taskId);
     });
+    const snapshot=(await this.pool.query("SELECT source_references,memory_scope_id,memory_generation,payload FROM agents_platform.context_snapshots WHERE task_id=$1 ORDER BY step DESC LIMIT 1",[taskId])).rows[0];
+    const sourceReferences=[...(input.sourceReferences??[]),...(snapshot?.source_references??[]).filter((r:{kind?:string})=>r.kind==="knowledge"),
+      ...(snapshot?.memory_scope_id?[{kind:"memory_scope",id:snapshot.memory_scope_id,generation:Number(snapshot.memory_generation),expiresAt:snapshot.payload.memoryExpiresAt}]:[])];
     const key=createHash("sha256").update(canonicalJson([taskId,operationId,meta])).digest("hex");
     const artifact=await this.artifacts.put(owner.scope,{operationId:`task:${key}`,contentType:meta.contentType,content:input.content});
     return transaction(this.pool,async db=>{
       const execution=await loadExecution(db,taskId,true);await assertCurrentAuthority(db,execution);await this.owner(db,taskId);
       const row=(await db.query(`UPDATE agents_platform.artifacts SET task_id=$2,root_task_id=$3,name=$4,source_references=$5
         WHERE id=$1 AND (task_id IS NULL OR task_id=$2) AND state='available' RETURNING *`,
-      [artifact.id,taskId,owner.task.root_task_id,meta.name,JSON.stringify(input.sourceReferences??[])])).rows[0];
+      [artifact.id,taskId,owner.task.root_task_id,meta.name,JSON.stringify(sourceReferences)])).rows[0];
       if(!row) throw missing();return dto(row);
     });
+  }
+  async prepareReport(taskId:string,name:string,generatedOutput:string):Promise<{id:string}> {
+    const matches=(await this.listForRoot(taskId)).filter(a=>a.name===name);
+    if(matches.length>1)throw new PlatformError("REPORT_ARTIFACT_AMBIGUOUS",409,"Choose a unique report name");
+    if(matches.length===1){await this.readForTask(taskId,matches[0]!.id);return {id:matches[0]!.id};}
+    if((await loadExecution(this.pool,taskId)).configuration.capabilities.sandbox.enabled)throw new PlatformError("REPORT_ARTIFACT_MISSING",409,"The configured report was not produced");
+    if(!generatedOutput.trim())throw new PlatformError("REPORT_EMPTY",409,"The report is empty");
+    const operation=(await this.pool.query("SELECT id FROM agents_platform.operations WHERE task_id=$1 AND name='report.prepare' AND state='started' ORDER BY started_at DESC LIMIT 1",[taskId])).rows[0];
+    if(!operation)throw missing();
+    const artifact=await this.put(taskId,operation.id,{name,contentType:"text/markdown",content:Buffer.from(generatedOutput)});
+    return {id:artifact.id};
   }
   async listForRoot(rootTaskId:string):Promise<TaskArtifact[]> {
     await this.owner(this.pool,rootTaskId);
@@ -72,7 +88,11 @@ export class TaskArtifactStore {
       AND (a.task_id=$3 OR $3=$2 OR EXISTS(SELECT 1 FROM agents_platform.task_artifact_transfers x WHERE x.artifact_id=a.id AND x.target_task_id=$3))`,
     [artifactId,task.root_task_id,task.id])).rows[0];
     if(!row)throw missing();const producer=await this.owner(this.pool,row.task_id);
-    for(const reference of row.source_references as {kind?:string;id?:string}[]) {
+    for(const reference of row.source_references as {kind?:string;id?:string;generation?:number;expiresAt?:number}[]) {
+      if(reference.kind==="memory_scope") {
+        const fence=(await this.pool.query("SELECT generation FROM agents_platform.memory_scopes WHERE id=$1",[reference.id])).rows[0];
+        if(!fence||Number(fence.generation)!==reference.generation||reference.expiresAt!==undefined&&Date.now()>=reference.expiresAt)throw missing();
+      }
       if(reference.kind==="artifact" && reference.id) {
         const source=(await this.pool.query("SELECT task_id,state FROM agents_platform.artifacts WHERE id=$1 AND root_task_id=$2",[reference.id,task.root_task_id])).rows[0];
         if(!source||source.state!=="available")throw missing();await this.owner(this.pool,source.task_id);
