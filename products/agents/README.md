@@ -264,3 +264,26 @@ acceptance. The scheduled knowledge journey has passed with the free model, two
 specialists, gVisor analysis, exact report review and delivery recovery across two
 worker restarts. The combined real-provider journey remains incomplete until the
 credential gate and authenticated native/MCP reads pass.
+
+The combined provider journey is a separate opt-in path. It requires the same
+approved GitHub configuration, `OPENROUTER_API_KEY`, an owned fixture database in
+`AGENTS_BROWSER_FIXTURE_DATABASE_URL`, the prepared gVisor/document runtimes and
+private MinIO fixture. Start Vite on port 3100 and build the API first. From the
+repository root:
+
+```sh
+AGENTS_GITHUB_JOURNEY=1 AGENTS_AUTOMATION_LIVE=1 AGENTS_BROWSER_REAL_MODEL=1 \
+  node --env-file=products/agents/api/.env \
+  --import ./products/agents/api/node_modules/tsx/dist/loader.mjs \
+  products/agents/api/test/browser-fixture.ts
+```
+
+This mode uses matching compiled API/worker adapters. It combines imported source
+revisions with native and official hosted-MCP reads in two specialists, then
+checks isolated analysis, a dated report with explicit gaps, factual quotes, exact
+citations, review and delivery recovery. Expected public text must fit a
+16–200 character quote from the actual file. The fixture also
+checks a worker restart after completed connected reads. The provider mode stops
+before resource allocation when its approved credential or expiry is missing.
+Preparing this path does not establish live-provider acceptance; that proof remains
+pending until the configured journey exits successfully against GitHub.
