@@ -63,6 +63,45 @@ suite("real gVisor Python analysis and independent resource lifecycle",()=>{
     const timeout=await fixture();timeout.deadlineAt=new Date(Date.now()+2000);
     const stopped=await manager.analyze(timeout,{operationId:randomUUID(),inputs:[],code:"import time;time.sleep(20)"});expect(stopped.state).not.toBe("completed");await manager.destroy(timeout,stopped.allocationId);
   },30_000);
+  it("serializes delayed launch against cleanup and retains capacity when status is unknown",async()=>{
+    const scope=await fixture(), isolated=new SandboxManager(pool,manager.config);
+    let release!:()=>void,entered!:()=>void;
+    const barrier=new Promise<void>(done=>release=done),ready=new Promise<void>(done=>entered=done);
+    const original=(isolated as any).launch.bind(isolated);
+    (isolated as any).launch=async(...args:unknown[])=>{entered();await barrier;return original(...args);};
+    const running=isolated.analyze(scope,{operationId:randomUUID(),inputs:[],code:"import time;time.sleep(1);print('done')"});
+    await ready;
+    const row=(await pool.query("SELECT * FROM agents_platform.sandbox_allocations WHERE task_id=$1",[scope.taskId])).rows[0];
+    let cleaned=false;const cleanup=manager.destroy(scope,row.id).then(()=>{cleaned=true;});
+    await new Promise(done=>setTimeout(done,100));expect(cleaned).toBe(false);
+    release();await cleanup;await running;
+    expect((await manager.status(scope,row.id)).state).toBe("destroyed");
+    const properties=await exec("systemctl",["--user","show",row.unit_name,"--property=ActiveState"]);
+    expect(properties.stdout).not.toContain("ActiveState=active");
+    const second=await fixture(),result=await manager.analyze(second,{operationId:randomUUID(),inputs:[],code:"print('safe')"});
+    const faultDirectory=await mkdtemp(join(tmpdir(),"kasitek-systemctl-fault-")),previousPath=process.env.PATH;
+    await writeFile(join(faultDirectory,"systemctl"),"#!/bin/sh\nif [ \"$2\" = show ]; then exit 1; fi\nexec /usr/bin/systemctl \"$@\"\n",{mode:0o700});
+    try {
+      process.env.PATH=faultDirectory+":"+previousPath;
+      await expect(isolated.destroy(second,result.allocationId)).rejects.toMatchObject({code:"SANDBOX_CLEANUP_PENDING"});
+      expect((await manager.status(second,result.allocationId)).state).toBe("destroying");
+      await expect(access(join(directory,result.allocationId))).resolves.toBeUndefined();
+    } finally {process.env.PATH=previousPath;await rm(faultDirectory,{recursive:true,force:true});}
+    await isolated.destroy(second,result.allocationId);
+    expect((await manager.status(second,result.allocationId)).state).toBe("destroyed");
+    const third=await fixture(),late=new SandboxManager(pool,manager.config);
+    let allow!:()=>void,seen!:()=>void;
+    const paused=new Promise<void>(done=>allow=done),detected=new Promise<void>(done=>seen=done);
+    const available=late.available.bind(late);
+    late.available=async()=>{const value=await available();seen();await paused;return value;};
+    const notLaunched=late.analyze(third,{operationId:randomUUID(),inputs:[],code:"raise Exception('must not start')"});
+    await detected;
+    const waiting=(await pool.query("SELECT * FROM agents_platform.sandbox_allocations WHERE task_id=$1",[third.taskId])).rows[0];
+    await manager.destroy(third,waiting.id);allow();
+    await expect(notLaunched).rejects.toMatchObject({code:"SANDBOX_RESOURCE_EXPIRED"});
+    expect((await manager.status(third,waiting.id)).state).toBe("destroyed");
+    await expect(access(join(directory,waiting.id))).rejects.toBeDefined();
+  },30_000);
   it("survives caller SIGKILL and cleans expired resources from an independent reaper process",async()=>{
     const scope=await fixture(),input={operationId:randomUUID(),inputs:[],code:"import time\ntime.sleep(2)\nopen('/scratch/output/recovered.txt','w').write('survived worker loss')"};
     const temporary=await mkdtemp(join(tmpdir(),"kasitek-sandbox-worker-")),path=join(temporary,"input.json");
