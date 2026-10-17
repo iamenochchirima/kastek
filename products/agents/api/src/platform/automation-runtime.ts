@@ -17,9 +17,9 @@ export function createAutomationWorkflow(service:AutomationService) {
   let cursor=-1;
   for(let tick=0;tick<44_000;tick++) {
    const snapshot=await ctx.run(`configuration:${tick}`,()=>service.timerSnapshot(input.id,input.revision));if(!snapshot)return;
-   const now=await ctx.date.now(),candidate=nextOccurrence(snapshot,now);if(candidate===null)return;
+   const now=await ctx.date.now(),candidate=nextOccurrence(snapshot,snapshot.activatedAt);if(candidate===null)return;
    let at=candidate;
-   if(snapshot.schedule.kind==='interval'&&at<=cursor)at=cursor+snapshot.schedule.everySeconds*1000;
+   if(snapshot.schedule.kind==='interval'&&cursor>=0)at=cursor+snapshot.schedule.everySeconds*1000;
    if(at>=Date.parse(snapshot.expiresAt))return;
    if(at>now)await ctx.sleep(at-now);
    const result=await ctx.run(`occurrence:${tick}`,async()=>{
