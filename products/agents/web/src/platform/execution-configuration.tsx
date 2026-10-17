@@ -32,7 +32,7 @@ export function ExecutionConfiguration({ organizationId, agentId, configuration,
     const selected = specialists?.find(item => item.version.id === versionId);
     if (!selected) return;
     const previous = delegation.bindings[index];
-    const binding: DelegationBinding = { id: previous?.id ?? crypto.randomUUID(), versionId, knowledgeIds: [], sourceRevisionIds: [], connectedToolBindingIds: [], tools: [], maxTokens: previous?.maxTokens ?? 8000, maxActiveMs: previous?.maxActiveMs ?? 240000 };
+    const binding: DelegationBinding = { id: previous?.id ?? crypto.randomUUID(), versionId, sourceRevisionIds: [], connectedToolBindingIds: [], tools: [], maxTokens: previous?.maxTokens ?? 8000, maxActiveMs: previous?.maxActiveMs ?? 240000 };
     const next = [...delegation.bindings]; next[index] = binding; bindingsChanged(next);
   }
   return <div className="space-y-6 border-t border-border pt-6">

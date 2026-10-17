@@ -10,7 +10,7 @@ const instructions = "Answer questions using approved knowledge.";
 const configuration = {
   executionKind: "business", instructions,
   model: { provider: "openrouter", model: "nvidia/nemotron-3-super-120b-a12b:free", maxInputBytes: 16384, maxOutputTokens: 1024, maxDurationSeconds: 120 },
-  knowledgeIds: [] as string[], sourceRevisionIds: [] as string[], connectedToolBindingIds: [] as string[], retrievalProfile: { kind: "lexical-v1" },
+  sourceRevisionIds: [] as string[], connectedToolBindingIds: [] as string[], retrievalProfile: { kind: "lexical-v1" },
   capabilities: Object.fromEntries(["delegation", "sandbox", "businessActions", "workflows", "schedules"].map(key => [key, { enabled: false }])),
 };
 

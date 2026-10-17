@@ -1,10 +1,9 @@
-export type DelegationBinding = { id: string; label?: string; description?: string; versionNumber?: number; versionId: string; knowledgeIds: string[]; sourceRevisionIds?: string[]; connectedToolBindingIds?: string[]; tools: ("knowledge.search" | "knowledge.read")[]; maxTokens: number; maxActiveMs: number };
+export type DelegationBinding = { id: string; label?: string; description?: string; versionNumber?: number; versionId: string; sourceRevisionIds?: string[]; connectedToolBindingIds?: string[]; tools: ("knowledge.search" | "knowledge.read")[]; maxTokens: number; maxActiveMs: number };
 export type DelegationConfiguration = { enabled: false } | { enabled: true; bindings: DelegationBinding[]; maxChildren: 2; maxDepth: 1 };
 export type Configuration = {
   executionKind: "business" | "workspace";
   instructions: string;
   model: { provider: "openrouter"; model: "nvidia/nemotron-3-super-120b-a12b:free"; maxInputBytes: number; maxOutputTokens: number; maxDurationSeconds: number };
-  knowledgeIds: string[];
   sourceRevisionIds?: string[];
   connectedToolBindingIds?: string[];
   retrievalProfile?: { kind: "lexical-v1" } | { kind: "hybrid-v1"; embeddingRelease: string };
@@ -17,7 +16,6 @@ export type Configuration = {
 export type Agent = { id: string; name: string; draft: Configuration; draftRevision: number; updatedAt: string };
 export type Version = { id: string; number: number; configuration: Configuration };
 export type Deployment = { id: string; versionId: string; allowedOrigins: string[] };
-export type Knowledge = { id: string; title: string; content: string; visibility: "public" | "private" };
 export type Organization = { id: string; name: string; role: string };
 export type Session = { account: { id: string; email: string; displayName: string }; organizations: Organization[] };
 export type Memory = { id: string; kind: "semantic" | "episodic"; content: string; status: "candidate" | "accepted" | "forgotten"; revision: number; createdAt: string; updatedAt: string; sourceTaskId: string | null };

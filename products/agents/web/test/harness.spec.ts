@@ -5,7 +5,7 @@ const agentId = "22222222-2222-4222-8222-222222222222";
 const versionId = "44444444-4444-4444-8444-444444444444";
 
 test("mock transport: reviewed memory, pinned skills, factual progress and contextual conversation recovery", async ({ page }) => {
-  const configuration = { executionKind: "business", instructions: "Help the user.", model: { provider: "openrouter", model: "nvidia/nemotron-3-super-120b-a12b:free", maxInputBytes: 16384, maxOutputTokens: 1024, maxDurationSeconds: 120 }, knowledgeIds: [], memory: { enabled: false }, context: { maxInputTokens: 8192, compactAtTokens: 6144 }, tools: [] as string[], skillIds: [] as string[], capabilities: Object.fromEntries(["delegation", "sandbox", "businessActions", "workflows", "schedules"].map(key => [key, { enabled: false }])) };
+  const configuration = { executionKind: "business", instructions: "Help the user.", model: { provider: "openrouter", model: "nvidia/nemotron-3-super-120b-a12b:free", maxInputBytes: 16384, maxOutputTokens: 1024, maxDurationSeconds: 120 }, memory: { enabled: false }, context: { maxInputTokens: 8192, compactAtTokens: 6144 }, tools: [] as string[], skillIds: [] as string[], capabilities: Object.fromEntries(["delegation", "sandbox", "businessActions", "workflows", "schedules"].map(key => [key, { enabled: false }])) };
   let agent = { id: agentId, name: "Assistant", draft: configuration, draftRevision: 1 };
   type Item = { id: string; content: string; revision: number; status: string; kind: string };
   let items: Item[] = [], candidates: Item[] = [];
@@ -191,7 +191,7 @@ test("live harness: scoped memory, tool rounds, contextual follow-up and new con
 
 test("mock transport: waiting task continues with current access and preserves its identity on mobile", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  const configuration = { executionKind: "business", instructions: "Answer briefly.", model: { provider: "openrouter", model: "nvidia/nemotron-3-super-120b-a12b:free", maxInputBytes: 16384, maxOutputTokens: 1024, maxDurationSeconds: 120 }, knowledgeIds: [], capabilities: Object.fromEntries(["delegation", "sandbox", "businessActions", "workflows", "schedules"].map(key => [key, { enabled: false }])) };
+  const configuration = { executionKind: "business", instructions: "Answer briefly.", model: { provider: "openrouter", model: "nvidia/nemotron-3-super-120b-a12b:free", maxInputBytes: 16384, maxOutputTokens: 1024, maxDurationSeconds: 120 }, capabilities: Object.fromEntries(["delegation", "sandbox", "businessActions", "workflows", "schedules"].map(key => [key, { enabled: false }])) };
   let task: { id: string; state: string; input: string; requestKey: string; conversationId: string; turnSequence: number; output: string | null } | null = null;
   let admissions = 0, continuations = 0;
   await page.route("**/api/**", async route => {
