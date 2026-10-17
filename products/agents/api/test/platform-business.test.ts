@@ -26,6 +26,7 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
   const receiverKey=randomUUID(),objects=new Map<string,Uint8Array>();
   let afterAccept:((id:string)=>Promise<void>)|undefined;
   let inFlightActionCalls=0;
+  let afterReviewRead:((review:Awaited<ReturnType<ActionService["getReview"]>>)=>Promise<void>)|undefined;
   let server: ReturnType<typeof createServer>;
   let workflow: ReturnType<typeof createBusinessWorkflow>;
   let ingressUrl: string, adminUrl: string;
@@ -71,7 +72,7 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     const vault=new ConnectionVault("v1",{v1:randomBytes(32).toString("base64")}),targets=[{id:"reports",label:"Reports",url:address+"/deliveries",resource:"reports:controller"}];
     artifacts=new TaskArtifactStore(pool,{async put(key,value){objects.set(key,Buffer.from(value));},async get(key){const value=objects.get(key);if(!value)throw Error("Missing fixture object");return value;},async delete(key){objects.delete(key);}});
     connections=new ConnectionStore(pool,vault,targets);actions=new ActionService(pool,{vault,targets,artifacts});
-    workflow = createBusinessWorkflow(pool, {actions:{prepare:(...args)=>actions.prepare(...args),getReview:(...args)=>actions.getReview(...args),reconcile:(...args)=>actions.reconcile(...args),execute:async(...args)=>{inFlightActionCalls++;try{return await actions.execute(...args);}finally{inFlightActionCalls--;}}},selectReportArtifact:(...args)=>artifacts.prepareReport(...args), openRouterApiKey: "fixture", fetch: async (_url, request) => {
+    workflow = createBusinessWorkflow(pool, {actions:{prepare:(...args)=>actions.prepare(...args),getReview:async(...args)=>{const review=await actions.getReview(...args);await afterReviewRead?.(review);return review;},reconcile:(...args)=>actions.reconcile(...args),execute:async(...args)=>{inFlightActionCalls++;try{return await actions.execute(...args);}finally{inFlightActionCalls--;}}},selectReportArtifact:(...args)=>artifacts.prepareReport(...args), openRouterApiKey: "fixture", fetch: async (_url, request) => {
       const body = JSON.parse(String(request?.body)); calls.push(body); return provider(body, request!);
     } });
     await listen();
@@ -161,6 +162,19 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
   async function finishWithControls(taskId:string) {
     return eventually(async()=>{await dispatchTasksOnce(pool,{ingressUrl,adminUrl});const task=(await pool.query("SELECT * FROM agents_platform.tasks WHERE id=$1",[taskId])).rows[0];return terminalTaskStates.has(task.state)?task:false;});
   }
+  it.each(["approve","reject"] as const)("does not lose a %s decision between reading pending review and installing its durable wait",async decision=>{
+    const f=await reportFixture();let entered=false,release!:()=>void;const barrier=new Promise<void>(resolve=>{release=resolve;});
+    let captured:Awaited<ReturnType<ActionService["getReview"]>>|undefined;
+    afterReviewRead=async review=>{if(!entered&&review.state==="pending_review"){entered=true;captured=review;await barrier;}};
+    try {
+      await dispatchTasksOnce(pool,{ingressUrl,adminUrl});await eventually(async()=>entered);
+      await actions.decide(f.scope,f.task.id,captured!.id,{operationId:randomUUID(),decision,expectedDigest:captured!.reviewDigest});
+      await dispatchTasksOnce(pool,{ingressUrl,adminUrl});release();
+      const task=await finishWithControls(f.task.id);
+      expect(task.state).toBe(decision==="approve"?"completed":"incomplete");
+      expect((await actions.getReview(f.task.id,captured!.id)).state).toBe(decision==="approve"?"delivered":"rejected");expect(calls).toHaveLength(1);
+    } finally {release();afterReviewRead=undefined;}
+  },30000);
   it("resumes the same exact report after worker restart and records one actual HTTP delivery",async()=>{
     const f=await reportFixture(),review=await waitForReview(f.task.id);expect(calls).toHaveLength(1);
     expect(review.preview.content).toBe("Open at nine.");

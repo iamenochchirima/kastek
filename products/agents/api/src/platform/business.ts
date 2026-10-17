@@ -176,10 +176,10 @@ async function runRequiredReport(ctx:restate.WorkflowContext,pool:Pool,taskId:st
   let action=prepared.value;
   for(let check=0;check<64;check++) {
     const status=await ctx.run(`report-review:${check}`,async()=>{
-      let fresh:ActionState;
-      try{fresh=actionState(await actions.getReview(taskId,action.id));}catch(error){if(error instanceof PlatformError)return{denied:error.code};throw error;}
       const task=(await pool.query("SELECT state,control_generation,deadline_at FROM agents_platform.tasks WHERE id=$1",[taskId])).rows[0];
       if(!task)throw new PlatformError("TASK_NOT_FOUND",404,"Task not found");
+      let fresh:ActionState;
+      try{fresh=actionState(await actions.getReview(taskId,action.id));}catch(error){if(error instanceof PlatformError)return{denied:error.code};throw error;}
       if(fresh.state==="pending_review" && task.state!=="cancel_requested") {
         await pool.query("UPDATE agents_platform.tasks SET state='waiting_review',updated_at=now() WHERE id=$1 AND state='running'",[taskId]);
         await event(pool,taskId,`review:${fresh.id}`,"review.required",{reviewId:fresh.id,expiresAt:fresh.expiresAt});
