@@ -23,7 +23,7 @@ import { sandboxManagerFromEnvironment } from "./sandbox";
 import { KnowledgeStore } from "./knowledge";
 import { registerKnowledgeRoutes } from "./knowledge-routes";
 import { documentRuntimeFromEnvironment } from "./document-runtime";
-import { EvidenceStore } from "./evidence";
+import { EvidenceStore, citationLabels } from "./evidence";
 import { ConnectedExecutor } from "./connected-executor";
 import { capabilityBindingSchema } from "./capability-catalog";
 
@@ -201,14 +201,7 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
     return { agent: dto(await store.updateDraft({ ...input, accountId: (await account(request)).id,
       organizationId: organizationId(request), agentId: uuid.parse(parameters(request).agentId) })) };
   });
-  app.get(`${base}/knowledge`, async (request) => ({ knowledge: (await store.listKnowledge((await account(request)).id, organizationId(request))).map(dto) }));
   registerKnowledgeRoutes(app, { knowledge, runtime: documentRuntime, resolveScope: async request => ({ accountId: (await account(request)).id, organizationId: organizationId(request) }) });
-  app.post(`${base}/knowledge`, async (request, reply) => {
-    const input = z.strictObject({ title: z.string().min(1).max(200), content: z.string().min(1).max(100_000),
-      visibility: z.enum(["private", "public"]) }).parse(request.body);
-    return reply.code(201).send({ knowledge: dto(await store.approveKnowledge({ ...input,
-      accountId: (await account(request)).id, organizationId: organizationId(request) })) });
-  });
   app.post(`${base}/agents/:agentId/versions`, async (request, reply) => {
     const input = z.strictObject({ expectedRevision: z.number().int().positive() }).parse(request.body);
     const user = await account(request), org = organizationId(request), agentId = uuid.parse(parameters(request).agentId);
@@ -229,7 +222,7 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
     await assertServices(version.configuration);
     const authority = humanAuthority(user, org, version.agent_id);
     const grant = executionGrantSchema.parse({ ...authority, id: randomUUID(), versionId: version.id,
-      operations: grantOperations(version.configuration), knowledgeIds: version.configuration.knowledgeIds, sourceRevisionIds: version.configuration.sourceRevisionIds, connectedToolBindingIds: version.configuration.connectedToolBindingIds,
+      operations: grantOperations(version.configuration), sourceRevisionIds: version.configuration.sourceRevisionIds, connectedToolBindingIds: version.configuration.connectedToolBindingIds,
       maxInputBytes: version.configuration.model.maxInputBytes, maxOutputTokens: version.configuration.model.maxOutputTokens,
       expiresAt: new Date(Date.now() + 30 * 60_000).toISOString(), revokedAt: null });
     await store.createGrant({ accountId: user.id, grant });
@@ -240,8 +233,10 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
   app.get(`${base}/tasks/:taskId`, async (request) => {
     const { task } = await humanTask(request);
     const viewer=await account(request),canControl=task.principal.kind!=="automation"||task.principal.ownerAccountId===viewer.id;
-    const operations = (await pool.query(`SELECT id AS operation_id,kind,name,state,error_code,accounted_tokens,started_at,completed_at
-      FROM agents_platform.operations WHERE task_id=$1 ORDER BY started_at,id`, [task.id])).rows;
+    const operations = (await pool.query(`SELECT o.id AS operation_id,o.kind,o.name,o.state,o.error_code,o.accounted_tokens,o.started_at,o.completed_at,
+      b.binding->>'transport' AS transport,b.binding->'definition'->>'providerOperation' AS provider_operation
+      FROM agents_platform.operations o LEFT JOIN agents_platform.capability_bindings b ON b.alias=o.name AND b.organization_id=$2
+      WHERE o.task_id=$1 ORDER BY o.started_at,o.id`, [task.id,task.organization_id])).rows;
     const events = (await pool.query("SELECT * FROM agents_platform.task_events WHERE task_id=$1 ORDER BY sequence LIMIT 100",[task.id])).rows;
     const children = (await pool.query(`SELECT t.id,a.name AS agent_name,t.version_id,v.number AS version_number,d.binding_id,
       t.state,CASE WHEN c.deleted_at IS NULL THEN t.output ELSE NULL END AS output,t.error_code,t.root_task_id,t.parent_task_id FROM agents_platform.tasks t
@@ -262,6 +257,27 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
     const actions=actionServices?await actionServices.actions.listForTask({accountId:viewer.id,organizationId:task.organization_id},task.id):[];
     return { actions,canControl,canDownloadArtifacts:true,task: dto(task), events: events.map(dto), operations: operations.map(dto),children:children.map(dto),resources:resources.map(dto),artifacts };
   });
+  async function taskPassages(task: TaskRecord) {
+    if (!task.output || !citationLabels(task.output).length) return { state: "available", passages: [] };
+    if (!evidence) return { state: "unavailable", code: "EVIDENCE_BACKEND_UNAVAILABLE", passages: [] };
+    try {
+      const passages = await evidence.validateCitations(task.id, task.output);
+      return { state: "available", passages: passages.map(passage => ({ id: passage.reference.id, label: passage.label,
+        title: passage.title, text: passage.text, page: passage.page, section: passage.section,
+        contentDigest: passage.reference.contentDigest, acquiredAt: passage.reference.acquiredAt })) };
+    } catch (error) {
+      if (error instanceof PlatformError && ["EVIDENCE_UNAVAILABLE", "EVIDENCE_SCOPE_DENIED", "EVIDENCE_INTEGRITY", "CITATION_UNKNOWN"].includes(error.code)) {
+        return { state: "unavailable", code: error.code, passages: [] };
+      }
+      throw error;
+    }
+  }
+  app.get(`${base}/tasks/:taskId/evidence`, async request => {
+    const {task}=await humanTask(request), viewer=await account(request);
+    // A report reviewer receives only the prepared report's citations through ActionService.
+    if(task.principal.kind==="automation" && task.principal.ownerAccountId!==viewer.id) throw new PlatformError("NOT_FOUND",404,"Task not found");
+    return taskPassages(task);
+  });
   app.get(`${base}/tasks/:taskId/artifacts/:artifactId`, async (request,reply) => {
     const {task}=await humanTask(request), user=await account(request);
     const result=await taskArtifacts.download(user.id,task.organization_id,task.id,uuid.parse(parameters(request).artifactId));
@@ -281,7 +297,7 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
     const version = await store.getVersion(user.id, task.organization_id, task.version_id);
     const grant = executionGrantSchema.parse({ ...authority, id: randomUUID(), versionId: version.id,
       operations: grantOperations(version.configuration),
-      knowledgeIds: version.configuration.knowledgeIds, sourceRevisionIds: version.configuration.sourceRevisionIds, connectedToolBindingIds: version.configuration.connectedToolBindingIds, maxInputBytes: version.configuration.model.maxInputBytes,
+      sourceRevisionIds: version.configuration.sourceRevisionIds, connectedToolBindingIds: version.configuration.connectedToolBindingIds, maxInputBytes: version.configuration.model.maxInputBytes,
       maxOutputTokens: version.configuration.model.maxOutputTokens, maxContextTokens: version.configuration.context.maxInputTokens,
       rootTokenLimit: (task as TaskRecord & {root_token_limit:number}).root_token_limit,
       expiresAt: new Date(Math.min(Date.now()+30*60_000, new Date((task as TaskRecord & {deadline_at:Date}).deadline_at).getTime())).toISOString(), revokedAt: null });
@@ -388,6 +404,10 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
     const { deployment, websiteOrigin } = await websiteContext(request, reply), authority = await websiteAuthority(request, deployment, websiteOrigin);
     const task = await store.getTask(authority, uuid.parse(parameters(request).taskId));
     return { task: dto(task), events: (await store.listTaskEvents(authority, task.id)).map(dto) };
+  });
+  app.get("/api/website/:deploymentId/tasks/:taskId/evidence", async (request, reply) => {
+    const { deployment, websiteOrigin } = await websiteContext(request, reply), authority = await websiteAuthority(request, deployment, websiteOrigin);
+    return taskPassages(await store.getTask(authority, uuid.parse(parameters(request).taskId)));
   });
   app.get("/api/website/:deploymentId/conversations/:conversationId", async (request, reply) => {
     const { deployment, websiteOrigin } = await websiteContext(request, reply), authority = await websiteAuthority(request, deployment, websiteOrigin);
