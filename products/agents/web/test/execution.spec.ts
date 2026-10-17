@@ -9,7 +9,7 @@ const rootVersion = "55555555-5555-4555-8555-555555555555";
 const specialistVersion = "66666666-6666-4666-8666-666666666666";
 const secondAgent = "77777777-7777-4777-8777-777777777777";
 const secondVersion = "88888888-8888-4888-8888-888888888888";
-const draft = () => ({ executionKind: "business", instructions: "Research the selected sources and analyze the results.", model: { provider: "openrouter", model: "nvidia/nemotron-3-super-120b-a12b:free", maxInputBytes: 16384, maxOutputTokens: 1024, maxDurationSeconds: 120 }, knowledgeIds: [sourceId], tools: [] as string[], capabilities: { delegation: { enabled: false, bindings: [] as { id: string; versionId: string; knowledgeIds: string[]; tools: string[]; maxTokens: number; maxActiveMs: number }[], maxChildren: 2, maxDepth: 1 }, sandbox: { enabled: false, profileId: "" }, businessActions: { enabled: false }, workflows: { enabled: false }, schedules: { enabled: false } } });
+const draft = () => ({ executionKind: "business", instructions: "Research the selected sources and analyze the results.", model: { provider: "openrouter", model: "nvidia/nemotron-3-super-120b-a12b:free", maxInputBytes: 16384, maxOutputTokens: 1024, maxDurationSeconds: 120 }, knowledgeIds: [], sourceRevisionIds: [sourceId], connectedToolBindingIds: [], retrievalProfile: { kind: "lexical-v1" }, tools: [] as string[], capabilities: { delegation: { enabled: false, bindings: [] as { id: string; versionId: string; knowledgeIds: string[]; sourceRevisionIds: string[]; connectedToolBindingIds: string[]; tools: string[]; maxTokens: number; maxActiveMs: number }[], maxChildren: 2, maxDepth: 1 }, sandbox: { enabled: false, profileId: "" }, businessActions: { enabled: false }, workflows: { enabled: false }, schedules: { enabled: false } } });
 
 async function executionFixture(page: Page) {
   let configuration = draft(), admissions = 0, cancels = 0, gets = 0, continuations = 0;
@@ -25,7 +25,9 @@ async function executionFixture(page: Page) {
     else if (path.endsWith("/agents")) data = { agents: [agent(), { id: specialistAgent, name: "Source researcher" }, { id: secondAgent, name: "Evidence reviewer" }] };
     else if (path.endsWith(`/agents/${specialistAgent}`)) data = { versions: [{ id: specialistVersion, number: 3, configuration: { ...draft(), tools: ["knowledge.search", "knowledge.read"] } }] };
     else if (path.endsWith(`/agents/${secondAgent}`)) data = { versions: [{ id: secondVersion, number: 2, configuration: { ...draft(), tools: ["knowledge.search", "knowledge.read"] } }] };
-    else if (path.endsWith("/knowledge")) data = { knowledge: [{ id: sourceId, title: "Approved report", content: "Evidence for research.", visibility: "private" }] };
+    else if (path.endsWith("/knowledge/sources")) data = { sources: [{ id: sourceId, title: "Approved report", state: "active", visibility: "private", revisions: [{ id: sourceId, revision: 1, state: "approved" }] }], imports: [] };
+    else if (path.endsWith("/tool-bindings")) data = { bindings: [] };
+    else if (path.endsWith("/connections")) data = { connections: [], targets: [] };
     else if (path.endsWith("/skills")) data = { skills: [] };
     else if (path.endsWith("/tasks") && method === "POST") { admissions++; task = { id: "root-task", state: "running", input: body.input, output: null, conversationId: "research-conversation", requestKey: body.requestKey, turnSequence: 1 }; data = { task }; }
     else if (path.endsWith("/root-task/continue")) { continuations++; childAuthorityExpired = false; data = { task }; }
@@ -47,7 +49,7 @@ test("mock execution: pinned specialist scope, no-network analysis, related prog
   await page.goto(`/app/agents/${rootAgent}`);
   await page.getByRole("checkbox", { name: "Delegate to specialists" }).check();
   await page.getByRole("combobox", { name: "Specialist 1", exact: true }).selectOption(specialistVersion);
-  await page.getByRole("checkbox", { name: "Approved report", exact: true }).last().check();
+  await page.getByRole("checkbox", { name: /^Approved report/ }).last().check();
   await page.getByRole("checkbox", { name: "Allow knowledge search and reading" }).check();
   await page.getByRole("button", { name: "Add specialist" }).click();
   await expect(page.getByRole("combobox", { name: "Specialist 2", exact: true })).toHaveValue(secondVersion);
@@ -55,8 +57,8 @@ test("mock execution: pinned specialist scope, no-network analysis, related prog
   await page.getByRole("button", { name: "Save configuration" }).click();
   await expect(page.getByRole("button", { name: "Save configuration" })).toBeDisabled();
   expect(fixture.configuration().capabilities.delegation.bindings.map(binding => binding.versionId)).toEqual([specialistVersion, secondVersion]);
-  expect(fixture.configuration().capabilities.delegation.bindings[0].knowledgeIds).toEqual([sourceId]);
-  expect(fixture.configuration().capabilities.delegation.bindings[1].knowledgeIds).toEqual([]);
+  expect(fixture.configuration().capabilities.delegation.bindings[0].sourceRevisionIds).toEqual([sourceId]);
+  expect(fixture.configuration().capabilities.delegation.bindings[1].sourceRevisionIds).toEqual([]);
   expect(fixture.configuration().tools).toEqual(["agents.delegate", "sandbox.analyze"]);
   expect(fixture.configuration().capabilities.sandbox.profileId).toBe("python-analysis-v1");
   for (const width of [1440, 768, 390]) {

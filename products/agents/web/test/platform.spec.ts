@@ -10,7 +10,7 @@ const instructions = "Answer questions using approved knowledge.";
 const configuration = {
   executionKind: "business", instructions,
   model: { provider: "openrouter", model: "nvidia/nemotron-3-super-120b-a12b:free", maxInputBytes: 16384, maxOutputTokens: 1024, maxDurationSeconds: 120 },
-  knowledgeIds: [] as string[],
+  knowledgeIds: [] as string[], sourceRevisionIds: [] as string[], connectedToolBindingIds: [] as string[], retrievalProfile: { kind: "lexical-v1" },
   capabilities: Object.fromEntries(["delegation", "sandbox", "businessActions", "workflows", "schedules"].map(key => [key, { enabled: false }])),
 };
 
@@ -22,10 +22,15 @@ async function createAgent(page: Page, name: string) {
 }
 async function addKnowledge(page: Page, title: string, content: string) {
   await page.getByRole("link", { name: "Knowledge", exact: true }).click();
+  await page.getByRole("button", { name: "Add source", exact: true }).click();
   await page.getByRole("textbox", { name: "Title", exact: true }).fill(title);
   await page.getByRole("textbox", { name: "Content", exact: true }).fill(content);
-  await page.getByRole("button", { name: "Approve source" }).click();
-  await expect(page.getByText("Knowledge approved", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Import source", exact: true }).click();
+  await page.getByRole("button", { name: "Approve source", exact: true }).click({ timeout: 90000 });
+  await expect(page.getByText("Source approved", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Make public", exact: true }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Make public", exact: true }).click();
+  await expect(page.getByText("Visibility updated", { exact: true })).toBeVisible();
 }
 async function openAgent(page: Page, name: string) {
   await page.getByRole("link", { name: "Agents", exact: true }).last().click();
@@ -43,7 +48,7 @@ async function noOverflow(page: Page) {
 // This validates browser behavior with simulated responses. It is not backend acceptance.
 test("mock transport: draft isolation, immutable versions, task reconnect, explicit publication, mobile public chat", async ({ page }) => {
   let agent: { id: string; name: string; draft: typeof configuration; draftRevision: number; updatedAt: string } | null = null;
-  const knowledge: { id: string; title: string; content: string; visibility: string }[] = [];
+  const knowledge: { id: string; title: string; content: string; visibility: string; state: string; generation: number; canApprove: boolean; revisions: { id: string; revision: number; state: string; acquiredAt: string }[] }[] = [];
   const versions: { id: string; number: number; configuration: typeof configuration }[] = [];
   const deployments: { id: string; versionId: string; allowedOrigins: string[] }[] = [];
   let task: { id: string; state: string; output: string | null; errorCode: null; conversationId: string; input: string; requestKey: string } | null = null;
@@ -57,7 +62,11 @@ test("mock transport: draft isolation, immutable versions, task reconnect, expli
     let data: unknown;
     if (path === "/api/session") data = { account: { id: "test-owner", email: "owner@example.com", displayName: "Owner" }, organizations: [{ id: mockOrg, name: "Acme", role: "owner" }] };
     else if (path.endsWith("/skills")) data = { skills: [] };
-    else if (path.endsWith("/knowledge")) { if (method === "POST") { const source = { id: mockKnowledge, ...body }; knowledge.push(source); data = { knowledge: source }; } else data = { knowledge }; }
+    else if (path.endsWith("/knowledge/sources")) data = { sources: knowledge, imports: [] };
+    else if (path.endsWith("/tool-bindings")) data = { bindings: [] };
+    else if (path.endsWith("/connections")) data = { connections: [], targets: [] };
+    else if (path.endsWith("/knowledge/imports")) { const source = { id: mockKnowledge, title: body.title, content: Buffer.from(body.contentBase64, "base64").toString(), state: "active", visibility: "private", generation: 1, canApprove: true, revisions: [{ id: mockKnowledge, revision: 1, state: "candidate", acquiredAt: new Date().toISOString() }] }; knowledge.push(source); data = { job: { id: "job1", state: "ready" } }; }
+    else if (path.endsWith("/policy")) { const source = knowledge[0]; source.generation++; if (body.action === "approve") source.revisions[0].state = "approved"; else if (body.action === "visibility") source.visibility = body.visibility; data = { source }; }
     else if (path === `/api/organizations/${mockOrg}/agents`) { if (method === "POST") { agent = { id: mockAgent, name: body.name, draft: structuredClone(configuration), draftRevision: 1, updatedAt: new Date().toISOString() }; data = { agent }; } else data = { agents: agent ? [agent] : [] }; }
     else if (path.endsWith(`/agents/${mockAgent}`)) { if (method === "PUT") { expect(body.expectedRevision).toBe(agent!.draftRevision); agent = { ...agent!, name: body.name, draft: body.configuration, draftRevision: agent!.draftRevision + 1 }; } data = { agent, versions, deployments }; }
     else if (path.endsWith("/versions")) { const version = { id: mockVersion, number: 1, configuration: structuredClone(agent!.draft) }; versions.push(version); data = { version }; }

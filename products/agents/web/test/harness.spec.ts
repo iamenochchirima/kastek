@@ -20,7 +20,9 @@ test("mock transport: reviewed memory, pinned skills, factual progress and conte
     let data: unknown;
     if (path === "/api/session") data = { account: { id: "owner", email: "owner@example.com", displayName: "Owner" }, organizations: [{ id: org, name: "Workspace", role: "owner" }] };
     else if (path.endsWith(`/agents/${agentId}`)) { if (method === "PUT") agent = { ...agent, draft: body.configuration, draftRevision: agent.draftRevision + 1 }; data = { agent, versions: [{ id: versionId, number: 1, configuration: agent.draft }], deployments: [] }; }
-    else if (path.endsWith("/knowledge")) data = { knowledge: [] };
+    else if (path.endsWith("/knowledge/sources")) data = { sources: [], imports: [] };
+    else if (path.endsWith("/tool-bindings")) data = { bindings: [] };
+    else if (path.endsWith("/connections")) data = { connections: [], targets: [] };
     else if (path.endsWith("/skills")) { if (method === "POST") { expect(body.operationId).toMatch(/^[a-f0-9-]{36}$/); const skill = { ...body, id: "skill-1", revision: 1 }; skills.push(skill); data = { skill }; } else data = { skills }; }
     else if (path.endsWith("/memory")) { if (method === "POST") { candidates.push({ id: "memory-1", content: body.content, revision: 1, kind: body.kind, status: "candidate" }); data = {}; } else data = { generation: 1, items, candidates }; }
     else if (path.includes("/memory/candidates/") && path.endsWith("/accept")) { expect(body.expectedRevision).toBe(1); items = candidates.map(item => ({ ...item, status: "accepted", revision: 2 })); candidates = []; data = {}; }
@@ -197,7 +199,9 @@ test("mock transport: waiting task continues with current access and preserves i
     let data: unknown;
     if (path === "/api/session") data = { account: { id: "owner", email: "owner@example.com", displayName: "Owner" }, organizations: [{ id: org, name: "Workspace", role: "owner" }] };
     else if (path.endsWith(`/agents/${agentId}`)) data = { agent: { id: agentId, name: "Assistant", draft: configuration, draftRevision: 1 }, versions: [{ id: versionId, number: 1, configuration }], deployments: [] };
-    else if (path.endsWith("/knowledge")) data = { knowledge: [] };
+    else if (path.endsWith("/knowledge/sources")) data = { sources: [], imports: [] };
+    else if (path.endsWith("/tool-bindings")) data = { bindings: [] };
+    else if (path.endsWith("/connections")) data = { connections: [], targets: [] };
     else if (path.endsWith("/skills")) data = { skills: [] };
     else if (path.endsWith("/tasks") && method === "POST") { admissions++; const body = request.postDataJSON(); task = { id: "waiting-task", state: "waiting_authority", input: body.input, requestKey: body.requestKey, conversationId: "waiting-conversation", turnSequence: 1, output: null }; data = { task }; }
     else if (path.endsWith("/waiting-task/continue") && method === "POST") { continuations++; task = { ...task!, state: "completed", output: "The original task continued." }; data = { task }; }
