@@ -397,13 +397,20 @@ Product-plan entitlement, individual permission, and run execution authority are
 A paid campaign feature does not let every employee publish. Products own commercial packaging.
 The shared backend owns execution metering and runtime limits.
 
-The initial standalone platform owns execution quota reservations and an operation-keyed usage
-ledger in its dedicated PostgreSQL database. Admission reserves a conservative token allocation;
-settlement accounts known usage once, or the reservation for uncertain model outcomes. Limits are
-16 KiB model input, 1,024 output tokens, 120 seconds per model request, two concurrent tasks per
-organization and 100,000 accounted tokens per UTC day. These are initial development ceilings.
-Commercial billing ownership and future product entitlements remain separate decisions. Growth
-credits are not a platform dependency.
+The standalone platform owns root allocations and an operation-keyed usage ledger in its dedicated
+PostgreSQL database. Admission reserves up to 32,000 accounted tokens per root against a
+100,000-token organization allowance attributed to the root's admission UTC day. Settlement,
+including after midnight, uses that same accounting day. Every model call, tool round and
+compaction has a stable operation identity. Unknown model outcomes conservatively retain their
+reservation and are not regenerated blindly.
+
+The development profile limits model input to a conservative 8,192-token envelope, output to
+1,024 tokens, and each model request to 120 seconds. Serialized UTF-8 bytes bound the pinned
+byte-level tokenizer's content tokens, with 512 tokens reserved for provider framing. Ingestion
+still limits a user message to 16 KiB. Root limits are 12 model calls, 24 tool calls, 15 minutes
+of summed active operation time and a 24-hour wall deadline. Two accepted nonterminal roots per
+organization are distinct from the two model/four tool operation slots. Waiting work releases
+compute slots. Commercial billing and future product packaging remain separate decisions.
 
 ## Tenant isolation, memory, and capacity
 
@@ -424,33 +431,78 @@ throughput, and multi-replica stream behavior remain unverified.
 
 ## Current implementation and remaining decisions
 
-The initial implementation replaces the inherited Agents backend with fresh platform modules and
-schema. It provides OIDC product sessions, organization membership, drafts, immutable versions,
-approved text knowledge, explicit website bindings, bounded grants, atomic task/outbox/usage
-admission, a Restate business worker and a small create/configure/test/publish interface. The
-legacy Temporal, protected KasiAi, hosting-mode and synthetic-installation implementation is
-removed. No existing database has been migrated or modified.
+The platform uses fresh Agents-owned schemas, Keycloak sessions, organization membership,
+immutable agent/knowledge versions, explicit website bindings, bounded grants and atomic
+admission/outbox. The inherited Temporal, protected KasiAi, hosting-mode and synthetic-installation
+implementation is removed. No existing database is migrated or modified.
 
-Restate server 1.7.13 and TypeScript SDK 1.17.3 are pinned and tested together. Keyed workflows use
-the accepted task ID. Workflow and journal retention are seven days; outbox retry is limited to
-24 hours and settled tasks are not dispatched again. Lost provider responses and interrupted
-operations can remain uncertain. Cancellation requests do not imply that a model call stopped.
-See the [runtime reference](../../../../infra/agents-runtime/README.md).
+### Business harness
 
-Exactly two execution categories exist in the configuration contract. Only the minimal business
-FAQ is available in this milestone. Workspace execution fails before acceptance. Delegation,
-sandboxes, business-action tools, schedules and additional workflows remain disabled. No Lina,
-external MCP, Growth or Agencies integration is claimed by the initial delivery.
+The versioned AgentsBusinessRunV1 Restate workflow owns repeated model/tool execution. Each task
+pins its agent configuration and harness release. Ordered conversation turns wait for the preceding
+execution and its recorded result. A short database transaction assigns order and freezes eligible
+history; it does not run the agent loop or hold a lock during external work.
 
-The remaining decisions cover embedded-product authorization and resource mapping, destination
-credentials, automation/review policy, commercial billing, private file storage, other channels,
-Lina hosting, sandbox isolation, and production runtime/observability operations. There is no
-legacy migration or compatibility requirement. Requirements and checklists stay in Linear;
-repository documents describe contracts and maintained behavior.
+The context assembler selects authorized prior exchanges, knowledge, accepted personal memory,
+reviewed pinned skills and complete tool-call/result groups. Each ordinary or compaction model
+request has an immutable context snapshot, digest, source references and memory invalidation fence.
+Recorded compaction reduces older groups while retaining unresolved requests and operation/artifact
+references. Summaries are derived data and never grant authority or prove an effect succeeded.
+
+Personal semantic/episodic memory uses scoped PostgreSQL records and transactional full-text search.
+Model proposals remain candidates until authenticated management acceptance. Correction uses an
+expected revision. Forget suppresses future learned-memory retrieval and invalidates dependent
+context. Original conversation content has a separate source-deletion operation. Expiry advances
+selection generations. These controls do not claim physical erasure of prior provider requests,
+journals, revisions or backups. Procedural skills are immutable reviewed revisions pinned at
+publication; they cannot install tools or expand permissions.
+
+The trusted executor exposes selected knowledge.search/read and memory.search/propose operations.
+Tool schemas, arguments, current grants, memory fences, time and root usage are checked before
+admission. Model names and prompt instructions cannot grant a tool. The minimal FAQ uses the same
+controller with its optional capabilities disabled. Website publication rejects personal memory,
+memory tools and private skill bindings.
+
+Operation receipts and per-operation settlement survive retries. A started model request without a
+confirmed receipt becomes uncertain instead of generating again. Expected denials are recorded
+outcomes rather than infinite runtime retries. Expired grants enter a durable authority wait;
+authenticated continuation obtains a bounded replacement grant and follows the same task. Cancellation
+and deadline commands stop future admissions and request runtime cancellation; confirmed receipts
+remain the effect evidence. PostgreSQL status and progress remain repairable projections.
+
+Restate server 1.7.13 and SDK 1.17.3 are pinned and tested together. Runtime retention is seven days,
+outbox retry is bounded to 24 hours, and settled tasks are not redispatched. The API returns bounded
+operation/progress records, and Test reconnects to the original task. Private context/receipt data
+stays in the dedicated database; large artifacts use a scoped private S3-compatible adapter.
+Workers validate signed Restate requests when configured. Production requires signing keys.
+Unsigned workers default to loopback; exposed unsigned development requires explicit opt-in.
+
+Local verification covers actual PostgreSQL/Restate operation recovery, context and memory
+invalidation, bounded accounting, compaction replay, and real-model UI follow-ups plus memory-tool
+use. Actual MinIO checks cover private storage and lost-response/deletion handling. HTTP2 signature
+fixtures cover valid and forged worker requests. These checks do not certify hosted production,
+cluster key distribution, backups, capacity or monitoring. See the
+[runtime reference](../../../../infra/agents-runtime/README.md) and
+[implementation boundary](../source-boundary.md).
+
+### Unavailable capabilities
+
+Exactly two execution categories remain. Workspace tasks fail before acceptance until the Lina
+adapter is implemented. Business-to-business delegation, temporary sandboxes, destination business
+writes, durable external-action review, schedules and additional workflows remain disabled.
+The standalone runtime probes exercise future coordination mechanisms without exposing those
+capabilities in the product. External MCP, embedded Growth and Agencies admission and evaluator
+adapters are also unavailable.
+
+Remaining work includes embedded-product authorization/resource mapping, destination credentials,
+automation and external-action policy, commercial billing, production storage operations, other
+channels, Lina hosting, sandbox isolation and production monitoring/deployment. Requirements and
+checklists stay in Linear. Repository documents describe maintained contracts and actual behavior.
 
 ## Related records
 
 - [Multi-product foundation specification](https://linear.app/kasitek/document/agents-multi-product-execution-foundation-and-architecture-reset-01fcce619f68)
+- [Core harness specification](https://linear.app/kasitek/document/agents-durable-business-harness-context-and-memory-implementation-plan-bb256ca81fa9)
 - [Downstream support delivery](https://linear.app/kasitek/document/agents-recoverable-support-run-and-website-acceptance-e9c335ebe5bc)
 - [Implementation status](../source-boundary.md)
 - [Integration boundaries](../mcp-integration.md)

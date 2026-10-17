@@ -1,8 +1,9 @@
 # Agents local runtime
 
 This local runtime uses Restate server 1.7.13 with SDK 1.17.3. The compose image
-includes its verified digest. It has no production authentication configuration.
-Ingress and administration ports bind to loopback. The worker must remain private.
+includes its verified digest. The development compose environment has no production ingress authentication.
+Ingress and administration ports bind to loopback. Worker request identity is
+configured separately; the worker must remain private.
 
 ## Verify the execution contract
 
@@ -44,6 +45,31 @@ docker compose -f infra/agents-runtime/compose.yaml down
 The standalone verification script uses separate containers and ports. It does
 not use or modify this compose environment.
 
+The worker defaults to `RESTATE_WORKER_HOST=127.0.0.1`. A Dockerized Restate server
+cannot reach that host loopback through `host.docker.internal`. For a private
+Docker development bridge without request signing, set these worker variables:
+
+```sh
+RESTATE_WORKER_HOST=0.0.0.0
+AGENTS_ALLOW_UNSIGNED_WORKER=1
+```
+
+Apply host firewall restrictions to that development listener. Production never
+accepts this unsigned override and requires `RESTATE_REQUEST_IDENTITY_KEYS` from
+the configured cluster. Keys use the SDK's `publickeyv1_` format and may be
+comma-separated during rotation. Signing does not replace private worker access,
+TLS, or ingress authorization.
+
+The standalone SDK check uses real HTTP2 requests and temporary Ed25519 keys:
+
+```sh
+pnpm --filter @kasitek/agents exec vitest run test/platform-worker-security.test.ts
+```
+
+It proves valid-signature discovery and denial of unsigned, forged, expired, and
+wrong-path requests, including invocation paths. It does not verify a deployed
+cluster's signing configuration or key distribution.
+
 ## Application contract
 
 Commit the accepted task and outbox command in one PostgreSQL transaction. Send
@@ -56,9 +82,22 @@ invocation. A successful cancellation request is not confirmation of termination
 Stop dispatching settled tasks, and bound outbox retries within configured runtime
 retention. After retention expires, the same key can start another execution.
 
+The business harness records each model, tool, and compaction operation through
+its own durable boundary. Conversation history, selected knowledge, approved
+personal memory, and pinned skills form a bounded context snapshot. The minimal
+website FAQ uses that same controller with its optional capabilities disabled.
+
 Record database and provider operations through `ctx.run`. Database writes also
 need stable operation identities. An external operation may finish before Restate
 records its response, so execution durability does not prove exactly-once effects.
+
+Root admission reserves up to 32,000 accounted tokens against the organization's
+100,000-token UTC admission-day allowance. Child delegation is not enabled. Model
+and compaction calls consume operation reservations under the same root; later
+midnight crossings do not create a new allowance. Private PostgreSQL stores
+context snapshots and memory revisions. S3-compatible storage holds large
+artifacts under scoped metadata. See the [implementation boundary](../../products/agents/docs/source-boundary.md)
+for the complete current profile and capability limits.
 
 Use immutable worker endpoints for releases. Replacing worker code at an existing
 endpoint can break journal replay. Keep the Restate admin API private.
@@ -85,3 +124,45 @@ opaque product sessions, signed backchannel logout, replay and malformed-token
 denial. The execution-service token must have the exclusive intended audience and
 execute role without realm-management authority. Signup-email delivery and
 production identity deployment are outside this check.
+
+## Verify private content and memory
+
+From the repository root, with workspace dependencies installed:
+
+```sh
+bash infra/agents-runtime/verify-storage.sh
+```
+
+This check uses real PostgreSQL 17.6 and MinIO. It verifies scoped revisioned
+memory, explicit candidate acceptance, correction, forgetting and expiry,
+immutable skill revisions, signed private object writes/reads/deletion,
+content integrity, lost-response recovery and cleanup when deletion races a write.
+It does not use a filesystem replacement or a simulated S3 service.
+
+The script builds MinIO from the official `RELEASE.2025-09-07T16-13-09Z` source
+archive using Go 1.26.9. Archive SHA-256 values are:
+
+- MinIO source: `c9598dcce3440977e79f787f2ba0e7e4d92c8d556bd51e7cef3785bafd6635f3`.
+- Go Linux amd64: `42d158b4d8f7b61ac0a830567c940a86098fb7aac52e467a5ebec03ef5cc2f8d`.
+
+Docker Hub and Quay image access and the MinIO binary archive were unavailable
+when this check was introduced. The checked source build avoids requiring those
+artifacts. It downloads Go modules and checks their normal module checksums.
+This source-build path currently supports Linux amd64 and Python 3.12 or later.
+
+Set `NODE_BINARY` when Node 24 is outside `PATH`. Optionally set
+`AGENTS_TEST_MINIO_BINARY` to an existing MinIO executable or
+`AGENTS_TEST_DATABASE_URL` to a disposable PostgreSQL server with database-creation
+rights. The script owns and removes its temporary server/data and any PostgreSQL
+container it starts. The tests create and drop their own databases.
+
+Application storage uses `AGENTS_S3_ENDPOINT`, `AGENTS_S3_REGION`,
+`AGENTS_S3_BUCKET`, `AGENTS_S3_ACCESS_KEY_ID` and `AGENTS_S3_SECRET_ACCESS_KEY`.
+Provision a private bucket separately. Missing storage remains unavailable; no
+local content fallback is enabled. Configure HTTPS outside loopback development.
+Credentials stay outside model context, ordinary history and logs.
+
+Forgetting and source-history deletion prevent future retrieval and invalidate
+derived context. They do not claim physical erasure of historical revisions,
+completed provider requests, runtime journals or backups. Retention and production
+secret storage remain explicit release concerns.

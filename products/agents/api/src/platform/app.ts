@@ -9,15 +9,23 @@ import { agentConfigurationSchema, assertRuntimeAvailable, executionGrantSchema,
   PlatformError, terminalTaskStates, type AdmissionAuthority } from "./contracts";
 import { PlatformStore, type Account, type TaskRecord } from "./store";
 import { websiteWidgetScript } from "./widget";
+import { registerMemoryRoutes } from "./memory-routes";
+import { privateStoreFromEnvironment } from "./artifacts";
+import { MemoryStore } from "./memory";
 
 const uuid = z.uuid();
 const taskInput = z.strictObject({ versionId: uuid, input: z.string().min(1).max(16_384),
   requestKey: z.string().min(1).max(128), conversationId: uuid.optional() });
 const websiteTaskInput = taskInput.omit({ versionId: true });
 const hash = (token: string) => createHash("sha256").update(token).digest("hex");
-const dto = (row: object) => Object.fromEntries(Object.entries(row).map(([key, value]) => [
+const dto = (row: object) => ({ ...Object.fromEntries(Object.entries(row).map(([key, value]) => [
   key.replace(/_([a-z])/g, (_, letter: string) => letter.toUpperCase()), value,
-]));
+])), ...(Object.hasOwn(row,"conversation_id") && Object.hasOwn(row,"grant_id") ? {
+  rootTaskId: (row as TaskRecord).id, parentTaskId: null,
+  phase: terminalTaskStates.has((row as TaskRecord).state) ? "terminal" : (row as TaskRecord).state === "accepted" ? "queued" :
+    (row as TaskRecord).state === "cancel_requested" ? "stopping" : (row as TaskRecord).state,
+  outcome: terminalTaskStates.has((row as TaskRecord).state) ? (row as TaskRecord).state : null,
+} : {}) });
 
 export async function buildPlatformApp(options: { config: PlatformConfig; pool: Pool; identity?: PlatformIdentity; logging?: boolean }) {
   const { config, pool } = options;
@@ -107,6 +115,11 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
     return reply.code(201).send({ organization: await store.createOrganization(user.id, input.name) });
   });
   const base = "/api/organizations/:organizationId";
+  registerMemoryRoutes(app, { pool, objects: privateStoreFromEnvironment(), resolveScope: async request => {
+    const user = await account(request), org = organizationId(request), agentId = uuid.parse(parameters(request).agentId);
+    await store.getAgent(user.id, org, agentId);
+    return { accountId: user.id, organizationId: org, agentId };
+  } });
   app.get(`${base}/agents`, async (request) => ({ agents: (await store.listAgents((await account(request)).id, organizationId(request))).map(dto) }));
   app.post(`${base}/agents`, async (request, reply) => {
     const user = await account(request), input = z.strictObject({ name: z.string().min(1).max(120) }).parse(request.body);
@@ -148,7 +161,7 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
     if (!config.OPENROUTER_API_KEY) throw new PlatformError("MODEL_CREDENTIAL_UNAVAILABLE", 503, "Model connection is unavailable");
     const authority = humanAuthority(user, org, version.agent_id);
     const grant = executionGrantSchema.parse({ ...authority, id: randomUUID(), versionId: version.id,
-      operations: ["model.reply", "knowledge.read"], knowledgeIds: version.configuration.knowledgeIds,
+      operations: ["model.reply", "knowledge.read", ...(version.configuration.memory.enabled ? ["memory.read", "memory.propose"] : [])], knowledgeIds: version.configuration.knowledgeIds,
       maxInputBytes: version.configuration.model.maxInputBytes, maxOutputTokens: version.configuration.model.maxOutputTokens,
       expiresAt: new Date(Date.now() + 30 * 60_000).toISOString(), revokedAt: null });
     await store.createGrant({ accountId: user.id, grant });
@@ -158,7 +171,33 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
   });
   app.get(`${base}/tasks/:taskId`, async (request) => {
     const { task, authority } = await humanTask(request);
-    return { task: dto(task), events: (await store.listTaskEvents(authority, task.id)).map(dto) };
+    const operations = (await pool.query(`SELECT id AS operation_id,kind,name,state,error_code,accounted_tokens,started_at,completed_at
+      FROM agents_platform.operations WHERE task_id=$1 ORDER BY started_at,id`, [task.id])).rows;
+    return { task: dto(task), events: (await store.listTaskEvents(authority, task.id)).map(dto), operations: operations.map(dto) };
+  });
+  app.post(`${base}/tasks/:taskId/continue`, async request => {
+    const { task, authority } = await humanTask(request);
+    const user = await account(request);
+    if (task.state !== "waiting_authority") return { task: dto(task) };
+    const previous = (await pool.query("SELECT revoked_at FROM agents_platform.execution_grants WHERE id=$1",[task.grant_id])).rows[0];
+    if(!previous || previous.revoked_at) throw new PlatformError("GRANT_REVOKED",403,"Execution access was revoked");
+    const version = await store.getVersion(user.id, task.organization_id, task.version_id);
+    const grant = executionGrantSchema.parse({ ...authority, id: randomUUID(), versionId: version.id,
+      operations: ["model.reply", "knowledge.read", ...(version.configuration.memory.enabled ? ["memory.read", "memory.propose"] : [])],
+      knowledgeIds: version.configuration.knowledgeIds, maxInputBytes: version.configuration.model.maxInputBytes,
+      maxOutputTokens: version.configuration.model.maxOutputTokens, maxContextTokens: version.configuration.context.maxInputTokens,
+      rootTokenLimit: (task as TaskRecord & {root_token_limit:number}).root_token_limit,
+      expiresAt: new Date(Math.min(Date.now()+30*60_000, new Date((task as TaskRecord & {deadline_at:Date}).deadline_at).getTime())).toISOString(), revokedAt: null });
+    await store.createGrant({ accountId: user.id, grant });
+    const db = await pool.connect();
+    try {
+      await db.query("BEGIN");
+      const updated = (await db.query(`UPDATE agents_platform.tasks SET grant_id=$2,control_generation=control_generation+1,updated_at=now()
+        WHERE id=$1 AND state='waiting_authority' RETURNING control_generation-1 AS generation`, [task.id, grant.id])).rows[0];
+      if (updated) await db.query("INSERT INTO agents_platform.task_controls(task_id,generation) VALUES($1,$2) ON CONFLICT DO NOTHING", [task.id, updated.generation]);
+      await db.query("COMMIT");
+    } catch(error) { await db.query("ROLLBACK"); throw error; } finally { db.release(); }
+    return { task: dto(await store.getTask(authority, task.id)) };
   });
   app.get(`${base}/conversations/:conversationId`, async (request) => {
     const user = await account(request), org = organizationId(request), conversationId = uuid.parse(parameters(request).conversationId);
@@ -167,11 +206,17 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
     if (!conversation) throw new PlatformError("NOT_FOUND", 404, "Conversation not found");
     return { tasks: (await store.getConversation(humanAuthority(user, org, conversation.agent_id), conversationId)).map(dto) };
   });
+  app.delete(`${base}/conversations/:conversationId`, async request => {
+    const user = await account(request), org = organizationId(request), conversationId = uuid.parse(parameters(request).conversationId);
+    const conversation = (await pool.query("SELECT agent_id FROM agents_platform.conversations WHERE organization_id=$1 AND id=$2", [org,conversationId])).rows[0];
+    if (!conversation) throw new PlatformError("NOT_FOUND",404,"Conversation not found");
+    return new MemoryStore(pool).deleteConversationSources({accountId:user.id,organizationId:org,agentId:conversation.agent_id},conversationId);
+  });
   app.post(`${base}/tasks/:taskId/cancel`, async (request) => {
     const { task, authority } = await humanTask(request);
     if (!terminalTaskStates.has(task.state)) {
       await pool.query(`WITH changed AS (UPDATE agents_platform.tasks SET state='cancel_requested',updated_at=now()
-        WHERE id=$1 AND state IN ('accepted','running') RETURNING id)
+        WHERE id=$1 AND state IN ('accepted','running','waiting_authority') RETURNING id)
         INSERT INTO agents_platform.task_events(task_id,event_key,kind) SELECT id,'cancel-request','cancel_requested' FROM changed ON CONFLICT DO NOTHING`, [task.id]);
     }
     return { task: dto(await store.getTask(authority, task.id)) };

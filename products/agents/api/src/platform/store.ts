@@ -4,6 +4,8 @@ import { agentConfigurationSchema, assertGrantAuthority, assertRuntimeAvailable,
   executionGrantSchema, initialLimits, parseAllowedOrigin, PlatformError, requestDigest,
   type AdmissionAuthority, type AgentConfiguration, type ExecutionGrant, type TaskState } from "./contracts";
 
+import {transaction} from "./database";
+
 type Db = Pool | PoolClient;
 export interface Account { id: string; issuer: string; subject: string; email: string; display_name: string }
 export interface Organization { id: string; name: string; role: "owner" | "member" }
@@ -20,7 +22,7 @@ export interface TaskRecord { id: string; product: AdmissionAuthority["product"]
   caller_client_id: string; principal: AdmissionAuthority["principal"]; version_id: string; grant_id: string;
   conversation_id: string; request_key: string; request_digest: string; input: string; state: TaskState;
   runtime_invocation_id: string | null; output: string | null; error_code: string | null; created_at: Date; updated_at: Date }
-export interface TaskEvent { sequence: string; task_id: string; event_key: string; kind: TaskState; created_at: Date }
+export interface TaskEvent { sequence: string; task_id: string; event_key: string; kind: string; payload: Record<string,unknown>; created_at: Date }
 export interface AdmitTaskInput { authority: AdmissionAuthority; grantId: string; versionId: string;
   requestKey: string; input: string; conversationId?: string }
 const hash = (value: string) => createHash("sha256").update(value).digest("hex");
@@ -36,19 +38,14 @@ function grantFromRow(row: Record<string, unknown>): ExecutionGrant {
   return executionGrantSchema.parse({ id: row.id, product: row.product, organizationId: row.organization_id,
     resourceId: row.resource_id, callerClientId: row.caller_client_id, principal: row.principal, versionId: row.version_id,
     operations: row.operations, knowledgeIds: row.knowledge_ids, maxInputBytes: row.max_input_bytes,
-    maxOutputTokens: row.max_output_tokens, expiresAt: (row.expires_at as Date).toISOString(),
+    maxOutputTokens: row.max_output_tokens, maxContextTokens: row.max_context_tokens, rootTokenLimit: row.root_token_limit, expiresAt: (row.expires_at as Date).toISOString(),
     revokedAt: row.revoked_at ? (row.revoked_at as Date).toISOString() : null });
 }
 
 /** Public methods accept only identities and authority established by the trusted HTTP/auth layer. */
 export class PlatformStore {
   constructor(readonly pool: Pool) {}
-  private async transaction<T>(work: (db: PoolClient) => Promise<T>): Promise<T> {
-    const db = await this.pool.connect();
-    try { await db.query("BEGIN"); const result = await work(db); await db.query("COMMIT"); return result; }
-    catch (error) { await db.query("ROLLBACK"); throw error; }
-    finally { db.release(); }
-  }
+  private transaction<T>(work: (db:PoolClient)=>Promise<T>):Promise<T> { return transaction(this.pool,work); }
   private async membership(db: Db, accountId: string, org: string): Promise<void> {
     const row = await db.query(`SELECT account_id FROM agents_platform.memberships
       WHERE account_id=$1 AND organization_id=$2 AND revoked_at IS NULL FOR SHARE`, [accountId, org]);
@@ -147,6 +144,10 @@ export class PlatformStore {
       const config = agentConfigurationSchema.parse(agent.draft);
       const knowledge = await db.query("SELECT id FROM agents_platform.knowledge_sources WHERE organization_id=$1 AND id=ANY($2::uuid[]) FOR SHARE", [input.organizationId, config.knowledgeIds]);
       if (knowledge.rows.length !== config.knowledgeIds.length) denied();
+      if (config.skillIds.length) {
+        const skills = await db.query("SELECT id FROM agents_platform.skill_revisions WHERE organization_id=$1 AND agent_id=$2 AND id=ANY($3::uuid[]) FOR SHARE", [input.organizationId,input.agentId,config.skillIds]);
+        if (skills.rowCount !== new Set(config.skillIds).size) denied();
+      }
       const version = (await db.query<VersionRecord>(`INSERT INTO agents_platform.agent_versions(id,organization_id,agent_id,number,execution_kind,configuration,created_by,draft_revision)
         SELECT $1,$2,$3,coalesce(max(number),0)+1,$4,$5,$6,$7 FROM agents_platform.agent_versions WHERE agent_id=$3 RETURNING *`,
       [randomUUID(), input.organizationId, input.agentId, config.executionKind, config, input.accountId, agent.draft_revision])).rows[0]!;
@@ -182,6 +183,9 @@ export class PlatformStore {
       const version = await this.version(db, input.organizationId, input.versionId);
       if (version.agent_id !== input.agentId) denied();
       assertRuntimeAvailable(version.configuration);
+      const websiteConfig = agentConfigurationSchema.parse(version.configuration);
+      if (websiteConfig.memory.enabled || websiteConfig.skillIds.length || websiteConfig.tools.some(name=>name.startsWith("memory.")))
+        throw new PlatformError("PRIVATE_AGENT_CONFIGURATION",409,"Website agents cannot use personal memory or private skills");
       if ((await db.query(`SELECT k.id FROM agents_platform.version_knowledge v JOIN agents_platform.knowledge_sources k ON k.id=v.knowledge_id
         WHERE v.version_id=$1 AND k.visibility<>'public'`, [version.id])).rows.length) throw new PlatformError("PRIVATE_KNOWLEDGE", 409, "Website agents require public knowledge");
       return (await db.query<WebsiteDeployment>(`INSERT INTO agents_platform.website_deployments(id,organization_id,agent_id,version_id,allowed_origins,published_by)
@@ -193,10 +197,10 @@ export class PlatformStore {
   }
   private async insertGrant(db: Db, grant: ExecutionGrant): Promise<ExecutionGrant> {
     await db.query(`INSERT INTO agents_platform.execution_grants(id,product,organization_id,resource_id,caller_client_id,principal,
-      version_id,operations,knowledge_ids,max_input_bytes,max_output_tokens,expires_at,revoked_at)
-      VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`, [grant.id, grant.product, grant.organizationId, grant.resourceId,
+      version_id,operations,knowledge_ids,max_input_bytes,max_output_tokens,expires_at,revoked_at,max_context_tokens,root_token_limit)
+      VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)`, [grant.id, grant.product, grant.organizationId, grant.resourceId,
       grant.callerClientId, grant.principal, grant.versionId, JSON.stringify(grant.operations), JSON.stringify(grant.knowledgeIds),
-      grant.maxInputBytes, grant.maxOutputTokens, grant.expiresAt, grant.revokedAt]);
+      grant.maxInputBytes, grant.maxOutputTokens, grant.expiresAt, grant.revokedAt, grant.maxContextTokens, grant.rootTokenLimit]);
     return grant;
   }
   async createGrant(input: { accountId: string; grant: ExecutionGrant }): Promise<ExecutionGrant> {
@@ -265,24 +269,27 @@ export class PlatformStore {
         if (existing.request_digest !== digest) throw new PlatformError("IDEMPOTENCY_CONFLICT", 409, "The request key was used for different input");
         return { task: existing, replayed: true };
       }
-      const active = (await db.query<{ count: string }>("SELECT count(*) FROM agents_platform.tasks WHERE organization_id=$1 AND state IN ('accepted','running','cancel_requested')", [input.authority.organizationId])).rows[0]!;
+      const active = (await db.query<{ count: string }>("SELECT count(*) FROM agents_platform.tasks WHERE organization_id=$1 AND state IN ('accepted','running','waiting_authority','cancel_requested')", [input.authority.organizationId])).rows[0]!;
       if (Number(active.count) >= initialLimits.maxConcurrentTasks) throw new PlatformError("CONCURRENCY_LIMIT", 429, "Too many tasks are running");
-      const reservation = config.model.maxInputBytes + 256 + config.model.maxOutputTokens;
+      const reservation = grant.rootTokenLimit;
       await db.query("INSERT INTO agents_platform.usage_accounts(organization_id,day) VALUES($1,(now() AT TIME ZONE 'UTC')::date) ON CONFLICT DO NOTHING", [input.authority.organizationId]);
       const quota = (await db.query<{ day: string }>(`UPDATE agents_platform.usage_accounts SET reserved_tokens=reserved_tokens+$2
         WHERE organization_id=$1 AND day=(now() AT TIME ZONE 'UTC')::date AND reserved_tokens+consumed_tokens+$2<=token_allowance RETURNING day`, [input.authority.organizationId, reservation])).rows[0];
       if (!quota) throw new PlatformError("QUOTA_EXCEEDED", 429, "The daily usage limit was reached");
       const conversationId = input.conversationId ?? randomUUID();
       if (input.conversationId) {
-        const conversation = (await db.query<{ agent_id: string; principal: unknown; deployment_id: string | null }>("SELECT agent_id,principal,deployment_id FROM agents_platform.conversations WHERE organization_id=$1 AND id=$2 FOR SHARE", [input.authority.organizationId, conversationId])).rows[0];
+        const conversation = (await db.query<{ agent_id: string; principal: unknown; deployment_id: string | null }>("SELECT agent_id,principal,deployment_id FROM agents_platform.conversations WHERE organization_id=$1 AND id=$2 AND deleted_at IS NULL FOR UPDATE", [input.authority.organizationId, conversationId])).rows[0];
         if (!conversation || conversation.agent_id !== version.agent_id || canonicalJson(conversation.principal) !== canonicalJson(input.authority.principal) ||
           conversation.deployment_id !== (input.authority.principal.kind === "visitor" ? input.authority.principal.deploymentId : null)) denied();
       } else await db.query("INSERT INTO agents_platform.conversations(id,organization_id,agent_id,principal,deployment_id) VALUES($1,$2,$3,$4,$5)",
         [conversationId, input.authority.organizationId, version.agent_id, input.authority.principal, input.authority.principal.kind === "visitor" ? input.authority.principal.deploymentId : null]);
+      const priorVersion = (await db.query("SELECT version_id FROM agents_platform.tasks WHERE conversation_id=$1 ORDER BY turn_sequence DESC LIMIT 1", [conversationId])).rows[0];
+      if (priorVersion && priorVersion.version_id !== input.versionId) throw new PlatformError("CONVERSATION_VERSION_CONFLICT",409,"Start a new conversation for this version");
+      const sequence = (await db.query("UPDATE agents_platform.conversations SET next_sequence=next_sequence+1 WHERE id=$1 RETURNING next_sequence-1 AS sequence", [conversationId])).rows[0].sequence;
       const task = (await db.query<TaskRecord>(`INSERT INTO agents_platform.tasks(id,product,organization_id,resource_id,caller_client_id,
-        principal,version_id,grant_id,conversation_id,request_key,request_digest,input) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING *`,
+        principal,version_id,grant_id,conversation_id,request_key,request_digest,input,turn_sequence,root_token_limit) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING *`,
       [randomUUID(), input.authority.product, input.authority.organizationId, input.authority.resourceId, input.authority.callerClientId, input.authority.principal,
-        input.versionId, grant.id, conversationId, requestKey, digest, input.input])).rows[0]!;
+        input.versionId, grant.id, conversationId, requestKey, digest, input.input, sequence, reservation])).rows[0]!;
       await db.query("INSERT INTO agents_platform.task_outbox(task_id) VALUES($1)", [task.id]);
       await db.query("INSERT INTO agents_platform.usage_reservations(task_id,organization_id,day,tokens) VALUES($1,$2,$3,$4)", [task.id, input.authority.organizationId, quota.day, reservation]);
       await db.query("INSERT INTO agents_platform.task_events(task_id,event_key,kind) VALUES($1,'accepted','accepted')", [task.id]);
@@ -306,7 +313,7 @@ export class PlatformStore {
         (authority.principal.kind === "human" && conversation.agent_id !== authority.resourceId) ||
         (authority.principal.kind === "visitor" && conversation.deployment_id !== authority.resourceId)) denied();
       const tasks = (await db.query<TaskRecord>(`SELECT * FROM agents_platform.tasks WHERE organization_id=$1 AND conversation_id=$2
-        AND product=$3 AND caller_client_id=$4 AND resource_id=$5 ORDER BY created_at,id LIMIT 100`,
+        AND product=$3 AND caller_client_id=$4 AND resource_id=$5 ORDER BY turn_sequence LIMIT 100`,
       [authority.organizationId, conversationId, authority.product, authority.callerClientId, authority.resourceId])).rows;
       const task = tasks[0] ?? absent();
       await this.assertPrincipal(db, authority, await this.version(db, authority.organizationId, task.version_id));

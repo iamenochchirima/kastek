@@ -123,6 +123,8 @@ CREATE TABLE agents_platform.execution_grants (
   knowledge_ids jsonb NOT NULL CHECK (jsonb_typeof(knowledge_ids) = 'array'),
   max_input_bytes integer NOT NULL CHECK (max_input_bytes BETWEEN 1 AND 16384),
   max_output_tokens integer NOT NULL CHECK (max_output_tokens BETWEEN 1 AND 1024),
+  max_context_tokens integer NOT NULL DEFAULT 8192 CHECK (max_context_tokens BETWEEN 2048 AND 8192),
+  root_token_limit integer NOT NULL DEFAULT 32000 CHECK (root_token_limit BETWEEN 2048 AND 32000),
   expires_at timestamptz NOT NULL,
   revoked_at timestamptz,
   created_at timestamptz NOT NULL DEFAULT now(),
@@ -163,6 +165,8 @@ CREATE TABLE agents_platform.website_rate_limits (
 
 CREATE TABLE agents_platform.conversations (
   id uuid PRIMARY KEY,
+  next_sequence bigint NOT NULL DEFAULT 1,
+  deleted_at timestamptz,
   organization_id uuid NOT NULL,
   agent_id uuid NOT NULL,
   principal jsonb NOT NULL,
@@ -186,7 +190,19 @@ CREATE TABLE agents_platform.tasks (
   request_key text NOT NULL CHECK (length(request_key) BETWEEN 1 AND 128),
   request_digest text NOT NULL CHECK (request_digest ~ '^[a-f0-9]{64}$'),
   input text NOT NULL CHECK (octet_length(input) BETWEEN 1 AND 16384),
-  state text NOT NULL DEFAULT 'accepted' CHECK (state IN ('accepted', 'running', 'cancel_requested', 'completed', 'failed', 'cancelled', 'uncertain')),
+  state text NOT NULL DEFAULT 'accepted' CHECK (state IN ('accepted', 'running', 'waiting_authority', 'cancel_requested', 'completed', 'incomplete', 'refused', 'failed', 'cancelled', 'uncertain')),
+  turn_sequence bigint NOT NULL DEFAULT 1,
+  harness_release text NOT NULL DEFAULT 'core-harness-v1',
+  root_token_limit integer NOT NULL DEFAULT 32000 CHECK (root_token_limit BETWEEN 2048 AND 32000),
+  tokens_used integer NOT NULL DEFAULT 0 CHECK (tokens_used>=0),
+  tokens_reserved integer NOT NULL DEFAULT 0 CHECK (tokens_reserved>=0),
+  model_calls integer NOT NULL DEFAULT 0 CHECK (model_calls BETWEEN 0 AND 12),
+  tool_calls integer NOT NULL DEFAULT 0 CHECK (tool_calls BETWEEN 0 AND 24),
+  active_ms integer NOT NULL DEFAULT 0 CHECK(active_ms>=0),
+  active_reserved_ms integer NOT NULL DEFAULT 0 CHECK(active_reserved_ms>=0),
+  deadline_at timestamptz NOT NULL DEFAULT now()+interval '24 hours',
+  history_cutoff bigint,
+  control_generation bigint NOT NULL DEFAULT 0,
   runtime_invocation_id text,
   output text,
   error_code text,
@@ -203,7 +219,8 @@ CREATE TABLE agents_platform.task_events (
   sequence bigserial PRIMARY KEY,
   task_id uuid NOT NULL REFERENCES agents_platform.tasks(id),
   event_key text NOT NULL,
-  kind text NOT NULL CHECK (kind IN ('accepted', 'running', 'cancel_requested', 'completed', 'failed', 'cancelled', 'uncertain')),
+  kind text NOT NULL CHECK(length(kind) BETWEEN 1 AND 100),
+  payload jsonb NOT NULL DEFAULT '{}'::jsonb,
   created_at timestamptz NOT NULL DEFAULT now(),
   UNIQUE (task_id, event_key)
 );
@@ -219,17 +236,55 @@ CREATE TABLE agents_platform.task_outbox (
   created_at timestamptz NOT NULL DEFAULT now()
 );
 CREATE INDEX task_outbox_due ON agents_platform.task_outbox(available_at) WHERE dispatched_at IS NULL;
+CREATE TABLE agents_platform.task_controls (
+  task_id uuid NOT NULL REFERENCES agents_platform.tasks(id),
+  generation bigint NOT NULL,
+  dispatched_at timestamptz,
+  PRIMARY KEY(task_id,generation)
+);
 
-CREATE TABLE agents_platform.model_operations (
-  task_id uuid PRIMARY KEY REFERENCES agents_platform.tasks(id),
-  operation_id text NOT NULL UNIQUE,
-  state text NOT NULL CHECK (state IN ('started', 'completed', 'failed', 'uncertain')),
-  output text,
+CREATE UNIQUE INDEX conversation_turn_order ON agents_platform.tasks(conversation_id,turn_sequence);
+CREATE TABLE agents_platform.operations (
+  id text PRIMARY KEY,
+  task_id uuid NOT NULL REFERENCES agents_platform.tasks(id),
+  kind text NOT NULL CHECK(kind IN ('model','compaction','tool')),
+  name text NOT NULL,
+  request_digest text NOT NULL CHECK(request_digest ~ '^[a-f0-9]{64}$'),
+  request jsonb NOT NULL,
+  state text NOT NULL CHECK(state IN ('started','completed','failed','uncertain')),
+  output jsonb,
   error_code text,
-  input_tokens integer CHECK (input_tokens >= 0),
-  output_tokens integer CHECK (output_tokens >= 0),
+  reserved_tokens integer NOT NULL DEFAULT 0 CHECK(reserved_tokens>=0),
+  accounted_tokens integer NOT NULL DEFAULT 0 CHECK(accounted_tokens>=0),
+  reserved_ms integer NOT NULL CHECK(reserved_ms>0),
+  started_at timestamptz NOT NULL DEFAULT now(),
+  completed_at timestamptz,
+  attempt_id uuid NOT NULL,
+  adapter_version text NOT NULL DEFAULT '1',
+  UNIQUE(task_id,id)
+);
+CREATE INDEX operation_task ON agents_platform.operations(task_id,started_at,id);
+CREATE TABLE agents_platform.context_snapshots (
+  id text PRIMARY KEY,
+  task_id uuid NOT NULL REFERENCES agents_platform.tasks(id),
+  step integer NOT NULL,
+  digest text NOT NULL,
+  payload jsonb NOT NULL,
+  source_references jsonb NOT NULL DEFAULT '[]'::jsonb,
+  memory_scope_id uuid,
+  memory_generation bigint,
+  history_cutoff bigint NOT NULL,
   created_at timestamptz NOT NULL DEFAULT now(),
-  updated_at timestamptz NOT NULL DEFAULT now()
+  UNIQUE(task_id,step)
+);
+CREATE TRIGGER immutable_context_snapshot BEFORE UPDATE ON agents_platform.context_snapshots
+  FOR EACH ROW EXECUTE FUNCTION agents_platform.reject_snapshot_update();
+CREATE TABLE agents_platform.operation_usage (
+  operation_id text PRIMARY KEY REFERENCES agents_platform.operations(id),
+  task_id uuid NOT NULL REFERENCES agents_platform.tasks(id),
+  accounted_tokens integer NOT NULL CHECK(accounted_tokens>=0),
+  outcome text NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now()
 );
 
 CREATE TABLE agents_platform.usage_accounts (
@@ -256,6 +311,6 @@ CREATE TABLE agents_platform.usage_ledger (
   task_id uuid PRIMARY KEY REFERENCES agents_platform.tasks(id),
   operation_id text NOT NULL UNIQUE,
   accounted_tokens integer NOT NULL CHECK (accounted_tokens >= 0),
-  outcome text NOT NULL CHECK (outcome IN ('completed', 'failed', 'cancelled', 'uncertain')),
+  outcome text NOT NULL CHECK (outcome IN ('completed', 'incomplete', 'refused', 'failed', 'cancelled', 'uncertain')),
   created_at timestamptz NOT NULL DEFAULT now()
 );

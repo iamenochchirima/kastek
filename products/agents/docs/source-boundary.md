@@ -1,64 +1,109 @@
 # Implementation boundary
 
-Agents is a fresh standalone product. Its API and worker use the dedicated
-`agents_platform` PostgreSQL schema in `api/schema/001_platform.sql`. There is no
-legacy data migration or Growth runtime dependency.
+Agents is a fresh standalone product. Its API and business worker use the dedicated
+`agents_platform` PostgreSQL schema. Setup loads the ordered SQL files in
+`api/schema/` into a fresh database and checks their combined digest on subsequent
+startup. It does not migrate an older database or import Growth state.
 
 ## Current modules
 
 | Module in `api/src/platform` | Responsibility |
 | --- | --- |
-| `contracts.ts` | Two execution kinds, FAQ configuration, scope, grants, limits, and task states. |
-| `auth.ts`, `config.ts` | OIDC login, validated identity, session configuration, and backchannel logout. |
-| `store.ts` | Product membership, drafts, immutable versions, approved knowledge, website bindings, atomic admission, and reservations. |
-| `app.ts`, `server.ts`, `widget.ts` | Management and website HTTP APIs, task history, progress, cancellation, and widget delivery. |
-| `business.ts` | Restate FAQ workflow, scoped retrieval, bounded model calls, operation records, and usage settlement. |
-| `dispatcher.ts`, `worker.ts` | Leased outbox delivery, stable runtime identity, cancellation reconciliation, and worker lifecycle. |
-| `setup.ts` | Fresh database initialization and schema identity checks. |
+| `contracts.ts` | Agent configuration, two execution kinds, grants, limits, and task states. |
+| `auth.ts`, `config.ts` | OIDC login, product sessions, identity configuration, and backchannel logout. |
+| `store.ts` | Membership, drafts, immutable publication, knowledge, ordered admission, and root reservations. |
+| `app.ts`, `server.ts`, `widget.ts` | Management and website APIs, continuation, history deletion, progress, cancellation, and widget delivery. |
+| `execution.ts` | Current authority, task and operation identities, claims, receipts, and usage settlement. |
+| `business.ts` | Restate business controller, model and tool rounds, ordered turns, and compaction coordination. |
+| `model.ts`, `context.ts` | Provider protocol, conservative request accounting, scoped context snapshots, and complete message groups. |
+| `memory.ts`, `memory-routes.ts` | Personal memory candidates, authenticated acceptance, revisions, expiry, forgetting, source invalidation, and pinned skills. |
+| `artifacts.ts` | Private S3-compatible content and scoped artifact metadata, integrity, and deletion. |
+| `dispatcher.ts`, `worker.ts`, `worker-security.ts` | Leased outbox delivery, runtime identity, cancellation reconciliation, request signatures, and worker lifecycle. |
+| `setup.ts` | Fresh database initialization and schema checks. |
 
-The management client is in `web/`. The API and worker run independently of Growth
-and Agencies. The implementation currently admits the standalone Agents journey;
-embedded product execution remains future work.
+The management client is in `web/`. Its create, configure, Test, and website
+publication journey shares these APIs. Growth and Agencies retain independent
+membership, permissions, and domain records. Embedded execution remains unavailable.
 
-## Execution
+## Business execution
 
-An immutable version declares `business` or `workspace`. Only `business` runs.
-Workspace admission fails explicitly with `RUNTIME_UNAVAILABLE`.
+The technical categories remain `business` and `workspace`. The business harness
+owns its model and tool loop. Restate 1.7.13 with SDK 1.17.3 coordinates durable
+steps and recovery. Workspace execution remains unavailable until the separate
+Lina adapter is implemented.
 
-The FAQ configuration disables delegation, sandboxes, business-action tools,
-additional workflows, and schedules. Its single model reply uses approved source
-revisions and bounded lexical retrieval. The complete prompt, including source
-labels and instructions, fits the input limit. Current provider execution uses only
-OpenRouter's configured free model, with no paid fallback.
+Each task pins an immutable agent version and harness release. An ordered
+conversation turn uses authorized prior outcomes, selected knowledge, optionally
+approved personal memory, pinned skills, and complete model/tool groups. Context
+snapshots preserve request digests and source revisions in private PostgreSQL
+records. Compaction is an identified model operation with its own budget and
+recorded result. Large generated content uses private S3-compatible artifacts.
+Context snapshots are not currently stored as S3 objects.
 
-Admission records a task, reservation, and outbox entry atomically. Duplicate
-request keys return the same authorized task, and conflicting payloads fail.
-Restate 1.7.13 and SDK 1.17.3 execute a keyed workflow. The worker also records its
-invocation ID, so a lost dispatcher response does not discard runtime identity.
+Selected tools are `knowledge.search`, `knowledge.read`, `memory.search`, and
+`memory.propose`. Trusted code validates their arguments and scope. A memory
+proposal creates a candidate. Only an authenticated management action accepts,
+corrects, or forgets it. Publishing a skill creates an immutable revision; skill
+text cannot install tools or grant permission.
 
-A started model operation with no confirmed result becomes `uncertain` on replay;
-it does not start a second provider request. Successful usage settles once.
-Definitive provider rejections release the unused reservation and record zero usage.
-Uncertain outcomes conservatively account for the reservation. Cancellation is a
-request until its result is known. An in-flight model call can remain uncertain.
+A minimal website FAQ uses this same controller with optional capabilities
+disabled. Public visitors receive conversation-scoped context and approved public
+knowledge. Personal memory, skills, and memory tools are denied for website
+publication and execution.
 
-Runtime workflow and journal retention are seven days. Outbox retries stop after
-24 hours, before that retention expires. Settled tasks are never resubmitted.
+Provider requests use only `nvidia/nemotron-3-super-120b-a12b:free` through OpenRouter,
+with fallback disabled and reasoning effort `none`. Input preflight conservatively
+counts serialized UTF-8 bytes against the configured token allowance and reserves
+framing separately. This estimate is not an exact tokenizer count. Returned usage,
+finish reasons, tool calls, and unexpected reasoning are validated.
+
+## Admission, limits, and recovery
+
+Admission atomically records the task, stable conversation sequence, root
+reservation, and outbox command. Duplicate keys return the same authorized task;
+changed payloads conflict. Model, tool, and compaction operations have separate
+stable identities and receipts. A recorded result is reused after replay. An
+unconfirmed model request becomes uncertain rather than generating another reply.
+
+The development profile allows a root allocation up to 32,000 accounted tokens,
+12 model calls including compaction, and 24 tool calls. Its model input allowance
+is at most 8,192 conservative estimated tokens, with 1,024 output tokens and a
+120-second deadline per model call. Root wall lifetime is 24 hours. Accounted
+active operation time is bounded to 15 minutes. Organization limits are two
+accepted active roots, two model operations, and four tool operations in flight.
+
+The 100,000-token organization allowance applies to the UTC admission day.
+Operations settle the original root reservation even after midnight. This is not
+a separate physical-consumption cap for each later day. Uncertain operations
+conservatively consume their reservation. Definitive rejection releases unused
+usage. Settlement is idempotent at both operation and root level.
+
+Cancellation records intent and blocks new work. It does not undo an accepted
+effect or prove that a provider stopped. An uncertain outcome stays visible.
+Runtime journals and workflows retain seven days. Outbox retries stop at 24 hours,
+and settled tasks are not submitted again.
+
+Memory changes and expiry invalidate future use through namespace generations
+and dispatch checks. Conversation deletion tombstones its source history, cancels
+open tasks, and invalidates linked memory. It does not physically erase old
+revisions, completed provider requests, journals, or backups.
 
 ## Verification and release limits
 
-Tests cover PostgreSQL admission, immutable versions, scope checks, reservations,
-HTTP behavior, and actual Restate execution with fixture model responses. Runtime
-checks cover duplicate dispatch, lost responses, worker connection restart and
-replay, cancellation, and usage settlement. Fixture replies are not real model
-acceptance. The live browser journey separately verifies four real free-model tasks through
-private Test, publication, an external widget and lost-response recovery. Keycloak 26.6.0
-verification covers real PKCE login, invalid state/nonce/verifier denial, signed backchannel
-logout and the execution client's audience and narrow role. These are local acceptance checks,
-not production rollout or signup-email verification.
+Focused PostgreSQL tests cover memory scope, candidate review, revision conflicts,
+forgetting, expiry, source-history deletion, immutable skills, and dispatch locking.
+Real MinIO checks cover signed private storage, integrity, lost-response recovery,
+and deletion during an upload. The standalone SDK worker check verifies signature
+acceptance and denial over HTTP2, including forged invocation requests.
 
-Outbound MCP, product business actions, service-to-service product admission,
-subagents, temporary sandboxes, schedules, Lina execution, and evaluation adapters
-are not implemented. There are no active OTLP exporters. Services emit structured
-stdout with bounded errors; production monitoring, alerts, deployment identity,
-and rollout remain unverified.
+Deterministic provider fixtures exercise model protocol, context, and failure
+paths. They do not establish real model behavior. The current real-model browser journey verifies contextual follow-up, approved memory across
+conversations, a completed memory.search tool receipt, pinned skills and correction/forget controls.
+The website/widget journey and real Keycloak checks remain distinct acceptance paths. Worker signature
+fixtures do not certify cluster key distribution or a production deployment.
+
+Outbound MCP, destination business writes, in-task effect approval, subagents,
+sandboxes, schedules, Lina execution, and evaluation adapters remain unavailable.
+Production rollout, secret management, durable log retention, monitoring, backups,
+and signup-email delivery require separate verification. There are no active OTLP
+exporters. Services emit bounded structured stdout diagnostics.

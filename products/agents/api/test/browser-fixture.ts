@@ -35,6 +35,7 @@ let browserProcess: ChildProcess | undefined;
 let cleaning: Promise<void> | undefined;
 const connections = new Set<ServerHttp2Session>();
 const realModel = process.env.AGENTS_BROWSER_REAL_MODEL === "1";
+const harnessJourney = process.env.AGENTS_HARNESS_LIVE === "1";
 const modelCalls: { model: string; approvedKnowledgePresent: boolean }[] = [];
 
 async function ready(action: () => Promise<boolean>, label: string) {
@@ -84,12 +85,12 @@ async function main() {
   await app.listen({ host: "127.0.0.1", port: 4100 });
   const fixtureFetch: typeof fetch = async (_url, request) => {
     const body = JSON.parse(String(request?.body)) as { model: string; messages: { content: string }[] };
-    const knowledge = body.messages[1]?.content ?? "";
+    const knowledge = body.messages.map(message=>message.content??"").join("\n");
     const answer = knowledge.match(/Acme accepts returns[^.\n]*\./)?.[0];
     modelCalls.push({ model: body.model, approvedKnowledgePresent: Boolean(answer) });
     assert.ok(answer, "Model transport must receive the approved public knowledge source");
     await new Promise(resolve => setTimeout(resolve, 1_500));
-    return new Response(JSON.stringify({ choices: [{ message: { content: answer } }], usage: { prompt_tokens: 100, completion_tokens: 20 } }), { headers: { "content-type": "application/json" } });
+    return new Response(JSON.stringify({ choices: [{ message: { content: answer }, finish_reason: "stop" }], usage: { prompt_tokens: 100, completion_tokens: 20 } }), { headers: { "content-type": "application/json" } });
   };
   worker = createServer(createEndpointHandler({ services: [createBusinessWorkflow(pool, { openRouterApiKey: modelKey, ...(realModel ? {} : { fetch: fixtureFetch }) })] }));
   worker.on("session", session => { connections.add(session); session.once("close", () => connections.delete(session)); });
@@ -113,7 +114,7 @@ async function main() {
   await new Promise<void>((resolve, reject) => { site!.once("error", reject); site!.listen(4398, "127.0.0.1", resolve); });
   assert.ok((await fetch("http://localhost:3100")).ok, "Start the Agents Vite frontend at localhost:3100 before running this fixture");
   const playwright = require.resolve("@playwright/test/cli", { paths: [resolve(root, "products/agents/web")] });
-  const browser = browserProcess = spawn(process.execPath, [playwright, "test", "--grep", "live platform", "--output", ".artifacts/browser-live"], {
+  const browser = browserProcess = spawn(process.execPath, [playwright, "test", "--grep", harnessJourney ? "live harness" : "live platform", "--output", harnessJourney ? ".artifacts/harness-live" : ".artifacts/browser-live"], {
     cwd: resolve(root, "products/agents/web"), stdio: "inherit",
     env: { ...process.env, AGENTS_BROWSER_BASE_URL: "http://localhost:3100", AGENTS_BROWSER_SESSION_COOKIE: session.token,
       AGENTS_BROWSER_WIDGET_ORIGIN: "http://127.0.0.1:4398" },
@@ -125,8 +126,8 @@ async function main() {
     assert.ok(modelCalls.every(call => call.approvedKnowledgePresent), "Every provider fixture call must receive approved knowledge");
   }
   const tasks = (await pool.query("SELECT state,runtime_invocation_id FROM agents_platform.tasks")).rows;
-  assert.ok(tasks.length === 4 && tasks.every(task => task.state === "completed" && task.runtime_invocation_id), "All browser replies require actual durable Restate invocations");
-  console.log(JSON.stringify({ evidence: "real HTTP, PostgreSQL, outbox, Restate, browser, external widget and lost-response recovery; identity seeded", modelTransport: realModel ? "live free model" : "deterministic fixture", ports: [3100, 4100, 9080, 18080, 19070, 4398], completedTasks: tasks.length, providerFixtureCalls: modelCalls.length }));
+  assert.ok(tasks.length === (harnessJourney ? 3 : 4) && tasks.every(task => task.state === "completed" && task.runtime_invocation_id), "All browser replies require actual durable Restate invocations");
+  console.log(JSON.stringify({ evidence: harnessJourney ? "real HTTP, PostgreSQL, outbox, Restate, browser, contextual conversation, reviewed memory, pinned skills and tool execution; identity seeded" : "real HTTP, PostgreSQL, outbox, Restate, browser, external widget and lost-response recovery; identity seeded", modelTransport: realModel ? "live free model" : "deterministic fixture", ports: [3100, 4100, 9080, 18080, 19070, 4398], completedTasks: tasks.length, providerFixtureCalls: modelCalls.length }));
 }
 for (const signal of ["SIGINT", "SIGTERM"] as const) process.once(signal, () => { void cleanup().finally(() => process.exit(130)); });
 void main().catch(error => { console.error(error instanceof Error ? error.message : "Browser fixture failed"); process.exitCode = 1; }).finally(cleanup);

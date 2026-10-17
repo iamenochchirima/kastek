@@ -1,6 +1,9 @@
 # Agents documentation
 
-These documents describe maintained implementation and boundaries:
+The current business harness supports contextual conversations, reviewed personal
+memory, pinned skills, bounded tool rounds, and recorded compaction. Optional
+advanced capabilities remain disabled. These documents describe the maintained
+implementation and boundaries:
 
 - [Platform architecture](architecture/agent-platform-architecture.md): target contracts and execution categories.
 - [Implementation boundary](source-boundary.md): current modules, verification, and remaining work.

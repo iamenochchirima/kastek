@@ -56,6 +56,7 @@ test("mock transport: draft isolation, immutable versions, task reconnect, expli
     const body = ["POST", "PUT"].includes(method) ? request.postDataJSON() : {};
     let data: unknown;
     if (path === "/api/session") data = { account: { id: "test-owner", email: "owner@example.com", displayName: "Owner" }, organizations: [{ id: mockOrg, name: "Acme", role: "owner" }] };
+    else if (path.endsWith("/skills")) data = { skills: [] };
     else if (path.endsWith("/knowledge")) { if (method === "POST") { const source = { id: mockKnowledge, ...body }; knowledge.push(source); data = { knowledge: source }; } else data = { knowledge }; }
     else if (path === `/api/organizations/${mockOrg}/agents`) { if (method === "POST") { agent = { id: mockAgent, name: body.name, draft: structuredClone(configuration), draftRevision: 1, updatedAt: new Date().toISOString() }; data = { agent }; } else data = { agents: agent ? [agent] : [] }; }
     else if (path.endsWith(`/agents/${mockAgent}`)) { if (method === "PUT") { expect(body.expectedRevision).toBe(agent!.draftRevision); agent = { ...agent!, name: body.name, draft: body.configuration, draftRevision: agent!.draftRevision + 1 }; } data = { agent, versions, deployments }; }

@@ -4,7 +4,8 @@ import { loadPlatformConfig } from "./config";
 
 async function main(): Promise<void> {
   const config = loadPlatformConfig();
-  const pool = new Pool({ connectionString: config.AGENTS_DATABASE_URL, max: 10, application_name: "agents-platform" });
+  const pool = new Pool({ connectionString: config.AGENTS_DATABASE_URL, max: 10, application_name: "agents-platform",
+    connectionTimeoutMillis: 5000, statement_timeout: 15000, query_timeout: 20000 });
   const app = await buildPlatformApp({ config, pool });
   app.addHook("onClose", async () => { await pool.end(); });
   for (const signal of ["SIGINT", "SIGTERM"] as const) process.once(signal, () => { void app.close(); });

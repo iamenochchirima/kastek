@@ -1,9 +1,11 @@
 # Kasitek Agents
 
-The standalone Agents product creates, configures, tests, and publishes knowledge-backed
-website FAQ agents. Business tasks run through Restate. The platform has exactly two
-execution kinds, `business` and `workspace`; workspace execution is unavailable until
-its Lina adapter is implemented.
+The standalone Agents product creates, configures, and tests business agents with
+conversation context, reviewed personal memory, pinned skills, bounded tool rounds,
+and recorded context compaction. Restate coordinates durable execution. A minimal
+knowledge-backed website FAQ uses the same harness with optional capabilities
+disabled. The technical kinds remain `business` and `workspace`; workspace
+execution is unavailable until its separate Lina adapter is implemented.
 
 The [architecture](docs/architecture/agent-platform-architecture.md) defines the target.
 The [implementation boundary](docs/source-boundary.md) records current behavior and limits.
@@ -32,8 +34,21 @@ Start Restate from the repository root:
 docker compose -f infra/agents-runtime/compose.yaml up -d
 ```
 
+The worker defaults to loopback. For the private Docker bridge above, set these
+values in your local `api/.env` so Restate can reach it:
+
+```dotenv
+RESTATE_WORKER_HOST=0.0.0.0
+AGENTS_ALLOW_UNSIGNED_WORKER=1
+```
+
+Restrict that development listener with host network controls. Production requires
+`RESTATE_REQUEST_IDENTITY_KEYS` even when the unsigned development override is set.
+Use the cluster's `publickeyv1_` keys and keep the worker private. The
+[environment example](api/.env.example) lists these settings.
+
 From `products/agents/api`, initialize the schema, then run the API and worker in
-separate terminals. Each command explicitly loads the local environment file:
+separate terminals. Each command loads the local environment file:
 
 ```sh
 node --env-file-if-exists=.env --import tsx src/platform/setup.ts
@@ -59,7 +74,12 @@ pnpm dev:agents
 Open `http://localhost:3100`. The web server proxies `/api` to port 4100.
 API diagnostics are `http://127.0.0.1:4100/health` and `/ready`.
 The worker needs `OPENROUTER_API_KEY`. Development permits only
-`nvidia/nemotron-3-super-120b-a12b:free`, with no paid fallback.
+`nvidia/nemotron-3-super-120b-a12b:free`, with reasoning disabled and no paid fallback.
+
+Private artifact storage is optional. Configure all five `AGENTS_S3_*` settings
+from the environment example and provision a private S3-compatible bucket.
+Without them, artifact storage remains unavailable. Context snapshots and memory
+revisions remain in private PostgreSQL records.
 
 ## Verify
 
@@ -78,6 +98,32 @@ and drop uniquely named test databases. The business suite also starts its own
 Restate container and uses deterministic provider responses. These checks do not
 prove a real model reply or the complete browser journey.
 
+Verify real private storage and memory against disposable PostgreSQL and MinIO:
+
+```sh
+bash infra/agents-runtime/verify-storage.sh
+```
+
+For the live harness browser journey, keep Vite running on `localhost:3100` and
+stop the ordinary API and worker so fixture ports 4100 and 9080 are free. Set
+`AGENTS_BROWSER_FIXTURE_DATABASE_URL` in your shell to a disposable PostgreSQL
+administrator connection. From `products/agents/api`, run:
+
+```sh
+AGENTS_HARNESS_LIVE=1 AGENTS_BROWSER_REAL_MODEL=1 \
+  node --env-file-if-exists=.env --import tsx test/browser-fixture.ts
+```
+
+This uses the approved free-model key from the local environment. It creates its
+own database, API, worker, and browser session, starts Restate if needed, and
+cleans its owned resources. It verifies reviewed memory, a pinned skill,
+contextual follow-up, a new conversation, and a real `memory.search` operation.
+Identity is seeded for this fixture. Real OIDC is checked separately:
+
+```sh
+bash infra/agents-runtime/verify-identity.sh
+```
+
 [Runtime setup and recovery limits](../../infra/agents-runtime/README.md) cover
-pinned versions, duplicate delivery, cancellation, and retention. Login and the
-full create/test/publish browser path require separate live acceptance.
+pinned versions, worker signatures, duplicate delivery, cancellation, storage, and
+retention. Local checks do not establish production deployment readiness.

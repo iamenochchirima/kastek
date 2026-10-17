@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
-import { readFile } from "node:fs/promises";
+import { readFile, readdir } from "node:fs/promises";
 import { resolve } from "node:path";
 import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -45,7 +45,8 @@ suite("fresh platform setup and database snapshot boundaries", () => {
     const { pool } = await freshDatabase();
     await Promise.all([setupPlatformSchema(pool), setupPlatformSchema(pool)]);
     await setupPlatformSchema(pool);
-    const source = await readFile(resolve(__dirname, "../schema/001_platform.sql"), "utf8");
+    const directory = resolve(__dirname,"../schema");
+    const source = (await Promise.all((await readdir(directory)).filter(name=>/^\d+_[a-z_]+\.sql$/.test(name)).sort().map(name=>readFile(resolve(directory,name),"utf8")))).join("\n");
     const checksum = createHash("sha256").update(source).digest("hex");
     expect((await pool.query("SELECT version,checksum FROM agents_platform.schema_version")).rows).toEqual([{ version: "001_platform", checksum }]);
     expect((await pool.query("SELECT count(*)::int AS count FROM agents_platform.accounts")).rows[0].count).toBe(0);

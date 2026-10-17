@@ -101,7 +101,7 @@ suite("fresh platform PostgreSQL store", () => {
       expect(Number((await pool.query(`SELECT count(*) FROM agents_platform.${table} WHERE task_id=$1`, [a.task.id])).rows[0].count)).toBe(1);
     }
     const tokens = (await pool.query("SELECT reserved_tokens FROM agents_platform.usage_accounts WHERE organization_id=$1", [f.org.id])).rows[0].reserved_tokens;
-    expect(tokens).toBe(f.config.model.maxInputBytes + 256 + f.config.model.maxOutputTokens);
+    expect(tokens).toBe(32000);
     await expect(store.admitTask({ ...f.request, input: "Different question" })).rejects.toMatchObject({ code: "IDEMPOTENCY_CONFLICT" });
   });
 

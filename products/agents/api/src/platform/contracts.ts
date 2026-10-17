@@ -37,6 +37,11 @@ export const agentConfigurationSchema = z.strictObject({
   model: modelSchema,
   knowledgeIds: z.array(z.uuid()).max(20).refine((ids) => new Set(ids).size === ids.length, "Duplicate knowledge source"),
   capabilities: faqCapabilitiesSchema,
+  memory: z.strictObject({ enabled: z.boolean() }).default({ enabled: false }),
+  context: z.strictObject({ maxInputTokens: z.number().int().min(2048).max(8192),
+    compactAtTokens: z.number().int().min(1024).max(6144) }).default({ maxInputTokens: 8192, compactAtTokens: 6144 }),
+  tools: z.array(z.enum(["knowledge.search", "knowledge.read", "memory.search", "memory.propose"])).max(4).default([]),
+  skillIds: z.array(z.uuid()).max(8).default([]),
 });
 export type AgentConfiguration = z.infer<typeof agentConfigurationSchema>;
 
@@ -50,6 +55,7 @@ export function defaultFaqConfiguration(): AgentConfiguration {
       maxDurationSeconds: initialLimits.maxDurationSeconds,
     },
     knowledgeIds: [],
+    memory: { enabled: false }, context: { maxInputTokens: 8192, compactAtTokens: 6144 }, tools: [], skillIds: [],
     capabilities: {
       delegation: { enabled: false }, sandbox: { enabled: false }, businessActions: { enabled: false },
       workflows: { enabled: false }, schedules: { enabled: false },
@@ -65,16 +71,17 @@ export class PlatformError extends Error {
 }
 
 export const taskStateSchema = z.enum([
-  "accepted", "running", "cancel_requested", "completed", "failed", "cancelled", "uncertain",
+  "accepted", "running", "waiting_authority", "cancel_requested", "completed", "incomplete", "refused", "failed", "cancelled", "uncertain",
 ]);
 export type TaskState = z.infer<typeof taskStateSchema>;
-export const terminalTaskStates: ReadonlySet<TaskState> = new Set(["completed", "failed", "cancelled", "uncertain"]);
+export const terminalTaskStates: ReadonlySet<TaskState> = new Set(["completed", "incomplete", "refused", "failed", "cancelled", "uncertain"]);
 
 const transitions: Record<TaskState, ReadonlySet<TaskState>> = {
-  accepted: new Set(["running", "cancel_requested", "failed", "cancelled"]),
-  running: new Set(["cancel_requested", "completed", "failed", "cancelled", "uncertain"]),
-  cancel_requested: new Set(["completed", "failed", "cancelled", "uncertain"]),
-  completed: new Set(), failed: new Set(), cancelled: new Set(), uncertain: new Set(),
+  accepted: new Set(["running", "waiting_authority", "cancel_requested", "incomplete", "refused", "uncertain", "failed", "cancelled"]),
+  running: new Set(["waiting_authority", "cancel_requested", "completed", "incomplete", "refused", "failed", "cancelled", "uncertain"]),
+  waiting_authority: new Set(["running", "cancel_requested", "failed", "cancelled"]),
+  cancel_requested: new Set(["completed", "incomplete", "refused", "failed", "cancelled", "uncertain"]),
+  completed: new Set(), incomplete: new Set(), refused: new Set(), failed: new Set(), cancelled: new Set(), uncertain: new Set(),
 };
 
 export function assertTaskTransition(from: TaskState, to: TaskState): void {
@@ -98,10 +105,12 @@ export const executionGrantSchema = z.strictObject({
   callerClientId: z.string().min(1).max(128),
   principal: principalSchema,
   versionId: z.uuid(),
-  operations: z.array(z.enum(["knowledge.read", "model.reply"])).min(1).max(2),
+  operations: z.array(z.enum(["knowledge.read", "model.reply", "memory.read", "memory.propose"])).min(1).max(4),
   knowledgeIds: z.array(z.uuid()).max(20),
   maxInputBytes: z.number().int().positive().max(initialLimits.maxInputBytes),
   maxOutputTokens: z.number().int().positive().max(initialLimits.maxOutputTokens),
+  maxContextTokens: z.number().int().min(2048).max(8192).default(8192),
+  rootTokenLimit: z.number().int().min(2048).max(32000).default(32000),
   expiresAt: z.iso.datetime({ offset: true }),
   revokedAt: z.iso.datetime({ offset: true }).nullable(),
 });
@@ -129,7 +138,9 @@ export function assertGrantAuthority(
   if (!grant.operations.includes("model.reply") ||
       (configuration.knowledgeIds.length > 0 && !grant.operations.includes("knowledge.read")) ||
       configuration.knowledgeIds.some((id) => !grant.knowledgeIds.includes(id)) ||
-      configuration.model.maxInputBytes > grant.maxInputBytes || configuration.model.maxOutputTokens > grant.maxOutputTokens) {
+      configuration.model.maxInputBytes > grant.maxInputBytes || configuration.model.maxOutputTokens > grant.maxOutputTokens ||
+      configuration.context.maxInputTokens > grant.maxContextTokens ||
+      (configuration.memory.enabled && (!grant.operations.includes("memory.read") || !grant.operations.includes("memory.propose")))) {
     throw new PlatformError("GRANT_CAPABILITY_DENIED", 403, "Execution exceeds the authorized capabilities or limits");
   }
 }

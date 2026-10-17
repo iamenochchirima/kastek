@@ -1,10 +1,12 @@
-import { readFile } from "node:fs/promises";
+import { readFile, readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { createHash } from "node:crypto";
 import { Pool } from "pg";
 
 export async function setupPlatformSchema(pool: Pool): Promise<void> {
-  const sql = await readFile(join(__dirname, "../../schema/001_platform.sql"), "utf8");
+  const directory = join(__dirname, "../../schema");
+  const files = (await readdir(directory)).filter(name => /^\d+_[a-z_]+\.sql$/.test(name)).sort();
+  const sql = (await Promise.all(files.map(name => readFile(join(directory, name), "utf8")))).join("\n");
   const checksum = createHash("sha256").update(sql).digest("hex");
   const client = await pool.connect();
   try {

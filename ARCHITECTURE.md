@@ -49,9 +49,13 @@ product backends call the shared execution API. Executing agents call typed owni
 with destination-specific delegated authority. These are three separate contracts. Ordinary
 product features operate independently; agent-powered features may depend on the shared service.
 
-The initial standalone Agents implementation uses Keycloak 26.6.0, fresh product-owned
-membership and bounded execution grants, PostgreSQL admission/outbox and a Restate business
-worker. It replaces protected KasiAi, hosting modes and the inherited Temporal backend. Growth
+The standalone Agents implementation uses Keycloak 26.6.0, product-owned membership,
+bounded execution grants, PostgreSQL admission and outbox, and a Restate business harness.
+The harness includes ordered conversations, reviewed personal memory, pinned skills,
+context compaction, and bounded model/tool operations. The website FAQ uses the same harness
+with optional capabilities disabled. Private PostgreSQL stores context and memory records;
+S3-compatible storage holds large artifacts. It replaces protected KasiAi, hosting modes,
+and the inherited Temporal backend. Growth
 and Agencies integration and destination-token policy remain later work. Workspace execution
 is explicitly unavailable until the Lina adapter is implemented. No existing database or
 production deployment is changed by this source reset.
