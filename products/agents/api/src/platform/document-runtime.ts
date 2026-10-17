@@ -1,7 +1,8 @@
 import {spawn,execFile} from "node:child_process";
 import {promisify} from "node:util";
 import {readFile,stat} from "node:fs/promises";
-import {join,isAbsolute} from "node:path";
+import {createReadStream} from "node:fs";
+import {join,isAbsolute,dirname} from "node:path";
 import {homedir} from "node:os";
 import {createHash,randomUUID} from "node:crypto";
 import {z} from "zod";
@@ -36,17 +37,29 @@ function validateOutput(value:unknown):DocumentOutput {
  return output;
 }
 export class DocumentRuntime {
+ private verifiedRoots=new Map<string,string>();
  constructor(readonly config:DocumentRuntimeConfiguration){if(process.platform!=="linux"||process.arch!=="x64"||!isAbsolute(config.cache))throw unavailable();}
- async profile():Promise<DocumentProfile>{
+ async profile(release?:string):Promise<DocumentProfile>{
+  if(release)return this.loadProfile(release);
   try{const current=JSON.parse(await readFile(join(this.config.cache,"current-profile.json"),"utf8"));return this.loadProfile(current.profileRelease);}catch{throw unavailable();}
  }
  private async loadProfile(release:string):Promise<DocumentProfile>{
   const match=/^document-processing-v1@([a-f0-9]{64})$/.exec(release);if(!match)throw unavailable();
   const profile=JSON.parse(await readFile(join(this.config.cache,"profiles",match[1]!,"manifest.json"),"utf8")) as DocumentProfile;
-  if(profile.profileRelease!==release||digest(canonicalJson(profile.identity))!==match[1])throw unavailable();return profile;
+  if(profile.profileRelease!==release||digest(canonicalJson(profile.identity))!==match[1])throw unavailable();
+  const artifact=profile.identity.rootfsArtifact;
+  if(artifact){
+   const schema=z.strictObject({image:z.string(),manifestDigest:z.string().regex(/^sha256:[a-f0-9]{64}$/),imageID:z.string().regex(/^sha256:[a-f0-9]{64}$/),nodeSHA256:z.string().regex(/^[a-f0-9]{64}$/),archiveSHA256:z.string().regex(/^[a-f0-9]{64}$/),archiveFormat:z.literal("canonical-tar-v1").optional()}),pinned=schema.parse(artifact);
+   const directory=join(this.config.cache,"rootfs",pinned.manifestDigest.slice(7),...(pinned.archiveFormat?[pinned.archiveFormat]:[]));if(profile.rootfs!==join(directory,"rootfs"))throw unavailable();
+   const stamp=join(directory,"provenance.json");if((await stat(stamp)).size>4096||canonicalJson(schema.parse(JSON.parse(await readFile(stamp,"utf8"))))!==canonicalJson(pinned))throw unavailable();
+   const node=join(profile.rootfs,"usr/local/bin/node"),meta=await stat(node),fingerprint=`${meta.dev}:${meta.ino}:${meta.size}:${meta.mtimeMs}:${meta.ctimeMs}`;
+   if(this.verifiedRoots.get(node)!==fingerprint){const hash=createHash("sha256");for await(const bytes of createReadStream(node))hash.update(bytes);if(hash.digest("hex")!==pinned.nodeSHA256)throw unavailable();this.verifiedRoots.set(node,fingerprint);}
+  }
+  return profile;
  }
- async available():Promise<boolean>{try{
-  const profile=await this.profile();await stat(join(profile.rootfs,"usr/local/bin/node"));
+ async available(release?:string):Promise<boolean>{try{
+  const profile=await this.profile(release);await stat(join(profile.rootfs,"usr/local/bin/node"));
+  await stat(join(dirname(profile.runsc),"gvisor-bin/gvisor_sentry"));await stat(join(dirname(profile.runsc),"gvisor-bin/checkpointgofer"));
   if(!(await execute(profile.runsc,["--version"],{timeout:5000,maxBuffer:8192})).stdout.includes("release-20261012.0"))return false;
   const code="import pathlib; p=pathlib.Path('/sys/fs/cgroup'+next(x.strip().split('::',1)[1] for x in open('/proc/self/cgroup') if x.startswith('0::'))); assert (p/'memory.max').read_text().strip()=='536870912'; assert (p/'memory.swap.max').read_text().strip()=='0'; assert (p/'pids.max').read_text().strip()=='64'; q,t=(p/'cpu.max').read_text().split(); assert q!='max' and 0<int(q)<=int(t)";
   await execute("systemd-run",["--user","--quiet","--wait","--pipe","--collect","--unit=kasitek-document-probe-"+randomUUID(),"--property=MemoryMax=536870912","--property=MemorySwapMax=0","--property=CPUQuota=100%","--property=TasksMax=64","/usr/bin/python3","-c",code],{timeout:10000,maxBuffer:8192});return true;

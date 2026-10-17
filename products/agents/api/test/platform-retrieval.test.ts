@@ -52,7 +52,7 @@ suite("local hybrid retrieval quality, eligibility and resource recovery",()=>{
  let admin:Pool,pool:Pool,platform:PlatformStore,knowledge:KnowledgeStore,retrieval:KnowledgeRetrieval,queries:QueryEmbeddingService;
  const database=`agents_retrieval_${randomUUID().replaceAll("-","")}`,objects=new Map<string,Uint8Array>(),runtime=new DocumentRuntime({cache:process.env.AGENTS_DOCUMENT_RUNTIME_CACHE??join(homedir(),".cache/kasitek-documents")}),allocations:string[]=[];
  let release:string,owner:KnowledgeScope,scope:RetrievalScope,account:{issuer:string;subject:string},agentId:string,versionId:string;
- const labels=new Map<string,string>(),sources:{id:string;revisionId:string}[]=[],timings:number[]=[];let quality:Record<string,unknown>={};
+ const labels=new Map<string,string>(),sources:{id:string;revisionId:string}[]=[],timings:number[]=[];let quality:Record<string,unknown>={},calibration:Record<string,unknown>={};
  beforeAll(async()=>{
   expect(await runtime.available()).toBe(true);release=(await runtime.profile()).profileRelease;
   admin=new Pool({connectionString:url});await admin.query(`CREATE DATABASE "${database}"`);const target=new URL(url!);target.pathname=`/${database}`;pool=new Pool({connectionString:target.href});await setupPlatformSchema(pool);
@@ -80,7 +80,7 @@ suite("local hybrid retrieval quality, eligibility and resource recovery",()=>{
  },120_000);
  afterAll(async()=>{
   for(const id of allocations)await runtime.destroy(id);if(queries)await queries.reap();
-  if(timings.length){const ordered=timings.toSorted((a,b)=>a-b),report={profile:RETRIEVAL_PROFILE,embeddingRelease:release,eligibleChunks:process.env.AGENTS_RETRIEVAL_BENCHMARK==="1"?20000:corpus.length,fixture:"13 actual distinct passage vectors; exact duplicate boilerplate reuses its identical vector; real PostgreSQL and gVisor; fixture private object map",quality,samples:timings.length,p50Ms:ordered[Math.floor(ordered.length*.5)],p95Ms:ordered[Math.min(ordered.length-1,Math.ceil(ordered.length*.95)-1)]};
+  if(timings.length){const ordered=timings.toSorted((a,b)=>a-b),report={profile:RETRIEVAL_PROFILE,embeddingRelease:release,eligibleChunks:process.env.AGENTS_RETRIEVAL_BENCHMARK==="1"?20000:corpus.length,fixture:"13 actual distinct passage vectors; exact duplicate boilerplate reuses its identical vector; real PostgreSQL and gVisor; fixture private object map",calibration,quality,samples:timings.length,p50Ms:ordered[Math.floor(ordered.length*.5)],p95Ms:ordered[Math.min(ordered.length-1,Math.ceil(ordered.length*.95)-1)]};
    await mkdir(resolve(__dirname,"../../../../.audit"),{recursive:true});await writeFile(resolve(__dirname,`../../../../.audit/knowledge-retrieval-benchmark-${report.eligibleChunks}.json`),JSON.stringify(report,null,2));console.log("RETRIEVAL_BENCHMARK",JSON.stringify(report));}
   await pool?.end();if(admin){await admin.query(`DROP DATABASE IF EXISTS "${database}" WITH(FORCE)`);await admin.end();}
  });
@@ -93,14 +93,24 @@ suite("local hybrid retrieval quality, eligibility and resource recovery",()=>{
   const grant=executionGrantSchema.parse({...authority,id:randomUUID(),versionId,operations:["model.reply","knowledge.read"],knowledgeIds:[],sourceRevisionIds:scope.sourceRevisionIds,maxInputBytes:16384,maxOutputTokens:1024,expiresAt:new Date(Date.now()+600000).toISOString(),revokedAt:null});await platform.createGrant({...owner,grant});const admitted=await platform.admitTask({authority,versionId,grantId:grant.id,requestKey:randomUUID(),input:query});
   const operationId=`tool:${admitted.task.id}:search`;await beginOperation(pool,admitted.task.id,{id:operationId,kind:"tool",name:"knowledge.search",request:{query},reservedTokens:0,reservedMs:30000,retrySafe:true});return{taskId:admitted.task.id,operationId,grant};
  }
+ it("calibrates the pinned semantic gate on separate development passages",async()=>{
+  const documents=["Employees receive twenty annual leave days each calendar year.","The city airport shuttle departs every thirty minutes from platform five.","A broken office laptop can be replaced by submitting an equipment support ticket.","The car insurance policy covers accidental windscreen damage.","Invoice payments are due forty-five days after the invoice date.","The swimming pool is closed on Tuesdays for maintenance."];
+  const positive=["How much yearly holiday entitlement do staff have?","How often does the bus to the airport leave and from which platform?","What should I do when my work computer is broken?","Does the motor policy pay for a cracked front window?","When must a customer settle their bill?","On which day can nobody use the pool?"];
+  const negative=["How fast does a cheetah run?","What ingredients make sourdough bread rise?","Who composed the opera Aida?","What causes solar flares?","How do tropical orchids reproduce?","What is the density of platinum?"];
+  const docs=await embed("document",documents),vectors=await embed("query",[...positive,...negative]),dot=(a:number[],b:number[])=>a.reduce((sum,value,index)=>sum+value*b[index]!,0);
+  const positives=vectors.slice(0,6).map((vector,index)=>dot(vector,docs[index]!)),negatives=vectors.slice(6).map(vector=>Math.max(...docs.map(doc=>dot(vector,doc))));
+  calibration={kind:"separate-fixed-development-corpus",positiveCases:6,negativeCases:6,minPositive:Math.min(...positives),maxNegative:Math.max(...negatives),selectedThreshold:RETRIEVAL_PROFILE.semanticMinSimilarity};
+  expect(RETRIEVAL_PROFILE.semanticMinSimilarity).toBeGreaterThan(Math.max(...negatives));expect(RETRIEVAL_PROFILE.semanticMinSimilarity).toBeLessThan(Math.min(...positives));
+ },15_000);
  it("meets labeled paraphrase/tail/conflict/no-answer gates with the real embedding model",async()=>{
-  const vectors=await embed("query",holdout.map(item=>item.query)),results=[];let expectedCount=0,found=0,falseAnswers=0;
+  const vectors=await embed("query",holdout.map(item=>item.query)),results=[];let expectedCount=0,found=0,lexicalFound=0,falseAnswers=0;
   for(const [index,item]of holdout.entries()){
    const hits=await retrieval.search(scope,item.query,{kind:"hybrid-v1",embeddingRelease:release,queryVector:vectors[index]!},db=>requireKnowledgeMember(db,owner));const actual=hits.map(hit=>labels.get(hit.chunkId));
-   if(item.expected.length){expectedCount+=item.expected.length;found+=item.expected.filter(id=>actual.includes(id)).length;}else if(hits.length)falseAnswers++;
-   results.push({query:item.query,expected:item.expected,actual});
+   const lexical=await retrieval.search(scope,item.query,{kind:"lexical-v1"},db=>requireKnowledgeMember(db,owner)),lexicalLabels=lexical.map(hit=>labels.get(hit.chunkId));
+   if(item.expected.length){expectedCount+=item.expected.length;found+=item.expected.filter(id=>actual.includes(id)).length;lexicalFound+=item.expected.filter(id=>lexicalLabels.includes(id)).length;}else if(hits.length)falseAnswers++;
+   results.push({query:item.query,expected:item.expected,actual,lexical:lexicalLabels});
   }
-  quality={recallAt5:found/expectedCount,falseAnswers,results};expect(found/expectedCount,JSON.stringify(results)).toBeGreaterThanOrEqual(.9);expect(falseAnswers,JSON.stringify(results)).toBe(0);
+  quality={recallAt5:found/expectedCount,lexicalRecallAt5:lexicalFound/expectedCount,falseAnswers,results};expect(found/expectedCount,JSON.stringify(results)).toBeGreaterThanOrEqual(.9);expect(found).toBeGreaterThan(lexicalFound);expect(falseAnswers,JSON.stringify(results)).toBe(0);
  },30_000);
  it("keeps owner/public/withdrawal/version gates before ranking and rejects profile fallback",async()=>{
   const vector=(await embed("query",[holdout[0]!.query]))[0]!;const profile={kind:"hybrid-v1" as const,embeddingRelease:release,queryVector:vector};

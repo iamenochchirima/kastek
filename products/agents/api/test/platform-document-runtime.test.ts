@@ -1,9 +1,10 @@
 import {randomUUID} from "node:crypto";
-import {readFile,stat,writeFile,rm} from "node:fs/promises";
-import {join} from "node:path";
-import {homedir} from "node:os";
+import {readFile,stat,writeFile,rm,mkdtemp,mkdir} from "node:fs/promises";
+import {join,resolve} from "node:path";
+import {homedir,tmpdir} from "node:os";
 import {createServer} from "node:http";
-import {spawn} from "node:child_process";
+import {spawn,execFile} from "node:child_process";
+import {promisify} from "node:util";
 import {afterAll,beforeAll,describe,expect,it} from "vitest";
 import {DocumentRuntime,type DocumentInput,type DocumentOutput} from "../src/platform/document-runtime";
 
@@ -84,5 +85,18 @@ suite("real pinned no-network document and embedding resources",()=>{
   await expect(runtime.start({allocationId:id,jobId:randomUUID(),profileRelease:release,input:{kind:"parse",format:"text",content:Buffer.from("Never starts")}})).rejects.toMatchObject({code:"DOCUMENT_RESOURCE_EXPIRED"});
   const active=randomUUID();allocated.add(active);await runtime.start({allocationId:active,jobId:randomUUID(),profileRelease:release,input:{kind:"embed",mode:"document",texts:Array(16).fill("cancellation ".repeat(380))}});
   expect((await runtime.destroy(active)).state).toBe("destroyed");expect((await runtime.status(active)).state).toBe("destroyed");expect(await runtime.result(active)).toBeUndefined();await expect(stat(join(cache,"resources",active))).rejects.toMatchObject({code:"ENOENT"});
+ },15_000);
+ it("binds rootfs image provenance and refuses a cache containing an unrelated Node binary",async()=>{
+  const profile=await runtime.profile(),artifact=profile.identity.rootfsArtifact as {image:string;manifestDigest:string;nodeSHA256:string};
+  expect(artifact.nodeSHA256).toMatch(/^[a-f0-9]{64}$/);expect(profile.rootfs).toContain(`/rootfs/${artifact.manifestDigest.slice(7)}/canonical-tar-v1/rootfs`);
+  const helper=resolve(__dirname,"../../../../infra/agents-runtime/document-rootfs.py"),execute=promisify(execFile);
+  expect((await execute("python3",[helper,cache,artifact.image])).stdout.trim()).toBe(profile.rootfs);
+  const isolated=await mkdtemp(join(tmpdir(),"document-provenance-")),directory=join(isolated,"rootfs",artifact.manifestDigest.slice(7),"canonical-tar-v1");
+  try{
+   await mkdir(join(directory,"rootfs/usr/local/bin"),{recursive:true});await writeFile(join(directory,"rootfs/usr/local/bin/node"),"unrelated cached binary");
+   await writeFile(join(directory,"provenance.json"),JSON.stringify({...artifact,image:"unrelated-image"}));
+   await expect(execute("python3",[helper,isolated,artifact.image])).rejects.toMatchObject({stderr:expect.stringContaining("provenance mismatch")});
+   await writeFile(join(directory,"provenance.json"),JSON.stringify(artifact));await expect(execute("python3",[helper,isolated,artifact.image])).rejects.toMatchObject({stderr:expect.stringContaining("provenance mismatch")});
+  }finally{await rm(isolated,{recursive:true,force:true});}
  },15_000);
 });

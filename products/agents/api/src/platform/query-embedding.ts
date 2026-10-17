@@ -57,6 +57,7 @@ export class QueryEmbeddingService {
    const cached=await this.cached(input,allocation.id);if(cached)return cached;const state=await this.runtime.status(allocation.id);
    if(state.state==="completed"||state.state==="failed"){
     let result;try{result=await this.runtime.result(allocation.id);}catch(error){const completed=await this.cached(input,allocation.id);if(completed)return completed;throw error;}
+    if(!result){const completed=await this.cached(input,allocation.id);if(completed)return completed;}
     if(!result||result.receipt.allocationId!==allocation.id||result.receipt.jobId!==input.taskId||result.receipt.profileRelease!==input.profileRelease)throw denied("QUERY_RECEIPT_INVALID");
     if(!result.ok)throw denied(result.errorCode);if(result.result.kind!=="embed"||result.result.mode!=="query"||result.result.vectors.length!==1)throw denied("QUERY_RECEIPT_INVALID");
     const value:QueryEmbeddingResult={vector:result.result.vectors[0]!,receipt:result.receipt};assertEmbeddingVector(value.vector);
