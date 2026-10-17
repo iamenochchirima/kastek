@@ -46,3 +46,4 @@ CREATE TABLE agents_platform.evidence_history_links (
 );
 CREATE TRIGGER immutable_evidence_history BEFORE UPDATE OR DELETE ON agents_platform.evidence_history_links
  FOR EACH ROW EXECUTE FUNCTION agents_platform.reject_snapshot_update();
+ALTER TABLE agents_platform.actions ADD COLUMN evidence_node_id uuid NOT NULL REFERENCES agents_platform.evidence_nodes(id);

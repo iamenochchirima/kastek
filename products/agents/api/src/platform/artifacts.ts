@@ -1,5 +1,5 @@
 import { createHash, createHmac, randomUUID } from "node:crypto";
-import type { Pool } from "pg";
+import type { Pool, PoolClient } from "pg";
 import { z } from "zod";
 import { PlatformError } from "./contracts";
 import { requireMemoryAccess, type ManagementScope } from "./memory";
@@ -11,11 +11,11 @@ const hmac = (key: string | Uint8Array, value: string) => createHmac("sha256", k
 const encode = (value: string) => encodeURIComponent(value).replace(/[!'()*]/g, char => `%${char.charCodeAt(0).toString(16).toUpperCase()}`);
 export interface S3PrivateConfig { endpoint: string; region: string; bucket: string; accessKeyId: string; secretAccessKey: string; maxBytes?: number }
 export interface PrivateObjectStore { put(key: string, content: Uint8Array, contentType: string): Promise<void>; get(key: string): Promise<Uint8Array>; delete(key: string): Promise<void> }
-export function privateStoreFromEnvironment(env: NodeJS.ProcessEnv = process.env): S3PrivateStore | undefined {
+export function privateStoreFromEnvironment(env: NodeJS.ProcessEnv = process.env, maxBytes = 1_048_576): S3PrivateStore | undefined {
   const keys = ["AGENTS_S3_ENDPOINT", "AGENTS_S3_REGION", "AGENTS_S3_BUCKET", "AGENTS_S3_ACCESS_KEY_ID", "AGENTS_S3_SECRET_ACCESS_KEY"] as const;
   if (keys.every(key => !env[key])) return;
   if (keys.some(key => !env[key])) throw new PlatformError("OBJECT_STORE_CONFIGURATION", 503, "Private storage configuration is incomplete");
-  return new S3PrivateStore({ endpoint: env.AGENTS_S3_ENDPOINT!, region: env.AGENTS_S3_REGION!, bucket: env.AGENTS_S3_BUCKET!, accessKeyId: env.AGENTS_S3_ACCESS_KEY_ID!, secretAccessKey: env.AGENTS_S3_SECRET_ACCESS_KEY! });
+  return new S3PrivateStore({ endpoint: env.AGENTS_S3_ENDPOINT!, region: env.AGENTS_S3_REGION!, bucket: env.AGENTS_S3_BUCKET!, accessKeyId: env.AGENTS_S3_ACCESS_KEY_ID!, secretAccessKey: env.AGENTS_S3_SECRET_ACCESS_KEY!, maxBytes });
 }
 export class S3PrivateStore implements PrivateObjectStore {
   readonly maxBytes: number;
@@ -76,19 +76,24 @@ export class ArtifactStore {
     return memoryTransaction(this.pool, async db => { await requireMemoryAccess(db, scope);
       return (await db.query("SELECT * FROM agents_platform.artifacts WHERE organization_id=$1 AND agent_id=$2 AND account_id=$3 AND task_id IS NULL AND state='available' ORDER BY created_at,id LIMIT 100", [scope.organizationId, scope.agentId, scope.accountId])).rows.map(artifact); });
   }
-  async put(scope: ManagementScope, input: { operationId: string; contentType: string; content: Uint8Array }): Promise<ArtifactRecord> {
+  async put(scope: ManagementScope, input: { operationId: string; contentType: string; content: Uint8Array }, publication?: {
+    taskId:string;rootTaskId:string;name:string;sourceReferences:unknown[];
+    validate:(db:PoolClient,artifactId:string)=>Promise<void>;
+  }): Promise<ArtifactRecord> {
     if (!this.objects) throw new PlatformError("OBJECT_STORE_UNAVAILABLE", 503, "Private storage is unavailable");
     z.string().min(1).max(128).parse(input.operationId);
     z.enum(["text/plain", "text/markdown", "application/json"]).parse(input.contentType);
     if (input.content.byteLength > 1_048_576) throw new PlatformError("ARTIFACT_TOO_LARGE", 413, "Content exceeds the storage limit");
     const contentDigest = sha(input.content), requestDigest = sha(JSON.stringify([contentDigest, input.contentType]));
     const row = await memoryTransaction(this.pool, async db => {
+      if(publication)await db.query("SELECT id FROM agents_platform.organizations WHERE id=$1 FOR UPDATE",[scope.organizationId]);
       await requireMemoryAccess(db, scope);
       await db.query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))", [`artifact:${scope.organizationId}:${scope.agentId}:${scope.accountId}:${input.operationId}`]);
       const old = (await db.query("SELECT * FROM agents_platform.artifacts WHERE organization_id=$1 AND agent_id=$2 AND account_id=$3 AND operation_id=$4", [scope.organizationId, scope.agentId, scope.accountId, input.operationId])).rows[0];
-      if (old) { if (old.request_digest !== requestDigest) throw new PlatformError("IDEMPOTENCY_CONFLICT", 409, "Request key was already used"); return old; }
+      if (old) { if (old.request_digest !== requestDigest || publication && (old.task_id!==publication.taskId||old.root_task_id!==publication.rootTaskId)) throw new PlatformError("IDEMPOTENCY_CONFLICT", 409, "Request key was already used"); if(publication)await publication.validate(db,old.id);return old; }
       const id = randomUUID(), key = `${scope.organizationId}/${scope.agentId}/${scope.accountId}/${id}`;
-      return (await db.query("INSERT INTO agents_platform.artifacts(id,organization_id,agent_id,account_id,operation_id,request_digest,object_key,content_type,bytes,content_digest,state) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'pending') RETURNING *", [id, scope.organizationId, scope.agentId, scope.accountId, input.operationId, requestDigest, key, input.contentType, input.content.byteLength, contentDigest])).rows[0];
+      const created=(await db.query("INSERT INTO agents_platform.artifacts(id,organization_id,agent_id,account_id,operation_id,request_digest,object_key,content_type,bytes,content_digest,state,task_id,root_task_id,name,source_references) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'pending',$11,$12,$13,$14) RETURNING *", [id, scope.organizationId, scope.agentId, scope.accountId, input.operationId, requestDigest, key, input.contentType, input.content.byteLength, contentDigest,publication?.taskId??null,publication?.rootTaskId??null,publication?.name??null,JSON.stringify(publication?.sourceReferences??[])])).rows[0];
+      if(publication)await publication.validate(db,id);return created;
     });
     if (row.state === "deleted") throw new PlatformError("ARTIFACT_DELETED", 410, "Content was deleted");
     if (row.state === "available") return artifact(row);
@@ -96,13 +101,15 @@ export class ArtifactStore {
     await this.objects.put(row.object_key, input.content, input.contentType);
     let finalized: ArtifactRecord | undefined;
     try { finalized = await memoryTransaction(this.pool, async db => {
+      if(publication)await db.query("SELECT id FROM agents_platform.organizations WHERE id=$1 FOR UPDATE",[scope.organizationId]);
       await requireMemoryAccess(db, scope);
       const current = (await db.query("SELECT * FROM agents_platform.artifacts WHERE id=$1 FOR UPDATE", [row.id])).rows[0];
       if (current.state === "deleted") return undefined;
+      if(publication)await publication.validate(db,current.id);
       if (current.state === "available") return artifact(current);
       return artifact((await db.query("UPDATE agents_platform.artifacts SET state='available' WHERE id=$1 RETURNING *", [row.id])).rows[0]);
     }); } catch (error) {
-      if (error instanceof PlatformError && error.code === "ACCESS_DENIED") {
+      if (error instanceof PlatformError && (error.code === "ACCESS_DENIED" || publication)) {
         await this.pool.query("UPDATE agents_platform.artifacts SET state='deleted' WHERE id=$1", [row.id]);
         await this.objects.delete(row.object_key);
       }

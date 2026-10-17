@@ -1,3 +1,4 @@
+import {assertCurrentEvidence,taskEvidenceManifest} from "./evidence";
 import { createHash, randomUUID } from "node:crypto";
 import type { Pool, PoolClient } from "pg";
 import {transaction as memoryTransaction} from "./database";
@@ -62,10 +63,10 @@ export class MemoryStore {
     return { scope: ref, generation: ref.generation, memories: rows.filter(row => row.status === "accepted"), candidates: rows.filter(row => row.status === "candidate") };
   }
   async propose(scope: MemoryScope, input: { operationId: string; kind: "semantic" | "episodic"; content: string; sourceTaskId?: string; expiresAt?: string }) {
-    return memoryTransaction(this.pool, async db => this.proposeResolved(db, await this.resolveHuman(db, scope), input));
+    return memoryTransaction(this.pool, async db => {await db.query("SELECT id FROM agents_platform.organizations WHERE id=$1 FOR UPDATE",[scope.organizationId]);return this.proposeResolved(db, await this.resolveHuman(db, scope), input);});
   }
   async proposeManaged(scope: ManagementScope, input: { operationId: string; kind: "semantic" | "episodic"; content: string; sourceTaskId?: string; expiresAt?: string }) {
-    return memoryTransaction(this.pool, db => this.proposeResolved(db, scope, input));
+    return memoryTransaction(this.pool, async db => {await db.query("SELECT id FROM agents_platform.organizations WHERE id=$1 FOR UPDATE",[scope.organizationId]);return this.proposeResolved(db, scope, input);});
   }
   private async replay(db: PoolClient, ref: ScopeReference, operationId: string, requestDigest: string): Promise<MemoryRecord | undefined> {
     const old = (await db.query(`SELECT o.request_digest,m.* FROM ${schema}.memory_mutations o JOIN ${schema}.memories m ON m.id=o.memory_id WHERE o.scope_id=$1 AND o.operation_id=$2`, [ref.id, operationId])).rows[0];
@@ -87,6 +88,7 @@ export class MemoryStore {
       const task = (await db.query(`SELECT t.principal FROM ${schema}.tasks t JOIN ${schema}.conversations c ON c.id=t.conversation_id AND c.organization_id=t.organization_id WHERE t.id=$1 AND t.organization_id=$2 AND t.resource_id=$3 AND c.deleted_at IS NULL FOR KEY SHARE OF t`, [parsed.sourceTaskId, scope.organizationId, scope.agentId])).rows[0];
       const account = (await db.query(`SELECT issuer,subject FROM ${schema}.accounts WHERE id=$1`, [scope.accountId])).rows[0];
       if (!task || task.principal.kind !== "human" || task.principal.issuer !== account.issuer || task.principal.subject !== account.subject) throw new PlatformError("MEMORY_SCOPE_DENIED", 403, "Source task is unavailable");
+      await assertCurrentEvidence(db,parsed.sourceTaskId,await taskEvidenceManifest(db,parsed.sourceTaskId),{requireActiveTask:false});
     }
     const ref = await this.namespace(db, scope, true), requestDigest = digest(JSON.stringify(parsed));
     const old = await this.replay(db, ref, parsed.operationId, requestDigest); if (old) return old;
@@ -103,10 +105,12 @@ export class MemoryStore {
     const parsed = z.strictObject({ operationId: operationSchema, expectedRevision: z.number().int().positive(), action: z.enum(["accept", "correct", "forget"]), content: contentSchema.optional() }).parse(input);
     if (parsed.action === "correct" && !parsed.content) throw new PlatformError("INVALID_INPUT", 400, "Enter the corrected memory");
     return memoryTransaction(this.pool, async db => {
+      await db.query("SELECT id FROM agents_platform.organizations WHERE id=$1 FOR UPDATE",[scope.organizationId]);
       const ref = await this.namespace(db, scope, true), requestDigest = digest(JSON.stringify({ memoryId, ...parsed }));
       const old = await this.replay(db, ref, parsed.operationId, requestDigest); if (old) return old;
       const current = (await db.query(`SELECT * FROM ${schema}.memories WHERE id=$1 AND scope_id=$2 FOR UPDATE`, [memoryId, ref.id])).rows[0];
       if (!current) throw new PlatformError("NOT_FOUND", 404, "Memory not found");
+      if(parsed.action!=="forget"&&current.source_task_id)await assertCurrentEvidence(db,current.source_task_id,await taskEvidenceManifest(db,current.source_task_id),{requireActiveTask:false});
       if (current.revision !== parsed.expectedRevision) throw new PlatformError("MEMORY_CONFLICT", 409, "Memory changed; reload and try again");
       if (current.status === "forgotten" || (parsed.action === "accept" && current.status !== "candidate")) throw new PlatformError("MEMORY_CONFLICT", 409, "Memory cannot be changed");
       if (parsed.action === "forget") await db.query(`INSERT INTO ${schema}.memory_suppressions(scope_id,content_digest) SELECT $1,content_digest FROM ${schema}.memory_revisions WHERE memory_id=$2 ON CONFLICT DO NOTHING`, [ref.id, memoryId]);

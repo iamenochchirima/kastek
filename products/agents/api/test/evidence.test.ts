@@ -11,6 +11,9 @@ import {ConnectionStore} from "../src/platform/connections";
 import {ConnectionVault} from "../src/platform/vault";
 import {ConnectedCatalogStore} from "../src/platform/connected-catalog-store";
 import {createCatalog,digestToolSchema,ExecutableAdapterRegistry} from "../src/platform/capability-catalog";
+import {TaskArtifactStore} from "../src/platform/task-artifacts";
+import {ActionService} from "../src/platform/actions";
+import {createReportReceiver,initializeReportReceiver} from "../src/acceptance/report-receiver";
 import {ArtifactStore} from "../src/platform/artifacts";
 import {MemoryStore} from "../src/platform/memory";
 import {textDigest} from "../src/platform/source-contracts";
@@ -20,16 +23,20 @@ it("parses only the explicit citation convention, preserving first occurrence",(
 });
 const url=process.env.AGENTS_TEST_DATABASE_URL;
 (url?describe:describe.skip)("server-issued evidence with real PostgreSQL",()=>{
- let admin:Pool,pool:Pool,platform:PlatformStore,knowledge:KnowledgeStore,evidence:EvidenceStore;
+ let admin:Pool,pool:Pool,platform:PlatformStore,knowledge:KnowledgeStore,evidence:EvidenceStore,taskArtifacts:TaskArtifactStore,reportConnections:ConnectionStore,actions:ActionService,receiver:ReturnType<typeof createReportReceiver>;
+ let loseDelivery=false;const reportKey="fixture_evidence_report_key",vault=new ConnectionVault("v1",{v1:randomBytes(32).toString("base64")});
+ let target:{id:string;label:string;resource:string;url:string};
  const database=`agents_evidence_${randomUUID().replaceAll("-","")}`,objects=new Map<string,Uint8Array>();
  beforeAll(async()=>{
   admin=new Pool({connectionString:url});await admin.query(`CREATE DATABASE "${database}"`);
   const scoped=new URL(url!);scoped.pathname=`/${database}`;pool=new Pool({connectionString:scoped.href});await setupPlatformSchema(pool);platform=new PlatformStore(pool);
   const storage={async put(key:string,value:Uint8Array){objects.set(key,Buffer.from(value));},async get(key:string){const value=objects.get(key);if(!value)throw Error("missing fixture object");return value;},async delete(key:string){objects.delete(key);}};
-  knowledge=new KnowledgeStore(pool,storage);evidence=new EvidenceStore(pool,storage);
+  knowledge=new KnowledgeStore(pool,storage);evidence=new EvidenceStore(pool,storage);taskArtifacts=new TaskArtifactStore(pool,storage);
+  await initializeReportReceiver(pool);receiver=createReportReceiver({pool,keys:[{apiKey:reportKey,resource:"reports:evidence"}],afterAccept:async()=>{if(loseDelivery)throw Error("fixture lost response");}});const address=await receiver.listen({host:"127.0.0.1",port:0});target={id:"evidence-reports",label:"Fixture receiver",resource:"reports:evidence",url:address+"/deliveries"};
+  reportConnections=new ConnectionStore(pool,vault,[target]);actions=new ActionService(pool,{vault,targets:[target],artifacts:taskArtifacts});
  });
- afterAll(async()=>{await pool?.end();if(admin){await admin.query(`DROP DATABASE IF EXISTS "${database}" WITH(FORCE)`);await admin.end();}});
- async function fixture(memoryEnabled=false,connected=false){
+ afterAll(async()=>{await receiver?.close();await pool?.end();if(admin){await admin.query(`DROP DATABASE IF EXISTS "${database}" WITH(FORCE)`);await admin.end();}});
+ async function fixture(memoryEnabled=false,connected=false,effects=false){
   const account=await platform.ensureAccount({issuer:"http://localhost/evidence",subject:randomUUID(),email:"owner@example.test",displayName:"Owner"});
   const org=await platform.createOrganization(account.id,"Evidence"),scope={accountId:account.id,organizationId:org.id};
   const text="First passage. Decisive tail passage 🧪";
@@ -37,6 +44,11 @@ const url=process.env.AGENTS_TEST_DATABASE_URL;
   await pool.query("UPDATE agents_platform.ingestion_jobs SET state='extracting' WHERE id=$1",[job.id]);
   const chunkId=randomUUID();await knowledge.publishExtraction(job.id,{text,acquiredAt:new Date().toISOString(),normalizerRelease:"text-v1",chunks:[{id:chunkId,revisionId:job.revisionId,ordinal:0,start:0,end:text.length,page:2,section:"Tail",text,digest:textDigest(text),tokens:20}]});
   await knowledge.setPolicy(scope,job.sourceId,{operationId:randomUUID(),expectedGeneration:1,action:"approve",revisionId:job.revisionId});
+  let lateJob:Awaited<ReturnType<KnowledgeStore["admitUpload"]>>|undefined,lateChunkId:string|undefined;
+  if(effects){const lateText="Late uncited source influencing report selection";lateJob=await knowledge.admitUpload(scope,{operationId:randomUUID(),title:"Late source",contentType:"text/markdown",content:Buffer.from(lateText),parserRelease:"document-v1"});
+   await pool.query("UPDATE agents_platform.ingestion_jobs SET state='extracting' WHERE id=$1",[lateJob.id]);lateChunkId=randomUUID();
+   await knowledge.publishExtraction(lateJob.id,{text:lateText,acquiredAt:new Date().toISOString(),normalizerRelease:"text-v1",chunks:[{id:lateChunkId,revisionId:lateJob.revisionId,ordinal:0,start:0,end:lateText.length,page:null,section:null,text:lateText,digest:textDigest(lateText),tokens:20}]});
+   await knowledge.setPolicy(scope,lateJob.sourceId,{operationId:randomUUID(),expectedGeneration:1,action:"approve",revisionId:lateJob.revisionId});}
   let connectedFixture: {connections:ConnectionStore;connection:Awaited<ReturnType<ConnectionStore["create"]>>;binding:Awaited<ReturnType<ConnectedCatalogStore["selectBindings"]>>[number]}|undefined;
   if(connected){
    const connections=new ConnectionStore(pool,new ConnectionVault("v1",{v1:randomBytes(32).toString("base64")}),[]);
@@ -48,14 +60,17 @@ const url=process.env.AGENTS_TEST_DATABASE_URL;
    const bindings=await catalogs.selectBindings(scope,{operationId:randomUUID(),connectionId:connection.id,expectedRevision:1,catalogId:catalog.id,selections:[{providerOperation:"get_repository",resources:connection.resources}]});
    connectedFixture={connections,connection,binding:bindings[0]!};
   }
-  const config={...defaultFaqConfiguration(),connectedToolBindingIds:connectedFixture?[connectedFixture.binding.id]:[],sourceRevisionIds:[job.revisionId],memory:{enabled:memoryEnabled}},agent=await platform.createAgent({...scope,name:"Grounded",configuration:config});
+  const reportConnection=effects?await reportConnections.create(scope,{operationId:randomUUID(),name:"Reports",targetId:target.id,apiKey:reportKey}):undefined;
+  const config={...defaultFaqConfiguration(),connectedToolBindingIds:connectedFixture?[connectedFixture.binding.id]:[],sourceRevisionIds:[job.revisionId,...(lateJob?[lateJob.revisionId]:[])],memory:{enabled:memoryEnabled}};
+  if(reportConnection){config.capabilities.workflows={enabled:true,profileId:"report-delivery-v1",connectionId:reportConnection.id,reportArtifactName:"report.md",title:"Evidence report"};}
+  const agent=await platform.createAgent({...scope,name:"Grounded",configuration:config});
   const version=await platform.createVersion({...scope,agentId:agent.id,expectedRevision:1});
   const authority={product:"agents" as const,organizationId:org.id,resourceId:agent.id,callerClientId:"agents-execution",principal:{kind:"human" as const,issuer:account.issuer,subject:account.subject}};
-  const grant={...authority,id:randomUUID(),versionId:version.id,operations:(connected?["model.reply","knowledge.read","connected.read"]:memoryEnabled?["model.reply","knowledge.read","memory.read","memory.propose"]:["model.reply","knowledge.read"]) as ("model.reply"|"knowledge.read"|"memory.read"|"memory.propose"|"connected.read")[],knowledgeIds:[],sourceRevisionIds:[job.revisionId],connectedToolBindingIds:config.connectedToolBindingIds,maxInputBytes:config.model.maxInputBytes,maxOutputTokens:config.model.maxOutputTokens,maxContextTokens:config.context.maxInputTokens,rootTokenLimit:32000,expiresAt:new Date(Date.now()+300000).toISOString(),revokedAt:null};
+  const grant={...authority,id:randomUUID(),versionId:version.id,operations:(effects?["model.reply","knowledge.read","artifact.read","artifact.write","effect.deliver"]:connected?["model.reply","knowledge.read","connected.read"]:memoryEnabled?["model.reply","knowledge.read","memory.read","memory.propose"]:["model.reply","knowledge.read"]) as ("model.reply"|"knowledge.read"|"memory.read"|"memory.propose"|"connected.read"|"artifact.read"|"artifact.write"|"effect.deliver")[],sourceRevisionIds:config.sourceRevisionIds,connectedToolBindingIds:config.connectedToolBindingIds,maxInputBytes:config.model.maxInputBytes,maxOutputTokens:config.model.maxOutputTokens,maxContextTokens:config.context.maxInputTokens,rootTokenLimit:32000,expiresAt:new Date(Date.now()+300000).toISOString(),revokedAt:null};
   await platform.createGrant({accountId:account.id,grant});const{task}=await platform.admitTask({authority,grantId:grant.id,versionId:version.id,requestKey:randomUUID(),input:"Answer with sources"});
   const operationId=`knowledge:${task.id}:initial`;
   await beginOperation(pool,task.id,{id:operationId,kind:"tool",name:"knowledge.search",request:{query:"tail"},reservedTokens:0,reservedMs:1000,retrySafe:true});
-  return{scope,job,text,chunkId,task,operationId,grant,connectedFixture,authority,version};
+  return{scope,job,text,chunkId,task,operationId,grant,connectedFixture,authority,version,reportConnection,lateJob,lateChunkId};
  }
  async function context(f:Awaited<ReturnType<typeof fixture>>,passage:Awaited<ReturnType<EvidenceStore["recordChunk"]>>,step=0){
   const id=`context:${f.task.id}:${step}`,payload={messages:[{role:"system",content:`[${passage.label}] ${passage.text}`}]};
@@ -148,13 +163,85 @@ const url=process.env.AGENTS_TEST_DATABASE_URL;
   for(const member of [reviewer,outsider])await pool.query("INSERT INTO agents_platform.memberships(organization_id,account_id,role) VALUES($1,$2,'member')",[f.scope.organizationId,member.id]);
   const connections=new ConnectionStore(pool,new ConnectionVault("v1",{v1:randomBytes(32).toString("base64")}),[{id:"reports",label:"Reports",resource:"reports:fixture",url:"http://127.0.0.1:9999/deliveries"}]);
   const connection=await connections.create(f.scope,{operationId:randomUUID(),name:"Reports",targetId:"reports",apiKey:"fixture_report_key"});
-  await pool.query(`INSERT INTO agents_platform.actions(id,organization_id,account_id,reviewer_account_id,task_id,root_task_id,operation_id,connection_id,connection_revision,target_id,target_digest,binding_digest,artifact_id,artifact_digest,title,request_digest,payload,payload_digest,review_digest,state,expires_at)
-    VALUES($1,$2,$3,$4,$5,$5,'review-operation',$6,1,'reports',$7,$7,$8,$9,'Report',$7,'{}',$7,$7,'pending_review',$10)`,[randomUUID(),f.scope.organizationId,f.scope.accountId,reviewer.id,f.task.id,connection.id,"a".repeat(64),artifact.id,textDigest(text),new Date(Date.now()+60000)]);
+  const reviewActionId=randomUUID(),reviewNode=await evidence.derive(f.task.id,"artifact",`review:${reviewActionId}`);
+  await pool.query(`INSERT INTO agents_platform.actions(id,organization_id,account_id,reviewer_account_id,task_id,root_task_id,operation_id,connection_id,connection_revision,target_id,target_digest,binding_digest,artifact_id,artifact_digest,title,request_digest,payload,payload_digest,review_digest,state,expires_at,evidence_node_id)
+    VALUES($1,$2,$3,$4,$5,$5,'review-operation',$6,1,'reports',$7,$7,$8,$9,'Report',$7,'{}',$7,$7,'pending_review',$10,$11)`,[reviewActionId,f.scope.organizationId,f.scope.accountId,reviewer.id,f.task.id,connection.id,"a".repeat(64),artifact.id,textDigest(text),new Date(Date.now()+60000),reviewNode.id]);
   const preview=await evidence.reviewerPassages({organizationId:f.scope.organizationId,accountId:reviewer.id},f.task.id,artifact.id);
   expect(preview.map(passage=>passage.reference.id)).toEqual([first.reference.id]);expect(preview[0]?.text).not.toContain("Decisive");
   await expect(evidence.reviewerPassages({organizationId:f.scope.organizationId,accountId:outsider.id},f.task.id,artifact.id)).rejects.toMatchObject({code:"EVIDENCE_SCOPE_DENIED"});
   await knowledge.setPolicy(f.scope,f.job.sourceId,{operationId:randomUUID(),expectedGeneration:1,action:"withdraw"});
   await expect(evidence.reviewerPassages({organizationId:f.scope.organizationId,accountId:reviewer.id},f.task.id,artifact.id)).rejects.toMatchObject({code:"EVIDENCE_UNAVAILABLE"});
+ });
+
+ async function reportFixture(content?:(label:string)=>string){
+  const f=await fixture(false,false,true),p=await evidence.recordChunk(f.task.id,f.operationId,f.chunkId);await context(f,p);
+  const op=`report:${f.task.id}:prepare`;await beginOperation(pool,f.task.id,{id:op,kind:"resource",name:"report.prepare",request:{},reservedTokens:0,reservedMs:1000,retrySafe:true});
+  const text=content?content(p.label):`A sourced report [${p.label}]`;
+  const artifact=await taskArtifacts.put(f.task.id,op,{name:"report.md",contentType:"text/markdown",content:Buffer.from(text)});
+  return{...f,p,op,artifact,text};
+ }
+ it("invalidates approval, claims and previews from every influencing source, including uncited facts",async()=>{
+  for(const approved of [false,true]){
+   const f=await reportFixture(approved?()=>"A report whose source influenced the model but was not cited":undefined);
+   const action=await actions.prepare(f.task.id,`deliver:${f.task.id}`,{connectionId:f.reportConnection!.id,artifactId:f.artifact.id});
+   if(approved)await actions.decide(f.scope,f.task.id,action.id,{operationId:randomUUID(),decision:"approve",expectedDigest:action.reviewDigest});
+   await knowledge.setPolicy(f.scope,f.job.sourceId,{operationId:randomUUID(),expectedGeneration:1,action:"withdraw"});
+   if(approved)await expect(actions.execute(f.task.id,action.id)).rejects.toMatchObject({code:"EVIDENCE_UNAVAILABLE"});
+   else await expect(actions.decide(f.scope,f.task.id,action.id,{operationId:randomUUID(),decision:"approve",expectedDigest:action.reviewDigest})).rejects.toMatchObject({code:"EVIDENCE_UNAVAILABLE"});
+   const preview=(await actions.listForTask(f.scope,f.task.id))[0];expect(preview?.preview.content).toBe("[Report source unavailable]");expect(preview?.citedPassages).toEqual([]);
+   await expect(taskArtifacts.download(f.scope.accountId,f.scope.organizationId,f.task.id,f.artifact.id)).rejects.toMatchObject({code:"EVIDENCE_UNAVAILABLE"});
+   expect((await pool.query("SELECT count(*) AS count FROM report_delivery_receiver.deliveries WHERE id=$1",[action.id])).rows[0].count).toBe("0");
+  }
+ });
+ it("blocks false citations before review and preserves postclaim lost-response reconciliation after withdrawal",async()=>{
+  const invalid=await reportFixture(()=>"Invented citation [E1]");
+  await expect(actions.prepare(invalid.task.id,`deliver:${invalid.task.id}`,{connectionId:invalid.reportConnection!.id,artifactId:invalid.artifact.id})).rejects.toMatchObject({code:"CITATION_UNKNOWN"});
+  expect((await pool.query("SELECT count(*) AS count FROM agents_platform.actions WHERE task_id=$1",[invalid.task.id])).rows[0].count).toBe("0");
+  const f=await reportFixture(),action=await actions.prepare(f.task.id,`deliver:${f.task.id}`,{connectionId:f.reportConnection!.id,artifactId:f.artifact.id});
+  await actions.decide(f.scope,f.task.id,action.id,{operationId:randomUUID(),decision:"approve",expectedDigest:action.reviewDigest});
+  loseDelivery=true;try{expect((await actions.execute(f.task.id,action.id)).state).toBe("uncertain");}finally{loseDelivery=false;}
+  await knowledge.setPolicy(f.scope,f.job.sourceId,{operationId:randomUUID(),expectedGeneration:1,action:"withdraw"});
+  const recovered=await new ActionService(pool,{vault,targets:[target],artifacts:taskArtifacts}).reconcile(action.id);expect(recovered.state).toBe("delivered");expect(recovered.receipt?.payloadDigest).toBe(action.payloadDigest);
+  expect((await pool.query("SELECT count(*) AS count FROM report_delivery_receiver.deliveries WHERE id=$1",[action.id])).rows[0].count).toBe("1");
+ });
+ it("omits stale sourced memories and atomically refuses candidate acceptance after source withdrawal",async()=>{
+  const f=await fixture(true),p=await evidence.recordChunk(f.task.id,f.operationId,f.chunkId);await context(f,p);
+  const memory=new MemoryStore(pool),managed={...f.scope,agentId:f.task.resource_id};
+  const proposed=await memory.proposeManaged(managed,{operationId:randomUUID(),kind:"semantic",content:"Remember sourced preference",sourceTaskId:f.task.id});
+  const accepted=await memory.mutate(managed,proposed.id,{operationId:randomUUID(),expectedRevision:proposed.revision,action:"accept"});
+  const candidate=await memory.proposeManaged(managed,{operationId:randomUUID(),kind:"semantic",content:"Another sourced preference",sourceTaskId:f.task.id});
+  expect((await evidence.checkMemories(f.task.id,[accepted.id]))[0]?.eligible).toBe(true);
+  const memoryScope=(await pool.query("SELECT * FROM agents_platform.memory_scopes WHERE organization_id=$1 AND agent_id=$2",[f.scope.organizationId,f.task.resource_id])).rows[0];
+  const id=`context:${f.task.id}:1`,payload={messages:[{role:"user",content:accepted.content}]};
+  await pool.query("INSERT INTO agents_platform.context_snapshots(id,task_id,step,digest,payload,source_references,memory_scope_id,memory_generation,history_cutoff) VALUES($1,$2,1,'fixture',$3,$4,$5,$6,0)",[id,f.task.id,payload,JSON.stringify([{kind:"memory",id:accepted.id,revision:accepted.revision}]),memoryScope.id,memoryScope.generation]);
+  const node=await evidence.supplyContext(f.task.id,id,[]);expect(node.manifest.dependencies.map(dependency=>dependency.kind).sort()).toEqual(["memory","source"]);
+  await knowledge.setPolicy(f.scope,f.job.sourceId,{operationId:randomUUID(),expectedGeneration:1,action:"withdraw"});
+  expect((await evidence.checkMemories(f.task.id,[accepted.id]))[0]?.eligible).toBe(false);
+  await expect(memory.mutate(managed,candidate.id,{operationId:randomUUID(),expectedRevision:candidate.revision,action:"accept"})).rejects.toMatchObject({code:"EVIDENCE_UNAVAILABLE"});
+  await expect(evidence.derive(f.task.id,"artifact",randomUUID())).rejects.toMatchObject({code:"EVIDENCE_UNAVAILABLE"});
+ });
+
+ it("reserves task-private artifact metadata before upload and refuses publication when withdrawal races storage",async()=>{
+  const f=await fixture(false,false,true),p=await evidence.recordChunk(f.task.id,f.operationId,f.chunkId);await context(f,p);
+  const op=`report:${f.task.id}:race`;await beginOperation(pool,f.task.id,{id:op,kind:"resource",name:"report.prepare",request:{},reservedTokens:0,reservedMs:1000,retrySafe:true});
+  let entered!:()=>void,release!:()=>void;const ready=new Promise<void>(resolve=>{entered=resolve;}),gate=new Promise<void>(resolve=>{release=resolve;});
+  const racing=new TaskArtifactStore(pool,{async put(key,value){objects.set(key,Buffer.from(value));entered();await gate;},async get(key){return objects.get(key)!;},async delete(key){objects.delete(key);}});
+  const pending=racing.put(f.task.id,op,{name:"report.md",contentType:"text/markdown",content:Buffer.from("Race report")});
+  await ready;const row=(await pool.query("SELECT * FROM agents_platform.artifacts WHERE task_id=$1",[f.task.id])).rows[0];expect(row.state).toBe("pending");expect(row.root_task_id).toBe(f.task.id);
+  expect(await new ArtifactStore(pool,racing.objects).list({...f.scope,agentId:f.task.resource_id})).toEqual([]);
+  const rejection=expect(pending).rejects.toMatchObject({code:"EVIDENCE_UNAVAILABLE"});
+  await knowledge.setPolicy(f.scope,f.job.sourceId,{operationId:randomUUID(),expectedGeneration:1,action:"withdraw"});release();await rejection;
+  expect((await pool.query("SELECT state FROM agents_platform.artifacts WHERE id=$1",[row.id])).rows[0].state).toBe("deleted");expect(objects.has(row.object_key)).toBe(false);
+ });
+
+ it("binds a reviewed action to late uncited influences without rewriting the earlier immutable artifact",async()=>{
+  const f=await reportFixture(),op=`knowledge:${f.task.id}:late`;
+  await beginOperation(pool,f.task.id,{id:op,kind:"tool",name:"knowledge.search",request:{query:"late"},reservedTokens:0,reservedMs:1000,retrySafe:true});
+  const late=await evidence.recordChunk(f.task.id,op,f.lateChunkId!);await context(f,late,1);
+  const action=await actions.prepare(f.task.id,`deliver:${f.task.id}`,{connectionId:f.reportConnection!.id,artifactId:f.artifact.id});
+  await knowledge.setPolicy(f.scope,f.lateJob!.sourceId,{operationId:randomUUID(),expectedGeneration:1,action:"withdraw"});
+  expect(Buffer.from((await taskArtifacts.download(f.scope.accountId,f.scope.organizationId,f.task.id,f.artifact.id)).content).toString()).toBe(f.text);
+  await expect(actions.decide(f.scope,f.task.id,action.id,{operationId:randomUUID(),decision:"approve",expectedDigest:action.reviewDigest})).rejects.toMatchObject({code:"EVIDENCE_UNAVAILABLE"});
  });
 
 });

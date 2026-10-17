@@ -94,6 +94,11 @@ export async function assertCurrentEvidence(db: Db, taskId: string, input: Depen
   }
 }
 
+export async function taskEvidenceManifest(db:Db,taskId:string):Promise<DependencyManifest>{
+  const execution=await loadExecution(db,taskId);
+  const rows=(await db.query("SELECT * FROM agents_platform.evidence_nodes WHERE root_task_id=$1",[execution.task.root_task_id])).rows.map(nodeDto);
+  return collectDependencyGraph(rows.filter(node=>node.taskId===taskId).map(node=>node.id),new Map(rows.map(node=>[node.id,node])));
+}
 export function citationLabels(text: string): string[] {
   return [...new Set([...text.matchAll(/\[(E(?:[a-f0-9]{32}|[0-9]+))\]/g)].map(match => match[1]!))];
 }
@@ -104,6 +109,16 @@ function payloadHas(value: unknown, text: string, label: string): boolean {
   if (typeof value === "string") return (value.includes(text) || value.includes(JSON.stringify(text).slice(1,-1))) && value.includes(`[${label}]`);
   if (Array.isArray(value)) return value.some(item => payloadHas(item, text, label));
   if (value && typeof value === "object") return Object.values(value).some(item => payloadHas(item, text, label));
+  return false;
+}
+function memoryVisible(value:unknown,id:string,content:string):boolean{
+  if(typeof value==="string"){
+    if(value.includes(content))return true;
+    const start=value.indexOf("{");if(start>=0)try{const record=JSON.parse(value.slice(start));return record.kind==="memory"&&record.sourceId===id&&typeof record.content==="string"&&record.content.length>0&&content.startsWith(record.content);}catch{return false;}
+    return false;
+  }
+  if(Array.isArray(value))return value.some(item=>memoryVisible(item,id,content));
+  if(value&&typeof value==="object")return Object.values(value).some(item=>memoryVisible(item,id,content));
   return false;
 }
 export class EvidenceStore {
@@ -187,8 +202,9 @@ export class EvidenceStore {
       await this.operation(db,taskId,operationId,["memory.search"]);
       const grant=(await db.query("SELECT operations FROM agents_platform.execution_grants WHERE id=$1",[execution.task.grant_id])).rows[0];
       if(!grant?.operations.includes("memory.read"))throw denied();
+      const origin=await this.memoryOrigin(db,execution,memoryId);if(origin.row.revision!==row.revision||origin.row.content_digest!==row.content_digest)throw integrity();
       return this.insert(db,execution,operationId,{start:0,end:row.content.length,text:row.content,title:"Personal memory",acquiredAt:new Date(row.updated_at).toISOString(),objectKey,
-        manifest:createDependencyManifest([{kind:"memory",referenceId:row.scope_id,generation:Number(row.generation)}])});
+        manifest:origin.manifest});
     });
   }
   private async passage(db: Db, taskId: string, evidenceId: string): Promise<EvidencePassage> {
@@ -255,14 +271,64 @@ export class EvidenceStore {
       return node;
     });
   }
+  private async memoryOrigin(db:Db,execution:Execution,memoryId:string){
+    if(execution.task.parent_task_id||execution.task.principal.kind!=="human"||!execution.configuration.memory.enabled)throw denied();
+    const row=(await db.query(`SELECT m.*,s.organization_id,s.agent_id,s.account_id,s.generation FROM agents_platform.memories m
+      JOIN agents_platform.memory_scopes s ON s.id=m.scope_id WHERE m.id=$1`,[memoryId])).rows[0];
+    if(!row||row.organization_id!==execution.task.organization_id||row.agent_id!==execution.agentId||row.account_id!==await owner(db,execution)||row.status!=="accepted"||row.expires_at&&new Date(row.expires_at).getTime()<=Date.now()||textDigest(row.content)!==row.content_digest)throw unavailable();
+    let roots:EvidenceNode[]=[],nodes:EvidenceNode[]=[];
+    if(row.source_task_id){
+      const source=await loadExecution(db,row.source_task_id);
+      if(source.task.organization_id!==execution.task.organization_id||source.agentId!==execution.agentId||await owner(db,source)!==row.account_id)throw denied();
+      await inspectionAuthority(db,source);
+      nodes=(await db.query("SELECT * FROM agents_platform.evidence_nodes WHERE root_task_id=$1",[source.task.root_task_id])).rows.map(nodeDto);
+      roots=nodes.filter(node=>node.taskId===row.source_task_id&&node.kind==="memory"&&node.ownerId===memoryId);
+      if(!roots.length)roots=nodes.filter(node=>node.taskId===row.source_task_id);
+    }
+    const graph=new Map(nodes.map(node=>[node.id,node])),origin=collectDependencyGraph(roots.map(node=>node.id),graph);
+    const manifest=createDependencyManifest([...origin.dependencies,{kind:"memory",referenceId:row.scope_id,generation:Number(row.generation)}]);
+    await assertCurrentEvidence(db,execution.task.id,manifest);
+    const evidenceIds=new Set<string>(),visited=new Set<string>();
+    const visit=(id:string):void=>{if(visited.has(id))return;visited.add(id);const node=graph.get(id);if(!node)throw integrity();node.evidenceIds.forEach(value=>evidenceIds.add(value));node.parents.forEach(visit);};roots.forEach(node=>visit(node.id));
+    return{row,manifest,evidenceIds:[...evidenceIds]};
+  }
+  async checkMemories(taskId:string,memoryIds:string[]){
+    if(memoryIds.length>100)throw new PlatformError("EVIDENCE_LIMIT",413,"Too many memory records");
+    return this.scoped(taskId,async(db,execution)=>{const results=[];for(const id of [...new Set(memoryIds)]){
+      try{const origin=await this.memoryOrigin(db,execution,id);results.push({id,eligible:true,manifest:origin.manifest});}
+      catch(error){if(error instanceof PlatformError&&["EVIDENCE_SCOPE_DENIED","EVIDENCE_UNAVAILABLE","GRANT_CAPABILITY_DENIED"].includes(error.code))results.push({id,eligible:false,omissionCode:error.code});else throw error;}
+    }return results;});
+  }
   async supplyContext(taskId: string, snapshotId: string, evidenceIds: string[]): Promise<EvidenceNode> {
     return this.scoped(taskId, async (db, execution) => {
-      const snapshot = (await db.query("SELECT payload FROM agents_platform.context_snapshots WHERE id=$1 AND task_id=$2",[snapshotId,taskId])).rows[0];
+      const snapshot = (await db.query("SELECT * FROM agents_platform.context_snapshots WHERE id=$1 AND task_id=$2",[snapshotId,taskId])).rows[0];
       if (!snapshot) throw denied();
       for (const id of evidenceIds) { const passage = await this.passage(db,taskId,id); if (!payloadHas(snapshot.payload,passage.text,passage.label)) throw integrity(); }
       const parents = (await db.query("SELECT * FROM agents_platform.evidence_nodes WHERE task_id=$1 ORDER BY created_at,id",[taskId])).rows.map(nodeDto);
-      return this.node(db,execution,"context",snapshotId,evidenceIds,parents);
+      const selectedMemories=(snapshot.source_references??[]).filter((reference:{kind?:string})=>reference.kind==="memory");
+      const memoryDependencies:EvidenceDependency[]=[],inheritedIds:string[]=[];
+      for(const selected of selectedMemories){const origin=await this.memoryOrigin(db,execution,selected.id);
+        if(!memoryVisible(snapshot.payload,selected.id,origin.row.content))throw integrity();
+        if(origin.row.revision!==selected.revision||origin.row.scope_id!==snapshot.memory_scope_id||Number(origin.row.generation)!==Number(snapshot.memory_generation))throw integrity();
+        memoryDependencies.push(...origin.manifest.dependencies);inheritedIds.push(...origin.evidenceIds);}
+      return this.node(db,execution,"context",snapshotId,evidenceIds,parents,{manifest:createDependencyManifest(memoryDependencies),evidenceIds:inheritedIds});
     });
+  }
+  async inheritArtifactWithin(db:PoolClient,targetTaskId:string,artifactId:string):Promise<EvidenceNode>{
+    const execution=await loadExecution(db,targetTaskId);await assertCurrentAuthority(db,execution);
+    const row=(await db.query("SELECT * FROM agents_platform.evidence_nodes WHERE root_task_id=$1 AND kind='artifact' AND owner_id=$2 AND organization_id=$3",[execution.task.root_task_id,artifactId,execution.task.organization_id])).rows[0];
+    if(!row)throw unavailable();return this.node(db,execution,"input",`artifact:${artifactId}`,[],[nodeDto(row)]);
+  }
+  async deriveWithin(db:PoolClient,taskId:string,kind:Exclude<EvidenceKind,"context">,ownerId:string):Promise<EvidenceNode>{
+    const execution=await loadExecution(db,taskId);await assertCurrentAuthority(db,execution);
+    const parents=(await db.query("SELECT * FROM agents_platform.evidence_nodes WHERE task_id=$1 AND NOT(kind=$2 AND owner_id=$3) ORDER BY created_at,id",[taskId,kind,ownerId])).rows.map(nodeDto);
+    return this.node(db,execution,kind,ownerId,[],parents);
+  }
+  async artifactManifest(db:Db,taskId:string,artifactId:string):Promise<DependencyManifest>{
+    const artifact=(await db.query("SELECT task_id FROM agents_platform.artifacts WHERE id=$1",[artifactId])).rows[0];
+    const execution=await loadExecution(db,taskId);
+    const row=(await db.query("SELECT * FROM agents_platform.evidence_nodes WHERE task_id=$1 AND kind='artifact' AND owner_id=$2 AND organization_id=$3 AND root_task_id=$4",[artifact?.task_id,artifactId,execution.task.organization_id,execution.task.root_task_id])).rows[0];
+    if(!row)throw unavailable();const manifest=assertDependencyManifest(row.manifest);await assertCurrentEvidence(db,taskId,manifest,{requireActiveTask:false});return manifest;
   }
   async derive(taskId: string, kind: Exclude<EvidenceKind,"context">, ownerId: string): Promise<EvidenceNode> {
     return this.scoped(taskId, async (db, execution) => {
@@ -277,7 +343,7 @@ export class EvidenceStore {
       if(operation?.kind!=="delegation")throw denied();
       const children = (await db.query(`SELECT n.* FROM agents_platform.evidence_nodes n JOIN agents_platform.tasks t ON t.id=n.task_id
         JOIN agents_platform.delegations d ON d.child_task_id=t.id
-        WHERE d.parent_task_id=$1 AND d.operation_id=$2 AND t.state='completed' AND n.kind='child_result' ORDER BY n.id`,[taskId,operationId])).rows.map(nodeDto);
+        WHERE d.parent_task_id=$1 AND d.operation_id=$2 AND t.state IN ('completed','incomplete','refused','failed','cancelled','uncertain') AND t.output IS NOT NULL AND n.kind='child_result' ORDER BY n.id`,[taskId,operationId])).rows.map(nodeDto);
       return this.node(db,execution,"input",operationId,[],children);
     });
   }
@@ -300,13 +366,13 @@ export class EvidenceStore {
     return(await this.pool.query("SELECT id FROM agents_platform.evidence_references WHERE task_id=$1 AND operation_id=$2 ORDER BY citation_label",[taskId,operationId])).rows.map(row=>row.id);
   }
   async taskManifest(taskId:string):Promise<DependencyManifest>{
-    const execution=await loadExecution(this.pool,taskId);
-    const rows=(await this.pool.query("SELECT * FROM agents_platform.evidence_nodes WHERE root_task_id=$1",[execution.task.root_task_id])).rows.map(nodeDto);
-    return collectDependencyGraph(rows.filter(node=>node.taskId===taskId).map(node=>node.id),new Map(rows.map(node=>[node.id,node])));
+    return taskEvidenceManifest(this.pool,taskId);
   }
   /** Designated reviewers can inspect cited passages only, never arbitrary root evidence or private inputs. */
   async reviewerPassages(scope:{organizationId:string;accountId:string},taskId:string,artifactId:string):Promise<EvidencePassage[]>{
-    return transaction(this.pool,async db=>{
+    return transaction(this.pool,db=>this.reviewerPassagesWithin(db,scope,taskId,artifactId));
+  }
+  async reviewerPassagesWithin(db:PoolClient,scope:{organizationId:string;accountId:string},taskId:string,artifactId:string):Promise<EvidencePassage[]>{
       await db.query("SELECT id FROM agents_platform.organizations WHERE id=$1 FOR UPDATE",[scope.organizationId]);
       if(!(await db.query("SELECT 1 FROM agents_platform.memberships WHERE organization_id=$1 AND account_id=$2 AND revoked_at IS NULL FOR SHARE",[scope.organizationId,scope.accountId])).rowCount)throw denied();
       const action=(await db.query(`SELECT a.artifact_digest FROM agents_platform.actions a JOIN agents_platform.artifacts f ON f.id=a.artifact_id
@@ -316,7 +382,6 @@ export class EvidenceStore {
       await assertCurrentEvidence(db,taskId,await this.taskManifest(taskId),{requireActiveTask:false});
       const references=(await db.query("SELECT reference_id FROM agents_platform.artifact_citations WHERE artifact_id=$1 ORDER BY reference_id",[artifactId])).rows;
       const passages:EvidencePassage[]=[];for(const row of references)passages.push(await this.passage(db,taskId,row.reference_id));return passages;
-    });
   }
   async verifyQuote(taskId:string,evidenceId:string,quote:string):Promise<boolean>{if(!quote.length)return false;return(await this.passage(this.pool,taskId,evidenceId)).text.includes(quote);}
   async validateReport(taskId:string,artifactId:string,text:string):Promise<EvidencePassage[]>{
