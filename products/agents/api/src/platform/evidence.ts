@@ -294,6 +294,11 @@ export class EvidenceStore {
     for(const label of citationLabels(text)){const reference=references.find(row=>row.citation_label===label);if(!reference)throw new PlatformError("CITATION_UNKNOWN",422,"Report contains a citation that was not supplied to this task");passages.push(await this.passage(this.pool,taskId,reference.id));}
     return passages;
   }
+  async readPassage(taskId:string,evidenceId:string):Promise<EvidencePassage>{return this.passage(this.pool,taskId,evidenceId);}
+  async operationEvidenceIds(taskId:string,operationId:string):Promise<string[]>{
+    await this.operation(this.pool,taskId,operationId);
+    return(await this.pool.query("SELECT id FROM agents_platform.evidence_references WHERE task_id=$1 AND operation_id=$2 ORDER BY citation_label",[taskId,operationId])).rows.map(row=>row.id);
+  }
   async taskManifest(taskId:string):Promise<DependencyManifest>{
     const execution=await loadExecution(this.pool,taskId);
     const rows=(await this.pool.query("SELECT * FROM agents_platform.evidence_nodes WHERE root_task_id=$1",[execution.task.root_task_id])).rows.map(nodeDto);
