@@ -19,7 +19,8 @@ export interface TrustedNetworkPolicy {
   maxAttempts?: number;
   maxRequests?: number;
   signal?: AbortSignal;
-  onAttempt?: (attempt: NetworkAttempt) => void;
+  beforeAttempt?: () => void | Promise<void>;
+  onAttempt?: (attempt: NetworkAttempt) => unknown | Promise<unknown>;
   /** Explicit loopback-only HTTP fixture profile, never inferred from NODE_ENV. */
   testLoopback?: boolean;
 }
@@ -99,15 +100,17 @@ export function createBoundedFetch(policy: TrustedNetworkPolicy): typeof fetch {
     for (let attempt = 1; attempt <= maximum; attempt++) {
       stopped(policy);
       if (++requests > (policy.maxRequests ?? 16)) throw new ConnectedNetworkError("REQUEST_LIMIT");
+      await policy.beforeAttempt?.();
+      stopped(policy);
       const start = Date.now(); let response: Response, observedBytes = 0;
       try { response = await physical(current, init, body, policy, bytes => { observedBytes = bytes; }); }
       catch (error) {
-        policy.onAttempt?.({ attempt, status: null, requestBytes: body.length, responseBytes: observedBytes, elapsedMs: Date.now() - start, outcome: error instanceof ConnectedNetworkError ? error.code : "NETWORK_UNAVAILABLE" });
+        await policy.onAttempt?.({ attempt, status: null, requestBytes: body.length, responseBytes: observedBytes, elapsedMs: Date.now() - start, outcome: error instanceof ConnectedNetworkError ? error.code : "NETWORK_UNAVAILABLE" });
         // A transport failure can follow a completed remote read; callers receive an explicit outcome rather than an invisible repeat.
         throw error instanceof ConnectedNetworkError ? error : new ConnectedNetworkError("NETWORK_UNAVAILABLE");
       }
       const bytes = observedBytes;
-      policy.onAttempt?.({ attempt, status: response.status, requestBytes: body.length, responseBytes: bytes, elapsedMs: Date.now() - start, outcome: "response" });
+      await policy.onAttempt?.({ attempt, status: response.status, requestBytes: body.length, responseBytes: bytes, elapsedMs: Date.now() - start, outcome: "response" });
       if ([301, 302, 303, 307, 308].includes(response.status)) {
         if (++redirects > 3 || !response.headers.has("location")) throw new ConnectedNetworkError("DESTINATION_DENIED");
         const next = new URL(response.headers.get("location")!, current); authorize(next, policy);

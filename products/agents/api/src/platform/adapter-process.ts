@@ -1,3 +1,4 @@
+import {readSync} from "node:fs";
 import { StringDecoder } from "node:string_decoder";
 import { createHash } from "node:crypto";
 import { Client, StreamableHTTPClientTransport } from "@modelcontextprotocol/client";
@@ -77,14 +78,14 @@ function guardCatalogBytes(text: string): void {
   }
   for (const message of messages) { const value = message as { result?: unknown }; if (value.result && typeof value.result === "object" && "tools" in value.result) toolsFrom(value.result); }
 }
-export async function performMcpJob(job: McpJob, observe?: (attempt: NetworkAttempt) => void) {
+export async function performMcpJob(job: McpJob, observe?: (attempt: NetworkAttempt) => void|Promise<void>) {
   const attempts: NetworkAttempt[] = [], endpoint = new URL(job.endpoint.endpoint);
   const deadlineAt = Math.min(job.endpoint.deadlineAt, Date.now() + MCP_ADAPTER_LIMITS.wallMs);
   const controller = new AbortController(), timer = setTimeout(() => controller.abort(), Math.max(1, deadlineAt - Date.now()));
   let setupMessages = 0, readMessages = 0, totalMessages = 0;
   let phase: "setup" | "read" = "setup";
   const network = createBoundedFetch({ authorizeUrl: url => url.href === endpoint.href, headers: { ...job.endpoint.headers, authorization: job.endpoint.authorization }, maxRequestBytes: 32768,
-    maxResponseBytes: MCP_ADAPTER_LIMITS.resultBytes, deadlineAt, maxAttempts: 1, maxRequests: 7, signal: controller.signal, testLoopback: job.endpoint.testLoopback, onAttempt: attempt => { const receipt = { ...attempt, attempt: totalMessages, phase }; attempts.push(receipt); observe?.(receipt); } });
+    maxResponseBytes: MCP_ADAPTER_LIMITS.resultBytes, deadlineAt, maxAttempts: 1, maxRequests: 7, signal: controller.signal, testLoopback: job.endpoint.testLoopback, onAttempt: attempt => { const receipt = { ...attempt, attempt: totalMessages, phase }; attempts.push(receipt); return observe?.(receipt); } });
   let catalogBytes = 0, catalogTools = 0;
   const transportFetch: typeof fetch = async (url, init) => {
     // Legacy SDK notification streams are disabled locally; no GET is sent or retried.
@@ -95,13 +96,13 @@ export async function performMcpJob(job: McpJob, observe?: (attempt: NetworkAtte
     if (!read && !["server/discover", "initialize", "notifications/initialized"].includes(method as string)) fail("MCP_CAPABILITY_DENIED");
     phase = read ? "read" : "setup";
     for (;;) {
-      if (++totalMessages > 7 || read && ++readMessages > 3 || !read && ++setupMessages > 4) fail("MCP_ATTEMPT_LIMIT");
-      observe?.({ attempt: totalMessages, phase, status: null, requestBytes: Buffer.byteLength(init!.body as string), responseBytes: 0, elapsedMs: 0, outcome: "in_flight" });
+      if (++totalMessages > 7 || read && ++readMessages > Math.min(3,job.endpoint.readAttempts??3) || !read && ++setupMessages > 4) fail("MCP_ATTEMPT_LIMIT");
+      await observe?.({ attempt: totalMessages, phase, status: null, requestBytes: Buffer.byteLength(init!.body as string), responseBytes: 0, elapsedMs: 0, outcome: "in_flight" });
       let response: Response;
       try { response = await network(url, init); }
       catch (error) {
         const last = attempts.at(-1);
-        if (!read || readMessages >= 3 || !(error instanceof ConnectedNetworkError) || !["RATE_LIMIT", "NETWORK_UNAVAILABLE"].includes(error.code) || ![429, 502, 503, 504].includes(last?.status ?? 0)) throw error;
+        if (!read || readMessages >= Math.min(3,job.endpoint.readAttempts??3) || !(error instanceof ConnectedNetworkError) || !["RATE_LIMIT", "NETWORK_UNAVAILABLE"].includes(error.code) || ![429, 502, 503, 504].includes(last?.status ?? 0)) throw error;
         const wait = error.retryAfterMs ?? 250;
         if (!Number.isFinite(wait) || wait >= deadlineAt - Date.now()) throw error;
         await new Promise(resolve => setTimeout(resolve, wait)); continue;
@@ -157,7 +158,12 @@ async function main(): Promise<void> {
   for await (const chunk of process.stdin) { input += decoder.write(chunk); if (Buffer.byteLength(input) > 524288) fail("REQUEST_LIMIT"); }
   input += decoder.end();
   const job = JSON.parse(input) as McpJob;
-  try { const value = await performMcpJob(job, attempt => process.stdout.write(`${JSON.stringify({ event: "attempt", value: attempt })}\n`)); const usage = process.resourceUsage(); process.stdout.write(`${JSON.stringify({ ok: true, value: { ...value, metrics: { peakRssBytes: usage.maxRSS * 1024, cpuMs: (usage.userCPUTime + usage.systemCPUTime) / 1000 } } })}\n`); }
+  try { const value = await performMcpJob(job, async attempt => {
+    process.stdout.write(`${JSON.stringify({ event: "attempt", value: attempt })}\n`);
+    const acknowledgment=Buffer.alloc(3);let offset=0;
+    while(offset<3){const read=readSync(3,acknowledgment,offset,3-offset,null);if(!read)fail("CONNECTED_ATTEMPT_DENIED");offset+=read;}
+    if(acknowledgment.toString()!=="ok\n")fail("CONNECTED_ATTEMPT_DENIED");
+  }); const usage = process.resourceUsage(); process.stdout.write(`${JSON.stringify({ ok: true, value: { ...value, metrics: { peakRssBytes: usage.maxRSS * 1024, cpuMs: (usage.userCPUTime + usage.systemCPUTime) / 1000 } } })}\n`); }
   catch (error) { const raw = error instanceof McpAdapterError || error instanceof ConnectedNetworkError ? error.code : error instanceof Error ? error.message : "MCP_PROTOCOL"; const code = /^[A-Z0-9_]{1,80}$/.test(raw) ? raw : "MCP_PROTOCOL"; process.stdout.write(`${JSON.stringify({ ok: false, code, attempts: error instanceof McpAdapterError ? error.attempts : [] })}\n`); }
 }
 if (require.main === module) void main().catch(() => { process.stdout.write(`${JSON.stringify({ ok: false, code: "MCP_PROTOCOL" })}\n`); });

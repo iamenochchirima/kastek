@@ -95,4 +95,15 @@ describe("isolated outbound MCP", () => {
     await expect(callMcpTool(interactive.endpoint, interactiveCatalog.tools[0]!, { owner: "public-owner" })).rejects.toMatchObject({ code: "UNSUPPORTED_RESULT_TYPE" });
   }, 20000);
 
+  it("waits for durable parent admission before sending each child HTTP message",async()=>{
+    const service=await fixture();
+    await expect(discoverMcpCatalog(service.endpoint,undefined,{beforeAttempt:async()=>{throw Error("fixture database denied preclaim");}})).rejects.toMatchObject({code:"CONNECTED_ATTEMPT_DENIED"});
+    expect(service.methods).toEqual([]);
+  },15000);
+  it("caps MCP read attempts at two when a separate public metadata read consumed the first",async()=>{
+    const service=await fixture({rateLimit:true}),catalog=await discoverMcpCatalog(service.endpoint);
+    await expect(callMcpTool({...service.endpoint,readAttempts:2},catalog.tools[0]!,{owner:"public-owner"})).rejects.toMatchObject({code:"RATE_LIMIT"});
+    expect(service.calls()).toBe(1);
+  },15000);
+
 });
