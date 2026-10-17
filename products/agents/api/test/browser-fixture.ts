@@ -10,7 +10,9 @@ import { resolve, join } from "node:path";
 import { createServer as createHttpServer } from "node:http";
 import { createServer, type ServerHttp2Session } from "node:http2";
 import { createEndpointHandler } from "@restatedev/restate-sdk";
-import { Pool } from "pg";
+import { Pool, type PoolClient } from "pg";
+import { readGithubAcceptanceConfig } from "./support/github-acceptance-config";
+import type { CapabilityBinding } from "../src/platform/capability-catalog";
 import { buildPlatformApp } from "../src/platform/app";
 import { loadPlatformConfig } from "../src/platform/config";
 import { setupPlatformSchema } from "../src/platform/setup";
@@ -59,11 +61,17 @@ const connections = new Set<ServerHttp2Session>();
 const realModel = process.env.AGENTS_BROWSER_REAL_MODEL === "1";
 const harnessJourney = process.env.AGENTS_HARNESS_LIVE === "1";
 const automationJourney = process.env.AGENTS_AUTOMATION_LIVE === "1";
+const githubJourney = process.env.AGENTS_GITHUB_JOURNEY === "1";
 const advancedJourney = process.env.AGENTS_ADVANCED_LIVE === "1" || automationJourney;
 const modelCalls: { model: string; approvedKnowledgePresent: boolean }[] = [];
+let githubAcceptance: ReturnType<typeof readGithubAcceptanceConfig> | undefined;
+let connectedGate: PoolClient | undefined;
+const connectedGateKey = 100000 + Math.floor(Math.random() * 1000000000);
+let connectedCheckpoint: { operation_id:string; body_digest:string; attempts:unknown }[] = [];
+function childEnvironment():NodeJS.ProcessEnv { const env={...process.env};delete env.AGENTS_GITHUB_ACCEPTANCE_TOKEN;delete env.OPENROUTER_API_KEY;return env; }
 
-async function ready(action: () => Promise<boolean>, label: string) {
-  const deadline = Date.now() + 60_000;
+async function ready(action: () => Promise<boolean>, label: string,timeoutMs=60_000) {
+  const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) { try { if (await action()) return; } catch { /* Wait for the local service. */ } await new Promise(resolve => setTimeout(resolve, 150)); }
   throw new Error(`Timed out waiting for ${label}`);
 }
@@ -74,6 +82,7 @@ async function cleanupResources() {
   if (browserProcess && browserProcess.exitCode === null) browserProcess.kill("SIGTERM");
   fixtureAbort.abort();
   await stopWorkerProcess();
+  if(connectedGate){await connectedGate.query("SELECT pg_advisory_unlock($1,$2)",[20261018,connectedGateKey]);connectedGate.release();connectedGate=undefined;}
   if (receiverProcess?.pid && receiverProcess.exitCode === null && receiverProcess.signalCode === null) { receiverProcess.kill("SIGTERM"); await once(receiverProcess, "exit"); }
   await dispatcher?.stop();
   await ingestionDispatcher?.stop();
@@ -104,6 +113,74 @@ async function availablePort(): Promise<number> {
 async function stopWorkerProcess() {
   if (workerProcess?.pid && workerProcess.exitCode === null && workerProcess.signalCode === null) { workerProcess.kill("SIGKILL"); await once(workerProcess, "exit"); }
 }
+async function prepareConnectedRestart(){
+  connectedGate=await pool!.connect();await connectedGate.query("SELECT pg_advisory_lock($1,$2)",[20261018,connectedGateKey]);
+  // Only this disposable fixture pauses the next snapshot, before authority/model claims hold organization locks.
+  await pool!.query(`CREATE FUNCTION agents_platform.fixture_connected_checkpoint() RETURNS trigger LANGUAGE plpgsql AS $$
+    BEGIN IF NEW.step>=1 AND EXISTS(SELECT 1 FROM agents_platform.tasks WHERE id=NEW.task_id AND parent_task_id IS NOT NULL)
+      AND EXISTS(SELECT 1 FROM agents_platform.connected_reads WHERE task_id=NEW.task_id AND state='completed')
+      THEN PERFORM pg_advisory_xact_lock(20261018,${connectedGateKey}); END IF; RETURN NEW; END $$;
+    CREATE TRIGGER fixture_connected_checkpoint BEFORE INSERT ON agents_platform.context_snapshots FOR EACH ROW EXECUTE FUNCTION agents_platform.fixture_connected_checkpoint()`);
+}
+async function connectedReadReceipts(){return(await pool!.query(`SELECT r.operation_id,r.body_digest,
+  coalesce((SELECT jsonb_agg(jsonb_build_object('ordinal',a.ordinal,'phase',a.phase,'state',a.state,'receipt',a.receipt) ORDER BY a.ordinal)
+    FROM agents_platform.connected_attempts a WHERE a.operation_id=r.operation_id),'[]'::jsonb) AS attempts
+  FROM agents_platform.connected_reads r WHERE r.state='completed' ORDER BY r.operation_id`)).rows;}
+async function verifyGithubJourney(rootTaskId:string,report:Record<string,unknown>){
+  const selected=githubAcceptance!;
+  const reads=(await pool!.query(`SELECT r.operation_id,r.task_id,r.state,r.body_digest,r.result,b.binding->>'transport' AS transport,
+    b.binding->'definition'->>'providerOperation' AS provider_operation,b.binding->>'protocolVersion' AS protocol_version
+    FROM agents_platform.connected_reads r JOIN agents_platform.capability_bindings b ON b.id=r.binding_id WHERE r.root_task_id=$1 ORDER BY r.operation_id`,[rootTaskId])).rows;
+  const catalogs=(await pool!.query("SELECT id,digest,catalog->>'transport' AS transport,catalog->>'protocolVersion' AS protocol_version,catalog->'adapter' AS adapter,jsonb_array_length(catalog->'tools') AS tool_count FROM agents_platform.capability_catalogs ORDER BY revision")).rows;
+  const references=(await pool!.query("SELECT id,task_id,operation_id,citation_label,source_id,revision_id,manifest FROM agents_platform.evidence_references WHERE root_task_id=$1",[rootTaskId])).rows;
+  const scopes=(await pool!.query("SELECT t.id,t.parent_task_id,t.root_token_limit,t.effective_configuration->'sourceRevisionIds' AS sources,t.effective_configuration->'connectedToolBindingIds' AS bindings,g.source_revision_ids AS grant_sources,g.connected_tool_binding_ids AS grant_bindings FROM agents_platform.tasks t JOIN agents_platform.execution_grants g ON g.id=t.grant_id WHERE t.root_task_id=$1",[rootTaskId])).rows;
+  const bindings=(await pool!.query("SELECT id,binding->>'transport' AS transport,binding->'definition'->>'providerOperation' AS operation FROM agents_platform.capability_bindings")).rows;
+  const attempts=(await pool!.query("SELECT a.operation_id,a.ordinal,a.phase,a.state,a.receipt FROM agents_platform.connected_attempts a JOIN agents_platform.connected_reads r ON r.operation_id=a.operation_id WHERE r.root_task_id=$1 ORDER BY a.operation_id,a.ordinal",[rootTaskId])).rows;
+  const proof={status:"checking",repository:`${selected.selection.owner}/${selected.selection.repository}`.toLowerCase(),ref:selected.selection.ref,file:selected.selectedFile,rootTaskId,catalogs,checkpoint:connectedCheckpoint,reads:reads.map(({result,...read})=>({...read,resultStatus:result?.status,visibleContent:result?.content,evidence:result?.evidence,observation:result?.observation})),attempts,references,scopes,report};
+  const save=async()=>{const text=JSON.stringify(proof,null,2);assert.ok(!text.includes(selected.token),"Provider credential reflection withheld from proof");await writeFile(resolve(root,".audit/agents-github-journey.json"),text,{mode:0o600});};
+  try{
+    assert.ok(reads.length>0&&reads.every(read=>read.state==="completed"&&read.result?.status==="ok"),"Every qualifying actual read must have a successful completed receipt; tool errors are not provider evidence");
+    assert.ok(catalogs.some(catalog=>catalog.transport==="native_http")&&catalogs.some(catalog=>catalog.transport==="mcp_http"&&["2026-07-28","2025-11-25"].includes(catalog.protocol_version)),"Require actual native discovery and explicitly negotiated hosted MCP catalog");
+    for(const read of reads){const physical=attempts.filter(attempt=>attempt.operation_id===read.operation_id);assert.ok(physical.length>0&&physical.length<=7&&physical.every(attempt=>attempt.state==="completed"));assert.ok(physical.filter(attempt=>attempt.phase==="read").length<=3&&physical.filter(attempt=>attempt.phase==="setup").length<=4);}
+    const finalReceipts=await connectedReadReceipts();assert.ok(connectedCheckpoint.length>=2,"Require the controlled durable-read restart");
+    for(const prior of connectedCheckpoint){const current=finalReceipts.find(read=>read.operation_id===prior.operation_id);assert.ok(current);assert.equal(current.body_digest,prior.body_digest);assert.deepEqual(current.attempts,prior.attempts,"Restart must not repeat any physical request belonging to an already completed read");}
+    assert.ok(Array.isArray(report.provider_findings)&&report.provider_findings.length===2,"Report must contain both actual provider findings");
+    const citations=report.citations as string[];assert.ok(Array.isArray(citations));
+    const local=references.filter(reference=>reference.source_id&&citations.includes(`[${reference.citation_label}]`));assert.equal(new Set(local.map(reference=>reference.revision_id)).size,2,"Report must cite both distinct imported sources");assert.ok(local.every(reference=>reference.manifest.dependencies.some((dependency:{kind:string})=>dependency.kind==="source")));
+    const readerTasks=new Set<string>();
+    const rootScope=scopes.find(scope=>scope.id===rootTaskId);assert.equal(rootScope?.sources.length,2);assert.equal(rootScope?.bindings.length,4);assert.equal(rootScope?.root_token_limit,32000);
+    for(const transport of ["native_http","mcp_http"]){
+      const read=reads.find(read=>read.transport===transport&&read.provider_operation===(transport==="native_http"?"read_file":"get_file_contents"));assert.ok(read&&read.task_id!==rootTaskId,"Each scoped child must perform its required actual remote file read");readerTasks.add(read.task_id);
+      assert.ok(read.result.content.toLowerCase().includes(selected.expected.toLowerCase()),"Actual provider content must contain the approved expected public text");
+      const finding:Record<string,unknown>|undefined=(report.provider_findings as Record<string,unknown>[]).find(entry=>entry.transport===transport);assert.ok(finding);
+      assert.equal(finding.repository,proof.repository);assert.equal(finding.sourceLabel,`[${read.result.evidence.label}]`);assert.ok(citations.includes(String(finding.sourceLabel)));
+      assert.ok(typeof finding.observedFact==="string"&&finding.observedFact.length>=16&&finding.observedFact.length<=200&&finding.observedFact.toLowerCase().includes(selected.expected.toLowerCase())&&read.result.content.includes(finding.observedFact),"Provider finding must quote actual returned public content, not only name a citation");
+      const reference=references.find(reference=>reference.id===read.result.evidence.id);assert.ok(reference?.manifest.dependencies.some((dependency:{kind:string})=>dependency.kind==="connection"));
+      assert.ok(local.some(reference=>reference.task_id===read.task_id),"Each specialist must cite its own distinct imported source");
+      const scope=scopes.find(scope=>scope.id===read.task_id);assert.equal(scope?.sources.length,1);assert.equal(scope?.bindings.length,3);assert.equal(scope?.root_token_limit,10000);
+      assert.deepEqual([...scope.sources].sort(),[...scope.grant_sources].sort());assert.deepEqual([...scope.bindings].sort(),[...scope.grant_bindings].sort());
+      const operations=bindings.filter(binding=>scope.bindings.includes(binding.id)).map(binding=>`${binding.transport}:${binding.operation}`).sort();
+      assert.deepEqual(operations,["native_http:resolve_ref","native_http:list_tree",transport==="native_http"?"native_http:read_file":"mcp_http:get_file_contents"].sort(),"Specialists must retain their separately narrowed read scopes and required handle producers");
+    }
+    assert.equal(readerTasks.size,2,"Native and MCP reads must come from separate narrowed specialist tasks");
+    proof.status="passed";
+  }catch(error){proof.status="failed";throw error;}finally{await save();}
+  console.log(JSON.stringify({evidence:"actual GitHub native and hosted MCP research with imported and connected citations, durable read restart and bounded physical receipts",rootTaskId,reads:proof.reads.map(({visibleContent,...read})=>read),catalogs,proofPath:".audit/agents-github-journey.json"}));
+}
+async function restartConnectedCheckpoint(){
+  assert.ok(githubJourney&&connectedGate,"Connected restart is available only in the approved provider fixture");
+  await ready(async()=>{
+    const waiting=Number((await pool!.query("SELECT count(*) FROM pg_locks WHERE locktype='advisory' AND database=(SELECT oid FROM pg_database WHERE datname=current_database()) AND classid=$1 AND objid=$2 AND NOT granted",[20261018,connectedGateKey])).rows[0].count);
+    const active=Number((await pool!.query("SELECT count(*) FROM agents_platform.operations WHERE kind IN ('model','compaction') AND state='started'")).rows[0].count);
+    const reads=Number((await pool!.query("SELECT count(*) FROM agents_platform.connected_reads WHERE state='started'")).rows[0].count);
+    const children=(await pool!.query("SELECT t.id,t.state,EXISTS(SELECT 1 FROM agents_platform.connected_reads r WHERE r.task_id=t.id AND r.state='completed') AS has_read FROM agents_platform.tasks t WHERE t.parent_task_id IS NOT NULL")).rows;
+    return waiting===2&&!active&&!reads&&children.length===2&&children.every(child=>child.has_read&&!['completed','incomplete','refused','failed','cancelled','uncertain'].includes(child.state));
+  },"both specialist snapshots after durable reads, with no active provider claims",180000);
+  connectedCheckpoint=await connectedReadReceipts();assert.ok(connectedCheckpoint.length>=2);
+  await stopWorkerProcess();await connectedGate.query("SELECT pg_advisory_unlock($1,$2)",[20261018,connectedGateKey]);connectedGate.release();connectedGate=undefined;
+  await startWorkerProcess();workerRestarts++;
+  console.log(JSON.stringify({evidence:"worker restarted after durable child reads before either next model claim",operationIds:connectedCheckpoint.map(read=>read.operation_id)}));
+}
 async function startWorkerProcess() {
   workerProcess = spawn(process.execPath, [resolve(root, "products/agents/api/dist/platform/worker.js")], { cwd: root, stdio: ["ignore", "inherit", "inherit"], env: workerEnvironment });
   await ready(() => new Promise<boolean>(resolve => { const socket = connect(9080, "127.0.0.1"); socket.once("connect", () => { socket.destroy(); resolve(true); }); socket.once("error", () => resolve(false)); }), "actual worker process");
@@ -113,7 +190,7 @@ async function prepareDeliveryFixture(directory: string) {
   receiverLedger = join(directory, "receiver-ledger.jsonl");
   const apiKey = randomUUID()+randomUUID();
   Object.assign(process.env, { NODE_ENV: "test", AGENTS_CONNECTION_ACTIVE_KEY: "browser-fixture", AGENTS_CONNECTION_KEYS: JSON.stringify({ "browser-fixture": randomBytes(32).toString("base64") }), AGENTS_REPORT_DELIVERY_TARGETS: JSON.stringify([{ id: "browser-receiver", label: "Browser report receiver", url: "http://127.0.0.1:4399/deliveries", resource: "browser-report" }]) });
-  receiverProcess = spawn(process.execPath, ["--import", require.resolve("tsx"), resolve(root, "products/agents/web/test/report-receiver.ts")], { cwd: root, stdio: ["ignore", "inherit", "inherit"], env: { ...process.env, AGENTS_RECEIVER_LEDGER: receiverLedger, AGENTS_RECEIVER_KEY: apiKey } });
+  receiverProcess = spawn(process.execPath, ["--import", require.resolve("tsx"), resolve(root, "products/agents/web/test/report-receiver.ts")], { cwd: root, stdio: ["ignore", "inherit", "inherit"], env: { ...childEnvironment(), AGENTS_RECEIVER_LEDGER: receiverLedger, AGENTS_RECEIVER_KEY: apiKey } });
   await ready(async () => (await fetch("http://127.0.0.1:4399/deliveries")).status === 403, "persistent independent report receiver");
   return apiKey;
 }
@@ -126,7 +203,7 @@ async function prepareAdvancedStorage(directory: string): Promise<void> {
   await new Promise<void>(resolve => reservation.close(() => resolve()));
   const endpoint = `http://127.0.0.1:${port}`, accessKeyId = "advanced-browser-fixture", secretAccessKey = randomUUID()+randomUUID(), bucket = `agents-browser-${randomUUID()}`;
   storageProcess = spawn(process.env.AGENTS_TEST_MINIO_BINARY ?? "/tmp/kasitek-minio-build/minio", ["server", join(directory, "objects"), "--address", `127.0.0.1:${port}`, "--console-address", "127.0.0.1:0"], {
-    stdio: "ignore", env: { ...process.env, MINIO_ROOT_USER: accessKeyId, MINIO_ROOT_PASSWORD: secretAccessKey, MINIO_BROWSER: "off" },
+    stdio: "ignore", env: { ...childEnvironment(), MINIO_ROOT_USER: accessKeyId, MINIO_ROOT_PASSWORD: secretAccessKey, MINIO_BROWSER: "off" },
   });
   storageProcess.once("error", () => { /* Readiness reports the unavailable local backend. */ });
   await ready(async () => (await fetch(`${endpoint}/minio/health/live`)).ok, "isolated private object storage");
@@ -142,7 +219,8 @@ async function prepareAdvancedStorage(directory: string): Promise<void> {
   Object.assign(process.env, { AGENTS_S3_ENDPOINT: endpoint, AGENTS_S3_REGION: "us-east-1", AGENTS_S3_BUCKET: bucket, AGENTS_S3_ACCESS_KEY_ID: accessKeyId, AGENTS_S3_SECRET_ACCESS_KEY: secretAccessKey, AGENTS_SANDBOX_ENABLED: "1", AGENTS_SANDBOX_DIRECTORY: join(directory,"sandbox") });
 }
 
-async function prepareAdvancedFixture(token: string): Promise<{ agentPath: string; specialistVersionIds: string[]; sourceTitle: string }> {
+interface AdvancedFixture {agentPath:string;specialistVersionIds:string[];sourceTitle:string;sourceTitles?:string[];connectedOperations?:string[][];prompt?:string}
+async function prepareAdvancedFixture(token: string): Promise<AdvancedFixture> {
   async function request<T>(path: string, body: unknown, method = "POST"): Promise<T> {
     const response = await fetch(`http://127.0.0.1:4100${path}`, { method, headers: { "content-type": "application/json", origin: "http://localhost:3100", cookie: `agents_session=${token}` }, ...(body!==undefined?{body:JSON.stringify(body)}:{}) });
     assert.ok(response.ok, `Advanced fixture management ${method} ${path} failed (${response.status})`);
@@ -158,13 +236,38 @@ async function prepareAdvancedFixture(token: string): Promise<{ agentPath: strin
   const embeddingRelease=approved.sources.find(source=>source.id===job.sourceId)?.revisions.find(revision=>revision.id===job.revisionId)?.embeddingRelease;
   assert.ok(embeddingRelease,"Research acceptance requires the actually indexed semantic profile");
   const knowledge={id:job.revisionId};
-  async function create(name: string, instructions: string, specialist: boolean) {
+  let githubBindings:CapabilityBinding[]=[],reviewRevisionId:string|undefined;
+  const reviewTitle="Browser independent review data";
+  if(githubAcceptance){
+    const selected=githubAcceptance;
+    const {connection}=await request<{connection:{id:string;revision:number;resources:{kind:string;id:string}[]}}>(`${base}/connections`,{operationId:randomUUID(),profileId:"github-public-read-v1",targetId:"provider:github",name:"Approved public GitHub research",apiKey:selected.token,expiresAt:selected.expiresAt,selections:[selected.selection]});
+    for(const transport of ["native_http","mcp_http"] as const){
+      const{catalog}=await request<{catalog:{id:string;selectableOperations:string[]}}>(`${base}/connections/${connection.id}/catalogs/discover`,{operationId:randomUUID(),expectedRevision:connection.revision,transport});
+      const operations=transport==="native_http"?["resolve_ref","list_tree","read_file"]:["get_file_contents"];
+      assert.ok(operations.every(operation=>catalog.selectableOperations.includes(operation)),"The approved provider catalog must expose every required read");
+      const{bindings}=await request<{bindings:CapabilityBinding[]}>(`${base}/connections/${connection.id}/catalogs/${catalog.id}/select`,{operationId:randomUUID(),expectedRevision:connection.revision,selections:operations.map(providerOperation=>({providerOperation,resources:connection.resources}))});githubBindings.push(...bindings);
+    }
+    const{job:review}=await request<{job:{id:string;sourceId:string;revisionId:string}}>(`${base}/knowledge/imports`,{operationId:randomUUID(),title:reviewTitle,kind:"upload",contentType:"text/plain",contentBase64:Buffer.from("Independent approved numeric dataset review: observations [10, 20, 30]. Verify the count and maximum for the research analysis report. Cite this independent approved review source alongside the actual public repository read.").toString("base64")});
+    await ready(async()=>(await pool!.query("SELECT state FROM agents_platform.ingestion_jobs WHERE id=$1",[review.id])).rows[0]?.state==="ready","actual isolated independent review source import");
+    await request(`${base}/knowledge/sources/${review.sourceId}/policy`,{operationId:randomUUID(),expectedGeneration:1,action:"approve",revisionId:review.revisionId});reviewRevisionId=review.revisionId;
+  }
+  async function create(name: string, instructions: string, specialist: boolean,sourceIds=[knowledge.id],bindings:CapabilityBinding[]=[]) {
     const { agent } = await request<{ agent: { id: string; draftRevision: number } }>(`${base}/agents`, { name });
     const defaults = defaultFaqConfiguration();
-    const configuration: AgentConfiguration = { ...defaults, instructions, sourceRevisionIds: [knowledge.id], retrievalProfile:{kind:"hybrid-v1",embeddingRelease}, tools: specialist ? ["knowledge.search", "knowledge.read"] : [], model: { ...defaults.model, maxOutputTokens: specialist ? 192 : 768 } };
+    const configuration: AgentConfiguration = { ...defaults, instructions, sourceRevisionIds: sourceIds,connectedToolBindingIds:bindings.map(binding=>binding.id), retrievalProfile:{kind:"hybrid-v1",embeddingRelease:embeddingRelease!}, tools: specialist ? ["knowledge.search", "knowledge.read"] : [], model: { ...defaults.model, maxOutputTokens: specialist ? githubAcceptance?384:192 : 768 } };
     const updated = await request<{ agent: { draftRevision: number } }>(`${base}/agents/${agent.id}`, { name, configuration, expectedRevision: agent.draftRevision }, "PUT");
     const { version } = await request<{ version: { id: string } }>(`${base}/agents/${agent.id}/versions`, { expectedRevision: updated.agent.draftRevision });
     return { agent, version };
+  }
+  if(githubAcceptance){
+    const selected=githubAcceptance,repository=`${selected.selection.owner}/${selected.selection.repository}`.toLowerCase();
+    const alias=(operation:string)=>githubBindings.find(binding=>binding.definition.providerOperation===operation)!.alias;
+    const native=githubBindings.filter(binding=>binding.transport==="native_http"),mcp=githubBindings.filter(binding=>binding.definition.providerOperation!=="read_file");
+    const readInstructions="Read only the actual server-issued fileId from the delegated brief using ";
+    const first=await create("Dataset researcher",`${readInstructions}${alias("read_file")}. Require actual returned content containing ${JSON.stringify(selected.expected)}. Briefly report the approved numeric dataset sum, transport native_http, an EXACT 16..200 character quote from the returned repository content including that expected text, its remote citation and the supplied numeric source citation. No code or delegation.`,true,[knowledge.id],native);
+    const second=await create("Dataset reviewer",`${readInstructions}${alias("get_file_contents")} through hosted MCP. Require actual returned content containing ${JSON.stringify(selected.expected)}. Briefly report the independent numeric dataset count and maximum, transport mcp_http, an EXACT 16..200 character quote from returned content including that expected text, its remote citation and the supplied independent source citation. No code or delegation.`,true,[reviewRevisionId!],mcp);
+    const coordinator=await create("Analysis coordinator",`First resolve approved repository ${JSON.stringify(repository)} with ${alias("resolve_ref")}, then list its actual tree using ${alias("list_tree")}. Select the actual issued fileId at path ${JSON.stringify(selected.selectedFile)}; follow bounded nextOffset pages only if needed. Never invent a handle. Delegate once to both specialists, omitting maxTokens and including that exact fileId in both short briefs. Native researcher must read the file via native HTTP and sum its approved numeric source; independent reviewer must read the same file via hosted MCP and count/max its distinct approved source. Both must return an exact 16..200 character quote containing ${JSON.stringify(selected.expected)} with its actual read citation plus their numeric-source citation. Do not read file bodies yourself. Wait for both results. Run sandbox_analyze using standard-library Python to write report.json under os.environ['OUTPUT_DIR']. Include values, sum, count, provider_findings with two entries {transport,repository,observedFact,sourceLabel} for native_http and mcp_http, and citations covering BOTH imported numeric sources and BOTH actual remote file reads. Each observedFact is the exact returned quote, sourceLabel its exact bracketed remote read citation. Export before finishing and cite the actual sources. Do not repeat successful calls.`,false,[knowledge.id,reviewRevisionId!],githubBindings);
+    return{agentPath:`/app/agents/${coordinator.agent.id}`,specialistVersionIds:[first.version.id,second.version.id],sourceTitle,sourceTitles:[sourceTitle,reviewTitle],connectedOperations:[["resolve_ref","list_tree","read_file"],["resolve_ref","list_tree","get_file_contents"]],prompt:"Research the approved numeric dataset and actual approved public repository through both scoped specialists. Produce the cited Python analysis report with values, sum, count and observed repository facts. Use the native reader and hosted MCP reader independently, omit maxTokens, and include exact source citations from both imported documents and both remote reads. Export report.json and report the verified total."};
   }
   const first = await create("Dataset researcher", "Inspect the approved numeric dataset and answer the delegated arithmetic question in one short sentence. Use the supplied source passage; if absent, knowledge.search for 'approved numeric dataset'. Copy its exact citation label in brackets. Do not delegate or run code.", true);
   const second = await create("Dataset reviewer", "Independently inspect the approved numeric dataset. State its count and maximum in one short sentence. Use the supplied source passage; if absent, knowledge.search for 'approved numeric dataset'. Copy its exact citation label in brackets. Do not delegate or run code.", true);
@@ -173,6 +276,12 @@ async function prepareAdvancedFixture(token: string): Promise<{ agentPath: strin
 }
 
 async function main() {
+  if(githubJourney){
+    assert.ok(automationJourney&&realModel,"AGENTS_GITHUB_JOURNEY requires AGENTS_AUTOMATION_LIVE=1 and AGENTS_BROWSER_REAL_MODEL=1");
+    githubAcceptance=readGithubAcceptanceConfig();
+    assert.ok(githubAcceptance.expected.length<=200,"The expected public text must fit the bounded 16..200 character quotation");
+    assert.ok(process.env.OPENROUTER_API_KEY,"The combined provider journey requires the approved free model configuration");
+  }
   if (automationJourney) {
     ingress = `http://127.0.0.1:${await availablePort()}`;
     runtimeAdmin = `http://127.0.0.1:${await availablePort()}`;
@@ -207,7 +316,8 @@ async function main() {
   const deliveryKey = automationJourney ? await prepareDeliveryFixture(privateDirectory) : undefined;
   sandboxManager = sandboxManagerFromEnvironment(pool);
   if (advancedJourney) assert.ok(sandboxManager && await sandboxManager.available(), "Advanced fixture requires actual gVisor isolation");
-  app = await buildPlatformApp({ config, pool, logging: false });
+  const appFactory:typeof buildPlatformApp=githubJourney?require(resolve(root,"products/agents/api/dist/platform/app.js")).buildPlatformApp:buildPlatformApp;
+  app = await appFactory({ config, pool, logging: false });
   await app.listen({ host: "127.0.0.1", port: 4100 });
   let advanced: Awaited<ReturnType<typeof prepareAdvancedFixture>> | undefined;
   const fixtureFetch: typeof fetch = async (_url, request) => {
@@ -240,7 +350,7 @@ async function main() {
   const sourceObjects=privateStoreFromEnvironment(process.env,10_485_760)!;
   const evidence=new EvidenceStore(pool,sourceObjects),ingestion=new IngestionService(pool,sourceObjects,documents,new KnowledgeStore(pool,sourceObjects));
   if (automationJourney) {
-    workerEnvironment = { ...process.env, AGENTS_DATABASE_URL: database.href, OPENROUTER_API_KEY: modelKey, RESTATE_INGRESS_URL: ingress, RESTATE_ADMIN_URL: runtimeAdmin, RESTATE_WORKER_PORT: "9080", RESTATE_WORKER_HOST: "0.0.0.0", AGENTS_ALLOW_UNSIGNED_WORKER: "1" };
+    workerEnvironment = { ...childEnvironment(), AGENTS_DATABASE_URL: database.href, OPENROUTER_API_KEY: modelKey, RESTATE_INGRESS_URL: ingress, RESTATE_ADMIN_URL: runtimeAdmin, RESTATE_WORKER_PORT: "9080", RESTATE_WORKER_HOST: "0.0.0.0", AGENTS_ALLOW_UNSIGNED_WORKER: "1" };
     await startWorkerProcess();
   } else {
   worker = createServer(createEndpointHandler({ services: [createBusinessWorkflow(pool, { openRouterApiKey: modelKey, signal: fixtureAbort.signal, executeSandbox: createSandboxExecutor(pool, sandboxManager, privateStoreFromEnvironment()), evidence,knowledgeRuntime:new KnowledgeRuntime(pool,evidence,new QueryEmbeddingService(pool,sourceObjects,documents)),fetch: realModel ? observedModelFetch : fixtureFetch }),createIngestionWorkflow(ingestion)] }));
@@ -259,7 +369,7 @@ async function main() {
   assert.ok(registration.ok, `Restate registration failed (${registration.status})`);
   if (advancedJourney) {
     reaperProcess = spawn(process.execPath, [resolve(root, "products/agents/api/node_modules/tsx/dist/cli.mjs"), resolve(root, "products/agents/api/src/platform/sandbox-reaper.ts")], {
-      cwd: root, stdio: ["ignore", "ignore", "inherit"], env: { ...process.env, AGENTS_DATABASE_URL: database.href },
+      cwd: root, stdio: ["ignore", "ignore", "inherit"], env: { ...childEnvironment(), AGENTS_DATABASE_URL: database.href },
     });
   }
   if (!automationJourney) {
@@ -267,10 +377,12 @@ async function main() {
     ingestionDispatcher=startIngestionDispatcher(ingestion,ingress,code=>console.error(`Fixture import dispatcher: ${code}`));
   }
   advanced = advancedJourney ? await prepareAdvancedFixture(session.token) : undefined;
+  if(githubJourney)await prepareConnectedRestart();
   site = createHttpServer((request, response) => {
     if (automationJourney && request.method === "POST" && request.url?.startsWith("/fixture/")) {
       void (async () => {
-        if (request.url === "/fixture/restart-review") { await stopWorkerProcess(); await startWorkerProcess(); workerRestarts++; }
+        if (request.url === "/fixture/restart-connected") { await restartConnectedCheckpoint(); }
+        else if (request.url === "/fixture/restart-review") { await stopWorkerProcess(); await startWorkerProcess(); workerRestarts++; }
         else if (request.url === "/fixture/interrupt-delivery") { await ready(async () => (await ledgerRecords()).some(record => record.type === "accepted"), "receiver durable acceptance before interruption"); await stopWorkerProcess(); await startWorkerProcess(); workerRestarts++; }
         else { response.writeHead(404).end(); return; }
         response.setHeader("content-type", "application/json"); response.end(JSON.stringify({ workerRestarts }));
@@ -286,11 +398,13 @@ async function main() {
   const playwright = require.resolve("@playwright/test/cli", { paths: [resolve(root, "products/agents/web")] });
   const browser = browserProcess = spawn(process.execPath, [playwright, "test", "--grep", automationJourney ? "live automation:" : advancedJourney ? "live execution:" : harnessJourney ? "live harness" : "live platform", "--output", automationJourney ? ".artifacts/automation-live" : advancedJourney ? ".artifacts/advanced-live" : harnessJourney ? ".artifacts/harness-live" : ".artifacts/browser-live"], {
     cwd: resolve(root, "products/agents/web"), stdio: "inherit",
-    env: { ...process.env, AGENTS_BROWSER_BASE_URL: "http://localhost:3100", AGENTS_BROWSER_SESSION_COOKIE: session.token,
+    env: { ...childEnvironment(), AGENTS_BROWSER_BASE_URL: "http://localhost:3100", AGENTS_BROWSER_SESSION_COOKIE: session.token,
       AGENTS_BROWSER_WIDGET_ORIGIN: "http://127.0.0.1:4398",
       ...(deliveryKey ? { AGENTS_DELIVERY_FIXTURE_KEY: deliveryKey } : {}),
       ...(advanced ? { AGENTS_ADVANCED_AGENT_PATH: advanced.agentPath, AGENTS_ADVANCED_SPECIALIST_VERSIONS: advanced.specialistVersionIds.join(","),
-        AGENTS_ADVANCED_SOURCE_TITLE: advanced.sourceTitle, AGENTS_ADVANCED_PROMPT: "Independently research the approved numeric dataset with both configured specialists; omit maxTokens. Calculate a Python analysis report with the original values, sum and count. Write report.json in OUTPUT_DIR, including a nonempty citations array of exact supplied source labels in brackets, and report the verified total with its source. Use actual tools and export the report.",
+        AGENTS_ADVANCED_SOURCE_TITLE: advanced.sourceTitle,AGENTS_ADVANCED_SOURCE_TITLES:JSON.stringify(advanced.sourceTitles??[advanced.sourceTitle,advanced.sourceTitle]),AGENTS_ADVANCED_CONNECTED_OPERATIONS:JSON.stringify(advanced.connectedOperations??[]),
+        ...(githubAcceptance?{AGENTS_GITHUB_JOURNEY_EXPECT:githubAcceptance.expected,AGENTS_GITHUB_JOURNEY_REPOSITORY:`${githubAcceptance.selection.owner}/${githubAcceptance.selection.repository}`.toLowerCase()}:{}),
+        AGENTS_ADVANCED_PROMPT: advanced.prompt??"Independently research the approved numeric dataset with both configured specialists; omit maxTokens. Calculate a Python analysis report with the original values, sum and count. Write report.json in OUTPUT_DIR, including a nonempty citations array of exact supplied source labels in brackets, and report the verified total with its source. Use actual tools and export the report.",
         AGENTS_ADVANCED_EXPECT: "60", AGENTS_ADVANCED_FILE_CONTAINS: "60", AGENTS_ADVANCED_DATASET_CHECK: "1" } : {}) },
   });
   const [exitCode] = await once(browser, "exit");
@@ -300,16 +414,19 @@ async function main() {
     assert.ok(modelCalls.every(call => call.approvedKnowledgePresent), "Every provider fixture call must receive approved knowledge");
   }
   const tasks = (await pool.query("SELECT id,state,runtime_invocation_id,parent_task_id,root_task_id FROM agents_platform.tasks")).rows;
+  let scheduledReport:Record<string,unknown>|undefined;
   if (automationJourney) {
-    assert.equal(workerRestarts, 2, "Actual worker must restart awaiting review and after receiver acceptance");
+    assert.equal(workerRestarts, githubJourney?3:2, "Actual worker must restart at every enabled durable acceptance checkpoint");
     const records = await ledgerRecords(), accepted = records.filter(record => record.type === "accepted");
     assert.equal(accepted.length, 1, "Independent receiver must persist exactly one accepted report");
     assert.equal(records.filter(record => record.type === "post").length, 1, "Recovery must query the original receipt without a second POST");
     assert.ok(records.some(record => record.type === "status"), "Restart must reconcile using real receiver status");
-    const report = JSON.parse(Buffer.from(accepted[0].payload.report.contentBase64, "base64").toString("utf8"));
+    const acceptedRecord=accepted[0];assert.ok(acceptedRecord);
+    const report = JSON.parse(Buffer.from(acceptedRecord.payload.report.contentBase64, "base64").toString("utf8"));
+    scheduledReport=report;
     assert.deepEqual(report.values, [10,20,30]); assert.equal(report.sum, 60); assert.equal(report.count, 3);
     const action = (await pool.query("SELECT state,receipt FROM agents_platform.actions")).rows;
-    assert.equal(action.length, 1); assert.equal(action[0].state, "delivered"); assert.equal(action[0].receipt.id, accepted[0].receipt.id);
+    assert.equal(action.length, 1); assert.equal(action[0].state, "delivered"); assert.equal(action[0].receipt.id, acceptedRecord.receipt.id);
     console.log(JSON.stringify({ evidence: "scheduled real report, worker restart awaiting review, sender interrupted after durable receiver acceptance, original receipt recovered with one POST", workerRestarts, acceptedDeliveries: accepted.length }));
   }
   if (advancedJourney) {
@@ -327,6 +444,7 @@ async function main() {
     const references = (await pool.query("SELECT id,task_id,operation_id,citation_label FROM agents_platform.evidence_references WHERE root_task_id=$1 ORDER BY task_id,id", [acceptedRoot.id])).rows;
     console.log(JSON.stringify({ evidence: "actual isolated source ingestion and server-issued research evidence", imports, references, perTask:tasks.map(task=>({id:task.id,references:references.filter(reference=>reference.task_id===task.id).length})) }));
     assert.ok(tasks.every(task => references.some(reference => reference.task_id === task.id)), "The coordinator and both specialists must have actual source evidence");
+    if(githubJourney){assert.ok(scheduledReport);await verifyGithubJourney(acceptedRoot.id,scheduledReport);}
     console.log(JSON.stringify({ evidence: "real free model, authorized specialist children, gVisor analysis, private artifact download and cleanup; identity seeded", rootTaskId: acceptedRoot.id, completedTasks: tasks.length, providerFixtureCalls: modelCalls.length }));
     return;
   }

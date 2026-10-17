@@ -149,7 +149,8 @@ test("mock review: only the assigned reviewer can decide before expiry", async (
 
 test("live automation: scheduled report survives review and delivery interruptions", async ({ page, context, baseURL }) => {
   test.skip(process.env.AGENTS_AUTOMATION_LIVE !== "1", "Requires isolated actual service fixture");
-  test.setTimeout(360_000);
+  const github=process.env.AGENTS_GITHUB_JOURNEY==="1";
+  test.setTimeout(github?600_000:360_000);
   const cookie = process.env.AGENTS_BROWSER_SESSION_COOKIE!, key = process.env.AGENTS_DELIVERY_FIXTURE_KEY!;
   await context.addCookies([{ name: "agents_session", value: cookie, url: baseURL!, httpOnly: true, sameSite: "Lax" }]);
   await page.goto(process.env.AGENTS_ADVANCED_AGENT_PATH!);
@@ -166,10 +167,17 @@ test("live automation: scheduled report survives review and delivery interruptio
   await page.getByRole("combobox", { name: "Specialist 1", exact: true }).selectOption(versions[0]);
   await page.getByRole("button", { name: "Add specialist", exact: true }).click();
   await page.getByRole("combobox", { name: "Specialist 2", exact: true }).selectOption(versions[1]);
+  const sourceTitles:string[]=JSON.parse(process.env.AGENTS_ADVANCED_SOURCE_TITLES??JSON.stringify([process.env.AGENTS_ADVANCED_SOURCE_TITLE,process.env.AGENTS_ADVANCED_SOURCE_TITLE]));
+  const connectedOperations:string[][]=JSON.parse(process.env.AGENTS_ADVANCED_CONNECTED_OPERATIONS??"[]");
   for (const position of [1, 2]) {
     const binding = page.getByRole("group", { name: `Specialist ${position} configuration`, exact: true });
-    await binding.getByRole("checkbox", { name: `${process.env.AGENTS_ADVANCED_SOURCE_TITLE!} · Revision 1`, exact: true }).check();
+    await binding.getByRole("checkbox", { name: `${sourceTitles[position-1]} · Revision 1`, exact: true }).check();
     await binding.getByRole("checkbox", { name: "Allow knowledge search and reading" }).check();
+    for(const operation of connectedOperations[position-1]??[])await binding.getByRole("checkbox",{name:new RegExp(`^${operation.replaceAll("_"," ")}(?:\\s|$)`)}).check();
+    if(github){
+      await binding.getByText("Specialist limits",{exact:true}).click();
+      await binding.getByRole("spinbutton",{name:`Specialist ${position} token allocation`,exact:true}).fill("10000");
+    }
   }
   await page.getByRole("checkbox", { name: "Run Python analysis", exact: false }).check();
   await page.getByRole("checkbox", { name: "Prepare reports for approval", exact: true }).check();
@@ -201,6 +209,7 @@ test("live automation: scheduled report survives review and delivery interruptio
   await expect(page.getByRole("link", { name: "Open task", exact: true })).toBeVisible({ timeout: 60_000 });
   await page.getByRole("link", { name: "Open task", exact: true }).click();
   const taskId = new URL(page.url()).pathname.split("/").at(-1)!;
+  if(github)expect((await page.request.post("http://127.0.0.1:4398/fixture/restart-connected",{timeout:240_000})).ok()).toBe(true);
   await expect(page.getByRole("button", { name: "Approve delivery", exact: true })).toBeVisible({ timeout: 180_000 });
   const review = page.getByRole("region", { name: "Report delivery" });
   await expect(review).toContainText("Verified dataset report");
@@ -239,6 +248,20 @@ test("live automation: scheduled report survives review and delivery interruptio
   expect(finalDetail.actions[0].reviewDigest).toBe(originalDetail.actions[0].reviewDigest);
   expect(finalDetail.actions[0].artifactId).toBe(originalDetail.actions[0].artifactId);
   expect(finalDetail.actions[0].citedPassages.length).toBeGreaterThan(0);
+  if(github){
+    expect(report.provider_findings).toHaveLength(2);
+    for(const transport of ["native_http","mcp_http"]){
+      const finding=report.provider_findings.find((item:{transport:string})=>item.transport===transport);
+      expect(finding.repository).toBe(process.env.AGENTS_GITHUB_JOURNEY_REPOSITORY);
+      expect(finding.observedFact.length).toBeGreaterThanOrEqual(16);expect(finding.observedFact.length).toBeLessThanOrEqual(200);
+      expect(finding.observedFact.toLowerCase()).toContain(process.env.AGENTS_GITHUB_JOURNEY_EXPECT!.toLowerCase());
+      expect(report.citations).toContain(finding.sourceLabel);
+      for(const action of [originalDetail.actions[0],finalDetail.actions[0]]){
+        const passage=action.citedPassages.find((item:{label:string})=>`[${item.label}]`===finding.sourceLabel);
+        expect(passage).toBeDefined();expect(passage.text).toContain(finding.observedFact);
+      }
+    }
+  }
   expect(finalDetail.children.map((child: { id: string }) => child.id).sort()).toEqual(originalDetail.children.map((child: { id: string }) => child.id).sort());
   for (const width of [1440, 768, 390]) {
     await page.setViewportSize({ width, height: 1000 });
