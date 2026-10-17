@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import { expect, test, type Page } from "@playwright/test";
 
 const org = "11111111-1111-4111-8111-111111111111";
@@ -12,9 +12,9 @@ const secondVersion = "88888888-8888-4888-8888-888888888888";
 const draft = () => ({ executionKind: "business", instructions: "Research the selected sources and analyze the results.", model: { provider: "openrouter", model: "nvidia/nemotron-3-super-120b-a12b:free", maxInputBytes: 16384, maxOutputTokens: 1024, maxDurationSeconds: 120 }, knowledgeIds: [sourceId], tools: [] as string[], capabilities: { delegation: { enabled: false, bindings: [] as { id: string; versionId: string; knowledgeIds: string[]; tools: string[]; maxTokens: number; maxActiveMs: number }[], maxChildren: 2, maxDepth: 1 }, sandbox: { enabled: false, profileId: "" }, businessActions: { enabled: false }, workflows: { enabled: false }, schedules: { enabled: false } } });
 
 async function executionFixture(page: Page) {
-  let configuration = draft(), admissions = 0, cancels = 0, gets = 0;
+  let configuration = draft(), admissions = 0, cancels = 0, gets = 0, continuations = 0;
   let task: { id: string; state: string; input: string; output: string | null; conversationId: string; requestKey: string; turnSequence: number } | null = null;
-  let complete = false, cleaned = false, cleanupUnknown = false;
+  let complete = false, cleaned = false, cleanupUnknown = false, childAuthorityExpired = false;
   const agent = () => ({ id: rootAgent, name: "Research coordinator", draft: configuration, draftRevision: 1 });
   await page.route("**/api/**", async route => {
     const request = route.request(), path = new URL(request.url()).pathname, method = request.method();
@@ -23,22 +23,23 @@ async function executionFixture(page: Page) {
     if (path === "/api/session") data = { account: { id: "owner", email: "owner@example.com", displayName: "Owner" }, organizations: [{ id: org, name: "Workspace", role: "owner" }] };
     else if (path.endsWith(`/agents/${rootAgent}`)) { if (method === "PUT") configuration = body.configuration; data = { agent: agent(), versions: [{ id: rootVersion, number: 1, configuration }], deployments: [] }; }
     else if (path.endsWith("/agents")) data = { agents: [agent(), { id: specialistAgent, name: "Source researcher" }, { id: secondAgent, name: "Evidence reviewer" }] };
-    else if (path.endsWith(`/agents/${specialistAgent}`)) data = { versions: [{ id: specialistVersion, number: 3, configuration: draft() }] };
-    else if (path.endsWith(`/agents/${secondAgent}`)) data = { versions: [{ id: secondVersion, number: 2, configuration: draft() }] };
+    else if (path.endsWith(`/agents/${specialistAgent}`)) data = { versions: [{ id: specialistVersion, number: 3, configuration: { ...draft(), tools: ["knowledge.search", "knowledge.read"] } }] };
+    else if (path.endsWith(`/agents/${secondAgent}`)) data = { versions: [{ id: secondVersion, number: 2, configuration: { ...draft(), tools: ["knowledge.search", "knowledge.read"] } }] };
     else if (path.endsWith("/knowledge")) data = { knowledge: [{ id: sourceId, title: "Approved report", content: "Evidence for research.", visibility: "private" }] };
     else if (path.endsWith("/skills")) data = { skills: [] };
     else if (path.endsWith("/tasks") && method === "POST") { admissions++; task = { id: "root-task", state: "running", input: body.input, output: null, conversationId: "research-conversation", requestKey: body.requestKey, turnSequence: 1 }; data = { task }; }
+    else if (path.endsWith("/root-task/continue")) { continuations++; childAuthorityExpired = false; data = { task }; }
     else if (path.endsWith("/root-task/cancel")) { cancels++; task = { ...task!, state: "cancel_requested" }; data = { task }; }
     else if (path.includes("/conversations/")) data = { tasks: task ? [task] : [] };
     else if (path.endsWith("/tasks/root-task")) {
       gets++;
-      task = { ...task!, state: complete ? cancels ? "cancelled" : "completed" : cancels ? "cancel_requested" : "running", output: complete && !cancels ? "The report compares both specialists and includes the analysis." : null };
-      data = { task, events: [], operations: [], children: [{ id: "child-one", agentName: "Source researcher", versionId: specialistVersion, versionNumber: 3, bindingId: "source", state: complete ? cancels ? "cancelled" : "completed" : "running", output: complete && !cancels ? "Approved sources agree." : null, errorCode: null, rootTaskId: "root-task", parentTaskId: "root-task" }, { id: "child-two", agentName: "Evidence reviewer", versionId: secondVersion, versionNumber: 2, bindingId: "review", state: complete ? cancels ? "cancelled" : "completed" : "accepted", output: null, errorCode: null, rootTaskId: "root-task", parentTaskId: "root-task" }], resources: [{ id: "analysis-one", taskId: "root-task", profile: "python-analysis-v1", state: complete ? "completed" : "running", cleanupState: cleaned ? "completed" : cleanupUnknown ? "uncertain" : "pending", errorCode: null, expiresAt: "2026-10-17T23:00:00Z" }], artifacts: complete && !cancels ? [{ id: "report-one", taskId: "root-task", name: "analysis.txt", contentType: "text/plain", bytes: 35, downloadPath: `/api/organizations/${org}/tasks/root-task/artifacts/report-one` }] : [] };
+      task = { ...task!, state: complete ? cancels ? "cancelled" : "completed" : cancels ? "cancel_requested" : childAuthorityExpired ? "waiting_children" : "running", output: complete && !cancels ? "The report compares both specialists and includes the analysis." : null };
+      data = { task, events: [], operations: [], children: [{ id: "child-one", agentName: "Source researcher", versionId: specialistVersion, versionNumber: 3, bindingId: "source", state: complete ? cancels ? "cancelled" : "completed" : "running", output: complete && !cancels ? "Approved sources agree." : null, errorCode: null, rootTaskId: "root-task", parentTaskId: "root-task" }, { id: "child-two", agentName: "Evidence reviewer", versionId: secondVersion, versionNumber: 2, bindingId: "review", state: complete ? cancels ? "cancelled" : "completed" : childAuthorityExpired ? "waiting_authority" : "accepted", output: null, errorCode: null, rootTaskId: "root-task", parentTaskId: "root-task" }], resources: [{ id: "analysis-one", taskId: "root-task", profile: "python-analysis-v1", state: complete ? "completed" : "running", cleanupState: cleaned ? "completed" : cleanupUnknown ? "uncertain" : "pending", errorCode: null, expiresAt: "2026-10-17T23:00:00Z" }], artifacts: complete && !cancels ? [{ id: "report-one", taskId: "root-task", name: "analysis.txt", contentType: "text/plain", bytes: 35, downloadPath: `/api/organizations/${org}/tasks/root-task/artifacts/report-one` }] : [] };
     } else if (path.endsWith("/artifacts/report-one")) { await route.fulfill({ contentType: "text/plain", headers: { "content-disposition": "attachment; filename=analysis.txt" }, body: "The approved analysis report." }); return; }
     else { await route.fulfill({ status: 404, json: { error: { message: "Not found" } } }); return; }
     await route.fulfill({ json: data });
   });
-  return { configuration: () => configuration, admissions: () => admissions, cancels: () => cancels, gets: () => gets, finish: () => { complete = true; }, clean: () => { cleaned = true; }, cleanupUncertain: () => { cleanupUnknown = true; } };
+  return { configuration: () => configuration, admissions: () => admissions, cancels: () => cancels, gets: () => gets, finish: () => { complete = true; }, clean: () => { cleaned = true; }, cleanupUncertain: () => { cleanupUnknown = true; }, expireChildAuthority: () => { childAuthorityExpired = true; }, continuations: () => continuations };
 }
 
 test("mock execution: pinned specialist scope, no-network analysis, related progress, cleanup and downloads", async ({ page }) => {
@@ -126,5 +127,112 @@ test("mock execution: uncertain cleanup remains visible and refresh follows the 
   await page.getByRole("button", { name: "Refresh status", exact: true }).click();
   await expect(page.getByText("Resources cleaned", { exact: true })).toBeVisible();
   expect(fixture.gets()).toBeGreaterThan(before);
+  expect(fixture.admissions()).toBe(1);
+});
+
+test("live execution: accepted root reconnects to specialists, isolated analysis, cleaned resources and real artifacts", async ({ page, context, baseURL }) => {
+  const cookie = process.env.AGENTS_BROWSER_SESSION_COOKIE;
+  const agentPath = process.env.AGENTS_ADVANCED_AGENT_PATH;
+  const prompt = process.env.AGENTS_ADVANCED_PROMPT;
+  test.skip(process.env.AGENTS_ADVANCED_LIVE !== "1" || !cookie || !agentPath || !prompt, "Requires the approved integrated specialist/analysis fixture and its explicit task prompt.");
+  test.setTimeout(360_000);
+  const separator = cookie!.indexOf("=");
+  await context.addCookies([{ name: separator > 0 ? cookie!.slice(0, separator) : new URL(baseURL!).protocol === "https:" ? "__Host-agents_session" : "agents_session", value: separator > 0 ? cookie!.slice(separator + 1) : cookie!, url: baseURL!, httpOnly: true, sameSite: "Lax" }]);
+  await page.goto(agentPath!);
+  await page.getByRole("button", { name: "Configuration", exact: true }).click();
+  const pinnedVersions = process.env.AGENTS_ADVANCED_SPECIALIST_VERSIONS?.split(",");
+  if (pinnedVersions?.length === 2) {
+    await page.getByRole("checkbox", { name: "Delegate to specialists" }).check();
+    await page.getByRole("combobox", { name: "Specialist 1", exact: true }).selectOption(pinnedVersions[0]);
+    await page.getByRole("button", { name: "Add specialist" }).click();
+    await page.getByRole("combobox", { name: "Specialist 2", exact: true }).selectOption(pinnedVersions[1]);
+    for (const position of [1, 2]) {
+      const binding = page.getByRole("group", { name: `Specialist ${position} configuration`, exact: true });
+      if (process.env.AGENTS_ADVANCED_SOURCE_TITLE) await binding.getByRole("checkbox", { name: process.env.AGENTS_ADVANCED_SOURCE_TITLE, exact: true }).check();
+      await binding.getByRole("checkbox", { name: "Allow knowledge search and reading" }).check();
+    }
+    await page.getByRole("checkbox", { name: "Run Python analysis" }).check();
+    await page.getByRole("button", { name: "Save configuration" }).click();
+    await expect(page.getByRole("button", { name: "Save configuration" })).toBeDisabled();
+  }
+  await expect(page.getByRole("checkbox", { name: "Delegate to specialists" })).toBeChecked();
+  await expect(page.getByRole("combobox", { name: "Specialist 1", exact: true })).not.toHaveValue("");
+  await expect(page.getByRole("combobox", { name: "Specialist 2", exact: true })).not.toHaveValue("");
+  await expect(page.getByRole("checkbox", { name: "Run Python analysis" })).toBeChecked();
+  await page.getByRole("button", { name: "Test", exact: true }).click();
+  if (pinnedVersions?.length === 2) await page.getByRole("button", { name: "Create test version", exact: true }).click();
+  await expect(page.getByRole("textbox", { name: "Message" })).toBeEnabled();
+  await page.getByRole("textbox", { name: "Message" }).fill(prompt!);
+  const acceptedResponse = page.waitForResponse(response => /\/tasks$/.test(new URL(response.url()).pathname) && response.request().method() === "POST");
+  await page.getByRole("button", { name: "Send", exact: true }).click();
+  const response = await acceptedResponse;
+  expect(response.ok()).toBe(true);
+  const accepted = (await response.json()).task as { id: string };
+  const taskPath = `${new URL(response.url()).pathname}/${encodeURIComponent(accepted.id)}`;
+  let repeatedAdmission = 0;
+  page.on("request", request => { if (request.method() === "POST" && /\/tasks$/.test(new URL(request.url()).pathname)) repeatedAdmission++; });
+  await page.reload();
+  await expect(page.getByRole("region", { name: "Specialist tasks" })).toBeVisible({ timeout: 180_000 });
+  await expect(page.getByRole("button", { name: "New conversation" })).toBeEnabled({ timeout: 180_000 });
+  type Detail = { task: { id: string; state: string; output: string | null; errorCode?: string | null }; children: { id: string; state: string; rootTaskId: string }[]; resources: { id: string; cleanupState: string; profile: string }[]; artifacts: { id: string; name: string; bytes: number; downloadPath: string }[] };
+  const settledResponse = await page.request.get(taskPath);
+  expect(settledResponse.ok()).toBe(true);
+  let detail = await settledResponse.json() as Detail;
+  expect(detail.task.state, `Root outcome ${detail.task.errorCode ?? detail.task.state}; child outcomes ${detail.children.map(child => child.state).join(", ")}`).toBe("completed");
+  await expect.poll(async () => {
+    const current = await page.request.get(taskPath); expect(current.ok()).toBe(true); detail = await current.json() as Detail;
+    return detail.resources.length > 0 && detail.resources.every(resource => resource.cleanupState === "completed");
+  }, { timeout: 120_000, intervals: [1000, 2000, 5000] }).toBe(true);
+  expect(detail!.task.id).toBe(accepted.id);
+  expect(detail!.task.state).toBe("completed");
+  expect(detail!.children).toHaveLength(2);
+  expect(detail!.children.every(child => child.state === "completed" && child.rootTaskId === accepted.id)).toBe(true);
+  expect(detail!.resources.every(resource => resource.profile === "python-analysis-v1")).toBe(true);
+  expect(detail!.artifacts.length).toBeGreaterThan(0);
+  if (process.env.AGENTS_ADVANCED_EXPECT) expect(detail!.task.output).toMatch(new RegExp(process.env.AGENTS_ADVANCED_EXPECT, "i"));
+  await expect(page.getByRole("region", { name: "Analysis resources" })).toContainText("Resources cleaned", { timeout: 10_000 });
+  const artifact = process.env.AGENTS_ADVANCED_DATASET_CHECK === "1" ? detail!.artifacts.find(item => item.name === "report.json")! : detail!.artifacts[0];
+  expect(artifact, "Analysis must export the requested report").toBeDefined();
+  expect(artifact.downloadPath).toMatch(/^\/api\/organizations\//);
+  const downloaded = page.waitForEvent("download");
+  await page.getByRole("link", { name: artifact.name, exact: true }).first().click();
+  const download = await downloaded;
+  expect(await download.failure()).toBeNull();
+  const bytes = await readFile((await download.path())!);
+  expect(bytes.byteLength).toBe(artifact.bytes);
+  if (process.env.AGENTS_ADVANCED_FILE_CONTAINS) expect(bytes.toString("utf8")).toContain(process.env.AGENTS_ADVANCED_FILE_CONTAINS);
+  if (process.env.AGENTS_ADVANCED_DATASET_CHECK === "1") {
+    const report = JSON.parse(bytes.toString("utf8")) as { values: number[]; sum: number; count: number };
+    const expected = [10, 20, 30];
+    expect(report.values).toEqual(expected);
+    expect(report.sum).toBe(expected.reduce((sum, value) => sum + value, 0));
+    expect(report.count).toBe(expected.length);
+    await writeFile(test.info().outputPath("verified-report.json"), bytes);
+  }
+  expect(repeatedAdmission).toBe(0);
+  for (const width of [1440, 768, 390]) {
+    await page.setViewportSize({ width, height: 1000 });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await page.screenshot({ path: test.info().outputPath(`live-execution-${width}.png`), fullPage: true });
+  }
+  console.log(`Accepted root ${accepted.id}; verified ${detail!.children.length} actual children, isolated resource cleanup and ${bytes.byteLength}-byte artifact`);
+});
+
+
+test("mock execution: parent continues a specialist awaiting current access without new admissions", async ({ page }) => {
+  const fixture = await executionFixture(page);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`/app/agents/${rootAgent}?section=test`);
+  await page.getByRole("textbox", { name: "Message" }).fill("Research with the approved specialists.");
+  await page.getByRole("button", { name: "Send", exact: true }).click();
+  await expect(page.getByRole("region", { name: "Specialist tasks" })).toBeVisible();
+  fixture.expireChildAuthority();
+  await expect(page.getByRole("button", { name: "Continue task", exact: true })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Specialist tasks" })).toContainText("waiting authority");
+  await page.getByRole("button", { name: "Continue task", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Continue task", exact: true })).toHaveCount(0);
+  fixture.finish(); fixture.clean();
+  await expect(page.getByText("Resources cleaned", { exact: true })).toBeVisible();
+  expect(fixture.continuations()).toBe(1);
   expect(fixture.admissions()).toBe(1);
 });

@@ -1,4 +1,4 @@
-export type DelegationBinding = { id: string; versionId: string; knowledgeIds: string[]; tools: ("knowledge.search" | "knowledge.read")[]; maxTokens: number; maxActiveMs: number };
+export type DelegationBinding = { id: string; label?: string; description?: string; versionNumber?: number; versionId: string; knowledgeIds: string[]; tools: ("knowledge.search" | "knowledge.read")[]; maxTokens: number; maxActiveMs: number };
 export type DelegationConfiguration = { enabled: false } | { enabled: true; bindings: DelegationBinding[]; maxChildren: 2; maxDepth: 1 };
 export type Configuration = {
   executionKind: "business" | "workspace";
@@ -22,7 +22,7 @@ export type Skill = { id: string; name: string; description: string; body: strin
 export type TaskOperation = { id?: string; operationId?: string; kind?: string; name?: string; toolName?: string; state: string; errorCode?: string | null; inputTokens?: number | null; outputTokens?: number | null };
 export type TaskEvent = { sequence: string | number; kind: string; payload?: Record<string, unknown> | null };
 export type ChildTask = { id: string; agentName: string; versionId: string; versionNumber: number; bindingId: string; state: string; output: string | null; errorCode: string | null; rootTaskId: string; parentTaskId: string };
-export type TaskResource = { id: string; taskId: string; profile: string; state: string; cleanupState: string; errorCode?: string | null; expiresAt: string };
+export type TaskResource = { id: string; taskId: string; profile: string; state: string; cleanupState: "active" | "pending" | "completed" | "uncertain"; errorCode?: string | null; expiresAt: string };
 export type TaskArtifact = { id: string; taskId: string; name: string; contentType: string; bytes: number; downloadPath: string };
 export type TaskDetail = { task: Task; events?: TaskEvent[]; operations?: TaskOperation[]; children?: ChildTask[]; resources?: TaskResource[]; artifacts?: TaskArtifact[] };
 export type Task = { id: string; state: string; output: string | null; errorCode: string | null; conversationId: string; input?: string; requestKey?: string; versionId?: string; turnSequence?: number; phase?: string; outcome?: string | null; operations?: TaskOperation[]; events?: TaskEvent[]; children?: ChildTask[]; resources?: TaskResource[]; artifacts?: TaskArtifact[] };

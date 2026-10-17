@@ -21,6 +21,8 @@ export function Chat({ endpoint, storageKey, token, versionId, versionNumber, ca
   const followedId = last?.task?.id;
   const activeId = last?.task && !terminal(last.task.state) ? last.task.id : undefined;
   const unknown = Boolean(last && !last.task);
+  const needsContinuation = last?.task?.state === "waiting_authority" ||
+    last?.task?.state === "waiting_children" && last.task.children?.some(child => child.state === "waiting_authority");
   const conversationId = [...entries].reverse().find(entry => entry.task)?.task?.conversationId;
   function record(next: Entry[]) { setEntries(next); writeStored(storageKey, next); }
   useEffect(() => {
@@ -115,7 +117,7 @@ export function Chat({ endpoint, storageKey, token, versionId, versionNumber, ca
     {unknown && !sending ? <Button variant="outline" onClick={() => void submit(last!, entries.slice(0, -1))}>Retry request</Button> : null}
     <form onSubmit={event => void send(event)} className="space-y-3">
       <label className="block space-y-2 text-sm"><span>Message</span><Textarea value={input} onChange={event => setInput(event.target.value)} required maxLength={8_000} rows={3} placeholder="Ask a question" disabled={sending || Boolean(activeId) || unknown} /></label>
-      <div className="flex flex-wrap gap-3"><Button type="submit" disabled={sending || Boolean(activeId) || unknown || !input.trim()}>{sending ? "Sending…" : "Send"}</Button>{cancellable && last?.task?.state === "waiting_authority" ? <Button type="button" onClick={() => void continueTask()} disabled={sending || continuing}>{continuing ? "Continuing…" : "Continue task"}</Button> : null}{cancellable && activeId ? <Button type="button" variant="outline" disabled={sending || continuing || last?.task?.state === "cancel_requested"} onClick={() => void cancel()}>Cancel task</Button> : null}</div>
+      <div className="flex flex-wrap gap-3"><Button type="submit" disabled={sending || Boolean(activeId) || unknown || !input.trim()}>{sending ? "Sending…" : "Send"}</Button>{cancellable && needsContinuation ? <Button type="button" onClick={() => void continueTask()} disabled={sending || continuing}>{continuing ? "Continuing…" : "Continue task"}</Button> : null}{cancellable && activeId ? <Button type="button" variant="outline" disabled={sending || continuing || last?.task?.state === "cancel_requested"} onClick={() => void cancel()}>Cancel task</Button> : null}</div>
     </form>
   </section>;
 }
