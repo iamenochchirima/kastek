@@ -178,17 +178,24 @@ export class SandboxManager {
       const saved=(await this.pool.query("SELECT export_receipt FROM agents_platform.sandbox_commands WHERE id=$1",[commandId])).rows[0]?.export_receipt;
       if(saved) return{...saved,allocationId:id,commandId,exports:[]};
       if(row.state==="destroyed"||row.state==="destroying") return this.unknown(id,commandId,"SANDBOX_RESOURCE_EXPIRED");
-      const receipt=await this.readReceipt(id);
+      let receipt=await this.readReceipt(id);
+      if(!receipt) {
+        const state=await this.unit(unit);
+        const terminal=state.LoadState==="not-found" ? Date.now()-createdAt.getTime()>10_000 : ["failed","inactive"].includes(state.ActiveState??"");
+        if(terminal) {
+          // The host publishes its atomic receipt before exit; it may appear between the first read and systemd status.
+          receipt=await this.readReceipt(id);
+          if(!receipt) {
+            const errorCode=state.Result==="timeout"?"SANDBOX_TIMEOUT":state.Result==="oom-kill"?"SANDBOX_MEMORY_LIMIT":"SANDBOX_OUTCOME_UNCERTAIN";
+            await this.failStart(id,errorCode);
+            return this.unknown(id,commandId,errorCode);
+          }
+        }
+      }
       if(receipt) {
         await this.pool.query("UPDATE agents_platform.sandbox_commands SET state=$2,exit_code=$3,error_code=$4,updated_at=now() WHERE id=$1",[commandId,receipt.state,receipt.exitCode,receipt.errorCode??null]);
         await this.pool.query("UPDATE agents_platform.sandbox_allocations SET state='awaiting_export',updated_at=now() WHERE id=$1 AND state IN ('running','provisioning','uncertain')",[id]);
         return{allocationId:id,commandId,...receipt};
-      }
-      const state=await this.unit(unit);
-      if(["failed","inactive"].includes(state.ActiveState??"")||(state.LoadState==="not-found"&&Date.now()-createdAt.getTime()>10_000)) {
-        const errorCode=state.Result==="timeout"?"SANDBOX_TIMEOUT":state.Result==="oom-kill"?"SANDBOX_MEMORY_LIMIT":"SANDBOX_OUTCOME_UNCERTAIN";
-        await this.failStart(id,errorCode);
-        return this.unknown(id,commandId,errorCode);
       }
       if(new Date(row.lease_expires_at).getTime()<=Date.now()) {await this.destroy(scope,id);return this.unknown(id,commandId,"SANDBOX_RESOURCE_EXPIRED");}
       await sleep(100);

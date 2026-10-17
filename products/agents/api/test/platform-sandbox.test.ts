@@ -46,6 +46,16 @@ suite("real gVisor Python analysis and independent resource lifecycle",()=>{
     const finalized=await manager.analyze(scope,input);expect(finalized.artifactRefs).toEqual(refs);expect(finalized.exports).toEqual([]);
     await expect(access(join(directory,result.allocationId))).rejects.toBeDefined();
   },30_000);
+  it("recovers a real completed receipt published between the initial read and inactive systemd status",async()=>{
+    const scope=await fixture(),isolated=new SandboxManager(pool,manager.config),operationId=randomUUID();
+    const read=(isolated as any).readReceipt.bind(isolated),unit=(isolated as any).unit.bind(isolated);let suppressed=false,terminalObserved=false;
+    (isolated as any).readReceipt=async(id:string)=>{const receipt=await read(id);if(receipt&&!suppressed){suppressed=true;return undefined;}return receipt;};
+    (isolated as any).unit=async(name:string)=>{let state=await unit(name);if(suppressed){const deadline=Date.now()+5000;while(!["inactive","failed"].includes(state.ActiveState)&&Date.now()<deadline){await new Promise(done=>setTimeout(done,10));state=await unit(name);}terminalObserved=["inactive","failed"].includes(state.ActiveState);}return state;};
+    const result=await isolated.analyze(scope,{operationId,inputs:[],code:"open('/scratch/output/report.md','w').write('Verified total: 60')\nprint('finished')"});
+    expect(suppressed).toBe(true);expect(terminalObserved).toBe(true);expect(result.state).toBe("completed");expect(result.exitCode).toBe(0);expect(result.stdout).toContain("finished");expect(Buffer.from(result.exports[0]!.content).toString()).toBe("Verified total: 60");
+    expect((await pool.query("SELECT count(*)::int AS count FROM agents_platform.sandbox_commands WHERE allocation_id=$1",[result.allocationId])).rows[0].count).toBe(1);
+    await isolated.finalize(scope,result.allocationId,[{id:randomUUID(),name:"report.md"}]);
+  },30000);
   it("rejects output symlinks, oversize and stdout floods without exporting content",async()=>{
     for(const code of [`import os;os.symlink('/etc/passwd','/scratch/output/report.md')`,`open('/scratch/output/report.md','w').write('x'*1048577)`,`print('x'*70000)`,`open('/scratch/output/broken.json','w').write('{invalid')`]){
       const scope=await fixture(),result=await manager.analyze(scope,{operationId:randomUUID(),inputs:[],code});expect(result.state).toBe("failed");expect(result.exports).toEqual([]);expect(result.errorCode).toMatch(/^SANDBOX_/);await manager.finalize(scope,result.allocationId);

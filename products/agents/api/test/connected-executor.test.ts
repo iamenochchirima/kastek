@@ -97,6 +97,16 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
   expect(Number((await pool.query("SELECT active_ms FROM agents_platform.tasks WHERE id=$1",[f.task.id])).rows[0].active_ms)).toBeGreaterThanOrEqual(160);
   const before=requests.length;await expect(bounded.execute(f.task.id,operationId,binding,args)).rejects.toMatchObject({code:"CONNECTED_READ_UNCERTAIN"});expect(requests).toHaveLength(before);
  });
+ it("does not publish a late private response link after its grant is revoked during PUT",async()=>{
+  const f=await fixture(),binding=f.bindings.find(binding=>binding.definition.providerOperation==="get_repository")!,operationId=`tool:${f.task.id}:revoked-body`,args={repository:"approved/public"};
+  const blocked={...executor.objects,put:async(key:string,value:Uint8Array,type:string)=>{await executor.objects.put(key,value,type);await platform.revokeGrant(f.scope.accountId,f.scope.organizationId,f.grant.id);},get:executor.objects.get.bind(executor.objects),delete:executor.objects.delete.bind(executor.objects)};
+  const scoped=new ConnectedExecutor(pool,connections,blocked,evidence,{testGithubOrigin:origin,testMcpEndpoint:`${origin}/mcp`});
+  await beginOperation(pool,f.task.id,{id:operationId,kind:"tool",name:binding.alias,request:args,reservedTokens:0,reservedMs:30000,retrySafe:true});
+  await expect(scoped.execute(f.task.id,operationId,binding,args)).rejects.toMatchObject({code:"GRANT_REVOKED"});
+  expect((await pool.query("SELECT * FROM agents_platform.connected_response_bodies WHERE operation_id=$1",[operationId])).rows).toEqual([]);
+  const tracked=(await pool.query("SELECT state FROM agents_platform.execution_objects WHERE operation_id=$1",[operationId])).rows;expect(tracked).toHaveLength(1);expect(tracked[0]?.state).toBe("available");
+  expect((await pool.query("SELECT result FROM agents_platform.connected_reads WHERE operation_id=$1",[operationId])).rows[0].result).toBeNull();
+ });
  it("requires explicit native handle producers for MCP tools on each selected resource",async()=>{
   const f=await fixture(),native=f.bindings.find(binding=>binding.definition.providerOperation==="resolve_ref")!;
   const remote={...native,transport:"mcp_http",definition:{...native.definition,providerOperation:"get_file_contents"}} as CapabilityBinding;
