@@ -6,12 +6,20 @@ import { ErrorMessage } from "./shell";
 import { TaskSources } from "./cited-passages";
 import { cleanupPending, TaskActivity } from "./task-activity";
 
+type SavedChat = { id: string; label: string; entries: Entry[] };
 type Entry = { requestKey: string; input: string; versionId?: string; versionNumber?: number; task?: Task };
+function restorable(entries: Entry[]): Entry[] {
+  return entries.map(entry => ({ ...entry, task: entry.task ? {
+    id: entry.task.id, state: entry.task.state, output: null, errorCode: null,
+    conversationId: entry.task.conversationId, requestKey: entry.requestKey, turnSequence: entry.task.turnSequence,
+    versionId: entry.task.versionId,
+  } : undefined }));
+}
 export function Chat({ endpoint, storageKey, token, versionId, versionNumber, cancellable = false }: {
   endpoint: string; storageKey: string; token?: string; versionId?: string; versionNumber?: number; cancellable?: boolean;
 }) {
-  const [entries, setEntries] = useState<Entry[]>(() => readStored<Entry[]>(storageKey) ?? []);
-  const [savedChats, setSavedChats] = useState<{ id: string; label: string; entries: Entry[] }[]>(() => readStored(`${storageKey}.conversations`) ?? []);
+  const [entries, setEntries] = useState<Entry[]>(() => restorable(readStored<Entry[]>(storageKey) ?? []));
+  const [savedChats, setSavedChats] = useState<SavedChat[]>(() => (readStored<SavedChat[]>(`${storageKey}.conversations`) ?? []).map(chat => ({ ...chat, entries: restorable(chat.entries) })));
   const [input, setInput] = useState("");
   const [error, setError] = useState("");
   const [sending, setSending] = useState(false);
@@ -25,7 +33,7 @@ export function Chat({ endpoint, storageKey, token, versionId, versionNumber, ca
   const needsContinuation = last?.task?.state === "waiting_authority" ||
     last?.task?.state === "waiting_children" && last.task.children?.some(child => child.state === "waiting_authority");
   const conversationId = [...entries].reverse().find(entry => entry.task)?.task?.conversationId;
-  function record(next: Entry[]) { setEntries(next); writeStored(storageKey, next); }
+  function record(next: Entry[]) { setEntries(next); writeStored(storageKey, restorable(next)); }
   useEffect(() => {
     if (!conversationId) return;
     let closed = false;
@@ -38,7 +46,7 @@ export function Chat({ endpoint, storageKey, token, versionId, versionNumber, ca
           return { ...previous, input: task.input!, requestKey: task.requestKey!, versionId: task.versionId, task: { ...previous?.task, ...task } };
         });
         const next = [...restored, ...current.filter(entry => !entry.task && !result.tasks.some(task => task.requestKey === entry.requestKey))];
-        writeStored(storageKey, next);
+        writeStored(storageKey, restorable(next));
         return next;
       });
     }).catch(e => { if (!closed) setError(message(e)); });
@@ -52,7 +60,7 @@ export function Chat({ endpoint, storageKey, token, versionId, versionNumber, ca
     const poll = async () => {
       try { const { task, events, operations, children, resources, artifacts, actions } = await loadTaskDetail(`${endpoint}/${encodeURIComponent(followedId)}`, token);
         if (closed) return;
-        setEntries(current => { const next = current.map(entry => entry.task?.id === task.id ? { ...entry, task: { ...task, events: events ?? task.events, operations: operations ?? task.operations, children: children ?? task.children, resources: resources ?? task.resources, artifacts: artifacts ?? task.artifacts, actions: actions ?? task.actions } } : entry); writeStored(storageKey, next); return next; });
+        setEntries(current => { const next = current.map(entry => entry.task?.id === task.id ? { ...entry, task: { ...task, events: events ?? task.events, operations: operations ?? task.operations, children: children ?? task.children, resources: resources ?? task.resources, artifacts: artifacts ?? task.artifacts, actions: actions ?? task.actions } } : entry); writeStored(storageKey, restorable(next)); return next; });
         setError("");
         if (terminal(task.state)) {
           if (!cleanupPending({ ...task, resources: resources ?? task.resources }) && !actions?.some(action => ["approved", "claimed", "uncertain"].includes(action.state))) return;
@@ -66,11 +74,11 @@ export function Chat({ endpoint, storageKey, token, versionId, versionNumber, ca
   }, [followedId, endpoint, storageKey, token, refreshGeneration]);
   function archiveCurrent() {
     if (!entries.length || !conversationId) return savedChats;
-    const next = [{ id: conversationId, label: entries[0].input.slice(0, 70), entries }, ...savedChats.filter(chat => chat.id !== conversationId)].slice(0, 20);
+    const next = [{ id: conversationId, label: entries[0].input.slice(0, 70), entries: restorable(entries) }, ...savedChats.filter(chat => chat.id !== conversationId)].slice(0, 20);
     setSavedChats(next); writeStored(`${storageKey}.conversations`, next); return next;
   }
   function newConversation() { archiveCurrent(); record([]); setInput(""); setError(""); }
-  function restoreConversation(id: string) { const selected = savedChats.find(chat => chat.id === id); if (!selected) return; archiveCurrent(); record(selected.entries); setInput(""); setError(""); }
+  function restoreConversation(id: string) { const selected = savedChats.find(chat => chat.id === id); if (!selected) return; archiveCurrent(); record(restorable(selected.entries)); setInput(""); setError(""); }
   async function submit(entry: Entry, previous: Entry[]) {
     if (lock.current) return;
     lock.current = true; setSending(true); setError("");
@@ -92,7 +100,7 @@ export function Chat({ endpoint, storageKey, token, versionId, versionNumber, ca
   async function continueTask() {
     if (!activeId || continuing) return;
     setContinuing(true); setError("");
-    try { const { task } = await api<{ task: Task }>(`${endpoint}/${encodeURIComponent(activeId)}/continue`, {}, "POST", token); setEntries(current => { const next = current.map(entry => entry.task?.id === task.id ? { ...entry, task: { ...entry.task, ...task } } : entry); writeStored(storageKey, next); return next; }); }
+    try { const { task } = await api<{ task: Task }>(`${endpoint}/${encodeURIComponent(activeId)}/continue`, {}, "POST", token); setEntries(current => { const next = current.map(entry => entry.task?.id === task.id ? { ...entry, task: { ...entry.task, ...task } } : entry); writeStored(storageKey, restorable(next)); return next; }); }
     catch (e) { setError(message(e)); } finally { setContinuing(false); }
   }
   async function cancel() {

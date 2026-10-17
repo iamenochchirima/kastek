@@ -21,3 +21,13 @@ for(const width of [1440,768,390])test(`mock transport: cited passages and revok
   await expect(page.getByText("These sources are no longer available.",{exact:true})).toBeVisible();
   await expect(page.getByText("The decisive finding appears on the final page. 🧪",{exact:true})).toHaveCount(0);await page.getByRole("button",{name:"Refresh status",exact:true}).click();await expect(page.getByText("This response is no longer available.",{exact:true})).toBeVisible();await expect(page.getByText(`The finding is supported [${label}].`,{exact:true})).toHaveCount(0);expect(errors).toEqual([]);
 });
+
+test("mock transport: recovery cache cannot display stale derived answers before current-policy reads",async({page})=>{
+ const deployment="33333333-3333-4333-8333-333333333333",key=`agents.website.${deployment}`,secret="WITHDRAWN_CACHED_ANSWER";
+ await page.addInitScript(({key,deployment,secret})=>{sessionStorage.setItem(`agents.visitor.${deployment}`,JSON.stringify("visitor-fixture"));sessionStorage.setItem(key,JSON.stringify([{requestKey:"q1",input:"Owner question",task:{id:"old-task",conversationId:"old-conversation",state:"completed",output:secret,errorCode:null}}]));},{key,deployment,secret});
+ let release!:()=>void;const barrier=new Promise<void>(resolve=>{release=resolve;});
+ const current={id:"old-task",conversationId:"old-conversation",requestKey:"q1",input:"Owner question",state:"completed",output:null,outputAvailability:"unavailable",errorCode:null};
+ await page.route("**/api/**",async route=>{const path=new URL(route.request().url()).pathname;if(path.endsWith(`/website/${deployment}`)){await route.fulfill({json:{name:"Website assistant"}});return;}await barrier;await route.fulfill({json:path.includes("/conversations/")?{tasks:[current]}:{task:current}});});
+ await page.goto(`/chat/${deployment}`);await expect(page.getByText("Owner question",{exact:true})).toBeVisible();await expect(page.getByText(secret,{exact:true})).toHaveCount(0);
+ release();await expect(page.getByText("This response is no longer available.",{exact:true})).toBeVisible();expect(await page.evaluate(key=>sessionStorage.getItem(key),key)).not.toContain(secret);
+});
