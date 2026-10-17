@@ -49,9 +49,9 @@ export function Chat({ endpoint, storageKey, token, versionId, versionNumber, ca
     let timer: ReturnType<typeof setTimeout>;
     let uncertainPolls = 0;
     const poll = async () => {
-      try { const { task, events, operations, children, resources, artifacts } = await api<TaskDetail>(`${endpoint}/${encodeURIComponent(followedId)}`, undefined, "GET", token);
+      try { const { task, events, operations, children, resources, artifacts, actions } = await api<TaskDetail>(`${endpoint}/${encodeURIComponent(followedId)}`, undefined, "GET", token);
         if (closed) return;
-        setEntries(current => { const next = current.map(entry => entry.task?.id === task.id ? { ...entry, task: { ...task, events: events ?? task.events, operations: operations ?? task.operations, children: children ?? task.children, resources: resources ?? task.resources, artifacts: artifacts ?? task.artifacts } } : entry); writeStored(storageKey, next); return next; });
+        setEntries(current => { const next = current.map(entry => entry.task?.id === task.id ? { ...entry, task: { ...task, events: events ?? task.events, operations: operations ?? task.operations, children: children ?? task.children, resources: resources ?? task.resources, artifacts: artifacts ?? task.artifacts, actions: actions ?? task.actions } } : entry); writeStored(storageKey, next); return next; });
         setError("");
         if (terminal(task.state)) {
           if (!cleanupPending({ ...task, resources: resources ?? task.resources })) return;

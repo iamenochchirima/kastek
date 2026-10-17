@@ -18,7 +18,7 @@ export function ExecutionConfiguration({ organizationId, agentId, configuration,
     api<{ agents: Agent[] }>(path).then(async result => {
       const records = await Promise.all(result.agents.filter(agent => agent.id !== agentId).map(async agent => {
         const detail = await api<{ versions: Version[] }>(`${path}/${encodeURIComponent(agent.id)}`);
-        return detail.versions.filter(version => version.configuration.executionKind === "business" && !version.configuration.capabilities.delegation.enabled && !version.configuration.capabilities.sandbox.enabled && !version.configuration.memory?.enabled).map(version => ({ agentName: agent.name, version }));
+        return detail.versions.filter(version => version.configuration.executionKind === "business" && !version.configuration.capabilities.delegation.enabled && !version.configuration.capabilities.sandbox.enabled && !version.configuration.memory?.enabled && !version.configuration.capabilities.workflows.enabled).map(version => ({ agentName: agent.name, version }));
       }));
       if (live) setSpecialists(records.flat());
     }).catch(e => { if (live) setError(message(e)); });

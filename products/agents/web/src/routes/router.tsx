@@ -4,6 +4,10 @@ import { AgentsList, AgentEditor } from "@/platform/agents";
 import { KnowledgePage } from "@/platform/knowledge";
 import { WebsiteChat } from "@/platform/website";
 
+import { AutomationsPage } from "@/platform/automations";
+import { TaskPage } from "@/platform/task";
+import { ConnectionsPage } from "@/platform/connections";
+
 function NotFound() {
   return <main className="dashboard-theme min-h-dvh bg-background px-6 py-16 text-foreground"><div className="mx-auto max-w-xl space-y-5"><h1 className="text-2xl font-semibold">Page not found</h1><Link to="/app/agents" className="text-sm underline underline-offset-4">Open Agents</Link></div></main>;
 }
@@ -16,6 +20,9 @@ export const router = createBrowserRouter([
     { path: "agents", Component: AgentsList },
     { path: "agents/:agentId", Component: AgentEditor },
     { path: "knowledge", Component: KnowledgePage },
+    { path: "connections", Component: ConnectionsPage },
+    { path: "automations", Component: AutomationsPage },
+    { path: "tasks/:taskId", Component: TaskPage },
   ] },
   { path: "*", Component: NotFound },
 ]);

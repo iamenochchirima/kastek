@@ -9,7 +9,7 @@ export type Configuration = {
   context?: { maxInputTokens: number; compactAtTokens: number };
   tools?: ("knowledge.search" | "knowledge.read" | "memory.search" | "memory.propose" | "agents.delegate" | "sandbox.analyze")[];
   skillIds?: string[];
-  capabilities: { delegation: DelegationConfiguration; sandbox: { enabled: false } | { enabled: true; profileId: "python-analysis-v1" }; businessActions: { enabled: false }; workflows: { enabled: false }; schedules: { enabled: false } };
+  capabilities: { delegation: DelegationConfiguration; sandbox: { enabled: false } | { enabled: true; profileId: "python-analysis-v1" }; businessActions: { enabled: false }; workflows: { enabled: false } | { enabled: true; profileId: "report-delivery-v1"; connectionId: string; reportArtifactName?: string; title?: string }; schedules: { enabled: false } };
 };
 export type Agent = { id: string; name: string; draft: Configuration; draftRevision: number; updatedAt: string };
 export type Version = { id: string; number: number; configuration: Configuration };
@@ -24,8 +24,14 @@ export type TaskEvent = { sequence: string | number; kind: string; payload?: Rec
 export type ChildTask = { id: string; agentName: string; versionId: string; versionNumber: number; bindingId: string; state: string; output: string | null; errorCode: string | null; rootTaskId: string; parentTaskId: string };
 export type TaskResource = { id: string; taskId: string; profile: string; state: string; cleanupState: "active" | "pending" | "completed" | "uncertain"; errorCode?: string | null; expiresAt: string };
 export type TaskArtifact = { id: string; taskId: string; name: string; contentType: string; bytes: number; downloadPath: string };
-export type TaskDetail = { task: Task; events?: TaskEvent[]; operations?: TaskOperation[]; children?: ChildTask[]; resources?: TaskResource[]; artifacts?: TaskArtifact[] };
-export type Task = { id: string; state: string; output: string | null; errorCode: string | null; conversationId: string; input?: string; requestKey?: string; versionId?: string; turnSequence?: number; phase?: string; outcome?: string | null; operations?: TaskOperation[]; events?: TaskEvent[]; children?: ChildTask[]; resources?: TaskResource[]; artifacts?: TaskArtifact[] };
+export type ConnectionTarget = { id: string; label: string; resource: string };
+export type Connection = { id: string; name: string; targetId: string; targetLabel: string; resource: string; revision: number; state: "active" | "revoked"; expiresAt: string; createdAt: string };
+export type AutomationSchedule = { kind: "once"; at: string } | { kind: "interval"; anchor: string; everySeconds: number } | { kind: "event" };
+export type Automation = { id: string; name: string; versionId: string; ownerAccountId: string; reviewerAccountId: string; input: string; expiresAt: string; maxOccurrencesPerDay: number; schedule: AutomationSchedule; revision: number; state: "active" | "paused" | "revoked" };
+export type AutomationOccurrence = { id: string; automationId: string; revision: number; status: "accepted" | "skipped_overlap" | "blocked" | "skipped_coalesced"; taskId: string | null; scheduledAt: string; errorCode: string | null; createdAt: string };
+export type DeliveryAction = { id: string; reviewId: string; reviewerAccountId?: string; accountId?: string; taskId: string; rootTaskId: string; connectionId: string; connectionRevision: number; destination: { label: string; resource: string }; artifactId: string; title: string; payloadDigest: string; reviewDigest: string; state: "pending_review" | "approved" | "rejected" | "expired" | "invalidated" | "claimed" | "delivered" | "failed" | "uncertain"; expiresAt: string; preview: { name: string; contentType: string; content: string }; receipt?: { id: string; payloadDigest: string; acceptedAt: string }; errorCode?: string };
+export type TaskDetail = { task: Task; events?: TaskEvent[]; operations?: TaskOperation[]; children?: ChildTask[]; resources?: TaskResource[]; artifacts?: TaskArtifact[]; actions?: DeliveryAction[] };
+export type Task = { id: string; state: string; output: string | null; errorCode: string | null; conversationId: string; input?: string; requestKey?: string; versionId?: string; turnSequence?: number; phase?: string; outcome?: string | null; operations?: TaskOperation[]; events?: TaskEvent[]; children?: ChildTask[]; resources?: TaskResource[]; artifacts?: TaskArtifact[]; actions?: DeliveryAction[] };
 export class ApiError extends Error {
   constructor(public status: number, message: string, public code?: string) { super(message); }
 }
