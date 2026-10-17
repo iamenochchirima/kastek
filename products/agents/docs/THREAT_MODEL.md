@@ -1,55 +1,48 @@
-# Agent Platform threat model
+# Agents threat model
 
-Status: implementation baseline; production security review still required.
+This reference covers the standalone Agents API, worker, dedicated database,
+website widget, identity provider, and model boundary. It does not certify a
+production deployment. See the [implementation boundary](source-boundary.md).
 
-This threat model describes the current service. Temporal references below are current-code
-controls; the target business-agent runtime is self-hosted Restate. See the [platform
-architecture](architecture/agent-platform-architecture.md).
+## Enforced boundaries
 
-## Trust boundaries
+- OIDC uses the independent Agents client, authorization code flow, PKCE, state,
+  nonce, verified claims, and a one-use login transaction. Accounts use issuer and
+  subject identity. Matching email addresses do not merge accounts.
+- Product sessions use opaque random cookies and stored token hashes. Membership,
+  resource scope, expiry, and revocation determine product access.
+- Website admission binds the deployment, origin, visitor session, immutable
+  version, and approved public knowledge. Private sources cannot be published to
+  website visitors. Browser mutation endpoints enforce their origin boundary.
+- Execution grants bind the calling product, organization, resource, principal,
+  version, permitted operations, knowledge, limits, and expiry. The model effect
+  rechecks live grants and current standalone membership or deployment authority.
+- Disabled capabilities are enforced by configuration and runtime validation.
+  The FAQ cannot request business actions, subagents, or sandbox access.
+- The model receives bounded instructions, question text, and approved retrieval
+  excerpts. Retrieved content is reference data. Provider keys stay in the worker
+  environment and are excluded from browser responses and ordinary logs.
+- Atomic task admission and stable operation identities limit duplicate work.
+  Interrupted external effects remain uncertain instead of being blindly repeated.
+  Daily reservations, concurrency limits, input limits, timeouts, and output bounds
+  restrict resource use.
 
-1. Browser and external channels are untrusted input. They can submit messages, webhooks,
-   attachments, and replayed delivery events.
-2. `kasitek-agents-api` authenticates callers and writes scoped records. It owns Agents organization authorization and validates shared-provider identities. Growth/Agency enforce authorization for their own product tools.
-3. Temporal workflows carry current durable orchestration state; their database and external calls happen in activities. The target Restate runtime is not implemented. The Lina workspace integration is also not implemented, so its controls have not been verified in this service.
-4. Labs Keycloak owns shared identity. Agents owns platform access; Growth Core and Agency enforce their respective business entitlements and consequential product actions.
-5. Model providers, retrieved documents, tool results, and future MCP servers are untrusted
-   content even when their transport is authenticated.
+## Operational limits
 
-## Threats and controls
+The local Restate ingress and admin ports bind to loopback. Worker access must
+remain private. The development setup does not configure production request
+signatures, ingress authentication, TLS, secret rotation, or network policy.
+Never expose its admin API or worker endpoint publicly.
 
-| Threat | Owner | Primary control | Residual work |
-| --- | --- | --- | --- |
-| Direct or indirect prompt injection | Agent Platform/Security | Retrieved content is marked untrusted; tool access is an explicit grant intersection; trusted tool instructions are separate from content | Adversarial regression suite |
-| Excessive agency or broad tools | Agent Platform/Core | Versioned tool grants, risk classes, approval gates, argument hashes, and core-side authorization | Production kill switch and write-tool review |
-| Cross-organization or cross-agent access | Agent Platform/Core | Organization predicates are required in repositories and internal core headers; installation/version scope is checked | PostgreSQL RLS review |
-| Memory or knowledge poisoning | Agent Platform/Security | Provenance, source type, confidence, expiry, explicit inferred-memory policy, bounded URL ingestion | Poisoning detection and operator review |
-| External identity takeover or channel pairing abuse | Channels/Core | Channel bindings are explicit records; provider identity is stored separately from installation scope | Pairing protocol and re-authentication UX |
-| Replayed webhooks or duplicate messages | Channels/Agent Platform | Provider message identity uniqueness and run idempotency keys | Provider-specific signature verification |
-| Approval replay or payload mutation | Agent Platform/Core | Approval decisions require the exact 64-character arguments hash and Temporal signal | Expiry and operator audit UX |
-| Tool-result injection | Agent Platform/Security | Tool output is model-visible data, never policy; output schemas, bounded tool manifests, and compact domain projections are enforced | Per-tool output redaction review |
-| Data exfiltration through models, tools, traces, or sandboxes | Agent Platform/Security | No provider master credentials in prompts; opaque credential references; content capture disabled by default; sandbox not enabled | Redaction pipeline and sandbox isolation |
-| Denial of service or denial of wallet | Agent Platform/Billing | Bounded loops, wall-clock/token/tool limits, retry caps, cost attribution, and operational summaries | Per-org rate limits, circuit breakers, anomaly alerts |
-| Compromised provider or third-party MCP server | Agent Platform/Security | Provider-neutral adapter boundary; no direct database access; narrow tool grants; external tools treated as untrusted | MCP authorization and provider outage drills |
-| Support/operator abuse | Platform Operations | Organization-scoped APIs and audit records for control-plane changes | Sensitive-content access audit and retention policy |
+The startup schema command requires a fresh dedicated database. Runtime credentials
+must remain separate from other products. Production database roles, backups,
+retention, disaster recovery, and monitoring need deployment verification.
 
-## Required release gates
+Cancellation does not prove an in-flight provider stopped. Restate journals cannot
+make a provider effect exactly once. An uncertain model operation consumes its
+reservation conservatively; confirmed completion and failure remain distinct.
 
-- Run adversarial prompt-injection, tool-abuse, memory-poisoning, and cross-scope suites against
-  every publish candidate.
-- Verify webhook signatures and provider-specific replay windows before enabling external channel
-  effects.
-- Complete PostgreSQL RLS, credential-manager, retention/redaction, and sandbox reviews before
-  production agents can execute consequential or untrusted custom code.
-- Treat an unreviewed model output as a proposal; the owning product must enforce authorization, with explicit approvals for actions whose policy requires them.
-
-## Isolated Lina workspace scope
-
-Personal assistance may use an isolated Lina workspace. Before enabling that path, verify workspace
-and credential isolation, scoped tool grants, resource and network limits, task deduplication,
-workspace deletion, and secret revocation. Model output and workspace files cannot grant new
-authority.
-
-Local Docker development does not prove production isolation for hostile code. Verify production
-hosting before exposing code execution. The [platform architecture](architecture/agent-platform-architecture.md)
-defines the current target.
+Structured stdout uses bounded lifecycle errors. OTLP export, durable log retention,
+redaction inspection in a deployed environment, alerts and signup-email delivery remain
+release work. Local browser identity and real free-model acceptance pass separately.
+Production rollout and rollback are not authorized or verified by local tests.

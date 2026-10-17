@@ -5,8 +5,8 @@
     "dockerfilePath": "products/agents/api/Dockerfile"
   },
   "deploy": {
-    "startCommand": "node dist/http/server.js",
-    "healthcheckPath": "/health/ready",
+    "startCommand": "node dist/platform/server.js",
+    "healthcheckPath": "/ready",
     "healthcheckTimeout": 30,
     "restartPolicyType": "ON_FAILURE",
     "restartPolicyMaxRetries": 10

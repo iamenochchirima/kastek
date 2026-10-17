@@ -7,7 +7,7 @@ import { MotionReveal } from "@/components/ui/motion-reveal";
 const resources = [
   { title: "Connections", body: "Connected provider accounts and their account identifiers live here.", href: "/connections", icon: Cable },
   { title: "Capabilities", body: "Use the public API capability catalog to discover supported reads and actions.", href: "/developers/api", icon: ShieldCheck },
-  { title: "MCP guidance", body: "Learn when to use remote MCP, local stdio, one Developer API key, and REST.", href: "/developers/mcp", icon: CircleHelp },
+  { title: "MCP guidance", body: "Check MCP availability and use the REST API.", href: "/developers/mcp", icon: CircleHelp },
 ];
 
 export default function ResourcesPage() {

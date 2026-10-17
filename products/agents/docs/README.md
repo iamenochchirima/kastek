@@ -1,20 +1,15 @@
-# Agents docs
+# Agents documentation
 
-- [Target architecture](architecture/agent-platform-architecture.md)
-- [Current implementation status](source-boundary.md)
-- [Security boundaries](THREAT_MODEL.md)
-- [Developer setup](../README.md)
+These documents describe maintained implementation and boundaries:
 
-Current code references:
+- [Platform architecture](architecture/agent-platform-architecture.md): target contracts and execution categories.
+- [Implementation boundary](source-boundary.md): current modules, verification, and remaining work.
+- [Platform login](architecture/platform-login.md): identity, sessions, and product authorization.
+- [Integration boundaries](mcp-integration.md): external MCP and future product connections.
+- [Threat model](THREAT_MODEL.md): enforced controls and release limits.
 
-- [Login and sessions](architecture/platform-login.md)
-- [Tenant isolation](architecture/tenant-isolation-inventory.md)
-- [Workflow execution](architecture/workflow-execution.md)
-- [Memory lifecycle](architecture/memory-lifecycle.md)
-- [MCP integration](mcp-integration.md)
-
-Operational procedures:
-
-- [Memory recovery](runbooks/memory-recovery.md) and [memory safety](runbooks/memory-safety.md)
-- [MCP provider operations](runbooks/remote-mcp-provider-operations.md)
-- [Temporal recovery](runbooks/temporal-recovery.md) while the service uses Temporal
+Use the [product setup](../README.md) to run the application and the
+[runtime reference](../../../infra/agents-runtime/README.md) for Restate diagnostics.
+Settled requirements and implementation checklists remain in the linked Linear
+specifications in the architecture document. Deleted operational notes remain in
+Git history.

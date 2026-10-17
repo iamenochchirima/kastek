@@ -82,13 +82,69 @@ def validate_local_configuration(env):
         'GROWTH_SESSION_ADMIN_SECRET',
         'AGENCY_PARTNER_OIDC_CLIENT_SECRET',
         'AGENCY_PARTNER_SESSION_ADMIN_SECRET',
+        'AGENTS_OIDC_CLIENT_SECRET',
+        'AGENTS_EXECUTION_CLIENT_SECRET',
     )
     missing = [key for key in required if not env.get(key) or env[key].startswith('replace-')]
     if missing:
         raise RuntimeError('Set required local identity settings in .env: ' + ', '.join(missing))
+    for key in ('AGENTS_OIDC_CLIENT_SECRET', 'AGENTS_EXECUTION_CLIENT_SECRET'):
+        if any(env[key] == env[other] for other in required
+               if other != key and other.endswith(('PASSWORD', 'SECRET'))):
+            raise RuntimeError(key + ' must use an independent secret')
     template = json.loads((Path(__file__).parent / 'kasitek-realm.json').read_text())
     smtp = smtp_settings(env, template['smtpServer'])
     return template, smtp
+
+
+def configure_agents_clients(admin, template, env, scopes):
+    """Reconcile only the Agents clients and their narrowly scoped execution role."""
+    by_name = {client['clientId']: client for client in admin('clients')}
+    for client_id, secret_key in (
+        ('agents', 'AGENTS_OIDC_CLIENT_SECRET'),
+        ('agents-execution', 'AGENTS_EXECUTION_CLIENT_SECRET'),
+    ):
+        desired = next(client for client in template['clients'] if client['clientId'] == client_id)
+        settings = {key: value for key, value in desired.items()
+                    if key not in ('defaultClientScopes', 'optionalClientScopes', 'protocolMappers')}
+        settings['secret'] = env[secret_key]
+        if client_id not in by_name:
+            admin('clients', 'POST', settings)
+            by_name = {client['clientId']: client for client in admin('clients')}
+        current = admin('clients/' + by_name[client_id]['id'])
+        current.update(settings)
+        endpoint = 'clients/' + current['id']
+        admin(endpoint, 'PUT', current)
+        for kind, field in (('default', 'defaultClientScopes'), ('optional', 'optionalClientScopes')):
+            scope_endpoint = endpoint + '/' + kind + '-client-scopes'
+            for scope in admin(scope_endpoint):
+                if scope['name'] not in desired[field]:
+                    admin(scope_endpoint + '/' + scope['id'], 'DELETE')
+            for name in desired[field]:
+                admin(scope_endpoint + '/' + scopes[name]['id'], 'PUT')
+        mapper_endpoint = endpoint + '/protocol-mappers/models'
+        mappers = {mapper['name']: mapper for mapper in admin(mapper_endpoint)}
+        desired_mappers = desired.get('protocolMappers', [])
+        for name, mapper in mappers.items():
+            if name not in {item['name'] for item in desired_mappers}:
+                admin(mapper_endpoint + '/' + mapper['id'], 'DELETE')
+        for mapper in desired_mappers:
+            if mapper['name'] in mappers:
+                mapper = {**mapper, 'id': mappers[mapper['name']]['id']}
+                admin(mapper_endpoint + '/' + mapper['id'], 'PUT', mapper)
+            else:
+                admin(mapper_endpoint, 'POST', mapper)
+
+    execution = by_name['agents-execution']
+    endpoint = 'clients/' + execution['id']
+    desired_role = template['roles']['client']['agents-execution'][0]
+    roles = {role['name']: role for role in admin(endpoint + '/roles')}
+    if desired_role['name'] not in roles:
+        admin(endpoint + '/roles', 'POST', desired_role)
+    role = admin(endpoint + '/roles/' + desired_role['name'])
+    admin(endpoint + '/scope-mappings/clients/' + execution['id'], 'POST', [role])
+    service_user = admin(endpoint + '/service-account-user')
+    admin('users/' + service_user['id'] + '/role-mappings/clients/' + execution['id'], 'POST', [role])
 
 
 def configure():
@@ -123,6 +179,7 @@ def configure():
                 admin(endpoint + '/' + mapper['id'], 'PUT', mapper)
             else:
                 admin(endpoint, 'POST', mapper)
+    configure_agents_clients(admin, template, env, scopes)
     executions = admin('authentication/flows/browser/executions')
     recovery = [item for item in executions if item.get('providerId') == 'auth-recovery-authn-code-form']
     if len(recovery) != 1:
@@ -208,7 +265,7 @@ def configure():
     assert not actions['CONFIGURE_TOTP']['defaultAction']
     assert actions['CONFIGURE_TOTP']['config'].get('add-recovery-codes') == 'true'
     smtp_mode = 'external SMTP' if env.get('IDENTITY_SMTP_HOST', '').strip() else 'Mailpit'
-    print('Realm checked; Agency partner clients, optional OTP, and ' + smtp_mode + ' email configured.')
+    print('Realm checked; Agents and Agency partner clients, optional OTP, and ' + smtp_mode + ' email configured.')
     print('Google enabled.' if google_ready else 'Google remains disabled until development OAuth credentials are supplied.')
 
 

@@ -1,130 +1,54 @@
-# Agents frontend
+# Agents interface
 
-React, TypeScript, Vite and React Router. Public marketing pages and the dashboard use separate layouts in one deployment. App colors, typography, density and UI primitives retain the Growth design system.
+React 19, Vite and React Router provide a small standalone Agents product. Reused
+UI primitives, fonts and theme tokens live under `src/components/` and `src/styles/`.
+The active product code is `src/platform/`; the router is `src/routes/router.tsx`.
 
-## Local startup
+## Run
 
-Use the root Node 24/pnpm workspace. Install dependencies from the repository root:
-
-```sh
-pnpm install --frozen-lockfile
-pnpm --filter @kasitek/agent-platform dev
-```
-
-Open http://localhost:3100. Copy .env.example to .env.local if the Agents API uses a different address. AGENTS_API_PROXY_TARGET is read by Vite only; it is not exposed as a browser environment variable. Use localhost consistently with the shared provider's local passkey configuration.
-
-The frontend needs the standalone Agents API on `127.0.0.1:4100` and the shared
-login provider. Configure the backend's `products/agents/api/.env` with its database and
-OIDC settings before starting it. See [platform login setup](../docs/architecture/platform-login.md).
-From the repository root, run the API in a separate terminal:
+Start the API, database, identity provider and Restate worker using the
+[product setup](../README.md), then run from the repository root:
 
 ```sh
-pnpm dev:agents-api
+pnpm dev:agents
 ```
 
-For agent testing, the retained runtime also needs a Temporal server and
-worker. Set `TEMPORAL_ENABLED=true`, the server address, namespace and task queue
-in the backend `.env`, then start the worker in another terminal:
+Open http://localhost:3100. Vite proxies `/api` to `127.0.0.1:4100`; set
+`AGENTS_API_PROXY_TARGET` to change that server target. The browser receives an
+opaque HTTP-only product session, never a service or model credential.
 
-```sh
-pnpm --dir products/agents/api dev:worker
-```
+## Product paths
 
-API and worker must use the same queue/namespace. Configure a model-provider key
-in the backend environment only. The default enforced credit-billing mode needs
-the Growth credit service for platform-funded model calls. An isolated development
-test can explicitly use `CREDIT_BILLING_MODE=disabled`; this skips credit charging,
-while normal run limits still apply. The frontend does not select billing mode or
-provide credentials. Production billing defaults remain enforced. Starting the UI
-alone does not establish that execution is ready.
+- `/login`: provider sign-in.
+- `/app/agents`: workspace selection and agent creation.
+- `/app/agents/:agentId`: configuration, private Test and explicit Publish.
+- `/app/knowledge`: approved public or private text sources.
+- `/chat/:deploymentId`: anonymous chat for an explicitly published version.
 
-## Routes and state
+Saving a draft and testing a version never change a publication. Website
+publication accepts only public knowledge. The embed script calls the published
+API under its configured allowed origin. Unavailable runtime capabilities are
+not exposed as working controls.
 
-- / is the public landing page; /login and /signup enter backend-owned shared login.
-- /app is the authenticated shell and redirects to /app/agents. Agents, Inbox, Knowledge and Settings are the primary navigation destinations.
-- Create a support assistant from /app/agents/new. It saves a customer-service agent with a private test target; it does not create a website deployment. Choose a model and configure sources/tools from the agent's Configuration sections, test privately, then publish through Website.
-- Canonical agent destinations use /app/agents/:agentId with section=configuration, section=test and section=deploy. Existing detail-section values remain accepted.
-- Existing /agents and /studio bookmarks redirect into /app. /app/studio/new redirects to /app/agents/new; /app/studio?agent=… and /app/playground?agent=… open that agent's Test section. Personal and external records remain available under Other agent records; /app/agents/personal remains supported.
-- /onboarding creates or selects a permitted workspace before agent screens load.
-- Settings shows the account/workspace and provides logout. Team administration,
-  Connections and Usage remain available by direct route while their product flows are pending.
-
-The session loader uses GET /api/auth/me from the standalone Agents backend. Local
-password login, workspace onboarding, dashboard access and logout are verified.
-The initial /api/agents facade now uses real session/membership admission and the
-existing Agents backend handlers. The support-assistant creation contract keeps
-the customer-service audience and creates only a private test installation; the
-website publisher creates Live when the user explicitly publishes. Other
-inherited integration endpoints still need review. Vite does not manufacture a
-session or inject service credentials.
-With an absent backend, protected routes display a connection error. A real
-OpenRouter reply, stream recovery, and history reload were verified in the
-earlier local acceptance recorded in the end-to-end plan. The newer disposable UI
-acceptance used a separate workspace without a provider credential. Its Test run
-ended with `MODEL_CREDENTIAL_MISSING`. Treat that run as a setup error, not a
-successful model reply. Its Live preflight exposed missing default binding
-metadata in website creation; that path now initializes the ready default binding,
-with an authenticated preflight/promotion rerun still pending.
-
-## Normal checks
+## Verify
 
 ```sh
 pnpm --filter @kasitek/agent-platform typecheck
-pnpm --filter @kasitek/agent-platform build
-pnpm --filter @kasitek/agent-platform test:studio
-pnpm --filter @kasitek/agent-platform test:agent-ui
 pnpm --filter @kasitek/agent-platform lint
+pnpm --filter @kasitek/agent-platform build
+pnpm --filter @kasitek/agent-platform test:browser
 ```
 
-Production output is dist/. Use preview for a local build check, not production hosting. The production host must serve dist assets, fall back to index.html for frontend deep links, and proxy /api to the Agents backend before that fallback. Preserve cookie headers and stream responses without buffering. Missing /api routes must remain API errors, not return the frontend HTML. The local Vite dev/preview proxy forwards paths unchanged.
+The default browser test uses mocked HTTP transport and labels that boundary.
+The opt-in live-service test uses `AGENTS_BROWSER_SESSION_COOKIE` from a private
+local fixture and checks real APIs, reconnect, publication and the external
+widget. `api/test/browser-fixture.ts` can run the full local service fixture;
+its identity is seeded and its default model transport is deterministic.
+Set `AGENTS_BROWSER_REAL_MODEL=1` with the approved OpenRouter key to verify the
+real free model; there is no paid fallback. Provider login/logout is checked
+separately by `infra/agents-runtime/verify-identity.sh`.
 
-## Production frontend container
-
-Build the dedicated frontend image from the repository root:
-
-```sh
-docker build -f products/agents/web/Dockerfile -t kasitek-agents-ui .
-docker run --rm -p 3100:8080 \
-  -e AGENTS_API_UPSTREAM=http://api:4100 \
-  --network your-private-network kasitek-agents-ui
-```
-
-Use the API's address on your private container network. The default is
-`http://api:4100`; it must resolve when Nginx starts. Set a scheme, hostname and
-optional port only, with no path or trailing slash. An HTTPS upstream uses SNI
-and verifies its certificate against the container's CA bundle. Do not expose the
-backend directly to browsers. The frontend image contains built static assets and
-the proxy configuration, with no backend environment files or model credentials.
-`AGENTS_API_UPSTREAM` is a server setting and is not embedded in browser JavaScript.
-
-The hosting edge must provide public HTTPS. Set the backend's public frontend
-origin, `AGENTS_PUBLIC_URL`, to that public domain. Register its
-`/api/auth/callback` URL with the identity provider. The proxy preserves Host,
-Origin and cookie headers; backend
-session and same-origin checks remain responsible for admission. It does not
-rewrite the configured login redirects or relax authentication.
-
-The [Nginx configuration](hosting/default.conf.template) serves frontend deep links,
-returns 404 for missing fingerprinted assets and forwards API paths unchanged.
-It disables response buffering and proxy retries. The five-minute upstream read
-timeout measures silence between reads, so live events must keep the connection
-active. Verify the real run stream and reconnect behavior when model credentials
-are configured. `pnpm preview` remains available for local build inspection;
-there is no production `vite preview` start script.
-
-See the [current implementation status](../docs/source-boundary.md) for known verification limits.
-
-## Editing and testing a saved agent
-
-Open an agent and use **Configuration** to edit its instructions, model, knowledge,
-and permitted tools. Save a draft, then choose that saved version in **Test** and
-select **Use in Test** before sending a message. Saving alone does not change the
-test target. Test checks that its selected version is active on the private test
-installation and that the runtime is ready. The **Website** section shows Test and
-Live versions together. The backend checks readiness and workspace roles before
-Live preflight, publish, or rollback. Website chat settings remain
-behind **Manage website chat**.
-
-The test model picker changes only the saved conversation's model. **Use
-agent model** clears that override and follows the agent version. Readiness checks
-use the conversation selection; changing providers does not configure credentials.
+Production hosting must serve `dist`, fall back to `index.html` for frontend
+paths, and proxy `/api` before that fallback. The supplied Nginx container uses
+`AGENTS_API_UPSTREAM=http://api:4100`. Preserve Origin and cookie headers. No
+production deployment is part of this implementation.

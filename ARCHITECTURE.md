@@ -11,9 +11,8 @@ membership, database access or permission to call internal operations.
 | `products/growth/web/` | Growth UI and product-side Agents integrations |
 | `products/growth/database/` | Growth Prisma database package |
 | `products/growth/api/` | Growth API, provider callbacks and workers |
-| `products/agents/api/` | Agent API, gateway, Temporal workers, migrations and tests |
+| `products/agents/api/` | Agents API, fresh platform schema, Restate business worker and tests |
 | `products/agents/web/` | Agents management UI |
-| `products/agents/mcp/` | Local MCP bridge |
 | `products/agency/api/` | Tenant API, migrations and workers |
 | `products/agency/web/` | Partner and tenant portal |
 | `products/agency/api-client/` | Private React tenant API client |
@@ -23,6 +22,7 @@ membership, database access or permission to call internal operations.
 | `packages/server-support/` | Shared server implementation behind explicit exports |
 | `services/analytics/` | Analytics ingestion, publishing, registry and query service |
 | `infra/identity/` | Keycloak development identity configuration |
+| `infra/agents-runtime/` | Pinned local Restate runtime and recovery verification |
 | `infra/observability/` | Collector configuration and deployment source |
 
 ## Dependency and data rules
@@ -35,6 +35,26 @@ Service-to-service integration remains over the existing authenticated HTTP inte
 migrations, organizations, memberships, sessions, databases and secrets remain separately owned.
 Shared login does not synchronize product permissions. Agency customer identity remains scoped
 according to its existing contracts. Source relocation does not change cookie scopes or callbacks.
+
+## Target Agents integration
+
+The [Agents target architecture](products/agents/docs/architecture/agent-platform-architecture.md)
+separates the shared execution service from the standalone Agents product. Growth and Agencies
+embed features through an authenticated execution API without requiring their customers to create
+Agents-product accounts, memberships, or subscriptions. Product permissions, entitlements, and
+workspace structures remain separately owned.
+
+External agents access product MCP through OAuth or deliberately supported scoped keys. Embedded
+product backends call the shared execution API. Executing agents call typed owning-product APIs
+with destination-specific delegated authority. These are three separate contracts. Ordinary
+product features operate independently; agent-powered features may depend on the shared service.
+
+The initial standalone Agents implementation uses Keycloak 26.6.0, fresh product-owned
+membership and bounded execution grants, PostgreSQL admission/outbox and a Restate business
+worker. It replaces protected KasiAi, hosting modes and the inherited Temporal backend. Growth
+and Agencies integration and destination-token policy remain later work. Workspace execution
+is explicitly unavailable until the Lina adapter is implemented. No existing database or
+production deployment is changed by this source reset.
 
 ## Build and release rules
 

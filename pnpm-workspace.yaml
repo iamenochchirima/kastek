@@ -4,7 +4,6 @@ packages:
   - products/growth/api
   - products/agents/api
   - products/agents/web
-  - products/agents/mcp
   - products/agency/web
   - products/agency/api-client
   - products/agency/api
@@ -18,7 +17,6 @@ onlyBuiltDependencies:
   - '@prisma/client'
   - '@prisma/engines'
   - '@swc/core'
-  - '@temporalio/core-bridge'
   - esbuild
   - prisma
   - protobufjs

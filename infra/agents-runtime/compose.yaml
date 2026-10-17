@@ -1,0 +1,17 @@
+name: kasitek-agents-runtime
+
+services:
+  restate:
+    image: docker.restate.dev/restatedev/restate:1.7.13@sha256:adf7bca9d89b8c868be682e1a2e1d42043613e988a17bfaad28753ac8d780742
+    environment:
+      RESTATE_NODE_NAME: agents-local
+    ports:
+      - "127.0.0.1:${AGENTS_RESTATE_INGRESS_PORT:-18080}:8080"
+      - "127.0.0.1:${AGENTS_RESTATE_ADMIN_PORT:-19070}:9070"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - restate-data:/restate-data
+
+volumes:
+  restate-data:

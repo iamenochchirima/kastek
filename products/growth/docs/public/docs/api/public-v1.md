@@ -1,28 +1,21 @@
 # KasiTek Public API v1
 
-The general public API is served by `kasitek-core` at `https://api.kasitek.co.za/v1`. It is separate
-from the private `/api/*` product routes and from the Agent Platform transport at
-`agents.kasitek.co.za`.
+The Growth public API uses `/v1`, separately from private `/api/*` product routes.
+The standalone Agents product and its execution service have a separate contract.
+Growth integration with the replacement execution service is not yet connected.
 
 ## Authentication
 
-`GET /capabilities` currently accepts either:
+Use an authenticated Growth user session or a workspace Developer API key created
+in **Developers → API Keys**. Developer keys are opaque bearer credentials. The raw
+value is shown once when created or rotated; Growth stores its SHA-256 digest.
 
-- an authenticated KasiTek user session bearer token; or
-- a workspace Developer API key created in the Developers section; or
-- an Agent Platform ES256 installation token issued for the `kasitek-public-api` audience.
+Send `Authorization: Bearer <developer-api-key>` to the REST API. Initial keys carry
+`api:read` and `api:write` scopes; expiry, revocation, scope and product permissions
+are checked on each request. A key does not grant unrestricted business access.
 
-Core validates the installation token signature, issuer, audience, expiry, subject, organization,
-and credential claims using `AGENTS_INSTALLATION_TOKEN_PUBLIC_KEY`. Installation credential
-revocation/introspection and full scope/grant/entitlement evaluation remain required before broad
-machine access is enabled.
-
-Developer API keys are workspace-owned opaque bearer credentials. The raw value is shown once when
-created or rotated; Core stores only its SHA-256 digest. Use the same key with the public REST API
-and MCP as `Authorization: Bearer <developer-api-key>`. The initial key carries `api:read` and
-`api:write` scopes, and those scopes are checked before public actions. Revocation and expiry are
-checked on every request. MCP keeps an internal installation boundary for capability and activity
-records, but users do not manage a second MCP token.
+The removed Agents installation-token exchange and MCP gateway are not supported
+setup paths. Growth OAuth MCP access remains unavailable.
 
 `GET /health` is intentionally unauthenticated and contains no workspace or capability data.
 
@@ -30,7 +23,7 @@ records, but users do not manage a second MCP token.
 
 `GET /capabilities` returns a stable DTO generated from the shared action catalog. Discovery is
 filtered by public lifecycle, direct runtime support, authenticated actor type, active organization
-entitlements, installation grants/availability, and API scope where the caller is an installation.
+entitlements and the caller's applicable permissions and API scopes.
 Internal, pilot, retired, unentitled, and incompatible actions are not returned. The response
 includes required grants, OAuth scopes, entitlements, idempotency, risk, approval, audit, and usage
 metadata so a client can prepare for the later typed resource/action routes.
@@ -41,8 +34,7 @@ The `pagination` object returns the effective limit, cursor, total, stable versi
 
 ## Initial content routes
 
-The first typed resource routes reuse the same content capability adapter used by Agent Platform
-internal tools:
+The typed content routes use Growth-owned capability adapters and business operations:
 
 - `GET /content/posts` — organization-scoped content records;
 - `GET /content/posts/{id}` — one organization-scoped content record;

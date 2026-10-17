@@ -1,10 +1,6 @@
 @import "tailwindcss";
 @import "tw-animate-css";
-@import "@xyflow/react/dist/style.css";
 
-.react-flow__edge.observatory-edge-dashed .react-flow__edge-path { stroke-dasharray: 6 5; }
-.react-flow__edge.observatory-edge-live .react-flow__edge-path { filter: drop-shadow(0 0 5px color-mix(in srgb, var(--primary) 70%, transparent)); }
-.react-flow__node-observatory { z-index: 10 !important; }
 
 .no-scrollbar::-webkit-scrollbar { display: none; }
 .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }

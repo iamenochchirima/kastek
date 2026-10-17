@@ -1,60 +1,64 @@
-# Agents implementation status
+# Implementation boundary
 
-Updated: 2026-10-17.
+Agents is a fresh standalone product. Its API and worker use the dedicated
+`agents_platform` PostgreSQL schema in `api/schema/001_platform.sql`. There is no
+legacy data migration or Growth runtime dependency.
 
-This page records verified behavior in the current checkout. The [platform architecture](architecture/agent-platform-architecture.md)
-describes the target system and the remaining runtime decisions.
+## Current modules
 
-## Current product journey
+| Module in `api/src/platform` | Responsibility |
+| --- | --- |
+| `contracts.ts` | Two execution kinds, FAQ configuration, scope, grants, limits, and task states. |
+| `auth.ts`, `config.ts` | OIDC login, validated identity, session configuration, and backchannel logout. |
+| `store.ts` | Product membership, drafts, immutable versions, approved knowledge, website bindings, atomic admission, and reservations. |
+| `app.ts`, `server.ts`, `widget.ts` | Management and website HTTP APIs, task history, progress, cancellation, and widget delivery. |
+| `business.ts` | Restate FAQ workflow, scoped retrieval, bounded model calls, operation records, and usage settlement. |
+| `dispatcher.ts`, `worker.ts` | Leased outbox delivery, stable runtime identity, cancellation reconciliation, and worker lifecycle. |
+| `setup.ts` | Fresh database initialization and schema identity checks. |
 
-The first UI slice centers on a support assistant:
+The management client is in `web/`. The API and worker run independently of Growth
+and Agencies. The implementation currently admits the standalone Agents journey;
+embedded product execution remains future work.
 
-`Agents → Create agent → Configuration → Test → Deploy → Website`
+## Execution
 
-- `/app` opens `/app/agents`. New agents start at `/app/agents/new`.
-- Creation makes a customer-service agent and a private Test installation. It does not create a Live website installation.
-- Configuration edits the saved draft. Test selects a saved version for private runs.
-- Website publication is an explicit action. It pins a tested version to one website installation.
-- Old Studio and Playground URLs redirect to the matching agent flow. Existing personal and external records remain available through a compatibility section.
-- The primary navigation contains Agents, Inbox, Knowledge, and Settings. Unfinished destinations are not promoted into the main journey.
+An immutable version declares `business` or `workspace`. Only `business` runs.
+Workspace admission fails explicitly with `RUNTIME_UNAVAILABLE`.
 
-These UI changes do not alter backend authorization. Browser requests use Agents-owned sessions,
-workspace membership, scoped API handlers, and same-origin checks for mutations. The browser
-does not receive service credentials.
+The FAQ configuration disables delegation, sandboxes, business-action tools,
+additional workflows, and schedules. Its single model reply uses approved source
+revisions and bounded lexical retrieval. The complete prompt, including source
+labels and instructions, fits the input limit. Current provider execution uses only
+OpenRouter's configured free model, with no paid fallback.
 
-## Current runtime and target
+Admission records a task, reservation, and outbox entry atomically. Duplicate
+request keys return the same authorized task, and conflicting payloads fail.
+Restate 1.7.13 and SDK 1.17.3 execute a keyed workflow. The worker also records its
+invocation ID, so a lost dispatcher response does not discard runtime identity.
 
-The current service uses a TypeScript and Fastify API, PostgreSQL, and a Temporal worker for
-durable business-agent runs. Simple runs can execute inside the API.
+A started model operation with no confirmed result becomes `uncertain` on replay;
+it does not start a second provider request. Successful usage settles once.
+Definitive provider rejections release the unused reservation and record zero usage.
+Uncertain outcomes conservatively account for the reservation. Cancellation is a
+request until its result is known. An in-flight model call can remain uncertain.
 
-The target architecture selects self-hosted Restate for business-agent durable execution, with a
-PostgreSQL outbox handoff. The Restate runtime and handoff are not implemented or accepted here.
-Personal assistance may use a versioned adapter to an isolated Lina runtime; that integration is
-also not implemented. Temporal behavior documents the current service only and does not satisfy
-the target runtime gate.
+Runtime workflow and journal retention are seven days. Outbox retries stop after
+24 hours, before that retention expires. Settled tasks are never resubmitted.
 
-## Verification status
+## Verification and release limits
 
-On 2026-10-17, the web typecheck, build, and agent lifecycle test passed. API typecheck and the
-focused creation, deployment, and browser-route tests passed (15 tests); REST/MCP conformance
-passed four tests with one skipped. The web build emitted a chunk-size warning for a bundle just
-over 500 KB. The full API suite was not rerun; its previous run had one unrelated Discord retry
-assertion failure because the response omitted `provider_message_id`.
+Tests cover PostgreSQL admission, immutable versions, scope checks, reservations,
+HTTP behavior, and actual Restate execution with fixture model responses. Runtime
+checks cover duplicate dispatch, lost responses, worker connection restart and
+replay, cancellation, and usage settlement. Fixture replies are not real model
+acceptance. The live browser journey separately verifies four real free-model tasks through
+private Test, publication, an external widget and lost-response recovery. Keycloak 26.6.0
+verification covers real PKCE login, invalid state/nonce/verifier denial, signed backchannel
+logout and the execution client's audience and narrow role. These are local acceptance checks,
+not production rollout or signup-email verification.
 
-The latest authenticated browser run created a support agent and reached its Test run through
-Temporal, then ended with `MODEL_CREDENTIAL_MISSING`; it did not verify a model reply. Website
-creation now initializes the default binding, and focused tests pass. Authenticated preflight and
-publication have not been rerun after that fix. The local API and gateway were not running during
-this verification pass. Earlier model-reply evidence predates this slice. No current model reply,
-successful publication, Restate acceptance, or production deployment is claimed for this
-checkpoint.
-
-`git diff --check` and local relative-link checks across 58 changed Markdown files passed.
-
-## Related contracts
-
-- [Standalone login and session contract](architecture/platform-login.md)
-- [Current workflow execution contract](architecture/workflow-execution.md)
-- [Target architecture summary](architecture/agent-platform-architecture.md)
-- [Tenant isolation inventory](architecture/tenant-isolation-inventory.md)
-- [Web routes and local setup](../web/README.md)
+Outbound MCP, product business actions, service-to-service product admission,
+subagents, temporary sandboxes, schedules, Lina execution, and evaluation adapters
+are not implemented. There are no active OTLP exporters. Services emit structured
+stdout with bounded errors; production monitoring, alerts, deployment identity,
+and rollout remain unverified.

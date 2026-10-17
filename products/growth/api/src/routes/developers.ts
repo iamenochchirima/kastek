@@ -20,31 +20,15 @@ export function registerDeveloperRoutes(
     return { org, user };
   }
   app.get("/api/developers", async (request) => {
-    const { org } = await admin(request),
-      raw = context.config.env.KASITEK_MCP_PUBLIC_URL?.trim().replace(
-        /\/+$/,
-        "",
-      ),
-      endpoint = raw
-        ? raw.endsWith("/mcp")
-          ? raw
-          : `${raw}/mcp`
-        : context.config.environment.toLowerCase() === "production"
-          ? "https://agents.kasitek.co.za/mcp"
-          : "http://127.0.0.1:4200/mcp";
+    const { org } = await admin(request);
     return {
       apiKeys: await listApiKeys(context.pool, org),
       config: {
         restBaseUrl: `${context.config.publicApiUrl.replace(/\/+$/, "")}/v1`,
-        mcpEndpoint: endpoint,
-        mcpPackage: "@kasitek/mcp",
-        clients: [
-          { id: "claude", label: "Claude" },
-          { id: "chatgpt", label: "ChatGPT" },
-          { id: "claude-code", label: "Claude Code" },
-          { id: "cursor", label: "Cursor" },
-          { id: "other", label: "Other MCP client" },
-        ],
+        mcpAvailable: false,
+        mcpEndpoint: null,
+        mcpPackage: null,
+        clients: [],
       },
     };
   });

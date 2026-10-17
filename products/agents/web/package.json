@@ -10,28 +10,18 @@
     "build": "tsc --noEmit && vite build",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
-    "test:studio": "tsx src/components/dashboard/studio/studio-execution-events.test.ts && tsx src/components/dashboard/studio/studio-execution-reducer.test.ts && tsx src/lib/agent-run-stream.test.ts",
-    "test:agent-ui": "tsx src/components/dashboard/agents/agent-version-state.test.ts",
-    "preview": "vite preview --host 127.0.0.1"
+    "preview": "vite preview --host 127.0.0.1",
+    "test:browser": "playwright test"
   },
   "dependencies": {
     "@radix-ui/react-alert-dialog": "^1.1.15",
-    "@radix-ui/react-avatar": "^1.1.11",
-    "@radix-ui/react-checkbox": "^1.3.3",
     "@radix-ui/react-dialog": "^1.1.15",
-    "@radix-ui/react-select": "^2.2.6",
     "@radix-ui/react-slot": "^1.2.4",
-    "@radix-ui/react-tabs": "^1.1.13",
-    "@xyflow/react": "^12.11.6",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
-    "framer-motion": "^12.23.24",
     "lucide-react": "^0.577.0",
     "react": "19.2.3",
     "react-dom": "19.2.3",
-    "react-icons": "5.6.0",
-    "react-markdown": "^10.1.0",
-    "remark-gfm": "^4.0.1",
     "sonner": "^2.0.7",
     "tailwind-merge": "^3.4.0",
     "tw-animate-css": "^1.4.0",
@@ -51,7 +41,8 @@
     "@vitejs/plugin-react": "^5.0.0",
     "@tailwindcss/vite": "^4.0.0",
     "typescript-eslint": "^8.0.0",
-    "eslint-plugin-react-hooks": "^7.0.0"
+    "eslint-plugin-react-hooks": "^7.0.0",
+    "@playwright/test": "1.62.1"
   },
   "type": "module"
 }

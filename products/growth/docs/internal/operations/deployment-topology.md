@@ -39,7 +39,6 @@ The following are the long-running Production services documented from this repo
 | Core API | `/server` | Railpack | Not applicable | `mkdir -p bin && cargo build --release -p kasitek-core && cp target/release/server bin/server` | Manual Prisma migration before deployment; see below | `./bin/server` | `/health`, `PORT=4000` | Public |
 | Agents API | `/agents` | Dockerfile | `Dockerfile` | Leave blank; the Dockerfile builds the image | Manual one-shot migration before deployment; see below | `node dist/http/server.js` | `/health/ready`, `4100` | Private |
 | Agents Worker | `/agents` | Dockerfile | `Dockerfile` | Leave blank; the Dockerfile builds the image | None; deploy Agents API first | `node dist/temporal/worker.js` | No HTTP health check | Private |
-| MCP Gateway | `/agents` | Dockerfile | `Dockerfile` | Leave blank; the Dockerfile builds the image | None | `node dist/gateway/server.js` | `/health/ready`, `4200` | Public when external MCP clients are enabled |
 The Agents Dockerfile is directly under `/agents`, so it does not need
 `RAILWAY_DOCKERFILE_PATH`.
 
@@ -70,7 +69,7 @@ private connection as `DATABASE_URL`. Do not put private signing keys in shared 
 because more than one process needs related public configuration. Move any existing shared private
 key into service-scoped variables during the next key rotation.
 
-`OTEL_SERVICE_NAME` remains service-specific so telemetry can distinguish API, worker, gateway,
+`OTEL_SERVICE_NAME` remains service-specific so telemetry can distinguish API, worker, Discord gateway,
 and migration processes. The shared OTLP endpoint is the transport boundary; it is not a durable
 telemetry destination by itself.
 
@@ -138,24 +137,12 @@ until the migration command reports success. Do not apply the standalone files u
 `api/sql/` as a substitute for the Prisma migration history; those files remain the
 source-service SQL inventory and are useful for isolated SQL verification.
 
-## MCP deployment
+## MCP availability
 
-The hosted MCP server is the `MCP Gateway` service. Its public endpoint is:
-
-```text
-https://<production-gateway-domain>/mcp
-```
-
-The gateway forwards authenticated requests to the private Agents API using:
-
-```text
-AGENT_PLATFORM_URL=http://${{agents-api.RAILWAY_PRIVATE_DOMAIN}}:4100
-AGENT_GATEWAY_SHARED_SECRET=<same secret in Agents API and Gateway>
-```
-
-The [`stdio.ts` bridge](https://github.com/Kasitek-Labs/kastek/blob/main/products/agents/api/src/gateway/stdio.ts)
-is a local command-launched process for clients that require stdio. It is not a hosted Railway
-service.
+The standalone Agents MCP gateway, stdio bridge, and package have been removed from source.
+Do not configure a gateway service or advertise its old public endpoint. Growth product OAuth MCP
+is not implemented. Existing REST API keys remain usable. Source removal does not verify hosted
+service shutdown or change Railway routing.
 
 ## Optional services
 
@@ -211,7 +198,6 @@ OTEL_SERVICE_NAME=<unique service name>
 The following are dependencies, tools, or deployment steps rather than application services:
 
 - Agents database migrations; use one-shot deployments when no pre-deploy field is available.
-- MCP stdio; it is a local bridge.
 - Core's individual embedded workers.
 - Temporal when using Temporal Cloud.
 - Vercel frontend deployments; those are configured separately from Railway.
@@ -227,12 +213,11 @@ The following are dependencies, tools, or deployment steps rather than applicati
 4. Deploy `agents-api`; confirm `/health/ready` is healthy and record the protected KasiAi version
    reported by the release-completion log.
 5. Deploy `agents-worker`.
-6. Deploy `MCP-Gateway` and configure its public MCP domain if required.
-7. Update Core's private Agents URL, then deploy Core with `PORT=4000` and confirm `/health` is
+6. Update Core's private Agents URL, then deploy Core with `PORT=4000` and confirm `/health` is
    healthy. Analytics connectivity may remain disconnected until its separate integration work.
-8. Confirm the Collector receives OTLP signals. Treat the debug profile as temporary until a
+7. Confirm the Collector receives OTLP signals. Treat the debug profile as temporary until a
    durable backend is configured.
-9. Run production smoke checks using the release ID and commit SHA.
+8. Run production smoke checks using the release ID and commit SHA.
 
 Record the deployed commit, platform release ID, migration results, service revisions, health
 checks, and rollback target in the release record defined by

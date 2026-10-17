@@ -10,7 +10,7 @@ The unified development branch remains `rewrite`.
 | Location | Owns |
 | --- | --- |
 | `products/growth/web/`, `api/`, `database/` | Growth UI, API and workers, and database package |
-| `products/agents/web/`, `api/`, `mcp/` | Agents management UI, runtime services, and MCP bridge |
+| `products/agents/web/`, `api/` | Agents management UI and runtime services |
 | `products/agency/web/`, `api/`, `api-client/` | Agency portal, tenant API, and private React API client |
 | `apps/labs-site/`, `apps/admin-site/` | Public website and central administration |
 | `packages/contracts/`, `packages/server-support/` | Explicit shared TypeScript interfaces and implementation |

@@ -37,7 +37,7 @@ jobs:
           shared = full or any(p.startswith(('packages/', 'scripts/', '.github/workflows/monorepo.yml')) or p in ('package.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', '.nvmrc') for p in paths)
           groups = {
             'growth': ('products/growth/', 'pnpm --filter @kasitek/database generate && pnpm --filter @kasitek/growth-core build && pnpm --filter client build'),
-            'agents': ('products/agents/', 'pnpm --filter @kasitek/agents build && pnpm --filter @kasitek/agents build:mcp && pnpm --filter @kasitek/agent-platform build'),
+            'agents': ('products/agents/', 'pnpm --filter @kasitek/agents build && pnpm --filter @kasitek/agent-platform build'),
             'agency': ('products/agency/', 'pnpm --filter @kasitek/agency-tenants build && pnpm --filter tenant-portal build'),
             'analytics': ('services/analytics/', 'pnpm --filter @kasitek/analytics build'),
             'labs-site': ('apps/labs-site/', 'pnpm --filter labs build'),

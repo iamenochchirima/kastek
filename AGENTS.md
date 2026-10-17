@@ -36,8 +36,7 @@ and current shipped behavior in the feature map.
 
 A separate program plan is warranted only when several dependent changes need one shared
 sequence, ownership boundary, and verification rule. Link it to the tracker items and agree its
-location before creating it. Do not use `products/growth/docs/plans/active/` or the uninstalled
-`long-running-work` skill as a default workflow.
+location before creating it. Do not use `products/growth/docs/plans/active/` as a default workflow. Use `long-running-work` for sustained implementation from approved Linear issues.
 
 ## Execution Order
 
@@ -64,7 +63,12 @@ Avoid delegating trivial tasks where coordination overhead exceeds the benefit.
 ## Implementation Discipline
 
 - Do not invent structure unnecessarily when an existing flow can be reused.
-- Prefer extending the real implementation over building parallel placeholder logic.
+- Follow the agreed target architecture first. During the Agents reset, use
+  [`products/agents/docs/architecture/agent-platform-architecture.md`](products/agents/docs/architecture/agent-platform-architecture.md).
+  Reuse existing implementation only where it fits; legacy identity schemas, hosting modes,
+  protected KasiAi, and product coupling are not target requirements. Agents is a fresh product
+  build; do not add legacy data migration, preservation, or backward-compatibility prerequisites.
+- Prefer extending real behavior over parallel placeholders when that behavior fits the agreed architecture.
 - Keep styling and functionality migrations separate when possible.
 - When restoring broken work, first re-establish the correct architecture, then polish.
 - Avoid silent scope creep; reflect meaningful scope changes in the issue or approved spec.
@@ -411,6 +415,11 @@ an existing specification or issue before creating one. Keep exploratory researc
 current technical behavior in repository documentation. Do not copy Linear issue contents into
 repository docs.
 
+For Agents research and design, use `project-notes` with the verified Stash project
+`Kasitek Agents` (`94dbceef-2e58-4c34-ac6f-cb6b7744aacf`). Keep working drafts there and agreed
+specifications in the KasiTek Linear team. The [multi-product foundation](https://linear.app/kasitek/document/agents-multi-product-execution-foundation-and-architecture-reset-01fcce619f68)
+is separate from the downstream support-delivery specification.
+
 Use `to-spec` for settled multi-session work and `to-tickets` when a breakdown is useful. Get the
 owner's approval of a proposed ticket breakdown before publishing it. Do not create multiple
 tickets for a small change. Attach work to an existing Linear Project only when it is the agreed
@@ -425,7 +434,7 @@ work. Keep issues assigned to `iamenochchirima` while the owner works solo. Do n
 
 ## AGENT WORKFLOW
 
-For an owner-approved pilot task, use the project-installed `enoch-mode` skill and read only the
+For an owner-approved pilot task, use the available `e-mode` skill and read only the
 playbook for the current task. Follow this repository's issue approval, verification, and release
 rules first. The pilot does not authorize unrelated backlog work, pushing, opening a pull request,
 merging, or deploying.
@@ -447,9 +456,13 @@ Spec findings separately. If no issue or spec exists, say the Spec review was sk
 
 ## Monorepo ownership
 
-Read `MONOREPO_MIGRATION_PLAN.md` and root `ARCHITECTURE.md` for the current source layout.
-Products use `web/` and `api/`; Growth also owns `database/`, Agents `mcp/`, and Agency
-`api-client/`. Agents backend source, tests, migrations and scripts are inside `products/agents/api/`.
+Read root `ARCHITECTURE.md` for the current source layout. `MONOREPO_MIGRATION_PLAN.md`
+records the completed source consolidation; its former preservation rules do not constrain the
+separately approved fresh Agents implementation.
+Products use `web/` and `api/`; Growth also owns `database/`, and Agency owns
+`api-client/`. Agents backend source, tests and fresh schema are inside `products/agents/api/`.
+Agents business execution uses Restate. Its obsolete MCP gateway, Temporal implementation,
+protected KasiAi and hosting modes have been removed. Keep unavailable capabilities explicit.
 Run commands from the root Node 24/pnpm workspace unless a documented isolated tool requires
 otherwise. Keep product databases, sessions, permissions and deployment lifecycles separate.
 Use shared package exports; never import another product's private runtime source.

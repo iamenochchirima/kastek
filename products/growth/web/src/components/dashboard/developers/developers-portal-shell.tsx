@@ -42,7 +42,7 @@ export function DevelopersPortalShell({
               <Code2 className="size-5 text-primary" aria-hidden="true" />
               <h1 className="text-[24px] font-semibold leading-8 tracking-[-0.02em] text-foreground">Developers</h1>
             </div>
-            <p className="mt-1 text-[13px] text-muted-foreground">API, MCP, and CLI setup.</p>
+            <p className="mt-1 text-[13px] text-muted-foreground">REST API and terminal setup.</p>
           </header>
 
           <div className="mt-6 flex flex-col gap-6 md:flex-row md:items-start">

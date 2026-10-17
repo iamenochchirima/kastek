@@ -107,7 +107,7 @@ function ApiKeysPageContent({ embedded }: { embedded: boolean }) {
         <MotionReveal delay={0.08}>
         <Card>
           <CardContent className="space-y-4 p-5">
-            <div><h2 className="text-base font-semibold">Use the key</h2><p className="mt-1 text-sm text-muted-foreground">Use this same workspace key as a Bearer credential for REST and MCP.</p></div>
+            <div><h2 className="text-base font-semibold">Use the key</h2><p className="mt-1 text-sm text-muted-foreground">Use this workspace key as a Bearer credential for REST.</p></div>
             <div className="rounded-lg border border-border bg-secondary/30 p-4"><p className="text-xs text-muted-foreground">REST base URL</p><div className="mt-2 flex gap-2"><code className="min-w-0 flex-1 overflow-x-auto rounded-md bg-background px-3 py-2 text-xs text-foreground">{config.restBaseUrl}</code><Button type="button" variant="outline" size="icon-sm" onClick={() => copy(config.restBaseUrl)} aria-label="Copy REST base URL"><Copy className="h-3.5 w-3.5" /></Button></div><pre className="mt-3 overflow-x-auto rounded-md bg-background p-3 text-xs text-muted-foreground">{restExample}</pre></div>
           </CardContent>
         </Card>
