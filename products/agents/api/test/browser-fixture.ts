@@ -144,28 +144,31 @@ async function prepareAdvancedStorage(directory: string): Promise<void> {
 
 async function prepareAdvancedFixture(token: string): Promise<{ agentPath: string; specialistVersionIds: string[]; sourceTitle: string }> {
   async function request<T>(path: string, body: unknown, method = "POST"): Promise<T> {
-    const response = await fetch(`http://127.0.0.1:4100${path}`, { method, headers: { "content-type": "application/json", origin: "http://localhost:3100", cookie: `agents_session=${token}` }, body: JSON.stringify(body) });
+    const response = await fetch(`http://127.0.0.1:4100${path}`, { method, headers: { "content-type": "application/json", origin: "http://localhost:3100", cookie: `agents_session=${token}` }, ...(body!==undefined?{body:JSON.stringify(body)}:{}) });
     assert.ok(response.ok, `Advanced fixture management ${method} ${path} failed (${response.status})`);
     return response.json() as Promise<T>;
   }
   const { organization } = await request<{ organization: { id: string } }>("/api/organizations", { name: "Advanced browser verification" });
   const base = `/api/organizations/${organization.id}`;
   const sourceTitle = "Browser analysis data";
-  const { job } = await request<{ job: { id: string; sourceId: string; revisionId: string } }>(`${base}/knowledge/imports`, { operationId: randomUUID(), title: sourceTitle, kind: "upload", contentType: "text/plain", contentBase64: Buffer.from("Approved numeric dataset: [10, 20, 30]. Each number is one observation. Use only these values for the analysis.").toString("base64") });
+  const { job } = await request<{ job: { id: string; sourceId: string; revisionId: string } }>(`${base}/knowledge/imports`, { operationId: randomUUID(), title: sourceTitle, kind: "upload", contentType: "text/plain", contentBase64: Buffer.from("Approved numeric dataset: [10, 20, 30]. Each number is one observation. This research dataset supports independently checking the sum, total, count and maximum, then calculating a Python analysis report. Use only these approved values for the report and cite this source.").toString("base64") });
   await ready(async()=> (await pool!.query("SELECT state FROM agents_platform.ingestion_jobs WHERE id=$1",[job.id])).rows[0]?.state==="ready","actual isolated advanced source import");
   await request(`${base}/knowledge/sources/${job.sourceId}/policy`,{operationId:randomUUID(),expectedGeneration:1,action:"approve",revisionId:job.revisionId});
+  const approved=await request<{sources:{id:string;revisions:{id:string;embeddingRelease:string|null}[]}[]}>(`${base}/knowledge/sources`,undefined,"GET");
+  const embeddingRelease=approved.sources.find(source=>source.id===job.sourceId)?.revisions.find(revision=>revision.id===job.revisionId)?.embeddingRelease;
+  assert.ok(embeddingRelease,"Research acceptance requires the actually indexed semantic profile");
   const knowledge={id:job.revisionId};
   async function create(name: string, instructions: string, specialist: boolean) {
     const { agent } = await request<{ agent: { id: string; draftRevision: number } }>(`${base}/agents`, { name });
     const defaults = defaultFaqConfiguration();
-    const configuration: AgentConfiguration = { ...defaults, instructions, sourceRevisionIds: [knowledge.id], tools: specialist ? ["knowledge.search", "knowledge.read"] : [], model: { ...defaults.model, maxOutputTokens: specialist ? 192 : 768 } };
+    const configuration: AgentConfiguration = { ...defaults, instructions, sourceRevisionIds: [knowledge.id], retrievalProfile:{kind:"hybrid-v1",embeddingRelease}, tools: specialist ? ["knowledge.search", "knowledge.read"] : [], model: { ...defaults.model, maxOutputTokens: specialist ? 192 : 768 } };
     const updated = await request<{ agent: { draftRevision: number } }>(`${base}/agents/${agent.id}`, { name, configuration, expectedRevision: agent.draftRevision }, "PUT");
     const { version } = await request<{ version: { id: string } }>(`${base}/agents/${agent.id}/versions`, { expectedRevision: updated.agent.draftRevision });
     return { agent, version };
   }
-  const first = await create("Dataset researcher", "Inspect the approved numeric dataset and answer the delegated arithmetic question in one short sentence. Cite the approved source identifier. Do not delegate or run code.", true);
-  const second = await create("Dataset reviewer", "Independently inspect the approved dataset. State its number of observations and maximum value in one short sentence with source reference. Do not delegate or run code.", true);
-  const coordinator = await create("Analysis coordinator", "Complete the user's task with actual tools. First call agents_delegate once with two requests, one per configured binding: ask one specialist for the sum and the other for count and maximum. Omit the optional maxTokens argument so both specialists receive their full published token allocation, including input context and tool definitions. Wait for their real results. Then call sandbox_analyze once, using standard-library Python to calculate the dataset sum and count and write report.json under os.environ['OUTPUT_DIR']. Report JSON must contain values, sum and count. Finish only after the report is exported. Keep briefs and the final reply short. Do not repeat successful tool calls.", false);
+  const first = await create("Dataset researcher", "Inspect the approved numeric dataset and answer the delegated arithmetic question in one short sentence. Use the supplied source passage; if absent, knowledge.search for 'approved numeric dataset'. Copy its exact citation label in brackets. Do not delegate or run code.", true);
+  const second = await create("Dataset reviewer", "Independently inspect the approved numeric dataset. State its count and maximum in one short sentence. Use the supplied source passage; if absent, knowledge.search for 'approved numeric dataset'. Copy its exact citation label in brackets. Do not delegate or run code.", true);
+  const coordinator = await create("Analysis coordinator", "Complete the user's task with actual tools. First call agents_delegate once with two requests, one per binding: 'What is the sum of the approved numeric dataset? Cite the supplied source.' and 'What are the count and maximum of the approved numeric dataset? Cite the supplied source.'. Omit maxTokens so specialists receive their full published allocation. Wait for their actual results. Then call sandbox_analyze once using standard-library Python to calculate sum and count and write report.json under os.environ['OUTPUT_DIR']. Report JSON must contain values, sum, count, and a nonempty citations array of exact bracketed source labels from your supplied context or specialist results. Never invent a source label. Finish only after export, and cite the actual source in the short final reply. Do not repeat successful tool calls.", false);
   return { agentPath: `/app/agents/${coordinator.agent.id}`, specialistVersionIds: [first.version.id, second.version.id], sourceTitle };
 }
 
@@ -287,7 +290,7 @@ async function main() {
       AGENTS_BROWSER_WIDGET_ORIGIN: "http://127.0.0.1:4398",
       ...(deliveryKey ? { AGENTS_DELIVERY_FIXTURE_KEY: deliveryKey } : {}),
       ...(advanced ? { AGENTS_ADVANCED_AGENT_PATH: advanced.agentPath, AGENTS_ADVANCED_SPECIALIST_VERSIONS: advanced.specialistVersionIds.join(","),
-        AGENTS_ADVANCED_SOURCE_TITLE: advanced.sourceTitle, AGENTS_ADVANCED_PROMPT: "Ask both configured specialists to independently inspect the approved dataset; omit maxTokens so their configured allocations cover input and output. Then run Python analysis on those numbers, write report.json in OUTPUT_DIR with the original values, sum and count, and report the verified total. Use actual tools and export the report.",
+        AGENTS_ADVANCED_SOURCE_TITLE: advanced.sourceTitle, AGENTS_ADVANCED_PROMPT: "Independently research the approved numeric dataset with both configured specialists; omit maxTokens. Calculate a Python analysis report with the original values, sum and count. Write report.json in OUTPUT_DIR, including a nonempty citations array of exact supplied source labels in brackets, and report the verified total with its source. Use actual tools and export the report.",
         AGENTS_ADVANCED_EXPECT: "60", AGENTS_ADVANCED_FILE_CONTAINS: "60", AGENTS_ADVANCED_DATASET_CHECK: "1" } : {}) },
   });
   const [exitCode] = await once(browser, "exit");
@@ -319,6 +322,11 @@ async function main() {
     assert.ok(operations.some(operation => operation.name === "sandbox.analyze" && operation.state === "completed"), "Require a completed real sandbox operation");
     const allocations = (await pool.query("SELECT state FROM agents_platform.sandbox_allocations WHERE root_task_id=$1", [acceptedRoot.id])).rows;
     assert.ok(allocations.length > 0 && allocations.every(allocation => allocation.state === "destroyed"), "Actual sandbox allocations must be destroyed after export");
+    const imports = (await pool.query("SELECT id,revision_id,state FROM agents_platform.ingestion_jobs")).rows;
+    assert.ok(imports.length > 0 && imports.every(job => job.state === "ready"), "Approved research knowledge must pass through actual source ingestion");
+    const references = (await pool.query("SELECT id,task_id,operation_id,citation_label FROM agents_platform.evidence_references WHERE root_task_id=$1 ORDER BY task_id,id", [acceptedRoot.id])).rows;
+    console.log(JSON.stringify({ evidence: "actual isolated source ingestion and server-issued research evidence", imports, references, perTask:tasks.map(task=>({id:task.id,references:references.filter(reference=>reference.task_id===task.id).length})) }));
+    assert.ok(tasks.every(task => references.some(reference => reference.task_id === task.id)), "The coordinator and both specialists must have actual source evidence");
     console.log(JSON.stringify({ evidence: "real free model, authorized specialist children, gVisor analysis, private artifact download and cleanup; identity seeded", rootTaskId: acceptedRoot.id, completedTasks: tasks.length, providerFixtureCalls: modelCalls.length }));
     return;
   }

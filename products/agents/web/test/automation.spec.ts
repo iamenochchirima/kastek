@@ -156,6 +156,7 @@ test("live automation: scheduled report survives review and delivery interruptio
   await page.getByRole("link", { name: "Connections", exact: true }).click();
   await page.getByRole("button", { name: "Add connection", exact: true }).click();
   await page.getByRole("textbox", { name: "Name", exact: true }).fill("Local acceptance receiver");
+  await page.getByRole("combobox", { name: "Provider", exact: true }).selectOption("report-delivery-v1");
   await page.getByLabel("API key", { exact: true }).fill(key);
   await page.getByRole("dialog").getByRole("button", { name: "Add connection", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Local acceptance receiver" })).toBeVisible();
@@ -167,7 +168,7 @@ test("live automation: scheduled report survives review and delivery interruptio
   await page.getByRole("combobox", { name: "Specialist 2", exact: true }).selectOption(versions[1]);
   for (const position of [1, 2]) {
     const binding = page.getByRole("group", { name: `Specialist ${position} configuration`, exact: true });
-    await binding.getByRole("checkbox", { name: process.env.AGENTS_ADVANCED_SOURCE_TITLE!, exact: true }).check();
+    await binding.getByRole("checkbox", { name: `${process.env.AGENTS_ADVANCED_SOURCE_TITLE!} · Revision 1`, exact: true }).check();
     await binding.getByRole("checkbox", { name: "Allow knowledge search and reading" }).check();
   }
   await page.getByRole("checkbox", { name: "Run Python analysis", exact: false }).check();
@@ -207,6 +208,7 @@ test("live automation: scheduled report survives review and delivery interruptio
   const reviewedBytes = await review.locator("pre").textContent();
   const report = JSON.parse(reviewedBytes!);
   expect(report.values).toEqual([10, 20, 30]); expect(report.sum).toBe(60); expect(report.count).toBe(3);
+  expect(report.citations).toEqual(expect.arrayContaining([expect.stringMatching(/^\[E[a-f0-9]{32}\]$/)]));
   const downloadEvent = page.waitForEvent("download");
   await page.getByRole("link", { name: "report.json", exact: true }).click();
   const download = await downloadEvent;
@@ -236,6 +238,7 @@ test("live automation: scheduled report survives review and delivery interruptio
   expect(finalDetail.actions[0].state).toBe("delivered");
   expect(finalDetail.actions[0].reviewDigest).toBe(originalDetail.actions[0].reviewDigest);
   expect(finalDetail.actions[0].artifactId).toBe(originalDetail.actions[0].artifactId);
+  expect(finalDetail.actions[0].citedPassages.length).toBeGreaterThan(0);
   expect(finalDetail.children.map((child: { id: string }) => child.id).sort()).toEqual(originalDetail.children.map((child: { id: string }) => child.id).sort());
   for (const width of [1440, 768, 390]) {
     await page.setViewportSize({ width, height: 1000 });
