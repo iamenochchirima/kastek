@@ -130,7 +130,7 @@ suite("local hybrid retrieval quality, eligibility and resource recovery",()=>{
   const sorted=timings.toSorted((a,b)=>a-b);expect(sorted[Math.min(sorted.length-1,Math.ceil(sorted.length*.95)-1)]).toBeLessThan(2000);
  },90_000);
  it("keeps uncertain cleanup charged, denies changed operation inputs and reaps the same allocation",async()=>{
-  const query=holdout[0]!.query,{taskId,operationId}=await operation(query),input={taskId,operationId,profileRelease:release,query};
+  const query=holdout[0]!.query,{taskId,operationId}=await operation(`  ${query}  `),input={taskId,operationId,profileRelease:release,query};
   await expect(queries.embed({...input,query:"Changed query"})).rejects.toMatchObject({code:"QUERY_OPERATION_CONFLICT"});
   const uncertain=new QueryEmbeddingService(pool,queries.objects,{start:runtime.start.bind(runtime),status:runtime.status.bind(runtime),result:runtime.result.bind(runtime),async destroy(id){return{allocationId:id,state:"destroying" as const};}});
   await expect(uncertain.embed(input)).rejects.toMatchObject({code:"DOCUMENT_CLEANUP_PENDING"});

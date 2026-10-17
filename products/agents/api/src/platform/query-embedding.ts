@@ -20,7 +20,7 @@ export async function requireQueryAuthority(db:PoolClient,input:QueryEmbeddingRe
  const operation=(await db.query("SELECT * FROM agents_platform.operations WHERE id=$1 AND task_id=$2 FOR UPDATE",[input.operationId,input.taskId])).rows[0];
  if(!operation||operation.state!=="started"||!["tool","resource"].includes(operation.kind)||operation.name!=="knowledge.search")throw denied("QUERY_OPERATION_UNAVAILABLE");
  let argumentsValue:unknown;try{argumentsValue=operation.request?.tool==="knowledge.search"?JSON.parse(operation.request.arguments):operation.request;}catch{throw denied("QUERY_OPERATION_UNAVAILABLE");}
- if(!argumentsValue||typeof argumentsValue!=="object"||!("query" in argumentsValue)||argumentsValue.query!==input.query)throw denied("QUERY_OPERATION_CONFLICT");
+ if(!argumentsValue||typeof argumentsValue!=="object"||!("query" in argumentsValue)||typeof argumentsValue.query!=="string"||argumentsValue.query.trim()!==input.query.trim())throw denied("QUERY_OPERATION_CONFLICT");
  const deadlineAt=Math.min(new Date(execution.task.deadline_at).getTime(),new Date(operation.started_at).getTime()+operation.reserved_ms);
  if(deadlineAt<=Date.now())throw denied("QUERY_DEADLINE");return{organizationId:execution.task.organization_id,deadlineAt};
 }
