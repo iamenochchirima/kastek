@@ -1,5 +1,6 @@
 import { Pool } from "pg";
 import { privateStoreFromEnvironment } from "./artifacts";
+import { reapExecutionObjects } from "./execution-objects";
 import { reapSourceObjects } from "./source-objects";
 
 export async function runSourceObjectReaper(pool: Pool, signal: AbortSignal): Promise<void> {
@@ -8,6 +9,8 @@ export async function runSourceObjectReaper(pool: Pool, signal: AbortSignal): Pr
   while (!signal.aborted) {
     try { await reapSourceObjects(pool, objects); }
     catch { console.error(JSON.stringify({ service: "agents-source-object-reaper", event: "cleanup.retry", code: "SOURCE_OBJECT_CLEANUP_PENDING" })); }
+    try { await reapExecutionObjects(pool, objects); }
+    catch { console.error(JSON.stringify({ service: "agents-source-object-reaper", event: "cleanup.retry", code: "EXECUTION_OBJECT_CLEANUP_PENDING" })); }
     if (!signal.aborted) await new Promise<void>(resolve => {
       const finish = () => { clearTimeout(timer); signal.removeEventListener("abort", finish); resolve(); };
       const timer = setTimeout(finish, 1000); signal.addEventListener("abort", finish, { once: true });

@@ -8,7 +8,7 @@ ALTER TABLE agents_platform.evidence_references
 
 CREATE TABLE agents_platform.evidence_contents (
  reference_id uuid PRIMARY KEY REFERENCES agents_platform.evidence_references(id),
- object_key text UNIQUE, title text NOT NULL CHECK(length(title) BETWEEN 1 AND 200),
+ object_key text, title text NOT NULL CHECK(length(title) BETWEEN 1 AND 200),
  content_bytes integer NOT NULL CHECK(content_bytes BETWEEN 1 AND 1048576),
  page integer, section text, binding_id uuid REFERENCES agents_platform.capability_bindings(id),
  resource jsonb, receipt_digest text CHECK(receipt_digest ~ '^[a-f0-9]{64}$')

@@ -112,6 +112,8 @@ export function createBoundedFetch(policy: TrustedNetworkPolicy): typeof fetch {
       const bytes = observedBytes;
       await policy.onAttempt?.({ attempt, status: response.status, requestBytes: body.length, responseBytes: bytes, elapsedMs: Date.now() - start, outcome: "response" });
       if ([301, 302, 303, 307, 308].includes(response.status)) {
+        if (init.redirect === "error") throw new ConnectedNetworkError("DESTINATION_DENIED");
+        if (init.redirect === "manual") { Object.defineProperty(response,"url",{value:current.href}); return response; }
         if (++redirects > 3 || !response.headers.has("location")) throw new ConnectedNetworkError("DESTINATION_DENIED");
         const next = new URL(response.headers.get("location")!, current); authorize(next, policy);
         if (next.origin !== url.origin && Object.keys(policy.headers ?? {}).some(key => key.toLowerCase() === "authorization")) throw new ConnectedNetworkError("DESTINATION_DENIED");

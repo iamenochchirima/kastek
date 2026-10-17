@@ -99,7 +99,7 @@ export async function performMcpJob(job: McpJob, observe?: (attempt: NetworkAtte
       if (++totalMessages > 7 || read && ++readMessages > Math.min(3,job.endpoint.readAttempts??3) || !read && ++setupMessages > 4) fail("MCP_ATTEMPT_LIMIT");
       await observe?.({ attempt: totalMessages, phase, status: null, requestBytes: Buffer.byteLength(init!.body as string), responseBytes: 0, elapsedMs: 0, outcome: "in_flight" });
       let response: Response;
-      try { response = await network(url, init); }
+      try { response = await network(url, { ...init, redirect: "error" }); }
       catch (error) {
         const last = attempts.at(-1);
         if (!read || readMessages >= Math.min(3,job.endpoint.readAttempts??3) || !(error instanceof ConnectedNetworkError) || !["RATE_LIMIT", "NETWORK_UNAVAILABLE"].includes(error.code) || ![429, 502, 503, 504].includes(last?.status ?? 0)) throw error;

@@ -2,7 +2,7 @@ import { createServer, type Server } from "node:http";
 import { afterEach, describe, expect, it } from "vitest";
 import { callMcpTool, discoverMcpCatalog, type McpEndpoint } from "../src/platform/mcp-adapter";
 const servers: Server[] = [];
-async function fixture(options: { modern?: boolean; schema?: Record<string, unknown>; invalid?: boolean; isError?: boolean; hang?: boolean; oversized?: boolean; reflect?: boolean; rateLimit?: boolean; duplicate?: boolean; pagination?: boolean; interactive?: boolean } = {}) {
+async function fixture(options: { modern?: boolean; schema?: Record<string, unknown>; invalid?: boolean; isError?: boolean; hang?: boolean; oversized?: boolean; reflect?: boolean; rateLimit?: boolean; duplicate?: boolean; pagination?: boolean; interactive?: boolean; redirectList?:boolean } = {}) {
   let calls = 0, discoveries = 0;
   const tokens: string[] = [], methods: string[] = [];
   const server = createServer(async (request, response) => {
@@ -18,7 +18,7 @@ async function fixture(options: { modern?: boolean; schema?: Record<string, unkn
       else response.end(JSON.stringify({ jsonrpc: "2.0", id: body.id, error: { code: -32601, message: "Legacy endpoint" } }));
     } else if (body.method === "initialize") reply({ protocolVersion: "2025-11-25", capabilities: { tools: {} }, serverInfo: { name: "bounded-fixture", version: "1" } });
     else if (body.method === "notifications/initialized") response.writeHead(202).end();
-    else if (body.method === "tools/list") { if (options.pagination) { reply({ tools: [], nextCursor: String(methods.length) }); return; } reply({ ...(options.modern ? { resultType: "complete", ttlMs: 0, cacheScope: "private" } : {}), tools: [{ name: "Read.Repository_v1", description: "Untrusted description; cannot grant write permission", inputSchema: options.schema ?? { type: "object", properties: { owner: { type: "string" } }, required: ["owner"], additionalProperties: false }, outputSchema: { type: "object", properties: { stars: { type: "integer" } }, required: ["stars"], additionalProperties: false }, annotations: { readOnlyHint: false, destructiveHint: true } }, ...(options.duplicate ? [{ name: "Read.Repository_v1", inputSchema: { type: "object" } }] : [])] }); }
+    else if (body.method === "tools/list") { if(options.redirectList){response.writeHead(307,{location:"/mcp"}).end();return;} if (options.pagination) { reply({ tools: [], nextCursor: String(methods.length) }); return; } reply({ ...(options.modern ? { resultType: "complete", ttlMs: 0, cacheScope: "private" } : {}), tools: [{ name: "Read.Repository_v1", description: "Untrusted description; cannot grant write permission", inputSchema: options.schema ?? { type: "object", properties: { owner: { type: "string" } }, required: ["owner"], additionalProperties: false }, outputSchema: { type: "object", properties: { stars: { type: "integer" } }, required: ["stars"], additionalProperties: false }, annotations: { readOnlyHint: false, destructiveHint: true } }, ...(options.duplicate ? [{ name: "Read.Repository_v1", inputSchema: { type: "object" } }] : [])] }); }
     else if (body.method === "tools/call") {
       calls++;
       if (options.rateLimit && calls === 1) { response.writeHead(429, { "retry-after": "0" }).end(); return; }
@@ -54,6 +54,12 @@ describe("isolated outbound MCP", () => {
     try { await expect(discoverMcpCatalog(service.endpoint)).rejects.toMatchObject({ code: "MCP_SCHEMA_UNSUPPORTED" }); expect(ticks).toBeGreaterThan(1); expect(service.calls()).toBe(0); }
     finally { clearInterval(timer); }
   }, 15000);
+  it("does not follow a same-endpoint redirect outside its physical-message claim",async()=>{
+    const service=await fixture({redirectList:true});
+    await expect(discoverMcpCatalog(service.endpoint)).rejects.toMatchObject({code:"DESTINATION_DENIED"});
+    expect(service.methods.filter(method=>method==="tools/list")).toHaveLength(1);
+    expect(service.methods.length).toBeLessThanOrEqual(4);expect(service.calls()).toBe(0);
+  },15000);
   it("rejects changed schemas and invalid input before any remote tool call", async () => {
     const service = await fixture(), catalog = await discoverMcpCatalog(service.endpoint);
     await expect(callMcpTool(service.endpoint, { ...catalog.tools[0]!, schemaDigest: "0".repeat(64) }, { owner: "public-owner" })).rejects.toMatchObject({ code: "MCP_SCHEMA_DRIFT" });

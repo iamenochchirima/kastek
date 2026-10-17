@@ -1,3 +1,4 @@
+import {writeExecutionObject} from "./execution-objects";
 import {createHash,randomUUID} from "node:crypto";
 import {readFileSync} from "node:fs";
 import {extname,join} from "node:path";
@@ -127,18 +128,22 @@ export class ConnectedExecutor {
    const prior=(await db.query("SELECT * FROM agents_platform.connected_reads WHERE operation_id=$1 FOR UPDATE",[operationId])).rows[0];
    if(prior){if(prior.task_id!==taskId||prior.binding_id!==binding.id||prior.request_digest!==digest)throw new PlatformError("OPERATION_CONFLICT",409,"Connected read identity changed");if(prior.state==="completed")return{replay:prior.result};if(prior.state==="started")await db.query("UPDATE agents_platform.connected_reads SET state='uncertain',error_code='CONNECTED_READ_UNCERTAIN' WHERE operation_id=$1",[operationId]);return{error:prior.state==="failed"?prior.error_code:"CONNECTED_READ_UNCERTAIN"};}
    this.registry.resolve(binding);const authorized=await this.scope(db,taskId,binding);
-   if(!(await db.query("SELECT 1 FROM agents_platform.operations WHERE id=$1 AND task_id=$2 AND name=$3 AND kind='tool' AND state='started'",[operationId,taskId,binding.alias])).rowCount)throw denied();
+   const operation=(await db.query("SELECT started_at,reserved_ms FROM agents_platform.operations WHERE id=$1 AND task_id=$2 AND name=$3 AND kind='tool' AND state='started'",[operationId,taskId,binding.alias])).rows[0];
+   if(!operation)throw denied();
    let selected:GithubRepositorySelection|undefined,handle:Handle|undefined;
    if(args.repository)selected=authorized.credential.connection.selections.find(selection=>githubRepositoryHandle(selection).id===args.repository&&binding.resources.some(resource=>resource.id===args.repository&&resource.kind==="github.repository"));
    else if(args.revisionId)handle=await this.handle(db,authorized.execution,binding,args.revisionId,"revision");else if(args.fileId)handle=await this.handle(db,authorized.execution,binding,args.fileId,"file");else if(args.releaseId)handle=await this.handle(db,authorized.execution,binding,args.releaseId,"release");
    if(!selected&&handle)selected=authorized.credential.connection.selections.find(selection=>githubRepositoryHandle(selection).id===handle!.resource.id);
    if(!selected)throw denied();
    await db.query("INSERT INTO agents_platform.connected_reads(operation_id,task_id,organization_id,root_task_id,connection_id,binding_id,request_digest,state) VALUES($1,$2,$3,$4,$5,$6,$7,'started')",[operationId,taskId,initial.task.organization_id,initial.task.root_task_id,binding.connection!.id,binding.id,digest]);
-   return{...authorized,selected,handle};
+   return{...authorized,selected,handle,operationDeadline:new Date(operation.started_at).getTime()+Math.min(operation.reserved_ms,binding.limits.timeoutMs)};
   });
   if("replay"in claim)return claim.replay;if("error"in claim)throw claim.error==="CONNECTED_READ_UNCERTAIN"?uncertain():new PlatformError(claim.error,502,"The connected read failed");
+  const deadlineAt=Math.min(claim.operationDeadline,new Date(claim.execution.task.deadline_at).getTime());
+  const checkDeadline=()=>{if(Date.now()>=deadlineAt)throw new PlatformError("CONNECTED_READ_DEADLINE",409,"The connected read exceeded its original operation deadline");};
   let ordinal=0,pending=0,readCount=0,setupCount=0;
   const before=async(phase:"setup"|"read"="read")=>{
+   checkDeadline();
    await transaction(this.pool,async db=>{
     await db.query("SELECT id FROM agents_platform.organizations WHERE id=$1 FOR UPDATE",[claim.execution.task.organization_id]);const current=await this.scope(db,taskId,binding);
     if(current.credential.connection.revision!==claim.credential.connection.revision)throw new PlatformError("CONNECTION_CREDENTIAL_CHANGED",403,"Connection credentials changed during this read");
@@ -147,14 +152,23 @@ export class ConnectedExecutor {
    });
   };
   const after=async(receipt:NetworkAttempt)=>{await this.pool.query("UPDATE agents_platform.connected_attempts SET state='completed',receipt=$3 WHERE operation_id=$1 AND ordinal=$2 AND state='started'",[operationId,pending,JSON.stringify({...receipt,attempt:pending})]);};
-  const deadlineAt=Math.min(Date.now()+binding.limits.timeoutMs,new Date(claim.execution.task.deadline_at).getTime());
   let responseOrdinal=0;
   const capture=async(response:{body:unknown;digest:string;observedAt:string})=>{
+    checkDeadline();
     const bytes=Buffer.from(JSON.stringify(response.body));if(bytes.length>MAX_BODY_BYTES)throw new PlatformError("CONNECTED_BODY_LIMIT",413,"Provider response exceeds private storage limit");
     if(bytes.includes(Buffer.from(claim.credential.authorization)))throw new PlatformError("CONNECTED_CREDENTIAL_REFLECTION",502,"Provider response reflected private authorization");
     const contentDigest=textDigest(bytes),key=`connected/${claim.execution.task.organization_id}/${claim.execution.task.root_task_id}/${textDigest(operationId)}/response-${++responseOrdinal}-${contentDigest}`;
-    await this.objects.put(key,bytes,"application/json");
-    await this.pool.query("INSERT INTO agents_platform.connected_response_bodies(operation_id,ordinal,object_key,content_digest,provider_digest,observed_at) VALUES($1,$2,$3,$4,$5,$6)",[operationId,responseOrdinal,key,contentDigest,response.digest,response.observedAt]);
+    await writeExecutionObject(this.pool,this.objects,{taskId,operationId,key,bytes,contentType:"application/json"});
+    checkDeadline();
+    await transaction(this.pool,async db=>{
+      await db.query("SELECT id FROM agents_platform.organizations WHERE id=$1 FOR UPDATE",[claim.execution.task.organization_id]);
+      await this.scope(db,taskId,binding);
+      if(!(await db.query("SELECT 1 FROM agents_platform.operations WHERE id=$1 AND task_id=$2 AND state='started'",[operationId,taskId])).rowCount)throw uncertain();
+      const object=(await db.query("SELECT state,content_digest FROM agents_platform.execution_objects WHERE object_key=$1 FOR SHARE",[key])).rows[0];
+      if(object?.state!=="available"||object.content_digest!==contentDigest)throw new PlatformError("EXECUTION_OBJECT_UNCERTAIN",409,"The private response body is unavailable");
+      checkDeadline();
+      await db.query("INSERT INTO agents_platform.connected_response_bodies(operation_id,ordinal,object_key,content_digest,provider_digest,observed_at) VALUES($1,$2,$3,$4,$5,$6)",[operationId,responseOrdinal,key,contentDigest,response.digest,response.observedAt]);
+    });
   };
   const native=()=>new GithubReadAdapter({authorization:claim.credential.authorization,selections:claim.credential.connection.selections,deadlineAt,signal,testLoopbackOrigin:this.options.testGithubOrigin,beforeAttempt:()=>before(),onAttempt:after,onResponse:capture,maxPhysicalRequests:binding.transport==="mcp_http"?1:3});
   try{
@@ -169,7 +183,7 @@ export class ConnectedExecutor {
      case"list_releases":observation=await native().listReleases(claim.selected);break;
      default:throw denied();
     }
-    full=observation;projection=await this.projectNative(taskId,operationId,binding,args,claim.selected,observation);
+    full=observation;projection=await this.projectNative(taskId,operationId,binding,args,claim.selected,observation,checkDeadline);
    }else{
     await native().getRepository(claim.selected);
     const remoteArgs=this.remoteArguments(binding,args,claim.selected,claim.handle);
@@ -177,23 +191,28 @@ export class ConnectedExecutor {
     const observation=await callMcpTool({...this.endpoint(claim.credential.authorization,deadlineAt,binding.protocolVersion!),readAttempts:2},tool,remoteArgs,signal,{beforeAttempt:attempt=>before(attempt.phase??"setup"),onAttempt:after});
     full=observation.rawResult;const allText=Array.isArray(observation.rawResult.content)?observation.rawResult.content.filter((item:any)=>item?.type==="text"&&typeof item.text==="string").map((item:any)=>item.text).join("\n"):observation.text;const visible=prefix(allText.slice(args.offset??0));projection={...visible,resource:githubRepositoryHandle(claim.selected),acquiredAt:new Date().toISOString(),digest:observation.resultDigest,provenance:{kind:"timestamped_observation",...(claim.handle?.kind==="revision"?{requestedCommit:claim.handle.payload.commitSha}:{})},isError:observation.isError};
    }
+   checkDeadline();
    const body=Buffer.from(JSON.stringify(full));if(body.length>MAX_BODY_BYTES)throw new PlatformError("CONNECTED_BODY_LIMIT",413,"Connected receipt exceeds the private storage limit");
    if(body.includes(Buffer.from(claim.credential.authorization)))throw new PlatformError("CONNECTED_CREDENTIAL_REFLECTION",502,"The connected response reflected private authorization");
    const bodyDigest=textDigest(body),bodyKey=`connected/${claim.execution.task.organization_id}/${claim.execution.task.root_task_id}/${textDigest(operationId)}/${bodyDigest}`;
-   await this.objects.put(bodyKey,body,"application/json");
+   await writeExecutionObject(this.pool,this.objects,{taskId,operationId,key:bodyKey,bytes:body,contentType:"application/json"});
+   checkDeadline();
    const passage=await this.evidence.recordConnected(taskId,operationId,{bindingId:binding.id,resource:projection.resource,text:projection.text||"The provider returned an empty read result.",title:`GitHub ${binding.definition.providerOperation}`,acquiredAt:projection.acquiredAt,receiptDigest:bodyDigest});
    const result:ConnectedObservation={status:projection.isError?"tool_error":"ok",bindingId:binding.id,operationId,content:passage.text,truncated:projection.truncated,evidence:{id:passage.reference.id,label:passage.label,citation:`[${passage.label}]`,contentDigest:passage.reference.contentDigest},...(projection.handles?{handles:projection.handles}:{}),observation:{digest:projection.digest,acquiredAt:projection.acquiredAt,provenance:projection.provenance}};
    if(Buffer.byteLength(JSON.stringify(result))>8192)throw new PlatformError("CONNECTED_RESULT_LIMIT",413,"Connected observation exceeds its model result limit");
-   await this.pool.query("UPDATE agents_platform.connected_reads SET state='completed',result=$2,body_key=$3,body_digest=$4,updated_at=now() WHERE operation_id=$1 AND state='started'",[operationId,JSON.stringify(result),bodyKey,bodyDigest]);return result;
-  }catch(error){const active=Number((await this.pool.query("SELECT count(*) AS count FROM agents_platform.connected_attempts WHERE operation_id=$1 AND (state='started' OR (receipt->>'status' IS NULL AND receipt->>'outcome' IN ('CANCELLED','DEADLINE','NETWORK_UNAVAILABLE')))",[operationId])).rows[0].count);await this.pool.query("UPDATE agents_platform.connected_reads SET state=$2,error_code=$3,updated_at=now() WHERE operation_id=$1 AND state='started'",[operationId,active?"uncertain":"failed",code(error)]);throw active?uncertain():new PlatformError(code(error),502,"Connected read did not complete");}
+   checkDeadline();
+   const published=await this.pool.query("UPDATE agents_platform.connected_reads SET state='completed',result=$2,body_key=$3,body_digest=$4,updated_at=now() WHERE operation_id=$1 AND state='started' AND EXISTS(SELECT 1 FROM agents_platform.operations p WHERE p.id=$1 AND p.state='started')",[operationId,JSON.stringify(result),bodyKey,bodyDigest]);
+   if(!published.rowCount) throw new PlatformError("CONNECTED_READ_UNCERTAIN",409,"Connected read receipt is no longer publishable");
+   return result;
+  }catch(error){const active=Number((await this.pool.query("SELECT count(*) AS count FROM agents_platform.connected_attempts WHERE operation_id=$1 AND (state='started' OR (receipt->>'status' IS NULL AND receipt->>'outcome' IN ('CANCELLED','DEADLINE','NETWORK_UNAVAILABLE')))",[operationId])).rows[0].count);await this.pool.query("UPDATE agents_platform.connected_reads SET state=$2,error_code=$3,updated_at=now() WHERE operation_id=$1 AND state='started'",[operationId,active||error instanceof PlatformError&&error.code==="CONNECTED_READ_DEADLINE"?"uncertain":"failed",code(error)]);throw active||error instanceof PlatformError&&error.code==="CONNECTED_READ_DEADLINE"?uncertain():new PlatformError(code(error),502,"Connected read did not complete");}
  }
- private async projectNative(taskId:string,operationId:string,binding:CapabilityBinding,args:ConnectedModelArguments,selection:GithubRepositorySelection,observation:GithubObservation<unknown>):Promise<Projection>{
+ private async projectNative(taskId:string,operationId:string,binding:CapabilityBinding,args:ConnectedModelArguments,selection:GithubRepositorySelection,observation:GithubObservation<unknown>,checkDeadline:()=>void):Promise<Projection>{
   const resource=githubRepositoryHandle(selection),value=observation.value as any;let visible:unknown=value,handles:unknown;
   switch(binding.definition.providerOperation){
    case"resolve_ref":{const revisionId=await this.issue(taskId,operationId,binding,resource,"revision",value);visible={revisionId,repository:resource.id,commitSha:value.commitSha,resolvedAt:value.resolvedAt};handles={revisionId};break;}
-   case"list_tree":{const entries=[];for(const file of (value.files as GithubFileHandle[]).slice(args.offset??0,(args.offset??0)+20)){if(Buffer.byteLength(JSON.stringify([...entries,{fileId:"0".repeat(36),path:file.path,bytes:file.size}]))>2400)break;const fileId=await this.issue(taskId,operationId,binding,resource,"file",{revision:value.revision,file});entries.push({fileId,path:file.path,bytes:file.size});}visible={files:entries,omittedUnsupported:value.omittedUnsupported,hasMore:value.files.length>(args.offset??0)+entries.length,nextOffset:(args.offset??0)+entries.length};handles={files:entries.map(({fileId})=>({fileId}))};break;}
+   case"list_tree":{const entries=[];for(const file of (value.files as GithubFileHandle[]).slice(args.offset??0,(args.offset??0)+20)){checkDeadline();if(Buffer.byteLength(JSON.stringify([...entries,{fileId:"0".repeat(36),path:file.path,bytes:file.size}]))>2400)break;const fileId=await this.issue(taskId,operationId,binding,resource,"file",{revision:value.revision,file});entries.push({fileId,path:file.path,bytes:file.size});}visible={files:entries,omittedUnsupported:value.omittedUnsupported,hasMore:value.files.length>(args.offset??0)+entries.length,nextOffset:(args.offset??0)+entries.length};handles={files:entries.map(({fileId})=>({fileId}))};break;}
    case"read_file":visible=value.content.slice(args.offset??0);break;
-   case"list_releases":{const entries=[];for(const release of value.releases){const releaseId=await this.issue(taskId,operationId,binding,resource,"release",{repository:selection,release});entries.push({releaseId,tag:release.tag,name:release.name,publishedAt:release.publishedAt,body:prefix(release.body??"",512).text});}visible={releases:entries,hasMore:value.hasMore,pageSize:value.pageSize};handles={releases:entries.map(({releaseId})=>({releaseId}))};break;}
+   case"list_releases":{const entries=[];for(const release of value.releases){checkDeadline();const releaseId=await this.issue(taskId,operationId,binding,resource,"release",{repository:selection,release});entries.push({releaseId,tag:release.tag,name:release.name,publishedAt:release.publishedAt,body:prefix(release.body??"",512).text});}visible={releases:entries,hasMore:value.hasMore,pageSize:value.pageSize};handles={releases:entries.map(({releaseId})=>({releaseId}))};break;}
   }
   const projected=prefix(typeof visible==="string"?visible:JSON.stringify(visible));return{...projected,handles,resource,acquiredAt:observation.observedAt,digest:observation.digest,provenance:observation.provenance};
  }

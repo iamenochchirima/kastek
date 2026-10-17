@@ -1,3 +1,4 @@
+import {reconcilePendingRoots} from "./execution";
 import { Pool } from "pg";
 import { documentRuntimeFromEnvironment } from "./document-runtime";
 import { reapDocumentResources } from "./ingestion-runtime";
@@ -11,6 +12,7 @@ export async function runDocumentReaper(pool: Pool, signal: AbortSignal, interva
       try { await reap(pool, runtime); }
       catch { console.error(JSON.stringify({ service: "agents-document-reaper", event: "cleanup.retry", code: "DOCUMENT_CLEANUP_PENDING" })); }
     }
+    try { await reconcilePendingRoots(pool); } catch { console.error(JSON.stringify({service:"agents-document-reaper",event:"settlement.retry",code:"RESOURCE_SETTLEMENT_PENDING"})); }
     if (!signal.aborted) await new Promise<void>(resolve => {
       const finish = () => { clearTimeout(timer); signal.removeEventListener("abort", finish); resolve(); };
       const timer = setTimeout(finish, intervalMs); signal.addEventListener("abort", finish, { once: true });

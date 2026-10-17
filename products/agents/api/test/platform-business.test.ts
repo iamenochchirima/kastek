@@ -349,6 +349,15 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     expect((await pool.query("SELECT model_calls FROM agents_platform.execution_roots WHERE root_task_id=$1",[f.task.id])).rows[0].model_calls).toBe(0);
     await requestTreeCancellation(pool,f.task.id);for(const child of children)await settleTask(pool,child.taskId,{state:"cancelled"});await settleTask(pool,f.task.id,{state:"cancelled"});
   },30000);
+  it("labels truncated specialist results as partial and never cuts a citation label",async()=>{
+    const f=await researchFixture(),children=await admitChildren(pool,f.task.id,randomUUID(),childRequests);
+    const original="x".repeat(2040)+"[E"+"a".repeat(32)+"] Missing source: quarterly figures unavailable.";
+    await pool.query("UPDATE agents_platform.tasks SET state='running' WHERE id=ANY($1::uuid[])",[children.map(child=>child.taskId)]);
+    for(const child of children)await settleTask(pool,child.taskId,{state:"completed",output:original});
+    const joined=await readChildResults(pool,f.task.id,children);expect(joined.partial).toBe(true);
+    for(const child of joined.children){expect(child.outputTruncated).toBe(true);expect(child.originalBytes).toBe(Buffer.byteLength(original));expect(child.output).toBe("x".repeat(2040));expect(child.output).not.toMatch(/\[E[a-f0-9]*$/);}
+    await settleTask(pool,f.task.id,{state:"incomplete",errorCode:"CHILD_OUTPUT_TRUNCATED"});
+  });
   it("fences cached specialist results when branch history is deleted before parent synthesis",async()=>{
     const f=await researchFixture();const children=await admitChildren(pool,f.task.id,randomUUID(),childRequests);
     await pool.query("UPDATE agents_platform.tasks SET state='running' WHERE id=ANY($1::uuid[])",[children.map(child=>child.taskId)]);

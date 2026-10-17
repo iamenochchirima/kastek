@@ -167,7 +167,8 @@ async function finishOperationInTransaction(db: PoolClient, execution: Execution
   const charged = await db.query(`INSERT INTO agents_platform.operation_usage(operation_id,task_id,accounted_tokens,outcome)
     VALUES($1,$2,$3,$4) ON CONFLICT(operation_id) DO NOTHING RETURNING operation_id`, [op.id, op.task_id, accounted, state]);
   if (!charged.rowCount) return;
-  const duration = state === "uncertain" ? op.reserved_ms : Math.min(op.reserved_ms, Math.max(0, Date.now() - new Date(op.started_at).getTime()));
+  const elapsed = Math.max(0,Date.now()-new Date(op.started_at).getTime());
+  const duration = state === "uncertain" ? Math.max(op.reserved_ms,elapsed) : elapsed;
   await db.query(`UPDATE agents_platform.operations SET state=$2,output=$3,error_code=$4,accounted_tokens=$5,completed_at=now() WHERE id=$1`,
     [op.id, state, output === undefined ? null : JSON.stringify(output), errorCode, accounted]);
   await db.query(`UPDATE agents_platform.tasks SET tokens_used=tokens_used+$2,tokens_reserved=tokens_reserved-$3,
@@ -175,7 +176,7 @@ async function finishOperationInTransaction(db: PoolClient, execution: Execution
   [execution.task.id, accounted, op.reserved_tokens, duration, op.reserved_ms]);
   await db.query(`UPDATE agents_platform.execution_roots SET tokens_used=tokens_used+$2,tokens_reserved=tokens_reserved-$3,
     child_reserved_tokens=child_reserved_tokens+$4,active_ms=active_ms+$5,active_reserved_ms=active_reserved_ms-$6,
-    child_reserved_ms=child_reserved_ms+$7 WHERE root_task_id=$1`,
+    child_reserved_ms=greatest(0,child_reserved_ms+$7) WHERE root_task_id=$1`,
   [execution.task.root_task_id,accounted,op.reserved_tokens,execution.task.parent_task_id?op.reserved_tokens-accounted:0,
     duration,op.reserved_ms,execution.task.parent_task_id?op.reserved_ms-duration:0]);
   await event(db, op.task_id, `result:${op.id}`, `operation.${state}`, { operationId: op.id, accountedTokens: accounted, errorCode });
@@ -236,7 +237,7 @@ export async function settleTask(pool: Pool, taskId: string, requested: TaskOutc
       const latest=(await db.query("SELECT tokens_used,active_ms,allocation_released FROM agents_platform.tasks WHERE id=$1",[taskId])).rows[0];
       if(!latest.allocation_released) {
         await db.query("UPDATE agents_platform.execution_roots SET child_reserved_tokens=child_reserved_tokens-$2,child_reserved_ms=child_reserved_ms-$3 WHERE root_task_id=$1",
-          [task.root_task_id,task.root_token_limit-latest.tokens_used,task.allocation_active_ms-latest.active_ms]);
+          [task.root_task_id,task.root_token_limit-latest.tokens_used,Math.max(0,task.allocation_active_ms-latest.active_ms)]);
         await db.query("UPDATE agents_platform.tasks SET allocation_released=true WHERE id=$1",[taskId]);
       }
     } else {

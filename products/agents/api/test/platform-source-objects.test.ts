@@ -23,6 +23,15 @@ const url=process.env.AGENTS_TEST_DATABASE_URL;
   await writeSourceObject(pool,checked,input);await writeSourceObject(pool,checked,input);expect(puts-before).toBe(1);
   await expect(writeSourceObject(pool,checked,{...input,bytes:Buffer.from("different content")})).rejects.toMatchObject({code:"SOURCE_OBJECT_CONFLICT"});
  });
+ it("joins concurrent duplicate uploads while the first physical PUT is in flight",async()=>{
+  const owner=await platform.ensureAccount({issuer:"http://source/objects",subject:randomUUID(),email:"parallel@example.test",displayName:"Owner"}),org=await platform.createOrganization(owner.id,"Parallel upload"),scope={organizationId:org.id,accountId:owner.id};
+  let entered!:()=>void,release!:()=>void,physical=0;const ready=new Promise<void>(done=>entered=done),barrier=new Promise<void>(done=>release=done);
+  const shared=new KnowledgeStore(pool,{...storage,async put(key,bytes,type){physical++;entered();await barrier;await storage.put(key,bytes,type);}}),input={operationId:randomUUID(),title:"Concurrent guide",contentType:"text/plain",content:Buffer.from("One immutable upload"),parserRelease:"fixture-v1"};
+  const first=shared.admitUpload(scope,input);await ready;const second=shared.admitUpload(scope,input);
+  await new Promise(done=>setTimeout(done,40));release();const [a,b]=await Promise.all([first,second]);
+  expect(a.id).toBe(b.id);expect(a.revisionId).toBe(b.revisionId);expect(physical).toBe(1);
+  expect((await pool.query("SELECT count(*) FROM agents_platform.source_objects WHERE job_id=$1",[a.id])).rows[0].count).toBe("1");
+ });
  it("allows nonblocking cancellation during PUT and cleans the recorded late write",async()=>{
   const f=await fixture(),input=stage(f);let entered!:()=>void,release!:()=>void;const ready=new Promise<void>(done=>entered=done),barrier=new Promise<void>(done=>release=done);
   const delayed={...storage,async put(key:string,bytes:Uint8Array,type:string){entered();await barrier;await storage.put(key,bytes,type);}};

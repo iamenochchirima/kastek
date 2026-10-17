@@ -22,6 +22,13 @@ describe("trusted connected network", () => {
     await expect(createBoundedFetch(policy)(`${url}/read`)).rejects.toMatchObject({ code: "DESTINATION_DENIED" });
     await expect(createBoundedFetch({ ...policy, testLoopback: true })(`${url}/read`)).rejects.toMatchObject({ code: "DESTINATION_DENIED" });
   });
+  it("honors redirect:error on the same approved endpoint without a second physical send", async()=>{
+    let calls=0,claims=0;const receipts:NetworkAttempt[]=[];
+    const url=await server((_request,response)=>{calls++;response.writeHead(307,{location:"/read"}).end();});
+    const read=createBoundedFetch({authorizeUrl:value=>value.href===`${url}/read`,maxRequestBytes:16,maxResponseBytes:32,deadlineAt:Date.now()+2000,testLoopback:true,beforeAttempt:()=>{claims++;},onAttempt:receipt=>{receipts.push(receipt);}});
+    await expect(read(`${url}/read`,{redirect:"error"})).rejects.toMatchObject({code:"DESTINATION_DENIED"});
+    expect(calls).toBe(1);expect(claims).toBe(1);expect(receipts).toHaveLength(1);expect(receipts[0]?.status).toBe(307);
+  });
   it("caps declared and streamed responses and rejects compressed expansion", async () => {
     const url = await server((request, response) => { if (request.url === "/compressed") response.writeHead(200, { "content-encoding": "gzip" }); response.end("x".repeat(128)); });
     const fetch = createBoundedFetch({ authorizeUrl: () => true, maxRequestBytes: 16, maxResponseBytes: 32, deadlineAt: Date.now()+2000, testLoopback: true });

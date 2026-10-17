@@ -4,9 +4,9 @@ import { APPROVED_MODEL_PROFILE, estimateRequestTokens, ModelOperationError, req
 
 export interface ContextSource {
   id: string; revision: number | string; kind: "knowledge" | "memory" | "skill" | "summary" | "result";
-  content: string; score?: number; excerpt?: true;
+  content: string; score?: number; excerpt?: true; evidenceId?: string;
 }
-export interface ContextGroup { id: string; messages: HarnessMessage[] }
+export interface ContextGroup { id: string; messages: HarnessMessage[]; evidenceIds?: string[] }
 export interface ContextInput {
   instructions: string; currentInput: string; history?: ContextGroup[];
   sources?: ContextSource[]; skills?: ContextSource[]; summary?: ContextSource;
@@ -16,7 +16,7 @@ export interface ContextInput {
 }
 export interface ContextBuildResult {
   status: "ready" | "compaction_required"; messages: HarnessMessage[]; estimatedTokens: number;
-  digest: string; sourceReferences: { id: string; revision: number | string; kind: ContextSource["kind"] }[];
+  digest: string; sourceReferences: { id: string; revision: number | string; kind: ContextSource["kind"]; evidenceId?: string }[];
   historyGroupIds: string[]; omittedHistoryGroupIds: string[];
   profileId: string;
 }
@@ -81,6 +81,7 @@ export function buildContext(input: ContextInput): ContextBuildResult {
     selectedSources.push(source);
     if (!fits(input, assemble())) {
       selectedSources.pop();
+      if (source.evidenceId) continue;
       // Source ingestion limits and prompt limits differ. Preserve an explicitly
       // marked opening excerpt rather than dropping every long approved source.
       const characters = Array.from(source.content);
@@ -100,7 +101,7 @@ export function buildContext(input: ContextInput): ContextBuildResult {
   const messages = assemble();
   validateMessageGroups(messages);
   const references = [...skills, ...(input.summary ? [input.summary] : []), ...selectedSources]
-    .map(({ id, revision, kind }) => ({ id, revision, kind }));
+    .map(({ id, revision, kind, evidenceId }) => ({ id, revision, kind, ...(evidenceId ? { evidenceId } : {}) }));
   const request = modelRequest(input, messages);
   return { status: omitted.length ? "compaction_required" : "ready", messages,
     estimatedTokens: estimateRequestTokens(request), digest: requestDigest(request), sourceReferences: references,

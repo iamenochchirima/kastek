@@ -10,7 +10,7 @@ import {ConnectionVault} from "../src/platform/vault";
 import {setupPlatformSchema} from "../src/platform/setup";
 import {defaultFaqConfiguration,requestDigest,type ExecutionGrant} from "../src/platform/contracts";
 import {admitChildren} from "../src/platform/delegation";
-import {beginOperation} from "../src/platform/execution";
+import {beginOperation,finishOperation} from "../src/platform/execution";
 import type {CapabilityBinding} from "../src/platform/capability-catalog";
 import {assertConnectedBindingDependencies,connectedModelArguments,connectedModelTool} from "../src/platform/connected-tool-schema";
 const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
@@ -58,7 +58,7 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
   const{task}=await platform.admitTask({authority,versionId:version.id,grantId:grant.id,requestKey:randomUUID(),input:"Read approved public sources"});
   return{scope,connection,bindings,task,grant};
  }
- async function call(f:Awaited<ReturnType<typeof fixture>>,name:string,args:object){const binding=f.bindings.find(b=>b.definition.providerOperation===name)!,operationId=`tool:${f.task.id}:${randomUUID()}`;await beginOperation(pool,f.task.id,{id:operationId,kind:"tool",name:binding.alias,request:args,reservedTokens:0,reservedMs:1000,retrySafe:true});return{result:await executor.execute(f.task.id,operationId,binding,args),binding,operationId,args};}
+ async function call(f:Awaited<ReturnType<typeof fixture>>,name:string,args:object){const binding=f.bindings.find(b=>b.definition.providerOperation===name)!,operationId=`tool:${f.task.id}:${randomUUID()}`;await beginOperation(pool,f.task.id,{id:operationId,kind:"tool",name:binding.alias,request:args,reservedTokens:0,reservedMs:30000,retrySafe:true});return{result:await executor.execute(f.task.id,operationId,binding,args),binding,operationId,args};}
  it("uses safe wrappers, immutable commit/file handles, bounded tail reads and private full response receipts",async()=>{
   const f=await fixture();expect(requests).toHaveLength(0);
   for(const binding of f.bindings){expect(connectedModelTool(binding).function.parameters.additionalProperties).toBe(false);expect(()=>connectedModelArguments(binding,{url:"https://private.test",path:"evil",repository:"approved/public"})).toThrow();}
@@ -84,6 +84,18 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
   try{await expect(pending).rejects.toMatchObject({code:"CONNECTED_READ_UNCERTAIN"});}finally{clearInterval(timer);}const count=requests.length;
   const fresh=new ConnectedExecutor(pool,connections,executor.objects,evidence,{testGithubOrigin:origin,testMcpEndpoint:`${origin}/mcp`});
   await expect(fresh.execute(f.task.id,operationId,binding,args)).rejects.toMatchObject({code:"CONNECTED_READ_UNCERTAIN"});expect(requests).toHaveLength(count);
+ });
+ it("uses the original operation deadline through private receipt publication and charges actual overrun",async()=>{
+  const f=await fixture(),binding=f.bindings.find(binding=>binding.definition.providerOperation==="get_repository")!,operationId=`tool:${f.task.id}:slow-storage`,args={repository:"approved/public"};
+  const slow={...executor.objects,put:async(key:string,value:Uint8Array,type:string)=>{await new Promise(done=>setTimeout(done,160));await executor.objects.put(key,value,type);},get:executor.objects.get.bind(executor.objects),delete:executor.objects.delete.bind(executor.objects)};
+  const bounded=new ConnectedExecutor(pool,connections,slow,evidence,{testGithubOrigin:origin,testMcpEndpoint:`${origin}/mcp`});
+  await beginOperation(pool,f.task.id,{id:operationId,kind:"tool",name:binding.alias,request:args,reservedTokens:0,reservedMs:100,retrySafe:true});
+  await expect(bounded.execute(f.task.id,operationId,binding,args)).rejects.toMatchObject({code:"CONNECTED_READ_UNCERTAIN"});
+  expect(requests).toEqual(["/repos/approved/public"]);
+  expect((await pool.query("SELECT state,result FROM agents_platform.connected_reads WHERE operation_id=$1",[operationId])).rows[0]).toMatchObject({state:"uncertain",result:null});
+  await finishOperation(pool,f.task.id,operationId,"uncertain",null,"CONNECTED_READ_UNCERTAIN",0);
+  expect(Number((await pool.query("SELECT active_ms FROM agents_platform.tasks WHERE id=$1",[f.task.id])).rows[0].active_ms)).toBeGreaterThanOrEqual(160);
+  const before=requests.length;await expect(bounded.execute(f.task.id,operationId,binding,args)).rejects.toMatchObject({code:"CONNECTED_READ_UNCERTAIN"});expect(requests).toHaveLength(before);
  });
  it("requires explicit native handle producers for MCP tools on each selected resource",async()=>{
   const f=await fixture(),native=f.bindings.find(binding=>binding.definition.providerOperation==="resolve_ref")!;

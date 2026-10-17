@@ -1,5 +1,5 @@
 import { execFileSync, spawn, type ChildProcess } from "node:child_process";
-import { randomUUID } from "node:crypto";
+import { randomUUID, randomBytes } from "node:crypto";
 import { once } from "node:events";
 import { createServer } from "node:net";
 import { mkdir, writeFile } from "node:fs/promises";
@@ -12,6 +12,8 @@ import { S3PrivateStore } from "../src/platform/artifacts";
 import { DocumentRuntime } from "../src/platform/document-runtime";
 import { KnowledgeStore, type KnowledgeScope } from "../src/platform/knowledge";
 import { PlatformStore } from "../src/platform/store";
+import { defaultFaqConfiguration, terminalTaskStates } from "../src/platform/contracts";
+import { dispatchTasksOnce } from "../src/platform/dispatcher";
 import { setupPlatformSchema } from "../src/platform/setup";
 import { privateFixtureBucketRequest } from "./support/private-s3-fixture";
 import { buildPlatformApp } from "../src/platform/app";
@@ -38,7 +40,7 @@ const enabled = process.env.AGENTS_INGESTION_LIVE === "1" && process.env.AGENTS_
       RESTATE_WORKER_PORT: String(workerPort), RESTATE_WORKER_HOST: "0.0.0.0", AGENTS_ALLOW_UNSIGNED_WORKER: "1", RESTATE_INGRESS_URL: ingress, RESTATE_ADMIN_URL: adminUrl,
       AGENTS_DOCUMENT_RUNTIME_ENABLED: "1", AGENTS_DOCUMENT_RUNTIME_CACHE: cache, AGENTS_S3_ENDPOINT: s3.endpoint, AGENTS_S3_REGION: s3.region,
       AGENTS_S3_BUCKET: s3.bucket, AGENTS_S3_ACCESS_KEY_ID: s3.accessKeyId, AGENTS_S3_SECRET_ACCESS_KEY: s3.secretAccessKey };
-    delete env.OPENROUTER_API_KEY; delete env.AGENTS_REPORT_DELIVERY_TARGETS; delete env.AGENTS_CONNECTION_KEYS; delete env.AGENTS_CONNECTION_ACTIVE_KEY;
+    if(process.env.AGENTS_INGESTION_FREE_MODEL!=="1") delete env.OPENROUTER_API_KEY; delete env.AGENTS_REPORT_DELIVERY_TARGETS; delete env.AGENTS_CONNECTION_KEYS; delete env.AGENTS_CONNECTION_ACTIVE_KEY;
     delete env.AGENTS_SANDBOX_ENABLED; delete env.RESTATE_REQUEST_IDENTITY_KEYS;
     let ready = false;
     worker = spawn(process.execPath, ["dist/platform/worker.js"], { cwd: process.cwd(), env, stdio: ["ignore", "pipe", "pipe"] });
@@ -105,6 +107,28 @@ const enabled = process.env.AGENTS_INGESTION_LIVE === "1" && process.env.AGENTS_
     (evidence.cases as unknown[]).push({ title: source.title, jobId, revisionId: job.revisionId, chunks: preview.chunks.length, vectors, allocationRows });
     return { job, preview, allocationRows };
   }
+  (process.env.AGENTS_INGESTION_FREE_MODEL==="1" ? it : it.skip)("answers a minimal public widget FAQ with actual indexed tail evidence and the approved free model", async()=>{
+    expect(Boolean(process.env.OPENROUTER_API_KEY),"Approved local free model configuration is required").toBe(true);
+    const code=`CEDAR-${randomUUID().slice(0,8)}`;
+    const job=await upload("application/pdf",pdf(["General project introduction.","This page has no release code.",`The public archive release code is ${code}.`]),"Widget tail-page policy");
+    await inspect(job.id);
+    await knowledge.setPolicy(scope,job.sourceId,{operationId:randomUUID(),expectedGeneration:1,action:"visibility",visibility:"public"});
+    const config={...defaultFaqConfiguration(),instructions:"Answer only the visitor's question from the provided evidence. Include the exact bracketed evidence citation. If the evidence is missing say so. Never invent a code.",sourceRevisionIds:[job.revisionId],retrievalProfile:{kind:"hybrid-v1" as const,embeddingRelease:profileRelease},tools:[]};
+    const agent=await platform.createAgent({...scope,name:"Public knowledge FAQ",configuration:config});
+    const version=await platform.createVersion({...scope,agentId:agent.id,expectedRevision:1});
+    const deployment=await platform.publishWebsite({...scope,agentId:agent.id,versionId:version.id,allowedOrigins:["https://widget.example.test"]});
+    const sessionId=randomUUID();await pool.query("INSERT INTO agents_platform.website_sessions(id,deployment_id,origin,token_hash,expires_at) VALUES($1,$2,$3,$4,now()+interval '10 minutes')",[sessionId,deployment.id,"https://widget.example.test",randomBytes(32).toString("hex")]);
+    const grant=await platform.createWebsiteGrant({deploymentId:deployment.id,origin:"https://widget.example.test",sessionId});
+    const authority={product:"agents" as const,organizationId:scope.organizationId,resourceId:deployment.id,callerClientId:"agents-website",principal:{kind:"visitor" as const,deploymentId:deployment.id,sessionId}};
+    const{task}=await platform.admitTask({authority,grantId:grant.id,versionId:version.id,requestKey:randomUUID(),input:"What is the public archive release code? Cite the source."});
+    await dispatchTasksOnce(pool,{ingressUrl:ingress,adminUrl});
+    const result=await eventually(async()=>{const row=(await pool.query("SELECT * FROM agents_platform.tasks WHERE id=$1",[task.id])).rows[0];return terminalTaskStates.has(row.state)?row:false;},"actual free-model FAQ",180000);
+    expect(result.state,`Task outcome: ${result.error_code}`).toBe("completed");expect(result.output).toContain(code);expect(result.output).toMatch(/\[E[a-f0-9]{32}\]/);
+    const operations=(await pool.query("SELECT id,name,state,accounted_tokens FROM agents_platform.operations WHERE task_id=$1 ORDER BY started_at",[task.id])).rows;
+    expect(operations.filter(op=>op.name==="model.generate")).toHaveLength(1);expect(operations.filter(op=>op.name==="knowledge.search")).toHaveLength(1);
+    expect((await pool.query("SELECT operation_id FROM agents_platform.connected_reads WHERE task_id=$1",[task.id])).rows).toEqual([]);
+    (evidence.cases as unknown[]).push({title:"actual-free-model-widget",taskId:task.id,versionId:version.id,revisionId:job.revisionId,output:result.output,operations});
+  },240000);
   it("imports private text and Markdown through the compiled worker and preserves exact duplicate admission", async () => {
     const content = Buffer.from("Café 😀\r\nBookings require the public code MINT-420.\n"), operationId = randomUUID();
     const [a, b] = await Promise.all([upload("text/plain", content, "Text evidence", operationId), upload("text/plain", content, "Text evidence", operationId)]);

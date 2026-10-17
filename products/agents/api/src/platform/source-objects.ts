@@ -31,7 +31,7 @@ export async function writeSourceObject(pool:Pool,objects:PrivateObjectStore,inp
  let intent:Record<string,any>;
  try{intent=await transaction(pool,async db=>{
   const job=await current(db,input.jobId,true);if(!eligible(job))throw fail("INGESTION_INVALIDATED");assertKey(input,job,digest);
-  const existing=(await db.query("SELECT * FROM agents_platform.source_objects WHERE object_key=$1 FOR UPDATE NOWAIT",[input.key])).rows[0];
+  const existing=(await db.query("SELECT * FROM agents_platform.source_objects WHERE object_key=$1 FOR UPDATE",[input.key])).rows[0];
   if(existing){
    if(existing.job_id!==input.jobId||existing.content_digest!==digest||existing.bytes!==input.bytes.byteLength||existing.kind!==input.kind)throw fail("SOURCE_OBJECT_CONFLICT");
    if(existing.state==="available")return existing;
@@ -58,7 +58,7 @@ export async function writeSourceObject(pool:Pool,objects:PrivateObjectStore,inp
  });
  if(writeError)throw writeError;
  await transaction(pool,async db=>{
-  const job=await current(db,input.jobId,true);const row=(await db.query("SELECT * FROM agents_platform.source_objects WHERE id=$1 FOR UPDATE NOWAIT",[intent.id])).rows[0];
+  const job=await current(db,input.jobId,true);const row=(await db.query("SELECT * FROM agents_platform.source_objects WHERE id=$1 FOR UPDATE",[intent.id])).rows[0];
   if(row.state==="available")return;
   if(row.write_token!==token||row.state!=="writing"||!eligible(job)){
    await db.query("UPDATE agents_platform.source_objects SET state='delete_pending',next_cleanup_at=now(),updated_at=now() WHERE id=$1",[row.id]);writeError=fail("INGESTION_INVALIDATED");return;

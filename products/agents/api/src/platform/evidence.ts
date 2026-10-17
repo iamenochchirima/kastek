@@ -1,3 +1,4 @@
+import {writeExecutionObject} from "./execution-objects";
 import { randomUUID } from "node:crypto";
 import type { Pool, PoolClient } from "pg";
 import { z } from "zod";
@@ -179,7 +180,7 @@ export class EvidenceStore {
     const initial = await loadExecution(this.pool, taskId);
     const objectKey = `evidence/${initial.task.organization_id}/${initial.task.root_task_id}/${textDigest(input.text)}`;
     // Content-addressed bytes are immutable; policy is checked again before the reference is published.
-    await this.objects.put(objectKey, Buffer.from(input.text), "text/plain; charset=utf-8");
+    await writeExecutionObject(this.pool,this.objects,{taskId,operationId,key:objectKey,bytes:Buffer.from(input.text),contentType:"text/plain; charset=utf-8"});
     return this.scoped(taskId, async (db, execution) => {
       const binding = await bindingAllowed(db, execution, input.bindingId);
       await this.operation(db, taskId, operationId, [binding.alias]);
@@ -197,7 +198,7 @@ export class EvidenceStore {
     if(!row||row.organization_id!==initial.task.organization_id||row.agent_id!==initial.agentId||row.account_id!==await owner(this.pool,initial)||row.status!=="accepted"||row.expires_at&&new Date(row.expires_at).getTime()<=Date.now())throw denied();
     if(textDigest(row.content)!==row.content_digest)throw integrity();
     const objectKey=`evidence/${initial.task.organization_id}/${initial.task.root_task_id}/${textDigest(row.content)}`;
-    await this.objects.put(objectKey,Buffer.from(row.content),"text/plain; charset=utf-8");
+    await writeExecutionObject(this.pool,this.objects,{taskId,operationId,key:objectKey,bytes:Buffer.from(row.content),contentType:"text/plain; charset=utf-8"});
     return this.scoped(taskId,async(db,execution)=>{
       await this.operation(db,taskId,operationId,["memory.search"]);
       const grant=(await db.query("SELECT operations FROM agents_platform.execution_grants WHERE id=$1",[execution.task.grant_id])).rows[0];

@@ -7,12 +7,16 @@ import { loadExecution, assertCurrentAuthority, beginOperation, finishOperation,
 import { MemoryStore } from "./memory";
 import { buildContext, prepareCompaction, type ContextGroup, type ContextSource } from "./context";
 import { callModel, estimateRequestTokens, requestDigest as modelRequestDigest, ModelOperationError, type HarnessMessage, type ModelRequest,
-  type ModelResponse, type ModelAdapterOptions } from "./model";
+  type ModelResponse, type ModelAdapterOptions, type ToolDefinition } from "./model";
 
 export { settleTask } from "./execution";
-export { retrieveFaqKnowledge } from "./tools";
-import {fitUtf8,toolsFor,knowledge,executeTool,assertPublishedTools} from "./tools";
+import {fitUtf8,toolsFor,executeTool,assertPublishedTools,builtinToolName} from "./tools";
 import { admitChildren, readChildResults, type DelegatedChild } from "./delegation";
+import type { EvidenceStore } from "./evidence";
+import type { ConnectedExecutor } from "./connected-executor";
+import type { KnowledgeRuntime, KnowledgeObservation } from "./knowledge-runtime";
+import type { DependencyManifest } from "./source-contracts";
+import { HARNESS_RELEASE } from "./execution";
 import { toolDescriptor } from "./tool-descriptors";
 export interface ActionState {id:string;state:"pending_review"|"approved"|"rejected"|"expired"|"invalidated"|"claimed"|"delivered"|"failed"|"uncertain";expiresAt:string;errorCode?:string|null}
 export interface ActionRuntime {
@@ -23,12 +27,17 @@ export interface ActionRuntime {
 }
 export interface BusinessOptions extends ModelAdapterOptions {
   actions?:ActionRuntime;
+  evidence?: EvidenceStore;
+  knowledgeRuntime?: KnowledgeRuntime;
+  connected?: ConnectedExecutor;
   selectReportArtifact?:(taskId:string,name:string,generatedOutput:string)=>Promise<{id:string}>;
   executeSandbox?: (taskId:string,operationId:string,args:{code:string;inputArtifactIds?:string[]})=>Promise<unknown>;
 }
 type Result<T> = { ok: true; value: T } | { ok: false; code: string; uncertain: boolean };
+const unknownOperationCodes = new Set(["CONNECTED_READ_UNCERTAIN", "QUERY_RESOURCE_UNCERTAIN", "EXECUTION_OBJECT_UNCERTAIN"]);
+function uncertainOperation(error:ModelOperationError|PlatformError):boolean {return error instanceof ModelOperationError ? error.outcome === "uncertain" : unknownOperationCodes.has(error.code);}
 interface Snapshot { id: string; messages: HarnessMessage[]; digest: string; estimatedTokens: number;
-  memoryFence?: MemoryFence; historyCutoff: string }
+  memoryFence?: MemoryFence; historyCutoff: string; tools: ToolDefinition[]; evidenceManifest?: DependencyManifest }
 const terminalSql = "('completed','incomplete','refused','failed','cancelled','uncertain')";
 
 async function operation<T>(ctx: restate.WorkflowContext, pool: Pool, taskId: string, input: OperationRequest,
@@ -45,14 +54,15 @@ async function operation<T>(ctx: restate.WorkflowContext, pool: Pool, taskId: st
       }
       claimed = true;
       const result = await perform();
-      if(input.kind==="resource" && Date.now()-new Date(admission.operation.started_at).getTime()>input.reservedMs) throw new ModelOperationError("RESOURCE_TIME_BOUND_EXCEEDED","uncertain");
+      if(input.kind!=="delegation" && Date.now()-new Date(admission.operation.started_at).getTime()>input.reservedMs) throw new ModelOperationError("RESOURCE_TIME_BOUND_EXCEEDED","uncertain");
       if(input.maxResultBytes!==undefined && Buffer.byteLength(JSON.stringify(result.value))>input.maxResultBytes) throw new PlatformError("TOOL_RESULT_LIMIT",413,"Tool result exceeded its published bound");
       if (result.tokens > input.reservedTokens) throw new ModelOperationError("MODEL_ACCOUNTING_BOUND_EXCEEDED", "uncertain");
       await finishOperation(pool, taskId, input.id, "completed", result.value, null, result.tokens);
       return { ok: true as const, value: result.value };
     } catch (error) {
       if (!(error instanceof ModelOperationError) && !(error instanceof PlatformError)) throw error;
-      const uncertain = error instanceof ModelOperationError && error.outcome === "uncertain";
+      if (error instanceof PlatformError && ["PROVIDER_BUSY","CONNECTED_READ_IN_PROGRESS"].includes(error.code)) return {ok:false as const,code:"PROVIDER_BUSY",uncertain:false};
+      const uncertain = uncertainOperation(error);
       if (claimed) await finishOperation(pool, taskId, input.id, uncertain ? "uncertain" : "failed", null, error.code, uncertain ? input.reservedTokens : 0);
       return { ok: false as const, code: error.code, uncertain };
     }
@@ -61,6 +71,15 @@ async function operation<T>(ctx: restate.WorkflowContext, pool: Pool, taskId: st
   await ctx.sleep(250);
   }
   return {ok:false,code:"ROOT_LIMIT",uncertain:false};
+}
+
+async function guardedRun<T>(ctx:restate.WorkflowContext,name:string,perform:()=>Promise<T>):Promise<T>{
+  const result=await ctx.run(name,async()=>{
+    try{return {ok:true as const,value:await perform()};}
+    catch(error){if(error instanceof PlatformError || error instanceof ModelOperationError)return{ok:false as const,code:error.code};throw error;}
+  });
+  if(!result.ok)throw new PlatformError(result.code,409,"The requested evidence is unavailable");
+  return result.value;
 }
 
 async function awaitAuthority(ctx: restate.WorkflowContext, pool: Pool, taskId: string, label: string): Promise<Execution | TaskOutcome> {
@@ -93,19 +112,38 @@ async function awaitAuthority(ctx: restate.WorkflowContext, pool: Pool, taskId: 
 }
 
 async function buildSnapshot(pool: Pool, taskId: string, step: number, working: ContextGroup[], summary: ContextSource | undefined,
-  omitted: string[], knownGeneration?: number, knownExpiry?: number): Promise<{ snapshot?: Snapshot; history: ContextGroup[]; working: ContextGroup[];
+  omitted: string[], options: BusinessOptions, initialKnowledge?: KnowledgeObservation, knownGeneration?: number, knownExpiry?: number): Promise<{ snapshot?: Snapshot; history: ContextGroup[]; working: ContextGroup[];
     memoryFence?: MemoryFence; invalidated: boolean; needsCompaction: boolean }> {
   const execution = await loadExecution(pool, taskId), task = execution.task, config = execution.configuration;
-  const sources: ContextSource[] = (await knowledge(pool, taskId)).map(source => ({ id: source.id, revision: 1,
-    kind: "knowledge", content: `${source.title}\n${fitUtf8(source.content, 1500)}` }));
+  const snapshotId = `context:${taskId}:${step}`;
+  const recorded = (await pool.query("SELECT * FROM agents_platform.context_snapshots WHERE id=$1 AND task_id=$2",[snapshotId,taskId])).rows[0];
+  if (recorded) {
+    const snapshot: Snapshot = {id:snapshotId,...recorded.payload,digest:recorded.digest,historyCutoff:recorded.history_cutoff,
+      memoryFence:recorded.memory_scope_id ? {id:recorded.memory_scope_id,generation:Number(recorded.memory_generation),expiresAt:recorded.payload.memoryExpiresAt}:undefined};
+    if (options.evidence) {
+      await options.evidence.inheritHistory(taskId,snapshotId,recorded.payload.historyGroupIds ?? []);
+      await options.evidence.supplyContext(taskId,snapshotId,recorded.payload.evidenceIds ?? []);
+      snapshot.evidenceManifest=await options.evidence.taskManifest(taskId);
+    }
+    return {snapshot,history:[],working,memoryFence:snapshot.memoryFence,invalidated:false,needsCompaction:false};
+  }
+  const sources: ContextSource[] = initialKnowledge?.passages.map(passage => ({ id: passage.sourceId ?? passage.evidenceId,
+    revision: passage.revisionId ?? passage.evidenceId, kind: "knowledge", evidenceId: passage.evidenceId,
+    content: `[${passage.label}] ${passage.title} (${passage.acquiredAt})\n${passage.text}` })) ?? [];
+  const modelTools = toolsFor(config, execution.connectedBindings.length ? (() => {
+    if (!options.connected) throw new PlatformError("CONNECTED_RUNTIME_UNAVAILABLE", 503, "Connected reads are unavailable");
+    return options.connected.modelToolsFor(execution.connectedBindings);
+  })() : []);
   let memoryFence: MemoryFence | undefined;
   const memory = new MemoryStore(pool);
   if (config.memory.enabled) {
     const selected = await memory.read({ organizationId: task.organization_id, agentId: execution.agentId, principal: task.principal });
-    const expiries = selected.memories.flatMap(item => item.expiresAt ? [new Date(item.expiresAt).getTime()] : []);
+    const eligible = options.evidence ? new Set((await options.evidence.checkMemories(taskId,selected.memories.map(item=>item.id))).filter(item=>item.eligible).map(item=>item.id)) : undefined;
+    const memories = selected.memories.filter(item=>!eligible || eligible.has(item.id));
+    const expiries = memories.flatMap(item => item.expiresAt ? [new Date(item.expiresAt).getTime()] : []);
     memoryFence = { id: selected.scope.id, generation: selected.generation,
       ...(expiries.length ? { expiresAt: Math.min(...expiries) } : {}) };
-    sources.push(...selected.memories.slice(0, 8).map(item => ({ id: item.id, revision: item.revision, kind: "memory" as const, content: fitUtf8(item.content, 512) })));
+    sources.push(...memories.slice(0, 8).map(item => ({ id: item.id, revision: item.revision, kind: "memory" as const, content: fitUtf8(item.content, 512) })));
   }
   const skills = !config.skillIds.length ? [] : task.principal.kind==="automation" ?
     (await pool.query<{id:string;revision:number;body:string}>("SELECT id,revision,body FROM agents_platform.skill_revisions WHERE organization_id=$1 AND agent_id=$2 AND id=ANY($3::uuid[]) ORDER BY id",[task.organization_id,execution.agentId,config.skillIds])).rows :
@@ -115,16 +153,17 @@ async function buildSnapshot(pool: Pool, taskId: string, step: number, working: 
   const prior = (await pool.query(`SELECT t.id,t.input,t.output,t.state FROM agents_platform.tasks t
     WHERE t.conversation_id=$1 AND t.turn_sequence<$2 AND t.state IN ${terminalSql}
     AND NOT EXISTS(SELECT 1 FROM agents_platform.context_snapshots c WHERE c.task_id=t.id AND c.memory_scope_id=$3
-      AND c.memory_generation<>$4) ORDER BY t.turn_sequence`,
+      AND c.memory_generation<>$4) ORDER BY t.turn_sequence DESC LIMIT 100`,
   [task.conversation_id, task.turn_sequence, memoryFence?.id ?? null, memoryFence?.generation ?? null])).rows;
-  const history: ContextGroup[] = prior.filter(t => !omitted.includes(t.id)).map(t => ({ id: t.id, messages: [
+  const eligible = options.evidence ? new Set((await options.evidence.checkHistory(taskId, prior.map(t => t.id))).filter(item => item.eligible).map(item => item.taskId)) : undefined;
+  const history: ContextGroup[] = prior.reverse().filter(t => !omitted.includes(t.id) && (!eligible || eligible.has(t.id))).map(t => ({ id: t.id, messages: [
     { role: "user", content: t.input }, { role: "assistant", content: t.output ?? `Task ended: ${t.state}` },
   ] }));
   const active = invalidated ? [] : working;
   const input = { instructions: config.instructions, currentInput: task.input, history, workingGroups: active,
     summary: invalidated ? undefined : summary, sources,
     skills: skills.map(item => ({ id: item.id, revision: item.revision, kind: "skill" as const, content: item.body })),
-    tools: toolsFor(config), model: config.model.model, maxInputTokens: config.context.maxInputTokens, maxOutputTokens: config.model.maxOutputTokens };
+    tools: modelTools, model: config.model.model, maxInputTokens: config.context.maxInputTokens, maxOutputTokens: config.model.maxOutputTokens };
   let built;
   try { built = buildContext(input); }
   catch (error) {
@@ -141,12 +180,19 @@ async function buildSnapshot(pool: Pool, taskId: string, step: number, working: 
   const row = (await pool.query(`INSERT INTO agents_platform.context_snapshots
     (id,task_id,step,digest,payload,source_references,memory_scope_id,memory_generation,history_cutoff)
     VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) ON CONFLICT(id) DO NOTHING RETURNING id`,
-  [id, taskId, step, built.digest, { messages: built.messages, estimatedTokens: built.estimatedTokens, memoryExpiresAt: memoryFence?.expiresAt }, JSON.stringify(built.sourceReferences),
+  [id, taskId, step, built.digest, { messages: built.messages, tools: modelTools, historyGroupIds: built.historyGroupIds, estimatedTokens: built.estimatedTokens, memoryExpiresAt: memoryFence?.expiresAt, evidenceIds: [...new Set([...built.sourceReferences.flatMap(reference=>reference.evidenceId?[reference.evidenceId]:[]),...active.flatMap(group=>group.evidenceIds??[])])] }, JSON.stringify(built.sourceReferences),
     memoryFence?.id ?? null, memoryFence?.generation ?? null, task.history_cutoff ?? "0"])).rows[0];
   const saved = row ? undefined : (await pool.query("SELECT * FROM agents_platform.context_snapshots WHERE id=$1", [id])).rows[0];
   const snapshot: Snapshot = saved ? { id, ...saved.payload, digest: saved.digest, historyCutoff: saved.history_cutoff,
     memoryFence: saved.memory_scope_id ? { id: saved.memory_scope_id, generation: Number(saved.memory_generation), expiresAt: saved.payload.memoryExpiresAt } : undefined } :
-    { id, messages: built.messages, digest: built.digest, estimatedTokens: built.estimatedTokens, memoryFence, historyCutoff: task.history_cutoff ?? "0" };
+    { id, messages: built.messages, tools: modelTools, digest: built.digest, estimatedTokens: built.estimatedTokens, memoryFence, historyCutoff: task.history_cutoff ?? "0" };
+  if (options.evidence) {
+    const selected = saved?.payload.historyGroupIds ?? built.historyGroupIds;
+    await options.evidence.inheritHistory(taskId, id, selected);
+    const ids = [...new Set([...built.sourceReferences.flatMap(reference => reference.evidenceId ? [reference.evidenceId] : []), ...active.flatMap(group => group.evidenceIds ?? [])])];
+    await options.evidence.supplyContext(taskId, id, ids);
+    snapshot.evidenceManifest = await options.evidence.taskManifest(taskId);
+  }
   await event(pool, taskId, id, "context.prepared", { snapshotId: id, estimatedTokens: snapshot.estimatedTokens, compacted: Boolean(summary) });
   return { snapshot, history, working: active, memoryFence: snapshot.memoryFence, invalidated, needsCompaction: false };
 }
@@ -154,7 +200,7 @@ async function buildSnapshot(pool: Pool, taskId: string, step: number, working: 
 function failed(result: { code: string; uncertain: boolean }): TaskOutcome {
   if (result.uncertain) return { state: "uncertain", errorCode: result.code };
   if (result.code === "TASK_CANCELLED") return { state: "cancelled" };
-  if (["ROOT_LIMIT", "TASK_DEADLINE", "CONTEXT_LIMIT", "COMPACTION_INPUT_LIMIT", "TOOL_RESULT_LIMIT"].includes(result.code)) return { state: "incomplete", errorCode: result.code };
+  if (["ROOT_LIMIT", "TASK_DEADLINE", "CONTEXT_LIMIT", "COMPACTION_INPUT_LIMIT", "TOOL_RESULT_LIMIT", "EVIDENCE_UNAVAILABLE"].includes(result.code)) return { state: "incomplete", errorCode: result.code };
   return { state: "failed", errorCode: result.code };
 }
 
@@ -229,7 +275,7 @@ export function createBusinessWorkflow(pool: Pool, options: BusinessOptions) {
       const taskId = input.taskId;
       await ctx.run("bind-invocation", async () => {
         const updated = await pool.query(`UPDATE agents_platform.tasks SET runtime_invocation_id=$2 WHERE id=$1
-          AND harness_release='owned-report-v1' AND (runtime_invocation_id IS NULL OR runtime_invocation_id=$2)`, [taskId, ctx.request().id]);
+          AND harness_release=$3 AND (runtime_invocation_id IS NULL OR runtime_invocation_id=$2)`, [taskId, ctx.request().id, HARNESS_RELEASE]);
         if (!updated.rowCount) throw new restate.TerminalError("Runtime identity mismatch", { errorCode: 409 });
       });
       let outcome: TaskOutcome = { state: "incomplete", errorCode: "ROOT_LIMIT" };
@@ -258,13 +304,23 @@ export function createBusinessWorkflow(pool: Pool, options: BusinessOptions) {
         await ctx.run("freeze-history-cutoff", async () => {
           await pool.query("UPDATE agents_platform.tasks SET history_cutoff=turn_sequence-1 WHERE id=$1 AND history_cutoff IS NULL", [taskId]);
         });
+        const accepted = await guardedRun(ctx,"initial-knowledge-config", () => loadExecution(pool, taskId).then(value => ({ sourceRevisionIds: value.configuration.sourceRevisionIds, input: value.task.input })));
+        let initialKnowledge: KnowledgeObservation | undefined;
+        if (accepted.sourceRevisionIds.length) {
+          if (!options.knowledgeRuntime || !options.evidence) throw new PlatformError("KNOWLEDGE_RUNTIME_UNAVAILABLE", 503, "Knowledge retrieval is unavailable");
+          const query = fitUtf8(accepted.input, 1024), id = `knowledge:${taskId}:initial`;
+          const retrieved = await operation<KnowledgeObservation>(ctx, pool, taskId, { id, kind: "tool", name: "knowledge.search", request: { query },
+            reservedTokens: 0, reservedMs: 90000, retrySafe: true, maxResultBytes: 8192 }, async () => ({ value: await options.knowledgeRuntime!.search(taskId, id, query), tokens: 0 }));
+          if (!retrieved.ok) throw new PlatformError(retrieved.code, 409, "Initial knowledge retrieval is unavailable");
+          initialKnowledge = retrieved.value;
+        }
         for (let step = 0; step < 40; step++) {
           const execution = await awaitAuthority(ctx, pool, taskId, `authority:${step}`);
           if (!("configuration" in execution)) return execution;
           const config = execution.configuration;
           assertPublishedTools(config,execution.toolBindings);
           const contextResult = await ctx.run(`context:${step}`, async () => {
-            try { return { ok: true as const, value: await buildSnapshot(pool, taskId, step, working, summary, omitted, knownGeneration, knownExpiry) }; }
+            try { return { ok: true as const, value: await buildSnapshot(pool, taskId, step, working, summary, omitted, options, initialKnowledge, knownGeneration, knownExpiry) }; }
             catch(error) { if(error instanceof PlatformError || error instanceof ModelOperationError) return {ok:false as const,code:error.code}; throw error; }
           });
           if (!contextResult.ok) { outcome=failed({code:contextResult.code,uncertain:false}); break; }
@@ -283,12 +339,18 @@ export function createBusinessWorkflow(pool: Pool, options: BusinessOptions) {
               const digest = modelRequestDigest(request);
               await pool.query(`INSERT INTO agents_platform.context_snapshots(id,task_id,step,digest,payload,source_references,memory_scope_id,memory_generation,history_cutoff)
                 VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) ON CONFLICT(id) DO NOTHING`,
-              [`context:compact:${taskId}:${step}`,taskId,-step-1,digest,{messages:request.messages,estimatedTokens:plan.estimatedTokens,memoryExpiresAt:assembled.memoryFence?.expiresAt},
+              [`context:compact:${taskId}:${step}`,taskId,-step-1,digest,{messages:request.messages,estimatedTokens:plan.estimatedTokens,historyGroupIds:plan.compactedGroupIds.filter(id=>assembled.history.some(group=>group.id===id)),memoryExpiresAt:assembled.memoryFence?.expiresAt},
                 JSON.stringify(plan.compactedGroupIds.map(id=>({id,revision:1,kind:"result"}))),assembled.memoryFence?.id??null,assembled.memoryFence?.generation??null,execution.task.history_cutoff??"0"]);
             });
+            const compactManifest = options.evidence ? await guardedRun(ctx,`compact-evidence:${step}`,async()=>{
+              const snapshotId=`context:compact:${taskId}:${step}`;
+              await options.evidence!.inheritHistory(taskId,snapshotId,plan.compactedGroupIds.filter(id=>assembled.history.some(group=>group.id===id)));
+              await options.evidence!.supplyContext(taskId,snapshotId,groups.filter(group=>plan.compactedGroupIds.includes(group.id)).flatMap(group=>group.evidenceIds??[]));
+              return options.evidence!.taskManifest(taskId);
+            }) : undefined;
             const compacted = await operation<ModelResponse>(ctx, pool, taskId, { id: `compact:${taskId}:${step}`, kind: "compaction", name: "context.compact",
               request, reservedTokens: estimateRequestTokens(request) + 512 + request.maxOutputTokens,
-              reservedMs: config.model.maxDurationSeconds * 1000, memoryFence: assembled.memoryFence }, async () => {
+              reservedMs: config.model.maxDurationSeconds * 1000, memoryFence: assembled.memoryFence,evidenceManifest:compactManifest }, async () => {
                 const value = await callModel(request, { ...options, signal: options.signal ? AbortSignal.any([options.signal, ctx.request().attemptCompletedSignal]) : ctx.request().attemptCompletedSignal });
                 return { value, tokens: value.usage.inputTokens + value.usage.outputTokens };
               });
@@ -298,16 +360,17 @@ export function createBusinessWorkflow(pool: Pool, options: BusinessOptions) {
             }
             if (compacted.value.finishReason !== "stop" || !compacted.value.message.content) { outcome = { state: "incomplete", errorCode: "COMPACTION_INVALID" }; break; }
             summary = { id: `compact:${taskId}:${step}`, revision: 1, kind: "summary", content: compacted.value.message.content };
+            if(options.evidence) await guardedRun(ctx,`summary-evidence:${step}`,()=>options.evidence!.derive(taskId,"summary",summary!.id));
             omitted.push(...plan.compactedGroupIds); working = working.filter(group => !plan.compactedGroupIds.includes(group.id));
             await ctx.run(`compaction-event:${step}`, () => event(pool, taskId, summary!.id, "context.compacted", { compactedGroups: plan.compactedGroupIds.length }));
             continue;
           }
           const snapshot = assembled.snapshot!;
-          const request: ModelRequest = { messages: snapshot.messages, tools: toolsFor(config), model: config.model.model,
+          const request: ModelRequest = { messages: snapshot.messages, tools: snapshot.tools, model: config.model.model,
             maxInputTokens: config.context.maxInputTokens, maxOutputTokens: config.model.maxOutputTokens, maxDurationSeconds: config.model.maxDurationSeconds };
           const generated = await operation<ModelResponse>(ctx, pool, taskId, { id: `model:${taskId}:${step}`, kind: "model", name: "model.generate", request,
             reservedTokens: estimateRequestTokens(request) + 512 + config.model.maxOutputTokens,
-            reservedMs: config.model.maxDurationSeconds * 1000, memoryFence: snapshot.memoryFence }, async () => {
+            reservedMs: config.model.maxDurationSeconds * 1000, memoryFence: snapshot.memoryFence, evidenceManifest: snapshot.evidenceManifest }, async () => {
               const value = await callModel(request, { ...options, signal: options.signal ? AbortSignal.any([options.signal, ctx.request().attemptCompletedSignal]) : ctx.request().attemptCompletedSignal });
               return { value, tokens: value.usage.inputTokens + value.usage.outputTokens };
             });
@@ -321,19 +384,27 @@ export function createBusinessWorkflow(pool: Pool, options: BusinessOptions) {
               output: response.message.content ?? undefined, ...(response.finishReason === "length" ? { errorCode: "MODEL_OUTPUT_LIMIT" } : partialChildren?{errorCode:"CHILD_PARTIAL_FAILURE"}:{}) }; break;
           }
           const messages: HarnessMessage[] = [response.message];
+          const roundEvidence: string[] = [];
           let stop = false, refreshContext = false;
           for (let callIndex = 0; callIndex < response.message.tool_calls!.length; callIndex++) {
-            const call = response.message.tool_calls![callIndex]!, name = call.function.name.replaceAll("_", "."), id = `tool:${taskId}:${step}:${callIndex}`;
-            const descriptor=toolDescriptor(name);
+            const call = response.message.tool_calls![callIndex]!, id = `tool:${taskId}:${step}:${callIndex}`;
+            const binding = execution.connectedBindings.find(binding => binding.alias === call.function.name);
+            const name = builtinToolName(call.function.name) ?? binding?.alias ?? "unavailable";
+            const descriptor = toolDescriptor(name);
+            const resultBound = binding ? 8192 : descriptor?.maxResultBytes ?? 8192;
             let result: Result<unknown> = { ok: false, code: "GRANT_INACTIVE", uncertain: false };
             for (let retry = 0; retry < 8; retry++) {
               const authorized = await awaitAuthority(ctx,pool,taskId,`tool-authority:${step}:${callIndex}:${retry}`);
               if (!("configuration" in authorized)) { outcome=authorized; stop=true; break; }
               result = await operation<unknown>(ctx, pool, taskId, { id, kind: descriptor?.effect==="delegation"?"delegation":descriptor?.effect==="resource"?"resource":"tool", name,
-                request: { tool: name, arguments: call.function.arguments, version: descriptor?.version??"1" }, reservedTokens: 0, reservedMs: descriptor?.maxDurationMs??30000,
-                retrySafe: descriptor?.retry!=="adapter_reconcile",reconcile:descriptor?.retry==="adapter_reconcile", maxResultBytes:descriptor?.maxResultBytes??8192,memoryFence: snapshot.memoryFence }, async () => {
-                  if(!config.tools.includes(name as typeof config.tools[number]) || !descriptor) throw new PlatformError("TOOL_DENIED",403,"Tool is unavailable");
+                request: { tool: name, arguments: call.function.arguments, version: descriptor?.version??"1", ...(binding ? { bindingDigest: binding.digest } : {}) }, reservedTokens: 0, reservedMs: binding?.limits.timeoutMs ?? descriptor?.maxDurationMs??30000,
+                retrySafe: descriptor?.retry!=="adapter_reconcile",reconcile:descriptor?.retry==="adapter_reconcile", maxResultBytes:resultBound,memoryFence: snapshot.memoryFence,evidenceManifest:snapshot.evidenceManifest }, async () => {
                   let args:unknown; try{args=JSON.parse(call.function.arguments);}catch{throw new PlatformError("TOOL_ARGUMENTS_INVALID",400,"Tool arguments must be JSON");}
+                  if (binding) {
+                    if (!options.connected) throw new PlatformError("CONNECTED_RUNTIME_UNAVAILABLE",503,"Connected reads are unavailable");
+                    return {value: await options.connected.execute(taskId,id,binding,args,ctx.request().attemptCompletedSignal),tokens:0};
+                  }
+                  if(!config.tools.includes(name as typeof config.tools[number]) || !descriptor) throw new PlatformError("TOOL_DENIED",403,"Tool is unavailable");
                   if(name==="agents.delegate") return {value:await admitChildren(pool,taskId,id,args),tokens:0};
                   if(name==="sandbox.analyze") {
                     if(!config.capabilities.sandbox.enabled || !options.executeSandbox) throw new PlatformError("SANDBOX_UNAVAILABLE",503,"Analysis is unavailable");
@@ -343,7 +414,30 @@ export function createBusinessWorkflow(pool: Pool, options: BusinessOptions) {
                     if(value && typeof value==="object" && "state" in value && value.state==="uncertain") throw new ModelOperationError("SANDBOX_OUTCOME_UNCERTAIN","uncertain");
                     return {value,tokens:0};
                   }
-                  return {value:await executeTool(pool, taskId, id, name, call.function.arguments),tokens:0};
+                  if (name === "knowledge.search" || name === "knowledge.read") {
+                    if (!options.knowledgeRuntime) throw new PlatformError("KNOWLEDGE_RUNTIME_UNAVAILABLE",503,"Knowledge retrieval is unavailable");
+                    try {
+                      if (name === "knowledge.search") { const input=z.strictObject({query:z.string().min(1).max(1024)}).parse(args); return {value:await options.knowledgeRuntime.search(taskId,id,input.query),tokens:0}; }
+                      const input=z.strictObject({evidenceId:z.uuid(),offset:z.number().int().nonnegative().optional()}).parse(args);
+                      return {value:await options.knowledgeRuntime.read(taskId,id,input.evidenceId,input.offset),tokens:0};
+                    } catch(error) { if(error instanceof z.ZodError) throw new PlatformError("TOOL_ARGUMENTS_INVALID",400,"Check the knowledge arguments"); throw error; }
+                  }
+                  if (name === "memory.search" && options.evidence) {
+                    if (!config.memory.enabled || execution.task.principal.kind !== "human") throw new PlatformError("MEMORY_SCOPE_DENIED",403,"Memory is unavailable");
+                    const input=z.strictObject({query:z.string().max(512)}).safeParse(args);
+                    if(!input.success) throw new PlatformError("TOOL_ARGUMENTS_INVALID",400,"Check the memory arguments");
+                    const selected=await new MemoryStore(pool).read({organizationId:execution.task.organization_id,agentId:execution.agentId,principal:execution.task.principal},input.data.query);
+                    const eligible=new Set((await options.evidence.checkMemories(taskId,selected.memories.map(item=>item.id))).filter(item=>item.eligible).map(item=>item.id));
+                    const passages=[];
+                    for (const memory of selected.memories.filter(item=>eligible.has(item.id)).slice(0,2)) {
+                      const passage=await options.evidence.recordMemory(taskId,id,memory.id);
+                      passages.push({evidenceId:passage.reference.id,label:passage.label,citation:`[${passage.label}]`,text:passage.text,title:passage.title});
+                    }
+                    return {value:{generation:selected.generation,passages},tokens:0};
+                  }
+                  const value = await executeTool(pool, taskId, id, name, call.function.arguments);
+                  if (name === "memory.propose" && options.evidence && value && typeof value === "object" && "candidateId" in value) await options.evidence.derive(taskId,"memory",String(value.candidateId));
+                  return {value,tokens:0};
                 }, `${id}:admission:${retry}`);
               if (result.ok || result.code !== "AUTHORITY_EXPIRED") break;
             }
@@ -360,9 +454,18 @@ export function createBusinessWorkflow(pool: Pool, options: BusinessOptions) {
               }
               const authorized=await awaitAuthority(ctx,pool,taskId,`children-result-authority:${step}:${callIndex}`);
               if(!("configuration" in authorized)){outcome=authorized;stop=true;break;}
-              const joined=await ctx.run(`children-result:${step}:${callIndex}`,async()=>{
-                try{return {ok:true as const,value:await readChildResults(pool,taskId,children)};}catch(error){if(error instanceof PlatformError)return {ok:false as const,code:error.code};throw error;}
-              });
+              let joined: {ok:true;value:Awaited<ReturnType<typeof readChildResults>>}|{ok:false;code:string}={ok:false,code:"CHILD_OUTCOME_PENDING"};
+              for(let wait=0;wait<400;wait++) {
+                joined=await ctx.run(`children-result:${step}:${callIndex}:${wait}`,async()=>{
+                  try{
+                    const value=await readChildResults(pool,taskId,children);
+                    if(options.evidence) await options.evidence.joinChildren(taskId,id);
+                    return {ok:true as const,value};
+                  }catch(error){if(error instanceof PlatformError)return {ok:false as const,code:error.code};throw error;}
+                });
+                if(joined.ok || joined.code!=="CHILD_OUTCOME_PENDING")break;
+                await ctx.sleep(250);
+              }
               if(!joined.ok) throw new PlatformError(joined.code,403,"Specialist results are unavailable");
               if(joined.value.children.some(child=>child.state==="uncertain")) {outcome={state:"uncertain",errorCode:"CHILD_OUTCOME_UNCERTAIN"};stop=true;break;}
               partialChildren ||= joined.value.partial;
@@ -373,19 +476,25 @@ export function createBusinessWorkflow(pool: Pool, options: BusinessOptions) {
             if (!result.ok && (result.uncertain || ["TASK_CANCELLED", "GRANT_REVOKED", "MEMBERSHIP_INACTIVE", "ROOT_LIMIT", "AUTHORITY_EXPIRED"].includes(result.code))) {
               outcome = failed(result); stop = true; break;
             }
-            if(result.ok && Buffer.byteLength(JSON.stringify(result.value))>(descriptor?.maxResultBytes??8192)) {outcome={state:"incomplete",errorCode:"TOOL_RESULT_LIMIT"};stop=true;break;}
+            if(result.ok && Buffer.byteLength(JSON.stringify(result.value))>resultBound) {outcome={state:"incomplete",errorCode:"TOOL_RESULT_LIMIT"};stop=true;break;}
+            if (result.ok && options.evidence) roundEvidence.push(...await guardedRun(ctx,`tool-evidence:${step}:${callIndex}`,()=>options.evidence!.operationEvidenceIds(taskId,id)));
             messages.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify(result.ok ? result.value : { error: result.code }) });
           }
           if (stop) break;
           if (refreshContext) continue;
-          working.push({ id: `round:${taskId}:${step}`, messages });
+          working.push({ id: `round:${taskId}:${step}`, messages, evidenceIds: roundEvidence });
         }
+        if (outcome.output && options.evidence) await guardedRun(ctx,"validate-answer-citations", async()=>{
+          await options.evidence!.validateCitations(taskId,outcome.output!);
+          const current=await loadExecution(pool,taskId);
+          if(current.task.parent_task_id) await options.evidence!.derive(taskId,"child_result",taskId);
+        });
         if(outcome.state==="completed")outcome=await runRequiredReport(ctx,pool,taskId,options,outcome,finalMemoryFence);
       } catch (error) {
         if (error instanceof restate.CancelledError) {
           await ctx.run("settle-cancellation", () => settleTask(pool, taskId, { state: "cancelled" })); throw error;
         }
-        if (error instanceof PlatformError || error instanceof ModelOperationError) outcome = failed({ code: error.code, uncertain: error instanceof ModelOperationError && error.outcome === "uncertain" });
+        if (error instanceof PlatformError || error instanceof ModelOperationError) outcome = failed({ code: error.code, uncertain: uncertainOperation(error) });
         else throw error;
       }
       await ctx.run("settle-task", () => settleTask(pool, taskId, outcome));

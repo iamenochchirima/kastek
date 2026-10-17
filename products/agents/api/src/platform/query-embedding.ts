@@ -1,3 +1,4 @@
+import {writeExecutionObject} from "./execution-objects";
 import {randomUUID} from "node:crypto";
 import type {Pool,PoolClient} from "pg";
 import {z} from "zod";
@@ -62,7 +63,7 @@ export class QueryEmbeddingService {
     if(!result.ok)throw denied(result.errorCode);if(result.result.kind!=="embed"||result.result.mode!=="query"||result.result.vectors.length!==1)throw denied("QUERY_RECEIPT_INVALID");
     const value:QueryEmbeddingResult={vector:result.result.vectors[0]!,receipt:result.receipt};assertEmbeddingVector(value.vector);
     const bytes=Buffer.from(JSON.stringify(value)),resultDigest=requestDigest(value),key=`knowledge-query/${allocation.organization_id}/${input.taskId}/${allocation.id}/${resultDigest}`;
-    await this.objects.put(key,bytes,"application/json");
+    await writeExecutionObject(this.pool,this.objects,{taskId:input.taskId,operationId:input.operationId,key,bytes,contentType:"application/json"});
     await transaction(this.pool,async db=>{await this.authority(db,input);const row=(await db.query("SELECT * FROM agents_platform.query_embedding_allocations WHERE id=$1 FOR UPDATE",[allocation.id])).rows[0];
      if(row.result_digest){if(row.result_digest!==resultDigest)throw denied("QUERY_RECEIPT_INVALID");return;}
      if(row.state==="destroyed"||new Date(row.lease_expires_at).getTime()<=Date.now())throw denied("QUERY_RESOURCE_EXPIRED");
