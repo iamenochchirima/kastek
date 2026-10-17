@@ -249,6 +249,10 @@ test("live automation: scheduled report survives review and delivery interruptio
   expect(finalDetail.actions[0].artifactId).toBe(originalDetail.actions[0].artifactId);
   expect(finalDetail.actions[0].citedPassages.length).toBeGreaterThan(0);
   if(github){
+    const generatedAt=Date.parse(report.generatedAt);
+    expect(Number.isFinite(generatedAt)).toBe(true);expect(report.generatedAt).toMatch(/(?:Z|\+00:00)$/);
+    expect(generatedAt).toBeGreaterThanOrEqual(Date.parse(originalDetail.task.createdAt));expect(generatedAt).toBeLessThanOrEqual(Date.now()+5000);
+    expect(report.gaps).toEqual([]);
     expect(report.provider_findings).toHaveLength(2);
     for(const transport of ["native_http","mcp_http"]){
       const finding=report.provider_findings.find((item:{transport:string})=>item.transport===transport);

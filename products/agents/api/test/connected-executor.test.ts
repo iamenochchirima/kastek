@@ -13,6 +13,7 @@ import {admitChildren} from "../src/platform/delegation";
 import {beginOperation,finishOperation} from "../src/platform/execution";
 import type {CapabilityBinding} from "../src/platform/capability-catalog";
 import {assertConnectedBindingDependencies,connectedModelArguments,connectedModelTool} from "../src/platform/connected-tool-schema";
+import {readGithubJourneyScopes} from "./support/github-journey-scopes";
 const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
 (databaseUrl?describe:describe.skip)("registered connected executor with actual PostgreSQL, HTTP and private fixture objects",()=>{
  let admin:Pool,pool:Pool,server:Server,platform:PlatformStore,connections:ConnectionStore,executor:ConnectedExecutor,evidence:EvidenceStore;
@@ -163,6 +164,26 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
   await pool.query("INSERT INTO agents_platform.connected_reads(operation_id,task_id,organization_id,root_task_id,connection_id,binding_id,request_digest,state) VALUES($1,$2,$3,$2,$4,$5,$6,'started')",[operationId,f.task.id,f.scope.organizationId,f.connection.id,binding.id,requestDigest({bindingId:binding.id,bindingDigest:binding.digest,args})]);
   await expect(executor.execute(f.task.id,operationId,binding,args)).rejects.toMatchObject({code:"CONNECTED_READ_UNCERTAIN"});expect(requests).toHaveLength(0);
   await expect(pool.query("UPDATE agents_platform.connected_reads SET state='started' WHERE operation_id=$1",[operationId])).rejects.toThrow("immutable");
+ });
+
+ it("reads root publication scopes and the child's effective narrowed override without provider calls",async()=>{
+  const f=await fixture(),config=defaultFaqConfiguration(),selected=f.bindings.find(binding=>binding.definition.providerOperation==="get_repository")!;
+  config.connectedToolBindingIds=f.bindings.map(binding=>binding.id);config.tools=["agents.delegate"];
+  config.capabilities.delegation={enabled:true,maxChildren:2,maxDepth:1,bindings:[{id:"research",versionId:f.task.version_id,sourceRevisionIds:[],connectedToolBindingIds:[selected.id],tools:[],maxTokens:8000,maxActiveMs:120000}]};
+  const agent=await platform.createAgent({...f.scope,name:"Scoped coordinator",configuration:config}),version=await platform.createVersion({...f.scope,agentId:agent.id,expectedRevision:1});
+  const authority={product:"agents" as const,organizationId:f.scope.organizationId,resourceId:agent.id,callerClientId:"agents-execution",principal:f.grant.principal};
+  const grant:ExecutionGrant={...f.grant,...authority,id:randomUUID(),versionId:version.id,operations:["model.reply","knowledge.read","connected.read","delegation.execute"]};
+  await platform.createGrant({accountId:f.scope.accountId,grant});
+  const{task}=await platform.admitTask({authority,versionId:version.id,grantId:grant.id,requestKey:randomUUID(),input:"Check published and effective scope metadata"});
+  expect((await pool.query("SELECT effective_configuration FROM agents_platform.tasks WHERE id=$1",[task.id])).rows[0].effective_configuration).toBeNull();
+  const operationId=`delegate:${task.id}`,args={requests:[{bindingId:"research",brief:"Read only your approved scoped metadata"}]};
+  await beginOperation(pool,task.id,{id:operationId,kind:"delegation",name:"agents.delegate",request:args,reservedTokens:0,reservedMs:0,retrySafe:true});
+  const[child]=await admitChildren(pool,task.id,operationId,args);expect(child).toBeDefined();
+  const scopes=await readGithubJourneyScopes(pool,task.id);expect(scopes).toHaveLength(2);
+  expect(scopes.find(scope=>scope.id===task.id)).toMatchObject({id:task.id,parent_task_id:null,root_token_limit:32000,sources:[],bindings:config.connectedToolBindingIds,grant_sources:[],grant_bindings:config.connectedToolBindingIds});
+  expect(scopes.find(scope=>scope.id===child!.taskId)).toMatchObject({id:child!.taskId,parent_task_id:task.id,root_token_limit:8000,sources:[],bindings:[selected.id],grant_sources:[],grant_bindings:[selected.id]});
+  expect(scopes.every(scope=>scope.created_at instanceof Date&&Number.isFinite(scope.created_at.getTime()))).toBe(true);
+  expect(requests).toEqual([]);
  });
 
  it("rejects narrowed specialist MCP bindings at publication and admission before creating child work",async()=>{
