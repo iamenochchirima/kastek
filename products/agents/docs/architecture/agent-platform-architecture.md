@@ -468,7 +468,7 @@ and rejects cycles, missing records and conflicting generations. Native/MCP read
 business operation controller and root budgets. API and worker pin matching executable artifacts;
 recorded receipts resolve before registry lookup. Authenticated GitHub acceptance remains pending.
 
-The versioned AgentsBusinessRunV4 Restate workflow owns repeated model/tool execution. Each task
+The versioned AgentsBusinessRunV5 Restate workflow owns repeated model/tool execution. Each task
 pins its agent configuration and harness release. Ordered conversation turns wait for the preceding
 execution and its recorded result. A short database transaction assigns order and freezes eligible
 history; it does not run the agent loop or hold a lock during external work.
@@ -479,6 +479,8 @@ request has an immutable context snapshot, digest, source references and memory 
 Recorded compaction reduces older groups while retaining unresolved requests and operation/artifact
 references. Summaries are derived data and never grant authority or prove an effect succeeded.
 Every influencing source/connection/memory dependency survives the summary and child join.
+A delegated brief retains an immutable snapshot of its parent dependencies, checked under
+the parent authority. Narrow specialist retrieval grants do not erase that provenance.
 Once consumed evidence is withdrawn or forgotten, the current task stops incomplete rather than
 discarding its dependency records. A fresh turn can select current evidence and omit invalid history.
 

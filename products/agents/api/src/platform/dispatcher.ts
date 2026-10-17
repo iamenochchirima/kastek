@@ -42,7 +42,7 @@ export async function dispatchTasksOnce(pool: Pool, options: DispatcherOptions):
         if (!response.ok) throw new Error("RUNTIME_DISPATCH_FAILED");
         const sent = await response.json() as { invocationId?: unknown };
         if (typeof sent.invocationId !== "string" || !sent.invocationId.startsWith("inv_")) throw new Error("RUNTIME_INVALID_RESPONSE");
-        // A duplicate send has its own invocation ID; only workflow lookup identifies the accepted run.
+        // Bind the accepted workflow identity independently of the submission response.
         const lookup = await request(`${options.ingressUrl.replace(/\/$/, "")}/restate/lookup`, {
           method:"POST",headers:{"content-type":"application/json"},
           body:JSON.stringify({target:"workflow",workflowName:WORKFLOW_NAME,workflowKey:row.task_id}),signal:AbortSignal.timeout(5000),

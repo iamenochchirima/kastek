@@ -145,6 +145,10 @@ bodies also acquire durable object ownership before PUT. Raw-response links requ
 a started operation and a live intent row. Root and child settlement wait for query compute to be
 confirmed destroyed; neither storage failure nor cancellation releases a physical slot early.
 
+Evidence policy metadata stays available without S3. Bounded personal-memory citation
+bodies stay in private PostgreSQL, so memory-only execution and withdrawal checks do
+not depend on object storage. Source and connected bodies still require private S3.
+
 PostgreSQL 17 with pgvector stores immutable chunks, full-text indexes and scoped
 384-dimensional vectors. `lexical-v1` returns only text matches. `hybrid-v1` uses
 the explicitly pinned local BGE release, exact vector search and RRF (k=60),
@@ -159,7 +163,9 @@ Useful tail passages replace prefix context. A bounded continuation reads by
 issued evidence ID and UTF-16 offset. Context snapshots persist exact model tool
 definitions and selected evidence. Immutable dependency graphs preserve all
 influences through history, summaries, specialists, memory proposals and artifacts,
-including influences omitted from final citations. Shared ancestors deduplicate;
+including influences omitted from final citations. Delegated briefs retain their parent input
+dependencies separately from the specialist's narrower direct read grants. Derived child
+outputs and later memory reuse must still pass the original input policy checks. Shared ancestors deduplicate;
 cycles, missing records and conflicting policies fail closed.
 
 Source withdrawal, visibility changes, connection policy and Forget block future
@@ -178,9 +184,14 @@ handles. Every read consumes the same root operation budget; credentials stay in
 the trusted transport. See [integration boundaries](mcp-integration.md) for protocol,
 wire-request bounds and the pending authenticated provider acceptance.
 
+The outbox submits root workflows. Parent workflows submit specialists, while
+ordered turns attach to the preceding canonical invocation. Duplicate root sends
+resolve the workflow identity before binding it. A submission conflict is not
+reported as cancellation.
+
 ## Connected reports and automation
 
-`AgentsBusinessRunV4` (`connected-research-v1`) runs the trusted `report-delivery-v1`
+`AgentsBusinessRunV5` (`connected-research-v2`) runs the trusted `report-delivery-v1`
 workflow after the ordinary agent loop. Required stages select or create a private
 report, validate its sources, prepare an exact action packet, wait for human
 review, and deliver or reconcile it. A sandbox-enabled report must select one

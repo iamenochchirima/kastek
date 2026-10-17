@@ -182,7 +182,9 @@ cancellation does not claim remote cancellation. Unknown started reads retain
 explicit uncertainty rather than issuing another physical request.
 
 Evidence manifests are separate from model text. All influencing dependencies
-survive truncation, compaction, joins, history and artifacts. Current policy and
+survive truncation, compaction, joins, history and artifacts. A specialist brief carries
+its immutable parent input dependencies even when the specialist cannot retrieve those
+sources directly. Withdrawal blocks reuse of both the brief and derived child output. Current policy and
 content hashes gate future context, review and dispatch. Exact approval cannot
 restore withdrawn access. An already claimed effect remains reconcilable after
 revocation; a historical receipt does not authorize another send or content read.

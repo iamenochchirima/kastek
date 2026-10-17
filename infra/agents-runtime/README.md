@@ -109,7 +109,7 @@ References: [HTTP invocation](https://docs.restate.dev/services/invocation/http)
 
 ## Report and automation recovery
 
-Worker registration discovers `AgentsBusinessRunV4`, `AgentsAutomationV1` and, when configured, `AgentsKnowledgeImportV1`.
+Worker registration discovers `AgentsBusinessRunV5`, `AgentsAutomationV1` and, when configured, `AgentsKnowledgeImportV1`.
 Use a fresh dedicated development database after schema changes; setup rejects
 an incompatible checksum. Keep immutable worker endpoints for journal replay.
 Do not point old journals at changed workflow/descriptor code.
@@ -248,7 +248,14 @@ remain separately verified deployment gates.
 
 ## Knowledge and connected-read recovery
 
-`AgentsBusinessRunV4` uses harness release `connected-research-v1`.
+`AgentsBusinessRunV5` uses harness release `connected-research-v2`.
+The outbox submits roots; the parent workflow submits specialists. The outbox
+never submits an ordinary child again. Root retries resolve the accepted workflow
+through `/restate/lookup` before recording its invocation identity. Ordered turns
+attach to that identity rather than resubmitting a predecessor. A terminal conflict
+is uncertain unless the runtime explicitly reports cancellation. The pinned Restate
+workflow API rejects a caller-supplied idempotency key on `run`; use workflow
+identity and canonical lookup rather than adding that header.
 `AgentsKnowledgeImportV1` coordinates owner imports separately from task roots.
 Fresh schema bootstrap pins all ordered SQL files; this product does not migrate
 an earlier Agents database. Keep the old database separate when testing a new

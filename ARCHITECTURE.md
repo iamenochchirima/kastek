@@ -57,7 +57,8 @@ isolated temporary Python analysis, exact report review and UTC/event automation
 Root budgets bound the entire task tree. The website FAQ uses the same harness
 with optional capabilities disabled. Approved immutable source revisions use scoped
 lexical/local semantic retrieval and citation/dependency records. Private S3 storage
-holds source, evidence and report bodies. Selected native/MCP public-repository
+holds source bodies, evidence from connected reads and reports. Memory bodies and bounded memory
+citation snapshots remain in private PostgreSQL. Selected native/MCP public-repository
 read adapters share the controller; authenticated GitHub acceptance remains pending.
 Growth and Agencies integration and product delegation policy remain later work. Workspace execution
 is explicitly unavailable until the Lina adapter is implemented. No existing database or
