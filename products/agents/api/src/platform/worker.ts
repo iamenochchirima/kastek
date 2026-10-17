@@ -5,6 +5,9 @@ import { createBusinessWorkflow } from "./business";
 import { startDispatcher } from "./dispatcher";
 import { WORKFLOW_NAME } from "./execution";
 import { workerSecurityFromEnvironment } from "./worker-security";
+import { sandboxManagerFromEnvironment } from "./sandbox";
+import { privateStoreFromEnvironment } from "./artifacts";
+import { createSandboxExecutor } from "./sandbox-executor";
 
 async function main(): Promise<void> {
   const diagnosticIdentity = { service: "agents-worker", environment: process.env.NODE_ENV || "development",
@@ -15,7 +18,9 @@ async function main(): Promise<void> {
   const pool = new Pool({ connectionString: process.env.AGENTS_DATABASE_URL, max: 10,
     connectionTimeoutMillis: 5000, statement_timeout: 15000, query_timeout: 20000 });
   const abort = new AbortController();
-  const workflow = createBusinessWorkflow(pool, { openRouterApiKey: process.env.OPENROUTER_API_KEY, signal: abort.signal });
+  const sandbox = sandboxManagerFromEnvironment(pool);
+  const workflow = createBusinessWorkflow(pool, { openRouterApiKey: process.env.OPENROUTER_API_KEY, signal: abort.signal,
+    executeSandbox: createSandboxExecutor(pool,sandbox,privateStoreFromEnvironment()) });
   const {host,identityKeys} = workerSecurityFromEnvironment();
   const server = createServer(createEndpointHandler({ services: [workflow], identityKeys }));
   const sessions = new Set<ServerHttp2Session>();

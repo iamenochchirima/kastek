@@ -92,8 +92,8 @@ need stable operation identities. An external operation may finish before Restat
 records its response, so execution durability does not prove exactly-once effects.
 
 Root admission reserves up to 32,000 accounted tokens against the organization's
-100,000-token UTC admission-day allowance. Child delegation is not enabled. Model
-and compaction calls consume operation reservations under the same root; later
+100,000-token UTC admission-day allowance. Business children subdivide that allocation. Model
+and compaction calls across the tree consume operation reservations under the same root; later
 midnight crossings do not create a new allowance. Private PostgreSQL stores
 context snapshots and memory revisions. S3-compatible storage holds large
 artifacts under scoped metadata. See the [implementation boundary](../../products/agents/docs/source-boundary.md)
@@ -166,3 +166,48 @@ Forgetting and source-history deletion prevent future retrieval and invalidate
 derived context. They do not claim physical erasure of historical revisions,
 completed provider requests, runtime journals or backups. Retention and production
 secret storage remain explicit release concerns.
+
+## Temporary isolated analysis
+
+The optional local backend pins gVisor release 20261012.0 and Python 3.12.12 by
+image digest. It uses direct rootless OCI execution inside a transient systemd
+user service. Docker is used to extract the pinned image; generated code is not
+run through Docker's ordinary runtime.
+
+```sh
+bash infra/agents-runtime/prepare-sandbox.sh
+bash infra/agents-runtime/verify-sandbox.sh
+```
+
+The check uses actual disposable PostgreSQL and the local isolation backend. It
+requires Linux x86_64, user namespaces and a systemd user manager with delegated
+CPU/memory/process limits. Missing required enforcement blocks execution.
+
+Configure private S3 storage, set `AGENTS_SANDBOX_ENABLED=1`, and start the
+independent reaper from `products/agents/api`:
+
+```sh
+pnpm dev:sandbox-reaper
+```
+
+For compiled services use `pnpm start:sandbox-reaper`. The reaper and worker must
+share the private allocation directory and dedicated Agents database. The API
+and worker require the same pinned runtime paths. Path overrides are documented
+in the environment example. Start cleanup before enabling analysis admission.
+
+The profile allows one CPU, 512 MiB RAM, no swap, 64 host tasks, guest process
+limits and 256 MiB scratch. Commands last at most 120 seconds. Allocation leases
+last at most ten minutes and cannot exceed the root deadline. One sandbox per
+root and two per organization are permitted. Up to 32 input files/4 MiB are
+staged read-only. Export permits four text/Markdown/JSON artifacts, each at most
+1 MiB and 4 MiB total. Diagnostic output is capped at 64 KiB; model-facing
+excerpts are smaller. Network, dependency downloads and credential injection are
+disabled. Code writes export files under `OUTPUT_DIR`.
+
+After worker loss, the adapter attaches to the original resource or reads its
+receipt. Unknown commands are not repeated. Required artifacts are published
+before normal destruction; durable export references support replay afterward.
+The independent reaper stops expired or cancelled allocations. Cleanup failure
+remains visible and is retried; stopping new admission must not stop the reaper
+or discard receipts. Production isolation, capacity and operational certification
+remain separately verified deployment gates.

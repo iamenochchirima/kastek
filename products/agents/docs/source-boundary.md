@@ -17,7 +17,9 @@ startup. It does not migrate an older database or import Growth state.
 | `business.ts` | Restate business controller, model and tool rounds, ordered turns, and compaction coordination. |
 | `model.ts`, `context.ts` | Provider protocol, conservative request accounting, scoped context snapshots, and complete message groups. |
 | `memory.ts`, `memory-routes.ts` | Personal memory candidates, authenticated acceptance, revisions, expiry, forgetting, source invalidation, and pinned skills. |
-| `artifacts.ts` | Private S3-compatible content and scoped artifact metadata, integrity, and deletion. |
+| `artifacts.ts`, `task-artifacts.ts` | Private S3-compatible content, root/task provenance, explicit transfers, downloads, integrity and deletion. |
+| `delegation.ts`, `tool-descriptors.ts` | Published specialist bindings, atomic child admission, bounded results and pinned adapter contracts. |
+| `sandbox.ts`, `sandbox-executor.ts`, `sandbox-reaper.ts` | Isolated analysis, durable resource/command identities, artifact export and independent cleanup. |
 | `dispatcher.ts`, `worker.ts`, `worker-security.ts` | Leased outbox delivery, runtime identity, cancellation reconciliation, request signatures, and worker lifecycle. |
 | `setup.ts` | Fresh database initialization and schema checks. |
 
@@ -41,7 +43,7 @@ recorded result. Large generated content uses private S3-compatible artifacts.
 Context snapshots are not currently stored as S3 objects.
 
 Selected tools are `knowledge.search`, `knowledge.read`, `memory.search`, and
-`memory.propose`. Trusted code validates their arguments and scope. A memory
+`memory.propose`, `agents.delegate` and `sandbox.analyze`. Trusted code validates their arguments and scope. A memory
 proposal creates a candidate. Only an authenticated management action accepts,
 corrects, or forgets it. Publishing a skill creates an immutable revision; skill
 text cannot install tools or grant permission.
@@ -66,7 +68,7 @@ stable identities and receipts. A recorded result is reused after replay. An
 unconfirmed model request becomes uncertain rather than generating another reply.
 
 The development profile allows a root allocation up to 32,000 accounted tokens,
-12 model calls including compaction, and 24 tool calls. Its model input allowance
+12 model calls including compaction and children, and 24 tool calls. Its model input allowance
 is at most 8,192 conservative estimated tokens, with 1,024 output tokens and a
 120-second deadline per model call. Root wall lifetime is 24 hours. Accounted
 active operation time is bounded to 15 minutes. Organization limits are two
@@ -77,6 +79,18 @@ Operations settle the original root reservation even after midnight. This is not
 a separate physical-consumption cap for each later day. Uncertain operations
 conservatively consume their reservation. Definitive rejection releases unused
 usage. Settlement is idempotent at both operation and root level.
+
+A coordinator can admit two version-pinned read-only business specialists with
+explicit briefs and source subsets. Children use private conversation branches and
+subdivide one root allocation; they do not consume new root slots or organization
+reservations. Their current authority is also bounded by the root grant. A parent
+waits for all admitted dependent children and identifies partial or uncertain results.
+
+Optional analysis uses the verified local no-network gVisor Python profile.
+The task owns stable allocation and command IDs; reconnect reads receipts/status.
+Private artifact references survive resource destruction. An independent reaper
+cleans expired and stopping-root resources. Root settlement retains ownership of
+pending children and resources. See the runtime reference for setup and limits.
 
 Cancellation records intent and blocks new work. It does not undo an accepted
 effect or prove that a provider stopped. An uncertain outcome stays visible.
@@ -102,8 +116,7 @@ conversations, a completed memory.search tool receipt, pinned skills and correct
 The website/widget journey and real Keycloak checks remain distinct acceptance paths. Worker signature
 fixtures do not certify cluster key distribution or a production deployment.
 
-Outbound MCP, destination business writes, in-task effect approval, subagents,
-sandboxes, schedules, Lina execution, and evaluation adapters remain unavailable.
+Outbound MCP, destination business writes, in-task effect approval, schedules, Lina execution and evaluation adapters remain unavailable. Subagents require explicit published bindings; analysis also requires the pinned backend, resource controls and private storage.
 Production rollout, secret management, durable log retention, monitoring, backups,
 and signup-email delivery require separate verification. There are no active OTLP
 exporters. Services emit bounded structured stdout diagnostics.

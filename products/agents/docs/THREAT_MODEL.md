@@ -94,6 +94,32 @@ disaster recovery, secret storage, redaction inspection, alerts, and signup-emai
 delivery remain deployment gates. Structured stdout has bounded errors; no OTLP
 exporter or durable log retention is currently configured.
 
-Destination writes, in-task approval waits, outbound MCP, delegation, temporary
-sandboxes, automation, and Lina execution remain disabled. These controls do not
-claim isolation or effect guarantees for those future capabilities.
+## Delegation and generated analysis
+
+Only published same-organization business specialist versions can be delegated.
+The child receives a bounded brief, selected knowledge/read tools and a subdivided
+root allocation. Personal memory, credentials, history, sandbox access and further
+delegation are not inherited. A child checks current root authority before dispatch.
+Stable slots and operation identities prevent duplicate logical children; one root
+reservation bounds the whole tree. Waiting parents release provider capacity.
+
+Generated Python runs inside pinned rootless gVisor with network disabled, a
+read-only root and bounded scratch. No host worker, Docker socket, model key,
+provider credential or database connection is exposed inside the guest. Systemd
+user cgroups enforce CPU, memory, no-swap and host task limits. Guest limits and
+bounded export handling complement those controls. There is no host execution
+fallback. Local containment tests do not establish production multi-tenant certification.
+
+Allocation and command records distinguish unknown execution from confirmed
+failure. Reconnect never reruns an unknown command. Exports pass path/link/type/
+size/count checks before private publication. Task artifact APIs require the root
+initiating account, current membership and source availability; ordinary management
+artifact reads cannot bypass those checks. Downloads are private attachments.
+
+An independent reaper stops expired or cancelled resources after worker loss.
+Root settlement waits for dependent work and cleanup accounting; a cancellation
+request is not evidence that compute already stopped. Receipts and exported
+artifact references survive destruction for the permitted replay window.
+
+Destination writes, in-task action approval, outbound MCP, automation and Lina
+execution remain disabled. Their future adapters require separate verification.

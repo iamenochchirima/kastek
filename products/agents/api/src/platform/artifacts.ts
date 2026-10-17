@@ -74,7 +74,7 @@ export class ArtifactStore {
   constructor(readonly pool: Pool, readonly objects?: PrivateObjectStore) {}
   async list(scope: ManagementScope): Promise<ArtifactRecord[]> {
     return memoryTransaction(this.pool, async db => { await requireMemoryAccess(db, scope);
-      return (await db.query("SELECT * FROM agents_platform.artifacts WHERE organization_id=$1 AND agent_id=$2 AND account_id=$3 AND state='available' ORDER BY created_at,id LIMIT 100", [scope.organizationId, scope.agentId, scope.accountId])).rows.map(artifact); });
+      return (await db.query("SELECT * FROM agents_platform.artifacts WHERE organization_id=$1 AND agent_id=$2 AND account_id=$3 AND task_id IS NULL AND state='available' ORDER BY created_at,id LIMIT 100", [scope.organizationId, scope.agentId, scope.accountId])).rows.map(artifact); });
   }
   async put(scope: ManagementScope, input: { operationId: string; contentType: string; content: Uint8Array }): Promise<ArtifactRecord> {
     if (!this.objects) throw new PlatformError("OBJECT_STORE_UNAVAILABLE", 503, "Private storage is unavailable");
@@ -111,11 +111,11 @@ export class ArtifactStore {
     if (!finalized) { await this.objects.delete(row.object_key); throw new PlatformError("ARTIFACT_DELETED", 410, "Content was deleted"); }
     return finalized;
   }
-  async get(scope: ManagementScope, artifactId: string): Promise<{ artifact: ArtifactRecord; content: Uint8Array }> {
+  async get(scope: ManagementScope, artifactId: string, allowTaskArtifact = false): Promise<{ artifact: ArtifactRecord; content: Uint8Array }> {
     z.uuid().parse(artifactId);
     const row = await memoryTransaction(this.pool, async db => { await requireMemoryAccess(db, scope);
       const value = (await db.query("SELECT * FROM agents_platform.artifacts WHERE id=$1 AND organization_id=$2 AND agent_id=$3 AND account_id=$4 AND state='available'", [artifactId, scope.organizationId, scope.agentId, scope.accountId])).rows[0];
-      if (!value) throw new PlatformError("NOT_FOUND", 404, "Content not found"); return value; });
+      if (!value || (value.task_id && !allowTaskArtifact)) throw new PlatformError("NOT_FOUND", 404, "Content not found"); return value; });
     if (!this.objects) throw new PlatformError("OBJECT_STORE_UNAVAILABLE", 503, "Private storage is unavailable");
     const content = await this.objects.get(row.object_key);
     if (sha(content) !== row.content_digest || content.byteLength !== row.bytes) throw new PlatformError("ARTIFACT_INTEGRITY", 502, "Content integrity check failed");
@@ -126,7 +126,7 @@ export class ArtifactStore {
   async forget(scope: ManagementScope, artifactId: string) {
     z.uuid().parse(artifactId);
     const row = await memoryTransaction(this.pool, async db => { await requireMemoryAccess(db, scope);
-      const value = (await db.query("UPDATE agents_platform.artifacts SET state='deleted' WHERE id=$1 AND organization_id=$2 AND agent_id=$3 AND account_id=$4 RETURNING *", [artifactId, scope.organizationId, scope.agentId, scope.accountId])).rows[0];
+      const value = (await db.query("UPDATE agents_platform.artifacts SET state='deleted' WHERE id=$1 AND organization_id=$2 AND agent_id=$3 AND account_id=$4 AND task_id IS NULL RETURNING *", [artifactId, scope.organizationId, scope.agentId, scope.accountId])).rows[0];
       if (!value) throw new PlatformError("NOT_FOUND", 404, "Content not found"); return value; });
     if (!this.objects) throw new PlatformError("OBJECT_STORE_UNAVAILABLE", 503, "Private storage is unavailable");
     await this.objects.delete(row.object_key); return artifact(row);

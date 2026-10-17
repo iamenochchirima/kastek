@@ -7,7 +7,7 @@ and the standalone Agents product separately. Design against these boundaries fi
 code is reusable only where it fits. This is a new product built with fresh schemas. Existing
 data, histories, credentials, endpoints, and clients impose no migration, preservation, or backward-compatibility
 requirements. Legacy data retention is not a prerequisite. The [implementation status](../source-boundary.md) describes
-the legacy checkout; it does not constrain the replacement design.
+current implementation; it does not constrain the target design.
 
 ## Product experience and ownership
 
@@ -354,8 +354,7 @@ outcomes require reconciliation before retry.
 
 Human takeover changes conversation ownership before admitting new automated actions. Active
 reasoning receives a cancellation request. Already-started operations can still complete and must
-report their actual outcome. Restate cancellation propagation for the selected server and SDK,
-including child lifecycles, remains unverified.
+report their actual outcome. Restate cancellation and child coordination use the pinned public SDK mechanisms verified by runtime probes; application-level tree outcomes still require recorded child receipts.
 
 Delegated agents use established runtime mechanisms and explicitly bounded child grants. A child
 cannot exceed delegated authority. Parent, child, and root-task identities, spending, concurrency,
@@ -438,7 +437,7 @@ implementation is removed. No existing database is migrated or modified.
 
 ### Business harness
 
-The versioned AgentsBusinessRunV1 Restate workflow owns repeated model/tool execution. Each task
+The versioned AgentsBusinessRunV2 Restate workflow owns repeated model/tool execution. Each task
 pins its agent configuration and harness release. Ordered conversation turns wait for the preceding
 execution and its recorded result. A short database transaction assigns order and freezes eligible
 history; it does not run the agent loop or hold a lock during external work.
@@ -457,7 +456,7 @@ selection generations. These controls do not claim physical erasure of prior pro
 journals, revisions or backups. Procedural skills are immutable reviewed revisions pinned at
 publication; they cannot install tools or expand permissions.
 
-The trusted executor exposes selected knowledge.search/read and memory.search/propose operations.
+The trusted executor exposes selected knowledge.search/read, memory.search/propose, agents.delegate and sandbox.analyze operations.
 Tool schemas, arguments, current grants, memory fences, time and root usage are checked before
 admission. Model names and prompt instructions cannot grant a tool. The minimal FAQ uses the same
 controller with its optional capabilities disabled. Website publication rejects personal memory,
@@ -485,11 +484,54 @@ cluster key distribution, backups, capacity or monitoring. See the
 [runtime reference](../../../../infra/agents-runtime/README.md) and
 [implementation boundary](../source-boundary.md).
 
+### Business subagents and temporary analysis
+
+A published coordinator pins same-organization specialist AgentVersions, permitted
+knowledge and read tools, and child token/time ceilings. Atomic delegation slots
+persist one child per parent operation and slot. Children run the common controller
+in private branches, without joining the parent conversational input queue. V1
+allows two outstanding children and one delegation edge. Personal memory,
+credentials, sandbox access and further delegation are not inherited.
+
+Root-owned accounting reserves one original organization allocation and subdivides
+it for children. Root admission, outstanding children and executing provider slots
+are separate limits. The parent releases execution slots while Restate joins all
+admitted children in stable slot order. Partial results remain distinguishable
+from complete success. Cancellation, deadlines and root revocation stop future
+child admissions; dependent work remains owned until accounted for.
+
+The optional python-analysis-v1 profile runs generated Python inside rootless
+gVisor with no network, using a pinned read-only Python filesystem. A transient
+systemd user service enforces one CPU, 512 MiB memory, no swap and 64 host tasks;
+the guest also enforces process/file bounds. Scratch is limited to 256 MiB,
+commands to 120 seconds and leases to ten minutes or the root deadline. Inputs
+are explicitly staged, and exports are checked for paths, links, type, count and
+size. No host tool execution, model keys, database credentials or Docker socket
+enter the guest.
+
+Allocation and command identities survive worker loss. Reconnect attaches or
+reads a receipt; it never interprets a lost response as permission to rerun code.
+Required outputs enter scoped private storage before normal destruction. Durable
+export references allow operation replay after destruction. The independent
+sandbox reaper cleans expired or stopped-root allocations without depending on
+the original worker. Execution outcome and resource disposition are separate;
+root settlement waits for dependent resource accounting.
+
+Task artifact authorization retains root/task/producing-operation provenance and
+explicit transfer references. Management artifact APIs cannot bypass task scope.
+Downloads validate the initiating account, current membership, root scope and
+source availability, and use a private attachment response. Artifacts outlive
+compute; deleted/revoked sources cannot silently become fresh model inputs.
+
+Backend setup and verification are local development evidence, not hosted
+multi-tenant certification. The selected runtime must enforce its limits before
+analysis is enabled. Missing backend or storage fails closed. No ordinary host
+process or unverified runtime is used as fallback.
+
 ### Unavailable capabilities
 
 Exactly two execution categories remain. Workspace tasks fail before acceptance until the Lina
-adapter is implemented. Business-to-business delegation, temporary sandboxes, destination business
-writes, durable external-action review, schedules and additional workflows remain disabled.
+adapter is implemented. Destination business writes, durable external-action review, schedules and additional workflows remain disabled. Delegation and analysis require their published configuration, bounded current grants and available runtime/storage.
 The standalone runtime probes exercise future coordination mechanisms without exposing those
 capabilities in the product. External MCP, embedded Growth and Agencies admission and evaluator
 adapters are also unavailable.

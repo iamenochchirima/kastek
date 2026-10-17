@@ -52,7 +52,8 @@ product features operate independently; agent-powered features may depend on the
 The standalone Agents implementation uses Keycloak 26.6.0, product-owned membership,
 bounded execution grants, PostgreSQL admission and outbox, and a Restate business harness.
 The harness includes ordered conversations, reviewed personal memory, pinned skills,
-context compaction, and bounded model/tool operations. The website FAQ uses the same harness
+context compaction, bounded model/tool operations, version-pinned business subagents,
+and optional isolated temporary Python analysis. Root budgets bound the entire task tree. The website FAQ uses the same harness
 with optional capabilities disabled. Private PostgreSQL stores context and memory records;
 S3-compatible storage holds large artifacts. It replaces protected KasiAi, hosting modes,
 and the inherited Temporal backend. Growth

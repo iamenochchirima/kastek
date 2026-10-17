@@ -2,7 +2,7 @@
 
 The standalone Agents product creates, configures, and tests business agents with
 conversation context, reviewed personal memory, pinned skills, bounded tool rounds,
-and recorded context compaction. Restate coordinates durable execution. A minimal
+recorded context compaction, bounded business subagents and optional isolated Python analysis. Restate coordinates durable execution. A minimal
 knowledge-backed website FAQ uses the same harness with optional capabilities
 disabled. The technical kinds remain `business` and `workspace`; workspace
 execution is unavailable until its separate Lina adapter is implemented.
@@ -76,10 +76,39 @@ API diagnostics are `http://127.0.0.1:4100/health` and `/ready`.
 The worker needs `OPENROUTER_API_KEY`. Development permits only
 `nvidia/nemotron-3-super-120b-a12b:free`, with reasoning disabled and no paid fallback.
 
-Private artifact storage is optional. Configure all five `AGENTS_S3_*` settings
+Private artifact storage is required for isolated analysis and optional for ordinary conversation. Configure all five `AGENTS_S3_*` settings
 from the environment example and provision a private S3-compatible bucket.
 Without them, artifact storage remains unavailable. Context snapshots and memory
 revisions remain in private PostgreSQL records.
+
+## Enable local analysis
+
+The analysis profile requires Linux x86_64, user namespaces, a working systemd user
+manager with delegated CPU/memory/process controls, and the pinned gVisor runtime.
+Prepare and verify the local backend from the repository root:
+
+```sh
+bash infra/agents-runtime/prepare-sandbox.sh
+bash infra/agents-runtime/verify-sandbox.sh
+```
+
+Configure private S3 storage and set `AGENTS_SANDBOX_ENABLED=1` in the local API
+`.env`. From `products/agents/api`, run the independent cleanup process alongside
+the worker:
+
+```sh
+pnpm dev:sandbox-reaper
+```
+
+The reaper shares the private allocation directory with the worker. Generated code
+receives no credentials or network. Select the analysis capability in an immutable
+agent version. Missing storage or a missing backend blocks analysis admission.
+This runtime is temporary compute; it does not create a persistent workspace.
+
+A coordinator can pin at most two permitted business specialist versions with
+explicit source/tool subsets and child allocations. Specialists have no inherited
+personal memory, sandbox or delegation permission. Parent and children share the
+original root budget.
 
 ## Verify
 
@@ -118,7 +147,12 @@ This uses the approved free-model key from the local environment. It creates its
 own database, API, worker, and browser session, starts Restate if needed, and
 cleans its owned resources. It verifies reviewed memory, a pinned skill,
 contextual follow-up, a new conversation, and a real `memory.search` operation.
-Identity is seeded for this fixture. Real OIDC is checked separately:
+Run the complete delegation/analysis journey with the same disposable database,
+Vite and free-model prerequisites, using `AGENTS_ADVANCED_LIVE=1` in place of
+`AGENTS_HARNESS_LIVE=1`. It starts owned MinIO storage and a separate reaper,
+checks two real specialist tasks, and verifies a downloaded analysis report.
+
+Identity is seeded for these fixtures. Real OIDC is checked separately:
 
 ```sh
 bash infra/agents-runtime/verify-identity.sh

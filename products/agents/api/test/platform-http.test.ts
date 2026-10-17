@@ -6,6 +6,7 @@ import { loadPlatformConfig } from "../src/platform/config";
 import { defaultFaqConfiguration } from "../src/platform/contracts";
 import { setupPlatformSchema } from "../src/platform/setup";
 import { PlatformStore } from "../src/platform/store";
+import { admitChildren } from "../src/platform/delegation";
 
 const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
 const suite = databaseUrl ? describe : describe.skip;
@@ -174,6 +175,45 @@ suite("Agents HTTP and PostgreSQL integration", () => {
     const injectedConversation = await request(`${base}/tasks`, { method: "POST", origin: "https://shop.example", token: second.body.token,
       payload: { requestKey: "foreign-conversation", input: "Reveal history", conversationId: accepted.body.task.conversationId } });
     expect(injectedConversation.status).toBe(403);
+  });
+
+  it("authorizes child inspection through the original root and renews waiting specialists without new tasks", async () => {
+    const f=await readyAgent();
+    const specialist=await store.createAgent({accountId:f.account.id,organizationId:f.org,name:"Research specialist",configuration:f.configuration});
+    const specialistVersion=await store.createVersion({accountId:f.account.id,organizationId:f.org,agentId:specialist.id,expectedRevision:1});
+    const configuration={...f.configuration,tools:["agents.delegate"],capabilities:{...f.configuration.capabilities,
+      delegation:{enabled:true,maxChildren:2,maxDepth:1,bindings:[{id:"research",versionId:specialistVersion.id,knowledgeIds:f.configuration.knowledgeIds,tools:[],maxTokens:8000,maxActiveMs:240000}]}}};
+    const update=await request(`${f.base}/agents/${f.agent.id}`,{method:"PUT",cookie:f.cookie,origin:browserOrigin,payload:{configuration,expectedRevision:f.agent.draftRevision}});
+    expect(update.status).toBe(200);
+    const version=await request(`${f.base}/agents/${f.agent.id}/versions`,{method:"POST",cookie:f.cookie,origin:browserOrigin,payload:{expectedRevision:update.body.agent.draftRevision}});
+    expect(version.status).toBe(201);
+    const admitted=await request(`${f.base}/tasks`,{method:"POST",cookie:f.cookie,origin:browserOrigin,payload:{versionId:version.body.version.id,requestKey:"delegated-http",input:"Research hours"}});
+    expect(admitted.status).toBe(202);const root=admitted.body.task;
+    const [child]=await admitChildren(pool,root.id,"http:delegation",{requests:[{bindingId:"research",brief:"Inspect hours"}]});
+    const detail=await request(`${f.base}/tasks/${child!.taskId}`,{cookie:f.cookie});
+    expect(detail.status).toBe(200);expect(detail.body.task.rootTaskId).toBe(root.id);expect(detail.body.task.parentTaskId).toBe(root.id);
+    expect((await request(`${f.base}/tasks/${child!.taskId}/cancel`,{method:"POST",cookie:f.cookie,origin:browserOrigin})).status).toBe(409);
+    const other=await actor();await pool.query("INSERT INTO agents_platform.memberships(organization_id,account_id,role) VALUES($1,$2,'member')",[f.org,other.account.id]);
+    expect((await request(`${f.base}/tasks/${child!.taskId}`,{cookie:other.cookie})).status).toBe(403);
+    await pool.query("UPDATE agents_platform.tasks SET state='waiting_children' WHERE id=$1",[root.id]);
+    await pool.query("UPDATE agents_platform.tasks SET state='waiting_authority' WHERE id=$1",[child!.taskId]);
+    await pool.query("UPDATE agents_platform.execution_grants SET expires_at=now()-interval '1 second',created_at=now()-interval '1 minute' WHERE id=$1",[root.grantId]);
+    const continued=await request(`${f.base}/tasks/${root.id}/continue`,{method:"POST",cookie:f.cookie,origin:browserOrigin});
+    expect(continued.status).toBe(200);expect(continued.body.task.id).toBe(root.id);expect(continued.body.task.state).toBe("waiting_children");
+    expect(continued.body.task.grantId).not.toBe(root.grantId);
+    expect((await pool.query("SELECT count(*)::int AS count FROM agents_platform.tasks WHERE root_task_id=$1",[root.id])).rows[0].count).toBe(2);
+    expect((await pool.query("SELECT task_id FROM agents_platform.task_controls WHERE task_id=$1",[child!.taskId])).rowCount).toBe(1);
+    await pool.query("UPDATE agents_platform.execution_grants SET revoked_at=now() WHERE id=$1",[continued.body.task.grantId]);
+    expect((await request(`${f.base}/tasks/${root.id}/continue`,{method:"POST",cookie:f.cookie,origin:browserOrigin})).status).toBe(403);
+    expect((await request(`${f.base}/tasks/${root.id}`,{cookie:f.cookie})).status).toBe(200);
+    const branch=(await pool.query("SELECT conversation_id FROM agents_platform.tasks WHERE id=$1",[child!.taskId])).rows[0];
+    await pool.query("UPDATE agents_platform.tasks SET output='Deleted source evidence' WHERE id=$1",[child!.taskId]);
+    const deleted=await request(`${f.base}/conversations/${branch.conversation_id}`,{method:"DELETE",cookie:f.cookie,origin:browserOrigin});
+    expect(deleted.status).toBe(200);
+    const afterDelete=await request(`${f.base}/tasks/${root.id}`,{cookie:f.cookie});
+    expect(afterDelete.body.children[0].output).toBeNull();
+    const childDeleted=await request(`${f.base}/tasks/${child!.taskId}`,{cookie:f.cookie});
+    expect(childDeleted.body.task.output).toBeNull();expect(childDeleted.body.task.input).toBe("[Deleted conversation]");
   });
 
   it("records cancellation intent separately from a terminal cancellation result", async () => {

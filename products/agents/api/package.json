@@ -20,7 +20,9 @@
     "typecheck:api": "tsc -p tsconfig.json --noEmit",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
-    "test:runtime": "bash ../../../infra/agents-runtime/verify.sh"
+    "test:runtime": "bash ../../../infra/agents-runtime/verify.sh",
+    "dev:sandbox-reaper": "node --env-file-if-exists=.env --import tsx src/platform/sandbox-reaper.ts",
+    "start:sandbox-reaper": "node --env-file-if-exists=.env dist/platform/sandbox-reaper.js"
   },
   "dependencies": {
     "@fastify/cookie": "^11.1.2",
