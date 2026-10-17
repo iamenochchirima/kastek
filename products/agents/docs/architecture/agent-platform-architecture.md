@@ -437,6 +437,21 @@ implementation is removed. No existing database is migrated or modified.
 
 ### Business harness
 
+The connected-knowledge foundation separates mutable import jobs and source policy from sealed
+source revisions and chunks. Imports start private and unapproved. Current organization owners
+approve candidates, change visibility and withdraw sources; importers can inspect and cancel their
+pending work. Publication checks the accepted source generation and job deadline under the
+organization lock. A cancelled or withdrawn import cannot seal a late result. Revision bodies use
+private, content-addressed object keys; chunk offsets count UTF-16 text units and bind a text hash.
+These storage contracts do not yet expose document ingestion through the running API.
+
+Capability catalogs pin explicit model aliases, schema digests, resource handles and executable
+adapter releases. Recorded receipts resolve before the live adapter registry, so a catalog change
+cannot alter replay. Evidence manifests retain influencing source, connection and memory policy
+generations separately from model-visible text. Dependency collection deduplicates shared ancestors
+and rejects cycles, missing records and conflicting generations. Runtime adoption and connected
+provider acceptance remain pending until the corresponding execution paths are verified.
+
 The versioned AgentsBusinessRunV3 Restate workflow owns repeated model/tool execution. Each task
 pins its agent configuration and harness release. Ordered conversation turns wait for the preceding
 execution and its recorded result. A short database transaction assigns order and freezes eligible
