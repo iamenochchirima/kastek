@@ -1,5 +1,5 @@
 import { execFileSync, spawn, type ChildProcess } from "node:child_process";
-import { randomUUID, randomBytes } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import { once } from "node:events";
 import { createServer } from "node:net";
 import { mkdir, writeFile } from "node:fs/promises";
@@ -113,22 +113,49 @@ const enabled = process.env.AGENTS_INGESTION_LIVE === "1" && process.env.AGENTS_
     const job=await upload("application/pdf",pdf(["General project introduction.","This page has no release code.",`The public archive release code is ${code}.`]),"Widget tail-page policy");
     await inspect(job.id);
     await knowledge.setPolicy(scope,job.sourceId,{operationId:randomUUID(),expectedGeneration:1,action:"visibility",visibility:"public"});
-    const config={...defaultFaqConfiguration(),instructions:"Answer only the visitor's question from the provided evidence. Include the exact bracketed evidence citation. If the evidence is missing say so. Never invent a code.",sourceRevisionIds:[job.revisionId],retrievalProfile:{kind:"hybrid-v1" as const,embeddingRelease:profileRelease},tools:[]};
+    const abstention="I do not have source evidence to answer that question.";
+    const config={...defaultFaqConfiguration(),instructions:`Answer only the visitor's question from the provided evidence. Include the exact bracketed evidence citation when a passage answers the question. If no supplied passage answers it, reply exactly: ${abstention} Do not add a citation to that response. Never invent a code or use outside knowledge.`,sourceRevisionIds:[job.revisionId],retrievalProfile:{kind:"hybrid-v1" as const,embeddingRelease:profileRelease},tools:[]};
     const agent=await platform.createAgent({...scope,name:"Public knowledge FAQ",configuration:config});
     const version=await platform.createVersion({...scope,agentId:agent.id,expectedRevision:1});
     const deployment=await platform.publishWebsite({...scope,agentId:agent.id,versionId:version.id,allowedOrigins:["https://widget.example.test"]});
-    const sessionId=randomUUID();await pool.query("INSERT INTO agents_platform.website_sessions(id,deployment_id,origin,token_hash,expires_at) VALUES($1,$2,$3,$4,now()+interval '10 minutes')",[sessionId,deployment.id,"https://widget.example.test",randomBytes(32).toString("hex")]);
-    const grant=await platform.createWebsiteGrant({deploymentId:deployment.id,origin:"https://widget.example.test",sessionId});
-    const authority={product:"agents" as const,organizationId:scope.organizationId,resourceId:deployment.id,callerClientId:"agents-website",principal:{kind:"visitor" as const,deploymentId:deployment.id,sessionId}};
-    const{task}=await platform.admitTask({authority,grantId:grant.id,versionId:version.id,requestKey:randomUUID(),input:"What is the public archive release code? Cite the source."});
-    await dispatchTasksOnce(pool,{ingressUrl:ingress,adminUrl});
-    const result=await eventually(async()=>{const row=(await pool.query("SELECT * FROM agents_platform.tasks WHERE id=$1",[task.id])).rows[0];return terminalTaskStates.has(row.state)?row:false;},"actual free-model FAQ",180000);
-    expect(result.state,`Task outcome: ${result.error_code}`).toBe("completed");expect(result.output).toContain(code);expect(result.output).toMatch(/\[E[a-f0-9]{32}\]/);
-    const operations=(await pool.query("SELECT id,name,state,accounted_tokens FROM agents_platform.operations WHERE task_id=$1 ORDER BY started_at",[task.id])).rows;
-    expect(operations.filter(op=>op.name==="model.generate")).toHaveLength(1);expect(operations.filter(op=>op.name==="knowledge.search")).toHaveLength(1);
-    expect((await pool.query("SELECT operation_id FROM agents_platform.connected_reads WHERE task_id=$1",[task.id])).rows).toEqual([]);
-    (evidence.cases as unknown[]).push({title:"actual-free-model-widget",taskId:task.id,versionId:version.id,revisionId:job.revisionId,output:result.output,operations});
-  },240000);
+    const settings:Record<string,string>={AGENTS_S3_ENDPOINT:s3.endpoint,AGENTS_S3_REGION:s3.region,AGENTS_S3_BUCKET:s3.bucket,AGENTS_S3_ACCESS_KEY_ID:s3.accessKeyId,AGENTS_S3_SECRET_ACCESS_KEY:s3.secretAccessKey};
+    const previous=Object.fromEntries(Object.keys(settings).map(key=>[key,process.env[key]]));Object.assign(process.env,settings);
+    const publicUrl="http://127.0.0.1:3113",app=await buildPlatformApp({pool,logging:false,config:loadPlatformConfig({NODE_ENV:"test",AGENTS_DATABASE_URL:databaseUrl,AGENTS_PUBLIC_URL:publicUrl,AGENTS_OIDC_ISSUER_URL:"http://localhost/ingestion-live",AGENTS_OIDC_CLIENT_SECRET:"local-widget-identity-fixture-only",OPENROUTER_API_KEY:process.env.OPENROUTER_API_KEY})});
+    try {
+      const address=await app.listen({host:"127.0.0.1",port:0}),base=`${address}/api/website/${deployment.id}`,origin="https://widget.example.test";
+      const sessionResponse=await fetch(`${base}/session`,{method:"POST",headers:{origin}});expect(sessionResponse.status).toBe(201);
+      const{token}=await sessionResponse.json() as {token:string},headers={origin,authorization:`Bearer ${token}`,"content-type":"application/json"};
+      async function ask(input:string){
+        const admitted=await fetch(`${base}/tasks`,{method:"POST",headers,body:JSON.stringify({requestKey:randomUUID(),input})});expect(admitted.status).toBe(202);
+        const{task}=await admitted.json() as {task:{id:string;conversationId:string}};
+        await dispatchTasksOnce(pool,{ingressUrl:ingress,adminUrl});
+        const result=await eventually(async()=>{const row=(await pool.query("SELECT * FROM agents_platform.tasks WHERE id=$1",[task.id])).rows[0];return terminalTaskStates.has(row.state)?row:false;},"actual free-model FAQ",180000);
+        const operations=(await pool.query("SELECT id,name,state,accounted_tokens,output FROM agents_platform.operations WHERE task_id=$1 ORDER BY started_at",[task.id])).rows;
+        const references=(await pool.query("SELECT id,citation_label FROM agents_platform.evidence_references WHERE task_id=$1",[task.id])).rows;
+        (evidence.cases as unknown[]).push({title:"actual-free-model-widget",input,taskId:task.id,versionId:version.id,revisionId:job.revisionId,output:result.output,state:result.state,operations,references});
+        expect(result.state,`Task outcome: ${result.error_code}`).toBe("completed");
+        expect(operations.filter(op=>op.name==="model.generate")).toHaveLength(1);expect(operations.find(op=>op.name==="model.generate")!.accounted_tokens).toBeGreaterThan(0);
+        expect(operations.filter(op=>op.name==="knowledge.search")).toHaveLength(1);
+        expect((await pool.query("SELECT operation_id FROM agents_platform.connected_reads WHERE task_id=$1",[task.id])).rows).toEqual([]);
+        evidence.modelCalls=Number(evidence.modelCalls)+1;
+        return{task,result,operations,references};
+      }
+      const positive=await ask("What is the public archive release code? Cite the source.");
+      expect(positive.result.output).toContain(code);expect(positive.result.output).toMatch(/\[E[a-f0-9]{32}\]/);expect(positive.references.length).toBeGreaterThan(0);
+      const available=await fetch(`${base}/tasks/${positive.task.id}/evidence`,{headers});expect(available.status).toBe(200);expect((await available.json() as {passages:{text:string}[]}).passages.some(passage=>passage.text.includes(code))).toBe(true);
+      for(const question of ["What is the orbital period of exoplanet Kepler-186f?","What are the opening hours of the Meridian swimming pool?","What is the exact weight in kilograms of a blue whale born yesterday?"]){
+        const negative=await ask(question);expect(negative.result.output).toBe(abstention);expect(negative.result.output).not.toMatch(/\[E(?:[a-f0-9]{32}|\d+)\]/);expect(negative.references).toEqual([]);
+        expect(negative.operations.find(op=>op.name==="knowledge.search")!.output.passages).toEqual([]);
+      }
+      const owner=await platform.createSession({accountId:scope.accountId,providerSessionId:randomUUID(),expiresAt:new Date(Date.now()+60000)}),source=(await knowledge.list(scope)).find(item=>item.id===job.sourceId)!;
+      const withdrawn=await fetch(`${address}/api/organizations/${scope.organizationId}/knowledge/sources/${job.sourceId}/policy`,{method:"POST",headers:{origin:publicUrl,cookie:`agents_session=${owner.token}`,"content-type":"application/json"},body:JSON.stringify({operationId:randomUUID(),expectedGeneration:source.generation,action:"withdraw"})});expect(withdrawn.status).toBe(200);
+      const old=await fetch(`${base}/tasks/${positive.task.id}`,{headers});expect(old.status).toBe(200);const oldBody=await old.text();expect(JSON.parse(oldBody).task).toMatchObject({output:null,outputAvailability:"unavailable"});expect(oldBody).not.toContain(code);
+      const oldEvidence=await fetch(`${base}/tasks/${positive.task.id}/evidence`,{headers});expect(oldEvidence.status).toBe(200);expect(await oldEvidence.json()).toMatchObject({state:"unavailable",passages:[]});
+      const history=await fetch(`${base}/conversations/${positive.task.conversationId}`,{headers});expect(history.status).toBe(200);expect(await history.text()).not.toContain(code);
+      const afterWithdrawal=await ask("What is the public archive release code? Cite the source.");expect(afterWithdrawal.result.output).toBe(abstention);expect(afterWithdrawal.references).toEqual([]);expect(afterWithdrawal.operations.find(op=>op.name==="knowledge.search")!.output.passages).toEqual([]);
+      (evidence.cases as unknown[]).push({title:"existing-visitor-source-withdrawal",positiveTaskId:positive.task.id,withdrawalTaskId:afterWithdrawal.task.id,oldOutput:"unavailable",oldEvidence:"unavailable",historyCodeRemoved:true});
+    } finally {await app.close();for(const key of Object.keys(settings)){if(previous[key]===undefined)delete process.env[key];else process.env[key]=previous[key];}}
+  },420000);
   it("imports private text and Markdown through the compiled worker and preserves exact duplicate admission", async () => {
     const content = Buffer.from("Café 😀\r\nBookings require the public code MINT-420.\n"), operationId = randomUUID();
     const [a, b] = await Promise.all([upload("text/plain", content, "Text evidence", operationId), upload("text/plain", content, "Text evidence", operationId)]);
