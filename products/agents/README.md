@@ -110,6 +110,24 @@ explicit source/tool subsets and child allocations. Specialists have no inherite
 personal memory, sandbox or delegation permission. Parent and children share the
 original root budget.
 
+## Reviewed reports and automation
+
+Configure the connection keyring and destination allowlist in `api/.env` using
+`api/.env.example`. Keys contain 32 random bytes encoded as base64; keep them
+outside Git and PostgreSQL. Every destination names one HTTPS `/deliveries`
+endpoint and resource. Loopback HTTP is restricted to local development.
+
+Create a scoped connection in **Connections**, enable **Report delivery** on an
+agent, select its connection and artifact name, and publish an immutable version.
+**Automations** binds that version to a one-shot UTC time, fixed UTC interval, or
+authenticated event. Each occurrence has its own task and exact human report
+review. Automation authorization is finite and does not preapprove any delivery.
+
+The first adapter implements ReportDeliveryHTTP, with a persistent acceptance
+receiver for local verification. It does not configure a third-party provider,
+OAuth or external MCP connection. See the [implementation boundary](docs/source-boundary.md#connected-reports-and-automation)
+for policy, expiry and uncertainty behavior.
+
 ## Verify
 
 From the repository root:
@@ -151,6 +169,23 @@ Run the complete delegation/analysis journey with the same disposable database,
 Vite and free-model prerequisites, using `AGENTS_ADVANCED_LIVE=1` in place of
 `AGENTS_HARNESS_LIVE=1`. It starts owned MinIO storage and a separate reaper,
 checks two real specialist tasks, and verifies a downloaded analysis report.
+
+For scheduled report review and delivery, build the API first, then run:
+
+```sh
+pnpm --filter @kasitek/agents build
+AGENTS_AUTOMATION_LIVE=1 AGENTS_BROWSER_REAL_MODEL=1 \
+  node --env-file-if-exists=.env --import tsx test/browser-fixture.ts
+```
+
+Keep Vite running and use the same disposable PostgreSQL prerequisite. This mode
+starts a compiled worker, private Restate instance, MinIO, gVisor, and a separate
+authenticated receiver. It restarts the worker while review is pending, then
+interrupts the sender after the receiver has persisted the approved report. It
+checks the original artifact, two specialist tasks, one delivery POST, and receipt
+recovery through a real status request. The receiver never contacts real people.
+The runtime cache and MinIO binary prerequisites are the same as the advanced
+journey (`AGENTS_TEST_MINIO_BINARY` can select the local MinIO executable).
 
 Identity is seeded for these fixtures. Real OIDC is checked separately:
 

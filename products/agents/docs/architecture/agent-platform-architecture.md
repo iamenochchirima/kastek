@@ -437,7 +437,7 @@ implementation is removed. No existing database is migrated or modified.
 
 ### Business harness
 
-The versioned AgentsBusinessRunV2 Restate workflow owns repeated model/tool execution. Each task
+The versioned AgentsBusinessRunV3 Restate workflow owns repeated model/tool execution. Each task
 pins its agent configuration and harness release. Ordered conversation turns wait for the preceding
 execution and its recorded result. A short database transaction assigns order and freezes eligible
 history; it does not run the agent loop or hold a lock during external work.
@@ -531,17 +531,38 @@ multi-tenant certification. The selected runtime must enforce its limits before
 analysis is enabled. Missing backend or storage fails closed. No ordinary host
 process or unverified runtime is used as fallback.
 
+### Connected action and automation implementation
+
+The trusted `report-delivery-v1` workflow shares the business harness and root
+budgets. Model output cannot perform a delivery. A private artifact and exact
+immutable action packet precede review; current authority and source validity
+must still pass an atomic dispatch claim. Cancellation before claim blocks the
+write; an accepted external effect remains reconcilable after cancellation.
+`ReportDeliveryHTTP` uses a server-configured resource and encrypted scoped API
+key. Its persistent acceptance receiver proves the protocol locally and does not
+establish a concrete third-party provider integration.
+
+Automation authorization pins the owner, reviewer, version, input and finite
+limits. Restate `AgentsAutomationV1` supplies one-shot/interval UTC timers;
+authenticated events use a deduplicated occurrence inbox. Atomic occurrence
+admission reuses task/grant/quota/outbox boundaries. The automation principal
+remains distinct across delegation, analysis and artifacts. It receives no
+personal memory or owner conversation history. Pause/edit apply to future runs;
+revoke blocks new claims and requests cancellation. See the
+[implementation boundary](../source-boundary.md#connected-reports-and-automation)
+for exact limits, review semantics and uncertainty handling.
+
 ### Unavailable capabilities
 
 Exactly two execution categories remain. Workspace tasks fail before acceptance until the Lina
-adapter is implemented. Destination business writes, durable external-action review, schedules and additional workflows remain disabled. Delegation and analysis require their published configuration, bounded current grants and available runtime/storage.
+adapter is implemented. The initial connected action is exact reviewed report delivery through ReportDeliveryHTTP; arbitrary business-write adapters remain unavailable. Durable UTC one-shot/interval schedules and authenticated events use explicit automation authorization. Additional workflow profiles remain unavailable. Delegation and analysis require their published configuration, bounded current grants and available runtime/storage.
 The standalone runtime probes exercise future coordination mechanisms without exposing those
 capabilities in the product. External MCP, embedded Growth and Agencies admission and evaluator
 adapters are also unavailable.
 
-Remaining work includes embedded-product authorization/resource mapping, destination credentials,
-automation and external-action policy, commercial billing, production storage operations, other
-channels, Lina hosting, sandbox isolation and production monitoring/deployment. Requirements and
+Remaining work includes embedded-product authorization/resource mapping, concrete third-party adapters,
+commercial billing, production storage operations, other channels, Lina hosting and production
+containment certification, monitoring and deployment. Requirements and
 checklists stay in Linear. Repository documents describe maintained contracts and actual behavior.
 
 ## Related records

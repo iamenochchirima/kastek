@@ -107,6 +107,40 @@ References: [HTTP invocation](https://docs.restate.dev/services/invocation/http)
 [cancellation](https://docs.restate.dev/services/invocation/managing-invocations),
 [versioning](https://docs.restate.dev/services/versioning).
 
+## Report and automation recovery
+
+Worker registration discovers `AgentsBusinessRunV3` and `AgentsAutomationV1`.
+Use a fresh dedicated development database after schema changes; setup rejects
+an incompatible checksum. Keep immutable worker endpoints for journal replay.
+Do not point old journals at changed workflow/descriptor code.
+
+A timer outbox starts one Restate workflow per immutable automation revision.
+Its durable sleeps survive worker restarts. New revisions fence old timers and
+start at future schedule instants. Continuous-revision downtime coalesces missed
+intervals; it does not queue every missed run. The occurrence inbox, quota,
+grants, tasks and task outbox commit together. Review waits remain active roots
+but hold neither compute capacity nor a sandbox allocation.
+
+For a stuck run, inspect its occurrence status/error, task events and action
+state. `blocked` identifies admission permission/quota errors; `skipped_overlap`
+means an earlier occurrence still owns the automation slot. Renew finite owner
+authorization explicitly when expired. Pause changes future admission only;
+revoke blocks new claims and requests cancellation of accepted work.
+
+An approved action with no dispatch claim can still be invalidated by connection
+rotation, expiry, source deletion or authority changes. A claimed/uncertain action
+uses only scoped status GETs. Inspect the receiver's receipt by the original action
+ID. Never delete the action record, manually replay its POST or claim a rollback
+of an accepted report. If the receiver never accepted it, the task can remain
+uncertain rather than resend. Retain action/receiver identities at least eight
+days after terminal settlement; current stores do not automatically delete them.
+
+Losing an encryption key can make pending dispatch and receipt inspection
+unavailable. Retain old key IDs during deliberate key rotation and verify status
+inspection before retiring them. Stop future writes with automation/connection
+revocation while preserving reconciliation credentials and durable receipts.
+Disabling all workers also stops reconciliation and is not a completed rollback.
+
 ## Verify identity
 
 ```sh

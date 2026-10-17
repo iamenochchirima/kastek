@@ -32,7 +32,7 @@ Skills are reviewed, immutable instructions subordinate to trusted policy.
 
 Every tool call passes server validation against the selected configuration.
 The current tools search or read approved knowledge, read personal memory, or
-propose a candidate. They do not execute external business writes. Memory
+propose a candidate, delegate scoped research, or request isolated analysis. The model cannot directly dispatch external report writes. Memory
 acceptance, correction, and forgetting require authenticated management actions.
 No prompt instruction substitutes for those checks.
 
@@ -123,3 +123,33 @@ artifact references survive destruction for the permitted replay window.
 
 Destination writes, in-task action approval, outbound MCP, automation and Lina
 execution remain disabled. Their future adapters require separate verification.
+
+## Connected action and automation authority
+
+Connection secrets use AES-256-GCM with an external keyring and authenticated
+organization/connection/revision context. Missing keys and failed decryption deny
+access. Neither credentials nor user-selected network headers/URLs enter model
+context, tool arguments, sandbox, browser responses or diagnostic logs. Only a
+configured destination and resource can receive a report; redirects fail closed.
+
+Exact report approval is distinct from execution authorization. Artifact integrity,
+recursive source availability, memory generation/expiry, current membership,
+connection revision/expiry and task scope are locked and checked before dispatch
+claim. Connection rotation invalidates unclaimed packets. Revocation before claim
+blocks network writes; revocation after claim permits only receipt reconciliation.
+Durability alone cannot prove provider acceptance. An absent/unavailable receipt
+stays uncertain, with no automatic repeat POST.
+
+Automation bearer keys are hashed and scoped to one automation. Event data is
+untrusted bounded input, never authority. Occurrence uniqueness and shared
+admission transactions prevent duplicate tasks and quota reservations. An accepted
+automation retains a distinct principal and immutable authorization snapshot;
+current owner membership, revocation and snapshot expiry still govern every claim.
+Personal memory and owner history are excluded. A designated reviewer needs current
+membership and exact packet identity, independently of execution ownership. Reviewer downloads are limited to the prepared report artifact; other root inputs remain owner-only.
+
+The local persistent HTTP receiver establishes idempotency/status behavior for
+ReportDeliveryHTTP. No arbitrary provider, OAuth flow or external MCP connection
+is claimed. Production key custody/rotation, destination provisioning, durable
+receiver storage, ingress rate limiting and operational monitoring remain release
+work for their selected deployment.

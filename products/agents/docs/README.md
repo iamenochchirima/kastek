@@ -2,7 +2,7 @@
 
 The current business harness supports contextual conversations, reviewed personal
 memory, pinned skills, bounded tool rounds, and recorded compaction. Optional
-advanced capabilities remain disabled. These documents describe the maintained
+delegation, isolated analysis, reviewed report delivery, and durable automation are opt-in. These documents describe the maintained
 implementation and boundaries:
 
 - [Platform architecture](architecture/agent-platform-architecture.md): target contracts and execution categories.
