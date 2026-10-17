@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { api, ApiError, message, readStored, terminal, writeStored, type Task, type TaskDetail } from "./api";
+import { api, ApiError, loadTaskDetail, message, readStored, terminal, writeStored, type Task } from "./api";
 import { ErrorMessage } from "./shell";
 import { cleanupPending, TaskActivity } from "./task-activity";
 
@@ -49,13 +49,13 @@ export function Chat({ endpoint, storageKey, token, versionId, versionNumber, ca
     let timer: ReturnType<typeof setTimeout>;
     let uncertainPolls = 0;
     const poll = async () => {
-      try { const { task, events, operations, children, resources, artifacts, actions } = await api<TaskDetail>(`${endpoint}/${encodeURIComponent(followedId)}`, undefined, "GET", token);
+      try { const { task, events, operations, children, resources, artifacts, actions } = await loadTaskDetail(`${endpoint}/${encodeURIComponent(followedId)}`, token);
         if (closed) return;
         setEntries(current => { const next = current.map(entry => entry.task?.id === task.id ? { ...entry, task: { ...task, events: events ?? task.events, operations: operations ?? task.operations, children: children ?? task.children, resources: resources ?? task.resources, artifacts: artifacts ?? task.artifacts, actions: actions ?? task.actions } } : entry); writeStored(storageKey, next); return next; });
         setError("");
         if (terminal(task.state)) {
-          if (!cleanupPending({ ...task, resources: resources ?? task.resources })) return;
-          if (resources?.some(resource => resource.cleanupState === "uncertain") && ++uncertainPolls >= 3) return;
+          if (!cleanupPending({ ...task, resources: resources ?? task.resources }) && !actions?.some(action => ["approved", "claimed", "uncertain"].includes(action.state))) return;
+          if ((resources?.some(resource => resource.cleanupState === "uncertain") || actions?.some(action => action.state === "uncertain")) && ++uncertainPolls >= 3) return;
         }
       } catch (e) { if (closed) return; setError(message(e)); if (e instanceof ApiError && [401, 403, 404].includes(e.status)) return; }
       timer = setTimeout(() => void poll(), 1_200);

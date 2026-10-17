@@ -38,7 +38,7 @@ export function WorkspaceShell() {
   return <div className="dashboard-theme min-h-dvh bg-background text-foreground">
     <header className="border-b border-border bg-card"><div className="mx-auto flex max-w-5xl flex-wrap items-center gap-3 px-4 py-4 sm:px-6">
       <Link to="/app/agents" className="mr-1 text-xl font-semibold tracking-tight">Agents</Link>
-      {session?.organizations.length ? <select aria-label="Workspace" className="min-w-0 max-w-48 rounded-md border border-border bg-background px-3 py-2 text-sm" value={organizationId} onChange={event => { if (event.target.value === "new") setWorkspaceOpen(true); else { setOrganizationId(event.target.value); sessionStorage.setItem("agents.organization", event.target.value); navigate("/app/agents"); } }}>
+      {session?.organizations.length ? <select aria-label="Workspace" className="min-w-0 max-w-40 rounded-md sm:max-w-48 border border-border bg-background px-3 py-2 text-sm" value={organizationId} onChange={event => { if (event.target.value === "new") setWorkspaceOpen(true); else { setOrganizationId(event.target.value); sessionStorage.setItem("agents.organization", event.target.value); navigate("/app/agents"); } }}>
         {session.organizations.map(org => <option key={org.id} value={org.id}>{org.name}</option>)}<option value="new">Create workspace</option>
       </select> : null}
       <div className="ml-auto flex min-w-0 items-center gap-2"><span className="hidden max-w-56 truncate text-sm text-muted-foreground sm:block" title={session?.account.email}>{session?.account.displayName || session?.account.email}</span><Button size="sm" variant="ghost" onClick={() => void logout()} disabled={!session || busy}>Sign out</Button></div>

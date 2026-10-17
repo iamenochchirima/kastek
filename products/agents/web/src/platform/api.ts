@@ -30,7 +30,7 @@ export type AutomationSchedule = { kind: "once"; at: string } | { kind: "interva
 export type Automation = { id: string; name: string; versionId: string; ownerAccountId: string; reviewerAccountId: string; input: string; expiresAt: string; maxOccurrencesPerDay: number; schedule: AutomationSchedule; revision: number; state: "active" | "paused" | "revoked" };
 export type AutomationOccurrence = { id: string; automationId: string; revision: number; status: "accepted" | "skipped_overlap" | "blocked" | "skipped_coalesced"; taskId: string | null; scheduledAt: string; errorCode: string | null; createdAt: string };
 export type DeliveryAction = { id: string; reviewId: string; reviewerAccountId?: string; accountId?: string; taskId: string; rootTaskId: string; connectionId: string; connectionRevision: number; destination: { label: string; resource: string }; artifactId: string; title: string; payloadDigest: string; reviewDigest: string; state: "pending_review" | "approved" | "rejected" | "expired" | "invalidated" | "claimed" | "delivered" | "failed" | "uncertain"; expiresAt: string; preview: { name: string; contentType: string; content: string }; receipt?: { id: string; payloadDigest: string; acceptedAt: string }; errorCode?: string };
-export type TaskDetail = { task: Task; events?: TaskEvent[]; operations?: TaskOperation[]; children?: ChildTask[]; resources?: TaskResource[]; artifacts?: TaskArtifact[]; actions?: DeliveryAction[] };
+export type TaskDetail = { task: Task; canControl?: boolean; canDownloadArtifacts?: boolean; events?: TaskEvent[]; operations?: TaskOperation[]; children?: ChildTask[]; resources?: TaskResource[]; artifacts?: TaskArtifact[]; actions?: DeliveryAction[] };
 export type Task = { id: string; state: string; output: string | null; errorCode: string | null; conversationId: string; input?: string; requestKey?: string; versionId?: string; turnSequence?: number; phase?: string; outcome?: string | null; operations?: TaskOperation[]; events?: TaskEvent[]; children?: ChildTask[]; resources?: TaskResource[]; artifacts?: TaskArtifact[]; actions?: DeliveryAction[] };
 export class ApiError extends Error {
   constructor(public status: number, message: string, public code?: string) { super(message); }
@@ -47,6 +47,13 @@ export async function api<T>(path: string, body?: unknown, method = body === und
     throw new ApiError(response.status, typeof detail.message === "string" ? detail.message : typeof data.error === "string" ? data.error : "Request failed. Try again.", detail.code);
   }
   return data as T;
+}
+export async function loadTaskDetail(path: string, token?: string): Promise<TaskDetail> {
+  const detail = await api<TaskDetail>(path, undefined, "GET", token);
+  if (detail.actions === undefined && (detail.task.state === "waiting_review" || detail.operations?.some(operation => operation.name === "report.prepare"))) {
+    detail.actions = (await api<{ actions: DeliveryAction[] }>(`${path}/actions`, undefined, "GET", token)).actions;
+  }
+  return detail;
 }
 export const organizationPath = (id: string) => `/api/organizations/${encodeURIComponent(id)}`;
 export const terminal = (state: string) => ["completed", "failed", "cancelled", "uncertain", "incomplete", "refused"].includes(state);

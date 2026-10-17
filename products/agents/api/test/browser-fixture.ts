@@ -1,7 +1,8 @@
 /** Local integration fixture: actual PostgreSQL, HTTP and Restate; deterministic model transport and seeded identity only. */
 import assert from "node:assert/strict";
-import { randomUUID, createHash, createHmac } from "node:crypto";
+import { randomUUID, randomBytes, createHash, createHmac } from "node:crypto";
 import { execFileSync, spawn, type ChildProcess } from "node:child_process";
+import { connect } from "node:net";
 import { once } from "node:events";
 import { readFile, writeFile, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -25,13 +26,18 @@ const root = resolve(__dirname, "../../../..");
 const container = `kasitek-browser-${randomUUID().slice(0, 8)}`;
 const databaseName = `agents_browser_${randomUUID().replaceAll("-", "")}`;
 const image = "docker.restate.dev/restatedev/restate:1.7.13@sha256:adf7bca9d89b8c868be682e1a2e1d42043613e988a17bfaad28753ac8d780742";
-const ingress = process.env.RESTATE_INGRESS_URL ?? "http://127.0.0.1:18080";
-const runtimeAdmin = process.env.RESTATE_ADMIN_URL ?? "http://127.0.0.1:19070";
+let ingress = process.env.RESTATE_INGRESS_URL ?? "http://127.0.0.1:18080";
+let runtimeAdmin = process.env.RESTATE_ADMIN_URL ?? "http://127.0.0.1:19070";
 let ownedRuntime = false;
 let admin: Pool | undefined;
 let pool: Pool | undefined;
 let app: Awaited<ReturnType<typeof buildPlatformApp>> | undefined;
 let dispatcher: ReturnType<typeof startDispatcher> | undefined;
+let workerProcess: ChildProcess | undefined;
+let receiverProcess: ChildProcess | undefined;
+let workerEnvironment: NodeJS.ProcessEnv | undefined;
+let receiverLedger: string | undefined;
+let workerRestarts = 0;
 let worker: ReturnType<typeof createServer> | undefined;
 let site: ReturnType<typeof createHttpServer> | undefined;
 let privateDirectory: string | undefined;
@@ -44,7 +50,8 @@ let cleaning: Promise<void> | undefined;
 const connections = new Set<ServerHttp2Session>();
 const realModel = process.env.AGENTS_BROWSER_REAL_MODEL === "1";
 const harnessJourney = process.env.AGENTS_HARNESS_LIVE === "1";
-const advancedJourney = process.env.AGENTS_ADVANCED_LIVE === "1";
+const automationJourney = process.env.AGENTS_AUTOMATION_LIVE === "1";
+const advancedJourney = process.env.AGENTS_ADVANCED_LIVE === "1" || automationJourney;
 const modelCalls: { model: string; approvedKnowledgePresent: boolean }[] = [];
 
 async function ready(action: () => Promise<boolean>, label: string) {
@@ -58,6 +65,8 @@ function cleanup(): Promise<void> {
 async function cleanupResources() {
   if (browserProcess && browserProcess.exitCode === null) browserProcess.kill("SIGTERM");
   fixtureAbort.abort();
+  await stopWorkerProcess();
+  if (receiverProcess?.pid && receiverProcess.exitCode === null && receiverProcess.signalCode === null) { receiverProcess.kill("SIGTERM"); await once(receiverProcess, "exit"); }
   await dispatcher?.stop();
   await app?.close();
   if (site) await new Promise<void>(resolve => site!.close(() => resolve()));
@@ -75,6 +84,29 @@ async function cleanupResources() {
   if (privateDirectory) await rm(privateDirectory, { recursive: true, force: true });
 }
 
+
+async function availablePort(): Promise<number> {
+  const server = createHttpServer();
+  await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
+  const address = server.address(); assert.ok(address && typeof address === "object");
+  await new Promise<void>(resolve => server.close(() => resolve())); return address.port;
+}
+async function stopWorkerProcess() {
+  if (workerProcess?.pid && workerProcess.exitCode === null && workerProcess.signalCode === null) { workerProcess.kill("SIGKILL"); await once(workerProcess, "exit"); }
+}
+async function startWorkerProcess() {
+  workerProcess = spawn(process.execPath, [resolve(root, "products/agents/api/dist/platform/worker.js")], { cwd: root, stdio: ["ignore", "inherit", "inherit"], env: workerEnvironment });
+  await ready(() => new Promise<boolean>(resolve => { const socket = connect(9080, "127.0.0.1"); socket.once("connect", () => { socket.destroy(); resolve(true); }); socket.once("error", () => resolve(false)); }), "actual worker process");
+}
+async function ledgerRecords(): Promise<Record<string, any>[]> { return (await readFile(receiverLedger!, "utf8").catch(() => "")).split("\n").filter(Boolean).map(line => JSON.parse(line)); }
+async function prepareDeliveryFixture(directory: string) {
+  receiverLedger = join(directory, "receiver-ledger.jsonl");
+  const apiKey = randomUUID()+randomUUID();
+  Object.assign(process.env, { NODE_ENV: "test", AGENTS_CONNECTION_ACTIVE_KEY: "browser-fixture", AGENTS_CONNECTION_KEYS: JSON.stringify({ "browser-fixture": randomBytes(32).toString("base64") }), AGENTS_REPORT_DELIVERY_TARGETS: JSON.stringify([{ id: "browser-receiver", label: "Browser report receiver", url: "http://127.0.0.1:4399/deliveries", resource: "browser-report" }]) });
+  receiverProcess = spawn(process.execPath, ["--import", require.resolve("tsx"), resolve(root, "products/agents/web/test/report-receiver.ts")], { cwd: root, stdio: ["ignore", "inherit", "inherit"], env: { ...process.env, AGENTS_RECEIVER_LEDGER: receiverLedger, AGENTS_RECEIVER_KEY: apiKey } });
+  await ready(async () => (await fetch("http://127.0.0.1:4399/deliveries")).status === 403, "persistent independent report receiver");
+  return apiKey;
+}
 
 async function prepareAdvancedStorage(directory: string): Promise<void> {
   const reservation = createHttpServer();
@@ -120,11 +152,16 @@ async function prepareAdvancedFixture(token: string): Promise<{ agentPath: strin
   }
   const first = await create("Dataset researcher", "Inspect the approved numeric dataset and answer the delegated arithmetic question in one short sentence. Cite the approved source identifier. Do not delegate or run code.", true);
   const second = await create("Dataset reviewer", "Independently inspect the approved dataset. State its number of observations and maximum value in one short sentence with source reference. Do not delegate or run code.", true);
-  const coordinator = await create("Analysis coordinator", "Complete the user's task with actual tools. First call agents_delegate once with two requests, one per configured binding: ask one specialist for the sum and the other for count and maximum. Wait for their real results. Then call sandbox_analyze once, using standard-library Python to calculate the dataset sum and count and write report.json under os.environ['OUTPUT_DIR']. Report JSON must contain values, sum and count. Finish only after the report is exported. Keep briefs and the final reply short. Do not repeat successful tool calls.", false);
+  const coordinator = await create("Analysis coordinator", "Complete the user's task with actual tools. First call agents_delegate once with two requests, one per configured binding: ask one specialist for the sum and the other for count and maximum. Omit the optional maxTokens argument so both specialists receive their full published token allocation, including input context and tool definitions. Wait for their real results. Then call sandbox_analyze once, using standard-library Python to calculate the dataset sum and count and write report.json under os.environ['OUTPUT_DIR']. Report JSON must contain values, sum and count. Finish only after the report is exported. Keep briefs and the final reply short. Do not repeat successful tool calls.", false);
   return { agentPath: `/app/agents/${coordinator.agent.id}`, specialistVersionIds: [first.version.id, second.version.id], sourceTitle };
 }
 
 async function main() {
+  if (automationJourney) {
+    ingress = `http://127.0.0.1:${await availablePort()}`;
+    runtimeAdmin = `http://127.0.0.1:${await availablePort()}`;
+    Object.assign(process.env, { RESTATE_INGRESS_URL: ingress, RESTATE_ADMIN_URL: runtimeAdmin });
+  }
   let databaseUrl = process.env.AGENTS_BROWSER_FIXTURE_DATABASE_URL;
   if (!databaseUrl && process.env.AGENTS_BROWSER_FIXTURE_STATE_PATH) {
     const state = JSON.parse(await readFile(process.env.AGENTS_BROWSER_FIXTURE_STATE_PATH, "utf8")) as { url?: string; AGENTS_TEST_DATABASE_URL?: string };
@@ -149,6 +186,7 @@ async function main() {
   privateDirectory = await mkdtemp(join(tmpdir(), "agents-browser-fixture-"));
   await writeFile(join(privateDirectory, "session.json"), JSON.stringify({ cookie: session.token }), { mode: 0o600 });
   if (advancedJourney) await prepareAdvancedStorage(privateDirectory);
+  const deliveryKey = automationJourney ? await prepareDeliveryFixture(privateDirectory) : undefined;
   sandboxManager = sandboxManagerFromEnvironment(pool);
   if (advancedJourney) assert.ok(sandboxManager && await sandboxManager.available(), "Advanced fixture requires actual gVisor isolation");
   app = await buildPlatformApp({ config, pool, logging: false });
@@ -181,14 +219,19 @@ async function main() {
       throw error;
     }
   };
+  if (automationJourney) {
+    workerEnvironment = { ...process.env, AGENTS_DATABASE_URL: database.href, OPENROUTER_API_KEY: modelKey, RESTATE_INGRESS_URL: ingress, RESTATE_ADMIN_URL: runtimeAdmin, RESTATE_WORKER_PORT: "9080", RESTATE_WORKER_HOST: "0.0.0.0", AGENTS_ALLOW_UNSIGNED_WORKER: "1" };
+    await startWorkerProcess();
+  } else {
   worker = createServer(createEndpointHandler({ services: [createBusinessWorkflow(pool, { openRouterApiKey: modelKey, signal: fixtureAbort.signal, executeSandbox: createSandboxExecutor(pool, sandboxManager, privateStoreFromEnvironment()), fetch: realModel ? observedModelFetch : fixtureFetch })] }));
   worker.on("session", session => { connections.add(session); session.once("close", () => connections.delete(session)); });
   await new Promise<void>((resolve, reject) => { worker!.once("error", reject); worker!.listen(9080, "0.0.0.0", resolve); });
+  }
   let runtimeReady = false;
   try { runtimeReady = (await fetch(`${runtimeAdmin}/health`, { signal: AbortSignal.timeout(1000) })).ok; } catch { /* Start a dedicated runtime below. */ }
   if (!runtimeReady) {
     execFileSync("docker", ["run", "-d", "--name", container, "--add-host", "host.docker.internal:host-gateway",
-      "-p", "127.0.0.1:18080:8080", "-p", "127.0.0.1:19070:9070", image], { stdio: "pipe" });
+      "-p", `127.0.0.1:${new URL(ingress).port}:8080`, "-p", `127.0.0.1:${new URL(runtimeAdmin).port}:9070`, image], { stdio: "pipe" });
     ownedRuntime = true;
   }
   await ready(async () => (await fetch(`${runtimeAdmin}/health`)).ok, "Restate");
@@ -199,8 +242,17 @@ async function main() {
       cwd: root, stdio: ["ignore", "ignore", "inherit"], env: { ...process.env, AGENTS_DATABASE_URL: database.href },
     });
   }
-  dispatcher = startDispatcher(pool, { ingressUrl: ingress, adminUrl: runtimeAdmin, onError: code => console.error(`Fixture dispatcher: ${code}`) });
+  if (!automationJourney) dispatcher = startDispatcher(pool, { ingressUrl: ingress, adminUrl: runtimeAdmin, onError: code => console.error(`Fixture dispatcher: ${code}`) });
   site = createHttpServer((request, response) => {
+    if (automationJourney && request.method === "POST" && request.url?.startsWith("/fixture/")) {
+      void (async () => {
+        if (request.url === "/fixture/restart-review") { await stopWorkerProcess(); await startWorkerProcess(); workerRestarts++; }
+        else if (request.url === "/fixture/interrupt-delivery") { await ready(async () => (await ledgerRecords()).some(record => record.type === "accepted"), "receiver durable acceptance before interruption"); await stopWorkerProcess(); await startWorkerProcess(); workerRestarts++; }
+        else { response.writeHead(404).end(); return; }
+        response.setHeader("content-type", "application/json"); response.end(JSON.stringify({ workerRestarts }));
+      })().catch(() => response.writeHead(500).end()); return;
+    }
+
     const deployment = new URL(request.url ?? "/", "http://127.0.0.1:4398").searchParams.get("deployment");
     response.setHeader("content-type", "text/html; charset=utf-8");
     response.end(`<!doctype html><html><meta name="viewport" content="width=device-width,initial-scale=1"><title>External website fixture</title><h1>Acme help</h1>${deployment && /^[a-f0-9-]{36}$/.test(deployment) ? `<script async src="http://localhost:3100/api/website/${deployment}/widget.js"></script>` : ""}</html>`);
@@ -208,12 +260,13 @@ async function main() {
   await new Promise<void>((resolve, reject) => { site!.once("error", reject); site!.listen(4398, "127.0.0.1", resolve); });
   assert.ok((await fetch("http://localhost:3100")).ok, "Start the Agents Vite frontend at localhost:3100 before running this fixture");
   const playwright = require.resolve("@playwright/test/cli", { paths: [resolve(root, "products/agents/web")] });
-  const browser = browserProcess = spawn(process.execPath, [playwright, "test", "--grep", advancedJourney ? "live execution:" : harnessJourney ? "live harness" : "live platform", "--output", advancedJourney ? ".artifacts/advanced-live" : harnessJourney ? ".artifacts/harness-live" : ".artifacts/browser-live"], {
+  const browser = browserProcess = spawn(process.execPath, [playwright, "test", "--grep", automationJourney ? "live automation:" : advancedJourney ? "live execution:" : harnessJourney ? "live harness" : "live platform", "--output", automationJourney ? ".artifacts/automation-live" : advancedJourney ? ".artifacts/advanced-live" : harnessJourney ? ".artifacts/harness-live" : ".artifacts/browser-live"], {
     cwd: resolve(root, "products/agents/web"), stdio: "inherit",
     env: { ...process.env, AGENTS_BROWSER_BASE_URL: "http://localhost:3100", AGENTS_BROWSER_SESSION_COOKIE: session.token,
       AGENTS_BROWSER_WIDGET_ORIGIN: "http://127.0.0.1:4398",
+      ...(deliveryKey ? { AGENTS_DELIVERY_FIXTURE_KEY: deliveryKey } : {}),
       ...(advanced ? { AGENTS_ADVANCED_AGENT_PATH: advanced.agentPath, AGENTS_ADVANCED_SPECIALIST_VERSIONS: advanced.specialistVersionIds.join(","),
-        AGENTS_ADVANCED_SOURCE_TITLE: advanced.sourceTitle, AGENTS_ADVANCED_PROMPT: "Ask both configured specialists to independently inspect the approved dataset. Then run Python analysis on those numbers, write report.json in OUTPUT_DIR with the original values, sum and count, and report the verified total. Use actual tools and export the report.",
+        AGENTS_ADVANCED_SOURCE_TITLE: advanced.sourceTitle, AGENTS_ADVANCED_PROMPT: "Ask both configured specialists to independently inspect the approved dataset; omit maxTokens so their configured allocations cover input and output. Then run Python analysis on those numbers, write report.json in OUTPUT_DIR with the original values, sum and count, and report the verified total. Use actual tools and export the report.",
         AGENTS_ADVANCED_EXPECT: "60", AGENTS_ADVANCED_FILE_CONTAINS: "60", AGENTS_ADVANCED_DATASET_CHECK: "1" } : {}) },
   });
   const [exitCode] = await once(browser, "exit");
@@ -223,6 +276,18 @@ async function main() {
     assert.ok(modelCalls.every(call => call.approvedKnowledgePresent), "Every provider fixture call must receive approved knowledge");
   }
   const tasks = (await pool.query("SELECT id,state,runtime_invocation_id,parent_task_id,root_task_id FROM agents_platform.tasks")).rows;
+  if (automationJourney) {
+    assert.equal(workerRestarts, 2, "Actual worker must restart awaiting review and after receiver acceptance");
+    const records = await ledgerRecords(), accepted = records.filter(record => record.type === "accepted");
+    assert.equal(accepted.length, 1, "Independent receiver must persist exactly one accepted report");
+    assert.equal(records.filter(record => record.type === "post").length, 1, "Recovery must query the original receipt without a second POST");
+    assert.ok(records.some(record => record.type === "status"), "Restart must reconcile using real receiver status");
+    const report = JSON.parse(Buffer.from(accepted[0].payload.report.contentBase64, "base64").toString("utf8"));
+    assert.deepEqual(report.values, [10,20,30]); assert.equal(report.sum, 60); assert.equal(report.count, 3);
+    const action = (await pool.query("SELECT state,receipt FROM agents_platform.actions")).rows;
+    assert.equal(action.length, 1); assert.equal(action[0].state, "delivered"); assert.equal(action[0].receipt.id, accepted[0].receipt.id);
+    console.log(JSON.stringify({ evidence: "scheduled real report, worker restart awaiting review, sender interrupted after durable receiver acceptance, original receipt recovered with one POST", workerRestarts, acceptedDeliveries: accepted.length }));
+  }
   if (advancedJourney) {
     assert.equal(tasks.length, 3, "One accepted root must create exactly two real child tasks");
     const acceptedRoot = tasks.find(task => !task.parent_task_id);
