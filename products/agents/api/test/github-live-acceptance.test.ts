@@ -12,6 +12,7 @@ import { PlatformStore } from "../src/platform/store";
 import { defaultFaqConfiguration, type ExecutionGrant } from "../src/platform/contracts";
 import { beginOperation, finishOperation, settleTask } from "../src/platform/execution";
 import { setupPlatformSchema } from "../src/platform/setup";
+import { readGithubAcceptanceConfig } from "./support/github-acceptance-config";
 import { privateFixtureBucketRequest } from "./support/private-s3-fixture";
 import type { CapabilityBinding, CapabilityCatalog } from "../src/platform/capability-catalog";
 
@@ -34,12 +35,7 @@ import type { CapabilityBinding, CapabilityCatalog } from "../src/platform/capab
  let token:string,expiresAt:string,selection:{owner:string;repository:string;ref:string},selectedFile:string,expected:string;
  const observations:unknown[]=[],catalogs:unknown[]=[];let result="not_run",errorCode:string|undefined;
  beforeAll(async()=>{
-  token=process.env.AGENTS_GITHUB_ACCEPTANCE_TOKEN??"";expiresAt=process.env.AGENTS_GITHUB_ACCEPTANCE_EXPIRES_AT??"";
-  if(!token.startsWith("github_pat_")||/[\r\n]/.test(token))throw Error("Set the explicitly approved AGENTS_GITHUB_ACCEPTANCE_TOKEN; no other credential is searched");
-  if(!Number.isFinite(Date.parse(expiresAt))||Date.parse(expiresAt)<=Date.now()||Date.parse(expiresAt)>Date.now()+90*86400000)throw Error("Set the actual token expiry within 90 days in AGENTS_GITHUB_ACCEPTANCE_EXPIRES_AT");
-  const repository=process.env.AGENTS_GITHUB_ACCEPTANCE_REPOSITORY??"github/github-mcp-server",parts=repository.split("/");
-  if(parts.length!==2||!parts.every(value=>/^[A-Za-z0-9_.-]+$/.test(value)))throw Error("Select an approved owner/repository, never a URL");
-  selection={owner:parts[0]!,repository:parts[1]!,ref:process.env.AGENTS_GITHUB_ACCEPTANCE_REF??"main"};selectedFile=process.env.AGENTS_GITHUB_ACCEPTANCE_FILE??"README.md";expected=process.env.AGENTS_GITHUB_ACCEPTANCE_EXPECT??"GitHub";
+  ({token,expiresAt,selection,selectedFile,expected}=readGithubAcceptanceConfig());
   if(!process.env.AGENTS_TEST_DATABASE_URL)throw Error("Set AGENTS_TEST_DATABASE_URL for an owned disposable PostgreSQL fixture");
   admin=new Pool({connectionString:process.env.AGENTS_TEST_DATABASE_URL});await admin.query(`CREATE DATABASE "${database}"`);const url=new URL(process.env.AGENTS_TEST_DATABASE_URL);url.pathname=`/${database}`;
   pool=new Pool({connectionString:url.href});await setupPlatformSchema(pool);expect((await privateFixtureBucketRequest(s3,"PUT")).ok).toBe(true);createdBucket=true;
