@@ -27,7 +27,7 @@ export const sealedSourceRevisionSchema = z.strictObject({
   textBytes: z.number().int().positive().max(SOURCE_LIMITS.textBytes),
   chunkCount: z.number().int().positive().max(SOURCE_LIMITS.chunks),
   parserRelease: z.string().min(1).max(128), normalizerRelease: z.string().min(1).max(128),
-  embeddingRelease: z.string().min(1).max(256).nullable(), acquiredAt: z.iso.datetime(), sealedAt: z.iso.datetime(),
+  embeddingRelease: z.string().min(1).max(256).nullable(), embeddingDigest: digest.nullable(), acquiredAt: z.iso.datetime(), sealedAt: z.iso.datetime(),
 });
 export const sourceChunkSchema = z.strictObject({
   id, revisionId: id, ordinal: z.number().int().nonnegative().max(SOURCE_LIMITS.chunks - 1),
@@ -47,7 +47,7 @@ const memoryDependency = z.strictObject({ kind: z.literal("memory"), referenceId
 export const evidenceDependencySchema = z.discriminatedUnion("kind", [sourceDependency, connectionDependency, memoryDependency]);
 export const dependencyManifestSchema = z.strictObject({ version: z.literal(1), dependencies: z.array(evidenceDependencySchema).max(SOURCE_LIMITS.manifestNodes), digest });
 export const evidenceReferenceSchema = z.strictObject({
-  id, organizationId: id, rootTaskId: id, operationId: id,
+  id, organizationId: id, rootTaskId: id, operationId: z.string().min(1).max(256),
   sourceId: id.nullable(), revisionId: id.nullable(), chunkId: id.nullable(),
   start: z.number().int().nonnegative(), end: z.number().int().positive(),
   contentDigest: digest, acquiredAt: z.iso.datetime(), manifest: dependencyManifestSchema,

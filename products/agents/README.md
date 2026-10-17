@@ -24,9 +24,33 @@ registration includes the separate `agents` client. Copy `api/.env.example` to
 `api/.env`, set independent local secrets, and use the matching Agents client secret.
 Keep that file private. Use `http://localhost:3100` consistently for the browser.
 
-Provision a fresh, dedicated PostgreSQL database and set `AGENTS_DATABASE_URL`.
+Provision a fresh, dedicated PostgreSQL 17 database with pgvector 0.8.7 and set `AGENTS_DATABASE_URL`.
 The setup command rejects a database containing other application tables. It does
 not migrate or delete an existing product database.
+
+The verified local database image is
+`pgvector/pgvector@sha256:cd4ccfdaf62cbfeb5c6ee19ef0dd663406d4ed740c320b324d016a90e85385b3`,
+which contains PostgreSQL 17.11 and pgvector 0.8.7. Schema setup requires permission to create
+the `vector` extension in this dedicated database.
+
+For document imports, configure private S3-compatible storage, prepare the isolated document
+runtime, and set `AGENTS_DOCUMENT_RUNTIME_ENABLED=1`:
+
+```sh
+bash infra/agents-runtime/document-prepare.sh
+```
+
+This setup downloads pinned public runtime/model artifacts. Import processing and embeddings
+run without guest network access. From `products/agents/api`, run the independent cleanup
+processes alongside the worker:
+
+```sh
+pnpm dev:document-reaper
+pnpm dev:source-object-reaper
+```
+
+The document reaper needs the Agents database and runtime, and the source-object reaper needs
+the database and private storage. Storage outages do not stop physical resource cleanup.
 
 Start Restate from the repository root:
 

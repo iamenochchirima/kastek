@@ -19,6 +19,7 @@ CREATE TABLE agents_platform.ingestion_jobs (
  raw_state text NOT NULL DEFAULT 'pending' CHECK(raw_state IN ('pending','available','deleted')),
  raw_bytes integer NOT NULL DEFAULT 0 CHECK(raw_bytes BETWEEN 0 AND 10485760),
  parser_release text NOT NULL, embedding_release text, deadline timestamptz NOT NULL,
+ acquired_at timestamptz, acquisition_claimed_at timestamptz, acquisition_receipt jsonb,
  error_code text, created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now(),
  FOREIGN KEY(organization_id,source_id) REFERENCES agents_platform.sources(organization_id,id),
  UNIQUE(organization_id,importer_account_id,operation_id), UNIQUE(source_id,revision)
@@ -41,7 +42,7 @@ CREATE TABLE agents_platform.source_revisions (
  raw_bytes integer NOT NULL CHECK(raw_bytes BETWEEN 1 AND 10485760),
  text_bytes integer NOT NULL CHECK(text_bytes BETWEEN 1 AND 1048576),
  chunk_count integer NOT NULL CHECK(chunk_count BETWEEN 1 AND 1000),
- parser_release text NOT NULL, normalizer_release text NOT NULL, embedding_release text,
+ parser_release text NOT NULL, normalizer_release text NOT NULL, embedding_release text, embedding_digest text,
  acquired_at timestamptz NOT NULL, sealed_at timestamptz NOT NULL DEFAULT now(),
  FOREIGN KEY(organization_id,source_id) REFERENCES agents_platform.sources(organization_id,id),
  UNIQUE(source_id,revision), UNIQUE(organization_id,id), UNIQUE(organization_id,source_id,id)
@@ -85,7 +86,7 @@ CREATE TABLE agents_platform.source_mutations (
 );
 
 CREATE TABLE agents_platform.evidence_references (
- id uuid PRIMARY KEY, organization_id uuid NOT NULL, root_task_id uuid NOT NULL, operation_id uuid NOT NULL,
+ id uuid PRIMARY KEY, organization_id uuid NOT NULL, root_task_id uuid NOT NULL, operation_id text NOT NULL,
  source_id uuid, revision_id uuid, chunk_id uuid,
  start_offset integer NOT NULL CHECK(start_offset>=0), end_offset integer NOT NULL CHECK(end_offset>start_offset),
  content_digest text NOT NULL CHECK(content_digest ~ '^[a-f0-9]{64}$'),

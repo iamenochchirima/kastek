@@ -22,7 +22,11 @@
     "test": "vitest run",
     "test:runtime": "bash ../../../infra/agents-runtime/verify.sh",
     "dev:sandbox-reaper": "node --env-file-if-exists=.env --import tsx src/platform/sandbox-reaper.ts",
-    "start:sandbox-reaper": "node --env-file-if-exists=.env dist/platform/sandbox-reaper.js"
+    "start:sandbox-reaper": "node --env-file-if-exists=.env dist/platform/sandbox-reaper.js",
+    "dev:document-reaper": "node --env-file-if-exists=.env --import tsx src/platform/document-reaper.ts",
+    "start:document-reaper": "node --env-file-if-exists=.env dist/platform/document-reaper.js",
+    "dev:source-object-reaper": "node --env-file-if-exists=.env --import tsx src/platform/source-object-reaper.ts",
+    "start:source-object-reaper": "node --env-file-if-exists=.env dist/platform/source-object-reaper.js"
   },
   "dependencies": {
     "@fastify/cookie": "^11.1.2",
