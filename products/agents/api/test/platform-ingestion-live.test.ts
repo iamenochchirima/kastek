@@ -4,6 +4,7 @@ import { once } from "node:events";
 import { createServer } from "node:net";
 import { mkdir, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
+import { createRequire } from "node:module";
 import { join, resolve } from "node:path";
 import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -13,6 +14,8 @@ import { KnowledgeStore, type KnowledgeScope } from "../src/platform/knowledge";
 import { PlatformStore } from "../src/platform/store";
 import { setupPlatformSchema } from "../src/platform/setup";
 import { privateFixtureBucketRequest } from "./support/private-s3-fixture";
+import { buildPlatformApp } from "../src/platform/app";
+import { loadPlatformConfig } from "../src/platform/config";
 
 const enabled = process.env.AGENTS_INGESTION_LIVE === "1" && process.env.AGENTS_TEST_DATABASE_URL;
 (enabled ? describe : describe.skip)("actual compiled ingestion worker with Restate, gVisor, private S3 and pgvector", () => {
@@ -137,6 +140,55 @@ const enabled = process.env.AGENTS_INGESTION_LIVE === "1" && process.env.AGENTS_
     const receipt = (await pool.query("SELECT acquisition_receipt FROM agents_platform.ingestion_jobs WHERE id=$1", [job.id])).rows[0].acquisition_receipt;
     expect(receipt.finalUrl).toBe("https://example.com/"); expect(receipt.attempts.length).toBeGreaterThan(0);
   }, 180000);
+  (process.env.AGENTS_INGESTION_BROWSER === "1" ? it : it.skip)("drives actual private import, preview, approval, public visibility and withdrawal in the browser", async () => {
+    const settings: Record<string, string> = { AGENTS_DOCUMENT_RUNTIME_ENABLED: "1", AGENTS_DOCUMENT_RUNTIME_CACHE: cache,
+      AGENTS_S3_ENDPOINT: s3.endpoint, AGENTS_S3_REGION: s3.region, AGENTS_S3_BUCKET: s3.bucket,
+      AGENTS_S3_ACCESS_KEY_ID: s3.accessKeyId, AGENTS_S3_SECRET_ACCESS_KEY: s3.secretAccessKey };
+    const previous = Object.fromEntries(Object.keys(settings).map(key => [key, process.env[key]])); Object.assign(process.env, settings);
+    const app = await buildPlatformApp({ pool, logging: false, config: loadPlatformConfig({ NODE_ENV: "test", AGENTS_DATABASE_URL: databaseUrl,
+      AGENTS_PUBLIC_URL: "http://127.0.0.1:3113", AGENTS_OIDC_ISSUER_URL: "http://localhost/ingestion-live", AGENTS_OIDC_CLIENT_SECRET: "local-browser-identity-fixture-only" }) });
+    const requireWeb = createRequire(resolve(process.cwd(), "../web/package.json"));
+    const { chromium } = requireWeb("@playwright/test") as typeof import("../../web/node_modules/@playwright/test");
+    const browser = await chromium.launch({ headless: true });
+    try {
+      await app.listen({ host: "127.0.0.1", port: 4100 });
+      const session = await platform.createSession({ accountId: scope.accountId, providerSessionId: randomUUID(), expiresAt: new Date(Date.now() + 60000) });
+      const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
+      await context.addCookies([{ name: "agents_session", value: session.token, url: "http://127.0.0.1:3113", httpOnly: true, sameSite: "Lax" }]);
+      const page = await context.newPage(), errors: string[] = []; page.on("pageerror", error => errors.push(error.message));
+      const { expect: browserExpect } = requireWeb("@playwright/test") as typeof import("../../web/node_modules/@playwright/test");
+      await page.goto("http://127.0.0.1:3113/app/knowledge");
+      await page.getByRole("button", { name: "Add source", exact: true }).click();
+      await page.getByRole("textbox", { name: "Title", exact: true }).fill("Browser imported policy");
+      await page.getByRole("textbox", { name: "Content", exact: true }).fill("The browser acceptance policy code is WILLOW-632.");
+      await page.getByRole("button", { name: "Import source", exact: true }).click();
+      await browserExpect(page.getByRole("button", { name: "Approve source", exact: true })).toBeVisible({ timeout: 30000 });
+      await page.getByRole("button", { name: "Preview", exact: true }).last().click();
+      await browserExpect(page.getByRole("dialog").getByText("The browser acceptance policy code is WILLOW-632.", { exact: true })).toBeVisible();
+      await page.keyboard.press("Escape");
+      await page.getByRole("button", { name: "Approve source", exact: true }).click();
+      await browserExpect(page.getByText("Source approved", { exact: true })).toBeVisible();
+      const imported = (await knowledge.list(scope)).find(source => source.title === "Browser imported policy")!;
+      expect(imported.visibility).toBe("private"); expect(imported.revisions[0]!.state).toBe("approved");
+      await page.getByRole("button", { name: "Make public", exact: true }).last().click();
+      await page.getByRole("dialog").getByRole("button", { name: "Make public", exact: true }).click();
+      await browserExpect(page.getByText("Visibility updated", { exact: true })).toBeVisible();
+      for (const width of [1440, 768, 390]) {
+        await page.setViewportSize({ width, height: 1000 });
+        expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+        await page.screenshot({ path: resolve(process.cwd(), `../../../.audit/actual-ingestion-browser-${width}.png`), fullPage: true, animations: "disabled" });
+      }
+      await page.getByRole("button", { name: "Withdraw", exact: true }).last().click();
+      await page.getByRole("dialog").getByRole("button", { name: "Withdraw source", exact: true }).click();
+      await browserExpect(page.getByText("Source withdrawn", { exact: true })).toBeVisible();
+      expect((await knowledge.list(scope)).find(source => source.id === imported.id)!.state).toBe("withdrawn"); expect(errors).toEqual([]);
+      (evidence.cases as unknown[]).push({ title: "actual-browser-knowledge", sourceId: imported.id, viewports: [1440, 768, 390], errors });
+      await context.close();
+    } finally {
+      await browser.close(); await app.close();
+      for (const key of Object.keys(settings)) { if (previous[key] === undefined) delete process.env[key]; else process.env[key] = previous[key]; }
+    }
+  }, 90000);
 });
 
 function pdf(pages: string[]): Buffer {
