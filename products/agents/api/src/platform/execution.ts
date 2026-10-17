@@ -7,14 +7,15 @@ import type { TaskRecord } from "./store";
 import {transaction} from "./database";
 export {transaction} from "./database";
 
-export const HARNESS_RELEASE = "core-harness-v1";
-export const WORKFLOW_NAME = "AgentsBusinessRunV1";
+export const HARNESS_RELEASE = "delegated-analysis-v1";
+export const WORKFLOW_NAME = "AgentsBusinessRunV2";
 export interface Execution { task: TaskRecord & { turn_sequence: string; history_cutoff: string | null;
   tokens_used: number; tokens_reserved: number; root_token_limit: number; model_calls: number; tool_calls: number;
-  deadline_at: Date; harness_release: string; control_generation: string }; configuration: AgentConfiguration; agentId: string }
+  deadline_at: Date; harness_release: string; control_generation: string }; configuration: AgentConfiguration; agentId: string;
+  toolBindings:{name:string;version:string;digest:string}[] }
 export interface MemoryFence { id: string; generation: number; expiresAt?: number }
-export interface OperationRequest { id: string; kind: "model" | "compaction" | "tool"; name: string;
-  request: unknown; reservedTokens: number; reservedMs: number; memoryFence?: MemoryFence; retrySafe?: boolean }
+export interface OperationRequest { id: string; kind: "model" | "compaction" | "tool" | "delegation" | "resource"; name: string;
+  request: unknown; reservedTokens: number; reservedMs: number; memoryFence?: MemoryFence; retrySafe?: boolean; reconcile?: boolean; maxResultBytes?:number }
 export interface OperationRecord { id: string; task_id: string; state: "started" | "completed" | "failed" | "uncertain";
   output: unknown; error_code: string | null; reserved_tokens: number; reserved_ms: number; accounted_tokens: number; started_at: Date }
 export interface TaskOutcome { state: "completed" | "incomplete" | "refused" | "failed" | "cancelled" | "uncertain"; output?: string; errorCode?: string }
@@ -25,13 +26,13 @@ export async function event(db: Pool | PoolClient, taskId: string, key: string, 
 }
 
 export async function loadExecution(db: Pool | PoolClient, taskId: string, lock = false): Promise<Execution> {
-  const task = (await db.query(`SELECT t.*,v.configuration,v.agent_id FROM agents_platform.tasks t
+  const task = (await db.query(`SELECT t.*,v.configuration,v.agent_id,v.tool_bindings FROM agents_platform.tasks t
     JOIN agents_platform.agent_versions v ON v.id=t.version_id AND v.organization_id=t.organization_id
     WHERE t.id=$1 ${lock ? "FOR UPDATE OF t" : ""}`, [taskId])).rows[0];
   if (!task) throw new PlatformError("TASK_NOT_FOUND", 404, "Task not found");
   if (task.harness_release !== HARNESS_RELEASE) throw new PlatformError("HARNESS_RELEASE_UNAVAILABLE", 503, "Execution release is unavailable");
-  const configuration = agentConfigurationSchema.parse(task.configuration); assertRuntimeAvailable(configuration);
-  return { task, configuration, agentId: task.agent_id };
+  const configuration = agentConfigurationSchema.parse(task.effective_configuration ?? task.configuration); assertRuntimeAvailable(configuration);
+  return { task, configuration, agentId: task.agent_id,toolBindings:task.tool_bindings };
 }
 
 export async function assertCurrentAuthority(db: Pool | PoolClient, execution: Execution): Promise<void> {
@@ -39,6 +40,11 @@ export async function assertCurrentAuthority(db: Pool | PoolClient, execution: E
   if (terminalTaskStates.has(task.state)) throw new PlatformError("TASK_SETTLED", 409, "Task has settled");
   if (task.state === "cancel_requested") throw new PlatformError("TASK_CANCELLED", 409, "Task is stopping");
   if (new Date(task.deadline_at).getTime() <= Date.now()) throw new PlatformError("TASK_DEADLINE", 409, "Task deadline reached");
+  if (task.parent_task_id) {
+    const root = await loadExecution(db, task.root_task_id);
+    if (root.task.parent_task_id || root.task.organization_id !== task.organization_id || root.task.principal.kind !== "human" || task.depth !== 1) throw new PlatformError("DELEGATION_SCOPE_DENIED",403,"Delegation is unavailable");
+    await assertCurrentAuthority(db, root);
+  }
   const conversation = (await db.query("SELECT deleted_at FROM agents_platform.conversations WHERE id=$1 FOR SHARE", [task.conversation_id])).rows[0];
   if (!conversation || conversation.deleted_at) throw new PlatformError("CONVERSATION_DELETED", 403, "Conversation is unavailable");
   const row = (await db.query("SELECT * FROM agents_platform.execution_grants WHERE id=$1 AND organization_id=$2 FOR SHARE",
@@ -62,7 +68,7 @@ export async function assertCurrentAuthority(db: Pool | PoolClient, execution: E
       WHERE d.organization_id=$1 AND d.id=$2 AND d.version_id=$3 AND d.agent_id=$4 AND d.revoked_at IS NULL
       AND s.id=$5 AND s.expires_at>now() FOR SHARE OF d`,
     [task.organization_id, task.principal.deploymentId, task.version_id, agentId, task.principal.sessionId]);
-    if (!allowed.rowCount || configuration.memory.enabled || configuration.skillIds.length || configuration.tools.some(t => t.startsWith("memory."))) {
+    if (!allowed.rowCount || configuration.memory.enabled || configuration.skillIds.length || configuration.capabilities.delegation.enabled || configuration.capabilities.sandbox.enabled || configuration.tools.some(t => t.startsWith("memory."))) {
       throw new PlatformError("DEPLOYMENT_SCOPE_DENIED", 403, "Website execution access is unavailable");
     }
   } else throw new PlatformError("AUTOMATION_UNAVAILABLE", 403, "Automation execution is unavailable");
@@ -72,12 +78,14 @@ export async function beginOperation(pool: Pool, taskId: string, input: Operatio
   return transaction(pool, async db => {
     const preliminary = await loadExecution(db, taskId);
     await db.query("SELECT id FROM agents_platform.organizations WHERE id=$1 FOR UPDATE", [preliminary.task.organization_id]);
+    const budget = (await db.query("SELECT * FROM agents_platform.execution_roots WHERE root_task_id=$1 FOR UPDATE", [preliminary.task.root_task_id])).rows[0];
+    if (!budget || budget.settled_at) throw new PlatformError("TASK_SETTLED",409,"Root execution has settled");
     const execution = await loadExecution(db, taskId, true), task = execution.task;
     const existing = (await db.query<OperationRecord & { request_digest: string }>("SELECT * FROM agents_platform.operations WHERE id=$1 FOR UPDATE", [input.id])).rows[0];
     if (existing) {
       if (existing.task_id !== taskId || existing.request_digest !== requestDigest(input.request)) throw new PlatformError("OPERATION_CONFLICT", 409, "Operation identity conflict");
       if (existing.state === "started") {
-        if (input.kind === "tool" && input.retrySafe) {
+        if ((input.kind === "tool" || input.kind === "delegation") && input.retrySafe || input.kind === "resource" && input.reconcile) {
           await assertCurrentAuthority(db, execution);
           try { await checkMemoryFence(db, input.memoryFence); }
           catch(error) {
@@ -94,16 +102,21 @@ export async function beginOperation(pool: Pool, taskId: string, input: Operatio
     }
     await assertCurrentAuthority(db, execution);
     await checkMemoryFence(db, input.memoryFence);
-    const model = input.kind !== "tool";
-    if (task.tokens_used + task.tokens_reserved + input.reservedTokens > task.root_token_limit ||
-      (model ? task.model_calls >= 12 : task.tool_calls >= 24) ||
-      (task as unknown as {active_ms:number;active_reserved_ms:number}).active_ms +
-      (task as unknown as {active_reserved_ms:number}).active_reserved_ms + input.reservedMs > 900_000) {
+    const model = input.kind === "model" || input.kind === "compaction";
+    const root = (await db.query("SELECT root_token_limit FROM agents_platform.tasks WHERE id=$1", [task.root_task_id])).rows[0];
+    const child = Boolean(task.parent_task_id);
+    if (!Number.isSafeInteger(input.reservedTokens) || input.reservedTokens < 0 || !Number.isSafeInteger(input.reservedMs) || input.reservedMs < 0 ||
+      task.tokens_used + task.tokens_reserved + input.reservedTokens > task.root_token_limit ||
+      (model ? budget.model_calls >= (child ? 11 : 12) : budget.tool_calls >= 24) ||
+      (child && ((task as any).active_ms + (task as any).active_reserved_ms + input.reservedMs > task.allocation_active_ms)) ||
+      (!child && (budget.tokens_used + budget.tokens_reserved + budget.child_reserved_tokens + input.reservedTokens > root.root_token_limit ||
+        budget.active_ms + budget.active_reserved_ms + budget.child_reserved_ms + input.reservedMs > 900_000)) ||
+      (child && (input.reservedTokens > budget.child_reserved_tokens || input.reservedMs > budget.child_reserved_ms))) {
       throw new PlatformError("ROOT_LIMIT", 429, "Task execution limit reached");
     }
     const slots = (await db.query(`SELECT count(*)::int AS count FROM agents_platform.operations o
       JOIN agents_platform.tasks t ON t.id=o.task_id WHERE t.organization_id=$1 AND o.state='started'
-      AND ${model ? "o.kind IN ('model','compaction')" : "o.kind='tool'"}`, [task.organization_id])).rows[0].count;
+      AND ${model ? "o.kind IN ('model','compaction')" : "o.kind IN ('tool','resource')"}`, [task.organization_id])).rows[0].count;
     if (Number(slots) >= (model ? 2 : 4)) throw new PlatformError("PROVIDER_BUSY", 429, "Execution capacity is busy");
     const row = (await db.query<OperationRecord>(`INSERT INTO agents_platform.operations
       (id,task_id,kind,name,request_digest,request,state,reserved_tokens,reserved_ms,attempt_id)
@@ -113,6 +126,10 @@ export async function beginOperation(pool: Pool, taskId: string, input: Operatio
     await db.query(`UPDATE agents_platform.tasks SET state='running',tokens_reserved=tokens_reserved+$2,
       active_reserved_ms=active_reserved_ms+$3,model_calls=model_calls+$4,tool_calls=tool_calls+$5,updated_at=now() WHERE id=$1`,
     [taskId, input.reservedTokens, input.reservedMs, model ? 1 : 0, model ? 0 : 1]);
+    await db.query(`UPDATE agents_platform.execution_roots SET tokens_reserved=tokens_reserved+$2,
+      child_reserved_tokens=child_reserved_tokens-$3,active_reserved_ms=active_reserved_ms+$4,child_reserved_ms=child_reserved_ms-$5,
+      model_calls=model_calls+$6,tool_calls=tool_calls+$7 WHERE root_task_id=$1`,
+    [task.root_task_id,input.reservedTokens,child?input.reservedTokens:0,input.reservedMs,child?input.reservedMs:0,model?1:0,model?0:1]);
     await event(db, taskId, `start:${input.id}`, "operation.started", { operationId: input.id, kind: input.kind, name: input.name });
     return { replayed: false, operation: row };
   });
@@ -140,11 +157,19 @@ async function finishOperationInTransaction(db: PoolClient, execution: Execution
   await db.query(`UPDATE agents_platform.tasks SET tokens_used=tokens_used+$2,tokens_reserved=tokens_reserved-$3,
     active_ms=active_ms+$4,active_reserved_ms=active_reserved_ms-$5,updated_at=now() WHERE id=$1`,
   [execution.task.id, accounted, op.reserved_tokens, duration, op.reserved_ms]);
+  await db.query(`UPDATE agents_platform.execution_roots SET tokens_used=tokens_used+$2,tokens_reserved=tokens_reserved-$3,
+    child_reserved_tokens=child_reserved_tokens+$4,active_ms=active_ms+$5,active_reserved_ms=active_reserved_ms-$6,
+    child_reserved_ms=child_reserved_ms+$7 WHERE root_task_id=$1`,
+  [execution.task.root_task_id,accounted,op.reserved_tokens,execution.task.parent_task_id?op.reserved_tokens-accounted:0,
+    duration,op.reserved_ms,execution.task.parent_task_id?op.reserved_ms-duration:0]);
   await event(db, op.task_id, `result:${op.id}`, `operation.${state}`, { operationId: op.id, accountedTokens: accounted, errorCode });
 }
 export async function finishOperation(pool: Pool, taskId: string, operationId: string,
   state: "completed" | "failed" | "uncertain", output: unknown, errorCode: string | null, tokens: number): Promise<void> {
   await transaction(pool, async db => {
+    const before = await loadExecution(db,taskId);
+    await db.query("SELECT id FROM agents_platform.organizations WHERE id=$1 FOR UPDATE",[before.task.organization_id]);
+    await db.query("SELECT root_task_id FROM agents_platform.execution_roots WHERE root_task_id=$1 FOR UPDATE",[before.task.root_task_id]);
     const execution = await loadExecution(db, taskId, true);
     const op = (await db.query<OperationRecord>("SELECT * FROM agents_platform.operations WHERE id=$1 AND task_id=$2 FOR UPDATE", [operationId, taskId])).rows[0];
     if (!op) throw new PlatformError("OPERATION_NOT_FOUND", 404, "Operation not found");
@@ -152,25 +177,77 @@ export async function finishOperation(pool: Pool, taskId: string, operationId: s
   });
 }
 
-export async function settleTask(pool: Pool, taskId: string, outcome: TaskOutcome): Promise<void> {
+export async function settleTask(pool: Pool, taskId: string, requested: TaskOutcome): Promise<void> {
   await transaction(pool, async db => {
+    const initial = await loadExecution(db,taskId);
+    await db.query("SELECT id FROM agents_platform.organizations WHERE id=$1 FOR UPDATE",[initial.task.organization_id]);
+    await db.query("SELECT root_task_id FROM agents_platform.execution_roots WHERE root_task_id=$1 FOR UPDATE",[initial.task.root_task_id]);
     const execution = await loadExecution(db, taskId, true), task = execution.task;
     if (terminalTaskStates.has(task.state)) return;
+    let outcome = requested;
+    const children = !task.parent_task_id ? (await db.query("SELECT id,state FROM agents_platform.tasks WHERE parent_task_id=$1 ORDER BY id FOR UPDATE",[taskId])).rows : [];
+    const activeChildren = children.filter(child=>!terminalTaskStates.has(child.state));
+    const resources=!task.parent_task_id?(await db.query("SELECT id FROM agents_platform.sandbox_allocations WHERE root_task_id=$1 AND state<>'destroyed'",[taskId])).rows:[];
+    if (activeChildren.length || resources.length) {
+      await db.query("UPDATE agents_platform.tasks SET state='cancel_requested',pending_outcome=$2,disposition=$3,updated_at=now() WHERE id=$1",[taskId,JSON.stringify(outcome),activeChildren.length?'pending_children':'pending_resources']);
+      await db.query("UPDATE agents_platform.tasks SET state='cancel_requested',updated_at=now() WHERE id=ANY($1::uuid[]) AND state NOT IN ('completed','incomplete','refused','failed','cancelled','uncertain')",[activeChildren.map(child=>child.id)]);
+      await event(db,taskId,`dependent-stop:${taskId}`,"children.stopping",{count:activeChildren.length});
+      return;
+    }
+    if (children.some(child=>child.state==='uncertain') && outcome.state==='cancelled') outcome={state:'uncertain',errorCode:'CHILD_OUTCOME_UNCERTAIN'};
+    if (children.some(child=>child.state!=='completed') && outcome.state==='completed') outcome={...outcome,state:'incomplete',errorCode:'CHILD_PARTIAL_FAILURE'};
     const operations = (await db.query<OperationRecord>("SELECT * FROM agents_platform.operations WHERE task_id=$1 AND state='started' FOR UPDATE", [taskId])).rows;
     for (const op of operations) await finishOperationInTransaction(db, execution, op, "uncertain", null, "OPERATION_INTERRUPTED", op.reserved_tokens);
     if (operations.length && outcome.state === "cancelled") outcome = { state: "uncertain", errorCode: "OPERATION_OUTCOME_UNCERTAIN" };
-    const reservation = (await db.query("SELECT * FROM agents_platform.usage_reservations WHERE task_id=$1 FOR UPDATE", [taskId])).rows[0];
-    const total = (await db.query("SELECT coalesce(sum(accounted_tokens),0)::int AS tokens FROM agents_platform.operation_usage WHERE task_id=$1", [taskId])).rows[0].tokens;
-    if (reservation && !reservation.settled_at) {
-      await db.query(`UPDATE agents_platform.usage_accounts SET reserved_tokens=reserved_tokens-$3,consumed_tokens=consumed_tokens+$4
-        WHERE organization_id=$1 AND day=$2`, [reservation.organization_id, reservation.day, reservation.tokens, Math.min(total, reservation.tokens)]);
-      await db.query("UPDATE agents_platform.usage_reservations SET settled_at=now() WHERE task_id=$1", [taskId]);
+    if (task.parent_task_id) {
+      const latest=(await db.query("SELECT tokens_used,active_ms,allocation_released FROM agents_platform.tasks WHERE id=$1",[taskId])).rows[0];
+      if(!latest.allocation_released) {
+        await db.query("UPDATE agents_platform.execution_roots SET child_reserved_tokens=child_reserved_tokens-$2,child_reserved_ms=child_reserved_ms-$3 WHERE root_task_id=$1",
+          [task.root_task_id,task.root_token_limit-latest.tokens_used,task.allocation_active_ms-latest.active_ms]);
+        await db.query("UPDATE agents_platform.tasks SET allocation_released=true WHERE id=$1",[taskId]);
+      }
+    } else {
+      const reservation = (await db.query("SELECT * FROM agents_platform.usage_reservations WHERE task_id=$1 FOR UPDATE", [taskId])).rows[0];
+      const total = (await db.query(`SELECT coalesce(sum(u.accounted_tokens),0)::int AS tokens FROM agents_platform.operation_usage u
+        JOIN agents_platform.tasks t ON t.id=u.task_id WHERE t.root_task_id=$1`, [taskId])).rows[0].tokens;
+      if(total>task.root_token_limit) throw new PlatformError("ROOT_ACCOUNTING_INVARIANT",500,"Root accounting exceeds its admitted allocation");
+      if (reservation && !reservation.settled_at) {
+        await db.query(`UPDATE agents_platform.usage_accounts SET reserved_tokens=reserved_tokens-$3,consumed_tokens=consumed_tokens+$4
+          WHERE organization_id=$1 AND day=$2`, [reservation.organization_id, reservation.day, reservation.tokens,total]);
+        await db.query("UPDATE agents_platform.usage_reservations SET settled_at=now() WHERE task_id=$1", [taskId]);
+      }
+      await db.query(`INSERT INTO agents_platform.usage_ledger(task_id,operation_id,accounted_tokens,outcome) VALUES($1,$2,$3,$4) ON CONFLICT(task_id) DO NOTHING`,
+        [taskId, `root:${taskId}`, total, outcome.state]);
+      await db.query("UPDATE agents_platform.execution_roots SET settled_at=now() WHERE root_task_id=$1",[taskId]);
     }
-    await db.query(`INSERT INTO agents_platform.usage_ledger(task_id,operation_id,accounted_tokens,outcome) VALUES($1,$2,$3,$4) ON CONFLICT(task_id) DO NOTHING`,
-      [taskId, `root:${taskId}`, total, outcome.state]);
     assertTaskTransition(task.state, outcome.state);
-    await db.query("UPDATE agents_platform.tasks SET state=$2,output=$3,error_code=$4,updated_at=now() WHERE id=$1",
+    await db.query("UPDATE agents_platform.tasks SET state=$2,output=$3,error_code=$4,pending_outcome=NULL,disposition='settled',updated_at=now() WHERE id=$1",
       [taskId, outcome.state, outcome.output ?? null, outcome.errorCode ?? null]);
     await event(db, taskId, `terminal:${taskId}`, outcome.state);
+  });
+}
+
+export async function reconcilePendingRoots(pool:Pool):Promise<void> {
+  const rows=(await pool.query(`SELECT r.id,r.pending_outcome FROM agents_platform.tasks r WHERE r.parent_task_id IS NULL AND r.pending_outcome IS NOT NULL
+    AND NOT EXISTS(SELECT 1 FROM agents_platform.tasks c WHERE c.parent_task_id=r.id AND c.state NOT IN ('completed','incomplete','refused','failed','cancelled','uncertain'))
+    AND NOT EXISTS(SELECT 1 FROM agents_platform.sandbox_allocations a WHERE a.root_task_id=r.id AND a.state<>'destroyed') LIMIT 10`)).rows;
+  for(const row of rows) await settleTask(pool,row.id,row.pending_outcome);
+}
+
+export async function queueChildContinuations(pool:Pool,rootTaskId:string):Promise<void> {
+  await transaction(pool,async db=>{
+    const rows=(await db.query("UPDATE agents_platform.tasks SET control_generation=control_generation+1 WHERE root_task_id=$1 AND parent_task_id IS NOT NULL AND state='waiting_authority' RETURNING id,control_generation-1 AS generation",[rootTaskId])).rows;
+    for(const row of rows) await db.query("INSERT INTO agents_platform.task_controls(task_id,generation) VALUES($1,$2) ON CONFLICT DO NOTHING",[row.id,row.generation]);
+  });
+}
+
+export async function requestTreeCancellation(pool:Pool,taskId:string):Promise<string[]> {
+  return transaction(pool,async db=>{
+    const execution=await loadExecution(db,taskId);
+    await db.query("SELECT id FROM agents_platform.organizations WHERE id=$1 FOR UPDATE",[execution.task.organization_id]);
+    const rows=(await db.query(`UPDATE agents_platform.tasks SET state='cancel_requested',updated_at=now()
+      WHERE (id=$1 OR parent_task_id=$1) AND state NOT IN ('completed','incomplete','refused','failed','cancelled','uncertain') RETURNING id`,[taskId])).rows;
+    for(const row of rows) await event(db,row.id,`cancel-intent:${row.id}`,"cancel_requested",{requestedByTaskId:taskId});
+    return rows.map(row=>row.id as string);
   });
 }

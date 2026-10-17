@@ -81,6 +81,7 @@ CREATE TABLE agents_platform.agent_versions (
   draft_revision integer NOT NULL CHECK (draft_revision > 0),
   execution_kind text NOT NULL CHECK (execution_kind IN ('business', 'workspace')),
   configuration jsonb NOT NULL CHECK (configuration->>'executionKind' = execution_kind),
+  tool_bindings jsonb NOT NULL DEFAULT '[]'::jsonb,
   created_by uuid NOT NULL REFERENCES agents_platform.accounts(id),
   created_at timestamptz NOT NULL DEFAULT now(),
   FOREIGN KEY (organization_id, agent_id) REFERENCES agents_platform.agents(organization_id, id),
@@ -190,9 +191,18 @@ CREATE TABLE agents_platform.tasks (
   request_key text NOT NULL CHECK (length(request_key) BETWEEN 1 AND 128),
   request_digest text NOT NULL CHECK (request_digest ~ '^[a-f0-9]{64}$'),
   input text NOT NULL CHECK (octet_length(input) BETWEEN 1 AND 16384),
-  state text NOT NULL DEFAULT 'accepted' CHECK (state IN ('accepted', 'running', 'waiting_authority', 'cancel_requested', 'completed', 'incomplete', 'refused', 'failed', 'cancelled', 'uncertain')),
+  state text NOT NULL DEFAULT 'accepted' CHECK (state IN ('accepted', 'running', 'waiting_children', 'waiting_authority', 'cancel_requested', 'completed', 'incomplete', 'refused', 'failed', 'cancelled', 'uncertain')),
   turn_sequence bigint NOT NULL DEFAULT 1,
-  harness_release text NOT NULL DEFAULT 'core-harness-v1',
+  harness_release text NOT NULL DEFAULT 'delegated-analysis-v1',
+  root_task_id uuid NOT NULL REFERENCES agents_platform.tasks(id),
+  parent_task_id uuid REFERENCES agents_platform.tasks(id),
+  depth integer NOT NULL DEFAULT 0 CHECK(depth BETWEEN 0 AND 1),
+  delegation_operation_id text,
+  effective_configuration jsonb,
+  allocation_released boolean NOT NULL DEFAULT false,
+  pending_outcome jsonb,
+  disposition text NOT NULL DEFAULT 'settled' CHECK(disposition IN ('settled','pending_children','pending_resources')),
+  allocation_active_ms integer NOT NULL DEFAULT 900000 CHECK(allocation_active_ms BETWEEN 1000 AND 900000),
   root_token_limit integer NOT NULL DEFAULT 32000 CHECK (root_token_limit BETWEEN 2048 AND 32000),
   tokens_used integer NOT NULL DEFAULT 0 CHECK (tokens_used>=0),
   tokens_reserved integer NOT NULL DEFAULT 0 CHECK (tokens_reserved>=0),
@@ -213,6 +223,40 @@ CREATE TABLE agents_platform.tasks (
   FOREIGN KEY (organization_id, conversation_id) REFERENCES agents_platform.conversations(organization_id, id),
   UNIQUE (product, organization_id, caller_client_id, resource_id, request_key),
   UNIQUE (organization_id, id)
+);
+
+CREATE FUNCTION agents_platform.task_lineage_default() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  IF NEW.root_task_id IS NULL THEN NEW.root_task_id=NEW.id; END IF;
+  IF (NEW.parent_task_id IS NULL AND (NEW.root_task_id<>NEW.id OR NEW.depth<>0)) OR
+     (NEW.parent_task_id IS NOT NULL AND (NEW.root_task_id=NEW.id OR NEW.depth<>1)) THEN
+    RAISE EXCEPTION 'Invalid task lineage';
+  END IF;
+  RETURN NEW;
+END; $$;
+CREATE TRIGGER task_lineage BEFORE INSERT ON agents_platform.tasks FOR EACH ROW EXECUTE FUNCTION agents_platform.task_lineage_default();
+CREATE INDEX tasks_root ON agents_platform.tasks(root_task_id,parent_task_id);
+CREATE TABLE agents_platform.execution_roots (
+  root_task_id uuid PRIMARY KEY REFERENCES agents_platform.tasks(id),
+  tokens_used integer NOT NULL DEFAULT 0 CHECK(tokens_used>=0),
+  tokens_reserved integer NOT NULL DEFAULT 0 CHECK(tokens_reserved>=0),
+  child_reserved_tokens integer NOT NULL DEFAULT 0 CHECK(child_reserved_tokens>=0),
+  model_calls integer NOT NULL DEFAULT 0 CHECK(model_calls BETWEEN 0 AND 12),
+  tool_calls integer NOT NULL DEFAULT 0 CHECK(tool_calls BETWEEN 0 AND 24),
+  active_ms integer NOT NULL DEFAULT 0 CHECK(active_ms>=0),
+  active_reserved_ms integer NOT NULL DEFAULT 0 CHECK(active_reserved_ms>=0),
+  child_reserved_ms integer NOT NULL DEFAULT 0 CHECK(child_reserved_ms>=0),
+  settled_at timestamptz
+);
+CREATE TABLE agents_platform.delegations (
+  parent_task_id uuid NOT NULL REFERENCES agents_platform.tasks(id),
+  operation_id text NOT NULL,
+  slot integer NOT NULL CHECK(slot BETWEEN 0 AND 1),
+  child_task_id uuid NOT NULL UNIQUE REFERENCES agents_platform.tasks(id),
+  binding_id text NOT NULL,
+  request_digest text NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY(parent_task_id,operation_id,slot)
 );
 
 CREATE TABLE agents_platform.task_events (
@@ -247,7 +291,7 @@ CREATE UNIQUE INDEX conversation_turn_order ON agents_platform.tasks(conversatio
 CREATE TABLE agents_platform.operations (
   id text PRIMARY KEY,
   task_id uuid NOT NULL REFERENCES agents_platform.tasks(id),
-  kind text NOT NULL CHECK(kind IN ('model','compaction','tool')),
+  kind text NOT NULL CHECK(kind IN ('model','compaction','tool','delegation','resource')),
   name text NOT NULL,
   request_digest text NOT NULL CHECK(request_digest ~ '^[a-f0-9]{64}$'),
   request jsonb NOT NULL,
@@ -256,7 +300,7 @@ CREATE TABLE agents_platform.operations (
   error_code text,
   reserved_tokens integer NOT NULL DEFAULT 0 CHECK(reserved_tokens>=0),
   accounted_tokens integer NOT NULL DEFAULT 0 CHECK(accounted_tokens>=0),
-  reserved_ms integer NOT NULL CHECK(reserved_ms>0),
+  reserved_ms integer NOT NULL CHECK(reserved_ms>=0),
   started_at timestamptz NOT NULL DEFAULT now(),
   completed_at timestamptz,
   attempt_id uuid NOT NULL,

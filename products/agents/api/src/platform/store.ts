@@ -5,6 +5,7 @@ import { agentConfigurationSchema, assertGrantAuthority, assertRuntimeAvailable,
   type AdmissionAuthority, type AgentConfiguration, type ExecutionGrant, type TaskState } from "./contracts";
 
 import {transaction} from "./database";
+import {publishedToolBindings} from "./tools";
 
 type Db = Pool | PoolClient;
 export interface Account { id: string; issuer: string; subject: string; email: string; display_name: string }
@@ -21,7 +22,9 @@ export interface WebsiteDeployment { id: string; organization_id: string; agent_
 export interface TaskRecord { id: string; product: AdmissionAuthority["product"]; organization_id: string; resource_id: string;
   caller_client_id: string; principal: AdmissionAuthority["principal"]; version_id: string; grant_id: string;
   conversation_id: string; request_key: string; request_digest: string; input: string; state: TaskState;
-  runtime_invocation_id: string | null; output: string | null; error_code: string | null; created_at: Date; updated_at: Date }
+  runtime_invocation_id: string | null; output: string | null; error_code: string | null; created_at: Date; updated_at: Date;
+  root_task_id: string; parent_task_id: string | null; depth: number; root_token_limit: number; disposition: string;
+  delegation_operation_id: string | null; allocation_active_ms: number; allocation_released: boolean; effective_configuration: AgentConfiguration | null }
 export interface TaskEvent { sequence: string; task_id: string; event_key: string; kind: string; payload: Record<string,unknown>; created_at: Date }
 export interface AdmitTaskInput { authority: AdmissionAuthority; grantId: string; versionId: string;
   requestKey: string; input: string; conversationId?: string }
@@ -142,15 +145,25 @@ export class PlatformStore {
       const existing = (await db.query<VersionRecord>("SELECT * FROM agents_platform.agent_versions WHERE agent_id=$1 AND draft_revision=$2", [agent.id, agent.draft_revision])).rows[0];
       if (existing) return existing;
       const config = agentConfigurationSchema.parse(agent.draft);
+      if (config.capabilities.delegation.enabled) {
+        for (const binding of config.capabilities.delegation.bindings) {
+          const child = (await db.query<VersionRecord>("SELECT * FROM agents_platform.agent_versions WHERE organization_id=$1 AND id=$2 FOR SHARE", [input.organizationId,binding.versionId])).rows[0];
+          if (!child || child.agent_id === agent.id) throw new PlatformError("DELEGATION_BINDING_INVALID",409,"Choose a published specialist from this workspace");
+          const childConfig = agentConfigurationSchema.parse(child.configuration);
+          if (childConfig.executionKind !== "business" || childConfig.memory.enabled || childConfig.capabilities.delegation.enabled || childConfig.capabilities.sandbox.enabled ||
+              binding.knowledgeIds.some(id => !config.knowledgeIds.includes(id) || !childConfig.knowledgeIds.includes(id)) ||
+              binding.tools.some(tool => !childConfig.tools.includes(tool))) throw new PlatformError("DELEGATION_BINDING_INVALID",409,"Specialist binding exceeds the published scope");
+        }
+      }
       const knowledge = await db.query("SELECT id FROM agents_platform.knowledge_sources WHERE organization_id=$1 AND id=ANY($2::uuid[]) FOR SHARE", [input.organizationId, config.knowledgeIds]);
       if (knowledge.rows.length !== config.knowledgeIds.length) denied();
       if (config.skillIds.length) {
         const skills = await db.query("SELECT id FROM agents_platform.skill_revisions WHERE organization_id=$1 AND agent_id=$2 AND id=ANY($3::uuid[]) FOR SHARE", [input.organizationId,input.agentId,config.skillIds]);
         if (skills.rowCount !== new Set(config.skillIds).size) denied();
       }
-      const version = (await db.query<VersionRecord>(`INSERT INTO agents_platform.agent_versions(id,organization_id,agent_id,number,execution_kind,configuration,created_by,draft_revision)
-        SELECT $1,$2,$3,coalesce(max(number),0)+1,$4,$5,$6,$7 FROM agents_platform.agent_versions WHERE agent_id=$3 RETURNING *`,
-      [randomUUID(), input.organizationId, input.agentId, config.executionKind, config, input.accountId, agent.draft_revision])).rows[0]!;
+      const version = (await db.query<VersionRecord>(`INSERT INTO agents_platform.agent_versions(id,organization_id,agent_id,number,execution_kind,configuration,created_by,draft_revision,tool_bindings)
+        SELECT $1,$2,$3,coalesce(max(number),0)+1,$4,$5,$6,$7,$8 FROM agents_platform.agent_versions WHERE agent_id=$3 RETURNING *`,
+      [randomUUID(), input.organizationId, input.agentId, config.executionKind, config, input.accountId, agent.draft_revision,JSON.stringify(publishedToolBindings(config))])).rows[0]!;
       for (const id of config.knowledgeIds) await db.query("INSERT INTO agents_platform.version_knowledge(organization_id,version_id,knowledge_id) VALUES($1,$2,$3)", [input.organizationId, version.id, id]);
       return version;
     });
@@ -182,6 +195,7 @@ export class PlatformStore {
       await this.membership(db, input.accountId, input.organizationId);
       const version = await this.version(db, input.organizationId, input.versionId);
       if (version.agent_id !== input.agentId) denied();
+      if (version.configuration.capabilities.delegation.enabled || version.configuration.capabilities.sandbox.enabled) throw new PlatformError("WEBSITE_CAPABILITY_DENIED",409,"Website agents cannot delegate or run analysis");
       assertRuntimeAvailable(version.configuration);
       const websiteConfig = agentConfigurationSchema.parse(version.configuration);
       if (websiteConfig.memory.enabled || websiteConfig.skillIds.length || websiteConfig.tools.some(name=>name.startsWith("memory.")))
@@ -269,7 +283,7 @@ export class PlatformStore {
         if (existing.request_digest !== digest) throw new PlatformError("IDEMPOTENCY_CONFLICT", 409, "The request key was used for different input");
         return { task: existing, replayed: true };
       }
-      const active = (await db.query<{ count: string }>("SELECT count(*) FROM agents_platform.tasks WHERE organization_id=$1 AND state IN ('accepted','running','waiting_authority','cancel_requested')", [input.authority.organizationId])).rows[0]!;
+      const active = (await db.query<{ count: string }>("SELECT count(*) FROM agents_platform.tasks WHERE organization_id=$1 AND parent_task_id IS NULL AND state IN ('accepted','running','waiting_children','waiting_authority','cancel_requested')", [input.authority.organizationId])).rows[0]!;
       if (Number(active.count) >= initialLimits.maxConcurrentTasks) throw new PlatformError("CONCURRENCY_LIMIT", 429, "Too many tasks are running");
       const reservation = grant.rootTokenLimit;
       await db.query("INSERT INTO agents_platform.usage_accounts(organization_id,day) VALUES($1,(now() AT TIME ZONE 'UTC')::date) ON CONFLICT DO NOTHING", [input.authority.organizationId]);
@@ -290,6 +304,7 @@ export class PlatformStore {
         principal,version_id,grant_id,conversation_id,request_key,request_digest,input,turn_sequence,root_token_limit) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING *`,
       [randomUUID(), input.authority.product, input.authority.organizationId, input.authority.resourceId, input.authority.callerClientId, input.authority.principal,
         input.versionId, grant.id, conversationId, requestKey, digest, input.input, sequence, reservation])).rows[0]!;
+      await db.query("INSERT INTO agents_platform.execution_roots(root_task_id) VALUES($1)", [task.id]);
       await db.query("INSERT INTO agents_platform.task_outbox(task_id) VALUES($1)", [task.id]);
       await db.query("INSERT INTO agents_platform.usage_reservations(task_id,organization_id,day,tokens) VALUES($1,$2,$3,$4)", [task.id, input.authority.organizationId, quota.day, reservation]);
       await db.query("INSERT INTO agents_platform.task_events(task_id,event_key,kind) VALUES($1,'accepted','accepted')", [task.id]);

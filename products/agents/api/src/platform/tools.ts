@@ -1,9 +1,22 @@
 import type { Pool } from "pg";
 import { z } from "zod";
-import { PlatformError, type AgentConfiguration } from "./contracts";
+import { PlatformError, requestDigest, type AgentConfiguration } from "./contracts";
 import { loadExecution } from "./execution";
 import { MemoryStore } from "./memory";
 import type { ToolDefinition } from "./model";
+import { toolDescriptor } from "./tool-descriptors";
+
+export function publishedToolBindings(config:AgentConfiguration):{name:string;version:string;digest:string}[] {
+  return toolsFor(config).map(tool=>{
+    const name=tool.function.name.replaceAll("_","."),descriptor=toolDescriptor(name)!;
+    return {name,version:descriptor.version,digest:requestDigest({descriptor,inputSchema:tool.function.parameters,outputSchema:{type:"object"}})};
+  });
+}
+export function assertPublishedTools(config:AgentConfiguration,bindings:{name:string;version:string;digest:string}[]):void {
+  for(const expected of publishedToolBindings(config)) {
+    if(!bindings.some(binding=>binding.name===expected.name&&binding.version===expected.version&&binding.digest===expected.digest)) throw new PlatformError("TOOL_VERSION_UNAVAILABLE",503,"Published tool binding is unavailable on this worker");
+  }
+}
 
 export function fitUtf8(text: string, maxBytes: number): string {
   let result = "";
@@ -52,18 +65,27 @@ export function toolsFor(config: AgentConfiguration): ToolDefinition[] {
     ["memory.propose", "Propose a personal preference or completed event for user review. This does not save approved memory until the user accepts it.",
       { content: { type: "string", maxLength: 2048 }, kind: { type: "string", enum: ["semantic", "episodic"] } }],
   ];
-  return definitions.filter(([name]) => permitted.has(name as AgentConfiguration["tools"][number]) &&
+  const result:ToolDefinition[] = definitions.filter(([name]) => permitted.has(name as AgentConfiguration["tools"][number]) &&
     (!name.startsWith("memory.") || config.memory.enabled)).map(([name, description, properties]) => ({
       type: "function", function: { name: name.replaceAll(".", "_"), description,
         parameters: { type: "object", properties, required: Object.keys(properties), additionalProperties: false } },
     }));
+  if(permitted.has("agents.delegate") && config.capabilities.delegation.enabled) result.push({type:"function",function:{
+    name:"agents_delegate",description:"Delegate bounded briefs to permitted specialists and wait for all results. Child work shares this task's root budget.",
+    parameters:{type:"object",properties:{requests:{type:"array",minItems:1,maxItems:2,items:{type:"object",properties:{
+      bindingId:{type:"string",enum:config.capabilities.delegation.bindings.map(binding=>binding.id)},brief:{type:"string",minLength:1,maxLength:8192},
+      maxTokens:{type:"integer",minimum:2048,maximum:12000},knowledgeIds:{type:"array",items:{type:"string",format:"uuid"},maxItems:20}},required:["bindingId","brief"],additionalProperties:false}}},required:["requests"],additionalProperties:false}}});
+  if(permitted.has("sandbox.analyze") && config.capabilities.sandbox.enabled) result.push({type:"function",function:{
+    name:"sandbox_analyze",description:"Run standard-library Python in the approved temporary no-network analysis environment. Read selected authorized inputs and write report files to the export directory.",
+    parameters:{type:"object",properties:{code:{type:"string",minLength:1,maxLength:16384},inputArtifactIds:{type:"array",maxItems:32,items:{type:"string",format:"uuid"}}},required:["code"],additionalProperties:false}}});
+  return result;
 }
 
 export async function knowledge(pool: Pool, taskId: string) {
   const execution = await loadExecution(pool, taskId);
   const rows = (await pool.query(`SELECT k.id,k.title,k.content,k.visibility FROM agents_platform.knowledge_sources k
     JOIN agents_platform.version_knowledge vk ON vk.knowledge_id=k.id AND vk.organization_id=k.organization_id
-    WHERE vk.organization_id=$1 AND vk.version_id=$2 ORDER BY k.id`, [execution.task.organization_id, execution.task.version_id])).rows;
+    WHERE vk.organization_id=$1 AND vk.version_id=$2 AND k.id=ANY($3::uuid[]) ORDER BY k.id`, [execution.task.organization_id, execution.task.version_id,execution.configuration.knowledgeIds])).rows;
   if (rows.length !== execution.configuration.knowledgeIds.length ||
     (execution.task.principal.kind === "visitor" && rows.some(r => r.visibility !== "public"))) {
     throw new PlatformError("KNOWLEDGE_SCOPE_DENIED", 403, "Knowledge is unavailable");

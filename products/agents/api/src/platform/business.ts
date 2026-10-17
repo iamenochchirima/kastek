@@ -1,5 +1,6 @@
 import * as restate from "@restatedev/restate-sdk";
 import type { Pool } from "pg";
+import { z } from "zod";
 import { PlatformError, terminalTaskStates } from "./contracts";
 import { loadExecution, assertCurrentAuthority, beginOperation, finishOperation, settleTask, transaction,
   event, WORKFLOW_NAME, type TaskOutcome, type MemoryFence, type OperationRequest, type Execution } from "./execution";
@@ -10,8 +11,12 @@ import { callModel, estimateRequestTokens, requestDigest as modelRequestDigest, 
 
 export { settleTask } from "./execution";
 export { retrieveFaqKnowledge } from "./tools";
-import {fitUtf8,toolsFor,knowledge,executeTool} from "./tools";
-export type BusinessOptions = ModelAdapterOptions;
+import {fitUtf8,toolsFor,knowledge,executeTool,assertPublishedTools} from "./tools";
+import { admitChildren, readChildResults, type DelegatedChild } from "./delegation";
+import { toolDescriptor } from "./tool-descriptors";
+export interface BusinessOptions extends ModelAdapterOptions {
+  executeSandbox?: (taskId:string,operationId:string,args:{code:string;inputArtifactIds?:string[]})=>Promise<unknown>;
+}
 type Result<T> = { ok: true; value: T } | { ok: false; code: string; uncertain: boolean };
 interface Snapshot { id: string; messages: HarnessMessage[]; digest: string; estimatedTokens: number;
   memoryFence?: MemoryFence; historyCutoff: string }
@@ -19,7 +24,8 @@ const terminalSql = "('completed','incomplete','refused','failed','cancelled','u
 
 async function operation<T>(ctx: restate.WorkflowContext, pool: Pool, taskId: string, input: OperationRequest,
   perform: () => Promise<{ value: T; tokens: number }>, journalName = input.id): Promise<Result<T>> {
-  return ctx.run(journalName, async () => {
+  for(let capacityAttempt=0;capacityAttempt<2400;capacityAttempt++) {
+  const result:Result<T> = await ctx.run(capacityAttempt===0?journalName:`${journalName}:capacity:${capacityAttempt}`, async () => {
     let claimed = false;
     try {
       const admission = await beginOperation(pool, taskId, input);
@@ -30,6 +36,7 @@ async function operation<T>(ctx: restate.WorkflowContext, pool: Pool, taskId: st
       }
       claimed = true;
       const result = await perform();
+      if(input.maxResultBytes!==undefined && Buffer.byteLength(JSON.stringify(result.value))>input.maxResultBytes) throw new PlatformError("TOOL_RESULT_LIMIT",413,"Tool result exceeded its published bound");
       if (result.tokens > input.reservedTokens) throw new ModelOperationError("MODEL_ACCOUNTING_BOUND_EXCEEDED", "uncertain");
       await finishOperation(pool, taskId, input.id, "completed", result.value, null, result.tokens);
       return { ok: true as const, value: result.value };
@@ -40,6 +47,10 @@ async function operation<T>(ctx: restate.WorkflowContext, pool: Pool, taskId: st
       return { ok: false as const, code: error.code, uncertain };
     }
   });
+  if(result.ok || result.code!=="PROVIDER_BUSY") return result;
+  await ctx.sleep(250);
+  }
+  return {ok:false,code:"ROOT_LIMIT",uncertain:false};
 }
 
 async function awaitAuthority(ctx: restate.WorkflowContext, pool: Pool, taskId: string, label: string): Promise<Execution | TaskOutcome> {
@@ -131,7 +142,7 @@ async function buildSnapshot(pool: Pool, taskId: string, step: number, working: 
 function failed(result: { code: string; uncertain: boolean }): TaskOutcome {
   if (result.uncertain) return { state: "uncertain", errorCode: result.code };
   if (result.code === "TASK_CANCELLED") return { state: "cancelled" };
-  if (["ROOT_LIMIT", "TASK_DEADLINE", "CONTEXT_LIMIT", "COMPACTION_INPUT_LIMIT"].includes(result.code)) return { state: "incomplete", errorCode: result.code };
+  if (["ROOT_LIMIT", "TASK_DEADLINE", "CONTEXT_LIMIT", "COMPACTION_INPUT_LIMIT", "TOOL_RESULT_LIMIT"].includes(result.code)) return { state: "incomplete", errorCode: result.code };
   return { state: "failed", errorCode: result.code };
 }
 
@@ -142,15 +153,17 @@ export function createBusinessWorkflow(pool: Pool, options: BusinessOptions) {
       const taskId = input.taskId;
       await ctx.run("bind-invocation", async () => {
         const updated = await pool.query(`UPDATE agents_platform.tasks SET runtime_invocation_id=$2 WHERE id=$1
-          AND harness_release='core-harness-v1' AND (runtime_invocation_id IS NULL OR runtime_invocation_id=$2)`, [taskId, ctx.request().id]);
+          AND harness_release='delegated-analysis-v1' AND (runtime_invocation_id IS NULL OR runtime_invocation_id=$2)`, [taskId, ctx.request().id]);
         if (!updated.rowCount) throw new restate.TerminalError("Runtime identity mismatch", { errorCode: 409 });
       });
       let outcome: TaskOutcome = { state: "incomplete", errorCode: "ROOT_LIMIT" };
       let working: ContextGroup[] = [], summary: ContextSource | undefined, omitted: string[] = [], knownGeneration: number | undefined, knownExpiry: number | undefined;
+      let partialChildren=false;
       try {
         // Durable ordered waits release the worker. PostgreSQL only selects the predecessor; it does not advance the loop.
         const predecessor = await ctx.run("conversation-order", async () => {
           const { task } = await loadExecution(pool, taskId);
+          if(task.parent_task_id) return undefined;
           return (await pool.query("SELECT id FROM agents_platform.tasks WHERE conversation_id=$1 AND turn_sequence<$2 ORDER BY turn_sequence DESC LIMIT 1",
             [task.conversation_id, task.turn_sequence])).rows[0]?.id as string | undefined;
         });
@@ -173,6 +186,7 @@ export function createBusinessWorkflow(pool: Pool, options: BusinessOptions) {
           const execution = await awaitAuthority(ctx, pool, taskId, `authority:${step}`);
           if (!("configuration" in execution)) return execution;
           const config = execution.configuration;
+          assertPublishedTools(config,execution.toolBindings);
           const contextResult = await ctx.run(`context:${step}`, async () => {
             try { return { ok: true as const, value: await buildSnapshot(pool, taskId, step, working, summary, omitted, knownGeneration, knownExpiry) }; }
             catch(error) { if(error instanceof PlatformError || error instanceof ModelOperationError) return {ok:false as const,code:error.code}; throw error; }
@@ -226,27 +240,63 @@ export function createBusinessWorkflow(pool: Pool, options: BusinessOptions) {
           }
           const response = generated.value;
           if (response.finishReason !== "tool_calls") {
-            outcome = { state: response.finishReason === "stop" ? "completed" : response.finishReason === "refusal" ? "refused" : "incomplete",
-              output: response.message.content ?? undefined, ...(response.finishReason === "length" ? { errorCode: "MODEL_OUTPUT_LIMIT" } : {}) }; break;
+            outcome = { state: response.finishReason === "stop" ? (partialChildren?"incomplete":"completed") : response.finishReason === "refusal" ? "refused" : "incomplete",
+              output: response.message.content ?? undefined, ...(response.finishReason === "length" ? { errorCode: "MODEL_OUTPUT_LIMIT" } : partialChildren?{errorCode:"CHILD_PARTIAL_FAILURE"}:{}) }; break;
           }
           const messages: HarnessMessage[] = [response.message];
           let stop = false, refreshContext = false;
           for (let callIndex = 0; callIndex < response.message.tool_calls!.length; callIndex++) {
             const call = response.message.tool_calls![callIndex]!, name = call.function.name.replaceAll("_", "."), id = `tool:${taskId}:${step}:${callIndex}`;
+            const descriptor=toolDescriptor(name);
             let result: Result<unknown> = { ok: false, code: "GRANT_INACTIVE", uncertain: false };
             for (let retry = 0; retry < 8; retry++) {
               const authorized = await awaitAuthority(ctx,pool,taskId,`tool-authority:${step}:${callIndex}:${retry}`);
               if (!("configuration" in authorized)) { outcome=authorized; stop=true; break; }
-              result = await operation<unknown>(ctx, pool, taskId, { id, kind: "tool", name,
-                request: { tool: name, arguments: call.function.arguments, version: "1" }, reservedTokens: 0, reservedMs: 30_000,
-                retrySafe: true, memoryFence: snapshot.memoryFence }, async () => ({ value: await executeTool(pool, taskId, id, name, call.function.arguments), tokens: 0 }), `${id}:admission:${retry}`);
+              result = await operation<unknown>(ctx, pool, taskId, { id, kind: descriptor?.effect==="delegation"?"delegation":descriptor?.effect==="resource"?"resource":"tool", name,
+                request: { tool: name, arguments: call.function.arguments, version: descriptor?.version??"1" }, reservedTokens: 0, reservedMs: descriptor?.maxDurationMs??30000,
+                retrySafe: descriptor?.retry!=="adapter_reconcile",reconcile:descriptor?.retry==="adapter_reconcile", maxResultBytes:descriptor?.maxResultBytes??8192,memoryFence: snapshot.memoryFence }, async () => {
+                  if(!config.tools.includes(name as typeof config.tools[number]) || !descriptor) throw new PlatformError("TOOL_DENIED",403,"Tool is unavailable");
+                  let args:unknown; try{args=JSON.parse(call.function.arguments);}catch{throw new PlatformError("TOOL_ARGUMENTS_INVALID",400,"Tool arguments must be JSON");}
+                  if(name==="agents.delegate") return {value:await admitChildren(pool,taskId,id,args),tokens:0};
+                  if(name==="sandbox.analyze") {
+                    if(!config.capabilities.sandbox.enabled || !options.executeSandbox) throw new PlatformError("SANDBOX_UNAVAILABLE",503,"Analysis is unavailable");
+                    const parsed=z.strictObject({code:z.string().min(1).max(16384),inputArtifactIds:z.array(z.uuid()).max(32).optional()}).safeParse(args);
+                    if(!parsed.success) throw new PlatformError("TOOL_ARGUMENTS_INVALID",400,"Check the analysis arguments");
+                    const value=await options.executeSandbox(taskId,id,parsed.data);
+                    if(value && typeof value==="object" && "state" in value && value.state==="uncertain") throw new ModelOperationError("SANDBOX_OUTCOME_UNCERTAIN","uncertain");
+                    return {value,tokens:0};
+                  }
+                  return {value:await executeTool(pool, taskId, id, name, call.function.arguments),tokens:0};
+                }, `${id}:admission:${retry}`);
               if (result.ok || result.code !== "AUTHORITY_EXPIRED") break;
             }
             if(stop) break;
+            if(result.ok && name==="agents.delegate") {
+              const children=result.value as DelegatedChild[];
+              await ctx.run(`children-wait:${step}:${callIndex}`,()=>pool.query("UPDATE agents_platform.tasks SET state='waiting_children',updated_at=now() WHERE id=$1 AND state='running'",[taskId]).then(()=>undefined));
+              const pending=children.map(child=>ctx.workflowClient<{run:(ctx:restate.WorkflowContext,input:{taskId:string})=>Promise<TaskOutcome>}>({name:WORKFLOW_NAME},child.taskId).run({taskId:child.taskId}));
+              for(const [index,invocation] of pending.entries()) {
+                try{await invocation;}catch(error){
+                  if(!(error instanceof restate.TerminalError)) throw error;
+                  await ctx.run(`child-terminal:${children[index]!.taskId}`,()=>settleTask(pool,children[index]!.taskId,{state:error.code===409?"cancelled":"uncertain",errorCode:"CHILD_RUNTIME_TERMINAL"}));
+                }
+              }
+              const authorized=await awaitAuthority(ctx,pool,taskId,`children-result-authority:${step}:${callIndex}`);
+              if(!("configuration" in authorized)){outcome=authorized;stop=true;break;}
+              const joined=await ctx.run(`children-result:${step}:${callIndex}`,async()=>{
+                try{return {ok:true as const,value:await readChildResults(pool,taskId,children)};}catch(error){if(error instanceof PlatformError)return {ok:false as const,code:error.code};throw error;}
+              });
+              if(!joined.ok) throw new PlatformError(joined.code,403,"Specialist results are unavailable");
+              if(joined.value.children.some(child=>child.state==="uncertain")) {outcome={state:"uncertain",errorCode:"CHILD_OUTCOME_UNCERTAIN"};stop=true;break;}
+              partialChildren ||= joined.value.partial;
+              result={ok:true,value:joined.value};
+              await ctx.run(`children-resume:${step}:${callIndex}`,()=>pool.query("UPDATE agents_platform.tasks SET state='running',updated_at=now() WHERE id=$1 AND state='waiting_children'",[taskId]).then(()=>undefined));
+            }
             if(!result.ok && result.code==="CONTEXT_INVALIDATED") { refreshContext=true; break; }
             if (!result.ok && (result.uncertain || ["TASK_CANCELLED", "GRANT_REVOKED", "MEMBERSHIP_INACTIVE", "ROOT_LIMIT", "AUTHORITY_EXPIRED"].includes(result.code))) {
               outcome = failed(result); stop = true; break;
             }
+            if(result.ok && Buffer.byteLength(JSON.stringify(result.value))>(descriptor?.maxResultBytes??8192)) {outcome={state:"incomplete",errorCode:"TOOL_RESULT_LIMIT"};stop=true;break;}
             messages.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify(result.ok ? result.value : { error: result.code }) });
           }
           if (stop) break;

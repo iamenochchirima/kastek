@@ -7,7 +7,8 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createBusinessWorkflow, retrieveFaqKnowledge } from "../src/platform/business";
 import { defaultFaqConfiguration, terminalTaskStates, type AgentConfiguration, type AdmissionAuthority, type ExecutionGrant } from "../src/platform/contracts";
 import { dispatchTasksOnce } from "../src/platform/dispatcher";
-import { beginOperation, finishOperation, settleTask } from "../src/platform/execution";
+import { beginOperation, finishOperation, settleTask, requestTreeCancellation, reconcilePendingRoots } from "../src/platform/execution";
+import { admitChildren } from "../src/platform/delegation";
 import { MemoryStore } from "../src/platform/memory";
 import { setupPlatformSchema } from "../src/platform/setup";
 import { PlatformStore } from "../src/platform/store";
@@ -105,6 +106,119 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     const candidate = await memory.proposeManaged(f.managed, { operationId: randomUUID(), kind: "semantic", content, expiresAt });
     return memory.mutate(f.managed, candidate.id, { operationId: randomUUID(), expectedRevision: candidate.revision, action: "accept" });
   }
+  async function researchFixture(enableMemory=false) {
+    const f=await fixture(); await settleTask(pool,f.task.id,{state:"cancelled"});
+    const versions=[];
+    for(const name of ["FIRST","SECOND"]) {
+      const agent=await store.createAgent({accountId:f.account.id,organizationId:f.org.id,name,configuration:{...defaultFaqConfiguration(),instructions:`SPECIALIST_${name}: Answer from the provided source.`,knowledgeIds:[f.source.id],tools:["knowledge.search","knowledge.read"]}});
+      versions.push(await store.createVersion({accountId:f.account.id,organizationId:f.org.id,agentId:agent.id,expectedRevision:1}));
+    }
+    const config:AgentConfiguration={...defaultFaqConfiguration(),instructions:"ROOT_RESEARCH: Delegate work to both approved specialists, then synthesize their confirmed evidence.",memory:{enabled:enableMemory},knowledgeIds:[f.source.id],tools:["agents.delegate"],
+      capabilities:{...defaultFaqConfiguration().capabilities,delegation:{enabled:true,maxChildren:2,maxDepth:1,bindings:versions.map((version,index)=>({id:index===0?"first":"second",versionId:version.id,knowledgeIds:[f.source.id],tools:["knowledge.search"],maxTokens:8000,maxActiveMs:240000}))}}};
+    const agent=await store.createAgent({accountId:f.account.id,organizationId:f.org.id,name:"Research",configuration:config});
+    const version=await store.createVersion({accountId:f.account.id,organizationId:f.org.id,agentId:agent.id,expectedRevision:1});
+    const authority={...f.request.authority,resourceId:agent.id};
+    const grant:ExecutionGrant={...f.grant,...authority,id:randomUUID(),versionId:version.id,operations:["model.reply","knowledge.read","delegation.execute",...(enableMemory?["memory.read" as const,"memory.propose" as const]:[])]};
+    await store.createGrant({accountId:f.account.id,grant});
+    const request={...f.request,authority,grantId:grant.id,versionId:version.id,requestKey:randomUUID(),input:"Research our opening hours using both specialists"};
+    const {task}=await store.admitTask(request);
+    return {...f,task,request,grant,agent,version,config,versions,managed:{...f.managed,agentId:agent.id},scoped:{...f.scoped,agentId:agent.id}};
+  }
+  const childRequests={requests:[{bindingId:"first",brief:"Read the approved source and identify opening hours."},{bindingId:"second",brief:"Independently verify opening hours from your approved source."}]};
+  function researchProvider() {
+    provider=async body=>body.messages[0].content.startsWith("ROOT_RESEARCH") ?
+      body.messages.some((message:any)=>message.role==="tool") ? reply("Both approved specialists confirm opening at nine.") : reply("","tool_calls",[tool("agents_delegate",childRequests)]) : reply("Approved source says open at nine.");
+  }
+  it("runs two pinned business specialists concurrently and charges the root tree exactly once",async()=>{
+    const f=await researchFixture(); researchProvider();
+    expect(await execute(f.task.id)).toMatchObject({state:"completed",output:"Both approved specialists confirm opening at nine."});
+    expect(calls).toHaveLength(4);
+    const children=(await pool.query("SELECT * FROM agents_platform.tasks WHERE parent_task_id=$1 ORDER BY id",[f.task.id])).rows;
+    expect(children).toHaveLength(2);
+    expect(children.every(child=>child.root_task_id===f.task.id&&child.depth===1&&child.state==="completed"&&child.allocation_released)).toBe(true);
+    expect(children.every(child=>child.conversation_id!==f.task.conversation_id&&child.effective_configuration.memory.enabled===false)).toBe(true);
+    expect((await pool.query("SELECT count(*)::int AS count FROM agents_platform.usage_reservations WHERE task_id=ANY($1::uuid[])",[children.map(child=>child.id)])).rows[0].count).toBe(0);
+    expect((await pool.query("SELECT accounted_tokens FROM agents_platform.usage_ledger WHERE task_id=$1",[f.task.id])).rows[0].accounted_tokens).toBe(224);
+    const aggregate=(await pool.query("SELECT tokens_used,tokens_reserved,child_reserved_tokens,model_calls FROM agents_platform.execution_roots WHERE root_task_id=$1",[f.task.id])).rows[0];
+    expect(aggregate).toEqual({tokens_used:224,tokens_reserved:0,child_reserved_tokens:0,model_calls:4});
+    const resultMessage=calls.find(call=>call.messages[0]!.content?.startsWith("ROOT_RESEARCH")&&call.messages.some(message=>message.role==="tool"))!.messages.find(message=>message.role==="tool")!;
+    expect(JSON.parse(resultMessage.content!).children.map((child:any)=>child.bindingId)).toEqual(["first","second"]);
+  },30000);
+  it("recovers stable child slots after repeated admission and children do not consume root admission slots",async()=>{
+    const f=await researchFixture(); const operationId=`delegation:${randomUUID()}`;
+    const first=await admitChildren(pool,f.task.id,operationId,childRequests);
+    expect(await admitChildren(pool,f.task.id,operationId,childRequests)).toEqual(first);
+    await expect(admitChildren(pool,f.task.id,operationId,{requests:[{...childRequests.requests[0],brief:"changed"}]})).rejects.toMatchObject({code:"OPERATION_CONFLICT"});
+    const another=await store.admitTask({...f.request,requestKey:randomUUID(),input:"Second independent root"});
+    expect(another.task.parent_task_id).toBeNull();
+    await expect(store.admitTask({...f.request,requestKey:randomUUID(),input:"Third independent root"})).rejects.toMatchObject({code:"CONCURRENCY_LIMIT"});
+    await requestTreeCancellation(pool,f.task.id); await settleTask(pool,f.task.id,{state:"cancelled"});
+    expect((await pool.query("SELECT disposition FROM agents_platform.tasks WHERE id=$1",[f.task.id])).rows[0].disposition).toBe("pending_children");
+    for(const child of first) await settleTask(pool,child.taskId,{state:"cancelled"});
+    await reconcilePendingRoots(pool); await settleTask(pool,another.task.id,{state:"cancelled"});
+    expect((await pool.query("SELECT state FROM agents_platform.tasks WHERE id=$1",[f.task.id])).rows[0].state).toBe("cancelled");
+  },30000);
+  it("does not inherit parent memory or unbound specialist tools",async()=>{
+    const f=await researchFixture(true); await acceptedMemory(f,"Private parent marker secret-language-preference.");researchProvider();
+    expect((await execute(f.task.id)).state).toBe("completed");
+    const specialistCalls=calls.filter(call=>call.messages[0]!.content?.startsWith("SPECIALIST"));expect(specialistCalls).toHaveLength(2);
+    for(const call of specialistCalls){expect(JSON.stringify(call.messages)).not.toContain("secret-language-preference");expect(call.tools!.map(tool=>tool.function.name)).toEqual(["knowledge_search"]);}
+  },30000);
+  it("denies forbidden bindings, scope expansion and grandchildren before allocating work",async()=>{
+    const f=await researchFixture();
+    await expect(admitChildren(pool,f.task.id,randomUUID(),{requests:[{bindingId:"forbidden",brief:"work"}]})).rejects.toMatchObject({code:"DELEGATION_BINDING_DENIED"});
+    await expect(admitChildren(pool,f.task.id,randomUUID(),{requests:[{bindingId:"first",brief:"work",maxTokens:9000}]})).rejects.toMatchObject({code:"DELEGATION_SCOPE_DENIED"});
+    const children=await admitChildren(pool,f.task.id,randomUUID(),childRequests);
+    await expect(admitChildren(pool,children[0]!.taskId,randomUUID(),childRequests)).rejects.toMatchObject({code:"DELEGATION_DENIED"});
+    await requestTreeCancellation(pool,f.task.id);for(const child of children)await settleTask(pool,child.taskId,{state:"cancelled"});await settleTask(pool,f.task.id,{state:"cancelled"});
+  },30000);
+  it("rechecks current root authority before every delegated model operation",async()=>{
+    const f=await researchFixture();const children=await admitChildren(pool,f.task.id,randomUUID(),childRequests);
+    await pool.query("UPDATE agents_platform.execution_grants SET revoked_at=now() WHERE id=$1",[f.grant.id]);
+    await expect(beginOperation(pool,children[0]!.taskId,{id:randomUUID(),kind:"model",name:"model.generate",request:{},reservedTokens:1000,reservedMs:1000})).rejects.toMatchObject({code:"GRANT_REVOKED"});
+    expect((await pool.query("SELECT model_calls FROM agents_platform.execution_roots WHERE root_task_id=$1",[f.task.id])).rows[0].model_calls).toBe(0);
+    await requestTreeCancellation(pool,f.task.id);for(const child of children)await settleTask(pool,child.taskId,{state:"cancelled"});await settleTask(pool,f.task.id,{state:"cancelled"});
+  },30000);
+  it("stops the whole tree after an uncertain child instead of delegating replacement work",async()=>{
+    const f=await researchFixture();researchProvider();const normal=provider;
+    provider=async(body,request)=>{if(body.messages[0].content.startsWith("SPECIALIST_FIRST"))throw new TypeError("unknown specialist response");return normal(body,request);};
+    expect(await execute(f.task.id)).toMatchObject({state:"uncertain",error_code:"CHILD_OUTCOME_UNCERTAIN"});
+    expect(calls).toHaveLength(3);
+    expect((await pool.query("SELECT count(*)::int AS count FROM agents_platform.delegations WHERE parent_task_id=$1",[f.task.id])).rows[0].count).toBe(2);
+    expect(calls.filter(call=>call.messages[0]!.content?.startsWith("ROOT_RESEARCH"))).toHaveLength(1);
+  },30000);
+  it("lets two roots join four specialists under two shared provider slots without deadlock",async()=>{
+    const f=await researchFixture();const second=await store.admitTask({...f.request,requestKey:randomUUID(),input:"Second research root"});researchProvider();const normal=provider;
+    let active=0,peak=0;
+    provider=async(body,request)=>{
+      if(body.messages[0].content.startsWith("SPECIALIST")){active++;peak=Math.max(peak,active);try{await new Promise(resolve=>setTimeout(resolve,350));return await normal(body,request);}finally{active--;}}
+      return normal(body,request);
+    };
+    const outcomes=await Promise.all([execute(f.task.id),execute(second.task.id)]);
+    expect(outcomes.map(task=>task.state)).toEqual(["completed","completed"]);expect(peak).toBe(2);expect(calls).toHaveLength(8);
+    const children=(await pool.query("SELECT root_task_id,count(*)::int AS count FROM agents_platform.tasks WHERE parent_task_id=ANY($1::uuid[]) GROUP BY root_task_id",[[f.task.id,second.task.id]])).rows;
+    expect(children).toHaveLength(2);expect(children.every(row=>row.count===2)).toBe(true);
+    expect((await pool.query("SELECT count(*)::int AS count FROM agents_platform.operations WHERE error_code='PROVIDER_BUSY' AND task_id IN (SELECT id FROM agents_platform.tasks WHERE root_task_id=ANY($1::uuid[]))",[[f.task.id,second.task.id]])).rows[0].count).toBe(0);
+  },30000);
+  it("reports specialist failure as partial completion instead of trusting an optimistic parent answer",async()=>{
+    const f=await researchFixture(); researchProvider(); const normal=provider;
+    provider=async(body,request)=>body.messages[0].content.startsWith("SPECIALIST_FIRST")?new Response("rejected",{status:400}):normal(body,request);
+    expect(await execute(f.task.id)).toMatchObject({state:"incomplete",error_code:"CHILD_PARTIAL_FAILURE"});
+    expect((await pool.query("SELECT state FROM agents_platform.tasks WHERE parent_task_id=$1 ORDER BY state",[f.task.id])).rows.map(row=>row.state)).toEqual(["completed","failed"]);
+  },30000);
+  it("cascades cancellation and retains root settlement until both child effects are accounted for",async()=>{
+    const f=await researchFixture(); researchProvider(); const normal=provider;
+    provider=async(body,request)=>{
+      if(body.messages[0].content.startsWith("SPECIALIST")) await new Promise<void>((_resolve,reject)=>request.signal?.addEventListener("abort",()=>reject(new Error("child transport cancelled")),{once:true}));
+      return normal(body,request);
+    };
+    await dispatchTasksOnce(pool,{ingressUrl,adminUrl}); await eventually(async()=>calls.length===3);
+    await requestTreeCancellation(pool,f.task.id);
+    const task=await eventually(async()=>{await dispatchTasksOnce(pool,{ingressUrl,adminUrl});const row=(await pool.query("SELECT * FROM agents_platform.tasks WHERE id=$1",[f.task.id])).rows[0];return terminalTaskStates.has(row.state)?row:false;});
+    expect(task.state).toBe("uncertain"); expect(task.disposition).toBe("settled"); expect(calls).toHaveLength(3);
+    expect((await pool.query("SELECT count(*)::int AS count FROM agents_platform.tasks WHERE parent_task_id=$1 AND state NOT IN ('completed','incomplete','refused','failed','cancelled','uncertain')",[f.task.id])).rows[0].count).toBe(0);
+    expect((await pool.query("SELECT reserved_tokens FROM agents_platform.usage_accounts WHERE organization_id=$1",[f.org.id])).rows[0].reserved_tokens).toBe(0);
+  },30000);
   it("runs minimal FAQ through common operations/snapshots and settles once", async () => {
     const f = await fixture();
     expect(await execute(f.task.id)).toMatchObject({ state: "completed", output: "Open at nine.", turn_sequence: "1" });
@@ -286,7 +400,7 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     const replacement = { ...f.grant, id: randomUUID(), expiresAt: new Date(Date.now() + 300_000).toISOString() };
     await store.createGrant({ accountId: f.account.id, grant: replacement });
     await pool.query("UPDATE agents_platform.tasks SET grant_id=$2,control_generation=control_generation+1 WHERE id=$1", [f.task.id, replacement.id]);
-    const resumed = await fetch(`${ingressUrl}/AgentsBusinessRunV1/${f.task.id}/resume`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ generation: 0 }) });
+    const resumed = await fetch(`${ingressUrl}/AgentsBusinessRunV2/${f.task.id}/resume`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ generation: 0 }) });
     expect(resumed.ok, await resumed.text()).toBe(true);
     expect(await execute(f.task.id)).toMatchObject({ state: "completed", output: "The confirmed opening time is nine." });
     expect(calls).toHaveLength(2);
@@ -334,7 +448,7 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
       const replacement = { ...f.grant, id: randomUUID(), expiresAt: new Date(Date.now() + 300_000).toISOString() };
       await store.createGrant({ accountId: f.account.id, grant: replacement });
       await pool.query("UPDATE agents_platform.tasks SET grant_id=$2,control_generation=control_generation+1 WHERE id=$1", [next.task.id, replacement.id]);
-      const resumed = await fetch(`${ingressUrl}/AgentsBusinessRunV1/${next.task.id}/resume`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ generation: 0 }) });
+      const resumed = await fetch(`${ingressUrl}/AgentsBusinessRunV2/${next.task.id}/resume`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ generation: 0 }) });
       expect(resumed.ok, await resumed.text()).toBe(true);
       expect((await execute(next.task.id)).state).toBe("completed");
       expect(calls.filter(call => call.messages[0]!.content?.startsWith("Summarize"))).toHaveLength(1);

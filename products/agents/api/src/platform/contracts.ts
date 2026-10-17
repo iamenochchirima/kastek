@@ -23,9 +23,18 @@ export const modelSchema = z.strictObject({
 });
 
 const unavailableCapability = z.strictObject({ enabled: z.literal(false) });
+export const baseToolNameSchema = z.enum(["knowledge.search", "knowledge.read", "memory.search", "memory.propose"]);
+export const toolNameSchema = z.enum(["knowledge.search", "knowledge.read", "memory.search", "memory.propose", "agents.delegate", "sandbox.analyze"]);
+export const delegationBindingSchema = z.strictObject({
+  id: z.string().regex(/^[A-Za-z0-9_-]{1,64}$/), versionId: z.uuid(), knowledgeIds: z.array(z.uuid()).max(20),
+  tools: z.array(z.enum(["knowledge.search", "knowledge.read"])).max(2),
+  maxTokens: z.number().int().min(2048).max(12000), maxActiveMs: z.number().int().min(1000).max(300000),
+});
 export const faqCapabilitiesSchema = z.strictObject({
-  delegation: unavailableCapability,
-  sandbox: unavailableCapability,
+  delegation: z.discriminatedUnion("enabled", [unavailableCapability, z.strictObject({ enabled: z.literal(true),
+    bindings: z.array(delegationBindingSchema).min(1).max(2).refine(bindings => new Set(bindings.map(binding => binding.id)).size === bindings.length, "Duplicate specialist binding"),
+    maxChildren: z.literal(2), maxDepth: z.literal(1) })]),
+  sandbox: z.discriminatedUnion("enabled", [unavailableCapability, z.strictObject({ enabled: z.literal(true), profileId: z.literal("python-analysis-v1") })]),
   businessActions: unavailableCapability,
   workflows: unavailableCapability,
   schedules: unavailableCapability,
@@ -40,7 +49,7 @@ export const agentConfigurationSchema = z.strictObject({
   memory: z.strictObject({ enabled: z.boolean() }).default({ enabled: false }),
   context: z.strictObject({ maxInputTokens: z.number().int().min(2048).max(8192),
     compactAtTokens: z.number().int().min(1024).max(6144) }).default({ maxInputTokens: 8192, compactAtTokens: 6144 }),
-  tools: z.array(z.enum(["knowledge.search", "knowledge.read", "memory.search", "memory.propose"])).max(4).default([]),
+  tools: z.array(toolNameSchema).max(6).refine(tools => new Set(tools).size === tools.length, "Duplicate tool").default([]),
   skillIds: z.array(z.uuid()).max(8).default([]),
 });
 export type AgentConfiguration = z.infer<typeof agentConfigurationSchema>;
@@ -71,14 +80,15 @@ export class PlatformError extends Error {
 }
 
 export const taskStateSchema = z.enum([
-  "accepted", "running", "waiting_authority", "cancel_requested", "completed", "incomplete", "refused", "failed", "cancelled", "uncertain",
+  "accepted", "running", "waiting_children", "waiting_authority", "cancel_requested", "completed", "incomplete", "refused", "failed", "cancelled", "uncertain",
 ]);
 export type TaskState = z.infer<typeof taskStateSchema>;
 export const terminalTaskStates: ReadonlySet<TaskState> = new Set(["completed", "incomplete", "refused", "failed", "cancelled", "uncertain"]);
 
 const transitions: Record<TaskState, ReadonlySet<TaskState>> = {
   accepted: new Set(["running", "waiting_authority", "cancel_requested", "incomplete", "refused", "uncertain", "failed", "cancelled"]),
-  running: new Set(["waiting_authority", "cancel_requested", "completed", "incomplete", "refused", "failed", "cancelled", "uncertain"]),
+  running: new Set(["waiting_children", "waiting_authority", "cancel_requested", "completed", "incomplete", "refused", "failed", "cancelled", "uncertain"]),
+  waiting_children: new Set(["running", "waiting_authority", "cancel_requested", "completed", "incomplete", "failed", "cancelled", "uncertain"]),
   waiting_authority: new Set(["running", "cancel_requested", "failed", "cancelled"]),
   cancel_requested: new Set(["completed", "incomplete", "refused", "failed", "cancelled", "uncertain"]),
   completed: new Set(), incomplete: new Set(), refused: new Set(), failed: new Set(), cancelled: new Set(), uncertain: new Set(),
@@ -105,7 +115,7 @@ export const executionGrantSchema = z.strictObject({
   callerClientId: z.string().min(1).max(128),
   principal: principalSchema,
   versionId: z.uuid(),
-  operations: z.array(z.enum(["knowledge.read", "model.reply", "memory.read", "memory.propose"])).min(1).max(4),
+  operations: z.array(z.enum(["knowledge.read", "model.reply", "memory.read", "memory.propose", "delegation.execute", "sandbox.execute", "artifact.read", "artifact.write"])).min(1).max(8),
   knowledgeIds: z.array(z.uuid()).max(20),
   maxInputBytes: z.number().int().positive().max(initialLimits.maxInputBytes),
   maxOutputTokens: z.number().int().positive().max(initialLimits.maxOutputTokens),
@@ -140,6 +150,8 @@ export function assertGrantAuthority(
       configuration.knowledgeIds.some((id) => !grant.knowledgeIds.includes(id)) ||
       configuration.model.maxInputBytes > grant.maxInputBytes || configuration.model.maxOutputTokens > grant.maxOutputTokens ||
       configuration.context.maxInputTokens > grant.maxContextTokens ||
+      (configuration.capabilities.delegation.enabled && !grant.operations.includes("delegation.execute")) ||
+      (configuration.capabilities.sandbox.enabled && (!grant.operations.includes("sandbox.execute") || !grant.operations.includes("artifact.read") || !grant.operations.includes("artifact.write"))) ||
       (configuration.memory.enabled && (!grant.operations.includes("memory.read") || !grant.operations.includes("memory.propose")))) {
     throw new PlatformError("GRANT_CAPABILITY_DENIED", 403, "Execution exceeds the authorized capabilities or limits");
   }
@@ -148,6 +160,10 @@ export function assertGrantAuthority(
 export function assertRuntimeAvailable(configuration: AgentConfiguration): void {
   if (configuration.executionKind === "workspace") {
     throw new PlatformError("RUNTIME_UNAVAILABLE", 503, "Workspace execution is unavailable");
+  }
+  if ((configuration.tools.includes("agents.delegate") && !configuration.capabilities.delegation.enabled) ||
+      (configuration.tools.includes("sandbox.analyze") && !configuration.capabilities.sandbox.enabled)) {
+    throw new PlatformError("CAPABILITY_DENIED",403,"Tool requires its published capability");
   }
 }
 

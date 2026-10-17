@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { Pool } from "pg";
-import { settleTask, WORKFLOW_NAME, HARNESS_RELEASE } from "./execution";
+import { settleTask, reconcilePendingRoots, WORKFLOW_NAME, HARNESS_RELEASE } from "./execution";
 
 export interface DispatcherOptions {
   ingressUrl: string;
@@ -18,7 +18,7 @@ export async function dispatchTasksOnce(pool: Pool, options: DispatcherOptions):
   const row = (await pool.query(`WITH candidate AS (
     SELECT o.task_id FROM agents_platform.task_outbox o JOIN agents_platform.tasks t ON t.id=o.task_id
     WHERE o.dispatched_at IS NULL AND o.available_at<=now() AND (o.lease_until IS NULL OR o.lease_until<now())
-      AND t.state IN ('accepted','running','waiting_authority','cancel_requested')
+      AND t.state IN ('accepted','running','waiting_children','waiting_authority','cancel_requested')
     ORDER BY o.created_at FOR UPDATE OF o SKIP LOCKED LIMIT 1
   ) UPDATE agents_platform.task_outbox o SET lease_until=now()+interval '30 seconds',lease_owner=$1,attempts=attempts+1
     FROM candidate c WHERE o.task_id=c.task_id RETURNING o.task_id,o.created_at`, [owner])).rows[0];
@@ -51,6 +51,7 @@ export async function dispatchTasksOnce(pool: Pool, options: DispatcherOptions):
       options.onError?.("RUNTIME_DISPATCH_FAILED");
     }
   }
+  await reconcilePendingRoots(pool);
   const controls = (await pool.query(`SELECT c.task_id,c.generation FROM agents_platform.task_controls c JOIN agents_platform.tasks t ON t.id=c.task_id
     WHERE c.dispatched_at IS NULL AND t.state NOT IN ('completed','incomplete','refused','failed','cancelled','uncertain') LIMIT 10`)).rows;
   for (const control of controls) {
