@@ -9,6 +9,7 @@ import {ConnectionStore} from "../src/platform/connections";
 import {ConnectionVault} from "../src/platform/vault";
 import {setupPlatformSchema} from "../src/platform/setup";
 import {defaultFaqConfiguration,requestDigest,type ExecutionGrant} from "../src/platform/contracts";
+import {admitChildren} from "../src/platform/delegation";
 import {beginOperation} from "../src/platform/execution";
 import type {CapabilityBinding} from "../src/platform/capability-catalog";
 import {assertConnectedBindingDependencies,connectedModelArguments,connectedModelTool} from "../src/platform/connected-tool-schema";
@@ -105,6 +106,25 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
   await pool.query("INSERT INTO agents_platform.connected_reads(operation_id,task_id,organization_id,root_task_id,connection_id,binding_id,request_digest,state) VALUES($1,$2,$3,$2,$4,$5,$6,'started')",[operationId,f.task.id,f.scope.organizationId,f.connection.id,binding.id,requestDigest({bindingId:binding.id,bindingDigest:binding.digest,args})]);
   await expect(executor.execute(f.task.id,operationId,binding,args)).rejects.toMatchObject({code:"CONNECTED_READ_UNCERTAIN"});expect(requests).toHaveLength(0);
   await expect(pool.query("UPDATE agents_platform.connected_reads SET state='started' WHERE operation_id=$1",[operationId])).rejects.toThrow("immutable");
+ });
+
+ it("rejects narrowed specialist MCP bindings at publication and admission before creating child work",async()=>{
+  const f=await fixture(true),remote=f.bindings.find(binding=>binding.transport==="mcp_http")!;
+  const config=defaultFaqConfiguration();config.connectedToolBindingIds=f.bindings.map(binding=>binding.id);config.tools=["agents.delegate"];
+  config.capabilities.delegation={enabled:true,maxChildren:2,maxDepth:1,bindings:[{id:"research",versionId:f.task.version_id,sourceRevisionIds:[],connectedToolBindingIds:[remote.id],tools:[],maxTokens:8000,maxActiveMs:120000}]};
+  const agent=await platform.createAgent({...f.scope,name:"Coordinator",configuration:config});
+  await expect(platform.createVersion({...f.scope,agentId:agent.id,expectedRevision:1})).rejects.toMatchObject({code:"CONNECTED_HANDLE_DEPENDENCY"});
+  config.capabilities.delegation.bindings[0]!.connectedToolBindingIds=f.bindings.map(binding=>binding.id);
+  await platform.updateDraft({...f.scope,agentId:agent.id,configuration:config,expectedRevision:1});
+  const version=await platform.createVersion({...f.scope,agentId:agent.id,expectedRevision:2}),account=(await pool.query("SELECT issuer,subject FROM agents_platform.accounts WHERE id=$1",[f.scope.accountId])).rows[0];
+  const authority={product:"agents" as const,organizationId:f.scope.organizationId,resourceId:agent.id,callerClientId:"agents-execution",principal:{kind:"human" as const,issuer:account.issuer,subject:account.subject}};
+  const grant:ExecutionGrant={...f.grant,...authority,id:randomUUID(),versionId:version.id,operations:["model.reply","knowledge.read","connected.read","delegation.execute"]};
+  await platform.createGrant({accountId:f.scope.accountId,grant});
+  const{task}=await platform.admitTask({authority,versionId:version.id,grantId:grant.id,requestKey:randomUUID(),input:"Delegate bounded research"});
+  const operationId=`delegate:${task.id}`,args={requests:[{bindingId:"research",brief:"Read the approved public file",connectedToolBindingIds:[remote.id]}]};
+  await beginOperation(pool,task.id,{id:operationId,kind:"delegation",name:"agents.delegate",request:args,reservedTokens:0,reservedMs:0,retrySafe:true});
+  await expect(admitChildren(pool,task.id,operationId,args)).rejects.toMatchObject({code:"CONNECTED_HANDLE_DEPENDENCY"});
+  expect((await pool.query("SELECT count(*) AS count FROM agents_platform.tasks WHERE parent_task_id=$1",[task.id])).rows[0].count).toBe("0");
  });
 
 });
