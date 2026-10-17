@@ -17,6 +17,7 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
 (databaseUrl?describe:describe.skip)("registered connected executor with actual PostgreSQL, HTTP and private fixture objects",()=>{
  let admin:Pool,pool:Pool,server:Server,platform:PlatformStore,connections:ConnectionStore,executor:ConnectedExecutor,evidence:EvidenceStore;
  let origin:string,requests:string[]=[],isPrivate=false,hang=false;
+ let remoteResult:Record<string,unknown>|undefined;
  const remoteArguments:Record<string,unknown>[]=[];
  const database=`agents_connected_exec_${randomUUID().replaceAll("-","")}`,objects=new Map<string,Uint8Array>();
  const text="Public immutable source content. "+"x".repeat(5000)+" Decisive tail fact.",bytes=Buffer.from(text),blobSha=createHash("sha1").update(`blob ${bytes.length}\0`).update(bytes).digest("hex"),commit="a".repeat(40),tree="b".repeat(40);
@@ -29,7 +30,7 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
     else if(message.method==="initialize")reply({protocolVersion:"2025-11-25",capabilities:{tools:{}},serverInfo:{name:"github-contract-fixture",version:"1"}});
     else if(message.method==="notifications/initialized")res.writeHead(202).end();
     else if(message.method==="tools/list")reply({tools:[{name:"get_file_contents",description:"Read approved file",inputSchema:{type:"object",properties:{owner:{type:"string"},repo:{type:"string"},path:{type:"string"},ref:{type:"string"}},required:["owner","repo","path","ref"],additionalProperties:false}}]});
-    else if(message.method==="tools/call"){remoteArguments.push(message.params.arguments);reply({content:[{type:"text",text}]});}else res.writeHead(400).end("{}");return;
+    else if(message.method==="tools/call"){remoteArguments.push(message.params.arguments);reply(remoteResult??{content:[{type:"text",text:`successfully downloaded text file (SHA: ${blobSha})`},{type:"resource",resource:{uri:`repo://approved/public/sha/${commit}/contents/guide.md`,mimeType:"text/plain; charset=utf-8",text}}]});}else res.writeHead(400).end("{}");return;
    }
 
    if(req.url==="/repos/approved/public")res.end(JSON.stringify({id:1,private:isPrivate,visibility:isPrivate?"private":"public",full_name:"approved/public",description:"Public fixture",default_branch:"main",updated_at:"2026-10-17T00:00:00Z",stargazers_count:1,extra:"Retain full provider body"}));
@@ -43,7 +44,7 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
  });
  afterAll(async()=>{server?.closeAllConnections();if(server)await new Promise<void>(resolve=>server.close(()=>resolve()));await pool?.end();if(admin){await admin.query(`DROP DATABASE IF EXISTS "${database}" WITH(FORCE)`);await admin.end();}});
  async function fixture(withMcp=false){
-  isPrivate=false;hang=false;requests=[];
+  isPrivate=false;hang=false;requests=[];remoteResult=undefined;
   const account=await platform.ensureAccount({issuer:"http://localhost/connected-executor",subject:randomUUID(),email:"owner@example.test",displayName:"Owner"}),org=await platform.createOrganization(account.id,"Connected"),scope={accountId:account.id,organizationId:org.id};
   const connection=await connections.create(scope,{operationId:randomUUID(),name:"GitHub",profileId:"github-public-read-v1",targetId:"provider:github",apiKey:"github_pat_connected_fixture_only",expiresAt:new Date(Date.now()+86400000).toISOString(),selections:[{owner:"approved",repository:"public",ref:"main"}]});
   const catalog=await executor.discover(scope,{operationId:randomUUID(),connectionId:connection.id,expectedRevision:1,transport:"native_http"});
@@ -120,6 +121,40 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
   const attempts=(await pool.query("SELECT phase,state FROM agents_platform.connected_attempts WHERE operation_id=$1 ORDER BY ordinal",[remote.operationId])).rows;
   expect(attempts.filter(row=>row.phase==="read")).toHaveLength(3);expect(attempts.length).toBeLessThanOrEqual(7);expect(attempts.every(row=>row.state==="completed")).toBe(true);
   const before=requests.length;expect(await executor.execute(f.task.id,remote.operationId,remote.binding,remote.args)).toEqual(remote.result);expect(requests).toHaveLength(before);
+  const snapshot=`context:${f.task.id}:0`,payload={messages:[{role:"tool",content:JSON.stringify(remote.result)}]};await pool.query("INSERT INTO agents_platform.context_snapshots(id,task_id,step,digest,payload,history_cutoff) VALUES($1,$2,0,$3,$4,0)",[snapshot,f.task.id,requestDigest(payload),payload]);await evidence.supplyContext(f.task.id,snapshot,[remote.result.evidence.id]);
+  expect((await evidence.validateCitations(f.task.id,`Fact ${remote.result.evidence.citation}`))[0]?.text).toContain("Decisive tail fact");
+  expect(remote.result.content).not.toContain("successfully downloaded");expect(remote.result.observation.provenance).toEqual({kind:"commit_snapshot",commitSha:commit});
+
+ },20000);
+
+ it("preserves declared MCP file error observations and current policy without retrying",async()=>{
+  const f=await fixture(true),revision=await call(f,"resolve_ref",{repository:"approved/public"}),listing=await call(f,"list_tree",{revisionId:(revision.result.handles as any).revisionId}),fileId=(listing.result.handles as any).files[0].fileId;
+  remoteResult={isError:true,content:[{type:"text",text:"file content unavailable"}]};
+  const remote=await call(f,"get_file_contents",{fileId});expect(remote.result).toMatchObject({status:"tool_error",content:"file content unavailable"});expect(remote.result.observation.provenance).toEqual({kind:"timestamped_observation"});
+  const passage=await evidence.readPassage(f.task.id,remote.result.evidence.id);expect(passage.title).toBe("GitHub get_file_contents error");expect(passage.reference.manifest.dependencies.some(dependency=>dependency.kind==="connection")).toBe(true);
+  expect((await pool.query("SELECT count(*)::int AS count FROM agents_platform.evidence_references WHERE operation_id=$1",[remote.operationId])).rows[0].count).toBe(1);
+  const before=requests.length;expect(await executor.execute(f.task.id,remote.operationId,remote.binding,remote.args)).toEqual(remote.result);expect(requests).toHaveLength(before);
+  await connections.mutate(f.scope,f.connection.id,{operationId:randomUUID(),expectedRevision:1},"revoke");
+  await expect(evidence.readPassage(f.task.id,remote.result.evidence.id)).rejects.toMatchObject({code:"EVIDENCE_UNAVAILABLE"});
+ },20000);
+ it.each([
+  ["foreign URI",{type:"resource",resource:{uri:"https://private.test/secret",mimeType:"text/plain",text}},"MCP_FILE_IDENTITY_MISMATCH"],
+  ["different commit",{type:"resource",resource:{uri:`repo://approved/public/sha/${"c".repeat(40)}/contents/guide.md`,mimeType:"text/plain",text}},"MCP_FILE_IDENTITY_MISMATCH"],
+  ["changed text",{type:"resource",resource:{uri:`repo://approved/public/sha/${commit}/contents/guide.md`,mimeType:"text/plain",text:text+"tampered"}},"MCP_FILE_CONTENT_MISMATCH"],
+  ["link",{type:"resource_link",uri:"https://private.test/secret",name:"remote"},"MCP_FILE_LINK_UNSUPPORTED"],
+  ["binary",{type:"resource",resource:{uri:`repo://approved/public/sha/${commit}/contents/guide.md`,mimeType:"application/octet-stream",blob:"c2VjcmV0"}},"MCP_FILE_BINARY_UNSUPPORTED"],
+  ["status only",{type:"text",text:"successfully downloaded file"},"MCP_FILE_UNAVAILABLE"],
+ ] as const)("rejects MCP %s without traversal or published evidence",async(_name,block,errorCode)=>{
+  const f=await fixture(true),revision=await call(f,"resolve_ref",{repository:"approved/public"}),listing=await call(f,"list_tree",{revisionId:(revision.result.handles as any).revisionId}),fileId=(listing.result.handles as any).files[0].fileId;
+  remoteResult={content:[{type:"text",text:"provider status"},block]};
+  const before=requests.length;
+  await expect(call(f,"get_file_contents",{fileId})).rejects.toMatchObject({code:errorCode});
+  expect(requests.slice(before).every(path=>path==="/mcp"||path==="/repos/approved/public")).toBe(true);
+  const binding=f.bindings.find(binding=>binding.definition.providerOperation==="get_file_contents")!,receipt=(await pool.query("SELECT operation_id,state,error_code FROM agents_platform.connected_reads WHERE task_id=$1 AND binding_id=$2",[f.task.id,binding.id])).rows[0];
+  expect(receipt).toMatchObject({state:"failed",error_code:errorCode});const settledRequests=requests.length;
+  await expect(executor.execute(f.task.id,receipt.operation_id,binding,{fileId})).rejects.toMatchObject({code:errorCode});expect(requests).toHaveLength(settledRequests);
+
+  expect((await pool.query("SELECT count(*)::int AS count FROM agents_platform.evidence_references e JOIN agents_platform.operations o ON o.id=e.operation_id WHERE e.task_id=$1 AND o.name=$2",[f.task.id,f.bindings.find(binding=>binding.definition.providerOperation==="get_file_contents")!.alias])).rows[0].count).toBe(0);
  },20000);
 
  it("does not reissue an orphaned durable read claim and preserves its uncertainty receipt",async()=>{

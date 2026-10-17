@@ -1,3 +1,4 @@
+import {githubMcpFileText} from "./github-mcp-file";
 import {writeExecutionObject} from "./execution-objects";
 import {createHash,randomUUID} from "node:crypto";
 import {readFileSync} from "node:fs";
@@ -36,7 +37,7 @@ export class ConnectedExecutor {
  readonly catalogs:ConnectedCatalogStore;
  readonly nativeAdapter;readonly mcpAdapter;
  constructor(readonly pool:Pool,readonly connections:ConnectionStore,readonly objects:PrivateObjectStore,readonly evidence:EvidenceStore,private readonly options:ConnectedExecutorOptions={}){
-  const extension=extname(__filename),files=["connected-executor","connected-tool-schema","connected-network","github-adapter","mcp-adapter","adapter-process","capability-catalog"];
+  const extension=extname(__filename),files=["connected-executor","connected-tool-schema","connected-network","github-adapter","github-mcp-file","mcp-adapter","adapter-process","capability-catalog"];
   const hash=createHash("sha256");for(const file of files)hash.update(file).update(readFileSync(join(__dirname,`${file}${extension}`)));
   const executableDigest=hash.digest("hex");
   this.nativeAdapter=this.registry.register({schemaVersion:1,id:"github-native-read",release:GITHUB_ADAPTER_RELEASE,executableDigest,transports:["native_http"],protocolVersions:[],boundedSchemaValidation:true},this);
@@ -189,7 +190,7 @@ export class ConnectedExecutor {
     const remoteArgs=this.remoteArguments(binding,args,claim.selected,claim.handle);
     const tool:McpTool={name:binding.definition.providerOperation,description:binding.definition.description,inputSchema:binding.definition.inputSchema as Record<string,unknown>,...(binding.definition.outputSchema?{outputSchema:binding.definition.outputSchema as Record<string,unknown>}:{}),schemaDigest:requestDigest({inputSchema:binding.definition.inputSchema,outputSchema:binding.definition.outputSchema})};
     const observation=await callMcpTool({...this.endpoint(claim.credential.authorization,deadlineAt,binding.protocolVersion!),readAttempts:2},tool,remoteArgs,signal,{beforeAttempt:attempt=>before(attempt.phase??"setup"),onAttempt:after});
-    full=observation.rawResult;const allText=Array.isArray(observation.rawResult.content)?observation.rawResult.content.filter((item:any)=>item?.type==="text"&&typeof item.text==="string").map((item:any)=>item.text).join("\n"):observation.text;const visible=prefix(allText.slice(args.offset??0));projection={...visible,resource:githubRepositoryHandle(claim.selected),acquiredAt:new Date().toISOString(),digest:observation.resultDigest,provenance:{kind:"timestamped_observation",...(claim.handle?.kind==="revision"?{requestedCommit:claim.handle.payload.commitSha}:{})},isError:observation.isError};
+    full=observation.rawResult;const allText=binding.definition.providerOperation==="get_file_contents"&&!observation.isError?githubMcpFileText(observation.rawResult,claim.handle!.payload.revision,claim.handle!.payload.file):Array.isArray(observation.rawResult.content)?observation.rawResult.content.filter((item:any)=>item?.type==="text"&&typeof item.text==="string").map((item:any)=>item.text).join("\n"):observation.text;const visible=prefix(allText.slice(args.offset??0));projection={...visible,resource:githubRepositoryHandle(claim.selected),acquiredAt:new Date().toISOString(),digest:observation.resultDigest,provenance:binding.definition.providerOperation==="get_file_contents"&&!observation.isError?{kind:"commit_snapshot",commitSha:claim.handle!.payload.revision.commitSha}:{kind:"timestamped_observation",...(claim.handle?.kind==="revision"?{requestedCommit:claim.handle.payload.commitSha}:{})},isError:observation.isError};
    }
    checkDeadline();
    const body=Buffer.from(JSON.stringify(full));if(body.length>MAX_BODY_BYTES)throw new PlatformError("CONNECTED_BODY_LIMIT",413,"Connected receipt exceeds the private storage limit");
@@ -197,7 +198,7 @@ export class ConnectedExecutor {
    const bodyDigest=textDigest(body),bodyKey=`connected/${claim.execution.task.organization_id}/${claim.execution.task.root_task_id}/${textDigest(operationId)}/${bodyDigest}`;
    await writeExecutionObject(this.pool,this.objects,{taskId,operationId,key:bodyKey,bytes:body,contentType:"application/json"});
    checkDeadline();
-   const passage=await this.evidence.recordConnected(taskId,operationId,{bindingId:binding.id,resource:projection.resource,text:projection.text||"The provider returned an empty read result.",title:`GitHub ${binding.definition.providerOperation}`,acquiredAt:projection.acquiredAt,receiptDigest:bodyDigest});
+   const passage=await this.evidence.recordConnected(taskId,operationId,{bindingId:binding.id,resource:projection.resource,text:projection.text||"The provider returned an empty read result.",title:`GitHub ${binding.definition.providerOperation}${projection.isError?" error":""}`,acquiredAt:projection.acquiredAt,receiptDigest:bodyDigest});
    const result:ConnectedObservation={status:projection.isError?"tool_error":"ok",bindingId:binding.id,operationId,content:passage.text,truncated:projection.truncated,evidence:{id:passage.reference.id,label:passage.label,citation:`[${passage.label}]`,contentDigest:passage.reference.contentDigest},...(projection.handles?{handles:projection.handles}:{}),observation:{digest:projection.digest,acquiredAt:projection.acquiredAt,provenance:projection.provenance}};
    if(Buffer.byteLength(JSON.stringify(result))>8192)throw new PlatformError("CONNECTED_RESULT_LIMIT",413,"Connected observation exceeds its model result limit");
    checkDeadline();
