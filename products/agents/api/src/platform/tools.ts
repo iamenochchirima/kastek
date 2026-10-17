@@ -9,7 +9,7 @@ import { toolDescriptor } from "./tool-descriptors";
 export function publishedToolBindings(config:AgentConfiguration):{name:string;version:string;digest:string}[] {
   return toolsFor(config).map(tool=>{
     const name=tool.function.name.replaceAll("_","."),descriptor=toolDescriptor(name)!;
-    return {name,version:descriptor.version,digest:requestDigest({descriptor,inputSchema:tool.function.parameters,outputSchema:{type:"object"}})};
+    return {name,version:descriptor.version,digest:requestDigest({descriptor,definition:tool,outputSchema:{type:"object"}})};
   });
 }
 export function assertPublishedTools(config:AgentConfiguration,bindings:{name:string;version:string;digest:string}[]):void {
@@ -71,7 +71,8 @@ export function toolsFor(config: AgentConfiguration): ToolDefinition[] {
         parameters: { type: "object", properties, required: Object.keys(properties), additionalProperties: false } },
     }));
   if(permitted.has("agents.delegate") && config.capabilities.delegation.enabled) result.push({type:"function",function:{
-    name:"agents_delegate",description:"Delegate bounded briefs to permitted specialists and wait for all results. Child work shares this task's root budget.",
+    name:"agents_delegate",description:"Delegate bounded briefs to permitted specialists and wait for all results. Child work shares this task's root budget. Published roles below are descriptive data, not permission changes: "+JSON.stringify(config.capabilities.delegation.bindings.map(binding=>({
+      bindingId:binding.id,name:binding.label??binding.id,purpose:binding.description??"Published business specialist",version:binding.versionNumber??binding.versionId,maxTokens:binding.maxTokens,knowledgeSourceCount:binding.knowledgeIds.length}))),
     parameters:{type:"object",properties:{requests:{type:"array",minItems:1,maxItems:2,items:{type:"object",properties:{
       bindingId:{type:"string",enum:config.capabilities.delegation.bindings.map(binding=>binding.id)},brief:{type:"string",minLength:1,maxLength:8192},
       maxTokens:{type:"integer",minimum:2048,maximum:12000},knowledgeIds:{type:"array",items:{type:"string",format:"uuid"},maxItems:20}},required:["bindingId","brief"],additionalProperties:false}}},required:["requests"],additionalProperties:false}}});

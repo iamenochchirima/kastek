@@ -504,7 +504,10 @@ The optional python-analysis-v1 profile runs generated Python inside rootless
 gVisor with no network, using a pinned read-only Python filesystem. A transient
 systemd user service enforces one CPU, 512 MiB memory, no swap and 64 host tasks;
 the guest also enforces process/file bounds. Scratch is limited to 256 MiB,
-commands to 120 seconds and leases to ten minutes or the root deadline. Inputs
+commands to 120 seconds and leases to ten minutes or the root deadline. Each analysis
+operation reserves 240 seconds from the shared root active-time budget for input
+reads, readiness, command execution, export and confirmed destruction. The command
+deadline remains 120 seconds. Inputs
 are explicitly staged, and exports are checked for paths, links, type, count and
 size. No host tool execution, model keys, database credentials or Docker socket
 enter the guest.

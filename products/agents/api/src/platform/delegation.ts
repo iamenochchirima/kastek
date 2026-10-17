@@ -82,7 +82,8 @@ export async function readChildResults(pool:Pool,parentId:string,children:Delega
     const results=[];
     for(const child of [...children].sort((a,b)=>a.slot-b.slot)) {
       const row=(await db.query(`SELECT t.*,d.binding_id FROM agents_platform.tasks t JOIN agents_platform.delegations d ON d.child_task_id=t.id
-        WHERE t.id=$1 AND d.parent_task_id=$2 AND t.root_task_id=$2 AND t.organization_id=$3`,[child.taskId,parentId,parent.task.organization_id])).rows[0];
+        JOIN agents_platform.conversations c ON c.id=t.conversation_id AND c.deleted_at IS NULL
+        WHERE t.id=$1 AND d.parent_task_id=$2 AND t.root_task_id=$2 AND t.organization_id=$3 FOR SHARE OF c`,[child.taskId,parentId,parent.task.organization_id])).rows[0];
       if(!row || !terminalTaskStates.has(row.state)) throw new PlatformError("CHILD_OUTCOME_PENDING",409,"Specialist outcome is not yet available");
       const configuration=agentConfigurationSchema.parse(row.effective_configuration);
       const grant=(await db.query("SELECT knowledge_ids FROM agents_platform.execution_grants WHERE id=$1 AND revoked_at IS NULL",[parent.task.grant_id])).rows[0];

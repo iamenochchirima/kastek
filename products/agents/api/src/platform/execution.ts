@@ -44,6 +44,10 @@ export async function assertCurrentAuthority(db: Pool | PoolClient, execution: E
     const root = await loadExecution(db, task.root_task_id);
     if (root.task.parent_task_id || root.task.organization_id !== task.organization_id || root.task.principal.kind !== "human" || task.depth !== 1) throw new PlatformError("DELEGATION_SCOPE_DENIED",403,"Delegation is unavailable");
     await assertCurrentAuthority(db, root);
+  } else {
+    const sources=(await db.query(`SELECT v.deleted_at FROM agents_platform.tasks c JOIN agents_platform.conversations v ON v.id=c.conversation_id
+      WHERE c.parent_task_id=$1 ORDER BY v.id FOR SHARE OF v`,[task.id])).rows;
+    if(sources.some(source=>source.deleted_at)) throw new PlatformError("CHILD_RESULT_UNAVAILABLE",403,"Specialist source history was deleted");
   }
   const conversation = (await db.query("SELECT deleted_at FROM agents_platform.conversations WHERE id=$1 FOR SHARE", [task.conversation_id])).rows[0];
   if (!conversation || conversation.deleted_at) throw new PlatformError("CONVERSATION_DELETED", 403, "Conversation is unavailable");

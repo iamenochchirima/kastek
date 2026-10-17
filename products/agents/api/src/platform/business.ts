@@ -36,6 +36,7 @@ async function operation<T>(ctx: restate.WorkflowContext, pool: Pool, taskId: st
       }
       claimed = true;
       const result = await perform();
+      if(input.kind==="resource" && Date.now()-new Date(admission.operation.started_at).getTime()>input.reservedMs) throw new ModelOperationError("RESOURCE_TIME_BOUND_EXCEEDED","uncertain");
       if(input.maxResultBytes!==undefined && Buffer.byteLength(JSON.stringify(result.value))>input.maxResultBytes) throw new PlatformError("TOOL_RESULT_LIMIT",413,"Tool result exceeded its published bound");
       if (result.tokens > input.reservedTokens) throw new ModelOperationError("MODEL_ACCOUNTING_BOUND_EXCEEDED", "uncertain");
       await finishOperation(pool, taskId, input.id, "completed", result.value, null, result.tokens);

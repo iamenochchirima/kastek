@@ -27,6 +27,7 @@ export const baseToolNameSchema = z.enum(["knowledge.search", "knowledge.read", 
 export const toolNameSchema = z.enum(["knowledge.search", "knowledge.read", "memory.search", "memory.propose", "agents.delegate", "sandbox.analyze"]);
 export const delegationBindingSchema = z.strictObject({
   id: z.string().regex(/^[A-Za-z0-9_-]{1,64}$/), versionId: z.uuid(), knowledgeIds: z.array(z.uuid()).max(20),
+  label: z.string().min(1).max(120).optional(), description: z.string().max(512).optional(), versionNumber: z.number().int().positive().optional(),
   tools: z.array(z.enum(["knowledge.search", "knowledge.read"])).max(2),
   maxTokens: z.number().int().min(2048).max(12000), maxActiveMs: z.number().int().min(1000).max(300000),
 });

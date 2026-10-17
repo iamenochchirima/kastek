@@ -147,12 +147,17 @@ export class PlatformStore {
       const config = agentConfigurationSchema.parse(agent.draft);
       if (config.capabilities.delegation.enabled) {
         for (const binding of config.capabilities.delegation.bindings) {
-          const child = (await db.query<VersionRecord>("SELECT * FROM agents_platform.agent_versions WHERE organization_id=$1 AND id=$2 FOR SHARE", [input.organizationId,binding.versionId])).rows[0];
+          const child = (await db.query<VersionRecord&{agent_name:string}>(`SELECT v.*,a.name AS agent_name FROM agents_platform.agent_versions v
+            JOIN agents_platform.agents a ON a.organization_id=v.organization_id AND a.id=v.agent_id
+            WHERE v.organization_id=$1 AND v.id=$2 FOR SHARE OF v`, [input.organizationId,binding.versionId])).rows[0];
           if (!child || child.agent_id === agent.id) throw new PlatformError("DELEGATION_BINDING_INVALID",409,"Choose a published specialist from this workspace");
           const childConfig = agentConfigurationSchema.parse(child.configuration);
           if (childConfig.executionKind !== "business" || childConfig.memory.enabled || childConfig.capabilities.delegation.enabled || childConfig.capabilities.sandbox.enabled ||
               binding.knowledgeIds.some(id => !config.knowledgeIds.includes(id) || !childConfig.knowledgeIds.includes(id)) ||
               binding.tools.some(tool => !childConfig.tools.includes(tool))) throw new PlatformError("DELEGATION_BINDING_INVALID",409,"Specialist binding exceeds the published scope");
+          binding.label=child.agent_name;
+          binding.description=Array.from(childConfig.instructions.replace(/\s+/g," ")).slice(0,512).join("");
+          binding.versionNumber=child.number;
         }
       }
       const knowledge = await db.query("SELECT id FROM agents_platform.knowledge_sources WHERE organization_id=$1 AND id=ANY($2::uuid[]) FOR SHARE", [input.organizationId, config.knowledgeIds]);
