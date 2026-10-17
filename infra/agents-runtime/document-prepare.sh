@@ -56,14 +56,24 @@ for name,meta in model['files'].items():
   finally:temporary.unlink(missing_ok=True)
  if path.stat().st_size!=meta['bytes'] or sha(path)!=meta['sha256']:raise SystemExit('Model artifact checksum mismatch: '+name)
 sources=['document-worker.mjs','document-host.py','document-lifecycle.py']
-identity={'name':'document-processing-v1','image':image,'rootfsArtifact':rootfs_artifact,'runscRelease':'20261012.0','runscSHA256':sha(runsc),'runscBundle':runsc_files,'packageLockSHA256':sha(infra/'document-pnpm-lock.yaml'),'model':model,'sources':{name:sha(infra/name) for name in sources},'limits':{'cpu':1,'memoryBytes':536870912,'pids':64,'scratchBytes':268435456,'seconds':60,'rawBytes':10485760,'textBytes':1048576,'pages':200,'chunks':1000,'batch':16,'chunkTokens':384,'overlapTokens':48,'modelTokens':512,'outputBytes':8388608},'embedding':{'tokenizer':'@huggingface/tokenizers@0.2.0','runtime':'onnxruntime-node@1.30.0','pooling':'cls','normalization':'l2','dtype':'float32','dimensions':384,'queryPrefix':'Represent this sentence for searching relevant passages: ','threads':1,'graphOptimization':'all'}}
+def tree(root):
+ result={}
+ for path in sorted(root.rglob('*')):
+  name=str(path.relative_to(root))
+  if name in ['.pnpm-workspace-state-v1.json','.modules.yaml']:continue
+  if path.is_symlink():
+   if not path.resolve().is_relative_to(root.resolve()):raise SystemExit('Runtime dependency link escapes pinned package tree')
+   result[name]={'symlink':os.readlink(path)}
+  elif path.is_file():result[name]={'sha256':sha(path),'bytes':path.stat().st_size}
+  elif path.is_dir():result[name]={'directory':True}
+  else:raise SystemExit('Unsupported runtime artifact')
+ return result
+runtime_artifacts=tree(packages/'node_modules')
+identity={'name':'document-processing-v1','image':image,'rootfsArtifact':rootfs_artifact,'runscRelease':'20261012.0','runscSHA256':sha(runsc),'runscBundle':runsc_files,'packageLockSHA256':sha(infra/'document-pnpm-lock.yaml'),'runtimeArtifacts':runtime_artifacts,'model':model,'sources':{name:sha(infra/name) for name in sources},'limits':{'cpu':1,'memoryBytes':536870912,'pids':64,'scratchBytes':268435456,'seconds':60,'rawBytes':10485760,'textBytes':1048576,'pages':200,'chunks':1000,'batch':16,'chunkTokens':384,'overlapTokens':48,'modelTokens':512,'outputBytes':8388608},'embedding':{'tokenizer':'@huggingface/tokenizers@0.2.0','runtime':'onnxruntime-node@1.30.0','pooling':'cls','normalization':'l2','dtype':'float32','dimensions':384,'queryPrefix':'Represent this sentence for searching relevant passages: ','threads':1,'graphOptimization':'all'}}
 encoded=json.dumps(identity,sort_keys=True,separators=(',',':'),ensure_ascii=False).encode();profilehash=hashlib.sha256(encoded).hexdigest();release='document-processing-v1@'+profilehash;target=cache/'profiles'/profilehash
 if not target.exists():
  temporary=cache/'profiles'/(profilehash+'.preparing');temporary.parent.mkdir(parents=True,exist_ok=True);shutil.rmtree(temporary,ignore_errors=True);temporary.mkdir(mode=0o755);runtime=temporary/'runtime';runtime.mkdir(mode=0o755)
- def link(source,dest):
-  try:os.link(source,dest)
-  except OSError:shutil.copy2(source,dest)
- shutil.copytree(packages/'node_modules',runtime/'node_modules',symlinks=True,copy_function=link)
+ shutil.copytree(packages/'node_modules',runtime/'node_modules',symlinks=True,copy_function=shutil.copy2,ignore=lambda directory,names:[name for name in names if pathlib.Path(directory)==packages/'node_modules' and name in ['.pnpm-workspace-state-v1.json','.modules.yaml']])
  shutil.copy2(infra/'document-worker.mjs',runtime/'document-worker.mjs')
  for name in ['document-host.py','document-lifecycle.py']:shutil.copy2(infra/name,temporary/name)
  manifest={'profileRelease':release,'identity':identity,'rootfs':str(rootfs),'modelDirectory':str(modeldir),'runsc':str(runsc)}

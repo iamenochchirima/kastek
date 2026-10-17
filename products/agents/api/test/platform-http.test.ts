@@ -78,6 +78,13 @@ suite("Agents HTTP and PostgreSQL integration", () => {
       payload: { versionId: f.version.id, allowedOrigins: ["https://shop.example"] } });
   }
 
+  it("rejects the removed direct approval route and scalar configuration authority",async()=>{
+    const user=await actor(),base=`/api/organizations/${user.org}`;
+    expect((await request(`${base}/knowledge`,{cookie:user.cookie})).status).toBe(404);
+    expect((await request(`${base}/knowledge`,{method:"POST",cookie:user.cookie,origin:browserOrigin,payload:{title:"Bypass",content:"Unreviewed data",visibility:"public"}})).status).toBe(404);
+    expect((await request(`${base}/agents`,{method:"POST",cookie:user.cookie,origin:browserOrigin,payload:{name:"Unreviewed",configuration:{...defaultFaqConfiguration(),knowledgeIds:[randomUUID()]}}})).status).toBe(400);
+  });
+
   it("runs authenticated create, configure, test admission and publication with immutable live configuration", async () => {
     const f = await readyAgent();
     const session = await request("/api/session", { cookie: f.cookie });

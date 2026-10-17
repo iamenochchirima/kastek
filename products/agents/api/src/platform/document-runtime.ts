@@ -1,8 +1,8 @@
 import {spawn,execFile} from "node:child_process";
 import {promisify} from "node:util";
-import {readFile,stat} from "node:fs/promises";
+import {readFile,stat,lstat,readdir,readlink,realpath} from "node:fs/promises";
 import {createReadStream} from "node:fs";
-import {join,isAbsolute,dirname} from "node:path";
+import {join,isAbsolute,dirname,relative} from "node:path";
 import {homedir} from "node:os";
 import {createHash,randomUUID} from "node:crypto";
 import {z} from "zod";
@@ -38,27 +38,55 @@ function validateOutput(value:unknown):DocumentOutput {
 }
 export class DocumentRuntime {
  private verifiedRoots=new Map<string,string>();
+ private async verifyFile(path:string,expected:string,size?:number):Promise<void>{
+  const before=await lstat(path);if(!before.isFile()||size!==undefined&&before.size!==size)throw unavailable();
+  const fingerprint=`${before.dev}:${before.ino}:${before.size}:${before.mtimeMs}:${before.ctimeMs}`;
+  if(this.verifiedRoots.get(path)===expected+":"+fingerprint)return;
+  const hash=createHash("sha256");for await(const bytes of createReadStream(path))hash.update(bytes);
+  const after=await lstat(path);if(hash.digest("hex")!==expected||`${after.dev}:${after.ino}:${after.size}:${after.mtimeMs}:${after.ctimeMs}`!==fingerprint)throw unavailable();
+  this.verifiedRoots.set(path,expected+":"+fingerprint);
+ }
+ private async verifyRuntimeTree(root:string,raw:unknown):Promise<void>{
+  const entries=z.record(z.string().regex(/^(?!\.\.?(?:\/|$))(?!.*\/\.\.?(?:\/|$))[A-Za-z0-9_@.\/+~=-]+$/),z.union([z.strictObject({directory:z.literal(true)}),z.strictObject({symlink:z.string().max(2048)}),z.strictObject({sha256:z.string().regex(/^[a-f0-9]{64}$/),bytes:z.number().int().nonnegative()})])).parse(raw);
+  const actual:string[]=[];
+  const walk=async(path:string,prefix:string):Promise<void>=>{for(const item of await readdir(path,{withFileTypes:true})){const name=prefix+item.name;actual.push(name);if(item.isDirectory())await walk(join(path,item.name),name+"/");}};
+  await walk(root,"");if(actual.length!==Object.keys(entries).length||actual.some(name=>!Object.hasOwn(entries,name)))throw unavailable();
+  for(let offset=0;offset<actual.length;offset+=64)await Promise.all(actual.slice(offset,offset+64).map(async name=>{const value=entries[name]!,path=join(root,name),meta=await lstat(path);
+   if("directory" in value){if(!meta.isDirectory()||meta.isSymbolicLink())throw unavailable();}
+   else if("symlink" in value){if(!meta.isSymbolicLink()||await readlink(path)!==value.symlink)throw unavailable();const target=relative(root,await realpath(path));if(target.startsWith("..")||isAbsolute(target))throw unavailable();}
+   else await this.verifyFile(path,value.sha256,value.bytes);
+  }));
+ }
  constructor(readonly config:DocumentRuntimeConfiguration){if(process.platform!=="linux"||process.arch!=="x64"||!isAbsolute(config.cache))throw unavailable();}
  async profile(release?:string):Promise<DocumentProfile>{
   if(release)return this.loadProfile(release);
   try{const current=JSON.parse(await readFile(join(this.config.cache,"current-profile.json"),"utf8"));return this.loadProfile(current.profileRelease);}catch{throw unavailable();}
  }
- private async loadProfile(release:string):Promise<DocumentProfile>{
+ private async loadProfile(release:string,verifyInference=true):Promise<DocumentProfile>{
   const match=/^document-processing-v1@([a-f0-9]{64})$/.exec(release);if(!match)throw unavailable();
   const profile=JSON.parse(await readFile(join(this.config.cache,"profiles",match[1]!,"manifest.json"),"utf8")) as DocumentProfile;
   if(profile.profileRelease!==release||digest(canonicalJson(profile.identity))!==match[1])throw unavailable();
   const artifact=profile.identity.rootfsArtifact;
-  if(artifact){
+  if(artifact&&verifyInference){
    const schema=z.strictObject({image:z.string(),manifestDigest:z.string().regex(/^sha256:[a-f0-9]{64}$/),imageID:z.string().regex(/^sha256:[a-f0-9]{64}$/),nodeSHA256:z.string().regex(/^[a-f0-9]{64}$/),archiveSHA256:z.string().regex(/^[a-f0-9]{64}$/),archiveFormat:z.literal("canonical-tar-v1").optional()}),pinned=schema.parse(artifact);
    const directory=join(this.config.cache,"rootfs",pinned.manifestDigest.slice(7),...(pinned.archiveFormat?[pinned.archiveFormat]:[]));if(profile.rootfs!==join(directory,"rootfs"))throw unavailable();
    const stamp=join(directory,"provenance.json");if((await stat(stamp)).size>4096||canonicalJson(schema.parse(JSON.parse(await readFile(stamp,"utf8"))))!==canonicalJson(pinned))throw unavailable();
-   const node=join(profile.rootfs,"usr/local/bin/node"),meta=await stat(node),fingerprint=`${meta.dev}:${meta.ino}:${meta.size}:${meta.mtimeMs}:${meta.ctimeMs}`;
-   if(this.verifiedRoots.get(node)!==fingerprint){const hash=createHash("sha256");for await(const bytes of createReadStream(node))hash.update(bytes);if(hash.digest("hex")!==pinned.nodeSHA256)throw unavailable();this.verifiedRoots.set(node,fingerprint);}
+   await this.verifyFile(join(profile.rootfs,"usr/local/bin/node"),pinned.nodeSHA256);
   }
+  const directory=join(this.config.cache,"profiles",match[1]!);
+  const sourceHashes=z.record(z.string(),z.string().regex(/^[a-f0-9]{64}$/)).parse(profile.identity.sources);
+  for(const name of ["document-worker.mjs","document-host.py","document-lifecycle.py"]){const expected=sourceHashes[name];if(!expected)throw unavailable();await this.verifyFile(join(directory,...(name==="document-worker.mjs"?["runtime",name]:[name])),expected);}
+  if(verifyInference){
+  const model=z.object({files:z.record(z.string(),z.object({sha256:z.string().regex(/^[a-f0-9]{64}$/),bytes:z.number().int().nonnegative()}))}).parse(profile.identity.model);
+  for(const[name,value]of Object.entries(model.files)){if(name.includes("..")||isAbsolute(name))throw unavailable();await this.verifyFile(join(profile.modelDirectory,name),value.sha256,value.bytes);}
+  }
+  const runsc=z.string().regex(/^[a-f0-9]{64}$/).parse(profile.identity.runscSHA256);await this.verifyFile(profile.runsc,runsc);
+  if(profile.identity.runscBundle){for(const[name,value]of Object.entries(z.record(z.string(),z.string().regex(/^[a-f0-9]{64}$/)).parse(profile.identity.runscBundle))){if(name.includes("..")||isAbsolute(name))throw unavailable();await this.verifyFile(join(dirname(profile.runsc),name),value);}}
+  if(verifyInference&&profile.identity.runtimeArtifacts)await this.verifyRuntimeTree(join(directory,"runtime/node_modules"),profile.identity.runtimeArtifacts);
   return profile;
  }
  async available(release?:string):Promise<boolean>{try{
-  const profile=await this.profile(release);await stat(join(profile.rootfs,"usr/local/bin/node"));
+  const profile=await this.profile(release);if(!profile.identity.runtimeArtifacts)return false;await stat(join(profile.rootfs,"usr/local/bin/node"));
   await stat(join(dirname(profile.runsc),"gvisor-bin/gvisor_sentry"));await stat(join(dirname(profile.runsc),"gvisor-bin/checkpointgofer"));
   if(!(await execute(profile.runsc,["--version"],{timeout:5000,maxBuffer:8192})).stdout.includes("release-20261012.0"))return false;
   const code="import pathlib; p=pathlib.Path('/sys/fs/cgroup'+next(x.strip().split('::',1)[1] for x in open('/proc/self/cgroup') if x.startswith('0::'))); assert (p/'memory.max').read_text().strip()=='536870912'; assert (p/'memory.swap.max').read_text().strip()=='0'; assert (p/'pids.max').read_text().strip()=='64'; q,t=(p/'cpu.max').read_text().split(); assert q!='max' and 0<int(q)<=int(t)";
@@ -67,7 +95,8 @@ export class DocumentRuntime {
  private async command(action:"start"|"status"|"destroy",id:string,payload?:object,release?:string):Promise<DocumentResourceStatus>{
   z.uuid().parse(id);
   if(!release){try{const path=join(this.config.cache,"journals",id+".json");if((await stat(path)).size>16384)throw unavailable();release=JSON.parse(await readFile(path,"utf8")).profileRelease;}catch(error){if((error as NodeJS.ErrnoException).code!=="ENOENT")throw error;}}
-  const profile=release?await this.loadProfile(release):await this.profile();
+  const profile=release?await this.loadProfile(release,action==="start"):await this.profile();
+  if(action==="start"&&!profile.identity.runtimeArtifacts)throw new PlatformError("DOCUMENT_PROFILE_INTEGRITY_UNAVAILABLE",503,"Document processing profile must be prepared with verified package artifacts");
   const hash=profile.profileRelease.split("@")[1]!,helper=join(this.config.cache,"profiles",hash,"document-lifecycle.py");
   return new Promise((resolve,reject)=>{
    const env:NodeJS.ProcessEnv={PATH:"/usr/bin:/bin",XDG_RUNTIME_DIR:process.env.XDG_RUNTIME_DIR??`/run/user/${process.getuid!()}`};
@@ -81,7 +110,7 @@ export class DocumentRuntime {
   });
  }
  async start(request:DocumentAllocation,signal?:AbortSignal):Promise<DocumentResourceStatus>{
-  z.uuid().parse(request.allocationId);z.uuid().parse(request.jobId);await this.loadProfile(request.profileRelease);
+  z.uuid().parse(request.allocationId);z.uuid().parse(request.jobId);
   let input:Record<string,unknown>;
   if(request.input.kind==="parse"){
    if(!["pdf","html","text","markdown"].includes(request.input.format)||!request.input.content.byteLength||request.input.content.byteLength>10485760)throw new PlatformError("DOCUMENT_INPUT_LIMIT",400,"Document exceeds the processing profile");
