@@ -2,11 +2,14 @@ import * as restate from '@restatedev/restate-sdk';
 import type {Pool} from 'pg';
 import {AutomationService,type AutomationConfig} from './automations';
 export const AUTOMATION_WORKFLOW='AgentsAutomationV1';
-export function nextOccurrence(c:AutomationConfig,now:number):number|null {
+export function nextOccurrence(c:AutomationConfig&{activatedAt?:number},now:number):number|null {
  const s=c.schedule;if(s.kind==='event')return null;
  const anchor=Date.parse(s.kind==='once'?s.at:s.anchor);
- if(s.kind==='once')return anchor;
- return anchor>now?anchor:anchor+Math.floor((now-anchor)/(s.everySeconds*1000))*s.everySeconds*1000;
+ if(s.kind==='once')return anchor<(c.activatedAt??-Infinity)?null:anchor;
+ const interval=s.everySeconds*1000;
+ const latest=anchor>now?anchor:anchor+Math.floor((now-anchor)/interval)*interval;
+ const first=c.activatedAt===undefined?anchor:anchor+Math.max(0,Math.ceil((c.activatedAt-anchor)/interval))*interval;
+ return Math.max(first,latest);
 }
 export function createAutomationWorkflow(service:AutomationService) {
  return restate.workflow({name:AUTOMATION_WORKFLOW,handlers:{run:async(ctx:restate.WorkflowContext,input:{id:string;revision:number})=>{

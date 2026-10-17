@@ -202,6 +202,7 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
   });
   app.get(`${base}/tasks/:taskId`, async (request) => {
     const { task } = await humanTask(request);
+    const viewer=await account(request),canControl=task.principal.kind!=="automation"||task.principal.ownerAccountId===viewer.id;
     const operations = (await pool.query(`SELECT id AS operation_id,kind,name,state,error_code,accounted_tokens,started_at,completed_at
       FROM agents_platform.operations WHERE task_id=$1 ORDER BY started_at,id`, [task.id])).rows;
     const events = (await pool.query("SELECT * FROM agents_platform.task_events WHERE task_id=$1 ORDER BY sequence LIMIT 100",[task.id])).rows;
@@ -218,9 +219,10 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
       if(error instanceof PlatformError && error.code==="ARTIFACT_NOT_FOUND")return [];
       throw error;
     });
-    const artifacts = visibleArtifacts.filter(a=>!task.parent_task_id||a.taskId===task.id)
+    const reviewerReports=!canControl?(await pool.query("SELECT artifact_id FROM agents_platform.actions WHERE root_task_id=$1 AND reviewer_account_id=$2",[task.root_task_id,viewer.id])).rows.map(row=>row.artifact_id):null;
+    const artifacts = visibleArtifacts.filter(a=>(!task.parent_task_id||a.taskId===task.id)&&(!reviewerReports||reviewerReports.includes(a.id)))
       .map(a=>({...a,downloadPath:`/api/organizations/${task.organization_id}/tasks/${task.id}/artifacts/${a.id}`}));
-    return { task: dto(task), events: events.map(dto), operations: operations.map(dto),children:children.map(dto),resources:resources.map(dto),artifacts };
+    return { canControl,canDownloadArtifacts:true,task: dto(task), events: events.map(dto), operations: operations.map(dto),children:children.map(dto),resources:resources.map(dto),artifacts };
   });
   app.get(`${base}/tasks/:taskId/artifacts/:artifactId`, async (request,reply) => {
     const {task}=await humanTask(request), user=await account(request);

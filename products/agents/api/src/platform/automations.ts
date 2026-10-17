@@ -41,6 +41,7 @@ export class AutomationService {
  }
  private async validate(db:PoolClient,s:AutomationScope,input:unknown):Promise<AutomationConfig> {
   const c=automationInputSchema.parse(input),reviewerAccountId=c.reviewerAccountId??s.accountId;
+  if(c.schedule.kind==='once'&&(Date.parse(c.schedule.at)<=Date.now()||Date.parse(c.schedule.at)>=Date.parse(c.expiresAt)))throw new PlatformError('AUTOMATION_SCHEDULE_INVALID',400,'Choose a future run time before expiry');
   if(Date.parse(c.expiresAt)<=Date.now()||Date.parse(c.expiresAt)>Date.now()+30*86_400_000)throw new PlatformError('AUTOMATION_EXPIRY_INVALID',400,'Choose an expiry within 30 days');
   const version=(await db.query<VersionRecord>('SELECT * FROM agents_platform.agent_versions WHERE organization_id=$1 AND id=$2 FOR SHARE',[s.organizationId,c.versionId])).rows[0];
   if(!version)throw new PlatformError('VERSION_NOT_FOUND',404,'Version not found');
@@ -83,7 +84,7 @@ export class AutomationService {
    const state=kind==='pause'?'paused':kind==='revoke'?'revoked':kind==='resume'?'active':row.state;
    const revision=row.revision+1;
    await db.query('INSERT INTO agents_platform.automation_revisions(automation_id,revision,version_id,configuration) VALUES($1,$2,$3,$4)',[id,revision,c.versionId,c]);
-   await db.query('UPDATE agents_platform.automations SET revision=$2,state=$3,name=$4,event_key_hash=CASE WHEN $3=\'revoked\' THEN NULL ELSE event_key_hash END,updated_at=now() WHERE id=$1',[id,revision,state,c.name]);
+   await db.query('UPDATE agents_platform.automations SET revision=$2,state=$3,name=$4,event_key_hash=CASE WHEN $5 THEN NULL ELSE event_key_hash END,updated_at=now() WHERE id=$1',[id,revision,state,c.name,state==='revoked'||c.schedule.kind!=='event']);
    await db.query('INSERT INTO agents_platform.automation_timer_outbox(automation_id,revision) VALUES($1,$2)',[id,revision]);
    if(kind==='revoke')await db.query(`UPDATE agents_platform.execution_grants SET revoked_at=now() WHERE principal->>'kind'='automation' AND principal->>'id'=$1`,[id]);
    const result=dto({...row,revision,state,configuration:c});await db.query('INSERT INTO agents_platform.automation_mutations VALUES($1,$2,$3,$4)',[id,operationId,digest,result]);return result;
@@ -111,8 +112,8 @@ export class AutomationService {
   return this.occur(id,undefined,`event:${eventId}`,new Date(),payload,hash(key));
  }
  async timerSnapshot(id:string,revision:number) {
-  const row=(await this.pool.query(`SELECT a.*,r.configuration FROM agents_platform.automations a JOIN agents_platform.automation_revisions r ON r.automation_id=a.id AND r.revision=a.revision WHERE a.id=$1 AND a.revision=$2 AND a.state='active'`,[id,revision])).rows[0];
-  if(!row||Date.parse(row.configuration.expiresAt)<=Date.now())return null;return row.configuration as AutomationConfig;
+  const row=(await this.pool.query(`SELECT a.*,r.configuration,r.created_at AS activated_at FROM agents_platform.automations a JOIN agents_platform.automation_revisions r ON r.automation_id=a.id AND r.revision=a.revision WHERE a.id=$1 AND a.revision=$2 AND a.state='active'`,[id,revision])).rows[0];
+  if(!row||Date.parse(row.configuration.expiresAt)<=Date.now())return null;return {...row.configuration,activatedAt:new Date(row.activated_at).getTime()} as AutomationConfig&{activatedAt:number};
  }
  async occur(id:string,revision:number|undefined,key:string,scheduledAt:Date,payload?:unknown,eventKeyHash?:string,coalescedFrom?:number) {
   return transaction(this.pool,async db=>{
@@ -124,6 +125,7 @@ export class AutomationService {
    if(prior){if(prior.input_digest!==digest)throw new PlatformError('EVENT_ID_CONFLICT',409,'Event ID has different content');return prior;}
    if(row.state!=='active'||revision!==undefined&&row.revision!==revision||eventKeyHash&&row.event_key_hash!==eventKeyHash)throw deny();
    const c=row.configuration as AutomationConfig,occurrenceId=randomUUID();
+   if(eventKeyHash&&c.schedule.kind!=='event')throw deny();
    if(coalescedFrom!==undefined&&c.schedule.kind==='interval'&&scheduledAt.getTime()>coalescedFrom) {
     const count=Math.floor((scheduledAt.getTime()-coalescedFrom)/(c.schedule.everySeconds*1000));
     await db.query(`INSERT INTO agents_platform.automation_occurrences(id,automation_id,revision,occurrence_key,input_digest,scheduled_at,status,coalesced_count)
@@ -147,6 +149,7 @@ export class AutomationService {
     }
     await db.query('RELEASE SAVEPOINT admission');
    } catch(error) {await db.query('ROLLBACK TO SAVEPOINT admission');if(!(error instanceof PlatformError))throw error;status='blocked';errorCode=error.code;taskId=null;}
+   if(taskId)await db.query("INSERT INTO agents_platform.task_events(task_id,event_key,kind,payload) VALUES($1,'automation-admitted','automation.accepted',$2) ON CONFLICT DO NOTHING",[taskId,{automationId:id,occurrenceId,revision:row.revision,trigger:c.schedule.kind}]);
    const occurrence=(await db.query(`INSERT INTO agents_platform.automation_occurrences(id,automation_id,revision,occurrence_key,input_digest,scheduled_at,status,task_id,error_code) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,[occurrenceId,id,row.revision,key,digest,scheduledAt,status,taskId,errorCode])).rows[0];return occurrence;
   });
  }

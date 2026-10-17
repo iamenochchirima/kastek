@@ -1,4 +1,4 @@
-import { resolveAutomationOwner } from "./automation-authority";
+import { resolveAutomationOwner,resolveAutomationReviewer } from "./automation-authority";
 import { createHash } from "node:crypto";
 import type { Pool, PoolClient } from "pg";
 import { z } from "zod";
@@ -88,23 +88,39 @@ export class TaskArtifactStore {
       AND (a.task_id=$3 OR $3=$2 OR EXISTS(SELECT 1 FROM agents_platform.task_artifact_transfers x WHERE x.artifact_id=a.id AND x.target_task_id=$3))`,
     [artifactId,task.root_task_id,task.id])).rows[0];
     if(!row)throw missing();const producer=await this.owner(this.pool,row.task_id);
-    for(const reference of row.source_references as {kind?:string;id?:string;generation?:number;expiresAt?:number}[]) {
-      if(reference.kind==="memory_scope") {
-        const fence=(await this.pool.query("SELECT generation FROM agents_platform.memory_scopes WHERE id=$1",[reference.id])).rows[0];
-        if(!fence||Number(fence.generation)!==reference.generation||reference.expiresAt!==undefined&&Date.now()>=reference.expiresAt)throw missing();
-      }
-      if(reference.kind==="artifact" && reference.id) {
-        const source=(await this.pool.query("SELECT task_id,state FROM agents_platform.artifacts WHERE id=$1 AND root_task_id=$2",[reference.id,task.root_task_id])).rows[0];
-        if(!source||source.state!=="available")throw missing();await this.owner(this.pool,source.task_id);
-      }
-    }
+    await this.validateSources(row);
     const result=await this.artifacts.get(producer.scope,artifactId,true);
-    await this.owner(this.pool,task.id);await this.owner(this.pool,row.task_id);
+    await this.owner(this.pool,task.id);await this.owner(this.pool,row.task_id);await this.validateSources(row);
     return {artifact:dto(row),content:result.content};
+  }
+  private async validateSources(artifact:Record<string,any>):Promise<void> {
+    const visited=new Set<string>();let references=0;
+    const visit=async (row:Record<string,any>,depth:number):Promise<void>=>{
+      if(depth>32||++references>128)throw missing();
+      if(visited.has(row.id))return;visited.add(row.id);
+      if(row.state!=="available"||row.root_task_id!==artifact.root_task_id)throw missing();
+      await this.owner(this.pool,row.task_id);
+      for(const reference of row.source_references as {kind?:string;id?:string;generation?:number;expiresAt?:number}[]) {
+        if(++references>128)throw missing();
+        if(reference.kind==="memory_scope") {
+          const fence=(await this.pool.query("SELECT generation,next_expiry_at FROM agents_platform.memory_scopes WHERE id=$1",[reference.id])).rows[0];
+          if(!fence||Number(fence.generation)!==reference.generation||fence.next_expiry_at&&new Date(fence.next_expiry_at).getTime()<=Date.now()||reference.expiresAt!==undefined&&Date.now()>=reference.expiresAt)throw missing();
+        } else if(reference.kind==="artifact") {
+          const source=(await this.pool.query("SELECT * FROM agents_platform.artifacts WHERE id=$1 AND root_task_id=$2",[reference.id,artifact.root_task_id])).rows[0];
+          if(!source)throw missing();await visit(source,depth+1);
+        } else if(reference.kind==="knowledge" && !(await this.pool.query("SELECT 1 FROM agents_platform.knowledge_sources WHERE id=$1 AND organization_id=$2",[reference.id,artifact.organization_id])).rowCount)throw missing();
+      }
+    };
+    await visit(artifact,0);
   }
   async download(accountId:string,organizationId:string,taskId:string,artifactId:string) {
     const actor=await this.owner(this.pool,taskId);
-    if(actor.scope.accountId!==accountId||actor.scope.organizationId!==organizationId)throw missing();
+    if(actor.scope.organizationId!==organizationId)throw missing();
+    if(actor.scope.accountId!==accountId) {
+      if(actor.task.principal.kind!=="automation"||await resolveAutomationReviewer(this.pool,organizationId,actor.task.root_task_id)!==accountId)throw missing();
+      if(!(await this.pool.query("SELECT 1 FROM agents_platform.memberships WHERE organization_id=$1 AND account_id=$2 AND revoked_at IS NULL",[organizationId,accountId])).rowCount)throw missing();
+      if(!(await this.pool.query("SELECT 1 FROM agents_platform.actions WHERE root_task_id=$1 AND artifact_id=$2 AND reviewer_account_id=$3",[actor.task.root_task_id,artifactId,accountId])).rowCount)throw missing();
+    }
     return this.read(actor.task,z.uuid().parse(artifactId));
   }
   async transfer(parentTaskId:string,targetTaskId:string,artifactId:string):Promise<void> {

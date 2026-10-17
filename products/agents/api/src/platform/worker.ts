@@ -1,3 +1,4 @@
+import { PlatformError } from "./contracts";
 import { actionsFromEnvironment } from "./actions";
 import { TaskArtifactStore } from "./task-artifacts";
 import { AutomationService } from "./automations";
@@ -25,10 +26,10 @@ async function main(): Promise<void> {
   const sandbox = sandboxManagerFromEnvironment(pool);
   const objects=privateStoreFromEnvironment(),artifacts=new TaskArtifactStore(pool,objects),actionServices=actionsFromEnvironment(pool,artifacts);
   const automations=new AutomationService(pool,async configuration=>{
-    if(!process.env.OPENROUTER_API_KEY)throw new (await import('./contracts')).PlatformError('MODEL_CREDENTIAL_UNAVAILABLE',503,'Model connection is unavailable');
-    if((configuration.capabilities.sandbox.enabled||configuration.capabilities.workflows.enabled)&&!objects)throw new (await import('./contracts')).PlatformError('OBJECT_STORE_UNAVAILABLE',503,'Private storage is unavailable');
-    if(configuration.capabilities.workflows.enabled&&!actionServices)throw new (await import('./contracts')).PlatformError('ACTIONS_UNAVAILABLE',503,'Delivery is unavailable');
-    if(configuration.capabilities.sandbox.enabled&&(!sandbox||!await sandbox.available()))throw new (await import('./contracts')).PlatformError('SANDBOX_UNAVAILABLE',503,'Analysis is unavailable');
+    if(!process.env.OPENROUTER_API_KEY)throw new PlatformError('MODEL_CREDENTIAL_UNAVAILABLE',503,'Model connection is unavailable');
+    if((configuration.capabilities.sandbox.enabled||configuration.capabilities.workflows.enabled)&&!objects)throw new PlatformError('OBJECT_STORE_UNAVAILABLE',503,'Private storage is unavailable');
+    if(configuration.capabilities.workflows.enabled&&!actionServices)throw new PlatformError('ACTIONS_UNAVAILABLE',503,'Delivery is unavailable');
+    if(configuration.capabilities.sandbox.enabled&&(!sandbox||!await sandbox.available()))throw new PlatformError('SANDBOX_UNAVAILABLE',503,'Analysis is unavailable');
   });
   const workflow = createBusinessWorkflow(pool, { openRouterApiKey: process.env.OPENROUTER_API_KEY, signal: abort.signal,
     actions:actionServices?.actions,selectReportArtifact:(taskId,name,output)=>artifacts.prepareReport(taskId,name,output),
