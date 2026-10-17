@@ -23,7 +23,7 @@ import { sandboxManagerFromEnvironment } from "./sandbox";
 import { KnowledgeStore } from "./knowledge";
 import { registerKnowledgeRoutes } from "./knowledge-routes";
 import { documentRuntimeFromEnvironment } from "./document-runtime";
-import { EvidenceStore, citationLabels } from "./evidence";
+import { EvidenceStore, assertCurrentEvidence, citationLabels } from "./evidence";
 import { ConnectedExecutor } from "./connected-executor";
 import { capabilityBindingSchema } from "./capability-catalog";
 
@@ -125,14 +125,26 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
     const root = task.parent_task_id ? (await pool.query<TaskRecord>("SELECT * FROM agents_platform.tasks WHERE id=$1 AND organization_id=$2", [task.root_task_id,org])).rows[0] : task;
     if (!root || canonicalJson(root.principal)!==canonicalJson(task.principal)) throw new PlatformError("NOT_FOUND",404,"Task not found");
     let authority = humanAuthority(user, org, root.resource_id);
+    let reviewOnly = false;
     if(root.principal.kind==="automation") {
       const owner=await resolveAutomationOwner(pool,org,root.principal),reviewer=await resolveAutomationReviewer(pool,org,root.id);
       if(user.id!==owner&&user.id!==reviewer)throw new PlatformError("NOT_FOUND",404,"Task not found");
+      reviewOnly = user.id !== owner;
+      if(reviewOnly && task.parent_task_id)throw new PlatformError("NOT_FOUND",404,"Task not found");
       authority={product:root.product,organizationId:org,resourceId:root.resource_id,callerClientId:root.caller_client_id,principal:root.principal};
     } else await store.getTask(authority, root.id);
     const source=(await pool.query("SELECT deleted_at FROM agents_platform.conversations WHERE id=$1",[task.conversation_id])).rows[0];
-    return { task: source?.deleted_at ? {...task,input:"[Deleted conversation]",output:null} : task, authority };
+    return { task: source?.deleted_at ? {...task,input:"[Deleted conversation]",output:null} : task, authority, reviewOnly };
   }
+  async function readableOutput(taskId:string,output:string|null) {
+    if(!output)return {output};
+    const influenced=(await pool.query("SELECT 1 FROM agents_platform.evidence_nodes WHERE task_id=$1 LIMIT 1",[taskId])).rowCount;
+    if(!influenced)return {output};
+    if(!evidence)return {output:null,outputAvailability:"unavailable"};
+    try {await assertCurrentEvidence(pool,taskId,await evidence.taskManifest(taskId),{requireActiveTask:false});return {output,outputAvailability:"available"};}
+    catch(error) {if(error instanceof PlatformError)return {output:null,outputAvailability:"unavailable"};throw error;}
+  }
+  async function readableTask(task:TaskRecord){return {...dto(task),...await readableOutput(task.id,task.output)};}
   async function resolveScope(request:FastifyRequest) {const user=await account(request),org=organizationId(request);await store.requireMembership(user.id,org);return {accountId:user.id,organizationId:org};}
   registerAutomationRoutes(app,automations,resolveScope);
   if(actionServices)registerActionRoutes(app,{...actionServices,catalogs:connected?.catalogs,
@@ -231,7 +243,14 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
     return reply.code(result.replayed ? 200 : 202).send({ task: dto(result.task) });
   });
   app.get(`${base}/tasks/:taskId`, async (request) => {
-    const { task } = await humanTask(request);
+    const { task, reviewOnly } = await humanTask(request);
+    if(reviewOnly){
+      const scope={accountId:(await account(request)).id,organizationId:task.organization_id};
+      const actions=actionServices?await actionServices.actions.listForTask(scope,task.id):[];
+      const reports=actions.length?(await pool.query("SELECT id,name,content_type,bytes FROM agents_platform.artifacts WHERE task_id=$1 AND id=ANY($2::uuid[]) AND state='available'",[task.id,actions.map(action=>action.artifactId)])).rows:[];
+      return {task:{id:task.id,state:task.state,output:null,errorCode:null},actions,canControl:false,canDownloadArtifacts:true,
+        events:[],operations:[],children:[],resources:[],artifacts:reports.map(report=>({...dto(report),downloadPath:`/api/organizations/${task.organization_id}/tasks/${task.id}/artifacts/${report.id}`}))};
+    }
     const viewer=await account(request),canControl=task.principal.kind!=="automation"||task.principal.ownerAccountId===viewer.id;
     const operations = (await pool.query(`SELECT o.id AS operation_id,o.kind,o.name,o.state,o.error_code,o.accounted_tokens,o.started_at,o.completed_at,
       b.binding->>'transport' AS transport,b.binding->'definition'->>'providerOperation' AS provider_operation
@@ -255,7 +274,7 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
     const artifacts = visibleArtifacts.filter(a=>(!task.parent_task_id||a.taskId===task.id)&&(!reviewerReports||reviewerReports.includes(a.id)))
       .map(a=>({...a,downloadPath:`/api/organizations/${task.organization_id}/tasks/${task.id}/artifacts/${a.id}`}));
     const actions=actionServices?await actionServices.actions.listForTask({accountId:viewer.id,organizationId:task.organization_id},task.id):[];
-    return { actions,canControl,canDownloadArtifacts:true,task: dto(task), events: events.map(dto), operations: operations.map(dto),children:children.map(dto),resources:resources.map(dto),artifacts };
+    return { actions,canControl,canDownloadArtifacts:true,task: await readableTask(task), events: events.map(dto), operations: operations.map(dto),children:await Promise.all(children.map(async child=>({...dto(child),...await readableOutput(child.id,child.output)}))),resources:resources.map(dto),artifacts };
   });
   async function taskPassages(task: TaskRecord) {
     if (!task.output || !citationLabels(task.output).length) return { state: "available", passages: [] };
@@ -321,7 +340,7 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
     await store.requireMembership(user.id, org);
     const conversation = (await pool.query<{ agent_id: string }>("SELECT agent_id FROM agents_platform.conversations WHERE organization_id=$1 AND id=$2", [org, conversationId])).rows[0];
     if (!conversation) throw new PlatformError("NOT_FOUND", 404, "Conversation not found");
-    return { tasks: (await store.getConversation(humanAuthority(user, org, conversation.agent_id), conversationId)).map(dto) };
+    return { tasks: await Promise.all((await store.getConversation(humanAuthority(user, org, conversation.agent_id), conversationId)).map(readableTask)) };
   });
   app.delete(`${base}/conversations/:conversationId`, async request => {
     const user = await account(request), org = organizationId(request), conversationId = uuid.parse(parameters(request).conversationId);
@@ -403,7 +422,7 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
   app.get("/api/website/:deploymentId/tasks/:taskId", async (request, reply) => {
     const { deployment, websiteOrigin } = await websiteContext(request, reply), authority = await websiteAuthority(request, deployment, websiteOrigin);
     const task = await store.getTask(authority, uuid.parse(parameters(request).taskId));
-    return { task: dto(task), events: (await store.listTaskEvents(authority, task.id)).map(dto) };
+    return { task: await readableTask(task), events: (await store.listTaskEvents(authority, task.id)).map(dto) };
   });
   app.get("/api/website/:deploymentId/tasks/:taskId/evidence", async (request, reply) => {
     const { deployment, websiteOrigin } = await websiteContext(request, reply), authority = await websiteAuthority(request, deployment, websiteOrigin);
@@ -411,7 +430,7 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
   });
   app.get("/api/website/:deploymentId/conversations/:conversationId", async (request, reply) => {
     const { deployment, websiteOrigin } = await websiteContext(request, reply), authority = await websiteAuthority(request, deployment, websiteOrigin);
-    return { tasks: (await store.getConversation(authority, uuid.parse(parameters(request).conversationId))).map(dto) };
+    return { tasks: await Promise.all((await store.getConversation(authority, uuid.parse(parameters(request).conversationId))).map(readableTask)) };
   });
   return app;
 }

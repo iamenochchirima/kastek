@@ -6,7 +6,7 @@ for(const width of [1440,768,390])test(`mock transport: cited passages and revok
     const path=new URL(route.request().url()).pathname;let body:unknown;
     if(path==="/api/session")body={account:{id:"owner",email:"owner@example.test",displayName:"Owner"},organizations:[{id:org,name:"Research",role:"owner"}]};
     else if(path.endsWith("/evidence"))body=withdrawn?{state:"unavailable",code:"EVIDENCE_UNAVAILABLE",passages:[]}:{state:"available",passages:[{id:"source-evidence",label,title:"Research source",text:"The decisive finding appears on the final page. 🧪",page:3,section:"Findings",contentDigest:"b".repeat(64),acquiredAt:"2026-10-17T10:30:00.000Z"}]};
-    else if(path.endsWith(`/tasks/${taskId}`))body={task:{id:taskId,state:"completed",input:"Summarize the source",output:`The finding is supported [${label}].`,conversationId:"conversation",errorCode:null},events:[],operations:[{operationId:"native",name:"opaque-alias",providerOperation:"get_repository",transport:"native_http",state:"completed"},{operationId:"mcp",name:"other-alias",providerOperation:"get_file_contents",transport:"mcp_http",state:"uncertain",errorCode:"CONNECTED_RATE_LIMIT"}]};
+    else if(path.endsWith(`/tasks/${taskId}`))body={task:{id:taskId,state:"completed",input:"Summarize the source",output:withdrawn?null:`The finding is supported [${label}].`,outputAvailability:withdrawn?"unavailable":"available",conversationId:"conversation",errorCode:null},events:[],operations:[{operationId:"native",name:"opaque-alias",providerOperation:"get_repository",transport:"native_http",state:"completed"},{operationId:"mcp",name:"other-alias",providerOperation:"get_file_contents",transport:"mcp_http",state:"uncertain",errorCode:"CONNECTED_RATE_LIMIT"}]};
     else{await route.fulfill({status:404,json:{error:{message:"Unconfigured fixture route"}}});return;}
     await route.fulfill({json:body});
   });
@@ -19,5 +19,5 @@ for(const width of [1440,768,390])test(`mock transport: cited passages and revok
   await page.screenshot({path:test.info().outputPath(`citations-${width}.png`),fullPage:true});
   withdrawn=true;const refresh=page.getByRole("button",{name:"Refresh sources",exact:true});await refresh.focus();await expect(refresh).toBeFocused();await page.keyboard.press("Enter");
   await expect(page.getByText("These sources are no longer available.",{exact:true})).toBeVisible();
-  await expect(page.getByText("The decisive finding appears on the final page. 🧪",{exact:true})).toHaveCount(0);expect(errors).toEqual([]);
+  await expect(page.getByText("The decisive finding appears on the final page. 🧪",{exact:true})).toHaveCount(0);await page.getByRole("button",{name:"Refresh status",exact:true}).click();await expect(page.getByText("This response is no longer available.",{exact:true})).toBeVisible();await expect(page.getByText(`The finding is supported [${label}].`,{exact:true})).toHaveCount(0);expect(errors).toEqual([]);
 });
