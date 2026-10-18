@@ -178,7 +178,7 @@ test("live automation: scheduled report survives review and delivery interruptio
     for(const operation of connectedOperations[position-1]??[])await binding.getByRole("checkbox",{name:new RegExp(`^${operation.replaceAll("_"," ")}(?:\\s|$)`)}).check();
     if(connected){
       await binding.getByText("Specialist limits",{exact:true}).click();
-      await binding.getByRole("spinbutton",{name:`Specialist ${position} token allocation`,exact:true}).fill("10000");
+      await binding.getByRole("spinbutton",{name:`Specialist ${position} token allocation`,exact:true}).fill(publicRepository?(position===1?"12000":"8000"):"10000");
     }
   }
   await page.getByRole("checkbox", { name: "Run Python analysis", exact: false }).check();
