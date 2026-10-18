@@ -228,13 +228,17 @@ async function verifyStashJourney(rootTaskId:string,report:Record<string,unknown
 }
 async function restartConnectedCheckpoint(){
   assert.ok(connectedJourney&&connectedGate,"Connected restart is available only in the approved provider fixture");
+  let endedBeforeCheckpoint: {id:string;state:string;error_code:string|null}[]=[];
   await ready(async()=>{
+    endedBeforeCheckpoint=(await pool!.query("SELECT id,state,error_code FROM agents_platform.tasks WHERE parent_task_id IS NULL AND state IN ('completed','incomplete','refused','failed','cancelled','uncertain')")).rows;
+    if(endedBeforeCheckpoint.length)return true;
     const waiting=Number((await pool!.query("SELECT count(*) FROM pg_locks WHERE locktype='advisory' AND database=(SELECT oid FROM pg_database WHERE datname=current_database()) AND classid=$1 AND objid=$2 AND NOT granted",[20261018,connectedGateKey])).rows[0].count);
     const active=Number((await pool!.query("SELECT count(*) FROM agents_platform.operations WHERE kind IN ('model','compaction') AND state='started'")).rows[0].count);
     const reads=Number((await pool!.query("SELECT count(*) FROM agents_platform.connected_reads WHERE state='started'")).rows[0].count);
     const children=(await pool!.query("SELECT t.id,t.state,EXISTS(SELECT 1 FROM agents_platform.connected_reads r WHERE r.task_id=t.id AND r.state='completed') AS has_read FROM agents_platform.tasks t WHERE t.parent_task_id IS NOT NULL")).rows;
     return waiting===2&&!active&&!reads&&children.length===2&&children.every(child=>child.has_read&&!['completed','incomplete','refused','failed','cancelled','uncertain'].includes(child.state));
   },"both specialist snapshots after durable reads, with no active provider claims",180000);
+  assert.equal(endedBeforeCheckpoint.length,0,`Research ended before the connected-read checkpoint: ${JSON.stringify(endedBeforeCheckpoint)}`);
   connectedCheckpoint=await connectedReadReceipts();assert.ok(connectedCheckpoint.length>=2);
   await stopWorkerProcess();await connectedGate.query("SELECT pg_advisory_unlock($1,$2)",[20261018,connectedGateKey]);connectedGate.release();connectedGate=undefined;
   await startWorkerProcess();workerRestarts++;
