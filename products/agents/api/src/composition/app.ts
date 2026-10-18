@@ -27,7 +27,7 @@ import { queueChildContinuations,requestTreeCancellation } from "../execution/li
 import { MemoryStore } from "../execution/memory/memory";
 import type { PlatformConfig } from "../infrastructure/config";
 import { privateStoreFromEnvironment } from "../infrastructure/object-store";
-import { pageQuery } from "../infrastructure/read-pages";
+import { pageQuery, cursorKeysFromEnvironment } from "../infrastructure/read-pages";
 import { PlatformDiscovery } from "../product/agents/discovery";
 import { registerKnowledgeRoutes } from "../product/agents/knowledge-routes";
 import { registerMemoryRoutes } from "../product/agents/memory-routes";
@@ -98,7 +98,7 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
     if(configuration.capabilities.sandbox.enabled&&(!sandbox||!await sandbox.available()))throw new PlatformError("SANDBOX_UNAVAILABLE",503,"Analysis is unavailable");
   }
   const automations=new AutomationService(pool,assertServices);
-  const inbox = composeInbox(pool, { publicOrigin: new URL(config.AGENTS_PUBLIC_URL).origin, assertServices });
+  const inbox = composeInbox(pool, { publicOrigin: new URL(config.AGENTS_PUBLIC_URL).origin, assertServices, cursorKeys: cursorKeysFromEnvironment({ NODE_ENV:config.NODE_ENV, AGENTS_OIDC_CLIENT_SECRET:config.AGENTS_OIDC_CLIENT_SECRET, AGENTS_CURSOR_KEYS_JSON:config.AGENTS_CURSOR_KEYS_JSON, AGENTS_CURSOR_ACTIVE_KEY_ID:config.AGENTS_CURSOR_ACTIVE_KEY_ID, AGENTS_CURSOR_MAX_AGE_SECONDS:String(config.AGENTS_CURSOR_MAX_AGE_SECONDS) }) });
   const identity = options.identity ?? new PlatformIdentity(config, pool);
   const origin = new URL(config.AGENTS_PUBLIC_URL).origin;
   const secure = origin.startsWith("https:");

@@ -1,3 +1,4 @@
+import { createCursorCodec, cursorKeysFromEnvironment, type CursorKeys } from "../infrastructure/read-pages";
 import type { Pool, PoolClient } from "pg";
 import { PlatformError, type AgentConfiguration } from "../contracts/contracts";
 import { assertCurrentEvidence, taskEvidenceManifest } from "../execution/context/evidence-policy";
@@ -6,7 +7,7 @@ import { registerChannelPorts } from "../infrastructure/channel-ports";
 import { PlatformStore } from "../product/agents/store";
 import { InboxStore } from "../product/inbox/inbox-store";
 
-export function composeInbox(pool: Pool, options: { publicOrigin: string; assertServices(configuration: AgentConfiguration): Promise<void> }) {
+export function composeInbox(pool: Pool, options: { publicOrigin: string; cursorKeys?: CursorKeys; assertServices(configuration: AgentConfiguration): Promise<void> }) {
   const store = new PlatformStore(pool);
   const inbox = new InboxStore(pool, {
     async admit(db, input) {
@@ -35,7 +36,7 @@ export function composeInbox(pool: Pool, options: { publicOrigin: string; assert
       catch (error) { if (error instanceof PlatformError) return null; throw error; }
     },
     cancelRoot: taskId => requestTreeCancellation(pool, taskId),
-  });
+  }, createCursorCodec(options.cursorKeys ?? cursorKeysFromEnvironment()));
   registerChannelPorts(pool, {
     assertBinding: (db, binding, task) => inbox.assertBinding(db, binding, task),
     requestHandoff: (db, binding, taskId) => inbox.requestHandoff(db, binding, taskId),

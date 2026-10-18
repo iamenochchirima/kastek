@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { Pool, PoolClient } from "pg";
 import { PlatformError, requestDigest } from "../../contracts/contracts";
 import { recordEvent } from "../../observability/event-store";
+import { createCursorCodec, cursorKeysFromEnvironment } from "../../infrastructure/read-pages";
 import { transaction } from "../../infrastructure/database";
 import type { ChannelBinding } from "../../contracts/channel";
 export type { ChannelBinding } from "../../contracts/channel";
@@ -30,7 +31,7 @@ const conflict = (): never => { throw new PlatformError("INBOX_CONFLICT", 409, "
 const absent = (): never => { throw new PlatformError("INBOX_NOT_FOUND", 404, "Conversation not found"); };
 
 export class InboxStore {
-  constructor(readonly pool: Pool, readonly ports: InboxPorts) {}
+  constructor(readonly pool: Pool, readonly ports: InboxPorts, readonly cursors = createCursorCodec(cursorKeysFromEnvironment())) {}
   private async membership(db: Db, scope: InboxScope): Promise<"owner" | "member"> {
     const row = (await db.query(`SELECT role FROM agents_platform.memberships WHERE organization_id=$1 AND account_id=$2 AND revoked_at IS NULL FOR SHARE`, [scope.organizationId, scope.accountId])).rows[0];
     return row?.role ?? denied();
@@ -93,12 +94,18 @@ export class InboxStore {
     return transaction(this.pool, async db => { await this.membership(db, scope); const conversation = await this.conversation(db, id); if (conversation.organization_id !== scope.organizationId) denied();
       return { conversation, messages: await this.messages(db, id, after, limit, before) }; });
   }
-  async list(scope: InboxScope, filters: { state?: string; agentId?: string; assigned?: string; before?: string; limit: number }) {
+  async list(scope: InboxScope, filters: { state?: string; agentId?: string; assigned?: string; cursor?: string; limit: number }) {
     return transaction(this.pool, async db => { await this.membership(db, scope);
-      return (await db.query(`SELECT c.*,a.name AS agent_name FROM agents_platform.customer_conversations c JOIN agents_platform.agents a ON a.id=c.agent_id
+      const scopeKey = { kind: "customer-inbox-v1", ...scope, state: filters.state ?? null, agentId: filters.agentId ?? null, assigned: filters.assigned ?? null, channel: "website" };
+      const anchor = this.cursors.read(filters.cursor, scopeKey);
+      const rows = (await db.query<CustomerConversation & { cursor_position: string }>(`SELECT c.*,a.name AS agent_name,c.updated_at::text AS cursor_position FROM agents_platform.customer_conversations c JOIN agents_platform.agents a ON a.id=c.agent_id
         WHERE c.organization_id=$1 AND ($2::text IS NULL OR c.state=$2) AND ($3::uuid IS NULL OR c.agent_id=$3)
         AND ($4::text IS NULL OR ($4='mine' AND c.assignee_account_id=$5) OR ($4='unassigned' AND c.assignee_account_id IS NULL))
-        AND ($6::uuid IS NULL OR c.id<$6) ORDER BY c.id DESC LIMIT $7`, [scope.organizationId, filters.state ?? null, filters.agentId ?? null, filters.assigned ?? null, scope.accountId, filters.before ?? null, filters.limit])).rows as CustomerConversation[];
+        AND c.updated_at<=$6::timestamptz AND ($7::timestamptz IS NULL OR (c.updated_at,c.id)<($7::timestamptz,$8::uuid))
+        ORDER BY c.updated_at DESC,c.id DESC LIMIT $9`, [scope.organizationId, filters.state ?? null, filters.agentId ?? null, filters.assigned ?? null, scope.accountId,
+        anchor.snapshot, anchor.position || null, anchor.id || null, filters.limit + 1])).rows;
+      const items = rows.slice(0, filters.limit), last = items.at(-1);
+      return { items, nextCursor: rows.length > filters.limit && last ? this.cursors.next({ snapshot: anchor.snapshot, position: last.cursor_position, id: last.id }, scopeKey) : null };
     });
   }
   async members(scope: InboxScope) { return transaction(this.pool, async db => { await this.membership(db, scope); return (await db.query(`SELECT a.id,a.display_name FROM agents_platform.memberships m JOIN agents_platform.accounts a ON a.id=m.account_id WHERE m.organization_id=$1 AND m.revoked_at IS NULL ORDER BY a.display_name,a.id LIMIT 200`, [scope.organizationId])).rows; }); }

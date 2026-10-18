@@ -132,7 +132,7 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     await expect(inbox.readVisitor(a.visitor, b.conversation.id)).rejects.toMatchObject({ code: "INBOX_ACCESS_DENIED" });
     await expect(inbox.readStaff(a.scope, b.conversation.id)).rejects.toMatchObject({ code: "INBOX_ACCESS_DENIED" });
     await expect(inbox.readStaff(a.scope, randomUUID())).rejects.toMatchObject({ code: "INBOX_NOT_FOUND" });
-    expect(await inbox.list(a.scope, { limit: 30 })).toHaveLength(1);
+    expect((await inbox.list(a.scope, { limit: 30 })).items).toHaveLength(1);
   });
   it("serves bounded HTTP timelines, validates mutations and omits staff identities for visitors", async () => {
     const f = await fixture(), app = Fastify();
@@ -147,17 +147,52 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     expect((await app.inject({ method: "GET", url: `/api/organizations/${f.org.id}/inbox?channel=website` })).json().conversations).toHaveLength(1);
     await app.close();
   });
+  it("orders activity by exact timestamp then identity with signed filter/account/workspace-bound cursors", async () => {
+    const f = await fixture(), ids = ["00000000-0000-4000-8000-000000000001", "ffffffff-ffff-4fff-8fff-ffffffffffff", "88888888-8888-4888-8888-888888888888"];
+    await pool.query("UPDATE agents_platform.customer_conversations SET updated_at='2025-01-01' WHERE id=$1", [f.conversation.id]);
+    for (const [index,id] of ids.entries()) {
+      const session = randomUUID();
+      await pool.query("INSERT INTO agents_platform.website_sessions(id,deployment_id,token_hash,origin) VALUES($1,$2,$3,$4)", [session,f.deployment.id,createHash("sha256").update(randomUUID()).digest("hex"),origin]);
+      await pool.query(`INSERT INTO agents_platform.customer_conversations(id,organization_id,deployment_id,agent_id,version_id,session_id,updated_at)
+        VALUES($1,$2,$3,$4,$5,$6,$7)`, [id,f.org.id,f.deployment.id,f.agent.id,f.version.id,session,index===0?"2025-02-01T00:00:00.123456Z":"2025-01-15T00:00:00.654321Z"]);
+    }
+    const first = await inbox.list(f.scope,{limit:1}); expect(first.items.map(row=>row.id)).toEqual([ids[0]]); expect(first.nextCursor).toBeTruthy();
+    // Mutating the original row cannot change the signed cursor's stored timestamp anchor.
+    await pool.query("UPDATE agents_platform.customer_conversations SET updated_at=now() WHERE id=$1",[ids[0]]);
+    expect((await inbox.list(f.scope,{limit:1})).items[0]?.id).toBe(ids[0]);
+    const second = await inbox.list(f.scope,{limit:1,cursor:first.nextCursor!}); expect(second.items.map(row=>row.id)).toEqual([ids[1]]);
+    const third = await inbox.list(f.scope,{limit:1,cursor:second.nextCursor!}); expect(third.items.map(row=>row.id)).toEqual([ids[2]]);
+    for (const filters of [{state:"human_owned"},{agentId:f.agent.id},{assigned:"unassigned"}]) await expect(inbox.list(f.scope,{limit:1,cursor:first.nextCursor!,...filters})).rejects.toMatchObject({code:"INVALID_CURSOR"});
+    await expect(inbox.list({...f.scope,accountId:f.member.id},{limit:1,cursor:first.nextCursor!})).rejects.toMatchObject({code:"INVALID_CURSOR"});
+    const foreign = await fixture(); await expect(inbox.list(foreign.scope,{limit:1,cursor:first.nextCursor!})).rejects.toMatchObject({code:"INVALID_CURSOR"});
+    await expect(inbox.list(f.scope,{limit:1,cursor:first.nextCursor!+"x"})).rejects.toMatchObject({code:"INVALID_CURSOR"});
+  });
   it("enforces canonical message and customer version immutability in PostgreSQL", async () => {
     const f = await fixture(); await command(f, "claim"); await command(f, "takeover"); await command(f, "reply", { body: "Immutable support reply" });
     await expect(pool.query("UPDATE agents_platform.customer_messages SET body='changed' WHERE conversation_id=$1", [f.conversation.id])).rejects.toMatchObject({ code: "23514" });
     await expect(pool.query("UPDATE agents_platform.customer_messages SET author_kind='visitor' WHERE conversation_id=$1", [f.conversation.id])).rejects.toMatchObject({ code: "23514" });
     await expect(pool.query("UPDATE agents_platform.customer_conversations SET version_id=$2 WHERE id=$1", [f.conversation.id, randomUUID()])).rejects.toMatchObject({ code: "23514" });
   });
+  it("rechecks withdrawn assistant evidence on bounded earlier pages for both audiences", async () => {
+    const f=await fixture(),input=await inbox.ingress(f.visitor,f.conversation.id,{requestKey:randomUUID(),body:"Original question"}),taskId=input.message.task_id!;
+    await transaction(pool,db=>inbox.publishAutomated(db,{taskId,binding:binding(f,input.message.id),output:"Historical evidence-derived answer"}));
+    await command(f,"claim"); await command(f,"takeover");
+    for(let i=0;i<101;i++)await inbox.ingress(f.visitor,f.conversation.id,{requestKey:randomUUID(),body:`Later human-owned message ${i}`});
+    for(const read of [()=>inbox.readStaff(f.scope,f.conversation.id,"0",100,"4"),()=>inbox.readVisitor(f.visitor,f.conversation.id,"0",100,"4")])expect((await read()).messages[1]?.body).toBe("Historical evidence-derived answer");
+    withdrawn.add(taskId);
+    for(const read of [()=>inbox.readStaff(f.scope,f.conversation.id,"0",100,"4"),()=>inbox.readVisitor(f.visitor,f.conversation.id,"0",100,"4")])expect((await read()).messages[1]?.body).toBe("[Response unavailable]");
+  });
   it("bounds reconnect history and exposes earlier and subsequent pages without losing message identities", async () => {
     const f = await fixture(); await command(f, "claim"); await command(f, "takeover");
     for (let i = 0; i < 105; i++) await inbox.ingress(f.visitor, f.conversation.id, { requestKey: randomUUID(), body: `Customer message ${i}` });
     const latest = await inbox.readVisitor(f.visitor, f.conversation.id); expect(latest.messages).toHaveLength(100); expect(latest.messages[0]?.sequence).toBe("6");
     const older = await inbox.readVisitor(f.visitor, f.conversation.id, "0", 100, latest.messages[0]!.sequence); expect(older.messages.map(row => row.sequence)).toEqual(["1", "2", "3", "4", "5"]);
+    const app = Fastify(); registerInboxRoutes(app,{inbox,resolveScope:async()=>f.scope,resolveVisitor:async()=>f.visitor});
+    for (const path of [`/api/website/${f.deployment.id}/customer-conversations/${f.conversation.id}/messages`,`/api/organizations/${f.org.id}/inbox/${f.conversation.id}`]) {
+      const latestPage=(await app.inject({url:path})).json(); expect(latestPage.messages).toHaveLength(100); expect(latestPage.earlierBefore).toBe("6"); expect(latestPage.nextSequence).toBe("105");
+      const earlierPage=(await app.inject({url:path+"?before="+latestPage.earlierBefore})).json(); expect(earlierPage.messages.map((row:any)=>row.sequence)).toEqual(["1","2","3","4","5"]); expect(earlierPage.earlierBefore).toBeNull(); expect(earlierPage.nextSequence).toBe("5"); expect(earlierPage.latestSequence).toBe("105");
+      const incremental=(await app.inject({url:path+"?after=1&limit=100"})).json(); expect(incremental.nextSequence).toBe("101"); expect(incremental.latestSequence).toBe("105");
+    } await app.close();
     const after = await inbox.readVisitor(f.visitor, f.conversation.id, "100"); expect(after.messages.map(row => row.sequence)).toEqual(["101", "102", "103", "104", "105"]);
     expect((await pool.query("SELECT count(*) FROM agents_platform.tasks WHERE organization_id=$1", [f.org.id])).rows[0].count).toBe("0");
   });

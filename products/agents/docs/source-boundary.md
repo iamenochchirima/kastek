@@ -24,6 +24,18 @@ Returning control admits only a new visitor message. Generation checks suppress 
 output and fence subsequent operations, including inherited specialist authority.
 The automation occurrence inbox below is an event deduplication mechanism, not a customer inbox.
 
+Inbox conversation lists order by `updated_at DESC, id DESC` using the existing tenant/activity
+index. Shared versioned cursors retain the exact timestamp and identity and bind the workspace,
+actor and filters; they do not look up mutable anchor rows. An activity change after the cursor
+snapshot appears on a fresh list read.
+
+Staff and visitor timelines expose at most 100 messages per read. Earlier messages and Latest
+messages replace the current page. Polling rechecks that page's current evidence policy; request
+identity includes the conversation and selected page so delayed results cannot replace another
+view. No unbounded browser history merge retains withdrawn output. `nextSequence` is the last
+returned message for bounded `after` reads; `latestSequence` is the canonical conversation
+watermark regardless of the selected page. `earlierBefore` identifies the next older page.
+
 Website publication and widget conversations exist. WhatsApp, Facebook, Instagram, booking and
 calendar adapters remain unavailable. Connections exposes narrow report/public-repository/GitHub/
 Stash profiles. Provider OAuth, verified account identity, resource browsing, provider health and

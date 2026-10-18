@@ -26,14 +26,14 @@ export function registerInboxRoutes(app: FastifyInstance, options: {
   const base = "/api/organizations/:organizationId/inbox";
   app.get(base, async request => {
     const scope = await options.resolveScope(request), filters = z.object({ state: z.enum(["automation_active", "handoff_pending", "human_owned", "resolved"]).optional(),
-      agentId: uuid.optional(), channel: z.literal("website").optional(), assigned: z.enum(["mine", "unassigned"]).optional(), before: uuid.optional(), limit: z.coerce.number().int().min(1).max(100).default(30) }).parse(request.query);
-    const rows = await options.inbox.list(scope, { ...filters, limit: filters.limit + 1 });
-    return { conversations: rows.slice(0, filters.limit).map(inboxConversation), nextCursor: rows.length > filters.limit ? rows[filters.limit - 1]!.id : null };
+      agentId: uuid.optional(), channel: z.literal("website").optional(), assigned: z.enum(["mine", "unassigned"]).optional(), cursor: z.string().min(1).max(2048).optional(), limit: z.coerce.number().int().min(1).max(100).default(30) }).parse(request.query);
+    const result = await options.inbox.list(scope, filters);
+    return { conversations: result.items.map(inboxConversation), nextCursor: result.nextCursor };
   });
   app.get(`${base}/members`, async request => ({ members: (await options.inbox.members(await options.resolveScope(request))).map(row => ({ id: row.id, displayName: row.display_name })) }));
   app.get(`${base}/:conversationId`, async request => {
     const scope = await options.resolveScope(request), { conversationId } = params(request), input = page.parse(request.query), result = await options.inbox.readStaff(scope, conversationId, input.after, input.limit, input.before);
-    return { conversation: inboxConversation(result.conversation), messages: result.messages.map(row => message(row, true)), nextSequence: result.messages.at(-1)?.sequence ?? input.after };
+    return { conversation: inboxConversation(result.conversation), messages: result.messages.map(row => message(row, true)), nextSequence: result.messages.at(-1)?.sequence ?? input.after, latestSequence: String(BigInt(result.conversation.next_sequence) - 1n), earlierBefore: result.messages[0] && BigInt(result.messages[0].sequence) > 1n ? result.messages[0].sequence : null };
   });
   app.post(`${base}/:conversationId/commands`, async request => {
     const input = z.strictObject({ commandId: uuid, expectedRevision: revision, action: z.enum(["claim", "assign", "unassign", "takeover", "reply", "resolve", "reopen", "return"]), assigneeAccountId: uuid.nullable().optional(), body: z.string().trim().min(1).max(8000).optional() }).parse(request.body);
@@ -46,7 +46,7 @@ export function registerInboxRoutes(app: FastifyInstance, options: {
   });
   app.get(`${website}/:conversationId/messages`, async (request, reply) => {
     const scope = await options.resolveVisitor(request, reply), input = page.parse(request.query), result = await options.inbox.readVisitor(scope, params(request).conversationId, input.after, input.limit, input.before);
-    return { conversation: visitorConversation(result.conversation), messages: result.messages.map(row => message(row, false)), nextSequence: result.messages.at(-1)?.sequence ?? input.after };
+    return { conversation: visitorConversation(result.conversation), messages: result.messages.map(row => message(row, false)), nextSequence: result.messages.at(-1)?.sequence ?? input.after, latestSequence: String(BigInt(result.conversation.next_sequence) - 1n), earlierBefore: result.messages[0] && BigInt(result.messages[0].sequence) > 1n ? result.messages[0].sequence : null };
   });
   app.post(`${website}/:conversationId/messages`, async (request, reply) => {
     const scope = await options.resolveVisitor(request, reply); await options.publicRate?.(scope.deploymentId);
