@@ -91,9 +91,12 @@ export async function dispatchTasksOnce(pool: Pool, options: DispatcherOptions):
   await parallelEach(cancellations,8,async task=>{
     const route=routes[task.harness_release]!;
     try {
-      const response = await request(`${route.adminUrl.replace(/\/$/, "")}/invocations/${encodeURIComponent(task.runtime_invocation_id)}/cancel`,
-        { method: "PATCH", signal: AbortSignal.timeout(5000) });
-      if (!response.ok) throw new Error("RUNTIME_CANCEL_FAILED");
+      try {
+        const response = await request(`${route.adminUrl.replace(/\/$/, "")}/invocations/${encodeURIComponent(task.runtime_invocation_id)}/cancel`,
+          { method: "PATCH", signal: AbortSignal.timeout(5000) });
+        await response.body?.cancel();
+      } catch { options.onError?.("RUNTIME_CANCEL_REQUEST_UNCONFIRMED"); }
+      // A repeated cancel may return 409 after completion. Only authoritative output settles it.
       const output = await request(`${route.ingressUrl.replace(/\/$/, "")}/restate/output/${encodeURIComponent(task.runtime_invocation_id)}`,
         { signal: AbortSignal.timeout(5000) });
       const body = await output.json() as { message?: unknown; state?: unknown; output?: unknown; errorCode?: unknown };

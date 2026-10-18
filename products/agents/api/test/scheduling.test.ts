@@ -142,4 +142,19 @@ const dbUrl=process.env.AGENTS_TEST_DATABASE_URL;
   await expect(pool.query('INSERT INTO agents_platform.capacity_slots(bucket_key,slot) VALUES($1,8)',[key])).rejects.toThrow('Capacity slot exceeds');
   await expect(pool.query('UPDATE agents_platform.capacity_buckets SET max_active=8 WHERE key=$1',[key])).rejects.toThrow('Capacity limits are immutable');
  });
+ it('reconciles verified cancellation output after the repeated cancel acknowledgement is already completed',async()=>{
+  const [task,other]=await tasks();
+  await pool.query("UPDATE agents_platform.task_outbox SET dispatched_at=now() WHERE task_id=ANY($1::uuid[])",[[task!.id,other!.id]]);
+  await pool.query("UPDATE agents_platform.tasks SET state='cancel_requested',runtime_invocation_id='inv_cancel_reconciliation' WHERE id=$1",[task!.id]);
+  let outputs=0,confirmed=false;
+  const fetcher:typeof fetch=async(url,options)=>{
+   if(options?.method==='PATCH')return Response.json({message:'invocation already completed'},{status:409});
+   if(String(url).includes('/restate/output/')){outputs++;return confirmed?Response.json({message:'Cancelled'},{status:409}):Response.json({state:'running'},{status:202});}
+   throw Error('Unexpected fixture request');
+  };
+  await dispatchTasksOnce(pool,{ingressUrl:'http://localhost',adminUrl:'http://localhost',fetch:fetcher});
+  expect((await pool.query('SELECT state FROM agents_platform.tasks WHERE id=$1',[task!.id])).rows[0].state).toBe('cancel_requested');
+  confirmed=true;await dispatchTasksOnce(pool,{ingressUrl:'http://localhost',adminUrl:'http://localhost',fetch:fetcher});
+  expect(outputs).toBe(2);expect((await pool.query('SELECT state FROM agents_platform.tasks WHERE id=$1',[task!.id])).rows[0].state).toBe('cancelled');
+ });
 });
