@@ -15,6 +15,8 @@ assert all(
 )
 assert "Harbor fixture opens at nine." not in json.dumps(export)
 Path("/logs/verifier/classification.json").write_text(
-    json.dumps({"classification": "inconclusive", "reason": "current-source-withdrawal"})
+    json.dumps(
+        {"classification": "inconclusive", "reason": "current-source-withdrawal"}
+    )
 )
 # No reward is emitted: missing authorized answer evidence cannot mean success.

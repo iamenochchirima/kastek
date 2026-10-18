@@ -19,9 +19,9 @@ const fixtureId = randomUUID(), databaseName = `agents_harbor_${fixtureId.replac
 const containerName = `agents-harbor-${fixtureId}`, build = join(root, ".audit", `harbor-${fixtureId}`);
 const compiled = join(build, "runtime");
 const suite = process.env.AGENTS_HARBOR_SUITE ?? "faq-grounded";
-assert.ok(["faq-grounded", "faq-follow-up", "research-report", "controlled-transaction", "delegated-research", "inbox", "isolated-analysis", "faq-unknown", "faq-private", "faq-paraphrase", "faq-withdrawal", "faq-escalation"].includes(suite), "Select a known Harbor suite");
-const escalation = suite === "faq-escalation";
-const inboxSuite = suite === "inbox" || escalation, analysisSuite = suite === "isolated-analysis";
+assert.ok(["faq-grounded", "faq-follow-up", "research-report", "controlled-transaction", "delegated-research", "inbox", "isolated-analysis", "faq-unknown", "faq-private", "faq-paraphrase", "faq-withdrawal", "faq-escalation", "inbox-takeover"].includes(suite), "Select a known Harbor suite");
+const escalation = suite === "faq-escalation", takeover = suite === "inbox-takeover";
+const inboxSuite = suite === "inbox" || escalation || takeover, analysisSuite = suite === "isolated-analysis";
 const followUp = ["faq-follow-up", "inbox"].includes(suite), report = ["research-report", "controlled-transaction", "delegated-research"].includes(suite);
 const delegated = suite === "delegated-research";
 const negativeKnowledge = ["faq-unknown", "faq-private"].includes(suite), withdrawal = suite === "faq-withdrawal";
@@ -114,6 +114,7 @@ async function main() {
   const account = await store.ensureAccount({ issuer: config.AGENTS_OIDC_ISSUER_URL, subject: randomUUID(), email: "harbor@example.com", displayName: "Harbor fixture" });
   const organization = await store.createOrganization(account.id, "Harbor isolated trial");
   const session = await store.createSession({ accountId: account.id, providerSessionId: randomUUID(), expiresAt: new Date(Date.now() + 1800000) });
+  let lostVisitorAck=false,lostHumanAck=false,visitorRequestAttempts=0;
   let receiverPosts = 0, receiverReads = 0, acknowledgementLost = false;
   let reportServices: ReturnType<typeof actionsFromEnvironment>;
   let reportConnection: { id: string } | undefined;
@@ -159,6 +160,17 @@ async function main() {
   const deployment = inboxSuite ? await store.publishWebsite({ accountId: account.id, organizationId: organization.id, agentId: agent.id, versionId: version.id, allowedOrigins: ["https://harbor-widget.example"] }) : undefined;
   app = await buildPlatformApp({ config, pool, logging: false });
   app.addHook("onError", async (request, _reply, error) => { if (request.url.includes("history-export")) console.error(JSON.stringify({ evidence: "native export diagnostic", errorClass: error.name, code: (error as {code?:string}).code, frames: error.stack?.split("\n").slice(1, 6) })); });
+  async function staffCommands(conversationId:string,actions:string[],replyBody:string) {
+    const path = `${origin}/api/organizations/${organization.id}/inbox/${conversationId}`;
+      for (const action of actions) {
+        const read = await fetch(path, { headers: { origin, cookie: `agents_session=${session.token}` } }); assert.ok(read.ok);
+        const state = await read.json() as {conversation:{revision:string}};
+        const commandBody=JSON.stringify({commandId:randomUUID(),expectedRevision:state.conversation.revision,action,...(action==="reply"?{body:replyBody}:{})});
+        let response:Response|undefined;
+        for(let attempt=0;attempt<2;attempt++)try{response=await fetch(`${path}/commands`, { method: "POST", headers: { origin, cookie: `agents_session=${session.token}`, "content-type": "application/json" }, body:commandBody });break;}catch(error){if(attempt)throw error;}
+        assert.ok(response?.ok, `Native staff command ${action} status ${response?.status}`);
+      }
+  }
   if (withdrawal) {
     let withdrawn = false;
     app.addHook("onRequest",async request=>{
@@ -170,22 +182,26 @@ async function main() {
     });
   }
   if (inboxSuite && !escalation) {
-    let visitorPosts=0;
-    app.addHook("onRequest", async request => {
+    const visitorKeys=new Set<string>();
+    app.addHook("preHandler", async request => {
       if (request.method !== "POST" || !/^\/api\/website\/[^/]+\/customer-conversations\/[^/]+\/messages$/.test(request.url)) return;
-      if(++visitorPosts!==2)return;
+      visitorRequestAttempts++;
+      const key=(request.body as {requestKey:string}).requestKey;
+      if(visitorKeys.has(key))return;visitorKeys.add(key);
+      if (visitorKeys.size !== 2) return;
       const conversationId = request.url.split("/").at(-2)!;
-      const path = `${origin}/api/organizations/${organization.id}/inbox/${conversationId}`;
       // Human fixture commands run through normal HTTP identity/revision checks,
       // before the visitor's follow-up is admitted after returning ownership.
-      for (const action of ["claim", "takeover", "reply", "resolve", "reopen", "return"]) {
-        const read = await fetch(path, { headers: { origin, cookie: `agents_session=${session.token}` } }); assert.ok(read.ok);
-        const state = await read.json() as {conversation:{revision:string}};
-        const response = await fetch(`${path}/commands`, { method: "POST", headers: { origin, cookie: `agents_session=${session.token}`, "content-type": "application/json" }, body: JSON.stringify({ commandId: randomUUID(), expectedRevision: state.conversation.revision, action, ...(action === "reply" ? { body: "A staff member confirmed the opening hours." } : {}) }) });
-        assert.ok(response.ok, `Native staff command ${action} status ${response.status}`);
-      }
+      await staffCommands(conversationId,["claim","takeover","reply","resolve","reopen","return"],"A staff member confirmed the opening hours.");
     });
   }
+  if(inboxSuite&&!escalation)app.addHook("onSend",async(request,reply,payload)=>{
+    const visitor=request.method==="POST"&&/^\/api\/website\/[^/]+\/customer-conversations\/[^/]+\/messages$/.test(request.url);
+    const human=request.method==="POST"&&request.url.endsWith("/commands")&&(request.body as {action?:string})?.action==="reply";
+    if(visitor&&!lostVisitorAck){lostVisitorAck=true;reply.raw.destroy();}
+    if(human&&!lostHumanAck){lostHumanAck=true;reply.raw.destroy();}
+    return payload;
+  });
   if(lifecycle==="native-restart"){
     let posts=0;
     app.addHook("onRequest",async request=>{
@@ -209,6 +225,7 @@ async function main() {
     if(lifecycle==="evaluator-restart"&&providerCalls===1)await new Promise<void>(resolve=>{releaseProvider=resolve;});
     if (realModel) return fetch(url, request);
     if (analysis) return analysis.reply(body,providerCalls);
+    if(takeover){const row=(await pool!.query("SELECT id FROM agents_platform.customer_conversations")).rows[0];assert.ok(row);await staffCommands(row.id,["claim","takeover","reply"],"Human support took over.");}
     if (escalation) return Response.json({id:"deterministic-human-escalation",choices:[{finish_reason:"tool_calls",message:{role:"assistant",content:null,tool_calls:[{id:"request-support",type:"function",function:{name:"channel_request_handoff",arguments:"{}"}}]}}],usage:{prompt_tokens:100,completion_tokens:20}});
     const child = delegated && messages.includes("Research specialist fixture.");
     if (child) childCalls++; else rootCalls++;
@@ -332,10 +349,10 @@ async function main() {
   } else {
     assert.equal(rewards.length,attempts);
     const values=await Promise.all(rewards.map(async path=>JSON.parse(await readFile(join(jobs,path),"utf8"))));
-    for(const value of values)assert.equal(analysisSuite ? value.isolated_analysis : report ? value.research_report : value.grounded_faq,1);
+    for(const value of values)assert.equal(takeover ? value.ownership_safety : analysisSuite ? value.isolated_analysis : report ? value.research_report : value.grounded_faq,1);
     reward=attempts===1?values[0]:{attempts:values};
   }
-  const tasks = (await pool.query("SELECT state,error_code,evaluation_trial_id FROM agents_platform.tasks")).rows; assert.equal(tasks.length, attempts * (followUp || delegated ? 2 : 1)); for (const task of tasks) { if(lifecycle!=="cancel")assert.equal(task.state, escalation ? "incomplete" : "completed");else assert.ok(["cancelled","uncertain"].includes(task.state)); assert.ok(task.evaluation_trial_id); }
+  const tasks = (await pool.query("SELECT state,error_code,evaluation_trial_id FROM agents_platform.tasks")).rows; assert.equal(tasks.length, attempts * (followUp || delegated ? 2 : 1)); for (const task of tasks) { if(takeover)assert.ok(["cancelled","uncertain"].includes(task.state));else if(lifecycle!=="cancel")assert.equal(task.state, escalation ? "incomplete" : "completed");else assert.ok(["cancelled","uncertain"].includes(task.state)); assert.ok(task.evaluation_trial_id); }
   if(lifecycle==="evaluator-restart") {
     const resumed=JSON.parse(await readFile(preparedScope+`.recovery-${fixtureId}.json`,"utf8"));
     const original=JSON.parse(await readFile(join(build,"interrupted-evaluator.json"),"utf8"));
@@ -346,7 +363,8 @@ async function main() {
   if (!realModel) assert.equal(providerCalls, attempts * (delegated ? 4 : followUp || report || analysisSuite ? 2 : 1));
   await analysis?.verify();
   if(lifecycle==="native-restart"){assert.equal(processWorker!.pids.length,2);assert.notEqual(...processWorker!.pids as [number,number]);}
-  if (inboxSuite && !escalation) {
+  if (inboxSuite && !escalation && !takeover) {
+    assert.equal(lostVisitorAck,true);assert.equal(lostHumanAck,true);assert.equal(visitorRequestAttempts,3);
     const messages = (await pool.query("SELECT author_kind,body FROM agents_platform.customer_messages ORDER BY sequence")).rows;
     assert.deepEqual(messages.map(message => message.author_kind), ["visitor", "assistant", "human", "visitor", "assistant"]);
     const commands = (await pool.query("SELECT action FROM agents_platform.customer_commands ORDER BY created_at,command_id")).rows;
@@ -371,7 +389,7 @@ async function main() {
     const identities=(await pool.query("SELECT id,root_task_id,parent_task_id,version_id FROM agents_platform.tasks ORDER BY created_at,id")).rows;
     await writeFile(join(build,"telemetry.json"),JSON.stringify({schemaVersion:"harbor-native-telemetry.v1",suite,observationsExported:exported,tasks:identities},null,2),{mode:0o600});
   }
-  await writeFile(join(build, "acceptance.json"), JSON.stringify({ status: withdrawal || verifierScenario!=="none" || lifecycle==="cancel" ? "verified-negative" : "passed", suite, attempts, baselineDigest, verifierScenario, lifecycle, workerPids:processWorker?.pids, modelMode: realModel ? "approved-free-model" : "deterministic-provider-fixture", harborVersion: "0.24.0", restateVersion: "1.7.13", reward, taskCount: tasks.length, providerCalls, compositionDigest: version.effective_composition.digest, sourceRevisionId: source.id, ownerServicesChanged: false }, null, 2), { mode: 0o600 });
+  await writeFile(join(build, "acceptance.json"), JSON.stringify({ status: withdrawal || verifierScenario!=="none" || lifecycle==="cancel" ? "verified-negative" : "passed", suite, attempts, baselineDigest, verifierScenario, lifecycle, modelQuality:takeover?"inconclusive":null, workerPids:processWorker?.pids, modelMode: realModel ? "approved-free-model" : "deterministic-provider-fixture", harborVersion: "0.24.0", restateVersion: "1.7.13", reward, taskCount: tasks.length, providerCalls, compositionDigest: version.effective_composition.digest, sourceRevisionId: source.id, ownerServicesChanged: false }, null, 2), { mode: 0o600 });
   console.log(JSON.stringify({ evidence: "actual Harbor trial + verifier + native HTTP/PostgreSQL/Restate", modelMode: realModel ? "approved-free-model" : "deterministic-provider-fixture", reward, providerCalls, proof: join(build, "acceptance.json") }));
 }
 async function cleanup() {

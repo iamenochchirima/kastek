@@ -1,7 +1,7 @@
 """Harbor verifier: inspect authorized native receipts, never agent claims alone."""
 
 import json
-import re
+from rubric import states_approved_opening_time
 from pathlib import Path
 
 logs = Path("/logs/agent")
@@ -27,7 +27,9 @@ root = next(task for task in export["tasks"] if task["id"] == export["rootTaskId
 assert len(export["tasks"]) == 1
 assert root["parentTaskId"] is None
 assert root["state"] == "completed"
-assert re.search(r"\b(?:nine|9(?::00)?)\b", root["output"].lower()), "Answer must state the approved opening time"
+assert states_approved_opening_time(root["output"]), (
+    "Answer must state the approved opening time without a conflicting or negated opening claim"
+)
 assert root["evidenceReferences"], "Source provenance is required"
 reference = root["evidenceReferences"][0]
 assert reference["source_id"] and reference["revision_id"]
