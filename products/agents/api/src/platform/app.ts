@@ -26,6 +26,7 @@ import { documentRuntimeFromEnvironment } from "./document-runtime";
 import { EvidenceStore, assertCurrentEvidence, citationLabels } from "./evidence";
 import { ConnectedExecutor } from "./connected-executor";
 import { capabilityBindingSchema } from "./capability-catalog";
+import { assertConnectedBindingDependencies } from "./connected-tool-schema";
 
 const uuid = z.uuid();
 const taskInput = z.strictObject({ versionId: uuid, input: z.string().min(1).max(16_384),
@@ -65,7 +66,9 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
       if (!connected) throw new PlatformError("CONNECTED_TOOLS_UNAVAILABLE", 503, "Connected tools are unavailable");
       const rows = (await pool.query("SELECT binding FROM agents_platform.capability_bindings WHERE id=ANY($1::uuid[])", [connectedAuthority])).rows;
       if (rows.length !== connectedAuthority.length) throw new PlatformError("ADAPTER_RELEASE_UNAVAILABLE", 503, "A selected tool binding is unavailable");
-      connected.assertAvailable(rows.map(row => capabilityBindingSchema.parse(row.binding)));
+      const bindings = rows.map(row => capabilityBindingSchema.parse(row.binding));
+      assertConnectedBindingDependencies(bindings.filter(binding => configuration.connectedToolBindingIds.includes(binding.id)));
+      connected.assertAvailable(bindings);
     }
   }
   async function assertServices(configuration:AgentConfiguration):Promise<void> {

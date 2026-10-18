@@ -66,7 +66,7 @@ const dbUrl = process.env.AGENTS_TEST_DATABASE_URL;
   const database = `agents_authority_${randomUUID().replaceAll("-", "")}`;
   const registry = new ExecutableAdapterRegistry<unknown>();
   const adapter = registry.register({ schemaVersion: 1, id: "github-read", release: "1.0.0", executableDigest: "a".repeat(64),
-    transports: ["native_http"], protocolVersions: [], boundedSchemaValidation: true }, { fixture: true });
+    transports: ["native_http", "mcp_http"], protocolVersions: ["2026-07-28"], boundedSchemaValidation: true }, { fixture: true });
   beforeAll(async () => {
     admin = new Pool({ connectionString: dbUrl }); await admin.query(`CREATE DATABASE "${database}"`);
     const url = new URL(dbUrl!); url.pathname = `/${database}`;
@@ -155,5 +155,29 @@ const dbUrl = process.env.AGENTS_TEST_DATABASE_URL;
     await expect(store.createVersion({ ...otherScope, agentId: otherRoot.id, expectedRevision: 1 })).rejects.toMatchObject({ code: "CAPABILITY_SCOPE_DENIED" });
     await pool.query("UPDATE agents_platform.connections SET expires_at=now()-interval '1 second' WHERE id=$1", [f.connection.id]);
     await expect(store.createVersion({ ...f.scope, agentId: f.root.id, expectedRevision: 1 })).rejects.toMatchObject({ code: "CAPABILITY_SCOPE_DENIED" });
+  });
+
+  it("requires a coordinator's direct MCP dependencies in its own scope while allowing a specialist's complete scope", async () => {
+    const f = await fixture();
+    const inputSchema = { type: "object", properties: {}, additionalProperties: false };
+    const catalog = createCatalog({ schemaVersion: 1, id: randomUUID(), organizationId: f.org.id, connectionId: f.connection.id, revision: 2,
+      transport: "mcp_http", protocolVersion: "2026-07-28", adapter, tools: [{ providerOperation: "get_file_contents", description: "Fixture read",
+        inputSchema, inputDigest: digestToolSchema(inputSchema), outputSchema: null, outputDigest: null }] });
+    await catalogs.saveCandidate(f.scope, { operationId: randomUUID(), connectionId: f.connection.id, expectedRevision: 1, catalog });
+    const [mcp] = await catalogs.selectBindings(f.scope, { operationId: randomUUID(), connectionId: f.connection.id, expectedRevision: 1,
+      catalogId: catalog.id, selections: [{ providerOperation: "get_file_contents", resources: f.connection.resources }] });
+    const invalid = structuredClone(f.config); invalid.connectedToolBindingIds = [mcp!.id];
+    await store.updateDraft({ ...f.scope, agentId: f.root.id, expectedRevision: 1, configuration: invalid });
+    await expect(store.createVersion({ ...f.scope, agentId: f.root.id, expectedRevision: 2 })).rejects.toMatchObject({ code: "CONNECTED_HANDLE_DEPENDENCY" });
+    expect((await store.listVersions(f.account.id, f.org.id, f.root.id))).toHaveLength(0);
+    const childConfig = defaultFaqConfiguration(); childConfig.connectedToolBindingIds = [...f.bindings.map(binding => binding.id), mcp!.id];
+    const child = await store.createAgent({ ...f.scope, name: "Complete specialist", configuration: childConfig });
+    const childVersion = await store.createVersion({ ...f.scope, agentId: child.id, expectedRevision: 1 });
+    const valid = delegated(childConfig.connectedToolBindingIds);
+    if (valid.capabilities.delegation.enabled) valid.capabilities.delegation.bindings[0]!.versionId = childVersion.id;
+    await store.updateDraft({ ...f.scope, agentId: f.root.id, expectedRevision: 2, configuration: valid });
+    const published = await store.createVersion({ ...f.scope, agentId: f.root.id, expectedRevision: 3 });
+    expect(published.configuration.connectedToolBindingIds).toEqual([]);
+    expect(connectedToolAuthorityIds(published.configuration)).toHaveLength(5);
   });
 });

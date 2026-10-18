@@ -1,4 +1,5 @@
 import { PlatformError, connectedToolAuthorityIds } from "./contracts";
+import { assertConnectedBindingDependencies } from "./connected-tool-schema";
 import { actionsFromEnvironment } from "./actions";
 import { TaskArtifactStore } from "./task-artifacts";
 import { AutomationService } from "./automations";
@@ -53,6 +54,7 @@ async function main(): Promise<void> {
       if(!connected)throw new PlatformError('CONNECTED_TOOLS_UNAVAILABLE',503,'Connected tools are unavailable');
       const bindings=(await pool.query('SELECT binding FROM agents_platform.capability_bindings WHERE id=ANY($1::uuid[])',[connectedAuthority])).rows.map(row=>capabilityBindingSchema.parse(row.binding));
       if(bindings.length!==connectedAuthority.length)throw new PlatformError('ADAPTER_RELEASE_UNAVAILABLE',503,'A selected tool binding is unavailable');
+      assertConnectedBindingDependencies(bindings.filter(binding=>configuration.connectedToolBindingIds.includes(binding.id)));
       connected.assertAvailable(bindings);
     }
   });

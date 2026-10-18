@@ -167,10 +167,12 @@ export class PlatformStore {
       if (sources.some(source => source.visibility === "private") && !(await db.query("SELECT 1 FROM agents_platform.memberships WHERE organization_id=$1 AND account_id=$2 AND role='owner' AND revoked_at IS NULL", [input.organizationId, input.accountId])).rowCount) throw new PlatformError("SOURCE_GRANT_DENIED", 403, "An owner must publish private knowledge grants");
       const retrieval = config.retrievalProfile;
       if (retrieval.kind === "hybrid-v1" && sources.some(source => source.embedding_release !== retrieval.embeddingRelease)) throw new PlatformError("RETRIEVAL_PROFILE_CONFLICT", 409, "Source indexes do not match the retrieval profile");
-      const connected = (await db.query(`SELECT b.id FROM agents_platform.capability_bindings b JOIN agents_platform.connections c ON c.id=b.connection_id
+      const connected = (await db.query(`SELECT b.id,b.binding FROM agents_platform.capability_bindings b JOIN agents_platform.connections c ON c.id=b.connection_id
         WHERE b.organization_id=$1 AND b.account_id=$2 AND b.id=ANY($3::uuid[]) AND c.state='active' AND c.expires_at>now()
         AND c.policy_revision=(b.binding->'connection'->>'policyRevision')::integer ORDER BY c.id FOR SHARE OF c`, [input.organizationId, input.accountId, connectedAuthority])).rows;
       if (connected.length !== connectedAuthority.length) throw new PlatformError("CAPABILITY_SCOPE_DENIED", 403, "Choose current connected tools owned by this account");
+      assertConnectedBindingDependencies(connected.filter(row => config.connectedToolBindingIds.includes(row.id))
+        .map(row => capabilityBindingSchema.parse(row.binding)));
       if (config.skillIds.length) {
         const skills = await db.query("SELECT id FROM agents_platform.skill_revisions WHERE organization_id=$1 AND agent_id=$2 AND id=ANY($3::uuid[]) FOR SHARE", [input.organizationId,input.agentId,config.skillIds]);
         if (skills.rowCount !== new Set(config.skillIds).size) denied();
