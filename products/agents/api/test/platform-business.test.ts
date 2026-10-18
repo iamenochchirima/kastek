@@ -196,6 +196,18 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     return{...f,task,job,knowledge,evidence,scope};
   }
   function resetGrounding(){businessOptions.evidence=new EvidenceStore(pool,artifacts.objects);businessOptions.knowledgeRuntime=new KnowledgeRuntime(pool,businessOptions.evidence);}
+  it("rejects malformed native results before model context while retaining the actual completed receipt",async()=>{
+    const f=await fixture({tools:["knowledge.search"]}),runtime=businessOptions.knowledgeRuntime!,original=runtime.search.bind(runtime);
+    const malformed={profile:"lexical-v1",passages:[],omitted:"invalid",privateMarker:"DO_NOT_EXPOSE_TO_MODEL"};
+    runtime.search=(async(...args:Parameters<KnowledgeRuntime["search"]>)=>args[1].startsWith("tool:")?malformed:original(...args)) as KnowledgeRuntime["search"];
+    provider=async()=>reply("","tool_calls",[tool("knowledge_search",{query:"hours"})]);
+    try{
+      expect(await execute(f.task.id)).toMatchObject({state:"incomplete",error_code:"CAPABILITY_RESULT_INVALID",output:null});
+      expect(calls).toHaveLength(1);expect(JSON.stringify(calls)).not.toContain("DO_NOT_EXPOSE_TO_MODEL");
+      const receipt=(await pool.query("SELECT state,output FROM agents_platform.operations WHERE task_id=$1 AND id LIKE 'tool:%'",[f.task.id])).rows[0];
+      expect(receipt).toMatchObject({state:"completed",output:malformed});
+    }finally{resetGrounding();}
+  },30000);
   it("uses indexed tail evidence in the same controller, with immutable tools, citations and budgeted retrieval",async()=>{
     const f=await groundedFixture();
     try {

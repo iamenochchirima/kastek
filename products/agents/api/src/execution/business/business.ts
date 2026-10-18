@@ -1,3 +1,4 @@
+import {validateBuiltinArguments,validateBuiltinResult} from "../../capabilities/tool-contracts";
 import type {CapacityDecision} from "../scheduling/capacity";
 import * as restate from "@restatedev/restate-sdk";
 import type { Pool } from "pg";
@@ -236,7 +237,7 @@ async function buildSnapshot(pool: Pool, taskId: string, step: number, working: 
 function failed(result: { code: string; uncertain: boolean }): TaskOutcome {
   if (result.uncertain) return { state: "uncertain", errorCode: result.code };
   if (result.code === "TASK_CANCELLED") return { state: "cancelled" };
-  if (["ROOT_LIMIT", "TASK_DEADLINE", "CONTEXT_LIMIT", "COMPACTION_INPUT_LIMIT", "TOOL_RESULT_LIMIT", "EVIDENCE_UNAVAILABLE"].includes(result.code)) return { state: "incomplete", errorCode: result.code };
+  if (["ROOT_LIMIT", "TASK_DEADLINE", "CONTEXT_LIMIT", "COMPACTION_INPUT_LIMIT", "TOOL_RESULT_LIMIT", "CAPABILITY_RESULT_INVALID", "EVIDENCE_UNAVAILABLE"].includes(result.code)) return { state: "incomplete", errorCode: result.code };
   return { state: "failed", errorCode: result.code };
 }
 
@@ -286,8 +287,9 @@ export function createBusinessWorkflow(pool: Pool, options: BusinessOptions) {
           if (!options.knowledgeRuntime || !options.evidence) throw new PlatformError("KNOWLEDGE_RUNTIME_UNAVAILABLE", 503, "Knowledge retrieval is unavailable");
           const query = fitUtf8(accepted.input, 1024), id = `knowledge:${taskId}:initial`;
           const retrieved = await operation<KnowledgeObservation>(ctx, pool, taskId, { id, kind: "tool", name: "knowledge.search", request: { query },
-            reservedTokens: 0, reservedMs: 90000, retrySafe: true, maxResultBytes: 8192 }, async () => ({ value: await options.knowledgeRuntime!.search(taskId, id, query), tokens: 0 }));
+            reservedTokens: 0, reservedMs: 90000, retrySafe: true, maxResultBytes: 8192 }, async () => {validateBuiltinArguments("knowledge.initial",{query});return { value: await options.knowledgeRuntime!.search(taskId, id, query), tokens: 0 };});
           if (!retrieved.ok) throw new PlatformError(retrieved.code, 409, "Initial knowledge retrieval is unavailable");
+          validateBuiltinResult("knowledge.initial",retrieved.value);
           initialKnowledge = retrieved.value;
         }
         for (let step = 0; step < 40; step++) {
@@ -381,6 +383,7 @@ export function createBusinessWorkflow(pool: Pool, options: BusinessOptions) {
                     return {value: await options.connected.execute(taskId,id,binding,args,ctx.request().attemptCompletedSignal),tokens:0};
                   }
                   if(!config.tools.includes(name as typeof config.tools[number]) || !descriptor) throw new PlatformError("TOOL_DENIED",403,"Tool is unavailable");
+                  args=validateBuiltinArguments(name,args);
                   if(name==="agents.delegate") return {value:await admitChildren(pool,taskId,id,parseModelDelegationRequest(args)),tokens:0};
                   if(name==="sandbox.analyze") {
                     if(!config.capabilities.sandbox.enabled || !options.executeSandbox) throw new PlatformError("SANDBOX_UNAVAILABLE",503,"Analysis is unavailable");
@@ -448,6 +451,7 @@ export function createBusinessWorkflow(pool: Pool, options: BusinessOptions) {
               result={ok:true,value:joined.value};
               await ctx.run(`children-resume:${step}:${callIndex}`,()=>pool.query("UPDATE agents_platform.tasks SET state='running',updated_at=now() WHERE id=$1 AND state='waiting_children'",[taskId]).then(()=>undefined));
             }
+            if(result.ok&&!binding)validateBuiltinResult(name,result.value);
             if(!result.ok && result.code==="CONTEXT_INVALIDATED") { refreshContext=true; break; }
             if(result.ok && name==="channel.request_handoff") { outcome={state:"incomplete",errorCode:"CHANNEL_HANDOFF_REQUESTED"};stop=true;break; }
             if (!result.ok && (result.uncertain || ["TASK_CANCELLED", "GRANT_REVOKED", "MEMBERSHIP_INACTIVE", "ROOT_LIMIT", "AUTHORITY_EXPIRED"].includes(result.code))) {
