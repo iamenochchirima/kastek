@@ -100,6 +100,13 @@ Responses are bounded to 2 MiB native, 256 KiB MCP and 8 KiB model observations.
 Larger permitted response bodies remain private. Completed receipts replay before
 adapter lookup; an abandoned started send stays uncertain and is not repeated.
 
+Anonymous access still has provider quotas. HTTP 429 and quota-confirmed 403
+responses yield `RATE_LIMIT`; 401 and other 403 responses yield `AUTHENTICATION`.
+Retries respect both declared reset and Retry-After times within the original
+attempt and deadline limits. An exhausted quota without safe retry timing fails
+immediately. The public profile retains its GitHub publicness check even when
+that shared anonymous quota prevents a DeepWiki read.
+
 Executable digests bind the actual adapter files. API and worker must use the same
 execution mode and artifacts: both compiled for acceptance and production, or both
 TypeScript during development. Publishing in one mode and running in another fails
