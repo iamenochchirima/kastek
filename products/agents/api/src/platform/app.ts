@@ -9,6 +9,7 @@ import cookie from "@fastify/cookie";
 import type { Pool } from "pg";
 import { z } from "zod";
 import { PlatformIdentity } from "./auth";
+import { registerPublicIdentityRoutes } from "./auth-routes";
 import type { PlatformConfig } from "./config";
 import { agentConfigurationSchema, assertRuntimeAvailable, executionGrantSchema, connectedToolAuthorityIds, parseAllowedOrigin,
   canonicalJson, PlatformError, terminalTaskStates, type AdmissionAuthority, type AgentConfiguration, type ExecutionGrant } from "./contracts";
@@ -176,16 +177,7 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
     const ready = result.rows[0]?.version === "001_platform" && Boolean(config.OPENROUTER_API_KEY);
     return reply.code(ready ? 200 : 503).send({ status: ready ? "ready" : "unavailable", business: ready, workspace: false });
   });
-  app.get("/api/auth/login", async (_request, reply) => {
-    const login = await identity.begin();
-    return reply.setCookie(loginCookie, login.token, { ...cookieOptions, maxAge: 600 }).redirect(login.redirectTo);
-  });
-  app.get("/api/auth/callback", async (request, reply) => {
-    const claims = await identity.complete(request.cookies[loginCookie], request.url.includes("?") ? request.url.slice(request.url.indexOf("?")) : "");
-    const user = await store.ensureAccount(claims);
-    const session = await store.createSession({ accountId: user.id, providerSessionId: claims.providerSessionId, expiresAt: claims.expiresAt });
-    return reply.clearCookie(loginCookie, cookieOptions).setCookie(sessionCookie, session.token, { ...cookieOptions, expires: session.expiresAt }).redirect("/app");
-  });
+  registerPublicIdentityRoutes(app, { identity, store, secure, sessionCookie, loginCookie, signingSecret: config.AGENTS_LOGIN_RETURN_SECRET });
   app.post("/api/auth/logout", async (request, reply) => {
     await store.revokeSession(request.cookies[sessionCookie] ?? "");
     reply.clearCookie(sessionCookie, cookieOptions);

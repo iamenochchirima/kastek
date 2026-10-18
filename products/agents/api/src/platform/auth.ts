@@ -33,7 +33,7 @@ export class PlatformIdentity {
     return this.configuration;
   }
 
-  async begin(): Promise<{ token: string; redirectTo: string }> {
+  async begin(options: { signup?: boolean } = {}): Promise<{ token: string; redirectTo: string }> {
     const configuration = await this.discovery();
     const token = randomBytes(32).toString("base64url");
     const state = oidc.randomState(), nonce = oidc.randomNonce(), verifier = oidc.randomPKCECodeVerifier();
@@ -47,6 +47,7 @@ export class PlatformIdentity {
       redirectTo: oidc.buildAuthorizationUrl(configuration, {
         redirect_uri: this.callbackUrl, scope: "openid profile email", state, nonce,
         code_challenge: await oidc.calculatePKCECodeChallenge(verifier), code_challenge_method: "S256", max_age: "2592000",
+        ...(options.signup ? { prompt: "create" } : {}),
       }).href,
     };
   }

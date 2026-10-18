@@ -7,6 +7,7 @@ const configurationSchema = z.object({
   AGENTS_OIDC_ISSUER_URL: z.url().default("http://localhost:8080/realms/kasitek"),
   AGENTS_OIDC_CLIENT_ID: z.string().min(1).default("agents"),
   AGENTS_OIDC_CLIENT_SECRET: z.string().min(24),
+  AGENTS_LOGIN_RETURN_SECRET: z.string().min(32).optional(),
   PORT: z.coerce.number().int().min(1).max(65_535).default(4100),
   HOST: z.string().default("127.0.0.1"),
   RESTATE_INGRESS_URL: z.url().default("http://localhost:18080"),
@@ -24,6 +25,7 @@ export function loadPlatformConfig(environment: NodeJS.ProcessEnv = process.env)
       throw new Error(`Invalid ${name}: use HTTPS or a loopback development URL`);
     }
   }
+  if (config.AGENTS_LOGIN_RETURN_SECRET === config.AGENTS_OIDC_CLIENT_SECRET) throw new Error("Use an independent AGENTS_LOGIN_RETURN_SECRET");
   if (new URL(config.AGENTS_PUBLIC_URL).pathname !== "/") throw new Error("AGENTS_PUBLIC_URL must be an origin");
   return config;
 }

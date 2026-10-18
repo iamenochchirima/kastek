@@ -1,7 +1,7 @@
-/** Disposable real-provider fixture. This does not verify signup email or production identity deployment. */
+/** Disposable real-provider fixture with local verification email; never uses the owner workspace. */
 import assert from "node:assert/strict";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
-import { execFile } from "node:child_process";
+import { execFile, spawn, type ChildProcess } from "node:child_process";
 import { createRequire } from "node:module";
 import { mkdtemp, readFile, writeFile, chmod, rm } from "node:fs/promises";
 import { createServer } from "node:net";
@@ -21,7 +21,7 @@ async function run() {
   const moduleRequire = createRequire(__filename);
   const { chromium } = moduleRequire(process.env.AGENTS_PLAYWRIGHT_MODULE || "playwright");
   const keycloakImage = "quay.io/keycloak/keycloak:26.6.0@sha256:b0e5dbced1775de4d629f103c0a9cfc057decc62ce8d3cb1c54f8849a6c6eb62";
-  const postgresImage = "postgres:16-alpine";
+  const postgresImage = "pgvector/pgvector:pg16-bookworm";
   const fixture = await mkdtemp(join(tmpdir(), "agents-identity-"));
   await chmod(fixture, 0o700);
   const suffix = randomBytes(6).toString("hex");
@@ -32,6 +32,7 @@ async function run() {
   let databaseCreated = false;
   let admin: Pool | undefined, pool: Pool | undefined, app: Awaited<ReturnType<typeof buildPlatformApp>> | undefined;
   let browser: any;
+  let mailpit: ChildProcess | undefined;
   let proxy: HttpServer | undefined;
   let captureCallback: ((url: string) => void) | undefined;
   let capturedLogoutToken: string | undefined;
@@ -73,9 +74,18 @@ async function run() {
     await admin.query(`CREATE DATABASE "${databaseName}"`); databaseCreated = true;
     const dbUrl = new URL(adminUrl); dbUrl.pathname = `/${databaseName}`;
     pool = new Pool({ connectionString: dbUrl.href });
+    stage = "fresh isolated schema";
     await setupPlatformSchema(pool);
+    stage = "isolated mail and provider setup";
     const applicationPort = await availablePort(), providerPort = await availablePort();
     const applicationOrigin = `http://localhost:${applicationPort}`;
+    const smtpPort = await availablePort(), mailPort = await availablePort();
+    const mailOrigin = `http://127.0.0.1:${mailPort}`;
+    const mailpitExecutable = process.env.AGENTS_MAILPIT_EXECUTABLE || join(__dirname, "../../../../infra/identity/.runtime/mailpit/mailpit");
+    mailpit = spawn(mailpitExecutable, ["--listen", `127.0.0.1:${mailPort}`, "--smtp", `0.0.0.0:${smtpPort}`, "--database", join(fixture, "mail.db")], { stdio: "ignore" });
+    let mailStartupError = false;
+    mailpit.once("error", () => { mailStartupError = true; });
+    await waitFor(async () => { if (mailStartupError) throw new Error("MailpitUnavailable"); return (await fetch(`${mailOrigin}/api/v1/messages`, { signal: AbortSignal.timeout(1_000) })).ok; }, "Fixture Mailpit startup", 10_000);
     const providerOrigin = `http://localhost:${providerPort}`;
     const clientSecret = randomBytes(32).toString("base64url");
     const password = randomBytes(24).toString("base64url");
@@ -85,7 +95,8 @@ async function run() {
     check(serviceClient, "Execution client template missing");
     serviceClient.secret = serviceSecret;
     const realm = {
-      realm: "agents-acceptance", enabled: true, sslRequired: "none", registrationAllowed: false,
+      realm: "agents-acceptance", enabled: true, sslRequired: "none", registrationAllowed: true, resetPasswordAllowed: true,
+      smtpServer: { host: "host.docker.internal", port: String(smtpPort), from: "accounts@agents.example.test", ssl: "false", starttls: "false", auth: "false" },
       loginWithEmailAllowed: true, verifyEmail: true,
       users: [{ username: "fixture-owner", enabled: true, email: "fixture@example.invalid", emailVerified: true,
         firstName: "Fixture", lastName: "Owner", requiredActions: [], credentials: [{ type: "password", value: password, temporary: false }] },
@@ -187,7 +198,7 @@ async function run() {
           else await pool!.query("UPDATE agents_platform.login_transactions SET verifier='incorrect-verifier' WHERE token_hash=$1", [digest]);
         }
         const response = await context.request.get(callbackUrl.href, { maxRedirects: 0 });
-        check(response.status() === 401, `${mode} mismatch was not rejected, status ${response.status()}`);
+        check(response.status() === 302 && response.headers().location === "/login?error=failed", `${mode} mismatch was not rejected, status ${response.status()}`);
         check(!(await context.cookies(applicationOrigin)).some((cookie: { name: string }) => cookie.name === "agents_session"), `${mode} mismatch created a session`);
       } finally { captureCallback = undefined; await context.close(); }
     }
@@ -232,15 +243,70 @@ async function run() {
     await context.close();
     for (const mode of ["state", "nonce", "pkce"] as const) { stage = mode + " mismatch"; await negativeLogin(mode); }
     check(Number((await pool.query("SELECT count(*) FROM agents_platform.sessions WHERE revoked_at IS NULL")).rows[0].count) === 0, "Rejected callbacks created a session");
-    console.log(JSON.stringify({ provider: keycloakImage, checks: { browserAuthorizationCodePkce: true, stateRejection: true,
+    stage = "fresh registration and verification email";
+    const signupContext = await browser.newContext(), signupPage = await signupContext.newPage();
+    signupContext.setDefaultTimeout(20_000);
+    const signupEmail = `signup-${suffix}@agents.example.test`;
+    const signupDestination = "/app/agents?welcome=registered";
+    await signupPage.goto(`${applicationOrigin}/api/auth/signup?returnTo=${encodeURIComponent(signupDestination)}`);
+    check(new URL(signupPage.url()).searchParams.get("prompt") === "create", "Registration did not use provider signup intent");
+    for (const [selector, value] of [["#username", `signup-${suffix}`], ["#email", signupEmail], ["#firstName", "Signup"], ["#lastName", "Fixture"], ["#password", password], ["#password-confirm", password]]) {
+      const field = signupPage.locator(selector);
+      if (await field.count()) await field.fill(value);
+    }
+    await signupPage.locator('input[type="submit"], button[type="submit"]').first().click();
+    await signupPage.waitForURL((url: URL) => url.origin === providerOrigin && url.pathname.includes("login-actions"));
+    check(!(await signupContext.cookies(applicationOrigin)).some((value: { name: string }) => value.name === "agents_session"), "Unverified registration created a product session");
+    let messageId: string | undefined;
+    await waitFor(async () => {
+      const result = await (await fetch(`${mailOrigin}/api/v1/messages`)).json() as { messages: { ID: string; To: { Address: string }[] }[] };
+      messageId = result.messages.find(item => item.To.some(recipient => recipient.Address === signupEmail))?.ID;
+      return Boolean(messageId);
+    }, "Signup verification email", 30_000);
+    const mail = await (await fetch(`${mailOrigin}/api/v1/message/${messageId}`)).json() as { Text: string; HTML: string };
+    const verification = (mail.Text || mail.HTML).match(/https?:[^\s<>"']+action-token[^\s<>"']*/u)?.[0]?.replaceAll("&amp;", "&");
+    check(verification && new URL(verification).origin === providerOrigin, "Provider verification link missing");
+    await signupPage.goto(verification);
+    const confirmVerification = signupPage.locator('a:has-text("Proceed")');
+    if (await confirmVerification.count()) await confirmVerification.click();
+    if (await signupPage.locator("#password-new").count()) {
+      await signupPage.locator("#password-new").fill(password);
+      await signupPage.locator("#password-confirm").fill(password);
+      await signupPage.locator('input[type="submit"], button[type="submit"]').first().click();
+    }
+    await signupPage.waitForURL(`${applicationOrigin}${signupDestination}`);
+    const signupCookie = await cookieValue(signupContext);
+    check(await sessionStatus(signupCookie) === 200, "Verified registration did not create a product session");
+    const freshSession = await signupPage.evaluate(async () => (await fetch("/api/session")).json());
+    check(freshSession.organizations.length === 0 && freshSession.account.email === signupEmail, "New account inherited a workspace or wrong identity");
+    const signupWorkspace = await signupPage.evaluate(async () => {
+      const response = await fetch("/api/organizations", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name: "Signup acceptance" }) });
+      return { status: response.status, body: await response.json() };
+    });
+    check(signupWorkspace.status === 201 && signupWorkspace.body.organization.id, "First workspace creation after signup failed");
+    const signupLogout = await signupPage.evaluate(async () => (await fetch("/api/auth/logout", { method: "POST" })).json());
+    await signupPage.goto(signupLogout.redirectTo);
+    const signupConfirmLogout = signupPage.locator("#kc-logout");
+    if (await signupConfirmLogout.count()) await signupConfirmLogout.click();
+    check(await sessionStatus(signupCookie) === 401, "Signup account sign-out failed");
+    stage = "registered account return login";
+    const returnDestination = "/app/settings?from=login";
+    await signupPage.goto(`${applicationOrigin}/api/auth/login?returnTo=${encodeURIComponent(returnDestination)}`);
+    await signupPage.locator("#username").fill(`signup-${suffix}`);
+    await signupPage.locator("#password").fill(password);
+    await Promise.all([signupPage.waitForURL(`${applicationOrigin}${returnDestination}`), signupPage.locator("#kc-login").click()]);
+    check(await sessionStatus(await cookieValue(signupContext)) === 200, "Registered account return login failed");
+    await signupContext.close();
+    console.log(JSON.stringify({ provider: keycloakImage, checks: { browserAuthorizationCodePkce: true, freshSignup: true, localVerificationEmail: true, firstWorkspaceAfterSignup: true, safeReturnDestination: true, registeredReturnLogin: true, stateRejection: true,
       serviceClientCredentialsAudienceAndRole: true, noRealmManagementAuthority: true, nonceRejection: true, pkceVerifierRejection: true, opaqueSession: true, organizationCreation: true, localLogout: true,
       providerSignedBackchannel: true, logoutReplay: true, malformedAndUnsignedAndBadSignatureRejection: true },
-      unverified: ["signup email", "production deployment"] }));
+      unverified: ["production deployment"] }));
   }
   let cleanupPromise: Promise<void> | undefined;
   function cleanup(): Promise<void> {
     cleanupPromise ??= (async () => {
     await browser?.close().catch(() => {});
+    if (mailpit && mailpit.exitCode === null) { mailpit.kill("SIGTERM"); await new Promise<void>(resolve => { mailpit!.once("exit", () => resolve()); setTimeout(resolve, 5_000); }); }
     if (proxy) { proxy.closeAllConnections(); await new Promise<void>((resolve) => proxy!.close(() => resolve())); }
     await app?.close().catch(() => {}); await pool?.end().catch(() => {});
     if (databaseCreated && admin) await admin.query(`DROP DATABASE IF EXISTS "${databaseName}" WITH (FORCE)`).catch(() => {});
