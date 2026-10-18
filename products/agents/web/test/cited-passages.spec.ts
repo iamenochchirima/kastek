@@ -18,7 +18,7 @@ for(const width of [1440,768,390])test(`mock transport: cited passages and revok
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
   await page.screenshot({path:test.info().outputPath(`citations-${width}.png`),fullPage:true});
   withdrawn=true;const refresh=page.getByRole("button",{name:"Refresh sources",exact:true});await refresh.focus();await expect(refresh).toBeFocused();await page.keyboard.press("Enter");
-  await expect(page.getByText("These sources are no longer available.",{exact:true})).toBeVisible();
+  await expect(page.getByText("This response is no longer available.",{exact:true})).toBeVisible();await expect(page.getByText(`The finding is supported [${label}].`,{exact:true})).toHaveCount(0);
   await expect(page.getByText("The decisive finding appears on the final page. 🧪",{exact:true})).toHaveCount(0);await page.getByRole("button",{name:"Refresh status",exact:true}).click();await expect(page.getByText("This response is no longer available.",{exact:true})).toBeVisible();await expect(page.getByText(`The finding is supported [${label}].`,{exact:true})).toHaveCount(0);expect(errors).toEqual([]);
 });
 
