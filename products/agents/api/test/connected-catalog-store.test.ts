@@ -163,4 +163,48 @@ const dbUrl = process.env.AGENTS_TEST_DATABASE_URL;
     expect((await catalogs.selectBindings(github.scope,selectionRequest(github,githubCandidate.id,"get_file_contents")))[0]!.policy.disclosure).toBe("public_identifiers");
   });
 
+  async function publicFixture() {
+    const f=await fixture();
+    const connection=await connections.create(f.scope,{operationId:randomUUID(),name:"Public repositories",profileId:"public-repository-read-v1",
+      targetId:"provider:public-repository",selections:[selection]});
+    return {...f,connection};
+  }
+  it("creates genuinely anonymous public connections with SQL NULL credentials and no rotation",async()=>{
+    const f=await publicFixture();
+    expect(f.connection).toMatchObject({profileId:"public-repository-read-v1",targetId:"provider:public-repository",targetLabel:"Public repositories",authentication:"none",stashItemIds:[],resources:[{kind:"github.repository",id:"approved/public-repo"}]});
+    expect(Date.parse(f.connection.expiresAt)-Date.now()).toBeLessThanOrEqual(30*86400000);
+    const row=(await pool.query("SELECT envelope,envelope IS NULL AS sql_null FROM agents_platform.connection_credentials WHERE connection_id=$1",[f.connection.id])).rows[0];
+    expect(row).toEqual({envelope:null,sql_null:true});
+    expect((await transaction(pool,db=>connections.resolveCredential(db,f.scope,f.connection.id,1))).authorization).toBe("");
+    const base={operationId:randomUUID(),name:"Invalid anonymous",profileId:"public-repository-read-v1" as const,targetId:"provider:public-repository",selections:[selection]};
+    for(const changed of [{apiKey:key},{apiKey:"stash_fixture_private_key"},{apiKey:""},{selections:[]},{stashItemIds:[randomUUID()]},{targetId:"provider:github"},
+      {selections:[{...selection,ref:"https://example.invalid/repository"}]},{selections:[{...selection,ref:"main?private=question"}]},{selections:[{...selection,ref:'main"quote'}]}])await expect(connections.create(f.scope,{...base,...changed})).rejects.toBeDefined();
+    for(const profile of [{profileId:"github-public-read-v1" as const,targetId:"provider:github",selections:[selection]},
+      {profileId:"stash-read-v1" as const,targetId:"provider:stash",stashItemIds:[randomUUID()]},
+      {profileId:"report-delivery-v1" as const,targetId:"reports"}])await expect(connections.create(f.scope,{operationId:randomUUID(),name:"Missing bearer key",expiresAt:expiry(),...profile})).rejects.toMatchObject({code:"CONNECTION_KEY_INVALID"});
+    for(const apiKey of [undefined,key])await expect(connections.mutate(f.scope,f.connection.id,{operationId:randomUUID(),expectedRevision:1,apiKey},"rotate")).rejects.toMatchObject({code:"CONNECTION_ROTATION_DENIED"});
+    await pool.query("UPDATE agents_platform.connection_credentials SET envelope='{}'::jsonb WHERE connection_id=$1",[f.connection.id]);
+    await expect(transaction(pool,db=>connections.resolveCredential(db,f.scope,f.connection.id,1))).rejects.toMatchObject({code:"CONNECTION_AUTHENTICATION_INVALID"});
+    await pool.query("UPDATE agents_platform.connection_credentials SET envelope=NULL WHERE connection_id=$1",[f.connection.id]);
+    await expect(connections.mutate(f.scope,f.connection.id,{operationId:randomUUID(),expectedRevision:1,apiKey:key},"revoke")).rejects.toMatchObject({code:"CONNECTION_KEY_INVALID"});
+    await pool.query("UPDATE agents_platform.connections SET expires_at=now()-interval '1 second' WHERE id=$1",[f.connection.id]);
+    await connections.mutate(f.scope,f.connection.id,{operationId:randomUUID(),expectedRevision:1},"revoke");
+    await expect(transaction(pool,db=>connections.resolveCredential(db,f.scope,f.connection.id,1))).rejects.toMatchObject({code:"CONNECTION_INACTIVE"});
+    const bearer=await fixture();expect(bearer.connection.authentication).toBe("bearer");
+    await pool.query("UPDATE agents_platform.connection_credentials SET envelope=NULL WHERE connection_id=$1",[bearer.connection.id]);
+    await expect(transaction(pool,db=>connections.resolveCredential(db,bearer.scope,bearer.connection.id,1))).rejects.toMatchObject({code:"CONNECTION_AUTHENTICATION_INVALID"});
+  });
+  it("separates public native reads from the two anonymous MCP operations",async()=>{
+    const f=await publicFixture(),discovered=await save(f,candidate(f.connection,f.scope.organizationId,["read_wiki_structure","read_wiki_contents","ask_question","get_file_contents","get_item","update_item"],1,"mcp_http"));
+    expect(discovered.selectableOperations).toEqual(["read_wiki_structure","read_wiki_contents"]);
+    const selected=await catalogs.selectBindings(f.scope,selectionRequest(f,discovered.id,"read_wiki_contents"));
+    expect(selected[0]).toMatchObject({connection:{profileId:"public-repository-read-v1"},policy:{disclosure:"public_identifiers"},resources:f.connection.resources});
+    for(const operation of ["ask_question","get_file_contents","get_item","update_item"])await expect(catalogs.selectBindings(f.scope,selectionRequest(f,discovered.id,operation))).rejects.toMatchObject({code:"PROVIDER_OPERATION_DENIED"});
+    const native=await save(f,candidate(f.connection,f.scope.organizationId,["get_repository","resolve_ref","list_tree","read_file","read_wiki_contents"],2));
+    expect(native.selectableOperations).toEqual(["get_repository","resolve_ref","list_tree","read_file"]);
+    expect((await catalogs.selectBindings(f.scope,selectionRequest(f,native.id,"get_repository")))[0]!.transport).toBe("native_http");
+    await expect(catalogs.selectBindings(f.scope,selectionRequest(f,native.id,"read_wiki_contents"))).rejects.toMatchObject({code:"PROVIDER_OPERATION_DENIED"});
+    for(const operation of ["read_wiki_structure","read_wiki_contents"]){expect(connectedProviderOperationAllowed("public-repository-read-v1","mcp_http",operation)).toBe(true);expect(connectedProviderOperationAllowed("public-repository-read-v1","native_http",operation)).toBe(false);expect(connectedProviderOperationAllowed("stash-read-v1","mcp_http",operation)).toBe(false);expect(connectedProviderOperationAllowed("github-public-read-v1","mcp_http",operation)).toBe(false);}
+  });
+
 });

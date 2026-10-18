@@ -4,7 +4,7 @@ import { z } from "zod";
 import { PlatformError, requestDigest } from "./contracts";
 import { transaction } from "./database";
 import { actionMissing, requireActionMember, type ActionScope, type ConnectionStore } from "./connections";
-import { capabilityBindingSchema, capabilityCatalogSchema, createBinding, resourceHandleSchema, stashReadOperationSchema,
+import { capabilityBindingSchema, capabilityCatalogSchema, createBinding, resourceHandleSchema, stashReadOperationSchema, publicRepositoryMcpReadOperationSchema,
   type CapabilityBinding, type CapabilityCatalog, type ExecutableAdapterRegistry, type ResourceHandle } from "./capability-catalog";
 import { githubOperationSchema } from "./github-adapter";
 
@@ -16,12 +16,14 @@ export function githubProviderOperationAllowed(transport: string, operation: str
   return transport === "native_http" ? githubOperationSchema.safeParse(operation).success : transport === "mcp_http" && GITHUB_MCP_READ_OPERATIONS.has(operation);
 }
 export const STASH_MCP_READ_OPERATIONS: ReadonlySet<string> = new Set(stashReadOperationSchema.options);
+export const PUBLIC_REPOSITORY_MCP_READ_OPERATIONS: ReadonlySet<string> = new Set(publicRepositoryMcpReadOperationSchema.options);
 export function connectedProviderOperationAllowed(profileId: string, transport: string, operation: string): boolean {
+  if(profileId === "public-repository-read-v1") return transport === "native_http" ? githubOperationSchema.safeParse(operation).success : transport === "mcp_http" && PUBLIC_REPOSITORY_MCP_READ_OPERATIONS.has(operation);
   if(profileId === "stash-read-v1") return transport === "mcp_http" && STASH_MCP_READ_OPERATIONS.has(operation);
   return profileId === "github-public-read-v1" && githubProviderOperationAllowed(transport, operation);
 }
 function profileTransportAllowed(profileId: string, transport: string): boolean {
-  return profileId === "stash-read-v1" ? transport === "mcp_http" : profileId === "github-public-read-v1" && ["native_http", "mcp_http"].includes(transport);
+  return profileId === "stash-read-v1" ? transport === "mcp_http" : ["github-public-read-v1", "public-repository-read-v1"].includes(profileId) && ["native_http", "mcp_http"].includes(transport);
 }
 const selectionSchema = z.strictObject({ providerOperation: z.string().min(1).max(128), resources: z.array(resourceHandleSchema).min(1).max(20) });
 export const selectCatalogBindingsSchema = z.strictObject({ operationId: z.string().min(1).max(128), connectionId: z.uuid(),
@@ -38,7 +40,7 @@ export class ConnectedCatalogStore {
     await requireActionMember(db, scope);
     const row = (await db.query("SELECT * FROM agents_platform.connections WHERE id=$1 AND organization_id=$2 AND account_id=$3 FOR UPDATE", [id, scope.organizationId, scope.accountId])).rows[0];
     if (!row) throw actionMissing();
-    if (!["github-public-read-v1", "stash-read-v1"].includes(row.profile_id)) throw new PlatformError("CONNECTION_PROFILE_DENIED", 403, "Select a supported read connection");
+    if (!["github-public-read-v1", "stash-read-v1", "public-repository-read-v1"].includes(row.profile_id)) throw new PlatformError("CONNECTION_PROFILE_DENIED", 403, "Select a supported read connection");
     if (row.state !== "active" || Date.parse(row.expires_at) <= Date.now()) throw new PlatformError("CONNECTION_INACTIVE", 403, "Connection authorization is unavailable");
     if (expectedRevision !== undefined && row.revision !== expectedRevision) throw new PlatformError("CONNECTION_REVISION_CONFLICT", 409, "Connection changed; refresh and try again");
     return row;

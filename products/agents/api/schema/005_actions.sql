@@ -7,7 +7,7 @@ CREATE TABLE agents_platform.connections (
 );
 CREATE TABLE agents_platform.connection_credentials (
  connection_id uuid NOT NULL REFERENCES agents_platform.connections(id), revision integer NOT NULL,
- envelope jsonb NOT NULL, created_at timestamptz NOT NULL DEFAULT now(), PRIMARY KEY(connection_id,revision)
+ envelope jsonb, created_at timestamptz NOT NULL DEFAULT now(), PRIMARY KEY(connection_id,revision)
 );
 CREATE TABLE agents_platform.connection_mutations (
  organization_id uuid NOT NULL, account_id uuid NOT NULL, operation_id text NOT NULL,

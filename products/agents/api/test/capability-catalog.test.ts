@@ -22,7 +22,7 @@ function fixtures(names = ["repo.read"]) {
       outputSchema: null, inputDigest: digestToolSchema(inputSchema), outputDigest: null })) });
   const bindings = catalog.tools.map(definition => createBinding({ schemaVersion: 1, id: randomUUID(), organizationId,
     catalog: { id: catalog.id, revision: catalog.revision, digest: catalog.digest }, definition, adapter,
-    transport: "mcp_http", protocolVersion: "2026-07-28", connection: { id: connectionId, profileId: "public-repository-read-v1", policyRevision: 1 },
+    transport: "mcp_http", protocolVersion: "2026-07-28", connection: { id: connectionId, profileId: "fixture-read-v1", policyRevision: 1 },
     resources: [{ kind: "repository", id: "approved/repo" }], policy: { effect: "read", disclosure: "public_identifiers", retry: "safe_read", approval: "none", cancel: "stop_admission" },
     limits: { timeoutMs: 30000, maxPhysicalAttempts: 3, maxResponseBytes: 262144, maxModelResultBytes: 8192 },
   }, catalog));
@@ -77,6 +77,16 @@ describe("immutable capability publication", () => {
     const wrong=fixtures(["update_item"]),{digest:otherDigest,alias:otherAlias,...wrongInput}=wrong.binding;
     expect(()=>createBinding({...wrongInput,connection:stash.connection,resources:stash.resources,policy:stash.policy},wrong.catalog)).toThrow("Stash");
     expect(()=>createBinding({...input,connection:{id:connectionId,profileId:"github-public-read-v1",policyRevision:1},policy:stash.policy},f.catalog)).toThrow("read-only");
+  });
+
+  it("limits public repository bindings by transport, operation and selected repository handles",()=>{
+    const f=fixtures(["read_wiki_contents"]),{digest,alias,...base}=f.binding;
+    const input={...base,connection:{id:connectionId,profileId:"public-repository-read-v1",policyRevision:1},resources:[{kind:"github.repository",id:"approved/repo"}]};
+    expect(createBinding(input,f.catalog).policy.disclosure).toBe("public_identifiers");
+    expect(()=>createBinding({...input,resources:[{kind:"stash.item",id:randomUUID()}]},f.catalog)).toThrow("Public repository");
+    expect(()=>createBinding({...input,resources:[{kind:"github.repository",id:"https://github.com/approved/repo?question=secret"}]},f.catalog)).toThrow("Public repository");
+    const question=fixtures(["ask_question"]),{digest:otherDigest,alias:otherAlias,...other}=question.binding;
+    expect(()=>createBinding({...other,connection:input.connection,resources:input.resources},question.catalog)).toThrow("Public repository");
   });
 
   it("rejects entire oversized or duplicate discovery rather than silently selecting tools", () => {
