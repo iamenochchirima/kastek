@@ -524,6 +524,14 @@ async function main() {
         AGENTS_ADVANCED_EXPECT: "60", AGENTS_ADVANCED_FILE_CONTAINS: "60", AGENTS_ADVANCED_DATASET_CHECK: "1" } : {}) },
   });
   const [exitCode] = await once(browser, "exit");
+  if(exitCode!==0&&publicRepositoryJourney){
+    const tasks=(await pool.query("SELECT t.id,t.parent_task_id,t.state,t.error_code,t.input,t.output,v.configuration->>'instructions' AS instructions FROM agents_platform.tasks t JOIN agents_platform.agent_versions v ON v.id=t.version_id ORDER BY t.created_at")).rows;
+    const operations=(await pool.query("SELECT task_id,id,kind,name,state,error_code,output FROM agents_platform.operations ORDER BY started_at")).rows;
+    const roots=(await pool.query("SELECT root_task_id,tokens_used,tokens_reserved,model_calls,tool_calls FROM agents_platform.execution_roots")).rows;
+    const diagnosis=JSON.stringify({scope:"failed public-only acceptance; synthetic numeric sources and public repository facts",tasks,operations,roots},null,2);
+    for(const key of [process.env.OPENROUTER_API_KEY,process.env.STASH_AGENT_KEY,process.env.AGENTS_GITHUB_ACCEPTANCE_TOKEN].filter(Boolean))assert.ok(!diagnosis.includes(key!),"Withhold a reflected credential from fixture failure evidence");
+    await writeFile(resolve(root,".audit/agents-public-repository-failure.json"),diagnosis,{mode:0o600});
+  }
   assert.equal(exitCode, 0, "Live-service browser check failed");
   if (!realModel) {
     assert.equal(modelCalls.length, 4, "Four logical tasks require four provider calls; lost-response retry must not call twice");
