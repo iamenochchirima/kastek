@@ -89,3 +89,15 @@ test("mock transport: draft changes require custom discard confirmation before n
   await page.getByRole("navigation", { name: "Main navigation" }).getByRole("link", { name: "Tasks", exact: true }).click();
   await page.getByRole("button", { name: "Discard changes" }).click(); await expect(page.getByRole("heading", { name: "Tasks", exact: true })).toBeVisible();
 });
+
+test("mock transport: inline activity loads cursor-paged task events", async ({ page }) => {
+  const { tasks } = await fixture(page);
+  await page.route(`**/api/organizations/${org}/tasks/task-1`, route => route.fulfill({ json: { task: tasks[0], events: [{ sequence: 30, kind: "model_started" }], eventsNextCursor: "next-events", actions: [], children: [], resources: [], artifacts: [], operations: [] } }));
+  await page.route(`**/api/organizations/${org}/tasks/task-1/events?*`, route => route.fulfill({ json: { events: [{ sequence: 31, kind: "event_page_loaded" }], nextCursor: null } }));
+  await page.goto(`/app/agents/${agentId}`);
+  await page.getByRole("textbox", { name: "Message", exact: true }).fill("Inspect activity."); await page.getByRole("button", { name: "Send message" }).click();
+  await expect(page).toHaveURL(/\/conversations\/conversation-1$/);
+  await page.getByText("Task details", { exact: true }).click(); await page.getByText("Event history", { exact: true }).click();
+  await page.getByRole("button", { name: "Load more events" }).click();
+  await expect(page.getByText("event page loaded", { exact: true })).toBeVisible(); await expect(page.getByRole("button", { name: "Load more events" })).toHaveCount(0);
+});
