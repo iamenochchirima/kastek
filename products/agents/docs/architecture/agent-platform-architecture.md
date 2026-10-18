@@ -770,8 +770,17 @@ for exact limits, review semantics and uncertainty handling.
 Exactly two execution categories remain. Workspace tasks fail before acceptance until the Lina
 adapter is implemented. The initial connected action is exact reviewed report delivery through ReportDeliveryHTTP; arbitrary business-write adapters remain unavailable. Durable UTC one-shot/interval schedules and authenticated events use explicit automation authorization. Additional workflow profiles remain unavailable. Delegation and analysis require their published configuration, bounded current grants and available runtime/storage.
 Shared runtime probes verify coordination capabilities without establishing customer catalogue
-offerings. Selected outbound MCP reads are implemented. External-agent access to product MCP,
-embedded Growth and Agencies admission, and evaluator adapters remain unavailable.
+offerings. Selected outbound MCP reads are implemented. The trusted product execution adapter
+verifies short-lived signed initiating identities and registered tenant/version scope for model
+replies and approved public knowledge. Rich product tools and private record mappings remain
+unavailable through that adapter; it does not manufacture Agents membership.
+
+The external Harbor adapter submits isolated pinned trials through normal native interfaces.
+Controlled acceptance covers FAQ, ordered follow-ups, customer Inbox ownership, specialist research,
+real isolated analysis, reviewed reports and uncertain delivery reconciliation. Native outcomes,
+coverage and verifier/quality results remain separate. Unsupported or withheld evidence cannot
+become a passing grade. Remaining suite, recovery and model-quality criteria stay in Linear.
+External-agent access to Growth/Agencies MCP remains separate product work.
 
 Remaining work includes embedded-product authorization/resource mapping, concrete third-party adapters,
 commercial billing, production storage operations, other channels, Lina hosting and production
