@@ -128,6 +128,21 @@ const url=process.env.AGENTS_TEST_DATABASE_URL;
   await expect(evidence.derive(f.task.id,"artifact",randomUUID())).rejects.toMatchObject({code:"EVIDENCE_UNAVAILABLE"});
  });
 
+ it("links only already-supplied exact checkpoint evidence metadata with bounded omissions",async()=>{
+  const f=await fixture(),first=await evidence.recordChunk(f.task.id,f.operationId,f.chunkId,{start:0,end:14}),second=await evidence.recordChunk(f.task.id,f.operationId,f.chunkId,{start:15,end:f.text.length});
+  await context(f,first,0);await context(f,second,1);
+  const index=await evidence.suppliedEvidence(f.task.id,1);expect(index.items).toHaveLength(1);expect(index.omittedCount).toBe(1);
+  const all=await evidence.suppliedEvidence(f.task.id),ids=all.items.map(item=>item.id);expect(all.items.map(item=>item.kind)).toEqual(["source","source"]);
+  async function snapshot(step:number,items:typeof all.items){const id=`context:${f.task.id}:${step}`,payload={messages:[{role:"system",content:JSON.stringify({evidence:items})}],continuationEvidenceIds:items.map(item=>item.id),continuation:{checkpoint:{evidence:items}}};await pool.query("INSERT INTO agents_platform.context_snapshots(id,task_id,step,digest,payload,history_cutoff) VALUES($1,$2,$3,$4,$5,0)",[id,f.task.id,step,textDigest(JSON.stringify(payload)),payload]);return id;}
+  const id=await snapshot(2,all.items);expect((await evidence.supplyContext(f.task.id,id,[],ids)).evidenceIds).toEqual([...ids].sort());
+  expect((await evidence.supplyContext(f.task.id,id,[],ids)).ownerId).toBe(id);
+  await expect(evidence.supplyContext(f.task.id,id,[])).rejects.toMatchObject({code:"EVIDENCE_INTEGRITY"});
+  const changed=structuredClone(all.items);changed[0]!.citation="[E0]";await expect(evidence.supplyContext(f.task.id,await snapshot(3,changed),[],ids)).rejects.toMatchObject({code:"EVIDENCE_INTEGRITY"});
+  const unsupplied=await evidence.recordChunk(f.task.id,f.operationId,f.chunkId,{start:0,end:f.text.length});const unseen=[{id:unsupplied.reference.id,citation:`[${unsupplied.label}]`,operationId:f.operationId,kind:"source" as const}];
+  await expect(evidence.supplyContext(f.task.id,await snapshot(4,unseen),[],[unseen[0]!.id])).rejects.toMatchObject({code:"EVIDENCE_INTEGRITY"});
+  await expect(evidence.suppliedEvidence(f.task.id,13)).rejects.toMatchObject({code:"EVIDENCE_LIMIT"});
+ });
+
  it("pins connected resource/catalog receipts, permits credential rotation, and invalidates derived evidence on revoke",async()=>{
   const f=await fixture(false,true),c=f.connectedFixture!,op=`tool:${f.task.id}:connected`;
   await beginOperation(pool,f.task.id,{id:op,kind:"tool",name:c.binding.alias,request:{},reservedTokens:0,reservedMs:1000,retrySafe:true});

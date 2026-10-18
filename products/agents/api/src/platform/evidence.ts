@@ -2,7 +2,7 @@ import {writeExecutionObject} from "./execution-objects";
 import { randomUUID } from "node:crypto";
 import type { Pool, PoolClient } from "pg";
 import { z } from "zod";
-import { PlatformError, requestDigest } from "./contracts";
+import { PlatformError, requestDigest, connectedToolAuthorityIds } from "./contracts";
 import { capabilityBindingSchema, type CapabilityBinding, type ResourceHandle } from "./capability-catalog";
 import { assertCurrentAuthority, loadExecution, type Execution } from "./execution";
 import { transaction } from "./database";
@@ -50,6 +50,35 @@ async function sourceAllowed(db: Db, execution: Execution, revisionId: string): 
     const root = await loadExecution(db, execution.task.root_task_id); await sourceAllowed(db, root, revisionId);
   }
 }
+export async function assertChildConnectedAuthority(db:Db,child:Execution,bindingId:string):Promise<void>{
+  if(!child.task.parent_task_id)return;
+  const root=await loadExecution(db,child.task.root_task_id);
+  const delegation=(await db.query("SELECT binding_id,parent_task_id FROM agents_platform.delegations WHERE child_task_id=$1",[child.task.id])).rows[0];
+  const role=root.configuration.capabilities.delegation.enabled?root.configuration.capabilities.delegation.bindings.find(role=>role.id===delegation?.binding_id):undefined;
+  if(!delegation||delegation.parent_task_id!==root.task.id||child.task.parent_task_id!==root.task.id||child.task.organization_id!==root.task.organization_id||await owner(db,child)!==await owner(db,root)||!role||role.versionId!==child.task.version_id||!role.connectedToolBindingIds.includes(bindingId)||!connectedToolAuthorityIds(root.configuration).includes(bindingId))throw denied();
+  const grant=(await db.query("SELECT connected_tool_binding_ids,operations FROM agents_platform.execution_grants WHERE id=$1",[root.task.grant_id])).rows[0];
+  if(!grant?.operations.includes("connected.read")||!grant.connected_tool_binding_ids.includes(bindingId)||!(await db.query("SELECT 1 FROM agents_platform.version_connected_tools WHERE organization_id=$1 AND version_id=$2 AND binding_id=$3",[root.task.organization_id,root.task.version_id,bindingId])).rowCount)throw denied();
+}
+async function suppliedNodes(db:Db,execution:Execution):Promise<EvidenceNode[]>{
+  const rows=(await db.query("SELECT * FROM agents_platform.evidence_nodes WHERE root_task_id=$1",[execution.task.root_task_id])).rows.map(nodeDto),graph=new Map(rows.map(node=>[node.id,node]));
+  const roots=rows.filter(node=>node.taskId===execution.task.id);collectDependencyGraph(roots.map(node=>node.id),graph);
+  const seen=new Set<string>();const visit=(id:string):void=>{if(seen.has(id))return;seen.add(id);for(const parent of graph.get(id)!.parents)visit(parent);};roots.forEach(node=>visit(node.id));return rows.filter(node=>seen.has(node.id));
+}
+async function connectionEvidenceBinding(db:Db,execution:Execution,dependency:Extract<EvidenceDependency,{kind:"connection"}>):Promise<CapabilityBinding>{
+  const own=execution.configuration.connectedToolBindingIds;
+  const candidates=[...own];const delegated=new Map<string,Execution>();
+  if(!execution.task.parent_task_id){
+    for(const node of await suppliedNodes(db,execution)){
+      if(node.taskId===execution.task.id||node.kind!=="child_result"||!node.manifest.dependencies.some(item=>requestDigest(item)===requestDigest(dependency)))continue;
+      const child=await loadExecution(db,node.taskId);
+      if(child.task.parent_task_id!==execution.task.id||!child.task.output||!["completed","incomplete","refused","failed","cancelled","uncertain"].includes(child.task.state))continue;
+      for(const id of child.configuration.connectedToolBindingIds){await assertChildConnectedAuthority(db,child,id);candidates.push(id);delegated.set(id,child);}
+    }
+  }
+  const rows=(await db.query("SELECT id,binding FROM agents_platform.capability_bindings WHERE organization_id=$1 AND connection_id=$2 AND id=ANY($3::uuid[])",[execution.task.organization_id,dependency.connectionId,[...new Set(candidates)]])).rows;
+  const match=rows.find(row=>row.binding.catalog.digest===dependency.catalogDigest&&row.binding.resources.some((resource:ResourceHandle)=>requestDigest(resource)===dependency.resource));
+  if(!match)throw denied();return bindingAllowed(db,own.includes(match.id)?execution:delegated.get(match.id)!,match.id);
+}
 async function bindingAllowed(db: Db, execution: Execution, bindingId: string): Promise<CapabilityBinding> {
   const grant = (await db.query("SELECT connected_tool_binding_ids,operations FROM agents_platform.execution_grants WHERE id=$1 FOR SHARE", [execution.task.grant_id])).rows[0];
   if (!execution.configuration.connectedToolBindingIds.includes(bindingId) || !grant?.connected_tool_binding_ids.includes(bindingId) || !grant.operations.includes("connected.read")) throw denied();
@@ -58,7 +87,7 @@ async function bindingAllowed(db: Db, execution: Execution, bindingId: string): 
   if (!row || row.account_id !== await owner(db, execution)) throw denied();
   const binding = capabilityBindingSchema.parse(row.binding);
   if (binding.policy.effect !== "read" || binding.policy.disclosure !== (binding.connection?.profileId === "stash-read-v1" ? "approved_resource_identifiers" : "public_identifiers") || !binding.connection) throw denied();
-  if (execution.task.parent_task_id) await bindingAllowed(db, await loadExecution(db, execution.task.root_task_id), bindingId);
+  await assertChildConnectedAuthority(db,execution,bindingId);
   return binding;
 }
 async function delegationInput(db:Db,childTaskId:string){
@@ -98,10 +127,7 @@ export async function assertCurrentEvidence(db: Db, taskId: string, input: Depen
   }
   for (const dependency of dependencies.filter(item => item.kind === "connection")) {
     if (dependency.kind !== "connection") continue;
-    const bindings = (await db.query("SELECT id,binding FROM agents_platform.capability_bindings WHERE organization_id=$1 AND connection_id=$2 AND id=ANY($3::uuid[])", [execution.task.organization_id, dependency.connectionId, execution.configuration.connectedToolBindingIds])).rows;
-    const match = bindings.find(row => row.binding.catalog.digest === dependency.catalogDigest && row.binding.resources.some((resource: ResourceHandle) => requestDigest(resource) === dependency.resource));
-    if (!match) throw denied();
-    const binding = await bindingAllowed(db, execution, match.id);
+    const binding = await connectionEvidenceBinding(db,execution,dependency);
     const row = (await db.query("SELECT * FROM agents_platform.connections WHERE id=$1 AND organization_id=$2 FOR SHARE", [dependency.connectionId, execution.task.organization_id])).rows[0];
     if (!row || row.state !== "active" || row.policy_revision !== dependency.policyRevision || new Date(row.expires_at).getTime() <= Date.now() || row.account_id !== await owner(db, execution) || binding.connection?.policyRevision !== row.policy_revision || !row.resource_handles.some((resource: ResourceHandle) => requestDigest(resource) === dependency.resource)) throw unavailable();
   }
@@ -242,6 +268,7 @@ export class EvidenceStore {
       JOIN agents_platform.evidence_contents c ON c.reference_id=e.id WHERE e.id=$1 AND e.organization_id=$2 AND (e.root_task_id=$3 OR EXISTS(
         SELECT 1 FROM agents_platform.evidence_nodes n WHERE n.task_id=$4 AND e.id=ANY(n.evidence_ids)))`, [evidenceId,execution.task.organization_id,execution.task.root_task_id,taskId])).rows[0];
     if (!row) throw denied();
+    if(row.task_id!==taskId&&!(await suppliedNodes(db,execution)).some(node=>node.evidenceIds.includes(evidenceId)))throw denied();
     const reference = dto(row); await assertCurrentEvidence(db, taskId, reference.manifest, {requireActiveTask:false});
     let text: string;
     if (row.inline_content !== null) text = row.inline_content;
@@ -274,11 +301,13 @@ export class EvidenceStore {
     const dependencies: EvidenceDependency[] = [...await delegationDependency(db,execution.task.id),...parents.flatMap(parent=>parent.manifest.dependencies),...(inherited?.manifest.dependencies??[])];
     for (const id of evidenceIds) dependencies.push(...(await this.passage(db,execution.task.id,id)).reference.manifest.dependencies);
     const manifest = createDependencyManifest(dependencies);
-    await assertCurrentEvidence(db,execution.task.id,manifest);
     collectDependencyGraph(parentIds,graph);
     const digest = requestDigest({ids,parentIds,manifest});
-    return nodeDto((await db.query(`INSERT INTO agents_platform.evidence_nodes(id,organization_id,root_task_id,task_id,kind,owner_id,evidence_ids,parents,manifest,request_digest)
+    const created=nodeDto((await db.query(`INSERT INTO agents_platform.evidence_nodes(id,organization_id,root_task_id,task_id,kind,owner_id,evidence_ids,parents,manifest,request_digest)
       VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,[randomUUID(),execution.task.organization_id,execution.task.root_task_id,execution.task.id,kind,ownerId,ids,parentIds,manifest,digest])).rows[0]);
+    // The new join must be visible to lineage validation in this same transaction.
+    await assertCurrentEvidence(db,execution.task.id,manifest);
+    return created;
   }
   private async history(db:Db,execution:Execution,priorTaskId:string):Promise<{taskId:string;eligible:boolean;omissionCode?:string;evidenceIds:string[];manifest:DependencyManifest;originNodeIds:string[]}>{
     const empty={taskId:priorTaskId,evidenceIds:[] as string[],manifest:createDependencyManifest([]),originNodeIds:[] as string[]};
@@ -339,7 +368,7 @@ export class EvidenceStore {
       catch(error){if(error instanceof PlatformError&&["EVIDENCE_SCOPE_DENIED","EVIDENCE_UNAVAILABLE","GRANT_CAPABILITY_DENIED"].includes(error.code))results.push({id,eligible:false,omissionCode:error.code});else throw error;}
     }return results;});
   }
-  async supplyContext(taskId: string, snapshotId: string, evidenceIds: string[]): Promise<EvidenceNode> {
+  async supplyContext(taskId: string, snapshotId: string, evidenceIds: string[], continuationEvidenceIds:string[]=[]): Promise<EvidenceNode> {
     return this.scoped(taskId, async (db, execution) => {
       const snapshot = (await db.query("SELECT * FROM agents_platform.context_snapshots WHERE id=$1 AND task_id=$2",[snapshotId,taskId])).rows[0];
       if (!snapshot) throw denied();
@@ -347,6 +376,14 @@ export class EvidenceStore {
       const parents = (await db.query("SELECT * FROM agents_platform.evidence_nodes WHERE task_id=$1 ORDER BY created_at,id",[taskId])).rows.map(nodeDto);
       const selectedMemories=(snapshot.source_references??[]).filter((reference:{kind?:string})=>reference.kind==="memory");
       const memoryDependencies:EvidenceDependency[]=[],inheritedIds:string[]=[];
+      const checkpoint=snapshot.payload.continuation?.checkpoint?.evidence??[],recordedIds=snapshot.payload.continuationEvidenceIds??[];
+      if(!Array.isArray(recordedIds)||!Array.isArray(checkpoint)||continuationEvidenceIds.length>12||requestDigest(continuationEvidenceIds)!==requestDigest(recordedIds)||requestDigest(recordedIds)!==requestDigest(checkpoint.map((item:{id?:unknown})=>item?.id)))throw integrity();
+      if(continuationEvidenceIds.length){
+        const supplied=new Set((await suppliedNodes(db,execution)).flatMap(node=>node.evidenceIds));
+        const rows=(await db.query("SELECT e.id,e.citation_label,e.operation_id,e.source_id,c.binding_id FROM agents_platform.evidence_references e JOIN agents_platform.evidence_contents c ON c.reference_id=e.id WHERE e.organization_id=$1 AND e.id=ANY($2::uuid[])",[execution.task.organization_id,continuationEvidenceIds])).rows;
+        for(const item of checkpoint){const row=rows.find(row=>row.id===item.id),kind=row?.binding_id?"connection":row?.source_id?"source":"memory";
+          if(!row||!supplied.has(item.id)||item.citation!==`[${row.citation_label}]`||item.operationId!==row.operation_id||item.kind!==kind)throw integrity();inheritedIds.push(item.id);}
+      }
       for(const selected of selectedMemories){const origin=await this.memoryOrigin(db,execution,selected.id);
         if(!memoryVisible(snapshot.payload,selected.id,origin.row.content))throw integrity();
         if(origin.row.revision!==selected.revision||origin.row.scope_id!==snapshot.memory_scope_id||Number(origin.row.generation)!==Number(snapshot.memory_generation))throw integrity();
@@ -401,6 +438,15 @@ export class EvidenceStore {
     return passages;
   }
   async readPassage(taskId:string,evidenceId:string):Promise<EvidencePassage>{return this.passage(this.pool,taskId,evidenceId);}
+  async suppliedEvidence(taskId:string,limit=12):Promise<{items:{id:string;citation:string;operationId:string;kind:"source"|"connection"|"memory"}[];omittedCount:number}>{
+    if(!Number.isSafeInteger(limit)||limit<1||limit>12)throw new PlatformError("EVIDENCE_LIMIT",413,"Evidence index limit is invalid");
+    return this.scoped(taskId,async(db,execution)=>{
+      await assertCurrentEvidence(db,taskId,await taskEvidenceManifest(db,taskId));
+      const ids=[...new Set((await suppliedNodes(db,execution)).flatMap(node=>node.evidenceIds))];
+      const rows=ids.length?(await db.query("SELECT e.id,e.citation_label,e.operation_id,c.binding_id,e.source_id FROM agents_platform.evidence_references e JOIN agents_platform.evidence_contents c ON c.reference_id=e.id WHERE e.organization_id=$1 AND e.id=ANY($2::uuid[]) ORDER BY e.citation_label",[execution.task.organization_id,ids])).rows:[];
+      return{items:rows.slice(0,limit).map(row=>({id:row.id,citation:`[${row.citation_label}]`,operationId:row.operation_id,kind:row.binding_id?"connection" as const:row.source_id?"source" as const:"memory" as const})),omittedCount:Math.max(0,rows.length-limit)};
+    });
+  }
   async operationEvidenceIds(taskId:string,operationId:string):Promise<string[]>{
     await this.operation(this.pool,taskId,operationId);
     return(await this.pool.query("SELECT id FROM agents_platform.evidence_references WHERE task_id=$1 AND operation_id=$2 ORDER BY citation_label",[taskId,operationId])).rows.map(row=>row.id);

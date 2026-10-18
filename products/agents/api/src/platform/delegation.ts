@@ -3,7 +3,7 @@ import {capabilityBindingSchema} from "./capability-catalog";
 import { randomUUID } from "node:crypto";
 import type { Pool } from "pg";
 import { z } from "zod";
-import { agentConfigurationSchema, executionGrantSchema, PlatformError, requestDigest, terminalTaskStates } from "./contracts";
+import { agentConfigurationSchema, executionGrantSchema, PlatformError, requestDigest, terminalTaskStates, connectedToolAuthorityIds } from "./contracts";
 import { assertCurrentAuthority, event, loadExecution, transaction, HARNESS_RELEASE } from "./execution";
 import { fitUtf8 } from "./tools";
 
@@ -45,7 +45,7 @@ export async function admitChildren(pool: Pool, parentId: string, operationId: s
       const sourceRevisionIds=request.sourceRevisionIds??binding.sourceRevisionIds, connectedToolBindingIds=request.connectedToolBindingIds??binding.connectedToolBindingIds;
       if(childConfig.executionKind!=="business" || childConfig.memory.enabled || childConfig.capabilities.delegation.enabled || childConfig.capabilities.sandbox.enabled || childConfig.capabilities.workflows.enabled ||
         sourceRevisionIds.some(id=>!binding.sourceRevisionIds.includes(id)||!childConfig.sourceRevisionIds.includes(id)||!config.sourceRevisionIds.includes(id)) ||
-        connectedToolBindingIds.some(id=>!binding.connectedToolBindingIds.includes(id)||!childConfig.connectedToolBindingIds.includes(id)||!config.connectedToolBindingIds.includes(id)) ||
+        connectedToolBindingIds.some(id=>!binding.connectedToolBindingIds.includes(id)||!childConfig.connectedToolBindingIds.includes(id)||!connectedToolAuthorityIds(config).includes(id)) ||
         binding.tools.some(name=>!childConfig.tools.includes(name)) || Buffer.byteLength(request.brief)>childConfig.model.maxInputBytes ||
         (request.maxTokens??binding.maxTokens)>binding.maxTokens) throw new PlatformError("DELEGATION_SCOPE_DENIED",403,"Specialist request exceeds its published scope");
       const effectiveBindings=(await db.query("SELECT binding FROM agents_platform.capability_bindings WHERE organization_id=$1 AND id=ANY($2::uuid[])",[task.organization_id,connectedToolBindingIds])).rows;

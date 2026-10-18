@@ -16,7 +16,7 @@ import {GithubReadAdapter,GITHUB_ADAPTER_RELEASE,githubRepositoryHandle,type Git
 import {callMcpTool,discoverMcpCatalog,MCP_ADAPTER_RELEASE,type McpEndpoint,type McpTool} from "./mcp-adapter";
 import type {NetworkAttempt} from "./connected-network";
 import type {PrivateObjectStore} from "./artifacts";
-import {EvidenceStore,assertCurrentEvidence} from "./evidence";
+import {EvidenceStore,assertCurrentEvidence,assertChildConnectedAuthority} from "./evidence";
 import {textDigest} from "./source-contracts";
 import {assertConnectedBindingDependencies,connectedModelArguments,connectedModelTool,connectedParameters,type ConnectedModelArguments} from "./connected-tool-schema";
 
@@ -100,7 +100,7 @@ export class ConnectedExecutor {
   if(!grant?.operations.includes("connected.read")||!grant.connected_tool_binding_ids.includes(binding.id))throw denied();
   if(!(await db.query(`SELECT 1 FROM agents_platform.version_connected_tools v JOIN agents_platform.capability_bindings b ON b.id=v.binding_id
     WHERE v.version_id=$1 AND v.organization_id=$2 AND b.id=$3 AND b.digest=$4 AND b.account_id=$5`,[execution.task.version_id,execution.task.organization_id,binding.id,binding.digest,accountId])).rowCount)throw denied();
-  if(execution.task.parent_task_id){const root=await loadExecution(db,execution.task.root_task_id);if(!root.configuration.connectedToolBindingIds.includes(binding.id))throw denied();const rootGrant=(await db.query("SELECT connected_tool_binding_ids,operations FROM agents_platform.execution_grants WHERE id=$1",[root.task.grant_id])).rows[0];if(!rootGrant?.operations.includes("connected.read")||!rootGrant.connected_tool_binding_ids.includes(binding.id))throw denied();}
+  await assertChildConnectedAuthority(db,execution,binding.id);
   const scope={organizationId:execution.task.organization_id,accountId};
   const credential=await this.connections.resolveCredential(db,scope,binding.connection.id,binding.connection.policyRevision);
   if(binding.connection.profileId!==credential.connection.profileId)throw denied();
