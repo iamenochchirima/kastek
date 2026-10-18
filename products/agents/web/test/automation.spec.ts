@@ -180,7 +180,7 @@ test("live automation: scheduled report survives review and delivery interruptio
     for(const operation of connectedOperations[position-1]??[])await binding.getByRole("checkbox",{name:new RegExp(`^${operation.replaceAll("_"," ")}(?:\\s|$)`)}).check();
     if(connected){
       await binding.getByText("Specialist limits",{exact:true}).click();
-      await binding.getByRole("spinbutton",{name:`Specialist ${position} token allocation`,exact:true}).fill(publicRepository?(position===1?"12000":"8000"):"10000");
+      await binding.getByRole("spinbutton",{name:`Specialist ${position} token allocation`,exact:true}).fill(publicRepository?"12000":"10000");
     }
   }
   await page.getByRole("checkbox", { name: "Run Python analysis", exact: false }).check();
@@ -213,7 +213,30 @@ test("live automation: scheduled report survives review and delivery interruptio
   await expect(page.getByRole("link", { name: "Open task", exact: true })).toBeVisible({ timeout: 60_000 });
   await page.getByRole("link", { name: "Open task", exact: true }).click();
   const taskId = new URL(page.url()).pathname.split("/").at(-1)!;
-  if(connected)expect((await page.request.post(`${process.env.AGENTS_BROWSER_WIDGET_ORIGIN}/fixture/restart-connected`,{timeout:240_000})).ok()).toBe(true);
+  if (connected) {
+    const taskUrl = page.url();
+    const activeSession = await (await page.request.get("/api/session")).json();
+    const activeTaskPath = `/api/organizations/${activeSession.organizations[0].id}/tasks/${taskId}`;
+    const activeTask = await (await page.request.get(activeTaskPath)).json();
+    expect(activeTask.task.id).toBe(taskId);
+    expect(["completed", "incomplete", "refused", "failed", "cancelled", "uncertain"]).not.toContain(activeTask.task.state);
+    let navigationAdmissions = 0;
+    const countAdmission = (request: { method(): string; url(): string }) => { if (request.method() === "POST" && /\/tasks$/u.test(new URL(request.url()).pathname)) navigationAdmissions++; };
+    page.on("request", countAdmission);
+    const checkpoint = page.request.post(`${process.env.AGENTS_BROWSER_WIDGET_ORIGIN}/fixture/restart-connected`, { timeout: 240_000 });
+    await page.getByRole("navigation", { name: "Main navigation", exact: true }).getByRole("link", { name: "Agents", exact: true }).click();
+    await page.getByRole("navigation", { name: "Agent directory", exact: true }).getByRole("link").filter({ hasText: "Dataset researcher" }).click();
+    await expect(page.getByRole("textbox", { name: "Message", exact: true })).toBeVisible();
+    await page.getByRole("navigation", { name: "Main navigation", exact: true }).getByRole("link", { name: "Tasks", exact: true }).click();
+    await page.locator(`.task-list-row a[href="/app/tasks/${taskId}"]`).first().click();
+    await expect(page).toHaveURL(taskUrl);
+    expect((await checkpoint).ok()).toBe(true);
+    const returnedTask = await (await page.request.get(activeTaskPath)).json();
+    expect(returnedTask.task.id).toBe(taskId);
+    expect(navigationAdmissions).toBe(0);
+    page.off("request", countAdmission);
+    await writeFile(test.info().outputPath("active-navigation-proof.json"), JSON.stringify({ rootTaskId: taskId, originalState: activeTask.task.state, otherAgentOpened: true, returnedThroughTasks: true, additionalAdmissions: navigationAdmissions }, null, 2));
+  }
   await expect(page.getByRole("button", { name: "Approve delivery", exact: true })).toBeVisible({ timeout: 180_000 });
   const review = page.getByRole("region", { name: "Report delivery" });
   await expect(review).toContainText("Verified dataset report");
@@ -244,9 +267,10 @@ test("live automation: scheduled report survives review and delivery interruptio
   expect((await page.request.post(`${process.env.AGENTS_BROWSER_WIDGET_ORIGIN}/fixture/interrupt-delivery`, { timeout: 90_000 })).ok()).toBe(true);
   await page.reload();
   await expect(review.getByText(/^Receipt /)).toBeVisible({ timeout: 90_000 });
-  await expect(page.getByText("completed", { exact: true })).toBeVisible({ timeout: 30_000 });
+  await expect(page.locator('section.management-page > div.space-y-2 > span.task-state[data-state="completed"]')).toBeVisible({ timeout: 90_000 });
   const finalDetail = await (await page.request.get(taskPath)).json();
   finalDetail.actions ??= (await (await page.request.get(`${taskPath}/actions`)).json()).actions;
+  expect(finalDetail.task.state).toBe("completed");
   expect(finalDetail.actions).toHaveLength(1);
   expect(finalDetail.actions[0].state).toBe("delivered");
   expect(finalDetail.actions[0].reviewDigest).toBe(originalDetail.actions[0].reviewDigest);
