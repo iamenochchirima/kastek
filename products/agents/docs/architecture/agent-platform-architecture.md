@@ -1,6 +1,6 @@
 # Agents platform architecture
 
-Updated: 2026-10-17.
+Updated: 2026-10-18.
 
 This is the target architecture agreed with the owner. It defines the shared execution service
 and the standalone Agents product separately. Design against these boundaries first. Existing
@@ -28,6 +28,24 @@ Each product owns its interface, business records, and customer authorization. T
 service calls owning-product APIs and never reads or writes another product's database. Ordinary
 product features operate without the execution service. Agent-powered features may depend on it
 and must report its unavailability in their own interface.
+
+## Standalone workspace interface
+
+The public landing page leads to provider-backed registration and sign-in. The
+private workspace has Agents, Tasks, Knowledge, Connections, Automations and
+Settings. Each available business agent opens ordinary Chat, with Activity and
+Configure tabs. Research, support and campaign roles share this interface.
+
+Server conversation discovery is principal-scoped. A conversation pins its original
+agent version; editing a draft or creating another version does not change it.
+Unknown admissions retain their request identity through navigation. Accepted work
+continues independently of the visible page. Progress, sources, reports and exact
+review packets use the same authorized task contracts in chat and task details.
+
+Configure retains explicit source/tool/specialist permissions, memory review, pinned
+skills, isolated analysis and website publication. The chat composer initially
+accepts text. Knowledge imports remain separate reviewed-source operations.
+Workspace execution remains unavailable until its Lina adapter exists.
 
 ## Three integration boundaries
 
@@ -520,7 +538,7 @@ remain the effect evidence. PostgreSQL status and progress remain repairable pro
 
 Restate server 1.7.13 and SDK 1.17.3 are pinned and tested together. Runtime retention is seven days,
 outbox retry is bounded to 24 hours, and settled tasks are not redispatched. The API returns bounded
-operation/progress records, and Test reconnects to the original task. Private context/receipt data
+operation/progress records, and Chat reconnects to the original task. Private context/receipt data
 stays in the dedicated database; large artifacts use a scoped private S3-compatible adapter.
 Workers validate signed Restate requests when configured. Production requires signing keys.
 Unsigned workers default to loopback; exposed unsigned development requires explicit opt-in.
