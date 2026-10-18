@@ -103,6 +103,14 @@ delegation are not inherited. A child checks current root authority before dispa
 Stable slots and operation identities prevent duplicate logical children; one root
 reservation bounds the whole tree. Waiting parents release provider capacity.
 
+Coordinator execution permissions and delegated permissions are separate. A parent
+can consume evidence from an actually joined, authorized child without gaining the
+child's provider tools. Guessed tool aliases and direct evidence minting remain
+subject to the parent's own tool list. Revoking the source connection blocks reuse
+of child-derived citations and artifacts. A continuation checkpoint preserves only
+validated execution metadata as trusted control state; child prose and model
+summaries cannot rewrite those facts or expand authority.
+
 Generated Python runs inside pinned rootless gVisor with network disabled, a
 read-only root and bounded scratch. No host worker, Docker socket, model key,
 provider credential or database connection is exposed inside the guest. Systemd

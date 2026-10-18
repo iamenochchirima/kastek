@@ -470,7 +470,7 @@ recorded receipts resolve before registry lookup. Public repository connections 
 GitHub and DeepWiki reads; Stash uses selected private item IDs and encrypted bearer credentials.
 These profiles retain the same task, connection and evidence authority boundaries.
 
-The versioned AgentsBusinessRunV9 Restate workflow owns repeated model/tool execution. Each task
+The versioned AgentsBusinessRunV10 Restate workflow owns repeated model/tool execution. Each task
 pins its agent configuration and harness release. Ordered conversation turns wait for the preceding
 execution and its recorded result. A short database transaction assigns order and freezes eligible
 history; it does not run the agent loop or hold a lock during external work.
@@ -484,6 +484,13 @@ If the fixed instructions, tools and resulting summary still exceed the limit, e
 incomplete instead of repeatedly compacting an empty context. Replaying a recorded context keeps
 its original evidence parents and rechecks their current policy.
 Summaries are derived data and never grant authority or prove an effect succeeded.
+After compaction, the context also includes a bounded execution checkpoint from
+recorded operations, actual child admissions, issued handles and available artifacts.
+Only validated control metadata enters its system message. Retained child output
+remains untrusted reference data. The assembler fits whole records to the remaining
+request allowance, records omissions and persists the selected view with the snapshot
+digest. Replaying it rechecks current evidence policy. Completed delegation does not
+consume a permanent child slot; the limit applies to outstanding children.
 Every influencing source/connection/memory dependency survives the summary and child join.
 A delegated brief retains an immutable snapshot of its parent dependencies, checked under
 the parent authority. Narrow specialist retrieval grants do not erase that provenance.
@@ -534,6 +541,14 @@ persist one child per parent operation and slot. Children run the common control
 in private branches, without joining the parent conversational input queue. V1
 allows two outstanding children and one delegation edge. Personal memory,
 credentials, sandbox access and further delegation are not inherited.
+
+The coordinator's connected-tool list controls its own execution and model catalog.
+Each delegation binding explicitly authorizes a subset of its specialist version's
+tools. Root publication pins and grants cover the unique union of both lists,
+with an aggregate limit of eight bindings. Direct tools and each specialist role
+must independently include their required handle producers. A child-only tool
+never appears in the coordinator's model catalog. Removing a coordinator's own
+selection does not remove that tool from an explicitly configured specialist.
 
 Root-owned accounting reserves one original organization allocation and subdivides
 it for children. Root admission, outstanding children and executing provider slots

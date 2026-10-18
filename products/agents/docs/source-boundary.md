@@ -15,7 +15,7 @@ startup. It does not migrate an older database or import Growth state.
 | `app.ts`, `server.ts`, `widget.ts` | Management and website APIs, continuation, history deletion, progress, cancellation, and widget delivery. |
 | `execution.ts` | Current authority, task and operation identities, claims, receipts, and usage settlement. |
 | `business.ts` | Restate business controller, model and tool rounds, ordered turns, and compaction coordination. |
-| `model.ts`, `context.ts` | Provider protocol, conservative request accounting, scoped context snapshots, and complete message groups. |
+| `model.ts`, `context.ts`, `continuation.ts` | Provider protocol, conservative request accounting, scoped snapshots, complete message groups and bounded execution checkpoints. |
 | `memory.ts`, `memory-routes.ts` | Personal memory candidates, authenticated acceptance, revisions, expiry, forgetting, source invalidation, and pinned skills. |
 | `artifacts.ts`, `task-artifacts.ts` | Private S3-compatible content, root/task provenance, explicit transfers, downloads, integrity and deletion. |
 | `delegation.ts`, `tool-descriptors.ts` | Published specialist bindings, atomic child admission, bounded results and pinned adapter contracts. |
@@ -114,6 +114,12 @@ most eight bindings. Selecting a specialist tool does not enable it for the
 coordinator. The editor preserves specialist tool selections when a coordinator
 removes its own selection, and disables unavailable connection tools.
 
+Same-conversation history can retain an actually joined specialist's evidence
+through explicit origin links. Original and current authority, pinned roles and
+live source policies remain required. The history walk permits at most 32 origins.
+Over-limit candidates are omitted before consumption; an over-limit dependency
+already consumed by a task fails its current-policy check.
+
 Optional analysis uses the verified local no-network gVisor Python profile.
 The task owns stable allocation and command IDs; reconnect reads receipts/status.
 Private artifact references survive resource destruction. An independent reaper
@@ -201,7 +207,7 @@ reported as cancellation.
 
 ## Connected reports and automation
 
-`AgentsBusinessRunV9` (`connected-research-v6`) runs the trusted `report-delivery-v1`
+`AgentsBusinessRunV10` (`connected-research-v7`) runs the trusted `report-delivery-v1`
 workflow after the ordinary agent loop. Required stages select or create a private
 report, validate its sources, prepare an exact action packet, wait for human
 review, and deliver or reconcile it. A sandbox-enabled report must select one

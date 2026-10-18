@@ -305,7 +305,9 @@ AGENTS_PUBLIC_REPOSITORY_JOURNEY=1 AGENTS_AUTOMATION_LIVE=1 AGENTS_BROWSER_REAL_
 The default approved public repository is `modelcontextprotocol/typescript-sdk`, ref `main`, file
 `README.md`. The native specialist reads an issued immutable file handle. The MCP
 specialist reads its DeepWiki documentation structure. Each has a distinct imported
-source and tool scope. The fixture verifies exact evidence quotes, a dated report
+source and tool scope. The coordinator has no direct connected tools; its explicit
+specialist selections supply the aggregate grant and version pins. The fixture
+verifies exact evidence quotes, a dated report
 with explicit gaps, isolated analysis, completed-read replay after restart and
 reviewed delivery recovery. It uses the approved free model and no provider token.
 
