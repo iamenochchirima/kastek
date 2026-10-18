@@ -107,6 +107,13 @@ The model supplies only a published specialist binding ID and brief. It cannot
 override that binding's allocation or source/tool scope. Trusted admission code
 retains explicit narrowing controls.
 
+A coordinator's `connectedToolBindingIds` selects its own model-facing tools.
+Each enabled delegation binding separately selects tools from that specialist's
+published version. Root grants and publication pins cover the unique union, at
+most eight bindings. Selecting a specialist tool does not enable it for the
+coordinator. The editor preserves specialist tool selections when a coordinator
+removes its own selection, and disables unavailable connection tools.
+
 Optional analysis uses the verified local no-network gVisor Python profile.
 The task owns stable allocation and command IDs; reconnect reads receipts/status.
 Private artifact references survive resource destruction. An independent reaper
