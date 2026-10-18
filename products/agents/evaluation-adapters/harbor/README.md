@@ -2,7 +2,7 @@
 
 This optional Python package implements Harbor's host-side `BaseAgent`. Harbor owns trial scheduling, environments, verification and aggregation. Kasitek owns admission, model/tool execution, durable recovery and authoritative records. The adapter imports no Agents API internals and no Agents Lab code.
 
-The current checkpoint implements the HTTP adapter, request recovery, cancellation and ATIF conversion. The grounded FAQ suite has passed through actual Harbor, isolated compiled Kasitek API/worker, PostgreSQL, Restate and private storage using one deterministic provider response. Inbox, research/report, controlled-transaction suites and multi-turn Harbor resume remain required for package E acceptance. The separate local HTTP unit tests use contract fixtures; they do not establish native platform behavior.
+The adapter supports stable request recovery, bounded scripted conversations, cancellation and ATIF conversion from authorized native exports. Actual Harbor trials have passed for grounded FAQ, two-turn FAQ, research/report, delegated research, controlled delivery reconciliation and website Inbox handoff/return. These acceptance runs use deterministic provider responses with actual HTTP, PostgreSQL, Restate, private storage and independent Harbor verifiers. They establish execution and evidence contracts, not general model quality. Arbitrary Harbor resume remains unsupported. Local HTTP unit tests are separate contract fixtures.
 
 ## Toolchain and checks
 
@@ -53,7 +53,7 @@ PYTHONPATH="$PWD/products/agents/evaluation-adapters/harbor/src" harbor run \
   --n-concurrent 1 --max-retries 0
 ```
 
-This is the adapter invocation contract, not a claim that the pending suite currently passes. Do not pass hidden answers, verifier credentials, task MCP servers, skills or a model override. Files/tools required by a suite must be bound to the actual Harbor environment through a supported native resource adapter. A copied or disconnected fixture cannot establish a mutation outcome.
+Select an approved suite and a fresh dedicated scope for each trial. Do not pass hidden answers, verifier credentials, task MCP servers, skills or a model override. Files/tools required by a suite must be bound to the actual Harbor environment through a supported native resource adapter. A copied or disconnected fixture cannot establish a mutation outcome.
 
 ## Recovery and evidence
 
@@ -76,3 +76,46 @@ node --env-file=products/agents/api/.env --import ./products/agents/api/node_mod
 ```
 
 The fixture requires Docker, the pinned local Harbor installation and a local MinIO binary (`AGENTS_HARBOR_BINARY` and `AGENTS_TEST_MINIO_BINARY` override executable paths). It compiles into its own ignored `.audit/` directory, creates a fresh database and random service ports, runs Harbor's verifier, then removes its services/database. It preserves private proof under `.audit/harbor-<id>/`. The default provider is deterministic; `AGENTS_HARBOR_REAL_MODEL=1` explicitly selects the already configured approved free model. No fallback model is allowed. Identity is seeded for transport verification; this fixture does not test browser OIDC.
+
+## Scripted conversations
+
+`follow_ups` is a trusted adapter option containing at most seven additional public user questions, each with a unique stable `id` and `instruction`. It carries no answers or grader criteria. Harbor owns the trial and verifier; the adapter sends the bounded script through normal native conversation admissions. Each request is checkpointed before submission with an identity derived from the Harbor trial and explicit turn ID. Retrying follows the original accepted root; changed configuration conflicts. Even identical question text remains distinct when configured with different turn IDs.
+
+All turns share the original trial, conversation, pinned composition, deadline and total allocation ceiling. Set `root_token_limit * turn_count <= scope.max_tokens`. Failed or uncertain native turns stop the script. Cleanup revokes the trial after the last turn or any error. Each turn retains its own native export; ATIF concatenates only actual ordered user/model steps and keeps per-root provenance and coverage. Bare `resume(new_instruction)` is rejected because Harbor does not supply a stable external step ID to that method.
+
+Run the actual two-turn fixture with `AGENTS_HARBOR_SUITE=faq-follow-up` before the native fixture command above. Its independent Harbor verifier checks that the second request contains the first server-authored assistant response, both tasks share the same conversation/version, and the ATIF preserves two real user turns.
+
+## Native suite selection
+
+Set `AGENTS_HARBOR_SUITE` before the isolated fixture command:
+
+| Suite | Independent checks |
+| --- | --- |
+| `faq-grounded` | Approved passage, exact citation and model request |
+| `faq-follow-up` | Two native roots, pinned conversation and server history |
+| `research-report` | Search receipt, downloaded report digest, normal approval and receiver receipt |
+| `delegated-research` | Separate specialist identity, usage and delegation provenance |
+| `controlled-transaction` | Lost delivery acknowledgement, one POST and status-only reconciliation |
+| `inbox` | Visitor admission, staff takeover/reply/resolve/reopen/return and labeled human context |
+| `isolated-analysis` | Actual gVisor computation, downloaded artifact bytes and independent resource cleanup |
+| `faq-unknown` | Empty scoped retrieval and an explicit unknown answer |
+| `faq-private` | A separate approved private source excluded from the version's actual retrieval scope |
+| `faq-paraphrase` | Held-out question, actual source receipt and independent repetitions |
+| `faq-withdrawal` | Normal policy withdrawal, withheld payloads and an unsupported/inconclusive transcript |
+| `faq-escalation` | Exact handoff tool receipt, handoff ownership and suppressed automated delivery |
+
+Report verifiers read the actual receiver through a finite read-only bridge. They compare native action, payload and artifact digests; approval alone never proves delivery. Research fixtures do not claim sandbox execution. Source extraction is an explicit fixture; ingestion policy, storage, approval and retrieval remain native.
+
+For `inbox`, trusted `channel` configuration contains only `deployment_id` and allowed website `origin`. The prepared trial's normal operator creates the native evaluation session. Visitor requests use a separate cookie-free Bearer client; operator credentials never cross that boundary. Public response DTOs carry no task IDs. The operator-only trial history establishes exact message, task and conversation bindings. Scripted questions are normalized by the canonical visitor API's whitespace rule before checkpointing. Native human replies remain labeled reference data in model inputs, not fabricated model turns.
+
+## Repetition and recovery
+
+Harbor's `--n-attempts` owns repetition and aggregation. A private `kasitek-prepared-scope-pool.v1` file contains `scope_paths`, an array of one to eight absolute prepared-scope filenames. Each scope must name a different dedicated agent. Process-shared local assignment binds a Harbor context to one scope before native preparation. Repeated observation recovers the assignment; exhaustion fails instead of reusing an agent. This allocates preauthorized scopes and does not schedule executions or create permissions.
+
+`AGENTS_HARBOR_ATTEMPTS=2 AGENTS_HARBOR_SUITE=faq-paraphrase` selects the fixture's actual Harbor repetitions. Each attempt receives a fresh agent/version and native trial. Before admission, the fixture freezes instruction, verifier, environment and fixture source hashes in private `baseline.json`, together with pinned toolchain/model identity and the exact correctness threshold. Rewards, native outcome and coverage remain separate. No model judge is used for these exact contract criteria; judge calibration is not applicable. Deterministic-provider scores do not measure live-model accuracy.
+
+Installed Harbor 0.24.0 creates a new context UUID when an interrupted job is resumed; it does not restore an unfinished adapter mapping automatically. The explicit trusted `recovery_id` UUID supports one intended trial across that process boundary. Use one prepared scope, retain its private sidecar mapping and resume with the identical Harbor configuration. An OS-held exclusive lock rejects another active process. The native trial, request, scope, composition, deadline and allocation never renew. A different Harbor context can follow only an unfinished mapping; a completed mapping rejects being counted as a new trial. Use a fresh scope pool for repetitions. Ordinary same-context observation remains idempotent.
+
+The fixture accepts `AGENTS_HARBOR_LIFECYCLE=native-restart` with `faq-follow-up` to restart its own compiled worker between native turns. This verifies conversation continuity across two actual worker processes; it is separate from an in-flight operation crash/replay test. `evaluator-restart` and `cancel` exercise evaluator loss and bounded native cancellation. Cancellation requests and observed terminal/cancellation confirmation remain distinct. Interrupted owned environments are cleaned by their exact recorded Harbor Compose project identity.
+
+Negative verifier probes use `AGENTS_HARBOR_VERIFIER_TEST=assertion`, `exception`, or `missing-evidence` with the ordinary deterministic FAQ fixture. They modify an isolated verifier copy, never the native program or published suite. A failed criterion, missing reward and explicit inconclusive classification cannot become a passing default. The fixture records expected negative behavior separately from a successful agent-quality score.

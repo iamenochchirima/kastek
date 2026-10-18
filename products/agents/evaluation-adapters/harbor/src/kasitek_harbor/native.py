@@ -82,6 +82,9 @@ class ModelCall(NativeRecord):
 
 
 class NativeTask(NativeRecord):
+    agentId: str | None = None
+    versionId: str | None = None
+    effectiveComposition: dict[str, JsonValue] | None = None
     id: str
     parentTaskId: str | None
     parentOperationId: str | None
@@ -101,6 +104,7 @@ class NativeArtifact(NativeRecord):
 
 
 class ExecutionExport(NativeRecord):
+    conversationId: str | None = None
     schemaVersion: Literal["execution-export.v1"]
     rootTaskId: str
     organizationId: str
@@ -122,6 +126,8 @@ class ExecutionExport(NativeRecord):
             self.versionId,
         ):
             UUID(value)
+        if self.conversationId is not None:
+            UUID(self.conversationId)
         tasks = {task.id: task for task in self.tasks}
         if len(tasks) != len(self.tasks) or self.rootTaskId not in tasks:
             raise ValueError("Native task identities are missing or duplicated")
@@ -129,6 +135,10 @@ class ExecutionExport(NativeRecord):
             raise ValueError("Root export must start at a root task")
         for task in self.tasks:
             UUID(task.id)
+            if task.agentId is not None:
+                UUID(task.agentId)
+            if task.versionId is not None:
+                UUID(task.versionId)
             if task.id != self.rootTaskId and (
                 task.parentTaskId not in tasks or not task.parentOperationId
             ):
@@ -180,6 +190,12 @@ class ExecutionExport(NativeRecord):
                 ):
                     raise ValueError(
                         "Complete model-output coverage is missing a response"
+                    )
+                if self.coverage.toolResults.status == "complete" and any(
+                    result.content is None for result in call.toolResults
+                ):
+                    raise ValueError(
+                        "Complete tool coverage requires an actual model observation"
                     )
                 for result in call.toolResults:
                     for child_id in result.childTaskIds:

@@ -10,12 +10,54 @@ from urllib.parse import urlsplit
 from uuid import UUID
 
 from harbor.agents.options import AgentOptions
-from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, field_validator
+from pydantic import (
+    AwareDatetime,
+    BaseModel,
+    ConfigDict,
+    Field,
+    field_validator,
+    model_validator,
+)
 
 import json
 
 
+class ConversationTurn(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    id: str = Field(pattern=r"^[A-Za-z0-9_-]{1,64}$")
+    instruction: str = Field(min_length=1, max_length=8000)
+
+    @field_validator("instruction")
+    @classmethod
+    def bounded_instruction(cls, value: str) -> str:
+        if not value.strip() or len(value.encode("utf-8")) > 8000:
+            raise ValueError("Expected a bounded public conversation instruction")
+        return value
+
+
+class ChannelOptions(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    deployment_id: UUID
+    origin: str
+
+    @field_validator("origin")
+    @classmethod
+    def channel_origin(cls, value: str) -> str:
+        return PreparedScope.origin_only(value)
+
+
 class AdapterOptions(AgentOptions):
+    recovery_id: UUID | None = None
+    channel: ChannelOptions | None = None
+    follow_ups: list[ConversationTurn] = Field(default_factory=list, max_length=7)
+
+    @model_validator(mode="after")
+    def stable_turn_ids(self):
+        ids = [turn.id for turn in self.follow_ups]
+        if len(set(ids)) != len(ids) or "initial" in ids:
+            raise ValueError("Conversation turn IDs must be unique and exclude initial")
+        return self
+
     scope_path: Path
     trial_timeout_sec: float = Field(default=300, gt=0, le=3600)
     http_timeout_sec: float = Field(default=10, gt=0, le=60)

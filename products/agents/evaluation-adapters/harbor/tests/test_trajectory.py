@@ -6,7 +6,8 @@ from pydantic import ValidationError
 from harbor.models.trajectories.trajectory import Trajectory
 
 from kasitek_harbor.native import ExecutionExport
-from kasitek_harbor.trajectory import UnsupportedMapping, to_atif
+from kasitek_harbor.trajectory import UnsupportedMapping, to_atif, to_atif_turns
+from uuid import uuid4
 from fixtures import native_export
 
 
@@ -70,6 +71,9 @@ class ConversionTests(unittest.TestCase):
         value["tasks"][1]["parentOperationId"] = "guessed"
         broken.append(value)
         value = copy.deepcopy(original)
+        value["tasks"][0]["modelCalls"][0]["toolResults"][0]["content"] = None
+        broken.append(value)
+        value = copy.deepcopy(original)
         value["tasks"][0]["modelCalls"][0]["outputMessage"] = None
         broken.append(value)
         for value in broken:
@@ -107,3 +111,59 @@ class ConversionTests(unittest.TestCase):
         self.assertEqual(result.extra["nativeOutcome"], "uncertain")
         self.assertEqual(len(result.extra["unansweredModelAttempts"]), 1)
         self.assertIn("partial", json.dumps(result.extra["coverage"]))
+
+    def test_scripted_native_turns_keep_real_order_conversation_scope_and_per_root_provenance(
+        self,
+    ):
+        first = native_export()
+        first["conversationId"] = str(uuid4())
+        second = copy.deepcopy(first)
+        second_root = str(uuid4())
+        second["rootTaskId"] = second_root
+        second["tasks"][0]["id"] = second_root
+        second["tasks"][0]["input"] = "Confirm the answer."
+        for call in second["tasks"][0]["modelCalls"]:
+            call["operationId"] = call["operationId"].replace("root", second_root)
+            for result in call["toolResults"]:
+                result["operationId"] = result["operationId"].replace(
+                    "root", second_root
+                )
+        result = to_atif_turns(
+            [
+                ExecutionExport.model_validate(first),
+                ExecutionExport.model_validate(second),
+            ]
+        )
+        self.assertEqual([step.step_id for step in result.steps], list(range(1, 7)))
+        self.assertEqual(result.steps[3].message, "Confirm the answer.")
+        self.assertEqual(result.steps[3].extra["nativeRootTaskId"], second_root)
+        self.assertEqual(result.session_id, first["conversationId"])
+        self.assertEqual(len(result.extra["nativeConversationTurns"]), 2)
+        second["conversationId"] = str(uuid4())
+        with self.assertRaises(UnsupportedMapping):
+            to_atif_turns(
+                [
+                    ExecutionExport.model_validate(first),
+                    ExecutionExport.model_validate(second),
+                ]
+            )
+
+    def test_unobserved_native_receipt_remains_metadata_without_fabricated_tool_observation(
+        self,
+    ):
+        raw = native_export()
+        raw["tasks"][0]["modelCalls"] = raw["tasks"][0]["modelCalls"][:1]
+        raw["tasks"][0]["modelCalls"][0]["toolResults"][0]["content"] = None
+        raw["coverage"]["toolResults"] = {
+            "status": "partial",
+            "omissions": ["No later model consumed this receipt"],
+        }
+        result = to_atif(ExecutionExport.model_validate(raw))
+        self.assertIsNone(result.steps[1].observation)
+        self.assertEqual(
+            result.steps[1].extra["unobservedToolReceipts"][0]["content"], None
+        )
+        self.assertEqual(
+            result.steps[1].extra["unobservedToolReceipts"][0]["operationId"],
+            "tool:root:0",
+        )

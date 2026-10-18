@@ -54,6 +54,7 @@ def to_atif(export: ExecutionExport) -> Trajectory:
                     }
                 )
             results = []
+            unobserved_receipts = []
             for result in call.toolResults:
                 linked = [
                     child
@@ -82,7 +83,12 @@ def to_atif(export: ExecutionExport) -> Trajectory:
                         }
                         for child in linked
                     )
-                results.append(item)
+                if result.content is None:
+                    unobserved_receipts.append(
+                        result.model_dump(mode="json", exclude_unset=True)
+                    )
+                else:
+                    results.append(item)
             step: dict[str, Any] = {
                 "source": "agent",
                 "message": call.outputMessage.content or "",
@@ -100,6 +106,11 @@ def to_atif(export: ExecutionExport) -> Trajectory:
                         mode="json", exclude_unset=True
                     ),
                     "toolDefinitions": call.toolDefinitions,
+                    **(
+                        {"unobservedToolReceipts": unobserved_receipts}
+                        if unobserved_receipts
+                        else {}
+                    ),
                 },
             }
             if tool_calls:
@@ -130,6 +141,9 @@ def to_atif(export: ExecutionExport) -> Trajectory:
             "steps": steps,
             "extra": {
                 "nativeTaskId": task.id,
+                "nativeAgentId": task.agentId,
+                "nativeVersionId": task.versionId,
+                "nativeComposition": task.effectiveComposition,
                 "nativeOutcome": task.state,
                 "parentTaskId": task.parentTaskId,
                 "parentOperationId": task.parentOperationId,
@@ -153,3 +167,82 @@ def to_atif(export: ExecutionExport) -> Trajectory:
         }
     )
     return Trajectory.model_validate(root)
+
+
+def to_atif_turns(exports: list[ExecutionExport]) -> Trajectory:
+    """Ordered native root turns remain attributable to their own authorized exports."""
+    if not exports:
+        raise UnsupportedMapping("No native conversation turns were exported")
+    first = exports[0]
+    if len(exports) > 1 and (
+        not first.conversationId
+        or any(item.conversationId != first.conversationId for item in exports)
+    ):
+        raise UnsupportedMapping("Native conversation identity is missing or changed")
+    if len({item.rootTaskId for item in exports}) != len(exports):
+        raise UnsupportedMapping("A native conversation root was repeated")
+    for item in exports:
+        if (
+            item.organizationId,
+            item.agentId,
+            item.versionId,
+            item.effectiveComposition.digest,
+        ) != (
+            first.organizationId,
+            first.agentId,
+            first.versionId,
+            first.effectiveComposition.digest,
+        ):
+            raise UnsupportedMapping(
+                "Conversation turns changed their pinned native scope"
+            )
+    trajectories = [
+        to_atif(item).model_dump(mode="json", exclude_none=True) for item in exports
+    ]
+    if len(trajectories) == 1:
+        return Trajectory.model_validate(trajectories[0])
+    merged = {**trajectories[0], "extra": dict(trajectories[0].get("extra", {}))}
+    merged["steps"] = []
+    children = []
+    turn_metadata = []
+    for export, trajectory in zip(exports, trajectories, strict=True):
+        for step in trajectory["steps"]:
+            step["step_id"] = len(merged["steps"]) + 1
+            step.setdefault("extra", {})["nativeRootTaskId"] = export.rootTaskId
+            merged["steps"].append(step)
+        children.extend(trajectory.get("subagent_trajectories", []))
+        turn_metadata.append(
+            {
+                "rootTaskId": export.rootTaskId,
+                "coverage": export.coverage.model_dump(mode="json"),
+            }
+        )
+    if children:
+        merged["subagent_trajectories"] = children
+    merged.setdefault("extra", {})["nativeConversationTurns"] = turn_metadata
+    merged["session_id"] = first.conversationId
+    for child in children:
+        child["extra"]["nativeRootTaskId"] = child["session_id"]
+        child["session_id"] = first.conversationId
+    aggregate = {}
+    for key in first.coverage.model_dump():
+        values = [getattr(item.coverage, key) for item in exports]
+        statuses = {value.status for value in values}
+        aggregate[key] = {
+            "status": next(iter(statuses)) if len(statuses) == 1 else "partial",
+            "omissions": list(
+                dict.fromkeys(reason for value in values for reason in value.omissions)
+            ),
+        }
+    merged["extra"]["coverage"] = aggregate
+    merged["extra"]["nativeConversationId"] = first.conversationId
+    merged["extra"]["nativeOutcome"] = next(
+        task.state for task in exports[-1].tasks if task.id == exports[-1].rootTaskId
+    )
+    merged["extra"]["branches"] = [
+        branch
+        for trajectory in trajectories
+        for branch in trajectory.get("extra", {}).get("branches", [])
+    ]
+    merged["extra"]["nativeEvidenceFile"] = "conversation-turns.json"
+    return Trajectory.model_validate(merged)

@@ -1,0 +1,15 @@
+schema_version = "1.4"
+[metadata]
+name = "kasitek-controlled-transaction"
+[agent]
+timeout_sec = 120
+[verifier]
+timeout_sec = 30
+[verifier.env]
+KASITEK_VERIFIER_RECEIVER_URL = "${KASITEK_VERIFIER_RECEIVER_URL}"
+KASITEK_VERIFIER_READ_KEY = "${KASITEK_VERIFIER_READ_KEY}"
+[environment]
+docker_image = "python@sha256:593bd06efe90efa80dc4eee3948be7c0fde4134606dd40d8dd8dbcade98e669c"
+network_mode = "public"
+cpus = 1
+memory_mb = 256

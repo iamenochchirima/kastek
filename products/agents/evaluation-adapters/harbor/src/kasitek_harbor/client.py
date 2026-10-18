@@ -267,8 +267,12 @@ class PlatformClient:
                 )
                 continue
             UUID(artifact.id)
-            path = f"{self.organization_path}/tasks/{artifact.taskId}/artifacts/{artifact.id}"
-            if artifact.downloadPath != path or not re.fullmatch(
+            paths = {
+                f"{self.organization_path}/tasks/{task_id}/artifacts/{artifact.id}"
+                for task_id in (artifact.taskId, export.rootTaskId)
+            }
+            path = artifact.downloadPath
+            if path not in paths or not re.fullmatch(
                 r"[a-f0-9]{64}", artifact.contentDigest
             ):
                 raise ValueError("Artifact has an unsupported scope, route or digest")

@@ -1,6 +1,7 @@
 """Host-side Harbor BaseAgent. Native Kasitek services execute every agent turn."""
 
 import asyncio
+from contextlib import AsyncExitStack
 import hashlib
 import json
 from datetime import datetime, timezone, timedelta
@@ -14,9 +15,17 @@ from harbor.models.agent.context import AgentContext
 
 from . import __version__
 from .client import PlatformClient, TERMINAL_STATES
-from .config import AdapterOptions, load_scope
+from .channel import (
+    VisitorClient,
+    prepare_channel,
+    channel_history,
+    submit_channel_turn,
+)
+from .config import AdapterOptions
+from .scope_pool import prepared_scopes, select_scope
+from .recovery import recovery_path, exclusive_recovery
 from .persistence import persist, read_json
-from .trajectory import to_atif, UnsupportedMapping
+from .trajectory import to_atif_turns, UnsupportedMapping
 
 
 class KasitekAgent(BaseAgent):
@@ -45,24 +54,36 @@ class KasitekAgent(BaseAgent):
 
     async def setup(self, environment: BaseEnvironment) -> None:
         self._supported()
-        scope = load_scope(self.options.scope_path)
-        if self.options.root_token_limit > scope.max_tokens:
-            raise ValueError("Root allocation exceeds the prepared trial total")
-        if scope.expires_at <= datetime.now(timezone.utc):
-            raise ValueError("Prepared operator scope has expired")
+        scopes = prepared_scopes(self.options.scope_path)
+        if self.options.recovery_id and len(scopes) != 1:
+            raise ValueError(
+                "Explicit process recovery requires one prepared trial scope"
+            )
+        for scope in scopes:
+            if (
+                self.options.root_token_limit * (1 + len(self.options.follow_ups))
+                > scope.max_tokens
+            ):
+                raise ValueError("Root allocation exceeds the prepared trial total")
+            if scope.expires_at <= datetime.now(timezone.utc):
+                raise ValueError("Prepared operator scope has expired")
         # No task-controlled files, tools, skills, verifier state or credentials
         # are uploaded to the native agent. Scoped resources are provisioned by
         # normal platform APIs before this adapter is selected.
 
     def _mapping(self, instruction: str):
         self._supported()
-        scope = load_scope(self.options.scope_path)
         if self.context_id is None:
             raise ValueError("Harbor must supply its durable trial context identity")
-        context_id = str(self.context_id)
+        context_id = str(self.options.recovery_id or self.context_id)
+        scope = select_scope(self.options.scope_path, context_id)
         if not instruction.strip() or len(instruction.encode("utf-8")) > 8000:
             raise ValueError("Expected a bounded native task instruction")
-        path = self.logs_dir / "trial-mapping.json"
+        path = (
+            recovery_path(self.options.scope_path, self.options.recovery_id)
+            if self.options.recovery_id
+            else self.logs_dir / "trial-mapping.json"
+        )
         request = {
             "versionId": str(scope.version_id),
             "requestKey": str(uuid5(scope.scope_id, context_id)),
@@ -75,12 +96,18 @@ class KasitekAgent(BaseAgent):
                     "request": request,
                     "scope": scope.model_dump(mode="json"),
                     "contextId": context_id,
+                    "channel": self.options.channel.model_dump(mode="json")
+                    if self.options.channel
+                    else None,
+                    "followUps": [
+                        turn.model_dump() for turn in self.options.follow_ups
+                    ],
                 },
                 sort_keys=True,
             ).encode()
         ).hexdigest()
         if path.exists():
-            mapping = read_json(path, 65536)
+            mapping = read_json(path, 524288)
             if (
                 mapping.get("schemaVersion") != "kasitek-trial-mapping.v1"
                 or mapping.get("fingerprint") != fingerprint
@@ -88,6 +115,20 @@ class KasitekAgent(BaseAgent):
                 raise ValueError(
                     "Recovered trial differs from the original prepared scope or instruction"
                 )
+            original_context = mapping.get(
+                "originalHarborContextId", str(self.context_id)
+            )
+            if mapping.get("finished") and mapping.get(
+                "completedHarborContextId", original_context
+            ) != str(self.context_id):
+                raise ValueError(
+                    "Completed native recovery cannot count as a new Harbor trial"
+                )
+            contexts = mapping.setdefault("harborContextIds", [original_context])
+            if str(self.context_id) not in contexts:
+                if len(contexts) >= 8:
+                    raise ValueError("Evaluator process recovery limit exceeded")
+                contexts.append(str(self.context_id))
         else:
             deadline = min(
                 scope.expires_at,
@@ -97,6 +138,9 @@ class KasitekAgent(BaseAgent):
             mapping = {
                 "schemaVersion": "kasitek-trial-mapping.v1",
                 "contextId": context_id,
+                "originalHarborContextId": str(self.context_id),
+                "harborContextIds": [str(self.context_id)],
+                "finished": False,
                 "scopeId": str(scope.scope_id),
                 "fingerprint": fingerprint,
                 "request": request,
@@ -110,12 +154,49 @@ class KasitekAgent(BaseAgent):
                 },
                 "nativeTrialId": None,
                 "taskId": None,
+                "conversationId": None,
+                "turns": [
+                    {"id": "initial", "request": request, "taskId": None},
+                    *[
+                        {
+                            "id": turn.id,
+                            "taskId": None,
+                            "request": {
+                                "versionId": str(scope.version_id),
+                                "requestKey": str(
+                                    uuid5(
+                                        scope.scope_id, f"{context_id}:turn:{turn.id}"
+                                    )
+                                ),
+                                "input": turn.instruction,
+                                "evaluationRootTokenLimit": self.options.root_token_limit,
+                            },
+                        }
+                        for turn in self.options.follow_ups
+                    ],
+                ],
                 "deadlineAt": deadline.isoformat(),
             }
-            persist(path, mapping)
+        self._save_mapping(path, mapping)
         return scope, mapping, path
 
+    def _save_mapping(self, path, mapping):
+        persist(path, mapping)
+        local = self.logs_dir / "trial-mapping.json"
+        if path != local:
+            persist(local, mapping)
+
     async def run(
+        self, instruction: str, environment: BaseEnvironment, context: AgentContext
+    ) -> None:
+        self._supported()
+        if self.options.recovery_id:
+            with exclusive_recovery(self.options.scope_path, self.options.recovery_id):
+                await self._run_native(instruction, environment, context)
+        else:
+            await self._run_native(instruction, environment, context)
+
+    async def _run_native(
         self, instruction: str, environment: BaseEnvironment, context: AgentContext
     ) -> None:
         scope, mapping, path = self._mapping(instruction)
@@ -129,12 +210,16 @@ class KasitekAgent(BaseAgent):
             "nativeOutcome": None,
             "mappingStatus": "pending",
             "coverage": None,
+            "scriptCompleted": False,
             "cleanup": {"revocationConfirmed": False, "terminalConfirmed": False},
         }
         context.metadata = {"kasitek": metadata}
-        async with PlatformClient(
-            scope, credential, timeout=self.options.http_timeout_sec
-        ) as client:
+        async with (
+            PlatformClient(
+                scope, credential, timeout=self.options.http_timeout_sec
+            ) as client,
+            AsyncExitStack() as transports,
+        ):
             try:
                 deadline = datetime.fromisoformat(mapping["deadlineAt"])
                 remaining = (deadline - datetime.now(timezone.utc)).total_seconds()
@@ -149,59 +234,176 @@ class KasitekAgent(BaseAgent):
                         else mapping["prepareRequest"]["trialId"],
                     )
                     if known["trial"] is None:
+                        if mapping["nativeTrialId"] is not None:
+                            raise ValueError(
+                                "Accepted native trial disappeared; recovery cannot recreate it"
+                            )
                         prepared = await client.prepare(mapping["prepareRequest"])
                         mapping["nativeTrialId"] = prepared["trial"]["id"]
-                        persist(path, mapping)
+                        self._save_mapping(path, mapping)
                         known = await client.trial(native_id=mapping["nativeTrialId"])
                     elif mapping["nativeTrialId"] is None:
                         mapping["nativeTrialId"] = known["trial"]["id"]
-                        persist(path, mapping)
-                    if len(known["rootTaskIds"]) > 1:
-                        raise UnsupportedMapping(
-                            "Single-turn adapter cannot merge multiple native root histories"
+                        self._save_mapping(path, mapping)
+                    visitor = None
+                    if self.options.channel:
+                        token = await prepare_channel(
+                            client, self.options.channel, mapping["nativeTrialId"]
                         )
-                    if mapping["taskId"] is None and known["rootTaskIds"]:
-                        mapping["taskId"] = known["rootTaskIds"][0]
-                        persist(path, mapping)
-                    if mapping["taskId"]:
-                        if mapping["taskId"] not in known["rootTaskIds"]:
-                            raise ValueError(
-                                "Persisted task is not a root of the native trial"
+                        visitor = await transports.enter_async_context(
+                            VisitorClient(
+                                scope,
+                                self.options.channel,
+                                token,
+                                timeout=self.options.http_timeout_sec,
                             )
-                        task = await client.status(mapping["taskId"])
-                    else:
-                        if known["trial"]["state"] != "active":
-                            raise ValueError(
-                                "Original native trial was revoked before admission"
+                        )
+                    if len(known["rootTaskIds"]) > len(mapping["turns"]):
+                        raise UnsupportedMapping(
+                            "Native trial has roots outside the scripted conversation"
+                        )
+                    recovered = [
+                        await client.status(task_id) for task_id in known["rootTaskIds"]
+                    ]
+                    expected_keys = {
+                        turn["request"]["requestKey"] for turn in mapping["turns"]
+                    }
+                    if not visitor and any(
+                        task.get("requestKey") not in expected_keys
+                        for task in recovered
+                    ):
+                        raise ValueError(
+                            "Native trial contains an unexpected root request"
+                        )
+                    exports = []
+                    completed_turns = []
+                    for turn in mapping["turns"]:
+                        request = turn["request"]
+                        if turn["id"] != "initial" and mapping["conversationId"]:
+                            expected_conversation = mapping["conversationId"]
+                            if (
+                                request.get("conversationId", expected_conversation)
+                                != expected_conversation
+                            ):
+                                raise ValueError(
+                                    "Scripted request changed its conversation"
+                                )
+                            request["conversationId"] = expected_conversation
+                        matches = [
+                            task
+                            for task in recovered
+                            if task.get("requestKey") == request["requestKey"]
+                        ]
+                        if len(matches) > 1:
+                            raise ValueError("Native request identity is not unique")
+                        if visitor:
+                            task = await submit_channel_turn(
+                                client, visitor, mapping, turn, path
                             )
-                        task = await client.submit(
+                        elif turn["taskId"]:
+                            task = await client.status(turn["taskId"])
+                            if task["id"] not in known["rootTaskIds"]:
+                                raise ValueError(
+                                    "Persisted task is not a native trial root"
+                                )
+                        elif matches:
+                            task = matches[0]
+                        else:
+                            if known["trial"]["state"] != "active":
+                                raise ValueError(
+                                    "Original native trial was revoked before admission"
+                                )
+                            # The full conversation binding is durable before every first/retry POST.
+                            self._save_mapping(path, mapping)
+                            task = await client.submit(
+                                {
+                                    **request,
+                                    "evaluationTrialId": mapping["nativeTrialId"],
+                                }
+                            )
+                        if (
+                            not visitor
+                            and task.get("requestKey") != request["requestKey"]
+                        ):
+                            raise ValueError(
+                                "Native task does not match the persisted scripted request"
+                            )
+                        turn["taskId"] = task["id"]
+                        if turn["id"] == "initial":
+                            mapping["taskId"] = task["id"]
+                        conversation_id = task.get("conversationId")
+                        if len(mapping["turns"]) > 1 and not conversation_id:
+                            raise UnsupportedMapping(
+                                "Native task did not expose its authoritative conversation binding"
+                            )
+                        if (
+                            mapping["conversationId"]
+                            and conversation_id != mapping["conversationId"]
+                        ):
+                            raise ValueError(
+                                "Native turn escaped its pinned conversation"
+                            )
+                        if conversation_id:
+                            mapping["conversationId"] = conversation_id
+                        self._save_mapping(path, mapping)
+                        metadata["taskId"] = task["id"]
+                        while task["state"] not in TERMINAL_STATES:
+                            await asyncio.sleep(self.options.poll_interval_sec)
+                            task = await client.status(task["id"])
+                        metadata["nativeOutcome"] = task["state"]
+                        raw, export = await client.history(task["id"])
+                        turn_dir = self.logs_dir / "turns" / turn["id"]
+                        persist(turn_dir / "native-export.json", raw)
+                        persist(self.logs_dir / "native-export.json", raw)
+                        exports.append(export)
+                        completed_turns.append(
                             {
-                                **mapping["request"],
-                                "evaluationTrialId": mapping["nativeTrialId"],
+                                "id": turn["id"],
+                                "taskId": task["id"],
+                                "conversationId": conversation_id,
+                                "state": task["state"],
+                                "nativeEvidenceFile": f"turns/{turn['id']}/native-export.json",
                             }
                         )
-                        mapping["taskId"] = task["id"]
-                        persist(path, mapping)
-                    if task.get("requestKey") != mapping["request"]["requestKey"]:
-                        raise ValueError(
-                            "Native task does not match the persisted trial request"
+                        persist(
+                            self.logs_dir / "conversation-turns.json", completed_turns
                         )
-                    metadata["taskId"] = task["id"]
-                    while task["state"] not in TERMINAL_STATES:
-                        await asyncio.sleep(self.options.poll_interval_sec)
-                        task = await client.status(task["id"])
-                    metadata["nativeOutcome"] = task["state"]
-                    raw, export = await client.history(task["id"])
-                    persist(self.logs_dir / "native-export.json", raw)
-                    metadata["coverage"] = export.coverage.model_dump()
-                    trajectory = to_atif(export)
-                    persist(
-                        self.logs_dir / "trajectory.json",
-                        trajectory.model_dump(mode="json", exclude_none=True),
-                    )
-                    metadata["mappingStatus"] = "supported"
-                    await client.artifacts(export, self.logs_dir / "artifacts")
-                    calls = [call for task in export.tasks for call in task.modelCalls]
+                        metadata["coverage"] = export.coverage.model_dump()
+                        trajectory = to_atif_turns(exports)
+                        metadata["coverage"] = trajectory.extra["coverage"]
+                        persist(
+                            self.logs_dir / "trajectory.json",
+                            trajectory.model_dump(mode="json", exclude_none=True),
+                        )
+                        if visitor:
+                            native_channel = await channel_history(
+                                client, mapping["nativeTrialId"]
+                            )
+                            persist(
+                                self.logs_dir / "native-channel-history.json",
+                                native_channel,
+                            )
+                            trajectory.extra["nativeChannelHistoryFile"] = (
+                                "native-channel-history.json"
+                            )
+                            persist(
+                                self.logs_dir / "trajectory.json",
+                                trajectory.model_dump(mode="json", exclude_none=True),
+                            )
+                        metadata["mappingStatus"] = "supported"
+                        metadata["turns"] = completed_turns
+                        await client.artifacts(export, self.logs_dir / "artifacts")
+                        if task["state"] != "completed":
+                            break
+                    metadata["scriptCompleted"] = len(completed_turns) == len(
+                        mapping["turns"]
+                    ) and all(turn["state"] == "completed" for turn in completed_turns)
+                    calls = [
+                        call
+                        for export in exports
+                        for task in export.tasks
+                        for call in task.modelCalls
+                    ]
                     if calls and all(
                         call.usage and call.usage.inputTokens is not None
                         for call in calls
@@ -231,6 +433,13 @@ class KasitekAgent(BaseAgent):
                     interrupted = cause
                 except Exception as cause:
                     metadata["cleanup"]["failure"] = type(cause).__name__
+                mapping["finished"] = bool(
+                    metadata["cleanup"].get("revocationConfirmed")
+                    and metadata["cleanup"].get("terminalConfirmed")
+                )
+                if mapping["finished"]:
+                    mapping["completedHarborContextId"] = str(self.context_id)
+                self._save_mapping(path, mapping)
                 persist(self.logs_dir / "evaluation-result.json", metadata)
                 if interrupted:
                     raise interrupted
@@ -255,7 +464,7 @@ class KasitekAgent(BaseAgent):
         trial_id = known["trial"]["id"]
         if mapping["nativeTrialId"] is None:
             mapping["nativeTrialId"] = trial_id
-            persist(path, mapping)
+            self._save_mapping(path, mapping)
         await client.revoke(trial_id)
         result.update(revocationConfirmed=True, cancellationRequested=True, roots=[])
         known = await client.trial(native_id=trial_id)

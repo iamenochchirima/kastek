@@ -8,7 +8,13 @@ from pydantic import ValidationError
 
 from kasitek_harbor.agent import KasitekAgent
 from kasitek_harbor.client import PlatformClient, PlatformRequestError
-from kasitek_harbor.config import PreparedScope, load_scope
+from kasitek_harbor.config import (
+    AdapterOptions,
+    ChannelOptions,
+    PreparedScope,
+    load_scope,
+)
+from kasitek_harbor.channel import VisitorClient
 from kasitek_harbor.persistence import persist
 
 
@@ -121,3 +127,82 @@ class TransportBoundaryTests(unittest.IsolatedAsyncioTestCase):
         ) as client:
             with self.assertRaises(ValueError):
                 await client.version()
+
+
+class ScriptedTurnTests(unittest.TestCase):
+    def test_configured_turn_ids_are_unique_bounded_and_not_hidden_grader_fields(self):
+        for follows in (
+            [{"id": "initial", "instruction": "question"}],
+            [
+                {"id": "same", "instruction": "one"},
+                {"id": "same", "instruction": "two"},
+            ],
+            [{"id": "a", "instruction": "q", "expected_answer": "hidden"}],
+        ):
+            with self.assertRaises(ValidationError):
+                AdapterOptions(
+                    scope_path=Path("/private/scope.json"), follow_ups=follows
+                )
+        with self.assertRaises(ValidationError):
+            AdapterOptions(
+                scope_path=Path("/private/scope.json"),
+                follow_ups=[{"id": str(i), "instruction": "q"} for i in range(8)],
+            )
+
+    def test_scripted_request_ids_and_text_are_checkpointed_before_submission(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            scope_path = root / "scope.json"
+            persist(scope_path, scope_value())
+            agent = KasitekAgent(
+                logs_dir=root / "logs",
+                scope_path=str(scope_path),
+                root_token_limit=2048,
+                follow_ups=[{"id": "confirm", "instruction": "Same literal question"}],
+            )
+            agent.context_id = uuid4()
+            _, mapping, _ = agent._mapping("Same literal question")
+            self.assertEqual(
+                [turn["id"] for turn in mapping["turns"]], ["initial", "confirm"]
+            )
+            self.assertNotEqual(
+                mapping["turns"][0]["request"]["requestKey"],
+                mapping["turns"][1]["request"]["requestKey"],
+            )
+            recovered = KasitekAgent(
+                logs_dir=root / "logs",
+                scope_path=str(scope_path),
+                root_token_limit=2048,
+                follow_ups=[{"id": "confirm", "instruction": "Changed instruction"}],
+            )
+            recovered.context_id = agent.context_id
+            with self.assertRaises(ValueError):
+                recovered._mapping("Same literal question")
+
+
+class VisitorBoundaryTests(unittest.IsolatedAsyncioTestCase):
+    async def test_visitor_origin_and_bearer_transport_never_carry_operator_cookies(
+        self,
+    ):
+        requests = []
+        conversation_id = str(uuid4())
+
+        def respond(request):
+            requests.append(request)
+            return httpx.Response(200, json={"conversation": {"id": conversation_id}})
+
+        scope = PreparedScope.model_validate(scope_value())
+        channel = ChannelOptions(deployment_id=uuid4(), origin="https://widget.example")
+        async with VisitorClient(
+            scope,
+            channel,
+            "visitor-fixture-token",
+            timeout=1,
+            transport=httpx.MockTransport(respond),
+        ) as visitor:
+            self.assertEqual(await visitor.open(), conversation_id)
+        self.assertNotIn("cookie", requests[0].headers)
+        self.assertEqual(requests[0].headers["origin"], "https://widget.example")
+        self.assertEqual(
+            requests[0].headers["authorization"], "Bearer visitor-fixture-token"
+        )

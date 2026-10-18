@@ -21,8 +21,18 @@ from fixtures import native_export
 
 
 class ContractFixture:
-    def __init__(self, *, lost_task_ack=False, lost_prepare_ack=False, running=False):
+    def __init__(
+        self,
+        *,
+        lost_task_ack=False,
+        lost_prepare_ack=False,
+        running=False,
+        outcome="completed",
+    ):
         self.export = native_export()
+        self.export["conversationId"] = str(uuid4())
+        self.export["tasks"][0]["state"] = outcome
+        self.outcome = outcome
         self.root = self.export["rootTaskId"]
         self.trial_id = str(uuid4())
         self.trial = None
@@ -110,7 +120,8 @@ class ContractFixture:
                     if fixture.task is None:
                         fixture.task = {
                             "id": fixture.root,
-                            "state": "running" if fixture.running else "completed",
+                            "state": "running" if fixture.running else fixture.outcome,
+                            "conversationId": fixture.export["conversationId"],
                             "requestKey": body["requestKey"],
                             "versionId": fixture.export["versionId"],
                         }
@@ -267,5 +278,41 @@ class AdapterTests(unittest.IsolatedAsyncioTestCase):
                     ]
                 )
                 self.assertEqual(fixture.submits, 1)
+        finally:
+            fixture.close()
+
+    async def test_script_stops_after_failed_native_turn_and_revokes_without_admitting_followup(
+        self,
+    ):
+        fixture = ContractFixture(outcome="failed")
+        try:
+            with (
+                tempfile.TemporaryDirectory() as directory,
+                patch.dict(
+                    os.environ,
+                    {"KASITEK_EVALUATION_SESSION": "private-session-token-never-log"},
+                ),
+            ):
+                root = Path(directory)
+                scope = root / "scope.json"
+                fixture.scope(scope)
+                agent = KasitekAgent(
+                    logs_dir=root / "logs",
+                    scope_path=str(scope),
+                    root_token_limit=2048,
+                    follow_ups=[
+                        {"id": "followup", "instruction": "Second public question"}
+                    ],
+                )
+                agent.context_id = uuid4()
+                context = AgentContext()
+                await agent.setup(None)
+                await agent.run("Research the approved source.", None, context)
+                self.assertEqual(fixture.submits, 1)
+                self.assertEqual(context.metadata["kasitek"]["nativeOutcome"], "failed")
+                self.assertFalse(context.metadata["kasitek"]["scriptCompleted"])
+                self.assertTrue(
+                    context.metadata["kasitek"]["cleanup"]["revocationConfirmed"]
+                )
         finally:
             fixture.close()
