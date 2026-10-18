@@ -78,9 +78,16 @@ compositions are immutable. Workspace programs and booking providers fail explic
 Reviewed report stages live in `workflows/report-delivery/program.ts` and retain digest-bound
 approval, one dispatch claim and status-only reconciliation.
 
-The current source release is `modular-programs-v1` / `AgentsBusinessRunV11`. It requires a fresh
+The current source release is `modular-programs-v2` / `AgentsBusinessRunV12`. It requires a fresh
 dedicated schema. Verification uses separate compiled artifacts and databases. Running older local
 artifacts are not upgraded by setup or rewritten to accept the new schema.
+
+Each operation journals its physical outcome and attempt identity before a separate durable step
+persists its native receipt. Database retries replay the retained result without repeating provider
+I/O. A crash before that journal acknowledgement remains uncertain. Receipt persistence verifies
+the current attempt, terminal state, output and accounting; a conflicting existing receipt is never
+upgraded to success. `AGENTS_OPERATION_RECOVERY=1` enables the actual worker SIGKILL and
+PostgreSQL failure cases in `test/operation-journal-recovery.test.ts`.
 
 Native evaluation trials require an authenticated operator, a dedicated unused agent and the exact
 published composition digest. Trial preparation is idempotent. Tasks retain the server-validated

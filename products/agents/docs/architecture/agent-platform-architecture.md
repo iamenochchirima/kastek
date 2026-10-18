@@ -654,8 +654,8 @@ permits the implemented memory, delegation, sandbox, connected-read and reviewed
 These are executable contracts, separate from FAQ/customer-service offering names. Published versions
 pin configuration, program, runtime, capability, workflow and connected-binding digests. Admission
 copies the effective composition to the task, including narrowed child compositions. Workers reject
-unavailable or changed releases before additional execution. New source uses `modular-programs-v1`
-and Restate workflow `AgentsBusinessRunV11` in fresh isolated schemas.
+unavailable or changed releases before additional execution. New source uses `modular-programs-v2`
+and Restate workflow `AgentsBusinessRunV12` in fresh isolated schemas.
 
 The trusted executor exposes selected knowledge.search/read, memory.search/propose, agents.delegate, sandbox.analyze and channel.request_handoff operations.
 Tool schemas, arguments, current grants, memory fences, time and root usage are checked before
@@ -667,8 +667,11 @@ authority is checked at admission and operations; children inherit the binding. 
 changes the generation, fences further automation and requests cancellation. Only canonical published
 messages supply customer output and context. Human support messages remain labelled reference data.
 
-Operation receipts and per-operation settlement survive retries. A started model request without a
-confirmed receipt becomes uncertain instead of generating again. Expected denials are recorded
+Physical operation results and attempt identities are journaled before a separate durable native
+receipt step. Database persistence retries reuse that result without repeating provider I/O. Native
+receipt checks retain current-attempt, terminal-state, output and accounting fences. A started model
+request without a journaled result or confirmed receipt becomes uncertain instead of generating
+again. Expected denials are recorded
 outcomes rather than infinite runtime retries. Expired grants enter a durable authority wait;
 authenticated continuation obtains a bounded replacement grant and follows the same task. Cancellation
 and deadline commands stop future admissions and request runtime cancellation; confirmed receipts

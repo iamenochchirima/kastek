@@ -94,7 +94,7 @@ suite("Agents HTTP and PostgreSQL integration", () => {
 
   it("pins publication and admission compositions while rejecting broader FAQ programs", async () => {
     const f = await readyAgent();
-    expect(f.version.effectiveComposition).toMatchObject({ program: { id: "tool-directed", version: "1" }, runtime: { release: "modular-programs-v1" } });
+    expect(f.version.effectiveComposition).toMatchObject({ program: { id: "tool-directed", version: "1" }, runtime: { release: "modular-programs-v2" } });
     const accepted = await request(`${f.base}/tasks`, { method: "POST", cookie: f.cookie, origin: browserOrigin,
       payload: { versionId: f.version.id, input: "Hello", requestKey: "pinned" } });
     expect(accepted.status).toBe(202);

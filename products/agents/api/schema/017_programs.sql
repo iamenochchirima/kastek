@@ -2,7 +2,7 @@ ALTER TABLE agents_platform.agent_versions ADD COLUMN effective_composition json
   CHECK (effective_composition->>'schemaVersion'='1' AND effective_composition->>'digest' ~ '^[a-f0-9]{64}$');
 ALTER TABLE agents_platform.tasks ADD COLUMN effective_composition jsonb NOT NULL
   CHECK (effective_composition->>'schemaVersion'='1' AND effective_composition->>'digest' ~ '^[a-f0-9]{64}$');
-ALTER TABLE agents_platform.tasks ALTER COLUMN harness_release SET DEFAULT 'modular-programs-v1';
+ALTER TABLE agents_platform.tasks ALTER COLUMN harness_release SET DEFAULT 'modular-programs-v2';
 ALTER TABLE agents_platform.tasks ADD COLUMN channel_binding jsonb;
 
 CREATE FUNCTION agents_platform.protect_execution_composition() RETURNS trigger LANGUAGE plpgsql AS $$
