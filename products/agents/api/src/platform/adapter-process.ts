@@ -14,7 +14,7 @@ function canonical(value: unknown): string {
   return JSON.stringify(value);
 }
 const digest = (value: unknown) => createHash("sha256").update(canonical(value)).digest("hex");
-const keywords = new Set(["$schema", "$defs", "$ref", "type", "properties", "required", "additionalProperties", "items", "prefixItems", "enum", "const", "title", "description", "default", "minimum", "maximum", "exclusiveMinimum", "exclusiveMaximum", "multipleOf", "minLength", "maxLength", "minItems", "maxItems", "uniqueItems", "minProperties", "maxProperties", "allOf", "anyOf", "oneOf", "not"]);
+const keywords = new Set(["$schema", "format", "$defs", "$ref", "type", "properties", "required", "additionalProperties", "items", "prefixItems", "enum", "const", "title", "description", "default", "minimum", "maximum", "exclusiveMinimum", "exclusiveMaximum", "multipleOf", "minLength", "maxLength", "minItems", "maxItems", "uniqueItems", "minProperties", "maxProperties", "allOf", "anyOf", "oneOf", "not"]);
 export function assertRestrictedSchema(schema: unknown): asserts schema is Record<string, unknown> {
   if (!schema || typeof schema !== "object" || Array.isArray(schema) || Buffer.byteLength(JSON.stringify(schema)) > MCP_ADAPTER_LIMITS.schemaBytes) fail("MCP_SCHEMA_UNSUPPORTED");
   let jsonNodes = 0;
@@ -35,7 +35,10 @@ export function assertRestrictedSchema(schema: unknown): asserts schema is Recor
     const record = value as Record<string, unknown>, next = new Set(stack).add(value);
     for (const [key, item] of Object.entries(record)) {
       if (!keywords.has(key)) fail("MCP_SCHEMA_UNSUPPORTED");
-      if (key === "$schema" && item !== "https://json-schema.org/draft/2020-12/schema") fail("MCP_SCHEMA_UNSUPPORTED");
+      if (key === "$schema" && depth !== 0) fail("MCP_SCHEMA_UNSUPPORTED");
+      if (key === "$schema" && !["https://json-schema.org/draft/2020-12/schema","http://json-schema.org/draft-07/schema#"].includes(item as string)) fail("MCP_SCHEMA_UNSUPPORTED");
+      if (key === "format" && item !== "uuid") fail("MCP_SCHEMA_UNSUPPORTED");
+      if (root.$schema === "http://json-schema.org/draft-07/schema#" && ["prefixItems","$defs"].includes(key)) fail("MCP_SCHEMA_UNSUPPORTED");
       if (key === "$ref") {
         if (typeof item !== "string" || !item.startsWith("#/$defs/") || item.length > 512) fail("MCP_SCHEMA_UNSUPPORTED");
         let target: unknown = root;
