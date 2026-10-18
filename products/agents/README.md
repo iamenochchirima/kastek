@@ -5,15 +5,15 @@ Owner: Agents engineering. Last reviewed: 2026-10-18.
 The standalone product targets mostly plug-and-play customer-service, FAQ, booking, and intake
 agents for websites, WhatsApp, Facebook pages, and Instagram, with a shared staff inbox. Research
 and campaign experiences belong in Growth or Agencies using the shared execution backend.
-Only the website/widget path currently exists. The shared customer inbox, human takeover, other
-channel integrations, and booking operations are not implemented. See the
+The website/widget path includes a shared staff Inbox, assignment, human replies, takeover and
+explicit return to automation. Other channel providers and booking operations remain unavailable. See the
 [product and inbox contracts](docs/architecture/agent-platform-architecture.md#standalone-agents-product).
 
-The current local application creates, configures, and tests business agents with
-conversation context, reviewed personal memory, pinned skills, bounded tool rounds,
-recorded context compaction, bounded business subagents and optional isolated Python analysis. Restate coordinates durable execution. A minimal
-knowledge-backed website FAQ uses the same harness with optional capabilities
-disabled. The technical kinds remain `business` and `workspace`; workspace
+The standalone application creates customer agents with approved knowledge, simple chat, website
+publication and Inbox support. The shared harness also implements reviewed memory, pinned skills,
+bounded specialist tasks, optional isolated analysis and reviewed report workflows for developer
+and product contract fixtures. These capabilities do not define the standalone customer catalogue.
+Restate coordinates durable execution. The technical kinds remain `business` and `workspace`; workspace
 execution is unavailable until its separate Lina adapter is implemented.
 
 The [architecture](docs/architecture/agent-platform-architecture.md) defines the target.

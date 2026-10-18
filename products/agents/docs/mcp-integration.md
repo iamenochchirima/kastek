@@ -9,8 +9,8 @@ adapter remains unavailable.
 | Connection | Contract | Current boundary |
 | --- | --- | --- |
 | External agents to Growth or Agencies | Product-owned MCP with OAuth or scoped API keys. | Separate product work; no Agents gateway. |
-| Product backends to Agents execution | Authenticated service with initiating identity and bounded authority. | Future integration. |
-| Customer channels to Agents | Verified channel binding, customer event identity, conversation ownership, and authorized automated or human replies. | Website/widget execution exists. WhatsApp, Facebook, Instagram and shared customer inbox controls are not implemented. |
+| Product backends to Agents execution | Authenticated service with initiating identity and bounded authority. | Signed delegated-identity contract fixtures exist; production product integration and richer private resource contracts remain unavailable. |
+| Customer channels to Agents | Verified channel binding, customer event identity, conversation ownership, and authorized automated or human replies. | Website/widget execution and shared Inbox controls are implemented. WhatsApp, Facebook and Instagram remain unavailable. |
 | Business agents to external reads | Immutable selected native HTTP or MCP bindings, current connection/resource authority and durable receipts. | Public repository and Stash profiles implemented; see acceptance status below. |
 | Business agents to report delivery | Exact report bytes, one human approval, one dispatch claim, status-only recovery. | ReportDeliveryHTTP with a verified persistent local receiver. |
 

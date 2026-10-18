@@ -285,9 +285,11 @@ maximum 100) and `cursor`. Cursors bind to the principal, workspace, route and
 filters, including the trimmed roster search. They preserve a creation-time snapshot; later admissions appear on
 refresh. State and authorization remain current, so revoked or no-longer-matching
 records can disappear between pages. Timestamp keysets preserve PostgreSQL
-precision and use deterministic ID ties. Cursors are signed with a process-local
-key: an API restart invalidates old cursors with `INVALID_CURSOR`; clients refresh
-from the first page. They do not grant authority or preserve access after revocation.
+precision and use deterministic ID ties. Cursors carry a key ID, issue time and bounded expiry.
+Production replicas require the same versioned key set; old keys remain readable during rotation
+until their accepted cursors expire. Development derives a stable key from its configured secret.
+Expired or unknown keys return `INVALID_CURSOR`; clients refresh from the first page. Cursors
+do not grant authority or preserve access after revocation.
 
 Conversation summaries expose a plain-text title from the first authorized user
 input, at most 100 characters with control characters replaced. Clients must render
@@ -516,10 +518,11 @@ conversations, a completed memory.search tool receipt, pinned skills and correct
 The website/widget journey and real Keycloak checks remain distinct acceptance paths. Worker signature
 fixtures do not certify cluster key distribution or a production deployment.
 
-Public repository reads require no external credential. Keyed Stash and GitHub acceptance remains separately opt-in. Arbitrary destination writes, local-time cron/DST schedules, Lina execution and evaluation adapters remain unavailable. Subagents require explicit published bindings; analysis also requires the pinned backend, resource controls and private storage.
+Public repository reads require no external credential. Keyed Stash and GitHub acceptance remains separately opt-in. Arbitrary destination writes, local-time cron/DST schedules, Lina execution remains unavailable. The external Harbor adapter has controlled FAQ, specialist/research and reviewed-report acceptance; remaining suite criteria stay in Linear. Subagents require explicit published bindings; analysis also requires the pinned backend, resource controls and private storage.
 Production rollout, secret management, durable log retention, monitoring, backups,
-and signup-email delivery require separate verification. There are no active OTLP
-exporters. Services emit bounded structured stdout diagnostics.
+and signup-email delivery require separate verification. OTLP trace/metric export is explicit
+configuration, with local Collector acceptance described above. Services also emit bounded
+structured stdout diagnostics.
 
 ## Coordination and replica configuration
 

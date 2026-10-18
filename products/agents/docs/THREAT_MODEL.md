@@ -27,18 +27,20 @@ or memory tools. An origin check does not replace the visitor's scoped session.
 
 ## Target channels and customer inbox
 
-The shared customer inbox and its assignment, takeover, human reply, and return-to-automation
-controls are not implemented. WhatsApp, Facebook, Instagram, and booking integrations are also
-unavailable. Existing website visitor sessions do not establish these future controls.
+Website Inbox assignment, takeover, human replies and return to automation are implemented.
+Organization membership, assignee permissions, revision checks, deduplicated commands and durable
+ownership generations fence admission and canonical automated delivery. Human-owned visitor input
+is recorded without automatic model admission. Late model results cannot become customer messages.
+WhatsApp, Facebook, Instagram and booking integrations remain unavailable.
 
-The target requires verified channel ingress, trusted tenant and agent bindings, deduplicated
+The website implementation uses verified channel ingress, trusted tenant and agent bindings, deduplicated
 events, and scoped customer conversations. Staff access and assignment require product permission.
 Takeover changes conversation ownership before further automated replies or actions can be
 admitted. Pending sends must recheck ownership. In-flight operations report their actual outcomes;
 uncertainty requires reconciliation. Staff replies need channel authority, and returning control
 to automation must be explicit. A channel identity does not grant access to private customer
-records or permit cross-channel identity merging. These controls require implementation and
-end-to-end verification before the corresponding product capabilities are offered.
+records or permit cross-channel identity merging. Each future provider requires its own integration
+and end-to-end acceptance before its channel is offered.
 
 ## Context, memory, and tools
 
