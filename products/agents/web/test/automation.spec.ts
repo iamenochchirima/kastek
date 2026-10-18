@@ -149,7 +149,7 @@ test("mock review: only the assigned reviewer can decide before expiry", async (
 
 test("live automation: scheduled report survives review and delivery interruptions", async ({ page, context, baseURL }) => {
   test.skip(process.env.AGENTS_AUTOMATION_LIVE !== "1", "Requires isolated actual service fixture");
-  const github=process.env.AGENTS_GITHUB_JOURNEY==="1",stash=process.env.AGENTS_STASH_JOURNEY==="1",connected=github||stash;
+  const github=process.env.AGENTS_GITHUB_JOURNEY==="1",stash=process.env.AGENTS_STASH_JOURNEY==="1",publicRepository=process.env.AGENTS_PUBLIC_REPOSITORY_JOURNEY==="1",connected=github||stash||publicRepository;
   test.setTimeout(connected?600_000:360_000);
   const cookie = process.env.AGENTS_BROWSER_SESSION_COOKIE!, key = process.env.AGENTS_DELIVERY_FIXTURE_KEY!;
   await context.addCookies([{ name: "agents_session", value: cookie, url: baseURL!, httpOnly: true, sameSite: "Lax" }]);
@@ -264,7 +264,7 @@ test("live automation: scheduled report survives review and delivery interruptio
       }
     }
   }
-  if(github){
+  if(github||publicRepository){
     const generatedAt=Date.parse(report.generatedAt);
     expect(Number.isFinite(generatedAt)).toBe(true);expect(report.generatedAt).toMatch(/(?:Z|\+00:00)$/);
     expect(generatedAt).toBeGreaterThanOrEqual(Date.parse(originalDetail.task.createdAt));expect(generatedAt).toBeLessThanOrEqual(Date.now()+5000);
@@ -272,9 +272,10 @@ test("live automation: scheduled report survives review and delivery interruptio
     expect(report.provider_findings).toHaveLength(2);
     for(const transport of ["native_http","mcp_http"]){
       const finding=report.provider_findings.find((item:{transport:string})=>item.transport===transport);
-      expect(finding.repository).toBe(process.env.AGENTS_GITHUB_JOURNEY_REPOSITORY);
+      expect(finding.repository).toBe(publicRepository?process.env.AGENTS_PUBLIC_JOURNEY_REPOSITORY:process.env.AGENTS_GITHUB_JOURNEY_REPOSITORY);
       expect(finding.observedFact.length).toBeGreaterThanOrEqual(16);expect(finding.observedFact.length).toBeLessThanOrEqual(200);
-      expect(finding.observedFact.toLowerCase()).toContain(process.env.AGENTS_GITHUB_JOURNEY_EXPECT!.toLowerCase());
+      if(publicRepository)expect(finding.observedFact).toContain(transport==="native_http"?process.env.AGENTS_PUBLIC_JOURNEY_NATIVE_EXPECT!:process.env.AGENTS_PUBLIC_JOURNEY_MCP_EXPECT!);
+      else expect(finding.observedFact.toLowerCase()).toContain(process.env.AGENTS_GITHUB_JOURNEY_EXPECT!.toLowerCase());
       expect(report.citations).toContain(finding.sourceLabel);
       for(const action of [originalDetail.actions[0],finalDetail.actions[0]]){
         const passage=action.citedPassages.find((item:{label:string})=>`[${item.label}]`===finding.sourceLabel);
