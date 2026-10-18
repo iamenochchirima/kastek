@@ -605,3 +605,50 @@ compatible releases may be claimed. Root submission, continuation, capacity wake
 and cancellation use the corresponding workflow/ingress/admin route. The default
 route serves the current release; unavailable releases remain pending for a
 compatible deployment instead of repeatedly consuming a dispatch claim.
+
+## Physical executor routing
+
+Replica deployments configure `AGENTS_EXECUTOR_ROUTES` as a trusted JSON array of
+`{id,url,key}` entries and `AGENTS_EXECUTOR_DEFAULT_ID` for new allocations. Keys contain at
+least 32 characters and remain in private environment configuration. URLs require HTTPS, except
+explicit loopback HTTP for local fixtures. Agents cannot supply routes or signing keys.
+`AGENTS_SANDBOX_ENABLED=1` and `AGENTS_DOCUMENT_RUNTIME_ENABLED=1` retain their existing gates.
+Without routes, the explicit local backend remains available for single-host development.
+It does not qualify as recovery across hosts.
+
+Run each physical host with `node --env-file-if-exists=.env --import tsx src/composition/executor.ts`
+from `products/agents/api`, or its compiled `dist/composition/executor.js` entry. Set
+`AGENTS_EXECUTOR_ID`, `AGENTS_EXECUTOR_KEY`, `AGENTS_EXECUTOR_JOURNAL_DIRECTORY` and
+`AGENTS_EXECUTOR_PORT`. The default bind is loopback. A non-loopback deployment requires a private
+TLS endpoint and restricted network access. Each host has its own persistent sandbox/document
+cache directories and command journal. Preserve the journal across process restarts. A kernel lock
+rejects a second process using that directory, and a durable database identity rejects rebinding
+the same executor ID to a fresh directory. Replacing a machine requires a different executor ID.
+
+Signed internal commands bind resource kind, allocation, owner, generation, command identity and
+body. Physical handlers recheck current ownership around transitions. Native allocation records
+and durable local command intents retain uncertain starts. Status, cleanup and receipt recovery
+route to the recorded owner even when the caller has a different local directory. Expired leases
+prevent starts but do not release uncertain physical capacity. `AGENTS_EXECUTOR_MAX_ACTIVE`
+defaults to two allocations and accepts integers from one through sixteen. Short capacity
+transactions finish before any systemd or runtime wait. Command bodies and responses are bounded
+at 20 MB; metadata probes share bounded short-lived results.
+
+Transfer requires the original host to prove the allocation stopped, then a generation CAS.
+Transfer does not resume an old command on the destination. Stale start, status and cleanup calls
+are rejected by the original physical handler. An unreachable original host remains uncertain;
+local file absence and lease expiry do not authorize replacement. Keep allocation directories,
+command intents and the physical identity file until their uncertainty is resolved. The command
+journal is private operational evidence and may contain bounded tool inputs/results. It is not
+ordinary telemetry. Remove a disposable fixture's journal after review and teardown; production
+journal archival/retention remains a deployment requirement.
+
+`AGENTS_EXECUTOR_VERIFY=1` enables the independent-process acceptance in
+`test/resource-executor-process.test.ts`. It uses actual rootless gVisor, distinct physical
+executor directories, process death/restart, original-owner sandbox receipt recovery, document
+parsing and remote cleanup, confirmed transfer, and stale physical-handler denial. It owns a
+fresh database and temporary directories. Protocol tests additionally cover signed-body tampering,
+lost acknowledgements, bounded capacity after lease expiry, physical launch/quiescence races and
+rejected identity rebinding. Existing sandbox/document safety suites retain their real no-network,
+resource-limit and pinned-profile checks. No guest helper/profile bytes changed in this routing
+update. These bounded fixtures do not establish 1,000/10,000-root production capacity.

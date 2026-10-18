@@ -9,6 +9,7 @@ import { z } from "zod";
 import { PlatformError } from "../../contracts/contracts";
 import { assertCurrentAuthority,loadExecution } from "../../execution/lifecycle/execution";
 import { transaction } from "../../infrastructure/database";
+import { resourceGate } from "../../infrastructure/resource-gate";
 import { guestRunner,hostRunner } from "./sandbox-programs";
 const execute = promisify(execFile);
 export const SANDBOX_PROFILE = Object.freeze({ id: "python-analysis-v1", cpu: 1, memoryBytes: 536_870_912,
@@ -19,20 +20,24 @@ export interface SandboxInput { operationId: string; code: string; inputs: { nam
 export interface SandboxResult { allocationId: string; commandId: string; state: "completed" | "failed" | "uncertain";
   exitCode: number | null; stdout: string; stderr: string; errorCode?: string;
   resourceEvidence?: {pidDenials:number;oomKills:number}; exports: { name: string; contentType: string; content: Uint8Array }[]; artifactRefs?: unknown[] }
-export interface SandboxConfiguration { directory: string; runsc: string; rootfs: string }
+export interface SandboxConfiguration { directory: string; runsc: string; rootfs: string; assertOwnership?(id:string,starting:boolean):Promise<void> }
 const nameSchema = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$/);
 const receiptSchema = z.strictObject({ state: z.enum(["completed", "failed", "uncertain"]), exitCode: z.number().int().nullable(),
   stdout: z.string().max(65_536), stderr: z.string().max(65_536), errorCode: z.string().max(100).nullable().optional(),
   resourceEvidence: z.strictObject({pidDenials:z.number().int().nonnegative(),oomKills:z.number().int().nonnegative()}).optional(),
   exports: z.array(z.strictObject({ name: nameSchema, contentType: z.enum(["text/plain", "text/markdown", "application/json"]), base64: z.string().max(1_398_104) })).max(4) });
 const hash = (value: string | Uint8Array) => createHash("sha256").update(value).digest("hex");
+export function sandboxAllocationId(taskId: string, operationId: string): string {
+  const value = hash(JSON.stringify(["sandbox-allocation-v1", taskId, operationId]));
+  return `${value.slice(0,8)}-${value.slice(8,12)}-8${value.slice(13,16)}-${((parseInt(value[16]!,16)&3)|8).toString(16)}${value.slice(17,20)}-${value.slice(20,32)}`;
+}
 const sleep = (milliseconds: number) => new Promise<void>(done => setTimeout(done, milliseconds));
 const fail = (code: string, message: string, status = 503) => new PlatformError(code, status, message);
-export function sandboxManagerFromEnvironment(pool: Pool, env: NodeJS.ProcessEnv = process.env): SandboxManager | undefined {
+export function sandboxManagerFromEnvironment(pool: Pool, env: NodeJS.ProcessEnv = process.env, hooks:Pick<SandboxConfiguration,"assertOwnership">={}): SandboxManager | undefined {
   if (env.AGENTS_SANDBOX_ENABLED !== "1") return;
   const cache = env.AGENTS_SANDBOX_CACHE || join(homedir(), ".cache/kasitek-agents-sandbox");
   return new SandboxManager(pool, { directory: env.AGENTS_SANDBOX_DIRECTORY || join(cache, "allocations"),
-    runsc: env.AGENTS_SANDBOX_RUNSC || join(cache, "gvisor/runsc"), rootfs: env.AGENTS_SANDBOX_ROOTFS || join(cache, "python-rootfs") });
+    runsc: env.AGENTS_SANDBOX_RUNSC || join(cache, "gvisor/runsc"), rootfs: env.AGENTS_SANDBOX_ROOTFS || join(cache, "python-rootfs"),...hooks });
 }
 export class SandboxManager {
   constructor(readonly pool: Pool, readonly config: SandboxConfiguration) {
@@ -78,7 +83,7 @@ export class SandboxManager {
       const deadline = await this.verify(db, scope);
       const busy = (await db.query("SELECT root_task_id FROM agents_platform.sandbox_allocations WHERE organization_id=$1 AND state<>'destroyed'", [scope.organizationId])).rows;
       if (busy.length >= 2 || busy.some(row => row.root_task_id === scope.rootTaskId)) throw fail("SANDBOX_CAPACITY", "Sandbox capacity is busy", 429);
-      const id = randomUUID(), commandId = randomUUID(), unit = `kasitek-sandbox-${id}.service`;
+      const id = sandboxAllocationId(scope.taskId,input.operationId), commandId = randomUUID(), unit = `kasitek-sandbox-${id}.service`;
       const lease = new Date(Math.min(Date.now() + SANDBOX_PROFILE.leaseSeconds * 1000, deadline.getTime()));
       const row = (await db.query(`INSERT INTO agents_platform.sandbox_allocations(id,organization_id,root_task_id,task_id,operation_id,request_digest,profile_id,state,unit_name,lease_expires_at)
         VALUES($1,$2,$3,$4,$5,$6,$7,'provisioning',$8,$9) RETURNING *`, [id,scope.organizationId,scope.rootTaskId,scope.taskId,input.operationId,digest,SANDBOX_PROFILE.id,unit,lease])).rows[0];
@@ -90,15 +95,24 @@ export class SandboxManager {
     if (row.state === "destroyed") return this.unknown(row.id,row.command_id,"SANDBOX_RESOURCE_EXPIRED");
     if (admitted.created) {
       if (!await this.available()) { await this.failStart(row.id,"SANDBOX_UNAVAILABLE"); throw fail("SANDBOX_UNAVAILABLE", "The isolated sandbox backend is unavailable"); }
-      try { await this.lifecycle(row.id, async db => {
-        const current=await this.status(scope,row.id,db);
-        if(current.state!=="provisioning") throw fail("SANDBOX_RESOURCE_EXPIRED","Sandbox allocation is no longer launchable",409);
-        await this.verify(db,scope);
-        if(new Date(current.lease_expires_at).getTime()<=Date.now()) throw fail("SANDBOX_DEADLINE","Sandbox lease expired",409);
+      try { await this.lifecycle(row.id, async () => {
+        const current=await transaction(this.pool,async db=>{
+          const allocation=await this.status(scope,row.id,db);
+          if(allocation.state==="destroyed") throw fail("SANDBOX_RESOURCE_EXPIRED","Sandbox resource was destroyed",409);
+          if(allocation.state!=="provisioning"||allocation.launch_claimed_at) throw fail("SANDBOX_START_UNCERTAIN","Sandbox launch was already claimed",409);
+          await this.verify(db,scope);
+          if(new Date(allocation.lease_expires_at).getTime()<=Date.now()) throw fail("SANDBOX_DEADLINE","Sandbox lease expired",409);
+          await db.query("UPDATE agents_platform.sandbox_allocations SET launch_claimed_at=now() WHERE id=$1",[row.id]);return allocation;
+        });
         await this.prepare(current,input,scope);
-        await this.verify(db,scope);
-        if(new Date(current.lease_expires_at).getTime()<=Date.now()) throw fail("SANDBOX_DEADLINE","Sandbox lease expired",409);
-        await this.launch(current,scope,db);
+        await transaction(this.pool,async db=>{
+          await this.verify(db,scope);
+          if(new Date(current.lease_expires_at).getTime()<=Date.now()) throw fail("SANDBOX_DEADLINE","Sandbox lease expired",409);
+          await db.query("UPDATE agents_platform.sandbox_allocations SET state='running',updated_at=now() WHERE id=$1",[row.id]);
+          await db.query("UPDATE agents_platform.sandbox_commands SET state='running',updated_at=now() WHERE allocation_id=$1",[row.id]);
+        });
+        await this.config.assertOwnership?.(row.id,true);
+        await this.launch(current,scope);
       }); }
       catch (error) { await this.failStart(row.id,"SANDBOX_START_UNCERTAIN"); throw error instanceof PlatformError ? error : fail("SANDBOX_START_UNCERTAIN", "Sandbox start outcome is uncertain"); }
     }
@@ -127,10 +141,8 @@ export class SandboxManager {
     await writeFile(join(directory,"host.py"),hostRunner,{mode:0o400,flag:"wx"});
     await writeFile(join(directory,"launch.json"),JSON.stringify({runsc:this.config.runsc,state:join(directory,"state"),bundle:directory,containerId:`analysis-${row.id}`,receipt:join(directory,"receipt.json"),started:join(directory,"started"),seconds}),{mode:0o600,flag:"wx"});
   }
-  private async launch(row: Record<string, any>, scope: SandboxScope, db: import("pg").PoolClient) {
+  private async launch(row: Record<string, any>, scope: SandboxScope) {
     const directory=this.directory(row.id),seconds=Math.max(1,Math.min(120,Math.floor((Math.min(scope.deadlineAt.getTime(),new Date(row.lease_expires_at).getTime())-Date.now())/1000)));
-    await db.query("UPDATE agents_platform.sandbox_allocations SET state='running',updated_at=now() WHERE id=$1",[row.id]);
-    await db.query("UPDATE agents_platform.sandbox_commands SET state='running',updated_at=now() WHERE allocation_id=$1",[row.id]);
     await execute("systemd-run",["--user",`--unit=${row.unit_name}`,"--property=MemoryMax=536870912","--property=MemorySwapMax=0","--property=CPUQuota=100%","--property=TasksMax=64",`--property=RuntimeMaxSec=${seconds}`,"--property=TimeoutStopSec=2","--property=KillMode=control-group","/usr/bin/env","-i","PATH=/usr/bin:/bin","/usr/bin/python3",join(directory,"host.py"),join(directory,"launch.json")],{timeout:10_000,maxBuffer:8192});
   }
   private async readReceipt(id: string) {
@@ -159,16 +171,13 @@ export class SandboxManager {
       return{LoadState:"unknown",ActiveState:"unknown"};
     }
   }
-  private async lifecycle<T>(allocationId:string,work:(db:import("pg").PoolClient)=>Promise<T>):Promise<T> {
+  private async lifecycle<T>(allocationId:string,work:()=>Promise<T>):Promise<T> {
     z.uuid().parse(allocationId);
-    return transaction(this.pool,async db=>{
-      await db.query("SET LOCAL lock_timeout='5s'");
-      await db.query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))",[`sandbox-lifecycle:${allocationId}`]);
-      return work(db);
-    });
+    return resourceGate(`executor-transition:sandbox:${allocationId}`,()=>resourceGate(`sandbox:${this.config.directory}:${allocationId}`,async()=>{await this.config.assertOwnership?.(allocationId,false);return work();},join(this.config.directory,".locks",allocationId+".lock")));
   }
   async status(scope: SandboxScope, allocationId: string, db: Pool | import("pg").PoolClient = this.pool) {
     z.uuid().parse(allocationId);
+    await this.config.assertOwnership?.(allocationId,false);
     const row=(await db.query("SELECT * FROM agents_platform.sandbox_allocations WHERE id=$1 AND organization_id=$2 AND root_task_id=$3 AND task_id=$4",[allocationId,scope.organizationId,scope.rootTaskId,scope.taskId])).rows[0];
     if(!row) throw fail("SANDBOX_NOT_FOUND","Sandbox not found",404);return row;
   }
@@ -214,17 +223,25 @@ export class SandboxManager {
     await this.destroy(scope,allocationId);
   }
   async destroy(scope: SandboxScope, allocationId: string): Promise<void> {
-    const stopped=await this.lifecycle(allocationId,async db=>{
-      const row=await this.status(scope,allocationId,db);if(row.state==="destroyed") return true;
-      await db.query("UPDATE agents_platform.sandbox_allocations SET state='destroying',updated_at=now() WHERE id=$1",[allocationId]);
+    const stopped=await this.lifecycle(allocationId,async ()=>{
+      const row=await this.status(scope,allocationId);if(row.state==="destroyed") return true;
+      await this.pool.query("UPDATE agents_platform.sandbox_allocations SET state='destroying',updated_at=now() WHERE id=$1",[allocationId]);
       try{await execute("systemctl",["--user","stop",row.unit_name],{timeout:10_000,maxBuffer:8192});}catch{/* A failed stop requires independent confirmation below. */}
       const state=await this.unit(row.unit_name);
       if(state.LoadState!=="not-found" && !["inactive","failed"].includes(state.ActiveState??"")) return false;
       await rm(this.directory(allocationId),{recursive:true,force:true});
-      await db.query("UPDATE agents_platform.sandbox_allocations SET state='destroyed',updated_at=now() WHERE id=$1",[allocationId]);
+      await this.pool.query("UPDATE agents_platform.sandbox_allocations SET state='destroyed',updated_at=now() WHERE id=$1",[allocationId]);
       return true;
     });
     if(!stopped) throw fail("SANDBOX_CLEANUP_PENDING","Sandbox cleanup is pending");
+  }
+  async confirmAbsent(allocationId:string):Promise<boolean>{
+    return this.lifecycle(allocationId,async()=>{
+      if((await this.pool.query("SELECT 1 FROM agents_platform.sandbox_allocations WHERE id=$1",[allocationId])).rowCount)return false;
+      const state=await this.unit(`kasitek-sandbox-${allocationId}.service`);
+      if(state.LoadState!=="not-found"&&!["inactive","failed"].includes(state.ActiveState??""))return false;
+      await rm(this.directory(allocationId),{recursive:true,force:true});return true;
+    });
   }
   async reap(): Promise<number> {
     const expired=(await this.pool.query(`SELECT a.* FROM agents_platform.sandbox_allocations a JOIN agents_platform.tasks t ON t.id=a.root_task_id JOIN agents_platform.tasks owner ON owner.id=a.task_id

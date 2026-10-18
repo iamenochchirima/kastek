@@ -4,7 +4,7 @@ import type { DocumentRuntime } from "../../capabilities/knowledge/document-runt
 import { KnowledgeStore,requireKnowledgeMember,type KnowledgeScope } from "../../capabilities/knowledge/knowledge";
 import { PlatformError } from "../../contracts/contracts";
 
-export function registerKnowledgeRoutes(app: FastifyInstance, options: { knowledge: KnowledgeStore; runtime?: DocumentRuntime; resolveScope(request: FastifyRequest): Promise<KnowledgeScope> }) {
+export function registerKnowledgeRoutes(app: FastifyInstance, options: { knowledge: KnowledgeStore; runtime?: Pick<DocumentRuntime,"available"|"profile">; resolveScope(request: FastifyRequest): Promise<KnowledgeScope> }) {
   const base = "/api/organizations/:organizationId/knowledge", params = (request: FastifyRequest) => request.params as Record<string, string>;
   app.get(`${base}/sources`, async request => {
     const scope = await options.resolveScope(request);

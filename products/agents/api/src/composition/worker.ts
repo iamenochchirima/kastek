@@ -3,12 +3,11 @@ import { createServer,type ServerHttp2Session } from "node:http2";
 import { Pool } from "pg";
 import { ConnectedExecutor } from "../capabilities/connected-tools/connected-executor";
 import { assertConnectedBindingDependencies } from "../capabilities/connected-tools/connected-tool-schema";
-import { documentRuntimeFromEnvironment } from "../capabilities/knowledge/document-runtime";
 import { IngestionService,createIngestionWorkflow,startIngestionDispatcher } from "../capabilities/knowledge/ingestion-runtime";
 import { KnowledgeStore } from "../capabilities/knowledge/knowledge";
 import { KnowledgeRuntime } from "../capabilities/knowledge/knowledge-runtime";
 import { QueryEmbeddingService } from "../capabilities/knowledge/query-embedding";
-import { sandboxManagerFromEnvironment } from "../capabilities/sandbox/sandbox";
+import { resourceBackends } from "./resource-backends";
 import { createSandboxExecutor } from "../capabilities/sandbox/sandbox-executor";
 import { capabilityBindingSchema } from "../contracts/capability-catalog";
 import { PlatformError,connectedToolAuthorityIds } from "../contracts/contracts";
@@ -39,9 +38,9 @@ async function main(): Promise<void> {
   const pool = new Pool({ connectionString: process.env.AGENTS_DATABASE_URL, ...databasePoolOptions("worker"),
     connectionTimeoutMillis: 5000, statement_timeout: 15000, query_timeout: 20000 });
   const abort = new AbortController();
-  const sandbox = sandboxManagerFromEnvironment(pool);
+  const {sandbox,documents}=resourceBackends(pool);
   const objects=privateStoreFromEnvironment(),artifacts=new TaskArtifactStore(pool,objects),actionServices=actionsFromEnvironment(pool,artifacts);
-  const documents=documentRuntimeFromEnvironment(),sourceObjects=privateStoreFromEnvironment(process.env,10_485_760);
+  const sourceObjects=privateStoreFromEnvironment(process.env,10_485_760);
   const ingestion=documents&&sourceObjects?new IngestionService(pool,sourceObjects,documents,new KnowledgeStore(pool,sourceObjects)):undefined;
   const evidence=new EvidenceStore(pool,sourceObjects);
   const embeddings=documents&&sourceObjects?new QueryEmbeddingService(pool,sourceObjects,documents):undefined;

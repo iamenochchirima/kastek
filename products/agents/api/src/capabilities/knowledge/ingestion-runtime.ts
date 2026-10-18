@@ -102,15 +102,18 @@ export class IngestionService {
     });
     if (allocation.result_key) return { allocationId: allocation.id, key: allocation.result_key, digest: allocation.result_digest };
     // Commit admission before the external start, so a killed worker leaves a reapable allocation.
-    await transaction(this.pool, async db => {
+    const startClaim = await transaction(this.pool, async db => {
       await this.lockJob(db, jobId);
       const row = (await db.query("SELECT * FROM agents_platform.document_allocations WHERE id=$1 FOR UPDATE", [allocation.id])).rows[0];
-      if (["destroyed", "failed"].includes(row.state) || new Date(row.lease_expires_at).getTime() <= Date.now()) throw failure("DOCUMENT_RESOURCE_EXPIRED");
-      if (row.result_key) return;
-      await this.runtime.start({ allocationId: row.id, jobId, profileRelease, input });
-      await db.query("UPDATE agents_platform.document_allocations SET state='running',updated_at=now() WHERE id=$1", [row.id]);
-      if (stage === "embed") await db.query("UPDATE agents_platform.ingestion_jobs SET state='indexing',updated_at=now() WHERE id=$1 AND state='extracting'", [jobId]);
+      if (["destroyed", "failed"].includes(row.state) || row.cleanup_requested_at || new Date(row.lease_expires_at).getTime() <= Date.now()) throw failure("DOCUMENT_RESOURCE_EXPIRED");
+      if (row.result_key) return false;
+      await db.query("UPDATE agents_platform.document_allocations SET launch_claimed_at=coalesce(launch_claimed_at,now()) WHERE id=$1",[row.id]);return true;
     });
+    if(startClaim){
+      await this.runtime.start({ allocationId: allocation.id, jobId, profileRelease, input });
+      await this.pool.query("UPDATE agents_platform.document_allocations SET state='running',updated_at=now() WHERE id=$1 AND state='admitted' AND cleanup_requested_at IS NULL", [allocation.id]);
+      if(stage==="embed")await this.pool.query("UPDATE agents_platform.ingestion_jobs SET state='indexing',updated_at=now() WHERE id=$1 AND state='extracting'",[jobId]);
+    }
     while (Date.now() < new Date(allocation.lease_expires_at).getTime()) {
       await transaction(this.pool, db => this.lockJob(db, jobId));
       const state = await this.runtime.status(allocation.id);
@@ -270,14 +273,16 @@ export function startIngestionDispatcher(service: IngestionService, ingressUrl: 
 export async function cleanupDocumentAllocation(pool: Pool, runtime: Runtime, allocationId: string): Promise<void> {
     const row = (await pool.query("SELECT organization_id FROM agents_platform.document_allocations WHERE id=$1", [allocationId])).rows[0];
     if (!row) return;
-    await transaction(pool, async db => {
+    const pending=await transaction(pool, async db => {
       await db.query("SELECT id FROM agents_platform.organizations WHERE id=$1 FOR UPDATE", [row.organization_id]);
       const current = (await db.query("SELECT * FROM agents_platform.document_allocations WHERE id=$1 FOR UPDATE", [allocationId])).rows[0];
-      if (!current || current.state === "destroyed") return;
-      const stopped = await runtime.destroy(allocationId);
-      if (stopped.state !== "destroyed") throw failure("DOCUMENT_CLEANUP_PENDING");
-      await db.query("UPDATE agents_platform.document_allocations SET state='destroyed',updated_at=now() WHERE id=$1", [allocationId]);
+      if (!current || current.state === "destroyed") return false;
+      await db.query("UPDATE agents_platform.document_allocations SET cleanup_requested_at=coalesce(cleanup_requested_at,now()) WHERE id=$1",[allocationId]);return true;
     });
+    if(!pending)return;
+    const stopped=await runtime.destroy(allocationId);
+    if(stopped.state!=="destroyed")throw failure("DOCUMENT_CLEANUP_PENDING");
+    await pool.query("UPDATE agents_platform.document_allocations SET state='destroyed',updated_at=now() WHERE id=$1",[allocationId]);
   }
 
 export async function reapDocumentResources(pool: Pool, runtime: Runtime): Promise<void> {

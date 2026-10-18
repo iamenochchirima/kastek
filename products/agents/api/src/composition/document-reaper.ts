@@ -1,12 +1,12 @@
 import { databasePoolOptions } from "../infrastructure/pool-policy";
 import { Pool } from "pg";
-import { documentRuntimeFromEnvironment } from "../capabilities/knowledge/document-runtime";
+import { resourceBackends } from "./resource-backends";
 import { reapDocumentResources } from "../capabilities/knowledge/ingestion-runtime";
 import { reapQueryEmbeddingResources } from "../capabilities/knowledge/query-embedding";
 import { reconcilePendingRoots } from "../execution/lifecycle/execution";
 
 export async function runDocumentReaper(pool: Pool, signal: AbortSignal, intervalMs = 1000): Promise<void> {
-  const runtime = documentRuntimeFromEnvironment();
+  const {documents:runtime}=resourceBackends(pool);
   if (!runtime) throw new Error("Document runtime is not configured");
   while (!signal.aborted) {
     for (const reap of [reapDocumentResources, reapQueryEmbeddingResources]) {

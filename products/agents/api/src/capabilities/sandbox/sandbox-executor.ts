@@ -10,7 +10,7 @@ import { fitUtf8 } from "../tools";
 import type { SandboxManager } from "./sandbox";
 
 const argumentsSchema=z.strictObject({code:z.string().min(1).max(16384),inputArtifactIds:z.array(z.uuid()).max(32).optional()});
-export function createSandboxExecutor(pool:Pool,manager:SandboxManager|undefined,objects:PrivateObjectStore|undefined) {
+export function createSandboxExecutor(pool:Pool,manager:Pick<SandboxManager,"analyze"|"finalize">|undefined,objects:PrivateObjectStore|undefined) {
   const artifacts=new TaskArtifactStore(pool,objects);
   const execute=async (taskId:string,operationId:string,raw:{code:string;inputArtifactIds?:string[]},deadline:{expiresAt:number;expired:boolean})=>{
     const checkDeadline=()=>{if(deadline.expired||Date.now()>=deadline.expiresAt)throw new ModelOperationError("SANDBOX_OPERATION_TIMEOUT","uncertain");};

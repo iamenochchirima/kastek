@@ -48,12 +48,13 @@ export class QueryEmbeddingService {
     VALUES($1,$2,$3,$4,$5,$6,'admitted',$7) RETURNING *`,[randomUUID(),scope.organizationId,input.taskId,input.operationId,input.profileRelease,digest,new Date(Math.min(Date.now()+90000,scope.deadlineAt))])).rows[0];return row;
   });
   if(allocation.result_key)return this.readResult(allocation);
-  await transaction(this.pool,async db=>{
+  const startClaim=await transaction(this.pool,async db=>{
    await this.authority(db,input);const row=(await db.query("SELECT * FROM agents_platform.query_embedding_allocations WHERE id=$1 FOR UPDATE",[allocation.id])).rows[0];
-   if(row.result_key)return;if(row.state==="destroyed"||new Date(row.lease_expires_at).getTime()<=Date.now())throw denied("QUERY_RESOURCE_EXPIRED");
-   await this.runtime.start({allocationId:row.id,jobId:input.taskId,profileRelease:input.profileRelease,input:{kind:"embed",mode:"query",texts:[input.query]}});
-   await db.query("UPDATE agents_platform.query_embedding_allocations SET state='running',updated_at=now() WHERE id=$1",[row.id]);
+   if(row.result_key)return false;if(row.state==="destroyed"||row.cleanup_requested_at||new Date(row.lease_expires_at).getTime()<=Date.now())throw denied("QUERY_RESOURCE_EXPIRED");
+   await db.query("UPDATE agents_platform.query_embedding_allocations SET launch_claimed_at=coalesce(launch_claimed_at,now()) WHERE id=$1",[row.id]);return true;
   });
+  if(startClaim){await this.runtime.start({allocationId:allocation.id,jobId:input.taskId,profileRelease:input.profileRelease,input:{kind:"embed",mode:"query",texts:[input.query]}});
+   await this.pool.query("UPDATE agents_platform.query_embedding_allocations SET state='running',updated_at=now() WHERE id=$1 AND state='admitted' AND cleanup_requested_at IS NULL",[allocation.id]);}
   while(Date.now()<new Date(allocation.lease_expires_at).getTime()){
    const cached=await this.cached(input,allocation.id);if(cached)return cached;const state=await this.runtime.status(allocation.id);
    if(state.state==="completed"||state.state==="failed"){
@@ -88,9 +89,10 @@ export class QueryEmbeddingService {
 
 export async function cleanupQueryEmbeddingAllocation(pool:Pool,runtime:Pick<DocumentRuntime,"destroy">,id:string):Promise<void>{
  const initial=(await pool.query("SELECT organization_id FROM agents_platform.query_embedding_allocations WHERE id=$1",[id])).rows[0];if(!initial)return;
- await transaction(pool,async db=>{await db.query("SELECT id FROM agents_platform.organizations WHERE id=$1 FOR UPDATE",[initial.organization_id]);const row=(await db.query("SELECT * FROM agents_platform.query_embedding_allocations WHERE id=$1 FOR UPDATE",[id])).rows[0];
-  if(row.state==="destroyed")return;const state=await runtime.destroy(id);if(state.state!=="destroyed")throw denied("DOCUMENT_CLEANUP_PENDING");await db.query("UPDATE agents_platform.query_embedding_allocations SET state='destroyed',updated_at=now() WHERE id=$1",[id]);
+ const pending=await transaction(pool,async db=>{await db.query("SELECT id FROM agents_platform.organizations WHERE id=$1 FOR UPDATE",[initial.organization_id]);const row=(await db.query("SELECT * FROM agents_platform.query_embedding_allocations WHERE id=$1 FOR UPDATE",[id])).rows[0];
+  if(row.state==="destroyed")return false;await db.query("UPDATE agents_platform.query_embedding_allocations SET cleanup_requested_at=coalesce(cleanup_requested_at,now()) WHERE id=$1",[id]);return true;
  });
+ if(!pending)return;const state=await runtime.destroy(id);if(state.state!=="destroyed")throw denied("DOCUMENT_CLEANUP_PENDING");await pool.query("UPDATE agents_platform.query_embedding_allocations SET state='destroyed',updated_at=now() WHERE id=$1",[id]);
 }
 
 export async function reapQueryEmbeddingResources(pool:Pool,runtime:Pick<DocumentRuntime,"destroy">):Promise<void>{

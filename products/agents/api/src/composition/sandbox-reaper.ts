@@ -1,9 +1,9 @@
 import { databasePoolOptions } from "../infrastructure/pool-policy";
 import { Pool } from "pg";
-import { sandboxManagerFromEnvironment } from "../capabilities/sandbox/sandbox";
+import { resourceBackends } from "./resource-backends";
 
 export async function runSandboxReaper(pool: Pool, signal: AbortSignal, intervalMs = 1_000): Promise<void> {
-  const manager = sandboxManagerFromEnvironment(pool);
+  const {sandbox:manager}=resourceBackends(pool);
   if (!manager) throw new Error("Sandbox backend is not configured");
   while (!signal.aborted) {
     try { await manager.reap(); }

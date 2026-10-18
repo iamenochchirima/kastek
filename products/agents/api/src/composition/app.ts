@@ -6,9 +6,8 @@ import { z } from "zod";
 import { websiteWidgetScript } from "../adapters/channels/website/widget";
 import { ConnectedExecutor } from "../capabilities/connected-tools/connected-executor";
 import { assertConnectedBindingDependencies } from "../capabilities/connected-tools/connected-tool-schema";
-import { documentRuntimeFromEnvironment } from "../capabilities/knowledge/document-runtime";
 import { KnowledgeStore } from "../capabilities/knowledge/knowledge";
-import { sandboxManagerFromEnvironment } from "../capabilities/sandbox/sandbox";
+import { resourceBackends } from "./resource-backends";
 import { capabilityBindingSchema } from "../contracts/capability-catalog";
 import {
 agentConfigurationSchema,assertRuntimeAvailable,
@@ -69,9 +68,8 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
   const objects = privateStoreFromEnvironment();
   const sourceObjects = privateStoreFromEnvironment(process.env, 10_485_760);
   const knowledge = new KnowledgeStore(pool, sourceObjects);
-  const documentRuntime = documentRuntimeFromEnvironment();
+  const {documents:documentRuntime,sandbox}=resourceBackends(pool);
   const taskArtifacts = new TaskArtifactStore(pool, objects);
-  const sandbox = sandboxManagerFromEnvironment(pool);
   const actionServices=actionsFromEnvironment(pool,taskArtifacts);
   const evidence = new EvidenceStore(pool, sourceObjects);
   // API and worker use the same execution mode/build: source and compiled artifact digests intentionally differ.
