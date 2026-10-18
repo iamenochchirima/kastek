@@ -10,7 +10,7 @@ startup. It does not migrate an older database or import Growth state.
 | Module in `api/src/platform` | Responsibility |
 | --- | --- |
 | `contracts.ts` | Agent configuration, two execution kinds, grants, limits, and task states. |
-| `auth.ts`, `config.ts` | OIDC login, product sessions, identity configuration, and backchannel logout. |
+| `auth.ts`, `auth-routes.ts`, `auth-return.ts`, `config.ts` | OIDC signup/login, one-use safe return links, product sessions, identity configuration and backchannel logout. |
 | `store.ts` | Membership, drafts, immutable publication, revision pins, ordered admission, root reservations, and paginated authorized turns/events. |
 | `discovery.ts`, `read-pages.ts` | Principal-scoped agent/conversation/task summaries and signed scope-bound read cursors. |
 | `app.ts`, `server.ts`, `widget.ts` | Management and website APIs, continuation, history deletion, progress, cancellation, and widget delivery. |
@@ -246,7 +246,10 @@ at most 20 candidates per retriever and five results. Missing semantic runtime
 fails visibly; there is no network embedding download or paid/lexical fallback.
 The small English benchmark passed twelve held-out positives and three negatives
 at 20,000 eligible chunks; measured warm end-to-end p95 was 1,325 ms. These results
-do not establish general answer quality or multilingual semantic quality.
+do not establish general answer quality or multilingual semantic quality. Lexical
+AND matching and the semantic cutoff can miss paraphrased questions against short
+policy snippets. The website fixture verifies a reviewed FAQ with explicit question
+coverage; it does not prove general retrieval recall.
 
 Each actual retrieval/read operation issues span/hash/date-bound evidence IDs.
 Useful tail passages replace prefix context. A bounded continuation reads by
