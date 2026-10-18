@@ -86,6 +86,7 @@ class TransportBoundaryTests(unittest.IsolatedAsyncioTestCase):
             with self.assertRaises(ValueError):
                 await client.request("GET", f"/api/organizations/{uuid4()}/tasks")
         self.assertEqual(len(requests), 1)
+        self.assertEqual(requests[0].headers["origin"], scope.origin)
         self.assertNotEqual(requests[0].url.host, "foreign.example")
 
     async def test_export_bound_identity_and_composition_are_checked(self):

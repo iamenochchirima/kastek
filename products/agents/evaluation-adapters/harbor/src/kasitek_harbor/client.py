@@ -24,6 +24,7 @@ KNOWN_STATES = TERMINAL_STATES | {
     "waiting_children",
     "waiting_review",
     "cancel_requested",
+    "reconciling",
 }
 
 
@@ -47,6 +48,7 @@ class PlatformClient:
             base_url=scope.origin,
             timeout=httpx.Timeout(timeout),
             cookies={scope.cookie_name: session},
+            headers={"origin": scope.origin},
             follow_redirects=False,
             trust_env=False,
             transport=transport,

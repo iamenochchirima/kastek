@@ -2,7 +2,7 @@
 
 This optional Python package implements Harbor's host-side `BaseAgent`. Harbor owns trial scheduling, environments, verification and aggregation. Kasitek owns admission, model/tool execution, durable recovery and authoritative records. The adapter imports no Agents API internals and no Agents Lab code.
 
-The current checkpoint implements the HTTP adapter, request recovery, cancellation and ATIF conversion. Native API integration, evaluator-managed resource acceptance, reusable graded suites and multi-turn Harbor resume are still required before package E acceptance. The local HTTP tests use explicit contract fixtures. They are not a Kasitek benchmark or end-to-end platform result.
+The current checkpoint implements the HTTP adapter, request recovery, cancellation and ATIF conversion. The grounded FAQ suite has passed through actual Harbor, isolated compiled Kasitek API/worker, PostgreSQL, Restate and private storage using one deterministic provider response. Inbox, research/report, controlled-transaction suites and multi-turn Harbor resume remain required for package E acceptance. The separate local HTTP unit tests use contract fixtures; they do not establish native platform behavior.
 
 ## Toolchain and checks
 
@@ -66,3 +66,13 @@ Artifacts use authorized same-organization paths, bounded byte counts and verifi
 ## Release scope
 
 This package adds no production deployment, schema, model override, telemetry exporter or analytics event. Root platform changes are owned separately. Validation and native acceptance must be recorded independently. Rollback removes this optional evaluator selection without changing native task history. No production release is claimed.
+
+The `suites/faq-grounded` Harbor task verifies a dedicated FAQ fixture's actual approved retrieval, source revision/citation receipt, model request/response, pinned composition, observations and native cleanup. Its container has no network and receives no credentials. Harbor mounts the adapter's authorized host evidence for the verifier. The fixture's fixed answer is specific to this contract test; passing it does not establish general FAQ answer quality or paraphrase recall.
+
+Run the isolated native FAQ acceptance from the repository root with Node 24 and local PostgreSQL administrative credentials in the API environment file:
+
+```sh
+node --env-file=products/agents/api/.env --import ./products/agents/api/node_modules/tsx/dist/loader.mjs products/agents/api/test/harbor-fixture.ts
+```
+
+The fixture requires Docker, the pinned local Harbor installation and a local MinIO binary (`AGENTS_HARBOR_BINARY` and `AGENTS_TEST_MINIO_BINARY` override executable paths). It compiles into its own ignored `.audit/` directory, creates a fresh database and random service ports, runs Harbor's verifier, then removes its services/database. It preserves private proof under `.audit/harbor-<id>/`. The default provider is deterministic; `AGENTS_HARBOR_REAL_MODEL=1` explicitly selects the already configured approved free model. No fallback model is allowed. Identity is seeded for transport verification; this fixture does not test browser OIDC.
