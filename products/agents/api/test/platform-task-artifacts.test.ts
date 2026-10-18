@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { dropClosedTestDatabase } from "./support/database-cleanup";
 import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { setupPlatformSchema } from "../src/platform/setup";
@@ -19,7 +20,7 @@ const dbUrl=process.env.AGENTS_TEST_DATABASE_URL;
   beforeAll(async()=>{admin=new Pool({connectionString:dbUrl});await admin.query(`CREATE DATABASE "${database}"`);
     const url=new URL(dbUrl!);url.pathname=`/${database}`;pool=new Pool({connectionString:url.href});await setupPlatformSchema(pool);
     platform=new PlatformStore(pool);artifacts=new TaskArtifactStore(pool,objects);});
-  afterAll(async()=>{await pool?.end();if(admin){await admin.query(`DROP DATABASE IF EXISTS "${database}" WITH (FORCE)`);await admin.end();}});
+  afterAll(async()=>{await pool?.end();if(admin){await dropClosedTestDatabase(admin,database);await admin.end();}});
   async function fixture(){
     const account=await platform.ensureAccount({issuer:"http://localhost/task-artifact-test",subject:randomUUID(),email:"owner@example.test",displayName:"Owner"});
     const organization=await platform.createOrganization(account.id,"Private reports"),config=defaultFaqConfiguration();
