@@ -1,4 +1,6 @@
 import { randomUUID } from "node:crypto";
+import {advanceCapacity} from "../scheduling/capacity";
+import { claimDispatchBatch,parallelEach,type DispatchPolicy } from "../scheduling/dispatch-claims";
 import type { Pool } from "pg";
 import { HARNESS_RELEASE,reconcilePendingRoots,settleTask,WORKFLOW_NAME } from "./execution";
 
@@ -7,23 +9,17 @@ export interface DispatcherOptions {
   adminUrl: string;
   fetch?: typeof fetch;
   onError?: (code: string) => void;
+  policy?: Partial<DispatchPolicy>;
 }
 
 export async function dispatchTasksOnce(pool: Pool, options: DispatcherOptions): Promise<void> {
   const request = options.fetch ?? fetch;
-  await pool.query(`UPDATE agents_platform.task_outbox o SET dispatched_at=now(),lease_owner=NULL,lease_until=NULL
-    FROM agents_platform.tasks t WHERE t.id=o.task_id AND o.dispatched_at IS NULL
-    AND t.state IN ('completed','incomplete','refused','failed','cancelled','uncertain')`);
-  const owner = randomUUID();
-  const row = (await pool.query(`WITH candidate AS (
-    SELECT o.task_id FROM agents_platform.task_outbox o JOIN agents_platform.tasks t ON t.id=o.task_id
-    WHERE o.dispatched_at IS NULL AND o.available_at<=now() AND (o.lease_until IS NULL OR o.lease_until<now())
-      AND t.state IN ('accepted','running','waiting_children','waiting_authority','waiting_review','reconciling','cancel_requested')
-      AND (t.parent_task_id IS NULL OR t.state='cancel_requested')
-    ORDER BY o.created_at FOR UPDATE OF o SKIP LOCKED LIMIT 1
-  ) UPDATE agents_platform.task_outbox o SET lease_until=now()+interval '30 seconds',lease_owner=$1,attempts=attempts+1
-    FROM candidate c WHERE o.task_id=c.task_id RETURNING o.task_id,o.created_at`, [owner])).rows[0];
-  if (row) {
+  await pool.query(`WITH terminal AS (SELECT o.task_id FROM agents_platform.task_outbox o JOIN agents_platform.tasks t ON t.id=o.task_id
+    WHERE o.dispatched_at IS NULL AND t.state IN ('completed','incomplete','refused','failed','cancelled','uncertain')
+    ORDER BY o.created_at,o.task_id FOR UPDATE OF o SKIP LOCKED LIMIT 128)
+    UPDATE agents_platform.task_outbox o SET dispatched_at=now(),lease_owner=NULL,lease_until=NULL FROM terminal t WHERE t.task_id=o.task_id`);
+  const {owner,rows,policy}=await claimDispatchBatch(pool,options.policy);
+  await parallelEach(rows,policy.parallelism,async row=>{
     try {
       const task = (await pool.query(`SELECT state,runtime_invocation_id,harness_release,parent_task_id FROM agents_platform.tasks WHERE id=$1`, [row.task_id])).rows[0];
       if (task?.harness_release !== HARNESS_RELEASE) throw new Error("HARNESS_RELEASE_UNAVAILABLE");
@@ -51,7 +47,8 @@ export async function dispatchTasksOnce(pool: Pool, options: DispatcherOptions):
         const body=await lookup.json() as {invocationId?:unknown};
         if(typeof body.invocationId!=="string"||!body.invocationId.startsWith("inv_"))throw new Error("RUNTIME_INVALID_RESPONSE");
         const bound = await pool.query(`UPDATE agents_platform.tasks SET runtime_invocation_id=$2,updated_at=now()
-          WHERE id=$1 AND (runtime_invocation_id IS NULL OR runtime_invocation_id=$2)`, [row.task_id, body.invocationId]);
+          WHERE id=$1 AND (runtime_invocation_id IS NULL OR runtime_invocation_id=$2)
+          AND EXISTS(SELECT 1 FROM agents_platform.task_outbox WHERE task_id=$1 AND lease_owner=$3 AND lease_until>now())`, [row.task_id, body.invocationId,owner]);
         if (bound.rowCount !== 1) throw new Error("RUNTIME_IDENTITY_CONFLICT");
       }
       await pool.query(`UPDATE agents_platform.task_outbox SET dispatched_at=now(),lease_owner=NULL,lease_until=NULL,last_error_code=NULL
@@ -61,20 +58,27 @@ export async function dispatchTasksOnce(pool: Pool, options: DispatcherOptions):
         available_at=now()+interval '5 seconds',last_error_code='RUNTIME_DISPATCH_FAILED' WHERE task_id=$1 AND lease_owner=$2`, [row.task_id, owner]);
       options.onError?.("RUNTIME_DISPATCH_FAILED");
     }
-  }
+  });
   await reconcilePendingRoots(pool);
-  const controls = (await pool.query(`SELECT c.task_id,c.generation,c.kind FROM agents_platform.task_controls c JOIN agents_platform.tasks t ON t.id=c.task_id
-    WHERE c.dispatched_at IS NULL AND t.state NOT IN ('completed','incomplete','refused','failed','cancelled','uncertain') LIMIT 10`)).rows;
+  await advanceCapacity(pool);
+  await publishCapacityNotifications(pool,options);
+  const controlOwner=randomUUID();
+  const controls = (await pool.query(`WITH due AS (SELECT c.task_id,c.generation FROM agents_platform.task_controls c JOIN agents_platform.tasks t ON t.id=c.task_id
+    WHERE c.dispatched_at IS NULL AND (c.lease_until IS NULL OR c.lease_until<now()) AND t.state NOT IN ('completed','incomplete','refused','failed','cancelled','uncertain')
+    ORDER BY c.task_id,c.generation FOR UPDATE OF c SKIP LOCKED LIMIT 32)
+    UPDATE agents_platform.task_controls c SET lease_owner=$1,lease_until=now()+interval '30 seconds' FROM due
+    WHERE c.task_id=due.task_id AND c.generation=due.generation RETURNING c.task_id,c.generation,c.kind`,[controlOwner])).rows;
   for (const control of controls) {
     try {
       const response = await request(`${options.ingressUrl.replace(/\/$/, "")}/${WORKFLOW_NAME}/${control.task_id}/${control.kind==="review"?"review":"resume"}`, {
         method: "POST", headers: {"content-type":"application/json", "idempotency-key":`continue:${control.task_id}:${control.generation}`},
         body:JSON.stringify({generation:Number(control.generation)}), signal:AbortSignal.timeout(5000) });
-      if(response.ok) await pool.query("UPDATE agents_platform.task_controls SET dispatched_at=now() WHERE task_id=$1 AND generation=$2",[control.task_id,control.generation]);
+      if(response.ok) await pool.query("UPDATE agents_platform.task_controls SET dispatched_at=now(),lease_owner=NULL,lease_until=NULL WHERE task_id=$1 AND generation=$2 AND lease_owner=$3",[control.task_id,control.generation,controlOwner]);
     } catch { options.onError?.("RUNTIME_CONTINUATION_FAILED"); }
   }
-  await pool.query(`WITH expired AS (UPDATE agents_platform.tasks SET state='cancel_requested',error_code='TASK_DEADLINE',updated_at=now()
-    WHERE deadline_at<now() AND state IN ('accepted','running','waiting_authority','waiting_review','waiting_children','reconciling') RETURNING id)
+  await pool.query(`WITH due AS (SELECT id FROM agents_platform.tasks WHERE deadline_at<now() AND state IN ('accepted','running','waiting_authority','waiting_review','waiting_children','reconciling')
+    ORDER BY deadline_at,id FOR UPDATE SKIP LOCKED LIMIT 128), expired AS (UPDATE agents_platform.tasks t SET state='cancel_requested',error_code='TASK_DEADLINE',updated_at=now()
+    FROM due WHERE t.id=due.id RETURNING t.id)
     INSERT INTO agents_platform.task_events(task_id,event_key,kind) SELECT id,'deadline-stop','cancel_requested' FROM expired ON CONFLICT DO NOTHING`);
 
   const cancellations = (await pool.query(`SELECT id,runtime_invocation_id,created_at FROM agents_platform.tasks
@@ -117,4 +121,26 @@ export function startDispatcher(pool: Pool, options: DispatcherOptions): { stop(
     }
   })();
   return { stop: async () => { stopped = true; if (timer) clearTimeout(timer); wake?.(); await done; } };
+}
+
+async function publishCapacityNotifications(pool:Pool,options:DispatcherOptions):Promise<void>{
+ const owner=randomUUID(),request=options.fetch??fetch;
+ const notifications=(await pool.query(`WITH due AS (SELECT request_id,generation FROM agents_platform.capacity_notifications
+ WHERE dispatched_at IS NULL AND available_at<=now() AND (lease_until IS NULL OR lease_until<now())
+ ORDER BY available_at,request_id,generation FOR UPDATE SKIP LOCKED LIMIT 64)
+ UPDATE agents_platform.capacity_notifications n SET lease_owner=$1,lease_until=now()+interval '30 seconds' FROM due
+ WHERE n.request_id=due.request_id AND n.generation=due.generation RETURNING n.*`,[owner])).rows;
+ await parallelEach(notifications,8,async row=>{
+ try{
+  const response=await request(`${options.ingressUrl.replace(/\/$/,"")}/${WORKFLOW_NAME}/${row.task_id}/capacity`,{
+  method:"POST",headers:{"content-type":"application/json","idempotency-key":`capacity:${row.request_id}:${row.generation}`},
+  body:JSON.stringify({requestId:row.request_id,generation:row.generation}),signal:AbortSignal.timeout(5000)});
+  if(!response.ok)throw Error("CAPACITY_NOTIFICATION_FAILED");
+  await pool.query(`UPDATE agents_platform.capacity_notifications SET dispatched_at=now(),lease_owner=NULL,lease_until=NULL
+  WHERE request_id=$1 AND generation=$2 AND lease_owner=$3`,[row.request_id,row.generation,owner]);
+ }catch{
+  await pool.query(`UPDATE agents_platform.capacity_notifications SET lease_owner=NULL,lease_until=NULL,available_at=now()+interval '5 seconds'
+  WHERE request_id=$1 AND generation=$2 AND lease_owner=$3`,[row.request_id,row.generation,owner]);options.onError?.("CAPACITY_NOTIFICATION_FAILED");
+ }
+ });
 }

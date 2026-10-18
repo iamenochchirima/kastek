@@ -447,3 +447,43 @@ Public repository reads require no external credential. Keyed Stash and GitHub a
 Production rollout, secret management, durable log retention, monitoring, backups,
 and signup-email delivery require separate verification. There are no active OTLP
 exporters. Services emit bounded structured stdout diagnostics.
+
+## Coordination and replica configuration
+
+Dispatch claims use bounded batches (default 32, maximum 128), eight parallel
+sends and 120-second leases. Claims use PostgreSQL row locks with `SKIP LOCKED`;
+within each bounded candidate window, tenant turns precede a tenant's second task.
+Stable Restate workflow keys deduplicate repeated sends after an uncertain response.
+Only the current claim owner can persist the invocation binding. Terminal and
+deadline sweeps are bounded to 128 rows; continuation publication uses leased claims.
+
+`execution/scheduling/capacity.ts` provides persistent requests, sorted bucket
+locks, provisional generation-fenced grants, active holds and a transactional
+notification outbox. Operation admission must commit a waiting decision, wait for
+its durable notification, then recheck authority before activating a grant.
+Active or uncertain provider calls retain their holds until confirmed settlement
+or explicit reconciliation. Provisional grants may expire; an expired generation
+cannot start a call. No provider wait holds a database transaction.
+
+`AGENTS_SCHEDULING_POLICY_JSON` contains validated finite operator limits for
+product, tenant, workload and provider capacity, queue depth, maximum waiting time,
+root admission and daily token allowance. Replica policies must agree: requests
+cannot rewrite existing bucket limits. Workload derives from accepted task and
+operation metadata. Provider grouping uses the configured `AGENTS_MODEL_ACCOUNT_ID`
+(required for production model calls). Connected tools group by their pinned
+connection ID unless an operator supplies a verified connection-to-account map in
+`AGENTS_PROVIDER_ACCOUNT_MAP_JSON`. Separate connections to the same external
+account do not share a provider limit without that map.
+
+List cursors use versioned keys from `AGENTS_CURSOR_KEYS_JSON` (an object of key ID
+to a base64url secret containing at least 32 bytes) and `AGENTS_CURSOR_ACTIVE_KEY_ID`.
+Production requires explicit keys. Development may derive a separate signing key
+from the configured OIDC client secret; isolated tests use a test key. Replicas must
+share keys. `AGENTS_CURSOR_MAX_AGE_SECONDS` defaults to 900 and permits 60–86400.
+Rotation retains previous key IDs until their issued cursors expire, then removes
+them. A cursor binds the principal, filters and snapshot; each read still checks
+current authorization. Keys and cursor payloads must not enter logs.
+
+These mechanisms do not establish measured 1,000/10,000 active-agent capacity.
+Load acceptance records distinguish admitted, executing and waiting roots and
+must report achieved counts and limiting resources separately.
