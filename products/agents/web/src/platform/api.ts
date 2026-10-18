@@ -21,7 +21,7 @@ export type Session = { account: { id: string; email: string; displayName: strin
 export type Memory = { id: string; kind: "semantic" | "episodic"; content: string; status: "candidate" | "accepted" | "forgotten"; revision: number; createdAt: string; updatedAt: string; sourceTaskId: string | null };
 export type Skill = { id: string; name: string; description: string; body: string; revision: number; contentDigest: string; createdAt: string };
 export type TaskOperation = { id?: string; operationId?: string; kind?: string; name?: string; toolName?: string; transport?: "native_http" | "mcp_http" | null; providerOperation?: string | null; state: string; errorCode?: string | null; inputTokens?: number | null; outputTokens?: number | null };
-export type TaskEvent = { sequence: string | number; kind: string; payload?: Record<string, unknown> | null };
+export type TaskEvent = { createdAt?: string; sequence: string | number; kind: string; payload?: Record<string, unknown> | null };
 export type ChildTask = { id: string; agentName: string; versionId: string; versionNumber: number; bindingId: string; state: string; output: string | null; outputAvailability?: "available" | "unavailable"; errorCode: string | null; rootTaskId: string; parentTaskId: string };
 export type TaskResource = { id: string; taskId: string; profile: string; state: string; cleanupState: "active" | "pending" | "completed" | "uncertain"; errorCode?: string | null; expiresAt: string };
 export type TaskArtifact = { id: string; taskId: string; name: string; contentType: string; bytes: number; downloadPath: string };
@@ -44,7 +44,7 @@ export type AutomationOccurrence = { id: string; automationId: string; revision:
 export type CitedPassage = { id: string; label: string; text: string; title: string; page: number | null; section: string | null; contentDigest: string; acquiredAt: string };
 export type TaskEvidence = { state: "available" | "unavailable"; code?: string; passages: CitedPassage[] };
 export type DeliveryAction = { id: string; reviewId: string; reviewerAccountId?: string; accountId?: string; taskId: string; rootTaskId: string; connectionId: string; connectionRevision: number; destination: { label: string; resource: string }; artifactId: string; title: string; payloadDigest: string; reviewDigest: string; state: "pending_review" | "approved" | "rejected" | "expired" | "invalidated" | "claimed" | "delivered" | "failed" | "uncertain"; expiresAt: string; citedPassages?: CitedPassage[]; preview: { name: string; contentType: string; content: string }; receipt?: { id: string; payloadDigest: string; acceptedAt: string }; errorCode?: string };
-export type TaskDetail = { task: Task; canControl?: boolean; canDownloadArtifacts?: boolean; events?: TaskEvent[]; operations?: TaskOperation[]; children?: ChildTask[]; resources?: TaskResource[]; artifacts?: TaskArtifact[]; actions?: DeliveryAction[] };
+export type TaskDetail = { task: Task; canControl?: boolean; canDownloadArtifacts?: boolean; events?: TaskEvent[]; eventsNextCursor?: string | null; operations?: TaskOperation[]; children?: ChildTask[]; resources?: TaskResource[]; artifacts?: TaskArtifact[]; actions?: DeliveryAction[] };
 export type Task = { id: string; state: string; output: string | null; outputAvailability?: "available" | "unavailable"; errorCode: string | null; conversationId: string; input?: string; requestKey?: string; versionId?: string; turnSequence?: number; phase?: string; outcome?: string | null; operations?: TaskOperation[]; events?: TaskEvent[]; children?: ChildTask[]; resources?: TaskResource[]; artifacts?: TaskArtifact[]; actions?: DeliveryAction[] };
 export class ApiError extends Error {
   constructor(public status: number, message: string, public code?: string) { super(message); }
@@ -74,3 +74,8 @@ export const terminal = (state: string) => ["completed", "failed", "cancelled", 
 export const message = (error: unknown) => error instanceof Error ? error.message : "Request failed. Try again.";
 export function readStored<T>(key: string): T | null { try { return JSON.parse(sessionStorage.getItem(key) ?? "null") as T | null; } catch { return null; } }
 export function writeStored(key: string, value: unknown) { try { sessionStorage.setItem(key, JSON.stringify(value)); } catch { /* Recovery remains available through the task ID shown in the interface. */ } }
+
+export type Page<K extends string, T> = { [P in K]: T[] } & { nextCursor: string | null };
+export type AgentSummary = { id: string; name: string; draftRevision: number; updatedAt: string; latestVersion: { id: string; number: number; draftRevision: number; executionKind: string } | null; hasUnpublishedChanges: boolean };
+export type ConversationSummary = { id: string; agentId: string; agentName: string; versionId: string; versionNumber: number; title: string; updatedAt: string; state: string; canContinue: boolean };
+export type TaskSummary = { id: string; agentId: string; agentName: string; versionId: string; versionNumber: number; conversationId: string | null; state: string; createdAt: string; updatedAt: string; canControl: boolean; reviewOnly: boolean };

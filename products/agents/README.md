@@ -152,6 +152,35 @@ receiver for local verification. It does not configure a third-party provider,
 OAuth or external MCP connection. See the [implementation boundary](docs/source-boundary.md#connected-reports-and-automation)
 for policy, expiry and uncertainty behavior.
 
+## Platform interface
+
+The public root restores the landing page. Sign in and Get started use the configured
+identity provider; registration requires email verification. A signed, transaction-bound
+return destination preserves internal application links through login.
+
+The workspace sidebar contains Agents, Tasks, Knowledge, Connections, Automations
+and Settings. Every runnable business agent opens Chat, with Activity and Configure
+tabs. Configure retains instructions, knowledge/tool pins, specialists, analysis,
+reports, memory, skills and explicit website publication. Saving a draft does not
+change a runnable version. Create version is explicit, and each conversation keeps
+its original version.
+
+Conversation history comes from authorized server records and survives cleared
+browser storage. New chat starts a separate conversation; unresolved admission must
+be retried with its original request key first. Ordinary navigation does not cancel
+accepted work. The initial composer accepts text, with Enter to send and Shift+Enter
+for a new line. File imports remain in Knowledge.
+
+Tasks lists authorized root work and links to its conversation or report review.
+Inline progress, sources, files and exact report decisions use the same task APIs as
+the standalone task page. Refresh conversation, window focus and visibility return
+revalidate history against current policy. Older messages and events load in bounded
+pages. Settings exposes actual account/workspace identity and persisted appearance.
+
+Desktop uses separate navigation, agent/history and chat panes. Tablet collapses
+global navigation; mobile exposes accessible navigation/history drawers and keeps the
+composer within the viewport.
+
 ## Verify
 
 From the repository root:
@@ -175,8 +204,8 @@ Verify real private storage and memory against disposable PostgreSQL and MinIO:
 bash infra/agents-runtime/verify-storage.sh
 ```
 
-For the live harness browser journey, keep Vite running on `localhost:3100` and
-stop the ordinary API and worker so fixture ports 4100 and 9080 are free. Set
+For the live harness browser journey, leave ordinary local services running. The
+fixture starts its own UI, API, worker and Restate on available ports. Set
 `AGENTS_BROWSER_FIXTURE_DATABASE_URL` in your shell to a disposable PostgreSQL
 administrator connection. From `products/agents/api`, run:
 
@@ -186,11 +215,11 @@ AGENTS_HARNESS_LIVE=1 AGENTS_BROWSER_REAL_MODEL=1 \
 ```
 
 This uses the approved free-model key from the local environment. It creates its
-own database, API, worker, and browser session, starts Restate if needed, and
+own database, UI, API, worker, Restate and browser session, and
 cleans its owned resources. It verifies reviewed memory, a pinned skill,
 contextual follow-up, a new conversation, and a real `memory.search` operation.
 Run the complete delegation/analysis journey with the same disposable database,
-Vite and free-model prerequisites, using `AGENTS_ADVANCED_LIVE=1` in place of
+free-model prerequisites, using `AGENTS_ADVANCED_LIVE=1` in place of
 `AGENTS_HARNESS_LIVE=1`. It starts owned MinIO storage and a separate reaper,
 checks two real specialist tasks, and verifies a downloaded analysis report.
 
@@ -202,7 +231,7 @@ AGENTS_AUTOMATION_LIVE=1 AGENTS_BROWSER_REAL_MODEL=1 \
   node --env-file-if-exists=.env --import tsx test/browser-fixture.ts
 ```
 
-Keep Vite running and use the same disposable PostgreSQL prerequisite. This mode
+Use the same disposable PostgreSQL prerequisite. This mode
 starts a compiled worker, private Restate instance, MinIO, gVisor, and a separate
 authenticated receiver. It restarts the worker while review is pending, then
 interrupts the sender after the receiver has persisted the approved report. It
@@ -268,7 +297,7 @@ it requires no provider key. Keyed GitHub and Stash acceptance are separate opt-
 The combined provider journey is a separate opt-in path. It requires the same
 approved GitHub configuration, `OPENROUTER_API_KEY`, an owned fixture database in
 `AGENTS_BROWSER_FIXTURE_DATABASE_URL`, the prepared gVisor/document runtimes and
-private MinIO fixture. Start Vite on port 3100 and build the API first. From the
+private MinIO fixture. Build the API first; the fixture starts its own UI. From the
 repository root:
 
 ```sh
@@ -289,7 +318,7 @@ Preparing this path does not establish live-provider acceptance; that proof rema
 pending until the configured journey exits successfully against GitHub.
 
 
-For the public repository journey, build the API, start Vite on port 3100, and
+For the public repository journey, build the API and
 provide an owned disposable PostgreSQL fixture through
 `AGENTS_BROWSER_FIXTURE_STATE_PATH` or `AGENTS_BROWSER_FIXTURE_DATABASE_URL`. The
 prepared document and analysis runtimes and local MinIO binary are required. From

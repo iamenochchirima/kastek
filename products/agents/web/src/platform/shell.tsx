@@ -1,5 +1,6 @@
-import { createContext, useContext, useEffect, useState, type FormEvent } from "react";
-import { Link, NavLink, Navigate, Outlet, useNavigate } from "react-router-dom";
+import { createContext, useContext, useEffect, useRef, useState, type FormEvent } from "react";
+import { Link, NavLink, Navigate, Outlet, useNavigate, useLocation } from "react-router-dom";
+import { Bot, ListTodo, BookOpen, Plug, CalendarClock, Settings, Menu, LogOut, PanelLeftClose } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,14 +8,16 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Skeleton } from "@/components/ui/skeleton";
 import { api, ApiError, message, type Session } from "./api";
 
-type Workspace = { organizationId: string; session: Session };
+type Workspace = { organizationId: string; session: Session; createWorkspace: () => void; selectWorkspace: (id: string) => void; logout: () => Promise<void> };
 const WorkspaceContext = createContext<Workspace | null>(null);
 export function useWorkspace() { const value = useContext(WorkspaceContext); if (!value) throw new Error("Workspace unavailable"); return value; }
 export function Loading() { return <div aria-label="Loading" className="space-y-4 py-8"><Skeleton className="h-7 w-48" /><Skeleton className="h-24 w-full" /><Skeleton className="h-24 w-full" /></div>; }
 export function ErrorMessage({ value }: { value: string }) { return value ? <p role="alert" className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">{value}</p> : null; }
-export function Login() { return <main className="dashboard-theme flex min-h-dvh items-center justify-center bg-background p-6 text-foreground"><section className="w-full max-w-sm space-y-6"><h1 className="text-3xl font-semibold tracking-tight">Agents</h1><p className="text-sm text-muted-foreground">Your support assistants.</p><Button asChild className="w-full"><a href="/api/auth/login">Sign in</a></Button></section></main>; }
 export function WorkspaceShell() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const navigationTrigger = useRef<HTMLButtonElement>(null);
+  const [navigationOpen, setNavigationOpen] = useState(false);
   const [session, setSession] = useState<Session | null>(null);
   const [organizationId, setOrganizationId] = useState("");
   const [error, setError] = useState("");
@@ -34,17 +37,23 @@ export function WorkspaceShell() {
     catch (e) { toast.error(message(e)); } finally { setBusy(false); }
   }
   async function logout() { setBusy(true); try { const result = await api<{ redirectTo: string }>("/api/auth/logout", {}); sessionStorage.clear(); window.location.assign(result.redirectTo || "/login"); } catch (e) { toast.error(message(e)); setBusy(false); } }
-  if (signedOut) return <Navigate to="/login" replace />;
-  return <div className="dashboard-theme min-h-dvh bg-background text-foreground">
-    <header className="border-b border-border bg-card"><div className="mx-auto flex max-w-5xl flex-wrap items-center gap-3 px-4 py-4 sm:px-6">
-      <Link to="/app/agents" className="mr-1 text-xl font-semibold tracking-tight">Agents</Link>
-      {session?.organizations.length ? <select aria-label="Workspace" className="min-w-0 max-w-40 rounded-md sm:max-w-48 border border-border bg-background px-3 py-2 text-sm" value={organizationId} onChange={event => { if (event.target.value === "new") setWorkspaceOpen(true); else { setOrganizationId(event.target.value); sessionStorage.setItem("agents.organization", event.target.value); navigate("/app/agents"); } }}>
-        {session.organizations.map(org => <option key={org.id} value={org.id}>{org.name}</option>)}<option value="new">Create workspace</option>
-      </select> : null}
-      <div className="ml-auto flex min-w-0 items-center gap-2"><span className="hidden max-w-56 truncate text-sm text-muted-foreground sm:block" title={session?.account.email}>{session?.account.displayName || session?.account.email}</span><Button size="sm" variant="ghost" onClick={() => void logout()} disabled={!session || busy}>Sign out</Button></div>
-    </div></header>
-    <main className="mx-auto max-w-5xl px-4 pb-12 sm:px-6">
-      {error ? <div className="space-y-3 py-8"><ErrorMessage value={error} /><Button variant="outline" onClick={() => void load()}>Try again</Button></div> : !session ? <Loading /> : !organizationId ? <section className="space-y-4 py-12"><h1 className="text-2xl font-semibold">Create a workspace</h1><Button onClick={() => setWorkspaceOpen(true)}>Create workspace</Button></section> : <WorkspaceContext.Provider value={{ organizationId, session }}><nav className="mb-8 flex gap-5 overflow-x-auto border-b border-border" aria-label="Main navigation">{[["/app/agents", "Agents"], ["/app/knowledge", "Knowledge"], ["/app/connections", "Connections"], ["/app/automations", "Automations"]].map(([path, label]) => <NavLink key={path} to={path} className={({ isActive }) => `border-b-2 py-4 text-sm ${isActive ? "border-primary font-medium" : "border-transparent text-muted-foreground"}`}>{label}</NavLink>)}</nav><div key={organizationId}><Outlet /></div></WorkspaceContext.Provider>}
+  function selectWorkspace(id: string) { if (!session?.organizations.some(org => org.id === id)) return; setOrganizationId(id); sessionStorage.setItem("agents.organization", id); navigate("/app/agents"); }
+  if (signedOut) return <Navigate to={`/login?returnTo=${encodeURIComponent(location.pathname + location.search)}`} replace />;
+  const navigation = <>
+    <Link to="/app/agents" className="workspace-brand"><span className="brand-symbol"><Bot size={19} /></span>Agents</Link>
+    {session?.organizations.length ? <select aria-label="Workspace" className="workspace-select" value={organizationId} onChange={event => event.target.value === "new" ? setWorkspaceOpen(true) : selectWorkspace(event.target.value)}>{session.organizations.map(org => <option key={org.id} value={org.id}>{org.name}</option>)}<option value="new">Create workspace</option></select> : null}
+    <nav aria-label="Main navigation" className="workspace-navigation">{([
+      ["/app/agents", "Agents", Bot], ["/app/tasks", "Tasks", ListTodo], ["/app/knowledge", "Knowledge", BookOpen], ["/app/connections", "Connections", Plug], ["/app/automations", "Automations", CalendarClock], ["/app/settings", "Settings", Settings],
+    ] as const).map(([path, label, Icon]) => <NavLink key={String(path)} to={String(path)} onClick={() => setNavigationOpen(false)} className={({ isActive }) => `workspace-nav-link ${isActive ? "is-active" : ""}`}><Icon size={18} /><span>{String(label)}</span></NavLink>)}</nav>
+    <div className="workspace-account"><span className="account-avatar">{(session?.account.displayName || session?.account.email || "A").slice(0, 1).toUpperCase()}</span><div className="min-w-0 flex-1"><p className="truncate text-sm font-medium">{session?.account.displayName || "Account"}</p><p className="truncate text-xs text-muted-foreground">{session?.account.email}</p></div><Button aria-label="Sign out" title="Sign out" size="icon" variant="ghost" onClick={() => void logout()} disabled={!session || busy}><LogOut size={16} /></Button></div>
+  </>;
+  return <div className="dashboard-theme workspace-shell bg-background text-foreground">
+    <a href="#workspace-content" className="skip-link">Skip to content</a>
+    <aside className="workspace-sidebar">{navigation}</aside>
+    <header className="workspace-mobile-header"><Button ref={navigationTrigger} aria-label="Open navigation" size="icon" variant="ghost" onClick={() => setNavigationOpen(true)}><Menu size={20} /></Button><Link to="/app/agents" className="font-semibold">Agents</Link><span className="ml-auto truncate text-xs text-muted-foreground">{session?.organizations.find(org => org.id === organizationId)?.name}</span></header>
+    <Dialog open={navigationOpen} onOpenChange={setNavigationOpen}><DialogContent className="workspace-navigation-drawer" onCloseAutoFocus={event => { event.preventDefault(); navigationTrigger.current?.focus(); }}><DialogHeader><DialogTitle>Workspace navigation</DialogTitle><DialogDescription className="sr-only">Select a workspace page.</DialogDescription></DialogHeader>{navigation}<Button variant="ghost" onClick={() => setNavigationOpen(false)}><PanelLeftClose size={16} />Close navigation</Button></DialogContent></Dialog>
+    <main id="workspace-content" tabIndex={-1} className={`workspace-main ${location.pathname.startsWith("/app/agents") ? "workspace-main-agents" : ""}`}>
+      {error ? <div className="workspace-page space-y-3"><ErrorMessage value={error} /><Button variant="outline" onClick={() => void load()}>Try again</Button></div> : !session ? <div className="workspace-page"><Loading /></div> : !organizationId ? <section className="workspace-page space-y-4"><h1 className="text-2xl font-semibold">Create a workspace</h1><Button onClick={() => setWorkspaceOpen(true)}>Create workspace</Button></section> : <WorkspaceContext.Provider value={{ organizationId, session, createWorkspace: () => setWorkspaceOpen(true), selectWorkspace, logout }}><div className="workspace-outlet" key={`${session.account.id}.${organizationId}`}><Outlet /></div></WorkspaceContext.Provider>}
     </main>
     <Dialog open={workspaceOpen} onOpenChange={setWorkspaceOpen}><DialogContent><DialogHeader><DialogTitle>Create workspace</DialogTitle><DialogDescription>Name your workspace.</DialogDescription></DialogHeader><form onSubmit={event => void createWorkspace(event)} className="space-y-4"><label className="block space-y-2 text-sm">Workspace name<Input required maxLength={120} value={name} onChange={event => setName(event.target.value)} autoFocus /></label><Button type="submit" disabled={busy || !name.trim()}>{busy ? "Creating…" : "Create workspace"}</Button></form></DialogContent></Dialog>
   </div>;
