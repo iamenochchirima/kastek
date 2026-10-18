@@ -99,6 +99,10 @@ A separate public metadata check consumes one read allowance when needed.
 Responses are bounded to 2 MiB native, 256 KiB MCP and 8 KiB model observations.
 Larger permitted response bodies remain private. Completed receipts replay before
 adapter lookup; an abandoned started send stays uncertain and is not repeated.
+The model receives exact source text, citations, acquisition time and provenance.
+Its view omits internal receipt IDs and digests, and omits duplicate structured
+handles only when the same named IDs occur in that text. Complete durable receipts
+and their byte limits remain unchanged.
 
 Anonymous access still has provider quotas. HTTP 429 and quota-confirmed 403
 responses yield `RATE_LIMIT`; 401 and other 403 responses yield `AUTHENTICATION`.
