@@ -5,6 +5,8 @@ memory, pinned skills, bounded tool rounds, and recorded compaction. Optional
 delegation, isolated analysis, reviewed report delivery, durable automation, approved knowledge revisions and connected read tools are opt-in. These documents describe the maintained
 implementation and boundaries:
 
+- [Platform interface](../README.md#platform-interface): landing, chat, history, task review and management navigation.
+
 - [Platform architecture](architecture/agent-platform-architecture.md): target contracts and execution categories.
 - [Implementation boundary](source-boundary.md): current modules, verification, and remaining work.
 - [Platform login](architecture/platform-login.md): identity, sessions, and product authorization.
