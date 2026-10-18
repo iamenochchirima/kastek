@@ -1,3 +1,4 @@
+import {dropClosedTestDatabase} from "./support/database-cleanup";
 import { randomUUID } from "node:crypto";
 import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -17,7 +18,7 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     store = new KnowledgeStore(pool, { async get(key) { const value = objects.get(key); if (!value) throw Error("Fixture object missing"); return value; },
       async put(key, content) { objects.set(key, Buffer.from(content)); }, async delete(key) { objects.delete(key); } });
   });
-  afterAll(async () => { await pool?.end(); if (admin) { await admin.query(`DROP DATABASE IF EXISTS "${database}" WITH (FORCE)`); await admin.end(); } });
+  afterAll(async () => { await pool?.end(); if (admin) { await dropClosedTestDatabase(admin,database); await admin.end(); } });
   async function fixture(): Promise<KnowledgeScope> {
     const account = await platform.ensureAccount({ issuer: "http://localhost:8080/realms/knowledge", subject: randomUUID(), email: "owner@example.test", displayName: "Owner" });
     const organization = await platform.createOrganization(account.id, "Knowledge");
