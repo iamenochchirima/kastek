@@ -1,4 +1,4 @@
-/** Local integration fixture: actual PostgreSQL, HTTP and Restate; deterministic model transport and seeded identity only. */
+/** Disposable integration environment: owned UI, API, worker, runtime and storage. Identity is seeded; model mode is explicit. */
 import assert from "node:assert/strict";
 import { randomUUID, randomBytes, createHash, createHmac } from "node:crypto";
 import { execFileSync, spawn, type ChildProcess } from "node:child_process";
@@ -15,6 +15,7 @@ import { readPublicRepositoryAcceptanceConfig } from "./support/public-repositor
 import { readStashAcceptanceConfig } from "./support/stash-acceptance-config";
 import { readGithubAcceptanceConfig } from "./support/github-acceptance-config";
 import { readGithubJourneyScopes } from "./support/github-journey-scopes";
+import { verifyWorkspaceBrowserAcceptance } from "./support/workspace-browser-acceptance";
 import type { CapabilityBinding } from "../src/platform/capability-catalog";
 import { buildPlatformApp } from "../src/platform/app";
 import { loadPlatformConfig } from "../src/platform/config";
@@ -41,6 +42,12 @@ const image = "docker.restate.dev/restatedev/restate:1.7.13@sha256:adf7bca9d89b8
 let ingress = process.env.RESTATE_INGRESS_URL ?? "http://127.0.0.1:18080";
 let runtimeAdmin = process.env.RESTATE_ADMIN_URL ?? "http://127.0.0.1:19070";
 let ownedRuntime = false;
+let frontendProcess: ChildProcess | undefined;
+let applicationOrigin = "";
+let apiOrigin = "";
+let widgetOrigin = "";
+let receiverOrigin = "";
+let workerPort = 0;
 let admin: Pool | undefined;
 let pool: Pool | undefined;
 let app: Awaited<ReturnType<typeof buildPlatformApp>> | undefined;
@@ -60,6 +67,7 @@ let reaperProcess: ChildProcess | undefined;
 let sandboxManager: ReturnType<typeof sandboxManagerFromEnvironment>;
 const fixtureAbort = new AbortController();
 let cleaning: Promise<void> | undefined;
+const selectedPorts = new Set<number>();
 const connections = new Set<ServerHttp2Session>();
 const realModel = process.env.AGENTS_BROWSER_REAL_MODEL === "1";
 const harnessJourney = process.env.AGENTS_HARNESS_LIVE === "1";
@@ -88,6 +96,9 @@ function cleanup(): Promise<void> {
 }
 async function cleanupResources() {
   if (browserProcess && browserProcess.exitCode === null) browserProcess.kill("SIGTERM");
+  if (frontendProcess?.pid && frontendProcess.exitCode === null && frontendProcess.signalCode === null) {
+    frontendProcess.kill("SIGTERM"); await once(frontendProcess, "exit");
+  }
   fixtureAbort.abort();
   await stopWorkerProcess();
   if(connectedGate){await connectedGate.query("SELECT pg_advisory_unlock($1,$2)",[20261018,connectedGateKey]);connectedGate.release();connectedGate=undefined;}
@@ -116,7 +127,9 @@ async function availablePort(): Promise<number> {
   const server = createHttpServer();
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   const address = server.address(); assert.ok(address && typeof address === "object");
-  await new Promise<void>(resolve => server.close(() => resolve())); return address.port;
+  await new Promise<void>(resolve => server.close(() => resolve()));
+  if (selectedPorts.has(address.port)) return availablePort();
+  selectedPorts.add(address.port); return address.port;
 }
 async function stopWorkerProcess() {
   if (workerProcess?.pid && workerProcess.exitCode === null && workerProcess.signalCode === null) { workerProcess.kill("SIGKILL"); await once(workerProcess, "exit"); }
@@ -247,15 +260,15 @@ async function restartConnectedCheckpoint(){
 }
 async function startWorkerProcess() {
   workerProcess = spawn(process.execPath, [resolve(root, "products/agents/api/dist/platform/worker.js")], { cwd: root, stdio: ["ignore", "inherit", "inherit"], env: workerEnvironment });
-  await ready(() => new Promise<boolean>(resolve => { const socket = connect(9080, "127.0.0.1"); socket.once("connect", () => { socket.destroy(); resolve(true); }); socket.once("error", () => resolve(false)); }), "actual worker process");
+  await ready(() => new Promise<boolean>(resolve => { const socket = connect(workerPort, "127.0.0.1"); socket.once("connect", () => { socket.destroy(); resolve(true); }); socket.once("error", () => resolve(false)); }), "actual worker process");
 }
 async function ledgerRecords(): Promise<Record<string, any>[]> { return (await readFile(receiverLedger!, "utf8").catch(() => "")).split("\n").filter(Boolean).map(line => JSON.parse(line)); }
 async function prepareDeliveryFixture(directory: string) {
   receiverLedger = join(directory, "receiver-ledger.jsonl");
   const apiKey = randomUUID()+randomUUID();
-  Object.assign(process.env, { NODE_ENV: "test", AGENTS_CONNECTION_ACTIVE_KEY: "browser-fixture", AGENTS_CONNECTION_KEYS: JSON.stringify({ "browser-fixture": randomBytes(32).toString("base64") }), AGENTS_REPORT_DELIVERY_TARGETS: JSON.stringify([{ id: "browser-receiver", label: "Browser report receiver", url: "http://127.0.0.1:4399/deliveries", resource: "browser-report" }]) });
-  receiverProcess = spawn(process.execPath, ["--import", require.resolve("tsx"), resolve(root, "products/agents/web/test/report-receiver.ts")], { cwd: root, stdio: ["ignore", "inherit", "inherit"], env: { ...childEnvironment(), AGENTS_RECEIVER_LEDGER: receiverLedger, AGENTS_RECEIVER_KEY: apiKey } });
-  await ready(async () => (await fetch("http://127.0.0.1:4399/deliveries")).status === 403, "persistent independent report receiver");
+  Object.assign(process.env, { NODE_ENV: "test", AGENTS_CONNECTION_ACTIVE_KEY: "browser-fixture", AGENTS_CONNECTION_KEYS: JSON.stringify({ "browser-fixture": randomBytes(32).toString("base64") }), AGENTS_REPORT_DELIVERY_TARGETS: JSON.stringify([{ id: "browser-receiver", label: "Browser report receiver", url: `${receiverOrigin}/deliveries`, resource: "browser-report" }]) });
+  receiverProcess = spawn(process.execPath, ["--import", require.resolve("tsx"), resolve(root, "products/agents/web/test/report-receiver.ts")], { cwd: root, stdio: ["ignore", "inherit", "inherit"], env: { ...childEnvironment(), AGENTS_RECEIVER_LEDGER: receiverLedger, AGENTS_RECEIVER_KEY: apiKey, AGENTS_RECEIVER_PORT: new URL(receiverOrigin).port } });
+  await ready(async () => (await fetch(`${receiverOrigin}/deliveries`)).status === 403, "persistent independent report receiver");
   return apiKey;
 }
 
@@ -286,7 +299,7 @@ async function prepareAdvancedStorage(directory: string): Promise<void> {
 interface AdvancedFixture {agentPath:string;specialistVersionIds:string[];sourceTitle:string;sourceTitles?:string[];connectedOperations?:string[][];prompt?:string}
 async function prepareAdvancedFixture(token: string): Promise<AdvancedFixture> {
   async function request<T>(path: string, body: unknown, method = "POST"): Promise<T> {
-    const response = await fetch(`http://127.0.0.1:4100${path}`, { method, headers: { "content-type": "application/json", origin: "http://localhost:3100", cookie: `agents_session=${token}` }, ...(body!==undefined?{body:JSON.stringify(body)}:{}) });
+    const response = await fetch(`${apiOrigin}${path}`, { method, headers: { "content-type": "application/json", origin: applicationOrigin, cookie: `agents_session=${token}` }, ...(body!==undefined?{body:JSON.stringify(body)}:{}) });
     assert.ok(response.ok, `Advanced fixture management ${method} ${path} failed (${response.status})`);
     return response.json() as Promise<T>;
   }
@@ -396,11 +409,17 @@ async function main() {
     assert.ok(githubAcceptance.expected.length<=200,"The expected public text must fit the bounded 16..200 character quotation");
     assert.ok(process.env.OPENROUTER_API_KEY,"The combined provider journey requires the approved free model configuration");
   }
-  if (automationJourney) {
+  {
     ingress = `http://127.0.0.1:${await availablePort()}`;
     runtimeAdmin = `http://127.0.0.1:${await availablePort()}`;
     Object.assign(process.env, { RESTATE_INGRESS_URL: ingress, RESTATE_ADMIN_URL: runtimeAdmin });
   }
+  const frontendPort = await availablePort(), apiPort = await availablePort();
+  workerPort = await availablePort();
+  applicationOrigin = `http://localhost:${frontendPort}`;
+  apiOrigin = `http://127.0.0.1:${apiPort}`;
+  widgetOrigin = `http://127.0.0.1:${await availablePort()}`;
+  receiverOrigin = `http://127.0.0.1:${await availablePort()}`;
   let databaseUrl = process.env.AGENTS_BROWSER_FIXTURE_DATABASE_URL;
   if (!databaseUrl && process.env.AGENTS_BROWSER_FIXTURE_STATE_PATH) {
     const state = JSON.parse(await readFile(process.env.AGENTS_BROWSER_FIXTURE_STATE_PATH, "utf8")) as { url?: string; AGENTS_TEST_DATABASE_URL?: string };
@@ -416,7 +435,7 @@ async function main() {
   pool = new Pool({ connectionString: database.href, max: 10 });
   await setupPlatformSchema(pool);
   const config = loadPlatformConfig({ NODE_ENV: "test", AGENTS_DATABASE_URL: database.href,
-    AGENTS_PUBLIC_URL: "http://localhost:3100", AGENTS_OIDC_ISSUER_URL: "http://localhost:8080/realms/browser-fixture",
+    AGENTS_PUBLIC_URL: applicationOrigin, AGENTS_OIDC_ISSUER_URL: "http://localhost:8080/realms/browser-fixture",
     AGENTS_OIDC_CLIENT_SECRET: "fixture-not-a-production-secret", OPENROUTER_API_KEY: modelKey });
   const store = new PlatformStore(pool);
   // This seeds an identity for transport testing. OIDC is verified separately.
@@ -432,7 +451,7 @@ async function main() {
   if (advancedJourney) assert.ok(sandboxManager && await sandboxManager.available(), "Advanced fixture requires actual gVisor isolation");
   const appFactory:typeof buildPlatformApp=connectedJourney?require(resolve(root,"products/agents/api/dist/platform/app.js")).buildPlatformApp:buildPlatformApp;
   app = await appFactory({ config, pool, logging: false });
-  await app.listen({ host: "127.0.0.1", port: 4100 });
+  await app.listen({ host: "127.0.0.1", port: apiPort });
   let advanced: Awaited<ReturnType<typeof prepareAdvancedFixture>> | undefined;
   const fixtureFetch: typeof fetch = async (_url, request) => {
     const body = JSON.parse(String(request?.body)) as { model: string; messages: { content: string }[] };
@@ -464,12 +483,12 @@ async function main() {
   const sourceObjects=privateStoreFromEnvironment(process.env,10_485_760)!;
   const evidence=new EvidenceStore(pool,sourceObjects),ingestion=new IngestionService(pool,sourceObjects,documents,new KnowledgeStore(pool,sourceObjects));
   if (automationJourney) {
-    workerEnvironment = { ...childEnvironment(), AGENTS_DATABASE_URL: database.href, OPENROUTER_API_KEY: modelKey, RESTATE_INGRESS_URL: ingress, RESTATE_ADMIN_URL: runtimeAdmin, RESTATE_WORKER_PORT: "9080", RESTATE_WORKER_HOST: "0.0.0.0", AGENTS_ALLOW_UNSIGNED_WORKER: "1" };
+    workerEnvironment = { ...childEnvironment(), AGENTS_DATABASE_URL: database.href, OPENROUTER_API_KEY: modelKey, RESTATE_INGRESS_URL: ingress, RESTATE_ADMIN_URL: runtimeAdmin, RESTATE_WORKER_PORT: String(workerPort), AGENTS_PUBLIC_URL: applicationOrigin, RESTATE_WORKER_HOST: "0.0.0.0", AGENTS_ALLOW_UNSIGNED_WORKER: "1" };
     await startWorkerProcess();
   } else {
   worker = createServer(createEndpointHandler({ services: [createBusinessWorkflow(pool, { openRouterApiKey: modelKey, signal: fixtureAbort.signal, executeSandbox: createSandboxExecutor(pool, sandboxManager, privateStoreFromEnvironment()), evidence,knowledgeRuntime:new KnowledgeRuntime(pool,evidence,new QueryEmbeddingService(pool,sourceObjects,documents)),fetch: realModel ? observedModelFetch : fixtureFetch }),createIngestionWorkflow(ingestion)] }));
   worker.on("session", session => { connections.add(session); session.once("close", () => connections.delete(session)); });
-  await new Promise<void>((resolve, reject) => { worker!.once("error", reject); worker!.listen(9080, "0.0.0.0", resolve); });
+  await new Promise<void>((resolve, reject) => { worker!.once("error", reject); worker!.listen(workerPort, "0.0.0.0", resolve); });
   }
   let runtimeReady = false;
   try { runtimeReady = (await fetch(`${runtimeAdmin}/health`, { signal: AbortSignal.timeout(1000) })).ok; } catch { /* Start a dedicated runtime below. */ }
@@ -479,7 +498,7 @@ async function main() {
     ownedRuntime = true;
   }
   await ready(async () => (await fetch(`${runtimeAdmin}/health`)).ok, "Restate");
-  const registration = await fetch(`${runtimeAdmin}/deployments`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ uri: "http://host.docker.internal:9080", force: true }) });
+  const registration = await fetch(`${runtimeAdmin}/deployments`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ uri: `http://host.docker.internal:${workerPort}`, force: true }) });
   assert.ok(registration.ok, `Restate registration failed (${registration.status})`);
   if (advancedJourney) {
     reaperProcess = spawn(process.execPath, [resolve(root, "products/agents/api/node_modules/tsx/dist/cli.mjs"), resolve(root, "products/agents/api/src/platform/sandbox-reaper.ts")], {
@@ -503,17 +522,22 @@ async function main() {
       })().catch(() => response.writeHead(500).end()); return;
     }
 
-    const deployment = new URL(request.url ?? "/", "http://127.0.0.1:4398").searchParams.get("deployment");
+    const deployment = new URL(request.url ?? "/", widgetOrigin).searchParams.get("deployment");
     response.setHeader("content-type", "text/html; charset=utf-8");
-    response.end(`<!doctype html><html><meta name="viewport" content="width=device-width,initial-scale=1"><title>External website fixture</title><h1>Acme help</h1>${deployment && /^[a-f0-9-]{36}$/.test(deployment) ? `<script async src="http://localhost:3100/api/website/${deployment}/widget.js"></script>` : ""}</html>`);
+    response.end(`<!doctype html><html><meta name="viewport" content="width=device-width,initial-scale=1"><title>External website fixture</title><h1>Acme help</h1>${deployment && /^[a-f0-9-]{36}$/.test(deployment) ? `<script async src="${applicationOrigin}/api/website/${deployment}/widget.js"></script>` : ""}</html>`);
   });
-  await new Promise<void>((resolve, reject) => { site!.once("error", reject); site!.listen(4398, "127.0.0.1", resolve); });
-  assert.ok((await fetch("http://localhost:3100")).ok, "Start the Agents Vite frontend at localhost:3100 before running this fixture");
+  await new Promise<void>((resolve, reject) => { site!.once("error", reject); site!.listen(Number(new URL(widgetOrigin).port), "127.0.0.1", resolve); });
+  const vite = resolve(root, "products/agents/web/node_modules/vite/bin/vite.js");
+  frontendProcess = spawn(process.execPath, [vite, "--host", "127.0.0.1", "--port", String(frontendPort), "--strictPort"], {
+    cwd: resolve(root, "products/agents/web"), stdio: ["ignore", "ignore", "inherit"],
+    env: { ...childEnvironment(), AGENTS_API_PROXY_TARGET: apiOrigin },
+  });
+  await ready(async () => (await fetch(applicationOrigin)).ok, "owned Agents frontend");
   const playwright = require.resolve("@playwright/test/cli", { paths: [resolve(root, "products/agents/web")] });
-  const browser = browserProcess = spawn(process.execPath, [playwright, "test", "--grep", automationJourney ? "live automation:" : advancedJourney ? "live execution:" : harnessJourney ? "live harness" : "live platform", "--output", automationJourney ? ".artifacts/automation-live" : advancedJourney ? ".artifacts/advanced-live" : harnessJourney ? ".artifacts/harness-live" : ".artifacts/browser-live"], {
+  const browser = browserProcess = spawn(process.execPath, [playwright, "test", "--grep", process.env.AGENTS_BROWSER_FIXTURE_TEST_GREP ?? (automationJourney ? "live automation:" : advancedJourney ? "live execution:" : harnessJourney ? "live harness" : "live platform"), "--output", process.env.AGENTS_BROWSER_FIXTURE_OUTPUT ?? (automationJourney ? ".artifacts/automation-live" : advancedJourney ? ".artifacts/advanced-live" : harnessJourney ? ".artifacts/harness-live" : ".artifacts/browser-live")], {
     cwd: resolve(root, "products/agents/web"), stdio: "inherit",
-    env: { ...childEnvironment(), AGENTS_BROWSER_BASE_URL: "http://localhost:3100", AGENTS_BROWSER_SESSION_COOKIE: session.token,
-      AGENTS_BROWSER_WIDGET_ORIGIN: "http://127.0.0.1:4398",
+    env: { ...childEnvironment(), AGENTS_BROWSER_BASE_URL: applicationOrigin, AGENTS_BROWSER_SESSION_COOKIE: session.token,
+      AGENTS_BROWSER_WIDGET_ORIGIN: widgetOrigin,
       ...(deliveryKey ? { AGENTS_DELIVERY_FIXTURE_KEY: deliveryKey } : {}),
       ...(advanced ? { AGENTS_ADVANCED_AGENT_PATH: advanced.agentPath, AGENTS_ADVANCED_SPECIALIST_VERSIONS: advanced.specialistVersionIds.join(","),
         AGENTS_ADVANCED_SOURCE_TITLE: advanced.sourceTitle,AGENTS_ADVANCED_SOURCE_TITLES:JSON.stringify(advanced.sourceTitles??[advanced.sourceTitle,advanced.sourceTitle]),AGENTS_ADVANCED_CONNECTED_OPERATIONS:JSON.stringify(advanced.connectedOperations??[]),
@@ -534,6 +558,9 @@ async function main() {
     await writeFile(resolve(root,".audit/agents-public-repository-failure.json"),diagnosis,{mode:0o600});
   }
   assert.equal(exitCode, 0, "Live-service browser check failed");
+  if (harnessJourney) await verifyWorkspaceBrowserAcceptance({ pool, origin: applicationOrigin, token: session.token,
+    browserModule: require.resolve("@playwright/test", { paths: [resolve(root, "products/agents/web")] }),
+    evidenceDirectory: resolve(root, "products/agents/web/.artifacts/chat-ui-live-discovery") });
   if (!realModel) {
     assert.equal(modelCalls.length, 4, "Four logical tasks require four provider calls; lost-response retry must not call twice");
     assert.ok(modelCalls.every(call => call.approvedKnowledgePresent), "Every provider fixture call must receive approved knowledge");
@@ -575,7 +602,7 @@ async function main() {
     return;
   }
   assert.ok(tasks.length === (harnessJourney ? 3 : 4) && tasks.every(task => task.state === "completed" && task.runtime_invocation_id), "All browser replies require actual durable Restate invocations");
-  console.log(JSON.stringify({ evidence: harnessJourney ? "real HTTP, PostgreSQL, outbox, Restate, browser, contextual conversation, reviewed memory, pinned skills and tool execution; identity seeded" : "real HTTP, PostgreSQL, outbox, Restate, browser, external widget and lost-response recovery; identity seeded", modelTransport: realModel ? "live free model" : "deterministic fixture", ports: [3100, 4100, 9080, 18080, 19070, 4398], completedTasks: tasks.length, providerFixtureCalls: modelCalls.length }));
+  console.log(JSON.stringify({ evidence: harnessJourney ? "real HTTP, PostgreSQL, outbox, Restate, browser, contextual conversation, reviewed memory, pinned skills and tool execution; identity seeded" : "real HTTP, PostgreSQL, outbox, Restate, browser, external widget and lost-response recovery; identity seeded", modelTransport: realModel ? "live free model" : "deterministic fixture", origins: { application: applicationOrigin, api: apiOrigin, ingress, admin: runtimeAdmin, widget: widgetOrigin, workerPort }, completedTasks: tasks.length, providerFixtureCalls: modelCalls.length }));
 }
 for (const signal of ["SIGINT", "SIGTERM"] as const) process.once(signal, () => { void cleanup().finally(() => process.exit(130)); });
 void main().catch(error => { console.error(error instanceof Error ? error.stack : "Browser fixture failed"); process.exitCode = 1; }).finally(cleanup);

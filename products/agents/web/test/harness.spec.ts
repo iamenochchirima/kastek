@@ -142,6 +142,7 @@ test("live harness: scoped memory, tool rounds, contextual follow-up and new con
   await configure(page);
   await page.getByRole("button", { name: "Create version", exact: true }).click();
   await page.getByRole("button", { name: "Chat", exact: true }).click();
+  const originalVersionId = await page.getByRole("combobox", { name: "Version", exact: true }).inputValue();
   const acceptedTasks: string[] = [];
   let taskEndpoint = "";
   async function send(input: string) {
@@ -159,13 +160,30 @@ test("live harness: scoped memory, tool rounds, contextual follow-up and new con
   await send("What is my project code? Use our earlier conversation.");
   await expect(page.getByRole("article", { name: "Turn 2", exact: true }).getByRole("paragraph").filter({ hasText: /ORCHID-17/ })).toBeVisible();
   await newChat(page);
+  await configure(page);
+  const instructions = page.getByRole("textbox", { name: "Instructions", exact: true });
+  await instructions.fill(`${await instructions.inputValue()} Preserve the exact preferred-color wording.`);
+  await page.getByRole("button", { name: "Save configuration", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Save configuration", exact: true })).toBeDisabled();
+  await page.getByRole("button", { name: "Create version", exact: true }).click();
+  await expect(page.getByRole("combobox", { name: "Version", exact: true })).not.toHaveValue(originalVersionId);
+  const latestVersionId = await page.getByRole("combobox", { name: "Version", exact: true }).inputValue();
+  await page.getByRole("button", { name: "Chat", exact: true }).click();
   await send("Call memory.search to look up my favorite color, then tell me the color.");
   await expect(page.getByRole("paragraph").filter({ hasText: /cobalt/i })).toBeVisible();
   const records = await Promise.all(acceptedTasks.map(async taskId => {
     const response = await page.request.get(`${taskEndpoint}/${encodeURIComponent(taskId)}`);
     expect(response.ok()).toBe(true);
-    return response.json() as Promise<{ task: { id: string; input: string; conversationId: string; turnSequence: number }; operations: { kind: string; name: string; state: string }[] }>;
+    return response.json() as Promise<{ task: { id: string; input: string; conversationId: string; turnSequence: number; versionId: string }; operations: { kind: string; name: string; state: string }[] }>;
   }));
+  expect(records[0]!.task.versionId).toBe(originalVersionId);
+  expect(records[1]!.task.versionId).toBe(originalVersionId);
+  expect(records[2]!.task.versionId).toBe(latestVersionId);
+  expect(records[0]!.task.conversationId).toBe(records[1]!.task.conversationId);
+  expect(records[2]!.task.conversationId).not.toBe(records[0]!.task.conversationId);
+  const oldConversation = await page.request.get(`${taskEndpoint.replace(/\/tasks$/u, "")}/conversations/${records[0]!.task.conversationId}`);
+  expect(oldConversation.ok()).toBe(true);
+  expect((await oldConversation.json()).conversation.versionId).toBe(originalVersionId);
   const toolTask = records.find(record => record.operations.some(operation => operation.kind === "tool" && operation.name === "memory.search" && operation.state === "completed"));
   expect(toolTask, "The real model must complete at least one factual memory.search operation across the accepted tasks").toBeDefined();
   if (toolTask!.task.conversationId !== records.at(-1)!.task.conversationId) {
