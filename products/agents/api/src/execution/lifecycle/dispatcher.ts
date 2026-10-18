@@ -68,14 +68,14 @@ export async function dispatchTasksOnce(pool: Pool, options: DispatcherOptions):
     ORDER BY c.task_id,c.generation FOR UPDATE OF c SKIP LOCKED LIMIT 32)
     UPDATE agents_platform.task_controls c SET lease_owner=$1,lease_until=now()+interval '30 seconds' FROM due
     WHERE c.task_id=due.task_id AND c.generation=due.generation RETURNING c.task_id,c.generation,c.kind`,[controlOwner])).rows;
-  for (const control of controls) {
+  await parallelEach(controls,8,async control=>{
     try {
       const response = await request(`${options.ingressUrl.replace(/\/$/, "")}/${WORKFLOW_NAME}/${control.task_id}/${control.kind==="review"?"review":"resume"}`, {
         method: "POST", headers: {"content-type":"application/json", "idempotency-key":`continue:${control.task_id}:${control.generation}`},
         body:JSON.stringify({generation:Number(control.generation)}), signal:AbortSignal.timeout(5000) });
       if(response.ok) await pool.query("UPDATE agents_platform.task_controls SET dispatched_at=now(),lease_owner=NULL,lease_until=NULL WHERE task_id=$1 AND generation=$2 AND lease_owner=$3",[control.task_id,control.generation,controlOwner]);
     } catch { options.onError?.("RUNTIME_CONTINUATION_FAILED"); }
-  }
+  });
   await pool.query(`WITH due AS (SELECT id FROM agents_platform.tasks WHERE deadline_at<now() AND state IN ('accepted','running','waiting_authority','waiting_review','waiting_children','reconciling')
     ORDER BY deadline_at,id FOR UPDATE SKIP LOCKED LIMIT 128), expired AS (UPDATE agents_platform.tasks t SET state='cancel_requested',error_code='TASK_DEADLINE',updated_at=now()
     FROM due WHERE t.id=due.id RETURNING t.id)
@@ -83,7 +83,7 @@ export async function dispatchTasksOnce(pool: Pool, options: DispatcherOptions):
 
   const cancellations = (await pool.query(`SELECT id,runtime_invocation_id,created_at FROM agents_platform.tasks
     WHERE state='cancel_requested' AND runtime_invocation_id IS NOT NULL ORDER BY updated_at LIMIT 10`)).rows;
-  for (const task of cancellations) {
+  await parallelEach(cancellations,8,async task=>{
     try {
       const response = await request(`${options.adminUrl.replace(/\/$/, "")}/invocations/${encodeURIComponent(task.runtime_invocation_id)}/cancel`,
         { method: "PATCH", signal: AbortSignal.timeout(5000) });
@@ -106,7 +106,7 @@ export async function dispatchTasksOnce(pool: Pool, options: DispatcherOptions):
         await settleTask(pool, task.id, { state: "uncertain", errorCode: "CANCELLATION_UNCONFIRMED" });
       }
     }
-  }
+  });
 }
 
 export function startDispatcher(pool: Pool, options: DispatcherOptions): { stop(): Promise<void> } {
