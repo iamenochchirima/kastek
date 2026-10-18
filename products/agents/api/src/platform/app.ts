@@ -13,6 +13,9 @@ import type { PlatformConfig } from "./config";
 import { agentConfigurationSchema, assertRuntimeAvailable, executionGrantSchema, connectedToolAuthorityIds, parseAllowedOrigin,
   canonicalJson, PlatformError, terminalTaskStates, type AdmissionAuthority, type AgentConfiguration, type ExecutionGrant } from "./contracts";
 import { PlatformStore, type Account, type TaskRecord } from "./store";
+import {PlatformDiscovery} from "./discovery";
+import {pageQuery} from "./read-pages";
+import {taskStateSchema} from "./contracts";
 import { websiteWidgetScript } from "./widget";
 import { registerMemoryRoutes } from "./memory-routes";
 import { privateStoreFromEnvironment } from "./artifacts";
@@ -45,6 +48,8 @@ const dto = (row: object) => ({ ...Object.fromEntries(Object.entries(row).map(([
 export async function buildPlatformApp(options: { config: PlatformConfig; pool: Pool; identity?: PlatformIdentity; logging?: boolean }) {
   const { config, pool } = options;
   const store = new PlatformStore(pool);
+  const discovery = new PlatformDiscovery(pool,store);
+  const summary = ({position: _position,...row}: Record<string,unknown>) => row;
   const objects = privateStoreFromEnvironment();
   const sourceObjects = privateStoreFromEnvironment(process.env, 10_485_760);
   const knowledge = new KnowledgeStore(pool, sourceObjects);
@@ -205,6 +210,20 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
     await store.getAgent(user.id, org, agentId);
     return { accountId: user.id, organizationId: org, agentId };
   } });
+  app.get(`${base}/agents/summaries`,async request=>{
+    const page=await discovery.agents(await account(request),organizationId(request),pageQuery.strict().parse(request.query));
+    return {agents:page.items.map(row=>summary(row as unknown as Record<string,unknown>)),nextCursor:page.nextCursor};
+  });
+  app.get(`${base}/conversations`,async request=>{
+    const query=pageQuery.extend({agentId:uuid,versionId:uuid.optional()}).strict().parse(request.query);
+    const page=await discovery.conversations(await account(request),organizationId(request),query);
+    return {conversations:page.items.map(row=>summary(row as unknown as Record<string,unknown>)),nextCursor:page.nextCursor};
+  });
+  app.get(`${base}/tasks`,async request=>{
+    const query=pageQuery.extend({agentId:uuid.optional(),state:taskStateSchema.optional()}).strict().parse(request.query);
+    const page=await discovery.tasks(await account(request),organizationId(request),query);
+    return {tasks:page.items.map(row=>summary(row as unknown as Record<string,unknown>)),nextCursor:page.nextCursor};
+  });
   app.get(`${base}/agents`, async (request) => ({ agents: (await store.listAgents((await account(request)).id, organizationId(request))).map(dto) }));
   app.post(`${base}/agents`, async (request, reply) => {
     const user = await account(request), input = z.strictObject({ name: z.string().min(1).max(120) }).parse(request.body);
@@ -252,20 +271,22 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
     return reply.code(result.replayed ? 200 : 202).send({ task: dto(result.task) });
   });
   app.get(`${base}/tasks/:taskId`, async (request) => {
-    const { task, reviewOnly } = await humanTask(request);
+    const { task, reviewOnly, authority } = await humanTask(request);
+    const eventQuery=z.object({eventsLimit:pageQuery.shape.limit,eventsCursor:pageQuery.shape.cursor}).strict().parse(request.query);
     if(reviewOnly){
       const scope={accountId:(await account(request)).id,organizationId:task.organization_id};
       const actions=actionServices?await actionServices.actions.listForTask(scope,task.id):[];
       const reports=actions.length?(await pool.query("SELECT id,name,content_type,bytes FROM agents_platform.artifacts WHERE task_id=$1 AND id=ANY($2::uuid[]) AND state='available'",[task.id,actions.map(action=>action.artifactId)])).rows:[];
       return {task:{id:task.id,state:task.state,output:null,errorCode:null},actions,canControl:false,canDownloadArtifacts:true,
-        events:[],operations:[],children:[],resources:[],artifacts:reports.map(report=>({...dto(report),downloadPath:`/api/organizations/${task.organization_id}/tasks/${task.id}/artifacts/${report.id}`}))};
+        events:[],eventsNextCursor:null,operations:[],children:[],resources:[],artifacts:reports.map(report=>({...dto(report),downloadPath:`/api/organizations/${task.organization_id}/tasks/${task.id}/artifacts/${report.id}`}))};
     }
     const viewer=await account(request),canControl=task.principal.kind!=="automation"||task.principal.ownerAccountId===viewer.id;
     const operations = (await pool.query(`SELECT o.id AS operation_id,o.kind,o.name,o.state,o.error_code,o.accounted_tokens,o.started_at,o.completed_at,
       b.binding->>'transport' AS transport,b.binding->'definition'->>'providerOperation' AS provider_operation
       FROM agents_platform.operations o LEFT JOIN agents_platform.capability_bindings b ON b.alias=o.name AND b.organization_id=$2
       WHERE o.task_id=$1 ORDER BY o.started_at,o.id`, [task.id,task.organization_id])).rows;
-    const events = (await pool.query("SELECT * FROM agents_platform.task_events WHERE task_id=$1 ORDER BY sequence LIMIT 100",[task.id])).rows;
+    const eventPage=await store.getEventPage(authority,task.id,{limit:eventQuery.eventsLimit,cursor:eventQuery.eventsCursor});
+    const events=eventPage.items;
     const children = (await pool.query(`SELECT t.id,a.name AS agent_name,t.version_id,v.number AS version_number,d.binding_id,
       t.state,CASE WHEN c.deleted_at IS NULL THEN t.output ELSE NULL END AS output,t.error_code,t.root_task_id,t.parent_task_id FROM agents_platform.tasks t
       JOIN agents_platform.agent_versions v ON v.id=t.version_id JOIN agents_platform.agents a ON a.id=v.agent_id
@@ -283,7 +304,14 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
     const artifacts = visibleArtifacts.filter(a=>(!task.parent_task_id||a.taskId===task.id)&&(!reviewerReports||reviewerReports.includes(a.id)))
       .map(a=>({...a,downloadPath:`/api/organizations/${task.organization_id}/tasks/${task.id}/artifacts/${a.id}`}));
     const actions=actionServices?await actionServices.actions.listForTask({accountId:viewer.id,organizationId:task.organization_id},task.id):[];
-    return { actions,canControl,canDownloadArtifacts:true,task: await readableTask(task), events: events.map(dto), operations: operations.map(dto),children:await Promise.all(children.map(async child=>({...dto(child),...await readableOutput(child.id,child.output)}))),resources:resources.map(dto),artifacts };
+    return { actions,canControl,canDownloadArtifacts:true,task: await readableTask(task), events: events.map(dto), eventsNextCursor:eventPage.nextCursor, operations: operations.map(dto),children:await Promise.all(children.map(async child=>({...dto(child),...await readableOutput(child.id,child.output)}))),resources:resources.map(dto),artifacts };
+  });
+  app.get(`${base}/tasks/:taskId/events`,async request=>{
+    const {task,authority,reviewOnly}=await humanTask(request);
+    const query=pageQuery.strict().parse(request.query);
+    if(reviewOnly)return {events:[],nextCursor:null};
+    const page=await store.getEventPage(authority,task.id,query);
+    return {events:page.items.map(dto),nextCursor:page.nextCursor};
   });
   async function taskPassages(task: TaskRecord) {
     if (!task.output || !citationLabels(task.output).length) return { state: "available", passages: [] };
@@ -349,7 +377,8 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
     await store.requireMembership(user.id, org);
     const conversation = (await pool.query<{ agent_id: string }>("SELECT agent_id FROM agents_platform.conversations WHERE organization_id=$1 AND id=$2", [org, conversationId])).rows[0];
     if (!conversation) throw new PlatformError("NOT_FOUND", 404, "Conversation not found");
-    return { tasks: await Promise.all((await store.getConversation(humanAuthority(user, org, conversation.agent_id), conversationId)).map(readableTask)) };
+    const page=await store.getConversationPage(humanAuthority(user, org, conversation.agent_id),conversationId,pageQuery.strict().parse(request.query));
+    return {tasks:await Promise.all(page.items.map(readableTask)),nextCursor:page.nextCursor,conversation:page.conversation};
   });
   app.delete(`${base}/conversations/:conversationId`, async request => {
     const user = await account(request), org = organizationId(request), conversationId = uuid.parse(parameters(request).conversationId);

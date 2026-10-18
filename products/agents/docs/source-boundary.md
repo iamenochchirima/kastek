@@ -11,7 +11,8 @@ startup. It does not migrate an older database or import Growth state.
 | --- | --- |
 | `contracts.ts` | Agent configuration, two execution kinds, grants, limits, and task states. |
 | `auth.ts`, `config.ts` | OIDC login, product sessions, identity configuration, and backchannel logout. |
-| `store.ts` | Membership, drafts, immutable publication, revision pins, ordered admission, and root reservations. |
+| `store.ts` | Membership, drafts, immutable publication, revision pins, ordered admission, root reservations, and paginated authorized turns/events. |
+| `discovery.ts`, `read-pages.ts` | Principal-scoped agent/conversation/task summaries and signed scope-bound read cursors. |
 | `app.ts`, `server.ts`, `widget.ts` | Management and website APIs, continuation, history deletion, progress, cancellation, and widget delivery. |
 | `execution.ts` | Current authority, task and operation identities, claims, receipts, and usage settlement. |
 | `business.ts` | Restate business controller, model and tool rounds, ordered turns, and compaction coordination. |
@@ -74,6 +75,44 @@ with fallback disabled and reasoning effort `none`. Input preflight conservative
 counts serialized UTF-8 bytes against the configured token allowance and reserves
 framing separately. This estimate is not an exact tokenizer count. Returned usage,
 finish reasons, tool calls, and unexpected reasoning are validated.
+
+## Authorized discovery and history
+
+Authenticated collection routes use explicit summary objects rather than task or
+agent configuration records. All routes below are beneath
+`/api/organizations/:organizationId`; each request checks current membership.
+
+| Read | Response and order |
+| --- | --- |
+| `GET /agents/summaries` | `{agents,nextCursor}`; compact roster with latest immutable version, draft revision and unpublished-change state. Newest-created first, ID tie breaker. The existing `/agents` management response is unchanged. |
+| `GET /conversations?agentId=...&versionId=...` | `{conversations,nextCursor}`; `agentId` required, version filter optional. The exact human issuer/subject, Agents product, execution caller and agent scope must match. Activity descending, conversation ID tie breaker. |
+| `GET /tasks?agentId=...&state=...` | `{tasks,nextCursor}`; optional agent/state filters. Root tasks only, newest-created first, task ID tie breaker. Human tasks require exact principal; automation tasks require a current owner membership and either that owner or the pinned occurrence reviewer. |
+| `GET /conversations/:conversationId` | `{tasks,nextCursor,conversation}`; newest page of turns in ascending display order. Prepend subsequent pages to load older turns. Conversation metadata includes the pinned version and current latest task/turn IDs independently of the selected page. |
+| `GET /tasks/:taskId/events` | `{events,nextCursor}` in sequence order. Child reads require access through their original root. Reviewer-only access returns no events. |
+| `GET /tasks/:taskId` | Existing detail response plus `eventsNextCursor`; accepts `eventsLimit` and `eventsCursor` for its embedded event page. |
+
+Collections, conversation turns and standalone events accept `limit` (default 30,
+maximum 100) and `cursor`. Cursors bind to the principal, workspace, route and
+filters. They preserve a creation-time snapshot; later admissions appear on
+refresh. State and authorization remain current, so revoked or no-longer-matching
+records can disappear between pages. Timestamp keysets preserve PostgreSQL
+precision and use deterministic ID ties. Cursors are signed with a process-local
+key: an API restart invalidates old cursors with `INVALID_CURSOR`; clients refresh
+from the first page. They do not grant authority or preserve access after revocation.
+
+Conversation summaries expose a plain-text title from the first authorized user
+input, at most 100 characters with control characters replaced. Clients must render
+it as text. Summaries contain no model output, report, source passages, credentials,
+request keys or transcript previews. Deleted conversations are excluded from
+collections; a retained direct history read masks the deleted input and output.
+Reviewer-only task summaries include safe IDs, state, dates and permissions, with a
+null conversation ID. They do not expose private inputs or delegated child records.
+Subsequent detail and evidence reads retain current source-policy checks.
+
+`test/platform-discovery.test.ts` uses a separate temporary PostgreSQL database and
+actual HTTP requests to verify foreign principals, cursor misuse, tied timestamps,
+version pins, snapshot admissions, revocation, reviewer metadata and more than 100
+turns/events. It makes no model calls and does not change the owner's workspace.
 
 ## Admission, limits, and recovery
 
