@@ -53,3 +53,11 @@ test("review regression: focus refresh removes withdrawn output from earlier tur
  await page.route("**/api/organizations/*/tasks/*",async route=>{const id=new URL(route.request().url()).pathname.split("/").at(-1);await route.fulfill({json:{task:turns().find(turn=>turn.id===id),events:[],operations:[],artifacts:[],actions:[]}});});
  await page.goto(`/app/agents/${agent}/conversations/${conversation}`);await expect(page.getByText("Derived answer 1",{exact:true})).toBeVisible();await expect(page.getByText("Derived answer 2",{exact:true})).toBeVisible();withdrawn=true;await page.evaluate(()=>window.dispatchEvent(new Event("focus")));await expect(page.getByText("Derived answer 1",{exact:true})).toHaveCount(0);await expect(page.getByText("Derived answer 2",{exact:true})).toHaveCount(0);await expect(page.getByText("This response is no longer available.",{exact:true})).toHaveCount(2);
 });
+
+test("review regression: earlier turn artifacts hydrate after conversation reload",async({page})=>{
+ await common(page);const conversation="44444444-4444-4444-8444-444444444444";
+ const turns=[1,2].map(index=>({id:`report-turn-${index}`,input:`Report question ${index}`,requestKey:`report-key-${index}`,state:"completed",output:`Report answer ${index}`,errorCode:null,conversationId:conversation,versionId:version}));
+ await page.route("**/api/organizations/*/conversations/*",async route=>{await route.fulfill({json:{tasks:turns,nextCursor:null,conversation:{id:conversation,agentId:agent,versionId:version,versionNumber:1,latestTaskId:turns[1].id,latestTurnSequence:"2"}}});});
+ await page.route("**/api/organizations/*/tasks/*",async route=>{const id=new URL(route.request().url()).pathname.split("/").at(-1);await route.fulfill({json:{task:turns.find(turn=>turn.id===id),events:[],operations:[],actions:[],canDownloadArtifacts:true,artifacts:id===turns[0].id?[{id:"earlier-report",taskId:id,name:"Earlier research report.md",contentType:"text/markdown",bytes:180,downloadPath:`/api/organizations/${org}/tasks/${id}/artifacts/earlier-report`}]:[]}});});
+ await page.goto(`/app/agents/${agent}/conversations/${conversation}`);await expect(page.getByRole("link",{name:"Earlier research report.md",exact:true})).toBeVisible();await page.reload();await expect(page.getByRole("link",{name:"Earlier research report.md",exact:true})).toBeVisible();
+});
