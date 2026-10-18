@@ -33,11 +33,12 @@ export function CustomerChat({ path, token, deploymentId }: { path: string; toke
     return () => { live = false; requestSequence.current++; window.clearInterval(timer); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [path, token, before]);
-  async function send(event?: FormEvent) { event?.preventDefault(); if (!conversation.current || busy) return; const id = conversation.current, input = pending ?? { requestKey: crypto.randomUUID(), body: body.trim() }; if (!input.body) return;
+  async function send(event?: FormEvent) { event?.preventDefault(); if (!conversation.current || busy) return; const id = conversation.current, acceptedGeneration = generation.current, input = pending ?? { requestKey: crypto.randomUUID(), body: body.trim() }; if (!input.body) return;
+    const current = () => generation.current === acceptedGeneration && conversation.current === id;
     setPending(input); writeStored(key, input); setBusy(true); setError("");
-    try { await api(`${path}/customer-conversations/${id}/messages`, input, "POST", token); setPending(null); writeStored(key, null); setBody(""); await refresh(id); }
-    catch (e) { setError(message(e)); if (e instanceof ApiError && e.status < 500) { setPending(null); writeStored(key, null); setBody(input.body); } }
-    finally { setBusy(false); }
+    try { await api(`${path}/customer-conversations/${id}/messages`, input, "POST", token); if (!current()) return; setPending(null); writeStored(key, null); setBody(""); await refresh(id); }
+    catch (e) { if (!current()) return; setError(message(e)); if (e instanceof ApiError && e.status < 500) { setPending(null); writeStored(key, null); setBody(input.body); } }
+    finally { if (current()) setBusy(false); }
   }
   return <section className="space-y-4"><p className="text-xs text-muted-foreground" role="status">{timeline?.conversation.state === "human_owned" ? "Connected to support" : timeline?.conversation.state === "handoff_pending" ? "Waiting for support" : timeline?.conversation.state === "resolved" ? "Conversation resolved" : "Assistant"}</p><ErrorMessage value={error} /><HistoryNavigation timeline={timeline} earlier={!!timeline?.earlierBefore} latest={before === null} onEarlier={() => historyPage(timeline?.earlierBefore ?? null)} onLatest={() => historyPage(null)} /><CustomerMessages messages={timeline?.messages ?? []} /><form onSubmit={event => void send(event)} className="space-y-3"><label className="block space-y-2 text-sm"><span>Message</span><Textarea rows={3} maxLength={8000} value={pending?.body ?? body} onChange={event => setBody(event.target.value)} disabled={busy || !!pending || timeline?.conversation.state === "resolved"} /></label><Button type="submit" disabled={!timeline || busy || (!pending && !body.trim()) || timeline.conversation.state === "resolved"}>{busy ? "Sending…" : pending ? "Retry message" : "Send message"}</Button></form></section>;
 }

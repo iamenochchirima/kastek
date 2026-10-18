@@ -36,6 +36,10 @@ view. No unbounded browser history merge retains withdrawn output. `nextSequence
 returned message for bounded `after` reads; `latestSequence` is the canonical conversation
 watermark regardless of the selected page. `earlierBefore` identifies the next older page.
 
+Visitor chat instances and pending-send storage bind both deployment and visitor token. Route
+changes withhold the prior deployment's view while the new session initializes. A late send
+acknowledgement from an unmounted session cannot clear another session's pending input.
+
 Website publication and widget conversations exist. WhatsApp, Facebook, Instagram, booking and
 calendar adapters remain unavailable. Connections exposes narrow report/public-repository/GitHub/
 Stash profiles. Provider OAuth, verified account identity, resource browsing, provider health and
