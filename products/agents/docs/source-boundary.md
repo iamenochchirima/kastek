@@ -40,6 +40,11 @@ Customer creation loads the actual catalogue, sends the selected FAQ/customer-se
 keeps submission unavailable when catalogue loading fails. Website chat reads the canonical customer
 timeline; prior browser output caches are discarded before current-policy reads.
 
+The trusted channel-port acceptance uses normal native human grants and canonical fixture records
+for specialist and approved-report takeover races. It proves inherited claim fencing and status-only
+reconciliation of a provider-accepted report after takeover. Public website publication still rejects
+delegation, analysis and report workflows; those tests do not establish an advanced website offering.
+
 ## Published execution and evaluation contracts
 
 Trusted `grounded-conversation` and `tool-directed` program releases share the business loop.
