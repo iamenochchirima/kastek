@@ -15,8 +15,8 @@ customer channels and a shared staff inbox. Growth and Agencies own research, ca
 and agency experiences using the shared execution backend. Shared runtime capability tests do
 not establish those offerings in the standalone Agents catalogue.
 
-The current application creates a grounded conversation offering by default. The offering catalogue
-separates FAQ/customer-service setup from shared execution programs. Booking remains unavailable.
+The current application creates grounded FAQ or customer-service agents from the offering catalogue.
+The chosen offering is stored on the agent. The catalogue separates FAQ/customer-service setup from shared execution programs. Booking remains unavailable.
 Direct agent chat and principal-scoped conversation history are implemented. Customer website
 messages have a separate canonical timeline with staff assignment, human takeover/replies,
 resolution and explicit return to automation. Human-owned ingress does not admit model work.
@@ -30,6 +30,15 @@ Stash profiles. Provider OAuth, verified account identity, resource browsing, pr
 reauthorization are absent. Current screens do not yet fulfil the target connection experience.
 Research/report acceptance fixtures prove execution behavior, not a standalone research product.
 The runtime's reviewed personal memory does not imply a personal-assistant catalogue offering.
+
+## Customer agent configuration
+
+The customer editor exposes no personal-memory, skill, specialist, sandbox, connected-tool or report
+configuration controls. Shared-harness acceptance provisions those capabilities through the normal
+authenticated APIs and retains conversation/task inspection, report review and resource status.
+Customer creation loads the actual catalogue, sends the selected FAQ/customer-service offering and
+keeps submission unavailable when catalogue loading fails. Website chat reads the canonical customer
+timeline; prior browser output caches are discarded before current-policy reads.
 
 ## Published execution and evaluation contracts
 
@@ -193,7 +202,7 @@ membership, permissions, and domain records. Embedded execution remains unavaila
 | --- | --- | --- |
 | `/` | Restored public landing with provider-backed signup and sign-in. | Public-entry browser tests and isolated actual identity signup/verification. |
 | `/app/agents` | Compact searchable agent directory with server conversation history. | Chat workspace, discovery and browser regression suites. |
-| `/app/agents/:agentId` | Default Chat, Activity and Configure; explicit versions, memory, skills and website publication. | Platform/harness browser suites and actual runtime fixtures. |
+| `/app/agents/:agentId` | Chat, Activity and Configure; instructions, approved knowledge/revision pins, human support, versions and website publication. | Customer configuration/browser suites and actual native fixtures. |
 | `/app/agents/:agentId/conversations/:conversationId` | Authorized history pinned to its original agent/version, current-policy output and inline report review. | Scope/recovery browser regressions and PostgreSQL history tests. |
 | `/app/tasks` | Paginated authorized root tasks, filters and conversation/review links. | Actual PostgreSQL collection tests and browser navigation checks. |
 | `/app/settings` | Real account/workspace identity, workspace creation/switching, theme and sign-out. | Settings browser checks and theme tracking regression. |

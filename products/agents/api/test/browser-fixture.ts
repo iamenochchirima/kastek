@@ -70,6 +70,7 @@ let cleaning: Promise<void> | undefined;
 const selectedPorts = new Set<number>();
 const connections = new Set<ServerHttp2Session>();
 const realModel = process.env.AGENTS_BROWSER_REAL_MODEL === "1";
+const provisioningOnly = process.env.AGENTS_BROWSER_PROVISIONING_ONLY === "1";
 const harnessJourney = process.env.AGENTS_HARNESS_LIVE === "1";
 const automationJourney = process.env.AGENTS_AUTOMATION_LIVE === "1";
 const githubJourney = process.env.AGENTS_GITHUB_JOURNEY === "1";
@@ -558,6 +559,13 @@ async function main() {
     await writeFile(resolve(root,".audit/agents-public-repository-failure.json"),diagnosis,{mode:0o600});
   }
   assert.equal(exitCode, 0, "Live-service browser check failed");
+  if (provisioningOnly) {
+    assert.ok(!realModel && !advancedJourney && !harnessJourney, "Provisioning-only mode cannot run provider journeys");
+    assert.equal(modelCalls.length, 0, "Native configuration acceptance must not make provider calls");
+    assert.equal((await pool.query("SELECT count(*)::int n FROM agents_platform.tasks")).rows[0].n, 0, "Native configuration acceptance must not admit tasks");
+    console.log(JSON.stringify({ evidence: "actual authenticated offering, memory, skills, explicit specialist pins and publication; identity seeded", admittedTasks: 0, providerFixtureCalls: 0 }));
+    return;
+  }
   if (harnessJourney) await verifyWorkspaceBrowserAcceptance({ pool, origin: applicationOrigin, token: session.token,
     browserModule: require.resolve("@playwright/test", { paths: [resolve(root, "products/agents/web")] }),
     evidenceDirectory: resolve(root, "products/agents/web/.artifacts/chat-ui-live-discovery") });

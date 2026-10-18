@@ -1,3 +1,5 @@
+import { nativeAgent, nativeJson, prepareNativeSpecialists } from "./native-harness-fixture";
+import type { Connection } from "../src/platform/api";
 import { configure } from "./workspace-fixtures";
 import { readFile, writeFile } from "node:fs/promises";
 import { expect, test, type Page } from "@playwright/test";
@@ -163,34 +165,15 @@ test("live automation: scheduled report survives review and delivery interruptio
   await page.getByRole("dialog").getByRole("button", { name: "Add connection", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Local acceptance receiver" })).toBeVisible();
   await page.goto(process.env.AGENTS_ADVANCED_AGENT_PATH!);
-  await configure(page);
-  await page.getByRole("checkbox", { name: "Delegate to specialists" }).check();
   const versions = process.env.AGENTS_ADVANCED_SPECIALIST_VERSIONS!.split(",");
-  await page.getByRole("combobox", { name: "Specialist 1", exact: true }).selectOption(versions[0]);
-  await page.getByRole("button", { name: "Add specialist", exact: true }).click();
-  await page.getByRole("combobox", { name: "Specialist 2", exact: true }).selectOption(versions[1]);
-  const sourceTitles:string[]=JSON.parse(process.env.AGENTS_ADVANCED_SOURCE_TITLES??JSON.stringify([process.env.AGENTS_ADVANCED_SOURCE_TITLE,process.env.AGENTS_ADVANCED_SOURCE_TITLE]));
-  const connectedOperations:string[][]=JSON.parse(process.env.AGENTS_ADVANCED_CONNECTED_OPERATIONS??"[]");
-  for (const position of [1, 2]) {
-    const binding = page.getByRole("group", { name: `Specialist ${position} configuration`, exact: true });
-    await binding.getByRole("checkbox", { name: `${sourceTitles[position-1]} · Revision 1`, exact: true }).check();
-    const knowledgeTools = binding.getByRole("checkbox", { name: "Allow knowledge search and reading" });
-    if(publicRepository) await knowledgeTools.uncheck();
-    else await knowledgeTools.check();
-    for(const operation of connectedOperations[position-1]??[])await binding.getByRole("checkbox",{name:new RegExp(`^${operation.replaceAll("_"," ")}(?:\\s|$)`)}).check();
-    if(connected){
-      await binding.getByText("Specialist limits",{exact:true}).click();
-      await binding.getByRole("spinbutton",{name:`Specialist ${position} token allocation`,exact:true}).fill(publicRepository?"12000":"10000");
-    }
-  }
-  await page.getByRole("checkbox", { name: "Run Python analysis", exact: false }).check();
-  await page.getByRole("checkbox", { name: "Prepare reports for approval", exact: true }).check();
-  await page.getByRole("combobox", { name: "Delivery connection", exact: true }).selectOption({ label: "Local acceptance receiver · browser-report" });
-  await page.getByRole("textbox", { name: "Report file", exact: true }).fill("report.json");
-  await page.getByRole("textbox", { name: "Delivery title", exact: true }).fill("Verified dataset report");
-  await page.getByRole("button", { name: "Save configuration", exact: true }).click();
-  await expect(page.getByRole("button", { name: "Save configuration", exact: true })).toBeDisabled();
-  await configure(page);
+  const sourceTitles: string[] = JSON.parse(process.env.AGENTS_ADVANCED_SOURCE_TITLES ?? JSON.stringify([process.env.AGENTS_ADVANCED_SOURCE_TITLE, process.env.AGENTS_ADVANCED_SOURCE_TITLE]));
+  const operations: string[][] = JSON.parse(process.env.AGENTS_ADVANCED_CONNECTED_OPERATIONS ?? "[]");
+  const selected = await nativeAgent(page), available = await nativeJson<{ connections: Connection[] }>(page, `${selected.base}/connections`);
+  const destination = available.connections.find(item => item.name === "Local acceptance receiver" && item.state === "active");
+  expect(destination, "The fixture must use its actual approved report receiver").toBeDefined();
+  await prepareNativeSpecialists(page, { versionIds: versions, sourceTitles, operations, knowledge: !publicRepository, maxTokens: connected ? publicRepository ? 12000 : 10000 : 8000,
+    workflow: { enabled: true, profileId: "report-delivery-v1", connectionId: destination!.id, reportArtifactName: "report.json", title: "Verified dataset report" } });
+  await page.reload(); await configure(page);
   const publicationResponse = page.waitForResponse(response => /\/versions$/.test(new URL(response.url()).pathname) && response.request().method() === "POST");
   await page.getByRole("button", { name: "Create version", exact: true }).click();
   const publication = await publicationResponse;

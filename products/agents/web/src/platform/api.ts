@@ -2,6 +2,7 @@ export type DelegationBinding = { id: string; label?: string; description?: stri
 export type DelegationConfiguration = { enabled: false } | { enabled: true; bindings: DelegationBinding[]; maxChildren: 2; maxDepth: 1 };
 export type Configuration = {
   executionKind: "business" | "workspace";
+  program?: { id: "grounded-conversation" | "tool-directed"; version: "1" };
   instructions: string;
   model: { provider: "openrouter"; model: "nvidia/nemotron-3-super-120b-a12b:free"; maxInputBytes: number; maxOutputTokens: number; maxDurationSeconds: number };
   sourceRevisionIds?: string[];
@@ -9,11 +10,12 @@ export type Configuration = {
   retrievalProfile?: { kind: "lexical-v1" } | { kind: "hybrid-v1"; embeddingRelease: string };
   memory?: { enabled: boolean };
   context?: { maxInputTokens: number; compactAtTokens: number };
-  tools?: ("knowledge.search" | "knowledge.read" | "memory.search" | "memory.propose" | "agents.delegate" | "sandbox.analyze")[];
+  tools?: ("knowledge.search" | "knowledge.read" | "memory.search" | "memory.propose" | "agents.delegate" | "sandbox.analyze" | "channel.request_handoff")[];
   skillIds?: string[];
   capabilities: { delegation: DelegationConfiguration; sandbox: { enabled: false } | { enabled: true; profileId: "python-analysis-v1" }; businessActions: { enabled: false }; workflows: { enabled: false } | { enabled: true; profileId: "report-delivery-v1"; connectionId: string; reportArtifactName?: string; title?: string }; schedules: { enabled: false } };
 };
-export type Agent = { id: string; name: string; draft: Configuration; draftRevision: number; updatedAt: string };
+export type CustomerOffering = { id: "faq" | "customer-service" | "booking"; name: string; available: boolean; unavailableCode?: string };
+export type Agent = { offering?: "faq" | "customer-service" | null; id: string; name: string; draft: Configuration; draftRevision: number; updatedAt: string };
 export type Version = { id: string; number: number; configuration: Configuration };
 export type Deployment = { id: string; versionId: string; allowedOrigins: string[] };
 export type Organization = { id: string; name: string; role: string };

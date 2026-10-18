@@ -1,7 +1,6 @@
 import "./management.css";
-import { connectedAuthorityIds, connectedBindingAvailable } from "./connected-selection";
 import { Link } from "react-router-dom";
-import { type CapabilityBinding, type Configuration, type Connection, type KnowledgeSource } from "./api";
+import { type Configuration, type KnowledgeSource } from "./api";
 
 export function selectedEmbeddingRelease(sources: KnowledgeSource[], ids: readonly string[]): string | null {
   if (!ids.length) return null;
@@ -9,15 +8,14 @@ export function selectedEmbeddingRelease(sources: KnowledgeSource[], ids: readon
   const release = revisions[0]?.embeddingRelease;
   return release && revisions.every(revision => revision?.embeddingRelease === release) ? release : null;
 }
-export function SourceConfiguration({ sources, bindings, connections, configuration, onChange }: {
-  sources: KnowledgeSource[]; bindings: CapabilityBinding[]; connections: Connection[]; configuration: Configuration; onChange: (value: Configuration) => void;
+export function SourceConfiguration({ sources, configuration, onChange }: {
+  sources: KnowledgeSource[]; configuration: Configuration; onChange: (value: Configuration) => void;
 }) {
-  const ids = configuration.sourceRevisionIds ?? [], toolIds = configuration.connectedToolBindingIds ?? [];
-  const authorityIds = connectedAuthorityIds(configuration);
+  const ids = configuration.sourceRevisionIds ?? [];
   const embeddingRelease = selectedEmbeddingRelease(sources, ids), retrieval = configuration.retrievalProfile ?? { kind: "lexical-v1" };
-  function update(sourceRevisionIds: string[], connectedToolBindingIds = toolIds) {
+  function update(sourceRevisionIds: string[]) {
     const delegation = configuration.capabilities.delegation;
-    onChange({ ...configuration, sourceRevisionIds, connectedToolBindingIds, capabilities: { ...configuration.capabilities,
+    onChange({ ...configuration, sourceRevisionIds, capabilities: { ...configuration.capabilities,
       delegation: delegation.enabled ? { ...delegation, bindings: delegation.bindings.map(binding => ({ ...binding,
         sourceRevisionIds: (binding.sourceRevisionIds ?? []).filter(id => sourceRevisionIds.includes(id)) })) } : delegation } });
   }
@@ -33,11 +31,5 @@ export function SourceConfiguration({ sources, bindings, connections, configurat
     {sources.length && !sources.some(source => source.state === "active" && source.revisions.some(revision => revision.state === "approved")) ? <p className="text-sm text-muted-foreground">Approve a source in <Link className="underline underline-offset-4" to="/app/knowledge">Knowledge</Link>.</p> : null}
   </fieldset>
     <details className="text-sm"><summary className="cursor-pointer text-muted-foreground">Search options</summary><label className="mt-3 block space-y-2">Search method<select className="w-full min-w-0 rounded-md border border-border bg-background p-2" value={retrieval.kind} onChange={event => onChange({ ...configuration, retrievalProfile: event.target.value === "hybrid-v1" && embeddingRelease ? { kind: "hybrid-v1", embeddingRelease } : { kind: "lexical-v1" } })}><option value="lexical-v1">Keyword search</option><option value="hybrid-v1" disabled={!embeddingRelease}>Keyword and semantic search</option></select></label>{retrieval.kind === "hybrid-v1" && retrieval.embeddingRelease !== embeddingRelease ? <p role="alert" className="mt-2 text-sm text-destructive">Selected sources do not support the saved semantic search profile. Choose keyword search or compatible source revisions.</p> : !embeddingRelease ? <p className="mt-2 text-xs text-muted-foreground">Semantic search needs compatible indexed source revisions.</p> : null}</details>
-    <fieldset className="space-y-3 border-t border-border pt-6"><legend className="mb-3 text-sm font-medium">Connected tools</legend>{bindings.length ? bindings.map(binding => {
-      const connection = connections.find(item => item.id === binding.connection?.id);
-      const available = connectedBindingAvailable(binding, connections);
-      const checked = toolIds.includes(binding.id);
-      return <label key={binding.id} className="flex min-w-0 items-start gap-3 text-sm"><input className="mt-0.5 size-4 shrink-0 accent-primary" type="checkbox" checked={checked} disabled={!checked && (!available || !authorityIds.has(binding.id) && authorityIds.size >= 8)} onChange={event => update(ids, event.target.checked ? [...toolIds, binding.id] : toolIds.filter(id => id !== binding.id))} /><span className="min-w-0 break-words">{binding.definition.providerOperation.replaceAll("_", " ")}<span className="ml-2 text-xs text-muted-foreground">{connection?.name ?? "Unavailable connection"}{!available ? " · Unavailable" : ""}</span><span className="mt-1 block text-xs text-muted-foreground">{binding.resources.map(resource => resource.id).join(", ")}</span></span></label>;
-    }) : <p className="text-sm text-muted-foreground">No tools selected. <Link className="underline underline-offset-4" to="/app/connections">Manage connections</Link></p>}{toolIds.filter(id => !bindings.some(binding => binding.id === id)).map(id => <label key={id} className="flex items-start gap-3 text-sm"><input type="checkbox" className="mt-0.5 size-4 accent-primary" checked onChange={() => update(ids, toolIds.filter(value => value !== id))} />Tool unavailable</label>)}</fieldset>
   </div>;
 }

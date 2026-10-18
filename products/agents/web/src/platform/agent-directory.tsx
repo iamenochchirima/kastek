@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { api, message, organizationPath, type Agent, type AgentSummary, type ConversationSummary, type Page } from "./api";
+import { api, message, organizationPath, type Agent, type CustomerOffering, type AgentSummary, type ConversationSummary, type Page } from "./api";
 import { ErrorMessage, Loading, useWorkspace } from "./shell";
 
 type Directory = { refresh: () => void; newChat: () => void; chatGeneration: number };
@@ -25,6 +25,14 @@ export function AgentDirectory() {
   useEffect(() => { const timer = setTimeout(() => setQuery(search.trim()), 250); return () => clearTimeout(timer); }, [search]);
   const [generation, setGeneration] = useState(0), [chatGeneration, setChatGeneration] = useState(0), [historyLoading, setHistoryLoading] = useState(false);
   const [open, setOpen] = useState(false), [name, setName] = useState(""), [busy, setBusy] = useState(false), [directoryOpen, setDirectoryOpen] = useState(false);
+  const [offerings, setOfferings] = useState<CustomerOffering[] | null>(null), [offering, setOffering] = useState<"faq" | "customer-service">("faq");
+  const [creationError, setCreationError] = useState(""), [catalogueAttempt, setCatalogueAttempt] = useState(0);
+  useEffect(() => {
+    if (!open) return;
+    let live = true; setOfferings(null); setCreationError("");
+    api<{ offerings: CustomerOffering[] }>(`${path}/offerings`).then(result => { if (live) setOfferings(result.offerings); }).catch(error => { if (live) setCreationError(message(error)); });
+    return () => { live = false; };
+  }, [open, path, catalogueAttempt]);
   const scope = useRef({ path, agentId, generation, query });
   scope.current = { path, agentId, generation, query };
   const refresh = useCallback(() => setGeneration(value => value + 1), []);
@@ -48,7 +56,7 @@ export function AgentDirectory() {
   }, [path, agentId, generation]);
   async function moreAgents() { if (!agentCursor || busy) return; setBusy(true); const captured = scope.current; try { const result = await api<Page<"agents", AgentSummary>>(`${path}/agents/summaries?q=${encodeURIComponent(query)}&cursor=${encodeURIComponent(agentCursor)}`); if (scope.current.path !== captured.path || scope.current.generation !== captured.generation || scope.current.query !== captured.query) return; setAgents(current => [...(current ?? []), ...result.agents]); setAgentCursor(result.nextCursor); } catch (e) { setError(message(e)); } finally { setBusy(false); } }
   async function moreConversations() { if (!conversationCursor || !agentId || busy) return; setBusy(true); const captured = scope.current; try { const result = await api<Page<"conversations", ConversationSummary>>(`${path}/conversations?agentId=${encodeURIComponent(agentId)}&cursor=${encodeURIComponent(conversationCursor)}`); if (scope.current.path !== captured.path || scope.current.agentId !== captured.agentId || scope.current.generation !== captured.generation) return; setConversations(current => [...current, ...result.conversations]); setConversationCursor(result.nextCursor); } catch (e) { setHistoryError(message(e)); } finally { setBusy(false); } }
-  async function create(event: FormEvent) { event.preventDefault(); if (busy) return; setBusy(true); try { const result = await api<{ agent: Agent }>(`${path}/agents`, { name }); setOpen(false); setName(""); refresh(); setDirectoryOpen(false); navigate(`/app/agents/${result.agent.id}?section=configuration`); toast.success("Agent created"); } catch (e) { toast.error(message(e)); } finally { setBusy(false); } }
+  async function create(event: FormEvent) { event.preventDefault(); if (busy || !offerings?.some(item => item.id === offering && item.available)) return; setBusy(true); try { const result = await api<{ agent: Agent }>(`${path}/agents`, { name, offering }); setOpen(false); setName(""); setOffering("faq"); refresh(); setDirectoryOpen(false); navigate(`/app/agents/${result.agent.id}?section=configuration`); toast.success("Agent created"); } catch (e) { toast.error(message(e)); } finally { setBusy(false); } }
   const directory = <>
     <div className="agent-directory-heading"><h2>Agents</h2><Button aria-label="Create agent" title="Create agent" variant="ghost" size="icon" onClick={() => setOpen(true)}><Plus size={17} /></Button></div>
     <label className="agent-search"><Search size={15} /><Input aria-label="Search agents" placeholder="Search agents" value={search} onChange={event => setSearch(event.target.value)} /></label>
@@ -59,7 +67,7 @@ export function AgentDirectory() {
   </>;
   return <DirectoryContext.Provider value={{ refresh, newChat, chatGeneration }}><div className="agent-workspace"><aside className="agent-directory">{directory}</aside><div className="agent-content"><div className="agent-mobile-toolbar"><Button ref={directoryTrigger} variant="ghost" size="sm" onClick={() => setDirectoryOpen(true)}><ChevronLeft size={16} />Agents & history</Button></div><div className="agent-route" key={agentId ?? "overview"}><Outlet key={location.pathname.startsWith("/app/agents/") ? agentId : "overview"} /></div></div></div>
     <Dialog open={directoryOpen} onOpenChange={setDirectoryOpen}><DialogContent className="agent-directory-drawer" onCloseAutoFocus={event => { event.preventDefault(); directoryTrigger.current?.focus(); }}><DialogHeader><DialogTitle>Agents & history</DialogTitle><DialogDescription className="sr-only">Choose an agent or conversation.</DialogDescription></DialogHeader>{directory}</DialogContent></Dialog>
-    <Dialog open={open} onOpenChange={setOpen}><DialogContent><DialogHeader><DialogTitle>Create agent</DialogTitle><DialogDescription>Give your agent a name.</DialogDescription></DialogHeader><form onSubmit={event => void create(event)} className="space-y-4"><label className="block space-y-2 text-sm">Name<Input required maxLength={120} autoFocus value={name} onChange={event => setName(event.target.value)} /></label><Button type="submit" disabled={busy || !name.trim()}>{busy ? "Creating…" : "Create agent"}</Button></form></DialogContent></Dialog>
+    <Dialog open={open} onOpenChange={setOpen}><DialogContent><DialogHeader><DialogTitle>Create agent</DialogTitle><DialogDescription className="sr-only">Create a customer agent.</DialogDescription></DialogHeader><form onSubmit={event => void create(event)} className="space-y-4"><label className="block space-y-2 text-sm">Name<Input required maxLength={120} autoFocus value={name} onChange={event => setName(event.target.value)} /></label><ErrorMessage value={creationError} />{creationError ? <Button type="button" variant="outline" onClick={() => setCatalogueAttempt(value => value + 1)}>Try again</Button> : offerings ? <label className="block space-y-2 text-sm">Agent type<select className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm" value={offering} onChange={event => { if (event.target.value === "faq" || event.target.value === "customer-service") setOffering(event.target.value); }}>{offerings.map(item => <option key={item.id} value={item.id} disabled={!item.available}>{item.name}{!item.available ? " · Unavailable" : ""}</option>)}</select></label> : <p role="status" className="text-sm text-muted-foreground">Loading types…</p>}<Button type="submit" disabled={busy || !name.trim() || !offerings?.some(item => item.id === offering && item.available)}>{busy ? "Creating…" : "Create agent"}</Button></form></DialogContent></Dialog>
   </DirectoryContext.Provider>;
 }
 export function AgentWelcome() { return <section className="agent-welcome"><span className="agent-welcome-icon"><Bot size={30} /></span><h1>What shall we work on?</h1><p>Select an agent to start a chat.</p></section>; }

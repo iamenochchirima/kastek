@@ -1,3 +1,4 @@
+import { nativeAgent, prepareNativeSpecialists } from "./native-harness-fixture";
 import { agentSummary, conversationSummaries, configure } from "./workspace-fixtures";
 import { readFile, writeFile } from "node:fs/promises";
 import { expect, test, type Page } from "@playwright/test";
@@ -13,7 +14,7 @@ const secondVersion = "88888888-8888-4888-8888-888888888888";
 const draft = () => ({ executionKind: "business", instructions: "Research the selected sources and analyze the results.", model: { provider: "openrouter", model: "nvidia/nemotron-3-super-120b-a12b:free", maxInputBytes: 16384, maxOutputTokens: 1024, maxDurationSeconds: 120 }, sourceRevisionIds: [sourceId], connectedToolBindingIds: [], retrievalProfile: { kind: "lexical-v1" }, tools: [] as string[], capabilities: { delegation: { enabled: false, bindings: [] as { id: string; versionId: string; sourceRevisionIds: string[]; connectedToolBindingIds: string[]; tools: string[]; maxTokens: number; maxActiveMs: number }[], maxChildren: 2, maxDepth: 1 }, sandbox: { enabled: false, profileId: "" }, businessActions: { enabled: false }, workflows: { enabled: false }, schedules: { enabled: false } } });
 
 async function executionFixture(page: Page) {
-  let configuration = draft(), admissions = 0, cancels = 0, gets = 0, continuations = 0;
+  let configuration = { ...draft(), program: { id: "tool-directed", version: "1" }, tools: ["agents.delegate", "sandbox.analyze"], capabilities: { ...draft().capabilities, delegation: { enabled: true, bindings: [specialistVersion, secondVersion].map((versionId, index) => ({ id: `specialist-${index}`, versionId, sourceRevisionIds: index === 0 ? [sourceId] : [], connectedToolBindingIds: [], tools: ["knowledge.search", "knowledge.read"], maxTokens: 8000, maxActiveMs: 240000 })), maxChildren: 2, maxDepth: 1 }, sandbox: { enabled: true, profileId: "python-analysis-v1" } } }, admissions = 0, cancels = 0, gets = 0, continuations = 0;
   let task: { id: string; state: string; input: string; output: string | null; conversationId: string; requestKey: string; turnSequence: number } | null = null;
   let complete = false, cleaned = false, cleanupUnknown = false, childAuthorityExpired = false;
   const agent = () => ({ id: rootAgent, name: "Research coordinator", draft: configuration, draftRevision: 1 });
@@ -49,27 +50,11 @@ async function executionFixture(page: Page) {
 
 test("mock execution: pinned specialist scope, no-network analysis, related progress, cleanup and downloads", async ({ page }) => {
   const fixture = await executionFixture(page);
-  await page.goto(`/app/agents/${rootAgent}?section=configuration`);
-  await page.getByRole("checkbox", { name: "Delegate to specialists" }).check();
-  await page.getByRole("combobox", { name: "Specialist 1", exact: true }).selectOption(specialistVersion);
-  await page.getByRole("checkbox", { name: /^Approved report/ }).last().check();
-  await page.getByRole("checkbox", { name: "Allow knowledge search and reading" }).check();
-  await page.getByRole("button", { name: "Add specialist" }).click();
-  await expect(page.getByRole("combobox", { name: "Specialist 2", exact: true })).toHaveValue(secondVersion);
-  await page.getByRole("checkbox", { name: "Run Python analysis" }).check();
-  await page.getByRole("button", { name: "Save configuration" }).click();
-  await expect(page.getByRole("button", { name: "Save configuration" })).toBeDisabled();
+  await page.goto(`/app/agents/${rootAgent}`);
   expect(fixture.configuration().capabilities.delegation.bindings.map(binding => binding.versionId)).toEqual([specialistVersion, secondVersion]);
   expect(fixture.configuration().capabilities.delegation.bindings[0].sourceRevisionIds).toEqual([sourceId]);
   expect(fixture.configuration().capabilities.delegation.bindings[1].sourceRevisionIds).toEqual([]);
   expect(fixture.configuration().tools).toEqual(["agents.delegate", "sandbox.analyze"]);
-  expect(fixture.configuration().capabilities.sandbox.profileId).toBe("python-analysis-v1");
-  for (const width of [1440, 768, 390]) {
-    await page.setViewportSize({ width, height: 1000 });
-    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-    await page.screenshot({ path: test.info().outputPath(`execution-config-${width}.png`), fullPage: true });
-  }
-  await page.getByRole("button", { name: "Chat", exact: true }).click();
   await page.getByRole("textbox", { name: "Message" }).fill("Research and analyze this report.");
   await page.getByRole("button", { name: "Send message", exact: true }).click();
   await expect(page.getByRole("region", { name: "Specialist tasks" })).toContainText("Source researcher");
@@ -144,28 +129,17 @@ test("live execution: accepted root reconnects to specialists, isolated analysis
   const separator = cookie!.indexOf("=");
   await context.addCookies([{ name: separator > 0 ? cookie!.slice(0, separator) : new URL(baseURL!).protocol === "https:" ? "__Host-agents_session" : "agents_session", value: separator > 0 ? cookie!.slice(separator + 1) : cookie!, url: baseURL!, httpOnly: true, sameSite: "Lax" }]);
   await page.goto(agentPath!);
-  await configure(page);
   const pinnedVersions = process.env.AGENTS_ADVANCED_SPECIALIST_VERSIONS?.split(",");
   if (pinnedVersions?.length === 2) {
-    await page.getByRole("checkbox", { name: "Delegate to specialists" }).check();
-    await page.getByRole("combobox", { name: "Specialist 1", exact: true }).selectOption(pinnedVersions[0]);
-    await page.getByRole("button", { name: "Add specialist" }).click();
-    await page.getByRole("combobox", { name: "Specialist 2", exact: true }).selectOption(pinnedVersions[1]);
-    for (const position of [1, 2]) {
-      const binding = page.getByRole("group", { name: `Specialist ${position} configuration`, exact: true });
-      if (process.env.AGENTS_ADVANCED_SOURCE_TITLE) await binding.getByRole("checkbox", { name: process.env.AGENTS_ADVANCED_SOURCE_TITLE, exact: true }).check();
-      await binding.getByRole("checkbox", { name: "Allow knowledge search and reading" }).check();
-    }
-    await page.getByRole("checkbox", { name: "Run Python analysis" }).check();
-    await page.getByRole("button", { name: "Save configuration" }).click();
-    await expect(page.getByRole("button", { name: "Save configuration" })).toBeDisabled();
+    await prepareNativeSpecialists(page, { versionIds: pinnedVersions, sourceTitles: process.env.AGENTS_ADVANCED_SOURCE_TITLE ? [process.env.AGENTS_ADVANCED_SOURCE_TITLE, process.env.AGENTS_ADVANCED_SOURCE_TITLE] : undefined });
+    await page.reload();
   }
-  await expect(page.getByRole("checkbox", { name: "Delegate to specialists" })).toBeChecked();
-  await expect(page.getByRole("combobox", { name: "Specialist 1", exact: true })).not.toHaveValue("");
-  await expect(page.getByRole("combobox", { name: "Specialist 2", exact: true })).not.toHaveValue("");
-  await expect(page.getByRole("checkbox", { name: "Run Python analysis" })).toBeChecked();
+  const configured = await nativeAgent(page);
+  expect(configured.agent.draft.capabilities.delegation.enabled).toBe(true);
+  expect(configured.agent.draft.capabilities.sandbox.enabled).toBe(true);
+  if (configured.agent.draft.capabilities.delegation.enabled) expect(configured.agent.draft.capabilities.delegation.bindings).toHaveLength(2);
+  if (pinnedVersions?.length === 2) { await configure(page); await page.getByRole("button", { name: "Create version", exact: true }).click(); }
   await page.getByRole("button", { name: "Chat", exact: true }).click();
-  if (pinnedVersions?.length === 2) { await configure(page); await page.getByRole("button", { name: "Create version", exact: true }).click(); await page.getByRole("button", { name: "Chat", exact: true }).click(); }
   await expect(page.getByRole("textbox", { name: "Message" })).toBeEnabled();
   await page.getByRole("textbox", { name: "Message" }).fill(prompt!);
   const acceptedResponse = page.waitForResponse(response => /\/tasks$/.test(new URL(response.url()).pathname) && response.request().method() === "POST");

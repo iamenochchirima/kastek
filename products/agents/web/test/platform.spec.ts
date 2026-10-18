@@ -56,7 +56,7 @@ test("mock transport: draft isolation, immutable versions, task reconnect, expli
   const versions: { id: string; number: number; configuration: typeof configuration }[] = [];
   const deployments: { id: string; versionId: string; allowedOrigins: string[] }[] = [];
   let task: { id: string; state: string; output: string | null; errorCode: null; conversationId: string; input: string; requestKey: string } | null = null;
-  let privatePosts = 0, publicPosts = 0, visitorSessions = 0, taskGets = 0;
+  let privatePosts = 0, publicPosts = 0, visitorSessions = 0, taskGets = 0, publicInput = "";
   let complete = false;
   const errors: string[] = [];
   page.on("pageerror", error => errors.push(error.message));
@@ -68,17 +68,23 @@ test("mock transport: draft isolation, immutable versions, task reconnect, expli
     else if (path.endsWith("/agents/summaries")) data = {agents: agent ? [agentSummary(agent,versions[0])] : [],nextCursor:null};
     else if (path.endsWith("/conversations")) data = {conversations:task ? conversationSummaries([task],agent!,versions[0]) : [],nextCursor:null};
     else if (path.endsWith("/skills")) data = { skills: [] };
+    else if (path.endsWith("/offerings")) data = { offerings: [{ id: "faq", name: "FAQ", available: true }, { id: "customer-service", name: "Customer service", available: true }, { id: "booking", name: "Booking", available: false }] };
     else if (path.endsWith("/knowledge/sources")) data = { sources: knowledge, imports: [] };
     else if (path.endsWith("/tool-bindings")) data = { bindings: [] };
     else if (path.endsWith("/connections")) data = { connections: [], targets: [] };
     else if (path.endsWith("/knowledge/imports")) { const source = { id: mockKnowledge, title: body.title, content: Buffer.from(body.contentBase64, "base64").toString(), state: "active", visibility: "private", generation: 1, canApprove: true, revisions: [{ id: mockKnowledge, revision: 1, state: "candidate", acquiredAt: new Date().toISOString() }] }; knowledge.push(source); data = { job: { id: "job1", state: "ready" } }; }
     else if (path.endsWith("/policy")) { const source = knowledge[0]; source.generation++; if (body.action === "approve") source.revisions[0].state = "approved"; else if (body.action === "visibility") source.visibility = body.visibility; data = { source }; }
-    else if (path === `/api/organizations/${mockOrg}/agents`) { if (method === "POST") { agent = { id: mockAgent, name: body.name, draft: structuredClone(configuration), draftRevision: 1, updatedAt: new Date().toISOString() }; data = { agent }; } else data = { agents: agent ? [agent] : [] }; }
+    else if (path === `/api/organizations/${mockOrg}/agents`) { if (method === "POST") { expect(body.offering).toBe("faq"); agent = { id: mockAgent, name: body.name, draft: structuredClone(configuration), draftRevision: 1, updatedAt: new Date().toISOString() }; data = { agent }; } else data = { agents: agent ? [agent] : [] }; }
     else if (path.endsWith(`/agents/${mockAgent}`)) { if (method === "PUT") { expect(body.expectedRevision).toBe(agent!.draftRevision); agent = { ...agent!, name: body.name, draft: body.configuration, draftRevision: agent!.draftRevision + 1 }; } data = { agent, versions, deployments }; }
     else if (path.endsWith("/versions")) { const version = { id: mockVersion, number: 1, configuration: structuredClone(agent!.draft) }; versions.push(version); data = { version }; }
     else if (path.endsWith("/deployments")) { const deployment = { id: mockDeployment, ...body }; deployments.push(deployment); data = { deployment }; }
     else if (path === `/api/website/${mockDeployment}`) data = { name: agent!.name };
     else if (path.endsWith("/session")) { visitorSessions++; data = { token: "visitor-token" }; }
+    else if (path.endsWith("/customer-conversations")) data = { conversation: { id: "website-conversation", state: "automation_active" } };
+    else if (path.endsWith("/customer-conversations/website-conversation/messages")) {
+      if (method === "POST") { publicPosts++; publicInput = body.body; }
+      data = { conversation: { id: "website-conversation", state: "automation_active" }, messages: publicInput ? [{ id: "visitor", sequence: "1", authorKind: "visitor", body: publicInput, createdAt: new Date().toISOString() }, { id: "assistant", sequence: "2", authorKind: "assistant", body: "Returns are accepted within 30 days.", createdAt: new Date().toISOString() }] : [], nextSequence: publicInput ? "2" : "0" };
+    }
     else if (path.endsWith("/tasks") && method === "POST") { if (path.includes("/website/")) publicPosts++; else privatePosts++; task = { id: path.includes("/website/") ? "public-task" : "private-task", state: "accepted", output: null, errorCode: null, conversationId: "conversation", input: body.input, requestKey: body.requestKey }; data = { task }; }
     else if (path.includes("/conversations/")) data = { tasks: task ? [{...task,versionId:mockVersion,turnSequence:1}] : [],nextCursor:null,conversation:{versionId:mockVersion,versionNumber:1} };
     else if (path.includes("/tasks/")) { taskGets++; task = { ...task!, state: complete || path.includes("/website/") ? "completed" : "running", output: complete || path.includes("/website/") ? "Returns are accepted within 30 days." : null }; data = { task, events: [] }; }
@@ -195,35 +201,36 @@ test("live platform: authenticated knowledge, private reply, task recovery and p
     await expect(page.getByText(/30\s+days|thirty\s+days/i)).toBeVisible({ timeout: 120_000 });
     await noOverflow(page);
     await page.screenshot({ path: test.info().outputPath("external-widget-mobile.png"), fullPage: true });
-    const recoveredTaskIds: string[] = [];
+    const recoveredMessageIds: string[] = [];
     const requestKeys: string[] = [];
-    const taskEndpoint = `**/api/website/${deploymentId}/tasks`;
+    const taskEndpoint = `**/api/website/${deploymentId}/customer-conversations/*/messages`;
     await page.route(taskEndpoint, async route => {
       if (route.request().method() !== "POST") { await route.continue(); return; }
       requestKeys.push(route.request().postDataJSON().requestKey);
       const accepted = await route.fetch();
       expect(accepted.ok()).toBe(true);
-      recoveredTaskIds.push((await accepted.json()).task.id);
-      if (recoveredTaskIds.length === 1) await route.abort("failed");
+      recoveredMessageIds.push((await accepted.json()).message.id);
+      if (recoveredMessageIds.length === 1) await route.abort("failed");
       else await route.fulfill({ response: accepted });
     });
     await page.getByRole("textbox", { name: "Message" }).fill("Do I need a receipt?");
     await page.getByRole("button", { name: "Send", exact: true }).click();
-    await expect(page.getByRole("button", { name: "Retry request", exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Retry message", exact: true })).toBeVisible();
     await expect(page.getByRole("button", { name: "Send", exact: true })).toBeDisabled();
-    expect(recoveredTaskIds).toHaveLength(1);
+    expect(recoveredMessageIds).toHaveLength(1);
     await page.reload();
     await page.getByRole("button", { name: "Chat", exact: true }).click();
-    await expect(page.getByRole("button", { name: "Retry request", exact: true })).toBeVisible();
-    expect(recoveredTaskIds).toHaveLength(1);
-    await page.getByRole("button", { name: "Retry request", exact: true }).click();
-    await expect(page.getByText(/30\s+days|thirty\s+days/i)).toBeVisible({ timeout: 120_000 });
-    expect(recoveredTaskIds).toHaveLength(2);
-    expect(recoveredTaskIds[1]).toBe(recoveredTaskIds[0]);
+    await expect(page.getByRole("button", { name: "Retry message", exact: true })).toBeVisible();
+    expect(recoveredMessageIds).toHaveLength(1);
+    await page.getByRole("button", { name: "Retry message", exact: true }).click();
+    await expect(page.getByText(/30\s+days|thirty\s+days/i)).toHaveCount(2, { timeout: 120_000 });
+    await expect.poll(() => recoveredMessageIds.length).toBe(2);
+    await expect(page.getByRole("button", { name: "Retry message", exact: true })).toHaveCount(0);
+    expect(recoveredMessageIds[1]).toBe(recoveredMessageIds[0]);
     expect(requestKeys[1]).toBe(requestKeys[0]);
     await page.unroute(taskEndpoint);
     await page.screenshot({ path: test.info().outputPath("external-widget-recovered-mobile.png"), fullPage: true });
-    console.log(`Lost widget response recovered original task ${recoveredTaskIds[0]} after reload and explicit retry`);
+    console.log(`Lost widget response recovered original customer message ${recoveredMessageIds[0]} after reload and explicit retry`);
   }
   console.log(`Verified editor ${editorUrl}; private task ${taskId}; published ${publicPath}`);
 });
