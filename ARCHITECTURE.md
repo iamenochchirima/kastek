@@ -1,5 +1,7 @@
 # KasiTek source and runtime architecture
 
+Owner: Platform engineering. Last reviewed: 2026-10-18.
+
 KasiTek uses a Git monorepo with independently deployable products. Source ownership is expressed
 by product directories and shared package exports. Co-location does not grant cross-product
 membership, database access or permission to call internal operations.
@@ -12,7 +14,7 @@ membership, database access or permission to call internal operations.
 | `products/growth/database/` | Growth Prisma database package |
 | `products/growth/api/` | Growth API, provider callbacks and workers |
 | `products/agents/api/` | Agents API, fresh platform schema, Restate business worker and tests |
-| `products/agents/web/` | Agents management UI |
+| `products/agents/web/` | Agents customer-service client; current local management implementation |
 | `products/agency/api/` | Tenant API, migrations and workers |
 | `products/agency/web/` | Partner and tenant portal |
 | `products/agency/api-client/` | Private React tenant API client |
@@ -43,6 +45,12 @@ separates the shared execution service from the standalone Agents product. Growt
 embed features through an authenticated execution API without requiring their customers to create
 Agents-product accounts, memberships, or subscriptions. Product permissions, entitlements, and
 workspace structures remain separately owned.
+
+The standalone client targets mostly plug-and-play support, FAQ, booking, and intake agents
+for customer channels, with a shared staff inbox. Research and campaign customer experiences
+belong in Growth or Agencies. The Agents client catalogue is separate from shared runtime
+capabilities. Website/widget execution exists; the shared customer inbox, staff takeover/reply/
+return controls, WhatsApp, Facebook, Instagram, and booking integrations are not implemented.
 
 External agents access product MCP through OAuth or deliberately supported scoped keys. Embedded
 product backends call the shared execution API. Executing agents call typed owning-product APIs

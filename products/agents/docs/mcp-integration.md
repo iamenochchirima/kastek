@@ -1,6 +1,8 @@
 # Integration boundaries
 
-Agents uses two execution kinds: `business` and `workspace`. Connections do not
+Owner: Agents engineering. Last reviewed: 2026-10-18.
+
+The shared execution service uses two technical execution kinds: `business` and `workspace`. Connections do not
 create another agent category. Business execution uses Restate; the Lina workspace
 adapter remains unavailable.
 
@@ -8,8 +10,15 @@ adapter remains unavailable.
 | --- | --- | --- |
 | External agents to Growth or Agencies | Product-owned MCP with OAuth or scoped API keys. | Separate product work; no Agents gateway. |
 | Product backends to Agents execution | Authenticated service with initiating identity and bounded authority. | Future integration. |
+| Customer channels to Agents | Verified channel binding, customer event identity, conversation ownership, and authorized automated or human replies. | Website/widget execution exists. WhatsApp, Facebook, Instagram and shared customer inbox controls are not implemented. |
 | Business agents to external reads | Immutable selected native HTTP or MCP bindings, current connection/resource authority and durable receipts. | Public repository and Stash profiles implemented; see acceptance status below. |
 | Business agents to report delivery | Exact report bytes, one human approval, one dispatch claim, status-only recovery. | ReportDeliveryHTTP with a verified persistent local receiver. |
+
+Customer channels are separate from external-agent MCP access and outbound tool connections.
+The standalone client targets support, FAQ, booking, and intake. Research and campaign experiences
+belong in Growth or Agencies. The read/report adapters below are shared runtime capabilities;
+they do not define the Agents client catalogue. Provider OAuth and generic MCP-server onboarding
+are not implemented by the current bearer-key profiles.
 
 ## Public repository reads
 

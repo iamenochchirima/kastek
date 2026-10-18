@@ -1,6 +1,15 @@
 # Kasitek Agents
 
-The standalone Agents product creates, configures, and tests business agents with
+Owner: Agents engineering. Last reviewed: 2026-10-18.
+
+The standalone product targets mostly plug-and-play customer-service, FAQ, booking, and intake
+agents for websites, WhatsApp, Facebook pages, and Instagram, with a shared staff inbox. Research
+and campaign experiences belong in Growth or Agencies using the shared execution backend.
+Only the website/widget path currently exists. The shared customer inbox, human takeover, other
+channel integrations, and booking operations are not implemented. See the
+[product and inbox contracts](docs/architecture/agent-platform-architecture.md#standalone-agents-product).
+
+The current local application creates, configures, and tests business agents with
 conversation context, reviewed personal memory, pinned skills, bounded tool rounds,
 recorded context compaction, bounded business subagents and optional isolated Python analysis. Restate coordinates durable execution. A minimal
 knowledge-backed website FAQ uses the same harness with optional capabilities
@@ -136,6 +145,9 @@ original root budget.
 
 ## Reviewed reports and automation
 
+This setup verifies shared runtime capabilities. It does not add research or campaign offerings
+to the standalone client. Those customer experiences belong in Growth or Agencies.
+
 Configure the connection keyring and destination allowlist in `api/.env` using
 `api/.env.example`. Keys contain 32 random bytes encoded as base64; keep them
 outside Git and PostgreSQL. Every destination names one HTTPS `/deliveries`
@@ -153,6 +165,10 @@ OAuth or external MCP connection. See the [implementation boundary](docs/source-
 for policy, expiry and uncertainty behavior.
 
 ## Platform interface
+
+This section describes the current management interface. The target customer-service inbox and
+guided agent setup are not present. Runtime research/report fixtures do not define the Agents
+client catalogue.
 
 The public root restores the landing page. Sign in and Get started use the configured
 identity provider; registration requires email verification. A signed, transaction-bound

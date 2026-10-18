@@ -1,6 +1,8 @@
 # Agents threat model
 
-This reference covers the standalone API, business harness, dedicated database,
+Owner: Agents engineering. Last reviewed: 2026-10-18.
+
+This reference covers the current management API, shared business harness, dedicated database,
 private content store, website widget, identity provider, and model boundary. It
 describes current controls and does not certify a production deployment.
 
@@ -23,6 +25,21 @@ Website access binds deployment, allowed origin, visitor session, version, and
 approved public knowledge. Website agents cannot enable personal memory, skills,
 or memory tools. An origin check does not replace the visitor's scoped session.
 
+## Target channels and customer inbox
+
+The shared customer inbox and its assignment, takeover, human reply, and return-to-automation
+controls are not implemented. WhatsApp, Facebook, Instagram, and booking integrations are also
+unavailable. Existing website visitor sessions do not establish these future controls.
+
+The target requires verified channel ingress, trusted tenant and agent bindings, deduplicated
+events, and scoped customer conversations. Staff access and assignment require product permission.
+Takeover changes conversation ownership before further automated replies or actions can be
+admitted. Pending sends must recheck ownership. In-flight operations report their actual outcomes;
+uncertainty requires reconciliation. Staff replies need channel authority, and returning control
+to automation must be explicit. A channel identity does not grant access to private customer
+records or permit cross-channel identity merging. These controls require implementation and
+end-to-end verification before the corresponding product capabilities are offered.
+
 ## Context, memory, and tools
 
 The harness builds bounded context from authorized history, knowledge, approved
@@ -32,7 +49,7 @@ Skills are reviewed, immutable instructions subordinate to trusted policy.
 
 Every tool call passes server validation against the selected configuration.
 The current tools search or read approved knowledge, read personal memory, or
-propose a candidate, delegate scoped research, or request isolated analysis. The model cannot directly dispatch external report writes. Memory
+propose a candidate, delegate bounded specialist work, or request isolated analysis. The model cannot directly dispatch external report writes. Memory
 acceptance, correction, and forgetting require authenticated management actions.
 No prompt instruction substitutes for those checks.
 

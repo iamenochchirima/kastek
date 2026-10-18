@@ -1,9 +1,32 @@
 # Implementation boundary
 
+Owner: Agents engineering. Last reviewed: 2026-10-18.
+
 Agents is a fresh standalone product. Its API and business worker use the dedicated
 `agents_platform` PostgreSQL schema. Setup loads the ordered SQL files in
 `api/schema/` into a fresh database and checks their combined digest on subsequent
 startup. It does not migrate an older database or import Growth state.
+
+## Product scope and implementation gaps
+
+The [target product](architecture/agent-platform-architecture.md#standalone-agents-product)
+offers mostly plug-and-play customer-service, FAQ, booking, and intake agents, with connected
+customer channels and a shared staff inbox. Growth and Agencies own research, campaign, content,
+and agency experiences using the shared execution backend. Shared runtime capability tests do
+not establish those offerings in the standalone Agents catalogue.
+
+The current application is a runtime and management foundation. Its name-only creation flow uses
+the same FAQ defaults; it does not implement outcome-specific guided setup. Direct agent chat and
+principal-scoped conversation history are implemented. A shared customer inbox, staff assignment,
+human takeover, human channel replies, and explicit return to automation are not implemented.
+The automation occurrence inbox below is an event deduplication mechanism, not a customer inbox.
+
+Website publication and widget conversations exist. WhatsApp, Facebook, Instagram, booking and
+calendar adapters remain unavailable. Connections exposes narrow report/public-repository/GitHub/
+Stash profiles. Provider OAuth, verified account identity, resource browsing, provider health and
+reauthorization are absent. Current screens do not yet fulfil the target connection experience.
+Research/report acceptance fixtures prove execution behavior, not a standalone research product.
+The runtime's reviewed personal memory does not imply a personal-assistant catalogue offering.
 
 ## Current modules
 

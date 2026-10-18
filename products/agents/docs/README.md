@@ -1,5 +1,13 @@
 # Agents documentation
 
+Owner: Agents engineering. Last reviewed: 2026-10-18.
+
+The standalone product targets customer-service, FAQ, booking, and intake agents across customer
+channels, with a shared inbox for staff support. Research and campaign experiences belong in
+Growth or Agencies. The [product boundary and inbox contract](architecture/agent-platform-architecture.md#standalone-agents-product)
+define that scope. Inbox, human takeover, and the additional channel and booking integrations
+remain unimplemented. The current interface is a runtime and management foundation.
+
 The current business harness supports contextual conversations, reviewed personal
 memory, pinned skills, bounded tool rounds, and recorded compaction. Optional
 delegation, isolated analysis, reviewed report delivery, durable automation, approved knowledge revisions and connected read tools are opt-in. These documents describe the maintained

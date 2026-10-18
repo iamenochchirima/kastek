@@ -1,6 +1,6 @@
 # Agents platform architecture
 
-Updated: 2026-10-18.
+Owner: Agents engineering. Last reviewed: 2026-10-18.
 
 This is the target architecture agreed with the owner. It defines the shared execution service
 and the standalone Agents product separately. Design against these boundaries first. Existing
@@ -15,7 +15,7 @@ current implementation; it does not constrain the target design.
 | --- | --- | --- |
 | Growth | Users initialize and use content, campaign, and guidance features inside Growth. | Growth membership, resource permissions, commercial entitlement, and business rules. |
 | Agencies | Users initialize and use agency agent features inside Agencies. | Agencies membership, client and workspace boundaries, entitlement, and business rules. |
-| Standalone Agents | Customers configure support, FAQ, and personal agents through the Agents product. | Agents-product membership, resources, entitlement, and publication rules. |
+| Standalone Agents | Businesses configure customer-service, FAQ, booking, and intake agents, connect customer channels, and manage conversations in a shared inbox. | Agents-product membership, resources, entitlement, and publication rules. |
 | Shared execution service | Backends submit authorized work and retrieve progress, results, and reviews. | Authenticated caller plus a validated, bounded execution grant. |
 
 A Growth or Agencies customer does not need an Agents-product account, membership, subscription,
@@ -29,23 +29,70 @@ service calls owning-product APIs and never reads or writes another product's da
 product features operate without the execution service. Agent-powered features may depend on it
 and must report its unavailability in their own interface.
 
-## Standalone workspace interface
+## Standalone Agents product
 
-The public landing page leads to provider-backed registration and sign-in. The
-private workspace has Agents, Tasks, Knowledge, Connections, Automations and
-Settings. Each available business agent opens ordinary Chat, with Activity and
-Configure tabs. Research, support and campaign roles share this interface.
+The Agents client offers mostly plug-and-play customer-facing agents. Its catalogue covers
+customer service, FAQs, bookings, and intake. Research, campaign, content, and agency operations
+belong in Growth or Agencies. Shared runtime support for those capabilities does not add those
+offerings to the Agents client. A standalone personal-assistant offering is outside this agreed
+client scope. The two technical execution categories remain platform contracts.
 
-Server conversation discovery is principal-scoped. A conversation pins its original
-agent version; editing a draft or creating another version does not change it.
-Unknown admissions retain their request identity through navigation. Accepted work
-continues independently of the visible page. Progress, sources, reports and exact
-review packets use the same authorized task contracts in chat and task details.
+Agent purpose, customer channel, and business-system connection are separate configuration:
 
-Configure retains explicit source/tool/specialist permissions, memory review, pinned
-skills, isolated analysis and website publication. The chat composer initially
-accepts text. Knowledge imports remain separate reviewed-source operations.
-Workspace execution remains unavailable until its Lina adapter exists.
+| Configuration | Meaning |
+| --- | --- |
+| Purpose | The customer outcome, such as answering questions, resolving support requests, booking, or intake. One agent can support several purposes. |
+| Channel | Where customers communicate, including websites, WhatsApp, Facebook pages, and Instagram. One agent can serve multiple authorized channels. |
+| Business-system connection | An authorized account and permitted resources or operations in a booking system, calendar, CRM, or other customer system. |
+
+Setup starts with the business outcome and collects its required business information, knowledge,
+connections, operating rules, and human handoff settings. Customers test the agent before binding
+a published version to a supported channel. A named offering is available only when its required
+adapters and business operations work. Generic runtime tools do not establish booking or channel
+support. Publication and current grants bound the agent's authority.
+
+### Workspace and agent chat
+
+The public landing leads to registration and sign-in. The target workspace includes Inbox,
+Agents, Knowledge, Connections, Tasks, Automations, and Settings. Inbox is the customer-service
+workspace. Every agent also supports direct Chat for setup, testing, and permitted interaction,
+with Activity and Configure available. Direct operator chat and task history do not replace Inbox.
+
+Connections distinguishes customer channels from business-system connections. Customers authorize
+accounts, choose resources and permitted operations, and bind them to agents. Adapter transport
+and runtime categories do not define the customer-facing catalogue. Provider authorization,
+connection health, and channel availability must reflect actual integration support.
+
+Execution conversations pin their admitted agent version. Draft edits and new versions do not
+silently change accepted work. Reconnect follows the accepted task and original request identity.
+Knowledge imports remain separate reviewed-source operations. Product setup exposes capabilities
+needed for its customer outcome rather than every shared-runtime configuration control.
+
+### Shared channel inbox and human support
+
+Inbox brings customer conversations from connected channels into the Agents product. Authorized
+staff can inspect a conversation and its channel, agent, customer context, assignment, ownership,
+and delivery state. They can assign conversations, handle escalations, take over, reply as a
+human, and explicitly return control to automation. Customer history is subject to staff access
+policy. Private operator chats are not automatically visible to other staff through Inbox.
+
+The conversation has one explicit automation or human ownership decision. Handoff and return to
+automation must be recorded and enforced by trusted backend code. Exact state names and transition
+APIs remain to be specified. Takeover prevents new automated replies and actions under the old
+ownership. Active reasoning receives a cancellation request. Already-started operations can still
+complete and require reconciliation before retry. Hiding an automated reply in the browser does
+not implement takeover. Queued replies must recheck current ownership before dispatch.
+
+Channel adapters preserve verified ingress, event identity, ordering, and delivery outcomes.
+Human replies use the authorized channel and its provider restrictions. Repeated provider events
+or lost acknowledgements must not create duplicate tasks or sends. A channel identity alone does
+not establish access to private customer records. Cross-channel customer linking requires a
+verified identity and explicit policy.
+
+These are target contracts. The current client lacks the shared customer inbox, staff assignment,
+and human takeover/reply/return flow. The website/widget path exists; WhatsApp, Facebook, Instagram,
+booking adapters, and their end-to-end product journeys remain unimplemented. The
+[implementation boundary](../source-boundary.md) records current behavior.
 
 ## Three integration boundaries
 
@@ -79,7 +126,8 @@ flowchart TB
   agenciesBackend -->|Authorized execution request| executionApi
   agentsBackend -->|Authorized execution request| executionApi
   channels[Website and messaging] <--> channelAdapters[Channel adapters]
-  channelAdapters <--> executionApi
+  channelAdapters <--> agentsBackend
+  agentsBackend <--> inbox[Shared customer inbox and conversation ownership]
 
   executionApi --> admission[Admission and execution grants]
   admission --> records[(Accepted tasks and grant references)]
@@ -631,9 +679,9 @@ for exact limits, review semantics and uncertainty handling.
 
 Exactly two execution categories remain. Workspace tasks fail before acceptance until the Lina
 adapter is implemented. The initial connected action is exact reviewed report delivery through ReportDeliveryHTTP; arbitrary business-write adapters remain unavailable. Durable UTC one-shot/interval schedules and authenticated events use explicit automation authorization. Additional workflow profiles remain unavailable. Delegation and analysis require their published configuration, bounded current grants and available runtime/storage.
-The standalone runtime probes exercise future coordination mechanisms without exposing those
-capabilities in the product. External MCP, embedded Growth and Agencies admission and evaluator
-adapters are also unavailable.
+Shared runtime probes verify coordination capabilities without establishing customer catalogue
+offerings. Selected outbound MCP reads are implemented. External-agent access to product MCP,
+embedded Growth and Agencies admission, and evaluator adapters remain unavailable.
 
 Remaining work includes embedded-product authorization/resource mapping, concrete third-party adapters,
 commercial billing, production storage operations, other channels, Lina hosting and production
