@@ -61,6 +61,12 @@ test("mock transport: default chat, server history after storage clear, pinned c
     await expect(page.getByRole("textbox", { name: "Message", exact: true })).toBeInViewport();
     if (width === 390) { await page.getByRole("button", { name: "Agents & history" }).click(); await expect(page.getByRole("dialog")).toBeVisible(); await page.keyboard.press("Escape"); await expect(page.getByRole("button", { name: "Agents & history" })).toBeFocused(); }
     await page.screenshot({ path: test.info().outputPath(`workspace-${width}.png`) });
+    if (width === 390) {
+      await page.evaluate(() => { Object.defineProperty(window.visualViewport!, "height", { configurable: true, value: 520 }); window.visualViewport!.dispatchEvent(new Event("resize")); });
+      expect(await page.locator(".chat-composer").evaluate(element => element.getBoundingClientRect().bottom)).toBeLessThanOrEqual(520);
+      await page.evaluate(() => { Reflect.deleteProperty(window.visualViewport!, "height"); window.visualViewport!.dispatchEvent(new Event("resize")); });
+    }
+
   }
 });
 

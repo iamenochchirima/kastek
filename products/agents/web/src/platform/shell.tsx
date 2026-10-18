@@ -17,6 +17,13 @@ export function WorkspaceShell() {
   const navigate = useNavigate();
   const location = useLocation();
   const navigationTrigger = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    const viewport = window.visualViewport;
+    if (!viewport) return;
+    const resize = () => document.documentElement.style.setProperty("--workspace-height", `${viewport.height}px`);
+    resize(); viewport.addEventListener("resize", resize);
+    return () => { viewport.removeEventListener("resize", resize); document.documentElement.style.removeProperty("--workspace-height"); };
+  }, []);
   const [navigationOpen, setNavigationOpen] = useState(false);
   const [session, setSession] = useState<Session | null>(null);
   const [organizationId, setOrganizationId] = useState("");

@@ -668,7 +668,7 @@ html[data-density="compact"] [data-slot="card-content"] {
 :root { --font-geist: "Geist", sans-serif; --font-geist-mono: "Geist Mono", monospace; }
 
 /* Agents workspace */
-.workspace-shell { display: grid; grid-template-columns: 216px minmax(0, 1fr); height: 100dvh; min-height: 0; overflow: hidden; background: var(--card); }
+.workspace-shell { display: grid; grid-template-columns: 216px minmax(0, 1fr); height: min(100dvh, var(--workspace-height, 100dvh)); min-height: 0; overflow: hidden; background: var(--card); }
 .workspace-sidebar { display: flex; flex-direction: column; gap: 24px; min-width: 0; padding: 28px 16px 16px; border-right: 1px solid var(--border); background: var(--card); }
 .workspace-brand { display: flex; align-items: center; gap: 10px; padding: 0 12px; font-size: 20px; font-weight: 600; letter-spacing: -.04em; }
 .brand-symbol { display: grid; width: 30px; height: 30px; place-items: center; border-radius: 9px; background: var(--primary); color: white; }
