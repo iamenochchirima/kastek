@@ -779,7 +779,10 @@ The external Harbor adapter submits isolated pinned trials through normal native
 Controlled acceptance covers FAQ, ordered follow-ups, customer Inbox ownership, specialist research,
 real isolated analysis, reviewed reports and uncertain delivery reconciliation. Native outcomes,
 coverage and verifier/quality results remain separate. Unsupported or withheld evidence cannot
-become a passing grade. Remaining suite, recovery and model-quality criteria stay in Linear.
+establish a passing quality grade. A control verifier may independently grade ownership or
+effect safety from complete authoritative receipts while model-quality evidence remains
+unsupported or inconclusive. Each result names the criterion and evidence it actually checks.
+Remaining suite, recovery and model-quality criteria stay in Linear.
 External-agent access to Growth/Agencies MCP remains separate product work.
 
 Remaining work includes embedded-product authorization/resource mapping, concrete third-party adapters,

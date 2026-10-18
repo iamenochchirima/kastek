@@ -226,9 +226,10 @@ membership, permissions, and domain records. Embedded execution remains unavaila
 
 ### Chat navigation and recovery
 
-Every available business agent opens Chat. Configure groups existing instructions,
-source/tool pins, specialist limits, analysis, reports, memory, skills and website
-publication. Draft saves and immutable version creation remain separate operations.
+Every available customer agent opens Chat. Configure contains instructions,
+approved knowledge revisions, human support and website publication. Developer and
+product fixtures configure specialists, analysis, reports, memory and skills through
+authorized APIs. Draft saves and immutable version creation remain separate operations.
 An existing conversation keeps its version. A version change starts a new chat.
 
 The global sidebar contains Agents, Tasks, Knowledge, Connections, Automations and
