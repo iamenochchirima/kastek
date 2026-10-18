@@ -142,9 +142,13 @@ test("live platform: authenticated knowledge, private reply, task recovery and p
   const agentName = `FAQ ${suffix}`;
   await createAgent(page, agentName);
   const editorUrl = page.url();
-  await addKnowledge(page, `Returns ${suffix}`, "Acme accepts returns within 30 days with a receipt.");
+  await addKnowledge(page, `Returns ${suffix}`, "Returns FAQ\nHow many days do I have to return an item?\nWhat is the return window?\nHow long do returns take?\nDo I need a receipt?\nAcme accepts returns within 30 days with a receipt.");
   await openAgent(page, agentName);
   await attachKnowledge(page, `Returns ${suffix}`);
+  await page.getByText("Search options", { exact: true }).click();
+  await page.getByRole("combobox", { name: "Search method", exact: true }).selectOption("hybrid-v1");
+  await page.getByRole("button", { name: "Save configuration", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Save configuration", exact: true })).toBeDisabled();
   await page.getByRole("button", { name: "Chat", exact: true }).click();
   await configure(page);
   await page.getByRole("button", { name: "Create version", exact: true }).click();
@@ -187,7 +191,7 @@ test("live platform: authenticated knowledge, private reply, task recovery and p
     await page.goto(`${process.env.AGENTS_BROWSER_WIDGET_ORIGIN}/?deployment=${deploymentId}`);
     await page.getByRole("button", { name: "Chat", exact: true }).click();
     await page.getByRole("textbox", { name: "Message" }).fill("How long do returns take?");
-    await page.getByRole("button", { name: "Send message", exact: true }).click();
+    await page.getByRole("button", { name: "Send", exact: true }).click();
     await expect(page.getByText(/30\s+days|thirty\s+days/i)).toBeVisible({ timeout: 120_000 });
     await noOverflow(page);
     await page.screenshot({ path: test.info().outputPath("external-widget-mobile.png"), fullPage: true });
@@ -204,9 +208,9 @@ test("live platform: authenticated knowledge, private reply, task recovery and p
       else await route.fulfill({ response: accepted });
     });
     await page.getByRole("textbox", { name: "Message" }).fill("Do I need a receipt?");
-    await page.getByRole("button", { name: "Send message", exact: true }).click();
+    await page.getByRole("button", { name: "Send", exact: true }).click();
     await expect(page.getByRole("button", { name: "Retry request", exact: true })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Send message", exact: true })).toBeDisabled();
+    await expect(page.getByRole("button", { name: "Send", exact: true })).toBeDisabled();
     expect(recoveredTaskIds).toHaveLength(1);
     await page.reload();
     await page.getByRole("button", { name: "Chat", exact: true }).click();
