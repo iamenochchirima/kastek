@@ -50,29 +50,44 @@ async function sourceAllowed(db: Db, execution: Execution, revisionId: string): 
     const root = await loadExecution(db, execution.task.root_task_id); await sourceAllowed(db, root, revisionId);
   }
 }
+async function rootRoleAllows(db:Db,root:Execution,roleId:string,versionId:string,bindingId:string):Promise<void>{
+  const role=root.configuration.capabilities.delegation.enabled?root.configuration.capabilities.delegation.bindings.find(role=>role.id===roleId):undefined;
+  if(!role||role.versionId!==versionId||!role.connectedToolBindingIds.includes(bindingId)||!connectedToolAuthorityIds(root.configuration).includes(bindingId))throw denied();
+  const grant=(await db.query("SELECT connected_tool_binding_ids,operations,revoked_at FROM agents_platform.execution_grants WHERE id=$1",[root.task.grant_id])).rows[0];
+  if(grant?.revoked_at)throw unavailable();
+  if(!grant?.operations.includes("connected.read")||!grant.connected_tool_binding_ids.includes(bindingId)||!(await db.query("SELECT 1 FROM agents_platform.version_connected_tools WHERE organization_id=$1 AND version_id=$2 AND binding_id=$3",[root.task.organization_id,root.task.version_id,bindingId])).rowCount)throw denied();
+}
 export async function assertChildConnectedAuthority(db:Db,child:Execution,bindingId:string):Promise<void>{
   if(!child.task.parent_task_id)return;
   const root=await loadExecution(db,child.task.root_task_id);
   const delegation=(await db.query("SELECT binding_id,parent_task_id FROM agents_platform.delegations WHERE child_task_id=$1",[child.task.id])).rows[0];
-  const role=root.configuration.capabilities.delegation.enabled?root.configuration.capabilities.delegation.bindings.find(role=>role.id===delegation?.binding_id):undefined;
-  if(!delegation||delegation.parent_task_id!==root.task.id||child.task.parent_task_id!==root.task.id||child.task.organization_id!==root.task.organization_id||await owner(db,child)!==await owner(db,root)||!role||role.versionId!==child.task.version_id||!role.connectedToolBindingIds.includes(bindingId)||!connectedToolAuthorityIds(root.configuration).includes(bindingId))throw denied();
-  const grant=(await db.query("SELECT connected_tool_binding_ids,operations FROM agents_platform.execution_grants WHERE id=$1",[root.task.grant_id])).rows[0];
-  if(!grant?.operations.includes("connected.read")||!grant.connected_tool_binding_ids.includes(bindingId)||!(await db.query("SELECT 1 FROM agents_platform.version_connected_tools WHERE organization_id=$1 AND version_id=$2 AND binding_id=$3",[root.task.organization_id,root.task.version_id,bindingId])).rowCount)throw denied();
+  if(!delegation||delegation.parent_task_id!==root.task.id||child.task.parent_task_id!==root.task.id||child.task.organization_id!==root.task.organization_id||await owner(db,child)!==await owner(db,root))throw denied();
+  await rootRoleAllows(db,root,delegation.binding_id,child.task.version_id,bindingId);
+}
+async function historyOrigins(db:Db,current:Execution,extra:string[]):Promise<Execution[]>{
+  const origins:Execution[]=[],seen=new Set<string>(),queue:{id:string;consumer:Execution}[]=extra.map(id=>({id,consumer:current}));
+  async function linked(consumer:Execution){for(const row of(await db.query("SELECT h.origin_task_id FROM agents_platform.evidence_history_links h JOIN agents_platform.evidence_nodes n ON n.id=h.node_id WHERE n.task_id=$1",[consumer.task.id])).rows)queue.push({id:row.origin_task_id,consumer});}
+  await linked(current);
+  while(queue.length){const item=queue.shift()!;if(item.id===item.consumer.task.id)throw integrity();
+    const origin=await loadExecution(db,item.id);
+    if(origin.task.parent_task_id||!["completed","incomplete","refused","failed","cancelled","uncertain"].includes(origin.task.state)||origin.task.organization_id!==current.task.organization_id||origin.task.conversation_id!==current.task.conversation_id||origin.agentId!==current.agentId||requestDigest(origin.task.principal)!==requestDigest(current.task.principal)||BigInt(origin.task.turn_sequence)>=BigInt(item.consumer.task.turn_sequence))throw denied();
+    if(seen.has(item.id))continue;if(seen.size>=32)throw new PlatformError("EVIDENCE_LIMIT",413,"History provenance exceeds its origin limit");seen.add(item.id);await inspectionAuthority(db,origin);origins.push(origin);await linked(origin);
+  }return origins;
 }
 async function suppliedNodes(db:Db,execution:Execution):Promise<EvidenceNode[]>{
   const rows=(await db.query("SELECT * FROM agents_platform.evidence_nodes WHERE root_task_id=$1",[execution.task.root_task_id])).rows.map(nodeDto),graph=new Map(rows.map(node=>[node.id,node]));
   const roots=rows.filter(node=>node.taskId===execution.task.id);collectDependencyGraph(roots.map(node=>node.id),graph);
   const seen=new Set<string>();const visit=(id:string):void=>{if(seen.has(id))return;seen.add(id);for(const parent of graph.get(id)!.parents)visit(parent);};roots.forEach(node=>visit(node.id));return rows.filter(node=>seen.has(node.id));
 }
-async function connectionEvidenceBinding(db:Db,execution:Execution,dependency:Extract<EvidenceDependency,{kind:"connection"}>):Promise<CapabilityBinding>{
-  const own=execution.configuration.connectedToolBindingIds;
-  const candidates=[...own];const delegated=new Map<string,Execution>();
+async function connectionEvidenceBinding(db:Db,execution:Execution,dependency:Extract<EvidenceDependency,{kind:"connection"}>,origins:Execution[]=[]):Promise<CapabilityBinding>{
+  const own=execution.configuration.connectedToolBindingIds,candidates=[...own],delegated=new Map<string,Execution>();
   if(!execution.task.parent_task_id){
-    for(const node of await suppliedNodes(db,execution)){
-      if(node.taskId===execution.task.id||node.kind!=="child_result"||!node.manifest.dependencies.some(item=>requestDigest(item)===requestDigest(dependency)))continue;
+    for(const origin of [execution,...origins])for(const node of await suppliedNodes(db,origin)){
+      if(node.taskId===origin.task.id||node.kind!=="child_result"||!node.manifest.dependencies.some(item=>requestDigest(item)===requestDigest(dependency)))continue;
       const child=await loadExecution(db,node.taskId);
-      if(child.task.parent_task_id!==execution.task.id||!child.task.output||!["completed","incomplete","refused","failed","cancelled","uncertain"].includes(child.task.state))continue;
-      for(const id of child.configuration.connectedToolBindingIds){await assertChildConnectedAuthority(db,child,id);candidates.push(id);delegated.set(id,child);}
+      if(child.task.parent_task_id!==origin.task.id||!child.task.output||!["completed","incomplete","refused","failed","cancelled","uncertain"].includes(child.task.state))continue;
+      const roleId=(await db.query("SELECT binding_id FROM agents_platform.delegations WHERE child_task_id=$1",[child.task.id])).rows[0]?.binding_id;
+      for(const id of child.configuration.connectedToolBindingIds){await assertChildConnectedAuthority(db,child,id);await rootRoleAllows(db,execution,roleId,child.task.version_id,id);candidates.push(id);delegated.set(id,child);}
     }
   }
   const rows=(await db.query("SELECT id,binding FROM agents_platform.capability_bindings WHERE organization_id=$1 AND connection_id=$2 AND id=ANY($3::uuid[])",[execution.task.organization_id,dependency.connectionId,[...new Set(candidates)]])).rows;
@@ -80,7 +95,8 @@ async function connectionEvidenceBinding(db:Db,execution:Execution,dependency:Ex
   if(!match)throw denied();return bindingAllowed(db,own.includes(match.id)?execution:delegated.get(match.id)!,match.id);
 }
 async function bindingAllowed(db: Db, execution: Execution, bindingId: string): Promise<CapabilityBinding> {
-  const grant = (await db.query("SELECT connected_tool_binding_ids,operations FROM agents_platform.execution_grants WHERE id=$1 FOR SHARE", [execution.task.grant_id])).rows[0];
+  const grant = (await db.query("SELECT connected_tool_binding_ids,operations,revoked_at FROM agents_platform.execution_grants WHERE id=$1 FOR SHARE", [execution.task.grant_id])).rows[0];
+  if(grant?.revoked_at)throw unavailable();
   if (!execution.configuration.connectedToolBindingIds.includes(bindingId) || !grant?.connected_tool_binding_ids.includes(bindingId) || !grant.operations.includes("connected.read")) throw denied();
   if (!(await db.query("SELECT 1 FROM agents_platform.version_connected_tools WHERE organization_id=$1 AND version_id=$2 AND binding_id=$3",[execution.task.organization_id,execution.task.version_id,bindingId])).rowCount) throw denied();
   const row = (await db.query("SELECT binding,account_id FROM agents_platform.capability_bindings WHERE id=$1 AND organization_id=$2", [bindingId, execution.task.organization_id])).rows[0];
@@ -109,9 +125,10 @@ async function delegationDependency(db:Db,taskId:string):Promise<EvidenceDepende
  const input=await delegationInput(db,taskId);return input?[{kind:"delegation_input",referenceId:taskId,manifestDigest:input.manifest.digest}]:[];
 }
 /** Call inside the same transaction as the consuming model/effect claim, holding the organization lock. */
-export async function assertCurrentEvidence(db: Db, taskId: string, input: DependencyManifest, options: { requireActiveTask?: boolean; delegationTrail?:readonly string[] } = {}): Promise<void> {
+export async function assertCurrentEvidence(db: Db, taskId: string, input: DependencyManifest, options: { requireActiveTask?: boolean; delegationTrail?:readonly string[]; historyOriginTaskIds?:string[] } = {}): Promise<void> {
   const manifest = assertDependencyManifest(input), execution = await loadExecution(db, taskId);
   if (options.requireActiveTask !== false) await assertCurrentAuthority(db, execution); else {await inspectionAuthority(db, execution);if(execution.task.parent_task_id)await assertDelegationInputEvidence(db,taskId,undefined,options.delegationTrail);}
+  const origins=execution.task.parent_task_id?[]:await historyOrigins(db,execution,options.historyOriginTaskIds??[]);
   const dependencies = [...manifest.dependencies].sort((a, b) => {
     const key = (value: EvidenceDependency) => value.kind === "source" ? value.sourceId : value.kind === "connection" ? value.connectionId : value.referenceId;
     return key(a).localeCompare(key(b));
@@ -127,7 +144,7 @@ export async function assertCurrentEvidence(db: Db, taskId: string, input: Depen
   }
   for (const dependency of dependencies.filter(item => item.kind === "connection")) {
     if (dependency.kind !== "connection") continue;
-    const binding = await connectionEvidenceBinding(db,execution,dependency);
+    const binding = await connectionEvidenceBinding(db,execution,dependency,origins);
     const row = (await db.query("SELECT * FROM agents_platform.connections WHERE id=$1 AND organization_id=$2 FOR SHARE", [dependency.connectionId, execution.task.organization_id])).rows[0];
     if (!row || row.state !== "active" || row.policy_revision !== dependency.policyRevision || new Date(row.expires_at).getTime() <= Date.now() || row.account_id !== await owner(db, execution) || binding.connection?.policyRevision !== row.policy_revision || !row.resource_handles.some((resource: ResourceHandle) => requestDigest(resource) === dependency.resource)) throw unavailable();
   }
@@ -281,7 +298,7 @@ export class EvidenceStore {
     if (textDigest(text) !== row.content_digest) throw integrity();
     return {reference,label:row.citation_label,text,title:row.title,page:row.page,section:row.section};
   }
-  private async node(db: PoolClient, execution: Execution, kind: EvidenceKind, ownerId: string, evidenceIds: string[], parents: EvidenceNode[], inherited?:{evidenceIds:string[];manifest:DependencyManifest}, replayParents:"fixed"|"recorded"="fixed"): Promise<EvidenceNode> {
+  private async node(db: PoolClient, execution: Execution, kind: EvidenceKind, ownerId: string, evidenceIds: string[], parents: EvidenceNode[], inherited?:{evidenceIds:string[];manifest:DependencyManifest}, replayParents:"fixed"|"recorded"="fixed", historyOriginTaskIds:string[]=[]): Promise<EvidenceNode> {
     const ids = [...new Set([...evidenceIds,...(inherited?.evidenceIds??[])])].sort(), parentIds = [...new Set(parents.map(parent=>parent.id))].sort();
     if (ids.length > SOURCE_LIMITS.manifestNodes) throw new PlatformError("EVIDENCE_LIMIT",413,"Evidence graph exceeds its limit");
     const existing = (await db.query("SELECT * FROM agents_platform.evidence_nodes WHERE root_task_id=$1",[execution.task.root_task_id])).rows.map(row=>({row,node:nodeDto(row)}));
@@ -294,7 +311,7 @@ export class EvidenceStore {
       if(inherited?.manifest.dependencies.some(dependency=>!recorded.manifest.dependencies.some(prior=>requestDigest(prior)===requestDigest(dependency)))) throw integrity();
       if(requestDigest(recorded.evidenceIds)!==requestDigest(ids) || prior.row.request_digest!==requestDigest({ids:recorded.evidenceIds,parentIds:recorded.parents,manifest:recorded.manifest})) throw integrity();
       collectDependencyGraph([recorded.id],graph);
-      await assertCurrentEvidence(db,execution.task.id,recorded.manifest);
+      await assertCurrentEvidence(db,execution.task.id,recorded.manifest,{historyOriginTaskIds});
       return recorded;
     }
     if(parentIds.length>SOURCE_LIMITS.manifestNodes) throw new PlatformError("EVIDENCE_LIMIT",413,"Evidence graph exceeds its limit");
@@ -306,19 +323,19 @@ export class EvidenceStore {
     const created=nodeDto((await db.query(`INSERT INTO agents_platform.evidence_nodes(id,organization_id,root_task_id,task_id,kind,owner_id,evidence_ids,parents,manifest,request_digest)
       VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,[randomUUID(),execution.task.organization_id,execution.task.root_task_id,execution.task.id,kind,ownerId,ids,parentIds,manifest,digest])).rows[0]);
     // The new join must be visible to lineage validation in this same transaction.
-    await assertCurrentEvidence(db,execution.task.id,manifest);
+    await assertCurrentEvidence(db,execution.task.id,manifest,{historyOriginTaskIds});
     return created;
   }
   private async history(db:Db,execution:Execution,priorTaskId:string):Promise<{taskId:string;eligible:boolean;omissionCode?:string;evidenceIds:string[];manifest:DependencyManifest;originNodeIds:string[]}>{
     const empty={taskId:priorTaskId,evidenceIds:[] as string[],manifest:createDependencyManifest([]),originNodeIds:[] as string[]};
     const prior=(await db.query(`SELECT * FROM agents_platform.tasks WHERE id=$1 AND organization_id=$2 AND conversation_id=$3
       AND turn_sequence<$4 AND parent_task_id IS NULL`,[priorTaskId,execution.task.organization_id,execution.task.conversation_id,execution.task.turn_sequence])).rows[0];
-    if(!prior)throw denied();
+    if(!prior||!["completed","incomplete","refused","failed","cancelled","uncertain"].includes(prior.state)||requestDigest(prior.principal)!==requestDigest(execution.task.principal))throw denied();
     const rows=(await db.query("SELECT * FROM agents_platform.evidence_nodes WHERE root_task_id=$1",[prior.root_task_id])).rows.map(nodeDto);
     const roots=rows.filter(node=>node.taskId===priorTaskId),graph=new Map(rows.map(node=>[node.id,node]));
     const manifest=collectDependencyGraph(roots.map(node=>node.id),graph),ids=new Set<string>(),seen=new Set<string>();
     const visit=(id:string):void=>{if(seen.has(id))return;seen.add(id);const node=graph.get(id);if(!node)throw integrity();node.evidenceIds.forEach(value=>ids.add(value));node.parents.forEach(visit);};roots.forEach(node=>visit(node.id));
-    try{await assertCurrentEvidence(db,execution.task.id,manifest);}
+    try{await assertCurrentEvidence(db,prior.id,manifest,{requireActiveTask:false});await assertCurrentEvidence(db,execution.task.id,manifest,{historyOriginTaskIds:[prior.id]});}
     catch(error){if(error instanceof PlatformError&&["EVIDENCE_SCOPE_DENIED","EVIDENCE_UNAVAILABLE","GRANT_CAPABILITY_DENIED"].includes(error.code))return{...empty,eligible:false,omissionCode:error.code};throw error;}
     return{taskId:priorTaskId,eligible:true,evidenceIds:[...ids].sort(),manifest,originNodeIds:roots.map(node=>node.id)};
   }
@@ -335,7 +352,7 @@ export class EvidenceStore {
       if(requestDigest([...new Set(priorTaskIds)].sort())!==requestDigest([...new Set(selected)].sort()))throw integrity();
       const origins=[];for(const id of [...new Set(priorTaskIds)]){const prior=await this.history(db,execution,id);if(!prior.eligible)throw unavailable();origins.push(prior);}
       const manifest=createDependencyManifest(origins.flatMap(origin=>origin.manifest.dependencies));
-      const node=await this.node(db,execution,"input",`history:${snapshotId}`,[],[],{evidenceIds:origins.flatMap(origin=>origin.evidenceIds),manifest});
+      const node=await this.node(db,execution,"input",`history:${snapshotId}`,[],[],{evidenceIds:origins.flatMap(origin=>origin.evidenceIds),manifest},"fixed",origins.map(origin=>origin.taskId));
       for(const origin of origins)await db.query("INSERT INTO agents_platform.evidence_history_links(node_id,origin_task_id,origin_node_ids) VALUES($1,$2,$3) ON CONFLICT DO NOTHING",[node.id,origin.taskId,origin.originNodeIds]);
       return node;
     });
