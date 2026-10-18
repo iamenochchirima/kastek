@@ -5,7 +5,7 @@ export const observationIdentitySchema = z.strictObject({
   product: z.enum(["agents", "growth", "agencies"]), organizationId: z.uuid(), agentId: z.uuid(), versionId: z.uuid(),
   programId: identifier, programVersion: identifier, runtimeRelease: identifier,
   conversationId: z.uuid(), rootTaskId: z.uuid(), parentTaskId: z.uuid().nullable(), taskId: z.uuid(),
-  operationId: identifier.nullable(), attemptId: z.uuid().nullable(),
+  operationId: identifier.nullable(), attemptId: z.uuid().nullable(), customerConversationId: z.uuid().optional(),
 });
 export const observationMetadataSchema = z.strictObject({
   outcome: z.enum(["started", "completed", "failed", "uncertain", "cancelled", "incomplete", "refused", "waiting", "suppressed"]).optional(),

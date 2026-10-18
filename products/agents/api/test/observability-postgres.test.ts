@@ -6,6 +6,7 @@ import { observationSchema } from "../src/contracts/observations";
 import { PlatformStore } from "../src/product/agents/store";
 import { setupPlatformSchema } from "../src/composition/setup";
 import { beginOperation, finishOperation } from "../src/execution/lifecycle/execution";
+import { collectNativeMetrics, createNativeMetrics } from "../src/observability/metrics";
 import { createObservationTelemetry, publishObservationBatch } from "../src/observability/telemetry";
 
 const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
@@ -55,6 +56,18 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     expect(await publishObservationBatch(pool, transport)).toBe(3);
     expect(await publishObservationBatch(pool, transport)).toBe(0);
     expect(new Set(seen).size).toBe(3);
+  });
+  it("projects bounded native metrics without content or export retry accounting",async()=>{
+    const points=await collectNativeMetrics(pool,"worker");
+    expect(points.find(point=>point.name==="agents.usage.tokens")?.value).toBe(7);
+    expect(points.find(point=>point.name==="agents.tasks")?.value).toBeGreaterThan(0);
+    expect(JSON.stringify(points)).not.toContain("PRIVATE_");
+    for(const point of points)expect(Object.keys(point.attributes).every(key=>["product","program","state","workload","kind","action","role"].includes(key))).toBe(true);
+    expect((await collectNativeMetrics(pool,"worker")).filter(point=>point.name==="agents.usage.tokens")).toEqual(points.filter(point=>point.name==="agents.usage.tokens"));
+  });
+  it.skipIf(!process.env.AGENTS_TEST_OTEL_METRICS_ENDPOINT)("exports real SDK metric points through the local Collector",async()=>{
+    const telemetry=createNativeMetrics(pool,"acceptance",{OTEL_EXPORTER_OTLP_METRICS_ENDPOINT:process.env.AGENTS_TEST_OTEL_METRICS_ENDPOINT})!;
+    try{await telemetry.forceFlush();}finally{await telemetry.shutdown();}
   });
   it.skipIf(!process.env.AGENTS_TEST_OTEL_ENDPOINT)("sends actual SDK spans through the local Collector OTLP receiver", async () => {
     await fixture();

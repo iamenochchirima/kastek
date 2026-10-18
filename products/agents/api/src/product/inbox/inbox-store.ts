@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { Pool, PoolClient } from "pg";
 import { PlatformError, requestDigest } from "../../contracts/contracts";
+import { recordEvent } from "../../observability/event-store";
 import { transaction } from "../../infrastructure/database";
 import type { ChannelBinding } from "../../contracts/channel";
 export type { ChannelBinding } from "../../contracts/channel";
@@ -125,10 +126,16 @@ export class InboxStore {
         ownership_generation=ownership_generation+$4,return_watermark=CASE WHEN $5 THEN next_sequence-1 ELSE return_watermark END,updated_at=now() WHERE id=$1 RETURNING *`, [id, state, assignee, fence ? 1 : 0, input.action === "return" || input.action === "resolve"])).rows[0]!;
       if (fence) await this.queueCancellation(db, id, updated.ownership_generation);
       await db.query("INSERT INTO agents_platform.customer_commands(conversation_id,command_id,actor_account_id,action,request_digest,result) VALUES($1,$2,$3,$4,$5,$6)", [id, input.commandId, scope.accountId, input.action, digest, updated]);
+      await this.observeCommand(db,id,input.commandId,input.action);
       return updated;
     });
     // The durable generation fence already applies if process loss interrupts this fast path.
     await this.drainCancellations().catch(() => undefined); return result;
+  }
+  private async observeCommand(db:PoolClient,conversationId:string,commandId:string,action:string) {
+    // The most recent native turn is the causal context; body and staff identity stay in authorized Inbox reads.
+    const task=(await db.query("SELECT l.task_id FROM agents_platform.customer_task_links l JOIN agents_platform.customer_messages m ON m.id=l.input_message_id WHERE l.conversation_id=$1 ORDER BY m.sequence DESC LIMIT 1",[conversationId])).rows[0];
+    if(task)await recordEvent(db,task.task_id,`channel:command:${commandId}`,`channel.${action}`,{count:1});
   }
   private async queueCancellation(db: PoolClient, id: string, generation: string) {
     await db.query(`INSERT INTO agents_platform.customer_cancellations(task_id) SELECT task_id FROM agents_platform.customer_task_links WHERE conversation_id=$1 AND ownership_generation<$2 ON CONFLICT DO NOTHING`, [id, generation]);
@@ -152,6 +159,7 @@ export class InboxStore {
     const updated = (await db.query<CustomerConversation>("UPDATE agents_platform.customer_conversations SET state='handoff_pending',revision=revision+1,ownership_generation=ownership_generation+1,updated_at=now() WHERE id=$1 RETURNING *", [row.id])).rows[0]!;
     await this.queueCancellation(db, row.id, updated.ownership_generation);
     await db.query("INSERT INTO agents_platform.customer_commands(conversation_id,command_id,action,request_digest,result) VALUES($1,$2,'request_handoff',$3,$4)", [row.id, taskId, requestDigest(binding), updated]);
+    await recordEvent(db,taskId,`channel:handoff:${taskId}`,"channel.request_handoff",{count:1});
     return { state: "handoff_pending" };
   }
   async publishAutomated(db: PoolClient, input: { taskId: string; binding: ChannelBinding; output: string }): Promise<void> {
@@ -159,11 +167,13 @@ export class InboxStore {
     if (!(await db.query("SELECT 1 FROM agents_platform.customer_task_links WHERE task_id=$1 AND conversation_id=$2 AND input_message_id=$3 AND ownership_generation=$4", [input.taskId, row.id, input.binding.inputMessageId, input.binding.ownershipGeneration])).rowCount) denied();
     if ((await db.query("SELECT id FROM agents_platform.customer_deliveries WHERE task_id=$1", [input.taskId])).rowCount) return;
     if (row.state !== "automation_active" || row.ownership_generation !== input.binding.ownershipGeneration) {
-      await db.query("INSERT INTO agents_platform.customer_deliveries(id,conversation_id,task_id,ownership_generation,state,reason) VALUES($1,$2,$3,$4,'suppressed','ownership_changed')", [randomUUID(), row.id, input.taskId, input.binding.ownershipGeneration]); return;
+      await db.query("INSERT INTO agents_platform.customer_deliveries(id,conversation_id,task_id,ownership_generation,state,reason) VALUES($1,$2,$3,$4,'suppressed','ownership_changed')", [randomUUID(), row.id, input.taskId, input.binding.ownershipGeneration]);
+      await recordEvent(db,input.taskId,`channel:delivery:${input.taskId}`,"channel.delivery",{outcome:"suppressed"}); return;
     }
     if (!input.output) return;
     const message = await this.append(db, row, { key: `assistant:${input.taskId}`, digest: requestDigest(input.output), kind: "assistant", body: input.output, taskId: input.taskId });
     await db.query("INSERT INTO agents_platform.customer_deliveries(id,conversation_id,task_id,message_id,ownership_generation,state) VALUES($1,$2,$3,$4,$5,'published')", [randomUUID(), row.id, input.taskId, message.id, row.ownership_generation]);
+    await recordEvent(db,input.taskId,`channel:delivery:${input.taskId}`,"channel.delivery",{outcome:"completed"});
   }
   async context(db: Db, binding: ChannelBinding, beforeMessageId: string) {
     const target = (await db.query("SELECT sequence FROM agents_platform.customer_messages WHERE id=$1 AND conversation_id=$2", [beforeMessageId, binding.customerConversationId])).rows[0]; if (!target) denied();

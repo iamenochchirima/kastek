@@ -24,6 +24,7 @@ import { actionsFromEnvironment } from "./actions";
 import { runDocumentReaper } from "./document-reaper";
 import { runSourceObjectReaper } from "./source-object-reaper";
 import { workerSecurityFromEnvironment } from "./worker-security";
+import { createNativeMetrics } from "../observability/metrics";
 import { createObservationTelemetry, startObservationPublisher } from "../observability/telemetry";
 import { composeInbox } from "./inbox";
 import { databasePoolOptions } from "../infrastructure/pool-policy";
@@ -92,6 +93,7 @@ async function main(): Promise<void> {
   const documentCleanup=documents?runDocumentReaper(pool,abort.signal):undefined;
   const sourceCleanup=sourceObjects?runSourceObjectReaper(pool,abort.signal):undefined;
   const telemetry = startObservationPublisher(pool, telemetryTransport);
+  const metrics = createNativeMetrics(pool,"worker");
   let closing = false;
   const close = async (): Promise<void> => {
     if (closing) return;
@@ -105,6 +107,7 @@ async function main(): Promise<void> {
       for (const session of sessions) session.close();
     });
     await telemetry.stop();
+    await metrics?.shutdown();
     await pool.end();
   };
   process.once("SIGINT", () => { void close(); });

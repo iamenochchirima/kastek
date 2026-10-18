@@ -17,11 +17,12 @@ export async function recordEvent(db: Pool | PoolClient, taskId: string, key: st
     identity: { product: task.product, organizationId: task.organization_id, agentId: task.agent_id, versionId: task.version_id,
       programId: composition.program.id, programVersion: composition.program.version, runtimeRelease: composition.runtime.release,
       conversationId: task.conversation_id, rootTaskId: task.root_task_id, parentTaskId: task.parent_task_id, taskId,
-      operationId, attemptId: operation?.attempt_id ?? null },
+      operationId, attemptId: operation?.attempt_id ?? null,
+      ...(task.channel_binding?{customerConversationId:task.channel_binding.customerConversationId}:{}) },
     metadata: { ...fields, contextTokens: fields.estimatedTokens,
       totalTokens: operation?.accounted_tokens ?? fields.accountedTokens,
       inputTokens: operation?.output?.usage?.inputTokens, outputTokens: operation?.output?.usage?.outputTokens,
-      outcome: operation?.state ?? (['completed','failed','uncertain','cancelled','incomplete','refused'].includes(kind) ? kind : undefined),
+      outcome: operation?.state ?? (['completed','failed','uncertain','cancelled','incomplete','refused'].includes(kind) ? kind : fields.outcome),
       durationMs: operation?.completed_at ? new Date(operation.completed_at).getTime() - new Date(operation.started_at).getTime() : undefined },
   });
   await db.query(`WITH inserted AS (

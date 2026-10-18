@@ -88,6 +88,12 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     await transaction(pool, db => inbox.publishAutomated(db, { taskId: input.message.task_id!, binding: binding(f, input.message.id), output: "LATE PRIVATE OUTPUT" }));
     expect((await inbox.readVisitor(f.visitor, f.conversation.id)).messages.map(row => row.body)).toEqual(["Please help"]);
     expect((await pool.query("SELECT state FROM agents_platform.customer_deliveries WHERE task_id=$1", [input.message.task_id])).rows[0].state).toBe("suppressed");
+    const observations=(await pool.query("SELECT observation FROM agents_platform.task_events WHERE task_id=$1 AND kind LIKE 'channel.%' ORDER BY sequence",[input.message.task_id])).rows.map(row=>row.observation);
+    expect(observations.map(item=>item.kind)).toEqual(["channel.claim","channel.takeover","channel.delivery"]);
+    expect(observations.at(-1).metadata.outcome).toBe("suppressed");
+    expect(observations.every(item=>item.identity.customerConversationId===f.conversation.id)).toBe(true);
+    expect(JSON.stringify(observations)).not.toContain("LATE PRIVATE OUTPUT");
+
   });
   it("persists human-owned input without admission and returns only on a new incoming message", async () => {
     const f = await fixture(); await command(f, "claim"); await command(f, "takeover");

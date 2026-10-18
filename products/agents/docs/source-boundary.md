@@ -53,6 +53,23 @@ and requests cancellation; it does not claim an external call stopped. Lookups r
 root identities after lost responses. Authorized native history export retains exact request,
 response, evidence and branch records, with explicit coverage gaps.
 
+`POST /evaluation-trials/:id/channel-session` binds the operator-owned trial to its published website
+and allowed origin. It returns a normal opaque visitor token, derived using the independent
+`AGENTS_LOGIN_RETURN_SECRET`; retries recover the same session. The server supplies trial authority
+at ingress. Public callers cannot choose a trial UUID. `GET /evaluation-trials/:id/channel-history`
+returns authorized canonical messages, ownership commands, delivery facts and native root IDs.
+Operator task/history export for these visitor roots requires the exact trial owner, current
+membership and matching server-side publication/session binding. Revocation expires the visitor
+session; authorized audit metadata remains available with current-policy payload withholding.
+
+The trusted `adapters/products/product-execution.ts` contract verifies signed short-lived product
+assertions against an installed issuer/key and registered tenant mapping. Growth/Agencies actors
+retain their own identities; admission does not invent an Agents account or membership. The current
+contract consumer supports model replies and approved public knowledge only. Rich product tools,
+private product records, delegated specialists, memory and sandbox scopes remain unavailable through
+this product adapter until their resource contracts exist. These constraints do not limit the separate
+shared harness acceptance fixtures. Production Growth/Agencies integration remains future work.
+
 Execution events persist `agent.observation.v1` metadata and an export intent atomically. Explicit
 OpenTelemetry spans carry native scope, program, operation, attempt and usage identities, without
 prompt bodies, tool arguments or credentials. The bounded publisher leases pending observations
@@ -61,20 +78,43 @@ Configure `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` or `OTEL_EXPORTER_OTLP_ENDPOINT` 
 Local verification includes actual SDK export through the pinned Collector OTLP receiver, native
 PostgreSQL replay/deduplication and outage recovery. This is not a hosted monitoring deployment.
 
-## Concurrency implementation gaps
+### Metrics and local telemetry access
+
+`OTEL_EXPORTER_OTLP_METRICS_ENDPOINT` (or the common OTLP endpoint) enables the pinned SDK metric
+exporter. SQL snapshot gauges report native task/operation states, operation usage, queue waits,
+dispatch backlog/attempts, Inbox commands/deliveries, allocations, observation backlog and local
+pool/lock waits. Labels contain bounded product, program, workload, kind, state, action and process
+role values. Tenant, task, customer and connection identities are absent from metric labels.
+Snapshots of shared database facts must use one replica or a max aggregation, never sum replicas.
+Task/operation/command/usage counts use a rolling 24-hour window including older unfinished work;
+completed duration and granted-wait percentiles use one hour. They are gauges, not lifetime counters.
+
+Collection has a 1.5-second SQL deadline and a 15-second export interval. Failed collection emits
+`agents.metrics.collection_failures`; it does not alter usage or task state. Export timeouts are
+bounded and shutdown flushes before closing the database pool. Set `OTEL_SDK_DISABLED=true` to
+disable both telemetry paths. Export failure never proves an operation failed or an effect retried.
+
+For local inspection, use `infra/observability/otel-collector/config.local.yaml` with the Collector
+image pinned by the acceptance fixture. Bind OTLP and health ports to loopback. The debug exporter
+writes operational metadata to local container logs; restrict Docker/log access to the developer.
+Rotate local logs at 10 MiB with three files and remove disposable Collector containers and `.audit`
+artifacts within seven days after review. Durable native receipts remain in their isolated fixture
+until teardown; this local policy makes no production retention claim. Do not add payload fields to
+ordinary telemetry; content reads use the separately authorized history/evidence interfaces.
+
+## Concurrency verification
+
+The dispatcher uses bounded leased batch claims and parallel sends with durable task identities.
+Operation capacity uses queued requests, generation-fenced permits and durable Restate wakeups;
+a waiting request holds no provider permit or operation reservation. Native operation begin/finish
+uses root/task fences. Admission and settlement retain the organization accounting lock. Shared
+versioned cursor keys support replica reads. Numeric policies are finite operator configuration.
 
 The [scaling contract](architecture/agent-platform-architecture.md#concurrency-targets-and-workload-definitions)
 defines 1,000/10,000 concurrent business-execution targets. Neither has been load-verified.
-Current limits of two roots and two model/four tool operations per organization are local policy,
-not measurements of platform capacity.
-
-The dispatcher claims one outbox task per pass and waits one second after its maintenance cycle.
-Operation admission locks an organization row and checks started-operation counts. Busy execution
-retries through a 250 ms durable polling loop. API cursor signing uses a process-local random key.
-Sandbox execution uses a local manager. These are explicit gaps in dispatch throughput, contention,
-capacity scheduling, replica-safe reads and executor routing. Raising the numeric limits or moving
-files does not resolve those gaps. Existing functional/recovery tests establish bounded behavior,
-not scalable multi-replica operation. Requirements and load acceptance remain in Linear.
+A controlled two-worker 100-root run is evidence of that workload only; queued roots and active
+provider operations are measured separately. Requirements and load acceptance remain in Linear.
+Executor routing and physical recovery require their own independent-process acceptance.
 
 ## Internal module boundaries
 

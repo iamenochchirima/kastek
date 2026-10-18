@@ -2,6 +2,7 @@ import { Pool } from "pg";
 import { loadPlatformConfig } from "../infrastructure/config";
 import { buildPlatformApp } from "./app";
 import { createObservationTelemetry, startObservationPublisher } from "../observability/telemetry";
+import { createNativeMetrics } from "../observability/metrics";
 import { databasePoolOptions } from "../infrastructure/pool-policy";
 
 async function main(): Promise<void> {
@@ -10,7 +11,8 @@ async function main(): Promise<void> {
     connectionTimeoutMillis: 5000, statement_timeout: 15000, query_timeout: 20000 });
   const app = await buildPlatformApp({ config, pool });
   const telemetry = startObservationPublisher(pool, createObservationTelemetry("agents-api"));
-  app.addHook("onClose", async () => { await telemetry.stop(); await pool.end(); });
+  const metrics = createNativeMetrics(pool,"api");
+  app.addHook("onClose", async () => { await telemetry.stop(); await metrics?.shutdown(); await pool.end(); });
   for (const signal of ["SIGINT", "SIGTERM"] as const) process.once(signal, () => { void app.close(); });
   try { await app.listen({ host: config.HOST, port: config.PORT }); }
   catch { await app.close(); throw new Error("Agents platform could not start"); }
