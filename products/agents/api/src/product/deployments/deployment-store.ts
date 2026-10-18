@@ -63,7 +63,7 @@ export class DeploymentStore extends AuthorityStore {
   async createWebsiteGrant(input: { deploymentId: string; origin: string; sessionId: string }): Promise<ExecutionGrant> {
     return this.transaction(db => this.createWebsiteGrantInTransaction(db, input));
   }
-  async createWebsiteGrantInTransaction(db:PoolClient,input: { deploymentId: string; origin: string; sessionId: string }): Promise<ExecutionGrant> {
+  async createWebsiteGrantInTransaction(db:PoolClient,input: { deploymentId: string; origin: string; sessionId: string; rootTokenLimit?:number }): Promise<ExecutionGrant> {
       const deployment = (await db.query<WebsiteDeployment>("SELECT * FROM agents_platform.website_deployments WHERE id=$1 AND revoked_at IS NULL FOR SHARE", [input.deploymentId])).rows[0] ?? absent();
       if (!deployment.allowed_origins.includes(parseAllowedOrigin(input.origin))) denied();
       const version = await this.version(db, deployment.organization_id, deployment.version_id);
@@ -72,6 +72,7 @@ export class DeploymentStore extends AuthorityStore {
         resourceId: deployment.id, callerClientId: "agents-website", principal: { kind: "visitor", deploymentId: deployment.id, sessionId: input.sessionId },
         versionId: version.id, operations: ["model.reply", "knowledge.read", ...(version.configuration.tools.includes("channel.request_handoff") ? ["channel.handoff"] : [])], sourceRevisionIds: version.configuration.sourceRevisionIds, connectedToolBindingIds: [],
         maxInputBytes: version.configuration.model.maxInputBytes, maxOutputTokens: version.configuration.model.maxOutputTokens,
+        ...(input.rootTokenLimit?{rootTokenLimit:input.rootTokenLimit}:{}),
         expiresAt: new Date(Date.now() + 10 * 60_000).toISOString(), revokedAt: null });
       return this.insertGrant(db, grant);
   }

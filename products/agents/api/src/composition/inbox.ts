@@ -16,12 +16,16 @@ export function composeInbox(pool: Pool, options: { publicOrigin: string; assert
       if (!deployment || deployment.version_id !== input.versionId) throw new PlatformError("DEPLOYMENT_SCOPE_DENIED", 403, "Customer channel is unavailable");
       const version = (await db.query("SELECT configuration FROM agents_platform.agent_versions WHERE id=$1 AND organization_id=$2", [input.versionId, deployment.organization_id])).rows[0];
       await options.assertServices(version.configuration);
+      const trial=(await db.query("SELECT trial_id,root_token_limit FROM agents_platform.evaluation_trial_channels WHERE deployment_id=$1 AND session_id=$2",[deployment.id,input.sessionId])).rows[0];
       const grant = await store.createWebsiteGrantInTransaction(db, { deploymentId: deployment.id, sessionId: input.sessionId,
+        ...(trial?{rootTokenLimit:trial.root_token_limit}:{}),
         origin: deployment.session_origin === options.publicOrigin ? deployment.allowed_origins[0] : deployment.session_origin });
       const result = await store.admitTaskInTransaction(db, { versionId: input.versionId, grantId: grant.id,
         authority: { product: "agents", organizationId: deployment.organization_id, resourceId: deployment.id, callerClientId: "agents-website",
           principal: { kind: "visitor", deploymentId: deployment.id, sessionId: input.sessionId } }, input: input.input,
-        requestKey: input.requestKey, conversationId: input.executionConversationId ?? undefined, channelBinding: input.channelBinding });
+        requestKey: input.requestKey, conversationId: input.executionConversationId ?? undefined, channelBinding: input.channelBinding,
+        ...(trial?{evaluationTrialId:trial.trial_id}:{}),
+      });
       return result.task;
     },
     async readableOutput(db: Pool | PoolClient, taskId: string, body: string) {

@@ -158,6 +158,9 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
       reviewOnly = user.id !== owner;
       if(reviewOnly && task.parent_task_id)throw new PlatformError("NOT_FOUND",404,"Task not found");
       authority={product:root.product,organizationId:org,resourceId:root.resource_id,callerClientId:root.caller_client_id,principal:root.principal};
+    } else if(root.principal.kind==="visitor") {
+      if(!await evaluationTrials.authorizeVisitorRoot(pool,user.id,org,root.id))throw new PlatformError("NOT_FOUND",404,"Task not found");
+      authority={product:root.product,organizationId:org,resourceId:root.resource_id,callerClientId:root.caller_client_id,principal:root.principal};
     } else await store.getTask(authority, root.id);
     const source=(await pool.query("SELECT deleted_at FROM agents_platform.conversations WHERE id=$1",[task.conversation_id])).rows[0];
     return { task: source?.deleted_at ? {...task,input:"[Deleted conversation]",output:null} : task, authority, reviewOnly };
@@ -277,6 +280,8 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
   app.get(`${base}/tasks/:taskId/history-export`, async request => {
     const user = await account(request), org = organizationId(request), taskId = uuid.parse(parameters(request).taskId);
     return exportExecutionHistory(pool, taskId, async (db, rootTaskId) => {
+      const visitorScope=await evaluationTrials.authorizeVisitorRoot(db,user.id,org,rootTaskId);
+      if(visitorScope)return visitorScope;
       const allowed = await db.query(`SELECT t.id FROM agents_platform.tasks t
         JOIN agents_platform.memberships m ON m.organization_id=t.organization_id AND m.account_id=$3 AND m.revoked_at IS NULL
         WHERE t.id=$1 AND t.organization_id=$2 AND t.product='agents' AND t.caller_client_id='agents-execution'
@@ -297,6 +302,23 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
   });
   app.get(`${base}/evaluation-trials/:trialId`, async request => evaluationTrials.get((await account(request)).id,
     organizationId(request), { id: uuid.parse(parameters(request).trialId) }));
+  app.post(`${base}/evaluation-trials/:trialId/channel-session`,async request=>{
+    if(!config.AGENTS_LOGIN_RETURN_SECRET)throw new PlatformError("EVALUATION_CHANNEL_UNAVAILABLE",503,"Evaluation channels require the configured signing secret");
+    return evaluationTrials.channelSession((await account(request)).id,organizationId(request),uuid.parse(parameters(request).trialId),request.body,config.AGENTS_LOGIN_RETURN_SECRET);
+  });
+  app.get(`${base}/evaluation-trials/:trialId/channel-history`,async request=>{
+    const user=await account(request),org=organizationId(request),id=uuid.parse(parameters(request).trialId);
+    const trial=await evaluationTrials.get(user.id,org,{id});
+    if(!trial.trial)throw new PlatformError("NOT_FOUND",404,"Trial not found");
+    const channel=(await pool.query(`SELECT c.id FROM agents_platform.evaluation_trial_channels e
+      JOIN agents_platform.customer_conversations c ON c.session_id=e.session_id AND c.deployment_id=e.deployment_id
+      WHERE e.trial_id=$1 AND c.organization_id=$2`,[id,org])).rows[0];
+    if(!channel)return {conversation:null,messages:[],commands:[],deliveries:[],rootTaskIds:trial.rootTaskIds};
+    const history=await inbox.readStaff({accountId:user.id,organizationId:org},channel.id);
+    const commands=(await pool.query(`SELECT command_id,action,actor_account_id,created_at FROM agents_platform.customer_commands WHERE conversation_id=$1 ORDER BY created_at,command_id LIMIT 1000`,[channel.id])).rows;
+    const deliveries=(await pool.query(`SELECT id,task_id,message_id,ownership_generation,state,reason,created_at FROM agents_platform.customer_deliveries WHERE conversation_id=$1 ORDER BY created_at,id LIMIT 1000`,[channel.id])).rows;
+    return {...history,commands,deliveries,rootTaskIds:trial.rootTaskIds};
+  });
   app.post(`${base}/evaluation-trials/:trialId/revoke`, async request => {
     z.strictObject({}).parse(request.body ?? {});
     return evaluationTrials.revoke((await account(request)).id, organizationId(request), uuid.parse(parameters(request).trialId));

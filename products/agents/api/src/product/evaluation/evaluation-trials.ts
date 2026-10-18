@@ -1,7 +1,7 @@
-import { randomUUID } from "node:crypto";
+import { createHash, createHmac, randomUUID } from "node:crypto";
 import type { Pool, PoolClient } from "pg";
 import { z } from "zod";
-import { PlatformError, requestDigest } from "../../contracts/contracts";
+import { parseAllowedOrigin, PlatformError, requestDigest } from "../../contracts/contracts";
 import { effectiveCompositionSchema } from "../../contracts/programs";
 import { transaction } from "../../infrastructure/database";
 import { requestTreeCancellation } from "../../execution/lifecycle/execution";
@@ -73,10 +73,45 @@ export class EvaluationTrials {
       const result = await db.query(`UPDATE agents_platform.evaluation_trials SET state='revoked',revoked_at=coalesce(revoked_at,now())
         WHERE id=$1 AND account_id=$2 AND organization_id=$3 RETURNING id`, [z.uuid().parse(id), accountId, organizationId]);
       if (!result.rowCount) throw new PlatformError("NOT_FOUND", 404, "Trial not found");
+      await db.query(`UPDATE agents_platform.website_sessions SET expires_at=least(expires_at,now())
+        WHERE id IN (SELECT session_id FROM agents_platform.evaluation_trial_channels WHERE trial_id=$1)`,[id]);
     });
     // The committed revocation fences new effects even if cancellation dispatch is interrupted.
     const result = await this.get(accountId, organizationId, { id });
     for (const root of result.rootTaskIds) await requestTreeCancellation(this.pool, root);
     return { ...result, cancellationRequested: true };
+  }
+  async authorizeVisitorRoot(db:Pool|PoolClient,accountId:string,organizationId:string,rootTaskId:string) {
+    const row=(await db.query(`SELECT e.id FROM agents_platform.tasks t
+      JOIN agents_platform.evaluation_trials e ON e.id=t.evaluation_trial_id AND e.organization_id=t.organization_id AND e.version_id=t.version_id
+      JOIN agents_platform.agent_versions v ON v.id=t.version_id AND v.agent_id=e.agent_id
+      JOIN agents_platform.evaluation_trial_channels c ON c.trial_id=e.id AND c.deployment_id::text=(t.principal->>'deploymentId') AND c.session_id::text=(t.principal->>'sessionId')
+      JOIN agents_platform.memberships m ON m.organization_id=e.organization_id AND m.account_id=e.account_id AND m.revoked_at IS NULL
+      WHERE t.id=$1 AND t.organization_id=$2 AND e.account_id=$3 AND t.parent_task_id IS NULL
+        AND t.product='agents' AND t.caller_client_id='agents-website' AND t.principal->>'kind'='visitor' FOR SHARE OF t,e,c,m`,[rootTaskId,organizationId,accountId])).rows[0];
+    return row?{evaluationTrialId:row.id as string,accountId}:null;
+  }
+  async channelSession(accountId:string,organizationId:string,id:string,raw:unknown,signingSecret:string) {
+    const input=z.strictObject({deploymentId:z.uuid(),origin:z.string().min(1).max(2048)}).parse(raw);
+    input.origin=parseAllowedOrigin(input.origin);
+    const digest=requestDigest(input);
+    return transaction(this.pool,async db=>{
+      await db.query("SELECT id FROM agents_platform.organizations WHERE id=$1 FOR UPDATE",[organizationId]);
+      await this.membership(db,accountId,organizationId);
+      const trial=(await db.query<TrialRow>("SELECT * FROM agents_platform.evaluation_trials WHERE id=$1 AND organization_id=$2 AND account_id=$3 FOR UPDATE",[id,organizationId,accountId])).rows[0];
+      if(!trial||trial.state!=="active"||trial.expires_at.getTime()<=Date.now())throw new PlatformError("EVALUATION_TRIAL_INACTIVE",403,"The evaluation trial is unavailable");
+      const deployment=(await db.query(`SELECT * FROM agents_platform.website_deployments WHERE id=$1 AND organization_id=$2 AND agent_id=$3 AND version_id=$4 AND revoked_at IS NULL FOR SHARE`,[input.deploymentId,organizationId,trial.agent_id,trial.version_id])).rows[0];
+      if(!deployment||!deployment.allowed_origins.includes(input.origin))throw new PlatformError("EVALUATION_CHANNEL_SCOPE_DENIED",403,"The publication does not authorize this trial channel");
+      const existing=(await db.query("SELECT * FROM agents_platform.evaluation_trial_channels WHERE trial_id=$1",[id])).rows[0];
+      if(existing&&existing.request_digest!==digest)throw new PlatformError("IDEMPOTENCY_CONFLICT",409,"The trial channel was prepared for another publication or origin");
+      const sessionId=existing?.session_id??randomUUID();
+      const token=createHmac("sha256",signingSecret).update(JSON.stringify(["evaluation-channel-v1",id,sessionId])).digest("base64url");
+      if(!existing){
+        await db.query("INSERT INTO agents_platform.website_sessions(id,deployment_id,token_hash,origin,expires_at) VALUES($1,$2,$3,$4,$5)",[sessionId,input.deploymentId,createHash("sha256").update(token).digest("hex"),input.origin,trial.expires_at]);
+        await db.query(`INSERT INTO agents_platform.evaluation_trial_channels(trial_id,deployment_id,session_id,origin,request_digest,root_token_limit)
+          VALUES($1,$2,$3,$4,$5,$6)`,[id,input.deploymentId,sessionId,input.origin,digest,Math.min(8192,trial.max_tokens)]);
+      }
+      return {trialId:id,deploymentId:input.deploymentId,origin:input.origin,token};
+    });
   }
 }

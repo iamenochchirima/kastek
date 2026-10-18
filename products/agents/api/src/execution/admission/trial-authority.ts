@@ -15,10 +15,13 @@ export async function assertEvaluationTrial(db: Pool | PoolClient, input: {
     JOIN agents_platform.accounts a ON a.id=e.account_id
     JOIN agents_platform.memberships m ON m.account_id=e.account_id AND m.organization_id=e.organization_id AND m.revoked_at IS NULL
     WHERE e.id=$1 AND e.organization_id=$2 FOR SHARE OF e,m`, [input.trialId, input.authority.organizationId])).rows[0];
+  const principal=input.authority.principal;
+  const actorMatches=principal.kind==="human" ? principal.issuer===trial?.issuer&&principal.subject===trial?.subject
+    : principal.kind==="visitor"&&Boolean((await db.query(`SELECT 1 FROM agents_platform.evaluation_trial_channels
+        WHERE trial_id=$1 AND deployment_id=$2 AND session_id=$3`,[input.trialId,principal.deploymentId,principal.sessionId])).rowCount);
   if (!trial || trial.state !== "active" || new Date(trial.expires_at).getTime() <= Date.now() ||
       trial.version_id !== input.versionId || trial.agent_id !== input.agentId ||
-      input.authority.product !== "agents" || input.authority.principal.kind !== "human" ||
-      input.authority.principal.issuer !== trial.issuer || input.authority.principal.subject !== trial.subject ||
+      input.authority.product !== "agents" || !actorMatches ||
       (input.rootTokenLimit !== undefined && input.rootTokenLimit > trial.max_tokens)) {
     throw new PlatformError("EVALUATION_TRIAL_INACTIVE", 403, "The evaluation trial does not authorize this operation");
   }

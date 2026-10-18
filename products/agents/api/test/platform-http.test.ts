@@ -29,7 +29,7 @@ suite("Agents HTTP and PostgreSQL integration", () => {
     pool = new Pool({ connectionString: url.href, max: 10 });
     await setupPlatformSchema(pool);
     const config = loadPlatformConfig({ NODE_ENV: "test", AGENTS_DATABASE_URL: url.href,
-      AGENTS_PUBLIC_URL: browserOrigin, AGENTS_OIDC_CLIENT_SECRET: "offline-integration-test-secret-only",
+      AGENTS_PUBLIC_URL: browserOrigin, AGENTS_LOGIN_RETURN_SECRET: "isolated-trial-signing-secret-32-characters", AGENTS_OIDC_CLIENT_SECRET: "offline-integration-test-secret-only",
       OPENROUTER_API_KEY: "offline-test-key-never-sent" });
     vi.spyOn(artifactModule,"privateStoreFromEnvironment").mockReturnValue(objects);
     app = await buildPlatformApp({ config, pool, logging: false });
@@ -122,6 +122,33 @@ suite("Agents HTTP and PostgreSQL integration", () => {
     expect((await pool.query("SELECT state FROM agents_platform.tasks WHERE id=$1", [accepted.body.task.id])).rows[0].state).toBe("cancel_requested");
     const blocked = await request(first.body.submitPath, { method: "POST", cookie: f.cookie, origin: browserOrigin, payload: { ...payload, requestKey: "after-revoke" } });
     expect(blocked.status).toBe(403); expect(blocked.body.error.code).toBe("EVALUATION_TRIAL_INACTIVE");
+  });
+
+  it("binds evaluation visitors server-side and exposes channel evidence only to the trial owner",async()=>{
+    const f=await readyAgent(),deployed=await publish(f);expect(deployed.status).toBe(201);
+    const prepared=await request(`${f.base}/evaluation-trials`,{method:"POST",cookie:f.cookie,origin:browserOrigin,payload:{trialId:randomUUID(),agentId:f.agent.id,versionId:f.version.id,expectedCompositionDigest:f.version.effectiveComposition.digest,maxTokens:16384,expiresAt:new Date(Date.now()+600000).toISOString()}});
+    expect(prepared.status).toBe(201);const path=`${f.base}/evaluation-trials/${prepared.body.trial.id}`;
+    const payload={deploymentId:deployed.body.deployment.id,origin:"https://shop.example"};
+    const scope=await request(`${path}/channel-session`,{method:"POST",cookie:f.cookie,origin:browserOrigin,payload});expect(scope.status).toBe(200);
+    expect((await request(`${path}/channel-session`,{method:"POST",cookie:f.cookie,origin:browserOrigin,payload})).body).toEqual(scope.body);
+    const invalid=await request(`${path}/channel-session`,{method:"POST",cookie:f.cookie,origin:browserOrigin,payload:{...payload,origin:"https://evil.example"}});expect(invalid.status).toBe(403);
+    const visitor={token:scope.body.token,origin:payload.origin},website=`/api/website/${payload.deploymentId}/customer-conversations`;
+    const opened=await request(website,{...visitor,method:"POST",payload:{}});expect(opened.status).toBe(200);
+    const message={requestKey:"lost-channel-ack",body:"When do you open?"};
+    const accepted=await request(`${website}/${opened.body.conversation.id}/messages`,{...visitor,method:"POST",payload:message});expect(accepted.status).toBe(201);
+    expect((await request(`${website}/${opened.body.conversation.id}/messages`,{...visitor,method:"POST",payload:message})).body.replayed).toBe(true);
+    const history=await request(`${path}/channel-history`,{cookie:f.cookie});expect(history.status).toBe(200);expect(history.body.messages).toHaveLength(1);expect(history.body.rootTaskIds).toHaveLength(1);
+    const root=history.body.rootTaskIds[0];
+    const status=await request(`${f.base}/tasks/${root}`,{cookie:f.cookie});expect(status.status).toBe(200);expect(status.body.task.evaluationTrialId).toBe(prepared.body.trial.id);
+    expect((await request(`${f.base}/tasks/${root}/history-export`,{cookie:f.cookie})).status).toBe(200);
+    const other=await actor();await pool.query("INSERT INTO agents_platform.memberships(organization_id,account_id,role) VALUES($1,$2,'member')",[f.org,other.account.id]);
+    expect((await request(`${path}/channel-history`,{cookie:other.cookie})).status).toBe(404);
+    expect((await request(`${f.base}/tasks/${root}`,{cookie:other.cookie})).status).toBe(404);
+    expect((await request(`${f.base}/tasks/${root}/history-export`,{cookie:other.cookie})).status).toBe(403);
+    expect((await pool.query("SELECT allocated_tokens FROM agents_platform.evaluation_trials WHERE id=$1",[prepared.body.trial.id])).rows[0].allocated_tokens).toBe(8192);
+    expect((await request(`${path}/revoke`,{method:"POST",cookie:f.cookie,origin:browserOrigin,payload:{}})).status).toBe(200);
+    expect((await request(`${website}/${opened.body.conversation.id}/messages`,{...visitor,method:"POST",payload:{...message,requestKey:"after-revoke"}})).status).toBe(401);
+    expect((await request(`${f.base}/tasks/${root}/history-export`,{cookie:f.cookie})).status).toBe(200);
   });
 
   it("rejects the removed direct approval route and scalar configuration authority",async()=>{
