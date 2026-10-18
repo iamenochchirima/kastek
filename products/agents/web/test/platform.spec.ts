@@ -126,7 +126,8 @@ test("mock transport: draft isolation, immutable versions, task reconnect, expli
   await page.getByRole("button", { name: "Send message", exact: true }).click();
   await expect(page.getByText("Returns are accepted within 30 days.", { exact: true })).toBeVisible();
   expect(publicPosts).toBe(1); expect(visitorSessions).toBe(1);
-  await expect(page.getByRole("navigation")).toHaveCount(0);
+  await expect(page.getByRole("navigation", { name: "Main navigation", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("navigation", { name: "Message history", exact: true })).toHaveCount(0);
   await noOverflow(page);
   expect(errors).toEqual([]);
 });

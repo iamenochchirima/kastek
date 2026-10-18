@@ -16,6 +16,7 @@ export function CustomerMessages({ messages }: { messages: CustomerMessage[] }) 
   return <div className="space-y-5" role="log" aria-label="Conversation messages" aria-live="polite">{messages.map(item => <article key={item.id} className={`rounded-lg border p-3 ${item.authorKind === "visitor" ? "bg-muted/40" : "bg-background"}`}><p className="mb-2 text-xs font-medium text-muted-foreground">{item.authorKind === "visitor" ? "Customer" : item.authorKind === "human" ? "Support" : "Assistant"}<time dateTime={item.createdAt} className="ml-3 font-normal">{new Date(item.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</time></p><p className="whitespace-pre-wrap break-words text-sm [overflow-wrap:anywhere]">{item.body}</p></article>)}</div>;
 }
 export function HistoryNavigation({ timeline, earlier, latest, onEarlier, onLatest }: { timeline: CustomerTimeline | null; earlier: boolean; latest: boolean; onEarlier(): void; onLatest(): void }) {
+  if (latest && !earlier) return null;
   return <nav aria-label="Message history" className="mb-3 flex flex-wrap gap-2"><Button size="sm" variant="outline" disabled={!timeline || !earlier} onClick={onEarlier}>Earlier messages</Button>{!latest ? <Button size="sm" variant="outline" onClick={onLatest}>Latest messages</Button> : null}</nav>;
 }
 export function InboxPage() {

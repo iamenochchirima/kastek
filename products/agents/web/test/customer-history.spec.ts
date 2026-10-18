@@ -22,7 +22,7 @@ async function mock(page:Page,staff:boolean,second=false){let withdrawn=false,ho
  await page.goto(staff?"/app/inbox":"/chat/deployment");if(staff)await page.getByRole("button",{name:/^Support agent/}).click();
  return {requests,withdraw:()=>{withdrawn=true;},hold:()=>{holdNextLatest=true;},release:()=>release?.(),held:()=>!!release};
 }
-for(const staff of [true,false])for(const width of [1440,390])test(`${staff?"Inbox":"Visitor"} bounded earlier/latest history and policy refresh at ${width}`,async({page})=>{
+for(const staff of [true,false])for(const width of [1440,768,390])test(`${staff?"Inbox":"Visitor"} bounded earlier/latest history and policy refresh at ${width}`,async({page})=>{
  await page.setViewportSize({width,height:1000});const fixture=await mock(page,staff);
  await expect(page.getByText("Canonical response 6",{exact:true})).toBeVisible();expect(await page.getByRole("log").locator("article").count()).toBe(100);
  await page.getByRole("button",{name:"Earlier messages",exact:true}).click();await expect(page.getByText("Canonical response 1",{exact:true})).toBeVisible();expect(await page.getByRole("log").locator("article").count()).toBe(5);await expect(page.getByText("Canonical response 105",{exact:true})).toHaveCount(0);await expect(page.getByRole("button",{name:"Earlier messages",exact:true})).toBeDisabled();
