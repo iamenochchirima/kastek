@@ -491,8 +491,85 @@ across conversations requires verified identity and permission.
 
 Shared workers and data infrastructure are the long-term default. A configured agent needs no
 permanent process. Isolate code and computer execution, bound resource use and telemetry, and add
-dedicated capacity only for measured load or explicit isolation requirements. Availability,
-throughput, and multi-replica stream behavior remain unverified.
+dedicated capacity only for measured load or explicit isolation requirements.
+
+### Concurrency targets and workload definitions
+
+The architecture targets 1,000 and then 10,000 concurrent business executions across horizontally
+scaled components. These are design and verification targets, not demonstrated capacity or a
+promise that hardware increases alone satisfy them. Workspace execution needs separate Lina
+capacity acceptance once that integration exists.
+
+Measure configured agents, accepted nonterminal tasks, tasks waiting on external work, actively
+executing operations, queued work, and connected clients separately. One agent definition can
+serve many independent conversations. A parent waiting for specialists counts as one root plus
+its child tasks; report root and total task counts without confusing them with provider calls.
+Waiting on a timer, approval or capacity must not retain a database transaction or repeatedly
+poll through the model/tool loop.
+
+### Scheduling, coordination and backpressure
+
+| Boundary | Required behavior |
+| --- | --- |
+| Admission and dispatch | Persist accepted work and request identity before acknowledgment. Drain leased outbox batches with bounded parallelism; adding replicas cannot duplicate logical work or require one global dispatcher. |
+| Capacity scheduling | Use bounded durable queues and wakeups for tenant, workload and provider/account capacity. Define fairness and overload behavior before admission; report deferred or rejected work explicitly. |
+| Workload isolation | Keep interactive conversation latency from being dominated by bulk research, ingestion, analysis, scheduled jobs or evaluation traffic. Priorities cannot starve lower-priority work indefinitely. |
+| Coordination scope | Serialize required conversation turns, task budgets, workflow transitions and effect claims. Avoid organization-wide locks on every operation. Replace coarse locks with concurrency-safe permits/reservations, retaining atomic quota and authority enforcement. |
+| Database access | Keep transactions short and outside model/provider waits. Use bounded queries, indexed eligible-work scans and explicit connection budgets across replicas, dispatchers and cleanup processes. |
+| Retries and recovery | Bound physical attempts and backoff, preserve logical identities, and reconcile unknown effects. Recover capacity reservations after failures without allowing overlapping ownership or multiplying charges. |
+
+Shared scheduling does not grant authority. A queued operation rechecks current grants, resource
+permissions, conversation ownership and deadlines when it receives a permit. Expired/cancelled
+work releases reservations through its recorded lifecycle. Waiter registration, permit release and
+durable notification must prevent lost wakeups during crashes or concurrent transitions. Repeated
+wakeups recheck recorded ownership instead of issuing another permit. Root budgets still bound delegation;
+adding workers cannot expand a task's authority or allocation.
+
+### Replicas, durable routing and isolated resources
+
+API and worker replicas share durable execution identity. Correctness cannot depend on which
+replica receives a retry or read. Signing keys and rotation policy for cursors and continuation
+credentials must work across replicas. Reconnect uses authorized shared records and stable event
+positions, rather than a process-local history or a fresh task.
+
+Durable routing pins a task to a compatible program/runtime release. Plan Restate partitions,
+replication, storage and worker deployment together. Adding application workers does not remove
+a journal, database, dispatch or provider-account bottleneck. Required ordering keys must not
+serialize unrelated conversations under an agent or organization key.
+
+Isolated sandboxes and document-processing allocations retain a recorded executor owner, lease
+and generation. Commands, status and cleanup route to that executor or an explicitly verified
+recovery owner. Executor command, status and cleanup handlers validate the current generation;
+stale workers cannot command or destroy a newly owned allocation. A worker on another host must
+not start a replacement operation merely because
+it cannot see local files. Lease expiry alone does not prove an old process stopped or an effect
+did not occur. Preserve uncertainty and reconcile before reuse or retry.
+
+Channel delivery and observation fanout use bounded work and shared sequence positions. Slow
+clients cannot hold execution transactions, create unbounded buffers or prevent task completion.
+Every send still requires current ownership and its original stable delivery identity.
+
+### Capacity verification
+
+Capacity claims require repeatable, versioned workload evidence. Test increasing loads at 100,
+1,000 and 10,000 concurrent roots, reporting accepted, waiting and active counts separately.
+Include many-tenant and single-large-tenant cases, sustained arrivals, bursts, mixed capabilities,
+slow providers, delayed approvals, hot conversations, worker loss and replica restarts.
+
+Use real admission, PostgreSQL, outbox, Restate, authorization and effect receipts. Controlled
+model/provider simulators can isolate orchestration throughput, but their results do not establish
+live-model or external-provider capacity. Capability fixtures do not establish Lina or unsupported
+provider readiness. Do not silently replace the system under load with an in-memory task runner.
+
+Freeze workload mix, duration, latency/queue-age/error/fairness targets and failure scenarios
+before each acceptance run. Record queue depth, dispatch delay, transaction/lock and pool waits,
+throughput, physical attempts, root/child usage and recovery time. Verify zero lost accepted tasks,
+duplicate logical effects, cross-tenant leaks or repeated usage settlement. Compare increasing
+replicas to expose bottlenecks rather than infer scale from process count.
+
+If the authorized test environment cannot reach a target, record its achieved load, limiting
+resource and unmet criterion. Availability, 1,000/10,000 execution capacity, multi-replica delivery
+and stream behavior remain unverified until the corresponding acceptance evidence exists.
 
 ## Current implementation and remaining decisions
 

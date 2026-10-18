@@ -28,6 +28,21 @@ reauthorization are absent. Current screens do not yet fulfil the target connect
 Research/report acceptance fixtures prove execution behavior, not a standalone research product.
 The runtime's reviewed personal memory does not imply a personal-assistant catalogue offering.
 
+## Concurrency implementation gaps
+
+The [scaling contract](architecture/agent-platform-architecture.md#concurrency-targets-and-workload-definitions)
+defines 1,000/10,000 concurrent business-execution targets. Neither has been load-verified.
+Current limits of two roots and two model/four tool operations per organization are local policy,
+not measurements of platform capacity.
+
+The dispatcher claims one outbox task per pass and waits one second after its maintenance cycle.
+Operation admission locks an organization row and checks started-operation counts. Busy execution
+retries through a 250 ms durable polling loop. API cursor signing uses a process-local random key.
+Sandbox execution uses a local manager. These are explicit gaps in dispatch throughput, contention,
+capacity scheduling, replica-safe reads and executor routing. Raising the numeric limits or moving
+files does not resolve those gaps. Existing functional/recovery tests establish bounded behavior,
+not scalable multi-replica operation. Requirements and load acceptance remain in Linear.
+
 ## Current modules
 
 | Module in `api/src/platform` | Responsibility |
