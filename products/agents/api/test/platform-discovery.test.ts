@@ -106,4 +106,15 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
     expect((await get(`${f.base}/tasks?agentId=${randomUUID()}`,f.cookie)).status).toBe(404);
   });
 
+  it("searches the full roster with literal case-insensitive text and query-bound cursors",async()=>{
+    const f=await fixture();for(const name of ["Campaign north","Campaign south","Campaign 100% complete","Campaign _literal","Other role"])
+      await store.createAgent({accountId:f.user.id,organizationId:f.org,name});
+    const path=`${f.base}/agents/summaries?q=%20CAMPAIGN%20&limit=2`,first=await get(path,f.cookie);expect(first.status).toBe(200);expect(first.body.agents).toHaveLength(2);expect(first.body.agents.every(x=>x.name.startsWith("Campaign"))).toBe(true);expect(first.body.nextCursor).toBeTruthy();
+    const next=await get(path+`&cursor=${first.body.nextCursor}`,f.cookie);expect(next.body.agents).toHaveLength(2);expect(next.body.nextCursor).toBeNull();expect(new Set([...first.body.agents,...next.body.agents].map(x=>x.id)).size).toBe(4);
+    expect((await get(`${f.base}/agents/summaries?q=Other&cursor=${first.body.nextCursor}`,f.cookie)).status).toBe(400);
+    expect((await get(`${f.base}/agents/summaries?q=%25`,f.cookie)).body.agents.map(x=>x.name)).toEqual(["Campaign 100% complete"]);
+    expect((await get(`${f.base}/agents/summaries?q=_literal`,f.cookie)).body.agents.map(x=>x.name)).toEqual(["Campaign _literal"]);
+    expect((await get(`${f.base}/agents/summaries?q=${"a".repeat(121)}`,f.cookie)).status).toBe(400);
+  });
+
 });

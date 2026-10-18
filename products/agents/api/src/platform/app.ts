@@ -203,7 +203,7 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
     return { accountId: user.id, organizationId: org, agentId };
   } });
   app.get(`${base}/agents/summaries`,async request=>{
-    const page=await discovery.agents(await account(request),organizationId(request),pageQuery.strict().parse(request.query));
+    const page=await discovery.agents(await account(request),organizationId(request),pageQuery.extend({q:z.string().trim().max(120).optional()}).strict().parse(request.query));
     return {agents:page.items.map(row=>summary(row as unknown as Record<string,unknown>)),nextCursor:page.nextCursor};
   });
   app.get(`${base}/conversations`,async request=>{

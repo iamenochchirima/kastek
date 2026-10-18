@@ -84,7 +84,7 @@ agent configuration records. All routes below are beneath
 
 | Read | Response and order |
 | --- | --- |
-| `GET /agents/summaries` | `{agents,nextCursor}`; compact roster with latest immutable version, draft revision and unpublished-change state. Newest-created first, ID tie breaker. The existing `/agents` management response is unchanged. |
+| `GET /agents/summaries?q=...` | `{agents,nextCursor}`; compact roster with latest immutable version, draft revision and unpublished-change state. Newest-created first, ID tie breaker. Optional trimmed `q` (maximum 120 characters) searches the complete roster by case-insensitive literal name substring before paging. The existing `/agents` management response is unchanged. |
 | `GET /conversations?agentId=...&versionId=...` | `{conversations,nextCursor}`; `agentId` required, version filter optional. The exact human issuer/subject, Agents product, execution caller and agent scope must match. Activity descending, conversation ID tie breaker. |
 | `GET /tasks?agentId=...&state=...` | `{tasks,nextCursor}`; optional agent/state filters. Root tasks only, newest-created first, task ID tie breaker. Human tasks require exact principal; automation tasks require a current owner membership and either that owner or the pinned occurrence reviewer. |
 | `GET /conversations/:conversationId` | `{tasks,nextCursor,conversation}`; newest page of turns in ascending display order. Prepend subsequent pages to load older turns. Conversation metadata includes the pinned version and current latest task/turn IDs independently of the selected page. |
@@ -93,7 +93,7 @@ agent configuration records. All routes below are beneath
 
 Collections, conversation turns and standalone events accept `limit` (default 30,
 maximum 100) and `cursor`. Cursors bind to the principal, workspace, route and
-filters. They preserve a creation-time snapshot; later admissions appear on
+filters, including the trimmed roster search. They preserve a creation-time snapshot; later admissions appear on
 refresh. State and authorization remain current, so revoked or no-longer-matching
 records can disappear between pages. Timestamp keysets preserve PostgreSQL
 precision and use deterministic ID ties. Cursors are signed with a process-local
