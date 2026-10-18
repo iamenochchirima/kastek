@@ -41,6 +41,7 @@ export interface CompositionDependencies {
 export function compileComposition(reference: ProgramReference, configuration: AgentConfiguration, dependencies: CompositionDependencies): EffectiveComposition {
   const program = resolveProgram(reference);
   const denied = () => { throw new PlatformError("PROGRAM_COMPOSITION_DENIED", 409, "The configuration exceeds the trusted program contract"); };
+  if (configuration.program.id !== reference.id || configuration.program.version !== reference.version) denied();
   if (configuration.executionKind !== program.executionKind) throw new PlatformError("RUNTIME_UNAVAILABLE", 503, "The program requires an available compatible runtime");
   if (configuration.tools.some(name => !program.allowedTools.includes(name)) ||
       (configuration.memory.enabled && !program.personalMemory) ||
@@ -48,7 +49,8 @@ export function compileComposition(reference: ProgramReference, configuration: A
       (configuration.capabilities.sandbox.enabled && !program.sandbox) ||
       (configuration.connectedToolBindingIds.length > 0 && !program.connectedTools) ||
       (configuration.capabilities.workflows.enabled && !program.workflows.includes(configuration.capabilities.workflows.profileId))) denied();
-  const expectedTools: string[] = [...configuration.tools, ...(configuration.capabilities.workflows.enabled ? ["report.deliver"] : [])];
+  const expectedTools: string[] = [...configuration.tools, ...(configuration.sourceRevisionIds.length ? ["knowledge.initial"] : []),
+    ...(configuration.capabilities.workflows.enabled ? ["report.deliver"] : [])];
   if (new Set(dependencies.tools.map(tool => tool.name)).size !== dependencies.tools.length ||
       expectedTools.length !== dependencies.tools.length ||
       expectedTools.some(name => !dependencies.tools.some(tool => tool.name === name)) ||

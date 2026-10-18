@@ -6,6 +6,7 @@ import { fitUtf8 } from "../../capabilities/tools";
 import { capabilityBindingSchema } from "../../contracts/capability-catalog";
 import { agentConfigurationSchema,connectedToolAuthorityIds,executionGrantSchema,PlatformError,requestDigest,terminalTaskStates } from "../../contracts/contracts";
 import { assertCurrentAuthority,event,HARNESS_RELEASE,loadExecution,transaction } from "../lifecycle/execution";
+import { compilePublishedComposition } from "../programs/publication";
 
 export const delegationRequestSchema = z.strictObject({ requests: z.array(z.strictObject({
   bindingId: z.string().regex(/^[A-Za-z0-9_-]{1,64}$/), brief: z.string().trim().min(1).max(8192),
@@ -51,7 +52,8 @@ export async function admitChildren(pool: Pool, parentId: string, operationId: s
       const effectiveBindings=(await db.query("SELECT binding FROM agents_platform.capability_bindings WHERE organization_id=$1 AND id=ANY($2::uuid[])",[task.organization_id,connectedToolBindingIds])).rows;
       assertConnectedBindingDependencies(effectiveBindings.map(row=>capabilityBindingSchema.parse(row.binding)));
       const effective={...childConfig,sourceRevisionIds,connectedToolBindingIds,tools:binding.tools,memory:{enabled:false}};
-      prepared.push({request,binding,version,effective,maxTokens:request.maxTokens??binding.maxTokens});
+      const composition=compilePublishedComposition(effective,effectiveBindings.map(row=>capabilityBindingSchema.parse(row.binding)));
+      prepared.push({request,binding,version,effective,composition,maxTokens:request.maxTokens??binding.maxTokens});
     }
     const tokens=prepared.reduce((sum,item)=>sum+item.maxTokens,0), ms=prepared.reduce((sum,item)=>sum+item.binding.maxActiveMs,0);
     if(!budget || budget.settled_at || budget.tokens_used+budget.tokens_reserved+budget.child_reserved_tokens+tokens+4000>task.root_token_limit ||
@@ -69,10 +71,10 @@ export async function admitChildren(pool: Pool, parentId: string, operationId: s
         grant.maxInputBytes,grant.maxOutputTokens,grant.maxContextTokens,grant.rootTokenLimit,grant.expiresAt,grant.sourceRevisionIds,grant.connectedToolBindingIds]);
       await db.query("INSERT INTO agents_platform.conversations(id,organization_id,agent_id,principal,next_sequence) VALUES($1,$2,$3,$4,2)",[conversationId,task.organization_id,item.version.agent_id,task.principal]);
       await db.query(`INSERT INTO agents_platform.tasks(id,product,organization_id,resource_id,caller_client_id,principal,version_id,grant_id,conversation_id,request_key,
-        request_digest,input,root_task_id,parent_task_id,depth,delegation_operation_id,effective_configuration,root_token_limit,allocation_active_ms,deadline_at,harness_release)
-        VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,1,$15,$16,$17,$18,$19,$20)`,
+        request_digest,input,root_task_id,parent_task_id,depth,delegation_operation_id,effective_configuration,root_token_limit,allocation_active_ms,deadline_at,harness_release,effective_composition,evaluation_trial_id,channel_binding)
+        VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,1,$15,$16,$17,$18,$19,$20,$21,$22,$23)`,
       [id,task.product,task.organization_id,item.version.agent_id,grant.callerClientId,task.principal,item.version.id,grant.id,conversationId,`child:${id}`,digest,
-        item.request.brief,task.root_task_id,parentId,operationId,item.effective,item.maxTokens,item.binding.maxActiveMs,task.deadline_at,HARNESS_RELEASE]);
+        item.request.brief,task.root_task_id,parentId,operationId,item.effective,item.maxTokens,item.binding.maxActiveMs,task.deadline_at,HARNESS_RELEASE,item.composition,task.evaluation_trial_id,task.channel_binding]);
       await db.query("INSERT INTO agents_platform.delegations(parent_task_id,operation_id,slot,child_task_id,binding_id,request_digest,input_manifest) VALUES($1,$2,$3,$4,$5,$6,$7)",[parentId,operationId,slot,id,item.binding.id,digest,inputManifest]);
       await db.query("INSERT INTO agents_platform.task_outbox(task_id) VALUES($1)",[id]);
       await event(db,id,"accepted","accepted",{rootTaskId:task.root_task_id,parentTaskId:parentId,slot});

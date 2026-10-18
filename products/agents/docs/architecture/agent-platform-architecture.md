@@ -648,11 +648,24 @@ selection generations. These controls do not claim physical erasure of prior pro
 journals, revisions or backups. Procedural skills are immutable reviewed revisions pinned at
 publication; they cannot install tools or expand permissions.
 
-The trusted executor exposes selected knowledge.search/read, memory.search/propose, agents.delegate and sandbox.analyze operations.
+Trusted `grounded-conversation` and `tool-directed` program releases use the shared business loop.
+The grounded program permits knowledge search/read and customer handoff. The tool-directed program
+permits the implemented memory, delegation, sandbox, connected-read and reviewed-report capabilities.
+These are executable contracts, separate from FAQ/customer-service offering names. Published versions
+pin configuration, program, runtime, capability, workflow and connected-binding digests. Admission
+copies the effective composition to the task, including narrowed child compositions. Workers reject
+unavailable or changed releases before additional execution. New source uses `modular-programs-v1`
+and Restate workflow `AgentsBusinessRunV11` in fresh isolated schemas.
+
+The trusted executor exposes selected knowledge.search/read, memory.search/propose, agents.delegate, sandbox.analyze and channel.request_handoff operations.
 Tool schemas, arguments, current grants, memory fences, time and root usage are checked before
 admission. Model names and prompt instructions cannot grant a tool. The minimal FAQ uses the same
 controller with its optional capabilities disabled. Website publication rejects personal memory,
-memory tools, private skill bindings, connected reads and private source revisions.
+memory tools, private skill bindings, connected reads and private source revisions. Customer channel
+bindings contain a conversation, ownership generation and canonical input message. Current channel
+authority is checked at admission and operations; children inherit the binding. Human takeover
+changes the generation, fences further automation and requests cancellation. Only canonical published
+messages supply customer output and context. Human support messages remain labelled reference data.
 
 Operation receipts and per-operation settlement survive retries. A started model request without a
 confirmed receipt becomes uncertain instead of generating again. Expected denials are recorded

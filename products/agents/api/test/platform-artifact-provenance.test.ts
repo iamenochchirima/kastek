@@ -3,7 +3,7 @@ import {Pool} from "pg";
 import {beforeAll,afterAll,describe,it,expect} from "vitest";
 import {setupPlatformSchema} from "../src/composition/setup";
 import {PlatformStore} from "../src/product/agents/store";
-import {defaultFaqConfiguration,executionGrantSchema} from "../src/contracts/contracts";
+import {defaultBusinessConfiguration,executionGrantSchema} from "../src/contracts/contracts";
 import {beginOperation} from "../src/execution/lifecycle/execution";
 import {MemoryStore} from "../src/execution/memory/memory";
 import {TaskArtifactStore} from "../src/execution/artifacts/task-artifacts";
@@ -27,7 +27,7 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
   const organization=await store.createOrganization(account.id,"Artifact sources");return{account,organization,scope:{accountId:account.id,organizationId:organization.id}};
  }
  async function manual(){
-  const base=await owner(),configuration=defaultFaqConfiguration();configuration.memory.enabled=true;configuration.capabilities.sandbox={enabled:true,profileId:"python-analysis-v1"};configuration.tools=["sandbox.analyze"];
+  const base=await owner(),configuration=defaultBusinessConfiguration();configuration.memory.enabled=true;configuration.capabilities.sandbox={enabled:true,profileId:"python-analysis-v1"};configuration.tools=["sandbox.analyze"];
   const agent=await store.createAgent({...base.scope,name:"Researcher",configuration}),version=await store.createVersion({...base.scope,agentId:agent.id,expectedRevision:1});
   const authority={product:"agents" as const,organizationId:base.organization.id,resourceId:agent.id,callerClientId:"agents-execution",principal:{kind:"human" as const,issuer:base.account.issuer,subject:base.account.subject}};
   const grant=executionGrantSchema.parse({...authority,id:randomUUID(),versionId:version.id,operations:["model.reply","knowledge.read","memory.read","memory.propose","sandbox.execute","artifact.read","artifact.write"],maxInputBytes:16384,maxOutputTokens:1024,expiresAt:new Date(Date.now()+60000).toISOString(),revokedAt:null});await store.createGrant({accountId:base.account.id,grant});
@@ -53,7 +53,7 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
   await pool.query("INSERT INTO agents_platform.memberships(organization_id,account_id,role) VALUES($1,$2,'member')",[f.organization.id,reviewer.id]);
   const vault=new ConnectionVault("v1",{v1:randomBytes(32).toString("base64")}),target={id:"reports",label:"Review destination",url:"http://127.0.0.1:19100/deliveries",resource:"reports:test"};
   const connections=new ConnectionStore(pool,vault,[target]),connection=await connections.create(f.scope,{operationId:randomUUID(),name:"Reports",targetId:target.id,apiKey:"local-review-test-scoped-key"});
-  const configuration=defaultFaqConfiguration();configuration.capabilities.sandbox={enabled:true,profileId:"python-analysis-v1"};configuration.capabilities.workflows={enabled:true,profileId:"report-delivery-v1",connectionId:connection.id,reportArtifactName:"report.md",title:"Report"};configuration.tools=["sandbox.analyze"];
+  const configuration=defaultBusinessConfiguration();configuration.capabilities.sandbox={enabled:true,profileId:"python-analysis-v1"};configuration.capabilities.workflows={enabled:true,profileId:"report-delivery-v1",connectionId:connection.id,reportArtifactName:"report.md",title:"Report"};configuration.tools=["sandbox.analyze"];
   const agent=await store.createAgent({...f.scope,name:"Reporter",configuration}),version=await store.createVersion({...f.scope,agentId:agent.id,expectedRevision:1}),automations=new AutomationService(pool);
   const automation=await automations.create(f.scope,randomUUID(),{name:"Reviewed report",versionId:version.id,input:"Generate report",reviewerAccountId:reviewer.id,expiresAt:new Date(Date.now()+3600000).toISOString(),schedule:{kind:"event"}});
   const occurrence=await automations.occur(automation.id,1,"fixture",new Date()),taskId=occurrence.task_id!;

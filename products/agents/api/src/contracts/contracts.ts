@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { z } from "zod";
+import { programReferenceSchema } from "./programs";
 
 export const executionKindSchema = z.enum(["business", "workspace"]);
 export type AgentExecutionKind = z.infer<typeof executionKindSchema>;
@@ -24,7 +25,7 @@ export const modelSchema = z.strictObject({
 
 const unavailableCapability = z.strictObject({ enabled: z.literal(false) });
 export const baseToolNameSchema = z.enum(["knowledge.search", "knowledge.read", "memory.search", "memory.propose"]);
-export const toolNameSchema = z.enum(["knowledge.search", "knowledge.read", "memory.search", "memory.propose", "agents.delegate", "sandbox.analyze"]);
+export const toolNameSchema = z.enum(["knowledge.search", "knowledge.read", "memory.search", "memory.propose", "agents.delegate", "sandbox.analyze", "channel.request_handoff"]);
 export const delegationBindingSchema = z.strictObject({
   id: z.string().regex(/^[A-Za-z0-9_-]{1,64}$/), versionId: z.uuid(),
   sourceRevisionIds: z.array(z.uuid()).max(20).default([]), connectedToolBindingIds: z.array(z.uuid()).max(8).default([]),
@@ -32,7 +33,7 @@ export const delegationBindingSchema = z.strictObject({
   tools: z.array(z.enum(["knowledge.search", "knowledge.read"])).max(2),
   maxTokens: z.number().int().min(2048).max(12000), maxActiveMs: z.number().int().min(1000).max(300000),
 });
-export const faqCapabilitiesSchema = z.strictObject({
+export const businessCapabilitiesSchema = z.strictObject({
   delegation: z.discriminatedUnion("enabled", [unavailableCapability, z.strictObject({ enabled: z.literal(true),
     bindings: z.array(delegationBindingSchema).min(1).max(2).refine(bindings => new Set(bindings.map(binding => binding.id)).size === bindings.length, "Duplicate specialist binding"),
     maxChildren: z.literal(2), maxDepth: z.literal(1) })]),
@@ -50,6 +51,7 @@ function collectConnectedToolAuthorityIds(configuration: { connectedToolBindingI
 }
 
 export const agentConfigurationSchema = z.strictObject({
+  program: programReferenceSchema.default({ id: "tool-directed", version: "1" }),
   executionKind: executionKindSchema,
   instructions: z.string().trim().min(1).max(8_000),
   model: modelSchema,
@@ -57,11 +59,11 @@ export const agentConfigurationSchema = z.strictObject({
   connectedToolBindingIds: z.array(z.uuid()).max(8).refine(ids => new Set(ids).size === ids.length, "Duplicate connected tool").default([]),
   retrievalProfile: z.discriminatedUnion("kind", [z.strictObject({ kind: z.literal("lexical-v1") }),
     z.strictObject({ kind: z.literal("hybrid-v1"), embeddingRelease: z.string().min(1).max(256) })]).default({ kind: "lexical-v1" }),
-  capabilities: faqCapabilitiesSchema,
+  capabilities: businessCapabilitiesSchema,
   memory: z.strictObject({ enabled: z.boolean() }).default({ enabled: false }),
   context: z.strictObject({ maxInputTokens: z.number().int().min(2048).max(8192),
     compactAtTokens: z.number().int().min(1024).max(6144) }).default({ maxInputTokens: 8192, compactAtTokens: 6144 }),
-  tools: z.array(toolNameSchema).max(6).refine(tools => new Set(tools).size === tools.length, "Duplicate tool").default([]),
+  tools: z.array(toolNameSchema).max(7).refine(tools => new Set(tools).size === tools.length, "Duplicate tool").default([]),
   skillIds: z.array(z.uuid()).max(8).default([]),
 }).refine(configuration => collectConnectedToolAuthorityIds(configuration).length <= 8, "At most eight connected tools may be authorized across the agent and its specialists");
 export type AgentConfiguration = z.infer<typeof agentConfigurationSchema>;
@@ -73,8 +75,9 @@ export function connectedToolAuthorityIds(configuration: Pick<AgentConfiguration
   return ids;
 }
 
-export function defaultFaqConfiguration(): AgentConfiguration {
+export function defaultBusinessConfiguration(): AgentConfiguration {
   return {
+    program: { id: "tool-directed", version: "1" },
     executionKind: "business",
     instructions: "Answer questions using the approved knowledge. If the sources do not answer a question, say so.",
     model: {
@@ -136,7 +139,7 @@ export const executionGrantSchema = z.strictObject({
   callerClientId: z.string().min(1).max(128),
   principal: principalSchema,
   versionId: z.uuid(),
-  operations: z.array(z.enum(["knowledge.read", "model.reply", "memory.read", "memory.propose", "delegation.execute", "sandbox.execute", "artifact.read", "artifact.write", "effect.deliver", "connected.read"])).min(1).max(10),
+  operations: z.array(z.enum(["knowledge.read", "model.reply", "memory.read", "memory.propose", "delegation.execute", "sandbox.execute", "artifact.read", "artifact.write", "effect.deliver", "connected.read", "channel.handoff"])).min(1).max(11),
   sourceRevisionIds: z.array(z.uuid()).max(20).default([]), connectedToolBindingIds: z.array(z.uuid()).max(8).default([]),
   maxInputBytes: z.number().int().positive().max(initialLimits.maxInputBytes),
   maxOutputTokens: z.number().int().positive().max(initialLimits.maxOutputTokens),
@@ -177,6 +180,7 @@ export function assertGrantAuthority(
       (configuration.capabilities.delegation.enabled && !grant.operations.includes("delegation.execute")) ||
       (configuration.capabilities.sandbox.enabled && (!grant.operations.includes("sandbox.execute") || !grant.operations.includes("artifact.read") || !grant.operations.includes("artifact.write"))) ||
       (configuration.capabilities.workflows.enabled && (!grant.operations.includes("effect.deliver") || !grant.operations.includes("artifact.read") || !grant.operations.includes("artifact.write"))) ||
+      (configuration.tools.includes("channel.request_handoff") && !grant.operations.includes("channel.handoff")) ||
       (configuration.memory.enabled && (!grant.operations.includes("memory.read") || !grant.operations.includes("memory.propose")))) {
     throw new PlatformError("GRANT_CAPABILITY_DENIED", 403, "Execution exceeds the authorized capabilities or limits");
   }

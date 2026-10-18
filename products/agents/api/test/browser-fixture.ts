@@ -23,7 +23,7 @@ import { setupPlatformSchema } from "../src/composition/setup";
 import { PlatformStore } from "../src/product/agents/store";
 import { createBusinessWorkflow } from "../src/execution/business/business";
 import { startDispatcher } from "../src/execution/lifecycle/dispatcher";
-import { defaultFaqConfiguration, type AgentConfiguration } from "../src/contracts/contracts";
+import { defaultBusinessConfiguration, type AgentConfiguration } from "../src/contracts/contracts";
 import { KnowledgeStore } from "../src/capabilities/knowledge/knowledge";
 import { EvidenceStore } from "../src/execution/context/evidence";
 import { KnowledgeRuntime } from "../src/capabilities/knowledge/knowledge-runtime";
@@ -351,7 +351,7 @@ async function prepareAdvancedFixture(token: string): Promise<AdvancedFixture> {
   }
   async function create(name: string, instructions: string, specialist: boolean,sourceIds=[knowledge.id],bindings:CapabilityBinding[]=[]) {
     const { agent } = await request<{ agent: { id: string; draftRevision: number } }>(`${base}/agents`, { name });
-    const defaults = defaultFaqConfiguration();
+    const defaults = defaultBusinessConfiguration();
     const configuration: AgentConfiguration = { ...defaults, instructions, sourceRevisionIds: sourceIds,connectedToolBindingIds:bindings.map(binding=>binding.id), retrievalProfile:{kind:"hybrid-v1",embeddingRelease:embeddingRelease!}, tools: specialist ? ["knowledge.search", "knowledge.read"] : [], model: { ...defaults.model, maxOutputTokens: specialist ? stashAcceptance?512:githubAcceptance||publicAcceptance?384:192 : publicAcceptance?1024:768 } };
     const updated = await request<{ agent: { draftRevision: number } }>(`${base}/agents/${agent.id}`, { name, configuration, expectedRevision: agent.draftRevision }, "PUT");
     const { version } = await request<{ version: { id: string } }>(`${base}/agents/${agent.id}/versions`, { expectedRevision: updated.agent.draftRevision });

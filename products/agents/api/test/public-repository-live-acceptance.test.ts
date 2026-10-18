@@ -9,7 +9,7 @@ import { ConnectionVault } from "../src/infrastructure/vault";
 import { EvidenceStore } from "../src/execution/context/evidence";
 import {S3PrivateStore} from "../src/infrastructure/object-store";
 import { PlatformStore } from "../src/product/agents/store";
-import { defaultFaqConfiguration, type ExecutionGrant } from "../src/contracts/contracts";
+import { defaultBusinessConfiguration, type ExecutionGrant } from "../src/contracts/contracts";
 import { beginOperation, finishOperation, settleTask } from "../src/execution/lifecycle/execution";
 import { setupPlatformSchema } from "../src/composition/setup";
 import { readPublicRepositoryAcceptanceConfig } from "./support/public-repository-acceptance-config";
@@ -58,7 +58,7 @@ import type { CapabilityBinding, CapabilityCatalog } from "../src/contracts/capa
     bindings.push(...await executor.catalogs.selectBindings(scope,{operationId:randomUUID(),connectionId:connection.id,expectedRevision:connection.revision,catalogId:candidate.id,selections:operations.map(providerOperation=>({providerOperation,resources:connection.resources}))}));
    }
    expect(bindings).toHaveLength(5);expect(bindings.filter(binding=>binding.transport==="mcp_http").map(binding=>binding.protocolVersion)).toEqual(["2025-11-25"]);
-   executor.assertAvailable(bindings);const configuration={...defaultFaqConfiguration(),connectedToolBindingIds:bindings.map(binding=>binding.id)},agent=await platform.createAgent({...scope,name:"Actual connected reader",configuration}),version=await platform.createVersion({...scope,agentId:agent.id,expectedRevision:1});
+   executor.assertAvailable(bindings);const configuration={...defaultBusinessConfiguration(),connectedToolBindingIds:bindings.map(binding=>binding.id)},agent=await platform.createAgent({...scope,name:"Actual connected reader",configuration}),version=await platform.createVersion({...scope,agentId:agent.id,expectedRevision:1});
    const authority={product:"agents" as const,organizationId:org.id,resourceId:agent.id,callerClientId:"agents-execution",principal:{kind:"human" as const,issuer:owner.issuer,subject:owner.subject}};
    const grant:ExecutionGrant={...authority,id:randomUUID(),versionId:version.id,operations:["model.reply","connected.read"],sourceRevisionIds:[],connectedToolBindingIds:configuration.connectedToolBindingIds,maxInputBytes:configuration.model.maxInputBytes,maxOutputTokens:configuration.model.maxOutputTokens,maxContextTokens:configuration.context.maxInputTokens,rootTokenLimit:32000,expiresAt:new Date(Math.min(Date.now()+600000,Date.parse(expiresAt))).toISOString(),revokedAt:null};await platform.createGrant({...scope,grant});
    const admitted=await platform.admitTask({authority,versionId:version.id,grantId:grant.id,requestKey:randomUUID(),input:"Read the owner's approved public repository"});taskId=admitted.task.id;

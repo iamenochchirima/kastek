@@ -2,7 +2,7 @@ import {publishFixtureSource} from "./knowledge-fixture";
 import { randomUUID } from "node:crypto";
 import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { defaultFaqConfiguration, type AdmissionAuthority, type ExecutionGrant } from "../src/contracts/contracts";
+import { defaultBusinessConfiguration, type AdmissionAuthority, type ExecutionGrant } from "../src/contracts/contracts";
 import { PlatformStore } from "../src/product/agents/store";
 import { setupPlatformSchema } from "../src/composition/setup";
 
@@ -29,7 +29,7 @@ suite("fresh platform PostgreSQL store", () => {
   async function fixture(kind: "business" | "workspace" = "business") {
     const account = await store.ensureAccount({ issuer: "http://localhost:8080/realms/test", subject: randomUUID(), email: "same@example.com", displayName: "Owner" });
     const org = await store.createOrganization(account.id, "Test organization");
-    const config = defaultFaqConfiguration(); config.executionKind = kind;
+    const config = defaultBusinessConfiguration(); config.executionKind = kind;
     const agent = await store.createAgent({ accountId: account.id, organizationId: org.id, name: "FAQ", configuration: config });
     const version = await store.createVersion({ accountId: account.id, organizationId: org.id, agentId: agent.id, expectedRevision: 1 });
     const authority: AdmissionAuthority = { product: "agents", organizationId: org.id, resourceId: agent.id, callerClientId: "agents-execution",
@@ -137,10 +137,9 @@ suite("fresh platform PostgreSQL store", () => {
     await expect(store.admitTask(expired.request)).rejects.toMatchObject({ code: "GRANT_INACTIVE" });
   });
 
-  it("rejects workspace execution before creating a task or outbox", async () => {
-    const f = await fixture("workspace");
-    await expect(store.admitTask(f.request)).rejects.toMatchObject({ code: "RUNTIME_UNAVAILABLE" });
-    expect(Number((await pool.query("SELECT count(*) FROM agents_platform.tasks WHERE organization_id=$1", [f.org.id])).rows[0].count)).toBe(0);
+  it("rejects unavailable workspace programs at publication", async () => {
+    await expect(fixture("workspace")).rejects.toMatchObject({ code: "RUNTIME_UNAVAILABLE" });
+    expect(Number((await pool.query("SELECT count(*) FROM agents_platform.agent_versions WHERE execution_kind='workspace'")).rows[0].count)).toBe(0);
   });
 
   it("keeps website conversations bound to the deployment and visitor principal", async () => {

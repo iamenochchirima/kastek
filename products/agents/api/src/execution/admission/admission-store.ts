@@ -10,6 +10,13 @@ type ExecutionGrant
 
 import { finishPage,readPageCursor,type PageQuery } from "../../infrastructure/read-pages";
 import { resolveAutomationOwner } from "../lifecycle/automation-authority";
+import { capabilityBindingSchema } from "../../contracts/capability-catalog";
+import { assertComposition } from "../programs/composition";
+import { compilePublishedComposition } from "../programs/publication";
+import { assertEvaluationTrial } from "./trial-authority";
+import { recordEvent } from "../../observability/event-store";
+import { channelBindingSchema } from "../../contracts/channel";
+import { channelPorts } from "../../infrastructure/channel-ports";
 
 import type { AdmitTaskInput,TaskEvent,TaskRecord } from "../../contracts/records";
 import { AuthorityStore } from "./authority-store";
@@ -48,11 +55,16 @@ export class AdmissionStore extends AuthorityStore {
     const grant = grantFromRow(row);
     const version = await this.version(db, input.authority.organizationId, input.versionId);
     const config = agentConfigurationSchema.parse(version.configuration);
+    const bindings = (await db.query("SELECT binding FROM agents_platform.capability_bindings WHERE organization_id=$1 AND id=ANY($2::uuid[])",
+      [input.authority.organizationId, config.connectedToolBindingIds])).rows.map(row => capabilityBindingSchema.parse(row.binding));
+    const composition = compilePublishedComposition(config, bindings);
+    assertComposition(version.effective_composition, composition);
     assertGrantAuthority(grant, input.authority, input.versionId, config);
     assertRuntimeAvailable(config);
     await this.assertPrincipal(db, input.authority, version);
     if (Buffer.byteLength(input.input) > config.model.maxInputBytes) throw new PlatformError("INPUT_LIMIT", 413, "The message exceeds the input limit");
-    const digest = requestDigest({ authority: input.authority, versionId: input.versionId, input: input.input, conversationId: input.conversationId ?? null });
+    const digest = requestDigest({ authority: input.authority, versionId: input.versionId, input: input.input, conversationId: input.conversationId ?? null,
+      evaluationTrialId: input.evaluationTrialId ?? null, channelBinding: input.channelBinding ?? null });
     const existing = (await db.query<TaskRecord>(`SELECT * FROM agents_platform.tasks WHERE product=$1 AND organization_id=$2
       AND caller_client_id=$3 AND resource_id=$4 AND request_key=$5`, [input.authority.product, input.authority.organizationId, input.authority.callerClientId, input.authority.resourceId, requestKey])).rows[0];
     if (existing) {
@@ -62,6 +74,14 @@ export class AdmissionStore extends AuthorityStore {
     const active = (await db.query<{ count: string }>("SELECT count(*) FROM agents_platform.tasks WHERE organization_id=$1 AND parent_task_id IS NULL AND state IN ('accepted','running','waiting_children','waiting_authority','waiting_review','reconciling','cancel_requested')", [input.authority.organizationId])).rows[0]!;
     if (Number(active.count) >= initialLimits.maxConcurrentTasks) throw new PlatformError("CONCURRENCY_LIMIT", 429, "Too many tasks are running");
     const reservation = grant.rootTokenLimit;
+    if(input.channelBinding) await channelPorts(db).assertBinding(db,channelBindingSchema.parse(input.channelBinding),
+      {organization_id:input.authority.organizationId,version_id:version.id,root_task_id:"admitting"});
+    await assertEvaluationTrial(db, { trialId: input.evaluationTrialId, authority: input.authority, agentId: version.agent_id,
+      versionId: version.id, rootTokenLimit: reservation, conversationId: input.conversationId });
+    if (input.evaluationTrialId && !(await db.query(`UPDATE agents_platform.evaluation_trials SET allocated_tokens=allocated_tokens+$2
+      WHERE id=$1 AND state='active' AND expires_at>now() AND allocated_tokens+$2<=max_tokens RETURNING id`, [input.evaluationTrialId, reservation])).rowCount) {
+      throw new PlatformError("EVALUATION_BUDGET_EXCEEDED", 429, "The trial allocation limit was reached");
+    }
     await db.query("INSERT INTO agents_platform.usage_accounts(organization_id,day) VALUES($1,(now() AT TIME ZONE 'UTC')::date) ON CONFLICT DO NOTHING", [input.authority.organizationId]);
     const quota = (await db.query<{ day: string }>(`UPDATE agents_platform.usage_accounts SET reserved_tokens=reserved_tokens+$2
       WHERE organization_id=$1 AND day=(now() AT TIME ZONE 'UTC')::date AND reserved_tokens+consumed_tokens+$2<=token_allowance RETURNING day`, [input.authority.organizationId, reservation])).rows[0];
@@ -77,13 +97,13 @@ export class AdmissionStore extends AuthorityStore {
     if (priorVersion && priorVersion.version_id !== input.versionId) throw new PlatformError("CONVERSATION_VERSION_CONFLICT",409,"Start a new conversation for this version");
     const sequence = (await db.query("UPDATE agents_platform.conversations SET next_sequence=next_sequence+1 WHERE id=$1 RETURNING next_sequence-1 AS sequence", [conversationId])).rows[0].sequence;
     const task = (await db.query<TaskRecord>(`INSERT INTO agents_platform.tasks(id,product,organization_id,resource_id,caller_client_id,
-      principal,version_id,grant_id,conversation_id,request_key,request_digest,input,turn_sequence,root_token_limit) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING *`,
+      principal,version_id,grant_id,conversation_id,request_key,request_digest,input,turn_sequence,root_token_limit,effective_composition,evaluation_trial_id,channel_binding) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17) RETURNING *`,
     [randomUUID(), input.authority.product, input.authority.organizationId, input.authority.resourceId, input.authority.callerClientId, input.authority.principal,
-      input.versionId, grant.id, conversationId, requestKey, digest, input.input, sequence, reservation])).rows[0]!;
+      input.versionId, grant.id, conversationId, requestKey, digest, input.input, sequence, reservation, composition, input.evaluationTrialId ?? null,input.channelBinding??null])).rows[0]!;
     await db.query("INSERT INTO agents_platform.execution_roots(root_task_id) VALUES($1)", [task.id]);
     await db.query("INSERT INTO agents_platform.task_outbox(task_id) VALUES($1)", [task.id]);
     await db.query("INSERT INTO agents_platform.usage_reservations(task_id,organization_id,day,tokens) VALUES($1,$2,$3,$4)", [task.id, input.authority.organizationId, quota.day, reservation]);
-    await db.query("INSERT INTO agents_platform.task_events(task_id,event_key,kind) VALUES($1,'accepted','accepted')", [task.id]);
+    await recordEvent(db, task.id, "accepted", "accepted");
     return { task, replayed: false };
   }
   async getTask(authority: AdmissionAuthority, taskId: string): Promise<TaskRecord> {

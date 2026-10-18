@@ -3,7 +3,7 @@ import {Pool} from "pg";
 import {beforeAll,afterAll,describe,it,expect} from "vitest";
 import {PlatformStore} from "../src/product/agents/store";
 import {setupPlatformSchema} from "../src/composition/setup";
-import {defaultFaqConfiguration,executionGrantSchema} from "../src/contracts/contracts";
+import {defaultBusinessConfiguration,executionGrantSchema} from "../src/contracts/contracts";
 import {beginOperation} from "../src/execution/lifecycle/execution";
 import {TaskArtifactStore} from "../src/execution/artifacts/task-artifacts";
 import {ConnectionVault} from "../src/infrastructure/vault";
@@ -28,7 +28,7 @@ const dbUrl=process.env.AGENTS_TEST_DATABASE_URL;
  async function fixture(){
   const account=await platform.ensureAccount({issuer:"http://localhost/actions",subject:randomUUID(),email:"owner@example.test",displayName:"Owner"}),organization=await platform.createOrganization(account.id,"Reports");
   const scope={accountId:account.id,organizationId:organization.id},connection=await connections.create(scope,{operationId:randomUUID(),name:"Reports",targetId:target.id,apiKey:key});
-  const config=defaultFaqConfiguration();config.capabilities.sandbox={enabled:true,profileId:"python-analysis-v1"};config.capabilities.workflows={enabled:true,profileId:"report-delivery-v1",connectionId:connection.id,reportArtifactName:"report.json",title:"Analysis"};config.tools=["sandbox.analyze"];
+  const config=defaultBusinessConfiguration();config.capabilities.sandbox={enabled:true,profileId:"python-analysis-v1"};config.capabilities.workflows={enabled:true,profileId:"report-delivery-v1",connectionId:connection.id,reportArtifactName:"report.json",title:"Analysis"};config.tools=["sandbox.analyze"];
   const agent=await platform.createAgent({accountId:account.id,organizationId:organization.id,name:"Reporter",configuration:config}),version=await platform.createVersion({accountId:account.id,organizationId:organization.id,agentId:agent.id,expectedRevision:1});
   const authority={product:"agents" as const,organizationId:organization.id,resourceId:agent.id,callerClientId:"agents-execution",principal:{kind:"human" as const,issuer:account.issuer,subject:account.subject}};
   const grant=executionGrantSchema.parse({...authority,id:randomUUID(),versionId:version.id,operations:["model.reply","knowledge.read","sandbox.execute","artifact.read","artifact.write","effect.deliver"],maxInputBytes:16384,maxOutputTokens:1024,expiresAt:new Date(Date.now()+60_000).toISOString(),revokedAt:null});await platform.createGrant({accountId:account.id,grant});

@@ -5,7 +5,7 @@ import { readFile, readdir } from "node:fs/promises";
 import { resolve } from "node:path";
 import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { defaultFaqConfiguration } from "../src/contracts/contracts";
+import { defaultBusinessConfiguration } from "../src/contracts/contracts";
 import { setupPlatformSchema } from "../src/composition/setup";
 import { PlatformStore } from "../src/product/agents/store";
 
@@ -37,7 +37,7 @@ suite("fresh platform setup and database snapshot boundaries", () => {
     const account = await store.ensureAccount({ issuer: "http://localhost:8080/realms/setup-test", subject: randomUUID(), email: "setup@example.com", displayName: "Setup fixture" });
     const org = await store.createOrganization(account.id, "Setup verification");
     const knowledge = await publishFixtureSource(pool,{ accountId: account.id, organizationId: org.id, title: "Returns", content: "Returns within 30 days.", visibility: "public" });
-    const configuration = defaultFaqConfiguration(); configuration.sourceRevisionIds = [knowledge.id];
+    const configuration = defaultBusinessConfiguration(); configuration.sourceRevisionIds = [knowledge.id];
     const agent = await store.createAgent({ accountId: account.id, organizationId: org.id, name: "FAQ", configuration });
     const version = await store.createVersion({ accountId: account.id, organizationId: org.id, agentId: agent.id, expectedRevision: 1 });
     return { store, account, org, knowledge, agent, version };
@@ -109,7 +109,7 @@ suite("fresh platform setup and database snapshot boundaries", () => {
 
   it("rejects a website binding to a different agent's version in the same organization", async () => {
     const { pool } = await freshDatabase(); const f = await snapshotFixture(pool);
-    const other = await f.store.createAgent({ accountId: f.account.id, organizationId: f.org.id, name: "Other FAQ", configuration: defaultFaqConfiguration() });
+    const other = await f.store.createAgent({ accountId: f.account.id, organizationId: f.org.id, name: "Other FAQ", configuration: defaultBusinessConfiguration() });
     const sql = "INSERT INTO agents_platform.website_deployments(id,organization_id,agent_id,version_id,allowed_origins,published_by) VALUES($1,$2,$3,$4,$5::jsonb,$6)";
     await expect(pool.query(sql, [randomUUID(), f.org.id, other.id, f.version.id, JSON.stringify(["https://example.com"]), f.account.id])).rejects.toMatchObject({ code: "23503" });
     await pool.query(sql, [randomUUID(), f.org.id, f.agent.id, f.version.id, JSON.stringify(["https://example.com"]), f.account.id]);

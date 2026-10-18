@@ -7,7 +7,7 @@ import {EvidenceStore} from "../src/execution/context/evidence";
 import {PlatformStore} from "../src/product/agents/store";
 import {setupPlatformSchema} from "../src/composition/setup";
 import {beginOperation} from "../src/execution/lifecycle/execution";
-import {defaultFaqConfiguration,executionGrantSchema,requestDigest} from "../src/contracts/contracts";
+import {defaultBusinessConfiguration,executionGrantSchema,requestDigest} from "../src/contracts/contracts";
 import {textDigest} from "../src/contracts/source-contracts";
 
 const url=process.env.AGENTS_TEST_DATABASE_URL;
@@ -25,7 +25,7 @@ const url=process.env.AGENTS_TEST_DATABASE_URL;
   const text=values.join("\n\n"),release="document-processing-v1@"+"a".repeat(64),job=await knowledge.admitUpload(scope,{operationId:randomUUID(),title:"Laboratory guide",contentType:"text/plain",content:Buffer.from(text),parserRelease:"fixture-parser-v1",...(hybrid?{embeddingRelease:release}:{})});
   let start=0;const chunks=values.map((value,ordinal)=>{const chunk={id:randomUUID(),revisionId:job.revisionId,ordinal,start,end:start+value.length,page:ordinal+1,section:null,text:value,digest:textDigest(value),tokens:64};start=chunk.end+2;return chunk;});await pool.query("UPDATE agents_platform.ingestion_jobs SET state='extracting' WHERE id=$1",[job.id]);
   await knowledge.publishExtraction(job.id,{text,chunks,normalizerRelease:"fixture-nfc-v1",acquiredAt:new Date().toISOString(),...(hybrid?{embeddings:chunks.map(()=>Array.from({length:384},(_,index)=>index===0?1:0))}:{})});await knowledge.setPolicy(scope,job.sourceId,{operationId:randomUUID(),expectedGeneration:1,action:"approve",revisionId:job.revisionId});
-  const config=defaultFaqConfiguration();config.sourceRevisionIds=[job.revisionId];config.tools=["knowledge.search","knowledge.read"];config.retrievalProfile=hybrid?{kind:"hybrid-v1",embeddingRelease:release}:{kind:"lexical-v1"};const agent=await platform.createAgent({...scope,name:"Researcher",configuration:config}),version=await platform.createVersion({...scope,agentId:agent.id,expectedRevision:1});
+  const config=defaultBusinessConfiguration();config.sourceRevisionIds=[job.revisionId];config.tools=["knowledge.search","knowledge.read"];config.retrievalProfile=hybrid?{kind:"hybrid-v1",embeddingRelease:release}:{kind:"lexical-v1"};const agent=await platform.createAgent({...scope,name:"Researcher",configuration:config}),version=await platform.createVersion({...scope,agentId:agent.id,expectedRevision:1});
   const authority={product:"agents" as const,organizationId:org.id,resourceId:agent.id,callerClientId:"agents-execution",principal:{kind:"human" as const,issuer:account.issuer,subject:account.subject}},grant=executionGrantSchema.parse({...authority,id:randomUUID(),versionId:version.id,operations:["model.reply","knowledge.read"],sourceRevisionIds:[job.revisionId],maxInputBytes:16384,maxOutputTokens:1024,expiresAt:new Date(Date.now()+600000).toISOString(),revokedAt:null});await platform.createGrant({...scope,grant});const {task}=await platform.admitTask({authority,versionId:version.id,grantId:grant.id,requestKey:randomUUID(),input:"Zircon refrigeration policy"});
   return{scope,job,text,chunks,task,grant,authority,version};
  }

@@ -1,7 +1,7 @@
 import { randomBytes, randomUUID } from "node:crypto";
 import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { agentConfigurationSchema, assertGrantAuthority, connectedToolAuthorityIds, defaultFaqConfiguration,
+import { agentConfigurationSchema, assertGrantAuthority, connectedToolAuthorityIds, defaultBusinessConfiguration,
   executionGrantSchema, type AgentConfiguration } from "../src/contracts/contracts";
 import { AutomationService, operationsForConfiguration } from "../src/product/automations/automations";
 import { PlatformStore } from "../src/product/agents/store";
@@ -13,7 +13,7 @@ import { createCatalog, digestToolSchema, ExecutableAdapterRegistry } from "../s
 import { loadExecution } from "../src/execution/lifecycle/execution";
 
 function delegated(ids: string[], direct: string[] = []): AgentConfiguration {
-  const config = defaultFaqConfiguration();
+  const config = defaultBusinessConfiguration();
   config.connectedToolBindingIds = direct;
   config.tools = ["agents.delegate"];
   config.capabilities.delegation = { enabled: true, maxChildren: 2, maxDepth: 1,
@@ -28,7 +28,7 @@ describe("direct tools and delegated authority", () => {
     const config = delegated([second!, third!, first!], [first!, second!]);
     expect(connectedToolAuthorityIds(config)).toEqual([first, second, third]);
     expect(config.connectedToolBindingIds).toEqual([first, second]);
-    expect(connectedToolAuthorityIds(defaultFaqConfiguration())).toEqual([]);
+    expect(connectedToolAuthorityIds(defaultBusinessConfiguration())).toEqual([]);
   });
 
   it("requires grants and connected.read for specialist-only tools", () => {
@@ -95,11 +95,11 @@ const dbUrl = process.env.AGENTS_TEST_DATABASE_URL;
     await catalogs.saveCandidate(scope, { operationId: randomUUID(), connectionId: connection.id, expectedRevision: 1, catalog });
     const bindings = await catalogs.selectBindings(scope, { operationId: randomUUID(), connectionId: connection.id, expectedRevision: 1,
       catalogId: catalog.id, selections: names.map(providerOperation => ({ providerOperation, resources: connection.resources })) });
-    const config = defaultFaqConfiguration(); config.tools = ["agents.delegate"];
+    const config = defaultBusinessConfiguration(); config.tools = ["agents.delegate"];
     config.capabilities.delegation = { enabled: true, maxChildren: 2, maxDepth: 1, bindings: [] };
     for (let index = 0; index < 2; index++) {
       const ids = bindings.slice(index * 2, index * 2 + 2).map(binding => binding.id);
-      const childConfig = defaultFaqConfiguration(); childConfig.connectedToolBindingIds = ids;
+      const childConfig = defaultBusinessConfiguration(); childConfig.connectedToolBindingIds = ids;
       const child = await store.createAgent({ ...scope, name: `Specialist ${index}`, configuration: childConfig });
       const version = await store.createVersion({ ...scope, agentId: child.id, expectedRevision: 1 });
       config.capabilities.delegation.bindings.push({ id: `research_${index}`, versionId: version.id, sourceRevisionIds: [],
@@ -170,7 +170,7 @@ const dbUrl = process.env.AGENTS_TEST_DATABASE_URL;
     await store.updateDraft({ ...f.scope, agentId: f.root.id, expectedRevision: 1, configuration: invalid });
     await expect(store.createVersion({ ...f.scope, agentId: f.root.id, expectedRevision: 2 })).rejects.toMatchObject({ code: "CONNECTED_HANDLE_DEPENDENCY" });
     expect((await store.listVersions(f.account.id, f.org.id, f.root.id))).toHaveLength(0);
-    const childConfig = defaultFaqConfiguration(); childConfig.connectedToolBindingIds = [...f.bindings.map(binding => binding.id), mcp!.id];
+    const childConfig = defaultBusinessConfiguration(); childConfig.connectedToolBindingIds = [...f.bindings.map(binding => binding.id), mcp!.id];
     const child = await store.createAgent({ ...f.scope, name: "Complete specialist", configuration: childConfig });
     const childVersion = await store.createVersion({ ...f.scope, agentId: child.id, expectedRevision: 1 });
     const valid = delegated(childConfig.connectedToolBindingIds);

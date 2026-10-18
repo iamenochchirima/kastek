@@ -8,7 +8,7 @@ import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { SandboxManager } from "../src/capabilities/sandbox/sandbox";
 import { PlatformStore } from "../src/product/agents/store";
-import { defaultFaqConfiguration } from "../src/contracts/contracts";
+import { defaultBusinessConfiguration } from "../src/contracts/contracts";
 const exec=promisify(execFile),dbUrl=process.env.AGENTS_TEST_DATABASE_URL;
 const suite=dbUrl&&process.env.AGENTS_SANDBOX_VERIFY==="1"?describe:describe.skip;
 suite("real gVisor Python analysis and independent resource lifecycle",()=>{
@@ -28,7 +28,7 @@ suite("real gVisor Python analysis and independent resource lifecycle",()=>{
   });
   async function fixture(){
     const account=await platform.ensureAccount({issuer:"http://localhost:8080/realms/sandbox",subject:randomUUID(),email:"sandbox@example.test",displayName:"Owner"});
-    const org=await platform.createOrganization(account.id,"Sandbox tests"),config=defaultFaqConfiguration();config.capabilities.sandbox={enabled:true,profileId:"python-analysis-v1"};config.tools=["sandbox.analyze"];
+    const org=await platform.createOrganization(account.id,"Sandbox tests"),config=defaultBusinessConfiguration();config.capabilities.sandbox={enabled:true,profileId:"python-analysis-v1"};config.tools=["sandbox.analyze"];
     const agent=await platform.createAgent({accountId:account.id,organizationId:org.id,name:"Analyst",configuration:config});
     const version=await platform.createVersion({accountId:account.id,organizationId:org.id,agentId:agent.id,expectedRevision:1});
     const authority={product:"agents" as const,organizationId:org.id,resourceId:agent.id,callerClientId:"agents-execution",principal:{kind:"human" as const,issuer:account.issuer,subject:account.subject}};

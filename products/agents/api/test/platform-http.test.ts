@@ -5,7 +5,7 @@ import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { buildPlatformApp } from "../src/composition/app";
 import { loadPlatformConfig } from "../src/infrastructure/config";
-import { defaultFaqConfiguration } from "../src/contracts/contracts";
+import { defaultBusinessConfiguration } from "../src/contracts/contracts";
 import { setupPlatformSchema } from "../src/composition/setup";
 import { PlatformStore } from "../src/product/agents/store";
 import { admitChildren } from "../src/execution/delegation/delegation";
@@ -64,7 +64,7 @@ suite("Agents HTTP and PostgreSQL integration", () => {
     const create = await request(`${base}/agents`, { method: "POST", cookie: user.cookie, origin: browserOrigin, payload: { name: "Opening hours" } });
     expect(create.status).toBe(201);
     const source=await publishFixtureSource(pool,{accountId:user.account.id,organizationId:user.org,title:"Hours",content:"The shop opens Monday at nine.",visibility},objects);
-    const configuration = { ...defaultFaqConfiguration(), sourceRevisionIds: [source.id] };
+    const configuration = { ...defaultBusinessConfiguration(), sourceRevisionIds: [source.id] };
     const update = await request(`${base}/agents/${create.body.agent.id}`, { method: "PUT", cookie: user.cookie, origin: browserOrigin,
       payload: { configuration, expectedRevision: create.body.agent.draftRevision } });
     expect(update.status).toBe(200);
@@ -78,11 +78,57 @@ suite("Agents HTTP and PostgreSQL integration", () => {
       payload: { versionId: f.version.id, allowedOrigins: ["https://shop.example"] } });
   }
 
+  it("pins publication and admission compositions while rejecting broader FAQ programs", async () => {
+    const f = await readyAgent();
+    expect(f.version.effectiveComposition).toMatchObject({ program: { id: "tool-directed", version: "1" }, runtime: { release: "modular-programs-v1" } });
+    const accepted = await request(`${f.base}/tasks`, { method: "POST", cookie: f.cookie, origin: browserOrigin,
+      payload: { versionId: f.version.id, input: "Hello", requestKey: "pinned" } });
+    expect(accepted.status).toBe(202);
+    expect(accepted.body.task.effectiveComposition.digest).toBe(f.version.effectiveComposition.digest);
+    const update = await request(`${f.base}/agents/${f.agent.id}`, { method: "PUT", cookie: f.cookie, origin: browserOrigin,
+      payload: { expectedRevision: 2, configuration: { ...f.configuration, program: { id: "grounded-conversation", version: "1" }, memory: { enabled: true } } } });
+    expect(update.status).toBe(200);
+    const publish = await request(`${f.base}/agents/${f.agent.id}/versions`, { method: "POST", cookie: f.cookie, origin: browserOrigin, payload: { expectedRevision: 3 } });
+    expect(publish.status).toBe(409); expect(publish.body.error.code).toBe("PROGRAM_COMPOSITION_DENIED");
+    expect((await store.getVersion(f.account.id, f.org, f.version.id)).effective_composition.digest).toBe(f.version.effectiveComposition.digest);
+  });
+
+  it("isolates evaluation scopes, recovers lost acknowledgements and fences revoked trials", async () => {
+    const f = await readyAgent(), trialId = randomUUID();
+    const prepare = { trialId, agentId: f.agent.id, versionId: f.version.id, expectedCompositionDigest: f.version.effectiveComposition.digest,
+      maxTokens: 8192, expiresAt: new Date(Date.now() + 600_000).toISOString() };
+    const mismatch = await request(`${f.base}/evaluation-trials`, { method: "POST", cookie: f.cookie, origin: browserOrigin,
+      payload: { ...prepare, expectedCompositionDigest: "0".repeat(64) } });
+    expect(mismatch.status).toBe(409);
+    const first = await request(`${f.base}/evaluation-trials`, { method: "POST", cookie: f.cookie, origin: browserOrigin, payload: prepare });
+    expect(first.status).toBe(201);
+    const replay = await request(`${f.base}/evaluation-trials`, { method: "POST", cookie: f.cookie, origin: browserOrigin, payload: prepare });
+    expect(replay.body.trial.id).toBe(first.body.trial.id);
+    const lookup = await request(`${f.base}/evaluation-trials?trialId=${trialId}`, { cookie: f.cookie });
+    expect(lookup.body.trial.id).toBe(first.body.trial.id); expect(lookup.body.rootTaskIds).toEqual([]);
+    const normal = await request(`${f.base}/tasks`, { method: "POST", cookie: f.cookie, origin: browserOrigin,
+      payload: { versionId: f.version.id, input: "Bypass trial", requestKey: "ordinary" } });
+    expect(normal.status).toBe(403); expect(normal.body.error.code).toBe("EVALUATION_SCOPE_REQUIRED");
+    const payload = { versionId: f.version.id, input: "Hello", requestKey: "trial-root", evaluationTrialId: first.body.trial.id, evaluationRootTokenLimit: 4096 };
+    const accepted = await request(first.body.submitPath, { method: "POST", cookie: f.cookie, origin: browserOrigin, payload });
+    expect(accepted.status).toBe(202);
+    const duplicate = await request(first.body.submitPath, { method: "POST", cookie: f.cookie, origin: browserOrigin, payload });
+    expect(duplicate.body.task.id).toBe(accepted.body.task.id);
+    expect((await pool.query("SELECT allocated_tokens FROM agents_platform.evaluation_trials WHERE id=$1", [first.body.trial.id])).rows[0].allocated_tokens).toBe(4096);
+    const roots = await request(`${f.base}/evaluation-trials/${first.body.trial.id}`, { cookie: f.cookie });
+    expect(roots.body.rootTaskIds).toEqual([accepted.body.task.id]);
+    const revoked = await request(first.body.revokePath, { method: "POST", cookie: f.cookie, origin: browserOrigin, payload: {} });
+    expect(revoked.body.trial.state).toBe("revoked"); expect(revoked.body.cancellationRequested).toBe(true);
+    expect((await pool.query("SELECT state FROM agents_platform.tasks WHERE id=$1", [accepted.body.task.id])).rows[0].state).toBe("cancel_requested");
+    const blocked = await request(first.body.submitPath, { method: "POST", cookie: f.cookie, origin: browserOrigin, payload: { ...payload, requestKey: "after-revoke" } });
+    expect(blocked.status).toBe(403); expect(blocked.body.error.code).toBe("EVALUATION_TRIAL_INACTIVE");
+  });
+
   it("rejects the removed direct approval route and scalar configuration authority",async()=>{
     const user=await actor(),base=`/api/organizations/${user.org}`;
     expect((await request(`${base}/knowledge`,{cookie:user.cookie})).status).toBe(404);
     expect((await request(`${base}/knowledge`,{method:"POST",cookie:user.cookie,origin:browserOrigin,payload:{title:"Bypass",content:"Unreviewed data",visibility:"public"}})).status).toBe(404);
-    expect((await request(`${base}/agents`,{method:"POST",cookie:user.cookie,origin:browserOrigin,payload:{name:"Unreviewed",configuration:{...defaultFaqConfiguration(),knowledgeIds:[randomUUID()]}}})).status).toBe(400);
+    expect((await request(`${base}/agents`,{method:"POST",cookie:user.cookie,origin:browserOrigin,payload:{name:"Unreviewed",configuration:{...defaultBusinessConfiguration(),knowledgeIds:[randomUUID()]}}})).status).toBe(400);
   });
 
   it("runs authenticated create, configure, test admission and publication with immutable live configuration", async () => {
@@ -131,10 +177,8 @@ suite("Agents HTTP and PostgreSQL integration", () => {
       payload: { configuration: { ...f.configuration, executionKind: "workspace" }, expectedRevision: 2 } });
     expect(updated.status).toBe(200);
     const version = await request(`${f.base}/agents/${f.agent.id}/versions`, { method: "POST", cookie: f.cookie, origin: browserOrigin, payload: { expectedRevision: 3 } });
-    const unavailable = await request(`${f.base}/tasks`, { method: "POST", cookie: f.cookie, origin: browserOrigin,
-      payload: { versionId: version.body.version.id, input: "Hello", requestKey: "workspace" } });
-    expect(unavailable.status).toBe(503); expect(unavailable.body.error.code).toBe("RUNTIME_UNAVAILABLE");
-    expect(Number((await pool.query("SELECT count(*) FROM agents_platform.tasks WHERE version_id=$1", [version.body.version.id])).rows[0].count)).toBe(0);
+    expect(version.status).toBe(503); expect(version.body.error.code).toBe("RUNTIME_UNAVAILABLE");
+    expect(Number((await pool.query("SELECT count(*) FROM agents_platform.agent_versions WHERE agent_id=$1 AND execution_kind='workspace'", [f.agent.id])).rows[0].count)).toBe(0);
   });
 
   it("requires sessions, exact browser origin and current product membership", async () => {

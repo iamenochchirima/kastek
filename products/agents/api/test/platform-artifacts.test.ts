@@ -6,7 +6,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {ArtifactStore} from "../src/execution/artifacts/artifacts";
 import {S3PrivateStore, privateStoreFromEnvironment} from "../src/infrastructure/object-store";
 import { PlatformStore } from "../src/product/agents/store";
-import { defaultFaqConfiguration } from "../src/contracts/contracts";
+import { defaultBusinessConfiguration } from "../src/contracts/contracts";
 
 const dbUrl = process.env.AGENTS_TEST_DATABASE_URL, endpoint = process.env.AGENTS_TEST_S3_ENDPOINT;
 const suite = dbUrl && endpoint ? describe : describe.skip;
@@ -31,7 +31,7 @@ suite("private S3-compatible content with real PostgreSQL metadata", () => {
   async function fixture() {
     const account = await platform.ensureAccount({ issuer: "http://localhost:8080/realms/artifacts", subject: randomUUID(), email: "artifact@example.test", displayName: "Owner" });
     const organization = await platform.createOrganization(account.id, "Artifact tests");
-    const agent = await platform.createAgent({ accountId: account.id, organizationId: organization.id, name: "Report", configuration: defaultFaqConfiguration() });
+    const agent = await platform.createAgent({ accountId: account.id, organizationId: organization.id, name: "Report", configuration: defaultBusinessConfiguration() });
     return { accountId: account.id, organizationId: organization.id, agentId: agent.id };
   }
   it("signs actual PUT/GET/DELETE and scopes immutable verified content", async () => {

@@ -11,7 +11,7 @@ import {KnowledgeStore,requireKnowledgeMember,type KnowledgeScope} from "../src/
 import {QueryEmbeddingService} from "../src/capabilities/knowledge/query-embedding";
 import {PlatformStore} from "../src/product/agents/store";
 import {setupPlatformSchema} from "../src/composition/setup";
-import {defaultFaqConfiguration,executionGrantSchema} from "../src/contracts/contracts";
+import {defaultBusinessConfiguration,executionGrantSchema} from "../src/contracts/contracts";
 import {beginOperation,finishOperation,settleTask} from "../src/execution/lifecycle/execution";
 import {textDigest} from "../src/contracts/source-contracts";
 
@@ -71,7 +71,7 @@ suite("local hybrid retrieval quality, eligibility and resource recovery",()=>{
    await pool.query("UPDATE agents_platform.ingestion_jobs SET state='extracting' WHERE id=$1",[job.id]);await knowledge.publishExtraction(job.id,{text,chunks,normalizerRelease:"fixture-nfc-lf-v1",acquiredAt:new Date().toISOString(),embeddings:ids.map(id=>vectors[id==="filler"?corpus.length:corpus.findIndex(item=>item.id===id)]!)});
    await knowledge.setPolicy(owner,job.sourceId,{operationId:randomUUID(),expectedGeneration:1,action:"approve",revisionId:job.revisionId});sources.push({id:job.sourceId,revisionId:job.revisionId});
   }
-  const config=defaultFaqConfiguration();config.tools=["knowledge.search"];config.sourceRevisionIds=sources.map(source=>source.revisionId);config.retrievalProfile={kind:"hybrid-v1",embeddingRelease:release};
+  const config=defaultBusinessConfiguration();config.tools=["knowledge.search"];config.sourceRevisionIds=sources.map(source=>source.revisionId);config.retrievalProfile={kind:"hybrid-v1",embeddingRelease:release};
   expect(Number((await pool.query("SELECT count(*) FROM agents_platform.source_chunks WHERE organization_id=$1",[owner.organizationId])).rows[0].count)).toBe(sourceCount*perSource);
   const agent=await platform.createAgent({...owner,name:"Knowledge researcher",configuration:config});agentId=agent.id;const version=await platform.createVersion({...owner,agentId,expectedRevision:1});versionId=version.id;
   expect(Number((await pool.query("SELECT count(*) FROM agents_platform.version_sources WHERE version_id=$1",[versionId])).rows[0].count)).toBe(sourceCount);

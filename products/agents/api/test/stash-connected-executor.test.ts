@@ -8,7 +8,7 @@ import { PlatformStore } from "../src/product/agents/store";
 import { ConnectionStore } from "../src/product/connections/connections";
 import { ConnectionVault } from "../src/infrastructure/vault";
 import { setupPlatformSchema } from "../src/composition/setup";
-import { defaultFaqConfiguration, type ExecutionGrant } from "../src/contracts/contracts";
+import { defaultBusinessConfiguration, type ExecutionGrant } from "../src/contracts/contracts";
 import { beginOperation } from "../src/execution/lifecycle/execution";
 const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
 (databaseUrl?describe:describe.skip)("Stash profile with actual PostgreSQL and isolated SDK",{timeout:30000},()=>{
@@ -40,7 +40,7 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
   const connection=await connections.create(scope,{operationId:randomUUID(),name:"Stash",profileId:"stash-read-v1",targetId:"provider:stash",apiKey:key,expiresAt:new Date(Date.now()+86400000).toISOString(),stashItemIds:[itemId]});
   const catalog=await executor.discover(scope,{operationId:randomUUID(),connectionId:connection.id,expectedRevision:1,transport:"mcp_http"});
   const bindings=await executor.catalogs.selectBindings(scope,{operationId:randomUUID(),connectionId:connection.id,expectedRevision:1,catalogId:catalog.id,selections:["get_item","read_project_document"].map(providerOperation=>({providerOperation,resources:connection.resources}))});
-  const configuration={...defaultFaqConfiguration(),connectedToolBindingIds:bindings.map(binding=>binding.id)},agent=await platform.createAgent({...scope,name:"Stash reader",configuration}),version=await platform.createVersion({...scope,agentId:agent.id,expectedRevision:1});
+  const configuration={...defaultBusinessConfiguration(),connectedToolBindingIds:bindings.map(binding=>binding.id)},agent=await platform.createAgent({...scope,name:"Stash reader",configuration}),version=await platform.createVersion({...scope,agentId:agent.id,expectedRevision:1});
   const authority={product:"agents" as const,organizationId:org.id,resourceId:agent.id,callerClientId:"agents-execution",principal:{kind:"human" as const,issuer:account.issuer,subject:account.subject}};
   const grant:ExecutionGrant={...authority,id:randomUUID(),versionId:version.id,operations:["model.reply","connected.read"],sourceRevisionIds:[],connectedToolBindingIds:configuration.connectedToolBindingIds,maxInputBytes:configuration.model.maxInputBytes,maxOutputTokens:configuration.model.maxOutputTokens,maxContextTokens:configuration.context.maxInputTokens,rootTokenLimit:32000,expiresAt:new Date(Date.now()+300000).toISOString(),revokedAt:null};await platform.createGrant({accountId:account.id,grant});
   const{task}=await platform.admitTask({authority,versionId:version.id,grantId:grant.id,requestKey:randomUUID(),input:"Read only the approved Stash note"});return{scope,connection,bindings,task,grant,catalog};

@@ -5,7 +5,7 @@ import {afterAll,beforeAll,describe,expect,it} from "vitest";
 import {EvidenceStore,citationLabels,assertCurrentEvidence} from "../src/execution/context/evidence";
 import {PlatformStore} from "../src/product/agents/store";
 import {KnowledgeStore} from "../src/capabilities/knowledge/knowledge";
-import {defaultFaqConfiguration,requestDigest} from "../src/contracts/contracts";
+import {defaultBusinessConfiguration,requestDigest} from "../src/contracts/contracts";
 import {beginOperation,finishOperation,settleTask} from "../src/execution/lifecycle/execution";
 import {setupPlatformSchema} from "../src/composition/setup";
 import {ConnectionStore} from "../src/product/connections/connections";
@@ -67,7 +67,7 @@ const url=process.env.AGENTS_TEST_DATABASE_URL;
    connectedFixture={connections,connection,binding:bindings[0]!};
   }
   const reportConnection=effects?await reportConnections.create(scope,{operationId:randomUUID(),name:"Reports",targetId:target.id,apiKey:reportKey}):undefined;
-  const config={...defaultFaqConfiguration(),connectedToolBindingIds:connectedFixture?[connectedFixture.binding.id]:[],sourceRevisionIds:[job.revisionId,...(lateJob?[lateJob.revisionId]:[])],memory:{enabled:memoryEnabled}};
+  const config={...defaultBusinessConfiguration(),connectedToolBindingIds:connectedFixture?[connectedFixture.binding.id]:[],sourceRevisionIds:[job.revisionId,...(lateJob?[lateJob.revisionId]:[])],memory:{enabled:memoryEnabled}};
   if(reportConnection){config.capabilities.workflows={enabled:true,profileId:"report-delivery-v1",connectionId:reportConnection.id,reportArtifactName:"report.md",title:"Evidence report"};}
   const agent=await platform.createAgent({...scope,name:"Grounded",configuration:config});
   const version=await platform.createVersion({...scope,agentId:agent.id,expectedRevision:1});

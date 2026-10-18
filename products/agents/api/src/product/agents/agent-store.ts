@@ -5,11 +5,12 @@ import { capabilityBindingSchema } from "../../contracts/capability-catalog";
 import {
 agentConfigurationSchema,assertGrantAuthority,
 connectedToolAuthorityIds,
-defaultFaqConfiguration,
 executionGrantSchema,
 PlatformError,
 type AgentConfiguration,type ExecutionGrant
 } from "../../contracts/contracts";
+import { customerConfiguration } from "../offerings/offerings";
+import { compilePublishedComposition } from "../../execution/programs/publication";
 
 import { publishedToolBindings } from "../../capabilities/tools";
 
@@ -45,7 +46,7 @@ export class AgentStore extends AuthorityStore {
       return (await db.query<AgentRecord>("SELECT * FROM agents_platform.agents WHERE organization_id=$1 AND id=$2", [organizationId, agentId])).rows[0] ?? absent(); });
   }
   async createAgent(input: { accountId: string; organizationId: string; name: string; configuration?: AgentConfiguration }): Promise<AgentRecord> {
-    const config = agentConfigurationSchema.parse(input.configuration ?? defaultFaqConfiguration());
+    const config = agentConfigurationSchema.parse(input.configuration ?? customerConfiguration());
     return this.transaction(async (db) => { await this.membership(db, input.accountId, input.organizationId);
       return (await db.query<AgentRecord>(`INSERT INTO agents_platform.agents(id,organization_id,name,draft,created_by)
         VALUES($1,$2,$3,$4,$5) RETURNING *`, [randomUUID(), input.organizationId, text(input.name, 120), config, input.accountId])).rows[0]!; });
@@ -110,9 +111,10 @@ export class AgentStore extends AuthorityStore {
         const skills = await db.query("SELECT id FROM agents_platform.skill_revisions WHERE organization_id=$1 AND agent_id=$2 AND id=ANY($3::uuid[]) FOR SHARE", [input.organizationId,input.agentId,config.skillIds]);
         if (skills.rowCount !== new Set(config.skillIds).size) denied();
       }
-      const version = (await db.query<VersionRecord>(`INSERT INTO agents_platform.agent_versions(id,organization_id,agent_id,number,execution_kind,configuration,created_by,draft_revision,tool_bindings)
-        SELECT $1,$2,$3,coalesce(max(number),0)+1,$4,$5,$6,$7,$8 FROM agents_platform.agent_versions WHERE agent_id=$3 RETURNING *`,
-      [randomUUID(), input.organizationId, input.agentId, config.executionKind, config, input.accountId, agent.draft_revision,JSON.stringify(publishedToolBindings(config))])).rows[0]!;
+      const composition = compilePublishedComposition(config, connected.filter(row => config.connectedToolBindingIds.includes(row.id)).map(row => capabilityBindingSchema.parse(row.binding)));
+      const version = (await db.query<VersionRecord>(`INSERT INTO agents_platform.agent_versions(id,organization_id,agent_id,number,execution_kind,configuration,created_by,draft_revision,tool_bindings,effective_composition)
+        SELECT $1,$2,$3,coalesce(max(number),0)+1,$4,$5,$6,$7,$8,$9 FROM agents_platform.agent_versions WHERE agent_id=$3 RETURNING *`,
+      [randomUUID(), input.organizationId, input.agentId, config.executionKind, config, input.accountId, agent.draft_revision,JSON.stringify(publishedToolBindings(config)),composition])).rows[0]!;
       for (const source of sources) await db.query("INSERT INTO agents_platform.version_sources(organization_id,version_id,source_id,revision_id) VALUES($1,$2,$3,$4)", [input.organizationId, version.id, source.source_id, source.id]);
       for (const binding of connected) await db.query("INSERT INTO agents_platform.version_connected_tools(organization_id,version_id,binding_id) VALUES($1,$2,$3)", [input.organizationId, version.id, binding.id]);
       return version;

@@ -9,7 +9,7 @@ import {PlatformStore} from "../src/product/agents/store";
 import {ConnectionStore} from "../src/product/connections/connections";
 import {ConnectionVault} from "../src/infrastructure/vault";
 import {setupPlatformSchema} from "../src/composition/setup";
-import {defaultFaqConfiguration,requestDigest,type ExecutionGrant} from "../src/contracts/contracts";
+import {defaultBusinessConfiguration,requestDigest,type ExecutionGrant} from "../src/contracts/contracts";
 import {admitChildren} from "../src/execution/delegation/delegation";
 import {beginOperation,finishOperation,settleTask,loadExecution} from "../src/execution/lifecycle/execution";
 import type {CapabilityBinding} from "../src/contracts/capability-catalog";
@@ -57,7 +57,7 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
    const remote=await executor.discover(scope,{operationId:randomUUID(),connectionId:connection.id,expectedRevision:1,transport:"mcp_http"});
    bindings.push(...await executor.catalogs.selectBindings(scope,{operationId:randomUUID(),connectionId:connection.id,expectedRevision:1,catalogId:remote.id,selections:[{providerOperation:anonymous?"read_wiki_structure":"get_file_contents",resources:connection.resources}]}));
   }
-  const configuration={...defaultFaqConfiguration(),connectedToolBindingIds:bindings.map(binding=>binding.id)},agent=await platform.createAgent({...scope,name:"Research",configuration}),version=await platform.createVersion({...scope,agentId:agent.id,expectedRevision:1});
+  const configuration={...defaultBusinessConfiguration(),connectedToolBindingIds:bindings.map(binding=>binding.id)},agent=await platform.createAgent({...scope,name:"Research",configuration}),version=await platform.createVersion({...scope,agentId:agent.id,expectedRevision:1});
   const authority={product:"agents" as const,organizationId:org.id,resourceId:agent.id,callerClientId:"agents-execution",principal:{kind:"human" as const,issuer:account.issuer,subject:account.subject}};
   const grant:ExecutionGrant={...authority,id:randomUUID(),versionId:version.id,operations:["model.reply","knowledge.read","connected.read"],sourceRevisionIds:[],connectedToolBindingIds:bindings.map(binding=>binding.id),maxInputBytes:configuration.model.maxInputBytes,maxOutputTokens:configuration.model.maxOutputTokens,maxContextTokens:configuration.context.maxInputTokens,rootTokenLimit:32000,expiresAt:new Date(Date.now()+300000).toISOString(),revokedAt:null};await platform.createGrant({accountId:account.id,grant});
   const{task}=await platform.admitTask({authority,versionId:version.id,grantId:grant.id,requestKey:randomUUID(),input:"Read approved public sources"});
@@ -238,7 +238,7 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
 
  it("keeps delegated-only connected authority out of the coordinator while admitting and fencing actual child evidence",async()=>{
   const f=await fixture(),selected=f.bindings.find(binding=>binding.definition.providerOperation==="get_repository")!,other=f.bindings.find(binding=>binding.definition.providerOperation==="resolve_ref")!;
-  const config=defaultFaqConfiguration();config.tools=["agents.delegate"];config.connectedToolBindingIds=[];
+  const config=defaultBusinessConfiguration();config.tools=["agents.delegate"];config.connectedToolBindingIds=[];
   config.capabilities.delegation={enabled:true,maxChildren:2,maxDepth:1,bindings:[{id:"metadata",versionId:f.task.version_id,sourceRevisionIds:[],connectedToolBindingIds:[selected.id],tools:[],maxTokens:8000,maxActiveMs:120000},{id:"revision",versionId:f.task.version_id,sourceRevisionIds:[],connectedToolBindingIds:[other.id],tools:[],maxTokens:8000,maxActiveMs:120000}]};
   const agent=await platform.createAgent({...f.scope,name:"Delegated-only coordinator",configuration:config}),version=await platform.createVersion({...f.scope,agentId:agent.id,expectedRevision:1});
   const authority={...f.grant,resourceId:agent.id},grant:ExecutionGrant={...f.grant,resourceId:agent.id,id:randomUUID(),versionId:version.id,connectedToolBindingIds:[selected.id,other.id],operations:["model.reply","knowledge.read","connected.read","delegation.execute"]};
@@ -273,7 +273,7 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
 
  it("inherits only explicit same-actor prior delegated turns under current roles and original live policy",async()=>{
   const f=await fixture(),selected=f.bindings.find(binding=>binding.definition.providerOperation==="get_repository")!;await settleTask(pool,f.task.id,{state:"cancelled"});
-  const config=defaultFaqConfiguration();config.tools=["agents.delegate"];config.capabilities.delegation={enabled:true,maxChildren:2,maxDepth:1,bindings:[{id:"metadata",versionId:f.task.version_id,sourceRevisionIds:[],connectedToolBindingIds:[selected.id],tools:[],maxTokens:8000,maxActiveMs:120000}]};
+  const config=defaultBusinessConfiguration();config.tools=["agents.delegate"];config.capabilities.delegation={enabled:true,maxChildren:2,maxDepth:1,bindings:[{id:"metadata",versionId:f.task.version_id,sourceRevisionIds:[],connectedToolBindingIds:[selected.id],tools:[],maxTokens:8000,maxActiveMs:120000}]};
   const agent=await platform.createAgent({...f.scope,name:"History coordinator",configuration:config}),version=await platform.createVersion({...f.scope,agentId:agent.id,expectedRevision:1});
   const authority={...f.grant,resourceId:agent.id},grant:ExecutionGrant={...f.grant,resourceId:agent.id,id:randomUUID(),versionId:version.id,connectedToolBindingIds:[selected.id],operations:["model.reply","knowledge.read","connected.read","delegation.execute"]};await platform.createGrant({accountId:f.scope.accountId,grant});
   const{task}=await platform.admitTask({authority,versionId:version.id,grantId:grant.id,requestKey:randomUUID(),input:"Read delegated metadata"}),operationId=`delegate:${task.id}`,args={requests:[{bindingId:"metadata",brief:"Read metadata"}]};
@@ -287,7 +287,7 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
   const currentManifest=await evidence.taskManifest(next.id);await expect(assertCurrentEvidence(pool,next.id,currentManifest,{historyOriginTaskIds:[next.id]})).rejects.toMatchObject({code:"EVIDENCE_INTEGRITY"});
   const count=requests.length;await expect(executor.execute(next.id,randomUUID(),selected,{repository:"approved/public"})).rejects.toThrow();expect(requests).toHaveLength(count);
   await expect(evidence.checkHistory(next.id,[f.task.id])).rejects.toMatchObject({code:"EVIDENCE_SCOPE_DENIED"});
-  const foreign=await platform.ensureAccount({issuer:"http://localhost/foreign-history",subject:randomUUID(),email:"foreign@example.test",displayName:"Foreign"}),foreignOrg=await platform.createOrganization(foreign.id,"Foreign history"),foreignAgent=await platform.createAgent({accountId:foreign.id,organizationId:foreignOrg.id,name:"Foreign",configuration:defaultFaqConfiguration()}),foreignVersion=await platform.createVersion({accountId:foreign.id,organizationId:foreignOrg.id,agentId:foreignAgent.id,expectedRevision:1});
+  const foreign=await platform.ensureAccount({issuer:"http://localhost/foreign-history",subject:randomUUID(),email:"foreign@example.test",displayName:"Foreign"}),foreignOrg=await platform.createOrganization(foreign.id,"Foreign history"),foreignAgent=await platform.createAgent({accountId:foreign.id,organizationId:foreignOrg.id,name:"Foreign",configuration:defaultBusinessConfiguration()}),foreignVersion=await platform.createVersion({accountId:foreign.id,organizationId:foreignOrg.id,agentId:foreignAgent.id,expectedRevision:1});
   const foreignAuthority={...authority,organizationId:foreignOrg.id,resourceId:foreignAgent.id,principal:{kind:"human" as const,issuer:foreign.issuer,subject:foreign.subject}},foreignGrant={...grant,...foreignAuthority,id:randomUUID(),versionId:foreignVersion.id,connectedToolBindingIds:[],operations:["model.reply" as const,"knowledge.read" as const]};await platform.createGrant({accountId:foreign.id,grant:foreignGrant});const{task:foreignTask}=await platform.admitTask({authority:foreignAuthority,versionId:foreignVersion.id,grantId:foreignGrant.id,requestKey:randomUUID(),input:"Unrelated actor"});
   await expect(evidence.checkHistory(next.id,[foreignTask.id])).rejects.toMatchObject({code:"EVIDENCE_SCOPE_DENIED"});
   await pool.query("UPDATE agents_platform.tasks SET state='running' WHERE id=$1 AND state='accepted'",[next.id]);await settleTask(pool,next.id,{state:"completed",output:`Previously confirmed ${citation}`});
@@ -301,7 +301,7 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
  },30000);
 
  it("reads root publication scopes and the child's effective narrowed override without provider calls",async()=>{
-  const f=await fixture(),config=defaultFaqConfiguration(),selected=f.bindings.find(binding=>binding.definition.providerOperation==="get_repository")!;
+  const f=await fixture(),config=defaultBusinessConfiguration(),selected=f.bindings.find(binding=>binding.definition.providerOperation==="get_repository")!;
   config.connectedToolBindingIds=f.bindings.map(binding=>binding.id);config.tools=["agents.delegate"];
   config.capabilities.delegation={enabled:true,maxChildren:2,maxDepth:1,bindings:[{id:"research",versionId:f.task.version_id,sourceRevisionIds:[],connectedToolBindingIds:[selected.id],tools:[],maxTokens:8000,maxActiveMs:120000}]};
   const agent=await platform.createAgent({...f.scope,name:"Scoped coordinator",configuration:config}),version=await platform.createVersion({...f.scope,agentId:agent.id,expectedRevision:1});
@@ -322,7 +322,7 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
 
  it("rejects narrowed specialist MCP bindings at publication and admission before creating child work",async()=>{
   const f=await fixture(true),remote=f.bindings.find(binding=>binding.transport==="mcp_http")!;
-  const config=defaultFaqConfiguration();config.connectedToolBindingIds=f.bindings.map(binding=>binding.id);config.tools=["agents.delegate"];
+  const config=defaultBusinessConfiguration();config.connectedToolBindingIds=f.bindings.map(binding=>binding.id);config.tools=["agents.delegate"];
   config.capabilities.delegation={enabled:true,maxChildren:2,maxDepth:1,bindings:[{id:"research",versionId:f.task.version_id,sourceRevisionIds:[],connectedToolBindingIds:[remote.id],tools:[],maxTokens:8000,maxActiveMs:120000}]};
   const agent=await platform.createAgent({...f.scope,name:"Coordinator",configuration:config});
   await expect(platform.createVersion({...f.scope,agentId:agent.id,expectedRevision:1})).rejects.toMatchObject({code:"CONNECTED_HANDLE_DEPENDENCY"});

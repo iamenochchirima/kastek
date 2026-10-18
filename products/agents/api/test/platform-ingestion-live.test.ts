@@ -12,7 +12,7 @@ import {S3PrivateStore} from "../src/infrastructure/object-store";
 import { DocumentRuntime } from "../src/capabilities/knowledge/document-runtime";
 import { KnowledgeStore, type KnowledgeScope } from "../src/capabilities/knowledge/knowledge";
 import { PlatformStore } from "../src/product/agents/store";
-import { defaultFaqConfiguration, terminalTaskStates } from "../src/contracts/contracts";
+import { defaultBusinessConfiguration, terminalTaskStates } from "../src/contracts/contracts";
 import { dispatchTasksOnce } from "../src/execution/lifecycle/dispatcher";
 import { setupPlatformSchema } from "../src/composition/setup";
 import { privateFixtureBucketRequest } from "./support/private-s3-fixture";
@@ -114,7 +114,7 @@ const enabled = process.env.AGENTS_INGESTION_LIVE === "1" && process.env.AGENTS_
     await inspect(job.id);
     await knowledge.setPolicy(scope,job.sourceId,{operationId:randomUUID(),expectedGeneration:1,action:"visibility",visibility:"public"});
     const abstention="I do not have source evidence to answer that question.";
-    const config={...defaultFaqConfiguration(),instructions:`Answer only the visitor's question from the provided evidence. Include the exact bracketed evidence citation when a passage answers the question. If no supplied passage answers it, reply exactly: ${abstention} Do not add a citation to that response. Never invent a code or use outside knowledge.`,sourceRevisionIds:[job.revisionId],retrievalProfile:{kind:"hybrid-v1" as const,embeddingRelease:profileRelease},tools:[]};
+    const config={...defaultBusinessConfiguration(),instructions:`Answer only the visitor's question from the provided evidence. Include the exact bracketed evidence citation when a passage answers the question. If no supplied passage answers it, reply exactly: ${abstention} Do not add a citation to that response. Never invent a code or use outside knowledge.`,sourceRevisionIds:[job.revisionId],retrievalProfile:{kind:"hybrid-v1" as const,embeddingRelease:profileRelease},tools:[]};
     const agent=await platform.createAgent({...scope,name:"Public knowledge FAQ",configuration:config});
     const version=await platform.createVersion({...scope,agentId:agent.id,expectedRevision:1});
     const deployment=await platform.publishWebsite({...scope,agentId:agent.id,versionId:version.id,allowedOrigins:["https://widget.example.test"]});

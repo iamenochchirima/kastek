@@ -11,16 +11,25 @@ export { transaction } from "../../infrastructure/database";
 
 import type { Execution } from "../../contracts/execution";
 import { loadExecution } from "./state";
+import { assertEvaluationTrial } from "../admission/trial-authority";
+import { channelBindingSchema } from "../../contracts/channel";
+import { channelPorts } from "../../infrastructure/channel-ports";
 export async function assertBaseAuthority(db: Pool | PoolClient, execution: Execution): Promise<void> {
   const { task, configuration, agentId } = execution;
   if (terminalTaskStates.has(task.state)) throw new PlatformError("TASK_SETTLED", 409, "Task has settled");
   if (task.state === "cancel_requested") throw new PlatformError("TASK_CANCELLED", 409, "Task is stopping");
   if (new Date(task.deadline_at).getTime() <= Date.now()) throw new PlatformError("TASK_DEADLINE", 409, "Task deadline reached");
+  if (task.channel_binding) {
+    const root = task.parent_task_id ? await loadExecution(db, task.root_task_id) : execution;
+    await channelPorts(db).assertBinding(db, channelBindingSchema.parse(task.channel_binding), root.task);
+  }
   if (task.parent_task_id) {
     const root = await loadExecution(db, task.root_task_id);
     if (root.task.parent_task_id || root.task.organization_id !== task.organization_id || !["human","automation"].includes(root.task.principal.kind) || task.depth !== 1) throw new PlatformError("DELEGATION_SCOPE_DENIED",403,"Delegation is unavailable");
     await assertBaseAuthority(db, root);
   } else {
+    await assertEvaluationTrial(db, { trialId: task.evaluation_trial_id, authority: { product: task.product, organizationId: task.organization_id,
+      resourceId: task.resource_id, callerClientId: task.caller_client_id, principal: task.principal }, agentId, versionId: task.version_id });
     const sources=(await db.query(`SELECT v.deleted_at FROM agents_platform.tasks c JOIN agents_platform.conversations v ON v.id=c.conversation_id
       WHERE c.parent_task_id=$1 ORDER BY v.id FOR SHARE OF v`,[task.id])).rows;
     if(sources.some(source=>source.deleted_at)) throw new PlatformError("CHILD_RESULT_UNAVAILABLE",403,"Specialist source history was deleted");

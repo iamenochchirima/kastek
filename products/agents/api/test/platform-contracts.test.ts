@@ -2,12 +2,12 @@ import { randomUUID } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import {
   agentConfigurationSchema, assertGrantAuthority, assertRuntimeAvailable, assertTaskTransition,
-  defaultFaqConfiguration, executionGrantSchema, executionKindSchema, parseAllowedOrigin, requestDigest,
+  defaultBusinessConfiguration, executionGrantSchema, executionKindSchema, parseAllowedOrigin, requestDigest,
   type AdmissionAuthority,
 } from "../src/contracts/contracts";
 
 function authorizedRequest() {
-  const configuration = defaultFaqConfiguration();
+  const configuration = defaultBusinessConfiguration();
   configuration.sourceRevisionIds = [randomUUID()];
   const authority: AdmissionAuthority = {
     product: "agents", organizationId: randomUUID(), resourceId: randomUUID(), callerClientId: "agents-execution",
@@ -32,27 +32,27 @@ describe("fresh platform execution contract", () => {
   });
 
   it("keeps an ordinary FAQ small while denying every unavailable capability", () => {
-    expect(agentConfigurationSchema.parse(defaultFaqConfiguration()).executionKind).toBe("business");
+    expect(agentConfigurationSchema.parse(defaultBusinessConfiguration()).executionKind).toBe("business");
     for (const capability of ["delegation", "sandbox", "businessActions", "workflows", "schedules"] as const) {
-      const configuration = defaultFaqConfiguration();
+      const configuration = defaultBusinessConfiguration();
       (configuration.capabilities[capability] as { enabled: boolean }).enabled = true;
       expect(agentConfigurationSchema.safeParse(configuration).success).toBe(false);
     }
-    expect(agentConfigurationSchema.safeParse({ ...defaultFaqConfiguration(), tools: ["execute"] }).success).toBe(false);
-    const hidden = defaultFaqConfiguration();
+    expect(agentConfigurationSchema.safeParse({ ...defaultBusinessConfiguration(), tools: ["execute"] }).success).toBe(false);
+    const hidden = defaultBusinessConfiguration();
     Object.assign(hidden.capabilities.sandbox, { operation: "shell" });
     expect(agentConfigurationSchema.safeParse(hidden).success).toBe(false);
   });
 
   it("rejects an unavailable workspace adapter without routing it to business", () => {
-    const configuration = defaultFaqConfiguration();
+    const configuration = defaultBusinessConfiguration();
     configuration.executionKind = "workspace";
     expect(() => assertRuntimeAvailable(configuration)).toThrowError(expect.objectContaining({ code: "RUNTIME_UNAVAILABLE" }));
-    expect(() => assertRuntimeAvailable(defaultFaqConfiguration())).not.toThrow();
+    expect(() => assertRuntimeAvailable(defaultBusinessConfiguration())).not.toThrow();
   });
 
   it("prevents paid fallback or caller-selected execution limits", () => {
-    const configuration = defaultFaqConfiguration();
+    const configuration = defaultBusinessConfiguration();
     expect(agentConfigurationSchema.safeParse({ ...configuration, model: { ...configuration.model, model: "paid/model" } }).success).toBe(false);
     expect(agentConfigurationSchema.safeParse({ ...configuration, model: { ...configuration.model, maxOutputTokens: 100_000 } }).success).toBe(false);
   });

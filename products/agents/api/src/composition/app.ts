@@ -33,17 +33,23 @@ import { PlatformDiscovery } from "../product/agents/discovery";
 import { registerKnowledgeRoutes } from "../product/agents/knowledge-routes";
 import { registerMemoryRoutes } from "../product/agents/memory-routes";
 import { PlatformStore } from "../product/agents/store";
+import { EvaluationTrials, prepareTrialSchema } from "../product/evaluation/evaluation-trials";
+import { customerOfferings } from "../product/offerings/offerings";
 import { registerAutomationRoutes } from "../product/automations/automation-routes";
 import { AutomationService,operationsForConfiguration } from "../product/automations/automations";
 import { registerActionRoutes } from "../product/connections/actions-routes";
 import { PlatformIdentity } from "../product/identity/auth";
 import { registerPublicIdentityRoutes } from "../product/identity/auth-routes";
 import { actionsFromEnvironment } from "./actions";
+import { composeInbox } from "./inbox";
+import { registerInboxRoutes } from "../product/inbox/inbox-routes";
+import { exportExecutionHistory } from "../product/evaluation/history-export";
 
 const uuid = z.uuid();
 const taskInput = z.strictObject({ versionId: uuid, input: z.string().min(1).max(16_384),
   requestKey: z.string().min(1).max(128), conversationId: uuid.optional() });
 const websiteTaskInput = taskInput.omit({ versionId: true });
+const humanTaskInput = taskInput.extend({ evaluationTrialId: uuid.optional(), evaluationRootTokenLimit: z.number().int().min(2048).max(32000).optional() });
 const hash = (token: string) => createHash("sha256").update(token).digest("hex");
 const dto = (row: object) => ({ ...Object.fromEntries(Object.entries(row).map(([key, value]) => [
   key.replace(/_([a-z])/g, (_, letter: string) => letter.toUpperCase()), value,
@@ -57,6 +63,7 @@ const dto = (row: object) => ({ ...Object.fromEntries(Object.entries(row).map(([
 export async function buildPlatformApp(options: { config: PlatformConfig; pool: Pool; identity?: PlatformIdentity; logging?: boolean }) {
   const { config, pool } = options;
   const store = new PlatformStore(pool);
+  const evaluationTrials = new EvaluationTrials(pool);
   const discovery = new PlatformDiscovery(pool,store);
   const summary = ({position: _position,...row}: Record<string,unknown>) => row;
   const objects = privateStoreFromEnvironment();
@@ -93,6 +100,7 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
     if(configuration.capabilities.sandbox.enabled&&(!sandbox||!await sandbox.available()))throw new PlatformError("SANDBOX_UNAVAILABLE",503,"Analysis is unavailable");
   }
   const automations=new AutomationService(pool,assertServices);
+  const inbox = composeInbox(pool, { publicOrigin: new URL(config.AGENTS_PUBLIC_URL).origin, assertServices });
   const identity = options.identity ?? new PlatformIdentity(config, pool);
   const origin = new URL(config.AGENTS_PUBLIC_URL).origin;
   const secure = origin.startsWith("https:");
@@ -155,6 +163,13 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
     return { task: source?.deleted_at ? {...task,input:"[Deleted conversation]",output:null} : task, authority, reviewOnly };
   }
   async function readableOutput(taskId:string,output:string|null) {
+    const binding=(await pool.query("SELECT channel_binding FROM agents_platform.tasks WHERE id=$1",[taskId])).rows[0]?.channel_binding;
+    if(binding) {
+      const published=(await pool.query(`SELECT m.body FROM agents_platform.customer_deliveries d
+        JOIN agents_platform.customer_messages m ON m.id=d.message_id AND m.task_id=d.task_id
+        WHERE d.task_id=$1 AND d.state='published'`,[taskId])).rows[0];
+      if(!published||published.body!==output)return {output:null,outputAvailability:"unavailable"};
+    }
     try{await (await import("../execution/context/evidence")).assertDelegationInputEvidence(pool,taskId);}catch(error){if(error instanceof PlatformError)return {output:null,outputAvailability:"unavailable"};throw error;}
     if(!output)return {output};
     const influenced=(await pool.query("SELECT 1 FROM agents_platform.evidence_nodes WHERE task_id=$1 LIMIT 1",[taskId])).rowCount;
@@ -255,15 +270,50 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
     return reply.code(201).send({ deployment: dto(await store.publishWebsite({ ...input, accountId: (await account(request)).id,
       organizationId: organizationId(request), agentId: uuid.parse(parameters(request).agentId) })) });
   });
+  app.get(`${base}/offerings`, async request => {
+    await store.requireMembership((await account(request)).id, organizationId(request));
+    return { offerings: customerOfferings };
+  });
+  app.get(`${base}/tasks/:taskId/history-export`, async request => {
+    const user = await account(request), org = organizationId(request), taskId = uuid.parse(parameters(request).taskId);
+    return exportExecutionHistory(pool, taskId, async (db, rootTaskId) => {
+      const allowed = await db.query(`SELECT t.id FROM agents_platform.tasks t
+        JOIN agents_platform.memberships m ON m.organization_id=t.organization_id AND m.account_id=$3 AND m.revoked_at IS NULL
+        WHERE t.id=$1 AND t.organization_id=$2 AND t.product='agents' AND t.caller_client_id='agents-execution'
+          AND t.parent_task_id IS NULL AND t.principal=$4::jsonb FOR SHARE OF t,m`,
+      [rootTaskId, org, user.id, JSON.stringify({ kind: "human", issuer: user.issuer, subject: user.subject })]);
+      if (!allowed.rowCount) throw new PlatformError("ACCESS_DENIED", 403, "Execution history is unavailable");
+    });
+  });
+  app.post(`${base}/evaluation-trials`, async (request, reply) => {
+    const org = organizationId(request), user = await account(request);
+    const trial = await evaluationTrials.prepare(user.id, org, prepareTrialSchema.parse(request.body));
+    return reply.code(201).send({ trial, submitPath: `/api/organizations/${org}/tasks`, taskBinding: { evaluationTrialId: trial.id },
+      revokePath: `/api/organizations/${org}/evaluation-trials/${trial.id}/revoke` });
+  });
+  app.get(`${base}/evaluation-trials`, async request => {
+    const query = z.strictObject({ trialId: z.string().min(1).max(128) }).parse(request.query);
+    return evaluationTrials.get((await account(request)).id, organizationId(request), query);
+  });
+  app.get(`${base}/evaluation-trials/:trialId`, async request => evaluationTrials.get((await account(request)).id,
+    organizationId(request), { id: uuid.parse(parameters(request).trialId) }));
+  app.post(`${base}/evaluation-trials/:trialId/revoke`, async request => {
+    z.strictObject({}).parse(request.body ?? {});
+    return evaluationTrials.revoke((await account(request)).id, organizationId(request), uuid.parse(parameters(request).trialId));
+  });
   app.post(`${base}/tasks`, async (request, reply) => {
-    const input = taskInput.parse(request.body), user = await account(request), org = organizationId(request);
+    const input = humanTaskInput.parse(request.body), user = await account(request), org = organizationId(request);
     const version = await store.getVersion(user.id, org, input.versionId);
     assertRuntimeAvailable(version.configuration);
     await assertServices(version.configuration);
     const authority = humanAuthority(user, org, version.agent_id);
+    const trial = input.evaluationTrialId ? (await evaluationTrials.get(user.id, org, { id: input.evaluationTrialId })).trial : null;
+    if (input.evaluationTrialId && !trial) throw new PlatformError("EVALUATION_TRIAL_INACTIVE", 403, "Trial not found");
+    if (input.evaluationRootTokenLimit && !trial) throw new PlatformError("EVALUATION_SCOPE_REQUIRED", 403, "A trial is required for this allocation");
     const grant = executionGrantSchema.parse({ ...authority, id: randomUUID(), versionId: version.id,
       operations: grantOperations(version.configuration), sourceRevisionIds: version.configuration.sourceRevisionIds, connectedToolBindingIds: connectedToolAuthorityIds(version.configuration),
       maxInputBytes: version.configuration.model.maxInputBytes, maxOutputTokens: version.configuration.model.maxOutputTokens,
+      ...(trial ? { rootTokenLimit: input.evaluationRootTokenLimit ?? Math.min(8192, trial.maxTokens) } : {}),
       expiresAt: new Date(Date.now() + 30 * 60_000).toISOString(), revokedAt: null });
     await store.createGrant({ accountId: user.id, grant });
     const result = await store.admitTask({ ...input, authority, grantId: grant.id });
@@ -314,6 +364,8 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
     return {events:page.items.map(dto),nextCursor:page.nextCursor};
   });
   async function taskPassages(task: TaskRecord) {
+    if(task.channel_binding && !(await pool.query("SELECT 1 FROM agents_platform.customer_deliveries WHERE task_id=$1 AND state='published'",[task.id])).rowCount)
+      return {passages:[],availability:"unavailable"};
     if (!task.output || !citationLabels(task.output).length) return { state: "available", passages: [] };
     if (!evidence) return { state: "unavailable", code: "EVIDENCE_BACKEND_UNAVAILABLE", passages: [] };
     try {
@@ -442,20 +494,32 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
   app.post("/api/website/:deploymentId/session", async (request, reply) => {
     const { deployment, websiteOrigin } = await websiteContext(request, reply);
     await publicRate(deployment.id);
-    await pool.query("DELETE FROM agents_platform.website_sessions WHERE deployment_id=$1 AND expires_at<=now()", [deployment.id]);
+    await pool.query(`DELETE FROM agents_platform.website_sessions s WHERE deployment_id=$1 AND expires_at<=now()
+      AND NOT EXISTS(SELECT 1 FROM agents_platform.customer_conversations c WHERE c.session_id=s.id)`, [deployment.id]);
     const token = randomBytes(32).toString("base64url");
     await pool.query("INSERT INTO agents_platform.website_sessions(id,deployment_id,token_hash,origin) VALUES($1,$2,$3,$4)", [randomUUID(), deployment.id, hash(token), websiteOrigin]);
     return reply.code(201).send({ token });
+  });
+  registerInboxRoutes(app, { inbox, publicRate,
+    resolveScope: async request => ({ accountId: (await account(request)).id, organizationId: organizationId(request) }),
+    resolveVisitor: async (request, reply) => {
+      const { deployment, websiteOrigin } = await websiteContext(request, reply);
+      const authority = await websiteAuthority(request, deployment, websiteOrigin);
+      if (authority.principal.kind !== "visitor") throw new PlatformError("ACCESS_DENIED", 403, "Customer session required");
+      return { deploymentId: deployment.id, sessionId: authority.principal.sessionId };
+    },
   });
   app.post("/api/website/:deploymentId/tasks", async (request, reply) => {
     const { deployment, websiteOrigin, grantOrigin } = await websiteContext(request, reply);
     const authority = await websiteAuthority(request, deployment, websiteOrigin), input = websiteTaskInput.parse(request.body);
     await publicRate(deployment.id);
-    if (!config.OPENROUTER_API_KEY) throw new PlatformError("MODEL_CREDENTIAL_UNAVAILABLE", 503, "Model connection is unavailable");
     if (authority.principal.kind !== "visitor") throw new PlatformError("ACCESS_DENIED", 403, "Access denied");
-    const grant = await store.createWebsiteGrant({ deploymentId: deployment.id, origin: grantOrigin, sessionId: authority.principal.sessionId });
-    const result = await store.admitTask({ ...input, authority, versionId: deployment.version_id, grantId: grant.id });
-    return reply.code(result.replayed ? 200 : 202).send({ task: dto(result.task) });
+    const scope={deploymentId:deployment.id,sessionId:authority.principal.sessionId};
+    const conversation=await inbox.open(scope);
+    if(input.conversationId&&input.conversationId!==conversation.execution_conversation_id)throw new PlatformError("CONVERSATION_SCOPE_DENIED",403,"Customer conversation is unavailable");
+    const result=await inbox.ingress(scope,conversation.id,{requestKey:input.requestKey,body:input.input});
+    const task=result.message.task_id?await store.getTask(authority,result.message.task_id):null;
+    return reply.code(result.replayed?200:202).send({task:task?await readableTask(task):null,customerConversationId:conversation.id,state:result.conversation.state});
   });
   app.get("/api/website/:deploymentId/tasks/:taskId", async (request, reply) => {
     const { deployment, websiteOrigin } = await websiteContext(request, reply), authority = await websiteAuthority(request, deployment, websiteOrigin);

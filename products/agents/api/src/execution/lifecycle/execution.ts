@@ -8,6 +8,8 @@ terminalTaskStates
 } from "../../contracts/contracts";
 
 import { transaction } from "../../infrastructure/database";
+import { recordEvent } from "../../observability/event-store";
+import { channelPorts } from "../../infrastructure/channel-ports";
 export { HARNESS_RELEASE,WORKFLOW_NAME,type Execution,type MemoryFence,type OperationRecord,type OperationRequest,type TaskOutcome } from "../../contracts/execution";
 export { transaction } from "../../infrastructure/database";
 export { assertCurrentAuthority } from "../context/evidence-policy";
@@ -17,8 +19,7 @@ import { type Execution,type MemoryFence,type OperationRecord,type OperationRequ
 import { assertCurrentAuthority } from "../context/evidence-policy";
 import { loadExecution } from "./state";
 export async function event(db: Pool | PoolClient, taskId: string, key: string, kind: string, payload: object = {}): Promise<void> {
-  await db.query(`INSERT INTO agents_platform.task_events(task_id,event_key,kind,payload) VALUES($1,$2,$3,$4)
-    ON CONFLICT(task_id,event_key) DO NOTHING`, [taskId, key, kind, payload]);
+  await recordEvent(db, taskId, key, kind, payload);
 }
 
 export async function beginOperation(pool: Pool, taskId: string, input: OperationRequest): Promise<{ replayed: boolean; operation: OperationRecord }> {
@@ -43,6 +44,9 @@ export async function beginOperation(pool: Pool, taskId: string, input: Operatio
             await finishOperationInTransaction(db,execution,existing,"uncertain",null,"OPERATION_OUTCOME_UNCERTAIN",existing.reserved_tokens);
             return {replayed:true,operation:{...existing,state:"uncertain",error_code:"OPERATION_OUTCOME_UNCERTAIN"}};
           }
+          const attemptId=randomUUID();
+          await db.query("UPDATE agents_platform.operations SET attempt_id=$2 WHERE id=$1", [existing.id,attemptId]);
+          await event(db, taskId, `attempt:${input.id}:${attemptId}`, "operation.retried", {operationId:input.id});
           return { replayed: false, operation: existing };
         }
         await finishOperationInTransaction(db, execution, existing, "uncertain", null, "OPERATION_OUTCOME_UNCERTAIN", existing.reserved_tokens);
@@ -191,6 +195,8 @@ export async function settleTask(pool: Pool, taskId: string, requested: TaskOutc
     assertTaskTransition(task.state, outcome.state);
     await db.query("UPDATE agents_platform.tasks SET state=$2,output=$3,error_code=$4,pending_outcome=NULL,disposition='settled',updated_at=now() WHERE id=$1",
       [taskId, outcome.state, outcome.output ?? null, outcome.errorCode ?? null]);
+    if(task.channel_binding && !task.parent_task_id) await channelPorts(db).publishAutomated(db,
+      {taskId,binding:task.channel_binding,output:outcome.output??""});
     await event(db, taskId, `terminal:${taskId}`, outcome.state);
   });
 }

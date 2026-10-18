@@ -6,7 +6,7 @@ import {Pool} from "pg";
 import {beforeAll,afterAll,describe,it,expect} from "vitest";
 import {setupPlatformSchema} from "../src/composition/setup";
 import {PlatformStore} from "../src/product/agents/store";
-import {defaultFaqConfiguration} from "../src/contracts/contracts";
+import {defaultBusinessConfiguration} from "../src/contracts/contracts";
 import {AutomationService,type AutomationConfig} from "../src/product/automations/automations";
 import {createAutomationWorkflow,dispatchAutomationTimersOnce} from "../src/product/automations/automation-runtime";
 const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
@@ -34,7 +34,7 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
  afterAll(async()=>{if(server?.listening)await stopWorker();if(started)docker("rm","-f",container);await pool?.end();if(admin){await admin.query(`DROP DATABASE IF EXISTS "${database}" WITH (FORCE)`);await admin.end();}});
  async function fixture(schedule:AutomationConfig["schedule"],historical=false){
   const account=await store.ensureAccount({issuer:"http://localhost/timers",subject:randomUUID(),email:"owner@example.test",displayName:"Owner"}),organization=await store.createOrganization(account.id,"Timer tests"),scope={accountId:account.id,organizationId:organization.id};
-  const agent=await store.createAgent({...scope,name:"Scheduled FAQ",configuration:defaultFaqConfiguration()}),version=await store.createVersion({...scope,agentId:agent.id,expectedRevision:1});
+  const agent=await store.createAgent({...scope,name:"Scheduled FAQ",configuration:defaultBusinessConfiguration()}),version=await store.createVersion({...scope,agentId:agent.id,expectedRevision:1});
   const input={name:"Scheduled work",versionId:version.id,input:"Summarize the permitted knowledge",reviewerAccountId:account.id,expiresAt:new Date(Date.now()+3600000).toISOString(),maxOccurrencesPerDay:20,schedule};
   let automation:{id:string;revision:number};
   if(historical){

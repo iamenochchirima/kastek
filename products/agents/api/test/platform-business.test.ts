@@ -6,7 +6,7 @@ import { createEndpointHandler } from "@restatedev/restate-sdk";
 import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createBusinessWorkflow, type BusinessOptions } from "../src/execution/business/business";
-import { defaultFaqConfiguration, terminalTaskStates, type AgentConfiguration, type AdmissionAuthority, type ExecutionGrant } from "../src/contracts/contracts";
+import { defaultBusinessConfiguration, terminalTaskStates, type AgentConfiguration, type AdmissionAuthority, type ExecutionGrant } from "../src/contracts/contracts";
 import { dispatchTasksOnce } from "../src/execution/lifecycle/dispatcher";
 import { beginOperation, finishOperation, settleTask, requestTreeCancellation, reconcilePendingRoots, WORKFLOW_NAME } from "../src/execution/lifecycle/execution";
 import { admitChildren, readChildResults } from "../src/execution/delegation/delegation";
@@ -107,7 +107,7 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     const account = await store.ensureAccount({ issuer: "http://localhost:8080/realms/test", subject: randomUUID(), email: "fixture@example.com", displayName: "Owner" });
     const org = await store.createOrganization(account.id, "Harness fixture");
     const source = await publishFixtureSource(pool,{ accountId: account.id, organizationId: org.id, title: "Hours", content: sourceContent, visibility: "public" }, artifacts.objects);
-    const config = { ...defaultFaqConfiguration(), sourceRevisionIds: [source.id], ...changes };
+    const config = { ...defaultBusinessConfiguration(), sourceRevisionIds: [source.id], ...changes };
     const agent = await store.createAgent({ accountId: account.id, organizationId: org.id, name: "Agent", configuration: config });
     const version = await store.createVersion({ accountId: account.id, organizationId: org.id, agentId: agent.id, expectedRevision: 1 });
     const authority: AdmissionAuthority = { product: "agents", organizationId: org.id, resourceId: agent.id, callerClientId: "agents-execution",
@@ -141,11 +141,11 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     const f=await fixture(); await settleTask(pool,f.task.id,{state:"cancelled"});
     const versions=[];
     for(const name of ["FIRST","SECOND"]) {
-      const agent=await store.createAgent({accountId:f.account.id,organizationId:f.org.id,name,configuration:{...defaultFaqConfiguration(),instructions:`SPECIALIST_${name}: Answer from the provided source.`,sourceRevisionIds:[f.source.id],tools:["knowledge.search","knowledge.read"]}});
+      const agent=await store.createAgent({accountId:f.account.id,organizationId:f.org.id,name,configuration:{...defaultBusinessConfiguration(),instructions:`SPECIALIST_${name}: Answer from the provided source.`,sourceRevisionIds:[f.source.id],tools:["knowledge.search","knowledge.read"]}});
       versions.push(await store.createVersion({accountId:f.account.id,organizationId:f.org.id,agentId:agent.id,expectedRevision:1}));
     }
-    const config:AgentConfiguration={...defaultFaqConfiguration(),instructions:"ROOT_RESEARCH: Delegate work to both approved specialists, then synthesize their confirmed evidence.",memory:{enabled:enableMemory},sourceRevisionIds:[f.source.id],tools:["agents.delegate"],
-      capabilities:{...defaultFaqConfiguration().capabilities,delegation:{enabled:true,maxChildren:2,maxDepth:1,bindings:versions.map((version,index)=>({id:index===0?"first":"second",versionId:version.id,sourceRevisionIds:[f.source.id],connectedToolBindingIds:[],tools:["knowledge.search"],maxTokens:8000,maxActiveMs:240000}))}}};
+    const config:AgentConfiguration={...defaultBusinessConfiguration(),instructions:"ROOT_RESEARCH: Delegate work to both approved specialists, then synthesize their confirmed evidence.",memory:{enabled:enableMemory},sourceRevisionIds:[f.source.id],tools:["agents.delegate"],
+      capabilities:{...defaultBusinessConfiguration().capabilities,delegation:{enabled:true,maxChildren:2,maxDepth:1,bindings:versions.map((version,index)=>({id:index===0?"first":"second",versionId:version.id,sourceRevisionIds:[f.source.id],connectedToolBindingIds:[],tools:["knowledge.search"],maxTokens:8000,maxActiveMs:240000}))}}};
     const agent=await store.createAgent({accountId:f.account.id,organizationId:f.org.id,name:"Research",configuration:config});
     const version=await store.createVersion({accountId:f.account.id,organizationId:f.org.id,agentId:agent.id,expectedRevision:1});
     const authority={...f.request.authority,resourceId:agent.id};
@@ -186,7 +186,7 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     const start=text.indexOf("The decisive"),body=text.slice(start);
     await knowledge.publishExtraction(job.id,{text,acquiredAt:new Date().toISOString(),normalizerRelease:"test-normalizer-v1",chunks:[{id:randomUUID(),revisionId:job.revisionId,ordinal:0,start,end:text.length,page:3,section:null,text:body,digest:textDigest(body),tokens:30}]});
     await knowledge.setPolicy(scope,job.sourceId,{operationId:randomUUID(),expectedGeneration:1,action:"approve",revisionId:job.revisionId});
-    const config={...defaultFaqConfiguration(),instructions:"Answer only from supplied passages; cite their exact bracketed evidence labels.",sourceRevisionIds:[job.revisionId],tools:["knowledge.search" as const,"knowledge.read" as const]};
+    const config={...defaultBusinessConfiguration(),instructions:"Answer only from supplied passages; cite their exact bracketed evidence labels.",sourceRevisionIds:[job.revisionId],tools:["knowledge.search" as const,"knowledge.read" as const]};
     const agent=await store.createAgent({...scope,name:"Grounded controller",configuration:config});
     const version=await store.createVersion({...scope,agentId:agent.id,expectedRevision:1});
     const authority={...f.request.authority,resourceId:agent.id},grant={...f.grant,...authority,id:randomUUID(),versionId:version.id,sourceRevisionIds:[job.revisionId],connectedToolBindingIds:[]};
@@ -686,7 +686,7 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     expect(JSON.stringify(calls[1]!.messages)).not.toContain("Derived remembered preference is Shona");
   }, 30_000);
   function nearLimitToolConfiguration():Partial<AgentConfiguration>{
-    const config=defaultFaqConfiguration();config.tools=["knowledge.search"];config.instructions="Use approved knowledge and preserve issued evidence identifiers. ";
+    const config=defaultBusinessConfiguration();config.tools=["knowledge.search"];config.instructions="Use approved knowledge and preserve issued evidence identifiers. ";
     const request:ModelRequest={model:config.model.model,maxInputTokens:8192,maxOutputTokens:config.model.maxOutputTokens,maxDurationSeconds:config.model.maxDurationSeconds,
       messages:[{role:"system",content:config.instructions},{role:"user",content:"What are the opening hours?"}],tools:toolsFor(config)};
     config.instructions+="p".repeat(7600-estimateRequestTokens(request));

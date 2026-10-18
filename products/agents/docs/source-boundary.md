@@ -15,10 +15,13 @@ customer channels and a shared staff inbox. Growth and Agencies own research, ca
 and agency experiences using the shared execution backend. Shared runtime capability tests do
 not establish those offerings in the standalone Agents catalogue.
 
-The current application is a runtime and management foundation. Its name-only creation flow uses
-the same FAQ defaults; it does not implement outcome-specific guided setup. Direct agent chat and
-principal-scoped conversation history are implemented. A shared customer inbox, staff assignment,
-human takeover, human channel replies, and explicit return to automation are not implemented.
+The current application creates a grounded conversation offering by default. The offering catalogue
+separates FAQ/customer-service setup from shared execution programs. Booking remains unavailable.
+Direct agent chat and principal-scoped conversation history are implemented. Customer website
+messages have a separate canonical timeline with staff assignment, human takeover/replies,
+resolution and explicit return to automation. Human-owned ingress does not admit model work.
+Returning control admits only a new visitor message. Generation checks suppress late automated
+output and fence subsequent operations, including inherited specialist authority.
 The automation occurrence inbox below is an event deduplication mechanism, not a customer inbox.
 
 Website publication and widget conversations exist. WhatsApp, Facebook, Instagram, booking and
@@ -27,6 +30,36 @@ Stash profiles. Provider OAuth, verified account identity, resource browsing, pr
 reauthorization are absent. Current screens do not yet fulfil the target connection experience.
 Research/report acceptance fixtures prove execution behavior, not a standalone research product.
 The runtime's reviewed personal memory does not imply a personal-assistant catalogue offering.
+
+## Published execution and evaluation contracts
+
+Trusted `grounded-conversation` and `tool-directed` program releases share the business loop.
+Publication validates exact tool/workflow closure and saves a digest of the effective configuration,
+program/runtime releases, context policies, tools and connected bindings. Admission saves that
+composition on the task; workers validate it before further execution. Task bindings and published
+compositions are immutable. Workspace programs and booking providers fail explicitly.
+Reviewed report stages live in `workflows/report-delivery/program.ts` and retain digest-bound
+approval, one dispatch claim and status-only reconciliation.
+
+The current source release is `modular-programs-v1` / `AgentsBusinessRunV11`. It requires a fresh
+dedicated schema. Verification uses separate compiled artifacts and databases. Running older local
+artifacts are not upgraded by setup or rewritten to accept the new schema.
+
+Native evaluation trials require an authenticated operator, a dedicated unused agent and the exact
+published composition digest. Trial preparation is idempotent. Tasks retain the server-validated
+trial binding, a total allocation ceiling and isolated conversation/memory/artifact scope. Suites
+must provision controlled external provider resources separately. Revocation fences further work
+and requests cancellation; it does not claim an external call stopped. Lookups recover trial and
+root identities after lost responses. Authorized native history export retains exact request,
+response, evidence and branch records, with explicit coverage gaps.
+
+Execution events persist `agent.observation.v1` metadata and an export intent atomically. Explicit
+OpenTelemetry spans carry native scope, program, operation, attempt and usage identities, without
+prompt bodies, tool arguments or credentials. The bounded publisher leases pending observations
+across replicas and retries Collector failures independently of execution authority and accounting.
+Configure `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` or `OTEL_EXPORTER_OTLP_ENDPOINT` to enable export.
+Local verification includes actual SDK export through the pinned Collector OTLP receiver, native
+PostgreSQL replay/deduplication and outage recovery. This is not a hosted monitoring deployment.
 
 ## Concurrency implementation gaps
 

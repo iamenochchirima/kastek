@@ -4,7 +4,7 @@ import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { setupPlatformSchema } from "../src/composition/setup";
 import { PlatformStore } from "../src/product/agents/store";
-import { defaultFaqConfiguration, executionGrantSchema } from "../src/contracts/contracts";
+import { defaultBusinessConfiguration, executionGrantSchema } from "../src/contracts/contracts";
 import { beginOperation, finishOperation, settleTask } from "../src/execution/lifecycle/execution";
 import { TaskArtifactStore } from "../src/execution/artifacts/task-artifacts";
 import {ArtifactStore} from "../src/execution/artifacts/artifacts";
@@ -24,7 +24,7 @@ const dbUrl=process.env.AGENTS_TEST_DATABASE_URL;
   afterAll(async()=>{await pool?.end();if(admin){await dropClosedTestDatabase(admin,database);await admin.end();}});
   async function fixture(){
     const account=await platform.ensureAccount({issuer:"http://localhost/task-artifact-test",subject:randomUUID(),email:"owner@example.test",displayName:"Owner"});
-    const organization=await platform.createOrganization(account.id,"Private reports"),config=defaultFaqConfiguration();
+    const organization=await platform.createOrganization(account.id,"Private reports"),config=defaultBusinessConfiguration();
     config.capabilities.sandbox={enabled:true,profileId:"python-analysis-v1"};config.tools=["sandbox.analyze"];
     const agent=await platform.createAgent({accountId:account.id,organizationId:organization.id,name:"Analyst",configuration:config});
     const version=await platform.createVersion({accountId:account.id,organizationId:organization.id,agentId:agent.id,expectedRevision:1});

@@ -6,7 +6,7 @@ import Fastify from "fastify";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { MemoryStore } from "../src/execution/memory/memory";
 import { registerMemoryRoutes } from "../src/product/agents/memory-routes";
-import { defaultFaqConfiguration } from "../src/contracts/contracts";
+import { defaultBusinessConfiguration } from "../src/contracts/contracts";
 import { PlatformStore } from "../src/product/agents/store";
 
 const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
@@ -24,7 +24,7 @@ suite("scoped PostgreSQL memory and immutable skills", () => {
   async function fixture() {
     const account = await platform.ensureAccount({ issuer: "http://localhost:8080/realms/memory", subject: randomUUID(), email: "memory@example.test", displayName: "Owner" });
     const organization = await platform.createOrganization(account.id, "Memory test");
-    const agent = await platform.createAgent({ accountId: account.id, organizationId: organization.id, name: "Assistant", configuration: defaultFaqConfiguration() });
+    const agent = await platform.createAgent({ accountId: account.id, organizationId: organization.id, name: "Assistant", configuration: defaultBusinessConfiguration() });
     return { account, organization, agent, management: { accountId: account.id, organizationId: organization.id, agentId: agent.id },
       scope: { organizationId: organization.id, agentId: agent.id, principal: { kind: "human" as const, issuer: account.issuer, subject: account.subject } } };
   }
@@ -78,7 +78,7 @@ suite("scoped PostgreSQL memory and immutable skills", () => {
     expect(await memory.listSkills(f.account.id, f.organization.id, f.agent.id)).toHaveLength(2);
   });
   it("deletes owned source history, cancels open tasks and suppresses linked memory without resurrection", async () => {
-    const f = await fixture(), config=defaultFaqConfiguration();
+    const f = await fixture(), config=defaultBusinessConfiguration();
     const version=await platform.createVersion({accountId:f.account.id,organizationId:f.organization.id,agentId:f.agent.id,expectedRevision:1});
     const authority={product:"agents" as const,organizationId:f.organization.id,resourceId:f.agent.id,callerClientId:"agents-execution",principal:f.scope.principal};
     const grant={...authority,id:randomUUID(),versionId:version.id,operations:["model.reply" as const,"knowledge.read" as const],maxInputBytes:config.model.maxInputBytes,maxOutputTokens:config.model.maxOutputTokens,maxContextTokens:8192,rootTokenLimit:32000,expiresAt:new Date(Date.now()+60_000).toISOString(),revokedAt:null};

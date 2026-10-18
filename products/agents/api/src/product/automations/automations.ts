@@ -23,7 +23,8 @@ export function operationsForConfiguration(c:AgentConfiguration):ExecutionGrant[
  return ['model.reply','knowledge.read',...(c.memory.enabled?['memory.read','memory.propose'] as const:[]),
  ...(c.capabilities.delegation.enabled?['delegation.execute'] as const:[]),...(c.capabilities.sandbox.enabled?['sandbox.execute'] as const:[]),
  ...((c.capabilities.sandbox.enabled||c.capabilities.workflows.enabled)?['artifact.read','artifact.write'] as const:[]),
- ...(c.capabilities.workflows.enabled?['effect.deliver'] as const:[]),...(connectedToolAuthorityIds(c).length?['connected.read'] as const:[])];
+ ...(c.capabilities.workflows.enabled?['effect.deliver'] as const:[]),...(connectedToolAuthorityIds(c).length?['connected.read'] as const:[]),
+ ...(c.tools.includes('channel.request_handoff')?['channel.handoff'] as const:[])];
 }
 function dto(row:Record<string,any>) {return {id:row.id,organizationId:row.organization_id,ownerAccountId:row.owner_account_id,
  revision:row.revision,state:row.state,...row.configuration};}

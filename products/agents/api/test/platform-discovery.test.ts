@@ -28,8 +28,8 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
     // Deterministic already-completed fixture tasks do not invoke a worker or consume a model budget.
     await pool.query(`INSERT INTO agents_platform.execution_grants(id,product,organization_id,resource_id,caller_client_id,principal,version_id,operations,source_revision_ids,max_input_bytes,max_output_tokens,expires_at)
       VALUES($1,'agents',$2,$3,'agents-execution',$4,$5,'["chat"]'::jsonb,ARRAY[]::uuid[],16384,1000,now()+interval '1 hour')`,[grant,f.org,f.agent,principal,f.version]);
-    const ids:string[]=[];for(let i=0;i<count;i++){const id=randomUUID();ids.push(id);await pool.query(`INSERT INTO agents_platform.tasks(id,product,organization_id,resource_id,caller_client_id,principal,version_id,grant_id,conversation_id,request_key,request_digest,input,state,output,turn_sequence)
-      VALUES($1::uuid,'agents',$2,$3,'agents-execution',$4,$5,$6,$7,$1::text,repeat('0',64),$8,'completed','SECRET OUTPUT',$9)`,[id,f.org,f.agent,principal,f.version,grant,conversation,i===0?"First <script> input\ntext":"Follow up",i+1]);}
+    const ids:string[]=[];for(let i=0;i<count;i++){const id=randomUUID();ids.push(id);await pool.query(`INSERT INTO agents_platform.tasks(id,product,organization_id,resource_id,caller_client_id,principal,version_id,grant_id,conversation_id,request_key,request_digest,input,state,output,turn_sequence,effective_composition)
+      VALUES($1::uuid,'agents',$2,$3,'agents-execution',$4,$5,$6,$7,$1::text,repeat('0',64),$8,'completed','SECRET OUTPUT',$9,(SELECT effective_composition FROM agents_platform.agent_versions WHERE id=$5))`,[id,f.org,f.agent,principal,f.version,grant,conversation,i===0?"First <script> input\ntext":"Follow up",i+1]);}
     return {conversation,ids};
   }
   it("paginates compact agent summaries without draft/configuration bodies",async()=>{

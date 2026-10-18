@@ -1,13 +1,15 @@
 import type { AgentConfiguration } from "../contracts/contracts";
 export interface ToolDescriptor {
-  name: AgentConfiguration["tools"][number] | "report.deliver"; version: "1";
-  effect: "read" | "idempotent_memory" | "delegation" | "resource" | "external_effect";
+  name: AgentConfiguration["tools"][number] | "report.deliver" | "knowledge.initial"; version: "1";
+  effect: "read" | "idempotent_memory" | "delegation" | "resource" | "external_effect" | "channel_control";
   maxDurationMs: number; maxResultBytes: number; retry: "safe_read" | "idempotent_receipt" | "stable_children" | "adapter_reconcile" | "status_only";
   cancel: "stop_admission" | "dependent_children" | "adapter_cleanup" | "reconcile_claimed";
   requiredProfile?: "python-analysis-v1";
   connection?: "scoped_report_destination"; review?: "exact_single_use"; adapter?: "report-delivery-http-v1";
 }
 const descriptors: readonly ToolDescriptor[] = [
+  {name:"channel.request_handoff",version:"1",effect:"channel_control",maxDurationMs:30000,maxResultBytes:8192,retry:"idempotent_receipt",cancel:"stop_admission"},
+  {name:"knowledge.initial",version:"1",effect:"read",maxDurationMs:90000,maxResultBytes:8192,retry:"safe_read",cancel:"stop_admission"},
   {name:"knowledge.search",version:"1",effect:"read",maxDurationMs:30000,maxResultBytes:8192,retry:"safe_read",cancel:"stop_admission"},
   {name:"knowledge.read",version:"1",effect:"read",maxDurationMs:30000,maxResultBytes:8192,retry:"safe_read",cancel:"stop_admission"},
   {name:"memory.search",version:"1",effect:"read",maxDurationMs:30000,maxResultBytes:8192,retry:"safe_read",cancel:"stop_admission"},

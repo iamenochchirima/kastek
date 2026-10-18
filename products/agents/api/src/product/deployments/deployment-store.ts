@@ -61,17 +61,18 @@ export class DeploymentStore extends AuthorityStore {
     return (await this.pool.query<WebsiteDeployment>("SELECT * FROM agents_platform.website_deployments WHERE id=$1 AND revoked_at IS NULL", [deploymentId])).rows[0] ?? absent();
   }
   async createWebsiteGrant(input: { deploymentId: string; origin: string; sessionId: string }): Promise<ExecutionGrant> {
-    return this.transaction(async (db) => {
+    return this.transaction(db => this.createWebsiteGrantInTransaction(db, input));
+  }
+  async createWebsiteGrantInTransaction(db:PoolClient,input: { deploymentId: string; origin: string; sessionId: string }): Promise<ExecutionGrant> {
       const deployment = (await db.query<WebsiteDeployment>("SELECT * FROM agents_platform.website_deployments WHERE id=$1 AND revoked_at IS NULL FOR SHARE", [input.deploymentId])).rows[0] ?? absent();
       if (!deployment.allowed_origins.includes(parseAllowedOrigin(input.origin))) denied();
       const version = await this.version(db, deployment.organization_id, deployment.version_id);
       assertRuntimeAvailable(version.configuration);
       const grant = executionGrantSchema.parse({ id: randomUUID(), product: "agents", organizationId: deployment.organization_id,
         resourceId: deployment.id, callerClientId: "agents-website", principal: { kind: "visitor", deploymentId: deployment.id, sessionId: input.sessionId },
-        versionId: version.id, operations: ["model.reply", "knowledge.read"], sourceRevisionIds: version.configuration.sourceRevisionIds, connectedToolBindingIds: [],
+        versionId: version.id, operations: ["model.reply", "knowledge.read", ...(version.configuration.tools.includes("channel.request_handoff") ? ["channel.handoff"] : [])], sourceRevisionIds: version.configuration.sourceRevisionIds, connectedToolBindingIds: [],
         maxInputBytes: version.configuration.model.maxInputBytes, maxOutputTokens: version.configuration.model.maxOutputTokens,
         expiresAt: new Date(Date.now() + 10 * 60_000).toISOString(), revokedAt: null });
       return this.insertGrant(db, grant);
-    });
   }
 }
