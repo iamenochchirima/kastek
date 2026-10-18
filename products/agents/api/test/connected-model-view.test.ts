@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { connectedModelView } from "../src/platform/connected-model-view";
-import type { ConnectedObservation } from "../src/platform/connected-executor";
+import { connectedModelView } from "../src/capabilities/connected-tools/connected-model-view";
+import type { ConnectedObservation } from "../src/capabilities/connected-tools/connected-executor";
 const files = Array.from({length:20}, (_,index)=>({fileId:`00000000-0000-4000-8000-${String(index).padStart(12,"0")}`,path:`source-${index}.md`,bytes:100}));
 function receipt(content=JSON.stringify({files,nextOffset:20,hasMore:true}),handles:unknown={files:files.map(({fileId})=>({fileId}))}):ConnectedObservation{return {
   status:"ok",bindingId:"binding",operationId:"tool:task:0:0",content,truncated:false,

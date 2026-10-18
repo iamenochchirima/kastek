@@ -16,24 +16,24 @@ import { readStashAcceptanceConfig } from "./support/stash-acceptance-config";
 import { readGithubAcceptanceConfig } from "./support/github-acceptance-config";
 import { readGithubJourneyScopes } from "./support/github-journey-scopes";
 import { verifyWorkspaceBrowserAcceptance } from "./support/workspace-browser-acceptance";
-import type { CapabilityBinding } from "../src/platform/capability-catalog";
-import { buildPlatformApp } from "../src/platform/app";
-import { loadPlatformConfig } from "../src/platform/config";
-import { setupPlatformSchema } from "../src/platform/setup";
-import { PlatformStore } from "../src/platform/store";
-import { createBusinessWorkflow } from "../src/platform/business";
-import { startDispatcher } from "../src/platform/dispatcher";
-import { defaultFaqConfiguration, type AgentConfiguration } from "../src/platform/contracts";
-import { KnowledgeStore } from "../src/platform/knowledge";
-import { EvidenceStore } from "../src/platform/evidence";
-import { KnowledgeRuntime } from "../src/platform/knowledge-runtime";
-import { QueryEmbeddingService } from "../src/platform/query-embedding";
-import { documentRuntimeFromEnvironment } from "../src/platform/document-runtime";
-import { IngestionService, createIngestionWorkflow, startIngestionDispatcher, reapDocumentResources } from "../src/platform/ingestion-runtime";
-import { reapQueryEmbeddingResources } from "../src/platform/query-embedding";
-import { privateStoreFromEnvironment } from "../src/platform/artifacts";
-import { sandboxManagerFromEnvironment } from "../src/platform/sandbox";
-import { createSandboxExecutor } from "../src/platform/sandbox-executor";
+import type { CapabilityBinding } from "../src/contracts/capability-catalog";
+import { buildPlatformApp } from "../src/composition/app";
+import { loadPlatformConfig } from "../src/infrastructure/config";
+import { setupPlatformSchema } from "../src/composition/setup";
+import { PlatformStore } from "../src/product/agents/store";
+import { createBusinessWorkflow } from "../src/execution/business/business";
+import { startDispatcher } from "../src/execution/lifecycle/dispatcher";
+import { defaultFaqConfiguration, type AgentConfiguration } from "../src/contracts/contracts";
+import { KnowledgeStore } from "../src/capabilities/knowledge/knowledge";
+import { EvidenceStore } from "../src/execution/context/evidence";
+import { KnowledgeRuntime } from "../src/capabilities/knowledge/knowledge-runtime";
+import { QueryEmbeddingService } from "../src/capabilities/knowledge/query-embedding";
+import { documentRuntimeFromEnvironment } from "../src/capabilities/knowledge/document-runtime";
+import { IngestionService, createIngestionWorkflow, startIngestionDispatcher, reapDocumentResources } from "../src/capabilities/knowledge/ingestion-runtime";
+import { reapQueryEmbeddingResources } from "../src/capabilities/knowledge/query-embedding";
+import {privateStoreFromEnvironment} from "../src/infrastructure/object-store";
+import { sandboxManagerFromEnvironment } from "../src/capabilities/sandbox/sandbox";
+import { createSandboxExecutor } from "../src/capabilities/sandbox/sandbox-executor";
 
 const root = resolve(__dirname, "../../../..");
 const container = `kasitek-browser-${randomUUID().slice(0, 8)}`;
@@ -259,7 +259,7 @@ async function restartConnectedCheckpoint(){
   console.log(JSON.stringify({evidence:"worker restarted after durable child reads before either next model claim",operationIds:connectedCheckpoint.map(read=>read.operation_id)}));
 }
 async function startWorkerProcess() {
-  workerProcess = spawn(process.execPath, [resolve(root, "products/agents/api/dist/platform/worker.js")], { cwd: root, stdio: ["ignore", "inherit", "inherit"], env: workerEnvironment });
+  workerProcess = spawn(process.execPath, [resolve(root, "products/agents/api/dist/composition/worker.js")], { cwd: root, stdio: ["ignore", "inherit", "inherit"], env: workerEnvironment });
   await ready(() => new Promise<boolean>(resolve => { const socket = connect(workerPort, "127.0.0.1"); socket.once("connect", () => { socket.destroy(); resolve(true); }); socket.once("error", () => resolve(false)); }), "actual worker process");
 }
 async function ledgerRecords(): Promise<Record<string, any>[]> { return (await readFile(receiverLedger!, "utf8").catch(() => "")).split("\n").filter(Boolean).map(line => JSON.parse(line)); }
@@ -449,7 +449,7 @@ async function main() {
   const deliveryKey = automationJourney ? await prepareDeliveryFixture(privateDirectory) : undefined;
   sandboxManager = sandboxManagerFromEnvironment(pool);
   if (advancedJourney) assert.ok(sandboxManager && await sandboxManager.available(), "Advanced fixture requires actual gVisor isolation");
-  const appFactory:typeof buildPlatformApp=connectedJourney?require(resolve(root,"products/agents/api/dist/platform/app.js")).buildPlatformApp:buildPlatformApp;
+  const appFactory:typeof buildPlatformApp=connectedJourney?require(resolve(root,"products/agents/api/dist/composition/app.js")).buildPlatformApp:buildPlatformApp;
   app = await appFactory({ config, pool, logging: false });
   await app.listen({ host: "127.0.0.1", port: apiPort });
   let advanced: Awaited<ReturnType<typeof prepareAdvancedFixture>> | undefined;
@@ -501,7 +501,7 @@ async function main() {
   const registration = await fetch(`${runtimeAdmin}/deployments`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ uri: `http://host.docker.internal:${workerPort}`, force: true }) });
   assert.ok(registration.ok, `Restate registration failed (${registration.status})`);
   if (advancedJourney) {
-    reaperProcess = spawn(process.execPath, [resolve(root, "products/agents/api/node_modules/tsx/dist/cli.mjs"), resolve(root, "products/agents/api/src/platform/sandbox-reaper.ts")], {
+    reaperProcess = spawn(process.execPath, [resolve(root, "products/agents/api/node_modules/tsx/dist/cli.mjs"), resolve(root, "products/agents/api/src/composition/sandbox-reaper.ts")], {
       cwd: root, stdio: ["ignore", "ignore", "inherit"], env: { ...childEnvironment(), AGENTS_DATABASE_URL: database.href },
     });
   }

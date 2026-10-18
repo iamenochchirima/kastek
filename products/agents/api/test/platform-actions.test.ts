@@ -1,15 +1,15 @@
 import {randomBytes,randomUUID} from "node:crypto";
 import {Pool} from "pg";
 import {beforeAll,afterAll,describe,it,expect} from "vitest";
-import {PlatformStore} from "../src/platform/store";
-import {setupPlatformSchema} from "../src/platform/setup";
-import {defaultFaqConfiguration,executionGrantSchema} from "../src/platform/contracts";
-import {beginOperation} from "../src/platform/execution";
-import {TaskArtifactStore} from "../src/platform/task-artifacts";
-import {ConnectionVault} from "../src/platform/vault";
-import {ConnectionStore} from "../src/platform/connections";
-import {ActionService} from "../src/platform/actions";
-import {ReportDeliveryHTTP,deliveryTargetsFromEnvironment} from "../src/platform/report-delivery";
+import {PlatformStore} from "../src/product/agents/store";
+import {setupPlatformSchema} from "../src/composition/setup";
+import {defaultFaqConfiguration,executionGrantSchema} from "../src/contracts/contracts";
+import {beginOperation} from "../src/execution/lifecycle/execution";
+import {TaskArtifactStore} from "../src/execution/artifacts/task-artifacts";
+import {ConnectionVault} from "../src/infrastructure/vault";
+import {ConnectionStore} from "../src/product/connections/connections";
+import {ActionService} from "../src/workflows/report-delivery/actions";
+import {ReportDeliveryHTTP,deliveryTargetsFromEnvironment} from "../src/adapters/providers/report-delivery";
 import {initializeReportReceiver,createReportReceiver} from "../src/acceptance/report-receiver";
 const dbUrl=process.env.AGENTS_TEST_DATABASE_URL;
 (dbUrl?describe:describe.skip)("exact reviewed report delivery with real PostgreSQL and HTTP receiver",()=>{
@@ -116,7 +116,7 @@ const dbUrl=process.env.AGENTS_TEST_DATABASE_URL;
   const f=await fixture();await approve(f);expect((await actions.deliver(f.task.id,f.action.id)).state).toBe("delivered");
   const row=(await pool.query("SELECT payload FROM agents_platform.actions WHERE id=$1",[f.action.id])).rows[0];
   const adapter=new ReportDeliveryHTTP();expect((await adapter.request(target,"wrong-resource-key",f.action.id,undefined,f.action.payloadDigest)).state).toBe("uncertain");
-  const changed={...row.payload,title:"Altered"};const {requestDigest}=await import("../src/platform/contracts");
+  const changed={...row.payload,title:"Altered"};const {requestDigest}=await import("../src/contracts/contracts");
   expect((await adapter.request(target,key,f.action.id,changed,requestDigest(changed))).state).toBe("failed");
   const port=new URL(target.url).port;await receiver.close();receiver=createReportReceiver({pool,keys:[{apiKey:key,resource:target.resource}]});await receiver.listen({host:"127.0.0.1",port:Number(port)});
   // A pooled connection may close during restart; a second status GET is safe reconciliation.

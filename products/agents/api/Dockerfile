@@ -24,4 +24,4 @@ COPY --from=build /out/dist ./dist
 COPY --from=build /out/schema ./schema
 EXPOSE 4100 9080
 USER node
-CMD ["node", "dist/platform/server.js"]
+CMD ["node", "dist/composition/server.js"]

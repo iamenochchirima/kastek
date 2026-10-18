@@ -2,15 +2,15 @@ import { randomBytes, randomUUID } from "node:crypto";
 import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { agentConfigurationSchema, assertGrantAuthority, connectedToolAuthorityIds, defaultFaqConfiguration,
-  executionGrantSchema, type AgentConfiguration } from "../src/platform/contracts";
-import { AutomationService, operationsForConfiguration } from "../src/platform/automations";
-import { PlatformStore } from "../src/platform/store";
-import { setupPlatformSchema } from "../src/platform/setup";
-import { ConnectionStore } from "../src/platform/connections";
-import { ConnectionVault } from "../src/platform/vault";
-import { ConnectedCatalogStore } from "../src/platform/connected-catalog-store";
-import { createCatalog, digestToolSchema, ExecutableAdapterRegistry } from "../src/platform/capability-catalog";
-import { loadExecution } from "../src/platform/execution";
+  executionGrantSchema, type AgentConfiguration } from "../src/contracts/contracts";
+import { AutomationService, operationsForConfiguration } from "../src/product/automations/automations";
+import { PlatformStore } from "../src/product/agents/store";
+import { setupPlatformSchema } from "../src/composition/setup";
+import { ConnectionStore } from "../src/product/connections/connections";
+import { ConnectionVault } from "../src/infrastructure/vault";
+import { ConnectedCatalogStore } from "../src/capabilities/connected-tools/connected-catalog-store";
+import { createCatalog, digestToolSchema, ExecutableAdapterRegistry } from "../src/contracts/capability-catalog";
+import { loadExecution } from "../src/execution/lifecycle/execution";
 
 function delegated(ids: string[], direct: string[] = []): AgentConfiguration {
   const config = defaultFaqConfiguration();

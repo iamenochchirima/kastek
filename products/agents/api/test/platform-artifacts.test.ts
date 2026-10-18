@@ -3,9 +3,10 @@ import { readFile, readdir } from "node:fs/promises";
 import { resolve } from "node:path";
 import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { ArtifactStore, S3PrivateStore, privateStoreFromEnvironment } from "../src/platform/artifacts";
-import { PlatformStore } from "../src/platform/store";
-import { defaultFaqConfiguration } from "../src/platform/contracts";
+import {ArtifactStore} from "../src/execution/artifacts/artifacts";
+import {S3PrivateStore, privateStoreFromEnvironment} from "../src/infrastructure/object-store";
+import { PlatformStore } from "../src/product/agents/store";
+import { defaultFaqConfiguration } from "../src/contracts/contracts";
 
 const dbUrl = process.env.AGENTS_TEST_DATABASE_URL, endpoint = process.env.AGENTS_TEST_S3_ENDPOINT;
 const suite = dbUrl && endpoint ? describe : describe.skip;

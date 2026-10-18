@@ -1,5 +1,5 @@
 import type { Pool } from "pg";
-import { connectedToolAuthorityIds, type AgentConfiguration } from "../../src/platform/contracts";
+import { connectedToolAuthorityIds, type AgentConfiguration } from "../../src/contracts/contracts";
 
 export interface GithubJourneyScope {
   id: string; parent_task_id: string | null; root_token_limit: number; created_at: Date;

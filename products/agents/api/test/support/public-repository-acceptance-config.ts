@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { githubRepositorySelectionSchema } from "../../src/platform/github-adapter";
+import { githubRepositorySelectionSchema } from "../../src/adapters/providers/github-adapter";
 
 /** Public providers need no credentials. Overrides remain finite repository selections. */
 export function readPublicRepositoryAcceptanceConfig(env: NodeJS.ProcessEnv = process.env, now = Date.now()) {

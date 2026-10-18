@@ -1,6 +1,6 @@
 import { createServer, type Server } from "node:http";
 import { afterEach, describe, expect, it } from "vitest";
-import { createBoundedFetch, publicAddress, type NetworkAttempt } from "../src/platform/connected-network";
+import { createBoundedFetch, publicAddress, type NetworkAttempt } from "../src/infrastructure/connected-network";
 const servers: Server[] = [];
 async function server(handler: Parameters<typeof createServer>[0]) { const value = createServer(handler); servers.push(value); await new Promise<void>(resolve => value.listen(0, "127.0.0.1", resolve)); const address = value.address(); if (!address || typeof address === "string") throw Error(); return `http://127.0.0.1:${address.port}`; }
 afterEach(async () => { for (const value of servers.splice(0)) { value.closeAllConnections(); await new Promise<void>(resolve => value.close(() => resolve())); } });

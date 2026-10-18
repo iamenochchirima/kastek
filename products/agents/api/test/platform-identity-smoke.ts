@@ -11,10 +11,10 @@ import { join } from "node:path";
 import { promisify } from "node:util";
 import { Pool } from "pg";
 import { createRemoteJWKSet, jwtVerify } from "jose";
-import { buildPlatformApp } from "../src/platform/app";
-import { loadPlatformConfig } from "../src/platform/config";
-import { PlatformIdentity } from "../src/platform/auth";
-import { setupPlatformSchema } from "../src/platform/setup";
+import { buildPlatformApp } from "../src/composition/app";
+import { loadPlatformConfig } from "../src/infrastructure/config";
+import { PlatformIdentity } from "../src/product/identity/auth";
+import { setupPlatformSchema } from "../src/composition/setup";
 
 async function run() {
   const exec = promisify(execFile);

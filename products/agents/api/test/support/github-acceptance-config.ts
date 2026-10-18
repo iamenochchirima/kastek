@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { githubRepositorySelectionSchema } from "../../src/platform/github-adapter";
+import { githubRepositorySelectionSchema } from "../../src/adapters/providers/github-adapter";
 
 /** Shared preflight for opt-in acceptance. It performs no I/O or credential discovery. */
 export function readGithubAcceptanceConfig(env: NodeJS.ProcessEnv = process.env, now = Date.now()) {

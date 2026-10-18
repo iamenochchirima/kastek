@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import { assertDependencyManifest, assertIngestionPublication, collectDependencyGraph, createDependencyManifest,
-  sourceChunkSchema, textDigest, type DependencyNode, type EvidenceDependency, type IngestionJob, type Source } from "../src/platform/source-contracts";
+  sourceChunkSchema, textDigest, type DependencyNode, type EvidenceDependency, type IngestionJob, type Source } from "../src/contracts/source-contracts";
 
 const dependency = (): EvidenceDependency => ({ kind: "source", sourceId: randomUUID(), revisionId: randomUUID(), generation: 1, visibility: "private" });
 

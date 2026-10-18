@@ -3,7 +3,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import type { AddressInfo } from "node:net";
 import { describe, expect, it } from "vitest";
 import { GithubReadAdapter, githubRepositoryHandle, projectGithubObservation, assertGithubOperation,
-  type GithubRepositorySelection, type GithubProviderResponse } from "../src/platform/github-adapter";
+  type GithubRepositorySelection, type GithubProviderResponse } from "../src/adapters/providers/github-adapter";
 
 const selection: GithubRepositorySelection = { owner: "approved", repository: "public-repo", ref: "main" };
 const commitA = "a".repeat(40), commitB = "b".repeat(40), treeA = "c".repeat(40), treeB = "d".repeat(40);

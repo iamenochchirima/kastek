@@ -1,16 +1,16 @@
 import {randomBytes,randomUUID} from "node:crypto";
 import {Pool} from "pg";
 import {beforeAll,afterAll,describe,it,expect} from "vitest";
-import {setupPlatformSchema} from "../src/platform/setup";
-import {PlatformStore} from "../src/platform/store";
-import {defaultFaqConfiguration,executionGrantSchema} from "../src/platform/contracts";
-import {beginOperation} from "../src/platform/execution";
-import {MemoryStore} from "../src/platform/memory";
-import {TaskArtifactStore} from "../src/platform/task-artifacts";
-import {ConnectionVault} from "../src/platform/vault";
-import {ConnectionStore} from "../src/platform/connections";
-import {ActionService} from "../src/platform/actions";
-import {AutomationService} from "../src/platform/automations";
+import {setupPlatformSchema} from "../src/composition/setup";
+import {PlatformStore} from "../src/product/agents/store";
+import {defaultFaqConfiguration,executionGrantSchema} from "../src/contracts/contracts";
+import {beginOperation} from "../src/execution/lifecycle/execution";
+import {MemoryStore} from "../src/execution/memory/memory";
+import {TaskArtifactStore} from "../src/execution/artifacts/task-artifacts";
+import {ConnectionVault} from "../src/infrastructure/vault";
+import {ConnectionStore} from "../src/product/connections/connections";
+import {ActionService} from "../src/workflows/report-delivery/actions";
+import {AutomationService} from "../src/product/automations/automations";
 const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
 (databaseUrl?describe:describe.skip)("recursive artifact sources and narrow assigned-reviewer downloads",()=>{
  let admin:Pool,pool:Pool,store:PlatformStore,memory:MemoryStore,artifacts:TaskArtifactStore;

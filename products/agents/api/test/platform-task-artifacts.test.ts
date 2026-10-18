@@ -2,14 +2,15 @@ import { randomUUID } from "node:crypto";
 import { dropClosedTestDatabase } from "./support/database-cleanup";
 import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { setupPlatformSchema } from "../src/platform/setup";
-import { PlatformStore } from "../src/platform/store";
-import { defaultFaqConfiguration, executionGrantSchema } from "../src/platform/contracts";
-import { beginOperation, finishOperation, settleTask } from "../src/platform/execution";
-import { TaskArtifactStore } from "../src/platform/task-artifacts";
-import { ArtifactStore, type PrivateObjectStore } from "../src/platform/artifacts";
-import { createSandboxExecutor } from "../src/platform/sandbox-executor";
-import type { SandboxManager } from "../src/platform/sandbox";
+import { setupPlatformSchema } from "../src/composition/setup";
+import { PlatformStore } from "../src/product/agents/store";
+import { defaultFaqConfiguration, executionGrantSchema } from "../src/contracts/contracts";
+import { beginOperation, finishOperation, settleTask } from "../src/execution/lifecycle/execution";
+import { TaskArtifactStore } from "../src/execution/artifacts/task-artifacts";
+import {ArtifactStore} from "../src/execution/artifacts/artifacts";
+import {type PrivateObjectStore} from "../src/infrastructure/object-store";
+import { createSandboxExecutor } from "../src/capabilities/sandbox/sandbox-executor";
+import type { SandboxManager } from "../src/capabilities/sandbox/sandbox";
 
 const dbUrl=process.env.AGENTS_TEST_DATABASE_URL;
 (dbUrl?describe:describe.skip)("task artifact authorization with real PostgreSQL and controlled object transport",()=>{

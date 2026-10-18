@@ -43,31 +43,74 @@ capacity scheduling, replica-safe reads and executor routing. Raising the numeri
 files does not resolve those gaps. Existing functional/recovery tests establish bounded behavior,
 not scalable multi-replica operation. Requirements and load acceptance remain in Linear.
 
+## Internal module boundaries
+
+Implemented code lives under `contracts`, `infrastructure`, `execution`, `capabilities`,
+`workflows`, `adapters`, `product`, and `composition`. Product identity, agent/version,
+website deployment, and execution admission stores have separate implementations;
+`product/agents/store.ts` composes their existing management interface. Execution
+consumers use neutral record contracts and credential ports. S3 transport is separate
+from memory/artifact authorization. Evidence policy and content writes are separate,
+so authority checks do not depend cyclically on storage.
+
+`pnpm verify:agents-modules` checks static imports, type imports, re-exports,
+string-literal dynamic imports/requires, forbidden dependency directions and file
+cycles. Contracts and infrastructure cannot import product routes or programs;
+capability/workflow/runtime modules cannot import product implementations. Unsupported
+computed module loading fails the check. Negative fixtures prove these checks reject
+forbidden edges and cycles. Cross-product checks remain separate.
+
+Composition entry points are `api/src/composition/` and compile to
+`api/dist/composition/`. MCP's bounded helper remains adjacent to its adapter under
+`adapters/providers/`; schema loading remains relative to the API package schema.
+Moving adapter source changes executable digests. Existing immutable bindings are
+never rewritten: new acceptance uses newly discovered bindings and published versions
+with matching source/compiled artifacts. A previously recorded receipt still resolves
+before the live registry; unavailable old releases fail closed for new physical IO.
+The structural checkpoint retains Restate V10 handler names, journal steps, operation
+IDs and `connected-research-v7`. Existing running compiled owner services are preserved.
+
+The relocation smoke compiles into an ignored output tree rather than deleting a
+running `dist` deployment. From the repository root, with a disposable-database-capable
+local connection and private-storage settings in the private API environment:
+
+```sh
+pnpm --filter @kasitek/agents exec tsc -p tsconfig.json --outDir .artifacts/modular-dist
+mkdir -p products/agents/api/.artifacts/schema
+cp products/agents/api/schema/*.sql products/agents/api/.artifacts/schema/
+node --env-file=products/agents/api/.env products/agents/api/test/modular-launch-smoke.cjs
+```
+
+The smoke owns a uniquely named database and child processes. It checks source HTTP
+startup, compiled schema/HTTP/worker startup, an actual compiled isolated MCP helper
+against a local fixture, cleanup entry initialization and adapter executable hashing.
+It does not call a real model/provider or verify cleanup of a live allocation.
+
 ## Current modules
 
-| Module in `api/src/platform` | Responsibility |
+| Module in `api/src` | Responsibility |
 | --- | --- |
-| `contracts.ts` | Agent configuration, two execution kinds, grants, limits, and task states. |
-| `auth.ts`, `auth-routes.ts`, `auth-return.ts`, `config.ts` | OIDC signup/login, one-use safe return links, product sessions, identity configuration and backchannel logout. |
-| `store.ts` | Membership, drafts, immutable publication, revision pins, ordered admission, root reservations, and paginated authorized turns/events. |
-| `discovery.ts`, `read-pages.ts` | Principal-scoped agent/conversation/task summaries and signed scope-bound read cursors. |
-| `app.ts`, `server.ts`, `widget.ts` | Management and website APIs, continuation, history deletion, progress, cancellation, and widget delivery. |
-| `execution.ts` | Current authority, task and operation identities, claims, receipts, and usage settlement. |
-| `business.ts` | Restate business controller, model and tool rounds, ordered turns, and compaction coordination. |
-| `model.ts`, `context.ts`, `continuation.ts` | Provider protocol, conservative request accounting, scoped snapshots, complete message groups and bounded execution checkpoints. |
-| `memory.ts`, `memory-routes.ts` | Personal memory candidates, authenticated acceptance, revisions, expiry, forgetting, source invalidation, and pinned skills. |
-| `artifacts.ts`, `task-artifacts.ts` | Private S3-compatible content, root/task provenance, explicit transfers, downloads, integrity and deletion. |
-| `delegation.ts`, `tool-descriptors.ts` | Published specialist bindings, atomic child admission, bounded results and pinned adapter contracts. |
-| `sandbox.ts`, `sandbox-executor.ts`, `sandbox-reaper.ts` | Isolated analysis, durable resource/command identities, artifact export and independent cleanup. |
-| `dispatcher.ts`, `worker.ts`, `worker-security.ts` | Leased outbox delivery, runtime identity, cancellation reconciliation, request signatures, and worker lifecycle. |
-| `connections.ts`, `vault.ts`, `actions.ts`, `report-delivery.ts` | Scoped encrypted credentials, exact report review, atomic dispatch claims and read-only receipt reconciliation. |
-| `automations.ts`, `automation-authority.ts`, `automation-runtime.ts` | Immutable owner authorization, occurrence inbox, shared admission and Restate UTC timers. |
-| `capability-catalog.ts`, `connected-catalog-store.ts`, `connected-executor.ts` | Immutable selected tools, executable releases, issued handles and durable connected receipts. |
-| `connected-network.ts`, `github-adapter.ts`, `stash-adapter.ts`, `mcp-adapter.ts` | Bounded egress, anonymous/keyed native reads, scoped Stash text and isolated MCP SDK execution. |
-| `knowledge.ts`, `knowledge-routes.ts`, `ingestion-runtime.ts` | Private candidates, owner approval, revision policy and durable import stages. |
-| `document-runtime.ts`, `document-reaper.ts`, `source-objects.ts`, `execution-objects.ts` | Pinned no-network parsing/embedding, physical cleanup and object write/deletion intents. |
-| `retrieval.ts`, `query-embedding.ts`, `knowledge-runtime.ts`, `evidence.ts` | Scoped lexical/hybrid retrieval, passage references and transitive policy dependencies. |
-| `setup.ts` | Fresh database initialization and schema checks. |
+| `contracts/contracts.ts` | Agent configuration, two execution kinds, grants, limits, and task states. |
+| `product/identity/auth.ts`, `product/identity/auth-routes.ts`, `product/identity/auth-return.ts`, `infrastructure/config.ts` | OIDC signup/login, one-use safe return links, product sessions, identity configuration and backchannel logout. |
+| `product/agents/store.ts` | Membership, drafts, immutable publication, revision pins, ordered admission, root reservations, and paginated authorized turns/events. |
+| `product/agents/discovery.ts`, `infrastructure/read-pages.ts` | Principal-scoped agent/conversation/task summaries and signed scope-bound read cursors. |
+| `composition/app.ts`, `composition/server.ts`, `adapters/channels/website/widget.ts` | Management and website APIs, continuation, history deletion, progress, cancellation, and widget delivery. |
+| `execution/lifecycle/execution.ts` | Current authority, task and operation identities, claims, receipts, and usage settlement. |
+| `execution/business/business.ts` | Restate business controller, model and tool rounds, ordered turns, and compaction coordination. |
+| `execution/business/model.ts`, `execution/context/context.ts`, `execution/context/continuation.ts` | Provider protocol, conservative request accounting, scoped snapshots, complete message groups and bounded execution checkpoints. |
+| `execution/memory/memory.ts`, `product/agents/memory-routes.ts` | Personal memory candidates, authenticated acceptance, revisions, expiry, forgetting, source invalidation, and pinned skills. |
+| `infrastructure/object-store.ts`, `execution/artifacts/artifacts.ts`, `execution/artifacts/task-artifacts.ts` | Private S3-compatible content, root/task provenance, explicit transfers, downloads, integrity and deletion. |
+| `execution/delegation/delegation.ts`, `capabilities/tool-descriptors.ts` | Published specialist bindings, atomic child admission, bounded results and pinned adapter contracts. |
+| `capabilities/sandbox/sandbox.ts`, `capabilities/sandbox/sandbox-executor.ts`, `composition/sandbox-reaper.ts` | Isolated analysis, durable resource/command identities, artifact export and independent cleanup. |
+| `execution/lifecycle/dispatcher.ts`, `composition/worker.ts`, `composition/worker-security.ts` | Leased outbox delivery, runtime identity, cancellation reconciliation, request signatures, and worker lifecycle. |
+| `product/connections/connections.ts`, `infrastructure/vault.ts`, `workflows/report-delivery/actions.ts`, `adapters/providers/report-delivery.ts` | Scoped encrypted credentials, exact report review, atomic dispatch claims and read-only receipt reconciliation. |
+| `product/automations/automations.ts`, `execution/lifecycle/automation-authority.ts`, `product/automations/automation-runtime.ts` | Immutable owner authorization, occurrence inbox, shared admission and Restate UTC timers. |
+| `contracts/capability-catalog.ts`, `capabilities/connected-tools/connected-catalog-store.ts`, `capabilities/connected-tools/connected-executor.ts` | Immutable selected tools, executable releases, issued handles and durable connected receipts. |
+| `infrastructure/connected-network.ts`, `adapters/providers/github-adapter.ts`, `adapters/providers/stash-adapter.ts`, `adapters/providers/mcp-adapter.ts` | Bounded egress, anonymous/keyed native reads, scoped Stash text and isolated MCP SDK execution. |
+| `capabilities/knowledge/knowledge.ts`, `product/agents/knowledge-routes.ts`, `capabilities/knowledge/ingestion-runtime.ts` | Private candidates, owner approval, revision policy and durable import stages. |
+| `capabilities/knowledge/document-runtime.ts`, `composition/document-reaper.ts`, `capabilities/knowledge/source-objects.ts`, `execution/artifacts/execution-objects.ts` | Pinned no-network parsing/embedding, physical cleanup and object write/deletion intents. |
+| `capabilities/knowledge/retrieval.ts`, `capabilities/knowledge/query-embedding.ts`, `capabilities/knowledge/knowledge-runtime.ts`, `execution/context/evidence.ts` | Scoped lexical/hybrid retrieval, passage references and transitive policy dependencies. |
+| `composition/setup.ts` | Fresh database initialization and schema checks. |
 
 The management client is in `web/`. Its chat, configuration, management and explicit
 website-publication paths share these APIs. Growth and Agencies retain independent

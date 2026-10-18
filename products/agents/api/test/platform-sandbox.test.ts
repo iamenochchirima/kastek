@@ -6,9 +6,9 @@ import { execFile, spawn } from "node:child_process";
 import { promisify } from "node:util";
 import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { SandboxManager } from "../src/platform/sandbox";
-import { PlatformStore } from "../src/platform/store";
-import { defaultFaqConfiguration } from "../src/platform/contracts";
+import { SandboxManager } from "../src/capabilities/sandbox/sandbox";
+import { PlatformStore } from "../src/product/agents/store";
+import { defaultFaqConfiguration } from "../src/contracts/contracts";
 const exec=promisify(execFile),dbUrl=process.env.AGENTS_TEST_DATABASE_URL;
 const suite=dbUrl&&process.env.AGENTS_SANDBOX_VERIFY==="1"?describe:describe.skip;
 suite("real gVisor Python analysis and independent resource lifecycle",()=>{
@@ -128,7 +128,7 @@ suite("real gVisor Python analysis and independent resource lifecycle",()=>{
       const recovered=await manager.analyze(scope,input);expect(recovered.state).toBe("completed");expect(Buffer.from(recovered.exports[0]!.content).toString()).toContain("survived worker loss");
       expect((await pool.query("SELECT count(*) FROM agents_platform.sandbox_commands WHERE allocation_id=$1",[row.id])).rows[0].count).toBe("1");
       await pool.query("UPDATE agents_platform.sandbox_allocations SET lease_expires_at=now()-interval '1 second' WHERE id=$1",[row.id]);
-      reaper=spawn(process.execPath,["--import",loader,resolve(__dirname,"../src/platform/sandbox-reaper.ts")],{env:{...process.env,AGENTS_DATABASE_URL:(pool.options as {connectionString:string}).connectionString,AGENTS_SANDBOX_ENABLED:"1",AGENTS_SANDBOX_DIRECTORY:directory},stdio:"ignore"});
+      reaper=spawn(process.execPath,["--import",loader,resolve(__dirname,"../src/composition/sandbox-reaper.ts")],{env:{...process.env,AGENTS_DATABASE_URL:(pool.options as {connectionString:string}).connectionString,AGENTS_SANDBOX_ENABLED:"1",AGENTS_SANDBOX_DIRECTORY:directory},stdio:"ignore"});
       for(let attempt=0;attempt<100;attempt++){const state=(await pool.query("SELECT state FROM agents_platform.sandbox_allocations WHERE id=$1",[row.id])).rows[0].state;if(state==="destroyed")break;await new Promise(done=>setTimeout(done,30));}
       expect((await pool.query("SELECT state FROM agents_platform.sandbox_allocations WHERE id=$1",[row.id])).rows[0].state).toBe("destroyed");
       await expect(access(join(directory,row.id))).rejects.toBeDefined();

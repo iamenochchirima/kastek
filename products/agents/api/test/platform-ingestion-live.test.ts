@@ -8,16 +8,16 @@ import { createRequire } from "node:module";
 import { join, resolve } from "node:path";
 import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { S3PrivateStore } from "../src/platform/artifacts";
-import { DocumentRuntime } from "../src/platform/document-runtime";
-import { KnowledgeStore, type KnowledgeScope } from "../src/platform/knowledge";
-import { PlatformStore } from "../src/platform/store";
-import { defaultFaqConfiguration, terminalTaskStates } from "../src/platform/contracts";
-import { dispatchTasksOnce } from "../src/platform/dispatcher";
-import { setupPlatformSchema } from "../src/platform/setup";
+import {S3PrivateStore} from "../src/infrastructure/object-store";
+import { DocumentRuntime } from "../src/capabilities/knowledge/document-runtime";
+import { KnowledgeStore, type KnowledgeScope } from "../src/capabilities/knowledge/knowledge";
+import { PlatformStore } from "../src/product/agents/store";
+import { defaultFaqConfiguration, terminalTaskStates } from "../src/contracts/contracts";
+import { dispatchTasksOnce } from "../src/execution/lifecycle/dispatcher";
+import { setupPlatformSchema } from "../src/composition/setup";
 import { privateFixtureBucketRequest } from "./support/private-s3-fixture";
-import { buildPlatformApp } from "../src/platform/app";
-import { loadPlatformConfig } from "../src/platform/config";
+import { buildPlatformApp } from "../src/composition/app";
+import { loadPlatformConfig } from "../src/infrastructure/config";
 
 const enabled = process.env.AGENTS_INGESTION_LIVE === "1" && process.env.AGENTS_TEST_DATABASE_URL;
 (enabled ? describe : describe.skip)("actual compiled ingestion worker with Restate, gVisor, private S3 and pgvector", () => {
@@ -43,7 +43,7 @@ const enabled = process.env.AGENTS_INGESTION_LIVE === "1" && process.env.AGENTS_
     if(process.env.AGENTS_INGESTION_FREE_MODEL!=="1") delete env.OPENROUTER_API_KEY; delete env.AGENTS_REPORT_DELIVERY_TARGETS; delete env.AGENTS_CONNECTION_KEYS; delete env.AGENTS_CONNECTION_ACTIVE_KEY;
     delete env.AGENTS_SANDBOX_ENABLED; delete env.RESTATE_REQUEST_IDENTITY_KEYS;
     let ready = false;
-    worker = spawn(process.execPath, ["dist/platform/worker.js"], { cwd: process.cwd(), env, stdio: ["ignore", "pipe", "pipe"] });
+    worker = spawn(process.execPath, ["dist/composition/worker.js"], { cwd: process.cwd(), env, stdio: ["ignore", "pipe", "pipe"] });
     for (const output of [worker.stdout, worker.stderr]) output!.on("data", value => { logs = (logs + value.toString()).slice(-262144); if (value.toString().includes('"event":"ready"')) ready = true; });
     await eventually(async () => { if (worker?.exitCode !== null) throw new Error("Compiled worker exited before readiness"); return ready; }, "compiled worker readiness", 20000);
   }

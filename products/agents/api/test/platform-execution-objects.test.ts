@@ -1,13 +1,13 @@
 import {randomUUID} from "node:crypto";
 import {Pool} from "pg";
 import {afterAll,beforeAll,describe,expect,it} from "vitest";
-import {PlatformStore} from "../src/platform/store";
-import {defaultFaqConfiguration} from "../src/platform/contracts";
-import {setupPlatformSchema} from "../src/platform/setup";
-import {beginOperation,finishOperation,settleTask,reconcilePendingRoots} from "../src/platform/execution";
-import {cleanupQueryEmbeddingAllocation} from "../src/platform/query-embedding";
-import {writeExecutionObject,reapExecutionObjects} from "../src/platform/execution-objects";
-import type {PrivateObjectStore} from "../src/platform/artifacts";
+import {PlatformStore} from "../src/product/agents/store";
+import {defaultFaqConfiguration} from "../src/contracts/contracts";
+import {setupPlatformSchema} from "../src/composition/setup";
+import {beginOperation,finishOperation,settleTask,reconcilePendingRoots} from "../src/execution/lifecycle/execution";
+import {cleanupQueryEmbeddingAllocation} from "../src/capabilities/knowledge/query-embedding";
+import {writeExecutionObject,reapExecutionObjects} from "../src/execution/artifacts/execution-objects";
+import {PrivateObjectStore} from "../src/infrastructure/object-store";
 const url=process.env.AGENTS_TEST_DATABASE_URL;
 (url?describe:describe.skip)("execution object ownership before private storage writes",()=>{
  let admin:Pool,pool:Pool,platform:PlatformStore;

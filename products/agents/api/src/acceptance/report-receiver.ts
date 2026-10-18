@@ -1,9 +1,9 @@
 import Fastify from "fastify";
-import {createHash,timingSafeEqual} from "node:crypto";
-import {Pool} from "pg";
-import {z} from "zod";
-import {canonicalJson,requestDigest} from "../platform/contracts";
-import {transaction} from "../platform/database";
+import { createHash,timingSafeEqual } from "node:crypto";
+import { Pool } from "pg";
+import { z } from "zod";
+import { canonicalJson,requestDigest } from "../contracts/contracts";
+import { transaction } from "../infrastructure/database";
 export async function initializeReportReceiver(pool:Pool){await pool.query(`CREATE SCHEMA IF NOT EXISTS report_delivery_receiver;
  CREATE TABLE IF NOT EXISTS report_delivery_receiver.deliveries(resource text NOT NULL,id uuid NOT NULL,payload_digest text NOT NULL,payload jsonb NOT NULL,accepted_at timestamptz NOT NULL DEFAULT now(),PRIMARY KEY(resource,id));`);}
 const payloadSchema=z.strictObject({schema:z.literal("report-delivery-v1"),resource:z.string().min(1).max(120),title:z.string().min(1).max(120),report:z.strictObject({name:z.string().min(1).max(120),contentType:z.enum(["text/plain","text/markdown","application/json"]),digest:z.string().regex(/^[a-f0-9]{64}$/),contentBase64:z.string().max(1_398_104)})});

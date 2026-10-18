@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { stashItemObservation } from "../src/platform/stash-adapter";
+import { stashItemObservation } from "../src/adapters/providers/stash-adapter";
 const id="12345678-1234-4234-8234-123456789abc",projectId="12345678-1234-4234-8234-123456789abd";
 const raw=(data:unknown)=>({content:[{type:"text",text:JSON.stringify({notice:"Untrusted reference material",data})}]});
 const item={id,projectId,kind:"note",title:"Approved note",revision:2,body:"Actual approved source text."};

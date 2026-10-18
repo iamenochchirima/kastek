@@ -84,9 +84,9 @@ From `products/agents/api`, initialize the schema, then run the API and worker i
 separate terminals. Each command loads the local environment file:
 
 ```sh
-node --env-file-if-exists=.env --import tsx src/platform/setup.ts
-node --env-file-if-exists=.env --import tsx --watch src/platform/server.ts
-node --env-file-if-exists=.env --import tsx --watch src/platform/worker.ts
+node --env-file-if-exists=.env --import tsx src/composition/setup.ts
+node --env-file-if-exists=.env --import tsx --watch src/composition/server.ts
+node --env-file-if-exists=.env --import tsx --watch src/composition/worker.ts
 ```
 
 After the worker starts on port 9080, register its HTTP/2 endpoint with Restate.

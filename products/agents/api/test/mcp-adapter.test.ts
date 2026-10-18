@@ -1,7 +1,7 @@
 import { createServer, type Server } from "node:http";
 import { afterEach, describe, expect, it } from "vitest";
-import { callMcpTool, discoverMcpCatalog, type McpEndpoint } from "../src/platform/mcp-adapter";
-import {digestToolSchema} from "../src/platform/capability-catalog";
+import { callMcpTool, discoverMcpCatalog, type McpEndpoint } from "../src/adapters/providers/mcp-adapter";
+import {digestToolSchema} from "../src/contracts/capability-catalog";
 const servers: Server[] = [];
 async function fixture(options: { modern?: boolean; schema?: Record<string, unknown>; invalid?: boolean; isError?: boolean; hang?: boolean; oversized?: boolean; reflect?: boolean; rateLimit?: boolean; duplicate?: boolean; pagination?: boolean; interactive?: boolean; redirectList?:boolean; outputAnnotation?:unknown } = {}) {
   let calls = 0, discoveries = 0;

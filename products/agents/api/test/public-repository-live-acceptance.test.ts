@@ -3,18 +3,18 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { ConnectedExecutor } from "../src/platform/connected-executor";
-import { ConnectionStore } from "../src/platform/connections";
-import { ConnectionVault } from "../src/platform/vault";
-import { EvidenceStore } from "../src/platform/evidence";
-import { S3PrivateStore } from "../src/platform/artifacts";
-import { PlatformStore } from "../src/platform/store";
-import { defaultFaqConfiguration, type ExecutionGrant } from "../src/platform/contracts";
-import { beginOperation, finishOperation, settleTask } from "../src/platform/execution";
-import { setupPlatformSchema } from "../src/platform/setup";
+import { ConnectedExecutor } from "../src/capabilities/connected-tools/connected-executor";
+import { ConnectionStore } from "../src/product/connections/connections";
+import { ConnectionVault } from "../src/infrastructure/vault";
+import { EvidenceStore } from "../src/execution/context/evidence";
+import {S3PrivateStore} from "../src/infrastructure/object-store";
+import { PlatformStore } from "../src/product/agents/store";
+import { defaultFaqConfiguration, type ExecutionGrant } from "../src/contracts/contracts";
+import { beginOperation, finishOperation, settleTask } from "../src/execution/lifecycle/execution";
+import { setupPlatformSchema } from "../src/composition/setup";
 import { readPublicRepositoryAcceptanceConfig } from "./support/public-repository-acceptance-config";
 import { privateFixtureBucketRequest } from "./support/private-s3-fixture";
-import type { CapabilityBinding, CapabilityCatalog } from "../src/platform/capability-catalog";
+import type { CapabilityBinding, CapabilityCatalog } from "../src/contracts/capability-catalog";
 
 /** Opt-in real public-provider service acceptance. No model or external credentials.
  * AGENTS_PUBLIC_REPOSITORY_LIVE=1 and AGENTS_TEST_DATABASE_URL select an owned

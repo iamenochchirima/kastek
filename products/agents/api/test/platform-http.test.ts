@@ -1,14 +1,14 @@
 import {publishFixtureSource} from "./knowledge-fixture";
-import * as artifactModule from "../src/platform/artifacts";
+import * as artifactModule from "../src/infrastructure/object-store";
 import { randomUUID } from "node:crypto";
 import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { buildPlatformApp } from "../src/platform/app";
-import { loadPlatformConfig } from "../src/platform/config";
-import { defaultFaqConfiguration } from "../src/platform/contracts";
-import { setupPlatformSchema } from "../src/platform/setup";
-import { PlatformStore } from "../src/platform/store";
-import { admitChildren } from "../src/platform/delegation";
+import { buildPlatformApp } from "../src/composition/app";
+import { loadPlatformConfig } from "../src/infrastructure/config";
+import { defaultFaqConfiguration } from "../src/contracts/contracts";
+import { setupPlatformSchema } from "../src/composition/setup";
+import { PlatformStore } from "../src/product/agents/store";
+import { admitChildren } from "../src/execution/delegation/delegation";
 
 const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
 const suite = databaseUrl ? describe : describe.skip;

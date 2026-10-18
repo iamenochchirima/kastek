@@ -1,12 +1,12 @@
 import {randomUUID} from "node:crypto";
 import {Pool} from "pg";
 import {afterAll,beforeAll,describe,expect,it} from "vitest";
-import type {PrivateObjectStore} from "../src/platform/artifacts";
-import {KnowledgeStore} from "../src/platform/knowledge";
-import {PlatformStore} from "../src/platform/store";
-import {setupPlatformSchema} from "../src/platform/setup";
-import {textDigest} from "../src/platform/source-contracts";
-import {reapSourceObjects,writeSourceObject,type SourceObjectWrite} from "../src/platform/source-objects";
+import {PrivateObjectStore} from "../src/infrastructure/object-store";
+import {KnowledgeStore} from "../src/capabilities/knowledge/knowledge";
+import {PlatformStore} from "../src/product/agents/store";
+import {setupPlatformSchema} from "../src/composition/setup";
+import {textDigest} from "../src/contracts/source-contracts";
+import {reapSourceObjects,writeSourceObject,type SourceObjectWrite} from "../src/capabilities/knowledge/source-objects";
 
 const url=process.env.AGENTS_TEST_DATABASE_URL;
 (url?describe:describe.skip)("durable source object ownership with PostgreSQL and explicit storage faults",()=>{

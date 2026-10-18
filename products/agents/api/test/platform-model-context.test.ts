@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { APPROVED_MODEL_PROFILE, callModel, estimateRequestTokens, ModelOperationError,
-  serializeModelRequest, type ModelRequest, type ToolDefinition } from "../src/platform/model";
-import { buildContext, prepareCompaction, type ContextGroup } from "../src/platform/context";
+  serializeModelRequest, type ModelRequest, type ToolDefinition } from "../src/execution/business/model";
+import { buildContext, prepareCompaction, type ContextGroup } from "../src/execution/context/context";
 
 const tool: ToolDefinition = { type: "function", function: { name: "memory_read", description: "Read permitted memory",
   parameters: { type: "object", properties: { query: { type: "string" } }, required: ["query"], additionalProperties: false } } };

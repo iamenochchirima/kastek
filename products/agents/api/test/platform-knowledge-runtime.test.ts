@@ -1,14 +1,14 @@
 import {randomUUID} from "node:crypto";
 import {Pool} from "pg";
 import {afterAll,beforeAll,describe,expect,it} from "vitest";
-import {KnowledgeStore} from "../src/platform/knowledge";
-import {KnowledgeRuntime} from "../src/platform/knowledge-runtime";
-import {EvidenceStore} from "../src/platform/evidence";
-import {PlatformStore} from "../src/platform/store";
-import {setupPlatformSchema} from "../src/platform/setup";
-import {beginOperation} from "../src/platform/execution";
-import {defaultFaqConfiguration,executionGrantSchema,requestDigest} from "../src/platform/contracts";
-import {textDigest} from "../src/platform/source-contracts";
+import {KnowledgeStore} from "../src/capabilities/knowledge/knowledge";
+import {KnowledgeRuntime} from "../src/capabilities/knowledge/knowledge-runtime";
+import {EvidenceStore} from "../src/execution/context/evidence";
+import {PlatformStore} from "../src/product/agents/store";
+import {setupPlatformSchema} from "../src/composition/setup";
+import {beginOperation} from "../src/execution/lifecycle/execution";
+import {defaultFaqConfiguration,executionGrantSchema,requestDigest} from "../src/contracts/contracts";
+import {textDigest} from "../src/contracts/source-contracts";
 
 const url=process.env.AGENTS_TEST_DATABASE_URL;
 (url?describe:describe.skip)("knowledge runtime evidence and bounded source reads with PostgreSQL",()=>{

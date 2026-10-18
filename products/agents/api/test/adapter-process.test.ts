@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process";
 import { once } from "node:events";
 import { expect, it } from "vitest";
-import { MCP_ADAPTER_LIMITS } from "../src/platform/mcp-adapter";
+import { MCP_ADAPTER_LIMITS } from "../src/adapters/providers/mcp-adapter";
 
 it.each(["for(;;){}", "const retained=[];for(;;)retained.push(new Array(50000).fill('bounded'))"])("enforces actual process CPU/heap limits while the parent remains responsive", async program => {
   const child = spawn("/usr/bin/prlimit", [`--cpu=${MCP_ADAPTER_LIMITS.cpuSeconds}:${MCP_ADAPTER_LIMITS.cpuSeconds}`, `--as=${MCP_ADAPTER_LIMITS.addressBytes}`, process.execPath, "--jitless", `--max-old-space-size=${MCP_ADAPTER_LIMITS.heapMiB}`, "--max-semi-space-size=4", "--disable-proto=throw", "-e", program], { stdio: "ignore", env: { LANG: "C.UTF-8", TZ: "UTC" } });

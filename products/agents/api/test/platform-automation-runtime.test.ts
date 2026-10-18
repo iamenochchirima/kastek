@@ -4,11 +4,11 @@ import {createServer,type ServerHttp2Session} from "node:http2";
 import {createEndpointHandler} from "@restatedev/restate-sdk";
 import {Pool} from "pg";
 import {beforeAll,afterAll,describe,it,expect} from "vitest";
-import {setupPlatformSchema} from "../src/platform/setup";
-import {PlatformStore} from "../src/platform/store";
-import {defaultFaqConfiguration} from "../src/platform/contracts";
-import {AutomationService,type AutomationConfig} from "../src/platform/automations";
-import {createAutomationWorkflow,dispatchAutomationTimersOnce} from "../src/platform/automation-runtime";
+import {setupPlatformSchema} from "../src/composition/setup";
+import {PlatformStore} from "../src/product/agents/store";
+import {defaultFaqConfiguration} from "../src/contracts/contracts";
+import {AutomationService,type AutomationConfig} from "../src/product/automations/automations";
+import {createAutomationWorkflow,dispatchAutomationTimersOnce} from "../src/product/automations/automation-runtime";
 const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
 (databaseUrl?describe:describe.skip)("real Restate automation timers and occurrence recovery",()=>{
  let admin:Pool,pool:Pool,store:PlatformStore,service:AutomationService,server:ReturnType<typeof createServer>,workflow:ReturnType<typeof createAutomationWorkflow>;

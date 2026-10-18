@@ -4,7 +4,7 @@ import {
   agentConfigurationSchema, assertGrantAuthority, assertRuntimeAvailable, assertTaskTransition,
   defaultFaqConfiguration, executionGrantSchema, executionKindSchema, parseAllowedOrigin, requestDigest,
   type AdmissionAuthority,
-} from "../src/platform/contracts";
+} from "../src/contracts/contracts";
 
 function authorizedRequest() {
   const configuration = defaultFaqConfiguration();

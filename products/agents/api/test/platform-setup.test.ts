@@ -5,9 +5,9 @@ import { readFile, readdir } from "node:fs/promises";
 import { resolve } from "node:path";
 import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { defaultFaqConfiguration } from "../src/platform/contracts";
-import { setupPlatformSchema } from "../src/platform/setup";
-import { PlatformStore } from "../src/platform/store";
+import { defaultFaqConfiguration } from "../src/contracts/contracts";
+import { setupPlatformSchema } from "../src/composition/setup";
+import { PlatformStore } from "../src/product/agents/store";
 
 const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
 const suite = databaseUrl ? describe : describe.skip;

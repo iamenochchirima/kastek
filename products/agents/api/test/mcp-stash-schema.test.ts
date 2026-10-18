@@ -1,7 +1,7 @@
 import {readFileSync} from "node:fs";
 import {createServer,type Server} from "node:http";
 import {afterAll,beforeAll,describe,expect,it} from "vitest";
-import {callMcpTool,discoverMcpCatalog,type McpEndpoint} from "../src/platform/mcp-adapter";
+import {callMcpTool,discoverMcpCatalog,type McpEndpoint} from "../src/adapters/providers/mcp-adapter";
 // Captured from Stash's real handleMcp tools/list using SDK1.32.1/Zod3.25.76,
 // a local read principal, and no database calls. No hosted account material.
 const catalog=JSON.parse(readFileSync(new URL("./fixtures/stash-read-catalog.json",import.meta.url),"utf8"));

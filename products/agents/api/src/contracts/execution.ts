@@ -1,0 +1,16 @@
+import type { CapabilityBinding } from "./capability-catalog";
+import type { AgentConfiguration } from "./contracts";
+import type { TaskRecord } from "./records";
+import type { DependencyManifest } from "./source-contracts";
+export const HARNESS_RELEASE = "connected-research-v7";
+export const WORKFLOW_NAME = "AgentsBusinessRunV10";
+export interface Execution { task: TaskRecord & { turn_sequence: string; history_cutoff: string | null;
+  tokens_used: number; tokens_reserved: number; root_token_limit: number; model_calls: number; tool_calls: number;
+  deadline_at: Date; harness_release: string; control_generation: string; pending_outcome: TaskOutcome | null }; configuration: AgentConfiguration; agentId: string;
+  toolBindings:{name:string;version:string;digest:string}[]; connectedBindings: CapabilityBinding[] }
+export interface MemoryFence { id: string; generation: number; expiresAt?: number }
+export interface OperationRequest { id: string; kind: "model" | "compaction" | "tool" | "delegation" | "resource"; name: string;
+  request: unknown; reservedTokens: number; reservedMs: number; memoryFence?: MemoryFence; evidenceManifest?: DependencyManifest; retrySafe?: boolean; reconcile?: boolean; maxResultBytes?:number }
+export interface OperationRecord { id: string; task_id: string; state: "started" | "completed" | "failed" | "uncertain";
+  output: unknown; error_code: string | null; reserved_tokens: number; reserved_ms: number; accounted_tokens: number; started_at: Date }
+export interface TaskOutcome { state: "completed" | "incomplete" | "refused" | "failed" | "cancelled" | "uncertain"; output?: string; errorCode?: string }

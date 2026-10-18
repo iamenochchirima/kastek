@@ -1,12 +1,12 @@
 import { randomUUID } from "node:crypto";
 import { describe, expect, it } from "vitest";
-import { requestDigest } from "../src/platform/contracts";
+import { requestDigest } from "../src/contracts/contracts";
 import {
   adapterManifestSchema, assertCapabilityGrant, buildPublishedBindings, capabilityBindingSchema,
   capabilityCatalogSchema, createBinding, createCatalog, createModelAlias, digestToolSchema,
   ExecutableAdapterRegistry, intersectCapabilityGrants, preflightToolSchema, resolveModelAlias,
   routeCapabilityOperation, type AdapterManifest, type CapabilityBinding, type CapabilityGrant,
-} from "../src/platform/capability-catalog";
+} from "../src/contracts/capability-catalog";
 
 const organizationId = randomUUID(), connectionId = randomUUID();
 const manifest: AdapterManifest = { schemaVersion: 1, id: "provider-read", release: "1.0.0", executableDigest: "a".repeat(64),

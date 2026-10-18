@@ -2,9 +2,9 @@ import { randomBytes } from "node:crypto";
 import Fastify from "fastify";
 import cookie from "@fastify/cookie";
 import { describe, expect, it } from "vitest";
-import { LoginReturnCookie, safeApplicationDestination } from "../src/platform/auth-return";
-import { registerPublicIdentityRoutes } from "../src/platform/auth-routes";
-import { PlatformError } from "../src/platform/contracts";
+import { LoginReturnCookie, safeApplicationDestination } from "../src/product/identity/auth-return";
+import { registerPublicIdentityRoutes } from "../src/product/identity/auth-routes";
+import { PlatformError } from "../src/contracts/contracts";
 
 const secret = "independent-return-cookie-test-secret-32-characters";
 const token = randomBytes(32).toString("base64url");

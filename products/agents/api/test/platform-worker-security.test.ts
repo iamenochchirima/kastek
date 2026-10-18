@@ -4,7 +4,7 @@ import { once } from "node:events";
 import { createEndpointHandler, service } from "@restatedev/restate-sdk";
 import { SignJWT } from "jose";
 import { describe, expect, it } from "vitest";
-import { workerSecurityFromEnvironment } from "../src/platform/worker-security";
+import { workerSecurityFromEnvironment } from "../src/composition/worker-security";
 
 function publicIdentityKey(bytes: Buffer): string {
   const alphabet="123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";

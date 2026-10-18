@@ -1,13 +1,13 @@
 import { randomBytes, randomUUID } from "node:crypto";
 import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { PlatformStore } from "../src/platform/store";
-import { setupPlatformSchema } from "../src/platform/setup";
-import { transaction } from "../src/platform/database";
-import { ConnectionStore } from "../src/platform/connections";
-import { ConnectionVault } from "../src/platform/vault";
-import { ConnectedCatalogStore, connectedProviderOperationAllowed } from "../src/platform/connected-catalog-store";
-import { createCatalog, digestToolSchema, ExecutableAdapterRegistry, type CapabilityCatalog } from "../src/platform/capability-catalog";
+import { PlatformStore } from "../src/product/agents/store";
+import { setupPlatformSchema } from "../src/composition/setup";
+import { transaction } from "../src/infrastructure/database";
+import { ConnectionStore } from "../src/product/connections/connections";
+import { ConnectionVault } from "../src/infrastructure/vault";
+import { ConnectedCatalogStore, connectedProviderOperationAllowed } from "../src/capabilities/connected-tools/connected-catalog-store";
+import { createCatalog, digestToolSchema, ExecutableAdapterRegistry, type CapabilityCatalog } from "../src/contracts/capability-catalog";
 
 const dbUrl = process.env.AGENTS_TEST_DATABASE_URL;
 (dbUrl ? describe : describe.skip)("connected profiles and immutable catalogs with actual PostgreSQL", () => {

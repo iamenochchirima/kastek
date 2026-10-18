@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { APPROVED_MODEL_PROFILE, callModel, estimateRequestTokens, type ModelRequest, type ToolDefinition } from "../src/platform/model";
+import { APPROVED_MODEL_PROFILE, callModel, estimateRequestTokens, type ModelRequest, type ToolDefinition } from "../src/execution/business/model";
 
 // Explicit opt-in only. This makes exactly two requests to the approved free model.
 async function main(): Promise<void> {

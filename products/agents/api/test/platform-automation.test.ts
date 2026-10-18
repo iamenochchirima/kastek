@@ -1,13 +1,13 @@
 import {randomUUID} from 'node:crypto';
 import {Pool} from 'pg';
 import {beforeAll,afterAll,describe,it,expect} from 'vitest';
-import {setupPlatformSchema} from '../src/platform/setup';
-import {PlatformStore} from '../src/platform/store';
-import {AutomationService} from '../src/platform/automations';
-import {assertCurrentAuthority,loadExecution} from '../src/platform/execution';
-import {defaultFaqConfiguration} from '../src/platform/contracts';
-import {admitChildren} from '../src/platform/delegation';
-import {nextOccurrence,dispatchAutomationTimersOnce} from '../src/platform/automation-runtime';
+import {setupPlatformSchema} from '../src/composition/setup';
+import {PlatformStore} from '../src/product/agents/store';
+import {AutomationService} from '../src/product/automations/automations';
+import {assertCurrentAuthority,loadExecution} from '../src/execution/lifecycle/execution';
+import {defaultFaqConfiguration} from '../src/contracts/contracts';
+import {admitChildren} from '../src/execution/delegation/delegation';
+import {nextOccurrence,dispatchAutomationTimersOnce} from '../src/product/automations/automation-runtime';
 const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
 (databaseUrl?describe:describe.skip)('automation authority, occurrence inbox and durable timer outbox',()=>{
  let admin:Pool,pool:Pool,store:PlatformStore,service:AutomationService;

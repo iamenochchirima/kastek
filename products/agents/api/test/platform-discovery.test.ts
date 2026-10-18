@@ -1,10 +1,11 @@
 import {randomUUID} from "node:crypto";
 import {Pool} from "pg";
 import {afterAll,beforeAll,describe,expect,it} from "vitest";
-import {buildPlatformApp} from "../src/platform/app";
-import {loadPlatformConfig} from "../src/platform/config";
-import {setupPlatformSchema} from "../src/platform/setup";
-import {PlatformStore,type Account} from "../src/platform/store";
+import {buildPlatformApp} from "../src/composition/app";
+import {loadPlatformConfig} from "../src/infrastructure/config";
+import {setupPlatformSchema} from "../src/composition/setup";
+import {PlatformStore} from "../src/product/agents/store";
+import type {Account} from "../src/contracts/records";
 import {dropClosedTestDatabase} from "./support/database-cleanup";
 
 const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;

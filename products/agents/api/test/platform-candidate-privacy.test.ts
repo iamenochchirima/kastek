@@ -1,10 +1,10 @@
 import {randomUUID} from "node:crypto";
 import {Pool} from "pg";
 import {afterAll,beforeAll,describe,expect,it} from "vitest";
-import {KnowledgeStore} from "../src/platform/knowledge";
-import {PlatformStore} from "../src/platform/store";
-import {setupPlatformSchema} from "../src/platform/setup";
-import {textDigest} from "../src/platform/source-contracts";
+import {KnowledgeStore} from "../src/capabilities/knowledge/knowledge";
+import {PlatformStore} from "../src/product/agents/store";
+import {setupPlatformSchema} from "../src/composition/setup";
+import {textDigest} from "../src/contracts/source-contracts";
 
 const url=process.env.AGENTS_TEST_DATABASE_URL;
 (url?describe:describe.skip)("candidate revision privacy across different importers",()=>{

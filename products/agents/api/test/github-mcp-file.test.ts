@@ -1,7 +1,7 @@
 import {createHash} from "node:crypto";
 import {describe,expect,it} from "vitest";
-import {githubMcpFileText,githubMcpFileUri} from "../src/platform/github-mcp-file";
-import type {GithubFileHandle,GithubRevision} from "../src/platform/github-adapter";
+import {githubMcpFileText,githubMcpFileUri} from "../src/adapters/providers/github-mcp-file";
+import type {GithubFileHandle,GithubRevision} from "../src/adapters/providers/github-adapter";
 const text="Unicode 🧪 and exact bytes.\n",bytes=Buffer.from(text),revision={repository:{owner:"Owner",repository:"repo",ref:"main"},commitSha:"a".repeat(40)} as GithubRevision;
 const file={path:"docs/a !'()*.md",size:bytes.length,blobSha:createHash("sha1").update(`blob ${bytes.length}\0`).update(bytes).digest("hex")} as GithubFileHandle;
 const resource=()=>({type:"resource",resource:{uri:githubMcpFileUri(revision,file),mimeType:"text/markdown; charset=utf-8",text}});

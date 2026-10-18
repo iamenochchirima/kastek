@@ -1,13 +1,13 @@
 import { randomUUID } from "node:crypto";
 import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import type { PrivateObjectStore } from "../src/platform/artifacts";
-import type { DocumentAllocation, DocumentOutput, DocumentRuntime, DocumentRuntimeResult } from "../src/platform/document-runtime";
-import { IngestionService, stableChunkId } from "../src/platform/ingestion-runtime";
-import { KnowledgeStore, type KnowledgeScope } from "../src/platform/knowledge";
-import { PlatformStore } from "../src/platform/store";
-import { setupPlatformSchema } from "../src/platform/setup";
-import { textDigest } from "../src/platform/source-contracts";
+import {PrivateObjectStore} from "../src/infrastructure/object-store";
+import type { DocumentAllocation, DocumentOutput, DocumentRuntime, DocumentRuntimeResult } from "../src/capabilities/knowledge/document-runtime";
+import { IngestionService, stableChunkId } from "../src/capabilities/knowledge/ingestion-runtime";
+import { KnowledgeStore, type KnowledgeScope } from "../src/capabilities/knowledge/knowledge";
+import { PlatformStore } from "../src/product/agents/store";
+import { setupPlatformSchema } from "../src/composition/setup";
+import { textDigest } from "../src/contracts/source-contracts";
 
 const dbUrl = process.env.AGENTS_TEST_DATABASE_URL;
 (dbUrl ? describe : describe.skip)("durable ingestion resource accounting with real PostgreSQL and explicit runtime/object fixtures", () => {

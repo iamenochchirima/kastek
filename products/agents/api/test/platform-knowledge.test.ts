@@ -2,10 +2,10 @@ import {dropClosedTestDatabase} from "./support/database-cleanup";
 import { randomUUID } from "node:crypto";
 import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { KnowledgeStore, type KnowledgeScope } from "../src/platform/knowledge";
-import { PlatformStore } from "../src/platform/store";
-import { setupPlatformSchema } from "../src/platform/setup";
-import { textDigest, type IngestionJob } from "../src/platform/source-contracts";
+import { KnowledgeStore, type KnowledgeScope } from "../src/capabilities/knowledge/knowledge";
+import { PlatformStore } from "../src/product/agents/store";
+import { setupPlatformSchema } from "../src/composition/setup";
+import { textDigest, type IngestionJob } from "../src/contracts/source-contracts";
 
 const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
 (databaseUrl ? describe : describe.skip)("knowledge lifecycle with real PostgreSQL and fixture private objects", () => {

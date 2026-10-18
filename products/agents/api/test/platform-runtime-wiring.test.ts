@@ -1,10 +1,10 @@
 import { randomUUID } from "node:crypto";
 import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { buildPlatformApp } from "../src/platform/app";
-import { loadPlatformConfig } from "../src/platform/config";
-import { PlatformStore } from "../src/platform/store";
-import { setupPlatformSchema } from "../src/platform/setup";
+import { buildPlatformApp } from "../src/composition/app";
+import { loadPlatformConfig } from "../src/infrastructure/config";
+import { PlatformStore } from "../src/product/agents/store";
+import { setupPlatformSchema } from "../src/composition/setup";
 
 const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
 (databaseUrl?describe:describe.skip)("Optional runtime service HTTP wiring",()=>{

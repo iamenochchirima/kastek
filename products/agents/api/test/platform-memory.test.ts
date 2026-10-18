@@ -4,10 +4,10 @@ import { resolve } from "node:path";
 import { Pool } from "pg";
 import Fastify from "fastify";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { MemoryStore } from "../src/platform/memory";
-import { registerMemoryRoutes } from "../src/platform/memory-routes";
-import { defaultFaqConfiguration } from "../src/platform/contracts";
-import { PlatformStore } from "../src/platform/store";
+import { MemoryStore } from "../src/execution/memory/memory";
+import { registerMemoryRoutes } from "../src/product/agents/memory-routes";
+import { defaultFaqConfiguration } from "../src/contracts/contracts";
+import { PlatformStore } from "../src/product/agents/store";
 
 const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
 const suite = databaseUrl ? describe : describe.skip;

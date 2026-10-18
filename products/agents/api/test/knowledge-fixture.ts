@@ -1,8 +1,8 @@
 import {randomUUID} from "node:crypto";
 import type {Pool} from "pg";
-import type {PrivateObjectStore} from "../src/platform/artifacts";
-import {KnowledgeStore} from "../src/platform/knowledge";
-import {textDigest} from "../src/platform/source-contracts";
+import {PrivateObjectStore} from "../src/infrastructure/object-store";
+import {KnowledgeStore} from "../src/capabilities/knowledge/knowledge";
+import {textDigest} from "../src/contracts/source-contracts";
 
 /** Persistence fixture: extraction is supplied explicitly; parser containment has a separate real-runtime suite. */
 export async function publishFixtureSource(pool:Pool,input:{accountId:string;organizationId:string;title:string;content:string;visibility:"public"|"private"},objects?:PrivateObjectStore){
