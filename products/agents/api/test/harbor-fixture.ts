@@ -125,7 +125,7 @@ async function main() {
     await initializeReportReceiver(pool);
     const deliveryKey = randomUUID() + randomUUID(), probeKey=randomUUID();
     let receiverOrigin="",conflictStarted=false;
-    if(suite==="controlled-transaction-conflict")await pool.query("CREATE TABLE report_delivery_receiver.fixture_attempts(id bigserial PRIMARY KEY,delivery_id uuid,payload_digest text,status_code integer,actor text)");
+    if(suite==="controlled-transaction-conflict")await pool.query("CREATE TABLE report_delivery_receiver.fixture_attempts(id bigserial PRIMARY KEY,delivery_id uuid,payload_digest text,status_code integer,actor text,payload jsonb)");
     receiver = createReportReceiver({ pool, keys: [{ apiKey: deliveryKey, resource: "harbor-report" }], afterAccept: async id => {
       if(suite==="controlled-transaction-conflict"&&!conflictStarted){
         conflictStarted=true;
@@ -139,7 +139,7 @@ async function main() {
       if (suite === "controlled-transaction" && !acknowledgementLost) { acknowledgementLost = true; throw Error("Fixture acknowledgement failed after receiver commit"); }
     } });
     receiver.addHook("onRequest", async request => { if (request.method === "POST") receiverPosts++; else if (request.method === "GET") receiverReads++; });
-    if(suite==="controlled-transaction-conflict")receiver.addHook("onResponse",async(request,reply)=>{if(request.method==="POST")await pool!.query("INSERT INTO report_delivery_receiver.fixture_attempts(delivery_id,payload_digest,status_code,actor) VALUES($1,$2,$3,$4)",[request.headers["idempotency-key"],request.headers["x-payload-digest"],reply.statusCode,request.headers["x-fixture-probe"]===probeKey?"fixture-negative-probe":"native-workflow"]);});
+    if(suite==="controlled-transaction-conflict")receiver.addHook("onResponse",async(request,reply)=>{if(request.method==="POST")await pool!.query("INSERT INTO report_delivery_receiver.fixture_attempts(delivery_id,payload_digest,status_code,actor,payload) VALUES($1,$2,$3,$4,$5::jsonb)",[request.headers["idempotency-key"],request.headers["x-payload-digest"],reply.statusCode,request.headers["x-fixture-probe"]===probeKey?"fixture-negative-probe":"native-workflow",JSON.stringify(request.body)]);});
     receiverOrigin = await receiver.listen({ host: "127.0.0.1", port: 0 });
     Object.assign(process.env, { AGENTS_CONNECTION_ACTIVE_KEY: "harbor-fixture", AGENTS_CONNECTION_KEYS: JSON.stringify({ "harbor-fixture": randomBytes(32).toString("base64") }),
       AGENTS_REPORT_DELIVERY_TARGETS: JSON.stringify([{ id: "harbor-receiver", label: "Isolated Harbor receiver", url: `${receiverOrigin}/deliveries`, resource: "harbor-report" }]) });
@@ -151,7 +151,7 @@ async function main() {
       if (request.method !== "GET" || request.url !== "/verification/receipts" || request.headers.authorization !== `Bearer ${verifierKey}`) { response.writeHead(403).end(); return; }
       try {
         const rows = (await pool!.query("SELECT id,payload_digest,payload,accepted_at FROM report_delivery_receiver.deliveries WHERE resource='harbor-report' ORDER BY accepted_at,id")).rows;
-        response.setHeader("content-type", "application/json"); response.end(JSON.stringify({ receiverPosts, receiverReads, acknowledgementLost, conflictVerified, attempts:suite==="controlled-transaction-conflict"?(await pool!.query("SELECT delivery_id,payload_digest,status_code,actor FROM report_delivery_receiver.fixture_attempts ORDER BY id")).rows:[], receipts: rows.map(row => ({ id: row.id, payloadDigest: row.payload_digest, artifactDigest: row.payload.report.digest, acceptedAt: row.accepted_at.toISOString(), reportContent: Buffer.from(row.payload.report.contentBase64, "base64").toString("utf8") })) }));
+        response.setHeader("content-type", "application/json"); response.end(JSON.stringify({ receiverPosts, receiverReads, acknowledgementLost, conflictVerified, attempts:suite==="controlled-transaction-conflict"?(await pool!.query("SELECT delivery_id,payload_digest,status_code,actor,payload FROM report_delivery_receiver.fixture_attempts ORDER BY id")).rows:[], receipts: rows.map(row => ({ id: row.id, payloadDigest: row.payload_digest, artifactDigest: row.payload.report.digest, acceptedAt: row.accepted_at.toISOString(), reportContent: Buffer.from(row.payload.report.contentBase64, "base64").toString("utf8") })) }));
       } catch { response.writeHead(503).end(); }
     });
     await new Promise<void>(resolve => verifierBridge!.listen(0, gateway, resolve));

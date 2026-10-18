@@ -6,6 +6,8 @@ import os
 from pathlib import Path
 from urllib.request import Request, urlopen
 
+from conflict import verify_conflict
+
 logs = Path("/logs/agent")
 reward_path = Path("/logs/verifier/reward.json")
 reward_path.write_text(json.dumps({"research_report": 0.0}))
@@ -65,14 +67,6 @@ request = Request(
     headers={"authorization": "Bearer " + os.environ["KASITEK_VERIFIER_READ_KEY"]},
 )
 with urlopen(request, timeout=10) as response:
-    actual = json.load(response)["receipts"]
-assert len(actual) == 1
-assert actual[0]["id"] == receipt["actionId"] == receipt["receipt"]["id"]
-assert (
-    actual[0]["payloadDigest"]
-    == receipt["payloadDigest"]
-    == receipt["receipt"]["payloadDigest"]
-)
-assert actual[0]["artifactDigest"] == receipt["artifactDigest"]
-assert actual[0]["reportContent"].encode() == content
+    audit = json.load(response)
+verify_conflict(audit, receipt, content)
 reward_path.write_text(json.dumps({"research_report": 1.0}))

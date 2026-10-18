@@ -1,6 +1,6 @@
 schema_version = "1.4"
 [metadata]
-name = "kasitek-controlled-transaction-conflict"
+name = "kasitek-controlled-transaction-conflict-v2"
 [agent]
 timeout_sec = 120
 [verifier]
