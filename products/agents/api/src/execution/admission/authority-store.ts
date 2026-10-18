@@ -9,6 +9,7 @@ type ExecutionGrant
 
 import { transaction } from "../../infrastructure/database";
 import { assertAutomationAdmission } from "../lifecycle/automation-authority";
+import { assertProductAuthority } from "./product-authority";
 
 import type { Account,VersionRecord,WebsiteDeployment } from "../../contracts/records";
 
@@ -51,7 +52,7 @@ export class AuthorityStore {
     return grant;
   }
   protected async assertPrincipal(db: Db, authority: AdmissionAuthority, version: VersionRecord): Promise<void> {
-    if (authority.product !== "agents") denied();
+    if (authority.product !== "agents") return assertProductAuthority(db,authority,version.id);
     if (authority.principal.kind === "human") {
       if (authority.callerClientId !== "agents-execution" || authority.resourceId !== version.agent_id) denied();
       const account = (await db.query<Account>("SELECT * FROM agents_platform.accounts WHERE issuer=$1 AND subject=$2", [authority.principal.issuer, authority.principal.subject])).rows[0];

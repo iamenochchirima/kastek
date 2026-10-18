@@ -217,3 +217,16 @@ content hashes gate future context, review and dispatch. Exact approval cannot
 restore withdrawn access. An already claimed effect remains reconcilable after
 revocation; a historical receipt does not authorize another send or content read.
 Citation validation establishes supplied provenance, not factual correctness.
+
+## Delegated product assertions and evaluation channels
+
+Embedded product admission verifies an installed issuer/key, a registered product tenant mapping,
+short assertion lifetime, exact input digest, principal, version and grant ceiling. Tenant and grant
+revocation are rechecked before execution. The initial adapter rejects richer product resources
+without their own authorization contracts; it does not translate product users into Agents members.
+
+Evaluation website sessions require a current operator-owned trial and its exact published version
+and allowed origin. Public visitor ingress derives the trial binding from persistence. Knowing a
+trial UUID cannot authorize a visitor or an operator export. Normal Inbox permissions continue to
+control staff assignment, takeover and replies. Revocation expires the visitor session and fences
+new work. Audit metadata and currently readable customer content are separate access decisions.

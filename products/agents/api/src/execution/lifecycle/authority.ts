@@ -14,6 +14,7 @@ import { loadExecution } from "./state";
 import { assertEvaluationTrial } from "../admission/trial-authority";
 import { channelBindingSchema } from "../../contracts/channel";
 import { channelPorts } from "../../infrastructure/channel-ports";
+import { assertProductAuthority } from "../admission/product-authority";
 export async function assertBaseAuthority(db: Pool | PoolClient, execution: Execution): Promise<void> {
   const { task, configuration, agentId } = execution;
   if (terminalTaskStates.has(task.state)) throw new PlatformError("TASK_SETTLED", 409, "Task has settled");
@@ -47,7 +48,10 @@ export async function assertBaseAuthority(db: Pool | PoolClient, execution: Exec
     rootTokenLimit: row.root_token_limit, expiresAt: row.expires_at.toISOString(), revokedAt: null });
   assertGrantAuthority(grant, { product: task.product, organizationId: task.organization_id,
     resourceId: task.resource_id, callerClientId: task.caller_client_id, principal: task.principal }, task.version_id, configuration);
-  if (task.principal.kind === "human") {
+  if(task.product!=="agents") {
+    await assertProductAuthority(db,{product:task.product,organizationId:task.organization_id,resourceId:task.resource_id,
+      callerClientId:task.caller_client_id,principal:task.principal},task.version_id,task.grant_id);
+  } else if (task.principal.kind === "human") {
     const allowed = await db.query(`SELECT 1 FROM agents_platform.memberships m JOIN agents_platform.accounts a ON a.id=m.account_id
       WHERE m.organization_id=$1 AND a.issuer=$2 AND a.subject=$3 AND m.revoked_at IS NULL FOR SHARE OF m`,
     [task.organization_id, task.principal.issuer, task.principal.subject]);

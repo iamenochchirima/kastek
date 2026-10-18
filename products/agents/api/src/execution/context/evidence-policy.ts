@@ -8,6 +8,7 @@ type DependencyManifest,type EvidenceDependency,type EvidenceReference
 } from "../../contracts/source-contracts";
 import { assertBaseAuthority } from "../lifecycle/authority";
 import { loadExecution } from "../lifecycle/state";
+import { assertProductAuthority } from "../admission/product-authority";
 
 export type Db = Pool | PoolClient;
 export type EvidenceKind = "context" | "summary" | "memory" | "artifact" | "child_result" | "input";
@@ -30,7 +31,10 @@ export async function owner(db: Db, execution: Execution): Promise<string | null
 export async function inspectionAuthority(db: Db, execution: Execution): Promise<void> {
   const root = execution.task.parent_task_id ? await loadExecution(db, execution.task.root_task_id) : execution;
   const accountId = await owner(db, root);
-  if (accountId) {
+  if(root.task.product!=="agents") {
+    await assertProductAuthority(db,{product:root.task.product,organizationId:root.task.organization_id,resourceId:root.task.resource_id,
+      callerClientId:root.task.caller_client_id,principal:root.task.principal},root.task.version_id,root.task.grant_id);
+  } else if (accountId) {
     if (!(await db.query("SELECT 1 FROM agents_platform.memberships WHERE organization_id=$1 AND account_id=$2 AND revoked_at IS NULL FOR SHARE", [root.task.organization_id, accountId])).rowCount) throw unavailable();
   } else if (root.task.principal.kind === "visitor") {
     if (!(await db.query(`SELECT 1 FROM agents_platform.website_deployments d JOIN agents_platform.website_sessions s ON s.deployment_id=d.id
