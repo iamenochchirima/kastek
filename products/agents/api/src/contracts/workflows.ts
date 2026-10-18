@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { PlatformError, requestDigest } from "./contracts";
 
 export const workflowResultSchema = z.discriminatedUnion("state", [
   z.strictObject({ state: z.literal("completed"), receiptId: z.string().min(1) }),
@@ -22,3 +23,10 @@ export const BOOKING_REQUIREMENTS = Object.freeze({
   confirmationAuthority: "provider_receipt", conflictAuthority: "provider_revision",
   duplicatePrevention: "stable_intent_digest_and_provider_idempotency_key",
 } as const);
+
+/** Only a trusted provider adapter may supply a receipt. This does not make booking available. */
+export function verifyBookingReceipt(intent: unknown, receipt: unknown) {
+  const expected=bookingIntentSchema.parse(intent),actual=bookingReceiptSchema.parse(receipt);
+  if(actual.intentDigest!==requestDigest(expected))throw new PlatformError("BOOKING_RECEIPT_CONFLICT",409,"The provider receipt belongs to a different booking intent");
+  return actual;
+}

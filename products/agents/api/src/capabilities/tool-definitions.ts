@@ -22,7 +22,7 @@ export function parseModelDelegationRequest(input:unknown):z.infer<typeof modelD
 export function publishedToolBindings(config:AgentConfiguration):{name:string;version:string;digest:string}[] {
   const bindings=toolsFor(config).map(tool=>{
     const name=builtinToolName(tool.function.name)!,descriptor=toolDescriptor(name)!;
-    return {name,version:descriptor.version,digest:requestDigest({descriptor,definition:tool,outputSchema:{type:"object"}})};
+    return {name,version:descriptor.version,digest:requestDigest({descriptor,definition:tool,outputSchema:descriptor.outputSchema})};
   });
   if(config.sourceRevisionIds.length) bindings.push({name:"knowledge.initial",version:"1",digest:requestDigest({descriptor:toolDescriptor("knowledge.initial"),
     inputSchema:{type:"object",properties:{query:{type:"string",maxLength:1024}},required:["query"],additionalProperties:false},outputContract:"knowledge-observation-v1"})});
