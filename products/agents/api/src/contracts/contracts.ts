@@ -79,7 +79,7 @@ export function defaultBusinessConfiguration(): AgentConfiguration {
   return {
     program: { id: "tool-directed", version: "1" },
     executionKind: "business",
-    instructions: "Answer questions using the approved knowledge. If the sources do not answer a question, say so.",
+    instructions: "Answer questions using the approved knowledge. Cite each fact from approved knowledge with its provided evidence label in square brackets, exactly as supplied. Never invent a citation or a fact. If the sources do not answer a question, say so.",
     model: {
       provider: "openrouter", model: "nvidia/nemotron-3-super-120b-a12b:free",
       maxInputBytes: initialLimits.maxInputBytes, maxOutputTokens: initialLimits.maxOutputTokens,
