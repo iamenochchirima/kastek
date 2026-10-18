@@ -6,8 +6,11 @@ import { createEndpointHandler } from "@restatedev/restate-sdk";
 import { generateKeyPair, SignJWT } from "jose";
 import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { buildPlatformApp } from "../src/composition/app";
+import { loadPlatformConfig } from "../src/infrastructure/config";
 import { ProductExecutionAdapter } from "../src/adapters/products/product-execution";
 import { defaultBusinessConfiguration, requestDigest, terminalTaskStates } from "../src/contracts/contracts";
+import { PlatformStore } from "../src/product/agents/store";
 import { AdmissionStore } from "../src/execution/admission/admission-store";
 import { createBusinessWorkflow } from "../src/execution/business/business";
 import { dispatchTasksOnce } from "../src/execution/lifecycle/dispatcher";
@@ -62,7 +65,7 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
       return new SignJWT({product,tenantId:tenant,resourceId:`${product}-record-123`,versionId:version,actorIssuer,operations:["model.reply"],sourceRevisionIds:[],maxInputBytes:16384,maxOutputTokens:1024,rootTokenLimit:8192,inputDigest:requestDigest(input),...overrides})
         .setProtectedHeader({alg:"RS256"}).setIssuer(issuer).setAudience("agents-execution").setSubject(actor).setJti(randomUUID()).setIssuedAt(now).setExpirationTime(now+240).sign(keys.privateKey);
     }
-    return {org,agent,version,actor,tenant,adapter,assertion};
+    return {org,agent,version,actor,tenant,operatorId,adapter,assertion};
   }
   it("runs product-owned identities through the shared program without an Agents membership or shared context",async()=>{
     for(const product of ["growth","agencies"] as const){
@@ -77,6 +80,26 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
     expect(observed).toHaveLength(2);
     expect(JSON.stringify(observed[0])).toContain("GROWTH_PRIVATE_CONFIGURATION");expect(JSON.stringify(observed[0])).not.toContain("AGENCIES_PRIVATE_CONFIGURATION");
     expect(JSON.stringify(observed[1])).not.toContain("GROWTH_PRIVATE_CONFIGURATION");
+  },30000);
+  it("runs one pinned program version in product and website scopes without importing private conversation state",async()=>{
+    const f=await fixture("growth"),store=new PlatformStore(pool),scope={accountId:f.operatorId,organizationId:f.org};
+    // A real platform operator owns this channel. The product actor still has no Agents account or membership.
+    await pool.query("INSERT INTO agents_platform.memberships(organization_id,account_id,role) VALUES($1,$2,'owner')",[f.org,f.operatorId]);
+    const deployment=await store.publishWebsite({...scope,agentId:f.agent,versionId:f.version,allowedOrigins:["https://same-program.example.test"]});
+    const app=await buildPlatformApp({pool,logging:false,config:loadPlatformConfig({NODE_ENV:"test",AGENTS_DATABASE_URL:databaseUrl!,AGENTS_PUBLIC_URL:"http://localhost:3100",AGENTS_OIDC_CLIENT_SECRET:"same-program-fixture-secret",OPENROUTER_API_KEY:"controlled-fixture"})});
+    try {const session=await app.inject({method:"POST",url:`/api/website/${deployment.id}/session`,headers:{origin:"https://same-program.example.test"},payload:{}});expect(session.statusCode).toBe(201);}finally{await app.close();}
+    const sessionId=(await pool.query("SELECT id FROM agents_platform.website_sessions WHERE deployment_id=$1",[deployment.id])).rows[0].id;
+    const websiteGrant=await store.createWebsiteGrant({deploymentId:deployment.id,origin:"https://same-program.example.test",sessionId});
+    const firstInput="PRODUCT_PRIVATE_BRIEF_CANARY",visitorInput="VISITOR_PRIVATE_QUESTION_CANARY",start=observed.length;
+    const product=(await f.adapter.admit(await f.assertion(firstInput),{input:firstInput,requestKey:randomUUID()})).task;
+    const visitor=(await store.admitTask({authority:{product:websiteGrant.product,organizationId:websiteGrant.organizationId,resourceId:websiteGrant.resourceId,callerClientId:websiteGrant.callerClientId,principal:websiteGrant.principal},grantId:websiteGrant.id,versionId:f.version,requestKey:randomUUID(),input:visitorInput})).task;
+    for(const task of [product,visitor])await until(async()=>{await dispatchTasksOnce(pool,{ingressUrl:ingress,adminUrl:restAdmin});const row=(await pool.query("SELECT state,error_code FROM agents_platform.tasks WHERE id=$1",[task.id])).rows[0];if(terminalTaskStates.has(row.state))expect(row).toMatchObject({state:"completed",error_code:null});return row.state==="completed";});
+    expect(visitor.version_id).toBe(product.version_id);expect(visitor.effective_composition.digest).toBe(product.effective_composition.digest);
+    expect(visitor.conversation_id).not.toBe(product.conversation_id);
+    const requests=observed.slice(start).map(value=>JSON.stringify(value));expect(requests).toHaveLength(2);
+    expect(requests.filter(value=>value.includes(firstInput))).toHaveLength(1);expect(requests.filter(value=>value.includes(visitorInput))).toHaveLength(1);
+    expect(requests.every(value=>!(value.includes(firstInput)&&value.includes(visitorInput)))).toBe(true);
+    expect((await pool.query("SELECT count(*)::int n FROM agents_platform.accounts WHERE subject=$1",[f.actor])).rows[0].n).toBe(0);
   },30000);
   it("rejects wrong tenant, product, version and changed input before native admission",async()=>{
     const f=await fixture("growth");
