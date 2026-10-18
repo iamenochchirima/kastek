@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useRef, useState, type FormEvent } from "react";
 import { Link, NavLink, Navigate, Outlet, useNavigate, useLocation } from "react-router-dom";
-import { Bot, ListTodo, BookOpen, Plug, CalendarClock, Settings, Menu, LogOut, PanelLeftClose } from "lucide-react";
+import { Bot, ListTodo, BookOpen, Plug, CalendarClock, Settings, Menu, LogOut, PanelLeftClose, Inbox } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -50,7 +50,7 @@ export function WorkspaceShell() {
     <Link to="/app/agents" className="workspace-brand"><span className="brand-symbol"><Bot size={19} /></span>Agents</Link>
     {session?.organizations.length ? <select aria-label="Workspace" className="workspace-select" value={organizationId} onChange={event => event.target.value === "new" ? setWorkspaceOpen(true) : selectWorkspace(event.target.value)}>{session.organizations.map(org => <option key={org.id} value={org.id}>{org.name}</option>)}<option value="new">Create workspace</option></select> : null}
     <nav aria-label="Main navigation" className="workspace-navigation">{([
-      ["/app/agents", "Agents", Bot], ["/app/tasks", "Tasks", ListTodo], ["/app/knowledge", "Knowledge", BookOpen], ["/app/connections", "Connections", Plug], ["/app/automations", "Automations", CalendarClock], ["/app/settings", "Settings", Settings],
+      ["/app/agents", "Agents", Bot], ["/app/inbox", "Inbox", Inbox], ["/app/tasks", "Tasks", ListTodo], ["/app/knowledge", "Knowledge", BookOpen], ["/app/connections", "Connections", Plug], ["/app/automations", "Automations", CalendarClock], ["/app/settings", "Settings", Settings],
     ] as const).map(([path, label, Icon]) => <NavLink key={String(path)} to={String(path)} onClick={() => setNavigationOpen(false)} className={({ isActive }) => `workspace-nav-link ${isActive ? "is-active" : ""}`}><Icon size={18} /><span>{String(label)}</span></NavLink>)}</nav>
     <div className="workspace-account"><span className="account-avatar">{(session?.account.displayName || session?.account.email || "A").slice(0, 1).toUpperCase()}</span><div className="min-w-0 flex-1"><p className="truncate text-sm font-medium">{session?.account.displayName || "Account"}</p><p className="truncate text-xs text-muted-foreground">{session?.account.email}</p></div><Button aria-label="Sign out" title="Sign out" size="icon" variant="ghost" onClick={() => void logout()} disabled={!session || busy}><LogOut size={16} /></Button></div>
   </>;

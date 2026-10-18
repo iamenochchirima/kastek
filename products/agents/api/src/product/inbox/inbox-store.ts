@@ -1,0 +1,176 @@
+import { randomUUID } from "node:crypto";
+import type { Pool, PoolClient } from "pg";
+import { PlatformError, requestDigest } from "../../contracts/contracts";
+import { transaction } from "../../infrastructure/database";
+import type { ChannelBinding } from "../../contracts/channel";
+export type { ChannelBinding } from "../../contracts/channel";
+
+type Db = Pool | PoolClient;
+export interface InboxScope { organizationId: string; accountId: string }
+export interface VisitorScope { deploymentId: string; sessionId: string }
+export interface CustomerConversation {
+  id: string; organization_id: string; deployment_id: string; agent_id: string; version_id: string; session_id: string;
+  execution_conversation_id: string | null; state: "automation_active" | "handoff_pending" | "human_owned" | "resolved";
+  assignee_account_id: string | null; revision: string; ownership_generation: string; next_sequence: string;
+  return_watermark: string; created_at: Date; updated_at: Date;
+}
+export interface CustomerMessage { id: string; conversation_id: string; sequence: string; author_kind: "visitor" | "human" | "assistant";
+  author_account_id: string | null; body: string; task_id: string | null; ownership_generation: string; created_at: Date }
+export interface InboxPorts {
+  admit(db: PoolClient, input: { deploymentId: string; sessionId: string; versionId: string; executionConversationId: string | null;
+    input: string; requestKey: string; channelBinding: ChannelBinding }): Promise<{ id: string; conversation_id: string }>;
+  readableOutput(db: Db, taskId: string, body: string): Promise<string | null>;
+  cancelRoot(taskId: string): Promise<unknown>;
+}
+export type InboxCommand = { commandId: string; expectedRevision: string; action: "claim" | "assign" | "unassign" | "takeover" | "reply" | "resolve" | "reopen" | "return";
+  assigneeAccountId?: string | null; body?: string };
+const denied = (): never => { throw new PlatformError("INBOX_ACCESS_DENIED", 403, "Conversation access denied"); };
+const conflict = (): never => { throw new PlatformError("INBOX_CONFLICT", 409, "Conversation changed. Refresh and try again"); };
+const absent = (): never => { throw new PlatformError("INBOX_NOT_FOUND", 404, "Conversation not found"); };
+
+export class InboxStore {
+  constructor(readonly pool: Pool, readonly ports: InboxPorts) {}
+  private async membership(db: Db, scope: InboxScope): Promise<"owner" | "member"> {
+    const row = (await db.query(`SELECT role FROM agents_platform.memberships WHERE organization_id=$1 AND account_id=$2 AND revoked_at IS NULL FOR SHARE`, [scope.organizationId, scope.accountId])).rows[0];
+    return row?.role ?? denied();
+  }
+  private async conversation(db: Db, id: string, lock = false): Promise<CustomerConversation> {
+    return (await db.query<CustomerConversation>(`SELECT * FROM agents_platform.customer_conversations WHERE id=$1 ${lock ? "FOR UPDATE" : ""}`, [id])).rows[0] ?? absent();
+  }
+  private async visitor(db: Db, scope: VisitorScope): Promise<{ organization_id: string; agent_id: string; version_id: string }> {
+    return (await db.query(`SELECT d.organization_id,d.agent_id,d.version_id FROM agents_platform.website_deployments d JOIN agents_platform.website_sessions s ON s.deployment_id=d.id
+      WHERE d.id=$1 AND s.id=$2 AND s.expires_at>now() AND d.revoked_at IS NULL FOR SHARE OF d,s`, [scope.deploymentId, scope.sessionId])).rows[0] ?? denied();
+  }
+  private async visitorConversation(db: Db, scope: VisitorScope, id: string, lock = false): Promise<CustomerConversation> {
+    await this.visitor(db, scope); const row = await this.conversation(db, id, lock);
+    if (row.deployment_id !== scope.deploymentId || row.session_id !== scope.sessionId) denied();
+    return row;
+  }
+  async open(scope: VisitorScope): Promise<CustomerConversation> {
+    return transaction(this.pool, async db => { const deployment = await this.visitor(db, scope);
+      return (await db.query<CustomerConversation>(`INSERT INTO agents_platform.customer_conversations(id,organization_id,deployment_id,agent_id,version_id,session_id)
+        VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT(deployment_id,session_id) DO UPDATE SET session_id=excluded.session_id RETURNING *`,
+      [randomUUID(), deployment.organization_id, scope.deploymentId, deployment.agent_id, deployment.version_id, scope.sessionId])).rows[0]!;
+    });
+  }
+  private async append(db: PoolClient, row: CustomerConversation, input: { key: string; digest: string; kind: CustomerMessage["author_kind"]; body: string; accountId?: string; taskId?: string }): Promise<CustomerMessage> {
+    const message = (await db.query<CustomerMessage>(`INSERT INTO agents_platform.customer_messages(id,conversation_id,sequence,author_kind,author_account_id,body,request_key,request_digest,task_id,ownership_generation)
+      VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`, [randomUUID(), row.id, row.next_sequence, input.kind, input.accountId ?? null, input.body, input.key, input.digest, input.taskId ?? null, row.ownership_generation])).rows[0]!;
+    const next = (await db.query<CustomerConversation>("UPDATE agents_platform.customer_conversations SET next_sequence=next_sequence+1,updated_at=now() WHERE id=$1 RETURNING *", [row.id])).rows[0]!;
+    Object.assign(row, next); return message;
+  }
+  async ingress(scope: VisitorScope, id: string, input: { requestKey: string; body: string }) {
+    return transaction(this.pool, async db => {
+      const deployment = await this.visitor(db, scope);
+      await db.query("SELECT id FROM agents_platform.organizations WHERE id=$1 FOR UPDATE", [deployment.organization_id]);
+      const row = await this.visitorConversation(db, scope, id, true), digest = requestDigest(input);
+      const existing = (await db.query<CustomerMessage & { request_digest: string }>("SELECT * FROM agents_platform.customer_messages WHERE conversation_id=$1 AND request_key=$2", [id, `visitor:${input.requestKey}`])).rows[0];
+      if (existing) { if (existing.request_digest !== digest) conflict(); return { conversation: row, message: existing, replayed: true }; }
+      if (row.state === "resolved") throw new PlatformError("CONVERSATION_RESOLVED", 409, "Conversation is resolved");
+      const message = await this.append(db, row, { key: `visitor:${input.requestKey}`, digest, kind: "visitor", body: input.body });
+      if (row.state === "automation_active") {
+        const binding = { customerConversationId: row.id, ownershipGeneration: row.ownership_generation, inputMessageId: message.id };
+        const task = await this.ports.admit(db, { deploymentId: row.deployment_id, sessionId: row.session_id, versionId: row.version_id,
+          executionConversationId: row.execution_conversation_id, input: input.body, requestKey: `channel:${message.id}`, channelBinding: binding });
+        await db.query("UPDATE agents_platform.customer_messages SET task_id=$2 WHERE id=$1", [message.id, task.id]); message.task_id = task.id;
+        await db.query("UPDATE agents_platform.customer_conversations SET execution_conversation_id=$2 WHERE id=$1", [id, task.conversation_id]); row.execution_conversation_id = task.conversation_id;
+        await db.query("INSERT INTO agents_platform.customer_task_links(task_id,conversation_id,input_message_id,ownership_generation) VALUES($1,$2,$3,$4)", [task.id, id, message.id, row.ownership_generation]);
+      }
+      return { conversation: row, message, replayed: false };
+    });
+  }
+  private async messages(db: Db, id: string, after: string, limit: number, before?: string): Promise<CustomerMessage[]> {
+    const rows = (await db.query<CustomerMessage>(after === "0" || before ? `SELECT * FROM (SELECT * FROM agents_platform.customer_messages WHERE conversation_id=$1 AND ($2::bigint IS NULL OR sequence<$2) ORDER BY sequence DESC LIMIT $3) m ORDER BY sequence` :
+      "SELECT * FROM agents_platform.customer_messages WHERE conversation_id=$1 AND sequence>$2 ORDER BY sequence LIMIT $3", [id, before ?? (after === "0" ? null : after), limit])).rows;
+    for (const message of rows) if (message.author_kind === "assistant") message.body = message.task_id ? await this.ports.readableOutput(db, message.task_id, message.body) ?? "[Response unavailable]" : "[Response unavailable]";
+    return rows;
+  }
+  async readVisitor(scope: VisitorScope, id: string, after = "0", limit = 100, before?: string) {
+    return transaction(this.pool, async db => { const conversation = await this.visitorConversation(db, scope, id); return { conversation, messages: await this.messages(db, id, after, limit, before) }; });
+  }
+  async readStaff(scope: InboxScope, id: string, after = "0", limit = 100, before?: string) {
+    return transaction(this.pool, async db => { await this.membership(db, scope); const conversation = await this.conversation(db, id); if (conversation.organization_id !== scope.organizationId) denied();
+      return { conversation, messages: await this.messages(db, id, after, limit, before) }; });
+  }
+  async list(scope: InboxScope, filters: { state?: string; agentId?: string; assigned?: string; before?: string; limit: number }) {
+    return transaction(this.pool, async db => { await this.membership(db, scope);
+      return (await db.query(`SELECT c.*,a.name AS agent_name FROM agents_platform.customer_conversations c JOIN agents_platform.agents a ON a.id=c.agent_id
+        WHERE c.organization_id=$1 AND ($2::text IS NULL OR c.state=$2) AND ($3::uuid IS NULL OR c.agent_id=$3)
+        AND ($4::text IS NULL OR ($4='mine' AND c.assignee_account_id=$5) OR ($4='unassigned' AND c.assignee_account_id IS NULL))
+        AND ($6::uuid IS NULL OR c.id<$6) ORDER BY c.id DESC LIMIT $7`, [scope.organizationId, filters.state ?? null, filters.agentId ?? null, filters.assigned ?? null, scope.accountId, filters.before ?? null, filters.limit])).rows as CustomerConversation[];
+    });
+  }
+  async members(scope: InboxScope) { return transaction(this.pool, async db => { await this.membership(db, scope); return (await db.query(`SELECT a.id,a.display_name FROM agents_platform.memberships m JOIN agents_platform.accounts a ON a.id=m.account_id WHERE m.organization_id=$1 AND m.revoked_at IS NULL ORDER BY a.display_name,a.id LIMIT 200`, [scope.organizationId])).rows; }); }
+  async command(scope: InboxScope, id: string, input: InboxCommand) {
+    const result = await transaction(this.pool, async db => {
+      const role = await this.membership(db, scope), row = await this.conversation(db, id, true); if (row.organization_id !== scope.organizationId) denied();
+      const digest = requestDigest(input), existing = (await db.query("SELECT * FROM agents_platform.customer_commands WHERE conversation_id=$1 AND command_id=$2", [id, input.commandId])).rows[0];
+      if (existing) { if (existing.actor_account_id !== scope.accountId || existing.request_digest !== digest) conflict(); return existing.result as CustomerConversation; }
+      if (row.revision !== input.expectedRevision) conflict();
+      const assigned = row.assignee_account_id === scope.accountId;
+      let state = row.state, assignee = row.assignee_account_id, fence = false;
+      switch (input.action) {
+        case "claim": if (assignee && !assigned) denied(); assignee = scope.accountId; break;
+        case "assign": { if (role !== "owner") denied(); const accountId = input.assigneeAccountId ?? denied(); await this.membership(db, { ...scope, accountId }); assignee = accountId; break; }
+        case "unassign": if (role !== "owner" && !assigned) denied(); assignee = null; if (state === "human_owned") state = "handoff_pending"; fence = true; break;
+        case "takeover": if (!assigned || state === "resolved") denied(); state = "human_owned"; fence = true; break;
+        case "reply": if (!assigned || state !== "human_owned" || !input.body?.trim()) denied();
+          { const body = input.body ?? denied(); const message = await this.append(db, row, { key: `human:${input.commandId}`, digest, kind: "human", body, accountId: scope.accountId });
+            await db.query("INSERT INTO agents_platform.customer_deliveries(id,conversation_id,message_id,ownership_generation,state) VALUES($1,$2,$3,$4,'published')", [randomUUID(), id, message.id, row.ownership_generation]); } break;
+        case "resolve": if (!assigned) denied(); state = "resolved"; fence = true; break;
+        case "reopen": if (!assigned || state !== "resolved") denied(); state = "human_owned"; fence = true; break;
+        case "return": if (!assigned || !["human_owned", "handoff_pending"].includes(state)) denied(); state = "automation_active"; fence = true; break;
+      }
+      const updated = (await db.query<CustomerConversation>(`UPDATE agents_platform.customer_conversations SET state=$2,assignee_account_id=$3,revision=revision+1,
+        ownership_generation=ownership_generation+$4,return_watermark=CASE WHEN $5 THEN next_sequence-1 ELSE return_watermark END,updated_at=now() WHERE id=$1 RETURNING *`, [id, state, assignee, fence ? 1 : 0, input.action === "return" || input.action === "resolve"])).rows[0]!;
+      if (fence) await this.queueCancellation(db, id, updated.ownership_generation);
+      await db.query("INSERT INTO agents_platform.customer_commands(conversation_id,command_id,actor_account_id,action,request_digest,result) VALUES($1,$2,$3,$4,$5,$6)", [id, input.commandId, scope.accountId, input.action, digest, updated]);
+      return updated;
+    });
+    // The durable generation fence already applies if process loss interrupts this fast path.
+    await this.drainCancellations().catch(() => undefined); return result;
+  }
+  private async queueCancellation(db: PoolClient, id: string, generation: string) {
+    await db.query(`INSERT INTO agents_platform.customer_cancellations(task_id) SELECT task_id FROM agents_platform.customer_task_links WHERE conversation_id=$1 AND ownership_generation<$2 ON CONFLICT DO NOTHING`, [id, generation]);
+  }
+  async drainCancellations() {
+    const rows = (await this.pool.query("SELECT task_id FROM agents_platform.customer_cancellations WHERE completed_at IS NULL ORDER BY created_at LIMIT 20")).rows;
+    for (const row of rows) { await this.ports.cancelRoot(row.task_id); await this.pool.query("UPDATE agents_platform.customer_cancellations SET completed_at=now() WHERE task_id=$1", [row.task_id]); }
+  }
+  async assertBinding(db: Db, binding: ChannelBinding, task: { organization_id: string; version_id: string }): Promise<void> {
+    const row = (await db.query<CustomerConversation>("SELECT * FROM agents_platform.customer_conversations WHERE id=$1 FOR SHARE", [binding.customerConversationId])).rows[0];
+    if (!row || row.organization_id !== task.organization_id || row.version_id !== task.version_id || row.state !== "automation_active" || row.ownership_generation !== binding.ownershipGeneration) throw new PlatformError("CHANNEL_OWNERSHIP_CHANGED", 403, "Conversation is under human control");
+    const message = (await db.query("SELECT 1 FROM agents_platform.customer_messages WHERE id=$1 AND conversation_id=$2 AND author_kind='visitor' AND ownership_generation=$3 AND sequence>$4", [binding.inputMessageId, row.id, binding.ownershipGeneration, row.return_watermark])).rowCount;
+    if (!message) throw new PlatformError("CHANNEL_INPUT_DENIED", 403, "Customer message is unavailable");
+  }
+  async requestHandoff(db: PoolClient, binding: ChannelBinding, taskId: string): Promise<{ state: "handoff_pending" }> {
+    const row = await this.conversation(db, binding.customerConversationId, true);
+    if (!(await db.query("SELECT 1 FROM agents_platform.customer_task_links WHERE task_id=$1 AND conversation_id=$2 AND input_message_id=$3 AND ownership_generation=$4", [taskId, row.id, binding.inputMessageId, binding.ownershipGeneration])).rowCount) denied();
+    const existing = (await db.query("SELECT action FROM agents_platform.customer_commands WHERE conversation_id=$1 AND command_id=$2", [row.id, taskId])).rows[0];
+    if (existing?.action === "request_handoff") return { state: "handoff_pending" };
+    if (row.ownership_generation !== binding.ownershipGeneration || row.state !== "automation_active") throw new PlatformError("CHANNEL_OWNERSHIP_CHANGED", 403, "Conversation ownership changed");
+    const updated = (await db.query<CustomerConversation>("UPDATE agents_platform.customer_conversations SET state='handoff_pending',revision=revision+1,ownership_generation=ownership_generation+1,updated_at=now() WHERE id=$1 RETURNING *", [row.id])).rows[0]!;
+    await this.queueCancellation(db, row.id, updated.ownership_generation);
+    await db.query("INSERT INTO agents_platform.customer_commands(conversation_id,command_id,action,request_digest,result) VALUES($1,$2,'request_handoff',$3,$4)", [row.id, taskId, requestDigest(binding), updated]);
+    return { state: "handoff_pending" };
+  }
+  async publishAutomated(db: PoolClient, input: { taskId: string; binding: ChannelBinding; output: string }): Promise<void> {
+    const row = await this.conversation(db, input.binding.customerConversationId, true);
+    if (!(await db.query("SELECT 1 FROM agents_platform.customer_task_links WHERE task_id=$1 AND conversation_id=$2 AND input_message_id=$3 AND ownership_generation=$4", [input.taskId, row.id, input.binding.inputMessageId, input.binding.ownershipGeneration])).rowCount) denied();
+    if ((await db.query("SELECT id FROM agents_platform.customer_deliveries WHERE task_id=$1", [input.taskId])).rowCount) return;
+    if (row.state !== "automation_active" || row.ownership_generation !== input.binding.ownershipGeneration) {
+      await db.query("INSERT INTO agents_platform.customer_deliveries(id,conversation_id,task_id,ownership_generation,state,reason) VALUES($1,$2,$3,$4,'suppressed','ownership_changed')", [randomUUID(), row.id, input.taskId, input.binding.ownershipGeneration]); return;
+    }
+    if (!input.output) return;
+    const message = await this.append(db, row, { key: `assistant:${input.taskId}`, digest: requestDigest(input.output), kind: "assistant", body: input.output, taskId: input.taskId });
+    await db.query("INSERT INTO agents_platform.customer_deliveries(id,conversation_id,task_id,message_id,ownership_generation,state) VALUES($1,$2,$3,$4,$5,'published')", [randomUUID(), row.id, input.taskId, message.id, row.ownership_generation]);
+  }
+  async context(db: Db, binding: ChannelBinding, beforeMessageId: string) {
+    const target = (await db.query("SELECT sequence FROM agents_platform.customer_messages WHERE id=$1 AND conversation_id=$2", [beforeMessageId, binding.customerConversationId])).rows[0]; if (!target) denied();
+    const rows = (await db.query<CustomerMessage>("SELECT * FROM (SELECT * FROM agents_platform.customer_messages WHERE conversation_id=$1 AND sequence<$2 ORDER BY sequence DESC LIMIT 40) m ORDER BY sequence", [binding.customerConversationId, target.sequence])).rows;
+    const result: { id: string; role: "user" | "assistant"; authorKind: CustomerMessage["author_kind"]; content: string; taskId: string | null }[] = [];
+    for (const row of rows) { const content = row.author_kind === "assistant" ? row.task_id && await this.ports.readableOutput(db, row.task_id, row.body) : row.body;
+      if (content) result.push({ id: row.id, role: row.author_kind === "visitor" ? "user" : "assistant", authorKind: row.author_kind, content, taskId: row.task_id }); }
+    return result;
+  }
+}
