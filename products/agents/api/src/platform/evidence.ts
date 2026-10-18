@@ -336,7 +336,7 @@ export class EvidenceStore {
     const manifest=collectDependencyGraph(roots.map(node=>node.id),graph),ids=new Set<string>(),seen=new Set<string>();
     const visit=(id:string):void=>{if(seen.has(id))return;seen.add(id);const node=graph.get(id);if(!node)throw integrity();node.evidenceIds.forEach(value=>ids.add(value));node.parents.forEach(visit);};roots.forEach(node=>visit(node.id));
     try{await assertCurrentEvidence(db,prior.id,manifest,{requireActiveTask:false});await assertCurrentEvidence(db,execution.task.id,manifest,{historyOriginTaskIds:[prior.id]});}
-    catch(error){if(error instanceof PlatformError&&["EVIDENCE_SCOPE_DENIED","EVIDENCE_UNAVAILABLE","GRANT_CAPABILITY_DENIED"].includes(error.code))return{...empty,eligible:false,omissionCode:error.code};throw error;}
+    catch(error){if(error instanceof PlatformError&&["EVIDENCE_SCOPE_DENIED","EVIDENCE_UNAVAILABLE","GRANT_CAPABILITY_DENIED","EVIDENCE_LIMIT"].includes(error.code))return{...empty,eligible:false,omissionCode:error.code};throw error;}
     return{taskId:priorTaskId,eligible:true,evidenceIds:[...ids].sort(),manifest,originNodeIds:roots.map(node=>node.id)};
   }
   async checkHistory(taskId:string,priorTaskIds:string[]){

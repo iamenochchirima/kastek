@@ -5,8 +5,8 @@ import {afterAll,beforeAll,describe,expect,it} from "vitest";
 import {EvidenceStore,citationLabels,assertCurrentEvidence} from "../src/platform/evidence";
 import {PlatformStore} from "../src/platform/store";
 import {KnowledgeStore} from "../src/platform/knowledge";
-import {defaultFaqConfiguration} from "../src/platform/contracts";
-import {beginOperation} from "../src/platform/execution";
+import {defaultFaqConfiguration,requestDigest} from "../src/platform/contracts";
+import {beginOperation,finishOperation,settleTask} from "../src/platform/execution";
 import {setupPlatformSchema} from "../src/platform/setup";
 import {ConnectionStore} from "../src/platform/connections";
 import {ConnectionVault} from "../src/platform/vault";
@@ -127,6 +127,29 @@ const url=process.env.AGENTS_TEST_DATABASE_URL;
   await memory.mutate(managed,accepted.id,{operationId:randomUUID(),expectedRevision:accepted.revision,action:"forget"});
   await expect(evidence.derive(f.task.id,"artifact",randomUUID())).rejects.toMatchObject({code:"EVIDENCE_UNAVAILABLE"});
  });
+
+ it("omits a candidate beyond32 history origins while preserving strict consumed-provenance fencing",async()=>{
+  const f=await fixture(),passage=await evidence.recordChunk(f.task.id,f.operationId,f.chunkId);await context(f,passage);await finishOperation(pool,f.task.id,f.operationId,"completed",{},null,0);
+  async function complete(id:string){await pool.query("UPDATE agents_platform.tasks SET state='running' WHERE id=$1 AND state='accepted'",[id]);await settleTask(pool,id,{state:"completed",output:`Known fact [${passage.label}]`});}
+  await complete(f.task.id);let previous=f.task;
+  for(let originCount=1;originCount<=32;originCount++){
+    const{task}=await platform.admitTask({authority:f.authority,grantId:f.grant.id,versionId:f.version.id,conversationId:f.task.conversation_id,requestKey:randomUUID(),input:"Continue the same confirmed fact"});
+    expect((await evidence.checkHistory(task.id,[previous.id]))[0]?.eligible).toBe(true);
+    const id=`context:${task.id}:0`,payload={historyGroupIds:[previous.id],messages:[{role:"assistant",content:`Known fact [${passage.label}]`}]};await pool.query("INSERT INTO agents_platform.context_snapshots(id,task_id,step,digest,payload,history_cutoff) VALUES($1,$2,0,$3,$4,$5)",[id,task.id,textDigest(JSON.stringify(payload)),payload,originCount]);
+    await evidence.inheritHistory(task.id,id,[previous.id]);await assertCurrentEvidence(pool,task.id,await evidence.taskManifest(task.id));await complete(task.id);previous=task;
+  }
+  const{task:fresh}=await platform.admitTask({authority:f.authority,grantId:f.grant.id,versionId:f.version.id,conversationId:f.task.conversation_id,requestKey:randomUUID(),input:"Start with fresh context if the old candidate cannot fit"});
+  expect((await evidence.checkHistory(fresh.id,[previous.id]))[0]).toMatchObject({taskId:previous.id,eligible:false,omissionCode:"EVIDENCE_LIMIT",evidenceIds:[],originNodeIds:[]});
+  await expect(assertCurrentEvidence(pool,fresh.id,await evidence.taskManifest(fresh.id))).resolves.toBeUndefined();
+  const id=`context:${fresh.id}:0`,payload={historyGroupIds:[],messages:[{role:"user",content:"Fresh context without the omitted history"}]};await pool.query("INSERT INTO agents_platform.context_snapshots(id,task_id,step,digest,payload,history_cutoff) VALUES($1,$2,0,$3,$4,33)",[id,fresh.id,textDigest(JSON.stringify(payload)),payload]);await evidence.inheritHistory(fresh.id,id,[]);await evidence.supplyContext(fresh.id,id,[]);
+  const origin=(await pool.query("SELECT * FROM agents_platform.evidence_nodes WHERE task_id=$1 AND kind='input'",[previous.id])).rows[0],nodeId=randomUUID();
+  // Seed already-consumed provenance to exercise the dispatch fence independently of eligibility.
+  await pool.query("INSERT INTO agents_platform.evidence_nodes(id,organization_id,root_task_id,task_id,kind,owner_id,evidence_ids,parents,manifest,request_digest) VALUES($1,$2,$3,$3,'input','consumed-over-limit',$4,$5,$6,$7)",[nodeId,f.scope.organizationId,fresh.id,origin.evidence_ids,[],origin.manifest,requestDigest({ids:origin.evidence_ids,parentIds:[],manifest:origin.manifest})]);
+  await pool.query("INSERT INTO agents_platform.evidence_history_links(node_id,origin_task_id,origin_node_ids) VALUES($1,$2,$3)",[nodeId,previous.id,[origin.id]]);
+  await expect(assertCurrentEvidence(pool,fresh.id,await evidence.taskManifest(fresh.id))).rejects.toMatchObject({code:"EVIDENCE_LIMIT"});
+  const modelId=`model:${fresh.id}:blocked`;await expect(beginOperation(pool,fresh.id,{id:modelId,kind:"model",name:"model.generate",request:{},reservedTokens:100,reservedMs:1000,evidenceManifest:await evidence.taskManifest(fresh.id)})).rejects.toMatchObject({code:"EVIDENCE_LIMIT"});
+  expect((await pool.query("SELECT count(*)::int AS count FROM agents_platform.operations WHERE id=$1",[modelId])).rows[0].count).toBe(0);
+ },30000);
 
  it("links only already-supplied exact checkpoint evidence metadata with bounded omissions",async()=>{
   const f=await fixture(),first=await evidence.recordChunk(f.task.id,f.operationId,f.chunkId,{start:0,end:14}),second=await evidence.recordChunk(f.task.id,f.operationId,f.chunkId,{start:15,end:f.text.length});
