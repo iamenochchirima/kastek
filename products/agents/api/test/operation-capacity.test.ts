@@ -6,6 +6,7 @@ import {PlatformStore} from "../src/product/agents/store";
 import {setupPlatformSchema} from "../src/composition/setup";
 import {beginOperation,finishOperation,settleTask} from '../src/execution/lifecycle/execution';
 import {advanceCapacity} from "../src/execution/scheduling/capacity";
+import {persistOperationReceipt} from "../src/execution/scheduling/receipt-persistence";
 const dbUrl=process.env.AGENTS_TEST_DATABASE_URL;
 (dbUrl?describe:describe.skip)("native operation capacity PostgreSQL",()=>{
  let admin:Pool,pool:Pool,store:PlatformStore;
@@ -50,5 +51,28 @@ const dbUrl=process.env.AGENTS_TEST_DATABASE_URL;
   expect((await pool.query('SELECT id FROM agents_platform.operations WHERE id=$1',[queued.id])).rowCount).toBe(0);
   await finishOperation(pool,a!.id,first.id,'uncertain',null,'OPERATION_OUTCOME_UNCERTAIN',100);
   expect((await pool.query('SELECT state FROM agents_platform.capacity_requests WHERE id=$1',[first.id])).rows[0].state).toBe('uncertain');
+ });
+ it('recovers a lost receipt acknowledgement from the actual committed record without charging twice',async()=>{
+  const [task]=await tasks(),input={id:randomUUID(),kind:'model' as const,name:'model.generate',request:{},reservedTokens:100,reservedMs:1000};
+  const admission=await beginOperation(pool,task!.id,input);if(admission.waiting)throw Error('Unexpected capacity wait');
+  let writes=0;const value={answer:'Known provider response'};
+  const receipt=await persistOperationReceipt(async()=>{writes++;const saved=await finishOperation(pool,task!.id,input.id,'completed',value,null,7,admission.operation.attempt_id);if(writes===1)throw Object.assign(Error('Lost COMMIT acknowledgement'),{code:'08006'});return saved;});
+  expect(writes).toBe(2);expect(receipt).toMatchObject({state:'completed',output:value,accounted_tokens:7});
+  expect((await pool.query('SELECT count(*)::int n FROM agents_platform.operation_usage WHERE operation_id=$1',[input.id])).rows[0].n).toBe(1);
+  const conflict=await finishOperation(pool,task!.id,input.id,'completed',{answer:'Different'},null,99,admission.operation.attempt_id);
+  expect(conflict).toMatchObject({state:'completed',output:value,accounted_tokens:7});
+ });
+ it('fences stale attempts and never upgrades an existing uncertain receipt',async()=>{
+  const [task]=await tasks(),input={id:randomUUID(),kind:'tool' as const,name:'knowledge.search',request:{query:'hours'},reservedTokens:0,reservedMs:1000,retrySafe:true};
+  const first=await beginOperation(pool,task!.id,input),second=await beginOperation(pool,task!.id,input);if(first.waiting||second.waiting)throw Error('Unexpected capacity wait');
+  expect(first.operation.attempt_id).not.toBe(second.operation.attempt_id);
+  expect(await finishOperation(pool,task!.id,input.id,'completed',{answer:'Stale'},null,0,first.operation.attempt_id)).toMatchObject({state:'started',attempt_id:second.operation.attempt_id});
+  expect((await pool.query('SELECT count(*)::int n FROM agents_platform.operation_usage WHERE operation_id=$1',[input.id])).rows[0].n).toBe(0);
+  await finishOperation(pool,task!.id,input.id,'uncertain',null,'PREVIOUS_OUTCOME_UNCERTAIN',0,second.operation.attempt_id);
+  expect(await finishOperation(pool,task!.id,input.id,'completed',{answer:'Late'},null,0,second.operation.attempt_id)).toMatchObject({state:'uncertain',output:null,error_code:'PREVIOUS_OUTCOME_UNCERTAIN'});
+ });
+ it('bounds receipt retries and does not retry invariant failures',async()=>{
+  let transient=0;await expect(persistOperationReceipt(async()=>{transient++;throw Object.assign(Error('Disconnected'),{code:'08006'});})).rejects.toMatchObject({code:'08006'});expect(transient).toBe(3);
+  let invariant=0;await expect(persistOperationReceipt(async()=>{invariant++;throw Object.assign(Error('Invalid receipt'),{code:'23514'});})).rejects.toMatchObject({code:'23514'});expect(invariant).toBe(1);
  });
 });

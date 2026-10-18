@@ -49,7 +49,7 @@ export async function beginOperation(pool: Pool, taskId: string, input: Operatio
           const attemptId=randomUUID();
           await db.query("UPDATE agents_platform.operations SET attempt_id=$2 WHERE id=$1", [existing.id,attemptId]);
           await event(db, taskId, `attempt:${input.id}:${attemptId}`, "operation.retried", {operationId:input.id});
-          return { replayed: false, operation: existing };
+          return { replayed: false, operation: {...existing,attempt_id:attemptId} };
         }
         await finishOperationInTransaction(db, execution, existing, "uncertain", null, "OPERATION_OUTCOME_UNCERTAIN", existing.reserved_tokens);
         existing.state = "uncertain";
@@ -106,11 +106,11 @@ async function checkMemoryFence(db: PoolClient, fence?: MemoryFence): Promise<vo
 }
 
 async function finishOperationInTransaction(db: PoolClient, execution: Execution, op: OperationRecord,
-  state: "completed" | "failed" | "uncertain", output: unknown, errorCode: string | null, tokens: number): Promise<void> {
+  state: "completed" | "failed" | "uncertain", output: unknown, errorCode: string | null, tokens: number): Promise<OperationRecord> {
   const accounted = Math.min(Math.max(0, tokens), op.reserved_tokens);
   const charged = await db.query(`INSERT INTO agents_platform.operation_usage(operation_id,task_id,accounted_tokens,outcome)
     VALUES($1,$2,$3,$4) ON CONFLICT(operation_id) DO NOTHING RETURNING operation_id`, [op.id, op.task_id, accounted, state]);
-  if (!charged.rowCount) return;
+  if (!charged.rowCount) return op;
   const elapsed = Math.max(0,Date.now()-new Date(op.started_at).getTime());
   const duration = state === "uncertain" ? Math.max(op.reserved_ms,elapsed) : elapsed;
   await db.query(`UPDATE agents_platform.operations SET state=$2,output=$3,error_code=$4,accounted_tokens=$5,completed_at=now() WHERE id=$1`,
@@ -125,16 +125,18 @@ async function finishOperationInTransaction(db: PoolClient, execution: Execution
     duration,op.reserved_ms,execution.task.parent_task_id?op.reserved_ms-duration:0]);
   await event(db, op.task_id, `result:${op.id}`, `operation.${state}`, { operationId: op.id, accountedTokens: accounted, errorCode });
   await releaseCapacity(db,op.id,state);
+  return (await db.query<OperationRecord>('SELECT * FROM agents_platform.operations WHERE id=$1',[op.id])).rows[0]!;
 }
 export async function finishOperation(pool: Pool, taskId: string, operationId: string,
-  state: "completed" | "failed" | "uncertain", output: unknown, errorCode: string | null, tokens: number): Promise<void> {
-  await transaction(pool, async db => {
+  state: "completed" | "failed" | "uncertain", output: unknown, errorCode: string | null, tokens: number,expectedAttemptId?:string): Promise<OperationRecord> {
+  return transaction(pool, async db => {
     const before = await loadExecution(db,taskId);
     await db.query("SELECT root_task_id FROM agents_platform.execution_roots WHERE root_task_id=$1 FOR UPDATE",[before.task.root_task_id]);
     const execution = await loadExecution(db, taskId, true);
     const op = (await db.query<OperationRecord>("SELECT * FROM agents_platform.operations WHERE id=$1 AND task_id=$2 FOR UPDATE", [operationId, taskId])).rows[0];
     if (!op) throw new PlatformError("OPERATION_NOT_FOUND", 404, "Operation not found");
-    await finishOperationInTransaction(db, execution, op, state, output, errorCode, tokens);
+    if(expectedAttemptId&&op.attempt_id!==expectedAttemptId)return op;
+    return finishOperationInTransaction(db, execution, op, state, output, errorCode, tokens);
   });
 }
 

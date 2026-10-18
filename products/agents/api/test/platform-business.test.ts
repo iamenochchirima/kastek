@@ -500,6 +500,29 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     expect((await pool.query("SELECT accounted_tokens FROM agents_platform.usage_ledger WHERE task_id=$1", [f.task.id])).rows).toEqual([{ accounted_tokens: 56 }]);
     expect((await pool.query("SELECT count(*)::int AS count FROM agents_platform.context_snapshots WHERE task_id=$1", [f.task.id])).rows[0].count).toBe(1);
   }, 30_000);
+  it("persists a known model response after a transient receipt failure without repeating the model",async()=>{
+    const f=await fixture(),suffix=f.task.id.replaceAll('-',''),sequence=`receipt_retry_${suffix}`,fn=`receipt_failure_${suffix}`,trigger=`receipt_trigger_${suffix}`;
+    await pool.query(`CREATE SEQUENCE agents_platform.${sequence};
+      CREATE FUNCTION agents_platform.${fn}() RETURNS trigger LANGUAGE plpgsql AS $receipt$
+      BEGIN IF NEW.operation_id='model:${f.task.id}:0' AND nextval('agents_platform.${sequence}')=1 THEN RAISE EXCEPTION 'Injected receipt serialization failure' USING ERRCODE='40001'; END IF; RETURN NEW; END $receipt$;
+      CREATE TRIGGER ${trigger} BEFORE INSERT ON agents_platform.operation_usage FOR EACH ROW EXECUTE FUNCTION agents_platform.${fn}();`);
+    try{
+      expect(await execute(f.task.id)).toMatchObject({state:'completed',output:'Open at nine.'});expect(calls).toHaveLength(1);
+      expect((await pool.query('SELECT count(*)::int n FROM agents_platform.operation_usage WHERE operation_id=$1',[`model:${f.task.id}:0`])).rows[0].n).toBe(1);
+      expect((await pool.query(`SELECT last_value FROM agents_platform.${sequence}`)).rows[0].last_value).toBe('2');
+    }finally{await pool.query(`DROP TRIGGER ${trigger} ON agents_platform.operation_usage;DROP FUNCTION agents_platform.${fn}();DROP SEQUENCE agents_platform.${sequence};`);}
+  },30000);
+  for(const state of ['completed','uncertain'] as const)it(`never reports a conflicting existing ${state} model receipt as fresh success`,async()=>{
+    const f=await fixture(),stored={message:{role:'assistant',content:'Previously recorded answer'},usage:{inputTokens:5,outputTokens:2}};
+    provider=async()=>{
+      const operation=(await pool.query("SELECT * FROM agents_platform.operations WHERE task_id=$1 AND kind='model'",[f.task.id])).rows[0];
+      await finishOperation(pool,f.task.id,operation.id,state,state==='completed'?stored:null,state==='uncertain'?'PREVIOUS_OUTCOME_UNCERTAIN':null,state==='completed'?7:operation.reserved_tokens,operation.attempt_id);
+      return reply('Conflicting new answer');
+    };
+    expect(await execute(f.task.id)).toMatchObject({state:'uncertain',output:null});expect(calls).toHaveLength(1);
+    const receipt=(await pool.query("SELECT state,output FROM agents_platform.operations WHERE task_id=$1 AND kind='model'",[f.task.id])).rows[0];
+    expect(receipt).toMatchObject({state,output:state==='completed'?stored:null});
+  },30000);
   it("executes multiple model/tool rounds with validated structured tool results", async () => {
     const f = await fixture({ tools: ["knowledge.search", "knowledge.read"] });
     provider = async body => calls.length === 1 ? reply("", "tool_calls", [tool("knowledge_search", { query: "open" })]) :

@@ -1,5 +1,6 @@
 import {validateBuiltinArguments,validateBuiltinResult} from "../../capabilities/tool-contracts";
 import type {CapacityDecision} from "../scheduling/capacity";
+import {persistOperationReceipt} from "../scheduling/receipt-persistence";
 import * as restate from "@restatedev/restate-sdk";
 import type { Pool } from "pg";
 import { z } from "zod";
@@ -8,7 +9,7 @@ import { connectedModelView } from "../../capabilities/connected-tools/connected
 import type { KnowledgeObservation,KnowledgeRuntime } from "../../capabilities/knowledge/knowledge-runtime";
 import { toolDescriptor } from "../../capabilities/tool-descriptors";
 import { assertPublishedTools,builtinToolName,executeTool,fitUtf8,parseModelDelegationRequest,toolsFor } from "../../capabilities/tools";
-import { PlatformError,terminalTaskStates } from "../../contracts/contracts";
+import { PlatformError,requestDigest,terminalTaskStates } from "../../contracts/contracts";
 import type { DependencyManifest } from "../../contracts/source-contracts";
 import { buildContext,prepareCompaction,type ContextGroup,type ContextSource } from "../context/context";
 import { loadContinuation } from "../context/continuation";
@@ -61,7 +62,7 @@ async function operation<T>(ctx: restate.WorkflowContext, pool: Pool, taskId: st
   perform: () => Promise<{ value: T; tokens: number }>, journalName = input.id): Promise<Result<T>> {
   for(let capacityAttempt=0;capacityAttempt<256;capacityAttempt++) {
   const result:Result<T>|{waiting:Extract<CapacityDecision,{state:"waiting"}>} = await ctx.run(capacityAttempt===0?journalName:`${journalName}:capacity:${capacityAttempt}`, async () => {
-    let claimed = false;
+    let claimed = false,attemptId:string|undefined;
     try {
       const admission = await beginOperation(pool, taskId, input);
       if(admission.waiting)return {waiting:admission.capacity};
@@ -71,17 +72,23 @@ async function operation<T>(ctx: restate.WorkflowContext, pool: Pool, taskId: st
           uncertain: admission.operation.state === "uncertain" };
       }
       claimed = true;
+      attemptId=admission.operation.attempt_id;
       const result = await perform();
       if(input.kind!=="delegation" && Date.now()-new Date(admission.operation.started_at).getTime()>input.reservedMs) throw new ModelOperationError("RESOURCE_TIME_BOUND_EXCEEDED","uncertain");
       if(input.maxResultBytes!==undefined && Buffer.byteLength(JSON.stringify(result.value))>input.maxResultBytes) throw new PlatformError("TOOL_RESULT_LIMIT",413,"Tool result exceeded its published bound");
       if (result.tokens > input.reservedTokens) throw new ModelOperationError("MODEL_ACCOUNTING_BOUND_EXCEEDED", "uncertain");
-      await finishOperation(pool, taskId, input.id, "completed", result.value, null, result.tokens);
+      const receipt=await persistOperationReceipt(()=>finishOperation(pool, taskId, input.id, "completed", result.value, null, result.tokens,attemptId));
+      if(receipt.state!=="completed"||receipt.attempt_id!==attemptId||receipt.accounted_tokens!==result.tokens||requestDigest(receipt.output)!==requestDigest(result.value))
+        return {ok:false as const,code:receipt.error_code??"OPERATION_RECEIPT_CONFLICT",uncertain:receipt.state!=="failed"};
       return { ok: true as const, value: result.value };
     } catch (error) {
       if (!(error instanceof ModelOperationError) && !(error instanceof PlatformError)) throw error;
       if(error instanceof PlatformError&&error.code==="CONNECTED_READ_IN_PROGRESS")return {ok:false as const,code:"CONNECTED_READ_IN_PROGRESS",uncertain:false};
       const uncertain = uncertainOperation(error);
-      if (claimed) await finishOperation(pool, taskId, input.id, uncertain ? "uncertain" : "failed", null, error.code, uncertain ? input.reservedTokens : 0);
+      if (claimed) {
+        const receipt=await persistOperationReceipt(()=>finishOperation(pool, taskId, input.id, uncertain ? "uncertain" : "failed", null, error.code, uncertain ? input.reservedTokens : 0,attemptId));
+        if(receipt.attempt_id!==attemptId||receipt.state!==(uncertain?"uncertain":"failed"))return {ok:false as const,code:receipt.error_code??"OPERATION_RECEIPT_CONFLICT",uncertain:receipt.state!=="failed"};
+      }
       return { ok: false as const, code: error.code, uncertain };
     }
   });

@@ -619,6 +619,13 @@ uncertain settlement retains them. Ordinary capacity waits do not poll every
 250 ms. Connected-read reconciliation may separately retry its existing status
 check with a bounded durable delay.
 
+After a known provider response, receipt persistence may retry at most three
+recognized transient PostgreSQL failures while retaining that response in memory.
+These retries write the same native receipt and never repeat provider I/O. The
+business loop accepts success only when the persisted attempt, completed state,
+output and accounting match. A conflicting terminal receipt is preserved. A
+process crash before durable persistence still leaves an uncertain outcome.
+
 Operation start/finish locks the execution root rather than the organization.
 Admission and daily quota settlement retain their existing transactional fences;
 `maxConcurrentRoots` and `dailyTokenAllowance` come from the validated operator
