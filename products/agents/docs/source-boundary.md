@@ -582,6 +582,8 @@ separate frontier. A failed multi-bucket reservation rolls back all partial clai
 Release clears the matching slot owner and generation with its hold row. Queue
 deadlines, provisional expiry and recorded grant delay use the database clock.
 Only a promoted queued request publishes a capacity wakeup and grant observation.
+Age priority applies to eligible waiters. A full tenant-specific bucket cannot
+block another tenant whose complete bucket set has free capacity.
 
 `AGENTS_SCHEDULING_POLICY_JSON` contains validated finite operator limits for
 product, tenant, workload and provider capacity, queue depth, maximum waiting time,

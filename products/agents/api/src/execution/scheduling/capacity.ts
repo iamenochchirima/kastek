@@ -24,8 +24,12 @@ async function removeHolds(db:PoolClient,requestId:string):Promise<void>{
 }
 async function grantIfAvailable(db:PoolClient,row:any,leaseMs:number,publish=true,locked=false):Promise<boolean>{
  if(!locked)await lockBuckets(db,row.bucket_keys);
- // FIFO within each shared bucket, with age promotion so background work cannot starve.
- const older=await db.query(`SELECT 1 FROM agents_platform.capacity_requests q WHERE q.state='waiting' AND q.id<>$1 AND q.bucket_keys && $2::text[]
+ // Eligible predecessors retain age priority; one tenant's full bucket cannot block free tenants.
+ const older=await db.query(`SELECT 1 FROM agents_platform.capacity_requests q WHERE q.state='waiting' AND q.id<>$1 AND q.deadline_at>now() AND q.bucket_keys && $2::text[]
+ AND EXISTS(SELECT 1 FROM agents_platform.tasks t WHERE t.id=q.task_id AND t.state NOT IN ('completed','incomplete','refused','failed','cancelled','uncertain','cancel_requested'))
+ AND NOT EXISTS(SELECT 1 FROM agents_platform.capacity_buckets b WHERE b.key=ANY(q.bucket_keys)
+  AND NOT EXISTS(SELECT 1 FROM agents_platform.capacity_slots s WHERE s.bucket_key=b.key AND s.owner_request IS NULL)
+  AND NOT EXISTS(SELECT 1 FROM agents_platform.capacity_slot_ranges r WHERE r.bucket_key=b.key AND r.next_slot<=b.max_active))
  AND (q.created_at+CASE WHEN q.workload='interactive' THEN interval '0 seconds' ELSE interval '5 seconds' END,q.id)
  <($3::timestamptz+CASE WHEN $4='interactive' THEN interval '0 seconds' ELSE interval '5 seconds' END,$1) LIMIT 1`,[row.id,row.bucket_keys,row.created_at,row.workload]);
  if(older.rowCount)return false;

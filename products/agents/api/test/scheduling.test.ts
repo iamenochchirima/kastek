@@ -157,4 +157,24 @@ const dbUrl=process.env.AGENTS_TEST_DATABASE_URL;
   confirmed=true;await dispatchTasksOnce(pool,{ingressUrl:'http://localhost',adminUrl:'http://localhost',fetch:fetcher});
   expect(outputs).toBe(2);expect((await pool.query('SELECT state FROM agents_platform.tasks WHERE id=$1',[task!.id])).rows[0].state).toBe('cancelled');
  });
+ it('lets a free tenant pass an ineligible older waiter and preserves priority when that waiter becomes eligible',async()=>{
+  const [a,b]=await tasks(),[c]=await tasks(),shared=`shared:${randomUUID()}`,own=`tenant-a:${randomUUID()}`;
+  const request=(taskId:string,tenant:string)=>({id:`op:${randomUUID()}`,taskId,workload:'interactive' as const,buckets:[{key:shared,limit:10},{key:tenant,limit:1}]});
+  const held=request(a!.id,own),older=request(a!.id,own);await transaction(pool,db=>requestCapacity(db,held));
+  await transaction(pool,db=>activateCapacity(db,held.id,1));await transaction(pool,db=>releaseCapacity(db,held.id,'uncertain'));
+  expect((await transaction(pool,db=>requestCapacity(db,older))).state).toBe('waiting');
+  const free=request(b!.id,`tenant-b:${randomUUID()}`);expect((await transaction(pool,db=>requestCapacity(db,free))).state).toBe('granted');
+  await transaction(pool,db=>releaseCapacity(db,held.id,'uncertain',true));
+  const newer=request(c!.id,`tenant-c:${randomUUID()}`);expect((await transaction(pool,db=>requestCapacity(db,newer))).state).toBe('waiting');
+  await advanceCapacity(pool);
+  expect((await pool.query('SELECT state FROM agents_platform.capacity_requests WHERE id=$1',[older.id])).rows[0].state).toBe('granted');
+  expect((await pool.query('SELECT state FROM agents_platform.capacity_requests WHERE id=$1',[newer.id])).rows[0].state).toBe('granted');
+ });
+ it('commits deadline cancellation with a typed observation and one export intent',async()=>{
+  const [task,other]=await tasks();await pool.query('UPDATE agents_platform.task_outbox SET dispatched_at=now() WHERE task_id=ANY($1::uuid[])',[[task!.id,other!.id]]);
+  await pool.query("UPDATE agents_platform.tasks SET deadline_at=now()-interval '1 second' WHERE id=$1",[task!.id]);
+  await dispatchTasksOnce(pool,{ingressUrl:'http://localhost',adminUrl:'http://localhost',fetch:async()=>{throw Error('Unexpected fixture request');}});
+  const event=(await pool.query("SELECT e.observation,count(x.event_sequence)::int exports FROM agents_platform.task_events e LEFT JOIN agents_platform.observation_exports x ON x.event_sequence=e.sequence WHERE e.task_id=$1 AND e.event_key='deadline-stop' GROUP BY e.sequence",[task!.id])).rows[0];
+  expect(event.exports).toBe(1);expect(event.observation).toMatchObject({schemaVersion:'agent.observation.v1',kind:'cancel_requested',identity:{taskId:task!.id},metadata:{errorCode:'TASK_DEADLINE'}});
+ });
 });

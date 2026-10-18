@@ -2,6 +2,8 @@ import { randomUUID } from "node:crypto";
 import {advanceCapacity} from "../scheduling/capacity";
 import { claimDispatchBatch,parallelEach,type DispatchPolicy } from "../scheduling/dispatch-claims";
 import type { Pool } from "pg";
+import { transaction } from "../../infrastructure/database";
+import {recordEvent} from "../../observability/event-store";
 import { HARNESS_RELEASE,reconcilePendingRoots,settleTask,WORKFLOW_NAME } from "./execution";
 
 export interface DispatcherOptions {
@@ -81,10 +83,12 @@ export async function dispatchTasksOnce(pool: Pool, options: DispatcherOptions):
       if(response.ok) await pool.query("UPDATE agents_platform.task_controls SET dispatched_at=now(),lease_owner=NULL,lease_until=NULL WHERE task_id=$1 AND generation=$2 AND lease_owner=$3",[control.task_id,control.generation,controlOwner]);
     } catch { options.onError?.("RUNTIME_CONTINUATION_FAILED"); }
   });
-  await pool.query(`WITH due AS (SELECT id FROM agents_platform.tasks WHERE deadline_at<now() AND state IN ('accepted','running','waiting_authority','waiting_review','waiting_children','reconciling')
-    ORDER BY deadline_at,id FOR UPDATE SKIP LOCKED LIMIT 128), expired AS (UPDATE agents_platform.tasks t SET state='cancel_requested',error_code='TASK_DEADLINE',updated_at=now()
-    FROM due WHERE t.id=due.id RETURNING t.id)
-    INSERT INTO agents_platform.task_events(task_id,event_key,kind) SELECT id,'deadline-stop','cancel_requested' FROM expired ON CONFLICT DO NOTHING`);
+  await transaction(pool,async db=>{
+    const expired=await db.query(`WITH due AS (SELECT id FROM agents_platform.tasks WHERE deadline_at<now() AND state IN ('accepted','running','waiting_authority','waiting_review','waiting_children','reconciling')
+      ORDER BY deadline_at,id FOR UPDATE SKIP LOCKED LIMIT 128) UPDATE agents_platform.tasks t SET state='cancel_requested',error_code='TASK_DEADLINE',updated_at=now()
+      FROM due WHERE t.id=due.id RETURNING t.id`);
+    for(const task of expired.rows)await recordEvent(db,task.id,'deadline-stop','cancel_requested',{errorCode:'TASK_DEADLINE'});
+  });
 
   const cancellations = (await pool.query(`SELECT id,runtime_invocation_id,created_at,harness_release FROM agents_platform.tasks
     WHERE state='cancel_requested' AND runtime_invocation_id IS NOT NULL AND harness_release=ANY($1::text[]) ORDER BY updated_at LIMIT 10`,[releases])).rows;
