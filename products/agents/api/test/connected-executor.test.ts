@@ -18,12 +18,12 @@ import {readGithubJourneyScopes} from "./support/github-journey-scopes";
 const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
 (databaseUrl?describe:describe.skip)("registered connected executor with actual PostgreSQL, HTTP and private fixture objects",()=>{
  let admin:Pool,pool:Pool,server:Server,platform:PlatformStore,connections:ConnectionStore,executor:ConnectedExecutor,evidence:EvidenceStore;
- let origin:string,requests:string[]=[],isPrivate=false,hang=false;
+ let origin:string,requests:string[]=[],isPrivate=false,hang=false,treeFileCount=1;
  let remoteResult:Record<string,unknown>|undefined,publicProfile=false;
  let authorizationHeaders:(string|undefined)[]=[];
  const remoteArguments:Record<string,unknown>[]=[];
  const database=`agents_connected_exec_${randomUUID().replaceAll("-","")}`,objects=new Map<string,Uint8Array>();
- const text="Public immutable source content. "+"x".repeat(5000)+" Decisive tail fact.",bytes=Buffer.from(text),blobSha=createHash("sha1").update(`blob ${bytes.length}\0`).update(bytes).digest("hex"),commit="a".repeat(40),tree="b".repeat(40);
+ const text="Public immutable source content. "+"😀".repeat(1000)+"x".repeat(5000)+" Decisive tail fact.",bytes=Buffer.from(text),blobSha=createHash("sha1").update(`blob ${bytes.length}\0`).update(bytes).digest("hex"),commit="a".repeat(40),tree="b".repeat(40);
  beforeAll(async()=>{
   admin=new Pool({connectionString:databaseUrl});await admin.query(`CREATE DATABASE "${database}"`);const url=new URL(databaseUrl!);url.pathname=`/${database}`;pool=new Pool({connectionString:url.href});await setupPlatformSchema(pool);platform=new PlatformStore(pool);
   server=createServer(async(req,res)=>{requests.push(req.url!);authorizationHeaders.push(req.headers.authorization);res.setHeader("content-type","application/json");
@@ -39,7 +39,7 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
 
    if(req.url==="/repos/approved/public")res.end(JSON.stringify({id:1,private:isPrivate,visibility:isPrivate?"private":"public",full_name:"approved/public",description:"Public fixture",default_branch:"main",updated_at:"2026-10-17T00:00:00Z",stargazers_count:1,extra:"Retain full provider body"}));
    else if(req.url==="/repos/approved/public/commits/main")res.end(JSON.stringify({sha:commit,commit:{tree:{sha:tree}}}));
-   else if(req.url===`/repos/approved/public/git/trees/${tree}?recursive=1`)res.end(JSON.stringify({sha:tree,truncated:false,tree:[{path:"guide.md",type:"blob",mode:"100644",sha:blobSha,size:bytes.length}]}));
+   else if(req.url===`/repos/approved/public/git/trees/${tree}?recursive=1`)res.end(JSON.stringify({sha:tree,truncated:false,tree:Array.from({length:treeFileCount},(_,index)=>({path:index===treeFileCount-1?"guide.md":`docs/other-${String(index).padStart(2,"0")}.md`,type:"blob",mode:"100644",sha:blobSha,size:bytes.length}))}));
    else if(req.url===`/repos/approved/public/git/blobs/${blobSha}`){if(hang)return;res.end(JSON.stringify({sha:blobSha,encoding:"base64",size:bytes.length,content:bytes.toString("base64")}));}
    else res.writeHead(404).end("{}");
   });await new Promise<void>(resolve=>server.listen(0,"127.0.0.1",resolve));origin=`http://127.0.0.1:${(server.address() as {port:number}).port}`;
@@ -48,7 +48,7 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
  });
  afterAll(async()=>{server?.closeAllConnections();if(server)await new Promise<void>(resolve=>server.close(()=>resolve()));await pool?.end();if(admin){await admin.query(`DROP DATABASE IF EXISTS "${database}" WITH(FORCE)`);await admin.end();}});
  async function fixture(withMcp=false,anonymous=false){
-  isPrivate=false;hang=false;requests=[];authorizationHeaders=[];remoteArguments.length=0;remoteResult=undefined;publicProfile=anonymous;
+  isPrivate=false;hang=false;treeFileCount=1;requests=[];authorizationHeaders=[];remoteArguments.length=0;remoteResult=undefined;publicProfile=anonymous;
   const account=await platform.ensureAccount({issuer:"http://localhost/connected-executor",subject:randomUUID(),email:"owner@example.test",displayName:"Owner"}),org=await platform.createOrganization(account.id,"Connected"),scope={accountId:account.id,organizationId:org.id};
   const connection=await connections.create(scope,{operationId:randomUUID(),name:"GitHub",profileId:anonymous?"public-repository-read-v1":"github-public-read-v1",targetId:anonymous?"provider:public-repository":"provider:github",...(anonymous?{}:{apiKey:"github_pat_connected_fixture_only"}),expiresAt:new Date(Date.now()+86400000).toISOString(),selections:[{owner:"approved",repository:"public",ref:"main"}]});
   const catalog=await executor.discover(scope,{operationId:randomUUID(),connectionId:connection.id,expectedRevision:1,transport:"native_http"});
@@ -64,6 +64,7 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
   return{scope,connection,bindings,task,grant};
  }
  async function call(f:Awaited<ReturnType<typeof fixture>>,name:string,args:object){const binding=f.bindings.find(b=>b.definition.providerOperation===name)!,operationId=`tool:${f.task.id}:${randomUUID()}`;await beginOperation(pool,f.task.id,{id:operationId,kind:"tool",name:binding.alias,request:args,reservedTokens:0,reservedMs:30000,retrySafe:true});return{result:await executor.execute(f.task.id,operationId,binding,args),binding,operationId,args};}
+ async function completedCall(f:Awaited<ReturnType<typeof fixture>>,name:string,args:object){const result=await call(f,name,args);await finishOperation(pool,f.task.id,result.operationId,"completed",result.result,null,0);return result;}
  it("executes anonymous native and MCP reads without transmitting any authorization header",async()=>{
   const f=await fixture(true,true);expect(f.connection.authentication).toBe("none");
   const metadata=await call(f,"get_repository",{repository:"approved/public"});expect(metadata.result.status).toBe("ok");
@@ -88,6 +89,44 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
   const fresh=new ConnectedExecutor(pool,connections,executor.objects,evidence,{testGithubOrigin:origin,testMcpEndpoint:`${origin}/mcp`,testPublicMcpEndpoint:`${origin}/mcp`});
   const resolve=vi.spyOn(fresh.registry,"resolve").mockImplementation(()=>{throw Error("fixture old adapter release absent");});
   const before=requests.length;expect(await fresh.execute(f.task.id,file.operationId,file.binding,file.args)).toEqual(file.result);expect(requests).toHaveLength(before);expect(resolve).not.toHaveBeenCalled();
+ });
+ it("filters an exact known file locally while preserving unfiltered pagination and immutable file proof",async()=>{
+  const f=await fixture(),revision=await completedCall(f,"resolve_ref",{repository:"approved/public"}),revisionId=(revision.result.handles as any).revisionId;treeFileCount=41;
+  const first=await completedCall(f,"list_tree",{revisionId}),firstPage=JSON.parse(first.result.content),second=await completedCall(f,"list_tree",{revisionId,offset:firstPage.nextOffset}),secondPage=JSON.parse(second.result.content);
+  expect(firstPage.files).toHaveLength(20);expect(firstPage).toMatchObject({hasMore:true,nextOffset:20});expect(firstPage).not.toHaveProperty("filePath");expect(secondPage.files).toHaveLength(20);expect(secondPage).toMatchObject({hasMore:true,nextOffset:40});expect(firstPage.files.some((file:any)=>file.path==="guide.md")).toBe(false);
+  const before=requests.length,filtered=await completedCall(f,"list_tree",{revisionId,filePath:"guide.md"}),view=JSON.parse(filtered.result.content);
+  expect(requests.slice(before)).toEqual(["/repos/approved/public",`/repos/approved/public/git/trees/${tree}?recursive=1`]);
+  expect(view).toMatchObject({filePath:"guide.md",files:[{path:"guide.md",bytes:bytes.length}],hasMore:false,nextOffset:1});expect(view.files).toHaveLength(1);
+  const handle=(await pool.query("SELECT payload FROM agents_platform.connected_handles WHERE created_by_operation=$1 AND kind='file'",[filtered.operationId])).rows;
+  expect(handle).toHaveLength(1);expect(handle[0].payload).toMatchObject({revision:{commitSha:commit},file:{path:"guide.md",blobSha}});
+  const receipt=(await pool.query("SELECT object_key FROM agents_platform.connected_response_bodies WHERE operation_id=$1 ORDER BY ordinal DESC LIMIT 1",[filtered.operationId])).rows[0];
+  const saved=JSON.parse(Buffer.from(objects.get(receipt.object_key)!).toString());expect(saved.tree).toHaveLength(41);expect(saved.tree[0].path).toBe("docs/other-00.md");
+  const replayCount=requests.length;expect(await executor.execute(f.task.id,filtered.operationId,filtered.binding,filtered.args)).toEqual(filtered.result);
+  await expect(executor.execute(f.task.id,filtered.operationId,filtered.binding,{revisionId,filePath:"docs/other-00.md"})).rejects.toMatchObject({code:"OPERATION_CONFLICT"});expect(requests).toHaveLength(replayCount);
+
+  const read=await completedCall(f,"read_file",{fileId:view.files[0].fileId,offset:5000});expect(read.result.content).toContain("Decisive tail fact");expect(read.result.observation.provenance).toEqual({kind:"commit_snapshot",commitSha:commit});
+  const missing=await completedCall(f,"list_tree",{revisionId,filePath:"docs/does-not-exist.md"});expect(JSON.parse(missing.result.content)).toMatchObject({filePath:"docs/does-not-exist.md",files:[],hasMore:false,nextOffset:0});expect(missing.result.handles).toEqual({files:[]});expect((await pool.query("SELECT count(*)::int AS count FROM agents_platform.connected_handles WHERE created_by_operation=$1 AND kind='file'",[missing.operationId])).rows[0].count).toBe(0);
+  expect(requests.some(path=>path.includes("filePath")||path.includes("guide.md")||path.includes("does-not-exist"))).toBe(false);
+ });
+ it("selects a bounded UTF8-safe byte span locally after verifying the entire immutable blob",async()=>{
+  const f=await fixture(),revision=await completedCall(f,"resolve_ref",{repository:"approved/public"}),listing=await completedCall(f,"list_tree",{revisionId:(revision.result.handles as any).revisionId,filePath:"guide.md"}),fileId=(listing.result.handles as any).files[0].fileId,before=requests.length;
+  const selected=await completedCall(f,"read_file",{fileId,maxBytes:512}),expected=new TextDecoder().decode(bytes.subarray(0,512),{stream:true});
+  expect(selected.result.content).toBe(expected);expect(Buffer.byteLength(selected.result.content)).toBeLessThanOrEqual(512);expect(selected.result.content.endsWith("😀")).toBe(true);expect(selected.result.truncated).toBe(true);expect(Buffer.from(selected.result.content).toString("utf8")).toBe(selected.result.content);expect(selected.result.observation.provenance).toEqual({kind:"commit_snapshot",commitSha:commit});
+  expect(requests.slice(before)).toEqual(["/repos/approved/public",`/repos/approved/public/git/blobs/${blobSha}`]);
+  const receipt=(await pool.query("SELECT object_key FROM agents_platform.connected_response_bodies WHERE operation_id=$1 ORDER BY ordinal DESC LIMIT 1",[selected.operationId])).rows[0],raw=JSON.parse(Buffer.from(objects.get(receipt.object_key)!).toString());
+  expect(Buffer.from(raw.content,"base64").equals(bytes)).toBe(true);expect(raw.sha).toBe(blobSha);expect((await evidence.readPassage(f.task.id,selected.result.evidence.id)).text).toBe(expected);
+  const defaultRead=await completedCall(f,"read_file",{fileId});expect(defaultRead.result.content).toBe(new TextDecoder().decode(bytes.subarray(0,4096),{stream:true}));expect(Buffer.byteLength(defaultRead.result.content)).toBeGreaterThan(512);
+  const next=await completedCall(f,"read_file",{fileId,offset:selected.result.content.length,maxBytes:128});expect(next.result.content).toBe(new TextDecoder().decode(Buffer.from(text.slice(selected.result.content.length)).subarray(0,128),{stream:true}));
+  await expect(call(f,"read_file",{fileId,offset:text.indexOf("😀")+1,maxBytes:128})).rejects.toMatchObject({code:"CONNECTED_TEXT_BOUNDARY"});
+ });
+ it("rejects empty or unbounded exact-path filters and filePath on another operation before network",async()=>{
+  const f=await fixture(),list=f.bindings.find(binding=>binding.definition.providerOperation==="list_tree")!,metadata=f.bindings.find(binding=>binding.definition.providerOperation==="get_repository")!,revisionId=randomUUID(),before=requests.length;
+  const schema=connectedModelTool(list).function.parameters as any;expect(schema.properties.filePath).toEqual({type:"string",minLength:1,maxLength:1024});
+  for(const filePath of ["","x".repeat(1025),4,null])await expect(executor.execute(f.task.id,randomUUID(),list,{revisionId,filePath})).rejects.toThrow();
+  await expect(executor.execute(f.task.id,randomUUID(),metadata,{repository:"approved/public",filePath:"guide.md"})).rejects.toThrow();
+  const read=f.bindings.find(binding=>binding.definition.providerOperation==="read_file")!;
+  for(const maxBytes of [127,4097,128.5,"512",null])await expect(executor.execute(f.task.id,randomUUID(),read,{fileId:randomUUID(),maxBytes})).rejects.toThrow();
+  await expect(executor.execute(f.task.id,randomUUID(),list,{revisionId,maxBytes:512})).rejects.toThrow();expect(requests).toHaveLength(before);
  });
  it("keeps full receipts replayable while model projections preserve handles and obey current evidence policy",async()=>{
   const f=await fixture(),revision=await call(f,"resolve_ref",{repository:"approved/public"}),listing=await call(f,"list_tree",{revisionId:(revision.result.handles as any).revisionId});

@@ -4,7 +4,7 @@ import { createBoundedFetch, type NetworkAttempt } from "./connected-network";
 import { PlatformError, requestDigest } from "./contracts";
 import type { ResourceHandle } from "./capability-catalog";
 
-export const GITHUB_ADAPTER_RELEASE = "github-public-read-v2";
+export const GITHUB_ADAPTER_RELEASE = "github-public-read-v3";
 export const GITHUB_LIMITS = Object.freeze({ responseBytes: 2097152, modelResultBytes: 8192, wallMs: 30000,
   physicalRequests: 3, releasesPerPage: 20, treeEntries: 2000, fileBytes: 1048576 });
 export const githubOperationSchema = z.enum(["get_repository", "list_releases", "resolve_ref", "list_tree", "read_file"]);
