@@ -10,8 +10,8 @@ import { capabilityBindingSchema, type CapabilityBinding } from "./capability-ca
 import type { DependencyManifest } from "./source-contracts";
 export {transaction} from "./database";
 
-export const HARNESS_RELEASE = "connected-research-v2";
-export const WORKFLOW_NAME = "AgentsBusinessRunV5";
+export const HARNESS_RELEASE = "connected-research-v3";
+export const WORKFLOW_NAME = "AgentsBusinessRunV6";
 export interface Execution { task: TaskRecord & { turn_sequence: string; history_cutoff: string | null;
   tokens_used: number; tokens_reserved: number; root_token_limit: number; model_calls: number; tool_calls: number;
   deadline_at: Date; harness_release: string; control_generation: string; pending_outcome: TaskOutcome | null }; configuration: AgentConfiguration; agentId: string;

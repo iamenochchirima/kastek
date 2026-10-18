@@ -470,7 +470,7 @@ recorded receipts resolve before registry lookup. Public repository connections 
 GitHub and DeepWiki reads; Stash uses selected private item IDs and encrypted bearer credentials.
 These profiles retain the same task, connection and evidence authority boundaries.
 
-The versioned AgentsBusinessRunV5 Restate workflow owns repeated model/tool execution. Each task
+The versioned AgentsBusinessRunV6 Restate workflow owns repeated model/tool execution. Each task
 pins its agent configuration and harness release. Ordered conversation turns wait for the preceding
 execution and its recorded result. A short database transaction assigns order and freezes eligible
 history; it does not run the agent loop or hold a lock during external work.
@@ -479,7 +479,11 @@ The context assembler selects authorized prior exchanges, knowledge, accepted pe
 reviewed pinned skills and complete tool-call/result groups. Each ordinary or compaction model
 request has an immutable context snapshot, digest, source references and memory invalidation fence.
 Recorded compaction reduces older groups while retaining unresolved requests and operation/artifact
-references. Summaries are derived data and never grant authority or prove an effect succeeded.
+references. A single complete tool group can be compacted when it overflows the next request.
+If the fixed instructions, tools and resulting summary still exceed the limit, execution ends
+incomplete instead of repeatedly compacting an empty context. Replaying a recorded context keeps
+its original evidence parents and rechecks their current policy.
+Summaries are derived data and never grant authority or prove an effect succeeded.
 Every influencing source/connection/memory dependency survives the summary and child join.
 A delegated brief retains an immutable snapshot of its parent dependencies, checked under
 the parent authority. Narrow specialist retrieval grants do not erase that provenance.
