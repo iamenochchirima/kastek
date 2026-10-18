@@ -123,7 +123,8 @@ artifact references survive destruction for the permitted replay window.
 
 Lina execution remains unavailable. Report writes require exact approval;
 connected native/MCP tools are restricted reads. Local fixtures verify transport
-controls; authenticated GitHub acceptance remains a release gate.
+controls. Public repository reads use anonymous native GitHub and DeepWiki endpoints;
+keyed Stash and GitHub checks remain separate from that public acceptance.
 
 ## Connected action and automation authority
 
@@ -172,7 +173,9 @@ lane so a storage outage cannot hold physical allocation capacity indefinitely.
 Public acquisition pins and validates DNS/IP destinations, TLS hosts, HTTPS port,
 redirect authorization and byte/time bounds. The model cannot encode private
 facts into paths, queries, headers or subdomains: connected reads accept only
-owner-selected public identifiers and server-issued revision/file handles.
+owner-selected public identifiers and server-issued revision/file handles. Stash
+receives only explicitly approved private item IDs and bounded offsets. Anonymous
+public connections store no credential and transmit no Authorization header.
 There is no arbitrary model URL or free-text external search tool.
 
 Hostile MCP schemas are validated in a bounded child process before SDK schema

@@ -24,7 +24,7 @@ startup. It does not migrate an older database or import Growth state.
 | `connections.ts`, `vault.ts`, `actions.ts`, `report-delivery.ts` | Scoped encrypted credentials, exact report review, atomic dispatch claims and read-only receipt reconciliation. |
 | `automations.ts`, `automation-authority.ts`, `automation-runtime.ts` | Immutable owner authorization, occurrence inbox, shared admission and Restate UTC timers. |
 | `capability-catalog.ts`, `connected-catalog-store.ts`, `connected-executor.ts` | Immutable selected tools, executable releases, issued handles and durable connected receipts. |
-| `connected-network.ts`, `github-adapter.ts`, `mcp-adapter.ts` | Bounded public egress, native GitHub reads and isolated official MCP SDK execution. |
+| `connected-network.ts`, `github-adapter.ts`, `stash-adapter.ts`, `mcp-adapter.ts` | Bounded egress, anonymous/keyed native reads, scoped Stash text and isolated MCP SDK execution. |
 | `knowledge.ts`, `knowledge-routes.ts`, `ingestion-runtime.ts` | Private candidates, owner approval, revision policy and durable import stages. |
 | `document-runtime.ts`, `document-reaper.ts`, `source-objects.ts`, `execution-objects.ts` | Pinned no-network parsing/embedding, physical cleanup and object write/deletion intents. |
 | `retrieval.ts`, `query-embedding.ts`, `knowledge-runtime.ts`, `evidence.ts` | Scoped lexical/hybrid retrieval, passage references and transitive policy dependencies. |
@@ -38,7 +38,7 @@ membership, permissions, and domain records. Embedded execution remains unavaila
 | --- | --- | --- |
 | `/app/agents` | Configure/publish business versions, manual Test and website publication. | Platform/harness browser suites and live fixtures. |
 | `/app/knowledge` | Upload text/PDF/HTML, import one public URL, inspect candidates, approve, adopt revisions and withdraw. | Actual compiled ingestion, crash recovery and responsive browser acceptance. |
-| `/app/connections` | Create report/GitHub profiles, select API/MCP tools, rotate and revoke. | Browser mocks and actual local HTTP/SDK/credential checks; authenticated GitHub pending. |
+| `/app/connections` | Create report, public repository, GitHub and Stash profiles; select API/MCP tools, replace supported keys and revoke. | Responsive browser mocks and local HTTP/SDK/credential checks; external acceptance is recorded separately. |
 | `/app/automations` | Pin report versions, authorize UTC/event triggers, inspect occurrences and control future runs. | Actual Restate timer/event HTTP checks and scheduled-report fixture. |
 | `/app/tasks/:taskId` | Inspect root/children/resources, exact report review, permitted downloads and delivery receipts. | Real compiled-worker scheduled-report acceptance and assigned-reviewer regressions. |
 
@@ -267,7 +267,7 @@ conversations, a completed memory.search tool receipt, pinned skills and correct
 The website/widget journey and real Keycloak checks remain distinct acceptance paths. Worker signature
 fixtures do not certify cluster key distribution or a production deployment.
 
-Authenticated GitHub native/hosted-MCP acceptance remains pending. Arbitrary destination writes, local-time cron/DST schedules, Lina execution and evaluation adapters remain unavailable. Subagents require explicit published bindings; analysis also requires the pinned backend, resource controls and private storage.
+Public repository reads require no external credential. Keyed Stash and GitHub acceptance remains separately opt-in. Arbitrary destination writes, local-time cron/DST schedules, Lina execution and evaluation adapters remain unavailable. Subagents require explicit published bindings; analysis also requires the pinned backend, resource controls and private storage.
 Production rollout, secret management, durable log retention, monitoring, backups,
 and signup-email delivery require separate verification. There are no active OTLP
 exporters. Services emit bounded structured stdout diagnostics.

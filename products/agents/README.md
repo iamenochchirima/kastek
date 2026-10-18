@@ -247,7 +247,7 @@ recovery and a real free-model website FAQ. No external connector is mocked into
 that free-model proof. `AGENTS_INGESTION_BROWSER=1` additionally requires the local
 Vite fixture on port 3113 and drives import, preview, approval and withdrawal.
 
-The real GitHub check requires a separately approved fine-grained read-only PAT
+The optional keyed GitHub check requires a separately approved fine-grained read-only PAT
 in `AGENTS_GITHUB_ACCEPTANCE_TOKEN` and its actual finite ISO expiry in
 `AGENTS_GITHUB_ACCEPTANCE_EXPIRES_AT`. It reads the default approved public
 `github/github-mcp-server` repository; the test header lists explicit overrides.
@@ -262,8 +262,8 @@ That check uses fixed official native/hosted-MCP endpoints, records negotiated
 protocol/schema hashes and has no model calls. A skipped check is not provider
 acceptance. The scheduled knowledge journey has passed with the free model, two
 specialists, gVisor analysis, exact report review and delivery recovery across two
-worker restarts. The combined real-provider journey remains incomplete until the
-credential gate and authenticated native/MCP reads pass.
+worker restarts. Public repository acceptance uses anonymous native GitHub and DeepWiki MCP reads;
+it requires no provider key. Keyed GitHub and Stash acceptance are separate opt-in checks.
 
 The combined provider journey is a separate opt-in path. It requires the same
 approved GitHub configuration, `OPENROUTER_API_KEY`, an owned fixture database in
@@ -287,3 +287,31 @@ checks a worker restart after completed connected reads. The provider mode stops
 before resource allocation when its approved credential or expiry is missing.
 Preparing this path does not establish live-provider acceptance; that proof remains
 pending until the configured journey exits successfully against GitHub.
+
+
+For the public repository journey, build the API, start Vite on port 3100, and
+provide an owned disposable PostgreSQL fixture through
+`AGENTS_BROWSER_FIXTURE_STATE_PATH` or `AGENTS_BROWSER_FIXTURE_DATABASE_URL`. The
+prepared document and analysis runtimes and local MinIO binary are required. From
+the repository root:
+
+```sh
+AGENTS_PUBLIC_REPOSITORY_JOURNEY=1 AGENTS_AUTOMATION_LIVE=1 AGENTS_BROWSER_REAL_MODEL=1 \
+  node --env-file=products/agents/api/.env \
+  --import ./products/agents/api/node_modules/tsx/dist/loader.mjs \
+  products/agents/api/test/browser-fixture.ts
+```
+
+The default approved public repository is `modelcontextprotocol/typescript-sdk`, ref `main`, file
+`README.md`. The native specialist reads an issued immutable file handle. The MCP
+specialist reads its DeepWiki documentation structure. Each has a distinct imported
+source and tool scope. The fixture verifies exact evidence quotes, a dated report
+with explicit gaps, isolated analysis, completed-read replay after restart and
+reviewed delivery recovery. It uses the approved free model and no provider token.
+
+For private Stash acceptance, use `AGENTS_STASH_JOURNEY=1` with the same automation
+and model flags. Supply `STASH_AGENT_KEY`, the explicitly approved project note or
+idea ID in `AGENTS_STASH_ACCEPTANCE_ITEM_ID`, and an exact first-passage quote in
+`AGENTS_STASH_ACCEPTANCE_EXPECT`. The two specialists use `get_item` and
+`read_project_document` respectively. Stash credentials stay in protected local
+configuration, never command arguments, model context or browser state.

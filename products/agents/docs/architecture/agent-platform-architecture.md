@@ -466,7 +466,9 @@ cannot alter replay. Evidence manifests retain influencing source, connection an
 generations separately from model-visible text. Dependency collection deduplicates shared ancestors
 and rejects cycles, missing records and conflicting generations. Native/MCP reads share the
 business operation controller and root budgets. API and worker pin matching executable artifacts;
-recorded receipts resolve before registry lookup. Authenticated GitHub acceptance remains pending.
+recorded receipts resolve before registry lookup. Public repository connections use anonymous native
+GitHub and DeepWiki reads; Stash uses selected private item IDs and encrypted bearer credentials.
+These profiles retain the same task, connection and evidence authority boundaries.
 
 The versioned AgentsBusinessRunV5 Restate workflow owns repeated model/tool execution. Each task
 pins its agent configuration and harness release. Ordered conversation turns wait for the preceding

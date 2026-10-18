@@ -8,8 +8,60 @@ adapter remains unavailable.
 | --- | --- | --- |
 | External agents to Growth or Agencies | Product-owned MCP with OAuth or scoped API keys. | Separate product work; no Agents gateway. |
 | Product backends to Agents execution | Authenticated service with initiating identity and bounded authority. | Future integration. |
-| Business agents to external reads | Immutable selected native HTTP or MCP bindings, current connection/resource authority and durable receipts. | GitHub public-repository profile implemented; authenticated GitHub acceptance is pending. |
+| Business agents to external reads | Immutable selected native HTTP or MCP bindings, current connection/resource authority and durable receipts. | Public repository and Stash profiles implemented; see acceptance status below. |
 | Business agents to report delivery | Exact report bytes, one human approval, one dispatch claim, status-only recovery. | ReportDeliveryHTTP with a verified persistent local receiver. |
+
+## Public repository reads
+
+The `public-repository-read-v1` profile requires no external credential. It combines
+anonymous GitHub REST reads with DeepWiki MCP at `https://mcp.deepwiki.com/mcp`.
+The owner selects exact public repositories and refs. A connection retains local
+ownership, policy generation and a finite authorization window; its credential
+revision has a SQL NULL envelope. No Authorization header is sent to either service.
+Key replacement is unavailable for this profile.
+
+Native reads use the same commit/file handles as the keyed GitHub profile. DeepWiki
+permits only `read_wiki_structure` and `read_wiki_contents` for an approved repository.
+The model cannot send a question, URL or private context to DeepWiki. A native
+public-repository check consumes one physical read before each MCP invocation.
+DeepWiki documentation is a timestamped provider observation, not a snapshot of the
+Git commit. Missing indexes, oversized responses and tool errors remain explicit;
+the adapter does not request indexing or follow returned links.
+
+## Private Stash reads
+
+The `stash-read-v1` profile connects to `https://api.stash.kasitek.co.za/mcp` using
+an encrypted Stash agent key. The owner selects exact note or idea IDs. Stash keys
+have account-wide authority, so Agents independently limits each binding and
+specialist to selected items. Only `get_item` and `read_project_document` are allowed;
+there are no search, write, summary-generation or original-file tools in this profile.
+The second tool requires a project document.
+
+A finite connection expiry is an Agents authorization window. It does not assert
+that a manual Stash key has a provider expiry. Key replacement and revocation use
+the existing connection controls. Outgoing arguments contain only the approved
+item ID and bounded offset. Private item identifiers use the
+`approved_resource_identifiers` disclosure policy.
+
+The executor reads Stash's inline JSON text envelope, verifies the item ID, kind,
+revision and document chunk metadata, and records a bounded text passage and
+citation. It excludes unrelated item metadata from model context. A changed item
+revision within one root yields an explicit conflict; a fresh task can read the new
+revision. UTF-16 offsets cannot turn split surrogate pairs into replacement text
+in stored evidence. Stash REST cookies and the chat connector's credentials are
+not reused by the worker.
+
+## MCP compatibility
+
+The isolated SDK supports MCP 2026-07-28 and the explicit 2025-11-25 negotiation
+path. Schemas retain their original digests. The restricted schema subset accepts
+2020-12 and compatible draft-07 schemas, UUID format and the boolean-true
+`x-fastmcp-wrap-result` annotation used by DeepWiki. Arbitrary patterns, other
+formats, nested dialect changes and unknown extensions remain denied.
+Local fixtures and public-service probes have separate evidence. Stash worker
+acceptance requires an explicitly supplied read key; using Stash in the chat does
+not establish acceptance through Agents. GitHub's authenticated MCP endpoint is an
+optional integration check, not a prerequisite for public MCP execution.
 
 ## Outbound GitHub reads
 
