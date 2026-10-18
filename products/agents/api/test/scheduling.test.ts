@@ -1,6 +1,6 @@
 import {randomUUID} from "node:crypto";
 import {Pool} from "pg";
-import {beforeAll,afterAll,describe,it,expect} from "vitest";
+import {beforeAll,afterAll,afterEach,describe,it,expect} from "vitest";
 import {defaultBusinessConfiguration,executionGrantSchema,type AdmissionAuthority} from "../src/contracts/contracts";
 import {PlatformStore} from "../src/product/agents/store";
 import {setupPlatformSchema} from "../src/composition/setup";
@@ -14,6 +14,12 @@ const dbUrl=process.env.AGENTS_TEST_DATABASE_URL;
  const dbname=`agents_schedule_${randomUUID().replaceAll('-','')}`;
  beforeAll(async()=>{admin=new Pool({connectionString:dbUrl});await admin.query(`CREATE DATABASE "${dbname}"`);const url=new URL(dbUrl!);url.pathname=`/${dbname}`;pool=new Pool({connectionString:url.href,max:8});await setupPlatformSchema(pool);store=new PlatformStore(pool);});
  afterAll(async()=>{await pool?.end();if(admin){await admin.query(`DROP DATABASE IF EXISTS "${dbname}" WITH(FORCE)`);await admin.end();}});
+ afterEach(async()=>{
+  expect((await pool.query(`SELECT a.organization_id FROM agents_platform.tenant_admission a WHERE a.active_roots<>(SELECT count(*) FROM agents_platform.tasks t
+   WHERE t.organization_id=a.organization_id AND t.parent_task_id IS NULL AND t.state NOT IN ('completed','incomplete','refused','failed','cancelled','uncertain'))`)).rows).toEqual([]);
+  expect((await pool.query(`SELECT b.key FROM agents_platform.capacity_buckets b WHERE b.used_active<0 OR b.used_active>b.max_active
+   OR b.used_active<>(SELECT count(*) FROM agents_platform.capacity_holds h WHERE h.bucket_key=b.key)`)).rows).toEqual([]);
+ });
  async function tasks(){
   const account=await store.ensureAccount({issuer:'http://localhost/test',subject:randomUUID(),email:'schedule@example.com',displayName:'Fixture'}),org=await store.createOrganization(account.id,'Scheduler fixture');
   const config=defaultBusinessConfiguration();const agent=await store.createAgent({accountId:account.id,organizationId:org.id,name:'Fixture',configuration:config});

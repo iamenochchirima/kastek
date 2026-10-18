@@ -537,6 +537,10 @@ its durable notification, then recheck authority before activating a grant.
 Active or uncertain provider calls retain their holds until confirmed settlement
 or explicit reconciliation. Provisional grants may expire; an expired generation
 cannot start a call. No provider wait holds a database transaction.
+Bucket counters change in the same transaction as their hold rows; admission does
+not count the full hold table. Sorted locks are acquired in one query. Queue
+deadlines, provisional expiry and recorded grant delay use the database clock.
+Only a promoted queued request publishes a capacity wakeup and grant observation.
 
 `AGENTS_SCHEDULING_POLICY_JSON` contains validated finite operator limits for
 product, tenant, workload and provider capacity, queue depth, maximum waiting time,
@@ -590,6 +594,9 @@ Operation start/finish locks the execution root rather than the organization.
 Admission and daily quota settlement retain their existing transactional fences;
 `maxConcurrentRoots` and `dailyTokenAllowance` come from the validated operator
 policy. A provisional permit cannot outlive task cancellation or settlement.
+Root admission reads a tenant counter maintained transactionally by task-state
+triggers. Children do not consume root slots, and repeated settlement cannot
+release the same slot twice.
 The scheduler checks conversation authority before taking request/bucket locks,
 so a blocked ownership check does not block permit settlement.
 

@@ -58,6 +58,7 @@ async function sourceIdentity(){
  const hash=createHash('sha256');let files=0;
  async function walk(directory:string){for(const entry of (await readdir(directory,{withFileTypes:true})).sort((a,b)=>a.name.localeCompare(b.name))){const path=join(directory,entry.name);if(entry.isDirectory())await walk(path);else if(/\.(ts|sql)$/.test(entry.name)){hash.update(path.slice(api.length)).update(await readFile(path));files++;}}}
  await walk(join(api,'src'));await walk(join(api,'schema'));for(const name of ['scheduling-load.ts','scheduling-load-process.ts'])hash.update(await readFile(join(__dirname,name)));
+ hash.update(await readFile(join(api,'package.json')));hash.update(await readFile(join(repository,'pnpm-lock.yaml')));
  return {digest:hash.digest('hex'),files};
 }
 async function main(){

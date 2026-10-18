@@ -1,6 +1,7 @@
 CREATE TABLE agents_platform.capacity_buckets (
  key text PRIMARY KEY CHECK(length(key) BETWEEN 1 AND 256),
  max_active integer NOT NULL CHECK(max_active BETWEEN 1 AND 100000),
+ used_active integer NOT NULL DEFAULT 0 CHECK(used_active>=0 AND used_active<=max_active),
  updated_at timestamptz NOT NULL DEFAULT now()
 );
 CREATE TABLE agents_platform.capacity_requests (
@@ -17,6 +18,7 @@ CREATE TABLE agents_platform.capacity_requests (
  finished_at timestamptz,
  error_code text
 );
+CREATE INDEX capacity_waiting_buckets ON agents_platform.capacity_requests USING gin(bucket_keys) WHERE state='waiting';
 CREATE INDEX capacity_waiters ON agents_platform.capacity_requests(created_at,id) WHERE state='waiting';
 CREATE INDEX capacity_task ON agents_platform.capacity_requests(task_id,state);
 CREATE TABLE agents_platform.capacity_holds (
@@ -49,8 +51,32 @@ CREATE TABLE agents_platform.scheduling_tenants (
 CREATE FUNCTION agents_platform.register_scheduling_tenant() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
  INSERT INTO agents_platform.scheduling_tenants(organization_id) VALUES(NEW.id);
+ INSERT INTO agents_platform.tenant_admission(organization_id) VALUES(NEW.id);
  RETURN NEW;
 END $$;
 CREATE TRIGGER organizations_scheduler AFTER INSERT ON agents_platform.organizations FOR EACH ROW EXECUTE FUNCTION agents_platform.register_scheduling_tenant();
 CREATE INDEX scheduling_dispatch_turn ON agents_platform.scheduling_tenants(last_dispatch_at,organization_id);
 CREATE INDEX scheduling_capacity_turn ON agents_platform.scheduling_tenants(last_capacity_at,organization_id);
+CREATE TABLE agents_platform.tenant_admission (
+ organization_id uuid PRIMARY KEY REFERENCES agents_platform.organizations(id),
+ active_roots integer NOT NULL DEFAULT 0 CHECK(active_roots BETWEEN 0 AND 100000)
+);
+CREATE FUNCTION agents_platform.track_root_activity() RETURNS trigger LANGUAGE plpgsql AS $$
+DECLARE old_active integer:=0; new_active integer:=0; owner_id uuid;
+BEGIN
+ IF TG_OP<>'INSERT' THEN
+  owner_id:=OLD.organization_id;
+  IF OLD.parent_task_id IS NULL AND OLD.state NOT IN ('completed','incomplete','refused','failed','cancelled','uncertain') THEN old_active:=1; END IF;
+ END IF;
+ IF TG_OP<>'DELETE' THEN
+  owner_id:=NEW.organization_id;
+  IF NEW.parent_task_id IS NULL AND NEW.state NOT IN ('completed','incomplete','refused','failed','cancelled','uncertain') THEN new_active:=1; END IF;
+ END IF;
+ IF new_active<>old_active THEN
+  UPDATE agents_platform.tenant_admission SET active_roots=active_roots+new_active-old_active WHERE organization_id=owner_id;
+  IF NOT FOUND THEN RAISE EXCEPTION 'Missing tenant admission counter'; END IF;
+ END IF;
+ RETURN NULL;
+END $$;
+CREATE TRIGGER tasks_active_roots AFTER INSERT OR UPDATE OF state,parent_task_id OR DELETE ON agents_platform.tasks
+ FOR EACH ROW EXECUTE FUNCTION agents_platform.track_root_activity();

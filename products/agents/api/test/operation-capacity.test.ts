@@ -4,7 +4,7 @@ import {beforeAll,afterAll,describe,it,expect} from "vitest";
 import {defaultBusinessConfiguration,executionGrantSchema,type AdmissionAuthority} from "../src/contracts/contracts";
 import {PlatformStore} from "../src/product/agents/store";
 import {setupPlatformSchema} from "../src/composition/setup";
-import {beginOperation,finishOperation} from '../src/execution/lifecycle/execution';
+import {beginOperation,finishOperation,settleTask} from '../src/execution/lifecycle/execution';
 import {advanceCapacity} from "../src/execution/scheduling/capacity";
 const dbUrl=process.env.AGENTS_TEST_DATABASE_URL;
 (dbUrl?describe:describe.skip)("native operation capacity PostgreSQL",()=>{
@@ -36,6 +36,8 @@ const dbUrl=process.env.AGENTS_TEST_DATABASE_URL;
   const replay=await beginOperation(pool,a!.id,three);expect(replay).toMatchObject({replayed:true,operation:{state:'completed'}});
   expect((await pool.query('SELECT count(*)::int n FROM agents_platform.operation_usage WHERE operation_id=$1',[three.id])).rows[0].n).toBe(1);
   expect((await pool.query('SELECT count(*)::int n FROM agents_platform.capacity_holds WHERE request_id=$1',[three.id])).rows[0].n).toBe(0);
+  await settleTask(pool,a!.id,{state:'completed'});await settleTask(pool,a!.id,{state:'completed'});
+  expect((await pool.query('SELECT active_roots FROM agents_platform.tenant_admission WHERE organization_id=$1',[a!.organization_id])).rows[0].active_roots).toBe(1);
  });
  it('revocation wins a queued operation without invoking or charging it',async()=>{
   const [a,b]=await tasks(),op=(id:string)=>({id,kind:'model' as const,name:'model.generate',request:{id},reservedTokens:100,reservedMs:1000});

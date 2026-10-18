@@ -73,8 +73,9 @@ export class AdmissionStore extends AuthorityStore {
       if (existing.request_digest !== digest) throw new PlatformError("IDEMPOTENCY_CONFLICT", 409, "The request key was used for different input");
       return { task: existing, replayed: true };
     }
-    const active = (await db.query<{ count: string }>("SELECT count(*) FROM agents_platform.tasks WHERE organization_id=$1 AND parent_task_id IS NULL AND state IN ('accepted','running','waiting_children','waiting_authority','waiting_review','reconciling','cancel_requested')", [input.authority.organizationId])).rows[0]!;
-    if (Number(active.count) >= policy.maxConcurrentRoots) throw new PlatformError("CONCURRENCY_LIMIT", 429, "Too many tasks are running");
+    const active=(await db.query<{active_roots:number}>("SELECT active_roots FROM agents_platform.tenant_admission WHERE organization_id=$1 FOR UPDATE",[input.authority.organizationId])).rows[0];
+    if(!active)throw new PlatformError("ADMISSION_STATE_UNAVAILABLE",503,"Admission capacity is unavailable");
+    if(active.active_roots>=policy.maxConcurrentRoots)throw new PlatformError("CONCURRENCY_LIMIT",429,"Too many tasks are running");
     const reservation = grant.rootTokenLimit;
     if(input.channelBinding) await channelPorts(db).assertBinding(db,channelBindingSchema.parse(input.channelBinding),
       {organization_id:input.authority.organizationId,version_id:version.id,root_task_id:"admitting"});

@@ -111,7 +111,6 @@ async function finishOperationInTransaction(db: PoolClient, execution: Execution
   const charged = await db.query(`INSERT INTO agents_platform.operation_usage(operation_id,task_id,accounted_tokens,outcome)
     VALUES($1,$2,$3,$4) ON CONFLICT(operation_id) DO NOTHING RETURNING operation_id`, [op.id, op.task_id, accounted, state]);
   if (!charged.rowCount) return;
-  await releaseCapacity(db,op.id,state);
   const elapsed = Math.max(0,Date.now()-new Date(op.started_at).getTime());
   const duration = state === "uncertain" ? Math.max(op.reserved_ms,elapsed) : elapsed;
   await db.query(`UPDATE agents_platform.operations SET state=$2,output=$3,error_code=$4,accounted_tokens=$5,completed_at=now() WHERE id=$1`,
@@ -125,6 +124,7 @@ async function finishOperationInTransaction(db: PoolClient, execution: Execution
   [execution.task.root_task_id,accounted,op.reserved_tokens,execution.task.parent_task_id?op.reserved_tokens-accounted:0,
     duration,op.reserved_ms,execution.task.parent_task_id?op.reserved_ms-duration:0]);
   await event(db, op.task_id, `result:${op.id}`, `operation.${state}`, { operationId: op.id, accountedTokens: accounted, errorCode });
+  await releaseCapacity(db,op.id,state);
 }
 export async function finishOperation(pool: Pool, taskId: string, operationId: string,
   state: "completed" | "failed" | "uncertain", output: unknown, errorCode: string | null, tokens: number): Promise<void> {
