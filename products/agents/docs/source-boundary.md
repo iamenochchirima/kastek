@@ -194,7 +194,7 @@ reported as cancellation.
 
 ## Connected reports and automation
 
-`AgentsBusinessRunV8` (`connected-research-v5`) runs the trusted `report-delivery-v1`
+`AgentsBusinessRunV9` (`connected-research-v6`) runs the trusted `report-delivery-v1`
 workflow after the ordinary agent loop. Required stages select or create a private
 report, validate its sources, prepare an exact action packet, wait for human
 review, and deliver or reconcile it. A sandbox-enabled report must select one
