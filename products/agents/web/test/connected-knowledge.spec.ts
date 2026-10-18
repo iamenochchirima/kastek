@@ -1,3 +1,4 @@
+import { navigateWorkspace } from "./workspace-fixtures";
 import { resolve } from "node:path";
 import { mkdir } from "node:fs/promises";
 import { test, expect } from "@playwright/test";
@@ -74,7 +75,7 @@ for (const width of [1440, 768, 390]) {
     const evidence = resolve(process.cwd(), "../../../.audit"); await mkdir(evidence, { recursive: true });
     await page.screenshot({ path: resolve(evidence, `connected-knowledge-${width}.png`), fullPage: true, animations: "disabled" });
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-    await page.getByRole("link", { name: "Connections", exact: true }).click();
+    await navigateWorkspace(page, "Connections");
     await page.getByRole("button", { name: "Add connection", exact: true }).click();
     dialog = page.getByRole("dialog");
     await expect(dialog.getByRole("textbox", { name: "Name", exact: true })).toBeFocused();

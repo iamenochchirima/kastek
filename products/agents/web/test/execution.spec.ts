@@ -1,3 +1,4 @@
+import { agentSummary, conversationSummaries, configure } from "./workspace-fixtures";
 import { readFile, writeFile } from "node:fs/promises";
 import { expect, test, type Page } from "@playwright/test";
 
@@ -22,6 +23,8 @@ async function executionFixture(page: Page) {
     let data: unknown;
     if (path === "/api/session") data = { account: { id: "owner", email: "owner@example.com", displayName: "Owner" }, organizations: [{ id: org, name: "Workspace", role: "owner" }] };
     else if (path.endsWith(`/agents/${rootAgent}`)) { if (method === "PUT") configuration = body.configuration; data = { agent: agent(), versions: [{ id: rootVersion, number: 1, configuration }], deployments: [] }; }
+    else if (path.endsWith("/agents/summaries")) data = {agents:[agentSummary(agent(),{id:rootVersion,number:1})],nextCursor:null};
+    else if (path.endsWith("/conversations")) data = {conversations:task?conversationSummaries([task],agent(),{id:rootVersion,number:1}):[],nextCursor:null};
     else if (path.endsWith("/agents")) data = { agents: [agent(), { id: specialistAgent, name: "Source researcher" }, { id: secondAgent, name: "Evidence reviewer" }] };
     else if (path.endsWith(`/agents/${specialistAgent}`)) data = { versions: [{ id: specialistVersion, number: 3, configuration: { ...draft(), tools: ["knowledge.search", "knowledge.read"] } }] };
     else if (path.endsWith(`/agents/${secondAgent}`)) data = { versions: [{ id: secondVersion, number: 2, configuration: { ...draft(), tools: ["knowledge.search", "knowledge.read"] } }] };
@@ -32,7 +35,7 @@ async function executionFixture(page: Page) {
     else if (path.endsWith("/tasks") && method === "POST") { admissions++; task = { id: "root-task", state: "running", input: body.input, output: null, conversationId: "research-conversation", requestKey: body.requestKey, turnSequence: 1 }; data = { task }; }
     else if (path.endsWith("/root-task/continue")) { continuations++; childAuthorityExpired = false; data = { task }; }
     else if (path.endsWith("/root-task/cancel")) { cancels++; task = { ...task!, state: "cancel_requested" }; data = { task }; }
-    else if (path.includes("/conversations/")) data = { tasks: task ? [task] : [] };
+    else if (path.includes("/conversations/")) data = { tasks: task ? [{...task,versionId:rootVersion}] : [],nextCursor:null,conversation:{versionId:rootVersion,versionNumber:1} };
     else if (path.endsWith("/tasks/root-task")) {
       gets++;
       task = { ...task!, state: complete ? cancels ? "cancelled" : "completed" : cancels ? "cancel_requested" : childAuthorityExpired ? "waiting_children" : "running", output: complete && !cancels ? "The report compares both specialists and includes the analysis." : null };
@@ -46,7 +49,7 @@ async function executionFixture(page: Page) {
 
 test("mock execution: pinned specialist scope, no-network analysis, related progress, cleanup and downloads", async ({ page }) => {
   const fixture = await executionFixture(page);
-  await page.goto(`/app/agents/${rootAgent}`);
+  await page.goto(`/app/agents/${rootAgent}?section=configuration`);
   await page.getByRole("checkbox", { name: "Delegate to specialists" }).check();
   await page.getByRole("combobox", { name: "Specialist 1", exact: true }).selectOption(specialistVersion);
   await page.getByRole("checkbox", { name: /^Approved report/ }).last().check();
@@ -66,9 +69,9 @@ test("mock execution: pinned specialist scope, no-network analysis, related prog
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await page.screenshot({ path: test.info().outputPath(`execution-config-${width}.png`), fullPage: true });
   }
-  await page.getByRole("button", { name: "Test", exact: true }).click();
+  await page.getByRole("button", { name: "Chat", exact: true }).click();
   await page.getByRole("textbox", { name: "Message" }).fill("Research and analyze this report.");
-  await page.getByRole("button", { name: "Send", exact: true }).click();
+  await page.getByRole("button", { name: "Send message", exact: true }).click();
   await expect(page.getByRole("region", { name: "Specialist tasks" })).toContainText("Source researcher");
   await expect(page.getByRole("region", { name: "Analysis resources" })).toContainText("Cleanup pending");
   await page.reload();
@@ -100,7 +103,7 @@ test("mock execution: cancellation addresses the accepted root and follows child
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(`/app/agents/${rootAgent}?section=test`);
   await page.getByRole("textbox", { name: "Message" }).fill("Research with specialists.");
-  await page.getByRole("button", { name: "Send", exact: true }).click();
+  await page.getByRole("button", { name: "Send message", exact: true }).click();
   await expect(page.getByRole("region", { name: "Specialist tasks" })).toBeVisible();
   await page.getByRole("button", { name: "Cancel task", exact: true }).focus();
   await page.keyboard.press("Enter");
@@ -119,7 +122,7 @@ test("mock execution: uncertain cleanup remains visible and refresh follows the 
   const fixture = await executionFixture(page);
   await page.goto(`/app/agents/${rootAgent}?section=test`);
   await page.getByRole("textbox", { name: "Message" }).fill("Analyze the approved data.");
-  await page.getByRole("button", { name: "Send", exact: true }).click();
+  await page.getByRole("button", { name: "Send message", exact: true }).click();
   await expect(page.getByRole("region", { name: "Analysis resources" })).toBeVisible();
   fixture.finish(); fixture.cleanupUncertain();
   await expect(page.getByText("Cleanup outcome unknown", { exact: true })).toBeVisible();
@@ -141,7 +144,7 @@ test("live execution: accepted root reconnects to specialists, isolated analysis
   const separator = cookie!.indexOf("=");
   await context.addCookies([{ name: separator > 0 ? cookie!.slice(0, separator) : new URL(baseURL!).protocol === "https:" ? "__Host-agents_session" : "agents_session", value: separator > 0 ? cookie!.slice(separator + 1) : cookie!, url: baseURL!, httpOnly: true, sameSite: "Lax" }]);
   await page.goto(agentPath!);
-  await page.getByRole("button", { name: "Configuration", exact: true }).click();
+  await configure(page);
   const pinnedVersions = process.env.AGENTS_ADVANCED_SPECIALIST_VERSIONS?.split(",");
   if (pinnedVersions?.length === 2) {
     await page.getByRole("checkbox", { name: "Delegate to specialists" }).check();
@@ -161,12 +164,12 @@ test("live execution: accepted root reconnects to specialists, isolated analysis
   await expect(page.getByRole("combobox", { name: "Specialist 1", exact: true })).not.toHaveValue("");
   await expect(page.getByRole("combobox", { name: "Specialist 2", exact: true })).not.toHaveValue("");
   await expect(page.getByRole("checkbox", { name: "Run Python analysis" })).toBeChecked();
-  await page.getByRole("button", { name: "Test", exact: true }).click();
-  if (pinnedVersions?.length === 2) await page.getByRole("button", { name: "Create test version", exact: true }).click();
+  await page.getByRole("button", { name: "Chat", exact: true }).click();
+  if (pinnedVersions?.length === 2) { await configure(page); await page.getByRole("button", { name: "Create version", exact: true }).click(); await page.getByRole("button", { name: "Chat", exact: true }).click(); }
   await expect(page.getByRole("textbox", { name: "Message" })).toBeEnabled();
   await page.getByRole("textbox", { name: "Message" }).fill(prompt!);
   const acceptedResponse = page.waitForResponse(response => /\/tasks$/.test(new URL(response.url()).pathname) && response.request().method() === "POST");
-  await page.getByRole("button", { name: "Send", exact: true }).click();
+  await page.getByRole("button", { name: "Send message", exact: true }).click();
   const response = await acceptedResponse;
   expect(response.ok()).toBe(true);
   const accepted = (await response.json()).task as { id: string };
@@ -175,7 +178,7 @@ test("live execution: accepted root reconnects to specialists, isolated analysis
   page.on("request", request => { if (request.method() === "POST" && /\/tasks$/.test(new URL(request.url()).pathname)) repeatedAdmission++; });
   await page.reload();
   await expect(page.getByRole("region", { name: "Specialist tasks" })).toBeVisible({ timeout: 180_000 });
-  await expect(page.getByRole("button", { name: "New conversation" })).toBeEnabled({ timeout: 180_000 });
+  await expect.poll(async () => { const response = await page.request.get(taskPath); expect(response.ok()).toBe(true); return (await response.json()).task.state; }, { timeout: 180_000 }).toMatch(/^(completed|incomplete|refused|failed|cancelled|uncertain)$/);
   type Detail = { task: { id: string; state: string; output: string | null; errorCode?: string | null }; children: { id: string; state: string; rootTaskId: string }[]; resources: { id: string; cleanupState: string; profile: string }[]; artifacts: { id: string; name: string; bytes: number; downloadPath: string }[] };
   const settledResponse = await page.request.get(taskPath);
   expect(settledResponse.ok()).toBe(true);
@@ -226,7 +229,7 @@ test("mock execution: parent continues a specialist awaiting current access with
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(`/app/agents/${rootAgent}?section=test`);
   await page.getByRole("textbox", { name: "Message" }).fill("Research with the approved specialists.");
-  await page.getByRole("button", { name: "Send", exact: true }).click();
+  await page.getByRole("button", { name: "Send message", exact: true }).click();
   await expect(page.getByRole("region", { name: "Specialist tasks" })).toBeVisible();
   fixture.expireChildAuthority();
   await expect(page.getByRole("button", { name: "Continue task", exact: true })).toBeVisible();

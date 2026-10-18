@@ -1,3 +1,4 @@
+import { agentSummary } from "./workspace-fixtures";
 import { resolve } from "node:path";
 import { test, expect } from "@playwright/test";
 
@@ -23,13 +24,15 @@ for (const width of [1440, 768, 390]) {
       else if (path.endsWith(`/agents/${root}`)) {
         if (request.method() === "PUT") { saved = request.postDataJSON().configuration; draft = saved as typeof draft; }
         data = { agent: { id: root, name: "Researcher", draft, draftRevision: saved ? 2 : 1 }, versions: [], deployments: [] };
-      } else if (path.endsWith("/agents")) data = { agents: [{ id: root, name: "Researcher" }, { id: child, name: "Shared specialist" }, { id: child2, name: "Isolated specialist" }] };
+      } else if (path.endsWith("/agents/summaries")) data = {agents:[agentSummary({id:root,name:"Researcher"})],nextCursor:null};
+      else if (path.endsWith("/conversations")) data = {conversations:[],nextCursor:null};
+      else if (path.endsWith("/agents")) data = { agents: [{ id: root, name: "Researcher" }, { id: child, name: "Shared specialist" }, { id: child2, name: "Isolated specialist" }] };
       else if (path.endsWith(`/agents/${child}`)) data = { versions: [{ id: "child-version", number: 1, configuration: { ...base, sourceRevisionIds: [revision1], connectedToolBindingIds: ["shared-tool", "unavailable-tool"] } }] };
       else if (path.endsWith(`/agents/${child2}`)) data = { versions: [{ id: "second-version", number: 1, configuration: base }] };
       else { await route.fulfill({ status: 404, json: { error: { message: "Missing fixture endpoint" } } }); return; }
       await route.fulfill({ json: data });
     });
-    await page.goto(`/app/agents/${root}`);
+    await page.goto(`/app/agents/${root}?section=configuration`);
     const knowledge = page.getByRole("group", { name: "Knowledge", exact: true });
     await knowledge.getByRole("checkbox", { name: /Returns/ }).check();
     await expect(page.getByRole("combobox", { name: "Returns revision", exact: true })).toHaveValue(revision2);

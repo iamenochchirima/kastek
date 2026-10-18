@@ -1,3 +1,4 @@
+import { configure } from "./workspace-fixtures";
 import { readFile, writeFile } from "node:fs/promises";
 import { expect, test, type Page } from "@playwright/test";
 
@@ -162,6 +163,7 @@ test("live automation: scheduled report survives review and delivery interruptio
   await page.getByRole("dialog").getByRole("button", { name: "Add connection", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Local acceptance receiver" })).toBeVisible();
   await page.goto(process.env.AGENTS_ADVANCED_AGENT_PATH!);
+  await configure(page);
   await page.getByRole("checkbox", { name: "Delegate to specialists" }).check();
   const versions = process.env.AGENTS_ADVANCED_SPECIALIST_VERSIONS!.split(",");
   await page.getByRole("combobox", { name: "Specialist 1", exact: true }).selectOption(versions[0]);
@@ -188,9 +190,9 @@ test("live automation: scheduled report survives review and delivery interruptio
   await page.getByRole("textbox", { name: "Delivery title", exact: true }).fill("Verified dataset report");
   await page.getByRole("button", { name: "Save configuration", exact: true }).click();
   await expect(page.getByRole("button", { name: "Save configuration", exact: true })).toBeDisabled();
-  await page.getByRole("button", { name: "Test", exact: true }).click();
+  await configure(page);
   const publicationResponse = page.waitForResponse(response => /\/versions$/.test(new URL(response.url()).pathname) && response.request().method() === "POST");
-  await page.getByRole("button", { name: "Create test version", exact: true }).click();
+  await page.getByRole("button", { name: "Create version", exact: true }).click();
   const publication = await publicationResponse;
   expect(publication.ok(), await publication.text()).toBe(true);
   const pinned = (await publication.json()).version.id as string;
@@ -211,7 +213,7 @@ test("live automation: scheduled report survives review and delivery interruptio
   await expect(page.getByRole("link", { name: "Open task", exact: true })).toBeVisible({ timeout: 60_000 });
   await page.getByRole("link", { name: "Open task", exact: true }).click();
   const taskId = new URL(page.url()).pathname.split("/").at(-1)!;
-  if(connected)expect((await page.request.post("http://127.0.0.1:4398/fixture/restart-connected",{timeout:240_000})).ok()).toBe(true);
+  if(connected)expect((await page.request.post(`${process.env.AGENTS_BROWSER_WIDGET_ORIGIN}/fixture/restart-connected`,{timeout:240_000})).ok()).toBe(true);
   await expect(page.getByRole("button", { name: "Approve delivery", exact: true })).toBeVisible({ timeout: 180_000 });
   const review = page.getByRole("region", { name: "Report delivery" });
   await expect(review).toContainText("Verified dataset report");
@@ -234,12 +236,12 @@ test("live automation: scheduled report survives review and delivery interruptio
   originalDetail.actions ??= (await (await page.request.get(`${taskPath}/actions`)).json()).actions;
   expect(originalDetail.children).toHaveLength(2);
   expect(originalDetail.children.every((child: { state: string }) => child.state === "completed")).toBe(true);
-  expect((await page.request.post("http://127.0.0.1:4398/fixture/restart-review")).ok()).toBe(true);
+  expect((await page.request.post(`${process.env.AGENTS_BROWSER_WIDGET_ORIGIN}/fixture/restart-review`)).ok()).toBe(true);
   await page.reload();
   await expect(review.locator("pre")).toHaveText(reviewedBytes!);
   await expect(page.getByRole("button", { name: "Approve delivery", exact: true })).toBeEnabled();
   await page.getByRole("button", { name: "Approve delivery", exact: true }).click();
-  expect((await page.request.post("http://127.0.0.1:4398/fixture/interrupt-delivery", { timeout: 90_000 })).ok()).toBe(true);
+  expect((await page.request.post(`${process.env.AGENTS_BROWSER_WIDGET_ORIGIN}/fixture/interrupt-delivery`, { timeout: 90_000 })).ok()).toBe(true);
   await page.reload();
   await expect(review.getByText(/^Receipt /)).toBeVisible({ timeout: 90_000 });
   await expect(page.getByText("completed", { exact: true })).toBeVisible({ timeout: 30_000 });

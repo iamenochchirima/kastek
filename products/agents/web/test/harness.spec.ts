@@ -1,3 +1,4 @@
+import { agentSummary, conversationSummaries, configure, chooseConversation, newChat } from "./workspace-fixtures";
 import { test, expect } from "@playwright/test";
 
 const org = "11111111-1111-4111-8111-111111111111";
@@ -20,6 +21,8 @@ test("mock transport: reviewed memory, pinned skills, factual progress and conte
     let data: unknown;
     if (path === "/api/session") data = { account: { id: "owner", email: "owner@example.com", displayName: "Owner" }, organizations: [{ id: org, name: "Workspace", role: "owner" }] };
     else if (path.endsWith(`/agents/${agentId}`)) { if (method === "PUT") agent = { ...agent, draft: body.configuration, draftRevision: agent.draftRevision + 1 }; data = { agent, versions: [{ id: versionId, number: 1, configuration: agent.draft }], deployments: [] }; }
+    else if (path.endsWith("/agents/summaries")) data = {agents:[agentSummary(agent,{id:versionId,number:1})],nextCursor:null};
+    else if (path.endsWith("/conversations")) data = {conversations:conversationSummaries(tasks,agent,{id:versionId,number:1}),nextCursor:null};
     else if (path.endsWith("/knowledge/sources")) data = { sources: [], imports: [] };
     else if (path.endsWith("/tool-bindings")) data = { bindings: [] };
     else if (path.endsWith("/connections")) data = { connections: [], targets: [] };
@@ -29,18 +32,18 @@ test("mock transport: reviewed memory, pinned skills, factual progress and conte
     else if (path.endsWith("/memory/memory-1") && method === "PATCH") { expect(body.expectedRevision).toBe(2); items = items.map(item => ({ ...item, content: body.content, revision: 3 })); data = {}; }
     else if (path.endsWith("/memory/memory-1/forget")) { expect(body.expectedRevision).toBe(3); items = []; data = {}; }
     else if (path.endsWith("/tasks") && method === "POST") { posts.push(body); const conversationId = body.conversationId ?? `conversation-${tasks.length + 1}`; const task = { id: `task-${tasks.length + 1}`, state: "completed", input: body.input, output: tasks.length === 1 ? "You said your name is Ada." : "Hello Ada.", conversationId, requestKey: body.requestKey, turnSequence: tasks.filter(t => t.conversationId === conversationId).length + 1, versionId }; tasks.push(task); data = { task }; }
-    else if (path.includes("/conversations/")) data = { tasks: tasks.filter(task => path.endsWith(task.conversationId)) };
+    else if (path.includes("/conversations/")) data = { tasks: tasks.filter(task => path.endsWith(task.conversationId)),nextCursor:null,conversation:{versionId,versionNumber:1} };
     else if (path.includes("/tasks/")) data = { task: tasks.find(task => path.endsWith(task.id)), events: [{ sequence: 1, kind: "context_prepared" }, { sequence: 2, kind: "completed" }], operations: [{ operationId: "op-1", kind: "tool", name: "memory.search", state: "completed" }] };
     else { await route.fulfill({ status: 404, json: { error: { message: "Not found" } } }); return; }
     await route.fulfill({ json: data });
   });
-  await page.goto(`/app/agents/${agentId}`);
+  await page.goto(`/app/agents/${agentId}?section=configuration`);
   await expect(page.getByRole("heading", { name: "Assistant", exact: true })).toBeVisible();
   await page.getByRole("checkbox", { name: "Use personal memory" }).check();
   await page.getByRole("button", { name: "Save configuration" }).click();
   await expect(page.getByRole("button", { name: "Save configuration" })).toBeDisabled();
   expect(agent.draft.memory.enabled).toBe(true);
-  await page.getByRole("button", { name: "Memory", exact: true }).click();
+  await configure(page, "Memory");
   await page.getByRole("button", { name: "Add memory", exact: true }).click();
   await page.getByRole("textbox", { name: "Memory", exact: true }).fill("I prefer concise replies.");
   await page.getByRole("button", { name: "Add suggestion" }).click();
@@ -55,7 +58,7 @@ test("mock transport: reviewed memory, pinned skills, factual progress and conte
   await expect(page.getByRole("dialog")).toBeVisible();
   await page.getByRole("button", { name: "Forget memory", exact: true }).click();
   await expect(page.getByText(/No saved memories/)).toBeVisible();
-  await page.getByRole("button", { name: "Skills", exact: true }).click();
+  await configure(page, "Skills");
   await page.getByRole("textbox", { name: "Skill name" }).fill("check-sources");
   await page.getByRole("textbox", { name: "Description", exact: true }).fill("Use references.");
   await page.getByRole("textbox", { name: "Procedure" }).fill("Cite approved sources when answering factual questions.");
@@ -63,27 +66,27 @@ test("mock transport: reviewed memory, pinned skills, factual progress and conte
   await page.getByRole("checkbox", { name: /I reviewed this procedure/ }).check();
   await page.getByRole("button", { name: "Publish skill" }).click();
   await expect(page.getByText("check-sources", { exact: false }).first()).toBeVisible();
-  await page.getByRole("button", { name: "Configuration", exact: true }).click();
+  await configure(page);
   await page.getByRole("checkbox", { name: /check-sources/ }).check();
   await page.getByRole("button", { name: "Save configuration" }).click();
   await expect(page.getByRole("button", { name: "Save configuration" })).toBeDisabled();
   expect(agent.draft.skillIds).toEqual(["skill-1"]);
-  await page.getByRole("button", { name: "Test", exact: true }).click();
+  await page.getByRole("button", { name: "Chat", exact: true }).click();
   await page.getByRole("textbox", { name: "Message" }).fill("My name is Ada.");
-  await page.getByRole("button", { name: "Send", exact: true }).click();
+  await page.getByRole("button", { name: "Send message", exact: true }).click();
   await expect(page.getByText("Hello Ada.", { exact: true })).toBeVisible();
   await page.getByText("Task details", { exact: true }).click();
   await expect(page.getByText("memory.search", { exact: true })).toBeVisible();
   await page.getByRole("textbox", { name: "Message" }).fill("What is my name?");
-  await page.getByRole("button", { name: "Send", exact: true }).click();
+  await page.getByRole("button", { name: "Send message", exact: true }).click();
   await expect(page.getByText("You said your name is Ada.", { exact: true })).toBeVisible();
   expect(posts[1].conversationId).toBe("conversation-1");
   await page.reload();
   await expect(page.getByText("You said your name is Ada.", { exact: true })).toBeVisible();
   expect(posts).toHaveLength(2);
-  await page.getByRole("button", { name: "New conversation" }).click();
+  await newChat(page);
   await expect(page.getByRole("textbox", { name: "Message" })).toHaveValue("");
-  await page.getByRole("combobox", { name: "Saved conversations" }).selectOption("conversation-1");
+  await chooseConversation(page, "My name is Ada.");
   await expect(page.getByRole("paragraph").filter({ hasText: /^My name is Ada\.$/ })).toBeVisible();
   for (const width of [768, 390, 1440]) {
     await page.setViewportSize({ width, height: 1000 });
@@ -116,60 +119,63 @@ test("live harness: scoped memory, tool rounds, contextual follow-up and new con
   await page.getByRole("checkbox", { name: "Use personal memory" }).check();
   await page.getByRole("button", { name: "Save configuration" }).click();
   await expect(page.getByRole("button", { name: "Save configuration" })).toBeDisabled();
-  await page.getByRole("button", { name: "Memory", exact: true }).click();
+  await configure(page, "Memory");
   await page.getByRole("button", { name: "Add memory", exact: true }).click();
   await page.getByRole("textbox", { name: "Memory", exact: true }).fill("My favorite color is cobalt blue.");
   await page.getByRole("button", { name: "Add suggestion" }).click();
   await expect(page.getByRole("dialog")).not.toBeVisible();
   await page.getByRole("button", { name: "Remember", exact: true }).click();
   await expect(page.getByRole("button", { name: "Correct", exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "Skills", exact: true }).click();
+  await configure(page, "Skills");
   await page.getByRole("textbox", { name: "Skill name" }).fill(`brief-replies-${suffix}`);
   await page.getByRole("textbox", { name: "Description", exact: true }).fill("Keep replies brief.");
   await page.getByRole("textbox", { name: "Procedure" }).fill("Answer in one short sentence. Report uncertainty when facts are unavailable.");
   await page.getByRole("checkbox", { name: /I reviewed this procedure/ }).check();
   await page.getByRole("button", { name: "Publish skill" }).click();
+  await page.getByText("Publish a skill", {exact:true}).click();
   await expect(page.getByRole("textbox", { name: "Skill name" })).toHaveValue("");
-  await page.getByRole("button", { name: "Configuration", exact: true }).click();
+  await configure(page);
   await page.getByRole("checkbox", { name: new RegExp(`brief-replies-${suffix}`) }).check();
   await page.getByRole("button", { name: "Save configuration" }).click();
   await expect(page.getByRole("button", { name: "Save configuration" })).toBeDisabled();
-  await page.getByRole("button", { name: "Test", exact: true }).click();
-  await page.getByRole("button", { name: "Create test version" }).click();
+  await page.getByRole("button", { name: "Chat", exact: true }).click();
+  await configure(page);
+  await page.getByRole("button", { name: "Create version", exact: true }).click();
+  await page.getByRole("button", { name: "Chat", exact: true }).click();
   const acceptedTasks: string[] = [];
   let taskEndpoint = "";
   async function send(input: string) {
     await page.getByRole("textbox", { name: "Message" }).fill(input);
     const response = page.waitForResponse(result => /\/tasks$/.test(new URL(result.url()).pathname) && result.request().method() === "POST");
-    await page.getByRole("button", { name: "Send", exact: true }).click();
+    await page.getByRole("button", { name: "Send message", exact: true }).click();
     const admitted = await response; expect(admitted.ok()).toBe(true);
     acceptedTasks.push((await admitted.json()).task.id);
     taskEndpoint = new URL(admitted.url()).pathname;
-    await expect(page.getByRole("button", { name: "New conversation" })).toBeEnabled({ timeout: 150_000 });
+    await expect.poll(async () => { const response = await page.request.get(`${taskEndpoint}/${encodeURIComponent(acceptedTasks.at(-1)!)}`); expect(response.ok()).toBe(true); return (await response.json()).task.state; }, { timeout: 150_000 }).toMatch(/^(completed|incomplete|refused|failed|cancelled|uncertain)$/);
   }
   await send("My project code is ORCHID-17. Acknowledge it.");
   await page.reload();
-  await expect(page.getByText("My project code is ORCHID-17. Acknowledge it.", { exact: true })).toBeVisible();
+  await expect(page.getByRole("article").getByText("My project code is ORCHID-17. Acknowledge it.", { exact: true })).toBeVisible();
   await send("What is my project code? Use our earlier conversation.");
   await expect(page.getByRole("article", { name: "Turn 2", exact: true }).getByRole("paragraph").filter({ hasText: /ORCHID-17/ })).toBeVisible();
-  await page.getByRole("button", { name: "New conversation" }).click();
+  await newChat(page);
   await send("Call memory.search to look up my favorite color, then tell me the color.");
   await expect(page.getByRole("paragraph").filter({ hasText: /cobalt/i })).toBeVisible();
   const records = await Promise.all(acceptedTasks.map(async taskId => {
     const response = await page.request.get(`${taskEndpoint}/${encodeURIComponent(taskId)}`);
     expect(response.ok()).toBe(true);
-    return response.json() as Promise<{ task: { id: string; conversationId: string; turnSequence: number }; operations: { kind: string; name: string; state: string }[] }>;
+    return response.json() as Promise<{ task: { id: string; input: string; conversationId: string; turnSequence: number }; operations: { kind: string; name: string; state: string }[] }>;
   }));
   const toolTask = records.find(record => record.operations.some(operation => operation.kind === "tool" && operation.name === "memory.search" && operation.state === "completed"));
   expect(toolTask, "The real model must complete at least one factual memory.search operation across the accepted tasks").toBeDefined();
   if (toolTask!.task.conversationId !== records.at(-1)!.task.conversationId) {
-    await page.getByRole("combobox", { name: "Saved conversations" }).selectOption(toolTask!.task.conversationId);
+    await chooseConversation(page, toolTask!.task.input);
   }
   const toolTurn = page.getByRole("article", { name: `Turn ${toolTask!.task.turnSequence}`, exact: true });
   if (!(await toolTurn.locator("details").evaluate(element => (element as HTMLDetailsElement).open))) await toolTurn.getByText("Task details", { exact: true }).click();
   await expect(toolTurn.getByRole("list", { name: "Task operations" }).getByText("memory.search", { exact: true }).first()).toBeVisible();
   console.log(`Verified real memory.search receipt in ${toolTask!.task.id}`);
-  await page.getByRole("button", { name: "Memory", exact: true }).click();
+  await configure(page, "Memory");
   await page.getByRole("button", { name: "Correct", exact: true }).click();
   await page.getByRole("textbox", { name: "Memory", exact: true }).fill("My favorite color is forest green.");
   await page.getByRole("button", { name: "Save correction" }).click();
@@ -199,22 +205,24 @@ test("mock transport: waiting task continues with current access and preserves i
     let data: unknown;
     if (path === "/api/session") data = { account: { id: "owner", email: "owner@example.com", displayName: "Owner" }, organizations: [{ id: org, name: "Workspace", role: "owner" }] };
     else if (path.endsWith(`/agents/${agentId}`)) data = { agent: { id: agentId, name: "Assistant", draft: configuration, draftRevision: 1 }, versions: [{ id: versionId, number: 1, configuration }], deployments: [] };
+    else if (path.endsWith("/agents/summaries")) data = {agents:[agentSummary({id:agentId,name:"Assistant"},{id:versionId,number:1})],nextCursor:null};
+    else if (path.endsWith("/conversations")) data = {conversations:task?conversationSummaries([task],{id:agentId,name:"Assistant"},{id:versionId,number:1}):[],nextCursor:null};
     else if (path.endsWith("/knowledge/sources")) data = { sources: [], imports: [] };
     else if (path.endsWith("/tool-bindings")) data = { bindings: [] };
     else if (path.endsWith("/connections")) data = { connections: [], targets: [] };
     else if (path.endsWith("/skills")) data = { skills: [] };
     else if (path.endsWith("/tasks") && method === "POST") { admissions++; const body = request.postDataJSON(); task = { id: "waiting-task", state: "waiting_authority", input: body.input, requestKey: body.requestKey, conversationId: "waiting-conversation", turnSequence: 1, output: null }; data = { task }; }
     else if (path.endsWith("/waiting-task/continue") && method === "POST") { continuations++; task = { ...task!, state: "completed", output: "The original task continued." }; data = { task }; }
-    else if (path.includes("/conversations/")) data = { tasks: task ? [task] : [] };
+    else if (path.includes("/conversations/")) data = { tasks: task ? [{...task,versionId}] : [],nextCursor:null,conversation:{versionId,versionNumber:1} };
     else if (path.endsWith("/tasks/waiting-task")) data = { task, operations: [], events: [] };
     else { await route.fulfill({ status: 404, json: { error: { message: "Not found" } } }); return; }
     await route.fulfill({ json: data });
   });
   await page.goto(`/app/agents/${agentId}?section=test`);
   await page.getByRole("textbox", { name: "Message" }).fill("Continue my research.");
-  await page.getByRole("button", { name: "Send", exact: true }).click();
+  await page.getByRole("button", { name: "Send message", exact: true }).click();
   await expect(page.getByRole("button", { name: "Continue task", exact: true })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Send", exact: true })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Send message", exact: true })).toBeDisabled();
   await page.reload();
   await expect(page.getByRole("button", { name: "Continue task", exact: true })).toBeVisible();
   expect(admissions).toBe(1);

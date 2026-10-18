@@ -1,3 +1,4 @@
+import { agentSummary, conversationSummaries, configure } from "./workspace-fixtures";
 import { test, expect, type Page } from "@playwright/test";
 
 const cookie = process.env.AGENTS_BROWSER_SESSION_COOKIE;
@@ -34,7 +35,10 @@ async function addKnowledge(page: Page, title: string, content: string) {
 }
 async function openAgent(page: Page, name: string) {
   await page.getByRole("link", { name: "Agents", exact: true }).last().click();
-  await page.getByRole("link", { name: `${name} Open →` }).click();
+  const agentLink = page.getByRole("navigation", { name: "Agent directory", exact: true }).getByRole("link", { name: new RegExp(`^${name}`) });
+  if ((page.viewportSize()?.width ?? 1440) <= 640) await page.getByRole("button", {name:"Agents & history",exact:true}).click();
+  await agentLink.last().click();
+  await configure(page);
 }
 async function attachKnowledge(page: Page, title: string) {
   await page.getByRole("checkbox", { name: new RegExp(title) }).check();
@@ -61,6 +65,8 @@ test("mock transport: draft isolation, immutable versions, task reconnect, expli
     const body = ["POST", "PUT"].includes(method) ? request.postDataJSON() : {};
     let data: unknown;
     if (path === "/api/session") data = { account: { id: "test-owner", email: "owner@example.com", displayName: "Owner" }, organizations: [{ id: mockOrg, name: "Acme", role: "owner" }] };
+    else if (path.endsWith("/agents/summaries")) data = {agents: agent ? [agentSummary(agent,versions[0])] : [],nextCursor:null};
+    else if (path.endsWith("/conversations")) data = {conversations:task ? conversationSummaries([task],agent!,versions[0]) : [],nextCursor:null};
     else if (path.endsWith("/skills")) data = { skills: [] };
     else if (path.endsWith("/knowledge/sources")) data = { sources: knowledge, imports: [] };
     else if (path.endsWith("/tool-bindings")) data = { bindings: [] };
@@ -74,7 +80,7 @@ test("mock transport: draft isolation, immutable versions, task reconnect, expli
     else if (path === `/api/website/${mockDeployment}`) data = { name: agent!.name };
     else if (path.endsWith("/session")) { visitorSessions++; data = { token: "visitor-token" }; }
     else if (path.endsWith("/tasks") && method === "POST") { if (path.includes("/website/")) publicPosts++; else privatePosts++; task = { id: path.includes("/website/") ? "public-task" : "private-task", state: "accepted", output: null, errorCode: null, conversationId: "conversation", input: body.input, requestKey: body.requestKey }; data = { task }; }
-    else if (path.includes("/conversations/")) data = { tasks: task ? [task] : [] };
+    else if (path.includes("/conversations/")) data = { tasks: task ? [{...task,versionId:mockVersion,turnSequence:1}] : [],nextCursor:null,conversation:{versionId:mockVersion,versionNumber:1} };
     else if (path.includes("/tasks/")) { taskGets++; task = { ...task!, state: complete || path.includes("/website/") ? "completed" : "running", output: complete || path.includes("/website/") ? "Returns are accepted within 30 days." : null }; data = { task, events: [] }; }
     else { await route.fulfill({ status: 404, json: { error: { message: "Not found" } } }); return; }
     await route.fulfill({ json: data });
@@ -85,31 +91,33 @@ test("mock transport: draft isolation, immutable versions, task reconnect, expli
   await openAgent(page, "Acme Support");
   await attachKnowledge(page, "Returns");
   expect(deployments).toHaveLength(0);
-  await page.getByRole("button", { name: "Test", exact: true }).click();
-  await page.getByRole("button", { name: "Create test version" }).click();
+  await page.getByRole("button", { name: "Chat", exact: true }).click();
+  await configure(page);
+  await page.getByRole("button", { name: "Create version", exact: true }).click();
+  await page.getByRole("button", { name: "Chat", exact: true }).click();
   await page.getByRole("textbox", { name: "Message" }).fill("What is the return policy?");
-  await page.getByRole("button", { name: "Send", exact: true }).click();
+  await page.getByRole("button", { name: "Send message", exact: true }).click();
   await expect(page.getByText(/^running/)).toBeVisible();
   expect(privatePosts).toBe(1); expect(deployments).toHaveLength(0);
   await page.reload();
-  await page.getByRole("button", { name: "Test", exact: true }).click();
-  await expect(page.getByText("What is the return policy?", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Chat", exact: true }).click();
+  await expect(page.getByRole("article").getByText("What is the return policy?", { exact: true })).toBeVisible();
   complete = true;
   await expect(page.getByText("Returns are accepted within 30 days.", { exact: true })).toBeVisible();
   expect(privatePosts).toBe(1); expect(taskGets).toBeGreaterThan(1);
-  await page.getByRole("button", { name: "Publish", exact: true }).click();
+  await configure(page, "Website");
   await page.getByRole("button", { name: "Publish website", exact: true }).click();
   await page.getByRole("textbox", { name: "Allowed website origins" }).fill("https://example.com");
   await page.getByRole("button", { name: "Publish version", exact: true }).click();
   await expect(page.getByRole("link", { name: "Open website chat" })).toBeVisible();
   expect(deployments).toHaveLength(1);
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.getByRole("button", { name: "Configuration", exact: true }).click();
-  await expect(page.getByRole("button", { name: "Configuration", exact: true })).toHaveAttribute("aria-current", "page");
+  await configure(page);
+  await expect(page.getByRole("button", { name: "Configure", exact: true })).toHaveAttribute("aria-current", "page");
   await noOverflow(page);
   await page.goto(`/chat/${mockDeployment}`);
   await page.getByRole("textbox", { name: "Message" }).fill("Returns?");
-  await page.getByRole("button", { name: "Send", exact: true }).click();
+  await page.getByRole("button", { name: "Send message", exact: true }).click();
   await expect(page.getByText("Returns are accepted within 30 days.", { exact: true })).toBeVisible();
   expect(publicPosts).toBe(1); expect(visitorSessions).toBe(1);
   await expect(page.getByRole("navigation")).toHaveCount(0);
@@ -137,23 +145,25 @@ test("live platform: authenticated knowledge, private reply, task recovery and p
   await addKnowledge(page, `Returns ${suffix}`, "Acme accepts returns within 30 days with a receipt.");
   await openAgent(page, agentName);
   await attachKnowledge(page, `Returns ${suffix}`);
-  await page.getByRole("button", { name: "Test", exact: true }).click();
-  await page.getByRole("button", { name: "Create test version" }).click();
+  await page.getByRole("button", { name: "Chat", exact: true }).click();
+  await configure(page);
+  await page.getByRole("button", { name: "Create version", exact: true }).click();
+  await page.getByRole("button", { name: "Chat", exact: true }).click();
   await page.getByRole("textbox", { name: "Message" }).fill("How many days do I have to return an item?");
   let taskId = "";
   const admitted = page.waitForResponse(response => /\/tasks$/.test(new URL(response.url()).pathname) && response.request().method() === "POST");
-  await page.getByRole("button", { name: "Send", exact: true }).click();
+  await page.getByRole("button", { name: "Send message", exact: true }).click();
   const admittedResponse = await admitted; expect(admittedResponse.ok()).toBe(true); taskId = (await admittedResponse.json()).task.id;
   let resubmitted = false;
   const listener = (request: import("@playwright/test").Request) => { if (request.method() === "POST" && /\/tasks$/.test(new URL(request.url()).pathname)) resubmitted = true; };
   page.on("request", listener);
   await page.reload();
-  await page.getByRole("button", { name: "Test", exact: true }).click();
+  await page.getByRole("button", { name: "Chat", exact: true }).click();
   await expect(page.getByText(/30\s+days|thirty\s+days/i)).toBeVisible({ timeout: 120_000 });
   await page.getByText("Task details", { exact: true }).click();
   await expect(page.getByText(taskId, { exact: true })).toBeVisible();
   expect(resubmitted).toBe(false); page.off("request", listener);
-  await page.getByRole("button", { name: "Publish", exact: true }).click();
+  await configure(page, "Website");
   await page.getByRole("button", { name: "Publish website", exact: true }).click();
   await page.getByRole("textbox", { name: "Allowed website origins" }).fill(process.env.AGENTS_BROWSER_WIDGET_ORIGIN ?? "http://127.0.0.1:4398");
   await page.getByRole("button", { name: "Publish version", exact: true }).click();
@@ -165,7 +175,7 @@ test("live platform: authenticated knowledge, private reply, task recovery and p
   await page.screenshot({ path: test.info().outputPath("publication.png"), fullPage: true });
   await page.goto(publicPath!);
   await page.getByRole("textbox", { name: "Message" }).fill("What is the return window?");
-  await page.getByRole("button", { name: "Send", exact: true }).click();
+  await page.getByRole("button", { name: "Send message", exact: true }).click();
   await expect(page.getByText(/30\s+days|thirty\s+days/i)).toBeVisible({ timeout: 120_000 });
   await expect(page.getByRole("navigation")).toHaveCount(0);
   await page.setViewportSize({ width: 390, height: 844 }); await noOverflow(page);
@@ -177,7 +187,7 @@ test("live platform: authenticated knowledge, private reply, task recovery and p
     await page.goto(`${process.env.AGENTS_BROWSER_WIDGET_ORIGIN}/?deployment=${deploymentId}`);
     await page.getByRole("button", { name: "Chat", exact: true }).click();
     await page.getByRole("textbox", { name: "Message" }).fill("How long do returns take?");
-    await page.getByRole("button", { name: "Send", exact: true }).click();
+    await page.getByRole("button", { name: "Send message", exact: true }).click();
     await expect(page.getByText(/30\s+days|thirty\s+days/i)).toBeVisible({ timeout: 120_000 });
     await noOverflow(page);
     await page.screenshot({ path: test.info().outputPath("external-widget-mobile.png"), fullPage: true });
@@ -194,9 +204,9 @@ test("live platform: authenticated knowledge, private reply, task recovery and p
       else await route.fulfill({ response: accepted });
     });
     await page.getByRole("textbox", { name: "Message" }).fill("Do I need a receipt?");
-    await page.getByRole("button", { name: "Send", exact: true }).click();
+    await page.getByRole("button", { name: "Send message", exact: true }).click();
     await expect(page.getByRole("button", { name: "Retry request", exact: true })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Send", exact: true })).toBeDisabled();
+    await expect(page.getByRole("button", { name: "Send message", exact: true })).toBeDisabled();
     expect(recoveredTaskIds).toHaveLength(1);
     await page.reload();
     await page.getByRole("button", { name: "Chat", exact: true }).click();

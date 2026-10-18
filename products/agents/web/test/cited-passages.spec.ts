@@ -28,6 +28,6 @@ test("mock transport: recovery cache cannot display stale derived answers before
  let release!:()=>void;const barrier=new Promise<void>(resolve=>{release=resolve;});
  const current={id:"old-task",conversationId:"old-conversation",requestKey:"q1",input:"Owner question",state:"completed",output:null,outputAvailability:"unavailable",errorCode:null};
  await page.route("**/api/**",async route=>{const path=new URL(route.request().url()).pathname;if(path.endsWith(`/website/${deployment}`)){await route.fulfill({json:{name:"Website assistant"}});return;}await barrier;await route.fulfill({json:path.includes("/conversations/")?{tasks:[current]}:{task:current}});});
- await page.goto(`/chat/${deployment}`);await expect(page.getByText("Owner question",{exact:true})).toBeVisible();await expect(page.getByText(secret,{exact:true})).toHaveCount(0);
- release();await expect(page.getByText("This response is no longer available.",{exact:true})).toBeVisible();expect(await page.evaluate(key=>sessionStorage.getItem(key),key)).not.toContain(secret);
+ await page.goto(`/chat/${deployment}`);await expect(page.getByText("Owner question",{exact:true})).toHaveCount(0);await expect(page.getByText(secret,{exact:true})).toHaveCount(0);
+ release();await expect(page.getByText("Owner question",{exact:true})).toBeVisible();await expect(page.getByText("This response is no longer available.",{exact:true})).toBeVisible();expect(await page.evaluate(key=>sessionStorage.getItem(key),key)).not.toContain(secret);
 });
