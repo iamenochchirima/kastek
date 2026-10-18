@@ -167,7 +167,7 @@ async function buildSnapshot(pool: Pool, taskId: string, step: number, working: 
   let built;
   try { built = buildContext(input); }
   catch (error) {
-    if (error instanceof ModelOperationError && error.code === "CONTEXT_LIMIT" && history.length + active.length > 1) {
+    if (error instanceof ModelOperationError && error.code === "CONTEXT_LIMIT" && history.length + active.length > 0) {
       return { history, working: active, memoryFence, invalidated, needsCompaction: true };
     }
     throw error;

@@ -249,19 +249,29 @@ export class EvidenceStore {
     if (textDigest(text) !== row.content_digest) throw integrity();
     return {reference,label:row.citation_label,text,title:row.title,page:row.page,section:row.section};
   }
-  private async node(db: PoolClient, execution: Execution, kind: EvidenceKind, ownerId: string, evidenceIds: string[], parents: EvidenceNode[], inherited?:{evidenceIds:string[];manifest:DependencyManifest}): Promise<EvidenceNode> {
+  private async node(db: PoolClient, execution: Execution, kind: EvidenceKind, ownerId: string, evidenceIds: string[], parents: EvidenceNode[], inherited?:{evidenceIds:string[];manifest:DependencyManifest}, replayParents:"fixed"|"recorded"="fixed"): Promise<EvidenceNode> {
     const ids = [...new Set([...evidenceIds,...(inherited?.evidenceIds??[])])].sort(), parentIds = [...new Set(parents.map(parent=>parent.id))].sort();
-    if (ids.length > SOURCE_LIMITS.manifestNodes || parentIds.length > SOURCE_LIMITS.manifestNodes) throw new PlatformError("EVIDENCE_LIMIT",413,"Evidence graph exceeds its limit");
+    if (ids.length > SOURCE_LIMITS.manifestNodes) throw new PlatformError("EVIDENCE_LIMIT",413,"Evidence graph exceeds its limit");
+    const existing = (await db.query("SELECT * FROM agents_platform.evidence_nodes WHERE root_task_id=$1",[execution.task.root_task_id])).rows.map(row=>({row,node:nodeDto(row)}));
+    const graph = new Map(existing.map(({node})=>[node.id,node]));
+    const prior = existing.find(({node})=>node.taskId===execution.task.id && node.kind===kind && node.ownerId===ownerId);
+    if(prior){
+      // Later evidence must not rewrite a recorded node's parents during replay.
+      const recorded=prior.node;
+      if(replayParents==="fixed" && requestDigest(recorded.parents)!==requestDigest(parentIds)) throw integrity();
+      if(inherited?.manifest.dependencies.some(dependency=>!recorded.manifest.dependencies.some(prior=>requestDigest(prior)===requestDigest(dependency)))) throw integrity();
+      if(requestDigest(recorded.evidenceIds)!==requestDigest(ids) || prior.row.request_digest!==requestDigest({ids:recorded.evidenceIds,parentIds:recorded.parents,manifest:recorded.manifest})) throw integrity();
+      collectDependencyGraph([recorded.id],graph);
+      await assertCurrentEvidence(db,execution.task.id,recorded.manifest);
+      return recorded;
+    }
+    if(parentIds.length>SOURCE_LIMITS.manifestNodes) throw new PlatformError("EVIDENCE_LIMIT",413,"Evidence graph exceeds its limit");
     const dependencies: EvidenceDependency[] = [...await delegationDependency(db,execution.task.id),...parents.flatMap(parent=>parent.manifest.dependencies),...(inherited?.manifest.dependencies??[])];
     for (const id of evidenceIds) dependencies.push(...(await this.passage(db,execution.task.id,id)).reference.manifest.dependencies);
     const manifest = createDependencyManifest(dependencies);
     await assertCurrentEvidence(db,execution.task.id,manifest);
-    const existing = (await db.query("SELECT * FROM agents_platform.evidence_nodes WHERE root_task_id=$1",[execution.task.root_task_id])).rows.map(nodeDto);
-    const graph = new Map(existing.map(node=>[node.id,node]));
     collectDependencyGraph(parentIds,graph);
     const digest = requestDigest({ids,parentIds,manifest});
-    const prior = (await db.query("SELECT * FROM agents_platform.evidence_nodes WHERE task_id=$1 AND kind=$2 AND owner_id=$3",[execution.task.id,kind,ownerId])).rows[0];
-    if (prior) { if (prior.request_digest!==digest) throw integrity(); return nodeDto(prior); }
     return nodeDto((await db.query(`INSERT INTO agents_platform.evidence_nodes(id,organization_id,root_task_id,task_id,kind,owner_id,evidence_ids,parents,manifest,request_digest)
       VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,[randomUUID(),execution.task.organization_id,execution.task.root_task_id,execution.task.id,kind,ownerId,ids,parentIds,manifest,digest])).rows[0]);
   }
@@ -336,7 +346,7 @@ export class EvidenceStore {
         if(!memoryVisible(snapshot.payload,selected.id,origin.row.content))throw integrity();
         if(origin.row.revision!==selected.revision||origin.row.scope_id!==snapshot.memory_scope_id||Number(origin.row.generation)!==Number(snapshot.memory_generation))throw integrity();
         memoryDependencies.push(...origin.manifest.dependencies);inheritedIds.push(...origin.evidenceIds);}
-      return this.node(db,execution,"context",snapshotId,evidenceIds,parents,{manifest:createDependencyManifest(memoryDependencies),evidenceIds:inheritedIds});
+      return this.node(db,execution,"context",snapshotId,evidenceIds,parents,{manifest:createDependencyManifest(memoryDependencies),evidenceIds:inheritedIds},"recorded");
     });
   }
   async inheritArtifactWithin(db:PoolClient,targetTaskId:string,artifactId:string):Promise<EvidenceNode>{
@@ -347,7 +357,7 @@ export class EvidenceStore {
   async deriveWithin(db:PoolClient,taskId:string,kind:Exclude<EvidenceKind,"context">,ownerId:string):Promise<EvidenceNode>{
     const execution=await loadExecution(db,taskId);await assertCurrentAuthority(db,execution);
     const parents=(await db.query("SELECT * FROM agents_platform.evidence_nodes WHERE task_id=$1 AND NOT(kind=$2 AND owner_id=$3) ORDER BY created_at,id",[taskId,kind,ownerId])).rows.map(nodeDto);
-    return this.node(db,execution,kind,ownerId,[],parents);
+    return this.node(db,execution,kind,ownerId,[],parents,undefined,"recorded");
   }
   async artifactManifest(db:Db,taskId:string,artifactId:string):Promise<DependencyManifest>{
     const artifact=(await db.query("SELECT task_id FROM agents_platform.artifacts WHERE id=$1",[artifactId])).rows[0];
@@ -358,7 +368,7 @@ export class EvidenceStore {
   async derive(taskId: string, kind: Exclude<EvidenceKind,"context">, ownerId: string): Promise<EvidenceNode> {
     return this.scoped(taskId, async (db, execution) => {
       const parents = (await db.query("SELECT * FROM agents_platform.evidence_nodes WHERE task_id=$1 AND NOT(kind=$2 AND owner_id=$3) ORDER BY created_at,id",[taskId,kind,ownerId])).rows.map(nodeDto);
-      return this.node(db,execution,kind,ownerId,[],parents);
+      return this.node(db,execution,kind,ownerId,[],parents,undefined,"recorded");
     });
   }
   async joinChildren(taskId: string, operationId: string): Promise<EvidenceNode> {

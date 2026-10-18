@@ -22,7 +22,8 @@ import { textDigest } from "../src/platform/source-contracts";
 import { MemoryStore } from "../src/platform/memory";
 import { setupPlatformSchema } from "../src/platform/setup";
 import { PlatformStore } from "../src/platform/store";
-import { requestDigest as modelRequestDigest, type ModelRequest } from "../src/platform/model";
+import { toolsFor } from "../src/platform/tools";
+import { estimateRequestTokens, validateMessageGroups, requestDigest as modelRequestDigest, type ModelRequest } from "../src/platform/model";
 
 const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
 (databaseUrl ? describe : describe.skip)("common harness with real PostgreSQL/Restate and fixture model", () => {
@@ -650,6 +651,95 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     expect((await execute(next.task.id)).state).toBe("completed");
     expect(JSON.stringify(calls[1]!.messages)).not.toContain("Derived remembered preference is Shona");
   }, 30_000);
+  function nearLimitToolConfiguration():Partial<AgentConfiguration>{
+    const config=defaultFaqConfiguration();config.tools=["knowledge.search"];config.instructions="Use approved knowledge and preserve issued evidence identifiers. ";
+    const request:ModelRequest={model:config.model.model,maxInputTokens:8192,maxOutputTokens:config.model.maxOutputTokens,maxDurationSeconds:config.model.maxDurationSeconds,
+      messages:[{role:"system",content:config.instructions},{role:"user",content:"What are the opening hours?"}],tools:toolsFor(config)};
+    config.instructions+="p".repeat(7600-estimateRequestTokens(request));
+    return{instructions:config.instructions,tools:config.tools,context:{maxInputTokens:8192,compactAtTokens:6144}};
+  }
+  it("compacts a single complete overflowing tool group and replays its evidence without spending again",async()=>{
+    const f=await fixture(nearLimitToolConfiguration());
+    const evidence=businessOptions.evidence!,supply=evidence.supplyContext.bind(evidence);
+    let release!:()=>void,held=false,evidenceId="",citation="";
+    const barrier=new Promise<void>(resolve=>{release=resolve;});
+    evidence.supplyContext=async(...args)=>{const value=await supply(...args);if(args[0]===f.task.id&&args[1]===`context:${f.task.id}:2`&&!held){held=true;await barrier;}return value;};
+    provider=async body=>{
+      if(body.messages[0].content.startsWith("Summarize")){
+        const packed=JSON.parse(body.messages.find((message:any)=>message.role==="user"&&message.content.includes('"groupId"')).content);
+        expect(packed.records.map((message:any)=>message.role)).toEqual(["assistant","tool"]);validateMessageGroups(packed.records);
+        const passage=JSON.parse(packed.records[1].content).passages[0];evidenceId=passage.evidenceId;citation=passage.citation;
+        return reply(`Confirmed nine. Issued evidence ${evidenceId} ${citation}.`);
+      }
+      if(calls.length===1){expect(estimateRequestTokens(body)).toBeLessThanOrEqual(8192);return reply("","tool_calls",[tool("knowledge_search",{query:"opening"})]);}
+      expect(JSON.stringify(body.messages)).toContain(evidenceId);expect(JSON.stringify(body.messages)).toContain(citation);validateMessageGroups(body.messages);
+      return reply(`Open at nine ${citation}`);
+    };
+    try{
+      await dispatchTasksOnce(pool,{ingressUrl,adminUrl});await eventually(async()=>held);
+      expect(calls).toHaveLength(2);
+      const compactBefore=(await pool.query("SELECT id,output FROM agents_platform.operations WHERE task_id=$1 AND kind='compaction' AND state='completed'",[f.task.id])).rows;
+      expect(compactBefore).toHaveLength(1);
+      const nodeBefore=(await pool.query("SELECT id,evidence_ids,parents,manifest,request_digest FROM agents_platform.evidence_nodes WHERE task_id=$1 AND kind='context' AND owner_id=$2",[f.task.id,`context:${f.task.id}:2`])).rows[0];
+      const snapshot=(await pool.query("SELECT payload FROM agents_platform.context_snapshots WHERE id=$1",[`context:${f.task.id}:2`])).rows[0];
+      expect(snapshot.payload.estimatedTokens).toBeLessThanOrEqual(8192);expect(JSON.stringify(snapshot.payload)).toContain(evidenceId);
+      const late=await evidence.derive(f.task.id,"artifact","later-output");
+      const replayed=await evidence.supplyContext(f.task.id,`context:${f.task.id}:2`,[]);
+      expect(replayed.parents).toEqual(nodeBefore.parents);expect(replayed.parents).not.toContain(late.id);expect(replayed.parents).not.toContain(replayed.id);
+      await restart();const task=await execute(f.task.id);release();
+      expect(task.state,task.error_code).toBe("completed");expect(task.output).toContain(citation);expect(calls).toHaveLength(3);
+      expect(calls.filter(call=>call.messages[0]!.content?.startsWith("Summarize"))).toHaveLength(1);
+      expect((await pool.query("SELECT id,output FROM agents_platform.operations WHERE task_id=$1 AND kind='compaction' AND state='completed'",[f.task.id])).rows).toEqual(compactBefore);
+      expect((await pool.query("SELECT kind,count(*)::int AS count FROM agents_platform.operations WHERE task_id=$1 GROUP BY kind ORDER BY kind",[f.task.id])).rows).toEqual([{kind:"compaction",count:1},{kind:"model",count:2},{kind:"tool",count:2}]);
+      expect((await pool.query("SELECT root_token_limit FROM agents_platform.tasks WHERE id=$1",[f.task.id])).rows[0].root_token_limit).toBe(32000);
+      expect((await pool.query("SELECT tokens_used,tokens_reserved,model_calls FROM agents_platform.execution_roots WHERE root_task_id=$1",[f.task.id])).rows[0]).toEqual({tokens_used:168,tokens_reserved:0,model_calls:3});
+      expect((await evidence.taskManifest(f.task.id)).dependencies).toEqual(expect.arrayContaining([expect.objectContaining({kind:"source",revisionId:f.source.id})]));
+      const nodeAfter=(await pool.query("SELECT id,evidence_ids,parents,manifest,request_digest FROM agents_platform.evidence_nodes WHERE id=$1",[nodeBefore.id])).rows[0];
+      expect(nodeAfter).toEqual(nodeBefore);
+    }finally{release();evidence.supplyContext=supply;}
+  },30000);
+  it("rechecks current source policy when replaying an immutable compacted context",async()=>{
+    const f=await fixture(nearLimitToolConfiguration()),evidence=businessOptions.evidence!,supply=evidence.supplyContext.bind(evidence);
+    let release!:()=>void,held=false;const barrier=new Promise<void>(resolve=>{release=resolve;});
+    evidence.supplyContext=async(...args)=>{const value=await supply(...args);if(args[0]===f.task.id&&args[1]===`context:${f.task.id}:2`&&!held){held=true;await barrier;}return value;};
+    provider=async body=>body.messages[0].content.startsWith("Summarize")?reply("Confirmed opening hours nine."):reply("","tool_calls",[tool("knowledge_search",{query:"opening"})]);
+    try{
+      await dispatchTasksOnce(pool,{ingressUrl,adminUrl});await eventually(async()=>held);
+      const generation=(await pool.query("SELECT generation FROM agents_platform.sources WHERE id=$1",[f.source.sourceId])).rows[0].generation;
+      await f.source.knowledge.setPolicy({accountId:f.account.id,organizationId:f.org.id},f.source.sourceId,{operationId:randomUUID(),expectedGeneration:generation,action:"withdraw"});
+      await expect(evidence.supplyContext(f.task.id,`context:${f.task.id}:2`,[])).rejects.toMatchObject({code:"EVIDENCE_UNAVAILABLE"});
+      release();const task=await execute(f.task.id);expect(task.error_code).toBe("EVIDENCE_UNAVAILABLE");expect(calls).toHaveLength(2);
+    }finally{release();evidence.supplyContext=supply;}
+  },30000);
+  it("stops after one single-group compaction when its summary cannot fit the fixed context",async()=>{
+    const f=await fixture(nearLimitToolConfiguration());
+    provider=async body=>body.messages[0].content.startsWith("Summarize")?reply("s".repeat(384)):reply("","tool_calls",[tool("knowledge_search",{query:"opening"})]);
+    const task=await execute(f.task.id);
+    expect(task.state).toBe("incomplete");expect(task.error_code).toBe("CONTEXT_LIMIT");expect(calls).toHaveLength(2);
+    expect(calls.filter(call=>call.messages[0]!.content?.startsWith("Summarize"))).toHaveLength(1);
+    expect((await pool.query("SELECT count(*)::int AS count FROM agents_platform.operations WHERE task_id=$1 AND kind='compaction'",[f.task.id])).rows[0].count).toBe(1);
+  },30000);
+  it("rejects a changed explicit child-result parent set after an early empty join",async()=>{
+    const f=await researchFixture(),evidence=businessOptions.evidence!,operationId=`delegate:${f.task.id}`;
+    await beginOperation(pool,f.task.id,{id:operationId,kind:"delegation",name:"agents.delegate",request:childRequests,reservedTokens:0,reservedMs:60000});
+    const children=await admitChildren(pool,f.task.id,operationId,childRequests);
+    try{
+      const early=await evidence.joinChildren(f.task.id,operationId);expect(early.parents).toEqual([]);expect(early.evidenceIds).toEqual([]);
+      const childId=children[0]!.taskId,readId=`knowledge:${childId}:initial`;
+      await beginOperation(pool,childId,{id:readId,kind:"tool",name:"knowledge.search",request:{query:"opening"},reservedTokens:0,reservedMs:30000,retrySafe:true});
+      const observation=await businessOptions.knowledgeRuntime!.search(childId,readId,"opening");
+      const payload={messages:[{role:"user",content:JSON.stringify(observation)}]};
+      await pool.query("INSERT INTO agents_platform.context_snapshots(id,task_id,step,digest,payload,history_cutoff) VALUES($1,$2,0,$3,$4,0)",[`context:${childId}:0`,childId,textDigest(JSON.stringify(payload)),payload]);
+      await evidence.supplyContext(childId,`context:${childId}:0`,observation.passages.map(passage=>passage.evidenceId));
+      await evidence.derive(childId,"child_result",childId);
+      await finishOperation(pool,childId,readId,"completed",observation,null,0);await settleTask(pool,childId,{state:"completed",output:"Confirmed source-backed result."});
+      await expect(evidence.joinChildren(f.task.id,operationId)).rejects.toMatchObject({code:"EVIDENCE_INTEGRITY"});
+      const original=(await pool.query("SELECT parents,evidence_ids FROM agents_platform.evidence_nodes WHERE id=$1",[early.id])).rows[0];expect(original).toEqual({parents:[],evidence_ids:[]});
+    }finally{
+      for(const child of children)await settleTask(pool,child.taskId,{state:"cancelled"});
+      await finishOperation(pool,f.task.id,operationId,"failed",null,"TEST_CLEANUP",0);await settleTask(pool,f.task.id,{state:"cancelled"});
+    }
+  },30000);
   it("waits for fresh authority when a prepared compaction cannot yet be admitted", async () => {
     const f = await fixture({ context: { maxInputTokens: 4096, compactAtTokens: 1024 } , sourceRevisionIds: [] });
     await execute(f.task.id);
