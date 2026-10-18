@@ -1,3 +1,4 @@
+import { loadContinuation } from "./continuation";
 import * as restate from "@restatedev/restate-sdk";
 import type { Pool } from "pg";
 import { z } from "zod";
@@ -123,7 +124,7 @@ async function buildSnapshot(pool: Pool, taskId: string, step: number, working: 
       memoryFence:recorded.memory_scope_id ? {id:recorded.memory_scope_id,generation:Number(recorded.memory_generation),expiresAt:recorded.payload.memoryExpiresAt}:undefined};
     if (options.evidence) {
       await options.evidence.inheritHistory(taskId,snapshotId,recorded.payload.historyGroupIds ?? []);
-      await options.evidence.supplyContext(taskId,snapshotId,recorded.payload.evidenceIds ?? []);
+      await options.evidence.supplyContext(taskId,snapshotId,recorded.payload.evidenceIds ?? [],recorded.payload.continuationEvidenceIds ?? []);
       snapshot.evidenceManifest=await options.evidence.taskManifest(taskId);
     }
     return {snapshot,history:[],working,memoryFence:snapshot.memoryFence,invalidated:false,needsCompaction:false};
@@ -161,7 +162,11 @@ async function buildSnapshot(pool: Pool, taskId: string, step: number, working: 
     { role: "user", content: t.input }, { role: "assistant", content: t.output ?? `Task ended: ${t.state}` },
   ] }));
   const active = invalidated ? [] : working;
-  const input = { instructions: config.instructions, currentInput: task.input, history, workingGroups: active,
+  const needsContinuation=Boolean(summary)&&!invalidated;
+  const supplied=needsContinuation&&options.evidence?await options.evidence.suppliedEvidence(taskId,8):{items:[],omittedCount:0};
+  const continuation=needsContinuation?await loadContinuation(pool,taskId,true,supplied.items,supplied.omittedCount):undefined;
+  const hasContinuation=continuation&&(continuation.checkpoint.operations.length||continuation.checkpoint.delegations.length||continuation.checkpoint.artifacts.length);
+  const input = { ...(hasContinuation?{continuation}:{}), instructions: config.instructions, currentInput: task.input, history, workingGroups: active,
     summary: invalidated ? undefined : summary, sources,
     skills: skills.map(item => ({ id: item.id, revision: item.revision, kind: "skill" as const, content: item.body })),
     tools: modelTools, model: config.model.model, maxInputTokens: config.context.maxInputTokens, maxOutputTokens: config.model.maxOutputTokens };
@@ -177,11 +182,12 @@ async function buildSnapshot(pool: Pool, taskId: string, step: number, working: 
   if (built.status === "compaction_required" || (built.estimatedTokens >= config.context.compactAtTokens && totalGroups > 2)) {
     return { history, working: active, memoryFence, invalidated, needsCompaction: true };
   }
+  const selectedContinuation=built.continuation;
   const id = `context:${taskId}:${step}`;
   const row = (await pool.query(`INSERT INTO agents_platform.context_snapshots
     (id,task_id,step,digest,payload,source_references,memory_scope_id,memory_generation,history_cutoff)
     VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) ON CONFLICT(id) DO NOTHING RETURNING id`,
-  [id, taskId, step, built.digest, { messages: built.messages, tools: modelTools, historyGroupIds: built.historyGroupIds, estimatedTokens: built.estimatedTokens, memoryExpiresAt: memoryFence?.expiresAt, evidenceIds: [...new Set([...built.sourceReferences.flatMap(reference=>reference.evidenceId?[reference.evidenceId]:[]),...active.flatMap(group=>group.evidenceIds??[])])] }, JSON.stringify(built.sourceReferences),
+  [id, taskId, step, built.digest, { ...(selectedContinuation?{continuation:selectedContinuation,continuationEvidenceIds:selectedContinuation.checkpoint.evidence.map(item=>item.id)}:{}), messages: built.messages, tools: modelTools, historyGroupIds: built.historyGroupIds, estimatedTokens: built.estimatedTokens, memoryExpiresAt: memoryFence?.expiresAt, evidenceIds: [...new Set([...built.sourceReferences.flatMap(reference=>reference.evidenceId?[reference.evidenceId]:[]),...active.flatMap(group=>group.evidenceIds??[])])] }, JSON.stringify(built.sourceReferences),
     memoryFence?.id ?? null, memoryFence?.generation ?? null, task.history_cutoff ?? "0"])).rows[0];
   const saved = row ? undefined : (await pool.query("SELECT * FROM agents_platform.context_snapshots WHERE id=$1", [id])).rows[0];
   const snapshot: Snapshot = saved ? { id, ...saved.payload, digest: saved.digest, historyCutoff: saved.history_cutoff,
@@ -191,7 +197,7 @@ async function buildSnapshot(pool: Pool, taskId: string, step: number, working: 
     const selected = saved?.payload.historyGroupIds ?? built.historyGroupIds;
     await options.evidence.inheritHistory(taskId, id, selected);
     const ids = [...new Set([...built.sourceReferences.flatMap(reference => reference.evidenceId ? [reference.evidenceId] : []), ...active.flatMap(group => group.evidenceIds ?? [])])];
-    await options.evidence.supplyContext(taskId, id, ids);
+    await options.evidence.supplyContext(taskId, id, ids,saved?.payload.continuationEvidenceIds??(selectedContinuation?selectedContinuation.checkpoint.evidence.map(item=>item.id):[]));
     snapshot.evidenceManifest = await options.evidence.taskManifest(taskId);
   }
   await event(pool, taskId, id, "context.prepared", { snapshotId: id, estimatedTokens: snapshot.estimatedTokens, compacted: Boolean(summary) });
