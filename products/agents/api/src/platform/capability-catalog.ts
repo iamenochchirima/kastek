@@ -43,7 +43,8 @@ export function preflightToolSchema(input: unknown): ToolSchema {
   }
   const copied = json(input, 0);
   if (Buffer.byteLength(canonicalJson(copied)) > capabilityLimits.maxSchemaBytes) invalidSchema("Tool schema exceeds byte limit");
-  const keywords = new Set(["$schema", "$ref", "title", "description", "type", "enum", "const", "default", "examples", "required", "additionalProperties", "minLength", "maxLength", "minimum", "maximum", "exclusiveMinimum", "exclusiveMaximum", "multipleOf", "minItems", "maxItems", "uniqueItems", "minProperties", "maxProperties", "properties", "$defs", "items", "prefixItems", "allOf", "anyOf", "oneOf", "not"]);
+  const draft07 = typeof copied === "object" && copied !== null && !Array.isArray(copied) && copied.$schema === "http://json-schema.org/draft-07/schema#";
+  const keywords = new Set(["$schema", "$ref", "format", "title", "description", "type", "enum", "const", "default", "examples", "required", "additionalProperties", "minLength", "maxLength", "minimum", "maximum", "exclusiveMinimum", "exclusiveMaximum", "multipleOf", "minItems", "maxItems", "uniqueItems", "minProperties", "maxProperties", "properties", "$defs", "items", "prefixItems", "allOf", "anyOf", "oneOf", "not"]);
   const schemaTypes = new Set(["null", "boolean", "object", "array", "number", "integer", "string"]);
   const schemaNodes = new Set<string>();
   const children = new Map<string, string[]>();
@@ -54,6 +55,8 @@ export function preflightToolSchema(input: unknown): ToolSchema {
     if (typeof value === "boolean") return;
     if (!value || typeof value !== "object" || Array.isArray(value)) invalidSchema("Expected a JSON Schema object or boolean");
     for (const [key, child] of Object.entries(value)) {
+      if (key === "$schema" && pointer !== "") invalidSchema("Nested schema dialects are unsupported");
+      if (draft07 && ["$defs", "prefixItems"].includes(key)) invalidSchema("Unsupported keyword in draft-07 schema");
       if (!keywords.has(key)) invalidSchema(`Unsupported schema keyword: ${key}`);
       if (["title", "description"].includes(key) && typeof child !== "string") invalidSchema("Expected a schema annotation string");
       if (key === "type" && !(typeof child === "string" ? schemaTypes.has(child) : Array.isArray(child) && child.length > 0 && child.every(type => typeof type === "string" && schemaTypes.has(type)) && new Set(child).size === child.length)) invalidSchema("Unsupported schema type");
@@ -63,7 +66,8 @@ export function preflightToolSchema(input: unknown): ToolSchema {
       if (["required", "enum", "examples"].includes(key) && !Array.isArray(child)) invalidSchema("Expected a schema array");
       if (key === "required" && Array.isArray(child) && (child.some(item => typeof item !== "string") || new Set(child).size !== child.length)) invalidSchema("Expected unique required property names");
       if (key === "enum" && Array.isArray(child) && (child.length === 0 || new Set(child.map(canonicalJson)).size !== child.length)) invalidSchema("Expected unique enum values");
-      if (key === "$schema" && child !== "https://json-schema.org/draft/2020-12/schema") invalidSchema("Only JSON Schema 2020-12 is supported");
+      if (key === "format" && child !== "uuid") invalidSchema("Only UUID schema format is supported");
+      if (key === "$schema" && !["https://json-schema.org/draft/2020-12/schema", "http://json-schema.org/draft-07/schema#"].includes(child as string)) invalidSchema("Unsupported JSON Schema dialect");
       if (key === "$ref") {
         if (typeof child !== "string" || !child.startsWith("#/$defs/")) invalidSchema("Only local definition references are supported");
         refs.set(pointer, child.slice(1));
@@ -128,9 +132,11 @@ export const capabilityCatalogSchema = z.strictObject(catalogFields).superRefine
 });
 export type CapabilityCatalog = z.infer<typeof capabilityCatalogSchema>;
 
+export const stashReadOperationSchema = z.enum(["get_item", "read_project_document"]);
+
 export const capabilityPolicySchema = z.strictObject({
   effect: z.enum(["read", "reviewed_write", "idempotent_memory", "delegation", "resource"]),
-  disclosure: z.enum(["none", "public_identifiers", "exact_reviewed_payload"]),
+  disclosure: z.enum(["none", "public_identifiers", "approved_resource_identifiers", "exact_reviewed_payload"]),
   retry: z.enum(["safe_read", "status_only", "idempotent_receipt", "stable_children", "adapter_reconcile", "never"]),
   approval: z.enum(["none", "exact_single_use"]), cancel: z.enum(["stop_admission", "dependent_children", "adapter_cleanup", "reconcile_claimed"]),
 }).superRefine((policy, ctx) => {
@@ -154,7 +160,9 @@ export const capabilityBindingSchema = z.strictObject(bindingFields).superRefine
   if (binding.alias !== createModelAlias(binding.id)) ctx.addIssue({ code: "custom", message: "Alias must match the immutable binding identity" });
   if (transportIssue({ ...binding, connectionId: binding.connection?.id ?? null })) ctx.addIssue({ code: "custom", message: "Invalid transport connection or protocol" });
   if (new Set(binding.resources.map(resourceKey)).size !== binding.resources.length) ctx.addIssue({ code: "custom", message: "Duplicate resource handle" });
-  if (binding.transport !== "builtin" && (binding.policy.effect !== "read" || binding.policy.retry !== "safe_read" || binding.policy.approval !== "none" || binding.policy.disclosure !== "public_identifiers" || binding.resources.length === 0 || binding.limits.timeoutMs > 30000 || (binding.transport === "mcp_http" && binding.limits.maxResponseBytes > 262144))) ctx.addIssue({ code: "custom", message: "Connected bindings must satisfy the read-only connection profile" });
+  const stash = binding.connection?.profileId === "stash-read-v1";
+  if(stash && (binding.transport !== "mcp_http" || !stashReadOperationSchema.safeParse(binding.definition.providerOperation).success || binding.resources.some(resource=>resource.kind !== "stash.item" || !z.uuid().safeParse(resource.id).success))) ctx.addIssue({code:"custom",message:"Stash bindings require approved item handles over MCP"});
+  if (binding.transport !== "builtin" && (binding.policy.effect !== "read" || binding.policy.retry !== "safe_read" || binding.policy.approval !== "none" || binding.policy.disclosure !== (stash ? "approved_resource_identifiers" : "public_identifiers") || binding.resources.length === 0 || binding.limits.timeoutMs > 30000 || (binding.transport === "mcp_http" && binding.limits.maxResponseBytes > 262144))) ctx.addIssue({ code: "custom", message: "Connected bindings must satisfy the read-only connection profile" });
 });
 export type CapabilityBinding = z.infer<typeof capabilityBindingSchema>;
 

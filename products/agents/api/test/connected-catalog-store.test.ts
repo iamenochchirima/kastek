@@ -6,7 +6,7 @@ import { setupPlatformSchema } from "../src/platform/setup";
 import { transaction } from "../src/platform/database";
 import { ConnectionStore } from "../src/platform/connections";
 import { ConnectionVault } from "../src/platform/vault";
-import { ConnectedCatalogStore } from "../src/platform/connected-catalog-store";
+import { ConnectedCatalogStore, connectedProviderOperationAllowed } from "../src/platform/connected-catalog-store";
 import { createCatalog, digestToolSchema, ExecutableAdapterRegistry, type CapabilityCatalog } from "../src/platform/capability-catalog";
 
 const dbUrl = process.env.AGENTS_TEST_DATABASE_URL;
@@ -18,6 +18,8 @@ const dbUrl = process.env.AGENTS_TEST_DATABASE_URL;
   const executor = { execute: "owned-native-and-mcp-executor" };
   const adapter = registry.register({ schemaVersion: 1, id: "github-read", release: "1.0.0", executableDigest: "a".repeat(64),
     transports: ["native_http", "mcp_http"], protocolVersions: ["2026-07-28", "2025-11-25"], boundedSchemaValidation: true }, executor);
+  const stashAdapter = registry.register({schemaVersion:1,id:"stash-read",release:"1.0.0",executableDigest:"b".repeat(64),
+    transports:["mcp_http"],protocolVersions:["2026-07-28","2025-11-25"],boundedSchemaValidation:true},executor);
   const selection = { owner: "approved", repository: "public-repo", ref: "main" }, key = "github_pat_fixture_public_read_only_token";
   const expiry = () => new Date(Date.now() + 86400000).toISOString();
   beforeAll(async () => {
@@ -34,10 +36,10 @@ const dbUrl = process.env.AGENTS_TEST_DATABASE_URL;
     const connection = await connections.create(scope, { operationId: randomUUID(), profileId: "github-public-read-v1", targetId: "provider:github", name: "Public research", apiKey: key, expiresAt: expiry(), selections: [selection] });
     return { scope, connection };
   }
-  function candidate(connection: Awaited<ReturnType<typeof fixture>>["connection"], organizationId: string, names = ["get_repository"], revision = 1, transport: "native_http" | "mcp_http" = "native_http") {
+  function candidate(connection: Awaited<ReturnType<typeof fixture>>["connection"], organizationId: string, names = ["get_repository"], revision = 1, transport: "native_http" | "mcp_http" = "native_http", pinnedAdapter = adapter) {
     const inputSchema = { type: "object", properties: {}, additionalProperties: false };
     return createCatalog({ schemaVersion: 1, id: randomUUID(), organizationId, connectionId: connection.id, revision, transport,
-      protocolVersion: transport === "mcp_http" ? "2026-07-28" : null, adapter,
+      protocolVersion: transport === "mcp_http" ? "2026-07-28" : null, adapter: pinnedAdapter,
       tools: names.map(providerOperation => ({ providerOperation, description: "Trusted read", inputSchema, inputDigest: digestToolSchema(inputSchema), outputSchema: null, outputDigest: null })) });
   }
   async function save(f: Awaited<ReturnType<typeof fixture>>, catalog = candidate(f.connection, f.scope.organizationId)) {
@@ -111,4 +113,54 @@ const dbUrl = process.env.AGENTS_TEST_DATABASE_URL;
     const missing = new ConnectedCatalogStore(pool, connections, new ExecutableAdapterRegistry());
     await expect(missing.selectBindings(f.scope, selectionRequest(f, catalog.id))).rejects.toMatchObject({ code: "ADAPTER_RELEASE_UNAVAILABLE" });
   });
+  async function stashFixture() {
+    const f = await fixture(), itemId = randomUUID();
+    const connection = await connections.create(f.scope,{operationId:randomUUID(),name:"Approved Stash items",profileId:"stash-read-v1",
+      targetId:"provider:stash",apiKey:"stash_fixture_manual_api_key",expiresAt:expiry(),stashItemIds:[itemId]});
+    return {...f,connection,itemId};
+  }
+  it("stores Stash UUID handles and encrypted manual keys under a finite local expiry",async()=>{
+    const f=await stashFixture();
+    expect(f.connection).toMatchObject({profileId:"stash-read-v1",targetId:"provider:stash",targetLabel:"Stash",stashItemIds:[f.itemId],selections:[],resources:[{kind:"stash.item",id:f.itemId}]});
+    expect(JSON.stringify(await connections.list(f.scope))).not.toContain("stash_fixture_manual_api_key");
+    expect((await transaction(pool,db=>connections.resolveCredential(db,f.scope,f.connection.id,1))).authorization).toBe("stash_fixture_manual_api_key");
+    const columns=(await pool.query("SELECT column_name FROM information_schema.columns WHERE table_schema='agents_platform' AND table_name='connections'")).rows.map(row=>row.column_name);
+    expect(columns).not.toContain("stash_item_ids");
+    const base={operationId:randomUUID(),name:"Invalid",profileId:"stash-read-v1" as const,targetId:"provider:stash",apiKey:"stash_fixture_manual_api_key",expiresAt:expiry(),stashItemIds:[f.itemId]};
+    for(const changed of [{expiresAt:undefined},{expiresAt:new Date(Date.now()+91*86400000).toISOString()},{stashItemIds:[]},{stashItemIds:[f.itemId,f.itemId.toUpperCase()]},
+      {stashItemIds:["not-an-item"]},{stashItemIds:Array.from({length:21},()=>randomUUID())},{selections:[selection]},{targetId:"provider:github"},
+      {apiKey:"github_pat_cross_provider_token"},{apiKey:"ghp_classic_cross_provider"},{apiKey:"stash_fixture_key with_space"},{apiKey:"stash_fixture_key\nheader"}]){
+      await expect(connections.create(f.scope,{...base,...changed})).rejects.toBeDefined();
+    }
+    await expect(connections.create(f.scope,{...base,endpoint:"https://example.invalid/mcp"} as typeof base)).rejects.toBeDefined();
+    await expect(connections.create(f.scope,{...base,profileId:"github-public-read-v1",targetId:"provider:github",apiKey:key,selections:[selection]})).rejects.toMatchObject({code:"CONNECTION_PROFILE_INVALID"});
+    const rotated=await connections.mutate(f.scope,f.connection.id,{operationId:randomUUID(),expectedRevision:1,apiKey:"stash_rotated_manual_api_key"},"rotate");
+    expect(rotated.resources).toEqual(f.connection.resources);expect(rotated.stashItemIds).toEqual([f.itemId]);expect(rotated.expiresAt).toBe(f.connection.expiresAt);
+    await expect(connections.mutate(f.scope,f.connection.id,{operationId:randomUUID(),expectedRevision:2,apiKey:key},"rotate")).rejects.toMatchObject({code:"CONNECTION_KEY_INVALID"});
+    await pool.query("UPDATE agents_platform.connections SET expires_at=now()-interval '1 second' WHERE id=$1",[f.connection.id]);
+    await expect(connections.mutate(f.scope,f.connection.id,{operationId:randomUUID(),expectedRevision:2,apiKey:"stash_renewed_manual_api_key"},"rotate")).rejects.toMatchObject({code:"CONNECTION_REVISION_CONFLICT"});
+    const renewed=await connections.mutate(f.scope,f.connection.id,{operationId:randomUUID(),expectedRevision:2,apiKey:"stash_renewed_manual_api_key",expiresAt:expiry()},"rotate");
+    expect(renewed.stashItemIds).toEqual([f.itemId]);expect(renewed.policyRevision).toBe(1);
+    await connections.mutate(f.scope,f.connection.id,{operationId:randomUUID(),expectedRevision:3},"revoke");
+    await expect(transaction(pool,db=>connections.resolveCredential(db,f.scope,f.connection.id,1))).rejects.toMatchObject({code:"CONNECTION_INACTIVE"});
+  });
+  it("allows only approved Stash reads over MCP and keeps GitHub operations separate",async()=>{
+    const f=await stashFixture();
+    const discovered=await save(f,candidate(f.connection,f.scope.organizationId,["get_item","read_project_document","update_item","get_file_contents","unknown_read"],1,"mcp_http",stashAdapter));
+    expect(discovered.selectableOperations).toEqual(["get_item","read_project_document"]);
+    expect((await catalogs.listCandidates(f.scope,f.connection.id))[0]!.selectableOperations).toEqual(discovered.selectableOperations);
+    const selected=await catalogs.selectBindings(f.scope,selectionRequest(f,discovered.id,"get_item"));
+    expect(selected[0]).toMatchObject({transport:"mcp_http",connection:{profileId:"stash-read-v1"},policy:{disclosure:"approved_resource_identifiers"},resources:[{kind:"stash.item",id:f.itemId}]});
+    for(const operation of ["update_item","get_file_contents","unknown_read"])await expect(catalogs.selectBindings(f.scope,selectionRequest(f,discovered.id,operation))).rejects.toMatchObject({code:"PROVIDER_OPERATION_DENIED"});
+    await expect(catalogs.selectBindings(f.scope,{...selectionRequest(f,discovered.id,"get_item"),selections:[{providerOperation:"get_item",resources:[{kind:"stash.item",id:randomUUID()}]}]})).rejects.toMatchObject({code:"CAPABILITY_SCOPE_DENIED"});
+    await expect(save(f,candidate(f.connection,f.scope.organizationId,["get_item"],2,"native_http"))).rejects.toMatchObject({code:"CATALOG_SCOPE_DENIED"});
+    for(const operation of ["get_item","read_project_document"]){expect(connectedProviderOperationAllowed("stash-read-v1","mcp_http",operation)).toBe(true);expect(connectedProviderOperationAllowed("stash-read-v1","native_http",operation)).toBe(false);expect(connectedProviderOperationAllowed("github-public-read-v1","mcp_http",operation)).toBe(false);}
+    expect(connectedProviderOperationAllowed("stash-read-v1","mcp_http","get_repository_tree")).toBe(false);
+    expect(connectedProviderOperationAllowed("unknown","mcp_http","get_item")).toBe(false);
+    const github=await fixture(), githubCandidate=await save(github,candidate(github.connection,github.scope.organizationId,["get_item","get_file_contents"],1,"mcp_http"));
+    expect(githubCandidate.selectableOperations).toEqual(["get_file_contents"]);
+    await expect(catalogs.selectBindings(github.scope,selectionRequest(github,githubCandidate.id,"get_item"))).rejects.toMatchObject({code:"PROVIDER_OPERATION_DENIED"});
+    expect((await catalogs.selectBindings(github.scope,selectionRequest(github,githubCandidate.id,"get_file_contents")))[0]!.policy.disclosure).toBe("public_identifiers");
+  });
+
 });

@@ -3,10 +3,12 @@ ALTER TABLE agents_platform.connections
  ADD COLUMN policy_revision integer NOT NULL DEFAULT 1 CHECK(policy_revision > 0),
  ADD COLUMN resource_handles jsonb NOT NULL DEFAULT '[]',
  ADD COLUMN selections jsonb NOT NULL DEFAULT '[]',
- ADD CONSTRAINT connection_profile CHECK(profile_id IN ('report-delivery-v1','github-public-read-v1')),
- ADD CONSTRAINT provider_target CHECK((profile_id='report-delivery-v1' AND target_id<>'provider:github') OR
-  (profile_id='github-public-read-v1' AND target_id='provider:github')),
- ADD CONSTRAINT connection_handles_array CHECK(jsonb_typeof(resource_handles)='array' AND jsonb_typeof(selections)='array');
+ ADD CONSTRAINT connection_profile CHECK(profile_id IN ('report-delivery-v1','github-public-read-v1','stash-read-v1')),
+ ADD CONSTRAINT provider_target CHECK((profile_id='report-delivery-v1' AND target_id NOT LIKE 'provider:%') OR
+  (profile_id='github-public-read-v1' AND target_id='provider:github') OR
+  (profile_id='stash-read-v1' AND target_id='provider:stash')),
+ ADD CONSTRAINT connection_handles_array CHECK(jsonb_typeof(resource_handles)='array' AND jsonb_typeof(selections)='array'),
+ ADD CONSTRAINT stash_connection_scope CHECK(profile_id<>'stash-read-v1' OR (selections='[]'::jsonb AND jsonb_array_length(resource_handles) BETWEEN 1 AND 20));
 
 CREATE TABLE agents_platform.capability_catalogs (
  id uuid PRIMARY KEY, organization_id uuid NOT NULL, connection_id uuid NOT NULL,

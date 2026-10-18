@@ -67,6 +67,18 @@ describe("immutable capability publication", () => {
     expect(() => createBinding(write, catalog)).toThrow("read-only");
   });
 
+  it("keeps private Stash item disclosure distinct from public GitHub identifiers",()=>{
+    const f=fixtures(["get_item"]), {digest,alias,...input}=f.binding;
+    const stash={...input,connection:{id:connectionId,profileId:"stash-read-v1",policyRevision:1},resources:[{kind:"stash.item",id:randomUUID()}],
+      policy:{...input.policy,disclosure:"approved_resource_identifiers" as const}};
+    expect(createBinding(stash,f.catalog).policy.disclosure).toBe("approved_resource_identifiers");
+    expect(()=>createBinding({...stash,policy:{...stash.policy,disclosure:"public_identifiers"}},f.catalog)).toThrow("read-only");
+    expect(()=>createBinding({...stash,resources:[{kind:"github.repository",id:"approved/repo"}]},f.catalog)).toThrow("Stash");
+    const wrong=fixtures(["update_item"]),{digest:otherDigest,alias:otherAlias,...wrongInput}=wrong.binding;
+    expect(()=>createBinding({...wrongInput,connection:stash.connection,resources:stash.resources,policy:stash.policy},wrong.catalog)).toThrow("Stash");
+    expect(()=>createBinding({...input,connection:{id:connectionId,profileId:"github-public-read-v1",policyRevision:1},policy:stash.policy},f.catalog)).toThrow("read-only");
+  });
+
   it("rejects entire oversized or duplicate discovery rather than silently selecting tools", () => {
     expect(() => fixtures(Array.from({ length: 101 }, (_, i) => `read${i}`))).toThrow();
     expect(() => fixtures(["read", "read"])).toThrow("Duplicate provider operation");
@@ -90,6 +102,14 @@ describe("immutable capability publication", () => {
 });
 
 describe("bounded schema preflight", () => {
+  it("accepts the bounded Stash draft-07 UUID subset and refuses other formats",()=>{
+    expect(()=>preflightToolSchema({$schema:"http://json-schema.org/draft-07/schema#",type:"object",properties:{id:{type:"string",format:"uuid"}},required:["id"],additionalProperties:false})).not.toThrow();
+    for(const unsupported of [{type:"array",prefixItems:[{type:"string"}]},{type:"object",$defs:{id:{type:"string"}}}]) expect(()=>preflightToolSchema({$schema:"http://json-schema.org/draft-07/schema#",...unsupported})).toThrow("Unsupported keyword in draft-07");
+    expect(()=>preflightToolSchema({type:"object",properties:{id:{$schema:"http://json-schema.org/draft-07/schema#",type:"string"}}})).toThrow("Nested schema dialects");
+    expect(()=>preflightToolSchema({type:"string",format:"uri"})).toThrow("Only UUID");
+    expect(()=>preflightToolSchema({type:"string",format:"uuid",pattern:".*"})).toThrow("Unsupported schema keyword");
+  });
+
   it("supports acyclic local definitions and ordinary data containing keyword names", () => {
     expect(() => preflightToolSchema({ type: "object", $defs: { name: { type: "string" }, allowed: true }, properties: { name: { $ref: "#/$defs/name" }, extra: { $ref: "#/$defs/allowed" } },
       examples: [{ pattern: "metadata is data" }], additionalProperties: false })).not.toThrow();
