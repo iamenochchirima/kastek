@@ -63,7 +63,7 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
   const allowed=activeBindings.filter(binding=>native?binding.transport==="native_http":binding.definition.providerOperation!=="read_file");
   expect(body.tools.map((tool:any)=>tool.function.name).sort()).toEqual(allowed.map(binding=>binding.alias).sort());
   const operation=results.length===0?"resolve_ref":results.length===1?"list_tree":native?"read_file":"get_file_contents";
-  if(results.length<3){const binding=allowed.find(binding=>binding.definition.providerOperation===operation)!;return reply(null,"stop",binding.alias,results.length===0?{repository:"approved/public"}:results.length===1?{revisionId:results[0].handles.revisionId}:{fileId:results[1].handles.files[0].fileId});}
+  if(results.length<3){const binding=allowed.find(binding=>binding.definition.providerOperation===operation)!;return reply(null,"stop",binding.alias,results.length===0?{repository:"approved/public"}:results.length===1?{revisionId:JSON.parse(results[0].content).revisionId}:{fileId:JSON.parse(results[1].content).files[0].fileId});}
   expect(results[2].content,JSON.stringify(results[2])).toContain("Decisive public repository fact");expect(labels.length).toBeGreaterThanOrEqual(2);
   return reply(`${native?"Native":"MCP"} finding ${labels.map(label=>`[${label}]`).join(" ")}`,!native&&partial?"length":"stop");
  }
@@ -119,6 +119,15 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
   const children=(await pool.query("SELECT id,effective_configuration,state FROM agents_platform.tasks WHERE parent_task_id=$1 ORDER BY input",[f.task.id])).rows;expect(children).toHaveLength(2);expect(children.every(child=>child.state==="completed")).toBe(true);
   expect(new Set(children.flatMap(child=>child.effective_configuration.sourceRevisionIds))).toEqual(new Set(f.sources.map(source=>source.id)));expect(children.every(child=>child.effective_configuration.sourceRevisionIds.length===1)).toBe(true);
   expect(review.citedPassages!.length).toBeGreaterThanOrEqual(4);expect(review.preview.content).toContain("Decisive synthesis");
+  const durable=(await pool.query("SELECT r.operation_id,r.result FROM agents_platform.connected_reads r JOIN agents_platform.tasks t ON t.id=r.task_id WHERE t.root_task_id=$1",[f.task.id])).rows;
+  const visible=modelSnapshots.flatMap(snapshot=>snapshot.messages.filter((message:any)=>message.role==="tool").map((message:any)=>JSON.parse(message.content))).filter(result=>result.evidence);
+  expect(visible.length).toBeGreaterThan(0);
+  for(const view of visible){
+    const receipt=durable.find(row=>row.result.evidence.id===view.evidence.id)?.result;expect(receipt).toBeDefined();
+    expect(view.content).toBe(receipt.content);expect(view.evidence.citation).toBe(receipt.evidence.citation);expect(view.observation).toEqual({acquiredAt:receipt.observation.acquiredAt,provenance:receipt.observation.provenance});
+    expect(view).not.toHaveProperty("operationId");expect(view.observation).not.toHaveProperty("digest");expect(JSON.stringify(view).length).toBeLessThan(JSON.stringify(receipt).length);
+    if(receipt.handles){expect(view).not.toHaveProperty("handles");expect(JSON.stringify(receipt.handles)).not.toBe("{}");}
+  }
   const requestsBefore=httpRequests.length,callsBefore=modelCalls;await restart();let accepted=false,release!:()=>void;const barrier=new Promise<void>(resolve=>{release=resolve;});afterAccept=async()=>{accepted=true;await barrier;};
   try{
    await actions.decide(f.scope,f.task.id,review.id,{operationId:randomUUID(),decision:"approve",expectedDigest:review.reviewDigest});await dispatchTasksOnce(pool,{ingressUrl,adminUrl});await eventually(async()=>accepted);await restart();

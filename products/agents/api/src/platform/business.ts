@@ -13,7 +13,8 @@ export { settleTask } from "./execution";
 import {fitUtf8,toolsFor,executeTool,assertPublishedTools,builtinToolName} from "./tools";
 import { admitChildren, readChildResults, type DelegatedChild } from "./delegation";
 import type { EvidenceStore } from "./evidence";
-import type { ConnectedExecutor } from "./connected-executor";
+import type { ConnectedExecutor, ConnectedObservation } from "./connected-executor";
+import { connectedModelView } from "./connected-model-view";
 import type { KnowledgeRuntime, KnowledgeObservation } from "./knowledge-runtime";
 import type { DependencyManifest } from "./source-contracts";
 import { HARNESS_RELEASE } from "./execution";
@@ -482,7 +483,7 @@ export function createBusinessWorkflow(pool: Pool, options: BusinessOptions) {
             }
             if(result.ok && Buffer.byteLength(JSON.stringify(result.value))>resultBound) {outcome={state:"incomplete",errorCode:"TOOL_RESULT_LIMIT"};stop=true;break;}
             if (result.ok && options.evidence) roundEvidence.push(...await guardedRun(ctx,`tool-evidence:${step}:${callIndex}`,()=>options.evidence!.operationEvidenceIds(taskId,id)));
-            messages.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify(result.ok ? result.value : { error: result.code }) });
+            messages.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify(result.ok ? binding ? connectedModelView(result.value as ConnectedObservation) : result.value : { error: result.code }) });
           }
           if (stop) break;
           if (refreshContext) continue;
