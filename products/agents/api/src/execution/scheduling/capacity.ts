@@ -52,9 +52,10 @@ export async function requestCapacity(db:PoolClient,input:CapacityRequest,option
  if(configured.some(actual=>actual.max_active!==buckets.find(bucket=>bucket.key===actual.key)?.limit))throw new PlatformError("CAPACITY_POLICY_CONFLICT",409,"Capacity policy differs between replicas");
  await db.query(`INSERT INTO agents_platform.capacity_requests(id,task_id,bucket_keys,workload,state,deadline_at)
  VALUES($1,$2,$3,$4,'waiting',least(now()+$5*interval '1 millisecond',(SELECT deadline_at FROM agents_platform.tasks WHERE id=$2))) ON CONFLICT DO NOTHING`,[input.id,input.taskId,buckets.map(b=>b.key),input.workload,policy.maxWaitMs]);
- const row=(await db.query("SELECT *,lease_until<=now() AS lease_expired FROM agents_platform.capacity_requests WHERE id=$1 FOR UPDATE",[input.id])).rows[0];
+ const row=(await db.query("SELECT *,lease_until<=now() AS lease_expired,deadline_at<=now() AS deadline_expired FROM agents_platform.capacity_requests WHERE id=$1 FOR UPDATE",[input.id])).rows[0];
  if(!row||row.task_id!==input.taskId||canonicalJson(row.bucket_keys)!==canonicalJson(buckets.map(b=>b.key))||row.workload!==input.workload)throw new PlatformError("CAPACITY_REQUEST_CONFLICT",409,"Capacity request identity conflict");
  if(['released','rejected','uncertain'].includes(row.state))throw new PlatformError(row.error_code??"CAPACITY_REQUEST_FINISHED",409,"Capacity request is unavailable");
+ if(row.deadline_expired&&(row.state==='waiting'||row.state==='granted'&&row.lease_expired))throw new PlatformError("CAPACITY_WAIT_EXPIRED",409,"Capacity wait expired");
  if(row.state==='granted'&&row.lease_expired){
   await lockBuckets(db,row.bucket_keys);await removeHolds(db,row.id);
   await db.query("UPDATE agents_platform.capacity_requests SET state='waiting',generation=generation+1,lease_until=NULL WHERE id=$1",[row.id]);row.generation++;row.state='waiting';
