@@ -3,7 +3,7 @@ import {capabilityBindingSchema} from "./capability-catalog";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import type { Pool, PoolClient } from "pg";
 import { agentConfigurationSchema, assertGrantAuthority, assertRuntimeAvailable, canonicalJson, defaultFaqConfiguration,
-  executionGrantSchema, initialLimits, parseAllowedOrigin, PlatformError, requestDigest,
+  executionGrantSchema, initialLimits, parseAllowedOrigin, PlatformError, requestDigest, connectedToolAuthorityIds,
   type AdmissionAuthority, type AgentConfiguration, type ExecutionGrant, type TaskState } from "./contracts";
 
 import {transaction} from "./database";
@@ -136,6 +136,7 @@ export class PlatformStore {
       const existing = (await db.query<VersionRecord>("SELECT * FROM agents_platform.agent_versions WHERE agent_id=$1 AND draft_revision=$2", [agent.id, agent.draft_revision])).rows[0];
       if (existing) return existing;
       const config = agentConfigurationSchema.parse(agent.draft);
+      const connectedAuthority = connectedToolAuthorityIds(config);
       if (config.capabilities.delegation.enabled) {
         for (const binding of config.capabilities.delegation.bindings) {
           const child = (await db.query<VersionRecord&{agent_name:string}>(`SELECT v.*,a.name AS agent_name FROM agents_platform.agent_versions v
@@ -145,7 +146,7 @@ export class PlatformStore {
           const childConfig = agentConfigurationSchema.parse(child.configuration);
           if (childConfig.executionKind !== "business" || childConfig.memory.enabled || childConfig.capabilities.delegation.enabled || childConfig.capabilities.sandbox.enabled || childConfig.capabilities.workflows.enabled ||
               binding.sourceRevisionIds.some(id => !config.sourceRevisionIds.includes(id) || !childConfig.sourceRevisionIds.includes(id)) ||
-              binding.connectedToolBindingIds.some(id => !config.connectedToolBindingIds.includes(id) || !childConfig.connectedToolBindingIds.includes(id)) ||
+              binding.connectedToolBindingIds.some(id => !childConfig.connectedToolBindingIds.includes(id)) ||
               binding.tools.some(tool => !childConfig.tools.includes(tool))) throw new PlatformError("DELEGATION_BINDING_INVALID",409,"Specialist binding exceeds the published scope");
           const effectiveBindings=(await db.query("SELECT binding FROM agents_platform.capability_bindings WHERE organization_id=$1 AND id=ANY($2::uuid[])",[input.organizationId,binding.connectedToolBindingIds])).rows;
           assertConnectedBindingDependencies(effectiveBindings.map(row=>capabilityBindingSchema.parse(row.binding)));
@@ -168,8 +169,8 @@ export class PlatformStore {
       if (retrieval.kind === "hybrid-v1" && sources.some(source => source.embedding_release !== retrieval.embeddingRelease)) throw new PlatformError("RETRIEVAL_PROFILE_CONFLICT", 409, "Source indexes do not match the retrieval profile");
       const connected = (await db.query(`SELECT b.id FROM agents_platform.capability_bindings b JOIN agents_platform.connections c ON c.id=b.connection_id
         WHERE b.organization_id=$1 AND b.account_id=$2 AND b.id=ANY($3::uuid[]) AND c.state='active' AND c.expires_at>now()
-        AND c.policy_revision=(b.binding->'connection'->>'policyRevision')::integer ORDER BY c.id FOR SHARE OF c`, [input.organizationId, input.accountId, config.connectedToolBindingIds])).rows;
-      if (connected.length !== config.connectedToolBindingIds.length) throw new PlatformError("CAPABILITY_SCOPE_DENIED", 403, "Choose current connected tools owned by this account");
+        AND c.policy_revision=(b.binding->'connection'->>'policyRevision')::integer ORDER BY c.id FOR SHARE OF c`, [input.organizationId, input.accountId, connectedAuthority])).rows;
+      if (connected.length !== connectedAuthority.length) throw new PlatformError("CAPABILITY_SCOPE_DENIED", 403, "Choose current connected tools owned by this account");
       if (config.skillIds.length) {
         const skills = await db.query("SELECT id FROM agents_platform.skill_revisions WHERE organization_id=$1 AND agent_id=$2 AND id=ANY($3::uuid[]) FOR SHARE", [input.organizationId,input.agentId,config.skillIds]);
         if (skills.rowCount !== new Set(config.skillIds).size) denied();

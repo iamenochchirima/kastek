@@ -43,6 +43,12 @@ export const faqCapabilitiesSchema = z.strictObject({
   schedules: unavailableCapability,
 });
 
+function collectConnectedToolAuthorityIds(configuration: { connectedToolBindingIds: string[];
+  capabilities: { delegation: { enabled: boolean; bindings?: { connectedToolBindingIds: string[] }[] } } }): string[] {
+  return [...new Set([...configuration.connectedToolBindingIds,
+    ...(configuration.capabilities.delegation.enabled ? configuration.capabilities.delegation.bindings!.flatMap(binding => binding.connectedToolBindingIds) : [])])];
+}
+
 export const agentConfigurationSchema = z.strictObject({
   executionKind: executionKindSchema,
   instructions: z.string().trim().min(1).max(8_000),
@@ -57,8 +63,15 @@ export const agentConfigurationSchema = z.strictObject({
     compactAtTokens: z.number().int().min(1024).max(6144) }).default({ maxInputTokens: 8192, compactAtTokens: 6144 }),
   tools: z.array(toolNameSchema).max(6).refine(tools => new Set(tools).size === tools.length, "Duplicate tool").default([]),
   skillIds: z.array(z.uuid()).max(8).default([]),
-});
+}).refine(configuration => collectConnectedToolAuthorityIds(configuration).length <= 8, "At most eight connected tools may be authorized across the agent and its specialists");
 export type AgentConfiguration = z.infer<typeof agentConfigurationSchema>;
+
+/** Authority covers delegated tools; the agent's own tool list remains the direct configuration. */
+export function connectedToolAuthorityIds(configuration: Pick<AgentConfiguration, "connectedToolBindingIds" | "capabilities">): string[] {
+  const ids = collectConnectedToolAuthorityIds(configuration);
+  if (ids.length > 8) throw new PlatformError("CAPABILITY_SCOPE_DENIED", 403, "At most eight connected tools may be authorized");
+  return ids;
+}
 
 export function defaultFaqConfiguration(): AgentConfiguration {
   return {
@@ -145,6 +158,7 @@ export interface AdmissionAuthority {
 export function assertGrantAuthority(
   grant: ExecutionGrant, authority: AdmissionAuthority, versionId: string, configuration: AgentConfiguration, now = new Date(),
 ): void {
+  const connectedAuthority = connectedToolAuthorityIds(configuration);
   if (grant.revokedAt !== null || new Date(grant.expiresAt).getTime() <= now.getTime()) {
     throw new PlatformError("GRANT_INACTIVE", 403, "Execution authorization has expired or was revoked");
   }
@@ -156,8 +170,8 @@ export function assertGrantAuthority(
   if (!grant.operations.includes("model.reply") ||
       configuration.sourceRevisionIds.some(id => !grant.sourceRevisionIds.includes(id)) ||
       (configuration.sourceRevisionIds.length > 0 && !grant.operations.includes("knowledge.read")) ||
-      configuration.connectedToolBindingIds.some(id => !grant.connectedToolBindingIds.includes(id)) ||
-      (configuration.connectedToolBindingIds.length > 0 && !grant.operations.includes("connected.read")) ||
+      connectedAuthority.some(id => !grant.connectedToolBindingIds.includes(id)) ||
+      (connectedAuthority.length > 0 && !grant.operations.includes("connected.read")) ||
       configuration.model.maxInputBytes > grant.maxInputBytes || configuration.model.maxOutputTokens > grant.maxOutputTokens ||
       configuration.context.maxInputTokens > grant.maxContextTokens ||
       (configuration.capabilities.delegation.enabled && !grant.operations.includes("delegation.execute")) ||

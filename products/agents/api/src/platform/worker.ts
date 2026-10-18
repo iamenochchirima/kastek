@@ -1,4 +1,4 @@
-import { PlatformError } from "./contracts";
+import { PlatformError, connectedToolAuthorityIds } from "./contracts";
 import { actionsFromEnvironment } from "./actions";
 import { TaskArtifactStore } from "./task-artifacts";
 import { AutomationService } from "./automations";
@@ -48,10 +48,11 @@ async function main(): Promise<void> {
     if(configuration.capabilities.sandbox.enabled&&(!sandbox||!await sandbox.available()))throw new PlatformError('SANDBOX_UNAVAILABLE',503,'Analysis is unavailable');
     if(configuration.sourceRevisionIds.length&&!knowledgeRuntime)throw new PlatformError('OBJECT_STORE_UNAVAILABLE',503,'Knowledge storage is unavailable');
     if(configuration.retrievalProfile.kind==='hybrid-v1'&&(!documents||!await documents.available(configuration.retrievalProfile.embeddingRelease)))throw new PlatformError('RETRIEVAL_BACKEND_UNAVAILABLE',503,'The selected semantic search profile is unavailable');
-    if(configuration.connectedToolBindingIds.length){
+    const connectedAuthority=connectedToolAuthorityIds(configuration);
+    if(connectedAuthority.length){
       if(!connected)throw new PlatformError('CONNECTED_TOOLS_UNAVAILABLE',503,'Connected tools are unavailable');
-      const bindings=(await pool.query('SELECT binding FROM agents_platform.capability_bindings WHERE id=ANY($1::uuid[])',[configuration.connectedToolBindingIds])).rows.map(row=>capabilityBindingSchema.parse(row.binding));
-      if(bindings.length!==configuration.connectedToolBindingIds.length)throw new PlatformError('ADAPTER_RELEASE_UNAVAILABLE',503,'A selected tool binding is unavailable');
+      const bindings=(await pool.query('SELECT binding FROM agents_platform.capability_bindings WHERE id=ANY($1::uuid[])',[connectedAuthority])).rows.map(row=>capabilityBindingSchema.parse(row.binding));
+      if(bindings.length!==connectedAuthority.length)throw new PlatformError('ADAPTER_RELEASE_UNAVAILABLE',503,'A selected tool binding is unavailable');
       connected.assertAvailable(bindings);
     }
   });

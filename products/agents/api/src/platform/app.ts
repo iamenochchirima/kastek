@@ -10,7 +10,7 @@ import type { Pool } from "pg";
 import { z } from "zod";
 import { PlatformIdentity } from "./auth";
 import type { PlatformConfig } from "./config";
-import { agentConfigurationSchema, assertRuntimeAvailable, executionGrantSchema, parseAllowedOrigin,
+import { agentConfigurationSchema, assertRuntimeAvailable, executionGrantSchema, connectedToolAuthorityIds, parseAllowedOrigin,
   canonicalJson, PlatformError, terminalTaskStates, type AdmissionAuthority, type AgentConfiguration, type ExecutionGrant } from "./contracts";
 import { PlatformStore, type Account, type TaskRecord } from "./store";
 import { websiteWidgetScript } from "./widget";
@@ -60,10 +60,11 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
     if (configuration.retrievalProfile.kind === "hybrid-v1" && (!documentRuntime || !await documentRuntime.available(configuration.retrievalProfile.embeddingRelease))) {
       throw new PlatformError("RETRIEVAL_BACKEND_UNAVAILABLE", 503, "The selected semantic search profile is unavailable");
     }
-    if (configuration.connectedToolBindingIds.length) {
+    const connectedAuthority = connectedToolAuthorityIds(configuration);
+    if (connectedAuthority.length) {
       if (!connected) throw new PlatformError("CONNECTED_TOOLS_UNAVAILABLE", 503, "Connected tools are unavailable");
-      const rows = (await pool.query("SELECT binding FROM agents_platform.capability_bindings WHERE id=ANY($1::uuid[])", [configuration.connectedToolBindingIds])).rows;
-      if (rows.length !== configuration.connectedToolBindingIds.length) throw new PlatformError("ADAPTER_RELEASE_UNAVAILABLE", 503, "A selected tool binding is unavailable");
+      const rows = (await pool.query("SELECT binding FROM agents_platform.capability_bindings WHERE id=ANY($1::uuid[])", [connectedAuthority])).rows;
+      if (rows.length !== connectedAuthority.length) throw new PlatformError("ADAPTER_RELEASE_UNAVAILABLE", 503, "A selected tool binding is unavailable");
       connected.assertAvailable(rows.map(row => capabilityBindingSchema.parse(row.binding)));
     }
   }
@@ -239,7 +240,7 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
     await assertServices(version.configuration);
     const authority = humanAuthority(user, org, version.agent_id);
     const grant = executionGrantSchema.parse({ ...authority, id: randomUUID(), versionId: version.id,
-      operations: grantOperations(version.configuration), sourceRevisionIds: version.configuration.sourceRevisionIds, connectedToolBindingIds: version.configuration.connectedToolBindingIds,
+      operations: grantOperations(version.configuration), sourceRevisionIds: version.configuration.sourceRevisionIds, connectedToolBindingIds: connectedToolAuthorityIds(version.configuration),
       maxInputBytes: version.configuration.model.maxInputBytes, maxOutputTokens: version.configuration.model.maxOutputTokens,
       expiresAt: new Date(Date.now() + 30 * 60_000).toISOString(), revokedAt: null });
     await store.createGrant({ accountId: user.id, grant });
@@ -321,7 +322,7 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
     const version = await store.getVersion(user.id, task.organization_id, task.version_id);
     const grant = executionGrantSchema.parse({ ...authority, id: randomUUID(), versionId: version.id,
       operations: grantOperations(version.configuration),
-      sourceRevisionIds: version.configuration.sourceRevisionIds, connectedToolBindingIds: version.configuration.connectedToolBindingIds, maxInputBytes: version.configuration.model.maxInputBytes,
+      sourceRevisionIds: version.configuration.sourceRevisionIds, connectedToolBindingIds: connectedToolAuthorityIds(version.configuration), maxInputBytes: version.configuration.model.maxInputBytes,
       maxOutputTokens: version.configuration.model.maxOutputTokens, maxContextTokens: version.configuration.context.maxInputTokens,
       rootTokenLimit: (task as TaskRecord & {root_token_limit:number}).root_token_limit,
       expiresAt: new Date(Math.min(Date.now()+30*60_000, new Date((task as TaskRecord & {deadline_at:Date}).deadline_at).getTime())).toISOString(), revokedAt: null });
