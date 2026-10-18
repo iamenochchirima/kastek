@@ -112,4 +112,18 @@ const enabled = process.env.AGENTS_TEST_DATABASE_URL && process.env.AGENTS_EXECU
     const old = await clientA.owner("document", receipt.allocationId); await clientB.transfer("document", receipt.allocationId, "executor-b");
     for (const command of ["start", "status", "destroy"] as const) await expect(clientA.call(old, command, null)).rejects.toMatchObject({ code: "EXECUTOR_GENERATION_STALE" });
   }, 120_000);
+  it("reaps an expired pre-admission launch intent only after the original physical host confirms absence", async () => {
+    const id = randomUUID(), owner = await clientA.claim("sandbox", id, { fixture: "crashed-before-native-admission" }, new Date(Date.now() + 60_000));
+    await clientA.owners.claimStart(owner, 2);
+    await pool.query("UPDATE agents_platform.resource_executor_owners SET lease_expires_at=now()-interval '1 second' WHERE allocation_id=$1", [id]);
+    expect((await pool.query("SELECT 1 FROM agents_platform.sandbox_allocations WHERE id=$1", [id])).rowCount).toBe(0);
+    await stop("executor-a", "SIGKILL");
+    await expect(routedSandbox(clientB).reap()).rejects.toMatchObject({ code: "SANDBOX_CLEANUP_PENDING" });
+    expect(await clientB.owner("sandbox", id)).toMatchObject({ executor_id: "executor-a", generation: "1", quiescent: false });
+    await expect(access(join(directory, "executor-b", "sandbox", id))).rejects.toMatchObject({ code: "ENOENT" });
+    await start("executor-a"); expect(await routedSandbox(clientB).reap()).toBe(1);
+    expect(await clientB.owner("sandbox", id)).toMatchObject({ executor_id: "executor-a", generation: "1", quiescent: true });
+    expect(await routedSandbox(clientB).reap()).toBe(0);
+  }, 60_000);
+
 });

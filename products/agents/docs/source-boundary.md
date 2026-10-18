@@ -640,7 +640,9 @@ at 20 MB; metadata probes share bounded short-lived results.
 Transfer requires the original host to prove the allocation stopped, then a generation CAS.
 Transfer does not resume an old command on the destination. Stale start, status and cleanup calls
 are rejected by the original physical handler. An unreachable original host remains uncertain;
-local file absence and lease expiry do not authorize replacement. Keep allocation directories,
+local file absence and lease expiry do not authorize replacement. The bounded reaper also finds
+expired owner claims created before native admission; it releases them only after the recorded
+host confirms its physical unit is absent or stopped. Keep allocation directories,
 command intents and the physical identity file until their uncertainty is resolved. The command
 journal is private operational evidence and may contain bounded tool inputs/results. It is not
 ordinary telemetry. Remove a disposable fixture's journal after review and teardown; production

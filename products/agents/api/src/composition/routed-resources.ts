@@ -28,6 +28,17 @@ export function routedSandbox(client: ExecutorClient): SandboxBackend {
         WHERE a.state<>'destroyed' AND (a.lease_expires_at<=now() OR root.state IN ('completed','incomplete','refused','failed','cancelled','uncertain','cancel_requested') OR owner.state IN ('completed','incomplete','refused','failed','cancelled','uncertain','cancel_requested')) ORDER BY a.created_at LIMIT 100`)).rows;
       let count = 0, pending = false;
       for (const row of rows) try { await this.destroy({ organizationId: row.organization_id, taskId: row.task_id, rootTaskId: row.root_task_id, deadlineAt: new Date(row.lease_expires_at) }, row.id); count++; } catch { pending = true; }
+      // Admission may die after the durable owner claim but before its native allocation exists.
+      // Only the recorded host may confirm the absent physical unit and release that slot.
+      const orphans = (await client.pool.query(`SELECT o.* FROM agents_platform.resource_executor_owners o
+        LEFT JOIN agents_platform.sandbox_allocations a ON a.id=o.allocation_id
+        WHERE o.resource_kind='sandbox' AND a.id IS NULL AND NOT o.quiescent AND o.lease_expires_at<=now()
+        ORDER BY o.created_at LIMIT 100`)).rows;
+      for (const owner of orphans) try {
+        const result = await client.call(owner, "destroy", null, `destroy:${owner.allocation_id}`);
+        if (result.state !== "destroyed") throw new PlatformError("SANDBOX_CLEANUP_PENDING", 503, "Sandbox cleanup is pending");
+        count++;
+      } catch { pending = true; }
       if (pending) throw new PlatformError("SANDBOX_CLEANUP_PENDING", 503, "Sandbox cleanup is pending"); return count;
     },
   };
