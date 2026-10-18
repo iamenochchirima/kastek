@@ -452,7 +452,7 @@ exporters. Services emit bounded structured stdout diagnostics.
 
 Dispatch claims use bounded batches (default 32, maximum 128), eight parallel
 sends and 120-second leases. Claims use PostgreSQL row locks with `SKIP LOCKED`;
-within each bounded candidate window, tenant turns precede a tenant's second task.
+a durable tenant rotation selects bounded per-tenant candidate sets, so an older noisy tenant cannot bury a newly waiting tenant behind its backlog.
 Stable Restate workflow keys deduplicate repeated sends after an uncertain response.
 Only the current claim owner can persist the invocation binding. Terminal and
 deadline sweeps are bounded to 128 rows; continuation publication uses leased claims.
@@ -487,3 +487,18 @@ current authorization. Keys and cursor payloads must not enter logs.
 These mechanisms do not establish measured 1,000/10,000 active-agent capacity.
 Load acceptance records distinguish admitted, executing and waiting roots and
 must report achieved counts and limiting resources separately.
+
+`AGENTS_DATABASE_POOL_POLICY_JSON` declares the total database budget, reserve
+and replica count/pool maximum for API, worker, dispatcher, cleanup, evaluation and
+migration roles. Startup rejects declared pools whose combined maximum exceeds
+the budget. Embedded dispatchers reuse their worker pool. Separate deployments
+must declare every replica; this is a configured connection allocation, not
+automatic process discovery. Reapers and schema setup use the same role policy.
+
+The controlled acceptance driver is `api/test/scheduling-load.ts`, with separate
+API and worker fixture processes in `scheduling-load-process.ts`. It creates only
+a uniquely named database/container and disposable principals, uses authenticated
+HTTP interfaces and a local HTTP model simulator, and writes measurements under
+ignored `.audit/`. Its exploratory direct/tool/delegation/slow mix does not satisfy
+the complete workload contract: reports list missing sustained, approval,
+ownership and fault-injection scenarios explicitly.

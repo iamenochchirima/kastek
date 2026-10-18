@@ -1,3 +1,4 @@
+import { databasePoolOptions } from "../infrastructure/pool-policy";
 import { Pool } from "pg";
 import { reapSourceObjects } from "../capabilities/knowledge/source-objects";
 import { reapExecutionObjects } from "../execution/artifacts/execution-objects";
@@ -19,7 +20,7 @@ export async function runSourceObjectReaper(pool: Pool, signal: AbortSignal): Pr
 }
 if (require.main === module) {
   if (!process.env.AGENTS_DATABASE_URL) throw new Error("AGENTS_DATABASE_URL is required");
-  const pool = new Pool({ connectionString: process.env.AGENTS_DATABASE_URL, max: 2 }), abort = new AbortController();
+  const pool = new Pool({ connectionString: process.env.AGENTS_DATABASE_URL, ...databasePoolOptions("cleanup") }), abort = new AbortController();
   process.once("SIGINT", () => abort.abort()); process.once("SIGTERM", () => abort.abort());
   void runSourceObjectReaper(pool, abort.signal).catch(() => {
     console.error(JSON.stringify({ service: "agents-source-object-reaper", event: "startup.failed" })); process.exitCode = 1;

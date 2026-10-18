@@ -69,8 +69,18 @@ export async function releaseCapacity(db:PoolClient,requestId:string,outcome:"co
 }
 export async function advanceCapacity(pool:Pool,options:Partial<CapacityPolicy>={},limit=64):Promise<void>{
  const policy=capacityPolicySchema.parse(options);if(!Number.isInteger(limit)||limit<1||limit>256)throw Error("Invalid capacity sweep bound");
- const candidates=(await pool.query(`SELECT id FROM agents_platform.capacity_requests WHERE state='waiting' OR state='granted' AND lease_until<=now()
- ORDER BY created_at,id LIMIT $1`,[limit])).rows;
+ const candidates=await transaction(pool,async db=>{
+  const tenants=(await db.query(`SELECT st.organization_id FROM agents_platform.scheduling_tenants st WHERE EXISTS(
+   SELECT 1 FROM agents_platform.capacity_requests q JOIN agents_platform.tasks t ON t.id=q.task_id
+   WHERE t.organization_id=st.organization_id AND (q.state='waiting' OR q.state='granted' AND q.lease_until<=now()))
+   ORDER BY st.last_capacity_at,st.organization_id FOR UPDATE OF st SKIP LOCKED LIMIT $1`,[limit])).rows;
+  if(!tenants.length)return [];
+  const ids=tenants.map(t=>t.organization_id);
+  await db.query('UPDATE agents_platform.scheduling_tenants SET last_capacity_at=now() WHERE organization_id=ANY($1::uuid[])',[ids]);
+  return (await db.query(`WITH due AS (SELECT q.id,q.created_at,t.organization_id,row_number() OVER(PARTITION BY t.organization_id ORDER BY q.created_at,q.id) AS rank
+   FROM agents_platform.capacity_requests q JOIN agents_platform.tasks t ON t.id=q.task_id WHERE t.organization_id=ANY($1::uuid[])
+   AND (q.state='waiting' OR q.state='granted' AND q.lease_until<=now())) SELECT id FROM due ORDER BY rank,created_at,id LIMIT $2`,[ids,limit])).rows;
+ });
  for(const candidate of candidates){
   await transaction(pool,async db=>{
    const row=(await db.query(`SELECT * FROM agents_platform.capacity_requests WHERE id=$1 AND (state='waiting' OR state='granted' AND lease_until<=now()) FOR UPDATE SKIP LOCKED`,[candidate.id])).rows[0];if(!row)return;

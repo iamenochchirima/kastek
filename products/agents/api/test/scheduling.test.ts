@@ -1,7 +1,7 @@
 import {randomUUID} from "node:crypto";
 import {Pool} from "pg";
 import {beforeAll,afterAll,describe,it,expect} from "vitest";
-import {defaultBusinessConfiguration,type AdmissionAuthority,type ExecutionGrant} from "../src/contracts/contracts";
+import {defaultBusinessConfiguration,executionGrantSchema,type AdmissionAuthority} from "../src/contracts/contracts";
 import {PlatformStore} from "../src/product/agents/store";
 import {setupPlatformSchema} from "../src/composition/setup";
 import {transaction} from "../src/infrastructure/database";
@@ -19,7 +19,7 @@ const dbUrl=process.env.AGENTS_TEST_DATABASE_URL;
   const config=defaultBusinessConfiguration();const agent=await store.createAgent({accountId:account.id,organizationId:org.id,name:'Fixture',configuration:config});
   const version=await store.createVersion({accountId:account.id,organizationId:org.id,agentId:agent.id,expectedRevision:1});
   const authority:AdmissionAuthority={product:'agents',organizationId:org.id,resourceId:agent.id,callerClientId:'agents-execution',principal:{kind:'human',issuer:account.issuer,subject:account.subject}};
-  const grant:ExecutionGrant={...authority,id:randomUUID(),versionId:version.id,operations:['model.reply','knowledge.read'],maxInputBytes:config.model.maxInputBytes,maxOutputTokens:config.model.maxOutputTokens,expiresAt:new Date(Date.now()+120000).toISOString(),revokedAt:null};await store.createGrant({accountId:account.id,grant});
+  const grant=executionGrantSchema.parse({...authority,id:randomUUID(),versionId:version.id,operations:['model.reply','knowledge.read'],maxInputBytes:config.model.maxInputBytes,maxOutputTokens:config.model.maxOutputTokens,expiresAt:new Date(Date.now()+120000).toISOString(),revokedAt:null});await store.createGrant({accountId:account.id,grant});
   const results=await Promise.all([1,2].map(()=>store.admitTask({authority,grantId:grant.id,versionId:version.id,requestKey:randomUUID(),input:'Hello'})));
   return results.map(r=>r.task);
  }
@@ -32,6 +32,22 @@ const dbUrl=process.env.AGENTS_TEST_DATABASE_URL;
   await pool.query("UPDATE agents_platform.task_outbox SET lease_until=now()-interval '1 second' WHERE task_id=$1",[a[0]!.id]);
   const recovered=await claimDispatchBatch(pool,{batchSize:2});expect(recovered.rows.map(r=>r.task_id)).toContain(a[0]!.id);
   await pool.query('UPDATE agents_platform.task_outbox SET dispatched_at=now() WHERE task_id=ANY($1::uuid[])',[a.concat(b).map(t=>t.id)]);
+ });
+ it('serves a new tenant despite an older noisy tenant exceeding the initial candidate window',async()=>{
+  const hot=await tasks();
+  // Claim-query fixtures only: these rows do not execute or represent authorized load acceptance.
+  await pool.query(`WITH fixtures AS MATERIALIZED (SELECT gen_random_uuid() id,n FROM generate_series(1,40) n)
+   INSERT INTO agents_platform.tasks(id,product,organization_id,resource_id,caller_client_id,principal,version_id,grant_id,conversation_id,
+   request_key,request_digest,input,turn_sequence,root_task_id,effective_composition,created_at)
+   SELECT f.id,t.product,t.organization_id,t.resource_id,t.caller_client_id,t.principal,t.version_id,t.grant_id,t.conversation_id,
+   f.id::text,t.request_digest,t.input,100+f.n,f.id,t.effective_composition,now()-interval '1 hour'
+   FROM fixtures f CROSS JOIN agents_platform.tasks t WHERE t.id=$1`,[hot[0]!.id]);
+  await pool.query(`INSERT INTO agents_platform.task_outbox(task_id,created_at) SELECT id,created_at FROM agents_platform.tasks
+   WHERE organization_id=$1 AND id<>ALL($2::uuid[])`,[hot[0]!.organization_id,hot.map(t=>t.id)]);
+  const quiet=await tasks(),batch=await claimDispatchBatch(pool,{batchSize:2});
+  const owners=(await pool.query('SELECT organization_id FROM agents_platform.tasks WHERE id=ANY($1::uuid[])',[batch.rows.map(t=>t.task_id)])).rows.map(r=>r.organization_id);
+  expect(owners).toContain(quiet[0]!.organization_id);expect(new Set(owners).size).toBe(2);
+  await pool.query('UPDATE agents_platform.task_outbox SET dispatched_at=now() WHERE task_id IN(SELECT id FROM agents_platform.tasks WHERE organization_id=ANY($1::uuid[]))',[[hot[0]!.organization_id,quiet[0]!.organization_id]]);
  });
  it('register/release has no lost wakeup and duplicate notifications never overlap permits',async()=>{
   const [a,b]=await tasks(),key=`test:${randomUUID()}`;

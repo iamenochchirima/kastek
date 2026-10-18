@@ -1,3 +1,4 @@
+import { databasePoolOptions } from "../infrastructure/pool-policy";
 import { Pool } from "pg";
 import { sandboxManagerFromEnvironment } from "../capabilities/sandbox/sandbox";
 
@@ -12,7 +13,7 @@ export async function runSandboxReaper(pool: Pool, signal: AbortSignal, interval
 }
 if (require.main === module) {
   if (!process.env.AGENTS_DATABASE_URL) throw new Error("AGENTS_DATABASE_URL is required");
-  const pool=new Pool({connectionString:process.env.AGENTS_DATABASE_URL,max:2}),abort=new AbortController();
+  const pool=new Pool({connectionString:process.env.AGENTS_DATABASE_URL,...databasePoolOptions("cleanup")}),abort=new AbortController();
   process.once("SIGINT",()=>abort.abort());process.once("SIGTERM",()=>abort.abort());
   void runSandboxReaper(pool,abort.signal).catch(()=>{console.error(JSON.stringify({service:"agents-sandbox-reaper",event:"startup.failed"}));process.exitCode=1;}).finally(()=>pool.end());
 }

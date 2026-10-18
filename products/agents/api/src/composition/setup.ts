@@ -1,3 +1,4 @@
+import { databasePoolOptions } from "../infrastructure/pool-policy";
 import { createHash } from "node:crypto";
 import { readFile,readdir } from "node:fs/promises";
 import { join } from "node:path";
@@ -40,7 +41,7 @@ export async function setupPlatformSchema(pool: Pool): Promise<void> {
 if (require.main === module) {
   const connectionString = process.env.AGENTS_MIGRATION_DATABASE_URL || process.env.AGENTS_DATABASE_URL;
   if (!connectionString) throw new Error("AGENTS_DATABASE_URL is required");
-  const pool = new Pool({ connectionString, max: 1 });
+  const pool = new Pool({ connectionString, ...databasePoolOptions("migration") });
   setupPlatformSchema(pool)
     .then(() => { process.stdout.write("Agents platform schema ready\n"); })
     .catch(() => { process.stderr.write("Agents platform setup failed; use a fresh dedicated database and verify access\n"); process.exitCode = 1; })
