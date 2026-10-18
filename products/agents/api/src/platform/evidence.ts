@@ -126,10 +126,15 @@ export function citationLabels(text: string): string[] {
 function boundedText(text: string): void {
   if (!text.length || Buffer.byteLength(text) > 8192) throw new PlatformError("EVIDENCE_LIMIT", 413, "Evidence passage exceeds its visible text limit");
 }
-function payloadHas(value: unknown, text: string, label: string): boolean {
-  if (typeof value === "string") return (value.includes(text) || value.includes(JSON.stringify(text).slice(1,-1))) && value.includes(`[${label}]`);
-  if (Array.isArray(value)) return value.some(item => payloadHas(item, text, label));
-  if (value && typeof value === "object") return Object.values(value).some(item => payloadHas(item, text, label));
+function payloadHas(value: unknown, text: string, label: string, remainingDecodes = 4): boolean {
+  if (typeof value === "string") {
+    if ((value.includes(text) || value.includes(JSON.stringify(text).slice(1,-1))) && value.includes(`[${label}]`)) return true;
+    // Compaction packs tool messages whose content is already a JSON observation.
+    if (remainingDecodes > 0) try { return payloadHas(JSON.parse(value), text, label, remainingDecodes - 1); } catch { return false; }
+    return false;
+  }
+  if (Array.isArray(value)) return value.some(item => payloadHas(item, text, label, remainingDecodes));
+  if (value && typeof value === "object") return Object.values(value).some(item => payloadHas(item, text, label, remainingDecodes));
   return false;
 }
 function memoryVisible(value:unknown,id:string,content:string):boolean{

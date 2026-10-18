@@ -140,6 +140,28 @@ const url=process.env.AGENTS_TEST_DATABASE_URL;
   await expect(evidence.derive(f.task.id,"artifact",randomUUID())).rejects.toMatchObject({code:"EVIDENCE_UNAVAILABLE"});
  });
 
+ it("validates connected JSON evidence inside tool and compaction envelopes without accepting missing text or citations",async()=>{
+  const f=await fixture(false,true),c=f.connectedFixture!,op=`tool:${f.task.id}:connected-json`;
+  await beginOperation(pool,f.task.id,{id:op,kind:"tool",name:c.binding.alias,request:{},reservedTokens:0,reservedMs:1000,retrySafe:true});
+  const text=JSON.stringify({repository:"approved/public",ref:"main",sha:"a".repeat(40),note:'a "quoted" value\nnext line'},null,2);
+  const p=await evidence.recordConnected(f.task.id,op,{bindingId:c.binding.id,resource:c.connection.resources[0]!,text,title:"Resolved public ref",acquiredAt:new Date().toISOString(),receiptDigest:"c".repeat(64)});
+  const observation={status:"ok",content:p.text,evidence:{id:p.reference.id,label:p.label,citation:`[${p.label}]`}};
+  const messages=[{role:"assistant",content:null,tool_calls:[{id:"resolve",type:"function",function:{name:c.binding.alias,arguments:"{}"}}]},{role:"tool",tool_call_id:"resolve",content:JSON.stringify(observation)}];
+  async function save(id:string,step:number,content:unknown){const payload={messages:content};await pool.query("INSERT INTO agents_platform.context_snapshots(id,task_id,step,digest,payload,history_cutoff) VALUES($1,$2,$3,$4,$5,0)",[id,f.task.id,step,textDigest(JSON.stringify(payload)),payload]);return evidence.supplyContext(f.task.id,id,[p.reference.id]);}
+  expect((await save(`context:${f.task.id}:normal`,0,messages)).evidenceIds).toContain(p.reference.id);
+  const compact=[{role:"user",content:JSON.stringify({groupId:"connected-read",records:messages})}];
+  const compactNode=await save(`context:${f.task.id}:compact`,1,compact);expect(compactNode.evidenceIds).toContain(p.reference.id);
+  expect((await evidence.supplyContext(f.task.id,`context:${f.task.id}:compact`,[p.reference.id])).id).toBe(compactNode.id);
+  const changed=structuredClone(observation);changed.content="different provider result";
+  await expect(save(`context:${f.task.id}:missing-text`,2,[{role:"user",content:JSON.stringify({records:[{role:"tool",content:JSON.stringify(changed)}]})}])).rejects.toMatchObject({code:"EVIDENCE_INTEGRITY"});
+  const unquoted={...observation,content:p.text.replaceAll('"','')};
+  await expect(save(`context:${f.task.id}:missing-quotes`,4,[{role:"user",content:JSON.stringify({records:[{role:"tool",content:JSON.stringify(unquoted)}]})}])).rejects.toMatchObject({code:"EVIDENCE_INTEGRITY"});
+  let overEncoded=JSON.stringify(observation);for(let i=0;i<8;i++)overEncoded=JSON.stringify(overEncoded);
+  await expect(save(`context:${f.task.id}:decode-bound`,5,[{role:"user",content:overEncoded}])).rejects.toMatchObject({code:"EVIDENCE_INTEGRITY"});
+  const uncited={...observation,evidence:{id:p.reference.id,label:p.label}};
+  await expect(save(`context:${f.task.id}:missing-citation`,3,[{role:"user",content:JSON.stringify({records:[{role:"tool",content:JSON.stringify(uncited)}]})}])).rejects.toMatchObject({code:"EVIDENCE_INTEGRITY"});
+ });
+
  it("inherits actual selected conversation turns across roots with globally distinct citation handles and omits invalidated turns",async()=>{
   const f=await fixture(),p=await evidence.recordChunk(f.task.id,f.operationId,f.chunkId);await context(f,p);await evidence.derive(f.task.id,"artifact","old-report");
   await pool.query("UPDATE agents_platform.tasks SET state='completed',output=$2 WHERE id=$1",[f.task.id,`Known fact [${p.label}]`]);

@@ -102,11 +102,11 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     await pool?.end();
     if (admin) { await admin.query(`DROP DATABASE IF EXISTS "${databaseName}" WITH (FORCE)`); await admin.end(); }
   });
-  async function fixture(changes: Partial<AgentConfiguration> = {}, rootTokenLimit = 32000) {
+  async function fixture(changes: Partial<AgentConfiguration> = {}, rootTokenLimit = 32000, sourceContent = "Opening hours. Open at nine.") {
     provider = async () => reply(); calls.length = 0;
     const account = await store.ensureAccount({ issuer: "http://localhost:8080/realms/test", subject: randomUUID(), email: "fixture@example.com", displayName: "Owner" });
     const org = await store.createOrganization(account.id, "Harness fixture");
-    const source = await publishFixtureSource(pool,{ accountId: account.id, organizationId: org.id, title: "Hours", content: "Opening hours. Open at nine.", visibility: "public" }, artifacts.objects);
+    const source = await publishFixtureSource(pool,{ accountId: account.id, organizationId: org.id, title: "Hours", content: sourceContent, visibility: "public" }, artifacts.objects);
     const config = { ...defaultFaqConfiguration(), sourceRevisionIds: [source.id], ...changes };
     const agent = await store.createAgent({ accountId: account.id, organizationId: org.id, name: "Agent", configuration: config });
     const version = await store.createVersion({ accountId: account.id, organizationId: org.id, agentId: agent.id, expectedRevision: 1 });
@@ -659,7 +659,8 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     return{instructions:config.instructions,tools:config.tools,context:{maxInputTokens:8192,compactAtTokens:6144}};
   }
   it("compacts a single complete overflowing tool group and replays its evidence without spending again",async()=>{
-    const f=await fixture(nearLimitToolConfiguration());
+    const sourceContent=JSON.stringify({hours:"Open at nine",note:'Opening "quoted" hours\nnext line'});
+    const f=await fixture(nearLimitToolConfiguration(),32000,sourceContent);
     const evidence=businessOptions.evidence!,supply=evidence.supplyContext.bind(evidence);
     let release!:()=>void,held=false,evidenceId="",citation="";
     const barrier=new Promise<void>(resolve=>{release=resolve;});
@@ -668,7 +669,7 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
       if(body.messages[0].content.startsWith("Summarize")){
         const packed=JSON.parse(body.messages.find((message:any)=>message.role==="user"&&message.content.includes('"groupId"')).content);
         expect(packed.records.map((message:any)=>message.role)).toEqual(["assistant","tool"]);validateMessageGroups(packed.records);
-        const passage=JSON.parse(packed.records[1].content).passages[0];evidenceId=passage.evidenceId;citation=passage.citation;
+        const passage=JSON.parse(packed.records[1].content).passages[0];expect(passage.text).toBe(sourceContent);evidenceId=passage.evidenceId;citation=passage.citation;
         return reply(`Confirmed nine. Issued evidence ${evidenceId} ${citation}.`);
       }
       if(calls.length===1){expect(estimateRequestTokens(body)).toBeLessThanOrEqual(8192);return reply("","tool_calls",[tool("knowledge_search",{query:"opening"})]);}
