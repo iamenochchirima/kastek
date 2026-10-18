@@ -1,3 +1,4 @@
+import "./management.css";
 import { connectedAuthorityIds, connectedBindingAvailable } from "./connected-selection";
 import { Link } from "react-router-dom";
 import { type CapabilityBinding, type Configuration, type Connection, type KnowledgeSource } from "./api";
@@ -21,7 +22,7 @@ export function SourceConfiguration({ sources, bindings, connections, configurat
         sourceRevisionIds: (binding.sourceRevisionIds ?? []).filter(id => sourceRevisionIds.includes(id)) })) } : delegation } });
   }
   const missingIds = ids.filter(id => !sources.some(source => source.revisions.some(revision => revision.id === id)));
-  return <div className="space-y-6"><fieldset className="space-y-3"><legend className="mb-3 text-sm font-medium">Knowledge</legend>{!sources.length && !missingIds.length ? <p className="text-sm text-muted-foreground">No approved sources. <Link className="underline underline-offset-4" to="/app/knowledge">Manage knowledge</Link></p> : null}
+  return <div className="configuration-section space-y-6"><fieldset className="space-y-3"><legend className="mb-3 text-sm font-medium">Knowledge</legend>{!sources.length && !missingIds.length ? <p className="text-sm text-muted-foreground">No approved sources. <Link className="underline underline-offset-4" to="/app/knowledge">Manage knowledge</Link></p> : null}
     {sources.filter(source => source.state === "active" && source.revisions.some(revision => revision.state === "approved") || source.revisions.some(revision => ids.includes(revision.id))).map(source => {
       const revisions = source.revisions.filter(revision => revision.state === "approved").sort((a, b) => b.revision - a.revision);
       const pinned = source.revisions.find(revision => ids.includes(revision.id)), unavailable = source.state !== "active" || pinned?.state === "withdrawn";

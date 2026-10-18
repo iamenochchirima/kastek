@@ -41,6 +41,15 @@ const appearanceInitScript = `
 })();
 `;
 
-export function bootstrapAppearance() {
+function applyAppearance() {
   const script = document.createElement("script"); script.textContent = appearanceInitScript; document.head.append(script); script.remove();
+}
+let listening = false;
+export function bootstrapAppearance() {
+  applyAppearance();
+  if (listening) return;
+  listening = true;
+  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
+    if (document.documentElement.dataset.themeMode === "system") applyAppearance();
+  });
 }
