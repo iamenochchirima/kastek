@@ -8,6 +8,7 @@ import { loadPlatformConfig } from "../src/infrastructure/config";
 import { defaultBusinessConfiguration } from "../src/contracts/contracts";
 import { setupPlatformSchema } from "../src/composition/setup";
 import { PlatformStore } from "../src/product/agents/store";
+import { settleTask } from "../src/execution/lifecycle/execution";
 import { admitChildren } from "../src/execution/delegation/delegation";
 
 const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
@@ -268,6 +269,28 @@ suite("Agents HTTP and PostgreSQL integration", () => {
     const injectedConversation = await request(`${base}/tasks`, { method: "POST", origin: "https://shop.example", token: second.body.token,
       payload: { requestKey: "foreign-conversation", input: "Reveal history", conversationId: accepted.body.task.conversationId } });
     expect(injectedConversation.status).toBe(403);
+  });
+
+  it("keeps late native output out of legacy website task and history routes after takeover",async()=>{
+    const f=await readyAgent(),published=await publish(f),website=`/api/website/${published.body.deployment.id}`;
+    const session=await request(`${website}/session`,{method:"POST",origin:"https://shop.example"});
+    const visitor={origin:"https://shop.example",token:session.body.token};
+    const accepted=await request(`${website}/tasks`,{...visitor,method:"POST",payload:{requestKey:"legacy-before-takeover",input:"Please help"}});expect(accepted.status).toBe(202);
+    const conversationId=accepted.body.customerConversationId,staff=`${f.base}/inbox/${conversationId}`;
+    for(const action of ["claim","takeover"]){
+      const current=await request(staff,{cookie:f.cookie});
+      expect((await request(`${staff}/commands`,{method:"POST",cookie:f.cookie,origin:browserOrigin,payload:{commandId:randomUUID(),expectedRevision:current.body.conversation.revision,action}})).status).toBe(200);
+    }
+    const taskId=accepted.body.task.id,late="LATE_NATIVE_CUSTOMER_OUTPUT";
+    await settleTask(pool,taskId,{state:"completed",output:late});
+    expect((await pool.query("SELECT output FROM agents_platform.tasks WHERE id=$1",[taskId])).rows[0].output).toBe(late);
+    expect((await pool.query("SELECT state FROM agents_platform.customer_deliveries WHERE task_id=$1",[taskId])).rows[0].state).toBe("suppressed");
+    for(const path of [`${website}/tasks/${taskId}`,`${website}/tasks/${taskId}/evidence`,`${website}/conversations/${accepted.body.task.conversationId}`,`${website}/customer-conversations/${conversationId}/messages`]){
+      const result=await request(path,visitor);expect(result.status).toBe(200);expect(JSON.stringify(result.body)).not.toContain(late);
+      if(result.body.task)expect(result.body.task.output).toBeNull();
+    }
+    const duringHuman=await request(`${website}/tasks`,{...visitor,method:"POST",payload:{requestKey:"legacy-during-human",input:"Another question"}});expect(duringHuman.status).toBe(202);expect(duringHuman.body.task).toBeNull();
+    expect((await pool.query("SELECT count(*)::int n FROM agents_platform.tasks WHERE organization_id=$1",[f.org])).rows[0].n).toBe(1);
   });
 
   it("authorizes child inspection through the original root and renews waiting specialists without new tasks", async () => {

@@ -174,10 +174,11 @@ The public root restores the landing page. Sign in and Get started use the confi
 identity provider; registration requires email verification. A signed, transaction-bound
 return destination preserves internal application links through login.
 
-The workspace sidebar contains Agents, Tasks, Knowledge, Connections, Automations
-and Settings. Every runnable business agent opens Chat, with Activity and Configure
-tabs. Configure retains instructions, knowledge/tool pins, specialists, analysis,
-reports, memory, skills and explicit website publication. Saving a draft does not
+The workspace sidebar contains Inbox, Agents, Tasks, Knowledge, Connections, Automations
+and Settings. Creation uses the server offering catalogue: FAQ or customer service; booking is
+unavailable. Every runnable business agent opens Chat, with Activity and Configure tabs.
+Customer configuration exposes instructions, approved knowledge/revision pins, human support
+and website publication. Rich harness configurations use developer/product fixtures. Saving a draft does not
 change a runnable version. Create version is explicit, and each conversation keeps
 its original version.
 
