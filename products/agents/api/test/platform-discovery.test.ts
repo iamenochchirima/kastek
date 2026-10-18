@@ -5,6 +5,7 @@ import {buildPlatformApp} from "../src/composition/app";
 import {loadPlatformConfig} from "../src/infrastructure/config";
 import {setupPlatformSchema} from "../src/composition/setup";
 import {PlatformStore} from "../src/product/agents/store";
+import type {InitiatingPrincipal} from "../src/contracts/contracts";
 import type {Account} from "../src/contracts/records";
 import {dropClosedTestDatabase} from "./support/database-cleanup";
 
@@ -22,14 +23,14 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
   async function actor(){const user=await store.ensureAccount({issuer:"http://localhost:8080/realms/kasitek",subject:randomUUID(),email:"test@example.test",displayName:"Test"});const session=await store.createSession({accountId:user.id,providerSessionId:randomUUID(),expiresAt:new Date(Date.now()+3600000)});return {user,cookie:`agents_session=${session.token}`};}
   async function get(path:string,cookie:string){const response=await fetch(endpoint+path,{headers:{cookie}});return {status:response.status,body:await response.json() as any};}
   async function fixture(){const f=await actor(),org=await store.createOrganization(f.user.id,"Read fixtures"),agent=await store.createAgent({accountId:f.user.id,organizationId:org.id,name:"Research"}),version=await store.createVersion({accountId:f.user.id,organizationId:org.id,agentId:agent.id,expectedRevision:1});return {...f,org:org.id,agent:agent.id,version:version.id,base:`/api/organizations/${org.id}`};}
-  async function seed(f:Awaited<ReturnType<typeof fixture>>,user:Account=f.user,conversationId?:string,count=1){
-    const principal={kind:"human",issuer:user.issuer,subject:user.subject},conversation=conversationId??randomUUID(),grant=randomUUID();
+  async function seed(f:Awaited<ReturnType<typeof fixture>>,user:Account=f.user,conversationId?:string,count=1,options:{principal?:InitiatingPrincipal;callerClientId?:string;resourceId?:string;parentTaskId?:string}={}){
+    const principal=options.principal??{kind:"human",issuer:user.issuer,subject:user.subject},conversation=conversationId??randomUUID(),grant=randomUUID(),callerClientId=options.callerClientId??"agents-execution",resourceId=options.resourceId??f.agent;
     if(!conversationId)await pool.query("INSERT INTO agents_platform.conversations(id,organization_id,agent_id,principal) VALUES($1,$2,$3,$4)",[conversation,f.org,f.agent,principal]);
     // Deterministic already-completed fixture tasks do not invoke a worker or consume a model budget.
     await pool.query(`INSERT INTO agents_platform.execution_grants(id,product,organization_id,resource_id,caller_client_id,principal,version_id,operations,source_revision_ids,max_input_bytes,max_output_tokens,expires_at)
-      VALUES($1,'agents',$2,$3,'agents-execution',$4,$5,'["chat"]'::jsonb,ARRAY[]::uuid[],16384,1000,now()+interval '1 hour')`,[grant,f.org,f.agent,principal,f.version]);
-    const ids:string[]=[];for(let i=0;i<count;i++){const id=randomUUID();ids.push(id);await pool.query(`INSERT INTO agents_platform.tasks(id,product,organization_id,resource_id,caller_client_id,principal,version_id,grant_id,conversation_id,request_key,request_digest,input,state,output,turn_sequence,effective_composition)
-      VALUES($1::uuid,'agents',$2,$3,'agents-execution',$4,$5,$6,$7,$1::text,repeat('0',64),$8,'completed','SECRET OUTPUT',$9,(SELECT effective_composition FROM agents_platform.agent_versions WHERE id=$5))`,[id,f.org,f.agent,principal,f.version,grant,conversation,i===0?"First <script> input\ntext":"Follow up",i+1]);}
+      VALUES($1,'agents',$2,$3,$6,$4,$5,'["chat"]'::jsonb,ARRAY[]::uuid[],16384,1000,now()+interval '1 hour')`,[grant,f.org,resourceId,principal,f.version,callerClientId]);
+    const ids:string[]=[];for(let i=0;i<count;i++){const id=randomUUID();ids.push(id);await pool.query(`INSERT INTO agents_platform.tasks(id,product,organization_id,resource_id,principal,version_id,grant_id,conversation_id,request_key,request_digest,input,state,output,turn_sequence,effective_composition,caller_client_id,root_task_id,parent_task_id,depth)
+      VALUES($1::uuid,'agents',$2,$3,$4,$5,$6,$7,$1::text,repeat('0',64),$8,'completed','SECRET OUTPUT',$9,(SELECT effective_composition FROM agents_platform.agent_versions WHERE id=$5),$10,coalesce($11::uuid,$1::uuid),$11::uuid,$12)`,[id,f.org,resourceId,principal,f.version,grant,conversation,i===0?"First <script> input\ntext":"Follow up",i+1,callerClientId,options.parentTaskId??null,options.parentTaskId?1:0]);}
     return {conversation,ids};
   }
   it("paginates compact agent summaries without draft/configuration bodies",async()=>{
@@ -76,15 +77,14 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
   it("keeps visitor/child tasks out of discovery and restricts automation reviewers to metadata",async()=>{
     const f=await fixture(),reviewer=await actor(),stranger=await actor();
     for(const member of [reviewer,stranger])await pool.query("INSERT INTO agents_platform.memberships(organization_id,account_id,role) VALUES($1,$2,'member')",[f.org,member.user.id]);
-    const human=await seed(f),automation=await seed(f),visitor=await seed(f),child=await seed(f);
-    const automationId=randomUUID(),principal={kind:"automation",id:automationId,ownerAccountId:f.user.id};
+    const human=await seed(f);
+    const automationId=randomUUID(),principal:InitiatingPrincipal={kind:"automation",id:automationId,ownerAccountId:f.user.id};
     await pool.query("INSERT INTO agents_platform.automations(id,organization_id,owner_account_id,name) VALUES($1,$2,$3,'Review report')",[automationId,f.org,f.user.id]);
     await pool.query("INSERT INTO agents_platform.automation_revisions(automation_id,revision,version_id,configuration) VALUES($1,1,$2,$3)",[automationId,f.version,{reviewerAccountId:reviewer.user.id}]);
-    await pool.query("UPDATE agents_platform.tasks SET principal=$2,caller_client_id='agents-automation',resource_id=$3 WHERE id=$1",[automation.ids[0],principal,automationId]);
-    await pool.query("UPDATE agents_platform.conversations SET principal=$2 WHERE id=$1",[automation.conversation,principal]);
+    const automation=await seed(f,f.user,undefined,1,{principal,callerClientId:"agents-automation",resourceId:automationId});
     await pool.query("INSERT INTO agents_platform.automation_occurrences(id,automation_id,revision,occurrence_key,input_digest,scheduled_at,status,task_id) VALUES($1,$2,1,'fixture',repeat('0',64),now(),'accepted',$3)",[randomUUID(),automationId,automation.ids[0]]);
-    await pool.query("UPDATE agents_platform.tasks SET principal=$2,caller_client_id='agents-website' WHERE id=$1",[visitor.ids[0],{kind:"visitor",deploymentId:randomUUID(),sessionId:randomUUID()}]);
-    await pool.query("UPDATE agents_platform.tasks SET parent_task_id=$2,root_task_id=$2,depth=1 WHERE id=$1",[child.ids[0],human.ids[0]]);
+    await seed(f,f.user,undefined,1,{principal:{kind:"visitor",deploymentId:randomUUID(),sessionId:randomUUID()},callerClientId:"agents-website"});
+    await seed(f,f.user,undefined,1,{parentTaskId:human.ids[0]});
     const own=await get(`${f.base}/tasks`,f.cookie);expect(own.status).toBe(200);expect(own.body.tasks.map(x=>x.id).sort()).toEqual([human.ids[0],automation.ids[0]].sort());
     const reviews=await get(`${f.base}/tasks`,reviewer.cookie);expect(reviews.status).toBe(200);expect(reviews.body.tasks).toHaveLength(1);expect(reviews.body.tasks[0]).toMatchObject({id:automation.ids[0],reviewOnly:true,canControl:false,conversationId:null});
     expect(Object.keys(reviews.body.tasks[0]).sort()).toEqual(["id","agentId","agentName","versionId","versionNumber","conversationId","state","createdAt","updatedAt","canControl","reviewOnly"].sort());
