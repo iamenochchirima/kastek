@@ -45,6 +45,13 @@ for specialist and approved-report takeover races. It proves inherited claim fen
 reconciliation of a provider-accepted report after takeover. Public website publication still rejects
 delegation, analysis and report workflows; those tests do not establish an advanced website offering.
 
+`AGENTS_INBOX_RECOVERY=1` enables `test/customer-inbox-recovery.test.ts` with a fresh database,
+owned Restate instance and independent worker processes. It kills the worker during a model call,
+then checks queued-root cancellation, stable invocation identity, conservative unknown-outcome
+accounting, late-output suppression and canonical human context after restart. Returning control
+admits only the next new visitor message; queued and human-owned messages are not replayed.
+The controlled local provider records physical calls without external model requests.
+
 ## Published execution and evaluation contracts
 
 Trusted `grounded-conversation` and `tool-directed` program releases share the business loop.
