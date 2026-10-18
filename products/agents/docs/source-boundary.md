@@ -646,12 +646,13 @@ uncertain settlement retains them. Ordinary capacity waits do not poll every
 250 ms. Connected-read reconciliation may separately retry its existing status
 check with a bounded durable delay.
 
-After a known provider response, receipt persistence may retry at most three
-recognized transient PostgreSQL failures while retaining that response in memory.
-These retries write the same native receipt and never repeat provider I/O. The
-business loop accepts success only when the persisted attempt, completed state,
-output and accounting match. A conflicting terminal receipt is preserved. A
-process crash before durable persistence still leaves an uncertain outcome.
+A known provider outcome is retained in the Restate journal before native receipt
+persistence starts. The receipt step may retry three recognized PostgreSQL failures
+locally, then Restate retries that durable step using the journaled outcome. It never
+reissues provider I/O. The business loop accepts success only when the persisted
+attempt, terminal state, output and accounting match. A conflicting terminal receipt
+is preserved. A crash before the physical-result journal acknowledgement remains
+uncertain; a worker crash after acknowledgement can recover the same known result.
 
 Operation start/finish locks the execution root rather than the organization.
 Admission and daily quota settlement retain their existing transactional fences;
