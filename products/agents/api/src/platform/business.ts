@@ -10,7 +10,7 @@ import { callModel, estimateRequestTokens, requestDigest as modelRequestDigest, 
   type ModelResponse, type ModelAdapterOptions, type ToolDefinition } from "./model";
 
 export { settleTask } from "./execution";
-import {fitUtf8,toolsFor,executeTool,assertPublishedTools,builtinToolName} from "./tools";
+import {fitUtf8,toolsFor,executeTool,assertPublishedTools,builtinToolName,parseModelDelegationRequest} from "./tools";
 import { admitChildren, readChildResults, type DelegatedChild } from "./delegation";
 import type { EvidenceStore } from "./evidence";
 import type { ConnectedExecutor, ConnectedObservation } from "./connected-executor";
@@ -410,7 +410,7 @@ export function createBusinessWorkflow(pool: Pool, options: BusinessOptions) {
                     return {value: await options.connected.execute(taskId,id,binding,args,ctx.request().attemptCompletedSignal),tokens:0};
                   }
                   if(!config.tools.includes(name as typeof config.tools[number]) || !descriptor) throw new PlatformError("TOOL_DENIED",403,"Tool is unavailable");
-                  if(name==="agents.delegate") return {value:await admitChildren(pool,taskId,id,args),tokens:0};
+                  if(name==="agents.delegate") return {value:await admitChildren(pool,taskId,id,parseModelDelegationRequest(args)),tokens:0};
                   if(name==="sandbox.analyze") {
                     if(!config.capabilities.sandbox.enabled || !options.executeSandbox) throw new PlatformError("SANDBOX_UNAVAILABLE",503,"Analysis is unavailable");
                     const parsed=z.strictObject({code:z.string().min(1).max(16384),inputArtifactIds:z.array(z.uuid()).max(32).optional()}).safeParse(args);

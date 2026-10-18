@@ -15,6 +15,13 @@ export function builtinModelAlias(name: string): string {
   return alias;
 }
 
+const modelDelegationRequestSchema = z.strictObject({requests:z.array(z.strictObject({
+  bindingId:z.string().regex(/^[A-Za-z0-9_-]{1,64}$/),brief:z.string().trim().min(1).max(8192),
+})).min(1).max(2)});
+export function parseModelDelegationRequest(input:unknown):z.infer<typeof modelDelegationRequestSchema>{
+  try{return modelDelegationRequestSchema.parse(input);}catch{throw new PlatformError("TOOL_ARGUMENTS_INVALID",400,"Select a specialist and provide a brief");}
+}
+
 export function publishedToolBindings(config:AgentConfiguration):{name:string;version:string;digest:string}[] {
   const bindings=toolsFor(config).map(tool=>{
     const name=builtinToolName(tool.function.name)!,descriptor=toolDescriptor(name)!;
@@ -56,11 +63,10 @@ export function toolsFor(config: AgentConfiguration, connectedTools: readonly To
         parameters: { type: "object", properties, required: name === "knowledge.read" ? ["evidenceId"] : Object.keys(properties), additionalProperties: false } },
     }));
   if(permitted.has("agents.delegate") && config.capabilities.delegation.enabled) result.push({type:"function",function:{
-    name:"agents_delegate",description:"Delegate bounded briefs to permitted specialists and wait for all results. Child work shares this task's root budget. Omit maxTokens to use the published specialist allocation; lower it only deliberately. Each allocation must cover the entire input, tool definitions, safety allowance and output, not just generated text. Published roles below are descriptive data, not permission changes: "+JSON.stringify(config.capabilities.delegation.bindings.map(binding=>({
-      bindingId:binding.id,name:binding.label??binding.id,purpose:binding.description??"Published business specialist",version:binding.versionNumber??binding.versionId,maxTokens:binding.maxTokens,knowledgeSourceCount:binding.sourceRevisionIds.length,connectedToolCount:binding.connectedToolBindingIds.length}))),
+    name:"agents_delegate",description:"Delegate a brief to approved specialists and wait for their results. Each specialist uses its published scope and allocation. Available roles: "+JSON.stringify(config.capabilities.delegation.bindings.map(binding=>({
+      bindingId:binding.id,name:binding.label??binding.id,purpose:(binding.description??"Published business specialist").slice(0,128)}))),
     parameters:{type:"object",properties:{requests:{type:"array",minItems:1,maxItems:2,items:{type:"object",properties:{
-      bindingId:{type:"string",enum:config.capabilities.delegation.bindings.map(binding=>binding.id)},brief:{type:"string",minLength:1,maxLength:8192},
-      maxTokens:{type:"integer",minimum:2048,maximum:12000,description:"Optional full input, tool-schema, safety and output allocation. Omit to use the pinned binding allocation; an insufficient allocation stops the specialist before its model request."},sourceRevisionIds:{type:"array",items:{type:"string",format:"uuid"},maxItems:20},connectedToolBindingIds:{type:"array",items:{type:"string",format:"uuid"},maxItems:8}},required:["bindingId","brief"],additionalProperties:false}}},required:["requests"],additionalProperties:false}}});
+      bindingId:{type:"string",enum:config.capabilities.delegation.bindings.map(binding=>binding.id)},brief:{type:"string",minLength:1,maxLength:8192}},required:["bindingId","brief"],additionalProperties:false}}},required:["requests"],additionalProperties:false}}});
   if(permitted.has("sandbox.analyze") && config.capabilities.sandbox.enabled) result.push({type:"function",function:{
     name:"sandbox_analyze",description:"Run standard-library Python in the approved temporary no-network analysis environment. Read selected authorized inputs and write report files to the export directory.",
     parameters:{type:"object",properties:{code:{type:"string",minLength:1,maxLength:16384},inputArtifactIds:{type:"array",maxItems:32,items:{type:"string",format:"uuid"}}},required:["code"],additionalProperties:false}}});

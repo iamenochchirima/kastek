@@ -303,11 +303,20 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     const delegateDefinition=calls[0]!.tools!.find(tool=>tool.function.name==="agents_delegate")!;
     expect(delegateDefinition.function.description).toContain('"name":"FIRST"');
     expect(delegateDefinition.function.description).toContain('"purpose":"SPECIALIST_FIRST: Answer from the provided source."');
-    expect(delegateDefinition.function.description).toContain('"version":1');
+    expect(delegateDefinition.function.description).not.toContain("maxTokens");
+    expect((delegateDefinition.function.parameters as any).properties.requests.items.properties).toEqual({bindingId:{type:"string",enum:["first","second"]},brief:{type:"string",minLength:1,maxLength:8192}});
+    const roleConfig=structuredClone(f.config);roleConfig.capabilities.delegation.bindings[0]!.description="x".repeat(256);
+    const roleTool=toolsFor(roleConfig).find(tool=>tool.function.name==="agents_delegate")!;
+    const roles=JSON.parse(roleTool.function.description.split("Available roles: ")[1]!);expect(roles[0]).toEqual({bindingId:"first",name:"first",purpose:"x".repeat(128)});
     const children=(await pool.query("SELECT * FROM agents_platform.tasks WHERE parent_task_id=$1 ORDER BY id",[f.task.id])).rows;
     expect(children).toHaveLength(2);
     expect(children.every(child=>child.root_task_id===f.task.id&&child.depth===1&&child.state==="completed"&&child.allocation_released)).toBe(true);
     expect(children.every(child=>child.conversation_id!==f.task.conversation_id&&child.effective_configuration.memory.enabled===false)).toBe(true);
+    for(const child of children){const binding=f.config.capabilities.delegation.bindings.find(binding=>binding.versionId===child.version_id)!;
+      expect(child.root_token_limit).toBe(binding.maxTokens);expect(child.allocation_active_ms).toBe(binding.maxActiveMs);
+      expect(child.effective_configuration.sourceRevisionIds).toEqual(binding.sourceRevisionIds);expect(child.effective_configuration.connectedToolBindingIds).toEqual(binding.connectedToolBindingIds);expect(child.effective_configuration.tools).toEqual(binding.tools);
+      const grant=(await pool.query("SELECT root_token_limit,source_revision_ids,connected_tool_binding_ids FROM agents_platform.execution_grants WHERE id=$1",[child.grant_id])).rows[0];
+      expect(grant).toEqual({root_token_limit:binding.maxTokens,source_revision_ids:binding.sourceRevisionIds,connected_tool_binding_ids:binding.connectedToolBindingIds});}
     expect((await pool.query("SELECT count(*)::int AS count FROM agents_platform.usage_reservations WHERE task_id=ANY($1::uuid[])",[children.map(child=>child.id)])).rows[0].count).toBe(0);
     expect((await pool.query("SELECT accounted_tokens FROM agents_platform.usage_ledger WHERE task_id=$1",[f.task.id])).rows[0].accounted_tokens).toBe(224);
     const aggregate=(await pool.query("SELECT tokens_used,tokens_reserved,child_reserved_tokens,model_calls FROM agents_platform.execution_roots WHERE root_task_id=$1",[f.task.id])).rows[0];
@@ -361,11 +370,36 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     await reconcilePendingRoots(pool); await settleTask(pool,another.task.id,{state:"cancelled"});
     expect((await pool.query("SELECT state FROM agents_platform.tasks WHERE id=$1",[f.task.id])).rows[0].state).toBe("cancelled");
   },30000);
+  it.each([{maxTokens:2048},{sourceRevisionIds:[]},{connectedToolBindingIds:[]}])("rejects model delegation overrides before admission: %j",async override=>{
+    const f=await researchFixture();let rootCalls=0;
+    provider=async body=>{
+      if(!body.messages[0].content.startsWith("ROOT_RESEARCH"))return reply("Approved source says open at nine.");
+      rootCalls++;
+      if(rootCalls===1)return reply("","tool_calls",[tool("agents_delegate",{requests:[{...childRequests.requests[0],...override}]})]);
+      if(rootCalls===2){
+        expect(JSON.parse(body.messages.filter((message:any)=>message.role==="tool").at(-1).content)).toEqual({error:"TOOL_ARGUMENTS_INVALID"});
+        expect((await pool.query("SELECT count(*)::int AS count FROM agents_platform.tasks WHERE parent_task_id=$1",[f.task.id])).rows[0].count).toBe(0);
+        return reply("","tool_calls",[tool("agents_delegate",childRequests,"corrected")]);
+      }
+      return reply("Published specialists completed their work.");
+    };
+    const result=await execute(f.task.id);expect(result.state,result.error_code).toBe("completed");
+    const children=(await pool.query("SELECT root_token_limit,effective_configuration FROM agents_platform.tasks WHERE parent_task_id=$1",[f.task.id])).rows;
+    expect(children).toHaveLength(2);for(const child of children){expect(child.root_token_limit).toBe(8000);expect(child.effective_configuration.sourceRevisionIds).toEqual([f.source.id]);expect(child.effective_configuration.connectedToolBindingIds).toEqual([]);expect(child.effective_configuration.tools).toEqual(["knowledge.search"]);}
+    const failed=(await pool.query("SELECT error_code FROM agents_platform.operations WHERE task_id=$1 AND kind='delegation' AND state='failed'",[f.task.id])).rows;expect(failed).toEqual([{error_code:"TOOL_ARGUMENTS_INVALID"}]);
+  },30000);
   it("does not inherit parent memory or unbound specialist tools",async()=>{
     const f=await researchFixture(true); await acceptedMemory(f,"Private parent marker secret-language-preference.");researchProvider();
     expect((await execute(f.task.id)).state).toBe("completed");
     const specialistCalls=calls.filter(call=>call.messages[0]!.content?.startsWith("SPECIALIST"));expect(specialistCalls).toHaveLength(2);
     for(const call of specialistCalls){expect(JSON.stringify(call.messages)).not.toContain("secret-language-preference");expect(call.tools!.map(tool=>tool.function.name)).toEqual(["knowledge_search"]);}
+  },30000);
+  it("retains explicit allocation and source narrowing for trusted child admission",async()=>{
+    const f=await researchFixture();const children=await admitChildren(pool,f.task.id,randomUUID(),{requests:[{bindingId:"first",brief:"Use the intentionally narrowed trusted scope.",maxTokens:4096,sourceRevisionIds:[],connectedToolBindingIds:[]}]});
+    const child=(await pool.query("SELECT root_token_limit,effective_configuration,grant_id FROM agents_platform.tasks WHERE id=$1",[children[0]!.taskId])).rows[0];
+    expect(child.root_token_limit).toBe(4096);expect(child.effective_configuration.sourceRevisionIds).toEqual([]);expect(child.effective_configuration.tools).toEqual(["knowledge.search"]);
+    const grant=(await pool.query("SELECT root_token_limit,source_revision_ids FROM agents_platform.execution_grants WHERE id=$1",[child.grant_id])).rows[0];expect(grant).toEqual({root_token_limit:4096,source_revision_ids:[]});
+    await requestTreeCancellation(pool,f.task.id);await settleTask(pool,children[0]!.taskId,{state:"cancelled"});await settleTask(pool,f.task.id,{state:"cancelled"});
   },30000);
   it("denies forbidden bindings, scope expansion and grandchildren before allocating work",async()=>{
     const f=await researchFixture();
