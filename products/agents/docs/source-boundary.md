@@ -103,6 +103,9 @@ explicit briefs and source subsets. Children use private conversation branches a
 subdivide one root allocation; they do not consume new root slots or organization
 reservations. Their current authority is also bounded by the root grant. A parent
 waits for all admitted dependent children and identifies partial or uncertain results.
+The model supplies only a published specialist binding ID and brief. It cannot
+override that binding's allocation or source/tool scope. Trusted admission code
+retains explicit narrowing controls.
 
 Optional analysis uses the verified local no-network gVisor Python profile.
 The task owns stable allocation and command IDs; reconnect reads receipts/status.
@@ -191,7 +194,7 @@ reported as cancellation.
 
 ## Connected reports and automation
 
-`AgentsBusinessRunV7` (`connected-research-v4`) runs the trusted `report-delivery-v1`
+`AgentsBusinessRunV8` (`connected-research-v5`) runs the trusted `report-delivery-v1`
 workflow after the ordinary agent loop. Required stages select or create a private
 report, validate its sources, prepare an exact action packet, wait for human
 review, and deliver or reconcile it. A sandbox-enabled report must select one

@@ -74,6 +74,11 @@ Native REST supports metadata, releases, immutable commit resolution, bounded tr
 listing and text-file reads. Issued revision/file/release handles bind the task's
 root, connection policy and approved resource. Related content reads use the same
 resolved commit SHA. Observations carry acquisition time and response digests.
+Native `list_tree` accepts an optional exact `filePath` filter over the validated
+tree. Native `read_file` accepts `maxBytes` from 128 to 4,096, defaulting to 4,096.
+Both controls apply locally after the bounded provider read; neither changes the
+remote URL, authorization or immutable file verification. Smaller visible spans
+retain exact citation hashes and valid UTF-8 boundaries.
 
 The isolated outbound adapter uses `@modelcontextprotocol/client@2.3.1`. It requests
 MCP 2026-07-28 and explicitly supports the 2025-11-25 HTTP negotiation path. Only
