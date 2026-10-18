@@ -40,6 +40,19 @@ export async function prepareHarborAnalysis(input:{pool:Pool;configuration:Agent
       const allocations=(await input.pool.query("SELECT state FROM agents_platform.sandbox_allocations")).rows;
       assert.equal(allocations.length,1);assert.equal(allocations[0].state,"destroyed");
       assert.equal((await input.pool.query("SELECT count(*)::int count FROM agents_platform.sandbox_commands")).rows[0].count,1);
+      const operation=(await input.pool.query("SELECT id,attempt_id FROM agents_platform.operations WHERE name='sandbox.analyze'")).rows[0];
+      const observation=(await input.pool.query("SELECT observation FROM agents_platform.task_events WHERE kind='resource.cleanup'")).rows[0].observation;
+      assert.equal(observation.metadata.outcome,"completed");assert.equal(observation.identity.operationId,operation.id);assert.equal(observation.identity.attemptId,operation.attempt_id);
+      const {collectNativeMetrics,createNativeMetrics}=input.load("observability/metrics.js") as typeof import("../src/observability/metrics");
+      assert.equal((await collectNativeMetrics(input.pool,"worker")).find(point=>point.name==="agents.resources.cleanup"&&point.attributes.kind==="sandbox"&&point.attributes.state==="destroyed")?.value,1);
+      if(process.env.AGENTS_TEST_OTEL_ENDPOINT){
+        const {createObservationTelemetry,publishObservationBatch}=input.load("observability/telemetry.js") as typeof import("../src/observability/telemetry");
+        const telemetry=createObservationTelemetry("agents-harbor-analysis",{OTEL_EXPORTER_OTLP_TRACES_ENDPOINT:process.env.AGENTS_TEST_OTEL_ENDPOINT})!;
+        try{assert.ok(await publishObservationBatch(input.pool,telemetry)>0);}finally{await telemetry.shutdown();}
+        const metrics=createNativeMetrics(input.pool,"worker",{OTEL_EXPORTER_OTLP_METRICS_ENDPOINT:process.env.AGENTS_TEST_OTEL_METRICS_ENDPOINT})!;
+        try{await metrics.forceFlush();}finally{await metrics.shutdown();}
+      }
+
     },
     async cleanup(){
       for(const row of(await input.pool.query("SELECT * FROM agents_platform.sandbox_allocations WHERE state<>'destroyed'")).rows)await manager.destroy({organizationId:row.organization_id,rootTaskId:row.root_task_id,taskId:row.task_id,deadlineAt:new Date(row.lease_expires_at)},row.id);

@@ -8,6 +8,7 @@ import type { Pool } from "pg";
 import { z } from "zod";
 import { PlatformError } from "../../contracts/contracts";
 import { assertCurrentAuthority,loadExecution } from "../../execution/lifecycle/execution";
+import { recordEvent } from "../../observability/event-store";
 import { transaction } from "../../infrastructure/database";
 import { resourceGate } from "../../infrastructure/resource-gate";
 import { guestRunner,hostRunner } from "./sandbox-programs";
@@ -228,9 +229,15 @@ export class SandboxManager {
       await this.pool.query("UPDATE agents_platform.sandbox_allocations SET state='destroying',updated_at=now() WHERE id=$1",[allocationId]);
       try{await execute("systemctl",["--user","stop",row.unit_name],{timeout:10_000,maxBuffer:8192});}catch{/* A failed stop requires independent confirmation below. */}
       const state=await this.unit(row.unit_name);
-      if(state.LoadState!=="not-found" && !["inactive","failed"].includes(state.ActiveState??"")) return false;
+      if(state.LoadState!=="not-found" && !["inactive","failed"].includes(state.ActiveState??"")) {
+        await recordEvent(this.pool,row.task_id,`resource:${allocationId}:cleanup:uncertain`,"resource.cleanup",{operationId:row.operation_id,outcome:"uncertain"});
+        return false;
+      }
       await rm(this.directory(allocationId),{recursive:true,force:true});
-      await this.pool.query("UPDATE agents_platform.sandbox_allocations SET state='destroyed',updated_at=now() WHERE id=$1",[allocationId]);
+      await transaction(this.pool,async db=>{
+        await db.query("UPDATE agents_platform.sandbox_allocations SET state='destroyed',updated_at=now() WHERE id=$1",[allocationId]);
+        await recordEvent(db,row.task_id,`resource:${allocationId}:cleanup:completed`,"resource.cleanup",{operationId:row.operation_id,outcome:"completed"});
+      });
       return true;
     });
     if(!stopped) throw fail("SANDBOX_CLEANUP_PENDING","Sandbox cleanup is pending");

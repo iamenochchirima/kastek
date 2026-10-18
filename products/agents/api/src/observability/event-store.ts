@@ -22,7 +22,7 @@ export async function recordEvent(db: Pool | PoolClient, taskId: string, key: st
     metadata: { ...fields, contextTokens: fields.estimatedTokens,
       totalTokens: operation?.accounted_tokens ?? fields.accountedTokens,
       inputTokens: operation?.output?.usage?.inputTokens, outputTokens: operation?.output?.usage?.outputTokens,
-      outcome: operation?.state ?? (['completed','failed','uncertain','cancelled','incomplete','refused'].includes(kind) ? kind : fields.outcome),
+      outcome: fields.outcome ?? operation?.state ?? (['completed','failed','uncertain','cancelled','incomplete','refused'].includes(kind) ? kind : fields.outcome),
       durationMs: operation?.completed_at ? new Date(operation.completed_at).getTime() - new Date(operation.started_at).getTime() : undefined },
   });
   await db.query(`WITH inserted AS (
