@@ -172,7 +172,9 @@ test("live automation: scheduled report survives review and delivery interruptio
   for (const position of [1, 2]) {
     const binding = page.getByRole("group", { name: `Specialist ${position} configuration`, exact: true });
     await binding.getByRole("checkbox", { name: `${sourceTitles[position-1]} · Revision 1`, exact: true }).check();
-    await binding.getByRole("checkbox", { name: "Allow knowledge search and reading" }).check();
+    const knowledgeTools = binding.getByRole("checkbox", { name: "Allow knowledge search and reading" });
+    if(publicRepository) await knowledgeTools.uncheck();
+    else await knowledgeTools.check();
     for(const operation of connectedOperations[position-1]??[])await binding.getByRole("checkbox",{name:new RegExp(`^${operation.replaceAll("_"," ")}(?:\\s|$)`)}).check();
     if(connected){
       await binding.getByText("Specialist limits",{exact:true}).click();
