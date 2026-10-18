@@ -78,6 +78,19 @@ suite("Agents HTTP and PostgreSQL integration", () => {
       payload: { versionId: f.version.id, allowedOrigins: ["https://shop.example"] } });
   }
 
+  it("creates explicit customer offerings and keeps unavailable booking out of publication",async()=>{
+    const user=await actor(),base=`/api/organizations/${user.org}`;
+    const catalog=await request(`${base}/offerings`,{cookie:user.cookie});expect(catalog.body.offerings).toEqual(expect.arrayContaining([expect.objectContaining({id:"faq",available:true}),expect.objectContaining({id:"customer-service",available:true}),expect.objectContaining({id:"booking",available:false})]));
+    for(const offering of ["faq","customer-service"]){
+      const created=await request(`${base}/agents`,{method:"POST",cookie:user.cookie,origin:browserOrigin,payload:{name:"Customer agent",offering}});expect(created.status).toBe(201);
+      expect(created.body.agent.offering).toBe(offering);expect(created.body.agent.draft.program).toEqual({id:"grounded-conversation",version:"1"});expect(created.body.agent.draft.tools).toEqual(["knowledge.search","knowledge.read","channel.request_handoff"]);
+      expect(created.body.agent.draft.instructions).toContain(offering==="faq"?"Answer questions":"Help customers");
+      expect(created.body.agent.draft.capabilities.delegation.enabled).toBe(false);expect(created.body.agent.draft.capabilities.sandbox.enabled).toBe(false);
+    }
+    const unavailable=await request(`${base}/agents`,{method:"POST",cookie:user.cookie,origin:browserOrigin,payload:{name:"Booking",offering:"booking"}});expect(unavailable.status).toBe(503);expect(unavailable.body.error.code).toBe("BOOKING_PROVIDER_UNAVAILABLE");
+    expect((await pool.query("SELECT count(*)::int n FROM agents_platform.agents WHERE organization_id=$1",[user.org])).rows[0].n).toBe(2);
+  });
+
   it("pins publication and admission compositions while rejecting broader FAQ programs", async () => {
     const f = await readyAgent();
     expect(f.version.effectiveComposition).toMatchObject({ program: { id: "tool-directed", version: "1" }, runtime: { release: "modular-programs-v1" } });

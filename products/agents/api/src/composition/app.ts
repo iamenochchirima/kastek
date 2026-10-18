@@ -242,8 +242,9 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
   });
   app.get(`${base}/agents`, async (request) => ({ agents: (await store.listAgents((await account(request)).id, organizationId(request))).map(dto) }));
   app.post(`${base}/agents`, async (request, reply) => {
-    const user = await account(request), input = z.strictObject({ name: z.string().min(1).max(120) }).parse(request.body);
-    return reply.code(201).send({ agent: dto(await store.createAgent({ accountId: user.id, organizationId: organizationId(request), name: input.name })) });
+    const user = await account(request), input = z.strictObject({ name: z.string().min(1).max(120), offering: z.enum(["faq","customer-service","booking"]).default("faq") }).parse(request.body);
+    if(input.offering==="booking")throw new PlatformError("BOOKING_PROVIDER_UNAVAILABLE",503,"Booking is unavailable");
+    return reply.code(201).send({ agent: dto(await store.createAgent({ accountId: user.id, organizationId: organizationId(request), name: input.name, offering: input.offering })) });
   });
   app.get(`${base}/agents/:agentId`, async (request) => {
     const user = await account(request), org = organizationId(request), agentId = uuid.parse(parameters(request).agentId);

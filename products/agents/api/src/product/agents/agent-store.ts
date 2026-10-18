@@ -45,11 +45,11 @@ export class AgentStore extends AuthorityStore {
     return this.transaction(async (db) => { await this.membership(db, accountId, organizationId);
       return (await db.query<AgentRecord>("SELECT * FROM agents_platform.agents WHERE organization_id=$1 AND id=$2", [organizationId, agentId])).rows[0] ?? absent(); });
   }
-  async createAgent(input: { accountId: string; organizationId: string; name: string; configuration?: AgentConfiguration }): Promise<AgentRecord> {
-    const config = agentConfigurationSchema.parse(input.configuration ?? customerConfiguration());
+  async createAgent(input: { accountId: string; organizationId: string; name: string; offering?: "faq" | "customer-service"; configuration?: AgentConfiguration }): Promise<AgentRecord> {
+    const config = agentConfigurationSchema.parse(input.configuration ?? customerConfiguration(input.offering));
     return this.transaction(async (db) => { await this.membership(db, input.accountId, input.organizationId);
-      return (await db.query<AgentRecord>(`INSERT INTO agents_platform.agents(id,organization_id,name,draft,created_by)
-        VALUES($1,$2,$3,$4,$5) RETURNING *`, [randomUUID(), input.organizationId, text(input.name, 120), config, input.accountId])).rows[0]!; });
+      return (await db.query<AgentRecord>(`INSERT INTO agents_platform.agents(id,organization_id,name,draft,created_by,offering)
+        VALUES($1,$2,$3,$4,$5,$6) RETURNING *`, [randomUUID(), input.organizationId, text(input.name, 120), config, input.accountId, input.offering??(input.configuration?null:"faq")])).rows[0]!; });
   }
   async updateDraft(input: { accountId: string; organizationId: string; agentId: string; name?: string;
     configuration: AgentConfiguration; expectedRevision: number }): Promise<AgentRecord> {
