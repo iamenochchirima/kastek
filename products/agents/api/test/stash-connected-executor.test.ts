@@ -11,7 +11,7 @@ import { setupPlatformSchema } from "../src/platform/setup";
 import { defaultFaqConfiguration, type ExecutionGrant } from "../src/platform/contracts";
 import { beginOperation } from "../src/platform/execution";
 const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
-(databaseUrl?describe:describe.skip)("Stash profile with actual PostgreSQL and isolated SDK",()=>{
+(databaseUrl?describe:describe.skip)("Stash profile with actual PostgreSQL and isolated SDK",{timeout:30000},()=>{
  const database=`agents_stash_exec_${randomUUID().replaceAll("-","")}`,objects=new Map<string,Uint8Array>();
  let admin:Pool,pool:Pool,server:Server,platform:PlatformStore,connections:ConnectionStore,evidence:EvidenceStore,executor:ConnectedExecutor,endpoint:string;
  let calls:Record<string,unknown>[]=[],requests=0,revision=1,wrongId=false,toolError=false,reflect=false;

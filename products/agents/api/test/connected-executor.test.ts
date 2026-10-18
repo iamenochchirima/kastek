@@ -18,20 +18,22 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
 (databaseUrl?describe:describe.skip)("registered connected executor with actual PostgreSQL, HTTP and private fixture objects",()=>{
  let admin:Pool,pool:Pool,server:Server,platform:PlatformStore,connections:ConnectionStore,executor:ConnectedExecutor,evidence:EvidenceStore;
  let origin:string,requests:string[]=[],isPrivate=false,hang=false;
- let remoteResult:Record<string,unknown>|undefined;
+ let remoteResult:Record<string,unknown>|undefined,publicProfile=false;
+ let authorizationHeaders:(string|undefined)[]=[];
  const remoteArguments:Record<string,unknown>[]=[];
  const database=`agents_connected_exec_${randomUUID().replaceAll("-","")}`,objects=new Map<string,Uint8Array>();
  const text="Public immutable source content. "+"x".repeat(5000)+" Decisive tail fact.",bytes=Buffer.from(text),blobSha=createHash("sha1").update(`blob ${bytes.length}\0`).update(bytes).digest("hex"),commit="a".repeat(40),tree="b".repeat(40);
  beforeAll(async()=>{
   admin=new Pool({connectionString:databaseUrl});await admin.query(`CREATE DATABASE "${database}"`);const url=new URL(databaseUrl!);url.pathname=`/${database}`;pool=new Pool({connectionString:url.href});await setupPlatformSchema(pool);platform=new PlatformStore(pool);
-  server=createServer(async(req,res)=>{requests.push(req.url!);res.setHeader("content-type","application/json");
+  server=createServer(async(req,res)=>{requests.push(req.url!);authorizationHeaders.push(req.headers.authorization);res.setHeader("content-type","application/json");
    if(req.url==="/mcp"){
     let serialized="";for await(const chunk of req)serialized+=chunk;const message=JSON.parse(serialized),reply=(result:unknown)=>res.end(JSON.stringify({jsonrpc:"2.0",id:message.id,result}));
     if(message.method==="server/discover")res.end(JSON.stringify({jsonrpc:"2.0",id:message.id,error:{code:-32601,message:"Legacy endpoint"}}));
     else if(message.method==="initialize")reply({protocolVersion:"2025-11-25",capabilities:{tools:{}},serverInfo:{name:"github-contract-fixture",version:"1"}});
     else if(message.method==="notifications/initialized")res.writeHead(202).end();
+    else if(message.method==="tools/list"&&publicProfile)reply({tools:[{name:"read_wiki_structure",description:"Read public repository documentation structure",inputSchema:{type:"object",properties:{repoName:{type:"string"}},required:["repoName"],additionalProperties:false}}]});
     else if(message.method==="tools/list")reply({tools:[{name:"get_file_contents",description:"Read approved file",inputSchema:{type:"object",properties:{owner:{type:"string"},repo:{type:"string"},path:{type:"string"},ref:{type:"string"}},required:["owner","repo","path","ref"],additionalProperties:false}}]});
-    else if(message.method==="tools/call"){remoteArguments.push(message.params.arguments);reply(remoteResult??{content:[{type:"text",text:`successfully downloaded text file (SHA: ${blobSha})`},{type:"resource",resource:{uri:`repo://approved/public/sha/${commit}/contents/guide.md`,mimeType:"text/plain; charset=utf-8",text}}]});}else res.writeHead(400).end("{}");return;
+    else if(message.method==="tools/call"){remoteArguments.push(message.params.arguments);reply(remoteResult??(publicProfile?{content:[{type:"text",text:"Available pages for approved/public: Architecture, Execution, Recovery."}]}:undefined)??{content:[{type:"text",text:`successfully downloaded text file (SHA: ${blobSha})`},{type:"resource",resource:{uri:`repo://approved/public/sha/${commit}/contents/guide.md`,mimeType:"text/plain; charset=utf-8",text}}]});}else res.writeHead(400).end("{}");return;
    }
 
    if(req.url==="/repos/approved/public")res.end(JSON.stringify({id:1,private:isPrivate,visibility:isPrivate?"private":"public",full_name:"approved/public",description:"Public fixture",default_branch:"main",updated_at:"2026-10-17T00:00:00Z",stargazers_count:1,extra:"Retain full provider body"}));
@@ -41,18 +43,18 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
    else res.writeHead(404).end("{}");
   });await new Promise<void>(resolve=>server.listen(0,"127.0.0.1",resolve));origin=`http://127.0.0.1:${(server.address() as {port:number}).port}`;
   const storage={async put(key:string,value:Uint8Array){objects.set(key,Buffer.from(value));},async get(key:string){const value=objects.get(key);if(!value)throw Error("Missing private fixture object");return value;},async delete(key:string){objects.delete(key);}};
-  connections=new ConnectionStore(pool,new ConnectionVault("v1",{v1:randomBytes(32).toString("base64")}),[]);evidence=new EvidenceStore(pool,storage);executor=new ConnectedExecutor(pool,connections,storage,evidence,{testGithubOrigin:origin,testMcpEndpoint:`${origin}/mcp`});
+  connections=new ConnectionStore(pool,new ConnectionVault("v1",{v1:randomBytes(32).toString("base64")}),[]);evidence=new EvidenceStore(pool,storage);executor=new ConnectedExecutor(pool,connections,storage,evidence,{testGithubOrigin:origin,testMcpEndpoint:`${origin}/mcp`,testPublicMcpEndpoint:`${origin}/mcp`});
  });
  afterAll(async()=>{server?.closeAllConnections();if(server)await new Promise<void>(resolve=>server.close(()=>resolve()));await pool?.end();if(admin){await admin.query(`DROP DATABASE IF EXISTS "${database}" WITH(FORCE)`);await admin.end();}});
- async function fixture(withMcp=false){
-  isPrivate=false;hang=false;requests=[];remoteResult=undefined;
+ async function fixture(withMcp=false,anonymous=false){
+  isPrivate=false;hang=false;requests=[];authorizationHeaders=[];remoteArguments.length=0;remoteResult=undefined;publicProfile=anonymous;
   const account=await platform.ensureAccount({issuer:"http://localhost/connected-executor",subject:randomUUID(),email:"owner@example.test",displayName:"Owner"}),org=await platform.createOrganization(account.id,"Connected"),scope={accountId:account.id,organizationId:org.id};
-  const connection=await connections.create(scope,{operationId:randomUUID(),name:"GitHub",profileId:"github-public-read-v1",targetId:"provider:github",apiKey:"github_pat_connected_fixture_only",expiresAt:new Date(Date.now()+86400000).toISOString(),selections:[{owner:"approved",repository:"public",ref:"main"}]});
+  const connection=await connections.create(scope,{operationId:randomUUID(),name:"GitHub",profileId:anonymous?"public-repository-read-v1":"github-public-read-v1",targetId:anonymous?"provider:public-repository":"provider:github",...(anonymous?{}:{apiKey:"github_pat_connected_fixture_only"}),expiresAt:new Date(Date.now()+86400000).toISOString(),selections:[{owner:"approved",repository:"public",ref:"main"}]});
   const catalog=await executor.discover(scope,{operationId:randomUUID(),connectionId:connection.id,expectedRevision:1,transport:"native_http"});
   const bindings=await executor.catalogs.selectBindings(scope,{operationId:randomUUID(),connectionId:connection.id,expectedRevision:1,catalogId:catalog.id,selections:["get_repository","resolve_ref","list_tree","read_file"].map(providerOperation=>({providerOperation,resources:connection.resources}))});
   if(withMcp){
    const remote=await executor.discover(scope,{operationId:randomUUID(),connectionId:connection.id,expectedRevision:1,transport:"mcp_http"});
-   bindings.push(...await executor.catalogs.selectBindings(scope,{operationId:randomUUID(),connectionId:connection.id,expectedRevision:1,catalogId:remote.id,selections:[{providerOperation:"get_file_contents",resources:connection.resources}]}));
+   bindings.push(...await executor.catalogs.selectBindings(scope,{operationId:randomUUID(),connectionId:connection.id,expectedRevision:1,catalogId:remote.id,selections:[{providerOperation:anonymous?"read_wiki_structure":"get_file_contents",resources:connection.resources}]}));
   }
   const configuration={...defaultFaqConfiguration(),connectedToolBindingIds:bindings.map(binding=>binding.id)},agent=await platform.createAgent({...scope,name:"Research",configuration}),version=await platform.createVersion({...scope,agentId:agent.id,expectedRevision:1});
   const authority={product:"agents" as const,organizationId:org.id,resourceId:agent.id,callerClientId:"agents-execution",principal:{kind:"human" as const,issuer:account.issuer,subject:account.subject}};
@@ -61,6 +63,18 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
   return{scope,connection,bindings,task,grant};
  }
  async function call(f:Awaited<ReturnType<typeof fixture>>,name:string,args:object){const binding=f.bindings.find(b=>b.definition.providerOperation===name)!,operationId=`tool:${f.task.id}:${randomUUID()}`;await beginOperation(pool,f.task.id,{id:operationId,kind:"tool",name:binding.alias,request:args,reservedTokens:0,reservedMs:30000,retrySafe:true});return{result:await executor.execute(f.task.id,operationId,binding,args),binding,operationId,args};}
+ it("executes anonymous native and MCP reads without transmitting any authorization header",async()=>{
+  const f=await fixture(true,true);expect(f.connection.authentication).toBe("none");
+  const metadata=await call(f,"get_repository",{repository:"approved/public"});expect(metadata.result.status).toBe("ok");
+  const remote=await call(f,"read_wiki_structure",{repository:"approved/public"});expect(remote.result.content).toContain("Available pages");expect(remote.result.observation.provenance).toMatchObject({kind:"timestamped_observation",provider:"deepwiki",repository:"approved/public"});
+  expect(remoteArguments.at(-1)).toEqual({repoName:"approved/public"});expect(authorizationHeaders.every(header=>header===undefined)).toBe(true);
+  const count=requests.length;expect(await executor.execute(f.task.id,remote.operationId,remote.binding,remote.args)).toEqual(remote.result);expect(requests).toHaveLength(count);
+ },30000);
+ it("denies public MCP private queries and native-to-private repository reads",async()=>{
+  const f=await fixture(true,true),binding=f.bindings.find(binding=>binding.definition.providerOperation==="read_wiki_structure")!,before=requests.length;
+  await expect(executor.execute(f.task.id,randomUUID(),binding,{repository:"approved/public",question:"private knowledge"})).rejects.toThrow();expect(requests).toHaveLength(before);
+  isPrivate=true;await expect(call(f,"read_wiki_structure",{repository:"approved/public"})).rejects.toThrow();expect(remoteArguments).toHaveLength(0);
+ },30000);
  it("uses safe wrappers, immutable commit/file handles, bounded tail reads and private full response receipts",async()=>{
   const f=await fixture();expect(requests).toHaveLength(0);
   for(const binding of f.bindings){expect(connectedModelTool(binding).function.parameters.additionalProperties).toBe(false);expect(()=>connectedModelArguments(binding,{url:"https://private.test",path:"evil",repository:"approved/public"})).toThrow();}
@@ -70,7 +84,7 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
   expect(requests.filter(path=>path.includes("/commits/"))).toEqual(["/repos/approved/public/commits/main"]);expect(requests.some(path=>path.includes(blobSha))).toBe(true);
   const saved=await pool.query("SELECT * FROM agents_platform.connected_response_bodies WHERE operation_id=$1 ORDER BY ordinal",[file.operationId]);expect(saved.rowCount).toBe(2);expect(Buffer.from(objects.get(saved.rows[0].object_key)!).toString()).toContain("Retain full provider body");
   expect((await pool.query("SELECT count(*) AS count FROM agents_platform.connected_attempts WHERE operation_id=$1",[file.operationId])).rows[0].count).toBe("2");
-  const fresh=new ConnectedExecutor(pool,connections,executor.objects,evidence,{testGithubOrigin:origin,testMcpEndpoint:`${origin}/mcp`});
+  const fresh=new ConnectedExecutor(pool,connections,executor.objects,evidence,{testGithubOrigin:origin,testMcpEndpoint:`${origin}/mcp`,testPublicMcpEndpoint:`${origin}/mcp`});
   const resolve=vi.spyOn(fresh.registry,"resolve").mockImplementation(()=>{throw Error("fixture old adapter release absent");});
   const before=requests.length;expect(await fresh.execute(f.task.id,file.operationId,file.binding,file.args)).toEqual(file.result);expect(requests).toHaveLength(before);expect(resolve).not.toHaveBeenCalled();
  });
@@ -84,13 +98,13 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
   const binding=f.bindings.find(b=>b.definition.providerOperation==="read_file")!,operationId=`tool:${f.task.id}:lost`,args={fileId};await beginOperation(pool,f.task.id,{id:operationId,kind:"tool",name:binding.alias,request:args,reservedTokens:0,reservedMs:1000,retrySafe:true});
   hang=true;const controller=new AbortController(),pending=executor.execute(f.task.id,operationId,binding,args,controller.signal);const timer=setInterval(()=>{if(requests.at(-1)?.includes("/git/blobs/"))controller.abort();},10);
   try{await expect(pending).rejects.toMatchObject({code:"CONNECTED_READ_UNCERTAIN"});}finally{clearInterval(timer);}const count=requests.length;
-  const fresh=new ConnectedExecutor(pool,connections,executor.objects,evidence,{testGithubOrigin:origin,testMcpEndpoint:`${origin}/mcp`});
+  const fresh=new ConnectedExecutor(pool,connections,executor.objects,evidence,{testGithubOrigin:origin,testMcpEndpoint:`${origin}/mcp`,testPublicMcpEndpoint:`${origin}/mcp`});
   await expect(fresh.execute(f.task.id,operationId,binding,args)).rejects.toMatchObject({code:"CONNECTED_READ_UNCERTAIN"});expect(requests).toHaveLength(count);
  });
  it("uses the original operation deadline through private receipt publication and charges actual overrun",async()=>{
   const f=await fixture(),binding=f.bindings.find(binding=>binding.definition.providerOperation==="get_repository")!,operationId=`tool:${f.task.id}:slow-storage`,args={repository:"approved/public"};
   const slow={...executor.objects,put:async(key:string,value:Uint8Array,type:string)=>{await new Promise(done=>setTimeout(done,160));await executor.objects.put(key,value,type);},get:executor.objects.get.bind(executor.objects),delete:executor.objects.delete.bind(executor.objects)};
-  const bounded=new ConnectedExecutor(pool,connections,slow,evidence,{testGithubOrigin:origin,testMcpEndpoint:`${origin}/mcp`});
+  const bounded=new ConnectedExecutor(pool,connections,slow,evidence,{testGithubOrigin:origin,testMcpEndpoint:`${origin}/mcp`,testPublicMcpEndpoint:`${origin}/mcp`});
   await beginOperation(pool,f.task.id,{id:operationId,kind:"tool",name:binding.alias,request:args,reservedTokens:0,reservedMs:100,retrySafe:true});
   await expect(bounded.execute(f.task.id,operationId,binding,args)).rejects.toMatchObject({code:"CONNECTED_READ_UNCERTAIN"});
   expect(requests).toEqual(["/repos/approved/public"]);
@@ -102,7 +116,7 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
  it("does not publish a late private response link after its grant is revoked during PUT",async()=>{
   const f=await fixture(),binding=f.bindings.find(binding=>binding.definition.providerOperation==="get_repository")!,operationId=`tool:${f.task.id}:revoked-body`,args={repository:"approved/public"};
   const blocked={...executor.objects,put:async(key:string,value:Uint8Array,type:string)=>{await executor.objects.put(key,value,type);await platform.revokeGrant(f.scope.accountId,f.scope.organizationId,f.grant.id);},get:executor.objects.get.bind(executor.objects),delete:executor.objects.delete.bind(executor.objects)};
-  const scoped=new ConnectedExecutor(pool,connections,blocked,evidence,{testGithubOrigin:origin,testMcpEndpoint:`${origin}/mcp`});
+  const scoped=new ConnectedExecutor(pool,connections,blocked,evidence,{testGithubOrigin:origin,testMcpEndpoint:`${origin}/mcp`,testPublicMcpEndpoint:`${origin}/mcp`});
   await beginOperation(pool,f.task.id,{id:operationId,kind:"tool",name:binding.alias,request:args,reservedTokens:0,reservedMs:30000,retrySafe:true});
   await expect(scoped.execute(f.task.id,operationId,binding,args)).rejects.toMatchObject({code:"GRANT_REVOKED"});
   expect((await pool.query("SELECT * FROM agents_platform.connected_response_bodies WHERE operation_id=$1",[operationId])).rows).toEqual([]);

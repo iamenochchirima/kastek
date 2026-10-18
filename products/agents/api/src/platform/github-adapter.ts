@@ -4,7 +4,7 @@ import { createBoundedFetch, type NetworkAttempt } from "./connected-network";
 import { PlatformError, requestDigest } from "./contracts";
 import type { ResourceHandle } from "./capability-catalog";
 
-export const GITHUB_ADAPTER_RELEASE = "github-public-read-v1";
+export const GITHUB_ADAPTER_RELEASE = "github-public-read-v2";
 export const GITHUB_LIMITS = Object.freeze({ responseBytes: 2097152, modelResultBytes: 8192, wallMs: 30000,
   physicalRequests: 3, releasesPerPage: 20, treeEntries: 2000, fileBytes: 1048576 });
 export const githubOperationSchema = z.enum(["get_repository", "list_releases", "resolve_ref", "list_tree", "read_file"]);
@@ -41,7 +41,7 @@ export class GithubAdapterError extends Error {
   constructor(public readonly code: string) { super(code); }
 }
 export interface GithubAdapterOptions {
-  authorization: string; selections: readonly GithubRepositorySelection[]; deadlineAt: number; signal?: AbortSignal;
+  authorization: string; authentication?: "none"; selections: readonly GithubRepositorySelection[]; deadlineAt: number; signal?: AbortSignal;
   maxPhysicalRequests?: number;
   beforeAttempt?: () => Promise<void>;
   onAttempt?: (attempt: NetworkAttempt) => Promise<void>;
@@ -74,7 +74,7 @@ export class GithubReadAdapter {
   private readonly selections: readonly GithubRepositorySelection[];
   constructor(private readonly options: GithubAdapterOptions) {
     if (options.maxPhysicalRequests !== undefined && (!Number.isInteger(options.maxPhysicalRequests) || options.maxPhysicalRequests < 1 || options.maxPhysicalRequests > GITHUB_LIMITS.physicalRequests)) failure("REQUEST_LIMIT");
-    if (!options.authorization || /[\r\n]/.test(options.authorization) || Buffer.byteLength(options.authorization) > 4096) failure("CREDENTIAL_INVALID");
+    if (options.authentication === "none" ? options.authorization !== "" : !options.authorization || /[\r\n]/.test(options.authorization) || Buffer.byteLength(options.authorization) > 4096) failure("CREDENTIAL_INVALID");
     this.selections = options.selections.map(selection => Object.freeze(githubRepositorySelectionSchema.parse(selection)));
     if (!this.selections.length || this.selections.length > 20 || new Set(this.selections.map(selection => githubRepositoryHandle(selection).id)).size !== this.selections.length) failure("REPOSITORY_SELECTION_INVALID");
     this.origin = "https://api.github.com";
@@ -102,7 +102,7 @@ export class GithubReadAdapter {
   private session() {
     const attempts: NetworkAttempt[] = [], responses: ResponseRecord[] = [], authorized = new Set<string>();
     const fetcher = createBoundedFetch({ authorizeUrl: url => authorized.has(url.href),
-      headers: { authorization: `Bearer ${this.options.authorization}`, accept: "application/vnd.github+json", "x-github-api-version": "2022-11-28", "user-agent": "Kasitek-Agents" },
+      headers: { ...(this.options.authentication === "none" ? {} : {authorization: `Bearer ${this.options.authorization}`}), accept: "application/vnd.github+json", "x-github-api-version": "2022-11-28", "user-agent": "Kasitek-Agents" },
       maxRequestBytes: 0, maxResponseBytes: GITHUB_LIMITS.responseBytes,
       deadlineAt: Math.min(this.options.deadlineAt, Date.now() + GITHUB_LIMITS.wallMs), maxAttempts: 3, maxRequests: this.options.maxPhysicalRequests ?? GITHUB_LIMITS.physicalRequests,
       signal: this.options.signal, testLoopback: this.options.testLoopbackOrigin !== undefined,

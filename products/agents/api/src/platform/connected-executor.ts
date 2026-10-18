@@ -24,7 +24,7 @@ const MAX_HANDLES=2000,MAX_BODY_BYTES=2097152;
 const denied=()=>new PlatformError("CONNECTED_SCOPE_DENIED",403,"Connected resource is outside the task's authorized scope");
 const uncertain=()=>new PlatformError("CONNECTED_READ_UNCERTAIN",409,"The previous connected read has an unknown outcome; it was not repeated");
 const code=(error:unknown):string=>{const value=(error as {code?:unknown})?.code;return typeof value==="string"&&/^[A-Z0-9_]{1,80}$/.test(value)?value:"CONNECTED_READ_FAILED";};
-export interface ConnectedExecutorOptions {testGithubOrigin?:string;testMcpEndpoint?:string;testStashMcpEndpoint?:string}
+export interface ConnectedExecutorOptions {testGithubOrigin?:string;testMcpEndpoint?:string;testStashMcpEndpoint?:string;testPublicMcpEndpoint?:string}
 export interface ConnectedObservation {
  status:"ok"|"tool_error";bindingId:string;operationId:string;content:string;truncated:boolean;
  evidence:{id:string;label:string;citation:string;contentDigest:string};handles?:unknown;
@@ -36,7 +36,7 @@ function prefix(text:string,maximum=4096):{text:string;truncated:boolean}{const 
 export class ConnectedExecutor {
  readonly registry=new ExecutableAdapterRegistry<ConnectedExecutor>();
  readonly catalogs:ConnectedCatalogStore;
- readonly nativeAdapter;readonly mcpAdapter;readonly stashAdapter;
+ readonly nativeAdapter;readonly mcpAdapter;readonly stashAdapter;readonly publicMcpAdapter;
  constructor(readonly pool:Pool,readonly connections:ConnectionStore,readonly objects:PrivateObjectStore,readonly evidence:EvidenceStore,private readonly options:ConnectedExecutorOptions={}){
   const extension=extname(__filename),files=["connected-executor","connected-tool-schema","connected-network","github-adapter","github-mcp-file","stash-adapter","mcp-adapter","adapter-process","capability-catalog"];
   const hash=createHash("sha256");for(const file of files)hash.update(file).update(readFileSync(join(__dirname,`${file}${extension}`)));
@@ -44,11 +44,13 @@ export class ConnectedExecutor {
   this.nativeAdapter=this.registry.register({schemaVersion:1,id:"github-native-read",release:GITHUB_ADAPTER_RELEASE,executableDigest,transports:["native_http"],protocolVersions:[],boundedSchemaValidation:true},this);
   this.mcpAdapter=this.registry.register({schemaVersion:1,id:"github-mcp-read",release:MCP_ADAPTER_RELEASE,executableDigest,transports:["mcp_http"],protocolVersions:["2026-07-28","2025-11-25"],boundedSchemaValidation:true},this);
   this.stashAdapter=this.registry.register({schemaVersion:1,id:"stash-mcp-read",release:STASH_ADAPTER_RELEASE,executableDigest,transports:["mcp_http"],protocolVersions:["2026-07-28","2025-11-25"],boundedSchemaValidation:true},this);
+  this.publicMcpAdapter=this.registry.register({schemaVersion:1,id:"deepwiki-mcp-read",release:"public-repository-read-v1",executableDigest,transports:["mcp_http"],protocolVersions:["2026-07-28","2025-11-25"],boundedSchemaValidation:true},this);
   this.catalogs=new ConnectedCatalogStore(pool,connections,this.registry);
  }
  assertAvailable(bindings:readonly CapabilityBinding[]):void{assertConnectedBindingDependencies(bindings);for(const binding of bindings){capabilityBindingSchema.parse(binding);this.registry.resolve(binding);}}
  modelToolsFor(bindings:readonly CapabilityBinding[]){this.assertAvailable(bindings);return bindings.map(connectedModelTool);}
  private endpoint(authorization:string,deadlineAt:number,protocolVersion?:McpEndpoint["protocolVersion"],profileId="github-public-read-v1"):McpEndpoint{
+  if(profileId==="public-repository-read-v1")return{endpoint:this.options.testPublicMcpEndpoint??"https://mcp.deepwiki.com/mcp",deadlineAt,protocolVersion,testLoopback:this.options.testPublicMcpEndpoint!==undefined};
   if(profileId==="stash-read-v1")return{endpoint:this.options.testStashMcpEndpoint??STASH_MCP_ENDPOINT,authorization:`Bearer ${authorization}`,deadlineAt,protocolVersion,testLoopback:this.options.testStashMcpEndpoint!==undefined};
   return{endpoint:this.options.testMcpEndpoint??"https://api.githubcopilot.com/mcp/",authorization:`Bearer ${authorization}`,deadlineAt,protocolVersion,
    headers:{"X-MCP-Tools":[...GITHUB_MCP_READ_OPERATIONS].sort().join(","),"X-MCP-Readonly":"true"},testLoopback:this.options.testMcpEndpoint!==undefined};
@@ -60,7 +62,7 @@ export class ConnectedExecutor {
    const prior=(await db.query("SELECT * FROM agents_platform.connected_discoveries WHERE organization_id=$1 AND account_id=$2 AND operation_id=$3",[scope.organizationId,scope.accountId,parsed.operationId])).rows[0];
    if(prior){if(prior.request_digest!==digest)throw new PlatformError("IDEMPOTENCY_CONFLICT",409,"Discovery request identity changed");if(prior.state==="completed")return{replay:prior.result};throw uncertain();}
    const row=(await db.query("SELECT * FROM agents_platform.connections WHERE id=$1 AND organization_id=$2 AND account_id=$3",[parsed.connectionId,scope.organizationId,scope.accountId])).rows[0];
-   if(!row||row.revision!==parsed.expectedRevision||!["github-public-read-v1","stash-read-v1"].includes(row.profile_id)||row.profile_id==="stash-read-v1"&&parsed.transport!=="mcp_http")throw denied();
+   if(!row||row.revision!==parsed.expectedRevision||!["github-public-read-v1","stash-read-v1","public-repository-read-v1"].includes(row.profile_id)||row.profile_id==="stash-read-v1"&&parsed.transport!=="mcp_http")throw denied();
    const resolved=await this.connections.resolveCredential(db,scope,row.id,row.policy_revision);
    await db.query("INSERT INTO agents_platform.connected_discoveries(organization_id,account_id,operation_id,connection_id,request_digest,state) VALUES($1,$2,$3,$4,$5,'started')",[scope.organizationId,scope.accountId,parsed.operationId,row.id,digest]);
    return{resolved,revision:Number((await db.query("SELECT COALESCE(max(revision),0)+1 AS revision FROM agents_platform.capability_catalogs WHERE connection_id=$1",[row.id])).rows[0].revision)};
@@ -83,7 +85,7 @@ export class ConnectedExecutor {
     protocolVersion=catalog.protocolVersion as CapabilityCatalog["protocolVersion"];
     tools=catalog.tools.map(tool=>({providerOperation:tool.name,description:tool.description,inputSchema:tool.inputSchema as any,inputDigest:digestToolSchema(tool.inputSchema),outputSchema:tool.outputSchema as any??null,outputDigest:tool.outputSchema?digestToolSchema(tool.outputSchema):null}));
    }
-   const catalog=createCatalog({schemaVersion:1,id:randomUUID(),organizationId:scope.organizationId,connectionId:parsed.connectionId,revision:claim.revision!,transport:parsed.transport,protocolVersion,adapter:resolved.connection.profileId==="stash-read-v1"?this.stashAdapter:parsed.transport==="native_http"?this.nativeAdapter:this.mcpAdapter,tools});
+   const catalog=createCatalog({schemaVersion:1,id:randomUUID(),organizationId:scope.organizationId,connectionId:parsed.connectionId,revision:claim.revision!,transport:parsed.transport,protocolVersion,adapter:resolved.connection.profileId==="stash-read-v1"?this.stashAdapter:resolved.connection.profileId==="public-repository-read-v1"&&parsed.transport==="mcp_http"?this.publicMcpAdapter:parsed.transport==="native_http"?this.nativeAdapter:this.mcpAdapter,tools});
    const result=await this.catalogs.saveCandidate(scope,{operationId:`discovery:${parsed.operationId}`,connectionId:parsed.connectionId,expectedRevision:parsed.expectedRevision,catalog});
    await this.pool.query("UPDATE agents_platform.connected_discoveries SET state='completed',result=$4 WHERE organization_id=$1 AND account_id=$2 AND operation_id=$3 AND state='started'",[scope.organizationId,scope.accountId,parsed.operationId,JSON.stringify(result)]);return result;
   }catch(error){await this.pool.query("UPDATE agents_platform.connected_discoveries SET state=$4,error_code=$5 WHERE organization_id=$1 AND account_id=$2 AND operation_id=$3 AND state='started'",[scope.organizationId,scope.accountId,parsed.operationId,attempts.some(item=>item.outcome==="in_flight")?"uncertain":"failed",code(error)]);throw new PlatformError(code(error),502,"Connected tool discovery did not complete");}
@@ -162,7 +164,7 @@ export class ConnectedExecutor {
   const capture=async(response:{body:unknown;digest:string;observedAt:string})=>{
     checkDeadline();
     const bytes=Buffer.from(JSON.stringify(response.body));if(bytes.length>MAX_BODY_BYTES)throw new PlatformError("CONNECTED_BODY_LIMIT",413,"Provider response exceeds private storage limit");
-    if(bytes.includes(Buffer.from(claim.credential.authorization)))throw new PlatformError("CONNECTED_CREDENTIAL_REFLECTION",502,"Provider response reflected private authorization");
+    if(claim.credential.authorization&&bytes.includes(Buffer.from(claim.credential.authorization)))throw new PlatformError("CONNECTED_CREDENTIAL_REFLECTION",502,"Provider response reflected private authorization");
     const contentDigest=textDigest(bytes),key=`connected/${claim.execution.task.organization_id}/${claim.execution.task.root_task_id}/${textDigest(operationId)}/response-${++responseOrdinal}-${contentDigest}`;
     await writeExecutionObject(this.pool,this.objects,{taskId,operationId,key,bytes,contentType:"application/json"});
     checkDeadline();
@@ -176,7 +178,7 @@ export class ConnectedExecutor {
       await db.query("INSERT INTO agents_platform.connected_response_bodies(operation_id,ordinal,object_key,content_digest,provider_digest,observed_at) VALUES($1,$2,$3,$4,$5,$6)",[operationId,responseOrdinal,key,contentDigest,response.digest,response.observedAt]);
     });
   };
-  const native=()=>new GithubReadAdapter({authorization:claim.credential.authorization,selections:claim.credential.connection.selections,deadlineAt,signal,testLoopbackOrigin:this.options.testGithubOrigin,beforeAttempt:()=>before(),onAttempt:after,onResponse:capture,maxPhysicalRequests:binding.transport==="mcp_http"?1:3});
+  const native=()=>new GithubReadAdapter({authorization:claim.credential.authorization,...(claim.credential.connection.profileId==="public-repository-read-v1"?{authentication:"none" as const}:{}),selections:claim.credential.connection.selections,deadlineAt,signal,testLoopbackOrigin:this.options.testGithubOrigin,beforeAttempt:()=>before(),onAttempt:after,onResponse:capture,maxPhysicalRequests:binding.transport==="mcp_http"?1:3});
   try{
    let projection:Projection,full:unknown;
    if(claim.stashResource){
@@ -190,6 +192,16 @@ export class ConnectedExecutor {
      await this.stashRevision(taskId,operationId,binding,claim.stashResource,item.provenance.revision);
      projection={...item,resource:claim.stashResource,acquiredAt:new Date().toISOString(),digest:observation.resultDigest};
     }
+   }else if(binding.connection?.profileId==="public-repository-read-v1"&&binding.transport==="mcp_http"){
+    await native().getRepository(claim.selected);
+    const tool:McpTool={name:binding.definition.providerOperation,description:binding.definition.description,inputSchema:binding.definition.inputSchema as Record<string,unknown>,...(binding.definition.outputSchema?{outputSchema:binding.definition.outputSchema as Record<string,unknown>}:{}),schemaDigest:requestDigest({inputSchema:binding.definition.inputSchema,outputSchema:binding.definition.outputSchema})};
+    const observation=await callMcpTool({...this.endpoint("",deadlineAt,binding.protocolVersion!,"public-repository-read-v1"),readAttempts:2},tool,{repoName:`${claim.selected.owner}/${claim.selected.repository}`},signal,{beforeAttempt:attempt=>before(attempt.phase??"setup"),onAttempt:after});
+    full=observation.rawResult;
+    const contents=observation.rawResult.content;
+    if(!Array.isArray(contents)||!contents.length||contents.some((entry:any)=>entry?.type!=="text"||typeof entry.text!=="string"))throw new PlatformError("PUBLIC_MCP_RESULT_INVALID",502,"The public tool did not return inline text");
+    const source=contents.map((entry:any)=>entry.text).join("\n"),text=source.slice(args.offset??0);
+    if(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/u.test(text))throw new PlatformError("PUBLIC_MCP_TEXT_BOUNDARY",400,"Read from a complete Unicode character boundary");
+    const visible=prefix(text);projection={...visible,resource:githubRepositoryHandle(claim.selected),acquiredAt:new Date().toISOString(),digest:observation.resultDigest,provenance:{kind:"timestamped_observation",provider:"deepwiki",repository:githubRepositoryHandle(claim.selected).id,offset:args.offset??0,nextOffset:visible.truncated?(args.offset??0)+visible.text.length:null},isError:observation.isError};
    }else if(binding.transport==="native_http"){
     let observation:GithubObservation<unknown>;
     switch(binding.definition.providerOperation){
@@ -210,11 +222,11 @@ export class ConnectedExecutor {
    }
    checkDeadline();
    const body=Buffer.from(JSON.stringify(full));if(body.length>MAX_BODY_BYTES)throw new PlatformError("CONNECTED_BODY_LIMIT",413,"Connected receipt exceeds the private storage limit");
-   if(body.includes(Buffer.from(claim.credential.authorization)))throw new PlatformError("CONNECTED_CREDENTIAL_REFLECTION",502,"The connected response reflected private authorization");
+   if(claim.credential.authorization&&body.includes(Buffer.from(claim.credential.authorization)))throw new PlatformError("CONNECTED_CREDENTIAL_REFLECTION",502,"The connected response reflected private authorization");
    const bodyDigest=textDigest(body),bodyKey=`connected/${claim.execution.task.organization_id}/${claim.execution.task.root_task_id}/${textDigest(operationId)}/${bodyDigest}`;
    await writeExecutionObject(this.pool,this.objects,{taskId,operationId,key:bodyKey,bytes:body,contentType:"application/json"});
    checkDeadline();
-   const passage=await this.evidence.recordConnected(taskId,operationId,{bindingId:binding.id,resource:projection.resource,text:projection.text||"The provider returned an empty read result.",title:`${binding.connection?.profileId==="stash-read-v1"?"Stash":"GitHub"} ${binding.definition.providerOperation}${projection.isError?" error":""}`,acquiredAt:projection.acquiredAt,receiptDigest:bodyDigest});
+   const passage=await this.evidence.recordConnected(taskId,operationId,{bindingId:binding.id,resource:projection.resource,text:projection.text||"The provider returned an empty read result.",title:`${binding.connection?.profileId==="stash-read-v1"?"Stash":binding.connection?.profileId==="public-repository-read-v1"&&binding.transport==="mcp_http"?"DeepWiki":"GitHub"} ${binding.definition.providerOperation}${projection.isError?" error":""}`,acquiredAt:projection.acquiredAt,receiptDigest:bodyDigest});
    const result:ConnectedObservation={status:projection.isError?"tool_error":"ok",bindingId:binding.id,operationId,content:passage.text,truncated:projection.truncated,evidence:{id:passage.reference.id,label:passage.label,citation:`[${passage.label}]`,contentDigest:passage.reference.contentDigest},...(projection.handles?{handles:projection.handles}:{}),observation:{digest:projection.digest,acquiredAt:projection.acquiredAt,provenance:projection.provenance}};
    if(Buffer.byteLength(JSON.stringify(result))>8192)throw new PlatformError("CONNECTED_RESULT_LIMIT",413,"Connected observation exceeds its model result limit");
    checkDeadline();
