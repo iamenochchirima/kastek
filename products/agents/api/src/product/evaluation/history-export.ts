@@ -5,6 +5,7 @@ import { observationSchema } from "../../contracts/observations";
 import { effectiveCompositionSchema } from "../../contracts/programs";
 import type { HarnessMessage, ToolDefinition } from "../../execution/business/model";
 import { assertCurrentEvidence, taskEvidenceManifest } from "../../execution/context/evidence-policy";
+import { assertExportArtifact, exportReportEffects, withheldDependency } from "./history-policy";
 import { transaction } from "../../infrastructure/database";
 
 export interface CoveragePart { status: "complete" | "partial" | "unavailable"; omissions: string[] }
@@ -152,7 +153,14 @@ export async function exportExecutionHistory(pool: Pool, rootTaskId: string, aut
     for (const task of rows) if (task.id !== rootTaskId && (!ids.has(task.parent_task_id) || !task.delegation_operation_id)) throw new PlatformError("EXPORT_LINEAGE_INVALID", 409, "Execution lineage is incomplete");
     const artifacts = (await db.query("SELECT id,task_id,name,bytes,content_digest,state FROM agents_platform.artifacts WHERE root_task_id=$1 AND organization_id=$2 ORDER BY created_at,id LIMIT 1025", [rootTaskId, root.organization_id])).rows;
     if (artifacts.length > 1024) throw new PlatformError("EXPORT_LIMIT", 413, "Execution history exceeds the export limit");
-    const artifactEvidence = new Set((await db.query("SELECT owner_id FROM agents_platform.evidence_nodes WHERE root_task_id=$1 AND kind='artifact'", [rootTaskId])).rows.map(row => row.owner_id));
+    const artifactEvidence = new Set<string>();
+    for (const artifact of artifacts) {
+      if (!visible.has(artifact.task_id) || artifact.state !== "available") continue;
+      try { await assertExportArtifact(db, root, artifact.id); artifactEvidence.add(artifact.id); }
+      catch (error) { if (!withheldDependency(error)) throw error; }
+    }
+    const effects = await exportReportEffects(db, root, visible);
+    coverage.effects = { status: effects.omissions.length ? "partial" : "complete", omissions: [...new Set(effects.omissions)] };
     const eventRows = (await db.query(`SELECT e.task_id,e.observation FROM agents_platform.task_events e JOIN agents_platform.tasks t ON t.id=e.task_id
       WHERE t.root_task_id=$1 AND t.organization_id=$2 ORDER BY e.sequence LIMIT 10001`, [rootTaskId, root.organization_id])).rows;
     if (eventRows.length > 10000) throw new PlatformError("EXPORT_LIMIT", 413, "Execution history exceeds the export limit");
@@ -174,7 +182,7 @@ export async function exportExecutionHistory(pool: Pool, rootTaskId: string, aut
         if (!allowed) omit(coverage, "artifacts", "Native artifact is unavailable or its current dependencies are withheld");
         return { id: row.id, taskId: row.task_id, name: allowed ? row.name : "withheld", bytes: row.bytes,
           downloadPath: allowed ? `/api/organizations/${root.organization_id}/tasks/${rootTaskId}/artifacts/${row.id}` : null, contentDigest: allowed ? row.content_digest : null };
-      }), observations, effectReceipts: [] };
+      }), observations, effectReceipts: effects.records };
     if (Buffer.byteLength(JSON.stringify(result)) > 8 * 1024 * 1024) throw new PlatformError("EXPORT_LIMIT", 413, "Execution history exceeds the export limit");
     return result;
   });
