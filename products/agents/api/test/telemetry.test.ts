@@ -1,0 +1,41 @@
+import { randomUUID } from "node:crypto";
+import { createServer } from "node:http";
+import { expect, it } from "vitest";
+import { requestDigest } from "../src/contracts/contracts";
+import { makeObservation } from "../src/observability/observations";
+import { createObservationTelemetry } from "../src/observability/telemetry";
+
+it("exports specialist work beneath its own task while preserving root lineage", async () => {
+  const received: any[] = [];
+  const server = createServer(async (request, response) => {
+    const chunks: Buffer[] = []; for await (const chunk of request) chunks.push(Buffer.from(chunk));
+    received.push(JSON.parse(Buffer.concat(chunks).toString()));
+    response.writeHead(200, { "content-type": "application/json" }); response.end("{}");
+  });
+  await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
+  const root = randomUUID(), child = randomUUID(), operationId = `model:${child}:0`;
+  const identity = { product: "agents" as const, organizationId: randomUUID(), agentId: randomUUID(), versionId: randomUUID(),
+    programId: "tool-directed", programVersion: "1", runtimeRelease: "fixture", conversationId: randomUUID(),
+    rootTaskId: root, parentTaskId: null, taskId: root, operationId: null, attemptId: null };
+  const event = (taskId: string, parentTaskId: string | null, eventKey: string, kind: string) => makeObservation({
+    identity: { ...identity, taskId, parentTaskId, ...(eventKey === "accepted" ? {} : { operationId, attemptId: randomUUID() }) },
+    eventKey, kind, occurredAt: new Date().toISOString(),
+  });
+  const events = [event(root, null, "accepted", "accepted"), event(child, root, "accepted", "accepted"),
+    event(child, root, "model:0:completed", "model.completed")];
+  const telemetry = createObservationTelemetry("parentage-test", { OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: `http://127.0.0.1:${(server.address() as { port: number }).port}/v1/traces` })!;
+  try {
+    await telemetry.export(events);
+    const spans = received.flatMap(body => body.resourceSpans.flatMap((resource: any) => resource.scopeSpans.flatMap((scope: any) => scope.spans)));
+    expect(spans).toHaveLength(3);
+    const rootSpan = spans.find(span => span.spanId === events[0]!.id.slice(0, 16));
+    const childSpan = spans.find(span => span.spanId === events[1]!.id.slice(0, 16));
+    const modelSpan = spans.find(span => span.spanId === events[2]!.id.slice(0, 16));
+    expect(rootSpan.parentSpanId ?? "").toBe("");
+    expect(childSpan.parentSpanId).toBe(rootSpan.spanId);
+    expect(modelSpan.parentSpanId).toBe(childSpan.spanId);
+    expect(new Set(spans.map(span => span.traceId))).toEqual(new Set([requestDigest(root).slice(0, 32)]));
+  } finally {
+    await telemetry.shutdown(); await new Promise<void>(resolve => server.close(() => resolve()));
+  }
+});

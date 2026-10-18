@@ -5,6 +5,7 @@ import { PlatformError,agentConfigurationSchema,assertRuntimeAvailable,connected
 import type { VersionRecord } from "../../contracts/records";
 import { assertAutomationAdmission } from '../../execution/lifecycle/automation-authority';
 import { requestTreeCancellation } from '../../execution/lifecycle/execution';
+import { recordEvent } from "../../observability/event-store";
 import { transaction } from '../../infrastructure/database';
 import { PlatformStore } from "../agents/store";
 
@@ -151,7 +152,7 @@ export class AutomationService {
     }
     await db.query('RELEASE SAVEPOINT admission');
    } catch(error) {await db.query('ROLLBACK TO SAVEPOINT admission');if(!(error instanceof PlatformError))throw error;status='blocked';errorCode=error.code;taskId=null;}
-   if(taskId)await db.query("INSERT INTO agents_platform.task_events(task_id,event_key,kind,payload) VALUES($1,'automation-admitted','automation.accepted',$2) ON CONFLICT DO NOTHING",[taskId,{automationId:id,occurrenceId,revision:row.revision,trigger:c.schedule.kind}]);
+   if(taskId)await recordEvent(db,taskId,"automation-admitted","automation.accepted",{automationId:id,occurrenceId,revision:row.revision,trigger:c.schedule.kind});
    const occurrence=(await db.query(`INSERT INTO agents_platform.automation_occurrences(id,automation_id,revision,occurrence_key,input_digest,scheduled_at,status,task_id,error_code) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,[occurrenceId,id,row.revision,key,digest,scheduledAt,status,taskId,errorCode])).rows[0];return occurrence;
   });
  }

@@ -38,7 +38,9 @@ export function createObservationTelemetry(serviceName: string, environment: Nod
         const item = observationSchema.parse(raw);
         nextId = item.id.slice(0, 16);
         nextTraceId = requestDigest(item.identity.rootTaskId).slice(0, 32);
-        const parentTaskId = item.identity.parentTaskId ?? item.identity.rootTaskId;
+        const parentTaskId = item.eventKey === "accepted"
+          ? item.identity.parentTaskId ?? item.identity.rootTaskId
+          : item.identity.taskId;
         const parent = trace.setSpanContext(ROOT_CONTEXT, { traceId: requestDigest(item.identity.rootTaskId).slice(0, 32),
           spanId: requestDigest([parentTaskId, "accepted"]).slice(0, 16), traceFlags: TraceFlags.SAMPLED, isRemote: true });
         const attributes: Record<string, string | number> = {
