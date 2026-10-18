@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { execFile, spawn, type ChildProcess } from "node:child_process";
 import { createRequire } from "node:module";
-import { mkdtemp, readFile, writeFile, chmod, rm } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, writeFile, chmod, rm } from "node:fs/promises";
 import { createServer } from "node:net";
 import { createServer as createHttpServer, request as httpRequest, type Server as HttpServer } from "node:http";
 import { tmpdir } from "node:os";
@@ -33,6 +33,7 @@ async function run() {
   let admin: Pool | undefined, pool: Pool | undefined, app: Awaited<ReturnType<typeof buildPlatformApp>> | undefined;
   let browser: any;
   let mailpit: ChildProcess | undefined;
+  let frontend: ChildProcess | undefined;
   let proxy: HttpServer | undefined;
   let captureCallback: ((url: string) => void) | undefined;
   let capturedLogoutToken: string | undefined;
@@ -144,13 +145,24 @@ async function run() {
       if (request.url === "/api/auth/backchannel-logout") capturedLogoutToken = (request.body as { logout_token?: string })?.logout_token;
     });
     const internalOrigin = await app.listen({ host: "127.0.0.1", port: 0 });
+    stage = "owned UI startup";
+    const frontendPort = await availablePort(), frontendOrigin = `http://127.0.0.1:${frontendPort}`;
+    const frontendEnvironment: NodeJS.ProcessEnv = { ...process.env, AGENTS_API_PROXY_TARGET: internalOrigin };
+    delete frontendEnvironment.OPENROUTER_API_KEY;
+    frontend = spawn(process.execPath, [join(__dirname, "../../web/node_modules/vite/bin/vite.js"), "--host", "127.0.0.1", "--port", String(frontendPort), "--strictPort"], {
+      cwd: join(__dirname, "../../web"), stdio: "ignore", env: frontendEnvironment,
+    });
+    let frontendUnavailable = false;
+    frontend.once("error", () => { frontendUnavailable = true; });
+    await waitFor(async () => !frontendUnavailable && (await fetch(frontendOrigin, { signal: AbortSignal.timeout(1_000) })).ok, "Owned identity UI", 30_000);
     proxy = createHttpServer((request, reply) => {
       if (captureCallback && request.url?.startsWith("/api/auth/callback?")) {
         const capture = captureCallback; captureCallback = undefined;
         capture(new URL(request.url, applicationOrigin).href);
         reply.writeHead(200, { "content-type": "application/json" }); reply.end('{"captured":true}'); return;
       }
-      const upstream = httpRequest(new URL(request.url ?? "/", internalOrigin), { method: request.method, headers: request.headers }, (response) => {
+      const upstreamOrigin = request.url?.startsWith("/api/") ? internalOrigin : frontendOrigin;
+      const upstream = httpRequest(new URL(request.url ?? "/", upstreamOrigin), { method: request.method, headers: request.headers }, (response) => {
         reply.writeHead(response.statusCode ?? 502, response.headers); response.pipe(reply);
       });
       upstream.on("error", () => { if (!reply.headersSent) reply.writeHead(502); reply.end(); });
@@ -247,16 +259,26 @@ async function run() {
     const signupContext = await browser.newContext(), signupPage = await signupContext.newPage();
     signupContext.setDefaultTimeout(20_000);
     const signupEmail = `signup-${suffix}@agents.example.test`;
-    const signupDestination = "/app/agents?welcome=registered";
-    await signupPage.goto(`${applicationOrigin}/api/auth/signup?returnTo=${encodeURIComponent(signupDestination)}`);
+    const evidenceDirectory = join(__dirname, "../../web/.artifacts/identity-ui");
+    await mkdir(evidenceDirectory, { recursive: true });
+    stage = "public landing Get started";
+    await signupPage.goto(applicationOrigin);
+    await signupPage.getByRole("link", { name: "Get started", exact: true }).click();
+    stage = "public signup account link";
+    await signupPage.waitForURL(`${applicationOrigin}/signup`);
+    await signupPage.getByRole("link", { name: "Create account", exact: true }).click();
+    stage = "provider registration form";
+    await signupPage.locator("#email").waitFor({ state: "visible" });
     check(new URL(signupPage.url()).searchParams.get("prompt") === "create", "Registration did not use provider signup intent");
     for (const [selector, value] of [["#username", `signup-${suffix}`], ["#email", signupEmail], ["#firstName", "Signup"], ["#lastName", "Fixture"], ["#password", password], ["#password-confirm", password]]) {
       const field = signupPage.locator(selector);
       if (await field.count()) await field.fill(value);
     }
+    stage = "provider registration submission";
     await signupPage.locator('input[type="submit"], button[type="submit"]').first().click();
     await signupPage.waitForURL((url: URL) => url.origin === providerOrigin && url.pathname.includes("login-actions"));
     check(!(await signupContext.cookies(applicationOrigin)).some((value: { name: string }) => value.name === "agents_session"), "Unverified registration created a product session");
+    stage = "local verification email";
     let messageId: string | undefined;
     await waitFor(async () => {
       const result = await (await fetch(`${mailOrigin}/api/v1/messages`)).json() as { messages: { ID: string; To: { Address: string }[] }[] };
@@ -266,6 +288,7 @@ async function run() {
     const mail = await (await fetch(`${mailOrigin}/api/v1/message/${messageId}`)).json() as { Text: string; HTML: string };
     const verification = (mail.Text || mail.HTML).match(/https?:[^\s<>"']+action-token[^\s<>"']*/u)?.[0]?.replaceAll("&amp;", "&");
     check(verification && new URL(verification).origin === providerOrigin, "Provider verification link missing");
+    stage = "verification callback and first workspace entry";
     await signupPage.goto(verification);
     const confirmVerification = signupPage.locator('a:has-text("Proceed")');
     if (await confirmVerification.count()) await confirmVerification.click();
@@ -274,30 +297,49 @@ async function run() {
       await signupPage.locator("#password-confirm").fill(password);
       await signupPage.locator('input[type="submit"], button[type="submit"]').first().click();
     }
-    await signupPage.waitForURL(`${applicationOrigin}${signupDestination}`);
+    await signupPage.waitForURL((url: URL) => url.origin === applicationOrigin && ["/app", "/app/agents"].includes(url.pathname));
     const signupCookie = await cookieValue(signupContext);
     check(await sessionStatus(signupCookie) === 200, "Verified registration did not create a product session");
     const freshSession = await signupPage.evaluate(async () => (await fetch("/api/session")).json());
     check(freshSession.organizations.length === 0 && freshSession.account.email === signupEmail, "New account inherited a workspace or wrong identity");
-    const signupWorkspace = await signupPage.evaluate(async () => {
-      const response = await fetch("/api/organizations", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name: "Signup acceptance" }) });
-      return { status: response.status, body: await response.json() };
-    });
-    check(signupWorkspace.status === 201 && signupWorkspace.body.organization.id, "First workspace creation after signup failed");
-    const signupLogout = await signupPage.evaluate(async () => (await fetch("/api/auth/logout", { method: "POST" })).json());
-    await signupPage.goto(signupLogout.redirectTo);
+    stage = "first workspace through application controls";
+    await signupPage.getByRole("button", { name: "Create workspace", exact: true }).click();
+    await signupPage.getByRole("textbox", { name: "Workspace name", exact: true }).fill("Signup acceptance");
+    await signupPage.getByRole("dialog").getByRole("button", { name: "Create workspace", exact: true }).click();
+    await signupPage.getByRole("combobox", { name: "Workspace", exact: true }).waitFor({ state: "visible" });
+    check(await signupPage.getByRole("combobox", { name: "Workspace", exact: true }).locator("option:checked").textContent() === "Signup acceptance", "First workspace UI did not select the created workspace");
+    const createdSession = await signupPage.evaluate(async () => (await fetch("/api/session")).json());
+    check(createdSession.organizations.length === 1 && createdSession.organizations[0].name === "Signup acceptance", "First workspace UI did not persist the expected membership");
+    for (const width of [1440, 768, 390]) {
+      await signupPage.setViewportSize({ width, height: 1000 });
+      check(await signupPage.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `Signup workspace overflow at ${width}px`);
+      await signupPage.screenshot({ path: join(evidenceDirectory, `verified-workspace-${width}.png`), fullPage: true });
+    }
+    await signupPage.setViewportSize({ width: 1440, height: 1000 });
+    stage = "application sign-out";
+    await signupPage.getByRole("button", { name: "Sign out", exact: true }).click();
+    await signupPage.waitForURL((url: URL) => url.origin === providerOrigin || url.origin === applicationOrigin && url.pathname === "/login");
     const signupConfirmLogout = signupPage.locator("#kc-logout");
-    if (await signupConfirmLogout.count()) await signupConfirmLogout.click();
+    await waitFor(async () => new URL(signupPage.url()).origin === applicationOrigin && new URL(signupPage.url()).pathname === "/login" || await signupConfirmLogout.isVisible(), "Provider sign-out screen", 20_000);
+    if (await signupConfirmLogout.isVisible()) await signupConfirmLogout.click();
+    await signupPage.waitForURL(`${applicationOrigin}/login`);
     check(await sessionStatus(signupCookie) === 401, "Signup account sign-out failed");
     stage = "registered account return login";
     const returnDestination = "/app/settings?from=login";
-    await signupPage.goto(`${applicationOrigin}/api/auth/login?returnTo=${encodeURIComponent(returnDestination)}`);
+    await signupPage.goto(`${applicationOrigin}${returnDestination}`);
+    await signupPage.waitForURL((url: URL) => url.origin === applicationOrigin && url.pathname === "/login");
+    check(new URL(signupPage.url()).searchParams.get("returnTo") === returnDestination, "Application guard lost the intended destination");
+    await signupPage.getByRole("link", { name: "Sign in", exact: true }).click();
     await signupPage.locator("#username").fill(`signup-${suffix}`);
     await signupPage.locator("#password").fill(password);
     await Promise.all([signupPage.waitForURL(`${applicationOrigin}${returnDestination}`), signupPage.locator("#kc-login").click()]);
     check(await sessionStatus(await cookieValue(signupContext)) === 200, "Registered account return login failed");
+    await signupPage.getByRole("heading", { name: "Settings", exact: true }).waitFor({ state: "visible" });
+    check(await signupPage.getByRole("combobox", { name: "Workspace", exact: true }).locator("option:checked").textContent() === "Signup acceptance", "Return login lost the existing workspace");
+    await signupPage.screenshot({ path: join(evidenceDirectory, "return-login-settings.png"), fullPage: true });
+    await writeFile(join(evidenceDirectory, "identity-ui-proof.json"), JSON.stringify({ status: "passed", realLanding: true, actualSignupControls: true, providerRegistration: true, localEmailVerification: true, actualWorkspaceDialog: true, actualSignOut: true, guardedSettingsReturn: true, workspaceRetained: true, widths: [1440, 768, 390], modelCalls: 0 }, null, 2), { mode: 0o600 });
     await signupContext.close();
-    console.log(JSON.stringify({ provider: keycloakImage, checks: { browserAuthorizationCodePkce: true, freshSignup: true, localVerificationEmail: true, firstWorkspaceAfterSignup: true, safeReturnDestination: true, registeredReturnLogin: true, stateRejection: true,
+    console.log(JSON.stringify({ provider: keycloakImage, checks: { browserAuthorizationCodePkce: true, realLandingSignupWorkspaceControls: true, applicationGuardReturnLogin: true, freshSignup: true, localVerificationEmail: true, firstWorkspaceAfterSignup: true, safeReturnDestination: true, registeredReturnLogin: true, stateRejection: true,
       serviceClientCredentialsAudienceAndRole: true, noRealmManagementAuthority: true, nonceRejection: true, pkceVerifierRejection: true, opaqueSession: true, organizationCreation: true, localLogout: true,
       providerSignedBackchannel: true, logoutReplay: true, malformedAndUnsignedAndBadSignatureRejection: true },
       unverified: ["production deployment"] }));
@@ -306,6 +348,7 @@ async function run() {
   function cleanup(): Promise<void> {
     cleanupPromise ??= (async () => {
     await browser?.close().catch(() => {});
+    if (frontend && frontend.exitCode === null && frontend.signalCode === null) { frontend.kill("SIGTERM"); await new Promise<void>(resolve => frontend!.once("exit", () => resolve())); }
     if (mailpit && mailpit.exitCode === null) { mailpit.kill("SIGTERM"); await new Promise<void>(resolve => { mailpit!.once("exit", () => resolve()); setTimeout(resolve, 5_000); }); }
     if (proxy) { proxy.closeAllConnections(); await new Promise<void>((resolve) => proxy!.close(() => resolve())); }
     await app?.close().catch(() => {}); await pool?.end().catch(() => {});
@@ -323,6 +366,12 @@ async function run() {
   let exitCode = 0;
   try { await main(); }
   catch (error) {
+    const failedPage = browser?.contexts().at(-1)?.pages().at(-1);
+    if (failedPage) {
+      const evidence = join(__dirname, "../../web/.artifacts/identity-ui");
+      await mkdir(evidence, { recursive: true });
+      await failedPage.screenshot({ path: join(evidence, "identity-ui-failure.png"), fullPage: true }).catch(() => {});
+    }
     // Provider responses, commands and URLs can contain fixture credentials. Emit only a bounded diagnostic.
     console.error(`Identity fixture failed at ${stage}: ${error instanceof assert.AssertionError ? error.message : error instanceof Error ? error.name : "UnknownError"}`);
     exitCode = 1;
