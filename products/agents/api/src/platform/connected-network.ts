@@ -119,11 +119,20 @@ export function createBoundedFetch(policy: TrustedNetworkPolicy): typeof fetch {
         if (next.origin !== url.origin && Object.keys(policy.headers ?? {}).some(key => key.toLowerCase() === "authorization")) throw new ConnectedNetworkError("DESTINATION_DENIED");
         current = next; attempt--; continue;
       }
-      if ([401, 403].includes(response.status)) throw new ConnectedNetworkError("AUTHENTICATION");
-      if (response.status === 429 || [502, 503, 504].includes(response.status)) {
-        const raw = response.headers.get("retry-after");
-        const retryAfterMs = raw === null ? 250 * attempt : /^\d+$/.test(raw) ? Number(raw) * 1000 : Math.max(0, Date.parse(raw) - Date.now());
-        if (attempt === maximum || !Number.isFinite(retryAfterMs) || retryAfterMs >= policy.deadlineAt - Date.now()) throw new ConnectedNetworkError(response.status === 429 ? "RATE_LIMIT" : "NETWORK_UNAVAILABLE", retryAfterMs);
+      const rawRetry = response.headers.get("retry-after");
+      const retryDate = rawRetry !== null && /^[A-Z][a-z]{2}, \d{2} [A-Z][a-z]{2} \d{4} \d{2}:\d{2}:\d{2} GMT$/.test(rawRetry) ? Date.parse(rawRetry) : NaN;
+      const explicitRetryMs = rawRetry === null ? undefined : /^\d+$/.test(rawRetry) ? Number(rawRetry) * 1000 : Number.isFinite(retryDate) ? Math.max(0,retryDate-Date.now()) : undefined;
+      const exhausted = response.headers.get("x-ratelimit-remaining") === "0";
+      const rateLimited = response.status === 429 || response.status === 403 && (exhausted || explicitRetryMs !== undefined);
+      if (response.status === 401 || response.status === 403 && !rateLimited) throw new ConnectedNetworkError("AUTHENTICATION");
+      if (rateLimited || [502, 503, 504].includes(response.status)) {
+        const rawReset = exhausted ? response.headers.get("x-ratelimit-reset") : null;
+        const resetSeconds = rawReset !== null && /^\d+$/.test(rawReset) ? Number(rawReset) : NaN;
+        const resetMs = Number.isSafeInteger(resetSeconds) && Number.isSafeInteger(resetSeconds*1000) ? Math.max(0,resetSeconds*1000-Date.now()) : undefined;
+        // Exhausted quotas have no safe default delay: wait for a declared reset or fail explicitly.
+        const fallback = exhausted || rawRetry !== null && explicitRetryMs === undefined ? Infinity : 250*attempt;
+        const retryAfterMs = Math.max(explicitRetryMs ?? resetMs ?? fallback,resetMs ?? 0);
+        if (attempt === maximum || !Number.isFinite(retryAfterMs) || retryAfterMs >= policy.deadlineAt - Date.now()) throw new ConnectedNetworkError(rateLimited ? "RATE_LIMIT" : "NETWORK_UNAVAILABLE", Number.isFinite(retryAfterMs)?retryAfterMs:undefined);
         await new Promise<void>((resolve, reject) => { const timer = setTimeout(() => { policy.signal?.removeEventListener("abort", cancel); resolve(); }, retryAfterMs); const cancel = () => { clearTimeout(timer); reject(new ConnectedNetworkError("CANCELLED")); }; policy.signal?.addEventListener("abort", cancel, { once: true }); });
         continue;
       }

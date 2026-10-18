@@ -43,6 +43,37 @@ describe("trusted connected network", () => {
     const fetch = createBoundedFetch({ authorizeUrl: () => true, maxRequestBytes: 16, maxResponseBytes: 32, deadlineAt: Date.now()+2000, testLoopback: true, maxAttempts: 3, onAttempt: attempt => receipts.push(attempt) });
     await expect(fetch(url)).rejects.toMatchObject({ code: "RATE_LIMIT", retryAfterMs: 60000 }); expect(calls).toBe(3); expect(receipts).toHaveLength(3);
   });
+  it("classifies an exhausted GitHub-style 403 without retrying before its reset or original deadline",async()=>{
+    let calls=0,claims=0;const receipts:NetworkAttempt[]=[],reset=Math.ceil(Date.now()/1000)+60;
+    const url=await server((_request,response)=>{calls++;response.writeHead(403,{"x-ratelimit-remaining":"0","x-ratelimit-reset":String(reset),"retry-after":"0"}).end("quota exhausted");});
+    const started=Date.now(),read=createBoundedFetch({authorizeUrl:()=>true,maxRequestBytes:0,maxResponseBytes:128,deadlineAt:started+1000,testLoopback:true,maxAttempts:3,beforeAttempt:()=>{claims++;},onAttempt:receipt=>{receipts.push(receipt);}});
+    await expect(read(url)).rejects.toMatchObject({code:"RATE_LIMIT",retryAfterMs:expect.any(Number)});expect(Date.now()-started).toBeLessThan(1000);expect(calls).toBe(1);expect(claims).toBe(1);expect(receipts).toHaveLength(1);expect(receipts[0]?.status).toBe(403);
+  });
+  it("uses declared secondary retry timing within the existing physical attempt bound",async()=>{
+    let calls=0;const receipts:NetworkAttempt[]=[];
+    const url=await server((_request,response)=>{calls++;if(calls===1)response.writeHead(403,{"retry-after":"0"}).end();else response.end("ready");});
+    const read=createBoundedFetch({authorizeUrl:()=>true,maxRequestBytes:0,maxResponseBytes:128,deadlineAt:Date.now()+1000,testLoopback:true,maxAttempts:2,onAttempt:receipt=>{receipts.push(receipt);}});
+    expect(await(await read(url)).text()).toBe("ready");expect(calls).toBe(2);expect(receipts.map(receipt=>receipt.status)).toEqual([403,200]);
+  });
+  it.each([
+    {status:401,headers:{"x-ratelimit-remaining":"0","x-ratelimit-reset":"9999999999","retry-after":"0"}},
+    {status:403,headers:{}},
+    {status:403,headers:{"x-ratelimit-remaining":"1","x-ratelimit-reset":"9999999999"}},
+    {status:403,headers:{"retry-after":"not-a-date"}},
+  ])("keeps unproven quota responses and 401 as authentication failures",async({status,headers})=>{
+    let calls=0;const url=await server((_request,response)=>{calls++;response.writeHead(status,headers).end();});
+    const read=createBoundedFetch({authorizeUrl:()=>true,maxRequestBytes:0,maxResponseBytes:128,deadlineAt:Date.now()+1000,testLoopback:true,maxAttempts:3});
+    await expect(read(url)).rejects.toMatchObject({code:"AUTHENTICATION"});expect(calls).toBe(1);
+  });
+  it.each([
+    {"x-ratelimit-remaining":"0"},
+    {"retry-after":new Date(Date.now()+120000).toUTCString()},
+    {"x-ratelimit-remaining":"0","x-ratelimit-reset":"1","retry-after":"60"},
+  ])("fails explicitly when a proven 403 has no safe retry before the deadline",async headers=>{
+    let calls=0;const url=await server((_request,response)=>{calls++;response.writeHead(403,headers).end();});
+    const read=createBoundedFetch({authorizeUrl:()=>true,maxRequestBytes:0,maxResponseBytes:128,deadlineAt:Date.now()+1000,testLoopback:true,maxAttempts:3});
+    await expect(read(url)).rejects.toMatchObject({code:"RATE_LIMIT"});expect(calls).toBe(1);
+  });
   it("cancels an actual hanging request without waiting for the full deadline", async () => {
     const url = await server(() => undefined), abort = new AbortController();
     const fetch = createBoundedFetch({ authorizeUrl: () => true, maxRequestBytes: 16, maxResponseBytes: 32, deadlineAt: Date.now()+5000, testLoopback: true, signal: abort.signal });
