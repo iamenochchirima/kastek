@@ -549,8 +549,12 @@ its durable notification, then recheck authority before activating a grant.
 Active or uncertain provider calls retain their holds until confirmed settlement
 or explicit reconciliation. Provisional grants may expire; an expired generation
 cannot start a call. No provider wait holds a database transaction.
-Bucket counters change in the same transaction as their hold rows; admission does
-not count the full hold table. Sorted locks are acquired in one query. Queue
+Each bucket has numbered permit slots with a unique bucket/slot constraint and
+database-enforced immutable bounds. Compatible configuration locks and indexed
+free-slot claims let independent operations reserve different slots concurrently.
+Slot pools grow lazily in batches of at most 32; only pool growth updates its
+separate frontier. A failed multi-bucket reservation rolls back all partial claims.
+Release clears the matching slot owner and generation with its hold row. Queue
 deadlines, provisional expiry and recorded grant delay use the database clock.
 Only a promoted queued request publishes a capacity wakeup and grant observation.
 

@@ -16,25 +16,21 @@ export interface CapacityRequest {id:string;taskId:string;workload:"interactive"
 export type CapacityDecision={state:"granted";requestId:string;generation:number}|{state:"waiting";requestId:string;generation:number;deadline:string};
 export type CapacityPolicy=z.infer<typeof capacityPolicySchema>;
 async function lockBuckets(db:PoolClient,keys:string[]){
- await db.query("SELECT key FROM agents_platform.capacity_buckets WHERE key=ANY($1::text[]) ORDER BY key FOR UPDATE",[keys]);
+ await db.query("SELECT key FROM agents_platform.capacity_buckets WHERE key=ANY($1::text[]) ORDER BY key FOR SHARE",[keys]);
 }
 async function removeHolds(db:PoolClient,requestId:string):Promise<void>{
- await db.query(`WITH removed AS (DELETE FROM agents_platform.capacity_holds WHERE request_id=$1 RETURNING bucket_key)
- UPDATE agents_platform.capacity_buckets b SET used_active=used_active-1 FROM removed r WHERE b.key=r.bucket_key`,[requestId]);
+ await db.query(`WITH removed AS (DELETE FROM agents_platform.capacity_holds WHERE request_id=$1 RETURNING bucket_key,slot,generation)
+ UPDATE agents_platform.capacity_slots s SET owner_request=NULL,generation=NULL FROM removed r WHERE s.bucket_key=r.bucket_key AND s.slot=r.slot AND s.owner_request=$1 AND s.generation=r.generation`,[requestId]);
 }
 async function grantIfAvailable(db:PoolClient,row:any,leaseMs:number,publish=true,locked=false):Promise<boolean>{
  if(!locked)await lockBuckets(db,row.bucket_keys);
- const blocked=await db.query(`SELECT b.key FROM agents_platform.capacity_buckets b WHERE b.key=ANY($1::text[])
- AND b.used_active>=b.max_active`,[row.bucket_keys]);
- if(blocked.rowCount)return false;
  // FIFO within each shared bucket, with age promotion so background work cannot starve.
  const older=await db.query(`SELECT 1 FROM agents_platform.capacity_requests q WHERE q.state='waiting' AND q.id<>$1 AND q.bucket_keys && $2::text[]
  AND (q.created_at+CASE WHEN q.workload='interactive' THEN interval '0 seconds' ELSE interval '5 seconds' END,q.id)
  <($3::timestamptz+CASE WHEN $4='interactive' THEN interval '0 seconds' ELSE interval '5 seconds' END,$1) LIMIT 1`,[row.id,row.bucket_keys,row.created_at,row.workload]);
  if(older.rowCount)return false;
- await db.query(`WITH inserted AS (INSERT INTO agents_platform.capacity_holds(request_id,bucket_key,generation)
- SELECT $1,unnest($2::text[]),$3 ON CONFLICT DO NOTHING RETURNING bucket_key)
- UPDATE agents_platform.capacity_buckets b SET used_active=used_active+1 FROM inserted i WHERE b.key=i.bucket_key`,[row.id,row.bucket_keys,row.generation]);
+ const reserved=await db.query('SELECT agents_platform.reserve_capacity_slots($1,$2,$3) AS granted',[row.id,row.generation,row.bucket_keys]);
+ if(!reserved.rows[0].granted)return false;
  const granted=await db.query(`UPDATE agents_platform.capacity_requests SET state='granted',granted_at=now(),lease_until=now()+$2*interval '1 millisecond' WHERE id=$1 RETURNING greatest(0,extract(epoch FROM(clock_timestamp()-created_at))*1000)::float8 AS queue_ms`,[row.id,leaseMs]);
  if(publish){
   await recordEvent(db,row.task_id,`capacity-granted:${row.id}:${row.generation}`,"resource.capacity_granted",{operationId:row.id,queueMs:granted.rows[0].queue_ms,count:row.bucket_keys.length});

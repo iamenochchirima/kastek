@@ -17,8 +17,9 @@ const dbUrl=process.env.AGENTS_TEST_DATABASE_URL;
  afterEach(async()=>{
   expect((await pool.query(`SELECT a.organization_id FROM agents_platform.tenant_admission a WHERE a.active_roots<>(SELECT count(*) FROM agents_platform.tasks t
    WHERE t.organization_id=a.organization_id AND t.parent_task_id IS NULL AND t.state NOT IN ('completed','incomplete','refused','failed','cancelled','uncertain'))`)).rows).toEqual([]);
-  expect((await pool.query(`SELECT b.key FROM agents_platform.capacity_buckets b WHERE b.used_active<0 OR b.used_active>b.max_active
-   OR b.used_active<>(SELECT count(*) FROM agents_platform.capacity_holds h WHERE h.bucket_key=b.key)`)).rows).toEqual([]);
+  expect((await pool.query(`SELECT b.key FROM agents_platform.capacity_buckets b WHERE b.max_active<(SELECT count(*) FROM agents_platform.capacity_holds h WHERE h.bucket_key=b.key)`)).rows).toEqual([]);
+  expect((await pool.query(`SELECT s.bucket_key,s.slot FROM agents_platform.capacity_slots s LEFT JOIN agents_platform.capacity_holds h ON h.bucket_key=s.bucket_key AND h.slot=s.slot
+   WHERE (s.owner_request IS NULL AND h.request_id IS NOT NULL) OR (s.owner_request IS NOT NULL AND (h.request_id IS NULL OR h.request_id<>s.owner_request OR h.generation<>s.generation))`)).rows).toEqual([]);
  });
  async function tasks(){
   const account=await store.ensureAccount({issuer:'http://localhost/test',subject:randomUUID(),email:'schedule@example.com',displayName:'Fixture'}),org=await store.createOrganization(account.id,'Scheduler fixture');
@@ -31,10 +32,12 @@ const dbUrl=process.env.AGENTS_TEST_DATABASE_URL;
  }
  it('claims bounded batches fairly without overlapping replica leases and recovers expired claims',async()=>{
   const a=await tasks(),b=await tasks();
+  const serial=await claimDispatchBatch(pool,{batchSize:2});
+  const tenants=(await pool.query('SELECT organization_id FROM agents_platform.tasks WHERE id=ANY($1::uuid[])',[serial.rows.map(r=>r.task_id)])).rows;expect(new Set(tenants.map(r=>r.organization_id)).size).toBe(2);
+  await pool.query("UPDATE agents_platform.task_outbox SET lease_until=now()-interval '1 second' WHERE task_id=ANY($1::uuid[])",[serial.rows.map(row=>row.task_id)]);
   const [one,two]=await Promise.all([claimDispatchBatch(pool,{batchSize:2}),claimDispatchBatch(pool,{batchSize:2})]);
   const ids=[...one.rows,...two.rows].map(r=>r.task_id);expect(new Set(ids).size).toBe(4);
   expect(one.rows.length).toBe(2);expect(two.rows.length).toBe(2);
-  const tenants=(await pool.query('SELECT organization_id FROM agents_platform.tasks WHERE id=ANY($1::uuid[])',[one.rows.map(r=>r.task_id)])).rows;expect(new Set(tenants.map(r=>r.organization_id)).size).toBe(2);
   await pool.query("UPDATE agents_platform.task_outbox SET lease_until=now()-interval '1 second' WHERE task_id=$1",[a[0]!.id]);
   const recovered=await claimDispatchBatch(pool,{batchSize:2});expect(recovered.rows.map(r=>r.task_id)).toContain(a[0]!.id);
   await pool.query('UPDATE agents_platform.task_outbox SET dispatched_at=now() WHERE task_id=ANY($1::uuid[])',[a.concat(b).map(t=>t.id)]);
@@ -119,5 +122,24 @@ const dbUrl=process.env.AGENTS_TEST_DATABASE_URL;
   expect((await pool.query('SELECT state,error_code FROM agents_platform.capacity_requests WHERE id=$1',[second.id])).rows[0]).toMatchObject({state:'rejected',error_code:'CAPACITY_WAIT_EXPIRED'});
   expect((await pool.query('SELECT count(*)::int n FROM agents_platform.capacity_holds WHERE request_id=$1',[request.id])).rows[0].n).toBe(1);
   await transaction(pool,db=>releaseCapacity(db,request.id,'uncertain',true));expect((await pool.query('SELECT count(*)::int n FROM agents_platform.capacity_holds WHERE request_id=$1',[request.id])).rows[0].n).toBe(0);
+ });
+ it('grants different slots concurrently without a product-wide bucket mutex',async()=>{
+  const [a,b]=await tasks(),key=`parallel:${randomUUID()}`,request=(taskId:string)=>({id:`op:${randomUUID()}`,taskId,workload:'interactive' as const,buckets:[{key,limit:4}]});
+  const seed=request(a!.id);await transaction(pool,db=>requestCapacity(db,seed));await transaction(pool,db=>releaseCapacity(db,seed.id,'completed'));
+  const first=await pool.connect();await first.query('BEGIN');
+  try{await requestCapacity(first,request(a!.id));
+   await expect(transaction(pool,async db=>{await db.query("SET LOCAL lock_timeout='500ms'");return requestCapacity(db,request(b!.id));})).resolves.toMatchObject({state:'granted'});
+  }finally{await first.query('COMMIT');first.release();}
+  expect((await pool.query('SELECT count(DISTINCT slot)::int n FROM agents_platform.capacity_holds WHERE bucket_key=$1',[key])).rows[0].n).toBe(2);
+ });
+ it('preserves hard ceilings under competing multi-bucket reservations and rolls back partial slots',async()=>{
+  const [a,b]=await tasks(),key=`race:${randomUUID()}`,requests=Array.from({length:20},()=>({id:`op:${randomUUID()}`,taskId:a!.id,workload:'interactive' as const,buckets:[{key,limit:7}]}));
+  const decisions=await Promise.all(requests.map(request=>transaction(pool,db=>requestCapacity(db,request))));expect(decisions.filter(decision=>decision.state==='granted')).toHaveLength(7);
+  expect((await pool.query('SELECT count(*)::int n FROM agents_platform.capacity_holds WHERE bucket_key=$1',[key])).rows[0].n).toBe(7);
+  const partial=`partial:${randomUUID()}`,blocked={id:`op:${randomUUID()}`,taskId:b!.id,workload:'interactive' as const,buckets:[{key,limit:7},{key:partial,limit:4}]};
+  expect((await transaction(pool,db=>requestCapacity(db,blocked))).state).toBe('waiting');
+  expect((await pool.query('SELECT count(*)::int n FROM agents_platform.capacity_holds WHERE request_id=$1',[blocked.id])).rows[0].n).toBe(0);
+  await expect(pool.query('INSERT INTO agents_platform.capacity_slots(bucket_key,slot) VALUES($1,8)',[key])).rejects.toThrow('Capacity slot exceeds');
+  await expect(pool.query('UPDATE agents_platform.capacity_buckets SET max_active=8 WHERE key=$1',[key])).rejects.toThrow('Capacity limits are immutable');
  });
 });
