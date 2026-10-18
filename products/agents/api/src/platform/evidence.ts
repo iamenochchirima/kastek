@@ -57,7 +57,7 @@ async function bindingAllowed(db: Db, execution: Execution, bindingId: string): 
   const row = (await db.query("SELECT binding,account_id FROM agents_platform.capability_bindings WHERE id=$1 AND organization_id=$2", [bindingId, execution.task.organization_id])).rows[0];
   if (!row || row.account_id !== await owner(db, execution)) throw denied();
   const binding = capabilityBindingSchema.parse(row.binding);
-  if (binding.policy.effect !== "read" || binding.policy.disclosure !== "public_identifiers" || !binding.connection) throw denied();
+  if (binding.policy.effect !== "read" || binding.policy.disclosure !== (binding.connection?.profileId === "stash-read-v1" ? "approved_resource_identifiers" : "public_identifiers") || !binding.connection) throw denied();
   if (execution.task.parent_task_id) await bindingAllowed(db, await loadExecution(db, execution.task.root_task_id), bindingId);
   return binding;
 }

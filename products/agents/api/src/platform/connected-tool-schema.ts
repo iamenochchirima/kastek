@@ -3,8 +3,8 @@ import {PlatformError,requestDigest} from "./contracts";
 import type {CapabilityBinding,ResourceHandle} from "./capability-catalog";
 import type {ToolDefinition} from "./model";
 
-export const CONNECTED_SCHEMA_RELEASE="github-handles-v1";
-export type ConnectedModelArguments={repository?:string;revisionId?:string;fileId?:string;releaseId?:string;offset?:number};
+export const CONNECTED_SCHEMA_RELEASE="connected-handles-v2";
+export type ConnectedModelArguments={repository?:string;revisionId?:string;fileId?:string;releaseId?:string;itemId?:string;offset?:number};
 const unavailable=()=>new PlatformError("CONNECTED_OPERATION_UNAVAILABLE",403,"The selected connected read operation is unavailable");
 const uuid={type:"string",minLength:36,maxLength:36};
 export function connectedParameters(operation:string,resources:readonly ResourceHandle[]):Record<string,unknown>{
@@ -15,11 +15,16 @@ export function connectedParameters(operation:string,resources:readonly Resource
   case"list_tree":case"get_repository_tree":properties={revisionId:uuid,offset:{type:"integer",minimum:0,maximum:1999}};required=["revisionId"];break;
   case"read_file":case"get_file_contents":properties={fileId:uuid,offset:{type:"integer",minimum:0,maximum:1048576}};required=["fileId"];break;
   case"get_release_by_tag":properties={releaseId:uuid};required=["releaseId"];break;
+  case"get_item":case"read_project_document":properties={itemId:{type:"string",enum:resources.filter(resource=>resource.kind==="stash.item").map(resource=>resource.id).sort()},offset:{type:"integer",minimum:0,maximum:operation==="get_item"?49999:500000}};required=["itemId"];break;
   default:throw unavailable();
  }
  return{type:"object",properties,required,additionalProperties:false};
 }
 export function connectedModelArguments(binding:CapabilityBinding,input:unknown):ConnectedModelArguments{
+ if(binding.connection?.profileId==="stash-read-v1"){
+  if(binding.transport!=="mcp_http"||!["get_item","read_project_document"].includes(binding.definition.providerOperation))throw unavailable();
+  return z.strictObject({itemId:z.uuid().refine(id=>binding.resources.some(resource=>resource.kind==="stash.item"&&resource.id===id)),offset:z.number().int().min(0).max(binding.definition.providerOperation==="get_item"?49999:500000).optional()}).parse(input);
+ }
  const repository=z.enum(binding.resources.filter(resource=>resource.kind==="github.repository").map(resource=>resource.id) as [string,...string[]]);
  switch(binding.definition.providerOperation){
   case"get_repository":case"list_releases":case"resolve_ref":case"get_latest_release":return z.strictObject({repository}).parse(input);
@@ -29,7 +34,7 @@ export function connectedModelArguments(binding:CapabilityBinding,input:unknown)
   default:throw unavailable();
  }
 }
-const descriptions:Record<string,string>={get_repository:"Read metadata for an approved public repository.",list_releases:"List one bounded page of public releases; returned release handles can be inspected with the selected release tool.",resolve_ref:"Resolve the owner's approved repository revision to an immutable commit; returns a revisionId.",list_tree:"List files at an issued immutable revisionId; returns fileId handles.",read_file:"Read a bounded text passage from an issued fileId. offset is a UTF-16 character offset.",get_repository_tree:"Read a public repository tree using a revisionId issued by the selected native resolve_ref tool.",get_file_contents:"Read a bounded text passage using a fileId issued by the selected native list_tree tool.",get_latest_release:"Read the latest public release of an approved repository.",get_release_by_tag:"Read a public release using a releaseId issued by the selected list_releases tool."};
+const descriptions:Record<string,string>={get_item:"Read an explicitly approved Stash note or idea. offset is a UTF-16 character offset within the first 50000 characters. Follow nextOffset, using read_project_document for a longer project document.",read_project_document:"Read a bounded passage of an approved Stash project note or idea at a UTF-16 offset. Follow observation.provenance.nextOffset for continuation.",get_repository:"Read metadata for an approved public repository.",list_releases:"List one bounded page of public releases; returned release handles can be inspected with the selected release tool.",resolve_ref:"Resolve the owner's approved repository revision to an immutable commit; returns a revisionId.",list_tree:"List files at an issued immutable revisionId; returns fileId handles.",read_file:"Read a bounded text passage from an issued fileId. offset is a UTF-16 character offset.",get_repository_tree:"Read a public repository tree using a revisionId issued by the selected native resolve_ref tool.",get_file_contents:"Read a bounded text passage using a fileId issued by the selected native list_tree tool.",get_latest_release:"Read the latest public release of an approved repository.",get_release_by_tag:"Read a public release using a releaseId issued by the selected list_releases tool."};
 export function connectedModelTool(binding:CapabilityBinding):ToolDefinition{
  return{type:"function",function:{name:binding.alias,description:descriptions[binding.definition.providerOperation]??unavailable().message,parameters:connectedParameters(binding.definition.providerOperation,binding.resources)}};
 }
