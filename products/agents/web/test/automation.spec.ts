@@ -149,8 +149,8 @@ test("mock review: only the assigned reviewer can decide before expiry", async (
 
 test("live automation: scheduled report survives review and delivery interruptions", async ({ page, context, baseURL }) => {
   test.skip(process.env.AGENTS_AUTOMATION_LIVE !== "1", "Requires isolated actual service fixture");
-  const github=process.env.AGENTS_GITHUB_JOURNEY==="1";
-  test.setTimeout(github?600_000:360_000);
+  const github=process.env.AGENTS_GITHUB_JOURNEY==="1",stash=process.env.AGENTS_STASH_JOURNEY==="1",connected=github||stash;
+  test.setTimeout(connected?600_000:360_000);
   const cookie = process.env.AGENTS_BROWSER_SESSION_COOKIE!, key = process.env.AGENTS_DELIVERY_FIXTURE_KEY!;
   await context.addCookies([{ name: "agents_session", value: cookie, url: baseURL!, httpOnly: true, sameSite: "Lax" }]);
   await page.goto(process.env.AGENTS_ADVANCED_AGENT_PATH!);
@@ -174,7 +174,7 @@ test("live automation: scheduled report survives review and delivery interruptio
     await binding.getByRole("checkbox", { name: `${sourceTitles[position-1]} · Revision 1`, exact: true }).check();
     await binding.getByRole("checkbox", { name: "Allow knowledge search and reading" }).check();
     for(const operation of connectedOperations[position-1]??[])await binding.getByRole("checkbox",{name:new RegExp(`^${operation.replaceAll("_"," ")}(?:\\s|$)`)}).check();
-    if(github){
+    if(connected){
       await binding.getByText("Specialist limits",{exact:true}).click();
       await binding.getByRole("spinbutton",{name:`Specialist ${position} token allocation`,exact:true}).fill("10000");
     }
@@ -209,7 +209,7 @@ test("live automation: scheduled report survives review and delivery interruptio
   await expect(page.getByRole("link", { name: "Open task", exact: true })).toBeVisible({ timeout: 60_000 });
   await page.getByRole("link", { name: "Open task", exact: true }).click();
   const taskId = new URL(page.url()).pathname.split("/").at(-1)!;
-  if(github)expect((await page.request.post("http://127.0.0.1:4398/fixture/restart-connected",{timeout:240_000})).ok()).toBe(true);
+  if(connected)expect((await page.request.post("http://127.0.0.1:4398/fixture/restart-connected",{timeout:240_000})).ok()).toBe(true);
   await expect(page.getByRole("button", { name: "Approve delivery", exact: true })).toBeVisible({ timeout: 180_000 });
   const review = page.getByRole("region", { name: "Report delivery" });
   await expect(review).toContainText("Verified dataset report");
@@ -248,6 +248,22 @@ test("live automation: scheduled report survives review and delivery interruptio
   expect(finalDetail.actions[0].reviewDigest).toBe(originalDetail.actions[0].reviewDigest);
   expect(finalDetail.actions[0].artifactId).toBe(originalDetail.actions[0].artifactId);
   expect(finalDetail.actions[0].citedPassages.length).toBeGreaterThan(0);
+  if(stash){
+    const generatedAt=Date.parse(report.generatedAt);
+    expect(Number.isFinite(generatedAt)).toBe(true);expect(report.generatedAt).toMatch(/(?:Z|\+00:00)$/);
+    expect(generatedAt).toBeGreaterThanOrEqual(Date.parse(originalDetail.task.createdAt));expect(generatedAt).toBeLessThanOrEqual(Date.now()+5000);
+    expect(report.gaps).toEqual([]);expect(report.provider_findings).toHaveLength(2);
+    for(const operation of ["get_item","read_project_document"]){
+      const finding=report.provider_findings.find((item:{operation:string})=>item.operation===operation);
+      expect(finding).toBeDefined();expect(finding.itemId).toBe(process.env.AGENTS_STASH_JOURNEY_ITEM_ID);
+      expect(finding.observedFact.length).toBeGreaterThanOrEqual(16);expect(finding.observedFact.length).toBeLessThanOrEqual(200);
+      expect(finding.observedFact).toContain(process.env.AGENTS_STASH_JOURNEY_EXPECT!);expect(report.citations).toContain(finding.sourceLabel);
+      for(const action of [originalDetail.actions[0],finalDetail.actions[0]]){
+        const passage=action.citedPassages.find((item:{label:string})=>`[${item.label}]`===finding.sourceLabel);
+        expect(passage).toBeDefined();expect(passage.text).toContain(finding.observedFact);
+      }
+    }
+  }
   if(github){
     const generatedAt=Date.parse(report.generatedAt);
     expect(Number.isFinite(generatedAt)).toBe(true);expect(report.generatedAt).toMatch(/(?:Z|\+00:00)$/);
