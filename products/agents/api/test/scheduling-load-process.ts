@@ -11,6 +11,7 @@ const role=process.env.AGENTS_LOAD_ROLE;
 if(!['api','worker'].includes(role??'')||!process.env.AGENTS_LOAD_SIMULATOR_URL)throw Error('Load fixture configuration missing');
 const pool=new Pool({connectionString:process.env.AGENTS_DATABASE_URL,...databasePoolOptions(role as 'api'|'worker')});
 async function main(){
+ const metrics=setInterval(()=>process.stdout.write(JSON.stringify({fixtureMetrics:true,role,pid:process.pid,poolTotal:pool.totalCount,poolIdle:pool.idleCount,poolWaiting:pool.waitingCount,...process.memoryUsage()})+'\n'),1000);metrics.unref();
  if(role==='api'){
   const app=await buildPlatformApp({pool,config:loadPlatformConfig(),logging:false});const endpoint=await app.listen({host:'127.0.0.1',port:0});
   process.stdout.write(JSON.stringify({fixtureReady:true,role,endpoint})+'\n');
@@ -19,7 +20,7 @@ async function main(){
   const simulator=process.env.AGENTS_LOAD_SIMULATOR_URL!,sessions=new Set<ServerHttp2Session>();
   const workflow=createBusinessWorkflow(pool,{openRouterApiKey:'controlled-fixture-only',fetch:(_url,options)=>{const headers=new Headers(options?.headers);headers.set('x-fixture-worker-id',process.env.AGENTS_LOAD_WORKER_ID??'worker');return fetch(simulator,{...options,headers});}});
   const server=createServer(createEndpointHandler({services:[workflow]}));server.on('session',session=>{sessions.add(session);session.once('close',()=>sessions.delete(session));});
-  await new Promise<void>(resolve=>server.listen(0,'0.0.0.0',resolve));const port=(server.address() as {port:number}).port;
+  await new Promise<void>(resolve=>server.listen(Number(process.env.AGENTS_LOAD_WORKER_PORT??0),'0.0.0.0',resolve));const port=(server.address() as {port:number}).port;
   const dispatcher=startDispatcher(pool,{ingressUrl:process.env.RESTATE_INGRESS_URL!,adminUrl:process.env.RESTATE_ADMIN_URL!,policy:{batchSize:128,parallelism:32}});
   process.stdout.write(JSON.stringify({fixtureReady:true,role,port})+'\n');
   for(const signal of ['SIGTERM','SIGINT'] as const)process.once(signal,()=>{void dispatcher.stop();for(const session of sessions)session.destroy();server.close(()=>{void pool.end().then(()=>process.exit(0));});});

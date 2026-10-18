@@ -125,7 +125,7 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
   }
   async function execute(taskId: string) {
     await dispatchTasksOnce(pool, { ingressUrl, adminUrl });
-    return eventually(async () => { const row = (await pool.query("SELECT * FROM agents_platform.tasks WHERE id=$1", [taskId])).rows[0]; return terminalTaskStates.has(row.state) ? row : false; });
+    return eventually(async () => { await dispatchTasksOnce(pool,{ingressUrl,adminUrl}); const row = (await pool.query("SELECT * FROM agents_platform.tasks WHERE id=$1", [taskId])).rows[0]; return terminalTaskStates.has(row.state) ? row : false; });
   }
   function holdPreparedContext(taskId:string,compact=false){
     const evidence=businessOptions.evidence!,original=evidence.supplyContext.bind(evidence);let release!:()=>void,entered!:()=>void,held=false;

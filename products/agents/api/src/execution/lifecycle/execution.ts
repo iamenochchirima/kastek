@@ -1,3 +1,5 @@
+import {requestCapacity,activateCapacity,releaseCapacity,stopTaskCapacity,type CapacityDecision} from "../scheduling/capacity";
+import {operationCapacity} from "../scheduling/policy";
 import { randomUUID } from "node:crypto";
 import type { Pool,PoolClient } from "pg";
 import {
@@ -22,10 +24,10 @@ export async function event(db: Pool | PoolClient, taskId: string, key: string, 
   await recordEvent(db, taskId, key, kind, payload);
 }
 
-export async function beginOperation(pool: Pool, taskId: string, input: OperationRequest): Promise<{ replayed: boolean; operation: OperationRecord }> {
+export type OperationAdmission={waiting?:false;replayed:boolean;operation:OperationRecord}|{waiting:true;replayed:false;capacity:Extract<CapacityDecision,{state:"waiting"}>};
+export async function beginOperation(pool: Pool, taskId: string, input: OperationRequest): Promise<OperationAdmission> {
   return transaction(pool, async db => {
     const preliminary = await loadExecution(db, taskId);
-    await db.query("SELECT id FROM agents_platform.organizations WHERE id=$1 FOR UPDATE", [preliminary.task.organization_id]);
     const budget = (await db.query("SELECT * FROM agents_platform.execution_roots WHERE root_task_id=$1 FOR UPDATE", [preliminary.task.root_task_id])).rows[0];
     if (!budget || budget.settled_at) throw new PlatformError("TASK_SETTLED",409,"Root execution has settled");
     const execution = await loadExecution(db, taskId, true), task = execution.task;
@@ -69,10 +71,13 @@ export async function beginOperation(pool: Pool, taskId: string, input: Operatio
       (child && (input.reservedTokens > budget.child_reserved_tokens || input.reservedMs > budget.child_reserved_ms))) {
       throw new PlatformError("ROOT_LIMIT", 429, "Task execution limit reached");
     }
-    const slots = (await db.query(`SELECT count(*)::int AS count FROM agents_platform.operations o
-      JOIN agents_platform.tasks t ON t.id=o.task_id WHERE t.organization_id=$1 AND o.state='started'
-      AND ${model ? "o.kind IN ('model','compaction')" : "o.kind IN ('tool','resource')"}`, [task.organization_id])).rows[0].count;
-    if (Number(slots) >= (model ? 2 : 4)) throw new PlatformError("PROVIDER_BUSY", 429, "Execution capacity is busy");
+    const {request,policy}=operationCapacity(execution,input);
+    const capacity=await requestCapacity(db,request,policy);
+    if(capacity.state==='waiting'){
+      await event(db,taskId,`capacity-wait:${input.id}:${capacity.generation}`,"capacity.waiting",{operationId:input.id,workload:request.workload});
+      return {waiting:true,replayed:false,capacity};
+    }
+    await activateCapacity(db,capacity.requestId,capacity.generation);
     const row = (await db.query<OperationRecord>(`INSERT INTO agents_platform.operations
       (id,task_id,kind,name,request_digest,request,state,reserved_tokens,reserved_ms,attempt_id)
       VALUES($1,$2,$3,$4,$5,$6,'started',$7,$8,$9) RETURNING *`,
@@ -106,6 +111,7 @@ async function finishOperationInTransaction(db: PoolClient, execution: Execution
   const charged = await db.query(`INSERT INTO agents_platform.operation_usage(operation_id,task_id,accounted_tokens,outcome)
     VALUES($1,$2,$3,$4) ON CONFLICT(operation_id) DO NOTHING RETURNING operation_id`, [op.id, op.task_id, accounted, state]);
   if (!charged.rowCount) return;
+  await releaseCapacity(db,op.id,state);
   const elapsed = Math.max(0,Date.now()-new Date(op.started_at).getTime());
   const duration = state === "uncertain" ? Math.max(op.reserved_ms,elapsed) : elapsed;
   await db.query(`UPDATE agents_platform.operations SET state=$2,output=$3,error_code=$4,accounted_tokens=$5,completed_at=now() WHERE id=$1`,
@@ -124,7 +130,6 @@ export async function finishOperation(pool: Pool, taskId: string, operationId: s
   state: "completed" | "failed" | "uncertain", output: unknown, errorCode: string | null, tokens: number): Promise<void> {
   await transaction(pool, async db => {
     const before = await loadExecution(db,taskId);
-    await db.query("SELECT id FROM agents_platform.organizations WHERE id=$1 FOR UPDATE",[before.task.organization_id]);
     await db.query("SELECT root_task_id FROM agents_platform.execution_roots WHERE root_task_id=$1 FOR UPDATE",[before.task.root_task_id]);
     const execution = await loadExecution(db, taskId, true);
     const op = (await db.query<OperationRecord>("SELECT * FROM agents_platform.operations WHERE id=$1 AND task_id=$2 FOR UPDATE", [operationId, taskId])).rows[0];
@@ -168,6 +173,7 @@ export async function settleTask(pool: Pool, taskId: string, requested: TaskOutc
     }
     if (children.some(child=>child.state==='uncertain') && outcome.state==='cancelled') outcome={state:'uncertain',errorCode:'CHILD_OUTCOME_UNCERTAIN'};
     if (children.some(child=>child.state!=='completed') && outcome.state==='completed') outcome={...outcome,state:'incomplete',errorCode:'CHILD_PARTIAL_FAILURE'};
+    await stopTaskCapacity(db,taskId);
     const operations = (await db.query<OperationRecord>("SELECT * FROM agents_platform.operations WHERE task_id=$1 AND state='started' FOR UPDATE", [taskId])).rows;
     for (const op of operations) await finishOperationInTransaction(db, execution, op, "uncertain", null, "OPERATION_INTERRUPTED", op.reserved_tokens);
     if (operations.length && outcome.state === "cancelled") outcome = { state: "uncertain", errorCode: "OPERATION_OUTCOME_UNCERTAIN" };

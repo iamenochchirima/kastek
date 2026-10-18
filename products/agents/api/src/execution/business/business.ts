@@ -1,3 +1,4 @@
+import type {CapacityDecision} from "../scheduling/capacity";
 import * as restate from "@restatedev/restate-sdk";
 import type { Pool } from "pg";
 import { z } from "zod";
@@ -57,11 +58,12 @@ const terminalSql = "('completed','incomplete','refused','failed','cancelled','u
 
 async function operation<T>(ctx: restate.WorkflowContext, pool: Pool, taskId: string, input: OperationRequest,
   perform: () => Promise<{ value: T; tokens: number }>, journalName = input.id): Promise<Result<T>> {
-  for(let capacityAttempt=0;capacityAttempt<2400;capacityAttempt++) {
-  const result:Result<T> = await ctx.run(capacityAttempt===0?journalName:`${journalName}:capacity:${capacityAttempt}`, async () => {
+  for(let capacityAttempt=0;capacityAttempt<256;capacityAttempt++) {
+  const result:Result<T>|{waiting:Extract<CapacityDecision,{state:"waiting"}>} = await ctx.run(capacityAttempt===0?journalName:`${journalName}:capacity:${capacityAttempt}`, async () => {
     let claimed = false;
     try {
       const admission = await beginOperation(pool, taskId, input);
+      if(admission.waiting)return {waiting:admission.capacity};
       if (admission.replayed) {
         if (admission.operation.state === "completed") return { ok: true as const, value: admission.operation.output as T };
         return { ok: false as const, code: admission.operation.error_code ?? "OPERATION_OUTCOME_UNCERTAIN",
@@ -76,14 +78,20 @@ async function operation<T>(ctx: restate.WorkflowContext, pool: Pool, taskId: st
       return { ok: true as const, value: result.value };
     } catch (error) {
       if (!(error instanceof ModelOperationError) && !(error instanceof PlatformError)) throw error;
-      if (error instanceof PlatformError && ["PROVIDER_BUSY","CONNECTED_READ_IN_PROGRESS"].includes(error.code)) return {ok:false as const,code:"PROVIDER_BUSY",uncertain:false};
+      if(error instanceof PlatformError&&error.code==="CONNECTED_READ_IN_PROGRESS")return {ok:false as const,code:"CONNECTED_READ_IN_PROGRESS",uncertain:false};
       const uncertain = uncertainOperation(error);
       if (claimed) await finishOperation(pool, taskId, input.id, uncertain ? "uncertain" : "failed", null, error.code, uncertain ? input.reservedTokens : 0);
       return { ok: false as const, code: error.code, uncertain };
     }
   });
-  if(result.ok || result.code!=="PROVIDER_BUSY") return result;
-  await ctx.sleep(250);
+  if('waiting' in result){
+    const remaining=new Date(result.waiting.deadline).getTime()-await ctx.date.now();
+    if(remaining<=0)return{ok:false,code:"CAPACITY_WAIT_EXPIRED",uncertain:false};
+    await restate.RestatePromise.race([ctx.promise(`capacity:${result.waiting.requestId}:${result.waiting.generation}`).get(),ctx.sleep(remaining)]);
+    continue;
+  }
+  if(!result.ok&&result.code==="CONNECTED_READ_IN_PROGRESS"){await ctx.sleep(1000);continue;}
+  return result;
   }
   return {ok:false,code:"ROOT_LIMIT",uncertain:false};
 }
@@ -468,6 +476,13 @@ export function createBusinessWorkflow(pool: Pool, options: BusinessOptions) {
       }
       await ctx.run("settle-task", () => settleTask(pool, taskId, outcome));
       return outcome;
+    },
+    capacity:async(ctx:restate.WorkflowSharedContext,input:{requestId:string;generation:number})=>{
+      if(typeof input.requestId!=="string"||!input.requestId||input.requestId.length>512||!Number.isSafeInteger(input.generation)||input.generation<1)throw new restate.TerminalError("Invalid capacity control",{errorCode:409});
+      const allowed=await ctx.run("verify-capacity-notification",async()=>Boolean((await pool.query(`SELECT 1 FROM agents_platform.capacity_notifications n
+        JOIN agents_platform.capacity_requests q ON q.id=n.request_id WHERE n.request_id=$1 AND n.generation=$2 AND n.task_id=$3 AND q.task_id=$3`,[input.requestId,input.generation,ctx.key])).rowCount));
+      if(!allowed)throw new restate.TerminalError("Capacity notification unavailable",{errorCode:409});
+      await ctx.promise(`capacity:${input.requestId}:${input.generation}`).resolve(true);return{accepted:true};
     },
     review: async (ctx:restate.WorkflowSharedContext,input:{generation:number})=>{
       if(!Number.isSafeInteger(input.generation)||input.generation<0)throw new restate.TerminalError("Invalid review control",{errorCode:409});

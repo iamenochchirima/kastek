@@ -17,7 +17,7 @@ export type CapacityPolicy=z.infer<typeof capacityPolicySchema>;
 async function lockBuckets(db:PoolClient,keys:string[]){
  for(const key of [...keys].sort())await db.query("SELECT key FROM agents_platform.capacity_buckets WHERE key=$1 FOR UPDATE",[key]);
 }
-async function grantIfAvailable(db:PoolClient,row:any,leaseMs:number):Promise<boolean>{
+async function grantIfAvailable(db:PoolClient,row:any,leaseMs:number,publish=true):Promise<boolean>{
  await lockBuckets(db,row.bucket_keys);
  const blocked=await db.query(`SELECT b.key FROM agents_platform.capacity_buckets b WHERE b.key=ANY($1::text[])
  AND (SELECT count(*) FROM agents_platform.capacity_holds h WHERE h.bucket_key=b.key)>=b.max_active`,[row.bucket_keys]);
@@ -29,7 +29,7 @@ async function grantIfAvailable(db:PoolClient,row:any,leaseMs:number):Promise<bo
  if(older.rowCount)return false;
  await db.query(`INSERT INTO agents_platform.capacity_holds(request_id,bucket_key,generation) SELECT $1,unnest($2::text[]),$3 ON CONFLICT DO NOTHING`,[row.id,row.bucket_keys,row.generation]);
  await db.query(`UPDATE agents_platform.capacity_requests SET state='granted',granted_at=now(),lease_until=now()+$2*interval '1 millisecond' WHERE id=$1`,[row.id,leaseMs]);
- await notify(db,row);return true;
+ if(publish)await notify(db,row);return true;
 }
 async function notify(db:PoolClient,row:any){await db.query(`INSERT INTO agents_platform.capacity_notifications(request_id,generation,task_id) VALUES($1,$2,$3) ON CONFLICT DO NOTHING`,[row.id,row.generation,row.task_id]);}
 /** Call after current authority checks. A waiting return must commit, never throw/rollback. */
@@ -44,11 +44,15 @@ export async function requestCapacity(db:PoolClient,input:CapacityRequest,option
  const row=(await db.query("SELECT * FROM agents_platform.capacity_requests WHERE id=$1 FOR UPDATE",[input.id])).rows[0];
  if(!row||row.task_id!==input.taskId||canonicalJson(row.bucket_keys)!==canonicalJson(buckets.map(b=>b.key))||row.workload!==input.workload)throw new PlatformError("CAPACITY_REQUEST_CONFLICT",409,"Capacity request identity conflict");
  if(['released','rejected','uncertain'].includes(row.state))throw new PlatformError(row.error_code??"CAPACITY_REQUEST_FINISHED",409,"Capacity request is unavailable");
+ if(row.state==='granted'&&row.lease_until.getTime()<=Date.now()){
+  await lockBuckets(db,row.bucket_keys);await db.query('DELETE FROM agents_platform.capacity_holds WHERE request_id=$1',[row.id]);
+  await db.query("UPDATE agents_platform.capacity_requests SET state='waiting',generation=generation+1,lease_until=NULL WHERE id=$1",[row.id]);row.generation++;row.state='waiting';
+ }
  if(row.state==='active'||row.state==='granted')return {state:'granted',requestId:row.id,generation:row.generation};
  await lockBuckets(db,row.bucket_keys);
  const queued=await db.query(`SELECT count(*)::int AS n FROM agents_platform.capacity_requests WHERE state='waiting' AND bucket_keys && $1::text[]`,[row.bucket_keys]);
  if(queued.rows[0].n>policy.maxQueued)throw new PlatformError("CAPACITY_QUEUE_FULL",429,"Capacity queue is full; retry after 5 seconds");
- if(await grantIfAvailable(db,row,policy.grantLeaseMs))return{state:'granted',requestId:row.id,generation:row.generation};
+ if(await grantIfAvailable(db,row,policy.grantLeaseMs,false))return{state:'granted',requestId:row.id,generation:row.generation};
  return{state:'waiting',requestId:row.id,generation:row.generation,deadline:row.deadline_at.toISOString()};
 }
 /** Fences the transition immediately before external I/O inside operation admission. */
@@ -77,24 +81,30 @@ export async function advanceCapacity(pool:Pool,options:Partial<CapacityPolicy>=
   if(!tenants.length)return [];
   const ids=tenants.map(t=>t.organization_id);
   await db.query('UPDATE agents_platform.scheduling_tenants SET last_capacity_at=now() WHERE organization_id=ANY($1::uuid[])',[ids]);
-  return (await db.query(`WITH due AS (SELECT q.id,q.created_at,t.organization_id,row_number() OVER(PARTITION BY t.organization_id ORDER BY q.created_at,q.id) AS rank
+  return (await db.query(`WITH due AS (SELECT q.id,q.task_id,q.created_at,t.organization_id,row_number() OVER(PARTITION BY t.organization_id ORDER BY q.created_at,q.id) AS rank
    FROM agents_platform.capacity_requests q JOIN agents_platform.tasks t ON t.id=q.task_id WHERE t.organization_id=ANY($1::uuid[])
-   AND (q.state='waiting' OR q.state='granted' AND q.lease_until<=now())) SELECT id FROM due ORDER BY rank,created_at,id LIMIT $2`,[ids,limit])).rows;
+   AND (q.state='waiting' OR q.state='granted' AND q.lease_until<=now())) SELECT id,task_id FROM due ORDER BY rank,created_at,id LIMIT $2`,[ids,limit])).rows;
  });
  for(const candidate of candidates){
   await transaction(pool,async db=>{
+   let errorCode:string|undefined;
+   try{const execution=await loadExecution(db,candidate.task_id);await assertCurrentAuthority(db,execution);}
+   catch(error){if(!(error instanceof PlatformError))throw error;errorCode=error.code;}
    const row=(await db.query(`SELECT * FROM agents_platform.capacity_requests WHERE id=$1 AND (state='waiting' OR state='granted' AND lease_until<=now()) FOR UPDATE SKIP LOCKED`,[candidate.id])).rows[0];if(!row)return;
    if(row.state==='granted'){
     await lockBuckets(db,row.bucket_keys);await db.query("DELETE FROM agents_platform.capacity_holds WHERE request_id=$1",[row.id]);
     await db.query("UPDATE agents_platform.capacity_requests SET state='waiting',generation=generation+1,lease_until=NULL WHERE id=$1",[row.id]);row.generation++;row.state='waiting';
    }
-   let errorCode:string|undefined;
-   try{const execution=await loadExecution(db,row.task_id);await assertCurrentAuthority(db,execution);
-    if(['cancel_requested','completed','incomplete','refused','failed','cancelled','uncertain'].includes(execution.task.state))errorCode='TASK_STOPPED';
-    if(row.deadline_at.getTime()<=Date.now())errorCode='CAPACITY_WAIT_EXPIRED';
-   }catch(error){if(!(error instanceof PlatformError))throw error;errorCode=error.code;}
+   if(row.deadline_at.getTime()<=Date.now())errorCode='CAPACITY_WAIT_EXPIRED';
    if(errorCode){await db.query("UPDATE agents_platform.capacity_requests SET state='rejected',error_code=$2,finished_at=now() WHERE id=$1",[row.id,errorCode]);await notify(db,row);return true;}
    return grantIfAvailable(db,row,policy.grantLeaseMs);
   });
  }
+}
+/** Stops queued/provisional work only; active and uncertain calls require settlement. */
+export async function stopTaskCapacity(db:PoolClient,taskId:string,errorCode='TASK_STOPPED'):Promise<void>{
+ const rows=(await db.query(`SELECT * FROM agents_platform.capacity_requests WHERE task_id=$1 AND state IN ('waiting','granted') ORDER BY id FOR UPDATE`,[taskId])).rows;
+ for(const row of rows){await lockBuckets(db,row.bucket_keys);await db.query('DELETE FROM agents_platform.capacity_holds WHERE request_id=$1',[row.id]);
+  await db.query("UPDATE agents_platform.capacity_requests SET state='rejected',error_code=$2,finished_at=now(),lease_until=NULL WHERE id=$1",[row.id,errorCode]);await notify(db,row);}
+ if(rows.length)await db.query("SELECT pg_notify('agents_capacity_ready','')");
 }

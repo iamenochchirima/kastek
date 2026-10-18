@@ -10,19 +10,23 @@ export interface DispatcherOptions {
   fetch?: typeof fetch;
   onError?: (code: string) => void;
   policy?: Partial<DispatchPolicy>;
+  runtimeRoutes?: Record<string,{ingressUrl:string;adminUrl:string;workflowName:string}>;
 }
 
 export async function dispatchTasksOnce(pool: Pool, options: DispatcherOptions): Promise<void> {
   const request = options.fetch ?? fetch;
+  const routes=options.runtimeRoutes??{[HARNESS_RELEASE]:{ingressUrl:options.ingressUrl,adminUrl:options.adminUrl,workflowName:WORKFLOW_NAME}};
+  const releases=Object.keys(routes);if(!releases.length||releases.length>8)throw Error("Invalid compatible runtime routes");
+  for(const route of Object.values(routes))if(!/^https?:$/.test(new URL(route.ingressUrl).protocol)||!/^https?:$/.test(new URL(route.adminUrl).protocol)||!/^AgentsBusinessRunV[0-9]+$/.test(route.workflowName))throw Error("Invalid compatible runtime route");
   await pool.query(`WITH terminal AS (SELECT o.task_id FROM agents_platform.task_outbox o JOIN agents_platform.tasks t ON t.id=o.task_id
     WHERE o.dispatched_at IS NULL AND t.state IN ('completed','incomplete','refused','failed','cancelled','uncertain')
     ORDER BY o.created_at,o.task_id FOR UPDATE OF o SKIP LOCKED LIMIT 128)
     UPDATE agents_platform.task_outbox o SET dispatched_at=now(),lease_owner=NULL,lease_until=NULL FROM terminal t WHERE t.task_id=o.task_id`);
-  const {owner,rows,policy}=await claimDispatchBatch(pool,options.policy);
+  const {owner,rows,policy}=await claimDispatchBatch(pool,options.policy,releases);
   await parallelEach(rows,policy.parallelism,async row=>{
     try {
       const task = (await pool.query(`SELECT state,runtime_invocation_id,harness_release,parent_task_id FROM agents_platform.tasks WHERE id=$1`, [row.task_id])).rows[0];
-      if (task?.harness_release !== HARNESS_RELEASE) throw new Error("HARNESS_RELEASE_UNAVAILABLE");
+      const route=routes[task?.harness_release];if(!route)throw new Error("HARNESS_RELEASE_UNAVAILABLE");
       if (Date.now() - new Date(row.created_at).getTime() >= 24 * 60 * 60 * 1000) {
         await settleTask(pool, row.task_id, { state: "uncertain", errorCode: "DISPATCH_WINDOW_EXPIRED" });
       } else if (task?.parent_task_id) {
@@ -31,7 +35,7 @@ export async function dispatchTasksOnce(pool: Pool, options: DispatcherOptions):
           (await pool.query(`SELECT attempts FROM agents_platform.task_outbox WHERE task_id=$1`, [row.task_id])).rows[0]?.attempts === 1) {
         await settleTask(pool, row.task_id, { state: "cancelled" });
       } else {
-        const response = await request(`${options.ingressUrl.replace(/\/$/, "")}/restate/send/${WORKFLOW_NAME}/${row.task_id}/run`, {
+        const response = await request(`${route.ingressUrl.replace(/\/$/, "")}/restate/send/${route.workflowName}/${row.task_id}/run`, {
           method: "POST", headers: { "content-type": "application/json" },
           body: JSON.stringify({ taskId: row.task_id }), signal: AbortSignal.timeout(5000),
         });
@@ -39,9 +43,9 @@ export async function dispatchTasksOnce(pool: Pool, options: DispatcherOptions):
         const sent = await response.json() as { invocationId?: unknown };
         if (typeof sent.invocationId !== "string" || !sent.invocationId.startsWith("inv_")) throw new Error("RUNTIME_INVALID_RESPONSE");
         // Bind the accepted workflow identity independently of the submission response.
-        const lookup = await request(`${options.ingressUrl.replace(/\/$/, "")}/restate/lookup`, {
+        const lookup = await request(`${route.ingressUrl.replace(/\/$/, "")}/restate/lookup`, {
           method:"POST",headers:{"content-type":"application/json"},
-          body:JSON.stringify({target:"workflow",workflowName:WORKFLOW_NAME,workflowKey:row.task_id}),signal:AbortSignal.timeout(5000),
+          body:JSON.stringify({target:"workflow",workflowName:route.workflowName,workflowKey:row.task_id}),signal:AbortSignal.timeout(5000),
         });
         if(!lookup.ok)throw new Error("RUNTIME_LOOKUP_PENDING");
         const body=await lookup.json() as {invocationId?:unknown};
@@ -61,16 +65,17 @@ export async function dispatchTasksOnce(pool: Pool, options: DispatcherOptions):
   });
   await reconcilePendingRoots(pool);
   await advanceCapacity(pool);
-  await publishCapacityNotifications(pool,options);
+  await publishCapacityNotifications(pool,options,routes);
   const controlOwner=randomUUID();
   const controls = (await pool.query(`WITH due AS (SELECT c.task_id,c.generation FROM agents_platform.task_controls c JOIN agents_platform.tasks t ON t.id=c.task_id
-    WHERE c.dispatched_at IS NULL AND (c.lease_until IS NULL OR c.lease_until<now()) AND t.state NOT IN ('completed','incomplete','refused','failed','cancelled','uncertain')
+    WHERE c.dispatched_at IS NULL AND (c.lease_until IS NULL OR c.lease_until<now()) AND t.harness_release=ANY($2::text[]) AND t.state NOT IN ('completed','incomplete','refused','failed','cancelled','uncertain')
     ORDER BY c.task_id,c.generation FOR UPDATE OF c SKIP LOCKED LIMIT 32)
     UPDATE agents_platform.task_controls c SET lease_owner=$1,lease_until=now()+interval '30 seconds' FROM due
-    WHERE c.task_id=due.task_id AND c.generation=due.generation RETURNING c.task_id,c.generation,c.kind`,[controlOwner])).rows;
+    WHERE c.task_id=due.task_id AND c.generation=due.generation RETURNING c.task_id,c.generation,c.kind,(SELECT harness_release FROM agents_platform.tasks WHERE id=c.task_id) AS harness_release`,[controlOwner,releases])).rows;
   await parallelEach(controls,8,async control=>{
+    const route=routes[control.harness_release]!;
     try {
-      const response = await request(`${options.ingressUrl.replace(/\/$/, "")}/${WORKFLOW_NAME}/${control.task_id}/${control.kind==="review"?"review":"resume"}`, {
+      const response = await request(`${route.ingressUrl.replace(/\/$/, "")}/${route.workflowName}/${control.task_id}/${control.kind==="review"?"review":"resume"}`, {
         method: "POST", headers: {"content-type":"application/json", "idempotency-key":`continue:${control.task_id}:${control.generation}`},
         body:JSON.stringify({generation:Number(control.generation)}), signal:AbortSignal.timeout(5000) });
       if(response.ok) await pool.query("UPDATE agents_platform.task_controls SET dispatched_at=now(),lease_owner=NULL,lease_until=NULL WHERE task_id=$1 AND generation=$2 AND lease_owner=$3",[control.task_id,control.generation,controlOwner]);
@@ -81,14 +86,15 @@ export async function dispatchTasksOnce(pool: Pool, options: DispatcherOptions):
     FROM due WHERE t.id=due.id RETURNING t.id)
     INSERT INTO agents_platform.task_events(task_id,event_key,kind) SELECT id,'deadline-stop','cancel_requested' FROM expired ON CONFLICT DO NOTHING`);
 
-  const cancellations = (await pool.query(`SELECT id,runtime_invocation_id,created_at FROM agents_platform.tasks
-    WHERE state='cancel_requested' AND runtime_invocation_id IS NOT NULL ORDER BY updated_at LIMIT 10`)).rows;
+  const cancellations = (await pool.query(`SELECT id,runtime_invocation_id,created_at,harness_release FROM agents_platform.tasks
+    WHERE state='cancel_requested' AND runtime_invocation_id IS NOT NULL AND harness_release=ANY($1::text[]) ORDER BY updated_at LIMIT 10`,[releases])).rows;
   await parallelEach(cancellations,8,async task=>{
+    const route=routes[task.harness_release]!;
     try {
-      const response = await request(`${options.adminUrl.replace(/\/$/, "")}/invocations/${encodeURIComponent(task.runtime_invocation_id)}/cancel`,
+      const response = await request(`${route.adminUrl.replace(/\/$/, "")}/invocations/${encodeURIComponent(task.runtime_invocation_id)}/cancel`,
         { method: "PATCH", signal: AbortSignal.timeout(5000) });
       if (!response.ok) throw new Error("RUNTIME_CANCEL_FAILED");
-      const output = await request(`${options.ingressUrl.replace(/\/$/, "")}/restate/output/${encodeURIComponent(task.runtime_invocation_id)}`,
+      const output = await request(`${route.ingressUrl.replace(/\/$/, "")}/restate/output/${encodeURIComponent(task.runtime_invocation_id)}`,
         { signal: AbortSignal.timeout(5000) });
       const body = await output.json() as { message?: unknown; state?: unknown; output?: unknown; errorCode?: unknown };
       if (output.status === 409 && typeof body.message === "string" && /cancel/i.test(body.message)) {
@@ -123,16 +129,17 @@ export function startDispatcher(pool: Pool, options: DispatcherOptions): { stop(
   return { stop: async () => { stopped = true; if (timer) clearTimeout(timer); wake?.(); await done; } };
 }
 
-async function publishCapacityNotifications(pool:Pool,options:DispatcherOptions):Promise<void>{
+async function publishCapacityNotifications(pool:Pool,options:DispatcherOptions,routes:NonNullable<DispatcherOptions["runtimeRoutes"]>):Promise<void>{
  const owner=randomUUID(),request=options.fetch??fetch;
- const notifications=(await pool.query(`WITH due AS (SELECT request_id,generation FROM agents_platform.capacity_notifications
- WHERE dispatched_at IS NULL AND available_at<=now() AND (lease_until IS NULL OR lease_until<now())
- ORDER BY available_at,request_id,generation FOR UPDATE SKIP LOCKED LIMIT 64)
+ const notifications=(await pool.query(`WITH due AS (SELECT n.request_id,n.generation FROM agents_platform.capacity_notifications n JOIN agents_platform.tasks t ON t.id=n.task_id
+ WHERE t.harness_release=ANY($2::text[]) AND n.dispatched_at IS NULL AND available_at<=now() AND (lease_until IS NULL OR lease_until<now())
+ ORDER BY n.available_at,n.request_id,n.generation FOR UPDATE OF n SKIP LOCKED LIMIT 64)
  UPDATE agents_platform.capacity_notifications n SET lease_owner=$1,lease_until=now()+interval '30 seconds' FROM due
- WHERE n.request_id=due.request_id AND n.generation=due.generation RETURNING n.*`,[owner])).rows;
+ WHERE n.request_id=due.request_id AND n.generation=due.generation RETURNING n.*,(SELECT harness_release FROM agents_platform.tasks WHERE id=n.task_id) AS harness_release`,[owner,Object.keys(routes)])).rows;
  await parallelEach(notifications,8,async row=>{
+ const route=routes[row.harness_release]!;
  try{
-  const response=await request(`${options.ingressUrl.replace(/\/$/,"")}/${WORKFLOW_NAME}/${row.task_id}/capacity`,{
+  const response=await request(`${route.ingressUrl.replace(/\/$/,"")}/${route.workflowName}/${row.task_id}/capacity`,{
   method:"POST",headers:{"content-type":"application/json","idempotency-key":`capacity:${row.request_id}:${row.generation}`},
   body:JSON.stringify({requestId:row.request_id,generation:row.generation}),signal:AbortSignal.timeout(5000)});
   if(!response.ok)throw Error("CAPACITY_NOTIFICATION_FAILED");

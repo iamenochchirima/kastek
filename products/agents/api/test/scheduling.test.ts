@@ -49,6 +49,12 @@ const dbUrl=process.env.AGENTS_TEST_DATABASE_URL;
   expect(owners).toContain(quiet[0]!.organization_id);expect(new Set(owners).size).toBe(2);
   await pool.query('UPDATE agents_platform.task_outbox SET dispatched_at=now() WHERE task_id IN(SELECT id FROM agents_platform.tasks WHERE organization_id=ANY($1::uuid[]))',[[hot[0]!.organization_id,quiet[0]!.organization_id]]);
  });
+ it('does not claim tasks for an unavailable runtime release',async()=>{
+  const rows=await tasks();
+  const unavailable=await claimDispatchBatch(pool,{batchSize:2},['unavailable-test-release']);expect(unavailable.rows).toEqual([]);
+  const pending=await pool.query('SELECT attempts FROM agents_platform.task_outbox WHERE task_id=ANY($1::uuid[])',[rows.map(t=>t.id)]);expect(pending.rows.every(row=>row.attempts===0)).toBe(true);
+  await pool.query('UPDATE agents_platform.task_outbox SET dispatched_at=now() WHERE task_id=ANY($1::uuid[])',[rows.map(t=>t.id)]);
+ });
  it('register/release has no lost wakeup and duplicate notifications never overlap permits',async()=>{
   const [a,b]=await tasks(),key=`test:${randomUUID()}`;
   const req=(taskId:string)=>({id:`op:${taskId}`,taskId,workload:'interactive' as const,buckets:[{key,limit:1}]});
@@ -59,12 +65,15 @@ const dbUrl=process.env.AGENTS_TEST_DATABASE_URL;
   const second=await transaction(pool,db=>requestCapacity(db,req(b!.id)));expect(second.state).toBe('granted');
   await Promise.all([transaction(pool,db=>activateCapacity(db,second.requestId,second.generation)),transaction(pool,db=>activateCapacity(db,second.requestId,second.generation))]);
   expect((await pool.query('SELECT count(*)::int AS n FROM agents_platform.capacity_holds WHERE bucket_key=$1',[key])).rows[0].n).toBe(1);
-  expect((await pool.query('SELECT count(*)::int AS n FROM agents_platform.capacity_notifications WHERE request_id=$1 AND generation=$2',[second.requestId,second.generation])).rows[0].n).toBe(1);
+  expect((await pool.query('SELECT count(*)::int AS n FROM agents_platform.capacity_notifications WHERE request_id=$1 AND generation=$2',[second.requestId,second.generation])).rows[0].n).toBe(waiting.state==='waiting'?1:0);
   expect(['waiting','granted']).toContain(waiting.state);
  });
  it('retains failed durable notifications and safely republishes the same logical wakeup',async()=>{
-  const [a]=await tasks(),request={id:`op:${randomUUID()}`,taskId:a!.id,workload:'interactive' as const,buckets:[{key:`notification:${randomUUID()}`,limit:1}]};
-  await transaction(pool,db=>requestCapacity(db,request));
+  const [a,b]=await tasks(),request={id:`op:${randomUUID()}`,taskId:b!.id,workload:'interactive' as const,buckets:[{key:`notification:${randomUUID()}`,limit:1}]};
+  const first={...request,id:`op:${randomUUID()}`,taskId:a!.id};const permit=await transaction(pool,db=>requestCapacity(db,first));
+  await transaction(pool,db=>activateCapacity(db,permit.requestId,permit.generation));
+  expect((await transaction(pool,db=>requestCapacity(db,request))).state).toBe('waiting');
+  await transaction(pool,db=>releaseCapacity(db,first.id,'completed'));await advanceCapacity(pool);
   const keys:string[]=[];let fail=true;
   const fake:typeof fetch=async(url,options)=>{
    if(String(url).endsWith('/capacity')){keys.push(String((options?.headers as Record<string,string>)['idempotency-key']));return new Response('{}',{status:fail?503:200});}
@@ -76,6 +85,20 @@ const dbUrl=process.env.AGENTS_TEST_DATABASE_URL;
   await dispatchTasksOnce(pool,{ingressUrl:'http://localhost',adminUrl:'http://localhost',fetch:fake});
   expect((await pool.query('SELECT dispatched_at FROM agents_platform.capacity_notifications WHERE request_id=$1',[request.id])).rows[0].dispatched_at).not.toBeNull();
   expect(keys.filter(key=>key===`capacity:${request.id}:1`)).toHaveLength(2);
+ });
+ it('does not hold a permit lock while waiting for conversation authority',async()=>{
+  const [a,b]=await tasks(),key=`lock-order:${randomUUID()}`;
+  const first={id:`op:${randomUUID()}`,taskId:a!.id,workload:'interactive' as const,buckets:[{key,limit:1}]},second={...first,id:`op:${randomUUID()}`,taskId:b!.id};
+  const grant=await transaction(pool,db=>requestCapacity(db,first));await transaction(pool,db=>activateCapacity(db,grant.requestId,grant.generation));
+  await transaction(pool,db=>requestCapacity(db,second));
+  const blocker=await pool.connect(),probe=await pool.connect();let sweep:Promise<void>|undefined;
+  try{
+   await blocker.query('BEGIN');await blocker.query('SELECT id FROM agents_platform.conversations WHERE id=$1 FOR UPDATE',[b!.conversation_id]);
+   sweep=advanceCapacity(pool);let authorityBlocked=false;
+   for(let n=0;n<100;n++){const waiting=await pool.query("SELECT 1 FROM pg_stat_activity WHERE datname=current_database() AND wait_event_type='Lock' AND query LIKE '%SELECT deleted_at FROM agents_platform.conversations%'");if(waiting.rowCount){authorityBlocked=true;break;}await new Promise(resolve=>setTimeout(resolve,10));}
+   expect(authorityBlocked).toBe(true);
+   await probe.query('BEGIN');await expect(probe.query('SELECT id FROM agents_platform.capacity_requests WHERE id=$1 FOR UPDATE NOWAIT',[second.id])).resolves.toMatchObject({rowCount:1});await probe.query('ROLLBACK');
+  }finally{await probe.query('ROLLBACK');await blocker.query('ROLLBACK');probe.release();blocker.release();await sweep;}
  });
  it('never expires an active unconfirmed call, fences stale provisional generations and rejects expired waiters',async()=>{
   const [a,b]=await tasks(),key=`test:${randomUUID()}`,request={id:`op:${randomUUID()}`,taskId:a!.id,workload:'background' as const,buckets:[{key,limit:1}]};

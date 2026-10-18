@@ -535,3 +535,26 @@ HTTP interfaces and a local HTTP model simulator, and writes measurements under
 ignored `.audit/`. Its exploratory direct/tool/delegation/slow mix does not satisfy
 the complete workload contract: reports list missing sustained, approval,
 ownership and fault-injection scenarios explicitly.
+
+Business operation admission returns a committed waiting decision without creating
+an operation or reserving tokens. The workflow waits on a generation-specific
+Restate promise and its fixed queue deadline. The notification handler checks the
+native request, task and generation before resolving that promise. A queued
+operation rechecks grants, ownership, source/memory policy and root limits before
+activating its permit. Confirmed settlement releases its holds exactly once;
+uncertain settlement retains them. Ordinary capacity waits do not poll every
+250 ms. Connected-read reconciliation may separately retry its existing status
+check with a bounded durable delay.
+
+Operation start/finish locks the execution root rather than the organization.
+Admission and daily quota settlement retain their existing transactional fences;
+`maxConcurrentRoots` and `dailyTokenAllowance` come from the validated operator
+policy. A provisional permit cannot outlive task cancellation or settlement.
+The scheduler checks conversation authority before taking request/bucket locks,
+so a blocked ownership check does not block permit settlement.
+
+Dispatcher routes are keyed by the accepted runtime release. Only explicitly
+compatible releases may be claimed. Root submission, continuation, capacity wakeup
+and cancellation use the corresponding workflow/ingress/admin route. The default
+route serves the current release; unavailable releases remain pending for a
+compatible deployment instead of repeatedly consuming a dispatch claim.

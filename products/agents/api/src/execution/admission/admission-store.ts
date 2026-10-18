@@ -1,8 +1,9 @@
+import {schedulingPolicyFromEnvironment} from "../scheduling/policy";
 import { createHash,randomUUID } from "node:crypto";
 import type { Pool,PoolClient } from "pg";
 import {
 agentConfigurationSchema,assertGrantAuthority,assertRuntimeAvailable,canonicalJson,
-executionGrantSchema,initialLimits,
+executionGrantSchema,
 PlatformError,requestDigest,
 type AdmissionAuthority,
 type ExecutionGrant
@@ -45,6 +46,7 @@ export class AdmissionStore extends AuthorityStore {
     return this.transaction(db=>this.admitTaskInTransaction(db,input));
   }
   async admitTaskInTransaction(db:PoolClient,input:AdmitTaskInput):Promise<{task:TaskRecord;replayed:boolean}> {
+    const policy=schedulingPolicyFromEnvironment();
     const requestKey = text(input.requestKey, 128);
     if (!input.input.trim()) throw new PlatformError("INVALID_INPUT", 400, "Enter a message");
 
@@ -72,7 +74,7 @@ export class AdmissionStore extends AuthorityStore {
       return { task: existing, replayed: true };
     }
     const active = (await db.query<{ count: string }>("SELECT count(*) FROM agents_platform.tasks WHERE organization_id=$1 AND parent_task_id IS NULL AND state IN ('accepted','running','waiting_children','waiting_authority','waiting_review','reconciling','cancel_requested')", [input.authority.organizationId])).rows[0]!;
-    if (Number(active.count) >= initialLimits.maxConcurrentTasks) throw new PlatformError("CONCURRENCY_LIMIT", 429, "Too many tasks are running");
+    if (Number(active.count) >= policy.maxConcurrentRoots) throw new PlatformError("CONCURRENCY_LIMIT", 429, "Too many tasks are running");
     const reservation = grant.rootTokenLimit;
     if(input.channelBinding) await channelPorts(db).assertBinding(db,channelBindingSchema.parse(input.channelBinding),
       {organization_id:input.authority.organizationId,version_id:version.id,root_task_id:"admitting"});
@@ -82,7 +84,7 @@ export class AdmissionStore extends AuthorityStore {
       WHERE id=$1 AND state='active' AND expires_at>now() AND allocated_tokens+$2<=max_tokens RETURNING id`, [input.evaluationTrialId, reservation])).rowCount) {
       throw new PlatformError("EVALUATION_BUDGET_EXCEEDED", 429, "The trial allocation limit was reached");
     }
-    await db.query("INSERT INTO agents_platform.usage_accounts(organization_id,day) VALUES($1,(now() AT TIME ZONE 'UTC')::date) ON CONFLICT DO NOTHING", [input.authority.organizationId]);
+    await db.query("INSERT INTO agents_platform.usage_accounts(organization_id,day,token_allowance) VALUES($1,(now() AT TIME ZONE 'UTC')::date,$2) ON CONFLICT DO NOTHING", [input.authority.organizationId,policy.dailyTokenAllowance]);
     const quota = (await db.query<{ day: string }>(`UPDATE agents_platform.usage_accounts SET reserved_tokens=reserved_tokens+$2
       WHERE organization_id=$1 AND day=(now() AT TIME ZONE 'UTC')::date AND reserved_tokens+consumed_tokens+$2<=token_allowance RETURNING day`, [input.authority.organizationId, reservation])).rows[0];
     if (!quota) throw new PlatformError("QUOTA_EXCEEDED", 429, "The daily usage limit was reached");
