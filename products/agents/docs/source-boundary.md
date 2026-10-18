@@ -31,18 +31,53 @@ startup. It does not migrate an older database or import Growth state.
 | `retrieval.ts`, `query-embedding.ts`, `knowledge-runtime.ts`, `evidence.ts` | Scoped lexical/hybrid retrieval, passage references and transitive policy dependencies. |
 | `setup.ts` | Fresh database initialization and schema checks. |
 
-The management client is in `web/`. Its create, configure, Test, and website
-publication journey shares these APIs. Growth and Agencies retain independent
+The management client is in `web/`. Its chat, configuration, management and explicit
+website-publication paths share these APIs. Growth and Agencies retain independent
 membership, permissions, and domain records. Embedded execution remains unavailable.
 
 | User entry point | Current behavior | Verification |
 | --- | --- | --- |
-| `/app/agents` | Configure/publish business versions, manual Test and website publication. | Platform/harness browser suites and live fixtures. |
+| `/` | Restored public landing with provider-backed signup and sign-in. | Public-entry browser tests and isolated actual identity signup/verification. |
+| `/app/agents` | Compact searchable agent directory with server conversation history. | Chat workspace, discovery and browser regression suites. |
+| `/app/agents/:agentId` | Default Chat, Activity and Configure; explicit versions, memory, skills and website publication. | Platform/harness browser suites and actual runtime fixtures. |
+| `/app/agents/:agentId/conversations/:conversationId` | Authorized history pinned to its original agent/version, current-policy output and inline report review. | Scope/recovery browser regressions and PostgreSQL history tests. |
+| `/app/tasks` | Paginated authorized root tasks, filters and conversation/review links. | Actual PostgreSQL collection tests and browser navigation checks. |
+| `/app/settings` | Real account/workspace identity, workspace creation/switching, theme and sign-out. | Settings browser checks and theme tracking regression. |
 | `/app/knowledge` | Upload text/PDF/HTML, import one public URL, inspect candidates, approve, adopt revisions and withdraw. | Actual compiled ingestion, crash recovery and responsive browser acceptance. |
 | `/app/connections` | Create report, public repository, GitHub and Stash profiles; select API/MCP tools, replace supported keys and revoke. | Responsive browser mocks and local HTTP/SDK/credential checks; external acceptance is recorded separately. |
 | `/app/automations` | Pin report versions, authorize UTC/event triggers, inspect occurrences and control future runs. | Actual Restate timer/event HTTP checks and scheduled-report fixture. |
 | `/app/tasks/:taskId` | Inspect root/children/resources, exact report review, permitted downloads and delivery receipts. | Real compiled-worker scheduled-report acceptance and assigned-reviewer regressions. |
 
+
+### Chat navigation and recovery
+
+Every available business agent opens Chat. Configure groups existing instructions,
+source/tool pins, specialist limits, analysis, reports, memory, skills and website
+publication. Draft saves and immutable version creation remain separate operations.
+An existing conversation keeps its version. A version change starts a new chat.
+
+The global sidebar contains Agents, Tasks, Knowledge, Connections, Automations and
+Settings. The agent/history pane is separate from the main conversation. Tablet
+collapses global navigation. Mobile uses focus-managed navigation/history drawers
+and keeps the composer in the visible workspace.
+
+History discovery is principal-scoped and server-backed. Accepted conversation
+links survive browser storage clearing. Unknown admissions retain their original
+request key, input and version across ordinary navigation. New chat is blocked until
+that unresolved admission is recovered. Navigation does not cancel accepted work.
+
+History initially shows the latest bounded page. Older pages prepend without
+changing the active turn. At most four detail reads run concurrently per fetched
+page, so earlier report/artifact cards return after reload. Activity and inline
+review use the same authorized task data as the standalone task page. Window focus,
+visibility return and Refresh conversation reread current history. Evidence denial
+and review-decision authorization failures hide cached derived content.
+
+The composer accepts text. Enter sends, Shift+Enter inserts a line break, and IME
+composition does not submit. Markdown rendering supports escaped text, headings,
+lists, code and HTTP links without raw HTML or executable content. Knowledge file
+imports remain a separate approved-source flow. General chat attachments and voice
+are unavailable.
 
 ## Business execution
 
@@ -229,7 +264,9 @@ answer cannot publish after its source is withdrawn during generation. A consume
 invalidated by withdrawal or Forget ends the current task incomplete; a fresh turn can rebuild
 current context without reusing the invalid history. Historical task state and receipts remain,
 but current-policy API reads redact unavailable derived output. Browser recovery caches retain
-identities and owner inputs rather than derived answers or report bodies. Citations
+accepted task identities and pending admission inputs rather than accepted transcripts,
+derived answers or report bodies. Unsent composer text remains scoped to its account,
+workspace, agent and version. Citations
 must name supplied evidence; valid provenance does not prove factual entailment.
 Report reviewers receive only the prepared report's cited passages. Owner and
 visitor passage previews recheck current scope and expose no storage keys.
