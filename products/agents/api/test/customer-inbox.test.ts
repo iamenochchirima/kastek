@@ -8,6 +8,8 @@ import { PlatformStore } from "../src/product/agents/store";
 import { InboxStore, type ChannelBinding, type InboxCommand } from "../src/product/inbox/inbox-store";
 import { registerInboxRoutes } from "../src/product/inbox/inbox-routes";
 import { transaction } from "../src/infrastructure/database";
+import { registerChannelPorts } from "../src/infrastructure/channel-ports";
+import { beginOperation } from "../src/execution/lifecycle/execution";
 import { dropClosedTestDatabase } from "./support/database-cleanup";
 
 const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
@@ -27,12 +29,13 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
         const result = await platform.admitTaskInTransaction(db, { authority: { product: "agents", organizationId: deployment.organization_id,
           resourceId: input.deploymentId, callerClientId: "agents-website", principal: { kind: "visitor", deploymentId: input.deploymentId, sessionId: input.sessionId } },
           grantId: grants.get(input.sessionId)!, versionId: input.versionId, requestKey: input.requestKey, input: input.input,
-          ...(input.executionConversationId ? { conversationId: input.executionConversationId } : {}) });
+          channelBinding: input.channelBinding, ...(input.executionConversationId ? { conversationId: input.executionConversationId } : {}) });
         return result.task;
       },
       async readableOutput(_db, taskId, body) { return withdrawn.has(taskId) ? null : body; },
       async cancelRoot(taskId) { cancelled.add(taskId); },
     });
+    registerChannelPorts(pool, { assertBinding: (...args) => inbox.assertBinding(...args), requestHandoff: (...args) => inbox.requestHandoff(...args), publishAutomated: (...args) => inbox.publishAutomated(...args), context: (...args) => inbox.context(...args) });
   });
   afterAll(async () => { await pool?.end(); if (admin) { await dropClosedTestDatabase(admin, database); await admin.end(); } });
   async function actor() { return platform.ensureAccount({ issuer: "https://identity.test", subject: randomUUID(), email: "inbox@example.test", displayName: "Operator" }); }
@@ -81,6 +84,7 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     const f = await fixture(), input = await inbox.ingress(f.visitor, f.conversation.id, { requestKey: randomUUID(), body: "Please help" });
     await command(f, "claim"); await command(f, "takeover"); expect(cancelled.has(input.message.task_id!)).toBe(true);
     await expect(inbox.assertBinding(pool, binding(f, input.message.id), { organization_id: f.org.id, version_id: f.version.id })).rejects.toMatchObject({ code: "CHANNEL_OWNERSHIP_CHANGED" });
+    await expect(beginOperation(pool, input.message.task_id!, { id: randomUUID(), kind: "model", name: "reply", request: {}, reservedTokens: 1, reservedMs: 1000 })).rejects.toMatchObject({ code: "CHANNEL_OWNERSHIP_CHANGED" });
     await transaction(pool, db => inbox.publishAutomated(db, { taskId: input.message.task_id!, binding: binding(f, input.message.id), output: "LATE PRIVATE OUTPUT" }));
     expect((await inbox.readVisitor(f.visitor, f.conversation.id)).messages.map(row => row.body)).toEqual(["Please help"]);
     expect((await pool.query("SELECT state FROM agents_platform.customer_deliveries WHERE task_id=$1", [input.message.task_id])).rows[0].state).toBe("suppressed");
