@@ -622,7 +622,9 @@ must report achieved counts and limiting resources separately.
 `AGENTS_DATABASE_POOL_POLICY_JSON` declares the total database budget, reserve
 and replica count/pool maximum for API, worker, dispatcher, cleanup, evaluation and
 migration roles. Startup rejects declared pools whose combined maximum exceeds
-the budget. Embedded dispatchers reuse their worker pool. Separate deployments
+the budget. `acquireTimeoutMs` defaults to 5000 and accepts a finite 100–120000ms
+operator setting. It bounds waiting for a connection; SQL statement and query deadlines
+remain 15 and 20 seconds. Embedded dispatchers reuse their worker pool. Separate deployments
 must declare every replica; this is a configured connection allocation, not
 automatic process discovery. Reapers and schema setup use the same role policy.
 
