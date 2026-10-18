@@ -7,6 +7,7 @@ import { PlatformStore } from "../src/product/agents/store";
 import { beginOperation, finishOperation, settleTask } from "../src/execution/lifecycle/execution";
 import { EvidenceStore } from "../src/execution/context/evidence";
 import { setupPlatformSchema } from "../src/composition/setup";
+import { EvaluationTrials } from "../src/product/evaluation/evaluation-trials";
 import { publishFixtureSource } from "./knowledge-fixture";
 
 const taskId = randomUUID();
@@ -128,4 +129,29 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     await pool.query("UPDATE agents_platform.memberships SET revoked_at=now() WHERE account_id=$1 AND organization_id=$2", [f.account.id, f.org.id]);
     await expect(exportExecutionHistory(pool, f.task.id, f.authorize)).rejects.toMatchObject({ code: "ACCESS_DENIED" });
   });
+  it("requires explicit exact trial-operator ownership for server-bound visitor roots", async () => {
+    const account = await store.ensureAccount({ issuer: "http://localhost/export-visitor", subject: randomUUID(), email: "operator@example.test", displayName: "Operator" });
+    const org = await store.createOrganization(account.id, "Visitor export fixture"), configuration = defaultBusinessConfiguration();
+    const agent = await store.createAgent({ accountId: account.id, organizationId: org.id, name: "Visitor fixture", configuration });
+    const version = await store.createVersion({ accountId: account.id, organizationId: org.id, agentId: agent.id, expectedRevision: 1 });
+    const deployment = await store.publishWebsite({ accountId: account.id, organizationId: org.id, agentId: agent.id, versionId: version.id, allowedOrigins: ["https://fixture.example"] });
+    const trials = new EvaluationTrials(pool);
+    const prepared = await trials.prepare(account.id, org.id, { trialId: randomUUID(), agentId: agent.id, versionId: version.id, expectedCompositionDigest: version.effective_composition.digest, maxTokens: 32000, expiresAt: new Date(Date.now() + 300000).toISOString() });
+    await trials.channelSession(account.id, org.id, prepared.id, { deploymentId: deployment.id, origin: "https://fixture.example" }, "fixture-only-channel-signing-key");
+    const binding = (await pool.query("SELECT session_id FROM agents_platform.evaluation_trial_channels WHERE trial_id=$1", [prepared.id])).rows[0];
+    const grant = await store.createWebsiteGrant({ deploymentId: deployment.id, origin: "https://fixture.example", sessionId: binding.session_id });
+    const authority: AdmissionAuthority = { product: grant.product, organizationId: grant.organizationId, resourceId: grant.resourceId, callerClientId: grant.callerClientId, principal: grant.principal };
+    const { task } = await store.admitTask({ authority, grantId: grant.id, versionId: version.id, requestKey: randomUUID(), input: "Public evaluation question", evaluationTrialId: prepared.id });
+    await expect(exportExecutionHistory(pool, task.id, async () => undefined)).rejects.toMatchObject({ code: "ACCESS_DENIED" });
+    await expect(exportExecutionHistory(pool, task.id, async () => ({ evaluationTrialId: randomUUID(), accountId: account.id }))).rejects.toMatchObject({ code: "ACCESS_DENIED" });
+    const other = await store.ensureAccount({ issuer: account.issuer, subject: randomUUID(), email: "other@example.test", displayName: "Other" });
+    await expect(exportExecutionHistory(pool, task.id, async () => ({ evaluationTrialId: prepared.id, accountId: other.id }))).rejects.toMatchObject({ code: "ACCESS_DENIED" });
+    const authorize = async () => ({ evaluationTrialId: prepared.id, accountId: account.id });
+    const result = await exportExecutionHistory(pool, task.id, authorize);
+    expect(result.tasks[0]!.input).toBe("Public evaluation question");
+    await trials.revoke(account.id, org.id, prepared.id);
+    const revoked = await exportExecutionHistory(pool, task.id, authorize);
+    expect(revoked.rootTaskId).toBe(task.id); expect(revoked.tasks[0]!.input).toBeNull(); expect(revoked.coverage.modelInputs.status).toBe("partial");
+  });
+
 });

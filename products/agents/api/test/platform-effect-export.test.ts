@@ -94,6 +94,7 @@ const url = process.env.AGENTS_TEST_DATABASE_URL;
     await approve(f); await pool.query("UPDATE agents_platform.memory_scopes SET generation=2 WHERE id=$1", [scopeId]);
     const result = await exportExecutionHistory(pool, f.task.id, f.authorize);
     expect(result.artifacts.find(item => item.id === f.artifact.id)?.downloadPath).toBeNull();
+    expect(result.tasks[0]).toMatchObject({ input: null, output: null, contextSnapshots: [], initialOperations: [], evidenceReferences: [] });
     expect(result.effectReceipts).toEqual([]); expect(result.coverage.artifacts.status).toBe("partial"); expect(result.coverage.effects.status).toBe("partial");
   });
   it("rejects a stored receipt whose identity disagrees with the confirmed native action", async () => {

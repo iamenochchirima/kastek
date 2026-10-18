@@ -21,12 +21,12 @@ export interface NativeModelCall {
   toolResults: NativeToolResult[]; nativeRequest: unknown; nativeResponse: unknown; usageOmissions: string[];
 }
 export interface NativeTask {
-  id: string; parentTaskId: string | null; parentOperationId: string | null; state: string;
+  id: string; agentId: string; versionId: string; effectiveComposition: unknown; parentTaskId: string | null; parentOperationId: string | null; state: string;
   input: string | null; output: string | null; modelCalls: NativeModelCall[];
   initialOperations: unknown[]; compactions: unknown[]; contextSnapshots: unknown[]; evidenceManifest: unknown; evidenceReferences: unknown[];
 }
 export interface ExecutionHistoryExport {
-  schemaVersion: "execution-export.v1"; rootTaskId: string; organizationId: string; agentId: string; versionId: string;
+  schemaVersion: "execution-export.v1"; conversationId: string; rootTaskId: string; organizationId: string; agentId: string; versionId: string;
   effectiveComposition: { digest: string; programId: string; programVersion: string; runtime: string; capabilities: unknown[]; workflows: unknown[] };
   compositionSnapshot: unknown; tasks: NativeTask[]; coverage: Coverage;
   artifacts: { id: string; taskId: string; name: string; bytes: number; downloadPath: string | null; contentDigest: string | null }[];
@@ -105,18 +105,30 @@ export function exportModelCalls(taskId: string, operations: OperationRow[], chi
   return calls.sort((a, b) => a.step - b.step);
 }
 
+export type HistoryExportAuthorization = void | { evaluationTrialId: string; accountId: string };
+
 /** The mandatory hook verifies the requesting human's exact root ownership within this transaction. */
-export async function exportExecutionHistory(pool: Pool, rootTaskId: string, authorize: (db: PoolClient, rootTaskId: string) => Promise<void>): Promise<ExecutionHistoryExport> {
+export async function exportExecutionHistory(pool: Pool, rootTaskId: string, authorize: (db: PoolClient, rootTaskId: string) => Promise<HistoryExportAuthorization>): Promise<ExecutionHistoryExport> {
   return transaction(pool, async db => {
     const initial = (await db.query("SELECT organization_id FROM agents_platform.tasks WHERE id=$1 AND parent_task_id IS NULL", [rootTaskId])).rows[0];
     if (!initial) throw new PlatformError("TASK_NOT_FOUND", 404, "Task not found");
     await db.query("SELECT id FROM agents_platform.organizations WHERE id=$1 FOR UPDATE", [initial.organization_id]);
-    await authorize(db, rootTaskId);
+    const authorization = await authorize(db, rootTaskId);
     const rows = (await db.query(`SELECT t.*,v.agent_id FROM agents_platform.tasks t JOIN agents_platform.agent_versions v ON v.id=t.version_id AND v.organization_id=t.organization_id
       WHERE t.root_task_id=$1 AND t.organization_id=$2 ORDER BY t.created_at,t.id LIMIT 1025 FOR SHARE OF t`, [rootTaskId, initial.organization_id])).rows;
     if (rows.length > 1024) throw new PlatformError("EXPORT_LIMIT", 413, "Execution history exceeds the export limit");
     const root = rows.find(row => row.id === rootTaskId);
-    if (!root || root.parent_task_id || root.principal.kind !== "human") throw new PlatformError("ACCESS_DENIED", 403, "Human root ownership is required");
+    if (!root || root.parent_task_id || !["human", "visitor"].includes(root.principal.kind)) throw new PlatformError("ACCESS_DENIED", 403, "Root ownership is required");
+    if (root.principal.kind === "visitor") {
+      if (!authorization || authorization.evaluationTrialId !== root.evaluation_trial_id) throw new PlatformError("ACCESS_DENIED", 403, "Evaluation ownership is required");
+      const bound = await db.query(`SELECT e.id FROM agents_platform.evaluation_trials e
+        JOIN agents_platform.evaluation_trial_channels c ON c.trial_id=e.id
+        JOIN agents_platform.memberships m ON m.organization_id=e.organization_id AND m.account_id=e.account_id AND m.revoked_at IS NULL
+        WHERE e.id=$1 AND e.account_id=$2 AND e.organization_id=$3 AND e.agent_id=$4 AND e.version_id=$5
+          AND c.deployment_id=$6 AND c.session_id=$7 FOR SHARE OF e,c,m`,
+      [authorization.evaluationTrialId, authorization.accountId, root.organization_id, root.agent_id, root.version_id, root.principal.deploymentId, root.principal.sessionId]);
+      if (!bound.rowCount) throw new PlatformError("ACCESS_DENIED", 403, "Evaluation ownership is required");
+    }
     const composition = effectiveCompositionSchema.parse(root.effective_composition), coverage = emptyExportCoverage();
     const tasks: NativeTask[] = [], visible = new Set<string>();
     for (const task of rows) {
@@ -142,7 +154,7 @@ export async function exportExecutionHistory(pool: Pool, rootTaskId: string, aut
       }
       const operations: OperationRow[] = authorized ? (await db.query("SELECT * FROM agents_platform.operations WHERE task_id=$1 ORDER BY started_at,id LIMIT 4097", [task.id])).rows : [];
       if (operations.length > 4096) throw new PlatformError("EXPORT_LIMIT", 413, "Execution history exceeds the export limit");
-      tasks.push({ id: task.id, parentTaskId: task.parent_task_id, parentOperationId: task.delegation_operation_id ?? null, state: task.state,
+      tasks.push({ id: task.id, agentId: task.agent_id, versionId: task.version_id, effectiveComposition: task.effective_composition, parentTaskId: task.parent_task_id, parentOperationId: task.delegation_operation_id ?? null, state: task.state,
         input: authorized ? task.input : null, output: authorized ? task.output : null,
         modelCalls: exportModelCalls(task.id, operations, rows, coverage), initialOperations: operations.filter(row => !["model", "compaction"].includes(row.kind) && !row.id.startsWith("tool:")).map(receipt),
         compactions: operations.filter(row => row.kind === "compaction").map(receipt),
@@ -154,10 +166,18 @@ export async function exportExecutionHistory(pool: Pool, rootTaskId: string, aut
     const artifacts = (await db.query("SELECT id,task_id,name,bytes,content_digest,state FROM agents_platform.artifacts WHERE root_task_id=$1 AND organization_id=$2 ORDER BY created_at,id LIMIT 1025", [rootTaskId, root.organization_id])).rows;
     if (artifacts.length > 1024) throw new PlatformError("EXPORT_LIMIT", 413, "Execution history exceeds the export limit");
     const artifactEvidence = new Set<string>();
+    let invalidArtifactDependency = false;
     for (const artifact of artifacts) {
       if (!visible.has(artifact.task_id) || artifact.state !== "available") continue;
       try { await assertExportArtifact(db, root, artifact.id); artifactEvidence.add(artifact.id); }
-      catch (error) { if (!withheldDependency(error)) throw error; }
+      catch (error) { if (!withheldDependency(error)) throw error; invalidArtifactDependency = true; }
+    }
+    if (invalidArtifactDependency) {
+      // Artifact dependencies can predate a later model snapshot. Fail closed for
+      // the whole rooted trace rather than retain a possibly derived quotation.
+      visible.clear(); artifactEvidence.clear();
+      for (const task of tasks) { task.input = null; task.output = null; task.modelCalls = []; task.initialOperations = []; task.compactions = []; task.contextSnapshots = []; task.evidenceManifest = null; task.evidenceReferences = []; }
+      for (const key of ["modelInputs", "modelOutputs", "toolCalls", "toolResults", "artifacts"] as const) omit(coverage, key, "Rooted execution payload withheld because a transitive artifact dependency is unavailable");
     }
     const effects = await exportReportEffects(db, root, visible);
     coverage.effects = { status: effects.omissions.length ? "partial" : "complete", omissions: [...new Set(effects.omissions)] };
@@ -174,7 +194,7 @@ export async function exportExecutionHistory(pool: Pool, rootTaskId: string, aut
       }
       observations.push(parsed.data);
     }
-    const result: ExecutionHistoryExport = { schemaVersion: "execution-export.v1", rootTaskId, organizationId: root.organization_id, agentId: root.agent_id, versionId: root.version_id,
+    const result: ExecutionHistoryExport = { schemaVersion: "execution-export.v1", conversationId: root.conversation_id, rootTaskId, organizationId: root.organization_id, agentId: root.agent_id, versionId: root.version_id,
       effectiveComposition: { digest: composition.digest, programId: composition.program.id, programVersion: composition.program.version, runtime: composition.runtime.kind,
         capabilities: composition.capabilities, workflows: composition.workflows }, compositionSnapshot: composition, tasks, coverage,
       artifacts: artifacts.map(row => {
