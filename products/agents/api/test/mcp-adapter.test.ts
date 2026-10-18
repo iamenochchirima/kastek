@@ -1,12 +1,14 @@
 import { createServer, type Server } from "node:http";
 import { afterEach, describe, expect, it } from "vitest";
 import { callMcpTool, discoverMcpCatalog, type McpEndpoint } from "../src/platform/mcp-adapter";
+import {digestToolSchema} from "../src/platform/capability-catalog";
 const servers: Server[] = [];
-async function fixture(options: { modern?: boolean; schema?: Record<string, unknown>; invalid?: boolean; isError?: boolean; hang?: boolean; oversized?: boolean; reflect?: boolean; rateLimit?: boolean; duplicate?: boolean; pagination?: boolean; interactive?: boolean; redirectList?:boolean } = {}) {
+async function fixture(options: { modern?: boolean; schema?: Record<string, unknown>; invalid?: boolean; isError?: boolean; hang?: boolean; oversized?: boolean; reflect?: boolean; rateLimit?: boolean; duplicate?: boolean; pagination?: boolean; interactive?: boolean; redirectList?:boolean; outputAnnotation?:unknown } = {}) {
   let calls = 0, discoveries = 0;
-  const tokens: string[] = [], methods: string[] = [];
+  const tokens: string[] = [], methods: string[] = [], authorizationPresent:boolean[]=[];
   const server = createServer(async (request, response) => {
     tokens.push(request.headers.authorization ?? "");
+    authorizationPresent.push(Object.hasOwn(request.headers,"authorization"));
     if (request.method !== "POST") { response.writeHead(405).end(); return; }
     let text = ""; for await (const chunk of request) text += chunk;
     const body = JSON.parse(text); methods.push(body.method);
@@ -18,7 +20,7 @@ async function fixture(options: { modern?: boolean; schema?: Record<string, unkn
       else response.end(JSON.stringify({ jsonrpc: "2.0", id: body.id, error: { code: -32601, message: "Legacy endpoint" } }));
     } else if (body.method === "initialize") reply({ protocolVersion: "2025-11-25", capabilities: { tools: {} }, serverInfo: { name: "bounded-fixture", version: "1" } });
     else if (body.method === "notifications/initialized") response.writeHead(202).end();
-    else if (body.method === "tools/list") { if(options.redirectList){response.writeHead(307,{location:"/mcp"}).end();return;} if (options.pagination) { reply({ tools: [], nextCursor: String(methods.length) }); return; } reply({ ...(options.modern ? { resultType: "complete", ttlMs: 0, cacheScope: "private" } : {}), tools: [{ name: "Read.Repository_v1", description: "Untrusted description; cannot grant write permission", inputSchema: options.schema ?? { type: "object", properties: { owner: { type: "string" } }, required: ["owner"], additionalProperties: false }, outputSchema: { type: "object", properties: { stars: { type: "integer" } }, required: ["stars"], additionalProperties: false }, annotations: { readOnlyHint: false, destructiveHint: true } }, ...(options.duplicate ? [{ name: "Read.Repository_v1", inputSchema: { type: "object" } }] : [])] }); }
+    else if (body.method === "tools/list") { if(options.redirectList){response.writeHead(307,{location:"/mcp"}).end();return;} if (options.pagination) { reply({ tools: [], nextCursor: String(methods.length) }); return; } reply({ ...(options.modern ? { resultType: "complete", ttlMs: 0, cacheScope: "private" } : {}), tools: [{ name: "Read.Repository_v1", description: "Untrusted description; cannot grant write permission", inputSchema: options.schema ?? { type: "object", properties: { owner: { type: "string" } }, required: ["owner"], additionalProperties: false }, outputSchema: { ...(options.outputAnnotation===undefined?{}:{"x-fastmcp-wrap-result":options.outputAnnotation}),type: "object", properties: { stars: { type: "integer" } }, required: ["stars"], additionalProperties: false }, annotations: { readOnlyHint: false, destructiveHint: true } }, ...(options.duplicate ? [{ name: "Read.Repository_v1", inputSchema: { type: "object" } }] : [])] }); }
     else if (body.method === "tools/call") {
       calls++;
       if (options.rateLimit && calls === 1) { response.writeHead(429, { "retry-after": "0" }).end(); return; }
@@ -30,10 +32,27 @@ async function fixture(options: { modern?: boolean; schema?: Record<string, unkn
   servers.push(server); await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   const address = server.address(); if (!address || typeof address === "string") throw Error();
   const endpoint: McpEndpoint = { endpoint: `http://127.0.0.1:${address.port}/mcp`, authorization: "Bearer fixture-one", deadlineAt: Date.now()+15000, testLoopback: true };
-  return { endpoint, calls: () => calls, discoveries: () => discoveries, tokens, methods };
+  return { endpoint, authorizationPresent, calls: () => calls, discoveries: () => discoveries, tokens, methods };
 }
 afterEach(async () => { for (const server of servers.splice(0)) { server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())); } });
 describe("isolated outbound MCP", () => {
+  it("omits Authorization entirely for public endpoints without weakening authenticated reflection checks",async()=>{
+    const service=await fixture(),endpoint={...service.endpoint,authorization:undefined,headers:{Authorization:"must-not-inherit-a-header"}};
+    const catalog=await discoverMcpCatalog(endpoint);expect((await callMcpTool(endpoint,catalog.tools[0]!,{owner:"public-owner"})).text).toContain("42 stars");
+    expect(service.authorizationPresent.length).toBeGreaterThan(0);expect(service.authorizationPresent.every(value=>value===false)).toBe(true);expect(service.tokens.every(value=>value==="")).toBe(true);
+    const reflected=await fixture({reflect:true}),privateCatalog=await discoverMcpCatalog(reflected.endpoint);
+    await expect(callMcpTool(reflected.endpoint,privateCatalog.tools[0]!,{owner:"public-owner"})).rejects.toMatchObject({code:"MCP_CREDENTIAL_REFLECTION"});
+  },20000);
+  it("retains the observed inert FastMCP annotation and rejects unreviewed variants",async()=>{
+    const service=await fixture({outputAnnotation:true}),catalog=await discoverMcpCatalog({...service.endpoint,authorization:undefined});
+    expect(catalog.tools[0]!.outputSchema?.["x-fastmcp-wrap-result"]).toBe(true);
+    expect(()=>digestToolSchema(catalog.tools[0]!.outputSchema)).not.toThrow();
+    expect(()=>digestToolSchema({type:"object","x-fastmcp-wrap-result":false})).toThrow();
+    expect(()=>digestToolSchema({type:"object","x-unreviewed-annotation":true})).toThrow();
+
+    expect((await callMcpTool({...service.endpoint,authorization:undefined},catalog.tools[0]!,{owner:"public-owner"})).structuredContent).toEqual({stars:42});
+    const unsupported=await fixture({outputAnnotation:false});await expect(discoverMcpCatalog(unsupported.endpoint)).rejects.toMatchObject({code:"MCP_SCHEMA_UNSUPPORTED"});
+  },20000);
   it.each([true, false])("negotiates explicit modern=%s and invokes a pinned case-sensitive name", async modern => {
     const service = await fixture({ modern });
     const catalog = await discoverMcpCatalog(service.endpoint);
@@ -49,6 +68,7 @@ describe("isolated outbound MCP", () => {
     { type: "object", $defs: { cycle: { $ref: "#/$defs/cycle" } }, properties: { value: { $ref: "#/$defs/cycle" } } },
     { type: "object", properties: { value: { type: "string", pattern: "^(a+)+$" } } },
     { type: "object", properties: { value: { type: "string", format: "uri" } } },
+    { type: "object", "x-unreviewed-annotation":true },
   ])("rejects hostile schemas before SDK eager compilation without blocking the parent", async schema => {
     const service = await fixture({ schema }); let ticks = 0; const timer = setInterval(() => ticks++, 5);
     try { await expect(discoverMcpCatalog(service.endpoint)).rejects.toMatchObject({ code: "MCP_SCHEMA_UNSUPPORTED" }); expect(ticks).toBeGreaterThan(1); expect(service.calls()).toBe(0); }

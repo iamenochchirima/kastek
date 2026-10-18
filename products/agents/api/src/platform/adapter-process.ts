@@ -14,7 +14,7 @@ function canonical(value: unknown): string {
   return JSON.stringify(value);
 }
 const digest = (value: unknown) => createHash("sha256").update(canonical(value)).digest("hex");
-const keywords = new Set(["$schema", "format", "$defs", "$ref", "type", "properties", "required", "additionalProperties", "items", "prefixItems", "enum", "const", "title", "description", "default", "minimum", "maximum", "exclusiveMinimum", "exclusiveMaximum", "multipleOf", "minLength", "maxLength", "minItems", "maxItems", "uniqueItems", "minProperties", "maxProperties", "allOf", "anyOf", "oneOf", "not"]);
+const keywords = new Set(["$schema", "format", "x-fastmcp-wrap-result", "$defs", "$ref", "type", "properties", "required", "additionalProperties", "items", "prefixItems", "enum", "const", "title", "description", "default", "minimum", "maximum", "exclusiveMinimum", "exclusiveMaximum", "multipleOf", "minLength", "maxLength", "minItems", "maxItems", "uniqueItems", "minProperties", "maxProperties", "allOf", "anyOf", "oneOf", "not"]);
 export function assertRestrictedSchema(schema: unknown): asserts schema is Record<string, unknown> {
   if (!schema || typeof schema !== "object" || Array.isArray(schema) || Buffer.byteLength(JSON.stringify(schema)) > MCP_ADAPTER_LIMITS.schemaBytes) fail("MCP_SCHEMA_UNSUPPORTED");
   let jsonNodes = 0;
@@ -38,6 +38,7 @@ export function assertRestrictedSchema(schema: unknown): asserts schema is Recor
       if (key === "$schema" && depth !== 0) fail("MCP_SCHEMA_UNSUPPORTED");
       if (key === "$schema" && !["https://json-schema.org/draft/2020-12/schema","http://json-schema.org/draft-07/schema#"].includes(item as string)) fail("MCP_SCHEMA_UNSUPPORTED");
       if (key === "format" && item !== "uuid") fail("MCP_SCHEMA_UNSUPPORTED");
+      if (key === "x-fastmcp-wrap-result" && item !== true) fail("MCP_SCHEMA_UNSUPPORTED");
       if (root.$schema === "http://json-schema.org/draft-07/schema#" && ["prefixItems","$defs"].includes(key)) fail("MCP_SCHEMA_UNSUPPORTED");
       if (key === "$ref") {
         if (typeof item !== "string" || !item.startsWith("#/$defs/") || item.length > 512) fail("MCP_SCHEMA_UNSUPPORTED");
@@ -83,11 +84,15 @@ function guardCatalogBytes(text: string): void {
 }
 export async function performMcpJob(job: McpJob, observe?: (attempt: NetworkAttempt) => void|Promise<void>) {
   const attempts: NetworkAttempt[] = [], endpoint = new URL(job.endpoint.endpoint);
+  const authorization=job.endpoint.authorization;
+  if(authorization!==undefined&&(typeof authorization!=="string"||!authorization.trim()||/[\r\n]/.test(authorization)))fail("MCP_AUTH_INVALID");
+  const trustedHeaders=Object.fromEntries(Object.entries(job.endpoint.headers??{}).filter(([key])=>key.toLowerCase()!=="authorization"));
+  if(authorization!==undefined)trustedHeaders.authorization=authorization;
   const deadlineAt = Math.min(job.endpoint.deadlineAt, Date.now() + MCP_ADAPTER_LIMITS.wallMs);
   const controller = new AbortController(), timer = setTimeout(() => controller.abort(), Math.max(1, deadlineAt - Date.now()));
   let setupMessages = 0, readMessages = 0, totalMessages = 0;
   let phase: "setup" | "read" = "setup";
-  const network = createBoundedFetch({ authorizeUrl: url => url.href === endpoint.href, headers: { ...job.endpoint.headers, authorization: job.endpoint.authorization }, maxRequestBytes: 32768,
+  const network = createBoundedFetch({ authorizeUrl: url => url.href === endpoint.href, headers: trustedHeaders, maxRequestBytes: 32768,
     maxResponseBytes: MCP_ADAPTER_LIMITS.resultBytes, deadlineAt, maxAttempts: 1, maxRequests: 7, signal: controller.signal, testLoopback: job.endpoint.testLoopback, onAttempt: attempt => { const receipt = { ...attempt, attempt: totalMessages, phase }; attempts.push(receipt); return observe?.(receipt); } });
   let catalogBytes = 0, catalogTools = 0;
   const transportFetch: typeof fetch = async (url, init) => {
@@ -111,7 +116,7 @@ export async function performMcpJob(job: McpJob, observe?: (attempt: NetworkAtte
         await new Promise(resolve => setTimeout(resolve, wait)); continue;
       }
       const text = await response.clone().text();
-      const secrets = [job.endpoint.authorization, job.endpoint.authorization.replace(/^Bearer\s+/i, "")].filter(value => value.length >= 8);
+      const secrets = authorization===undefined?[]:[authorization, authorization.replace(/^Bearer\s+/i, "")].filter(value => value.length >= 8);
       if (secrets.some(secret => text.includes(secret))) fail("MCP_CREDENTIAL_REFLECTION");
       guardCatalogBytes(text);
       if (method === "tools/list") {
