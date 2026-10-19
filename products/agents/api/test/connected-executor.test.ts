@@ -19,6 +19,7 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
 (databaseUrl?describe:describe.skip)("registered connected executor with actual PostgreSQL, HTTP and private fixture objects",()=>{
  let admin:Pool,pool:Pool,server:Server,platform:PlatformStore,connections:ConnectionStore,executor:ConnectedExecutor,evidence:EvidenceStore;
  let origin:string,requests:string[]=[],isPrivate=false,hang=false,treeFileCount=1;
+ let repositoryGate:(()=>Promise<void>)|undefined;
  let remoteResult:Record<string,unknown>|undefined,publicProfile=false;
  let authorizationHeaders:(string|undefined)[]=[];
  const remoteArguments:Record<string,unknown>[]=[];
@@ -37,7 +38,7 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
     else if(message.method==="tools/call"){remoteArguments.push(message.params.arguments);reply(remoteResult??(publicProfile?{content:[{type:"text",text:"Available pages for approved/public: Architecture, Execution, Recovery."}]}:undefined)??{content:[{type:"text",text:`successfully downloaded text file (SHA: ${blobSha})`},{type:"resource",resource:{uri:`repo://approved/public/sha/${commit}/contents/guide.md`,mimeType:"text/plain; charset=utf-8",text}}]});}else res.writeHead(400).end("{}");return;
    }
 
-   if(req.url==="/repos/approved/public")res.end(JSON.stringify({id:1,private:isPrivate,visibility:isPrivate?"private":"public",full_name:"approved/public",description:"Public fixture",default_branch:"main",updated_at:"2026-10-17T00:00:00Z",stargazers_count:1,extra:"Retain full provider body"}));
+   if(req.url==="/repos/approved/public"){await repositoryGate?.();res.end(JSON.stringify({id:1,private:isPrivate,visibility:isPrivate?"private":"public",full_name:"approved/public",description:"Public fixture",default_branch:"main",updated_at:"2026-10-17T00:00:00Z",stargazers_count:1,extra:"Retain full provider body"}));}
    else if(req.url==="/repos/approved/public/commits/main")res.end(JSON.stringify({sha:commit,commit:{tree:{sha:tree}}}));
    else if(req.url===`/repos/approved/public/git/trees/${tree}?recursive=1`)res.end(JSON.stringify({sha:tree,truncated:false,tree:Array.from({length:treeFileCount},(_,index)=>({path:index===treeFileCount-1?"guide.md":`docs/other-${String(index).padStart(2,"0")}.md`,type:"blob",mode:"100644",sha:blobSha,size:bytes.length}))}));
    else if(req.url===`/repos/approved/public/git/blobs/${blobSha}`){if(hang)return;res.end(JSON.stringify({sha:blobSha,encoding:"base64",size:bytes.length,content:bytes.toString("base64")}));}
@@ -65,6 +66,55 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
  }
  async function call(f:Awaited<ReturnType<typeof fixture>>,name:string,args:object){const binding=f.bindings.find(b=>b.definition.providerOperation===name)!,operationId=`tool:${f.task.id}:${randomUUID()}`;await beginOperation(pool,f.task.id,{id:operationId,kind:"tool",name:binding.alias,request:args,reservedTokens:0,reservedMs:30000,retrySafe:true});return{result:await executor.execute(f.task.id,operationId,binding,args),binding,operationId,args};}
  async function completedCall(f:Awaited<ReturnType<typeof fixture>>,name:string,args:object){const result=await call(f,name,args);await finishOperation(pool,f.task.id,result.operationId,"completed",result.result,null,0);return result;}
+ it("releases the only pool connection during two independent provider reads and rejects duplicate live claims",async()=>{
+  const first=await fixture(),second=await fixture(),binding=first.bindings.find(item=>item.definition.providerOperation==="get_repository")!,otherBinding=second.bindings.find(item=>item.definition.providerOperation==="get_repository")!,args={repository:"approved/public"};
+  const operationId=`tool:${first.task.id}:single-pool`,otherOperation=`tool:${second.task.id}:single-pool`;
+  for(const [f,b,id]of [[first,binding,operationId],[second,otherBinding,otherOperation]] as const)await beginOperation(pool,f.task.id,{id,kind:"tool",name:b.alias,request:args,reservedTokens:0,reservedMs:30000,retrySafe:true});
+  let release!:()=>void,arrived!:()=>void,count=0;const barrier=new Promise<void>(resolve=>{release=resolve;}),both=new Promise<void>(resolve=>{arrived=resolve;});
+  repositoryGate=async()=>{if(++count===2)arrived();await barrier;};
+  const narrow=new Pool({connectionString:pool.options.connectionString,max:1,connectionTimeoutMillis:2000}),singleExecutor=new ConnectedExecutor(narrow,connections,executor.objects,new EvidenceStore(narrow,executor.objects),{testGithubOrigin:origin});
+  const reads=[singleExecutor.execute(first.task.id,operationId,binding,args),singleExecutor.execute(second.task.id,otherOperation,otherBinding,args)];
+  try{
+   await Promise.race([both,new Promise<never>((_,reject)=>setTimeout(()=>reject(Error("Independent reads did not both reach provider with pool max 1")),5000).unref())]);
+   expect(narrow.totalCount).toBe(1);expect(narrow.waitingCount).toBe(0);
+   const before=(await pool.query("SELECT claim_token,claim_expires_at FROM agents_platform.connected_reads WHERE operation_id=$1",[operationId])).rows[0];
+   await expect(singleExecutor.execute(first.task.id,operationId,binding,args)).rejects.toMatchObject({code:"CONNECTED_READ_IN_PROGRESS"});
+   expect((await pool.query("SELECT claim_token,claim_expires_at FROM agents_platform.connected_reads WHERE operation_id=$1",[operationId])).rows[0]).toEqual(before);
+   expect(requests).toEqual(["/repos/approved/public","/repos/approved/public"]);
+  }finally{repositoryGate=undefined;release();await Promise.allSettled(reads);await narrow.end();}
+  const results=await Promise.all(reads);expect(results.every(result=>result.status==="ok")).toBe(true);
+  expect(requests).toHaveLength(2);
+ });
+ it("keeps original claim identity immutable and expired work uncertain without publishing a late result",async()=>{
+  const f=await fixture(),binding=f.bindings.find(item=>item.definition.providerOperation==="get_repository")!,operationId=`tool:${f.task.id}:claim-expiry`,args={repository:"approved/public"};
+  let entered!:()=>void,release!:()=>void;const inPut=new Promise<void>(resolve=>{entered=resolve;}),gate=new Promise<void>(resolve=>{release=resolve;});
+  const storage={put:async(key:string,value:Uint8Array,type:string)=>{entered();await gate;await executor.objects.put(key,value,type);},get:executor.objects.get.bind(executor.objects),delete:executor.objects.delete.bind(executor.objects)};
+  const blocked=new ConnectedExecutor(pool,connections,storage,evidence,{testGithubOrigin:origin});
+  await beginOperation(pool,f.task.id,{id:operationId,kind:"tool",name:binding.alias,request:args,reservedTokens:0,reservedMs:500,retrySafe:true});
+  const read=blocked.execute(f.task.id,operationId,binding,args);const outcome=read.then(value=>({value}),error=>({error}));
+  try{
+   await inPut;
+   const claim=(await pool.query("SELECT c.claim_token,c.claim_expires_at,o.started_at,o.reserved_ms,t.deadline_at FROM agents_platform.connected_reads c JOIN agents_platform.operations o ON o.id=c.operation_id JOIN agents_platform.tasks t ON t.id=c.task_id WHERE c.operation_id=$1",[operationId])).rows[0];
+   expect(claim.claim_token).toMatch(/^[a-f0-9-]{36}$/);expect(claim.claim_expires_at.getTime()).toBe(Math.min(claim.started_at.getTime()+500,claim.deadline_at.getTime()));
+   for(const sql of ["claim_token=gen_random_uuid()","claim_expires_at=claim_expires_at+interval '1 second'","request_digest='changed'"])await expect(pool.query(`UPDATE agents_platform.connected_reads SET ${sql} WHERE operation_id=$1`,[operationId])).rejects.toThrow("connected claim identity is immutable");
+   await pool.query("SELECT pg_sleep(GREATEST(0,extract(epoch FROM($1::timestamptz-clock_timestamp())))+0.02)",[claim.claim_expires_at]);
+   await expect(executor.execute(f.task.id,operationId,binding,args)).rejects.toMatchObject({code:"CONNECTED_READ_UNCERTAIN"});
+   expect((await pool.query("SELECT state,result FROM agents_platform.connected_reads WHERE operation_id=$1",[operationId])).rows[0]).toEqual({state:"uncertain",result:null});
+  }finally{release();}
+  expect(await outcome).toMatchObject({error:{code:"CONNECTED_READ_UNCERTAIN"}});
+  expect(requests).toEqual(["/repos/approved/public"]);
+  expect((await pool.query("SELECT state,result FROM agents_platform.connected_reads WHERE operation_id=$1",[operationId])).rows[0]).toEqual({state:"uncertain",result:null});
+  expect((await pool.query("SELECT * FROM agents_platform.connected_response_bodies WHERE operation_id=$1",[operationId])).rows).toEqual([]);
+  expect((await pool.query("SELECT state,receipt FROM agents_platform.connected_attempts WHERE operation_id=$1",[operationId])).rows).toMatchObject([{state:"completed",receipt:{status:200}}]);
+  await expect(executor.execute(f.task.id,operationId,binding,args)).rejects.toMatchObject({code:"CONNECTED_READ_UNCERTAIN"});
+ });
+ it("marks an orphan started receipt with no claim uncertain without contacting the provider",async()=>{
+  const f=await fixture(),binding=f.bindings.find(item=>item.definition.providerOperation==="get_repository")!,operationId=`tool:${f.task.id}:orphan-claim`,args={repository:"approved/public"};
+  await beginOperation(pool,f.task.id,{id:operationId,kind:"tool",name:binding.alias,request:args,reservedTokens:0,reservedMs:30000,retrySafe:true});
+  await pool.query("INSERT INTO agents_platform.connected_reads(operation_id,task_id,organization_id,root_task_id,connection_id,binding_id,request_digest,state) VALUES($1,$2,$3,$4,$5,$6,$7,'started')",[operationId,f.task.id,f.scope.organizationId,f.task.root_task_id,f.connection.id,binding.id,requestDigest({bindingId:binding.id,bindingDigest:binding.digest,args})]);
+  await expect(executor.execute(f.task.id,operationId,binding,args)).rejects.toMatchObject({code:"CONNECTED_READ_UNCERTAIN"});
+  expect(requests).toEqual([]);expect((await pool.query("SELECT state,claim_token,claim_expires_at FROM agents_platform.connected_reads WHERE operation_id=$1",[operationId])).rows[0]).toEqual({state:"uncertain",claim_token:null,claim_expires_at:null});
+ });
  it("executes anonymous native and MCP reads without transmitting any authorization header",async()=>{
   const f=await fixture(true,true);expect(f.connection.authentication).toBe("none");
   const metadata=await call(f,"get_repository",{repository:"approved/public"});expect(metadata.result.status).toBe("ok");

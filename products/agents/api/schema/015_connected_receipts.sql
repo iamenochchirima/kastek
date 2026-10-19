@@ -3,6 +3,8 @@ CREATE TABLE agents_platform.connected_reads (
  organization_id uuid NOT NULL,root_task_id uuid NOT NULL,connection_id uuid NOT NULL REFERENCES agents_platform.connections(id),
  binding_id uuid NOT NULL REFERENCES agents_platform.capability_bindings(id),request_digest text NOT NULL,
  state text NOT NULL CHECK(state IN ('started','completed','failed','uncertain')),result jsonb,error_code text,
+ claim_token uuid,claim_expires_at timestamptz,
+ CHECK ((claim_token IS NULL)=(claim_expires_at IS NULL)),
  body_key text,body_digest text,created_at timestamptz NOT NULL DEFAULT now(),updated_at timestamptz NOT NULL DEFAULT now(),
  FOREIGN KEY(organization_id,task_id) REFERENCES agents_platform.tasks(organization_id,id),
  FOREIGN KEY(organization_id,root_task_id) REFERENCES agents_platform.tasks(organization_id,id)
@@ -39,6 +41,11 @@ CREATE TRIGGER immutable_connected_response BEFORE UPDATE OR DELETE ON agents_pl
 CREATE FUNCTION agents_platform.preserve_connected_receipt() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
  IF OLD.state IN ('completed','failed','uncertain') THEN RAISE EXCEPTION 'connected receipt is immutable'; END IF;
+ IF TG_TABLE_NAME='connected_reads' THEN
+  IF (to_jsonb(NEW)-ARRAY['state','result','error_code','body_key','body_digest','updated_at'])
+   IS DISTINCT FROM (to_jsonb(OLD)-ARRAY['state','result','error_code','body_key','body_digest','updated_at'])
+   THEN RAISE EXCEPTION 'connected claim identity is immutable'; END IF;
+ END IF;
  RETURN NEW;
 END $$;
 CREATE TRIGGER immutable_connected_receipt BEFORE UPDATE OR DELETE ON agents_platform.connected_reads

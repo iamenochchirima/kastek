@@ -12,7 +12,7 @@ import type { ActionScope,ConnectionCredentialPort } from "../../contracts/conne
 import { PlatformError,requestDigest } from "../../contracts/contracts";
 import { textDigest } from "../../contracts/source-contracts";
 import { writeExecutionObject } from "../../execution/artifacts/execution-objects";
-import { EvidenceStore,assertChildConnectedAuthority,assertCurrentEvidence } from "../../execution/context/evidence";
+import { EvidenceStore,assertChildConnectedAuthority,assertCurrentEvidence,taskEvidenceManifest } from "../../execution/context/evidence";
 import { assertCurrentAuthority,loadExecution,type Execution } from "../../execution/lifecycle/execution";
 import { requireActionMember } from "../../infrastructure/action-authority";
 import type { NetworkAttempt } from "../../infrastructure/connected-network";
@@ -112,7 +112,7 @@ export class ConnectedExecutor {
   const credential=await this.connections.resolveCredential(db,scope,binding.connection.id,binding.connection.policyRevision);
   if(binding.connection.profileId!==credential.connection.profileId)throw denied();
   if(binding.resources.some(resource=>!credential.connection.resources.some(current=>requestDigest(current)===requestDigest(resource))))throw denied();
-  await assertCurrentEvidence(db,taskId,await this.evidence.taskManifest(taskId));return{execution,scope,credential};
+  await assertCurrentEvidence(db,taskId,await taskEvidenceManifest(db,taskId));return{execution,scope,credential};
  }
  private async handle(db:PoolClient,execution:Execution,binding:CapabilityBinding,id:string,kind:Handle["kind"]):Promise<Handle>{
   const row=(await db.query("SELECT * FROM agents_platform.connected_handles WHERE id=$1 AND organization_id=$2 AND root_task_id=$3 AND connection_id=$4 AND policy_revision=$5 AND kind=$6",[id,execution.task.organization_id,execution.task.root_task_id,binding.connection!.id,binding.connection!.policyRevision,kind])).rows[0];
@@ -128,19 +128,20 @@ export class ConnectedExecutor {
   });
  }
  async execute(taskId:string,operationId:string,bindingInput:CapabilityBinding,input:unknown,signal?:AbortSignal):Promise<ConnectedObservation>{
-  const lease=await this.pool.connect(),key=BigInt.asIntN(64,BigInt(`0x${textDigest(operationId).slice(0,16)}`)).toString();let locked=false;
-  try{
-   locked=(await lease.query("SELECT pg_try_advisory_lock($1::bigint) AS locked",[key])).rows[0].locked;
-   if(!locked)throw new PlatformError("CONNECTED_READ_IN_PROGRESS",409,"The connected read is already running");
-   return await this.executeClaim(taskId,operationId,bindingInput,input,signal);
-  }finally{if(locked)await lease.query("SELECT pg_advisory_unlock($1::bigint)",[key]).catch(()=>undefined);lease.release();}
- }
- private async executeClaim(taskId:string,operationId:string,bindingInput:CapabilityBinding,input:unknown,signal?:AbortSignal):Promise<ConnectedObservation>{
   const binding=capabilityBindingSchema.parse(bindingInput),args=connectedModelArguments(binding,input),digest=requestDigest({bindingId:binding.id,bindingDigest:binding.digest,args});
   const claim=await transaction(this.pool,async db=>{
    const initial=await loadExecution(db,taskId);await db.query("SELECT id FROM agents_platform.organizations WHERE id=$1 FOR UPDATE",[initial.task.organization_id]);
    const prior=(await db.query("SELECT * FROM agents_platform.connected_reads WHERE operation_id=$1 FOR UPDATE",[operationId])).rows[0];
-   if(prior){if(prior.task_id!==taskId||prior.binding_id!==binding.id||prior.request_digest!==digest)throw new PlatformError("OPERATION_CONFLICT",409,"Connected read identity changed");if(prior.state==="completed")return{replay:prior.result};if(prior.state==="started")await db.query("UPDATE agents_platform.connected_reads SET state='uncertain',error_code='CONNECTED_READ_UNCERTAIN' WHERE operation_id=$1",[operationId]);return{error:prior.state==="failed"?prior.error_code:"CONNECTED_READ_UNCERTAIN"};}
+   if(prior){
+    if(prior.task_id!==taskId||prior.binding_id!==binding.id||prior.request_digest!==digest)throw new PlatformError("OPERATION_CONFLICT",409,"Connected read identity changed");
+    if(prior.state==="completed")return{replay:prior.result};
+    if(prior.state==="started"){
+     const live=(await db.query("SELECT 1 FROM agents_platform.connected_reads WHERE operation_id=$1 AND claim_token IS NOT NULL AND claim_expires_at>clock_timestamp()",[operationId])).rowCount;
+     if(live)return{error:"CONNECTED_READ_IN_PROGRESS"};
+     await db.query("UPDATE agents_platform.connected_reads SET state='uncertain',error_code='CONNECTED_READ_UNCERTAIN',updated_at=now() WHERE operation_id=$1",[operationId]);
+    }
+    return{error:prior.state==="failed"?prior.error_code:"CONNECTED_READ_UNCERTAIN"};
+   }
    this.registry.resolve(binding);const authorized=await this.scope(db,taskId,binding);
    const operation=(await db.query("SELECT started_at,reserved_ms FROM agents_platform.operations WHERE id=$1 AND task_id=$2 AND name=$3 AND kind='tool' AND state='started'",[operationId,taskId,binding.alias])).rows[0];
    if(!operation)throw denied();
@@ -150,17 +151,26 @@ export class ConnectedExecutor {
    if(!selected&&handle)selected=authorized.credential.connection.selections.find(selection=>githubRepositoryHandle(selection).id===handle!.resource.id);
    const stashResource=binding.connection?.profileId==="stash-read-v1"?binding.resources.find(resource=>resource.kind==="stash.item"&&resource.id===args.itemId):undefined;
    if(!selected&&!stashResource)throw denied();
-   await db.query("INSERT INTO agents_platform.connected_reads(operation_id,task_id,organization_id,root_task_id,connection_id,binding_id,request_digest,state) VALUES($1,$2,$3,$4,$5,$6,$7,'started')",[operationId,taskId,initial.task.organization_id,initial.task.root_task_id,binding.connection!.id,binding.id,digest]);
-   return{...authorized,selected:selected!,stashResource,handle,operationDeadline:new Date(operation.started_at).getTime()+Math.min(operation.reserved_ms,binding.limits.timeoutMs)};
+   const claimToken=randomUUID();
+   const inserted=(await db.query(`INSERT INTO agents_platform.connected_reads(operation_id,task_id,organization_id,root_task_id,connection_id,binding_id,request_digest,state,claim_token,claim_expires_at)
+    SELECT $1,$2,$3,$4,$5,$6,$7,'started',$8,LEAST(o.started_at+make_interval(secs=>LEAST(o.reserved_ms,$9)::double precision/1000),t.deadline_at)
+    FROM agents_platform.operations o JOIN agents_platform.tasks t ON t.id=o.task_id WHERE o.id=$1 AND t.id=$2 RETURNING claim_expires_at`,[operationId,taskId,initial.task.organization_id,initial.task.root_task_id,binding.connection!.id,binding.id,digest,claimToken,binding.limits.timeoutMs])).rows[0]!;
+   return{...authorized,selected:selected!,stashResource,handle,claimToken,deadlineAt:new Date(inserted.claim_expires_at).getTime()};
   });
-  if("replay"in claim)return claim.replay;if("error"in claim)throw claim.error==="CONNECTED_READ_UNCERTAIN"?uncertain():new PlatformError(claim.error,502,"The connected read failed");
-  const deadlineAt=Math.min(claim.operationDeadline,new Date(claim.execution.task.deadline_at).getTime());
+  if("replay"in claim)return claim.replay;
+  if("error"in claim){if(claim.error==="CONNECTED_READ_UNCERTAIN")throw uncertain();throw new PlatformError(claim.error,claim.error==="CONNECTED_READ_IN_PROGRESS"?409:502,"The connected read did not complete");}
+  const deadlineAt=claim.deadlineAt;
+  const assertClaim=async(db:PoolClient)=>{
+   await db.query("SELECT operation_id FROM agents_platform.connected_reads WHERE operation_id=$1 FOR UPDATE",[operationId]);
+   if(!(await db.query("SELECT 1 FROM agents_platform.connected_reads WHERE operation_id=$1 AND task_id=$2 AND state='started' AND claim_token=$3 AND claim_expires_at>clock_timestamp()",[operationId,taskId,claim.claimToken])).rowCount)throw uncertain();
+  };
   const checkDeadline=()=>{if(Date.now()>=deadlineAt)throw new PlatformError("CONNECTED_READ_DEADLINE",409,"The connected read exceeded its original operation deadline");};
   let ordinal=0,pending=0,readCount=0,setupCount=0;
   const before=async(phase:"setup"|"read"="read")=>{
    checkDeadline();
    await transaction(this.pool,async db=>{
     await db.query("SELECT id FROM agents_platform.organizations WHERE id=$1 FOR UPDATE",[claim.execution.task.organization_id]);const current=await this.scope(db,taskId,binding);
+    await assertClaim(db);
     if(current.credential.connection.revision!==claim.credential.connection.revision)throw new PlatformError("CONNECTION_CREDENTIAL_CHANGED",403,"Connection credentials changed during this read");
     if(++ordinal>7||phase==="read"&&++readCount>3||phase==="setup"&&++setupCount>4)throw new PlatformError("CONNECTED_ATTEMPT_LIMIT",409,"The connected read reached its request limit");
     await db.query("INSERT INTO agents_platform.connected_attempts(operation_id,ordinal,phase,state) VALUES($1,$2,$3,'started')",[operationId,ordinal,phase]);pending=ordinal;
@@ -178,6 +188,7 @@ export class ConnectedExecutor {
     await transaction(this.pool,async db=>{
       await db.query("SELECT id FROM agents_platform.organizations WHERE id=$1 FOR UPDATE",[claim.execution.task.organization_id]);
       await this.scope(db,taskId,binding);
+      await assertClaim(db);
       if(!(await db.query("SELECT 1 FROM agents_platform.operations WHERE id=$1 AND task_id=$2 AND state='started'",[operationId,taskId])).rowCount)throw uncertain();
       const object=(await db.query("SELECT state,content_digest FROM agents_platform.execution_objects WHERE object_key=$1 FOR SHARE",[key])).rows[0];
       if(object?.state!=="available"||object.content_digest!==contentDigest)throw new PlatformError("EXECUTION_OBJECT_UNCERTAIN",409,"The private response body is unavailable");
@@ -237,10 +248,22 @@ export class ConnectedExecutor {
    const result:ConnectedObservation={status:projection.isError?"tool_error":"ok",bindingId:binding.id,operationId,content:passage.text,truncated:projection.truncated,evidence:{id:passage.reference.id,label:passage.label,citation:`[${passage.label}]`,contentDigest:passage.reference.contentDigest},...(projection.handles?{handles:projection.handles}:{}),observation:{digest:projection.digest,acquiredAt:projection.acquiredAt,provenance:projection.provenance}};
    if(Buffer.byteLength(JSON.stringify(result))>8192)throw new PlatformError("CONNECTED_RESULT_LIMIT",413,"Connected observation exceeds its model result limit");
    checkDeadline();
-   const published=await this.pool.query("UPDATE agents_platform.connected_reads SET state='completed',result=$2,body_key=$3,body_digest=$4,updated_at=now() WHERE operation_id=$1 AND state='started' AND EXISTS(SELECT 1 FROM agents_platform.operations p WHERE p.id=$1 AND p.state='started')",[operationId,JSON.stringify(result),bodyKey,bodyDigest]);
+   const published=await transaction(this.pool,async db=>{
+    await db.query("SELECT id FROM agents_platform.organizations WHERE id=$1 FOR UPDATE",[claim.execution.task.organization_id]);
+    const current=await this.scope(db,taskId,binding);
+    if(current.credential.connection.revision!==claim.credential.connection.revision)throw new PlatformError("CONNECTION_CREDENTIAL_CHANGED",403,"Connection credentials changed during this read");
+    await assertClaim(db);
+    return db.query("UPDATE agents_platform.connected_reads SET state='completed',result=$2,body_key=$3,body_digest=$4,updated_at=now() WHERE operation_id=$1 AND state='started' AND claim_token=$5 AND claim_expires_at>clock_timestamp() AND EXISTS(SELECT 1 FROM agents_platform.operations p WHERE p.id=$1 AND p.state='started')",[operationId,JSON.stringify(result),bodyKey,bodyDigest,claim.claimToken]);
+   });
    if(!published.rowCount) throw new PlatformError("CONNECTED_READ_UNCERTAIN",409,"Connected read receipt is no longer publishable");
    return result;
-  }catch(error){const active=Number((await this.pool.query("SELECT count(*) AS count FROM agents_platform.connected_attempts WHERE operation_id=$1 AND (state='started' OR (receipt->>'status' IS NULL AND receipt->>'outcome' IN ('CANCELLED','DEADLINE','NETWORK_UNAVAILABLE')))",[operationId])).rows[0].count);await this.pool.query("UPDATE agents_platform.connected_reads SET state=$2,error_code=$3,updated_at=now() WHERE operation_id=$1 AND state='started'",[operationId,active||error instanceof PlatformError&&error.code==="CONNECTED_READ_DEADLINE"?"uncertain":"failed",code(error)]);throw active||error instanceof PlatformError&&error.code==="CONNECTED_READ_DEADLINE"?uncertain():new PlatformError(code(error),502,"Connected read did not complete");}
+  }catch(error){
+   const active=Number((await this.pool.query("SELECT count(*) AS count FROM agents_platform.connected_attempts WHERE operation_id=$1 AND (state='started' OR (receipt->>'status' IS NULL AND receipt->>'outcome' IN ('CANCELLED','DEADLINE','NETWORK_UNAVAILABLE')))",[operationId])).rows[0].count);
+   const unknown=!!active||error instanceof PlatformError&&["CONNECTED_READ_DEADLINE","CONNECTED_READ_UNCERTAIN"].includes(error.code);
+   const settled=await this.pool.query("UPDATE agents_platform.connected_reads SET state=CASE WHEN $2 OR claim_expires_at<=clock_timestamp() THEN 'uncertain' ELSE 'failed' END,error_code=$3,updated_at=now() WHERE operation_id=$1 AND state='started' AND claim_token=$4 RETURNING state",[operationId,unknown,code(error),claim.claimToken]);
+   if(unknown||!settled.rowCount||settled.rows[0]?.state==="uncertain")throw uncertain();
+   throw new PlatformError(code(error),502,"Connected read did not complete");
+  }
  }
  private async stashRevision(taskId:string,operationId:string,binding:CapabilityBinding,resource:ResourceHandle,revision:number):Promise<void>{
   await transaction(this.pool,async db=>{
