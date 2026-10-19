@@ -7,6 +7,7 @@ import { PlatformStore } from "../src/product/agents/store";
 import { defaultBusinessConfiguration, executionGrantSchema, requestDigest } from "../src/contracts/contracts";
 import { beginOperation, finishOperation, loadExecution, settleTask, assertCurrentAuthority, transaction } from "../src/execution/lifecycle/execution";
 import { admitChildren } from "../src/execution/delegation/delegation";
+import { EvidenceStore } from "../src/execution/context/evidence";
 import { TaskArtifactStore } from "../src/execution/artifacts/task-artifacts";
 import { ConnectionVault } from "../src/infrastructure/vault";
 import { ConnectionStore } from "../src/product/connections/connections";
@@ -74,6 +75,14 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     const action = await actions.prepare(f.task.id, `report:${f.task.id}:deliver`, { connectionId: f.connection.id, artifactId: artifact.id });
     await actions.decide(f.scope, f.task.id, action.id, { operationId: randomUUID(), decision: "approve", expectedDigest: action.reviewDigest }); return action;
   }
+  it("reads reviewed evidence with one connection and still rejects withdrawn current authority",async()=>{
+    const f=await fixture(),action=await report(f),url=new URL(databaseUrl!);url.pathname=`/${database}`;
+    const single=new Pool({connectionString:url.href,max:1,connectionTimeoutMillis:150,statement_timeout:2000,query_timeout:2500});
+    try{const evidence=new EvidenceStore(single,artifacts.objects);expect(await evidence.reviewerPassages(f.scope,f.task.id,action.artifactId)).toEqual([]);
+      await store.revokeGrant(f.scope.accountId,f.scope.organizationId,f.grant.id);
+      await expect(evidence.reviewerPassages(f.scope,f.task.id,action.artifactId)).rejects.toMatchObject({code:'EVIDENCE_UNAVAILABLE'});
+    }finally{await single.end();}
+  },10000);
   async function waitFor(check:()=>Promise<boolean>){const deadline=Date.now()+5000;while(Date.now()<deadline){if(await check())return;await new Promise(resolve=>setTimeout(resolve,20));}throw Error("Native lock checkpoint timed out");}
   it("commits takeover and its typed event while a runtime task writer waits for conversation authority",async()=>{
     const f=await fixture(),key=Math.floor(Math.random()*1000000000),fn=`takeover_gate_${f.task.id.replaceAll('-','')}`;

@@ -695,6 +695,11 @@ from Inbox cancellation and typed-event inserts. Runtime authority checks take t
 task writer lock before checking the current customer conversation. A stronger task
 key lock would recreate the conversation/task foreign-key deadlock during takeover.
 
+Reviewed-evidence projection reuses its current transaction connection for the task
+manifest. It does not reacquire the pool while holding the organization fence. A
+single-connection regression verifies the normal reviewer read and current grant
+revocation rejection without weakening membership or source-policy checks.
+
 Operation start/finish locks the execution root rather than the organization.
 Admission and daily quota settlement retain their existing transactional fences;
 `maxConcurrentRoots` and `dailyTokenAllowance` come from the validated operator

@@ -307,7 +307,7 @@ export class EvidenceStore {
         WHERE a.task_id=$1 AND a.organization_id=$2 AND a.artifact_id=$3 AND (a.account_id=$4 OR a.reviewer_account_id=$4)
         AND f.state='available' AND f.content_digest=a.artifact_digest`,[taskId,scope.organizationId,artifactId,scope.accountId])).rows[0];
       if(!action)throw denied();
-      await assertCurrentEvidence(db,taskId,await this.taskManifest(taskId),{requireActiveTask:false});
+      await assertCurrentEvidence(db,taskId,await taskEvidenceManifest(db,taskId),{requireActiveTask:false});
       const references=(await db.query("SELECT reference_id FROM agents_platform.artifact_citations WHERE artifact_id=$1 ORDER BY reference_id",[artifactId])).rows;
       const passages:EvidencePassage[]=[];for(const row of references)passages.push(await this.passage(db,taskId,row.reference_id));return passages;
   }
