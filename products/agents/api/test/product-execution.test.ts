@@ -17,6 +17,7 @@ import { dispatchTasksOnce } from "../src/execution/lifecycle/dispatcher";
 import { compilePublishedComposition } from "../src/execution/programs/publication";
 import { publishedToolBindings } from "../src/capabilities/tool-definitions";
 import { setupPlatformSchema } from "../src/composition/setup";
+import { dropClosedTestDatabase } from "./support/database-cleanup";
 
 const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
 (databaseUrl?describe:describe.skip)("delegated product execution contract with actual PostgreSQL/Restate",()=>{
@@ -46,7 +47,7 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
     try{docker("rm","-f",container);}catch{}
     if(worker)await new Promise<void>(r=>worker.close(()=>r()));
     if(provider)await new Promise<void>(r=>provider.close(()=>r()));
-    await pool?.end();if(admin){await admin.query(`DROP DATABASE IF EXISTS "${database}" WITH (FORCE)`);await admin.end();}
+    await pool?.end();if(admin){await dropClosedTestDatabase(admin,database);await admin.end();}
   });
   async function fixture(product:"growth"|"agencies"){
     const org=randomUUID(),agent=randomUUID(),version=randomUUID(),operator=randomUUID(),actor=randomUUID(),tenant=randomUUID();
