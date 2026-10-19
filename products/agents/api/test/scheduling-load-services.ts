@@ -1,10 +1,11 @@
 import {createHash,randomBytes} from 'node:crypto';
-import {execFileSync,spawnSync} from 'node:child_process';
+import {execFileSync,spawn,type ChildProcess} from 'node:child_process';
 import {createServer} from 'node:http';
 import {join} from 'node:path';
 import {writeFile} from 'node:fs/promises';
 import {requestDigest} from '../src/contracts/contracts';
 import type {EffectPost} from './scheduling-load-verification';
+import {collectorMetadata} from './scheduling-load-collector';
 import type {Pool} from 'pg';
 import {createReportReceiver,initializeReportReceiver} from '../src/acceptance/report-receiver';
 
@@ -31,7 +32,7 @@ export async function controlledLoadServices(pool:Pool,repository:string,runId:s
  receiver.addHook('onResponse',async(request,reply)=>{if(request.method==='POST'){const body=request.body as any;postAudit.push({id:String(request.headers['idempotency-key']??''),payloadDigest:String(request.headers['x-payload-digest']??''),computedPayloadDigest:requestDigest(body),artifactDigest:String(body?.report?.digest??''),status:reply.statusCode});}});
  const receiverOrigin=await receiver.listen({host:'127.0.0.1',port:0});
  const container=`agents-load-otel-${runId}`,docker=(...args:string[])=>execFileSync('docker',args,{encoding:'utf8',timeout:60000}).trim();
- let collectorOwned=false;
+ let collectorOwned=false,closing=false,collectorLog:ChildProcess|undefined;const metadata=collectorMetadata(key),captureErrors:string[]=[];
  const environment:NodeJS.ProcessEnv={AGENTS_S3_ENDPOINT:`http://127.0.0.1:${(s3.address() as {port:number}).port}`,AGENTS_S3_REGION:'local',AGENTS_S3_BUCKET:'controlled-load',AGENTS_S3_ACCESS_KEY_ID:'controlled-fixture',AGENTS_S3_SECRET_ACCESS_KEY:key,
   AGENTS_CONNECTION_ACTIVE_KEY:'fixture',AGENTS_CONNECTION_KEYS:JSON.stringify({fixture:randomBytes(32).toString('base64')}),
   AGENTS_REPORT_DELIVERY_TARGETS:JSON.stringify([{id:'controlled-reports',label:'Controlled reports',url:receiverOrigin+'/deliveries',resource:'reports:controlled-load'}])};
@@ -39,20 +40,15 @@ export async function controlledLoadServices(pool:Pool,repository:string,runId:s
   async startCollector(){
    docker('run','-d','--name',container,'--memory','256m','--log-opt','max-size=10m','--log-opt','max-file=3','-e','PORT=13133','-v',`${join(repository,'infra/observability/otel-collector/config.local.yaml')}:/etc/otelcol-contrib/config.yaml:ro`,'-p','127.0.0.1::4318','-p','127.0.0.1::13133',collectorImage);collectorOwned=true;
    const endpoint=`http://${docker('port',container,'4318/tcp')}`,health=`http://${docker('port',container,'13133/tcp')}`;
-   for(let attempt=0;attempt<100;attempt++){try{if((await fetch(health)).ok){environment.OTEL_EXPORTER_OTLP_ENDPOINT=endpoint;return endpoint;}}catch{}await new Promise(resolve=>setTimeout(resolve,100));}throw Error('Owned Collector readiness timeout');
+   for(let attempt=0;attempt<100;attempt++){try{if((await fetch(health)).ok){environment.OTEL_EXPORTER_OTLP_ENDPOINT=endpoint;collectorLog=spawn('docker',['logs','--follow','--tail','1000',container],{stdio:['ignore','pipe','pipe']});collectorLog.stdout!.on('data',chunk=>metadata.ingest(String(chunk),'stdout'));collectorLog.stderr!.on('data',chunk=>metadata.ingest(String(chunk),'stderr'));collectorLog.on('error',()=>captureErrors.push('Owned Collector metadata stream failed'));collectorLog.on('exit',(code)=>{if(!closing)captureErrors.push(`Owned Collector metadata stream exited:${code}`);});return endpoint;}}catch{}await new Promise(resolve=>setTimeout(resolve,100));}throw Error('Owned Collector readiness timeout');
   },
   pauseCollector(){if(!collectorOwned)throw Error('Collector is not owned');docker('pause',container);},
   resumeCollector(){if(!collectorOwned)throw Error('Collector is not owned');docker('unpause',container);},
   async collectorEvidence(){
-   const output=collectorOwned?spawnSync('docker',['logs','--tail','20000',container],{encoding:'utf8',timeout:10000,maxBuffer:16777216}):undefined,logs=(output?.stdout??'')+(output?.stderr??'');
-   const spans=logs.split(/Span #\d+\n/).slice(1).map(block=>{
-    const field=(pattern:RegExp)=>block.match(pattern)?.[1]??'';
-    return{traceId:field(/Trace ID\s*:\s*([a-f0-9]{32})/),parentId:field(/Parent ID\s*:\s*([a-f0-9]{16})/),spanId:field(/\n\s+ID\s*:\s*([a-f0-9]{16})/),name:field(/Name\s*:\s*([a-zA-Z0-9_.:-]+)/),observationId:field(/agents.observation_id: Str\(([a-f0-9]{64})\)/),eventKey:field(/agents.event_key: Str\(([^)]+)\)/),taskId:field(/agents.taskId: Str\(([a-f0-9-]{36})\)/),rootTaskId:field(/agents.rootTaskId: Str\(([a-f0-9-]{36})\)/)};
-   }).filter(span=>span.observationId);
-   const metricNames=[...new Set([...logs.matchAll(/-> Name: (agents\.[a-zA-Z0-9_.]+)/g)].map(match=>match[1]))],path=join(repository,'.audit',`agents-load-collector-${runId}.json`),privateContentLeaked=logs.includes('CONTROLLED_PRIVATE_CANARY')||logs.includes(key);
-   await writeFile(path,JSON.stringify({spans,metricNames,privateContentLeaked},null,2));
-   return{image:collectorImage,traces:spans.length>0,metrics:metricNames.length>0,privateContentLeaked,objectBytes:totalBytes,reportPosts:posts,metadataPath:path,spans,metricNames};
+   await new Promise(resolve=>setTimeout(resolve,100));const captured=metadata.snapshot(),path=join(repository,'.audit',`agents-load-collector-${runId}.json`);
+   await writeFile(path,JSON.stringify({...captured,captureErrors},null,2));
+   return{image:collectorImage,traces:captured.spans.length>0,metrics:captured.metricNames.length>0,...captured,captureErrors,objectBytes:totalBytes,reportPosts:posts,metadataPath:path};
   },
-  async close(){if(collectorOwned){docker('rm','-f',container);collectorOwned=false;}await receiver.close();await new Promise<void>(resolve=>s3.close(()=>resolve()));objects.clear();}
+  async close(){closing=true;collectorLog?.kill('SIGTERM');if(collectorOwned){docker('rm','-f',container);collectorOwned=false;}await receiver.close();await new Promise<void>(resolve=>s3.close(()=>resolve()));objects.clear();}
  };
 }
