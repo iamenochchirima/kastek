@@ -31,7 +31,7 @@ describe('bounded diagnostic-only fixture profiling',()=>{
   const timings=queryTimings(),pool=Object.assign(new EventEmitter(),{query:vi.fn(async(_input?:unknown)=>[])}),client={query:vi.fn(async(_input?:unknown)=>[])};
   observeFixtureDatabaseErrors(pool as any,timings);pool.emit('connect',client);timings.start();await pool.query('SELECT secret FROM tasks');await client.query('SELECT private_prompt FROM agents_platform.tasks WHERE id=$1');timings.stop();await client.query('SELECT other FROM tasks');
   expect(timings.snapshot()).toEqual([expect.objectContaining({family:'tasks:select',count:1})]);expect(JSON.stringify(timings.snapshot())).not.toContain('private_prompt');
-  expect(sqlFamily('WITH tenants AS MATERIALIZED (SELECT 1) SELECT * FROM task_outbox')).toBe('dispatch-claim');expect(sqlFamily({text:'BEGIN'})).toBe('transaction');
+  expect(sqlFamily('WITH tenants AS MATERIALIZED (SELECT 1) SELECT * FROM agents_platform.task_outbox')).toBe('dispatch-fair-claim');expect(sqlFamily('WITH terminal AS (SELECT task_id FROM agents_platform.task_outbox) UPDATE agents_platform.task_outbox SET lease_owner=NULL')).toBe('dispatch-terminal-cleanup');expect(sqlFamily('WITH due AS (SELECT 1) UPDATE agents_platform.task_outbox SET lease_owner=NULL')).toBe('task_outbox:with');expect(sqlFamily({text:'BEGIN'})).toBe('transaction');
  });
  it('captures and stops a real in-process CPU session without opening a port',async()=>{
   const emit=vi.fn(),persist=vi.fn(async(_path:string,data:string)=>{const profile=JSON.parse(data);expect(profile.nodes.length).toBeGreaterThan(0);});

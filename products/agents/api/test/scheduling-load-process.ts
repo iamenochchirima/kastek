@@ -17,9 +17,11 @@ import {composeInbox} from '../src/composition/inbox';
 import {createObservationTelemetry,startObservationPublisher} from '../src/observability/telemetry';
 import {createNativeMetrics} from '../src/observability/metrics';
 import {observeFixtureDatabaseErrors} from './scheduling-load-diagnostics';
+import {dispatcherPhaseTimings} from './scheduling-load-phases';
 import {fixtureProfiler,profilePath} from './scheduling-load-profile';
 import {resolve} from 'node:path';
 const role=process.env.AGENTS_LOAD_ROLE;
+const dispatcherPhases=dispatcherPhaseTimings();
 if(!['api','worker'].includes(role??'')||!process.env.AGENTS_LOAD_SIMULATOR_URL)throw Error('Load fixture configuration missing');
 const pool=new Pool({connectionString:process.env.AGENTS_DATABASE_URL,...databasePoolOptions(role as 'api'|'worker')});
 const profiler=process.env.AGENTS_LOAD_PROFILE_RUN?fixtureProfiler({path:profilePath(resolve(__dirname,'../../../..'),process.env.AGENTS_LOAD_PROFILE_RUN,role!,Number(process.env.AGENTS_LOAD_PROFILE_INDEX)),emit:item=>process.stdout.write(JSON.stringify(item)+'\n')}):undefined;
@@ -29,7 +31,7 @@ async function main(){
  const telemetry=startObservationPublisher(pool,createObservationTelemetry(`agents-load-${role}`)),nativeMetrics=createNativeMetrics(pool,role!);
  async function closeTelemetry(){await profiler?.stop('shutdown');await telemetry.stop();await nativeMetrics?.shutdown();}
  let cpu=process.cpuUsage();
- const metrics=setInterval(()=>{const current=process.cpuUsage(),cpuPercent=(current.user+current.system-cpu.user-cpu.system)/10000;cpu=current;process.stdout.write(JSON.stringify({fixtureMetrics:true,role,pid:process.pid,cpuPercent,poolTotal:pool.totalCount,poolIdle:pool.idleCount,poolWaiting:pool.waitingCount,...process.memoryUsage()})+'\n');},1000);metrics.unref();
+ const metrics=setInterval(()=>{const current=process.cpuUsage(),cpuPercent=(current.user+current.system-cpu.user-cpu.system)/10000;cpu=current;process.stdout.write(JSON.stringify({fixtureMetrics:true,role,pid:process.pid,cpuPercent,poolTotal:pool.totalCount,poolIdle:pool.idleCount,poolWaiting:pool.waitingCount,...process.memoryUsage(),...(role==='worker'?{dispatcherPhases:dispatcherPhases.snapshot()}:{})})+'\n');},1000);metrics.unref();
  if(role==='api'){
   const app=await buildPlatformApp({pool,config:loadPlatformConfig(),logging:false});const endpoint=await app.listen({host:'127.0.0.1',port:0});
   process.stdout.write(JSON.stringify({fixtureReady:true,role,endpoint})+'\n');
@@ -49,7 +51,7 @@ async function main(){
    return fetch(simulator,{...options,headers});}});
   const server=createServer(createEndpointHandler({services:[workflow]}));server.on('session',session=>{sessions.add(session);session.once('close',()=>sessions.delete(session));});
   await new Promise<void>(resolve=>server.listen(Number(process.env.AGENTS_LOAD_WORKER_PORT??0),'0.0.0.0',resolve));const port=(server.address() as {port:number}).port;
-  const dispatcher=startDispatcher(pool,{ingressUrl:process.env.RESTATE_INGRESS_URL!,adminUrl:process.env.RESTATE_ADMIN_URL!,policy:{batchSize:128,parallelism:32}});
+  const dispatcher=startDispatcher(pool,{ingressUrl:process.env.RESTATE_INGRESS_URL!,adminUrl:process.env.RESTATE_ADMIN_URL!,policy:{batchSize:128,parallelism:32},onPhase:(phase,durationMs,success)=>{dispatcherPhases.observe(phase,durationMs,success);nativeMetrics?.dispatcherPhase(phase,durationMs,success);}});
   process.stdout.write(JSON.stringify({fixtureReady:true,role,port})+'\n');
   for(const signal of ['SIGTERM','SIGINT'] as const)process.once(signal,()=>{clearInterval(cancellationTimer);void Promise.resolve(profiler?.stop('shutdown')).then(()=>dispatcher.stop()).then(closeTelemetry).then(()=>{for(const session of sessions)session.destroy();server.close(()=>{void pool.end().then(()=>process.exit(0));});});});
  }

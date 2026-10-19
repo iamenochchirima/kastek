@@ -16,7 +16,8 @@ const limits=[1,2,5,10,20,50,100,200,500,1000,2000,5000,10000,30000,60000,120000
 export function sqlFamily(input:unknown){
  const raw=typeof input==='string'?input:typeof(input as any)?.text==='string'?(input as any).text:'';
  const text=raw.toLowerCase().replace(/\s+/g,' ').trim();
- if(text.startsWith('with tenants as materialized')||text.includes('lease_owner')&&text.includes('task_outbox')&&text.startsWith('with'))return'dispatch-claim';
+ if(text.startsWith('with tenants as materialized')&&text.includes('agents_platform.task_outbox'))return'dispatch-fair-claim';
+ if(text.startsWith('with terminal as')&&text.includes('agents_platform.task_outbox'))return'dispatch-terminal-cleanup';
  if(/^(begin|commit|rollback|savepoint|release savepoint)/.test(text))return'transaction';
  const table=['capacity_slots','capacity_requests','capacity_buckets','execution_roots','task_outbox','operations','tasks','context_snapshots','observation_exports','task_events','evidence','actions','organizations','usage_'].find(part=>text.includes(part))??'other';
  const verb=/^(select|insert|update|delete|with)/.exec(text)?.[1]??'other';
