@@ -109,7 +109,7 @@ References: [HTTP invocation](https://docs.restate.dev/services/invocation/http)
 
 ## Report and automation recovery
 
-Worker registration discovers `AgentsBusinessRunV11`, `AgentsAutomationV1` and, when configured, `AgentsKnowledgeImportV1`.
+Worker registration discovers `AgentsBusinessRunV12`, `AgentsAutomationV1` and, when configured, `AgentsKnowledgeImportV1`.
 Use a fresh dedicated development database after schema changes; setup rejects
 an incompatible checksum. Keep immutable worker endpoints for journal replay.
 Do not point old journals at changed workflow/descriptor code.
@@ -248,7 +248,10 @@ remain separately verified deployment gates.
 
 ## Knowledge and connected-read recovery
 
-`AgentsBusinessRunV11` uses harness release `modular-programs-v1`.
+`AgentsBusinessRunV12` uses harness release `modular-programs-v2`.
+Each operation journals its physical outcome before a separate durable step writes
+the native receipt. Receipt retries reuse that outcome without repeating provider
+requests. A crash before the outcome is journaled remains uncertain.
 The outbox submits roots; the parent workflow submits specialists. The outbox
 never submits an ordinary child again. Root retries resolve the accepted workflow
 through `/restate/lookup` before recording its invocation identity. Ordered turns
