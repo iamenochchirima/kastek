@@ -78,6 +78,12 @@ compositions are immutable. Workspace programs and booking providers fail explic
 Reviewed report stages live in `workflows/report-delivery/program.ts` and retain digest-bound
 approval, one dispatch claim and status-only reconciliation.
 
+Built-in contract JSON schemas are generated once per fixed capability name and stored as
+deeply immutable metadata. Their published digests are unchanged. This cache contains no task,
+configuration, or live authority state. Operation admission, receipt persistence, and task
+settlement read only immutable organization/root keys before locking, then reload and validate
+the full execution under the original locks. Current authority and dependency checks still run.
+
 The current source release is `modular-programs-v2` / `AgentsBusinessRunV12`. It requires a fresh
 dedicated schema. Verification uses separate compiled artifacts and databases. Running older local
 artifacts are not upgraded by setup or rewritten to accept the new schema.
