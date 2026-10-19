@@ -7,6 +7,7 @@ import {createBusinessWorkflow} from '../src/execution/business/business';
 import {buildPlatformApp} from '../src/composition/app';
 import {loadPlatformConfig} from '../src/infrastructure/config';
 import {startDispatcher} from '../src/execution/lifecycle/dispatcher';
+import {dispatchPolicyFromEnvironment} from '../src/execution/scheduling/dispatch-claims';
 import {databasePoolOptions} from '../src/infrastructure/pool-policy';
 import {privateStoreFromEnvironment} from '../src/infrastructure/object-store';
 import {EvidenceStore} from '../src/execution/context/evidence';
@@ -23,6 +24,7 @@ import {resolve} from 'node:path';
 const role=process.env.AGENTS_LOAD_ROLE;
 const dispatcherPhases=dispatcherPhaseTimings();
 if(!['api','worker'].includes(role??'')||!process.env.AGENTS_LOAD_SIMULATOR_URL)throw Error('Load fixture configuration missing');
+const dispatchPolicy=dispatchPolicyFromEnvironment();
 const pool=new Pool({connectionString:process.env.AGENTS_DATABASE_URL,...databasePoolOptions(role as 'api'|'worker')});
 const profiler=process.env.AGENTS_LOAD_PROFILE_RUN?fixtureProfiler({path:profilePath(resolve(__dirname,'../../../..'),process.env.AGENTS_LOAD_PROFILE_RUN,role!,Number(process.env.AGENTS_LOAD_PROFILE_INDEX)),emit:item=>process.stdout.write(JSON.stringify(item)+'\n')}):undefined;
 if(profiler)process.on('SIGUSR2',profiler.start);
@@ -51,8 +53,8 @@ async function main(){
    return fetch(simulator,{...options,headers});}});
   const server=createServer(createEndpointHandler({services:[workflow]}));server.on('session',session=>{sessions.add(session);session.once('close',()=>sessions.delete(session));});
   await new Promise<void>(resolve=>server.listen(Number(process.env.AGENTS_LOAD_WORKER_PORT??0),'0.0.0.0',resolve));const port=(server.address() as {port:number}).port;
-  const dispatcher=startDispatcher(pool,{ingressUrl:process.env.RESTATE_INGRESS_URL!,adminUrl:process.env.RESTATE_ADMIN_URL!,policy:{batchSize:128,parallelism:32},onPhase:(phase,durationMs,success)=>{dispatcherPhases.observe(phase,durationMs,success);nativeMetrics?.dispatcherPhase(phase,durationMs,success);}});
-  process.stdout.write(JSON.stringify({fixtureReady:true,role,port})+'\n');
+  const dispatcher=startDispatcher(pool,{ingressUrl:process.env.RESTATE_INGRESS_URL!,adminUrl:process.env.RESTATE_ADMIN_URL!,policy:dispatchPolicy,onPhase:(phase,durationMs,success)=>{dispatcherPhases.observe(phase,durationMs,success);nativeMetrics?.dispatcherPhase(phase,durationMs,success);}});
+  process.stdout.write(JSON.stringify({fixtureReady:true,role,port,dispatchPolicy})+'\n');
   for(const signal of ['SIGTERM','SIGINT'] as const)process.once(signal,()=>{clearInterval(cancellationTimer);void Promise.resolve(profiler?.stop('shutdown')).then(()=>dispatcher.stop()).then(closeTelemetry).then(()=>{for(const session of sessions)session.destroy();server.close(()=>{void pool.end().then(()=>process.exit(0));});});});
  }
 }
