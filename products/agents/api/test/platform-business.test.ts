@@ -310,8 +310,16 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
   }
   it("runs two pinned business specialists concurrently and charges the root tree exactly once",async()=>{
     const f=await researchFixture(); researchProvider();
-    expect(await execute(f.task.id)).toMatchObject({state:"completed",output:"Both approved specialists confirm opening at nine."});
-    expect(calls).toHaveLength(4);
+    const originalProvider=provider;let releasedBeforeChildModel=0;
+    provider=async(body,request)=>{
+      if(!body.messages[0].content.startsWith("ROOT_RESEARCH")){
+        const parent=(await pool.query("SELECT o.state,c.state AS capacity_state FROM agents_platform.operations o JOIN agents_platform.capacity_requests c ON c.id=o.id WHERE o.task_id=$1 AND o.kind='delegation'",[f.task.id])).rows;
+        expect(parent).toEqual([{state:'completed',capacity_state:'released'}]);releasedBeforeChildModel++;
+      }
+      return originalProvider(body,request);
+    };
+    try{expect(await execute(f.task.id)).toMatchObject({state:"completed",output:"Both approved specialists confirm opening at nine."});}finally{provider=originalProvider;}
+    expect(releasedBeforeChildModel).toBe(2);expect(calls).toHaveLength(4);
     const delegateDefinition=calls[0]!.tools!.find(tool=>tool.function.name==="agents_delegate")!;
     expect(delegateDefinition.function.description).toContain('"name":"FIRST"');
     expect(delegateDefinition.function.description).toContain('"purpose":"SPECIALIST_FIRST: Answer from the provided source."');

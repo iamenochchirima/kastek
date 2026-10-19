@@ -4,7 +4,7 @@ import type {Execution,OperationRequest} from "../../contracts/execution";
 import type {CapacityRequest} from "./capacity";
 const limit=z.number().int().min(1).max(100000);
 export const schedulingPolicySchema=z.strictObject({
- productActive:limit.default(128),tenantActive:limit.default(8),modelActive:limit.default(2),toolActive:limit.default(4),providerActive:limit.default(128),
+ productActive:limit.default(128),tenantActive:limit.default(8),modelActive:limit.default(2),toolActive:limit.default(4),providerActive:limit.default(128),localProviderActive:limit.optional(),
  interactiveActive:limit.default(4),backgroundActive:limit.default(2),ingestionActive:limit.default(2),sandboxActive:limit.default(2),evaluationActive:limit.default(2),
  maxConcurrentRoots:limit.default(2),maxQueued:limit.default(1000),maxWaitMs:z.number().int().min(1000).max(900000).default(120000),
  dailyTokenAllowance:z.number().int().min(1).max(2000000000).default(100000),
@@ -30,6 +30,6 @@ export function operationCapacity(execution:Execution,input:OperationRequest,env
   {key:`tenant:${tenant}`,limit:policy.tenantActive},
   {key:`class:${tenant}:${model?'model':'tool'}`,limit:model?policy.modelActive:policy.toolActive},
   {key:`workload:${tenant}:${workload}`,limit:policy[`${workload}Active`]},
-  {key:`provider:${model?'model':binding?'connected':'local'}:${short(account)}`,limit:policy.providerActive},
+  {key:`provider:${model?'model':binding?'connected':'local'}:${short(account)}`,limit:!model&&!binding?(policy.localProviderActive??policy.providerActive):policy.providerActive},
  ]}};
 }
