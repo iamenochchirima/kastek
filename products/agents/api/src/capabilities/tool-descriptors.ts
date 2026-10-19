@@ -22,7 +22,11 @@ const descriptors: readonly Omit<ToolDescriptor,"inputSchema"|"outputSchema"|"re
   {name:"report.deliver",version:"1",effect:"external_effect",maxDurationMs:60000,maxResultBytes:8192,retry:"status_only",cancel:"reconcile_claimed",
     connection:"scoped_report_destination",review:"exact_single_use",adapter:"report-delivery-http-v1"},
 ];
-export const REPORT_WORKFLOW_BINDING=Object.freeze({profileId:"report-delivery-v1",version:"1",adapter:"report-delivery-http-v1",
+function immutableJson<T>(value:T):T {
+  if(value!==null&&typeof value==="object"){for(const child of Object.values(value))immutableJson(child);Object.freeze(value);}
+  return value;
+}
+export const REPORT_WORKFLOW_BINDING=immutableJson({profileId:"report-delivery-v1",version:"1",adapter:"report-delivery-http-v1",
   stages:["generate","validate_artifact","prepare","review","claim","deliver","reconcile"],
   inputSchema:{type:"object",properties:{connectionId:{type:"string",format:"uuid"},artifactId:{type:"string",format:"uuid"},title:{type:"string",maxLength:120}},required:["connectionId","artifactId","title"],additionalProperties:false}});
 export function toolDescriptor(name:string):ToolDescriptor|undefined {

@@ -135,6 +135,32 @@ const dbUrl = process.env.AGENTS_TEST_DATABASE_URL;
     expect(saved.operations).toContain("connected.read");
   });
 
+  it("revalidates fresh config, binding bodies and both saved compositions after warming pure compilation", async () => {
+    const f=await fixture(),config=defaultBusinessConfiguration();config.connectedToolBindingIds=f.bindings.map(binding=>binding.id);
+    await store.updateDraft({...f.scope,agentId:f.root.id,expectedRevision:1,configuration:config});
+    const version=await store.createVersion({...f.scope,agentId:f.root.id,expectedRevision:2});
+    const authority={product:"agents" as const,organizationId:f.org.id,resourceId:f.root.id,callerClientId:"agents-execution",principal:{kind:"human" as const,issuer:f.account.issuer,subject:f.account.subject}};
+    const grant=executionGrantSchema.parse({...authority,id:randomUUID(),versionId:version.id,operations:operationsForConfiguration(config),connectedToolBindingIds:config.connectedToolBindingIds,
+      sourceRevisionIds:[],maxInputBytes:config.model.maxInputBytes,maxOutputTokens:config.model.maxOutputTokens,expiresAt:new Date(Date.now()+60000).toISOString(),revokedAt:null});
+    await store.createGrant({accountId:f.account.id,grant});
+    const {task}=await store.admitTask({authority,versionId:version.id,grantId:grant.id,requestKey:randomUUID(),input:"Read approved repository"});
+    const warmed=await loadExecution(pool,task.id);expect((await loadExecution(pool,task.id)).connectedBindings).toEqual(warmed.connectedBindings);
+    async function corrupt(table:'tasks'|'agent_versions'|'capability_bindings',trigger:string,sql:string,values:unknown[],code?:string){
+      const db=await pool.connect();try{
+        await db.query('BEGIN');await db.query(`ALTER TABLE agents_platform.${table} DISABLE TRIGGER ${trigger}`);await db.query(sql,values);
+        if(code)await expect(loadExecution(db,task.id)).rejects.toMatchObject({code});else await expect(loadExecution(db,task.id)).rejects.toThrow();
+      }finally{await db.query('ROLLBACK');db.release();}
+      expect((await loadExecution(pool,task.id)).configuration).toEqual(config);
+    }
+    await corrupt('tasks','immutable_execution_composition',"UPDATE agents_platform.tasks SET effective_configuration=$2 WHERE id=$1",[task.id,{...config,instructions:'PRIVATE_changed_config_canary'}],'PROGRAM_RELEASE_UNAVAILABLE');
+    await corrupt('agent_versions','immutable_agent_version',"UPDATE agents_platform.agent_versions SET configuration=$2 WHERE id=$1",[version.id,{...config,instructions:'PRIVATE_changed_version_canary'}],'PROGRAM_RELEASE_UNAVAILABLE');
+    await corrupt('tasks','immutable_execution_composition',"UPDATE agents_platform.tasks SET effective_configuration=$2 WHERE id=$1",[task.id,{...config,model:{...config.model,provider:'untrusted'}}]);
+    const binding=f.bindings[0]!;await corrupt('capability_bindings','immutable_capability_binding',"UPDATE agents_platform.capability_bindings SET binding=$2 WHERE id=$1",[binding.id,{...binding,limits:{...binding.limits,timeoutMs:29000}}]);
+    await corrupt('tasks','immutable_execution_composition',"UPDATE agents_platform.tasks SET effective_composition=jsonb_set(effective_composition,'{digest}',to_jsonb(repeat('0',64))) WHERE id=$1",[task.id],'PROGRAM_RELEASE_UNAVAILABLE');
+    await corrupt('agent_versions','immutable_agent_version',"UPDATE agents_platform.agent_versions SET effective_composition=jsonb_set(effective_composition,'{digest}',to_jsonb(repeat('0',64))) WHERE id=$1",[version.id],'PROGRAM_RELEASE_UNAVAILABLE');
+    await corrupt('tasks','immutable_execution_composition',"UPDATE agents_platform.tasks SET harness_release='different-release' WHERE id=$1",[task.id],'HARNESS_RELEASE_UNAVAILABLE');
+  });
+
   it("rejects a revoked delegated-only connection and tools not in the published specialist scope", async () => {
     const f = await fixture();
     const changed = structuredClone(f.config);

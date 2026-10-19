@@ -7,7 +7,7 @@ PlatformError
 
 import { capabilityBindingSchema } from "../../contracts/capability-catalog";
 import { assertComposition } from "../programs/composition";
-import { compilePublishedComposition } from "../programs/publication";
+import { compileValidatedComposition } from "./validated-composition";
 export { transaction } from "../../infrastructure/database";
 
 import { HARNESS_RELEASE,type Execution } from "../../contracts/execution";
@@ -24,7 +24,7 @@ export async function loadExecution(db: Pool | PoolClient, taskId: string, lock 
     WHERE v.organization_id=$1 AND v.version_id=$2 AND b.id=ANY($3::uuid[]) ORDER BY b.alias`, [task.organization_id, task.version_id, configuration.connectedToolBindingIds])).rows : [];
   if (rows.length !== configuration.connectedToolBindingIds.length) throw new PlatformError("CAPABILITY_BINDING_UNAVAILABLE", 409, "Published connected tools are unavailable");
   const connectedBindings = rows.map(row => capabilityBindingSchema.parse(row.binding));
-  const current = compilePublishedComposition(configuration, connectedBindings);
+  const current = compileValidatedComposition(configuration, connectedBindings);
   assertComposition(task.effective_composition, current);
   if (!task.parent_task_id) assertComposition(task.published_composition, current);
   return { task, configuration, agentId: task.agent_id,toolBindings:task.tool_bindings, connectedBindings };
