@@ -1,0 +1,73 @@
+{
+  "version": "controlled-platform-workload.v3",
+  "scope": "Disposable tenants through authenticated HTTP, real PostgreSQL, Restate and native receipts. Controlled HTTP model, object storage and report receiver only.",
+  "rootTargets": [
+    100,
+    1000,
+    10000
+  ],
+  "arrival": {
+    "steadyMs": 30000,
+    "steadyRootFraction": 0.5,
+    "burstMs": 10000,
+    "burstRootFraction": 0.5,
+    "drainMs": 120000
+  },
+  "mixPercent": {
+    "groundedFaq": 50,
+    "memoryTool": 20,
+    "delegation": 10,
+    "delayedReportReview": 10,
+    "slowModel": 10
+  },
+  "provider": {
+    "modelMs": 100,
+    "slowModelMs": 1000,
+    "reviewDelayMs": 3000
+  },
+  "controls": {
+    "websiteConversationsPerTenant": 1,
+    "maxControlTenants": 10,
+    "humanOwnedBacklogMustNotAdmit": true,
+    "returnMustNotReplayBacklog": true,
+    "reconnectUsesAnotherApiReplica": true
+  },
+  "thresholds": {
+    "interactiveP95Ms": 5000,
+    "ownershipControlP95Ms": 5000,
+    "queueAgeP95Ms": 30000,
+    "lostAcceptedRoots": 0,
+    "duplicateLogicalEffects": 0,
+    "crossTenantLeaks": 0,
+    "incorrectSettlements": 0,
+    "perTenantDispatchP95Ms": 30000,
+    "perTenantStatusP95Ms": 5000,
+    "perTenantControlP95Ms": 5000,
+    "minimumStatusSamplesPerConfiguredTenant": 1,
+    "faultRestoreToNativeReconciledMs": 30000,
+    "staleGenerationAssistantMessagesAfterDrain": 0
+  },
+  "faultStages": [
+    "none",
+    "duplicate-messages",
+    "worker-loss",
+    "provider-throttle",
+    "collector-outage",
+    "lease-expiry",
+    "reconnect"
+  ],
+  "interpretation": "Report admitted, nonterminal, waiting roots, active model operations and child tasks independently. Passing root admission does not establish active concurrency. Preserve failed targets and resource limits without reducing a target. Website control roots are reported separately from the configured root target.",
+  "statusProbes": {
+    "parallel": 5,
+    "intervalMs": 250,
+    "selection": "Round robin configured tenants independently of traffic volume"
+  },
+  "faultRecovery": "Track injection/restoration timestamps and affected native roots or Collector export intents. Reconciliation includes truthful terminal uncertainty after worker loss; it never changes uncertainty into confirmed success. Provider throttling is removed after configured arrivals and retains native rejected receipts.",
+  "physicalAttribution": {
+    "successfulCalls": "Exact native providerRequestId plus canonical serialized request digest",
+    "faultCalls": "Unique native context digest/step/attempt lookup before local HTTP dispatch; ambiguous matches fail",
+    "scopeMarkers": "Immutable fixture agent ID in published instructions and parent request digest in delegated brief",
+    "effects": "Exact native action/task/root/artifact IDs, canonical payload and byte digests, receiver receipt and POST audit",
+    "collector": "Retained bounded parsed actual span/trace/observation/task/root IDs and metric names; correlate sampled affected native export intents after restoration"
+  }
+}

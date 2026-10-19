@@ -632,7 +632,7 @@ The controlled acceptance driver is `api/test/scheduling-load.ts`, with separate
 API and worker fixture processes in `scheduling-load-process.ts`. It creates only
 a uniquely named database/container and disposable principals, uses authenticated
 HTTP interfaces and a local HTTP model simulator, and writes measurements under
-ignored `.audit/`. `AGENTS_LOAD_FULL=1` runs the versioned `scheduling-workload.v2.json`
+ignored `.audit/`. `AGENTS_LOAD_FULL=1` runs the versioned `scheduling-workload.v3.json`
 contract: 30 seconds of steady arrivals, a 10-second burst, then at most 120 seconds
 of drain. It includes approved-source FAQ evidence/citations, memory tools, delegated
 children, delayed report review and actual receiver receipts, plus canonical website
@@ -645,6 +645,20 @@ pressure cases. `AGENTS_LOAD_FAULT` selects duplicate-messages, worker-loss,
 provider-throttle, collector-outage, lease-expiry or reconnect. A selected fault that
 was not injected is reported as unmet. Expected uncertainty and provider failures
 remain visible rather than being rewritten as completed outcomes.
+The current manifest also grades each configured tenant's status and dispatch latency,
+requires actual probe coverage, checks each control tenant, and audits canonical messages
+after drain for stale-generation assistant deliveries. Fault reports retain injection and
+restoration times and require native reconciliation within 30 seconds; worker-loss
+uncertainty remains a separate outcome. Previous manifest results are not retroactively
+claimed to meet these newer fairness and recovery criteria.
+Physical model requests are matched to native operation/attempt identities by exact provider
+response IDs and canonical serialized request digests. Fault fixtures additionally resolve the
+unique native context digest before local dispatch; missing or ambiguous attribution fails.
+Receiver verification compares action/task/root/artifact identities, approved payload and byte
+digests, native receipts and actual POST audits. Equal aggregate totals cannot establish success.
+Parsed Collector span/trace/observation identities and metric names are retained as bounded local
+metadata before owned containers are removed. Verifier calibration rejects substituted effects,
+stale attempts, repeated physical requests, unexpected failures and missing safety evidence.
 
 `AGENTS_LOAD_BARRIER=operations` holds actual model HTTP responses until the
 configured simultaneous active-operation target is reached or the finite hold expires.
