@@ -11,7 +11,8 @@
     "steadyRootFraction": 0.5,
     "burstMs": 10000,
     "burstRootFraction": 0.5,
-    "drainMs": 120000
+    "drainMs": 120000,
+    "completionBound": "steadyMs+burstMs+interactiveP95Ms; await final admission responses, and fail if actual arrivals exceed this fixed bound"
   },
   "mixPercent": {
     "groundedFaq": 50,
@@ -69,5 +70,13 @@
     "scopeMarkers": "Immutable fixture agent ID in published instructions and parent request digest in delegated brief",
     "effects": "Exact native action/task/root/artifact IDs, canonical payload and byte digests, receiver receipt and POST audit",
     "collector": "Retained bounded parsed actual span/trace/observation/task/root IDs and metric names; correlate sampled affected native export intents after restoration"
+  },
+  "faultTiming": {
+    "revision": "steady-arrival-injection.v1",
+    "workerLossNotBeforeMs": 10000,
+    "workerActualRequestGateMaxMs": 15000,
+    "collectorPauseAtMs": 10000,
+    "collectorPauseMs": 5000,
+    "scope": "Fault-only timing; no-fault arrival mix and thresholds unchanged"
   }
 }
