@@ -94,13 +94,29 @@ export async function advanceCapacity(pool:Pool,options:Partial<CapacityPolicy>=
   if(!tenants.length)return [];
   const ids=tenants.map(t=>t.organization_id);
   await db.query('UPDATE agents_platform.scheduling_tenants SET last_capacity_at=now() WHERE organization_id=ANY($1::uuid[])',[ids]);
-  return (await db.query(`WITH due AS (SELECT q.id,q.task_id,t.organization_id,q.created_at+CASE WHEN q.workload='interactive' THEN interval '0 seconds' ELSE interval '5 seconds' END AS priority_at,
-   row_number() OVER(PARTITION BY t.organization_id ORDER BY q.created_at+CASE WHEN q.workload='interactive' THEN interval '0 seconds' ELSE interval '5 seconds' END,q.id) AS rank
+  return (await db.query(`WITH due AS MATERIALIZED (
+   SELECT q.id,q.task_id,t.organization_id,q.state,q.deadline_at,q.bucket_keys,
+   q.created_at+CASE WHEN q.workload='interactive' THEN interval '0 seconds' ELSE interval '5 seconds' END AS priority_at
    FROM agents_platform.capacity_requests q JOIN agents_platform.tasks t ON t.id=q.task_id WHERE t.organization_id=ANY($1::uuid[])
-   AND (q.state='waiting' OR q.state='granted' AND q.lease_until<=now())) SELECT id,task_id,organization_id FROM due ORDER BY rank,priority_at,id LIMIT $2`,[ids,limit])).rows;
+   AND (q.state='waiting' OR q.state='granted' AND q.lease_until<=now())),
+   unavailable AS MATERIALIZED (SELECT b.key FROM agents_platform.capacity_buckets b
+    WHERE NOT EXISTS(SELECT 1 FROM agents_platform.capacity_slots s WHERE s.bucket_key=b.key AND s.owner_request IS NULL)
+    AND NOT EXISTS(SELECT 1 FROM agents_platform.capacity_slot_ranges r WHERE r.bucket_key=b.key AND r.next_slot<=b.max_active)),
+   housekeeping AS (SELECT id,task_id,organization_id,priority_at,
+    row_number() OVER(PARTITION BY organization_id ORDER BY priority_at,id) AS rank FROM due
+    ORDER BY rank,priority_at,id LIMIT $2),
+   eligible AS (SELECT id,task_id,organization_id,priority_at,
+    row_number() OVER(PARTITION BY organization_id ORDER BY priority_at,id) AS rank FROM due q
+    WHERE q.state='waiting' AND q.deadline_at>now() AND NOT EXISTS(SELECT 1 FROM unavailable b WHERE b.key=ANY(q.bucket_keys))
+    ORDER BY rank,priority_at,id LIMIT $2),
+   selected AS (SELECT DISTINCT ON(id) * FROM (SELECT * FROM housekeeping UNION ALL SELECT * FROM eligible) lanes ORDER BY id,rank)
+   SELECT id,task_id,organization_id FROM selected ORDER BY rank,priority_at,id`,[ids,limit])).rows;
  });
- for(const candidate of candidates){
-  await transaction(pool,async db=>{
+ const parallelism=Math.min(4,Math.max(1,Math.floor((pool.options.max??10)/2)));
+ let next=0,failed=false,failure:unknown;
+ await Promise.all(Array.from({length:Math.min(parallelism,candidates.length)},async()=>{
+  while(next<candidates.length){const candidate=candidates[next++]!;
+   try{await transaction(pool,async db=>{
    let errorCode:string|undefined;
    try{const execution=await loadExecution(db,candidate.task_id);await assertCurrentAuthority(db,execution);}
    catch(error){if(!(error instanceof PlatformError))throw error;errorCode=error.code;}
@@ -112,8 +128,10 @@ export async function advanceCapacity(pool:Pool,options:Partial<CapacityPolicy>=
    if(row.deadline_expired)errorCode='CAPACITY_WAIT_EXPIRED';
    if(errorCode){await db.query("UPDATE agents_platform.capacity_requests SET state='rejected',error_code=$2,finished_at=now() WHERE id=$1",[row.id,errorCode]);await notify(db,row);return true;}
    return grantIfAvailable(db,row,policy.grantLeaseMs,true,false,candidate.organization_id);
-  });
- }
+   });}catch(error){if(!failed){failure=error;failed=true;}}
+  }
+ }));
+ if(failed)throw failure;
 }
 /** Stops queued/provisional work only; active and uncertain calls require settlement. */
 export async function stopTaskCapacity(db:PoolClient,taskId:string,errorCode='TASK_STOPPED'):Promise<void>{
