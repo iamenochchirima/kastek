@@ -699,6 +699,25 @@ All replica pools must fit the declared 60-connection budget. These local profil
 production sizing, high availability or real-provider limits. Reports retain executable
 source hashes, pool/lock/resource measurements, all failures and missing dimensions.
 
+Diagnostic CPU profiling is separate from acceptance. The following fixture command enables
+internal inspector sessions on API0 and worker0 only, without a debugger port or heap snapshots:
+
+```sh
+AGENTS_LOAD_FULL=1 AGENTS_LOAD_ROOTS=10000 AGENTS_LOAD_REPLICAS=4 \
+AGENTS_LOAD_DIAGNOSTIC_PROFILE=1 \
+node --env-file=products/agents/api/.env \
+  --import ./products/agents/api/node_modules/tsx/dist/loader.mjs \
+  products/agents/api/test/scheduling-load.ts
+```
+
+Sampling starts 20 seconds into the workload and stops after 30 seconds, at a 1ms interval.
+Profiles are saved under `.audit/agents-load-profile-<run UUID>/`. The run report's
+`profiling.evidence` contains bounded query-family counts, totals, maxima, and histogram-based
+latency bounds. It contains no SQL text or parameters. These client timings include response
+handling and do not isolate database server execution time. The diagnostic snapshot omits the
+120-second drain, retains unfinished outcomes, sets `diagnosticOnly=true` and
+`acceptanceEligible=false`, and intentionally exits with code 2. It cannot qualify a load target.
+
 Business operation admission returns a committed waiting decision without creating
 an operation or reserving tokens. The workflow waits on a generation-specific
 Restate promise and its fixed queue deadline. The notification handler checks the
