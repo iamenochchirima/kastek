@@ -1,7 +1,7 @@
 import {randomUUID} from 'node:crypto';
 import {createServer,type Server} from 'node:http';
 import {Pool} from 'pg';
-import {beforeAll,afterAll,describe,it,expect} from 'vitest';
+import {beforeAll,afterAll,describe,it,expect,vi} from 'vitest';
 import {defaultBusinessConfiguration,executionGrantSchema,type AdmissionAuthority} from '../src/contracts/contracts';
 import {PlatformStore} from '../src/product/agents/store';
 import {setupPlatformSchema} from '../src/composition/setup';
@@ -38,6 +38,14 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
   await dispatchTasksOnce(pool,{ingressUrl:origin,adminUrl:origin,onPhase:(phase,durationMs,success)=>{phases.push({phase,durationMs,success});throw Error('Observer failed');}});
   expect(phases.map(item=>item.phase)).toEqual(['dispatch','reconciliation','capacity','capacity_notifications','controls']);
   expect(phases.every(item=>item.success&&Number.isFinite(item.durationMs)&&item.durationMs>=0)).toBe(true);
+ });
+ it('keeps invalid-route failures asynchronous and performs no database work',async()=>{
+  const closed=new Pool({connectionString:pool.options.connectionString,max:1});await closed.end();
+  const queries=vi.spyOn(closed,'query'),phases:{phase:string;success:boolean}[]=[],errors:string[]=[];
+  const dispatcher=startDispatcher(closed,{ingressUrl:'invalid-route',adminUrl:origin,onPhase:(phase,_durationMs,success)=>phases.push({phase,success}),onError:code=>errors.push(code)});
+  await eventually(async()=>phases.length===5);await dispatcher.stop();
+  expect(new Set(phases.map(item=>item.phase)).size).toBe(5);expect(phases.every(item=>!item.success)).toBe(true);expect(errors).toEqual(Array(5).fill('RUNTIME_PUBLISHER_FAILED'));
+  await expect(dispatchTasksOnce(closed,{ingressUrl:'invalid-route',adminUrl:origin})).rejects.toThrow('Invalid URL');expect(queries).not.toHaveBeenCalled();queries.mockRestore();
  });
  it('reports a failed phase without replacing its native error with an observer error',async()=>{
   const closed=new Pool({connectionString:pool.options.connectionString,max:1});await closed.end();const phases:{phase:string;success:boolean}[]=[];

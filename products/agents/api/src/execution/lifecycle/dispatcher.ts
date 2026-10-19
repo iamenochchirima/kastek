@@ -130,13 +130,14 @@ async function dispatchControls(pool:Pool,options:DispatcherOptions,{request,rou
 }
 
 function phaseWork(pool:Pool,options:DispatcherOptions):Record<DispatcherPhase,()=>Promise<void>>{
-  const context=dispatcherContext(options);
+  let context:DispatcherContext|undefined;
+  const validated=()=>context??=dispatcherContext(options);
   return{
-    dispatch:()=>dispatchRootBatch(pool,options,context),
-    capacity:()=>advanceCapacity(pool),
-    capacity_notifications:()=>publishCapacityNotifications(pool,options,context.routes),
-    controls:()=>dispatchControls(pool,options,context),
-    reconciliation:()=>reconcilePendingRoots(pool),
+    dispatch:async()=>dispatchRootBatch(pool,options,validated()),
+    capacity:async()=>{validated();await advanceCapacity(pool);},
+    capacity_notifications:async()=>publishCapacityNotifications(pool,options,validated().routes),
+    controls:async()=>dispatchControls(pool,options,validated()),
+    reconciliation:async()=>{validated();await reconcilePendingRoots(pool);},
   };
 }
 
