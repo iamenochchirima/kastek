@@ -113,6 +113,11 @@ A separate public metadata check consumes one read allowance when needed.
 Responses are bounded to 2 MiB native, 256 KiB MCP and 8 KiB model observations.
 Larger permitted response bodies remain private. Completed receipts replay before
 adapter lookup; an abandoned started send stays uncertain and is not repeated.
+An immutable native claim bounds a live read by its original operation, binding and task
+deadline. Concurrent callers receive `CONNECTED_READ_IN_PROGRESS` without adopting the claim.
+Expired or orphaned claims become uncertain and never authorize another provider request.
+Physical-attempt admission and final publication check the exact token and database deadline.
+The executor holds no database transaction or session-lock connection during provider waits.
 The model receives exact source text, citations, acquisition time and provenance.
 Its view omits internal receipt IDs and digests, and omits duplicate structured
 handles only when the same named IDs occur in that text. Complete durable receipts

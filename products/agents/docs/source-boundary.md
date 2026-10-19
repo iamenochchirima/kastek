@@ -480,6 +480,14 @@ handles. Every read consumes the same root operation budget; credentials stay in
 the trusted transport. See [integration boundaries](mcp-integration.md) for protocol,
 wire-request bounds and the pending authenticated provider acceptance.
 
+Connected reads retain an immutable claim token and deadline derived from the original
+operation, binding and task limits. A concurrent caller follows the live claim without
+adopting it or sending another request. An expired or orphaned claim becomes uncertain;
+expiry never authorizes another provider request. Attempt admission and result publication
+check the token, state and database deadline atomically. Late physical receipts remain
+facts, while late result publication is refused. Provider waits retain no transaction or
+session-lock connection. Evidence checks inside an existing transaction use its client.
+
 The outbox submits root workflows. Parent workflows submit specialists, while
 ordered turns attach to the preceding canonical invocation. Duplicate root sends
 resolve the workflow identity before binding it. A submission conflict is not
@@ -487,7 +495,7 @@ reported as cancellation.
 
 ## Connected reports and automation
 
-`AgentsBusinessRunV10` (`connected-research-v7`) runs the trusted `report-delivery-v1`
+`AgentsBusinessRunV12` (`modular-programs-v2`) runs the trusted `report-delivery-v1`
 workflow after the ordinary agent loop. Required stages select or create a private
 report, validate its sources, prepare an exact action packet, wait for human
 review, and deliver or reconcile it. A sandbox-enabled report must select one

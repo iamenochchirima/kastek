@@ -613,7 +613,7 @@ recorded receipts resolve before registry lookup. Public repository connections 
 GitHub and DeepWiki reads; Stash uses selected private item IDs and encrypted bearer credentials.
 These profiles retain the same task, connection and evidence authority boundaries.
 
-The versioned AgentsBusinessRunV10 Restate workflow owns repeated model/tool execution. Each task
+The versioned AgentsBusinessRunV12 Restate workflow owns repeated model/tool execution. Each task
 pins its agent configuration and harness release. Ordered conversation turns wait for the preceding
 execution and its recorded result. A short database transaction assigns order and freezes eligible
 history; it does not run the agent loop or hold a lock during external work.
