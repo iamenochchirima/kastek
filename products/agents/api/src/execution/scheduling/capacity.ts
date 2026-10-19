@@ -22,16 +22,17 @@ async function removeHolds(db:PoolClient,requestId:string):Promise<void>{
  await db.query(`WITH removed AS (DELETE FROM agents_platform.capacity_holds WHERE request_id=$1 RETURNING bucket_key,slot,generation)
  UPDATE agents_platform.capacity_slots s SET owner_request=NULL,generation=NULL FROM removed r WHERE s.bucket_key=r.bucket_key AND s.slot=r.slot AND s.owner_request=$1 AND s.generation=r.generation`,[requestId]);
 }
-async function grantIfAvailable(db:PoolClient,row:any,leaseMs:number,publish=true,locked=false):Promise<boolean>{
+async function grantIfAvailable(db:PoolClient,row:any,leaseMs:number,publish=true,locked=false,scheduledTenant?:string):Promise<boolean>{
  if(!locked)await lockBuckets(db,row.bucket_keys);
- // Eligible predecessors retain age priority; one tenant's full bucket cannot block free tenants.
+ // Direct admission cannot barge. Promotion follows the scheduler's tenant rotation,
+ // retaining eligible age priority within that tenant rather than blocking on an unselected tenant.
  const older=await db.query(`SELECT 1 FROM agents_platform.capacity_requests q WHERE q.state='waiting' AND q.id<>$1 AND q.deadline_at>now() AND q.bucket_keys && $2::text[]
- AND EXISTS(SELECT 1 FROM agents_platform.tasks t WHERE t.id=q.task_id AND t.state NOT IN ('completed','incomplete','refused','failed','cancelled','uncertain','cancel_requested'))
+ AND EXISTS(SELECT 1 FROM agents_platform.tasks t WHERE t.id=q.task_id AND ($5::uuid IS NULL OR t.organization_id=$5) AND t.state NOT IN ('completed','incomplete','refused','failed','cancelled','uncertain','cancel_requested'))
  AND NOT EXISTS(SELECT 1 FROM agents_platform.capacity_buckets b WHERE b.key=ANY(q.bucket_keys)
   AND NOT EXISTS(SELECT 1 FROM agents_platform.capacity_slots s WHERE s.bucket_key=b.key AND s.owner_request IS NULL)
   AND NOT EXISTS(SELECT 1 FROM agents_platform.capacity_slot_ranges r WHERE r.bucket_key=b.key AND r.next_slot<=b.max_active))
  AND (q.created_at+CASE WHEN q.workload='interactive' THEN interval '0 seconds' ELSE interval '5 seconds' END,q.id)
- <($3::timestamptz+CASE WHEN $4='interactive' THEN interval '0 seconds' ELSE interval '5 seconds' END,$1) LIMIT 1`,[row.id,row.bucket_keys,row.created_at,row.workload]);
+ <($3::timestamptz+CASE WHEN $4='interactive' THEN interval '0 seconds' ELSE interval '5 seconds' END,$1) LIMIT 1`,[row.id,row.bucket_keys,row.created_at,row.workload,scheduledTenant??null]);
  if(older.rowCount)return false;
  const reserved=await db.query('SELECT agents_platform.reserve_capacity_slots($1,$2,$3) AS granted',[row.id,row.generation,row.bucket_keys]);
  if(!reserved.rows[0].granted)return false;
@@ -93,9 +94,10 @@ export async function advanceCapacity(pool:Pool,options:Partial<CapacityPolicy>=
   if(!tenants.length)return [];
   const ids=tenants.map(t=>t.organization_id);
   await db.query('UPDATE agents_platform.scheduling_tenants SET last_capacity_at=now() WHERE organization_id=ANY($1::uuid[])',[ids]);
-  return (await db.query(`WITH due AS (SELECT q.id,q.task_id,q.created_at,t.organization_id,row_number() OVER(PARTITION BY t.organization_id ORDER BY q.created_at,q.id) AS rank
+  return (await db.query(`WITH due AS (SELECT q.id,q.task_id,t.organization_id,q.created_at+CASE WHEN q.workload='interactive' THEN interval '0 seconds' ELSE interval '5 seconds' END AS priority_at,
+   row_number() OVER(PARTITION BY t.organization_id ORDER BY q.created_at+CASE WHEN q.workload='interactive' THEN interval '0 seconds' ELSE interval '5 seconds' END,q.id) AS rank
    FROM agents_platform.capacity_requests q JOIN agents_platform.tasks t ON t.id=q.task_id WHERE t.organization_id=ANY($1::uuid[])
-   AND (q.state='waiting' OR q.state='granted' AND q.lease_until<=now())) SELECT id,task_id FROM due ORDER BY rank,created_at,id LIMIT $2`,[ids,limit])).rows;
+   AND (q.state='waiting' OR q.state='granted' AND q.lease_until<=now())) SELECT id,task_id,organization_id FROM due ORDER BY rank,priority_at,id LIMIT $2`,[ids,limit])).rows;
  });
  for(const candidate of candidates){
   await transaction(pool,async db=>{
@@ -109,7 +111,7 @@ export async function advanceCapacity(pool:Pool,options:Partial<CapacityPolicy>=
    }
    if(row.deadline_expired)errorCode='CAPACITY_WAIT_EXPIRED';
    if(errorCode){await db.query("UPDATE agents_platform.capacity_requests SET state='rejected',error_code=$2,finished_at=now() WHERE id=$1",[row.id,errorCode]);await notify(db,row);return true;}
-   return grantIfAvailable(db,row,policy.grantLeaseMs);
+   return grantIfAvailable(db,row,policy.grantLeaseMs,true,false,candidate.organization_id);
   });
  }
 }

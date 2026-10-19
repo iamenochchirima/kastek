@@ -64,6 +64,42 @@ const dbUrl=process.env.AGENTS_TEST_DATABASE_URL;
   const pending=await pool.query('SELECT attempts FROM agents_platform.task_outbox WHERE task_id=ANY($1::uuid[])',[rows.map(t=>t.id)]);expect(pending.rows.every(row=>row.attempts===0)).toBe(true);
   await pool.query('UPDATE agents_platform.task_outbox SET dispatched_at=now() WHERE task_id=ANY($1::uuid[])',[rows.map(t=>t.id)]);
  });
+ it('promotes fair tenant prefixes despite older waiters outside the batch without allowing direct barging',async()=>{
+  const a=await tasks(),b=await tasks(),key=`fair-prefix:${randomUUID()}`,prefix=randomUUID();
+  const request=(taskId:string,id:string)=>({id:`${prefix}:${id}`,taskId,workload:'interactive' as const,buckets:[{key,limit:8}]});
+  const holders=Array.from({length:8},(_,n)=>request(a[0]!.id,`held-${n}`));
+  for(const held of holders){const permit=await transaction(pool,db=>requestCapacity(db,held));expect(permit.state).toBe('granted');await transaction(pool,db=>activateCapacity(db,held.id,permit.generation));}
+  const queued=[request(a[0]!.id,'a-1'),request(a[1]!.id,'a-2'),request(a[0]!.id,'a-3'),request(b[0]!.id,'b-1')];
+  for(const item of queued)expect((await transaction(pool,db=>requestCapacity(db,item))).state).toBe('waiting');
+  for(const held of holders)await transaction(pool,db=>releaseCapacity(db,held.id,'completed'));
+  expect((await pool.query('SELECT count(*)::int n FROM agents_platform.capacity_slots WHERE bucket_key=$1 AND owner_request IS NULL',[key])).rows[0].n).toBe(8);
+  const newcomer=request(b[1]!.id,'b-new');expect((await transaction(pool,db=>requestCapacity(db,newcomer))).state).toBe('waiting');
+  await advanceCapacity(pool,{},2);
+  const granted=(await pool.query("SELECT id FROM agents_platform.capacity_requests WHERE id=ANY($1::text[]) AND state='granted'",[queued.concat(newcomer).map(item=>item.id)])).rows.map(row=>row.id);
+  expect(granted.sort()).toEqual([queued[0]!.id,queued[3]!.id].sort());
+  await advanceCapacity(pool,{},2);await advanceCapacity(pool,{},2);
+  const finished=(await pool.query('SELECT state FROM agents_platform.capacity_requests WHERE id=ANY($1::text[])',[queued.concat(newcomer).map(item=>item.id)])).rows;
+  expect(finished).toHaveLength(5);expect(finished.every(row=>row.state==='granted')).toBe(true);
+  expect((await pool.query('SELECT count(*)::int n FROM agents_platform.capacity_holds WHERE bucket_key=$1',[key])).rows[0].n).toBe(5);
+ });
+ it('uses the same workload age in bounded candidate selection and predecessor checks',async()=>{
+  const [a,b]=await tasks(),key=`workload-age:${randomUUID()}`;
+  const request=(taskId:string,workload:'interactive'|'background')=>({id:`age:${randomUUID()}`,taskId,workload,buckets:[{key,limit:1}]});
+  const holder=request(a!.id,'interactive'),background=request(a!.id,'background'),interactive=request(b!.id,'interactive');
+  await transaction(pool,db=>requestCapacity(db,holder));await transaction(pool,db=>activateCapacity(db,holder.id,1));
+  expect((await transaction(pool,db=>requestCapacity(db,background))).state).toBe('waiting');
+  expect((await transaction(pool,db=>requestCapacity(db,interactive))).state).toBe('waiting');
+  await pool.query("UPDATE agents_platform.capacity_requests SET created_at=now()-interval '2 seconds' WHERE id=$1",[background.id]);
+  await transaction(pool,db=>releaseCapacity(db,holder.id,'completed'));await advanceCapacity(pool,{},1);
+  expect((await pool.query('SELECT state FROM agents_platform.capacity_requests WHERE id=$1',[interactive.id])).rows[0].state).toBe('granted');
+  expect((await pool.query('SELECT state FROM agents_platform.capacity_requests WHERE id=$1',[background.id])).rows[0].state).toBe('waiting');
+  await transaction(pool,db=>releaseCapacity(db,interactive.id,'completed'));
+  await pool.query("UPDATE agents_platform.capacity_requests SET created_at=now()-interval '10 seconds' WHERE id=$1",[background.id]);
+  const newer=request(b!.id,'interactive');expect((await transaction(pool,db=>requestCapacity(db,newer))).state).toBe('waiting');
+  await advanceCapacity(pool,{},1);expect((await pool.query('SELECT state FROM agents_platform.capacity_requests WHERE id=$1',[background.id])).rows[0].state).toBe('granted');
+  await transaction(pool,db=>releaseCapacity(db,background.id,'completed'));await advanceCapacity(pool,{},1);
+  expect((await pool.query('SELECT state FROM agents_platform.capacity_requests WHERE id=$1',[newer.id])).rows[0].state).toBe('granted');
+ });
  it('register/release has no lost wakeup and duplicate notifications never overlap permits',async()=>{
   const [a,b]=await tasks(),key=`test:${randomUUID()}`;
   const req=(taskId:string)=>({id:`op:${taskId}`,taskId,workload:'interactive' as const,buckets:[{key,limit:1}]});
