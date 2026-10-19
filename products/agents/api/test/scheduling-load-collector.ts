@@ -1,4 +1,12 @@
 export interface CollectorSpan {traceId:string;parentId:string;spanId:string;name:string;observationId:string;eventKey:string;taskId:string;rootTaskId:string}
+/** Observe periodic exports after load measurement without inventing missing evidence. */
+export async function observeCollectorEvidence<T extends {spans:unknown[];metricNames:string[]}>(read:()=>T,stopped:()=>boolean,maxWaitMs=20000){
+ const started=Date.now();let captured=read();
+ while(!stopped()&&(!captured.spans.length||!captured.metricNames.length)&&Date.now()-started<maxWaitMs){
+  await new Promise(resolve=>setTimeout(resolve,Math.min(200,maxWaitMs-(Date.now()-started))));captured=read();
+ }
+ return{captured,evidenceWaitMs:Date.now()-started};
+}
 /** Retain only explicit metadata; raw Collector output and payloads never enter the artifact. */
 export function collectorMetadata(secret:string,limit=20000){
  const spans=new Map<string,CollectorSpan>(),metrics=new Set<string>(),buffers={stdout:'',stderr:''},pending:{stdout?:CollectorSpan;stderr?:CollectorSpan}={};

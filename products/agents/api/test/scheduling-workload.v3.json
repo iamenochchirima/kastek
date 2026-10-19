@@ -84,5 +84,10 @@
     "root": "Root task_outbox dispatched_at-created_at, parent_task_id IS NULL",
     "child": "All children with any native operation, including later cancelled children, plus every noncancelled child: first operations.started_at minus tasks.created_at, separately graded against queueAgeP95Ms. Only cancelled children with no native operation are exempt. This is activation, not invocation-binding time.",
     "legacy": "All-outbox latency retained ungraded; child outboxes are terminal-cleanup records rather than dispatcher routing"
+  },
+  "telemetryEvidence": {
+    "revision": "bounded-post-load-periodic-metric-observation.v1",
+    "maxWaitMs": 20000,
+    "scope": "After load timing stops, observe actual periodic Collector trace/metric output. No synthetic observations, export-interval changes, or workload/fault SLO allowance."
   }
 }

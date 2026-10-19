@@ -1,5 +1,5 @@
-import {describe,it,expect} from 'vitest';
-import {collectorMetadata} from './scheduling-load-collector';
+import {describe,it,expect,vi} from 'vitest';
+import {collectorMetadata,observeCollectorEvidence} from './scheduling-load-collector';
 describe('bounded actual Collector metadata capture',()=>{
  it('retains metric names before span flood, parses chunk boundaries and flags metadata truncation',()=>{
   const capture=collectorMetadata('fixture-secret',1),task='00000000-0000-0000-0000-000000000001';
@@ -17,5 +17,22 @@ describe('bounded actual Collector metadata capture',()=>{
    capture.ingest(value.slice(0,split),stream);capture.ingest('unrelated output\n',other);capture.ingest(value.slice(split)+'\n',stream);
    const result=capture.snapshot();expect(result.privateContentLeaked).toBe(true);expect(JSON.stringify(result)).not.toContain(value);
   }
+ });
+});
+
+describe('bounded post-measurement Collector observation',()=>{
+ it('waits for the actual periodic batch without changing its interval',async()=>{
+  vi.useFakeTimers();try{let metrics=false;setTimeout(()=>{metrics=true;},15000);
+   const pending=observeCollectorEvidence(()=>({spans:['actual span metadata'],metricNames:metrics?['agents.tasks']:[]}),()=>false);
+   await vi.advanceTimersByTimeAsync(15000);const result=await pending;expect(result.evidenceWaitMs).toBe(15000);expect(result.captured.metricNames).toEqual(['agents.tasks']);
+  }finally{vi.useRealTimers();}
+ });
+ it('keeps missing metrics missing when the finite observation deadline expires',async()=>{
+  vi.useFakeTimers();try{const pending=observeCollectorEvidence(()=>({spans:['actual span metadata'],metricNames:[]}),()=>false);
+   await vi.advanceTimersByTimeAsync(20000);const result=await pending;expect(result.evidenceWaitMs).toBe(20000);expect(result.captured.metricNames).toEqual([]);
+  }finally{vi.useRealTimers();}
+ });
+ it('stops immediately on capture failure without fabricating telemetry',async()=>{
+  const result=await observeCollectorEvidence(()=>({spans:[],metricNames:[]}),()=>true);expect(result.evidenceWaitMs).toBeLessThan(100);expect(result.captured).toEqual({spans:[],metricNames:[]});
  });
 });

@@ -5,7 +5,7 @@ import {join} from 'node:path';
 import {writeFile} from 'node:fs/promises';
 import {requestDigest} from '../src/contracts/contracts';
 import type {EffectPost} from './scheduling-load-verification';
-import {collectorMetadata} from './scheduling-load-collector';
+import {collectorMetadata,observeCollectorEvidence} from './scheduling-load-collector';
 import type {Pool} from 'pg';
 import {createReportReceiver,initializeReportReceiver} from '../src/acceptance/report-receiver';
 
@@ -45,9 +45,9 @@ export async function controlledLoadServices(pool:Pool,repository:string,runId:s
   pauseCollector(){if(!collectorOwned)throw Error('Collector is not owned');docker('pause',container);},
   resumeCollector(){if(!collectorOwned)throw Error('Collector is not owned');docker('unpause',container);},
   async collectorEvidence(){
-   await new Promise(resolve=>setTimeout(resolve,100));const captured=metadata.snapshot(),path=join(repository,'.audit',`agents-load-collector-${runId}.json`);
-   await writeFile(path,JSON.stringify({...captured,captureErrors},null,2));
-   return{image:collectorImage,traces:captured.spans.length>0,metrics:captured.metricNames.length>0,...captured,captureErrors,objectBytes:totalBytes,reportPosts:posts,metadataPath:path};
+   const {captured,evidenceWaitMs}=await observeCollectorEvidence(()=>metadata.snapshot(),()=>captureErrors.length>0),path=join(repository,'.audit',`agents-load-collector-${runId}.json`);
+   await writeFile(path,JSON.stringify({...captured,captureErrors,evidenceWaitMs},null,2));
+   return{image:collectorImage,traces:captured.spans.length>0,metrics:captured.metricNames.length>0,...captured,captureErrors,evidenceWaitMs,objectBytes:totalBytes,reportPosts:posts,metadataPath:path};
   },
   async close(){closing=true;collectorLog?.kill('SIGTERM');if(collectorOwned){docker('rm','-f',container);collectorOwned=false;}await receiver.close();await new Promise<void>(resolve=>s3.close(()=>resolve()));objects.clear();}
  };
