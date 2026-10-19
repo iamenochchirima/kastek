@@ -522,6 +522,15 @@ poll through the model/tool loop.
 | Database access | Keep transactions short and outside model/provider waits. Use bounded queries, indexed eligible-work scans and explicit connection budgets across replicas, dispatchers and cleanup processes. |
 | Retries and recovery | Bound physical attempts and backoff, preserve logical identities, and reconcile unknown effects. Recover capacity reservations after failures without allowing overlapping ownership or multiplying charges. |
 
+Model, connected-provider and local-operation capacity are separate resource pools. Increasing
+model concurrency must not force an equal increase in local-operation concurrency. Local work
+includes knowledge and memory access, delegation admission, sandbox operations and built-in
+report workflows; it can include physical effects and is not synonymous with database work.
+Pool bounds are finite operator settings and must agree across replicas. Capacity waiting happens
+before an operation starts consuming its active-time allocation. Waiting retains the recorded
+capacity and task deadlines; it cannot extend an already started operation's timeout. Delegation
+admission releases its operation permit before the parent waits for its children.
+
 Shared scheduling does not grant authority. A queued operation rechecks current grants, resource
 permissions, conversation ownership and deadlines when it receives a permit. Expired/cancelled
 work releases reservations through its recorded lifecycle. Waiter registration, permit release and

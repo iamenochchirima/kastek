@@ -665,6 +665,26 @@ connection ID unless an operator supplies a verified connection-to-account map i
 `AGENTS_PROVIDER_ACCOUNT_MAP_JSON`. Separate connections to the same external
 account do not share a provider limit without that map.
 
+`localProviderActive` optionally sets the deployment-wide bound for the existing local-provider
+bucket. Without it, local operations use `providerActive`, preserving the configured fallback.
+Model and connected-provider buckets still use `providerActive`. Local operations include
+knowledge, memory, delegation admission, sandbox work, report preparation and built-in report
+delivery; this is not a database-only limit. Product, tenant, class and workload bounds still apply.
+All replicas must agree on existing immutable bucket limits. A mismatched request fails with
+`CAPACITY_POLICY_CONFLICT`; requests cannot resize live buckets.
+A queued operation has no operation record or active-time reservation yet. Its recorded capacity
+and task deadlines continue to apply. After activation, its original execution timeout includes
+pool waits and is never reset. A delegation operation releases its permit after child admission,
+before the parent waits for child results.
+
+The controlled load tool preserves its default `baseline` resource allocation. The explicit
+`AGENTS_LOAD_RESOURCE_PROFILE=bounded-local` profile sets local-provider concurrency to 64
+and, with four replicas, uses six API and eight worker connections per replica under an
+80-connection declared budget. Its report counts the shared eight-connection driver/snapshot
+pool once and the one-connection administrator pool once, alongside process pools and reserve.
+The profile preserves arrival rates, operation delays, runtime CPU/memory limits, task deadlines,
+queue thresholds and drain limits. A profile setting alone establishes no capacity claim.
+
 List cursors use versioned keys from `AGENTS_CURSOR_KEYS_JSON` (an object of key ID
 to a base64url secret containing at least 32 bytes) and `AGENTS_CURSOR_ACTIVE_KEY_ID`.
 Production requires explicit keys. Development may derive a separate signing key
