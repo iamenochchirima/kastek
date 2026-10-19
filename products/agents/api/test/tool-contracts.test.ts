@@ -1,7 +1,8 @@
+import { z } from "zod";
 import { randomUUID } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import { toolDescriptor } from "../src/capabilities/tool-descriptors";
-import { validateBuiltinArguments, validateBuiltinResult } from "../src/capabilities/tool-contracts";
+import { builtinContract, capabilityContractMetadata, validateBuiltinArguments, validateBuiltinResult } from "../src/capabilities/tool-contracts";
 import { BOOKING_REQUIREMENTS, verifyBookingReceipt } from "../src/contracts/workflows";
 import { requestDigest } from "../src/contracts/contracts";
 
@@ -12,6 +13,34 @@ describe("executable built-in capability contracts",()=>{
     expect(toolDescriptor("agents.delegate")?.outputSchema).toHaveProperty("properties.children");
     expect(toolDescriptor("channel.request_handoff")).toMatchObject({effect:"channel_control",requiredResources:["current_channel_generation"]});
     expect(toolDescriptor("booking.confirm")).toBeUndefined();
+  });
+  it("reuses only immutable built-in JSON metadata while preserving every published descriptor digest",()=>{
+    const originalDigests={
+      "knowledge.initial": "72fcb329441eee479caf43472abc688b998ca4c8bd730703845b0b2a9cd58fa2",
+      "knowledge.search": "b4690a3e7b57466ad58eb6631a1cf3cb2e8c0eb696e7e303f146a1c9f41e3c95",
+      "knowledge.read": "26b7c53a8d61e14e02ba0217ae87d63689ff0379911319447ef60002eb46d3eb",
+      "memory.search": "60dc187245c3d1e05bd99309370d0fce0e8cb7a11c09a15ccccd18d874435a1d",
+      "memory.propose": "c1a26d5d99bacdfd178adcb40252249be4dabdc23fffe1b40d9b91e7afaf5f2e",
+      "agents.delegate": "6c3caac399c90ff8b30a701b6f633a8494c3d093b2ff802f790ad0da4e7d6cd5",
+      "sandbox.analyze": "4f52a71ceb9d0968d357b0cc2ea0c615026f17f0d28938a2f37e22ce3c3ee98a",
+      "channel.request_handoff": "6c6bec7a5b56dc7e26b67a06caa067c86e17b9ff8befec3acbb6e03c20a6f36a",
+      "report.deliver": "2926bf50ff9385e4075c213dd26564cb7135f42e92f37186f0c75ecc67090bb7"
+};
+    for(const[name,digest]of Object.entries(originalDigests)){
+      const contract=builtinContract(name)!,metadata=capabilityContractMetadata(name);
+      expect(metadata).toBe(capabilityContractMetadata(name));
+      expect(metadata.inputSchema).toEqual(z.toJSONSchema(contract.input));expect(metadata.outputSchema).toEqual(z.toJSONSchema(contract.output));
+      expect(requestDigest(toolDescriptor(name))).toBe(digest);
+      const visit=(value:unknown):void=>{if(value!==null&&typeof value==="object"){expect(Object.isFrozen(value)).toBe(true);for(const child of Object.values(value))visit(child);}};
+      visit(metadata);
+      expect(()=>{(metadata.inputSchema as Record<string,unknown>).poisoned=true;}).toThrow();
+      expect(()=>{(metadata.requiredAuthority as string[]).push("all");}).toThrow();
+      expect(()=>{(metadata.requiredResources as string[]).splice(0,1);}).toThrow();
+      expect(requestDigest(toolDescriptor(name))).toBe(digest);
+      expect(Object.isFrozen(contract.input)).toBe(false);expect(Object.isFrozen(contract.output)).toBe(false);
+    }
+    expect(()=>capabilityContractMetadata("__proto__")).toThrowError(expect.objectContaining({code:"CAPABILITY_RELEASE_UNAVAILABLE"}));
+    expect(()=>capabilityContractMetadata("unknown")).toThrowError(expect.objectContaining({code:"CAPABILITY_RELEASE_UNAVAILABLE"}));
   });
   it("rejects model-supplied authority, programs, credentials and arbitrary resources",()=>{
     expect(()=>validateBuiltinArguments("agents.delegate",{requests:[{bindingId:"approved",brief:"Find evidence",program:"root",grant:{operations:["all"]}}]})).toThrowError(expect.objectContaining({code:"TOOL_ARGUMENTS_INVALID"}));

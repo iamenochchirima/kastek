@@ -24,11 +24,24 @@ const contracts={
 } as const;
 
 export function builtinContract(name:string){return Object.hasOwn(contracts,name)?contracts[name as keyof typeof contracts]:undefined;}
+function immutableJson<T>(value:T):T{
+  if(value!==null&&typeof value==="object"){
+    for(const child of Object.values(value))immutableJson(child);
+    Object.freeze(value);
+  }
+  return value;
+}
+function createContractMetadata(contract:NonNullable<ReturnType<typeof builtinContract>>){
+  return immutableJson({inputSchema:z.toJSONSchema(contract.input),outputSchema:z.toJSONSchema(contract.output),requiredAuthority:[...contract.authority],
+    requiredResources:[...contract.resources],reconciliation:contract.reconciliation});
+}
+const contractMetadata=new Map<string,ReturnType<typeof createContractMetadata>>();
 export function capabilityContractMetadata(name:string){
   const contract=builtinContract(name);
   if(!contract)throw new PlatformError("CAPABILITY_RELEASE_UNAVAILABLE",503,"The built-in capability contract is unavailable");
-  return {inputSchema:z.toJSONSchema(contract.input),outputSchema:z.toJSONSchema(contract.output),requiredAuthority:contract.authority,
-    requiredResources:contract.resources,reconciliation:contract.reconciliation};
+  let metadata=contractMetadata.get(name);
+  if(!metadata){metadata=createContractMetadata(contract);contractMetadata.set(name,metadata);}
+  return metadata;
 }
 export function validateBuiltinArguments(name:string,value:unknown):unknown{
   const contract=builtinContract(name),parsed=contract?.input.safeParse(value);
