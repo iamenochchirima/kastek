@@ -522,6 +522,14 @@ poll through the model/tool loop.
 | Database access | Keep transactions short and outside model/provider waits. Use bounded queries, indexed eligible-work scans and explicit connection budgets across replicas, dispatchers and cleanup processes. |
 | Retries and recovery | Bound physical attempts and backoff, preserve logical identities, and reconcile unknown effects. Recover capacity reservations after failures without allowing overlapping ownership or multiplying charges. |
 
+Scheduling must consider resource eligibility before applying a bounded promotion cutoff. Older
+requests blocked on one resource must not hide requests that can use another available resource.
+A separately bounded housekeeping selection preserves authority rechecks and expired provisional
+grant cleanup, including work whose own holds make its resource appear full. Selection is a hint;
+current authority, deadlines, generations and atomic slot reservation still decide each grant.
+Independent candidates use bounded transactions on the existing pool. The sweep must await all
+of them before reporting failure or allowing shutdown to close the pool.
+
 Model, connected-provider and local-operation capacity are separate resource pools. Increasing
 model concurrency must not force an equal increase in local-operation concurrency. Local work
 includes knowledge and memory access, delegation admission, sandbox operations and built-in

@@ -655,6 +655,19 @@ interactive requests use creation time, and other workloads add five seconds. An
 request from another tenant cannot veto a scheduled promotion. A full tenant-specific bucket
 cannot block another tenant whose complete bucket set has free capacity.
 
+Each capacity sweep selects two independently bounded sets within its tenant rotation: the
+existing due prefix for authority and expiry housekeeping, and waiting requests with available
+buckets for promotion. Eligibility precedes the promotion ranking and cutoff. Availability
+checks use only bucket keys referenced by the selected tenants' due requests. Availability means
+an unowned slot or room to grow the slot frontier; the final atomic reservation rechecks it.
+Expired provisional grants remain in housekeeping even when their own holds fill their buckets.
+The sweep deduplicates both sets, so it attempts at most twice its configured limit, 128 requests
+at the default limit of 64. Candidate transactions run with at most four workers and at most half
+the configured pool size, rounded down with a minimum of one. Errors are rethrown only after
+all workers drain. When the pool allows at least two candidate workers, one blocked authority
+check cannot serialize every unrelated candidate. Smaller pools retain serial sweeps. These
+bounds add no database connections.
+
 `AGENTS_SCHEDULING_POLICY_JSON` contains validated finite operator limits for
 product, tenant, workload and provider capacity, queue depth, maximum waiting time,
 root admission and daily token allowance. Replica policies must agree: requests
