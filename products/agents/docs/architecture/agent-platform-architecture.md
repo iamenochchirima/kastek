@@ -500,9 +500,9 @@ dedicated capacity only for measured load or explicit isolation requirements.
 ### Concurrency targets and workload definitions
 
 The architecture targets 1,000 and then 10,000 concurrent business executions across horizontally
-scaled components. These are design and verification targets, not demonstrated capacity or a
-promise that hardware increases alone satisfy them. Workspace execution needs separate Lina
-capacity acceptance once that integration exists.
+scaled components. Each capacity claim requires its own measured workload and service limits.
+The controlled 1,000-execution profile passes the checks described below. The 10,000 target remains
+unmet. Workspace execution needs separate Lina capacity acceptance once that integration exists.
 
 Measure configured agents, accepted nonterminal tasks, tasks waiting on external work, actively
 executing operations, queued work, and connected clients separately. One agent definition can
@@ -576,8 +576,10 @@ resource and unmet criterion. Availability, 1,000/10,000 execution capacity, mul
 and stream behavior remain unverified until the corresponding acceptance evidence exists.
 
 Current local evidence demonstrates 1,000 simultaneous controlled model requests followed by
-correct completion of 1,000 roots and 100 children. This does not establish the complete latency
-contract or live-provider capacity. Mixed 10,000-root tests with four and eight replicas miss
+correct completion of 1,000 roots and 100 children. The two-replica profile passes its frozen
+dispatch, child activation, tenant fairness, status, and Inbox control thresholds, with exact
+physical-call and effect receipts. These results do not establish live-provider or production
+capacity. Mixed 10,000-root tests with four and eight replicas miss
 admission, queue, and drain targets within the declared database connection budget. The
 10,000-execution acceptance remains unmet. Detailed workload identities, failed criteria, resource
 measurements, and subsequent qualification belong to the

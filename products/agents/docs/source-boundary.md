@@ -155,9 +155,11 @@ uses root/task fences. Admission and settlement retain the organization accounti
 versioned cursor keys support replica reads. Numeric policies are finite operator configuration.
 
 The [scaling contract](architecture/agent-platform-architecture.md#concurrency-targets-and-workload-definitions)
-defines 1,000/10,000 concurrent business-execution targets. Local controlled evidence includes
-1,000 simultaneous model HTTP requests with correct completion of 1,000 roots and 100 children.
-Complete latency acceptance remains separate. Four- and eight-replica mixed 10,000-root tests
+defines 1,000/10,000 concurrent business-execution targets. The controlled two-replica 1,000 profile
+passes its frozen dispatch, child activation, per-tenant, status, and Inbox control thresholds.
+It reaches 1,000 simultaneous model HTTP requests and correctly completes 1,000 roots and 100
+children, with exact physical-call and effect receipts. Other traffic distributions and fault
+profiles require separate results. Four- and eight-replica mixed 10,000-root tests
 miss admission, queue, and drain targets within the declared connection budget. The 10,000 target
 remains unmet. Queued roots and active provider operations are measured separately. Requirements,
 versioned reports, and load acceptance remain in Linear.
@@ -604,8 +606,12 @@ separate frontier. A failed multi-bucket reservation rolls back all partial clai
 Release clears the matching slot owner and generation with its hold row. Queue
 deadlines, provisional expiry and recorded grant delay use the database clock.
 Only a promoted queued request publishes a capacity wakeup and grant observation.
-Age priority applies to eligible waiters. A full tenant-specific bucket cannot
-block another tenant whose complete bucket set has free capacity.
+Direct admissions yield to older eligible waiters across tenants. Scheduled promotions follow
+the selected tenant's eligible age prefix, while recorded tenant rotation governs fairness
+between tenants. Candidate selection and predecessor checks use the same effective age:
+interactive requests use creation time, and other workloads add five seconds. An unselected
+request from another tenant cannot veto a scheduled promotion. A full tenant-specific bucket
+cannot block another tenant whose complete bucket set has free capacity.
 
 `AGENTS_SCHEDULING_POLICY_JSON` contains validated finite operator limits for
 product, tenant, workload and provider capacity, queue depth, maximum waiting time,
@@ -626,8 +632,8 @@ Rotation retains previous key IDs until their issued cursors expire, then remove
 them. A cursor binds the principal, filters and snapshot; each read still checks
 current authorization. Keys and cursor payloads must not enter logs.
 
-These mechanisms do not establish measured 1,000/10,000 active-agent capacity.
-Load acceptance records distinguish admitted, executing and waiting roots and
+Scheduling mechanisms alone do not establish capacity. The controlled 1,000 profile has separate
+passing evidence; the 10,000 target remains unmet. Load records distinguish admitted, executing and waiting roots and
 must report achieved counts and limiting resources separately.
 
 `AGENTS_DATABASE_POOL_POLICY_JSON` declares the total database budget, reserve
@@ -662,6 +668,12 @@ after drain for stale-generation assistant deliveries. Fault reports retain inje
 restoration times and require native reconciliation within 30 seconds; worker-loss
 uncertainty remains a separate outcome. Previous manifest results are not retroactively
 claimed to meet these newer fairness and recovery criteria.
+Root dispatch uses root outbox timestamps. Children use admission to first native operation as
+a conservative activation bound, graded separately against 30 seconds. Every child requires a
+sample except a confirmed cancellation before any native operation. A child that starts and is
+later cancelled still counts. Legacy child outbox cleanup times are retained as ungraded
+metadata because they include execution time. Bounded native phase records correlate admission,
+context, capacity request/grant, notification, native operation, and physical request timestamps.
 Physical model requests are matched to native operation/attempt identities by exact provider
 response IDs and canonical serialized request digests. Fault fixtures additionally resolve the
 unique native context digest before local dispatch; missing or ambiguous attribution fails.
