@@ -603,8 +603,19 @@ pass in flight and waits one second between passes. Slow maintenance does not pr
 root batch from being claimed. Shutdown wakes all idle loops and awaits every in-flight pass
 before closing the pool. The one-shot `dispatchTasksOnce` entry still awaits all phases in order.
 
-Dispatch claims use bounded batches (default 32, maximum 128), eight parallel
-sends and 120-second leases. Claims use PostgreSQL row locks with `SKIP LOCKED`;
+Dispatch claims default to batches of 32, eight parallel sends, and 120-second leases.
+Operators can set `AGENTS_DISPATCH_POLICY_JSON`, for example
+`{"batchSize":128,"parallelism":32,"leaseMs":120000}`. The worker validates this setting
+before opening its database pool or HTTP listener. Unknown fields, malformed JSON, and values
+outside the bounds fail startup without echoing the configuration. Batch size is 1–128,
+parallelism is 1–32, and lease duration is 30–300 seconds. This policy does not increase the
+database connection budget. The controlled load fixture explicitly selects 128/32 through
+the same loader; those results describe that profile, while an unconfigured worker uses 32/8.
+The one-second delay after each completed batch limits sustained dispatch throughput even
+when SQL and HTTP are fast. Phase duration metrics include those SQL and HTTP waits but
+exclude the delay between passes.
+
+Claims use PostgreSQL row locks with `SKIP LOCKED`;
 a durable tenant rotation selects bounded per-tenant candidate sets, so an older noisy tenant cannot bury a newly waiting tenant behind its backlog.
 Stable Restate workflow keys deduplicate repeated sends after an uncertain response.
 Only the current claim owner can persist the invocation binding. Terminal and
