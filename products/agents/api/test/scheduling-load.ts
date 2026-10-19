@@ -17,7 +17,7 @@ import {controlledLoadServices} from './scheduling-load-services';
 import {exerciseOwnershipControls} from './scheduling-load-controls';
 import {loadDiagnostics} from './scheduling-load-diagnostics';
 import {serializeModelRequest} from '../src/execution/business/model';
-import {verifyModelCalls,verifyEffects,classifyRootOutcomes,fatalLoadFindings,verifyQueueAges,type PhysicalModelCall} from './scheduling-load-verification';
+import {verifyModelCalls,verifyEffects,classifyRootOutcomes,fatalLoadFindings,verifyQueueAges,childActivationCte,type PhysicalModelCall} from './scheduling-load-verification';
 const image='docker.restate.dev/restatedev/restate:1.7.13@sha256:adf7bca9d89b8c868be682e1a2e1d42043613e988a17bfaad28753ac8d780742';
 const modelDelayMs=Number(process.env.AGENTS_LOAD_MODEL_DELAY_MS??100),slowDelayMs=Number(process.env.AGENTS_LOAD_SLOW_DELAY_MS??1000);
 if(!Number.isInteger(modelDelayMs)||modelDelayMs<1||modelDelayMs>10000||!Number.isInteger(slowDelayMs)||slowDelayMs<1||slowDelayMs>10000)throw Error('Invalid controlled provider delay');
@@ -243,11 +243,7 @@ async function main(){
  (SELECT count(*) FROM agents_platform.usage_reservations r JOIN agents_platform.tasks t ON t.id=r.task_id WHERE t.state IN ('completed','incomplete','refused','failed','cancelled','uncertain') AND r.settled_at IS NULL)::int AS unsettled_terminal_reservations,
  (SELECT count(*) FROM agents_platform.tasks WHERE parent_task_id IS NULL)::int AS persisted_roots,
  (SELECT count(*) FROM(SELECT task_id,event_key,count(*) FROM agents_platform.task_events GROUP BY task_id,event_key HAVING count(*)>1) d)::int AS duplicate_events`)).rows[0];
- const coordination=(await snapshot.query(`WITH child_activation AS (
- SELECT t.id,t.runtime_invocation_id,t.created_at,min(o.started_at) AS first_operation_at FROM agents_platform.tasks t
- LEFT JOIN agents_platform.operations o ON o.task_id=t.id WHERE t.parent_task_id IS NOT NULL AND t.state<>'cancelled'
- GROUP BY t.id,t.runtime_invocation_id,t.created_at
- ) SELECT
+ const coordination=(await snapshot.query(`WITH ${childActivationCte} SELECT
  (SELECT percentile_cont(0.95) WITHIN GROUP(ORDER BY extract(epoch FROM(o.dispatched_at-o.created_at))*1000) FROM agents_platform.task_outbox o JOIN agents_platform.tasks t ON t.id=o.task_id WHERE o.dispatched_at IS NOT NULL AND t.parent_task_id IS NULL) AS dispatch_lag_p95_ms,
  (SELECT percentile_cont(0.95) WITHIN GROUP(ORDER BY extract(epoch FROM(dispatched_at-created_at))*1000) FROM agents_platform.task_outbox WHERE dispatched_at IS NOT NULL) AS legacy_all_outbox_lag_p95_ms,
  (SELECT count(*)::int FROM child_activation) AS child_count,

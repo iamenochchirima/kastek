@@ -50,3 +50,11 @@ export function verifyQueueAges(metrics:{dispatch_lag_p95_ms:number|string|null;
  if(metrics.child_count&&(metrics.child_activation_p95_ms===null||!Number.isFinite(Number(metrics.child_activation_p95_ms))||Number(metrics.child_activation_p95_ms)>limitMs))errors.push('Child admission-to-first-native-operation threshold failed');
  return errors;
 }
+
+export const childActivationCte=`child_operations AS (
+ SELECT t.id,t.state,t.runtime_invocation_id,t.created_at,min(o.started_at) AS first_operation_at FROM agents_platform.tasks t
+ LEFT JOIN agents_platform.operations o ON o.task_id=t.id WHERE t.parent_task_id IS NOT NULL
+ GROUP BY t.id,t.state,t.runtime_invocation_id,t.created_at
+ ), child_activation AS (
+ SELECT * FROM child_operations WHERE state<>'cancelled' OR first_operation_at IS NOT NULL
+ )`;

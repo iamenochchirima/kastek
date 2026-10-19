@@ -82,7 +82,7 @@
   "queueMetrics": {
     "revision": "root-dispatch-and-child-native-activation.v1",
     "root": "Root task_outbox dispatched_at-created_at, parent_task_id IS NULL",
-    "child": "Every noncancelled child: first native operations.started_at minus task.created_at, separately graded against queueAgeP95Ms; this is activation, not invocation-binding time",
+    "child": "All children with any native operation, including later cancelled children, plus every noncancelled child: first operations.started_at minus tasks.created_at, separately graded against queueAgeP95Ms. Only cancelled children with no native operation are exempt. This is activation, not invocation-binding time.",
     "legacy": "All-outbox latency retained ungraded; child outboxes are terminal-cleanup records rather than dispatcher routing"
   }
 }
