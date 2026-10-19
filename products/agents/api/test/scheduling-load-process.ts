@@ -33,7 +33,7 @@ async function main(){
  if(role==='api'){
   const app=await buildPlatformApp({pool,config:loadPlatformConfig(),logging:false});const endpoint=await app.listen({host:'127.0.0.1',port:0});
   process.stdout.write(JSON.stringify({fixtureReady:true,role,endpoint})+'\n');
-  for(const signal of ['SIGTERM','SIGINT'] as const)process.once(signal,()=>{void app.close().then(closeTelemetry).then(()=>pool.end()).then(()=>process.exit(0));});
+  for(const signal of ['SIGTERM','SIGINT'] as const)process.once(signal,()=>{void Promise.resolve(profiler?.stop('shutdown')).then(()=>app.close()).then(closeTelemetry).then(()=>pool.end()).then(()=>process.exit(0));});
  }else{
   const simulator=process.env.AGENTS_LOAD_SIMULATOR_URL!,sessions=new Set<ServerHttp2Session>();
   const objects=privateStoreFromEnvironment(),evidence=objects?new EvidenceStore(pool,objects):undefined,artifacts=new TaskArtifactStore(pool,objects),actionServices=actionsFromEnvironment(pool,artifacts);
@@ -51,7 +51,7 @@ async function main(){
   await new Promise<void>(resolve=>server.listen(Number(process.env.AGENTS_LOAD_WORKER_PORT??0),'0.0.0.0',resolve));const port=(server.address() as {port:number}).port;
   const dispatcher=startDispatcher(pool,{ingressUrl:process.env.RESTATE_INGRESS_URL!,adminUrl:process.env.RESTATE_ADMIN_URL!,policy:{batchSize:128,parallelism:32}});
   process.stdout.write(JSON.stringify({fixtureReady:true,role,port})+'\n');
-  for(const signal of ['SIGTERM','SIGINT'] as const)process.once(signal,()=>{clearInterval(cancellationTimer);void dispatcher.stop().then(closeTelemetry).then(()=>{for(const session of sessions)session.destroy();server.close(()=>{void pool.end().then(()=>process.exit(0));});});});
+  for(const signal of ['SIGTERM','SIGINT'] as const)process.once(signal,()=>{clearInterval(cancellationTimer);void Promise.resolve(profiler?.stop('shutdown')).then(()=>dispatcher.stop()).then(closeTelemetry).then(()=>{for(const session of sessions)session.destroy();server.close(()=>{void pool.end().then(()=>process.exit(0));});});});
  }
 }
 void main().catch(()=>{process.stderr.write('Controlled load process startup failed\n');process.exitCode=1;});
