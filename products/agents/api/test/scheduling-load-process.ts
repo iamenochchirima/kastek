@@ -17,13 +17,17 @@ import {composeInbox} from '../src/composition/inbox';
 import {createObservationTelemetry,startObservationPublisher} from '../src/observability/telemetry';
 import {createNativeMetrics} from '../src/observability/metrics';
 import {observeFixtureDatabaseErrors} from './scheduling-load-diagnostics';
+import {fixtureProfiler,profilePath} from './scheduling-load-profile';
+import {resolve} from 'node:path';
 const role=process.env.AGENTS_LOAD_ROLE;
 if(!['api','worker'].includes(role??'')||!process.env.AGENTS_LOAD_SIMULATOR_URL)throw Error('Load fixture configuration missing');
 const pool=new Pool({connectionString:process.env.AGENTS_DATABASE_URL,...databasePoolOptions(role as 'api'|'worker')});
-observeFixtureDatabaseErrors(pool);
+const profiler=process.env.AGENTS_LOAD_PROFILE_RUN?fixtureProfiler({path:profilePath(resolve(__dirname,'../../../..'),process.env.AGENTS_LOAD_PROFILE_RUN,role!,Number(process.env.AGENTS_LOAD_PROFILE_INDEX)),emit:item=>process.stdout.write(JSON.stringify(item)+'\n')}):undefined;
+if(profiler)process.on('SIGUSR2',profiler.start);
+observeFixtureDatabaseErrors(pool,profiler?.timings);
 async function main(){
  const telemetry=startObservationPublisher(pool,createObservationTelemetry(`agents-load-${role}`)),nativeMetrics=createNativeMetrics(pool,role!);
- async function closeTelemetry(){await telemetry.stop();await nativeMetrics?.shutdown();}
+ async function closeTelemetry(){await profiler?.stop('shutdown');await telemetry.stop();await nativeMetrics?.shutdown();}
  let cpu=process.cpuUsage();
  const metrics=setInterval(()=>{const current=process.cpuUsage(),cpuPercent=(current.user+current.system-cpu.user-cpu.system)/10000;cpu=current;process.stdout.write(JSON.stringify({fixtureMetrics:true,role,pid:process.pid,cpuPercent,poolTotal:pool.totalCount,poolIdle:pool.idleCount,poolWaiting:pool.waitingCount,...process.memoryUsage()})+'\n');},1000);metrics.unref();
  if(role==='api'){

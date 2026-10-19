@@ -1,8 +1,9 @@
 import {execFile} from 'node:child_process';
 import type {Pool} from 'pg';
+import type {QueryTimings} from './scheduling-load-profile';
 
 /** Fixture-only failure metadata; SQL arguments, details and messages are never emitted. */
-export function observeFixtureDatabaseErrors(pool:Pool){
+export function observeFixtureDatabaseErrors(pool:Pool,timings?:QueryTimings){
  const seen=new WeakSet<object>();
  function report(error:any,text:unknown){
   if(!error||typeof error!=='object'||seen.has(error))return;seen.add(error);
@@ -12,16 +13,17 @@ export function observeFixtureDatabaseErrors(pool:Pool){
   const message=String(error.message),code=typeof error.code==='string'&&/^[0-9A-Z]{5}$/.test(error.code)?error.code:/trying to connect/i.test(message)?'POOL_ACQUIRE_TIMEOUT':/query read timeout/i.test(message)?'QUERY_READ_TIMEOUT':/timeout/i.test(message)?'TIMEOUT':'UNCLASSIFIED';
   process.stdout.write(JSON.stringify({fixtureDatabaseError:true,code,boundary,constraint:safe(error.constraint),table:safe(error.table),schema:safe(error.schema)})+'\n');
  }
- function wrap(target:any){
+ function wrap(target:any,measure=false){
   const query=target.query;
   target.query=function(...args:any[]){
+   const finish=measure?timings?.begin(args[0]):undefined;
    const last=args.length-1;
-   if(typeof args[last]==='function'){const callback=args[last];args[last]=function(error:unknown,...rest:unknown[]){if(error)report(error,args[0]);return callback(error,...rest);};}
-   try{const result=query.apply(this,args);return result?.catch?result.catch((error:unknown)=>{report(error,args[0]);throw error;}):result;}
-   catch(error){report(error,args[0]);throw error;}
+   if(typeof args[last]==='function'){const callback=args[last];args[last]=function(error:unknown,...rest:unknown[]){finish?.();if(error)report(error,args[0]);return callback(error,...rest);};}
+   try{const result=query.apply(this,args);return result?.then?result.then((value:unknown)=>{finish?.();return value;},(error:unknown)=>{finish?.();report(error,args[0]);throw error;}):result;}
+   catch(error){finish?.();report(error,args[0]);throw error;}
   };
  }
- pool.on('connect',wrap);wrap(pool);
+ pool.on('connect',client=>wrap(client,true));wrap(pool);
 }
 
 export function loadDiagnostics(pool:Pool,container:string,onRoots?:(rows:{state:string;n:number}[])=>void){
