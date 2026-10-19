@@ -41,3 +41,12 @@ export function classifyRootOutcomes(roots:{id:string;state:string;errorCode:str
  return{expected,errors};
 }
 export function fatalLoadFindings(unmet:string[]){return unmet.filter(item=>!/^(approved-source FAQ grounding subset|delayed approval and hot-conversation ownership mix|30s sustained\/10s burst timing|worker loss,lease expiry,provider throttling,collector outage,reconnect fault stages|full root-to-physical-effect and per-tenant fairness audit|active concurrency target requires measured peak, accepted backlog is insufficient)$/.test(item));}
+
+/** Children execute directly through durable workflow calls; terminal outbox cleanup is not their dispatch time. */
+export function verifyQueueAges(metrics:{dispatch_lag_p95_ms:number|string|null;child_count:number;child_started_count:number;child_activation_p95_ms:number|string|null},limitMs:number){
+ const errors:string[]=[];
+ if(metrics.dispatch_lag_p95_ms===null||!Number.isFinite(Number(metrics.dispatch_lag_p95_ms))||Number(metrics.dispatch_lag_p95_ms)>limitMs)errors.push('Queue age threshold failed');
+ if(!Number.isSafeInteger(metrics.child_count)||metrics.child_count<0||metrics.child_started_count!==metrics.child_count)errors.push('Child first-native-operation coverage missing');
+ if(metrics.child_count&&(metrics.child_activation_p95_ms===null||!Number.isFinite(Number(metrics.child_activation_p95_ms))||Number(metrics.child_activation_p95_ms)>limitMs))errors.push('Child admission-to-first-native-operation threshold failed');
+ return errors;
+}

@@ -1,5 +1,5 @@
 import {describe,it,expect} from 'vitest';
-import {verifyModelCalls,verifyEffects,classifyRootOutcomes,fatalLoadFindings,type EffectIdentity,type PhysicalModelCall,type NativeModelCall} from './scheduling-load-verification';
+import {verifyQueueAges,verifyModelCalls,verifyEffects,classifyRootOutcomes,fatalLoadFindings,type EffectIdentity,type PhysicalModelCall,type NativeModelCall} from './scheduling-load-verification';
 describe('controlled load verifier calibration',()=>{
  const native:NativeModelCall={operationId:'model:task:0',attemptId:'attempt',taskId:'task',rootTaskId:'root',state:'completed',errorCode:null,bodyDigest:'body',providerRequestId:'physical-1'};
  const physical:PhysicalModelCall={id:'physical-1',worker:'worker-0',bodyDigest:'body',startedAt:1,endedAt:2,status:200};
@@ -43,5 +43,17 @@ describe('controlled load verifier calibration',()=>{
  it('fails every concrete audit or missing-grounding finding rather than trusting an incomplete regex',()=>{
   expect(fatalLoadFindings(['Final stale-generation assistant delivery audit failed','Expected grounded configuration count missing'])).toHaveLength(2);
   expect(fatalLoadFindings(['active concurrency target requires measured peak, accepted backlog is insufficient'])).toEqual([]);
+ });
+});
+
+describe('dispatch and child activation metric calibration',()=>{
+ it('ignores child terminal-cleanup age while grading actual root dispatch and every child activation',()=>{
+  const valid={dispatch_lag_p95_ms:12000,child_count:100,child_started_count:100,child_activation_p95_ms:14000,legacy_all_outbox_lag_p95_ms:90000};
+  expect(verifyQueueAges(valid,30000)).toEqual([]);
+  expect(verifyQueueAges({...valid,dispatch_lag_p95_ms:30001},30000)).toContain('Queue age threshold failed');
+  expect(verifyQueueAges({...valid,child_activation_p95_ms:30001},30000)).toContain('Child admission-to-first-native-operation threshold failed');
+  expect(verifyQueueAges({...valid,child_started_count:99},30000)).toContain('Child first-native-operation coverage missing');
+  expect(verifyQueueAges({...valid,child_activation_p95_ms:null},30000)).toContain('Child admission-to-first-native-operation threshold failed');
+  expect(verifyQueueAges({...valid,child_count:0,child_started_count:0,child_activation_p95_ms:null},30000)).toEqual([]);
  });
 });
