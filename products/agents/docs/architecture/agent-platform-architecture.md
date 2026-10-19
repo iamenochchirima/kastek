@@ -522,13 +522,39 @@ poll through the model/tool loop.
 | Database access | Keep transactions short and outside model/provider waits. Use bounded queries, indexed eligible-work scans and explicit connection budgets across replicas, dispatchers and cleanup processes. |
 | Retries and recovery | Bound physical attempts and backoff, preserve logical identities, and reconcile unknown effects. Recover capacity reservations after failures without allowing overlapping ownership or multiplying charges. |
 
-Scheduling must consider resource eligibility before applying a bounded promotion cutoff. Older
-requests blocked on one resource must not hide requests that can use another available resource.
-A separately bounded housekeeping selection preserves authority rechecks and expired provisional
-grant cleanup, including work whose own holds make its resource appear full. Selection is a hint;
-current authority, deadlines, generations and atomic slot reservation still decide each grant.
-Independent candidates use bounded transactions on the existing pool. The sweep must await all
-of them before reporting failure or allowing shutdown to close the pool.
+The capacity scheduling contract assigns durable fair opportunities in this order: tenant,
+resource class, provider account, then effective age within the selected queue. Classes are
+`model`, `connected`, `local`, and `generic`. Each tenant stores one class cursor and three
+provider-account cursors. Database-generated queue metadata derives from exactly one native
+`provider:<model|connected|local>:<40 lowercase hex>` bucket. Missing, malformed, or mixed provider buckets use
+one generic queue. A database trigger derives the immutable tenant identity from the task, with a
+composite foreign key. Tenant and resource queue indexes support bounded cyclic seeks. Caller
+text cannot choose scheduling priority.
+
+Each turn selects the next eligible class and provider account cyclically, with wraparound.
+Selection records an attempted opportunity, including a crash before candidate processing.
+It does not promise equal grant counts or a wall-clock service bound. Direct admissions still
+yield to older eligible waiters globally. Scheduled promotion checks predecessors within the
+selected tenant and resource queue. Interactive age is creation time; other workloads add five
+seconds. Shared quotas and current authority still govern every grant.
+
+A separately bounded housekeeping selection checks authority, deadlines, and expired provisional
+holds. Housekeeping alone cannot grant valid waiting work outside its selected queue. When both
+selections include a request, deduplication preserves promotion intent. Expired provisional holds
+release their slots and requeue with a new generation under the original deadline. A later pass
+can promote the new generation. Active calls retain holds until their outcome is settled.
+Uncertain calls retain holds until explicit reconciliation permits release.
+Independent candidates use bounded transactions on the existing pool. Every pass drains all
+candidate workers before reporting failure or allowing shutdown to close the pool.
+
+Productive capacity, root-dispatch, and capacity-notification passes yield to the event loop and
+continue immediately. Only committed native transitions or acknowledgements count as progress.
+Cursor movement, failed attempts, and skipped locks do not. Idle and failed passes retain bounded
+backoff. Shutdown awaits each pass and prevents another pass after the yield.
+
+This queue contract is the implementation target for the current capacity correction. The
+1,000-agent acceptance passes; 10,000-agent acceptance remains unmet until the matching source,
+fresh schema, and staged workload pass the recorded thresholds.
 
 Model, connected-provider and local-operation capacity are separate resource pools. Increasing
 model concurrency must not force an equal increase in local-operation concurrency. Local work

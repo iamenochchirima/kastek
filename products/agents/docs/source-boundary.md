@@ -609,6 +609,16 @@ structured stdout diagnostics.
 
 ## Coordination and replica configuration
 
+The current capacity correction targets the hierarchical fair-opportunity contract in
+[the platform architecture](architecture/agent-platform-architecture.md#tenant-isolation-memory-and-capacity).
+The implementation description below records the preceding verified scheduler until the matching
+fresh schema and progress-driven publishers pass their native checks. The correction changes
+scheduled predecessor scope to the selected tenant and resource queue, introduces bounded durable
+class and provider-account cursors, and drains productive passes after an event-loop yield.
+Expired provisional holds require a later promotion pass after their generation changes.
+Direct-admission global anti-barging and final authority and shared quota checks remain required.
+
+
 The live dispatcher runs five independent bounded loops on its existing pool: root dispatch,
 capacity grants, capacity notifications, controls, and reconciliation. Each loop has at most one
 pass in flight and waits one second between passes. Slow maintenance does not prevent the next
