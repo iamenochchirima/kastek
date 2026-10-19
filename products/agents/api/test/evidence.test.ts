@@ -246,6 +246,20 @@ const url=process.env.AGENTS_TEST_DATABASE_URL;
   const artifact=await taskArtifacts.put(f.task.id,op,{name:"report.md",contentType:"text/markdown",content:Buffer.from(text)});
   return{...f,p,op,artifact,text};
  }
+ it("creates evidence-bound report artifacts on one leased connection and refuses withdrawn source policy",async()=>{
+  const f=await fixture(false,false,true),p=await evidence.recordChunk(f.task.id,f.operationId,f.chunkId);await context(f,p);
+  const op=`report:${f.task.id}:single`;await beginOperation(pool,f.task.id,{id:op,kind:"resource",name:"report.prepare",request:{},reservedTokens:0,reservedMs:1000,retrySafe:true});
+  const scoped=new URL(url!);scoped.pathname=`/${database}`;
+  const single=new Pool({connectionString:scoped.href,max:1,connectionTimeoutMillis:150,statement_timeout:2000,query_timeout:2500});
+  const artifacts=new TaskArtifactStore(single,taskArtifacts.objects),content=Buffer.from(`Sourced report [${p.label}]`);
+  try{
+   const artifact=await artifacts.put(f.task.id,op,{name:"single.md",contentType:"text/markdown",content});
+   expect(Buffer.from((await artifacts.download(f.scope.accountId,f.scope.organizationId,f.task.id,artifact.id)).content)).toEqual(content);
+   await knowledge.setPolicy(f.scope,f.job.sourceId,{operationId:randomUUID(),expectedGeneration:1,action:"withdraw"});
+   await expect(artifacts.put(f.task.id,op,{name:"withdrawn.md",contentType:"text/markdown",content})).rejects.toMatchObject({code:"EVIDENCE_UNAVAILABLE"});
+   await expect(artifacts.download(f.scope.accountId,f.scope.organizationId,f.task.id,artifact.id)).rejects.toMatchObject({code:"EVIDENCE_UNAVAILABLE"});
+  }finally{await single.end();}
+ });
  it("invalidates approval, claims and previews from every influencing source, including uncited facts",async()=>{
   for(const approved of [false,true]){
    const f=await reportFixture(approved?()=>"A report whose source influenced the model but was not cited":undefined);

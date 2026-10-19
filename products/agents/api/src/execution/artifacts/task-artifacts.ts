@@ -5,7 +5,7 @@ import { canonicalJson,PlatformError } from "../../contracts/contracts";
 import type { DependencyManifest } from "../../contracts/source-contracts";
 import { transaction } from "../../infrastructure/database";
 import { type PrivateObjectStore } from "../../infrastructure/object-store";
-import { assertCurrentEvidence,EvidenceStore } from "../context/evidence";
+import { assertCurrentEvidence,EvidenceStore,taskEvidenceManifest } from "../context/evidence";
 import { resolveAutomationOwner,resolveAutomationReviewer } from "../lifecycle/automation-authority";
 import { assertCurrentAuthority,loadExecution } from "../lifecycle/execution";
 import type { ManagementScope } from "../memory/memory";
@@ -54,7 +54,7 @@ export class TaskArtifactStore {
     const owner = await transaction(this.pool,async db=>{
       const initial=await loadExecution(db,taskId);await db.query("SELECT id FROM agents_platform.organizations WHERE id=$1 FOR UPDATE",[initial.task.organization_id]);
       const execution=await loadExecution(db,taskId,true);await assertCurrentAuthority(db,execution);
-      if(this.evidence)await assertCurrentEvidence(db,taskId,await this.evidence.taskManifest(taskId));
+      if(this.evidence)await assertCurrentEvidence(db,taskId,await taskEvidenceManifest(db,taskId));
       const grant=(await db.query("SELECT operations FROM agents_platform.execution_grants WHERE id=$1",[execution.task.grant_id])).rows[0];
       if(!grant?.operations.includes("artifact.write")) throw new PlatformError("ARTIFACT_SCOPE_DENIED",403,"Artifact access is unavailable");
       if(!(await db.query("SELECT id FROM agents_platform.operations WHERE id=$1 AND task_id=$2 AND name IN ('sandbox.analyze','report.prepare') AND state IN ('started','completed')",[operationId,taskId])).rowCount) throw missing();
