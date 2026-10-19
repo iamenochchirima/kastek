@@ -99,7 +99,8 @@ export async function advanceCapacity(pool:Pool,options:Partial<CapacityPolicy>=
    q.created_at+CASE WHEN q.workload='interactive' THEN interval '0 seconds' ELSE interval '5 seconds' END AS priority_at
    FROM agents_platform.capacity_requests q JOIN agents_platform.tasks t ON t.id=q.task_id WHERE t.organization_id=ANY($1::uuid[])
    AND (q.state='waiting' OR q.state='granted' AND q.lease_until<=now())),
-   unavailable AS MATERIALIZED (SELECT b.key FROM agents_platform.capacity_buckets b
+   unavailable AS MATERIALIZED (SELECT b.key FROM (SELECT DISTINCT unnest(bucket_keys) AS key FROM due) relevant
+    JOIN agents_platform.capacity_buckets b ON b.key=relevant.key
     WHERE NOT EXISTS(SELECT 1 FROM agents_platform.capacity_slots s WHERE s.bucket_key=b.key AND s.owner_request IS NULL)
     AND NOT EXISTS(SELECT 1 FROM agents_platform.capacity_slot_ranges r WHERE r.bucket_key=b.key AND r.next_slot<=b.max_active)),
    housekeeping AS (SELECT id,task_id,organization_id,priority_at,

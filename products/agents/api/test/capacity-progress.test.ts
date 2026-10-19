@@ -1,6 +1,8 @@
 import {randomUUID} from 'node:crypto';
+import {writeFile} from 'node:fs/promises';
+import {resolve} from 'node:path';
 import {Pool} from 'pg';
-import {beforeEach,afterEach,describe,it,expect} from 'vitest';
+import {beforeEach,afterEach,describe,it,expect,vi} from 'vitest';
 import {defaultBusinessConfiguration,executionGrantSchema,type AdmissionAuthority} from '../src/contracts/contracts';
 import {PlatformStore} from '../src/product/agents/store';
 import {setupPlatformSchema} from '../src/composition/setup';
@@ -36,6 +38,22 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
   await pool.query('UPDATE agents_platform.execution_grants SET revoked_at=now() WHERE id=$1',[f.grant.id]);await advanceCapacity(pool);
   expect((await pool.query('SELECT state,error_code FROM agents_platform.capacity_requests WHERE id=$1',[locals[0]!.id])).rows[0]).toMatchObject({state:'rejected',error_code:'GRANT_REVOKED'});
   expect((await pool.query('SELECT id FROM agents_platform.operations WHERE task_id=$1',[f.task.id])).rowCount).toBe(0);
+ });
+ it('probes availability only for due bucket keys in the actual native candidate query',async()=>{
+  const f=await fixture(),key=randomUUID(),held=request(f.task.id,key),waiting=request(f.task.id,key);await hold(held);
+  expect((await transaction(pool,db=>requestCapacity(db,waiting))).state).toBe('waiting');
+  await pool.query("INSERT INTO agents_platform.capacity_buckets(key,max_active) SELECT 'unrelated:'||n,1 FROM generate_series(1,5000) n");
+  await pool.query('ANALYZE agents_platform.capacity_buckets');await pool.query('ANALYZE agents_platform.capacity_requests');
+  const client=await pool.connect(),spy=vi.spyOn(client,'query');client.release();
+  let selected:readonly unknown[]|undefined;
+  try{await advanceCapacity(pool);selected=spy.mock.calls.find(args=>typeof args[0]==='string'&&args[0].includes('unavailable AS MATERIALIZED'));}finally{spy.mockRestore();}
+  expect(selected).toBeDefined();
+  const plan=(await pool.query(`EXPLAIN (ANALYZE,FORMAT JSON) ${selected![0]}`,selected![1] as unknown[])).rows[0]['QUERY PLAN'];
+  await writeFile(resolve(__dirname,'../../../../.audit/capacity-availability-plan.json'),JSON.stringify(plan,null,2),{mode:0o600});
+  const nodes:Record<string,any>[]=[];const visit=(node:Record<string,any>)=>{nodes.push(node);for(const child of node.Plans??[])visit(child);};visit(plan[0].Plan);
+  const bucketScans=nodes.filter(node=>node['Relation Name']==='capacity_buckets');expect(bucketScans).toHaveLength(1);
+  expect(bucketScans[0]!['Node Type']).toMatch(/Index/);expect(bucketScans[0]!['Actual Rows']).toBe(1);expect(bucketScans[0]!['Rows Removed by Filter']??0).toBe(0);
+  expect((await pool.query('SELECT count(*)::int n FROM agents_platform.capacity_buckets')).rows[0].n).toBe(5001);
  });
  it('reclaims an expired grant despite its full bucket and supports a one-connection pool',async()=>{
   const f=await fixture(),item=request(f.task.id,randomUUID()),first=await transaction(pool,db=>requestCapacity(db,item));
