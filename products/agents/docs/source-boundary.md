@@ -189,8 +189,9 @@ Moving adapter source changes executable digests. Existing immutable bindings ar
 never rewritten: new acceptance uses newly discovered bindings and published versions
 with matching source/compiled artifacts. A previously recorded receipt still resolves
 before the live registry; unavailable old releases fail closed for new physical IO.
-The structural checkpoint retains Restate V10 handler names, journal steps, operation
-IDs and `connected-research-v7`. Existing running compiled owner services are preserved.
+The current business workflow is `AgentsBusinessRunV12`, with harness release
+`modular-programs-v2`. Isolated verification preserves existing running owner services
+and their original compiled artifacts.
 
 The relocation smoke compiles into an ignored output tree rather than deleting a
 running `dist` deployment. From the repository root, with a disposable-database-capable
