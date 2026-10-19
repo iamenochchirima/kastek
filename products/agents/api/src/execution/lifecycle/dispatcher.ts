@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import {dispatcherPhases,type DispatcherPhase} from "../../contracts/execution";
 import {advanceCapacity} from "../scheduling/capacity";
 import { claimDispatchBatch,parallelEach,type DispatchPolicy } from "../scheduling/dispatch-claims";
 import type { Pool } from "pg";
@@ -11,15 +12,21 @@ export interface DispatcherOptions {
   adminUrl: string;
   fetch?: typeof fetch;
   onError?: (code: string) => void;
+  onPhase?: (phase:DispatcherPhase,durationMs:number,success:boolean)=>void;
   policy?: Partial<DispatchPolicy>;
   runtimeRoutes?: Record<string,{ingressUrl:string;adminUrl:string;workflowName:string}>;
 }
 
-export async function dispatchTasksOnce(pool: Pool, options: DispatcherOptions): Promise<void> {
+type DispatcherContext={request:typeof fetch;routes:NonNullable<DispatcherOptions["runtimeRoutes"]>;releases:string[]};
+function dispatcherContext(options:DispatcherOptions):DispatcherContext{
   const request = options.fetch ?? fetch;
   const routes=options.runtimeRoutes??{[HARNESS_RELEASE]:{ingressUrl:options.ingressUrl,adminUrl:options.adminUrl,workflowName:WORKFLOW_NAME}};
   const releases=Object.keys(routes);if(!releases.length||releases.length>8)throw Error("Invalid compatible runtime routes");
   for(const route of Object.values(routes))if(!/^https?:$/.test(new URL(route.ingressUrl).protocol)||!/^https?:$/.test(new URL(route.adminUrl).protocol)||!/^AgentsBusinessRunV[0-9]+$/.test(route.workflowName))throw Error("Invalid compatible runtime route");
+  return{request,routes,releases};
+}
+
+async function dispatchRootBatch(pool:Pool,options:DispatcherOptions,{request,routes,releases}:DispatcherContext):Promise<void>{
   await pool.query(`WITH terminal AS (SELECT o.task_id FROM agents_platform.task_outbox o JOIN agents_platform.tasks t ON t.id=o.task_id
     WHERE o.dispatched_at IS NULL AND t.state IN ('completed','incomplete','refused','failed','cancelled','uncertain')
     ORDER BY o.created_at,o.task_id FOR UPDATE OF o SKIP LOCKED LIMIT 128)
@@ -65,9 +72,9 @@ export async function dispatchTasksOnce(pool: Pool, options: DispatcherOptions):
       options.onError?.("RUNTIME_DISPATCH_FAILED");
     }
   });
-  await reconcilePendingRoots(pool);
-  await advanceCapacity(pool);
-  await publishCapacityNotifications(pool,options,routes);
+}
+
+async function dispatchControls(pool:Pool,options:DispatcherOptions,{request,routes,releases}:DispatcherContext):Promise<void>{
   const controlOwner=randomUUID();
   const controls = (await pool.query(`WITH due AS (SELECT c.task_id,c.generation FROM agents_platform.task_controls c JOIN agents_platform.tasks t ON t.id=c.task_id
     WHERE c.dispatched_at IS NULL AND (c.lease_until IS NULL OR c.lease_until<now()) AND t.harness_release=ANY($2::text[]) AND t.state NOT IN ('completed','incomplete','refused','failed','cancelled','uncertain')
@@ -122,18 +129,41 @@ export async function dispatchTasksOnce(pool: Pool, options: DispatcherOptions):
   });
 }
 
-export function startDispatcher(pool: Pool, options: DispatcherOptions): { stop(): Promise<void> } {
-  let stopped = false;
-  let timer: NodeJS.Timeout | undefined;
-  let wake: (() => void) | undefined;
-  const done = (async () => {
-    while (!stopped) {
-      try { await dispatchTasksOnce(pool, options); }
-      catch { options.onError?.("RUNTIME_PUBLISHER_FAILED"); }
-      if (!stopped) await new Promise<void>(resolve => { wake = resolve; timer = setTimeout(resolve, 1000); });
+function phaseWork(pool:Pool,options:DispatcherOptions):Record<DispatcherPhase,()=>Promise<void>>{
+  const context=dispatcherContext(options);
+  return{
+    dispatch:()=>dispatchRootBatch(pool,options,context),
+    capacity:()=>advanceCapacity(pool),
+    capacity_notifications:()=>publishCapacityNotifications(pool,options,context.routes),
+    controls:()=>dispatchControls(pool,options,context),
+    reconciliation:()=>reconcilePendingRoots(pool),
+  };
+}
+
+async function runPhase(options:DispatcherOptions,phase:DispatcherPhase,work:()=>Promise<void>):Promise<void>{
+  const started=performance.now();let success=false;
+  try{await work();success=true;}
+  finally{try{options.onPhase?.(phase,Math.max(0,performance.now()-started),success);}catch{}}
+}
+
+export async function dispatchTasksOnce(pool:Pool,options:DispatcherOptions):Promise<void>{
+  const work=phaseWork(pool,options);
+  for(const phase of ["dispatch","reconciliation","capacity","capacity_notifications","controls"] as const)await runPhase(options,phase,work[phase]);
+}
+
+export function startDispatcher(pool:Pool,options:DispatcherOptions):{stop():Promise<void>}{
+  const work=phaseWork(pool,options),wakers=new Set<()=>void>();let stopped=false;
+  const loops=dispatcherPhases.map(phase=>(async()=>{
+    while(!stopped){
+      try{await runPhase(options,phase,work[phase]);}
+      catch{try{options.onError?.("RUNTIME_PUBLISHER_FAILED");}catch{}}
+      if(!stopped)await new Promise<void>(resolve=>{
+        const wake=()=>{clearTimeout(timer);wakers.delete(wake);resolve();};
+        const timer=setTimeout(wake,1000);wakers.add(wake);
+      });
     }
-  })();
-  return { stop: async () => { stopped = true; if (timer) clearTimeout(timer); wake?.(); await done; } };
+  })());
+  return{stop:async()=>{stopped=true;for(const wake of wakers)wake();await Promise.all(loops);}};
 }
 
 async function publishCapacityNotifications(pool:Pool,options:DispatcherOptions,routes:NonNullable<DispatcherOptions["runtimeRoutes"]>):Promise<void>{
