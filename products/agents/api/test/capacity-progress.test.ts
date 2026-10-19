@@ -1,5 +1,5 @@
 import {randomUUID} from 'node:crypto';
-import {writeFile} from 'node:fs/promises';
+import {mkdir,writeFile} from 'node:fs/promises';
 import {resolve} from 'node:path';
 import {Pool} from 'pg';
 import {beforeEach,afterEach,describe,it,expect,vi} from 'vitest';
@@ -49,7 +49,8 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
   try{await advanceCapacity(pool);selected=spy.mock.calls.find(args=>typeof args[0]==='string'&&args[0].includes('unavailable AS MATERIALIZED'));}finally{spy.mockRestore();}
   expect(selected).toBeDefined();
   const plan=(await pool.query(`EXPLAIN (ANALYZE,FORMAT JSON) ${selected![0]}`,selected![1] as unknown[])).rows[0]['QUERY PLAN'];
-  await writeFile(resolve(__dirname,'../../../../.audit/capacity-availability-plan.json'),JSON.stringify(plan,null,2),{mode:0o600});
+  const auditDirectory=resolve(__dirname,'../../../../.audit');await mkdir(auditDirectory,{recursive:true,mode:0o700});
+  await writeFile(resolve(auditDirectory,'capacity-availability-plan.json'),JSON.stringify(plan,null,2),{mode:0o600});
   const nodes:Record<string,any>[]=[];const visit=(node:Record<string,any>)=>{nodes.push(node);for(const child of node.Plans??[])visit(child);};visit(plan[0].Plan);
   const bucketScans=nodes.filter(node=>node['Relation Name']==='capacity_buckets');expect(bucketScans).toHaveLength(1);
   expect(bucketScans[0]!['Node Type']).toMatch(/Index/);expect(bucketScans[0]!['Actual Rows']).toBe(1);expect(bucketScans[0]!['Rows Removed by Filter']??0).toBe(0);
