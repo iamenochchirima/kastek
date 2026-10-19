@@ -609,21 +609,17 @@ structured stdout diagnostics.
 
 ## Coordination and replica configuration
 
-The current capacity correction targets the hierarchical fair-opportunity contract in
-[the platform architecture](architecture/agent-platform-architecture.md#tenant-isolation-memory-and-capacity).
-The implementation description below records the preceding verified scheduler until the matching
-fresh schema and progress-driven publishers pass their native checks. The correction changes
-scheduled predecessor scope to the selected tenant and resource queue, introduces bounded durable
-class and provider-account cursors, and drains productive passes after an event-loop yield.
-Expired provisional holds require a later promotion pass after their generation changes.
-Direct-admission global anti-barging and final authority and shared quota checks remain required.
-
-
 The live dispatcher runs five independent bounded loops on its existing pool: root dispatch,
 capacity grants, capacity notifications, controls, and reconciliation. Each loop has at most one
-pass in flight and waits one second between passes. Slow maintenance does not prevent the next
-root batch from being claimed. Shutdown wakes all idle loops and awaits every in-flight pass
-before closing the pool. The one-shot `dispatchTasksOnce` entry still awaits all phases in order.
+pass in flight. Successful root-dispatch and capacity-notification acknowledgements, and committed
+capacity grants, rejections or expired-generation transitions, count as progress. Productive passes
+in these three loops await `setImmediate` and continue with another bounded pass. Cursor movement,
+skipped locks, rolled-back changes, unsuccessful reservations and HTTP responses without a native
+acknowledgement do not count. Idle and failed passes wait one second. Controls and reconciliation
+remain periodic. Slow maintenance does not prevent the next root batch from being claimed.
+Shutdown wakes idle loops, checks stop after each yield and awaits every in-flight batch before
+closing the pool. A batch drains its workers before throwing. The one-shot `dispatchTasksOnce`
+entry still awaits all phases in order.
 
 Dispatch claims default to batches of 32, eight parallel sends, and 120-second leases.
 Operators can set `AGENTS_DISPATCH_POLICY_JSON`, for example
@@ -633,9 +629,8 @@ outside the bounds fail startup without echoing the configuration. Batch size is
 parallelism is 1–32, and lease duration is 30–300 seconds. This policy does not increase the
 database connection budget. The controlled load fixture explicitly selects 128/32 through
 the same loader; those results describe that profile, while an unconfigured worker uses 32/8.
-The one-second delay after each completed batch limits sustained dispatch throughput even
-when SQL and HTTP are fast. Phase duration metrics include those SQL and HTTP waits but
-exclude the delay between passes.
+Phase duration metrics include SQL and HTTP waits but exclude the idle backoff and the event-loop
+yield between passes.
 
 Claims use PostgreSQL row locks with `SKIP LOCKED`;
 a durable tenant rotation selects bounded per-tenant candidate sets, so an older noisy tenant cannot bury a newly waiting tenant behind its backlog.
@@ -658,25 +653,42 @@ separate frontier. A failed multi-bucket reservation rolls back all partial clai
 Release clears the matching slot owner and generation with its hold row. Queue
 deadlines, provisional expiry and recorded grant delay use the database clock.
 Only a promoted queued request publishes a capacity wakeup and grant observation.
-Direct admissions yield to older eligible waiters across tenants. Scheduled promotions follow
-the selected tenant's eligible age prefix, while recorded tenant rotation governs fairness
-between tenants. Candidate selection and predecessor checks use the same effective age:
-interactive requests use creation time, and other workloads add five seconds. An unselected
-request from another tenant cannot veto a scheduled promotion. A full tenant-specific bucket
-cannot block another tenant whose complete bucket set has free capacity.
+Only the first insertion of a request can seek direct admission, which yields to older eligible
+waiters across tenants. Replaying a waiting request returns its durable waiting decision.
+Scheduled promotions use durable tenant rotation, then a cyclic resource class and provider
+account turn. Classes are model, connected, local and generic. One class cursor and three provider
+cursors per tenant record assigned opportunities. A failed reservation or crash after assignment
+can consume an opportunity. This does not promise equal grants or a wall-clock service bound.
+
+Fresh schema `021_scheduling.sql` derives class and account from exactly one native provider
+bucket with a recognized class and 40 lowercase hexadecimal characters. Missing, malformed or
+mixed provider keys map to one generic queue. Generated columns cannot accept caller overrides.
+An insert trigger derives immutable organization identity from the task and a composite foreign
+key enforces it. Tenant/class/account indexes support cyclic account seeks without grouping the
+platform backlog. Scheduled predecessor checks use the selected tenant and exact resource queue,
+including the single generic queue. Interactive requests use creation time; other workloads add
+five seconds. Every grant still rechecks current authority, deadlines, generation and all shared
+bucket limits before reserving slots atomically.
 
 Each capacity sweep selects two independently bounded sets within its tenant rotation: the
-existing due prefix for authority and expiry housekeeping, and waiting requests with available
-buckets for promotion. Eligibility precedes the promotion ranking and cutoff. Availability
+due prefix for authority and expiry housekeeping, and waiting requests within the assigned
+resource queues for promotion. Eligibility precedes the promotion ranking and cutoff. Availability
 checks use only bucket keys referenced by the selected tenants' due requests. Availability means
 an unowned slot or room to grow the slot frontier; the final atomic reservation rechecks it.
 Expired provisional grants remain in housekeeping even when their own holds fill their buckets.
+Housekeeping alone cannot promote valid waiting work. Deduplication preserves promotion intent
+when both sets select a request. Expired provisional holds release their slots and requeue under
+a new generation and the original deadline. A later pass can promote that generation. Replaying
+an expired grant also returns waiting after this transition, without an immediate direct regrant.
 The sweep deduplicates both sets, so it attempts at most twice its configured limit, 128 requests
 at the default limit of 64. Candidate transactions run with at most four workers and at most half
 the configured pool size, rounded down with a minimum of one. Errors are rethrown only after
 all workers drain. When the pool allows at least two candidate workers, one blocked authority
 check cannot serialize every unrelated candidate. Smaller pools retain serial sweeps. These
 bounds add no database connections.
+Candidate output limits do not bound all scan work. The due set still materializes selected
+tenants' pending backlogs, and promotion ranking sorts the selected queues. Account seeks use the
+queue index, but only measured workloads establish the total scheduling cost.
 
 `AGENTS_SCHEDULING_POLICY_JSON` contains validated finite operator limits for
 product, tenant, workload and provider capacity, queue depth, maximum waiting time,

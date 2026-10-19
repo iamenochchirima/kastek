@@ -533,8 +533,9 @@ text cannot choose scheduling priority.
 
 Each turn selects the next eligible class and provider account cyclically, with wraparound.
 Selection records an attempted opportunity, including a crash before candidate processing.
-It does not promise equal grant counts or a wall-clock service bound. Direct admissions still
-yield to older eligible waiters globally. Scheduled promotion checks predecessors within the
+It does not promise equal grant counts or a wall-clock service bound. Only a newly inserted
+request can seek direct admission, which yields to older eligible waiters globally. Replaying a
+waiting request cannot bypass its queue turn. Scheduled promotion checks predecessors within the
 selected tenant and resource queue. Interactive age is creation time; other workloads add five
 seconds. Shared quotas and current authority still govern every grant.
 
@@ -552,9 +553,9 @@ continue immediately. Only committed native transitions or acknowledgements coun
 Cursor movement, failed attempts, and skipped locks do not. Idle and failed passes retain bounded
 backoff. Shutdown awaits each pass and prevents another pass after the yield.
 
-This queue contract is the implementation target for the current capacity correction. The
-1,000-agent acceptance passes; 10,000-agent acceptance remains unmet until the matching source,
-fresh schema, and staged workload pass the recorded thresholds.
+The queue contract has native PostgreSQL regression coverage. Earlier 1,000-agent acceptance
+passes remain qualified by their source and configuration. Matching staged acceptance of this
+scheduler remains pending; 10,000-agent acceptance is unmet.
 
 Model, connected-provider and local-operation capacity are separate resource pools. Increasing
 model concurrency must not force an equal increase in local-operation concurrency. Local work
