@@ -75,6 +75,18 @@ Publication validates exact tool/workflow closure and saves a digest of the effe
 program/runtime releases, context policies, tools and connected bindings. Admission saves that
 composition on the task; workers validate it before further execution. Task bindings and published
 compositions are immutable. Workspace programs and booking providers fail explicitly.
+
+Execution loading reads current task, version, and connected-binding records and validates their
+schemas on every call. A private cache reuses only successful pure composition compilation for
+identical validated configuration and full binding content, under the process's fixed compiler
+and runtime contracts. It holds at most 128 entries and 4 MiB of serialized key/result content;
+oversized entries bypass it. This byte bound does not measure JavaScript heap overhead.
+Cached results and compiler descriptors are deeply immutable.
+The worker still checks both saved task and root-version compositions on every load. Grants,
+source policy, memory, channel ownership, execution availability, and authority decisions are
+outside this cache. Cache keys contain configuration content and must never enter logs or
+telemetry.
+
 Reviewed report stages live in `workflows/report-delivery/program.ts` and retain digest-bound
 approval, one dispatch claim and status-only reconciliation.
 
