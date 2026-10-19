@@ -7,7 +7,7 @@ import {PlatformStore} from '../src/product/agents/store';
 import {setupPlatformSchema} from '../src/composition/setup';
 import {transaction} from '../src/infrastructure/database';
 import {dispatchTasksOnce,startDispatcher} from '../src/execution/lifecycle/dispatcher';
-import {requestCapacity,activateCapacity,releaseCapacity} from '../src/execution/scheduling/capacity';
+import {requestCapacity,activateCapacity,releaseCapacity,advanceCapacity} from '../src/execution/scheduling/capacity';
 
 const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
 (databaseUrl?describe:describe.skip)('bounded dispatcher phases with native PostgreSQL and HTTP',()=>{
@@ -76,4 +76,49 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
    const observations=phases.length,requestCount=requests.length;await new Promise(resolve=>setTimeout(resolve,1100));expect(phases).toHaveLength(observations);expect(requests).toHaveLength(requestCount);
   }finally{await blocker.query('ROLLBACK');blocker.release();await dispatcher?.stop();}
  },10000);
+ it('drains twenty native roots with batch one without one-second sleeps after committed acknowledgements',async()=>{
+  await pool.query('UPDATE agents_platform.task_outbox SET dispatched_at=now() WHERE dispatched_at IS NULL');
+  const fixtures=[];for(let n=0;n<10;n++)fixtures.push(await fixture());const ids=fixtures.flatMap(f=>f.tasks.map(task=>task.id)),started=Date.now();
+  const dispatcher=startDispatcher(pool,{ingressUrl:origin,adminUrl:origin,policy:{batchSize:1,parallelism:1}});
+  try{
+   await eventually(async()=>Number((await pool.query('SELECT count(*)::int n FROM agents_platform.task_outbox WHERE task_id=ANY($1::uuid[]) AND dispatched_at IS NOT NULL',[ids])).rows[0].n)===20,4500);
+   expect(Date.now()-started).toBeLessThan(5000);expect(sent.filter(id=>ids.includes(id))).toHaveLength(20);
+   expect((await pool.query('SELECT attempts FROM agents_platform.task_outbox WHERE task_id=ANY($1::uuid[])',[ids])).rows.every(row=>row.attempts===1)).toBe(true);
+  }finally{await dispatcher.stop();}
+ },15000);
+ it('does not count an HTTP acknowledgement after notification ownership has changed as progress',async()=>{
+  await pool.query('UPDATE agents_platform.task_outbox SET dispatched_at=now() WHERE dispatched_at IS NULL');
+  await pool.query('UPDATE agents_platform.capacity_notifications SET dispatched_at=now() WHERE dispatched_at IS NULL');
+  const f=await fixture(),[a,b]=f.tasks,key=`notification-owner:${randomUUID()}`;
+  await pool.query('UPDATE agents_platform.task_outbox SET dispatched_at=now() WHERE task_id=ANY($1::uuid[])',[f.tasks.map(t=>t.id)]);
+  const first={id:`owner:${randomUUID()}`,taskId:a!.id,workload:'interactive' as const,buckets:[{key,limit:1}]},second={...first,id:`owner:${randomUUID()}`,taskId:b!.id};
+  await transaction(pool,db=>requestCapacity(db,first));await transaction(pool,db=>activateCapacity(db,first.id,1));await transaction(pool,db=>requestCapacity(db,second));await transaction(pool,db=>releaseCapacity(db,first.id,'completed'));await advanceCapacity(pool);
+  const foreignOwner=randomUUID(),phases:string[]=[];let delivered=0;
+  const dispatcher=startDispatcher(pool,{ingressUrl:origin,adminUrl:origin,onPhase:phase=>phases.push(phase),fetch:async(url,options)=>{
+   if(String(url).endsWith('/capacity')){delivered++;await pool.query('UPDATE agents_platform.capacity_notifications SET lease_owner=$2 WHERE request_id=$1',[second.id,foreignOwner]);return new Response('{}');}
+   return fetch(url,options);
+  }});
+  try{
+   await eventually(async()=>phases.includes('capacity_notifications')&&delivered===1);await new Promise(resolve=>setTimeout(resolve,150));
+   expect(phases.filter(phase=>phase==='capacity_notifications')).toHaveLength(1);
+   expect((await pool.query('SELECT dispatched_at,lease_owner FROM agents_platform.capacity_notifications WHERE request_id=$1',[second.id])).rows[0]).toMatchObject({dispatched_at:null,lease_owner:foreignOwner});
+  }finally{await dispatcher.stop();}
+ });
+ it('drains another in-flight root before propagating a native acknowledgement failure or stopping',async()=>{
+  await pool.query('UPDATE agents_platform.task_outbox SET dispatched_at=now() WHERE dispatched_at IS NULL');
+  const f=await fixture(),[bad,good]=f.tasks;
+  await pool.query(`CREATE SEQUENCE agents_platform.publisher_error_seen; CREATE FUNCTION agents_platform.reject_retry() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.task_id='${bad!.id}' AND NEW.last_error_code='RUNTIME_DISPATCH_FAILED' THEN PERFORM nextval('agents_platform.publisher_error_seen');RAISE EXCEPTION 'Controlled retry persistence failure'; END IF;RETURN NEW;END $$;CREATE TRIGGER reject_retry BEFORE UPDATE ON agents_platform.task_outbox FOR EACH ROW EXECUTE FUNCTION agents_platform.reject_retry()`);
+  let release!:()=>void;const gate=new Promise<void>(resolve=>{release=resolve;});let goodEntered=false,stopped=false;const phases:{phase:string;success:boolean}[]=[];
+  const dispatcher=startDispatcher(pool,{ingressUrl:origin,adminUrl:origin,policy:{batchSize:2,parallelism:2},onPhase:(phase,_ms,success)=>phases.push({phase,success}),fetch:async(url,options)=>{
+   if(String(url).includes('/restate/send/')){const task=JSON.parse(String(options?.body)).taskId;if(task===bad!.id)throw Error('Controlled transport failure');if(task===good!.id){goodEntered=true;await gate;}}
+   return fetch(url,options);
+  }});
+  try{
+   await eventually(async()=>goodEntered&&(await pool.query('SELECT is_called FROM agents_platform.publisher_error_seen')).rows[0].is_called);
+   const stop=dispatcher.stop().then(()=>{stopped=true;});await new Promise<void>(resolve=>setImmediate(resolve));expect(stopped).toBe(false);expect(phases.some(x=>x.phase==='dispatch')).toBe(false);
+   release();await stop;expect(phases.filter(x=>x.phase==='dispatch')).toEqual([{phase:'dispatch',success:false}]);
+   expect((await pool.query('SELECT dispatched_at FROM agents_platform.task_outbox WHERE task_id=$1',[good!.id])).rows[0].dispatched_at).not.toBeNull();expect(sent.filter(id=>id===good!.id)).toHaveLength(1);
+  }finally{release();await dispatcher.stop();}
+ });
+
 });

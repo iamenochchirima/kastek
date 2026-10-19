@@ -26,13 +26,14 @@ function dispatcherContext(options:DispatcherOptions):DispatcherContext{
   return{request,routes,releases};
 }
 
-async function dispatchRootBatch(pool:Pool,options:DispatcherOptions,{request,routes,releases}:DispatcherContext):Promise<void>{
+async function dispatchRootBatch(pool:Pool,options:DispatcherOptions,{request,routes,releases}:DispatcherContext):Promise<number>{
+  let committed=0;
   await pool.query(`WITH terminal AS (SELECT o.task_id FROM agents_platform.task_outbox o JOIN agents_platform.tasks t ON t.id=o.task_id
     WHERE o.dispatched_at IS NULL AND t.state IN ('completed','incomplete','refused','failed','cancelled','uncertain')
     ORDER BY o.created_at,o.task_id FOR UPDATE OF o SKIP LOCKED LIMIT 128)
     UPDATE agents_platform.task_outbox o SET dispatched_at=now(),lease_owner=NULL,lease_until=NULL FROM terminal t WHERE t.task_id=o.task_id`);
   const {owner,rows,policy}=await claimDispatchBatch(pool,options.policy,releases);
-  await parallelEach(rows,policy.parallelism,async row=>{
+  await drainBatch(rows,policy.parallelism,async row=>{
     try {
       const task = (await pool.query(`SELECT state,runtime_invocation_id,harness_release,parent_task_id FROM agents_platform.tasks WHERE id=$1`, [row.task_id])).rows[0];
       const route=routes[task?.harness_release];if(!route)throw new Error("HARNESS_RELEASE_UNAVAILABLE");
@@ -64,14 +65,16 @@ async function dispatchRootBatch(pool:Pool,options:DispatcherOptions,{request,ro
           AND EXISTS(SELECT 1 FROM agents_platform.task_outbox WHERE task_id=$1 AND lease_owner=$3 AND lease_until>now())`, [row.task_id, body.invocationId,owner]);
         if (bound.rowCount !== 1) throw new Error("RUNTIME_IDENTITY_CONFLICT");
       }
-      await pool.query(`UPDATE agents_platform.task_outbox SET dispatched_at=now(),lease_owner=NULL,lease_until=NULL,last_error_code=NULL
-        WHERE task_id=$1 AND lease_owner=$2`, [row.task_id, owner]);
+      const acknowledgement=await pool.query(`UPDATE agents_platform.task_outbox SET dispatched_at=now(),lease_owner=NULL,lease_until=NULL,last_error_code=NULL
+        WHERE task_id=$1 AND lease_owner=$2 AND dispatched_at IS NULL`, [row.task_id, owner]);
+      committed+=acknowledgement.rowCount??0;
     } catch {
       await pool.query(`UPDATE agents_platform.task_outbox SET lease_owner=NULL,lease_until=NULL,
         available_at=now()+interval '5 seconds',last_error_code='RUNTIME_DISPATCH_FAILED' WHERE task_id=$1 AND lease_owner=$2`, [row.task_id, owner]);
       options.onError?.("RUNTIME_DISPATCH_FAILED");
     }
   });
+  return committed;
 }
 
 async function dispatchControls(pool:Pool,options:DispatcherOptions,{request,routes,releases}:DispatcherContext):Promise<void>{
@@ -81,7 +84,7 @@ async function dispatchControls(pool:Pool,options:DispatcherOptions,{request,rou
     ORDER BY c.task_id,c.generation FOR UPDATE OF c SKIP LOCKED LIMIT 32)
     UPDATE agents_platform.task_controls c SET lease_owner=$1,lease_until=now()+interval '30 seconds' FROM due
     WHERE c.task_id=due.task_id AND c.generation=due.generation RETURNING c.task_id,c.generation,c.kind,(SELECT harness_release FROM agents_platform.tasks WHERE id=c.task_id) AS harness_release`,[controlOwner,releases])).rows;
-  await parallelEach(controls,8,async control=>{
+  await drainBatch(controls,8,async control=>{
     const route=routes[control.harness_release]!;
     try {
       const response = await request(`${route.ingressUrl.replace(/\/$/, "")}/${route.workflowName}/${control.task_id}/${control.kind==="review"?"review":"resume"}`, {
@@ -99,7 +102,7 @@ async function dispatchControls(pool:Pool,options:DispatcherOptions,{request,rou
 
   const cancellations = (await pool.query(`SELECT id,runtime_invocation_id,created_at,harness_release FROM agents_platform.tasks
     WHERE state='cancel_requested' AND runtime_invocation_id IS NOT NULL AND harness_release=ANY($1::text[]) ORDER BY updated_at LIMIT 10`,[releases])).rows;
-  await parallelEach(cancellations,8,async task=>{
+  await drainBatch(cancellations,8,async task=>{
     const route=routes[task.harness_release]!;
     try {
       try {
@@ -129,21 +132,21 @@ async function dispatchControls(pool:Pool,options:DispatcherOptions,{request,rou
   });
 }
 
-function phaseWork(pool:Pool,options:DispatcherOptions):Record<DispatcherPhase,()=>Promise<void>>{
+function phaseWork(pool:Pool,options:DispatcherOptions):Record<DispatcherPhase,()=>Promise<number>>{
   let context:DispatcherContext|undefined;
   const validated=()=>context??=dispatcherContext(options);
   return{
     dispatch:async()=>dispatchRootBatch(pool,options,validated()),
-    capacity:async()=>{validated();await advanceCapacity(pool);},
+    capacity:async()=>{validated();return advanceCapacity(pool);},
     capacity_notifications:async()=>publishCapacityNotifications(pool,options,validated().routes),
-    controls:async()=>dispatchControls(pool,options,validated()),
-    reconciliation:async()=>{validated();await reconcilePendingRoots(pool);},
+    controls:async()=>{await dispatchControls(pool,options,validated());return 0;},
+    reconciliation:async()=>{validated();await reconcilePendingRoots(pool);return 0;},
   };
 }
 
-async function runPhase(options:DispatcherOptions,phase:DispatcherPhase,work:()=>Promise<void>):Promise<void>{
+async function runPhase(options:DispatcherOptions,phase:DispatcherPhase,work:()=>Promise<number>):Promise<number>{
   const started=performance.now();let success=false;
-  try{await work();success=true;}
+  try{const committed=await work();success=true;return committed;}
   finally{try{options.onPhase?.(phase,Math.max(0,performance.now()-started),success);}catch{}}
 }
 
@@ -156,8 +159,13 @@ export function startDispatcher(pool:Pool,options:DispatcherOptions):{stop():Pro
   const work=phaseWork(pool,options),wakers=new Set<()=>void>();let stopped=false;
   const loops=dispatcherPhases.map(phase=>(async()=>{
     while(!stopped){
-      try{await runPhase(options,phase,work[phase]);}
+      let committed=0;
+      try{committed=await runPhase(options,phase,work[phase]);}
       catch{try{options.onError?.("RUNTIME_PUBLISHER_FAILED");}catch{}}
+      if(!stopped&&committed>0&&["dispatch","capacity","capacity_notifications"].includes(phase)){
+        await new Promise<void>(resolve=>setImmediate(resolve));
+        continue;
+      }
       if(!stopped)await new Promise<void>(resolve=>{
         const wake=()=>{clearTimeout(timer);wakers.delete(wake);resolve();};
         const timer=setTimeout(wake,1000);wakers.add(wake);
@@ -167,25 +175,34 @@ export function startDispatcher(pool:Pool,options:DispatcherOptions):{stop():Pro
   return{stop:async()=>{stopped=true;for(const wake of wakers)wake();await Promise.all(loops);}};
 }
 
-async function publishCapacityNotifications(pool:Pool,options:DispatcherOptions,routes:NonNullable<DispatcherOptions["runtimeRoutes"]>):Promise<void>{
+async function publishCapacityNotifications(pool:Pool,options:DispatcherOptions,routes:NonNullable<DispatcherOptions["runtimeRoutes"]>):Promise<number>{
+ let committed=0;
  const owner=randomUUID(),request=options.fetch??fetch;
  const notifications=(await pool.query(`WITH due AS (SELECT n.request_id,n.generation FROM agents_platform.capacity_notifications n JOIN agents_platform.tasks t ON t.id=n.task_id
  WHERE t.harness_release=ANY($2::text[]) AND n.dispatched_at IS NULL AND available_at<=now() AND (lease_until IS NULL OR lease_until<now())
  ORDER BY n.available_at,n.request_id,n.generation FOR UPDATE OF n SKIP LOCKED LIMIT 64)
  UPDATE agents_platform.capacity_notifications n SET lease_owner=$1,lease_until=now()+interval '30 seconds' FROM due
  WHERE n.request_id=due.request_id AND n.generation=due.generation RETURNING n.*,(SELECT harness_release FROM agents_platform.tasks WHERE id=n.task_id) AS harness_release`,[owner,Object.keys(routes)])).rows;
- await parallelEach(notifications,8,async row=>{
+ await drainBatch(notifications,8,async row=>{
  const route=routes[row.harness_release]!;
  try{
   const response=await request(`${route.ingressUrl.replace(/\/$/,"")}/${route.workflowName}/${row.task_id}/capacity`,{
   method:"POST",headers:{"content-type":"application/json","idempotency-key":`capacity:${row.request_id}:${row.generation}`},
   body:JSON.stringify({requestId:row.request_id,generation:row.generation}),signal:AbortSignal.timeout(5000)});
   if(!response.ok)throw Error("CAPACITY_NOTIFICATION_FAILED");
-  await pool.query(`UPDATE agents_platform.capacity_notifications SET dispatched_at=now(),lease_owner=NULL,lease_until=NULL
-  WHERE request_id=$1 AND generation=$2 AND lease_owner=$3`,[row.request_id,row.generation,owner]);
+  const acknowledgement=await pool.query(`UPDATE agents_platform.capacity_notifications SET dispatched_at=now(),lease_owner=NULL,lease_until=NULL
+  WHERE request_id=$1 AND generation=$2 AND lease_owner=$3 AND dispatched_at IS NULL`,[row.request_id,row.generation,owner]);
+  committed+=acknowledgement.rowCount??0;
  }catch{
   await pool.query(`UPDATE agents_platform.capacity_notifications SET lease_owner=NULL,lease_until=NULL,available_at=now()+interval '5 seconds'
   WHERE request_id=$1 AND generation=$2 AND lease_owner=$3`,[row.request_id,row.generation,owner]);options.onError?.("CAPACITY_NOTIFICATION_FAILED");
  }
  });
+ return committed;
+}
+
+async function drainBatch<T>(rows:T[],parallelism:number,work:(row:T)=>Promise<void>):Promise<void>{
+ let failed=false,failure:unknown;
+ await parallelEach(rows,parallelism,async row=>{try{await work(row);}catch(error){if(!failed){failed=true;failure=error;}}});
+ if(failed)throw failure;
 }
