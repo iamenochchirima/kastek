@@ -1,0 +1,18 @@
+default-num-partitions = 24
+default-replication = 1
+disable-telemetry = true
+rocksdb-total-memory-size = "256 MiB"
+
+[worker]
+data-service-memory-limit = "32 MiB"
+self-proposal-queue-memory-limit = "8 MiB"
+
+[worker.invoker]
+concurrent-invocations-limit = 10000
+memory-limit = "512 MiB"
+
+[bifrost]
+record-cache-memory-size = "32 MiB"
+
+[admin.query-engine]
+memory-size = "32 MiB"

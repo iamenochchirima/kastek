@@ -632,9 +632,30 @@ The controlled acceptance driver is `api/test/scheduling-load.ts`, with separate
 API and worker fixture processes in `scheduling-load-process.ts`. It creates only
 a uniquely named database/container and disposable principals, uses authenticated
 HTTP interfaces and a local HTTP model simulator, and writes measurements under
-ignored `.audit/`. Its exploratory direct/tool/delegation/slow mix does not satisfy
-the complete workload contract: reports list missing sustained, approval,
-ownership and fault-injection scenarios explicitly.
+ignored `.audit/`. `AGENTS_LOAD_FULL=1` runs the versioned `scheduling-workload.v2.json`
+contract: 30 seconds of steady arrivals, a 10-second burst, then at most 120 seconds
+of drain. It includes approved-source FAQ evidence/citations, memory tools, delegated
+children, delayed report review and actual receiver receipts, plus canonical website
+claim/takeover/reply/return and reconnect controls. Owned local object storage and a
+pinned actual Collector supply evidence without using paid model providers.
+
+`AGENTS_LOAD_ROOTS` accepts 100, 1000 or 10000; `AGENTS_LOAD_REPLICAS` accepts 1, 2
+or 4. `AGENTS_LOAD_SINGLE_TENANT=1` and `AGENTS_LOAD_NOISY=1` select the tenant
+pressure cases. `AGENTS_LOAD_FAULT` selects duplicate-messages, worker-loss,
+provider-throttle, collector-outage, lease-expiry or reconnect. A selected fault that
+was not injected is reported as unmet. Expected uncertainty and provider failures
+remain visible rather than being rewritten as completed outcomes.
+
+`AGENTS_LOAD_BARRIER=operations` holds actual model HTTP responses until the
+configured simultaneous active-operation target is reached or the finite hold expires.
+It records actual nonterminal roots and active requests separately before release.
+This is a separate concurrency dimension from steady mixed traffic. Restate profiles
+are explicit TOML files; each run saves the server's actual dumped configuration.
+The 10000 profile uses a 1536MiB Restate container with an invoker limit of 10000,
+1024MiB heaps per worker, and a 60-second database acquisition wait. All replica pools
+must still fit the declared 60-connection budget. These local profiles do not establish
+production sizing, high availability or real-provider limits. Reports retain executable
+source hashes, pool/lock/resource measurements, all failures and missing dimensions.
 
 Business operation admission returns a committed waiting decision without creating
 an operation or reserving tokens. The workflow waits on a generation-specific
