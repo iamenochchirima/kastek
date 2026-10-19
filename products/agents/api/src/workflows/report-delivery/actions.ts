@@ -126,7 +126,7 @@ export class ActionService {
    if(row.state!=="pending_review")throw new PlatformError("REVIEW_ALREADY_DECIDED",409,"This review is no longer pending");
    const state=new Date(row.expires_at).getTime()<=Date.now()?"expired":input.decision==="approve"?"approved":"rejected";
    if(state==="approved"){
-    const task=(await db.query("SELECT * FROM agents_platform.tasks WHERE id=$1 FOR UPDATE",[taskId])).rows[0];
+    const task=(await db.query("SELECT * FROM agents_platform.tasks WHERE id=$1 FOR NO KEY UPDATE",[taskId])).rows[0];
     const grant=(await db.query("SELECT * FROM agents_platform.execution_grants WHERE id=$1 FOR SHARE",[task.grant_id])).rows[0];
     if(!grant||grant.revoked_at)throw new PlatformError("GRANT_REVOKED",403,"Execution access was revoked");
     if(new Date(grant.expires_at).getTime()<=Date.now()){

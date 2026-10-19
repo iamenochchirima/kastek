@@ -11,10 +11,11 @@ import { compilePublishedComposition } from "../programs/publication";
 export { transaction } from "../../infrastructure/database";
 
 import { HARNESS_RELEASE,type Execution } from "../../contracts/execution";
+// Immutable task keys let writer locks coexist with Inbox foreign-key references.
 export async function loadExecution(db: Pool | PoolClient, taskId: string, lock = false): Promise<Execution> {
   const task = (await db.query(`SELECT t.*,v.configuration,v.agent_id,v.tool_bindings,v.effective_composition AS published_composition FROM agents_platform.tasks t
     JOIN agents_platform.agent_versions v ON v.id=t.version_id AND v.organization_id=t.organization_id
-    WHERE t.id=$1 ${lock ? "FOR UPDATE OF t" : ""}`, [taskId])).rows[0];
+    WHERE t.id=$1 ${lock ? "FOR NO KEY UPDATE OF t" : ""}`, [taskId])).rows[0];
   if (!task) throw new PlatformError("TASK_NOT_FOUND", 404, "Task not found");
   if (task.harness_release !== HARNESS_RELEASE) throw new PlatformError("HARNESS_RELEASE_UNAVAILABLE", 503, "Execution release is unavailable");
   const configuration = agentConfigurationSchema.parse(task.effective_configuration ?? task.configuration); assertRuntimeAvailable(configuration);

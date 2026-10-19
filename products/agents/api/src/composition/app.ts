@@ -435,7 +435,7 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
     try {
       await db.query("BEGIN");
       const current=(await db.query(`SELECT g.id FROM agents_platform.tasks t JOIN agents_platform.execution_grants g ON g.id=t.grant_id
-        WHERE t.id=$1 AND g.revoked_at IS NULL FOR UPDATE OF t FOR SHARE OF g`,[task.id])).rows[0];
+        WHERE t.id=$1 AND g.revoked_at IS NULL FOR NO KEY UPDATE OF t FOR SHARE OF g`,[task.id])).rows[0];
       if(!current)throw new PlatformError("GRANT_REVOKED",403,"Execution access was revoked");
       const updated = (await db.query(`UPDATE agents_platform.tasks SET grant_id=$2,control_generation=control_generation+1,updated_at=now()
         WHERE id=$1 AND state IN ('waiting_authority','waiting_children') RETURNING control_generation-1 AS generation,state`, [task.id, grant.id])).rows[0];

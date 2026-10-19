@@ -5,7 +5,7 @@ import { setupPlatformSchema } from "../src/composition/setup";
 import { composeInbox } from "../src/composition/inbox";
 import { PlatformStore } from "../src/product/agents/store";
 import { defaultBusinessConfiguration, executionGrantSchema, requestDigest } from "../src/contracts/contracts";
-import { beginOperation, finishOperation, loadExecution, settleTask } from "../src/execution/lifecycle/execution";
+import { beginOperation, finishOperation, loadExecution, settleTask, assertCurrentAuthority, transaction } from "../src/execution/lifecycle/execution";
 import { admitChildren } from "../src/execution/delegation/delegation";
 import { TaskArtifactStore } from "../src/execution/artifacts/task-artifacts";
 import { ConnectionVault } from "../src/infrastructure/vault";
@@ -74,6 +74,31 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     const action = await actions.prepare(f.task.id, `report:${f.task.id}:deliver`, { connectionId: f.connection.id, artifactId: artifact.id });
     await actions.decide(f.scope, f.task.id, action.id, { operationId: randomUUID(), decision: "approve", expectedDigest: action.reviewDigest }); return action;
   }
+  async function waitFor(check:()=>Promise<boolean>){const deadline=Date.now()+5000;while(Date.now()<deadline){if(await check())return;await new Promise(resolve=>setTimeout(resolve,20));}throw Error("Native lock checkpoint timed out");}
+  it("commits takeover and its typed event while a runtime task writer waits for conversation authority",async()=>{
+    const f=await fixture(),key=Math.floor(Math.random()*1000000000),fn=`takeover_gate_${f.task.id.replaceAll('-','')}`;
+    let ready!:()=>void,check!:()=>void,runtimePid=0;
+    const locked=new Promise<void>(resolve=>{ready=resolve;}),checkNow=new Promise<void>(resolve=>{check=resolve;});
+    const gate=await pool.connect();await gate.query('SELECT pg_advisory_lock($1)',[key]);
+    await pool.query(`CREATE FUNCTION agents_platform.${fn}() RETURNS trigger LANGUAGE plpgsql AS $gate$ BEGIN IF NEW.id='${f.conversationId}' AND NEW.state='human_owned' THEN PERFORM pg_advisory_xact_lock(${key});END IF;RETURN NEW;END $gate$;CREATE TRIGGER ${fn} BEFORE UPDATE ON agents_platform.customer_conversations FOR EACH ROW EXECUTE FUNCTION agents_platform.${fn}();`);
+    const runtime=transaction(pool,async db=>{runtimePid=Number((await db.query('SELECT pg_backend_pid() AS pid')).rows[0].pid);await db.query("SET LOCAL lock_timeout='5s'");const execution=await loadExecution(db,f.task.id,true);ready();await checkNow;try{await assertCurrentAuthority(db,execution);return 'ALLOWED';}catch(error){if(error&&typeof error==='object'&&'code' in error)return String(error.code);throw error;}});
+    let takeover:ReturnType<typeof f.command>|undefined;
+    try{await locked;takeover=f.command('takeover');takeover.catch(()=>{});
+      await waitFor(async()=>Number((await pool.query("SELECT count(*)::int n FROM pg_stat_activity WHERE datname=current_database() AND wait_event='advisory'")).rows[0].n)>0);
+      check();await waitFor(async()=>Number((await pool.query('SELECT cardinality(pg_blocking_pids($1)) AS n',[runtimePid])).rows[0].n)>0);
+      await gate.query('SELECT pg_advisory_unlock($1)',[key]);
+      expect(await runtime).toBe('CHANNEL_OWNERSHIP_CHANGED');expect(await takeover).toMatchObject({state:'human_owned'});
+      const observed=(await pool.query("SELECT kind,observation FROM agents_platform.task_events WHERE task_id=$1 AND kind='channel.takeover'",[f.task.id])).rows;expect(observed).toHaveLength(1);expect(observed[0].observation.kind).toBe('channel.takeover');
+      await expect(pool.query('INSERT INTO agents_platform.customer_cancellations(task_id) VALUES($1)',[randomUUID()])).rejects.toMatchObject({code:'23503'});
+    }finally{check();await gate.query('SELECT pg_advisory_unlock($1)',[key]);gate.release();await runtime.catch(()=>{});await takeover?.catch(()=>{});await pool.query(`DROP TRIGGER ${fn} ON agents_platform.customer_conversations;DROP FUNCTION agents_platform.${fn}();`);}
+  },15000);
+  it("continues to serialize two runtime writers of the same immutable task identity",async()=>{
+    const f=await fixture();let firstReady!:()=>void,release!:()=>void,secondReady!:()=>void,firstPid=0,secondPid=0;
+    const locked=new Promise<void>(resolve=>{firstReady=resolve;}),hold=new Promise<void>(resolve=>{release=resolve;}),started=new Promise<void>(resolve=>{secondReady=resolve;});
+    const first=transaction(pool,async db=>{firstPid=Number((await db.query('SELECT pg_backend_pid() AS pid')).rows[0].pid);await loadExecution(db,f.task.id,true);firstReady();await hold;});await locked;
+    const second=transaction(pool,async db=>{secondPid=Number((await db.query('SELECT pg_backend_pid() AS pid')).rows[0].pid);await db.query("SET LOCAL lock_timeout='5s'");secondReady();await loadExecution(db,f.task.id,true);});
+    try{await started;await waitFor(async()=>(await pool.query('SELECT pg_blocking_pids($1) AS pids',[secondPid])).rows[0].pids.includes(firstPid));}finally{release();await first;await second;}
+  },15000);
   it("fences inherited specialist claims and resumed delegation while leaving unrelated private work authorized", async () => {
     const f = await fixture(), children = await admitChildren(pool, f.task.id, "delegation-one", { requests: [{ bindingId: "research", brief: "First controlled brief" }, { bindingId: "research", brief: "Second controlled brief" }] });
     for (const child of children) expect((await loadExecution(pool, child.taskId)).task.channel_binding).toEqual(f.binding);

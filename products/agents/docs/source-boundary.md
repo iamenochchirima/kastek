@@ -675,6 +675,12 @@ attempt, terminal state, output and accounting match. A conflicting terminal rec
 is preserved. A crash before the physical-result journal acknowledgement remains
 uncertain; a worker crash after acknowledgement can recover the same known result.
 
+Mutable task rows use PostgreSQL `FOR NO KEY UPDATE`. Task identity is immutable;
+this mode still excludes concurrent writers while allowing FK `KEY SHARE` checks
+from Inbox cancellation and typed-event inserts. Runtime authority checks take the
+task writer lock before checking the current customer conversation. A stronger task
+key lock would recreate the conversation/task foreign-key deadlock during takeover.
+
 Operation start/finish locks the execution root rather than the organization.
 Admission and daily quota settlement retain their existing transactional fences;
 `maxConcurrentRoots` and `dailyTokenAllowance` come from the validated operator

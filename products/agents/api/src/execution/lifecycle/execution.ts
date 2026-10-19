@@ -162,7 +162,7 @@ export async function settleTask(pool: Pool, taskId: string, requested: TaskOutc
         outcome=delivered && outcome.state==="completed" ? {state:"completed"} : {state:"incomplete",errorCode:error.code};
       }
     }
-    const children = !task.parent_task_id ? (await db.query("SELECT id,state FROM agents_platform.tasks WHERE parent_task_id=$1 ORDER BY id FOR UPDATE",[taskId])).rows : [];
+    const children = !task.parent_task_id ? (await db.query("SELECT id,state FROM agents_platform.tasks WHERE parent_task_id=$1 ORDER BY id FOR NO KEY UPDATE",[taskId])).rows : [];
     const activeChildren = children.filter(child=>!terminalTaskStates.has(child.state));
     const resources=!task.parent_task_id?(await db.query("SELECT id FROM agents_platform.sandbox_allocations WHERE root_task_id=$1 AND state<>'destroyed'",[taskId])).rows:[];
     const queryResources=(await db.query(`SELECT q.id FROM agents_platform.query_embedding_allocations q JOIN agents_platform.tasks t ON t.id=q.task_id

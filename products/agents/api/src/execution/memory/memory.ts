@@ -131,7 +131,7 @@ export class MemoryStore {
         [conversationId, scope.organizationId, scope.agentId, JSON.stringify(principal)])).rowCount;
       if (!owned) throw new PlatformError("NOT_FOUND", 404, "Conversation not found");
       // Match operation admission ordering: tasks, conversation, then memory namespace.
-      const tasks = (await db.query(`SELECT id FROM ${schema}.tasks WHERE conversation_id=$1 ORDER BY id FOR UPDATE`, [conversationId])).rows;
+      const tasks = (await db.query(`SELECT id FROM ${schema}.tasks WHERE conversation_id=$1 ORDER BY id FOR NO KEY UPDATE`, [conversationId])).rows;
       const conversation = (await db.query(`SELECT id,deleted_at FROM ${schema}.conversations WHERE id=$1 FOR UPDATE`, [conversationId])).rows[0];
       if (conversation.deleted_at) return { deleted: true as const, taskIds: tasks.map(row => row.id as string) };
       const ref = await this.namespace(db, scope, true);
