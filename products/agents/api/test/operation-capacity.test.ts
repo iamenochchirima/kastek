@@ -40,6 +40,30 @@ const dbUrl=process.env.AGENTS_TEST_DATABASE_URL;
   await settleTask(pool,a!.id,{state:'completed'});await settleTask(pool,a!.id,{state:'completed'});
   expect((await pool.query('SELECT active_roots FROM agents_platform.tenant_admission WHERE organization_id=$1',[a!.organization_id])).rows[0].active_roots).toBe(1);
  });
+ it('rechecks authority after acquiring the root lock rather than trusting the preliminary identity read',async()=>{
+  const [task]=await tasks(),input={id:randomUUID(),kind:'model' as const,name:'model.generate',request:{},reservedTokens:100,reservedMs:1000};
+  const blocker=await pool.connect();let pending:ReturnType<typeof beginOperation>|undefined;
+  try{
+   await blocker.query('BEGIN');await blocker.query('SELECT root_task_id FROM agents_platform.execution_roots WHERE root_task_id=$1 FOR UPDATE',[task!.root_task_id]);
+   pending=beginOperation(pool,task!.id,input);const outcome=pending.then(value=>({value}),error=>({error}));
+   let waiting=false;
+   for(let n=0;n<100;n++){
+    const row=await pool.query("SELECT 1 FROM pg_stat_activity WHERE datname=current_database() AND wait_event_type='Lock' AND query LIKE '%SELECT * FROM agents_platform.execution_roots%' LIMIT 1");
+    if(row.rowCount){waiting=true;break;}await new Promise(resolve=>setTimeout(resolve,10));
+   }
+   expect(waiting).toBe(true);
+   await pool.query('UPDATE agents_platform.execution_grants SET revoked_at=now() WHERE id=$1',[task!.grant_id]);
+   await blocker.query('COMMIT');expect(await outcome).toMatchObject({error:{code:'GRANT_REVOKED'}});
+   expect((await pool.query('SELECT id FROM agents_platform.operations WHERE id=$1',[input.id])).rowCount).toBe(0);
+   expect((await pool.query('SELECT tokens_reserved FROM agents_platform.tasks WHERE id=$1',[task!.id])).rows[0].tokens_reserved).toBe(0);
+  }finally{await blocker.query('ROLLBACK');blocker.release();await pending?.catch(()=>{});}
+ });
+ it('preserves missing-task errors for operation admission, receipt persistence and settlement',async()=>{
+  const id=randomUUID(),operationId=randomUUID();
+  await expect(beginOperation(pool,id,{id:operationId,kind:'model',name:'model.generate',request:{},reservedTokens:100,reservedMs:1000})).rejects.toMatchObject({code:'TASK_NOT_FOUND'});
+  await expect(finishOperation(pool,id,operationId,'completed',{},null,0)).rejects.toMatchObject({code:'TASK_NOT_FOUND'});
+  await expect(settleTask(pool,id,{state:'completed'})).rejects.toMatchObject({code:'TASK_NOT_FOUND'});
+ });
  it('revocation wins a queued operation without invoking or charging it',async()=>{
   const [a,b]=await tasks(),op=(id:string)=>({id,kind:'model' as const,name:'model.generate',request:{id},reservedTokens:100,reservedMs:1000});
   const first=op(randomUUID()),second=op(randomUUID()),queued=op(randomUUID());

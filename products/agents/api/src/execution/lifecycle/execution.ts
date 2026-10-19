@@ -24,11 +24,17 @@ export async function event(db: Pool | PoolClient, taskId: string, key: string, 
   await recordEvent(db, taskId, key, kind, payload);
 }
 
+async function taskIdentity(db:PoolClient,taskId:string):Promise<{organization_id:string;root_task_id:string}>{
+  const task=(await db.query<{organization_id:string;root_task_id:string}>("SELECT organization_id,root_task_id FROM agents_platform.tasks WHERE id=$1",[taskId])).rows[0];
+  if(!task)throw new PlatformError("TASK_NOT_FOUND",404,"Task not found");
+  return task;
+}
+
 export type OperationAdmission={waiting?:false;replayed:boolean;operation:OperationRecord}|{waiting:true;replayed:false;capacity:Extract<CapacityDecision,{state:"waiting"}>};
 export async function beginOperation(pool: Pool, taskId: string, input: OperationRequest): Promise<OperationAdmission> {
   return transaction(pool, async db => {
-    const preliminary = await loadExecution(db, taskId);
-    const budget = (await db.query("SELECT * FROM agents_platform.execution_roots WHERE root_task_id=$1 FOR UPDATE", [preliminary.task.root_task_id])).rows[0];
+    const preliminary = await taskIdentity(db, taskId);
+    const budget = (await db.query("SELECT * FROM agents_platform.execution_roots WHERE root_task_id=$1 FOR UPDATE", [preliminary.root_task_id])).rows[0];
     if (!budget || budget.settled_at) throw new PlatformError("TASK_SETTLED",409,"Root execution has settled");
     const execution = await loadExecution(db, taskId, true), task = execution.task;
     const existing = (await db.query<OperationRecord & { request_digest: string }>("SELECT * FROM agents_platform.operations WHERE id=$1 FOR UPDATE", [input.id])).rows[0];
@@ -130,8 +136,8 @@ async function finishOperationInTransaction(db: PoolClient, execution: Execution
 export async function finishOperation(pool: Pool, taskId: string, operationId: string,
   state: "completed" | "failed" | "uncertain", output: unknown, errorCode: string | null, tokens: number,expectedAttemptId?:string): Promise<OperationRecord> {
   return transaction(pool, async db => {
-    const before = await loadExecution(db,taskId);
-    await db.query("SELECT root_task_id FROM agents_platform.execution_roots WHERE root_task_id=$1 FOR UPDATE",[before.task.root_task_id]);
+    const before = await taskIdentity(db,taskId);
+    await db.query("SELECT root_task_id FROM agents_platform.execution_roots WHERE root_task_id=$1 FOR UPDATE",[before.root_task_id]);
     const execution = await loadExecution(db, taskId, true);
     const op = (await db.query<OperationRecord>("SELECT * FROM agents_platform.operations WHERE id=$1 AND task_id=$2 FOR UPDATE", [operationId, taskId])).rows[0];
     if (!op) throw new PlatformError("OPERATION_NOT_FOUND", 404, "Operation not found");
@@ -142,9 +148,9 @@ export async function finishOperation(pool: Pool, taskId: string, operationId: s
 
 export async function settleTask(pool: Pool, taskId: string, requested: TaskOutcome): Promise<void> {
   await transaction(pool, async db => {
-    const initial = await loadExecution(db,taskId);
-    await db.query("SELECT id FROM agents_platform.organizations WHERE id=$1 FOR UPDATE",[initial.task.organization_id]);
-    await db.query("SELECT root_task_id FROM agents_platform.execution_roots WHERE root_task_id=$1 FOR UPDATE",[initial.task.root_task_id]);
+    const initial = await taskIdentity(db,taskId);
+    await db.query("SELECT id FROM agents_platform.organizations WHERE id=$1 FOR UPDATE",[initial.organization_id]);
+    await db.query("SELECT root_task_id FROM agents_platform.execution_roots WHERE root_task_id=$1 FOR UPDATE",[initial.root_task_id]);
     const execution = await loadExecution(db, taskId, true), task = execution.task;
     if (terminalTaskStates.has(task.state)) return;
     let outcome = requested;
