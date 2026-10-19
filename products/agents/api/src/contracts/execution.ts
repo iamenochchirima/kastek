@@ -4,6 +4,8 @@ import type { TaskRecord } from "./records";
 import type { DependencyManifest } from "./source-contracts";
 export const HARNESS_RELEASE = "modular-programs-v2";
 export const WORKFLOW_NAME = "AgentsBusinessRunV12";
+export const dispatcherPhases = ["dispatch", "capacity", "capacity_notifications", "controls", "reconciliation"] as const;
+export type DispatcherPhase = typeof dispatcherPhases[number];
 export interface Execution { task: TaskRecord & { turn_sequence: string; history_cutoff: string | null;
   tokens_used: number; tokens_reserved: number; root_token_limit: number; model_calls: number; tool_calls: number;
   deadline_at: Date; harness_release: string; control_generation: string; pending_outcome: TaskOutcome | null }; configuration: AgentConfiguration; agentId: string;

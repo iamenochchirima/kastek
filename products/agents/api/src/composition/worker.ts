@@ -79,10 +79,12 @@ async function main(): Promise<void> {
     await pool.query("SELECT 1 FROM agents_platform.tasks LIMIT 1");
     await new Promise<void>((resolve, reject) => { server.once("error", reject); server.listen(port, host, resolve); });
   } catch (error) { server.close(); await pool.end(); throw error; }
+  const metrics = createNativeMetrics(pool,"worker");
   const dispatcher = startDispatcher(pool, {
     ingressUrl: process.env.RESTATE_INGRESS_URL ?? "http://127.0.0.1:18080",
     adminUrl: process.env.RESTATE_ADMIN_URL ?? "http://127.0.0.1:19070",
     onError: code => console.error(JSON.stringify({ ...diagnosticIdentity, event: "runtime_publisher_error", code })),
+    onPhase: metrics?.dispatcherPhase,
   });
   const automationDispatcher=startAutomationDispatcher(pool,automations,process.env.RESTATE_INGRESS_URL??"http://127.0.0.1:18080",
     code=>console.error(JSON.stringify({...diagnosticIdentity,event:"automation_publisher_error",code})),()=>actionServices?.actions.reconcilePending()??Promise.resolve());
@@ -92,7 +94,6 @@ async function main(): Promise<void> {
   const documentCleanup=documents?runDocumentReaper(pool,abort.signal):undefined;
   const sourceCleanup=sourceObjects?runSourceObjectReaper(pool,abort.signal):undefined;
   const telemetry = startObservationPublisher(pool, telemetryTransport);
-  const metrics = createNativeMetrics(pool,"worker");
   let closing = false;
   const close = async (): Promise<void> => {
     if (closing) return;

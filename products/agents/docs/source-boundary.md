@@ -139,6 +139,12 @@ Snapshots of shared database facts must use one replica or a max aggregation, ne
 Task/operation/command/usage counts use a rolling 24-hour window including older unfinished work;
 completed duration and granted-wait percentiles use one hour. They are gauges, not lifetime counters.
 
+`agents.dispatcher.phase.passes` counts completed dispatcher passes per replica, and
+`agents.dispatcher.phase.duration_ms` records their wall time, including pool and network waits.
+Their only labels are the five fixed phase names and `ok` or `error`. A successful phase means
+its pass resolved, not that every task or provider operation succeeded. These counters and
+histograms are process-local, unlike the shared database snapshot gauges.
+
 Collection has a 1.5-second SQL deadline and a 15-second export interval. Failed collection emits
 `agents.metrics.collection_failures`; it does not alter usage or task state. Export timeouts are
 bounded and shutdown flushes before closing the database pool. Set `OTEL_SDK_DISABLED=true` to
@@ -590,6 +596,12 @@ configuration, with local Collector acceptance described above. Services also em
 structured stdout diagnostics.
 
 ## Coordination and replica configuration
+
+The live dispatcher runs five independent bounded loops on its existing pool: root dispatch,
+capacity grants, capacity notifications, controls, and reconciliation. Each loop has at most one
+pass in flight and waits one second between passes. Slow maintenance does not prevent the next
+root batch from being claimed. Shutdown wakes all idle loops and awaits every in-flight pass
+before closing the pool. The one-shot `dispatchTasksOnce` entry still awaits all phases in order.
 
 Dispatch claims use bounded batches (default 32, maximum 128), eight parallel
 sends and 120-second leases. Claims use PostgreSQL row locks with `SKIP LOCKED`;

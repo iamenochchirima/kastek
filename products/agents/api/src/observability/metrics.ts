@@ -2,7 +2,19 @@ import type { Pool } from "pg";
 import { metrics } from "@opentelemetry/sdk-node";
 import { resourceFromAttributes } from "@opentelemetry/resources";
 import { OTLPMetricExporter } from "@opentelemetry/exporter-metrics-otlp-http";
+import type { Meter } from "@opentelemetry/api";
+import { dispatcherPhases, type DispatcherPhase } from "../contracts/execution";
 import { transaction } from "../infrastructure/database";
+
+export function createDispatcherPhaseMetrics(meter:Meter) {
+  const duration=meter.createHistogram("agents.dispatcher.phase.duration_ms",{unit:"ms"});
+  const passes=meter.createCounter("agents.dispatcher.phase.passes");
+  return (phase:DispatcherPhase,durationMs:number,success:boolean):void=>{
+    if(!dispatcherPhases.includes(phase)||!Number.isFinite(durationMs)||durationMs<0||typeof success!=="boolean")return;
+    const attributes={phase,outcome:success?"ok":"error"};
+    duration.record(durationMs,attributes);passes.add(1,attributes);
+  };
+}
 
 export interface MetricPoint { name: string; value: number; attributes: Record<string,string> }
 /** Read native facts without event-export counters: retries cannot count usage twice. */
@@ -61,5 +73,5 @@ export function createNativeMetrics(pool:Pool,role:string,environment:NodeJS.Pro
     try{for(const point of await collectNativeMetrics(pool,role))result.observe(instruments.get(point.name)!,point.value,point.attributes);}catch{failures++;}
     result.observe(failed,failures);
   },[...instruments.values(),failed]);
-  return {forceFlush:()=>provider.forceFlush(),shutdown:()=>provider.shutdown()};
+  return {dispatcherPhase:createDispatcherPhaseMetrics(meter),forceFlush:()=>provider.forceFlush(),shutdown:()=>provider.shutdown()};
 }
