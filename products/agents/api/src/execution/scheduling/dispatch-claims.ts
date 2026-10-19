@@ -3,12 +3,20 @@ import type { Pool } from "pg";
 import { z } from "zod";
 import { HARNESS_RELEASE } from "../../contracts/execution";
 
-export const dispatchPolicySchema = z.object({
+export const dispatchPolicySchema = z.strictObject({
   batchSize:z.number().int().min(1).max(128).default(32),
   parallelism:z.number().int().min(1).max(32).default(8),
   leaseMs:z.number().int().min(30_000).max(300_000).default(120_000),
 });
 export type DispatchPolicy = z.infer<typeof dispatchPolicySchema>;
+export function dispatchPolicyFromEnvironment(environment:NodeJS.ProcessEnv=process.env):DispatchPolicy {
+ try {
+  const raw=environment.AGENTS_DISPATCH_POLICY_JSON;
+  const value:unknown=raw===undefined?{}:JSON.parse(raw);
+  if(value!==null&&typeof value==="object"&&Object.keys(value).some(key=>!Object.hasOwn(dispatchPolicySchema.shape,key)))throw Error("Unknown dispatch policy key");
+  return dispatchPolicySchema.parse(value);
+ } catch { throw Error("Invalid dispatch policy"); }
+}
 export async function claimDispatchBatch(pool:Pool,input:Partial<DispatchPolicy>={},compatibleReleases:readonly string[]=[HARNESS_RELEASE]) {
  const policy=dispatchPolicySchema.parse(input),owner=randomUUID();
  z.array(z.string().min(1).max(128)).min(1).max(8).parse(compatibleReleases);

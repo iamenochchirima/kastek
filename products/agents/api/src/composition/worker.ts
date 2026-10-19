@@ -15,6 +15,7 @@ import { TaskArtifactStore } from "../execution/artifacts/task-artifacts";
 import { createBusinessWorkflow } from "../execution/business/business";
 import { EvidenceStore } from "../execution/context/evidence";
 import { startDispatcher } from "../execution/lifecycle/dispatcher";
+import { dispatchPolicyFromEnvironment } from "../execution/scheduling/dispatch-claims";
 import { WORKFLOW_NAME } from "../execution/lifecycle/execution";
 import { privateStoreFromEnvironment } from "../infrastructure/object-store";
 import { createAutomationWorkflow,startAutomationDispatcher } from "../product/automations/automation-runtime";
@@ -29,6 +30,7 @@ import { composeInbox } from "./inbox";
 import { databasePoolOptions } from "../infrastructure/pool-policy";
 
 async function main(): Promise<void> {
+  const dispatchPolicy = dispatchPolicyFromEnvironment();
   const telemetryTransport = createObservationTelemetry("agents-worker");
   const diagnosticIdentity = { service: "agents-worker", environment: process.env.NODE_ENV || "development",
     release: (process.env.KASITEK_RELEASE_ID || "development").slice(0, 128) };
@@ -81,6 +83,7 @@ async function main(): Promise<void> {
   } catch (error) { server.close(); await pool.end(); throw error; }
   const metrics = createNativeMetrics(pool,"worker");
   const dispatcher = startDispatcher(pool, {
+    policy: dispatchPolicy,
     ingressUrl: process.env.RESTATE_INGRESS_URL ?? "http://127.0.0.1:18080",
     adminUrl: process.env.RESTATE_ADMIN_URL ?? "http://127.0.0.1:19070",
     onError: code => console.error(JSON.stringify({ ...diagnosticIdentity, event: "runtime_publisher_error", code })),
