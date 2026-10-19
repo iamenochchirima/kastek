@@ -136,7 +136,7 @@ const dbUrl=process.env.AGENTS_TEST_DATABASE_URL;
   const first={id:`op:${randomUUID()}`,taskId:a!.id,workload:'interactive' as const,buckets:[{key,limit:1}]},second={...first,id:`op:${randomUUID()}`,taskId:b!.id};
   const grant=await transaction(pool,db=>requestCapacity(db,first));await transaction(pool,db=>activateCapacity(db,grant.requestId,grant.generation));
   await transaction(pool,db=>requestCapacity(db,second));
-  const blocker=await pool.connect(),probe=await pool.connect();let sweep:Promise<void>|undefined;
+  const blocker=await pool.connect(),probe=await pool.connect();let sweep:Promise<number>|undefined;
   try{
    await blocker.query('BEGIN');await blocker.query('SELECT id FROM agents_platform.conversations WHERE id=$1 FOR UPDATE',[b!.conversation_id]);
    sweep=advanceCapacity(pool);let authorityBlocked=false;
@@ -149,7 +149,7 @@ const dbUrl=process.env.AGENTS_TEST_DATABASE_URL;
   const [a,b]=await tasks(),key=`test:${randomUUID()}`,request={id:`op:${randomUUID()}`,taskId:a!.id,workload:'background' as const,buckets:[{key,limit:1}]};
   const first=await transaction(pool,db=>requestCapacity(db,request));await pool.query("UPDATE agents_platform.capacity_requests SET lease_until=now()-interval '1 second' WHERE id=$1",[request.id]);
   await advanceCapacity(pool);await expect(transaction(pool,db=>activateCapacity(db,request.id,first.generation))).rejects.toMatchObject({code:'CAPACITY_LEASE_LOST'});
-  const current=await transaction(pool,db=>requestCapacity(db,request));await transaction(pool,db=>activateCapacity(db,request.id,current.generation));
+  const waiting=await transaction(pool,db=>requestCapacity(db,request));expect(waiting.state).toBe('waiting');await advanceCapacity(pool);const current=await transaction(pool,db=>requestCapacity(db,request));await transaction(pool,db=>activateCapacity(db,request.id,current.generation));
   await transaction(pool,db=>releaseCapacity(db,request.id,'uncertain'));
   const second={...request,id:`op:${randomUUID()}`,taskId:b!.id};expect((await transaction(pool,db=>requestCapacity(db,second))).state).toBe('waiting');
   await pool.query("UPDATE agents_platform.capacity_requests SET deadline_at=now()-interval '1 second' WHERE id=$1",[second.id]);

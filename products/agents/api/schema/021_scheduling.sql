@@ -1,3 +1,10 @@
+CREATE FUNCTION agents_platform.capacity_resource_key(keys text[]) RETURNS text LANGUAGE sql IMMUTABLE PARALLEL SAFE AS $$
+ SELECT CASE WHEN count(*)=1 AND min(key) ~ '^provider:(model|connected|local):[a-f0-9]{40}$' THEN min(key) ELSE 'generic' END
+ FROM unnest(keys) AS entries(key) WHERE key LIKE 'provider:%';
+$$;
+CREATE FUNCTION agents_platform.capacity_resource_class(keys text[]) RETURNS smallint LANGUAGE sql IMMUTABLE PARALLEL SAFE AS $$
+ SELECT CASE split_part(agents_platform.capacity_resource_key(keys),':',2) WHEN 'model' THEN 0 WHEN 'connected' THEN 1 WHEN 'local' THEN 2 ELSE 3 END::smallint;
+$$;
 CREATE TABLE agents_platform.capacity_buckets (
  key text PRIMARY KEY CHECK(length(key) BETWEEN 1 AND 256),
  max_active integer NOT NULL CHECK(max_active BETWEEN 1 AND 100000),
@@ -6,7 +13,10 @@ CREATE TABLE agents_platform.capacity_buckets (
 CREATE TABLE agents_platform.capacity_requests (
  id text PRIMARY KEY CHECK(length(id) BETWEEN 1 AND 512),
  task_id uuid NOT NULL REFERENCES agents_platform.tasks(id),
+ organization_id uuid NOT NULL,
  bucket_keys text[] NOT NULL CHECK(cardinality(bucket_keys) BETWEEN 1 AND 8),
+ resource_key text GENERATED ALWAYS AS (agents_platform.capacity_resource_key(bucket_keys)) STORED,
+ resource_class smallint GENERATED ALWAYS AS (agents_platform.capacity_resource_class(bucket_keys)) STORED,
  workload text NOT NULL CHECK(workload IN ('interactive','background','ingestion','sandbox','evaluation')),
  state text NOT NULL CHECK(state IN ('waiting','granted','active','uncertain','released','rejected')),
  generation integer NOT NULL DEFAULT 1 CHECK(generation>0),
@@ -15,8 +25,27 @@ CREATE TABLE agents_platform.capacity_requests (
  granted_at timestamptz,
  lease_until timestamptz,
  finished_at timestamptz,
- error_code text
+ error_code text,
+ FOREIGN KEY(organization_id,task_id) REFERENCES agents_platform.tasks(organization_id,id)
 );
+CREATE FUNCTION agents_platform.capacity_request_identity() RETURNS trigger LANGUAGE plpgsql AS $$
+DECLARE owner_id uuid;
+BEGIN
+ IF TG_OP='INSERT' THEN
+  SELECT organization_id INTO STRICT owner_id FROM agents_platform.tasks WHERE id=NEW.task_id;
+  IF NEW.organization_id IS NOT NULL AND NEW.organization_id<>owner_id THEN RAISE EXCEPTION 'Capacity tenant mismatch' USING ERRCODE='23514'; END IF;
+  NEW.organization_id:=owner_id;
+ ELSIF NEW.task_id IS DISTINCT FROM OLD.task_id OR NEW.organization_id IS DISTINCT FROM OLD.organization_id
+   OR NEW.bucket_keys IS DISTINCT FROM OLD.bucket_keys OR NEW.workload IS DISTINCT FROM OLD.workload THEN
+  RAISE EXCEPTION 'Capacity request identity is immutable' USING ERRCODE='23514';
+ END IF;
+ RETURN NEW;
+END $$;
+CREATE TRIGGER capacity_request_identity BEFORE INSERT OR UPDATE OF task_id,organization_id,bucket_keys,workload ON agents_platform.capacity_requests
+ FOR EACH ROW EXECUTE FUNCTION agents_platform.capacity_request_identity();
+CREATE INDEX capacity_tenant_waiters ON agents_platform.capacity_requests(organization_id,created_at,id) WHERE state='waiting';
+CREATE INDEX capacity_tenant_expired ON agents_platform.capacity_requests(organization_id,lease_until,id) WHERE state='granted';
+CREATE INDEX capacity_resource_queue ON agents_platform.capacity_requests(organization_id,resource_class,resource_key,created_at,id) WHERE state='waiting';
 CREATE INDEX capacity_waiting_buckets ON agents_platform.capacity_requests USING gin(bucket_keys) WHERE state='waiting';
 CREATE INDEX capacity_waiters ON agents_platform.capacity_requests(created_at,id) WHERE state='waiting';
 CREATE INDEX capacity_task ON agents_platform.capacity_requests(task_id,state);
@@ -110,7 +139,11 @@ CREATE INDEX task_outbox_fair ON agents_platform.task_outbox(available_at,create
 CREATE TABLE agents_platform.scheduling_tenants (
  organization_id uuid PRIMARY KEY REFERENCES agents_platform.organizations(id),
  last_dispatch_at timestamptz NOT NULL DEFAULT 'epoch',
- last_capacity_at timestamptz NOT NULL DEFAULT 'epoch'
+ last_capacity_at timestamptz NOT NULL DEFAULT 'epoch',
+ capacity_class_cursor smallint NOT NULL DEFAULT 0 CHECK(capacity_class_cursor BETWEEN 0 AND 3),
+ capacity_model_cursor text CHECK(capacity_model_cursor ~ '^provider:model:[a-f0-9]{40}$'),
+ capacity_connected_cursor text CHECK(capacity_connected_cursor ~ '^provider:connected:[a-f0-9]{40}$'),
+ capacity_local_cursor text CHECK(capacity_local_cursor ~ '^provider:local:[a-f0-9]{40}$')
 );
 CREATE FUNCTION agents_platform.register_scheduling_tenant() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
