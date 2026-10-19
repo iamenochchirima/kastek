@@ -155,9 +155,12 @@ uses root/task fences. Admission and settlement retain the organization accounti
 versioned cursor keys support replica reads. Numeric policies are finite operator configuration.
 
 The [scaling contract](architecture/agent-platform-architecture.md#concurrency-targets-and-workload-definitions)
-defines 1,000/10,000 concurrent business-execution targets. Neither has been load-verified.
-A controlled two-worker 100-root run is evidence of that workload only; queued roots and active
-provider operations are measured separately. Requirements and load acceptance remain in Linear.
+defines 1,000/10,000 concurrent business-execution targets. Local controlled evidence includes
+1,000 simultaneous model HTTP requests with correct completion of 1,000 roots and 100 children.
+Complete latency acceptance remains separate. Four- and eight-replica mixed 10,000-root tests
+miss admission, queue, and drain targets within the declared connection budget. The 10,000 target
+remains unmet. Queued roots and active provider operations are measured separately. Requirements,
+versioned reports, and load acceptance remain in Linear.
 Executor routing and physical recovery require their own independent-process acceptance.
 
 ## Internal module boundaries
@@ -647,8 +650,8 @@ children, delayed report review and actual receiver receipts, plus canonical web
 claim/takeover/reply/return and reconnect controls. Owned local object storage and a
 pinned actual Collector supply evidence without using paid model providers.
 
-`AGENTS_LOAD_ROOTS` accepts 100, 1000 or 10000; `AGENTS_LOAD_REPLICAS` accepts 1, 2
-or 4. `AGENTS_LOAD_SINGLE_TENANT=1` and `AGENTS_LOAD_NOISY=1` select the tenant
+`AGENTS_LOAD_ROOTS` accepts 100, 1000 or 10000; `AGENTS_LOAD_REPLICAS` accepts 1, 2,
+4 or 8. `AGENTS_LOAD_SINGLE_TENANT=1` and `AGENTS_LOAD_NOISY=1` select the tenant
 pressure cases. `AGENTS_LOAD_FAULT` selects duplicate-messages, worker-loss,
 provider-throttle, collector-outage, lease-expiry or reconnect. A selected fault that
 was not injected is reported as unmet. Expected uncertainty and provider failures
@@ -673,9 +676,13 @@ configured simultaneous active-operation target is reached or the finite hold ex
 It records actual nonterminal roots and active requests separately before release.
 This is a separate concurrency dimension from steady mixed traffic. Restate profiles
 are explicit TOML files; each run saves the server's actual dumped configuration.
-The 10000 profile uses a 1536MiB Restate container with an invoker limit of 10000,
-1024MiB heaps per worker, and a 60-second database acquisition wait. All replica pools
-must still fit the declared 60-connection budget. These local profiles do not establish
+The 10000 profile uses a 1536MiB Restate container with an invoker limit of 10000
+and a 60-second database acquisition wait. Worker heaps are 1024MiB with fewer than eight
+replicas. The eight-replica comparison uses 512MiB worker heaps, 256MiB API heaps, and requires
+at least 8GiB available host memory before startup. Each API pool has one connection and each
+worker pool has four, retaining the four-replica profile's 32 worker connections. Driver,
+migration, and reserve allocations bring the eight-replica declaration to 54 connections.
+All replica pools must fit the declared 60-connection budget. These local profiles do not establish
 production sizing, high availability or real-provider limits. Reports retain executable
 source hashes, pool/lock/resource measurements, all failures and missing dimensions.
 

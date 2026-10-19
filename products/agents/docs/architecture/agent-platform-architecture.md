@@ -76,9 +76,12 @@ and delivery state. They can assign conversations, handle escalations, take over
 human, and explicitly return control to automation. Customer history is subject to staff access
 policy. Private operator chats are not automatically visible to other staff through Inbox.
 
-The conversation has one explicit automation or human ownership decision. Handoff and return to
-automation must be recorded and enforced by trusted backend code. Exact state names and transition
-APIs remain to be specified. Takeover prevents new automated replies and actions under the old
+The conversation has one explicit automation or human ownership decision. The website Inbox uses
+`automation_active`, `handoff_pending`, `human_owned`, and `resolved`. Organization-scoped Inbox
+routes expose conversation lists, history, members, and revision-checked commands. Commands cover
+claim, assign, unassign, takeover, reply, resolve, reopen, and return. Active organization membership
+is required. Assignment to another member requires the owner role. Takeover and human reply require
+the assigned staff member. Takeover prevents new automated replies and actions under the old
 ownership. Active reasoning receives a cancellation request. Already-started operations can still
 complete and require reconciliation before retry. Hiding an automated reply in the browser does
 not implement takeover. Queued replies must recheck current ownership before dispatch.
@@ -89,9 +92,10 @@ or lost acknowledgements must not create duplicate tasks or sends. A channel ide
 not establish access to private customer records. Cross-channel customer linking requires a
 verified identity and explicit policy.
 
-These are target contracts. The current client lacks the shared customer inbox, staff assignment,
-and human takeover/reply/return flow. The website/widget path exists; WhatsApp, Facebook, Instagram,
-booking adapters, and their end-to-end product journeys remain unimplemented. The
+The current client implements the shared website Inbox, staff assignment, human takeover, replies,
+and return to automation. Staff and visitor history share canonical messages, with separately
+authorized projections and bounded pagination. WhatsApp, Facebook, Instagram, booking adapters,
+and their end-to-end product journeys remain unimplemented. The
 [implementation boundary](../source-boundary.md) records current behavior.
 
 ## Three integration boundaries
@@ -570,6 +574,14 @@ replicas to expose bottlenecks rather than infer scale from process count.
 If the authorized test environment cannot reach a target, record its achieved load, limiting
 resource and unmet criterion. Availability, 1,000/10,000 execution capacity, multi-replica delivery
 and stream behavior remain unverified until the corresponding acceptance evidence exists.
+
+Current local evidence demonstrates 1,000 simultaneous controlled model requests followed by
+correct completion of 1,000 roots and 100 children. This does not establish the complete latency
+contract or live-provider capacity. Mixed 10,000-root tests with four and eight replicas miss
+admission, queue, and drain targets within the declared database connection budget. The
+10,000-execution acceptance remains unmet. Detailed workload identities, failed criteria, resource
+measurements, and subsequent qualification belong to the
+[Linear implementation plan](https://linear.app/kasitek/document/agents-modular-architecture-customer-inbox-and-evaluation-86443b8fae79).
 
 ## Current implementation and remaining decisions
 
