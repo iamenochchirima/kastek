@@ -27,17 +27,23 @@ export function observeFixtureDatabaseErrors(pool:Pool){
 export function loadDiagnostics(pool:Pool,container:string,onRoots?:(rows:{state:string;n:number}[])=>void){
  const samples:unknown[]=[];let stopping=false,pending:Promise<void>|undefined;
  const tick=async()=>{
-  const [waits,stats,roots]=await Promise.all([
+  const [waits,stats,roots,capacity,sharedPools]=await Promise.all([
    pool.query(`SELECT wait_event_type,wait_event,CASE WHEN query LIKE '%capacity_buckets%' THEN 'capacity-bucket'
     WHEN query LIKE '%execution_roots%' THEN 'execution-root' WHEN query LIKE '%organizations%' THEN 'organization'
     WHEN query LIKE '%task_outbox%' THEN 'dispatch' ELSE 'other' END AS boundary,count(*)::int n
     FROM pg_stat_activity WHERE datname=current_database() AND pid<>pg_backend_pid() AND state<>'idle'
     GROUP BY wait_event_type,wait_event,boundary`),
    pool.query(`SELECT xact_commit,xact_rollback,blks_read,blks_hit,temp_bytes,deadlocks,numbackends FROM pg_stat_database WHERE datname=current_database()`),
-   pool.query(`SELECT state,count(*)::int n FROM agents_platform.tasks WHERE parent_task_id IS NULL AND channel_binding IS NULL GROUP BY state`)
+   pool.query(`SELECT state,count(*)::int n FROM agents_platform.tasks WHERE parent_task_id IS NULL AND channel_binding IS NULL GROUP BY state`),
+   pool.query(`SELECT state,count(*)::int n,min(created_at) oldest_created_at,min(granted_at) oldest_granted_at FROM agents_platform.capacity_requests GROUP BY state`),
+   pool.query(`SELECT b.key,b.max_active,count(s.owner_request)::int held,b.max_active-count(s.owner_request)::int free,
+    count(*) FILTER(WHERE q.state='active')::int active,count(*) FILTER(WHERE q.state='granted')::int provisional,count(*) FILTER(WHERE q.state='uncertain')::int uncertain
+    FROM agents_platform.capacity_buckets b LEFT JOIN agents_platform.capacity_slots s ON s.bucket_key=b.key
+    LEFT JOIN agents_platform.capacity_requests q ON q.id=s.owner_request WHERE b.key LIKE 'product:%' OR b.key LIKE 'provider:%'
+    GROUP BY b.key,b.max_active ORDER BY b.key LIMIT 16`)
   ]);
   const runtime=await new Promise<unknown>(resolve=>execFile('docker',['stats','--no-stream','--format','{{json .}}',container],{encoding:'utf8',timeout:5000},(error,stdout)=>{try{resolve(error?{error:'Container sampling unavailable'}:JSON.parse(stdout));}catch{resolve({error:'Invalid container sample'});}}));
-  onRoots?.(roots.rows);samples.push({at:new Date().toISOString(),roots:roots.rows,waits:waits.rows,database:stats.rows[0],runtime});
+  onRoots?.(roots.rows);samples.push({at:new Date().toISOString(),roots:roots.rows,waits:waits.rows,database:stats.rows[0],capacity:capacity.rows,sharedPools:sharedPools.rows,runtime});
  };
  const timer=setInterval(()=>{if(!stopping&&!pending)pending=tick().catch(()=>{samples.push({error:'Diagnostic sampling failed'});}).finally(()=>{pending=undefined;});},2000);timer.unref();
  return{samples,async stop(){stopping=true;clearInterval(timer);await pending;},async plans(){
