@@ -53,6 +53,10 @@ named header/query keys and Basic credentials are supported. Import and connecti
 execute an arbitrary write. Imported OAuth operations remain unavailable until a provider/client is
 configured through its provider connector.
 
+The grounded-conversation program permits explicitly selected connections for operator chat without
+enabling delegation, personal memory or sandbox access. Website deployment still rejects personal
+connection bindings until an explicit customer service policy applies.
+
 General MCP and API effects default to exact review, including HTTP GET and tools with a read-only
 hint. An owner may explicitly attest a read policy. The model cannot choose credentials, destination
 or policy. An exact review binds the immutable binding and arguments; its durable human wait holds

@@ -14,7 +14,7 @@ const programs: Readonly<Record<ProgramReference["id"], ProgramDescriptor>> = Ob
     id: "grounded-conversation", version: "1", executionKind: "business", controller: "shared-business-loop-v1",
     input: "bounded-text-v1", output: "grounded-answer-or-escalation-v1",
     allowedTools: Object.freeze(["knowledge.search", "knowledge.read", "channel.request_handoff"]),
-    personalMemory: false, delegation: false, sandbox: false, connectedTools: false, workflows: Object.freeze([]),
+    personalMemory: false, delegation: false, sandbox: false, connectedTools: true, workflows: Object.freeze([]),
   }),
   "tool-directed": Object.freeze({
     id: "tool-directed", version: "1", executionKind: "business", controller: "shared-business-loop-v1",

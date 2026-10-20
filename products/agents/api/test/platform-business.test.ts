@@ -159,7 +159,7 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
       const reviews=new ToolReviewStore(pool),evidence=new EvidenceStore(pool,artifacts.objects);
       businessOptions.connected=new ConnectedExecutor(pool,connections,artifacts.objects,evidence,{resolveRemoteEndpoint:remote.resolveRemoteEndpoint.bind(remote),genericReview:reviews.port()});
       businessOptions.toolReviews=reviews;
-      const configuration={...f.config,connectedToolBindingIds:[binding!.id]};
+      const configuration={...f.config,program:{id:"grounded-conversation",version:"1"} as const,connectedToolBindingIds:[binding!.id]};
       const draft=await store.updateDraft({...f.managed,configuration,expectedRevision:1}),version=await store.createVersion({...f.managed,expectedRevision:draft.draft_revision});
       const grant:ExecutionGrant={...f.grant,id:randomUUID(),versionId:version.id,operations:[...f.grant.operations,"connected.read","connected.execute"],connectedToolBindingIds:[binding!.id]};
       await store.createGrant({accountId:f.account.id,grant});
