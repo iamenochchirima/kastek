@@ -10,7 +10,10 @@ const artifact=z.strictObject({id:uuid,name:z.string().min(1).max(80),contentTyp
 const digest=z.string().regex(/^[a-f0-9]{64}$/),skillEvidence=z.strictObject({packageDigest:digest,path:z.string().min(1).max(256),contentDigest:digest});
 const skillResult=z.strictObject({skillId:uuid,revision:z.number().int().positive(),name:z.string().min(1).max(64),content:z.string().max(4096),evidence:skillEvidence});
 
+const bookingSlot=z.strictObject({start:z.iso.datetime({offset:true}),end:z.iso.datetime({offset:true})});
 const contracts={
+  "booking.availability":{input:bookingSlot,output:z.strictObject({slots:z.array(bookingSlot).max(100),timeZone:z.string().max(128)}),authority:["booking.read"],resources:["published_booking_service_policy"],reconciliation:"not_applicable"},
+  "booking.reserve":{input:z.strictObject({start:z.iso.datetime({offset:true})}),output:z.strictObject({state:z.enum(["confirmed","conflict","uncertain"]),bookingId:uuid,start:z.iso.datetime({offset:true}),end:z.iso.datetime({offset:true}),receiptDigest:digest.optional()}),authority:["booking.execute"],resources:["published_booking_service_policy","exact_customer_confirmation"],reconciliation:"deterministic_provider_event_lookup"},
   "knowledge.initial":{input:z.strictObject({query:z.string().min(1).max(1024)}),output:knowledgeResult,authority:["knowledge.read"],resources:["approved_source_revisions"],reconciliation:"not_applicable"},
   "knowledge.search":{input:z.strictObject({query:z.string().min(1).max(512)}),output:knowledgeResult,authority:["knowledge.read"],resources:["approved_source_revisions"],reconciliation:"not_applicable"},
   "knowledge.read":{input:z.strictObject({evidenceId:uuid,offset:nonnegative.max(1048576).optional()}),output:z.strictObject({passage:snippet,nextOffset:nonnegative.nullable()}),authority:["knowledge.read"],resources:["issued_evidence_handle"],reconciliation:"not_applicable"},

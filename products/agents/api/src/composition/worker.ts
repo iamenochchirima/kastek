@@ -4,6 +4,9 @@ import { Pool } from "pg";
 import { ConnectedExecutor } from "../capabilities/connected-tools/connected-executor";
 import { ToolReviewStore } from "../capabilities/reviews/tool-reviews";
 import { RemoteConnectionStore } from "../product/connections/remote-connections";
+import { GoogleCalendarConnectionStore } from "../product/connections/google-calendar-connections";
+import { GoogleCalendarOAuth,googleOAuthConfigFromEnvironment } from "../product/connections/google-calendar-oauth";
+import { BookingService } from "../workflows/booking/bookings";
 import { ApiConnectionStore } from "../product/connections/api-connections";
 import { createNativeApiCapabilityCatalog } from "../capabilities/connected-tools/generic-connected-runtime";
 import { assertConnectedBindingDependencies } from "../capabilities/connected-tools/connected-tool-schema";
@@ -52,6 +55,10 @@ async function main(): Promise<void> {
   const embeddings=documents&&sourceObjects?new QueryEmbeddingService(pool,sourceObjects,documents):undefined;
   const knowledgeRuntime=sourceObjects?new KnowledgeRuntime(pool,evidence,embeddings):undefined;
   const toolReviews=new ToolReviewStore(pool);
+  const googleConfig=googleOAuthConfigFromEnvironment({...process.env,AGENTS_PUBLIC_URL:(process.env.AGENTS_PUBLIC_URL??"http://localhost:3100")});
+  const googleCalendar=new GoogleCalendarConnectionStore(pool,actionServices?.connections.vault,{appUrl:(process.env.AGENTS_PUBLIC_URL??"http://localhost:3100"),...(googleConfig?{oauth:new GoogleCalendarOAuth(googleConfig)}:{})});
+  const bookings=new BookingService(pool,{resolveCalendar:(...args)=>googleCalendar.resolveBookingCalendar(...args),ensureFresh:(scope,id)=>googleCalendar.ensureCredentialFresh(scope,id)});
+
   const remoteConnections=actionServices?new RemoteConnectionStore(pool,actionServices.connections.vault,{
     callbackUrl:`${new URL(process.env.AGENTS_PUBLIC_URL??"http://localhost:3100").origin}/api/connections/oauth/callback`,
     ...(process.env.AGENTS_MCP_CLIENT_METADATA_URL?{clientMetadataUrl:process.env.AGENTS_MCP_CLIENT_METADATA_URL}:{}),
@@ -87,7 +94,7 @@ async function main(): Promise<void> {
   },1000); cancellationTimer.unref();
   const workflow = createBusinessWorkflow(pool, { openRouterApiKey: process.env.OPENROUTER_API_KEY, signal: abort.signal,
     actions:actionServices?.actions,selectReportArtifact:(taskId,name,output)=>artifacts.prepareReport(taskId,name,output),
-    executeSandbox: createSandboxExecutor(pool,sandbox,objects),evidence,knowledgeRuntime,connected,toolReviews });
+    executeSandbox: createSandboxExecutor(pool,sandbox,objects),evidence,knowledgeRuntime,connected,toolReviews,bookings });
   const {host,identityKeys} = workerSecurityFromEnvironment();
   const server = createServer(createEndpointHandler({ services: [workflow,createAutomationWorkflow(automations),...(ingestion?[createIngestionWorkflow(ingestion)]:[])], identityKeys }));
   const sessions = new Set<ServerHttp2Session>();

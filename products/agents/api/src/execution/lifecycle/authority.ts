@@ -6,7 +6,9 @@ PlatformError,
 terminalTaskStates
 } from "../../contracts/contracts";
 
+import { assertPublicSkillPolicy } from "../../capabilities/skills/public-policy";
 import { assertCurrentSkillPolicy } from "../../capabilities/skills/current-policy";
+import { loadBookingPolicy } from "../../workflows/booking/policy";
 import { assertAutomationAuthority } from "./automation-authority";
 export { transaction } from "../../infrastructure/database";
 
@@ -62,10 +64,12 @@ export async function assertBaseAuthority(db: Pool | PoolClient, execution: Exec
       WHERE d.organization_id=$1 AND d.id=$2 AND d.version_id=$3 AND d.agent_id=$4 AND d.revoked_at IS NULL
       AND s.id=$5 AND s.expires_at>now() FOR SHARE OF d`,
     [task.organization_id, task.principal.deploymentId, task.version_id, agentId, task.principal.sessionId]);
-    if (!allowed.rowCount || configuration.memory.enabled || configuration.skillIds.length || configuration.connectedToolBindingIds.length || configuration.capabilities.delegation.enabled || configuration.capabilities.sandbox.enabled || configuration.capabilities.workflows.enabled || configuration.tools.some(t => t.startsWith("memory."))) {
+    if (!allowed.rowCount || configuration.memory.enabled || configuration.connectedToolBindingIds.length || configuration.capabilities.delegation.enabled || configuration.capabilities.sandbox.enabled || configuration.capabilities.workflows.enabled || configuration.tools.some(t => t.startsWith("memory."))) {
       throw new PlatformError("DEPLOYMENT_SCOPE_DENIED", 403, "Website execution access is unavailable");
     }
+    await assertPublicSkillPolicy(db,task.organization_id,agentId,configuration.skillIds);
   } else if(task.principal.kind==="automation")await assertAutomationAuthority(db,execution);
   else throw new PlatformError("AUTOMATION_UNAVAILABLE", 403, "Automation execution is unavailable");
   await assertCurrentSkillPolicy(db,execution,grant.operations);
+  if(configuration.capabilities.businessActions.enabled)await loadBookingPolicy(db,task.organization_id,agentId,configuration.capabilities.businessActions);
 }

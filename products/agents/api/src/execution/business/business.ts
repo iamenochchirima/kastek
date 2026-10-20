@@ -45,6 +45,8 @@ export { settleTask } from "../lifecycle/execution";
 import { runRequiredReport, type ActionRuntime } from "../../workflows/report-delivery/program";
 import { channelPorts } from "../../infrastructure/channel-ports";
 import type { ToolReviewStore } from "../../capabilities/reviews/tool-reviews";
+import type { BookingService } from "../../workflows/booking/bookings";
+import { awaitBookingConfirmation } from "./booking-review";
 import { awaitToolInvocationReview } from "./tool-review";
 export type { ActionState, ActionRuntime } from "../../workflows/report-delivery/program";
 export interface BusinessOptions extends ModelAdapterOptions {
@@ -53,11 +55,12 @@ export interface BusinessOptions extends ModelAdapterOptions {
   knowledgeRuntime?: KnowledgeRuntime;
   connected?: ConnectedExecutor;
   toolReviews?: ToolReviewStore;
+  bookings?:BookingService;
   selectReportArtifact?:(taskId:string,name:string,generatedOutput:string)=>Promise<{id:string}>;
   executeSandbox?: (taskId:string,operationId:string,args:{code:string;inputArtifactIds?:string[]})=>Promise<unknown>;
 }
 type Result<T> = { ok: true; value: T } | { ok: false; code: string; uncertain: boolean };
-const unknownOperationCodes = new Set(["CONNECTED_READ_UNCERTAIN", "CONNECTED_OPERATION_UNCERTAIN", "QUERY_RESOURCE_UNCERTAIN", "EXECUTION_OBJECT_UNCERTAIN"]);
+const unknownOperationCodes = new Set(["CONNECTED_READ_UNCERTAIN", "CONNECTED_OPERATION_UNCERTAIN", "BOOKING_OUTCOME_UNCERTAIN", "QUERY_RESOURCE_UNCERTAIN", "EXECUTION_OBJECT_UNCERTAIN"]);
 function uncertainOperation(error:ModelOperationError|PlatformError):boolean {return error instanceof ModelOperationError ? error.outcome === "uncertain" : unknownOperationCodes.has(error.code);}
 interface Snapshot { id: string; messages: HarnessMessage[]; digest: string; estimatedTokens: number;
   memoryFence?: MemoryFence; historyCutoff: string; tools: ToolDefinition[]; evidenceManifest?: DependencyManifest }
@@ -185,7 +188,7 @@ async function buildSnapshot(pool: Pool, taskId: string, step: number, working: 
       ...(expiries.length ? { expiresAt: Math.min(...expiries) } : {}) };
     sources.push(...memories.slice(0, 8).map(item => ({ id: item.id, revision: item.revision, kind: "memory" as const, content: fitUtf8(item.content, 512) })));
   }
-  const skills = !config.skillIds.length ? [] : task.principal.kind==="automation" ?
+  const skills = !config.skillIds.length ? [] : ["automation","visitor"].includes(task.principal.kind) ?
     await loadSkillRevisions(pool,task.organization_id,execution.agentId,config.skillIds) :
     await memory.readSkills({ organizationId: task.organization_id, agentId: execution.agentId, principal: task.principal }, config.skillIds);
   const loadedSkills = await skillContext(pool,taskId,skills);
@@ -387,6 +390,13 @@ export function createBusinessWorkflow(pool: Pool, options: BusinessOptions) {
             const name = builtinToolName(call.function.name) ?? binding?.alias ?? "unavailable";
             const descriptor = toolDescriptor(name);
             const resultBound = binding ? binding.limits.maxModelResultBytes : descriptor?.maxResultBytes ?? 8192;
+            if(name==="booking.reserve") {
+              if(!options.bookings){outcome={state:"incomplete",errorCode:"BOOKING_PROVIDER_UNAVAILABLE"};stop=true;break;}
+              let proposal:{start:string};
+              try{proposal=validateBuiltinArguments(name,JSON.parse(call.function.arguments)) as {start:string};}catch{outcome={state:"failed",errorCode:"TOOL_ARGUMENTS_INVALID"};stop=true;break;}
+              const confirmed=await awaitBookingConfirmation(ctx,pool,options.bookings,taskId,id,proposal.start);
+              if(confirmed){outcome=confirmed;stop=true;break;}
+            }
             if(binding?.policy.approval==="exact_single_use") {
               if(!options.toolReviews) {outcome={state:"incomplete",errorCode:"TOOL_REVIEW_UNAVAILABLE"};stop=true;break;}
               let reviewArguments:unknown;
@@ -408,6 +418,12 @@ export function createBusinessWorkflow(pool: Pool, options: BusinessOptions) {
                   }
                   if(!builtinToolEnabled(config,name) || !descriptor) throw new PlatformError("TOOL_DENIED",403,"Tool is unavailable");
                   args=validateBuiltinArguments(name,args);
+                  if(name==="booking.availability"||name==="booking.reserve") {
+                    if(!options.bookings)throw new PlatformError("BOOKING_PROVIDER_UNAVAILABLE",503,"Booking is unavailable");
+                    const bookingArguments=args as {start:string;end:string};
+                    const value=name==="booking.availability"?await options.bookings.availability(taskId,id,bookingArguments,ctx.request().attemptCompletedSignal):await options.bookings.execute(taskId,id,bookingArguments.start,ctx.request().attemptCompletedSignal);
+                    return {value,tokens:0};
+                  }
                   if(name==="agents.delegate") return {value:await admitChildren(pool,taskId,id,parseModelDelegationRequest(args)),tokens:0};
                   if(name==="sandbox.analyze") {
                     if(!config.capabilities.sandbox.enabled || !options.executeSandbox) throw new PlatformError("SANDBOX_UNAVAILABLE",503,"Analysis is unavailable");

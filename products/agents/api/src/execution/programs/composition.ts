@@ -51,6 +51,7 @@ export function compileComposition(reference: ProgramReference, configuration: A
       (configuration.capabilities.workflows.enabled && !program.workflows.includes(configuration.capabilities.workflows.profileId))) denied();
   const expectedTools: string[] = [...configuration.tools, ...(configuration.sourceRevisionIds.length ? ["knowledge.initial"] : []),
     ...(configuration.skillIds.length ? ["skills.activate", "skills.read"] : []),
+    ...(configuration.capabilities.businessActions.enabled?["booking.availability","booking.reserve"]:[]),
     ...(configuration.capabilities.workflows.enabled ? ["report.deliver"] : [])];
   if (new Set(dependencies.tools.map(tool => tool.name)).size !== dependencies.tools.length ||
       expectedTools.length !== dependencies.tools.length ||
@@ -59,9 +60,10 @@ export function compileComposition(reference: ProgramReference, configuration: A
   if ((configuration.tools.includes("agents.delegate") && !configuration.capabilities.delegation.enabled) ||
       (configuration.tools.includes("sandbox.analyze") && !configuration.capabilities.sandbox.enabled) ||
       (configuration.tools.some(name => name.startsWith("memory.")) && !configuration.memory.enabled)) denied();
-  const workflowConfiguration = configuration.capabilities.workflows;
-  const workflows = workflowConfiguration.enabled ? dependencies.workflows.filter(workflow => workflow.id === workflowConfiguration.profileId) : [];
-  if (configuration.capabilities.workflows.enabled && workflows.length !== 1) throw new PlatformError("WORKFLOW_RELEASE_UNAVAILABLE", 503, "The workflow release is unavailable");
+  const workflowConfiguration = configuration.capabilities.workflows,bookingConfiguration=configuration.capabilities.businessActions;
+  const workflows = dependencies.workflows.filter(workflow => workflowConfiguration.enabled&&workflow.id===workflowConfiguration.profileId || bookingConfiguration.enabled&&workflow.id===bookingConfiguration.profileId);
+  if(bookingConfiguration.enabled&&!workflows.some(workflow=>workflow.id===bookingConfiguration.profileId))throw new PlatformError("WORKFLOW_RELEASE_UNAVAILABLE",503,"The booking workflow release is unavailable");
+  if (workflowConfiguration.enabled && workflows.filter(workflow=>workflow.id===workflowConfiguration.profileId).length !== 1) throw new PlatformError("WORKFLOW_RELEASE_UNAVAILABLE", 503, "The workflow release is unavailable");
   const bindings = dependencies.connectedBindings.map(binding => capabilityBindingSchema.parse(binding));
   if (new Set(bindings.map(binding => binding.id)).size !== bindings.length || bindings.length !== configuration.connectedToolBindingIds.length ||
       bindings.some(binding => !configuration.connectedToolBindingIds.includes(binding.id))) denied();

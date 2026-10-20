@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { randomUUID,randomBytes,createHash } from "node:crypto";
 import { Pool } from "pg";
 import Fastify from "fastify";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -12,6 +12,12 @@ import { dropClosedTestDatabase } from "./support/database-cleanup";
 import { loadSkillRevisions, MemoryStore } from "../src/execution/memory/memory";
 import {assertCurrentSkillPolicy} from "../src/capabilities/skills/current-policy";
 import type {Execution} from "../src/contracts/execution";
+import { composeInbox } from "../src/composition/inbox";
+import { customerConfiguration } from "../src/product/offerings/offerings";
+import { assertPublicSkillPolicy } from "../src/capabilities/skills/public-policy";
+import { executeSkillTool } from "../src/capabilities/skills/runtime";
+import { skillContext } from "../src/execution/context/skills";
+import { assertCurrentAuthority,beginOperation,finishOperation,loadExecution } from "../src/execution/lifecycle/execution";
 import { curatedSkillPackage } from "../src/capabilities/skills/curated";
 
 const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
@@ -35,6 +41,66 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     { path: "references/guide.md", content: reference },
     { path: "scripts/run.py", content: "raise Exception('never execute during import')" },
   ] });
+  async function skillVersion(scope:Awaited<ReturnType<typeof fixture>>,skillId:string) {
+    const configuration={...customerConfiguration("faq"),skillIds:[skillId]};
+    const agent=await platform.getAgent(scope.accountId,scope.organizationId,scope.agentId);
+    const draft=await platform.updateDraft({...scope,configuration,expectedRevision:agent.draft_revision});
+    return platform.createVersion({...scope,expectedRevision:draft.draft_revision});
+  }
+  async function publicSkillTask(scope:Awaited<ReturnType<typeof fixture>>,skillId:string) {
+    const origin="https://public-skills.fixture.test",version=await skillVersion(scope,skillId);
+    const deployment=await platform.publishWebsite({...scope,versionId:version.id,allowedOrigins:[origin]});
+    const visitor={deploymentId:deployment.id,sessionId:randomUUID()},token=randomBytes(32).toString("base64url");
+    await pool.query("INSERT INTO agents_platform.website_sessions(id,deployment_id,token_hash,origin) VALUES($1,$2,$3,$4)",[visitor.sessionId,deployment.id,createHash("sha256").update(token).digest("hex"),origin]);
+    const inbox=composeInbox(pool,{publicOrigin:origin,async assertServices(){}}),conversation=await inbox.open(visitor);
+    const admitted=await inbox.ingress(visitor,conversation.id,{requestKey:randomUUID(),body:"Answer using the approved public instructions."});
+    expect(admitted.message.task_id).toBeTruthy();return {version,deployment,taskId:admitted.message.task_id!};
+  }
+  it("publishes reviewed curated instructions and activates them under a real website visitor grant",async()=>{
+    const scope=await fixture(),installed=await store.installCurated(scope,"grounded-answers",randomUUID());
+    const published=await publicSkillTask(scope,installed.id),execution=await loadExecution(pool,published.taskId);
+    await assertCurrentAuthority(pool,execution);
+    expect(execution.task.principal).toMatchObject({kind:"visitor",deploymentId:published.deployment.id});
+    const grant=(await pool.query("SELECT operations FROM agents_platform.execution_grants WHERE id=$1",[execution.task.grant_id])).rows[0];expect(grant.operations).toContain("skill.read");
+    const revisions=await loadSkillRevisions(pool,scope.organizationId,scope.agentId,[installed.id]);
+    expect((await skillContext(pool,published.taskId,revisions)).sources).toEqual([]);
+    const operationId=`tool:${published.taskId}:public-curated`;
+    await beginOperation(pool,published.taskId,{id:operationId,kind:"tool",name:"skills.activate",request:{skillId:installed.id},reservedTokens:0,reservedMs:30000,retrySafe:true});
+    const loaded=await executeSkillTool(pool,published.taskId,"skills.activate",{skillId:installed.id});
+    expect(loaded.content).toBe(curatedSkillPackage("grounded-answers").body);expect(loaded.evidence.packageDigest).toBe(installed.contentDigest);
+    await finishOperation(pool,published.taskId,operationId,"completed",loaded,null,0);
+    const restored=await skillContext(pool,published.taskId,revisions);expect(restored.catalog).toMatchObject([{id:installed.id,packageDigest:installed.contentDigest}]);expect(restored.sources).toHaveLength(1);expect(JSON.parse(restored.sources[0]!.content).instructions).toBe(loaded.content);expect(restored.sources[0]!.skillFile).toEqual(loaded.evidence);
+  });
+  it.each(["private","repository"] as const)("refuses a reviewed %s copy of the exact curated bytes at website publication",async kind=>{
+    const scope=await fixture(),current=curatedSkillPackage("grounded-answers");
+    const imported=await store.import(scope,randomUUID(),current,undefined,kind==="repository"?{repository:"fixture/instructions",commit:"a".repeat(40),path:"skills/grounded-answers",tree:"b".repeat(40)}:undefined);
+    await store.review(scope,imported.id,imported.contentDigest);expect(imported.contentDigest).toBe(current.contentDigest);
+    const version=await skillVersion(scope,imported.id);
+    await expect(platform.publishWebsite({...scope,versionId:version.id,allowedOrigins:["https://public-skills.fixture.test"]})).rejects.toMatchObject({code:"PUBLIC_SKILL_POLICY_REQUIRED"});
+    expect((await pool.query("SELECT 1 FROM agents_platform.website_deployments WHERE version_id=$1",[version.id])).rowCount).toBe(0);
+  });
+  it("requires exact review even for server-curated packages installed by a member",async()=>{
+    const scope=await fixture(),member=await fixture();await pool.query("INSERT INTO agents_platform.memberships(organization_id,account_id,role) VALUES($1,$2,'member')",[scope.organizationId,member.accountId]);
+    const pending=await store.installCurated({...scope,accountId:member.accountId},"grounded-answers",randomUUID());expect(pending.reviewState).toBe("pending");
+    await expect(assertPublicSkillPolicy(pool,scope.organizationId,scope.agentId,[pending.id])).rejects.toMatchObject({code:"PUBLIC_SKILL_POLICY_REQUIRED"});
+    await expect(skillVersion(scope,pending.id)).rejects.toMatchObject({code:"SKILL_REVIEW_REQUIRED"});
+  });
+  it("withdraws already-published visitor skill authority when the installation is disabled or removed",async()=>{
+    const scope=await fixture(),installed=await store.installCurated(scope,"grounded-answers",randomUUID()),published=await publicSkillTask(scope,installed.id);
+    await assertCurrentAuthority(pool,await loadExecution(pool,published.taskId));
+    for(const [index,state]of (["disabled","removed"] as const).entries()){
+      await store.setState(scope,installed.id,{operationId:randomUUID(),expectedGeneration:index+1,state});
+      await expect(assertCurrentAuthority(pool,await loadExecution(pool,published.taskId))).rejects.toMatchObject({code:"PUBLIC_SKILL_POLICY_REQUIRED"});
+      await expect(executeSkillTool(pool,published.taskId,"skills.activate",{skillId:installed.id})).rejects.toMatchObject({code:"PUBLIC_SKILL_POLICY_REQUIRED"});
+      await expect(platform.publishWebsite({...scope,versionId:published.version.id,allowedOrigins:["https://public-skills.fixture.test"]})).rejects.toMatchObject({code:"PUBLIC_SKILL_POLICY_REQUIRED"});
+    }
+  });
+  it("rejects curated installation IDs from another agent or tenant",async()=>{
+    const scope=await fixture(),other=await fixture(),installed=await store.installCurated(scope,"grounded-answers",randomUUID());
+    await expect(assertPublicSkillPolicy(pool,other.organizationId,scope.agentId,[installed.id])).rejects.toMatchObject({code:"PUBLIC_SKILL_POLICY_REQUIRED"});
+    const sibling=await platform.createAgent({accountId:scope.accountId,organizationId:scope.organizationId,name:"Sibling"});
+    await expect(assertPublicSkillPolicy(pool,scope.organizationId,sibling.id,[installed.id])).rejects.toMatchObject({code:"PUBLIC_SKILL_POLICY_REQUIRED"});
+  });
   it("imports complete immutable revisions atomically, replays requests, reviews exact digest and hides bodies from lists", async () => {
     const scope = await fixture(), operationId = randomUUID(), pkg = parseSkillPackage(input());
     const [first, replay] = await Promise.all([store.import(scope, operationId, pkg), store.import(scope, operationId, pkg)]);

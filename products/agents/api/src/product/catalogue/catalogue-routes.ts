@@ -1,19 +1,20 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import { z } from "zod";
 import { PlatformError, type Product } from "../../contracts/contracts";
-import type { ActionScope, ConnectionDTO } from "../../contracts/connections";
+import type { ActionScope } from "../../contracts/connections";
 import type { CapabilityBinding } from "../../contracts/capability-catalog";
 import type { AgentRecord } from "../../contracts/records";
-import { catalogueQuerySchema, queryCatalogue, type CatalogueSkill } from "./catalogue";
+import { catalogueQuerySchema, queryCatalogue, type CatalogueSkill, type CatalogueConnection } from "./catalogue";
 
 export interface CatalogueRouteOptions {
   resolveScope(request: FastifyRequest): Promise<ActionScope>;
   getAgent(scope: ActionScope, agentId: string): Promise<Pick<AgentRecord, "id" | "offering" | "draft">>;
-  listConnections(scope: ActionScope): Promise<ConnectionDTO[]>;
+  listConnections(scope: ActionScope): Promise<CatalogueConnection[]>;
   listBindings(scope: ActionScope): Promise<CapabilityBinding[]>;
   listSkills?(scope: ActionScope, agentId?: string): Promise<CatalogueSkill[]>;
   permissions(scope: ActionScope): Promise<readonly string[]>;
   product?: Product;
+  googleCalendar?: { available: boolean };
 }
 
 export function registerCatalogueRoutes(app: FastifyInstance, options: CatalogueRouteOptions): void {
@@ -32,7 +33,7 @@ export function registerCatalogueRoutes(app: FastifyInstance, options: Catalogue
         options.permissions(scope),
       ]);
       return queryCatalogue(kind, query, { agentId: agent?.id, configuration: agent?.draft, purpose,
-        product: options.product ?? "agents", connections, bindings, skills, permissions });
+        product: options.product ?? "agents", connections, bindings, skills, permissions, googleCalendar: options.googleCalendar });
     });
   }
 }

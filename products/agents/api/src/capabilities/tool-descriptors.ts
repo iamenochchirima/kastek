@@ -1,7 +1,7 @@
 import type { AgentConfiguration } from "../contracts/contracts";
 import { capabilityContractMetadata } from "./tool-contracts";
 export interface ToolDescriptor {
-  name: AgentConfiguration["tools"][number] | "report.deliver" | "knowledge.initial" | "skills.activate" | "skills.read"; version: "1";
+  name: AgentConfiguration["tools"][number] | "report.deliver" | "knowledge.initial" | "skills.activate" | "skills.read" | "booking.availability" | "booking.reserve"; version: "1";
   effect: "read" | "idempotent_memory" | "delegation" | "resource" | "external_effect" | "channel_control";
   maxDurationMs: number; maxResultBytes: number; retry: "safe_read" | "idempotent_receipt" | "stable_children" | "adapter_reconcile" | "status_only";
   cancel: "stop_admission" | "dependent_children" | "adapter_cleanup" | "reconcile_claimed";
@@ -10,7 +10,10 @@ export interface ToolDescriptor {
   inputSchema: Record<string,unknown>; outputSchema: Record<string,unknown>;
   requiredAuthority: readonly string[]; requiredResources: readonly string[]; reconciliation: string;
 }
+export const BOOKING_WORKFLOW_BINDING=Object.freeze({profileId:"google-calendar-booking-v1",version:"1",adapter:"google-calendar-v1",stages:["prepare_exact_intent","customer_confirmation","reserve_slot","validate_provider_availability","claim_once","provider_commit","reconcile","confirm_receipt"]});
 const descriptors: readonly Omit<ToolDescriptor,"inputSchema"|"outputSchema"|"requiredAuthority"|"requiredResources"|"reconciliation">[] = [
+  {name:"booking.availability",version:"1",effect:"read",maxDurationMs:30000,maxResultBytes:8192,retry:"safe_read",cancel:"stop_admission"},
+  {name:"booking.reserve",version:"1",effect:"external_effect",maxDurationMs:60000,maxResultBytes:8192,retry:"status_only",cancel:"reconcile_claimed"},
   {name:"channel.request_handoff",version:"1",effect:"channel_control",maxDurationMs:30000,maxResultBytes:8192,retry:"idempotent_receipt",cancel:"stop_admission"},
   {name:"knowledge.initial",version:"1",effect:"read",maxDurationMs:90000,maxResultBytes:8192,retry:"safe_read",cancel:"stop_admission"},
   {name:"knowledge.search",version:"1",effect:"read",maxDurationMs:30000,maxResultBytes:8192,retry:"safe_read",cancel:"stop_admission"},

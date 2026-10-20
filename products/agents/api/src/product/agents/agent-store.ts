@@ -10,6 +10,7 @@ PlatformError,
 type AgentConfiguration,type ExecutionGrant
 } from "../../contracts/contracts";
 import { assertSkillRequirements } from "../../capabilities/skills/requirement-authority";
+import { loadBookingPolicy } from "../../workflows/booking/policy";
 import { customerConfiguration } from "../offerings/offerings";
 import { compilePublishedComposition } from "../../execution/programs/publication";
 
@@ -73,6 +74,7 @@ export class AgentStore extends AuthorityStore {
       if (existing) return existing;
       const config = agentConfigurationSchema.parse(agent.draft);
       const connectedAuthority = connectedToolAuthorityIds(config);
+      if(config.capabilities.businessActions.enabled)await loadBookingPolicy(db,input.organizationId,agent.id,config.capabilities.businessActions);
       if (config.capabilities.delegation.enabled) {
         for (const binding of config.capabilities.delegation.bindings) {
           const child = (await db.query<VersionRecord&{agent_name:string}>(`SELECT v.*,a.name AS agent_name FROM agents_platform.agent_versions v

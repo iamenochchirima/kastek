@@ -5,7 +5,7 @@ import { requestDigest, type AgentConfiguration, type AgentExecutionKind, type P
 import type { CapabilityBinding } from "../../contracts/capability-catalog";
 import type { ConnectionDTO } from "../../contracts/connections";
 
-export const catalogueRevision = "2026-10-20.1";
+export const catalogueRevision = "2026-10-20.2";
 export const purposeSchema = z.enum(["faq", "customer-service", "research", "booking", "campaigns", "general"]);
 export type CataloguePurpose = z.infer<typeof purposeSchema>;
 export const catalogueQuerySchema = z.strictObject({
@@ -37,7 +37,7 @@ export interface CatalogueItemDTO {
   products: Product[]; executionKinds: AgentExecutionKind[]; requires: CatalogueRequirements;
   readiness: { state: "ready" | "needs_connection" | "needs_configuration" | "unavailable"; reasons: { code: string; message: string }[] };
   added: boolean; recommended: boolean;
-  action: { kind: "add" | "connect" | "configure" | "none"; connectionProfileId?: string; connectionId?: string };
+  action: { kind: "add" | "connect" | "configure" | "none"; connectionProfileId?: string; connectionId?: string; configurationSection?: "configuration" };
   configuration: { tools: ToolName[]; connectedToolBindingIds: string[]; skillIds: string[] };
   source?: CatalogueSkill["source"];familyId?:string;
 }
@@ -53,6 +53,7 @@ const reviewedDefinitions = [
   define({ id: "knowledge-search", kind: "builtin", name: "Search knowledge", description: "Find passages in approved knowledge.", purposes: ["faq", "customer-service", "research"], tools: ["knowledge.search"] }),
   define({ id: "knowledge-read", kind: "builtin", name: "Read knowledge", description: "Read approved knowledge passages.", purposes: ["faq", "customer-service", "research"], tools: ["knowledge.read"] }),
   define({ id: "human-handoff", kind: "builtin", name: "Human support", description: "Request human support in the shared inbox.", purposes: ["faq", "customer-service"], tools: ["channel.request_handoff"] }),
+  define({ id: "google-calendar", kind: "native_api", name: "Google Calendar", description: "Check availability and create confirmed appointments in a selected calendar.", purposes: ["booking", "customer-service"], requires: { connectionProfiles: ["google-calendar-v1"], permissions: ["agent.configure","calendar.configure"] } }),
   define({ id: "github", kind: "native_api", name: "GitHub", description: "Read selected public GitHub repositories.", purposes: ["research"], requires: { connectionProfiles: ["github-public-read-v1"], permissions: ["agent.configure"] } }),
   define({ id: "stash", kind: "mcp", name: "Stash", description: "Read selected Stash items and project documents.", purposes: ["research"], requires: { connectionProfiles: ["stash-read-v1"], permissions: ["agent.configure"] } }),
   define({ id: "deepwiki", kind: "mcp", name: "DeepWiki", description: "Read documentation for selected public repositories.", purposes: ["research"], requires: { connectionProfiles: ["public-repository-read-v1"], permissions: ["agent.configure"] } }),
@@ -67,24 +68,26 @@ function freeze<T>(value: T): T {
 }
 freeze(reviewedDefinitions);
 
+export type CatalogueConnection = Omit<ConnectionDTO, "profileId"> & { profileId: ConnectionDTO["profileId"] | "google-calendar-v1" };
 export interface CatalogueContext {
   agentId?: string; configuration?: AgentConfiguration; purpose: CataloguePurpose;
-  product: Product; permissions: readonly string[]; connections: readonly ConnectionDTO[];
-  bindings: readonly CapabilityBinding[]; skills?: readonly CatalogueSkill[]; now?: Date;
+  product: Product; permissions: readonly string[]; connections: readonly CatalogueConnection[];
+  bindings: readonly CapabilityBinding[]; skills?: readonly CatalogueSkill[]; now?: Date; googleCalendar?: { available: boolean };
 }
 
 function item(definition: Definition, context: CatalogueContext, pinnedDigest?: string): CatalogueItemDTO {
   const { configuration } = context;
+  const googleCalendar = definition.id === "google-calendar";
   const connections = context.connections.filter(connection => (!definition.connectionId || connection.id===definition.connectionId) && definition.requires.connectionProfiles.includes(connection.profileId)
     && connection.state === "active" && Date.parse(connection.expiresAt) > (context.now ?? new Date()).getTime());
-  const bindings = context.bindings.filter(binding => binding.connection && connections.some(connection => connection.id === binding.connection!.id
+  const bindings = googleCalendar ? [] : context.bindings.filter(binding => binding.connection && connections.some(connection => connection.id === binding.connection!.id
     && connection.profileId === binding.connection!.profileId && connection.policyRevision === binding.connection!.policyRevision));
-  const selectedBindings = context.bindings.filter(binding => binding.connection && (!definition.connectionId || binding.connection.id===definition.connectionId) && definition.requires.connectionProfiles.includes(binding.connection.profileId)
+  const selectedBindings = googleCalendar ? [] : context.bindings.filter(binding => binding.connection && (!definition.connectionId || binding.connection.id===definition.connectionId) && definition.requires.connectionProfiles.includes(binding.connection.profileId)
     && configuration?.connectedToolBindingIds.includes(binding.id));
   const newestRevision=definition.connectionId?Math.max(0,...bindings.map(binding=>binding.catalog.revision)):0;
   const availableBindings=definition.connectionId?bindings.filter(binding=>binding.catalog.revision===newestRevision):bindings;
   const selection = { tools: [...definition.tools], connectedToolBindingIds: (selectedBindings.length ? selectedBindings : connections.length === 1 ? availableBindings : []).map(binding => binding.id), skillIds: definition.skillId ? [definition.skillId] : [] };
-  const added = !!configuration && (definition.skillId ? configuration.skillIds.includes(definition.skillId)
+  const added = !!configuration && (googleCalendar ? configuration.capabilities.businessActions.enabled : definition.skillId ? configuration.skillIds.includes(definition.skillId)
     : definition.tools.length ? definition.tools.every(tool => configuration.tools.includes(tool)) : selectedBindings.length > 0);
   const reasons: CatalogueItemDTO["readiness"]["reasons"] = [];
   if (!definition.products.includes(context.product)) reasons.push({ code: "PRODUCT_UNSUPPORTED", message: "Unavailable for this product." });
@@ -95,10 +98,13 @@ function item(definition: Definition, context: CatalogueContext, pinnedDigest?: 
     const missing=missingSkillRequirements(definition.runtimeRequirements,configuration,selected);
     if(Object.values(missing).some(values=>values.length))reasons.push({code:"SKILL_REQUIREMENTS_UNAVAILABLE",message:"Configure the connections and runtime required by this skill."});
   }
+  if (googleCalendar && !context.googleCalendar?.available) reasons.push({ code: "GOOGLE_OAUTH_NOT_CONFIGURED", message: "Google Calendar is unavailable until the server OAuth client is configured." });
   if (definition.unavailableReason) reasons.push({ code: "DEPENDENCY_UNAVAILABLE", message: definition.unavailableReason });
   let state: CatalogueItemDTO["readiness"]["state"] = reasons.length ? "unavailable" : "ready";
   if (state === "ready" && definition.requires.connectionProfiles.length && !connections.length) {
     state = "needs_connection"; reasons.push({ code: "CONNECTION_REQUIRED", message: "Connect an account and select approved resources." });
+  } else if (state === "ready" && googleCalendar) {
+    state = "needs_configuration"; reasons.push({ code: "BOOKING_POLICY_REQUIRED", message: "Choose a shared calendar and configure appointment rules." });
   } else if (state === "ready" && definition.requires.connectionProfiles.length && !bindings.length) {
     state = "needs_configuration"; reasons.push({ code: "TOOL_SELECTION_REQUIRED", message: "Select permitted operations and resources." });
   } else if (state === "ready" && selectedBindings.some(selected => !bindings.some(current => current.id === selected.id))) {
@@ -109,7 +115,11 @@ function item(definition: Definition, context: CatalogueContext, pinnedDigest?: 
   if (state === "ready" && definition.tools.some(tool => tool.startsWith("knowledge.")) && !configuration?.sourceRevisionIds.length) {
     state = "needs_configuration"; reasons.push({ code: "KNOWLEDGE_REQUIRED", message: "Select approved knowledge." });
   }
-  const action: CatalogueItemDTO["action"] = { kind: state === "unavailable" || added ? "none" : state === "needs_connection" ? "connect" : state === "needs_configuration" ? "configure" : "add" };
+  const action: CatalogueItemDTO["action"] = { kind: state === "unavailable" || added && !googleCalendar ? "none" : state === "needs_connection" ? "connect" : state === "needs_configuration" ? "configure" : "add" };
+  if (googleCalendar && state === "needs_configuration") {
+    action.configurationSection = "configuration";
+    if (connections.length === 1) action.connectionId = connections[0]!.id;
+  }
   if(definition.connectionId)action.connectionId=definition.connectionId;
   if (definition.requires.connectionProfiles[0]) action.connectionProfileId = definition.requires.connectionProfiles[0];
   return { id: definition.id, revision: definition.revision, digest: pinnedDigest ?? requestDigest(definition), kind: definition.kind,

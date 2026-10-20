@@ -35,9 +35,14 @@ import { registerSkillPackageRoutes } from "../product/agents/skill-package-rout
 import { SkillPackageStore } from "../product/agents/skill-package-store";
 import { registerCatalogueRoutes } from "../product/catalogue/catalogue-routes";
 import { RemoteConnectionStore } from "../product/connections/remote-connections";
+import { GoogleCalendarConnectionStore } from "../product/connections/google-calendar-connections";
+import { GoogleCalendarOAuth,googleOAuthConfigFromEnvironment,type GoogleOAuthPort } from "../product/connections/google-calendar-oauth";
+import { BookingService } from "../workflows/booking/bookings";
 import { ApiConnectionStore } from "../product/connections/api-connections";
 import { ExecutableAdapterRegistry } from "../contracts/capability-catalog";
 import { nativeApiAdapterManifest,executeGenericNativeApi,createNativeApiCapabilityCatalog } from "../capabilities/connected-tools/generic-connected-runtime";
+import { registerGoogleCalendarRoutes } from "../product/connections/google-calendar-routes";
+import { registerBookingRoutes } from "../workflows/booking/routes";
 import { registerApiConnectionRoutes } from "../product/connections/api-connection-routes";
 import { registerRemoteConnectionRoutes } from "../product/connections/remote-connection-routes";
 import { curatedSkillCatalog } from "../capabilities/skills/curated";
@@ -71,8 +76,9 @@ const dto = (row: object) => ({ ...Object.fromEntries(Object.entries(row).map(([
   outcome: terminalTaskStates.has((row as TaskRecord).state) ? (row as TaskRecord).state : null,
 } : {}) });
 
-export async function buildPlatformApp(options: { config: PlatformConfig; pool: Pool; identity?: PlatformIdentity; logging?: boolean }) {
+export async function buildPlatformApp(options: { config: PlatformConfig; pool: Pool; identity?: PlatformIdentity; logging?: boolean;testGoogleOAuth?:GoogleOAuthPort;testGoogleApiBaseUrl?:string }) {
   const { config, pool } = options;
+  if((options.testGoogleOAuth||options.testGoogleApiBaseUrl)&&config.NODE_ENV!=="test")throw new Error("TEST_GOOGLE_OPTIONS_DENIED");
   const store = new PlatformStore(pool);
   const evaluationTrials = new EvaluationTrials(pool);
   const discovery = new PlatformDiscovery(pool,store);
@@ -84,6 +90,10 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
   const taskArtifacts = new TaskArtifactStore(pool, objects);
   const actionServices=actionsFromEnvironment(pool,taskArtifacts);
   const toolReviews=new ToolReviewStore(pool);
+  const googleConfig=googleOAuthConfigFromEnvironment({...process.env,AGENTS_PUBLIC_URL:config.AGENTS_PUBLIC_URL});
+  const googleCalendar=new GoogleCalendarConnectionStore(pool,actionServices?.connections.vault,{appUrl:config.AGENTS_PUBLIC_URL,...(options.testGoogleOAuth?{oauth:options.testGoogleOAuth}:googleConfig?{oauth:new GoogleCalendarOAuth(googleConfig)}:{}),testApiBaseUrl:options.testGoogleApiBaseUrl});
+  const bookings=new BookingService(pool,{resolveCalendar:(...args)=>googleCalendar.resolveBookingCalendar(...args),ensureFresh:(scope,id)=>googleCalendar.ensureCredentialFresh(scope,id),testBaseUrl:options.testGoogleApiBaseUrl});
+
   const remoteConnections=actionServices?new RemoteConnectionStore(pool,actionServices.connections.vault,{
     callbackUrl:`${new URL(config.AGENTS_PUBLIC_URL).origin}/api/connections/oauth/callback`,
     ...(process.env.AGENTS_MCP_CLIENT_METADATA_URL?{clientMetadataUrl:process.env.AGENTS_MCP_CLIENT_METADATA_URL}:{}),
@@ -210,6 +220,8 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
     return {...dto(task),input,inputAvailability,...await readableOutput(task.id,task.output)};
   }
   async function resolveScope(request:FastifyRequest) {const user=await account(request),org=organizationId(request);await store.requireMembership(user.id,org);return {accountId:user.id,organizationId:org};}
+  registerGoogleCalendarRoutes(app,{store:googleCalendar,resolveScope,resolveCallbackAccount:async request=>(await account(request)).id});
+  registerBookingRoutes(app,{bookings,resolveScope,resolveTask:async request=>{const {task}=await humanTask(request);return {taskId:task.id,principal:task.principal};}});
   if(apiConnections)registerApiConnectionRoutes(app,{store:apiConnections,resolveScope});
   if(remoteConnections) registerRemoteConnectionRoutes(app,{store:remoteConnections,resolveScope,accountId:async request=>(await account(request)).id});
   registerToolReviewRoutes(app,{store:toolReviews,resolveTask:async request=>{
@@ -218,9 +230,18 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
   const skillPackages = new SkillPackageStore(pool);
   registerCatalogueRoutes(app, { resolveScope,
     getAgent: (scope,id) => store.getAgent(scope.accountId,scope.organizationId,id),
-    listConnections: scope => actionServices?.connections.list(scope,true) ?? Promise.resolve([]),
+    googleCalendar:{available:googleCalendar.providerStatus().available},
+    listConnections: async scope => {
+      const connections=await actionServices?.connections.list(scope,true)??[];
+      const rows=(await pool.query(`SELECT c.*,g.status,g.sharing FROM agents_platform.connections c JOIN agents_platform.google_calendar_connections g ON g.connection_id=c.id
+        JOIN agents_platform.memberships m ON m.organization_id=c.organization_id AND m.account_id=c.account_id AND m.revoked_at IS NULL AND m.role='owner'
+        WHERE c.organization_id=$1 AND c.account_id=$2 ORDER BY c.created_at DESC LIMIT 100`,[scope.organizationId,scope.accountId])).rows;
+      return [...connections,...rows.map(row=>({id:row.id,name:row.name,targetId:row.target_id,targetLabel:"Google Calendar",resource:row.resource,
+        profileId:"google-calendar-v1" as const,authentication:"bearer" as const,policyRevision:row.policy_revision,resources:[],selections:[],stashItemIds:[],revision:row.revision,
+        state:row.state==="active"&&row.status==="ready"&&row.sharing==="organization_service"?"active" as const:"revoked" as const,createdAt:new Date(row.created_at).toISOString(),expiresAt:new Date(row.expires_at).toISOString()}))];
+    },
     listBindings: scope => connected?.catalogs.listBindings(scope) ?? Promise.resolve([]),
-    permissions: async () => ["agent.configure"],
+    permissions: async scope => ["agent.configure",...((await pool.query("SELECT 1 FROM agents_platform.memberships WHERE organization_id=$1 AND account_id=$2 AND role='owner' AND revoked_at IS NULL",[scope.organizationId,scope.accountId])).rowCount?["calendar.configure"]:[])],
     listSkills: async (scope,agentId) => {
       if (!agentId) return [];
       const packages=await skillPackages.list({...scope,agentId});
@@ -232,7 +253,7 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
       }));
       const available=curatedSkillCatalog().filter(skill=>!packages.some(pkg=>pkg.source.kind==="curated"&&pkg.source.slug===skill.slug));
       return [...installed,...available.map(skill=>({id:`curated:${skill.slug}`,name:skill.name,description:skill.description,
-        revision:1,digest:skill.contentDigest,publisher:skill.publisher,source:skill.source,familyId:skill.familyId,runtimeRequirements:skill.requires,state:"available" as const,installed:false,
+        revision:1,digest:skill.contentDigest,publisher:skill.publisher,source:skill.source,state:"available" as const,installed:false,
         purposes:["faq" as const,"customer-service" as const]}))];
     },
   });
@@ -432,7 +453,7 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
       .map(a=>({...a,downloadPath:`/api/organizations/${task.organization_id}/tasks/${task.id}/artifacts/${a.id}`}));
     const actions=actionServices?await actionServices.actions.listForTask({accountId:viewer.id,organizationId:task.organization_id},task.id):[];
     const hasToolReviews=Boolean((await pool.query("SELECT 1 FROM agents_platform.tool_invocation_reviews WHERE task_id=$1 AND organization_id=$2 AND reviewer_account_id=$3 LIMIT 1",[task.id,task.organization_id,viewer.id])).rowCount);
-    return { actions,canControl,canDownloadArtifacts:true,task: {...await readableTask(task),hasToolReviews}, events: events.map(dto), eventsNextCursor:eventPage.nextCursor, operations: operations.map(dto),children:await Promise.all(children.map(async child=>({...dto(child),...await readableOutput(child.id,child.output)}))),resources:resources.map(dto),artifacts };
+    return { actions,canControl,canDownloadArtifacts:true,task: {...await readableTask(task),hasToolReviews,hasBookings:Boolean((await pool.query("SELECT 1 FROM agents_platform.booking_intents WHERE task_id=$1 LIMIT 1",[task.id])).rowCount)}, events: events.map(dto), eventsNextCursor:eventPage.nextCursor, operations: operations.map(dto),children:await Promise.all(children.map(async child=>({...dto(child),...await readableOutput(child.id,child.output)}))),resources:resources.map(dto),artifacts };
   });
   app.get(`${base}/tasks/:taskId/events`,async request=>{
     const {task,authority,reviewOnly}=await humanTask(request);
@@ -562,7 +583,8 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
   app.get("/api/website/:deploymentId", async (request, reply) => {
     const { deployment } = await websiteContext(request, reply);
     const row = (await pool.query<{ name: string }>("SELECT name FROM agents_platform.agents WHERE id=$1 AND organization_id=$2", [deployment.agent_id, deployment.organization_id])).rows[0];
-    return { name: row?.name ?? "Assistant" };
+    const version=(await pool.query("SELECT configuration FROM agents_platform.agent_versions WHERE id=$1 AND organization_id=$2",[deployment.version_id,deployment.organization_id])).rows[0];
+    return { name: row?.name ?? "Assistant",bookingEnabled:Boolean(version?.configuration.capabilities?.businessActions?.enabled) };
   });
   app.get("/api/website/:deploymentId/widget.js", async (request, reply) => {
     const deploymentId = uuid.parse(parameters(request).deploymentId);
@@ -578,7 +600,7 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
     await pool.query("INSERT INTO agents_platform.website_sessions(id,deployment_id,token_hash,origin) VALUES($1,$2,$3,$4)", [randomUUID(), deployment.id, hash(token), websiteOrigin]);
     return reply.code(201).send({ token });
   });
-  registerInboxRoutes(app, { inbox, publicRate,
+  registerInboxRoutes(app, { inbox, bookings,publicRate,
     resolveScope: async request => ({ accountId: (await account(request)).id, organizationId: organizationId(request) }),
     resolveVisitor: async (request, reply) => {
       const { deployment, websiteOrigin } = await websiteContext(request, reply);

@@ -9,6 +9,11 @@ import { buildPlatformApp } from "../src/composition/app";
 import { setupPlatformSchema } from "../src/composition/setup";
 import { loadPlatformConfig } from "../src/infrastructure/config";
 import { PlatformStore } from "../src/product/agents/store";
+import { createBookingOAuthFixture, createBookingProviderFixture, type BookingProviderFixture } from "./booking-fixture";
+import { GoogleCalendarConnectionStore } from "../src/product/connections/google-calendar-connections";
+import { connectionVaultFromEnvironment } from "../src/infrastructure/vault";
+import { BookingService } from "../src/workflows/booking/bookings";
+import { defaultBusinessConfiguration, type AdmissionAuthority, type ExecutionGrant } from "../src/contracts/contracts";
 import { dropClosedTestDatabase } from "./support/database-cleanup";
 
 const root = resolve(__dirname, "../../../.."), web = resolve(root, "products/agents/web");
@@ -31,6 +36,7 @@ async function ready(url: string, child: ChildProcess) {
 async function main() {
   assert.ok(process.env.AGENTS_TEST_DATABASE_URL, "AGENTS_TEST_DATABASE_URL is required");
   let admin: Pool | undefined, pool: Pool | undefined, app: Awaited<ReturnType<typeof buildPlatformApp>> | undefined;
+  let provider: BookingProviderFixture | undefined;
   let vite: ChildProcess | undefined, browser: ChildProcess | undefined, created = false;
   try {
     admin = new Pool({ connectionString: process.env.AGENTS_TEST_DATABASE_URL });
@@ -50,9 +56,33 @@ async function main() {
     const agent = await store.createAgent({ accountId: account.id, organizationId: organization.id, name: "Catalogue support", offering: "faq" });
     const otherAgent = await store.createAgent({ accountId: account.id, organizationId: organization.id, name: "Separate support", offering: "faq" });
     const session = await store.createSession({ accountId: account.id, providerSessionId: randomUUID(), expiresAt: new Date(Date.now() + 600_000) });
-    app = await buildPlatformApp({ config, pool, logging: false }); await app.listen({ host: "127.0.0.1", port: 4197 });
+    provider = await createBookingProviderFixture();
+    const oauth = createBookingOAuthFixture("https://accounts.fixture.test/authorize");
+    const google = new GoogleCalendarConnectionStore(pool, connectionVaultFromEnvironment(), { oauth, appUrl: origin, testApiBaseUrl: provider.base });
+    const scope = { accountId: account.id, organizationId: organization.id };
+    const pendingConnection = await google.create(scope, { name: "Operator confirmation calendar" });
+    const authorization = await google.authorize(scope, pendingConnection.id);
+    await google.complete(account.id, `?state=${new URL(authorization.authorizationUrl).searchParams.get("state")}&code=fixture`);
+    const authorized = await google.get(scope, pendingConnection.id);
+    const selectedCalendar = await google.selectCalendar(scope, authorized.id, { generation: authorized.generation, calendarId: provider.calendarId });
+    const connection = await google.sharing(scope, selectedCalendar.id, { generation: selectedCalendar.generation, sharing: "organization_service" });
+    const bookings = new BookingService(pool, { resolveCalendar: (...args) => google.resolveBookingCalendar(...args), ensureFresh: (...args) => google.ensureCredentialFresh(...args), testBaseUrl: provider.base });
+    const bookingAgent = await store.createAgent({ ...scope, name: "Booking acceptance", offering: "customer-service" });
+    const operatorAgent = await store.createAgent({ ...scope, name: "Operator appointment", configuration: defaultBusinessConfiguration() });
+    const policy = await bookings.createPolicy(scope, operatorAgent.id, { connectionId: connection.id, title: "Consultation", durationMinutes: 30, minimumNoticeMinutes: 0, maximumAdvanceDays: 30, days: [0, 1, 2, 3, 4, 5, 6], opensAt: "08:00", closesAt: "18:00" });
+    const bookingConfiguration = defaultBusinessConfiguration();
+    bookingConfiguration.capabilities.businessActions = { enabled: true, profileId: "google-calendar-booking-v1", policyId: policy.id, policyDigest: policy.policyDigest };
+    const bookingDraft = await store.updateDraft({ ...scope, agentId: operatorAgent.id, configuration: bookingConfiguration, expectedRevision: 1 });
+    const bookingVersion = await store.createVersion({ ...scope, agentId: operatorAgent.id, expectedRevision: bookingDraft.draft_revision });
+    const authority: AdmissionAuthority = { product: "agents", organizationId: organization.id, resourceId: operatorAgent.id, callerClientId: "agents-execution", principal: { kind: "human", issuer: account.issuer, subject: account.subject } };
+    const grant: ExecutionGrant = { ...authority, id: randomUUID(), versionId: bookingVersion.id, operations: ["model.reply", "knowledge.read", "booking.read", "booking.execute"], sourceRevisionIds: [], connectedToolBindingIds: [], maxInputBytes: bookingConfiguration.model.maxInputBytes, maxOutputTokens: bookingConfiguration.model.maxOutputTokens, maxContextTokens: bookingConfiguration.context.maxInputTokens, rootTokenLimit: 32000, expiresAt: new Date(Date.now() + 300000).toISOString(), revokedAt: null };
+    await store.createGrant({ accountId: account.id, grant });
+    const { task } = await store.admitTask({ authority, grantId: grant.id, versionId: bookingVersion.id, requestKey: randomUUID(), input: "Propose a consultation." });
+    const startsAt = new Date(Date.now() + 86400000); startsAt.setUTCHours(8, 0, 0, 0);
+    const booking = await bookings.prepare(task.id, randomUUID(), startsAt.toISOString());
+    app = await buildPlatformApp({ config, pool, logging: false, testGoogleOAuth: oauth, testGoogleApiBaseUrl: provider.base }); await app.listen({ host: "127.0.0.1", port: 4197 });
     await mkdir(resolve(root, ".audit"), { recursive: true });
-    await writeFile(statePath, JSON.stringify({ url: origin, organizationId: organization.id, agentId: agent.id, otherAgentId: otherAgent.id, cookie: session.token }), { mode: 0o600 });
+    await writeFile(statePath, JSON.stringify({ url: origin, organizationId: organization.id, agentId: agent.id, otherAgentId: otherAgent.id, bookingAgentId: bookingAgent.id, bookingTaskId: task.id, bookingRequestDigest: booking.requestDigest, cookie: session.token }), { mode: 0o600 });
     await chmod(statePath, 0o600);
     vite = spawn(process.execPath, [resolve(web, "node_modules/vite/bin/vite.js"), "--host", "127.0.0.1", "--port", "3197"], {
       cwd: web, env: { ...process.env, AGENTS_API_PROXY_TARGET: apiOrigin }, stdio: ["ignore", "pipe", "pipe"],
@@ -66,7 +96,7 @@ async function main() {
     assert.equal(code, 0, "Actual API catalogue browser acceptance failed");
     console.log("Actual API catalogue browser acceptance passed. Isolated fixture cleanup follows.");
   } finally {
-    await stop(browser); await stop(vite); await app?.close(); await pool?.end();
+    await stop(browser); await stop(vite); await app?.close(); await provider?.close(); await pool?.end();
     await rm(statePath, { force: true });
     if (admin) { if (created) await dropClosedTestDatabase(admin, databaseName); await admin.end(); }
   }
