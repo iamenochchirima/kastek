@@ -62,7 +62,7 @@ export async function admitChildren(pool: Pool, parentId: string, operationId: s
     for(const [slot,item] of prepared.entries()) {
       const id=randomUUID(),conversationId=randomUUID();
       const grant=executionGrantSchema.parse({id:randomUUID(),product:task.product,organizationId:task.organization_id,resourceId:item.version.agent_id,
-        callerClientId:"agents-delegation",principal:task.principal,versionId:item.version.id,operations:["model.reply","knowledge.read",...(item.effective.connectedToolBindingIds.length?["connected.read"]:[])],sourceRevisionIds:item.effective.sourceRevisionIds,connectedToolBindingIds:item.effective.connectedToolBindingIds,
+        callerClientId:"agents-delegation",principal:task.principal,versionId:item.version.id,operations:["model.reply","knowledge.read",...(item.effective.skillIds.length?["skill.read"]:[]),...(item.effective.connectedToolBindingIds.length?["connected.read","connected.execute"]:[])],sourceRevisionIds:item.effective.sourceRevisionIds,connectedToolBindingIds:item.effective.connectedToolBindingIds,
         maxInputBytes:item.effective.model.maxInputBytes,maxOutputTokens:item.effective.model.maxOutputTokens,maxContextTokens:item.effective.context.maxInputTokens,
         rootTokenLimit:item.maxTokens,expiresAt:new Date(task.deadline_at).toISOString(),revokedAt:null});
       await db.query(`INSERT INTO agents_platform.execution_grants(id,product,organization_id,resource_id,caller_client_id,principal,version_id,operations,

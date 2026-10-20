@@ -139,7 +139,7 @@ export const executionGrantSchema = z.strictObject({
   callerClientId: z.string().min(1).max(128),
   principal: principalSchema,
   versionId: z.uuid(),
-  operations: z.array(z.enum(["knowledge.read", "model.reply", "memory.read", "memory.propose", "delegation.execute", "sandbox.execute", "artifact.read", "artifact.write", "effect.deliver", "connected.read", "channel.handoff"])).min(1).max(11),
+  operations: z.array(z.enum(["knowledge.read", "model.reply", "memory.read", "memory.propose", "delegation.execute", "sandbox.execute", "artifact.read", "artifact.write", "effect.deliver", "connected.read", "connected.execute", "channel.handoff", "skill.read"])).min(1).max(13),
   sourceRevisionIds: z.array(z.uuid()).max(20).default([]), connectedToolBindingIds: z.array(z.uuid()).max(8).default([]),
   maxInputBytes: z.number().int().positive().max(initialLimits.maxInputBytes),
   maxOutputTokens: z.number().int().positive().max(initialLimits.maxOutputTokens),
@@ -171,6 +171,7 @@ export function assertGrantAuthority(
     throw new PlatformError("GRANT_SCOPE_DENIED", 403, "Execution authorization does not cover this request");
   }
   if (!grant.operations.includes("model.reply") ||
+      (configuration.skillIds.length > 0 && !grant.operations.includes("skill.read")) ||
       configuration.sourceRevisionIds.some(id => !grant.sourceRevisionIds.includes(id)) ||
       (configuration.sourceRevisionIds.length > 0 && !grant.operations.includes("knowledge.read")) ||
       connectedAuthority.some(id => !grant.connectedToolBindingIds.includes(id)) ||

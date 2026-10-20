@@ -10,6 +10,7 @@ import { setupPlatformSchema } from "../src/composition/setup";
 import { PlatformStore } from "../src/product/agents/store";
 import { settleTask } from "../src/execution/lifecycle/execution";
 import { admitChildren } from "../src/execution/delegation/delegation";
+import { HARNESS_RELEASE } from "../src/contracts/execution";
 
 const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
 const suite = databaseUrl ? describe : describe.skip;
@@ -94,7 +95,7 @@ suite("Agents HTTP and PostgreSQL integration", () => {
 
   it("pins publication and admission compositions while rejecting broader FAQ programs", async () => {
     const f = await readyAgent();
-    expect(f.version.effectiveComposition).toMatchObject({ program: { id: "tool-directed", version: "1" }, runtime: { release: "modular-programs-v2" } });
+    expect(f.version.effectiveComposition).toMatchObject({ program: { id: "tool-directed", version: "1" }, runtime: { release: HARNESS_RELEASE } });
     const accepted = await request(`${f.base}/tasks`, { method: "POST", cookie: f.cookie, origin: browserOrigin,
       payload: { versionId: f.version.id, input: "Hello", requestKey: "pinned" } });
     expect(accepted.status).toBe(202);

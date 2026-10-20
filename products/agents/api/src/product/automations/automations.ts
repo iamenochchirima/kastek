@@ -22,9 +22,10 @@ const deny=()=>new PlatformError('AUTOMATION_ACCESS_DENIED',403,'Automation acce
 const missing=()=>new PlatformError('AUTOMATION_NOT_FOUND',404,'Automation not found');
 export function operationsForConfiguration(c:AgentConfiguration):ExecutionGrant['operations'] {
  return ['model.reply','knowledge.read',...(c.memory.enabled?['memory.read','memory.propose'] as const:[]),
+ ...(c.skillIds.length?['skill.read'] as const:[]),
  ...(c.capabilities.delegation.enabled?['delegation.execute'] as const:[]),...(c.capabilities.sandbox.enabled?['sandbox.execute'] as const:[]),
  ...((c.capabilities.sandbox.enabled||c.capabilities.workflows.enabled)?['artifact.read','artifact.write'] as const:[]),
- ...(c.capabilities.workflows.enabled?['effect.deliver'] as const:[]),...(connectedToolAuthorityIds(c).length?['connected.read'] as const:[]),
+ ...(c.capabilities.workflows.enabled?['effect.deliver'] as const:[]),...(connectedToolAuthorityIds(c).length?['connected.read','connected.execute'] as const:[]),
  ...(c.tools.includes('channel.request_handoff')?['channel.handoff'] as const:[])];
 }
 function dto(row:Record<string,any>) {return {id:row.id,organizationId:row.organization_id,ownerAccountId:row.owner_account_id,

@@ -6,14 +6,17 @@ import { MemoryStore } from "../execution/memory/memory";
 import { fitUtf8 } from "./tool-definitions";
 import { channelPorts } from "../infrastructure/channel-ports";
 import { transaction } from "../infrastructure/database";
-export { BUILTIN_MODEL_ALIASES, builtinToolName, builtinModelAlias, parseModelDelegationRequest, publishedToolBindings, assertPublishedTools, fitUtf8, toolsFor } from "./tool-definitions";
+import { builtinToolEnabled } from "./tool-definitions";
+import { executeSkillTool } from "./skills/runtime";
+export { BUILTIN_MODEL_ALIASES, builtinToolName, builtinModelAlias, builtinToolEnabled, parseModelDelegationRequest, publishedToolBindings, assertPublishedTools, fitUtf8, toolsFor } from "./tool-definitions";
 
-export async function executeTool(pool: Pool, taskId: string, operationId: string, name: string, rawArguments: string): Promise<unknown> {
+export async function executeTool(pool: Pool, taskId: string, operationId: string, name: string, rawArguments: string, maxResultBytes?: number): Promise<unknown> {
   const execution = await loadExecution(pool, taskId), config = execution.configuration;
-  if (!config.tools.includes(name as AgentConfiguration["tools"][number])) throw new PlatformError("TOOL_DENIED", 403, "Tool is unavailable");
+  if (!builtinToolEnabled(config, name)) throw new PlatformError("TOOL_DENIED", 403, "Tool is unavailable");
   let input: unknown;
   try { input = JSON.parse(rawArguments); } catch { throw new PlatformError("TOOL_ARGUMENTS_INVALID", 400, "Tool arguments must be JSON"); }
   try {
+    if (name === "skills.activate" || name === "skills.read") return executeSkillTool(pool, taskId, name, input, maxResultBytes);
     if (name === "channel.request_handoff") {
       z.strictObject({}).parse(input);
       if (!execution.task.channel_binding || execution.task.parent_task_id) throw new PlatformError("CHANNEL_SCOPE_DENIED", 403, "Human support requires a customer conversation");

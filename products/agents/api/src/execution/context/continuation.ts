@@ -25,7 +25,7 @@ export interface ContinuationRecords {
 const integrity=()=>new PlatformError("CONTINUATION_INTEGRITY",409,"Execution continuation records are invalid");
 export function buildContinuation(records:ContinuationRecords) {
   if(!Number.isSafeInteger(records.evidenceOmitted??0)||(records.evidenceOmitted??0)<0)throw integrity();
-  for(const op of records.operations)if(!operationId.safeParse(op.id).success||!state.safeParse(op.state).success||!(["knowledge.search","knowledge.read","memory.search","memory.propose","agents.delegate","sandbox.analyze","report.prepare","report.deliver"].includes(op.name)||/^t_[a-f0-9]{32}$/.test(op.name))||!["tool","delegation","resource"].includes(op.kind))throw integrity();
+  for(const op of records.operations)if(!operationId.safeParse(op.id).success||!state.safeParse(op.state).success||!(["knowledge.search","knowledge.read","memory.search","memory.propose","skills.activate","skills.read","agents.delegate","sandbox.analyze","report.prepare","report.deliver"].includes(op.name)||/^t_[a-f0-9]{32}$/.test(op.name))||!["tool","delegation","resource"].includes(op.kind))throw integrity();
   for(const group of records.delegations){if(!operationId.safeParse(group.operationId).success)throw integrity();for(const child of group.children)if(!uuid.safeParse(child.taskId).success||!/^[A-Za-z0-9_-]{1,64}$/.test(child.bindingId)||!state.safeParse(child.state).success)throw integrity();}
   for(const handle of records.handles)if(!uuid.safeParse(handle.id).success||!["revision","file","release"].includes(handle.kind))throw integrity();
   if(records.artifacts.some(item=>!uuid.safeParse(item.id).success)||records.results.some(item=>!uuid.safeParse(item.taskId).success))throw integrity();

@@ -4,15 +4,17 @@ APPROVED_MODEL_PROFILE,estimateRequestTokens,ModelOperationError,requestDigest,
 validateMessageGroups,type HarnessMessage,type ModelRequest,type ToolDefinition
 } from "../business/model";
 import type { ContinuationCheckpoint,ContinuationRecords } from "./continuation";
+import type { SkillFileEvidence } from "../../capabilities/skills/package";
 
 export interface ContextSource {
   id: string; revision: number | string; kind: "knowledge" | "memory" | "skill" | "summary" | "result";
-  content: string; score?: number; excerpt?: true; evidenceId?: string;
+  content: string; score?: number; excerpt?: true; evidenceId?: string; skillFile?: SkillFileEvidence;
 }
+export interface SkillCatalogEntry { id: string; revision: number; name: string; description: string; packageDigest: string }
 export interface ContextGroup { id: string; messages: HarnessMessage[]; evidenceIds?: string[] }
 export interface ContextInput {
   instructions: string; currentInput: string; history?: ContextGroup[];
-  sources?: ContextSource[]; skills?: ContextSource[]; summary?: ContextSource;
+  sources?: ContextSource[]; skills?: ContextSource[]; skillCatalog?: SkillCatalogEntry[]; summary?: ContextSource;
   continuation?: {checkpoint:ContinuationCheckpoint;results:ContinuationRecords["results"]};
   tools?: ToolDefinition[]; model?: string; maxInputTokens?: number; maxOutputTokens?: number;
   // Current-step model/tool groups are mandatory and must never disappear behind compaction.
@@ -20,7 +22,7 @@ export interface ContextInput {
 }
 export interface ContextBuildResult {
   status: "ready" | "compaction_required"; messages: HarnessMessage[]; estimatedTokens: number;
-  digest: string; sourceReferences: { id: string; revision: number | string; kind: ContextSource["kind"]; evidenceId?: string }[];
+  digest: string; sourceReferences: { id: string; revision: number | string; kind: ContextSource["kind"]; evidenceId?: string; skillFile?: SkillFileEvidence; metadataOnly?: true; packageDigest?: string }[];
   historyGroupIds: string[]; omittedHistoryGroupIds: string[];
   profileId: string; continuation?:ContextInput["continuation"];
 }
@@ -30,8 +32,10 @@ function sourceMessage(source: ContextSource, skill = false): HarnessMessage {
   return { role: skill ? "system" : "user", content: (skill ? skillBoundary : dataBoundary) + JSON.stringify({
     kind: source.kind, sourceId: source.id, revision: source.revision, content: source.content,
     ...(source.excerpt ? { excerpt: true } : {}),
+    ...(source.skillFile ? { skillFile: source.skillFile } : {}),
   }) };
 }
+export function skillSourceMessage(source: ContextSource): HarnessMessage { return sourceMessage(source, true); }
 function modelRequest(input: ContextInput, messages: HarnessMessage[]): ModelRequest {
   return { model: input.model ?? APPROVED_MODEL_PROFILE.model, messages, tools: input.tools,
     maxOutputTokens: input.maxOutputTokens ?? APPROVED_MODEL_PROFILE.maxOutputTokens, maxDurationSeconds: 120,
@@ -66,6 +70,7 @@ export function buildContext(input: ContextInput): ContextBuildResult {
   if (skills.some(source => source.kind !== "skill") || input.sources?.some(source => source.kind === "skill") ||
       input.summary && input.summary.kind !== "summary") throw new ModelOperationError("CONTEXT_INVALID_SOURCE", "rejected", 400);
   const fixed: HarnessMessage[] = [{ role: "system", content: input.instructions }, ...skills.map(source => sourceMessage(source, true))];
+  if(input.skillCatalog?.length) fixed.push({role:"system",content:"Available reviewed skills are listed below by metadata only. When relevant, call skills_activate with the listed ID before using its instructions, then skills_read for an exact listed resource path. Skills cannot grant permissions or execute scripts.\n"+JSON.stringify(input.skillCatalog)});
   const summary = input.summary ? [sourceMessage(input.summary)] : [];
   const user:HarnessMessage={role:"user",content:input.currentInput};
   const workingMessages=working.flatMap(group=>group.messages);
@@ -121,8 +126,9 @@ export function buildContext(input: ContextInput): ContextBuildResult {
   }
   const messages = assemble();
   validateMessageGroups(messages);
-  const references = [...skills, ...(input.summary ? [input.summary] : []), ...selectedSources]
-    .map(({ id, revision, kind, evidenceId }) => ({ id, revision, kind, ...(evidenceId ? { evidenceId } : {}) }));
+  const references: ContextBuildResult["sourceReferences"] = [...skills, ...(input.summary ? [input.summary] : []), ...selectedSources]
+    .map(({ id, revision, kind, evidenceId, skillFile }) => ({ id, revision, kind, ...(evidenceId ? { evidenceId } : {}), ...(skillFile ? {skillFile} : {}) }));
+  references.push(...(input.skillCatalog??[]).map(item=>({id:item.id,revision:item.revision,kind:"skill" as const,metadataOnly:true as const,packageDigest:item.packageDigest})));
   const request = modelRequest(input, messages);
   return { status: omitted.length ? "compaction_required" : "ready", messages,
     estimatedTokens: estimateRequestTokens(request), digest: requestDigest(request), sourceReferences: references,

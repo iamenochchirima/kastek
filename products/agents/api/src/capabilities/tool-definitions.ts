@@ -4,7 +4,10 @@ import type { ToolDefinition } from "../execution/business/model";
 import { REPORT_WORKFLOW_BINDING,toolDescriptor } from "./tool-descriptors";
 
 export const BUILTIN_MODEL_ALIASES = Object.freeze({ knowledge_search: "knowledge.search", knowledge_read: "knowledge.read",
-  memory_search: "memory.search", memory_propose: "memory.propose", agents_delegate: "agents.delegate", sandbox_analyze: "sandbox.analyze", channel_request_handoff: "channel.request_handoff" } as const);
+  memory_search: "memory.search", memory_propose: "memory.propose", skills_activate: "skills.activate", skills_read: "skills.read", agents_delegate: "agents.delegate", sandbox_analyze: "sandbox.analyze", channel_request_handoff: "channel.request_handoff" } as const);
+export function builtinToolEnabled(config: AgentConfiguration, name: string): boolean {
+  return name === "skills.activate" || name === "skills.read" ? config.skillIds.length > 0 : config.tools.includes(name as AgentConfiguration["tools"][number]);
+}
 export function builtinToolName(alias: string): string | undefined { return Object.hasOwn(BUILTIN_MODEL_ALIASES, alias) ? BUILTIN_MODEL_ALIASES[alias as keyof typeof BUILTIN_MODEL_ALIASES] : undefined; }
 export function builtinModelAlias(name: string): string {
   const alias = Object.entries(BUILTIN_MODEL_ALIASES).find(([, operation]) => operation === name)?.[0];
@@ -62,6 +65,13 @@ export function toolsFor(config: AgentConfiguration, connectedTools: readonly To
       type: "function", function: { name: builtinModelAlias(name), description,
         parameters: { type: "object", properties, required: name === "knowledge.read" ? ["evidenceId"] : Object.keys(properties), additionalProperties: false } },
     }));
+  if(config.skillIds.length) {
+    const skillId={type:"string",enum:config.skillIds};
+    result.push({type:"function",function:{name:"skills_activate",description:"Load a selected reviewed skill's complete instructions. Use the skill catalog to choose its ID. This grants no additional tools or permissions.",
+      parameters:{type:"object",properties:{skillId},required:["skillId"],additionalProperties:false}}},
+    {type:"function",function:{name:"skills_read",description:"Read one complete UTF-8 resource from an activated reviewed skill using its exact listed relative path. Scripts are text only and are not executed.",
+      parameters:{type:"object",properties:{skillId,path:{type:"string",minLength:1,maxLength:256}},required:["skillId","path"],additionalProperties:false}}});
+  }
   if(permitted.has("agents.delegate") && config.capabilities.delegation.enabled) result.push({type:"function",function:{
     name:"agents_delegate",description:"Delegate a brief to approved specialists and wait for their results. Each specialist uses its published scope and allocation. Available roles: "+JSON.stringify(config.capabilities.delegation.bindings.map(binding=>({
       bindingId:binding.id,name:binding.label??binding.id,purpose:(binding.description??"Published business specialist").slice(0,128)}))),

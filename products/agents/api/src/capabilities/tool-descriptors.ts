@@ -1,7 +1,7 @@
 import type { AgentConfiguration } from "../contracts/contracts";
 import { capabilityContractMetadata } from "./tool-contracts";
 export interface ToolDescriptor {
-  name: AgentConfiguration["tools"][number] | "report.deliver" | "knowledge.initial"; version: "1";
+  name: AgentConfiguration["tools"][number] | "report.deliver" | "knowledge.initial" | "skills.activate" | "skills.read"; version: "1";
   effect: "read" | "idempotent_memory" | "delegation" | "resource" | "external_effect" | "channel_control";
   maxDurationMs: number; maxResultBytes: number; retry: "safe_read" | "idempotent_receipt" | "stable_children" | "adapter_reconcile" | "status_only";
   cancel: "stop_admission" | "dependent_children" | "adapter_cleanup" | "reconcile_claimed";
@@ -17,6 +17,8 @@ const descriptors: readonly Omit<ToolDescriptor,"inputSchema"|"outputSchema"|"re
   {name:"knowledge.read",version:"1",effect:"read",maxDurationMs:30000,maxResultBytes:8192,retry:"safe_read",cancel:"stop_admission"},
   {name:"memory.search",version:"1",effect:"read",maxDurationMs:30000,maxResultBytes:8192,retry:"safe_read",cancel:"stop_admission"},
   {name:"memory.propose",version:"1",effect:"idempotent_memory",maxDurationMs:30000,maxResultBytes:8192,retry:"idempotent_receipt",cancel:"stop_admission"},
+  {name:"skills.activate",version:"1",effect:"read",maxDurationMs:30000,maxResultBytes:6144,retry:"safe_read",cancel:"stop_admission"},
+  {name:"skills.read",version:"1",effect:"read",maxDurationMs:30000,maxResultBytes:6144,retry:"safe_read",cancel:"stop_admission"},
   {name:"agents.delegate",version:"1",effect:"delegation",maxDurationMs:0,maxResultBytes:8192,retry:"stable_children",cancel:"dependent_children"},
   {name:"sandbox.analyze",version:"1",effect:"resource",maxDurationMs:240000,maxResultBytes:8192,retry:"adapter_reconcile",cancel:"adapter_cleanup",requiredProfile:"python-analysis-v1"},
   {name:"report.deliver",version:"1",effect:"external_effect",maxDurationMs:60000,maxResultBytes:8192,retry:"status_only",cancel:"reconcile_claimed",

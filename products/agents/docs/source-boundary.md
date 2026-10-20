@@ -58,6 +58,14 @@ draft selection. Skills include reviewed KasiTek procedures and private SKILL.md
 imports, file previews and exact-digest owner review. Complete packages retain immutable files,
 source identity and content digests. Installation does not add a skill to an agent. Publication
 and runtime loading reject unreviewed packages. Imported scripts remain inert.
+Package-based skills load names and descriptions first. Selected agents receive
+`skills.activate` and `skills.read` with a separate `skill.read` grant. Activation
+loads reviewed instructions; file reads require prior activation. Complete loads
+are limited to 4,096 UTF-8 bytes and the current model budget. Larger files fail
+explicitly. Exact package/file digests and loaded text survive compaction through
+durable receipts. Legacy text revisions retain their existing eager loading.
+This behavior uses `modular-programs-v3` and `AgentsBusinessRunV13` with a fresh
+schema. An older worker or database is not upgraded in place.
 Personal-memory, specialist, sandbox and report configuration remains outside the customer editor.
 Shared-harness acceptance provisions those capabilities through authenticated APIs.
 Website publication still rejects all skill and connected-tool bindings pending customer-safe

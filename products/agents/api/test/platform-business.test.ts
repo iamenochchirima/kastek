@@ -22,7 +22,9 @@ import { textDigest } from "../src/contracts/source-contracts";
 import { MemoryStore } from "../src/execution/memory/memory";
 import { setupPlatformSchema } from "../src/composition/setup";
 import { PlatformStore } from "../src/product/agents/store";
-import { toolsFor } from "../src/capabilities/tools";
+import { toolsFor, executeTool } from "../src/capabilities/tools";
+import { SkillPackageStore } from "../src/product/agents/skill-package-store";
+import { parseSkillPackage } from "../src/capabilities/skills/package";
 import { estimateRequestTokens, validateMessageGroups, requestDigest as modelRequestDigest, type ModelRequest } from "../src/execution/business/model";
 
 const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
@@ -127,6 +129,54 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     await dispatchTasksOnce(pool, { ingressUrl, adminUrl });
     return eventually(async () => { await dispatchTasksOnce(pool,{ingressUrl,adminUrl}); const row = (await pool.query("SELECT * FROM agents_platform.tasks WHERE id=$1", [taskId])).rows[0]; return terminalTaskStates.has(row.state) ? row : false; });
   }
+  it("loads reviewed skill metadata first, activates instructions and exact files without memory, and restores them after compaction", async () => {
+    const f = await fixture(); await execute(f.task.id); calls.length = 0;
+    const packages = new SkillPackageStore(pool), pkg = parseSkillPackage({ files: [
+      { path: "SKILL.md", content: "---\nname: opening-procedure\ndescription: Check the opening-hours response procedure when answering hours.\n---\nACTIVATED_PROCEDURE: Read references/hours.md before answering the hours question." },
+      { path: "references/hours.md", content: "LOADED_REFERENCE: The source evidence must establish that doors open at nine." },
+      { path: "references/large.md", content: "OVERSIZED_REFERENCE:" + "x".repeat(5000) },
+    ] });
+    const installed = await packages.import(f.managed, randomUUID(), pkg); await packages.review(f.managed, installed.id, installed.contentDigest);
+    const configuration = { ...f.config, skillIds: [installed.id], memory: { enabled: false }, context: { maxInputTokens: 8192, compactAtTokens: 1024 } };
+    const draft = await store.updateDraft({ ...f.managed, configuration, expectedRevision: 1 });
+    const version = await store.createVersion({ ...f.managed, expectedRevision: draft.draft_revision });
+    expect(version.tool_bindings.map(binding => binding.name)).toEqual(expect.arrayContaining(["skills.activate", "skills.read"]));
+    const grant: ExecutionGrant = { ...f.grant, id: randomUUID(), versionId: version.id, operations: ["model.reply", "knowledge.read", "skill.read"] };
+    await store.createGrant({ accountId: f.account.id, grant });
+    const request = { ...f.request, versionId: version.id, grantId: grant.id, requestKey: randomUUID() };
+    const limitedGrant: ExecutionGrant = { ...grant, id: randomUUID(), operations: ["model.reply", "knowledge.read"] };
+    await expect(store.createGrant({ accountId: f.account.id, grant: limitedGrant })).rejects.toMatchObject({ code: "GRANT_CAPABILITY_DENIED" });
+    const admitted = await store.admitTask(request);
+    await expect(executeTool(pool, admitted.task.id, "before-activation", "skills.read", JSON.stringify({ skillId: installed.id, path: "references/hours.md" }))).rejects.toMatchObject({ code: "SKILL_ACTIVATION_REQUIRED" });
+    await expect(executeTool(pool, admitted.task.id, "foreign-skill", "skills.activate", JSON.stringify({ skillId: randomUUID() }))).rejects.toMatchObject({ code: "SKILL_SCOPE_DENIED" });
+    let regular = 0, compacted = 0;
+    provider = async body => {
+      if (body.messages[0].content.startsWith("Summarize")) { compacted++; return reply("The approved procedure and supporting reference were loaded; opening evidence confirms nine."); }
+      regular++;
+      const system = body.messages.filter((message: any) => message.role === "system").map((message: any) => message.content).join("\n");
+      expect(body.tools.map((entry: any) => entry.function.name)).toEqual(expect.arrayContaining(["skills_activate", "skills_read"]));
+      expect(body.tools.map((entry: any) => entry.function.name)).not.toContain("memory_search");
+      if (regular === 1) { expect(system).toContain("opening-procedure"); expect(system).not.toContain("ACTIVATED_PROCEDURE"); expect(system).not.toContain("LOADED_REFERENCE"); return reply("", "tool_calls", [tool("skills_activate", { skillId: installed.id }, "activate-procedure")]); }
+      expect(system).toContain("ACTIVATED_PROCEDURE");
+      if (regular === 2) { expect(system).not.toContain("LOADED_REFERENCE"); return reply("", "tool_calls", [tool("skills_read", { skillId: installed.id, path: "references/hours.md" }, "read-procedure-reference")]); }
+      expect(system).toContain("LOADED_REFERENCE");
+      expect(system).not.toContain("OVERSIZED_REFERENCE");
+      if (regular === 3) return reply("", "tool_calls", [tool("skills_read", { skillId: installed.id, path: "references/large.md" }, "oversized-reference")]);
+      if (regular === 4) return reply("", "tool_calls", [tool("knowledge_search", { query: "opening" }, "verify-opening-evidence")]);
+      expect(compacted).toBeGreaterThan(0);
+      return reply("The approved procedure confirms that doors open at nine.");
+    };
+    const task = await execute(admitted.task.id);
+    expect(task.state, task.error_code).toBe("completed"); expect(regular).toBe(5); expect(compacted).toBeGreaterThan(0);
+    const receipts = (await pool.query("SELECT name,state,output,error_code FROM agents_platform.operations WHERE task_id=$1 AND name IN ('skills.activate','skills.read') ORDER BY started_at", [admitted.task.id])).rows;
+    expect(receipts.map(row => row.state)).toEqual(["completed", "completed", "failed"]); expect(receipts[1].output.evidence.path).toBe("references/hours.md");
+    expect(receipts[2].error_code).toBe("SKILL_CONTEXT_LIMIT"); expect(receipts[2].output).toBeNull();
+    const snapshots = (await pool.query("SELECT step,source_references,payload FROM agents_platform.context_snapshots WHERE task_id=$1 AND step>=0 ORDER BY step", [admitted.task.id])).rows;
+    expect(snapshots[0].source_references).toContainEqual(expect.objectContaining({ id: installed.id, metadataOnly: true, packageDigest: pkg.contentDigest }));
+    const last = snapshots.at(-1)!;
+    expect(last.source_references.filter((reference: any) => reference.skillFile).map((reference: any) => reference.skillFile.path)).toEqual(["SKILL.md", "references/hours.md"]);
+    expect(last.source_references.every((reference: any) => !reference.skillFile || reference.skillFile.packageDigest === pkg.contentDigest)).toBe(true);
+  }, 30_000);
   function holdPreparedContext(taskId:string,compact=false){
     const evidence=businessOptions.evidence!,original=evidence.supplyContext.bind(evidence);let release!:()=>void,entered!:()=>void,held=false;
     const barrier=new Promise<void>(resolve=>{release=resolve;}),ready=new Promise<void>(resolve=>{entered=resolve;});
