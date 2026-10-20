@@ -5,6 +5,13 @@ const servers: Server[] = [];
 async function server(handler: Parameters<typeof createServer>[0]) { const value = createServer(handler); servers.push(value); await new Promise<void>(resolve => value.listen(0, "127.0.0.1", resolve)); const address = value.address(); if (!address || typeof address === "string") throw Error(); return `http://127.0.0.1:${address.port}`; }
 afterEach(async () => { for (const value of servers.splice(0)) { value.closeAllConnections(); await new Promise<void>(resolve => value.close(() => resolve())); } });
 describe("trusted connected network", () => {
+  it("retains explicit bounded provider errors once without weakening ordinary auth or retry policy",async()=>{
+    let calls=0;const url=await server((_request,response)=>{calls++;response.writeHead(503,{"content-type":"application/json"}).end('{"error":"provider unavailable"}');});
+    const read=createBoundedFetch({authorizeUrl:()=>true,maxRequestBytes:0,maxResponseBytes:128,deadlineAt:Date.now()+2000,testLoopback:true,maxAttempts:3,returnProviderErrorResponses:true});
+    const response=await read(url);expect(response.status).toBe(503);expect(await response.json()).toEqual({error:"provider unavailable"});expect(calls).toBe(1);
+    const denied=await server((_request,response)=>response.writeHead(401).end());
+    await expect(createBoundedFetch({authorizeUrl:()=>true,maxRequestBytes:0,maxResponseBytes:128,deadlineAt:Date.now()+2000,testLoopback:true,returnProviderErrorResponses:true})(denied)).rejects.toMatchObject({code:"AUTHENTICATION"});
+  });
   it("rejects private, mapped, transition and special-purpose destinations", () => {
     for (const address of ["127.0.0.1", "10.1.2.3", "169.254.169.254", "192.168.1.1", "100.64.0.1", "0.0.0.0", "::1", "fc00::1", "fe80::1", "::ffff:127.0.0.1", "2002:7f00:1::", "64:ff9b::7f00:1"]) expect(publicAddress(address), address).toBe(false);
     expect(publicAddress("1.1.1.1")).toBe(true); expect(publicAddress("2606:4700:4700::1111")).toBe(true);

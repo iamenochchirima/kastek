@@ -35,6 +35,7 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
   const vault = new ConnectionVault("v1", { v1: randomBytes(32).toString("base64") });
   const inputSchema = { type: "object", required: ["value"], additionalProperties: false, properties: { value: { type: "string", maxLength: 128 } } };
   let effects = 0, requests = 0, hang = false, called: (() => void) | undefined, beforeListReply: (() => Promise<void>) | undefined;
+  let refresh:((scope:ActionScope,id:string)=>Promise<void>)|undefined;
   const storage = { async put(key: string, value: Uint8Array) { objects.set(key, Buffer.from(value)); },
     async get(key: string) { const value = objects.get(key); if (!value) throw Error("Missing private fixture object"); return value; },
     async delete(key: string) { objects.delete(key); } };
@@ -69,6 +70,7 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     evidence = new EvidenceStore(pool, storage);
     executor = new ConnectedExecutor(pool, credentialPort, storage, evidence, {
       resolveRemoteEndpoint: remote.resolveRemoteEndpoint.bind(remote), genericReview: reviews.port(),
+      ensureCredentialFresh:async(scope,id)=>{await refresh?.(scope,id);},
     });
   }, 20_000);
   afterAll(async () => {
@@ -76,7 +78,7 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     await pool?.end(); if (admin) { await admin.query(`DROP DATABASE IF EXISTS "${database}" WITH(FORCE)`); await admin.end(); }
   });
   async function fixture(policy: "exact_review" | "owner_reviewed_read" = "exact_review", executeGrant = true) {
-    effects = 0; requests = 0; hang = false; beforeListReply = undefined; called = undefined;
+    effects = 0; requests = 0; hang = false; beforeListReply = undefined; called = undefined;refresh=undefined;
     const account = await platform.ensureAccount({ issuer: "http://localhost/generic-fixture", subject: randomUUID(), email: "owner@example.test", displayName: "Owner" });
     const organization = await platform.createOrganization(account.id, "General tools"), scope: ActionScope = { accountId: account.id, organizationId: organization.id };
     let connection = await remote.create(scope, { operationId: randomUUID(), name: "Controlled MCP", endpoint, authentication: "none" });
@@ -178,4 +180,18 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     await expect(executor.catalogs.selectBindings(f.scope, { operationId: randomUUID(), connectionId: f.connection.id, expectedRevision: refreshedRevision, catalogId: f.catalog.id,
       selections: [{ providerOperation: "custom.operation-v2", resources: f.resources, effectPolicy: "owner_reviewed_read" }] })).rejects.toMatchObject({ code: "CAPABILITY_POLICY_DENIED" });
   }, 20_000);
+  it("refreshes credentials outside transactions after scoped authority and keeps receipt replay first",async()=>{
+    const f=await fixture("owner_reviewed_read"),{operationId,args}=await begin(f);let refreshed=0;
+    refresh=async(scope,id)=>{
+      expect(scope).toEqual(f.scope);expect(id).toBe(f.connection.id);expect(pool.idleCount).toBeGreaterThan(0);refreshed++;
+      const revision=f.connection.revision+1;
+      await pool.query("INSERT INTO agents_platform.connection_credentials(connection_id,revision,envelope) VALUES($1,$2,$3)",
+        [id,revision,JSON.stringify(vault.seal(scope.organizationId,id,revision,JSON.stringify({version:1,kind:"remote-connection"}),65536))]);
+      await pool.query("UPDATE agents_platform.connections SET revision=$2 WHERE id=$1",[id,revision]);
+    };
+    const result=await executor.execute(f.task.id,operationId,f.binding,args);expect(result.status).toBe("ok");expect(refreshed).toBe(1);
+    refresh=async()=>{throw Error("Replay must not refresh");};
+    expect(await executor.execute(f.task.id,operationId,f.binding,args)).toEqual(result);expect(effects).toBe(1);
+    refresh=undefined;
+  },20_000);
 });

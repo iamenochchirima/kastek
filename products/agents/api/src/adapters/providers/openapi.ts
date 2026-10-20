@@ -4,7 +4,7 @@ import { PlatformError, canonicalJson, requestDigest } from "../../contracts/con
 import { publicAddress } from "../../infrastructure/connected-network";
 
 export const OPENAPI_LIMITS = Object.freeze({ documentBytes: 524_288, documentNodes: 20_000, depth: 24,
-  operations: 100, parameters: 50, resolvedNodes: 40_000, requestBytes: 262_144, valueNodes: 4096, valueDepth: 16 });
+  operations: 100, parameters: 50, resolvedNodes: 40_000, normalizedBytes: 2_097_152, requestBytes: 262_144, valueNodes: 4096, valueDepth: 16 });
 type Json = null | boolean | number | string | Json[] | { [key: string]: Json };
 type ObjectValue = { [key: string]: Json };
 export type OpenApiSchema = boolean | ObjectValue;
@@ -29,13 +29,14 @@ export interface OpenApiOperation {
   responseSchemas: { status: string; contentType: string; schema: Json }[];
   securityRequirements: Json; serverCandidates: string[];
   security: OpenApiSecurity | null; effect: "unknown"; reviewRequired: true;
+  securityChoices: { index: number; security: OpenApiSecurity | null; diagnostics: OpenApiDiagnostic[] }[];
   compatible: boolean; diagnostics: OpenApiDiagnostic[]; template: RequestTemplate | null;
 }
 export interface OpenApiImport {
   schemaVersion: 1; openapi: string; title: string; digest: string;
   server: { url: string; origin: string }; operations: OpenApiOperation[]; diagnostics: OpenApiDiagnostic[];
 }
-export interface OpenApiImportOptions { serverUrl: string; testLoopback?: boolean }
+export interface OpenApiImportOptions { serverUrl: string; testLoopback?: boolean; securitySelections?: Readonly<Record<string, number>> }
 export interface RequestArguments { path?: Record<string, unknown>; query?: Record<string, unknown>; headers?: Record<string, unknown>; body?: unknown }
 export interface CredentialRequirement { schemeId: string; reference: string; type: Exclude<OpenApiSecurity["type"], "none">; in: "header" | "query"; name: string }
 export interface CompiledOpenApiRequest {
@@ -125,9 +126,12 @@ function server(value: string, loopback = false): URL {
 }
 
 function resolver(root: ObjectValue) {
-  let nodes = 0;
+  let nodes = 0, bytes = 0;
   function resolve(value: Json, refs: string[] = [], depth = 0): Json {
     if (++nodes > OPENAPI_LIMITS.resolvedNodes || depth > OPENAPI_LIMITS.depth) fail("OPENAPI_LIMIT", "Resolved references exceed structural limits");
+    if (typeof value === "string") bytes += Buffer.byteLength(value);
+    if (value && typeof value === "object" && !Array.isArray(value)) bytes += Object.keys(value).reduce((sum,key)=>sum+Buffer.byteLength(key),0);
+    if(bytes>OPENAPI_LIMITS.normalizedBytes)fail("OPENAPI_LIMIT","Resolved references exceed byte limits");
     if (!value || typeof value !== "object") return value;
     if (Array.isArray(value)) return value.map(child => resolve(child, refs, depth + 1));
     if (value.$ref !== undefined) {
@@ -269,10 +273,12 @@ function security(requirements: Json | undefined, schemes: ObjectValue, resolve:
 
 /** Import is offline preview. It establishes no network, credential, customer or effect authority. */
 export function importOpenApiDocument(source: unknown, options: OpenApiImportOptions): OpenApiImport {
+  if (Object.entries(options.securitySelections ?? {}).some(([alias, index]) => !/^api_[a-f0-9]{32}$/.test(alias) || !Number.isInteger(index) || index < 0 || index > 7)) fail("OPENAPI_SECURITY_SELECTION_INVALID", "Select one supported security alternative");
   const root = load(source), version = text(root.openapi, 16);
   if (!/^3\.(?:0|1)\.\d+$/.test(version)) fail("OPENAPI_VERSION_UNSUPPORTED", "Only OpenAPI 3.0 and 3.1 documents are supported");
   const selected = server(options.serverUrl, options.testLoopback), selectedUrl = selected.href.replace(/\/$/, ""), resolve = resolver(root);
   const paths = object(root.paths), schemes = root.components ? object(object(root.components).securitySchemes ?? {}) : {};
+  let normalizedBytes=0;
   const operations: OpenApiOperation[] = [], diagnostics: OpenApiDiagnostic[] = [], seenIds = new Map<string, OpenApiOperation[]>();
   for (const [path, rawPath] of Object.entries(paths)) {
     if (path.startsWith("x-")) continue;
@@ -283,7 +289,7 @@ export function importOpenApiDocument(source: unknown, options: OpenApiImportOpt
       if (operations.length >= OPENAPI_LIMITS.operations) fail("OPENAPI_LIMIT", "OpenAPI operation limit exceeded");
       const operation: OpenApiOperation = { operationId: null, alias: `api_${requestDigest([method, path]).slice(0, 32)}`,
         method: method.toUpperCase() as OpenApiMethod, path, summary: "", parameters: [], requestBody: null,
-        responseSchemas: [], securityRequirements: [], serverCandidates: [], security: null, effect: "unknown", reviewRequired: true, compatible: false, diagnostics: [], template: null };
+        responseSchemas: [], securityRequirements: [], serverCandidates: [], security: null, securityChoices: [], effect: "unknown", reviewRequired: true, compatible: false, diagnostics: [], template: null };
       operations.push(operation);
       try {
         safePath(path, true);
@@ -305,7 +311,15 @@ export function importOpenApiDocument(source: unknown, options: OpenApiImportOpt
         operation.serverCandidates = candidates;
         if (!candidates.includes(options.serverUrl) && !candidates.some(candidate => { try { return server(candidate, options.testLoopback).href.replace(/\/$/, "") === selectedUrl; } catch { return false; } })) fail("OPENAPI_SERVER_OVERRIDE_UNSUPPORTED", "Operation does not use the selected fixed server");
         operation.securityRequirements = input.security ?? root.security ?? [];
-        operation.security = security(operation.securityRequirements, schemes, resolve);
+        const alternatives = array(operation.securityRequirements);
+        if (alternatives.length > 8) fail("OPENAPI_SECURITY_ALTERNATIVES_UNSUPPORTED", "At most eight authentication alternatives can be reviewed");
+        operation.securityChoices = alternatives.map((alternative, index) => {
+          try { return { index, security: security([alternative], schemes, resolve), diagnostics: [] }; }
+          catch (error) { return { index, security: null, diagnostics: [{ code: error instanceof PlatformError ? error.code : "OPENAPI_SECURITY_UNSUPPORTED", message: error instanceof Error ? error.message : "Unsupported authentication alternative" }] }; }
+        });
+        const chosen = options.securitySelections?.[operation.alias];
+        if (chosen !== undefined && chosen >= alternatives.length) fail("OPENAPI_SECURITY_SELECTION_INVALID", "Selected authentication alternative is unavailable");
+        operation.security = security(chosen === undefined ? operation.securityRequirements : [alternatives[chosen]!], schemes, resolve);
         const parameters = new Map<string, OpenApiParameter>();
         for (const level of [pathItem.parameters, input.parameters]) {
           if (level === undefined) continue;
@@ -357,6 +371,8 @@ export function importOpenApiDocument(source: unknown, options: OpenApiImportOpt
         operation.diagnostics.push(error instanceof PlatformError ? { code: error.code, message: error.message }
           : { code: "OPENAPI_INVALID", message: "Invalid operation metadata." });
       }
+      normalizedBytes+=Buffer.byteLength(canonicalJson(operation));
+      if(normalizedBytes>OPENAPI_LIMITS.normalizedBytes)fail("OPENAPI_LIMIT","Normalized API catalog exceeds byte limits");
     }
   }
   for (const duplicates of seenIds.values()) if (duplicates.length > 1) for (const operation of duplicates) {
@@ -364,6 +380,7 @@ export function importOpenApiDocument(source: unknown, options: OpenApiImportOpt
     operation.diagnostics.push({ code: "OPENAPI_OPERATION_ID_COLLISION", message: "Operation IDs must be unique before activation." });
   }
   if (!operations.length) diagnostics.push({ code: "OPENAPI_NO_OPERATIONS", message: "No supported HTTP operation definitions were found." });
+  if (Object.keys(options.securitySelections ?? {}).some(alias => !operations.some(operation => operation.alias === alias))) fail("OPENAPI_SECURITY_SELECTION_INVALID", "Authentication selection refers to an unavailable operation");
   return { schemaVersion: 1, openapi: version, title: text(object(root.info).title, 256), digest: requestDigest(root),
     server: { url: selectedUrl, origin: selected.origin }, operations, diagnostics };
 }

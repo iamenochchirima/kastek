@@ -65,6 +65,23 @@ describe("curated catalogue", () => {
     expect(find(ctx, "github").readiness.reasons[0]?.code).toBe("BINDING_CHANGED");
     expect(find(ctx, "github").configuration.connectedToolBindingIds).toEqual(["binding"]);
   });
+  it("keeps custom servers distinct and attaches only the selected account's operations", () => {
+    const ctx=context();
+    const first={...connection,id:"first",name:"Support system",profileId:"remote-mcp-v1" as const};
+    const second={...first,id:"second",name:"Other system"};ctx.connections=[first,second];
+    const one={...binding,id:"first-tool",catalog:{revision:1},connection:{id:"first",profileId:"remote-mcp-v1",policyRevision:2}} as CapabilityBinding;
+    const newer={...one,id:"new-first-tool",catalog:{revision:2}} as CapabilityBinding;
+    const other={...one,id:"other-tool",connection:{...one.connection!,id:"second"}};
+    ctx.bindings=[one,newer,other];
+    expect(find(ctx,"connection:first").configuration.connectedToolBindingIds).toEqual(["new-first-tool"]);
+    expect(find(ctx,"connection:second").configuration.connectedToolBindingIds).toEqual(["other-tool"]);
+    expect(find(ctx,"connection:first").publisher.verified).toBe(false);
+    ctx.configuration!.connectedToolBindingIds=["first-tool"];
+    expect(find(ctx,"connection:first").configuration.connectedToolBindingIds).toEqual(["first-tool"]);
+    expect(find(ctx,"connection:second").added).toBe(false);
+    ctx.connections=[second];
+    expect(queryCatalogue("tools",{},ctx).entries.some(entry=>entry.id==="connection:first")).toBe(false);
+  });
   it("keeps reviewed publisher identity immutable and excludes account labels", () => {
     const ctx = context(); ctx.connections = [connection]; ctx.bindings = [binding];
     const entry = find(ctx, "github"), digest = entry.digest;

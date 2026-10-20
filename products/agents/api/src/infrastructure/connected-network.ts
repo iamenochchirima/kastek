@@ -25,6 +25,8 @@ export interface TrustedNetworkPolicy {
   testLoopback?: boolean;
   /** OAuth discovery needs the original challenge. Ordinary provider reads still fail on authentication errors. */
   returnAuthenticationResponses?: boolean;
+  /** A single-attempt adapter may retain bounded provider errors instead of classifying them for retry. */
+  returnProviderErrorResponses?: boolean;
 }
 export function publicAddress(address: string): boolean {
   try { const parsed = ipaddr.process(address); return parsed.range() === "unicast"; } catch { return false; }
@@ -128,6 +130,7 @@ export function createBoundedFetch(policy: TrustedNetworkPolicy): typeof fetch {
       const rateLimited = response.status === 429 || response.status === 403 && (exhausted || explicitRetryMs !== undefined);
       if (!policy.returnAuthenticationResponses && (response.status === 401 || response.status === 403 && !rateLimited)) throw new ConnectedNetworkError("AUTHENTICATION");
       if (rateLimited || [502, 503, 504].includes(response.status)) {
+        if(policy.returnProviderErrorResponses){Object.defineProperty(response,"url",{value:current.href});return response;}
         const rawReset = exhausted ? response.headers.get("x-ratelimit-reset") : null;
         const resetSeconds = rawReset !== null && /^\d+$/.test(rawReset) ? Number(rawReset) : NaN;
         const resetMs = Number.isSafeInteger(resetSeconds) && Number.isSafeInteger(resetSeconds*1000) ? Math.max(0,resetSeconds*1000-Date.now()) : undefined;

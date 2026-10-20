@@ -60,7 +60,7 @@ export async function rootRoleAllows(db:Db,root:Execution,roleId:string,versionI
   if(grant?.revoked_at)throw unavailable();
   const row=(await db.query("SELECT binding FROM agents_platform.capability_bindings WHERE organization_id=$1 AND id=$2",[root.task.organization_id,bindingId])).rows[0];
   const binding=row?capabilityBindingSchema.parse(row.binding):undefined;
-  const operation=binding?.connection?.profileId==="remote-mcp-v1"&&binding.policy.effect==="reviewed_write"?"connected.execute":"connected.read";
+  const operation=["remote-mcp-v1","custom-api-v1"].includes(binding?.connection?.profileId??"")&&binding?.policy.effect==="reviewed_write"?"connected.execute":"connected.read";
   if(!binding||!grant?.operations.includes(operation)||!grant.connected_tool_binding_ids.includes(bindingId)||!(await db.query("SELECT 1 FROM agents_platform.version_connected_tools WHERE organization_id=$1 AND version_id=$2 AND binding_id=$3",[root.task.organization_id,root.task.version_id,bindingId])).rowCount)throw denied();
 }
 export async function assertChildConnectedAuthority(db:Db,child:Execution,bindingId:string):Promise<void>{
@@ -108,7 +108,7 @@ export async function bindingAllowed(db: Db, execution: Execution, bindingId: st
   const row = (await db.query("SELECT binding,account_id FROM agents_platform.capability_bindings WHERE id=$1 AND organization_id=$2", [bindingId, execution.task.organization_id])).rows[0];
   if (!row || row.account_id !== await owner(db, execution)) throw denied();
   const binding = capabilityBindingSchema.parse(row.binding);
-  const remote=binding.connection?.profileId==="remote-mcp-v1",reviewed=remote&&binding.policy.effect==="reviewed_write";
+  const remote=["remote-mcp-v1","custom-api-v1"].includes(binding.connection?.profileId??""),reviewed=remote&&binding.policy.effect==="reviewed_write";
   if(!grant.operations.includes(reviewed?"connected.execute":"connected.read"))throw denied();
   if (!binding.connection || (!remote && (binding.policy.effect !== "read" || binding.policy.disclosure !== (binding.connection.profileId === "stash-read-v1" ? "approved_resource_identifiers" : "public_identifiers")))) throw denied();
   if(reviewed&&operationId){

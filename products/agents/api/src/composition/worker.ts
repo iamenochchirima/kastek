@@ -4,6 +4,8 @@ import { Pool } from "pg";
 import { ConnectedExecutor } from "../capabilities/connected-tools/connected-executor";
 import { ToolReviewStore } from "../capabilities/reviews/tool-reviews";
 import { RemoteConnectionStore } from "../product/connections/remote-connections";
+import { ApiConnectionStore } from "../product/connections/api-connections";
+import { createNativeApiCapabilityCatalog } from "../capabilities/connected-tools/generic-connected-runtime";
 import { assertConnectedBindingDependencies } from "../capabilities/connected-tools/connected-tool-schema";
 import { IngestionService,createIngestionWorkflow,startIngestionDispatcher } from "../capabilities/knowledge/ingestion-runtime";
 import { KnowledgeStore } from "../capabilities/knowledge/knowledge";
@@ -54,10 +56,13 @@ async function main(): Promise<void> {
     callbackUrl:`${new URL(process.env.AGENTS_PUBLIC_URL??"http://localhost:3100").origin}/api/connections/oauth/callback`,
     ...(process.env.AGENTS_MCP_CLIENT_METADATA_URL?{clientMetadataUrl:process.env.AGENTS_MCP_CLIENT_METADATA_URL}:{}),
   }):undefined;
-  const connected=actionServices&&sourceObjects&&evidence?new ConnectedExecutor(pool,actionServices.connections,sourceObjects,evidence,{
+  const connected:ConnectedExecutor|undefined=actionServices&&sourceObjects&&evidence?new ConnectedExecutor(pool,actionServices.connections,sourceObjects,evidence,{
     resolveRemoteEndpoint:remoteConnections?(db,scope,id,policy)=>remoteConnections.resolveRemoteEndpoint(db,scope,id,policy):undefined,
+    ensureCredentialFresh:remoteConnections?(scope,id)=>remoteConnections.ensureCredentialFresh(scope,id):undefined,
+    resolveApiOperation:(db,scope,id,policy,operation)=>apiConnections!.resolveApiOperation(db,scope,id,policy,operation),
     genericReview:toolReviews.port(),
   }):undefined;
+  const apiConnections:ApiConnectionStore|undefined=actionServices?new ApiConnectionStore(pool,actionServices.connections.vault,{registry:connected?.registry,createCatalog:createNativeApiCapabilityCatalog}):undefined;
   const automations=new AutomationService(pool,async configuration=>{
     if(!process.env.OPENROUTER_API_KEY)throw new PlatformError('MODEL_CREDENTIAL_UNAVAILABLE',503,'Model connection is unavailable');
     if((configuration.capabilities.sandbox.enabled||configuration.capabilities.workflows.enabled)&&!objects)throw new PlatformError('OBJECT_STORE_UNAVAILABLE',503,'Private storage is unavailable');

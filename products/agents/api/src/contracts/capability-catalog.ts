@@ -67,7 +67,7 @@ export function preflightToolSchema(input: unknown): ToolSchema {
       if (["required", "enum", "examples"].includes(key) && !Array.isArray(child)) invalidSchema("Expected a schema array");
       if (key === "required" && Array.isArray(child) && (child.some(item => typeof item !== "string") || new Set(child).size !== child.length)) invalidSchema("Expected unique required property names");
       if (key === "enum" && Array.isArray(child) && (child.length === 0 || new Set(child.map(canonicalJson)).size !== child.length)) invalidSchema("Expected unique enum values");
-      if (key === "format" && child !== "uuid") invalidSchema("Only UUID schema format is supported");
+      if (key === "format" && !["uuid","date","date-time"].includes(String(child))) invalidSchema("Only UUID, date and date-time schema formats are supported");
       if (key === "x-fastmcp-wrap-result" && child !== true) invalidSchema("Unsupported FastMCP annotation value");
       if (key === "$schema" && !["https://json-schema.org/draft/2020-12/schema", "http://json-schema.org/draft-07/schema#"].includes(child as string)) invalidSchema("Unsupported JSON Schema dialect");
       if (key === "$ref") {
@@ -113,6 +113,7 @@ export const catalogToolSchema = z.strictObject({
   providerOperation: identifierSchema, description: z.string().max(4096),
   inputSchema: toolSchema, outputSchema: toolSchema.nullable(), inputDigest: digestSchema, outputDigest: digestSchema.nullable(),
   remote: z.strictObject({ definitionDigest: digestSchema, transport: z.enum(["streamable_http", "legacy_sse"]) }).optional(),
+  nativeApi: z.strictObject({ templateDigest: digestSchema, importDigest: digestSchema }).optional(),
 }).superRefine((value, ctx) => {
   if (requestDigest(value.inputSchema) !== value.inputDigest || (value.outputSchema === null ? value.outputDigest !== null : requestDigest(value.outputSchema) !== value.outputDigest)) ctx.addIssue({ code: "custom", message: "Tool schema digest mismatch" });
   if (typeof value.inputSchema !== "object" || value.inputSchema.type !== "object") ctx.addIssue({ code: "custom", message: "Tool input schema must be an object schema" });
@@ -170,18 +171,20 @@ export const capabilityBindingSchema = z.strictObject(bindingFields).superRefine
   if(publicRepository && (!(binding.transport === "native_http" ? githubOperationSchema.safeParse(binding.definition.providerOperation).success : binding.transport === "mcp_http" && publicRepositoryMcpReadOperationSchema.safeParse(binding.definition.providerOperation).success) || binding.resources.some(resource=>resource.kind !== "github.repository" || !/^[A-Za-z0-9][A-Za-z0-9-]{0,38}\/[A-Za-z0-9_.-]{1,100}$/.test(resource.id) || [".",".."].includes(resource.id.split("/")[1]!)))) ctx.addIssue({code:"custom",message:"Public repository bindings require approved native or MCP reads"});
   const stash = binding.connection?.profileId === "stash-read-v1";
   if(stash && (binding.transport !== "mcp_http" || !stashReadOperationSchema.safeParse(binding.definition.providerOperation).success || binding.resources.some(resource=>resource.kind !== "stash.item" || !z.uuid().safeParse(resource.id).success))) ctx.addIssue({code:"custom",message:"Stash bindings require approved item handles over MCP"});
-  const remote = binding.connection?.profileId === "remote-mcp-v1";
-  if (remote) {
+  const remote = binding.connection?.profileId === "remote-mcp-v1",nativeApi=binding.connection?.profileId === "custom-api-v1",generic=remote||nativeApi;
+  if (generic) {
     const reviewed = binding.policy.effect === "reviewed_write" && binding.policy.approval === "exact_single_use"
       && binding.policy.disclosure === "exact_reviewed_payload" && binding.policy.retry === "status_only" && binding.policy.cancel === "reconcile_claimed";
     const read = binding.policy.effect === "read" && binding.policy.approval === "none" && binding.policy.disclosure === "approved_resource_identifiers"
       && binding.policy.retry === "never" && binding.policy.cancel === "stop_admission";
-    if (binding.transport !== "mcp_http" || !binding.definition.remote || (!reviewed && !read) || binding.resources.length !== 1
-      || binding.resources[0]?.kind !== "mcp.endpoint" || binding.limits.timeoutMs > 30000 || binding.limits.maxPhysicalAttempts !== 1) ctx.addIssue({ code: "custom", message: "Remote MCP requires a pinned definition, one endpoint and explicit effect policy" });
-    try { const endpoint = new URL(binding.resources[0]?.id ?? ""); if (!["https:", "http:"].includes(endpoint.protocol) || endpoint.username || endpoint.password || endpoint.hash) throw Error(); }
-    catch { ctx.addIssue({ code: "custom", message: "Remote MCP endpoint resource is invalid" }); }
+    if ((remote?(binding.transport !== "mcp_http" || !binding.definition.remote || !!binding.definition.nativeApi):(binding.transport!=="native_http"||!binding.definition.nativeApi||!!binding.definition.remote))
+      || (!reviewed && !read) || binding.resources.length !== 1 || binding.resources[0]?.kind !== (remote?"mcp.endpoint":"api.origin")
+      || binding.limits.timeoutMs > 30000 || binding.limits.maxPhysicalAttempts !== 1
+      ||nativeApi&&(binding.limits.maxPhysicalRequests!==1||binding.limits.maxResponseBytes>1048576)) ctx.addIssue({ code: "custom", message: "Generic connections require a pinned definition, one destination and explicit effect policy" });
+    try { const endpoint = new URL(binding.resources[0]?.id ?? ""); if (!["https:", "http:"].includes(endpoint.protocol) || endpoint.username || endpoint.password || endpoint.hash||nativeApi&&endpoint.origin!==binding.resources[0]?.id) throw Error(); }
+    catch { ctx.addIssue({ code: "custom", message: "Generic connection destination resource is invalid" }); }
   }
-  if (binding.transport !== "builtin" && !remote && (binding.policy.effect !== "read" || binding.policy.retry !== "safe_read" || binding.policy.approval !== "none" || binding.policy.disclosure !== (stash ? "approved_resource_identifiers" : "public_identifiers") || binding.resources.length === 0 || binding.limits.timeoutMs > 30000 || (binding.transport === "mcp_http" && binding.limits.maxResponseBytes > 262144))) ctx.addIssue({ code: "custom", message: "Connected bindings must satisfy the read-only connection profile" });
+  if (binding.transport !== "builtin" && !generic && (binding.policy.effect !== "read" || binding.policy.retry !== "safe_read" || binding.policy.approval !== "none" || binding.policy.disclosure !== (stash ? "approved_resource_identifiers" : "public_identifiers") || binding.resources.length === 0 || binding.limits.timeoutMs > 30000 || (binding.transport === "mcp_http" && binding.limits.maxResponseBytes > 262144))) ctx.addIssue({ code: "custom", message: "Connected bindings must satisfy the read-only connection profile" });
 });
 export type CapabilityBinding = z.infer<typeof capabilityBindingSchema>;
 

@@ -35,6 +35,10 @@ import { registerSkillPackageRoutes } from "../product/agents/skill-package-rout
 import { SkillPackageStore } from "../product/agents/skill-package-store";
 import { registerCatalogueRoutes } from "../product/catalogue/catalogue-routes";
 import { RemoteConnectionStore } from "../product/connections/remote-connections";
+import { ApiConnectionStore } from "../product/connections/api-connections";
+import { ExecutableAdapterRegistry } from "../contracts/capability-catalog";
+import { nativeApiAdapterManifest,executeGenericNativeApi,createNativeApiCapabilityCatalog } from "../capabilities/connected-tools/generic-connected-runtime";
+import { registerApiConnectionRoutes } from "../product/connections/api-connection-routes";
 import { registerRemoteConnectionRoutes } from "../product/connections/remote-connection-routes";
 import { curatedSkillCatalog } from "../capabilities/skills/curated";
 import { ToolReviewStore } from "../capabilities/reviews/tool-reviews";
@@ -86,10 +90,15 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
   }):undefined;
   const evidence = new EvidenceStore(pool, sourceObjects);
   // API and worker use the same execution mode/build: source and compiled artifact digests intentionally differ.
-  const connected = actionServices && sourceObjects && evidence ? new ConnectedExecutor(pool, actionServices.connections, sourceObjects, evidence,{
+  const connected:ConnectedExecutor|undefined = actionServices && sourceObjects && evidence ? new ConnectedExecutor(pool, actionServices.connections, sourceObjects, evidence,{
     resolveRemoteEndpoint:remoteConnections?(db,scope,id,policy)=>remoteConnections.resolveRemoteEndpoint(db,scope,id,policy):undefined,
+    ensureCredentialFresh:remoteConnections?(scope,id)=>remoteConnections.ensureCredentialFresh(scope,id):undefined,
+    resolveApiOperation:(db,scope,id,policy,operation)=>apiConnections!.resolveApiOperation(db,scope,id,policy,operation),
     genericReview:toolReviews.port(),
   }) : undefined;
+  const apiRegistry=connected?.registry??new ExecutableAdapterRegistry<unknown>();
+  if(!connected)apiRegistry.register(nativeApiAdapterManifest(),executeGenericNativeApi);
+  const apiConnections:ApiConnectionStore|undefined=actionServices?new ApiConnectionStore(pool,actionServices.connections.vault,{registry:apiRegistry,createCatalog:createNativeApiCapabilityCatalog}):undefined;
   const grantOperations=operationsForConfiguration;
   async function assertBindings(configuration: AgentConfiguration): Promise<void> {
     if (configuration.sourceRevisionIds.length && !sourceObjects) throw new PlatformError("OBJECT_STORE_UNAVAILABLE", 503, "Private storage is unavailable");
@@ -201,6 +210,7 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
     return {...dto(task),input,inputAvailability,...await readableOutput(task.id,task.output)};
   }
   async function resolveScope(request:FastifyRequest) {const user=await account(request),org=organizationId(request);await store.requireMembership(user.id,org);return {accountId:user.id,organizationId:org};}
+  if(apiConnections)registerApiConnectionRoutes(app,{store:apiConnections,resolveScope});
   if(remoteConnections) registerRemoteConnectionRoutes(app,{store:remoteConnections,resolveScope,accountId:async request=>(await account(request)).id});
   registerToolReviewRoutes(app,{store:toolReviews,resolveTask:async request=>{
     const scope=await resolveScope(request),task=await humanTask(request);return {...scope,taskId:task.task.id};
@@ -208,7 +218,7 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
   const skillPackages = new SkillPackageStore(pool);
   registerCatalogueRoutes(app, { resolveScope,
     getAgent: (scope,id) => store.getAgent(scope.accountId,scope.organizationId,id),
-    listConnections: scope => actionServices?.connections.list(scope) ?? Promise.resolve([]),
+    listConnections: scope => actionServices?.connections.list(scope,true) ?? Promise.resolve([]),
     listBindings: scope => connected?.catalogs.listBindings(scope) ?? Promise.resolve([]),
     permissions: async () => ["agent.configure"],
     listSkills: async (scope,agentId) => {

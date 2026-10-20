@@ -24,12 +24,14 @@ export const STASH_MCP_READ_OPERATIONS: ReadonlySet<string> = new Set(stashReadO
 export const PUBLIC_REPOSITORY_MCP_READ_OPERATIONS: ReadonlySet<string> = new Set(publicRepositoryMcpReadOperationSchema.options);
 export function connectedProviderOperationAllowed(profileId: string, transport: string, operation: string): boolean {
   if(profileId === "remote-mcp-v1") return transport === "mcp_http" && operation.length > 0 && operation.length <= 128;
+  if(profileId === "custom-api-v1") return transport === "native_http" && /^api_[a-f0-9]{32}$/.test(operation);
   if(profileId === "public-repository-read-v1") return transport === "native_http" ? githubOperationSchema.safeParse(operation).success : transport === "mcp_http" && PUBLIC_REPOSITORY_MCP_READ_OPERATIONS.has(operation);
   if(profileId === "stash-read-v1") return transport === "mcp_http" && STASH_MCP_READ_OPERATIONS.has(operation);
   return profileId === "github-public-read-v1" && githubProviderOperationAllowed(transport, operation);
 }
 function profileTransportAllowed(profileId: string, transport: string): boolean {
   if(profileId === "remote-mcp-v1") return transport === "mcp_http";
+  if(profileId === "custom-api-v1") return transport === "native_http";
   return profileId === "stash-read-v1" ? transport === "mcp_http" : ["github-public-read-v1", "public-repository-read-v1"].includes(profileId) && ["native_http", "mcp_http"].includes(transport);
 }
 const selectionSchema = z.strictObject({ providerOperation: z.string().min(1).max(128), resources: z.array(resourceHandleSchema).min(1).max(20),
@@ -48,7 +50,7 @@ export class ConnectedCatalogStore {
     await requireActionMember(db, scope);
     const row = (await db.query("SELECT * FROM agents_platform.connections WHERE id=$1 AND organization_id=$2 AND account_id=$3 FOR UPDATE", [id, scope.organizationId, scope.accountId])).rows[0];
     if (!row) throw actionMissing();
-    if (!["github-public-read-v1", "stash-read-v1", "public-repository-read-v1", "remote-mcp-v1"].includes(row.profile_id)) throw new PlatformError("CONNECTION_PROFILE_DENIED", 403, "Select a supported connection");
+    if (!["github-public-read-v1", "stash-read-v1", "public-repository-read-v1", "remote-mcp-v1","custom-api-v1"].includes(row.profile_id)) throw new PlatformError("CONNECTION_PROFILE_DENIED", 403, "Select a supported connection");
     if (row.state !== "active" || Date.parse(row.expires_at) <= Date.now()) throw new PlatformError("CONNECTION_INACTIVE", 403, "Connection authorization is unavailable");
     if (expectedRevision !== undefined && row.revision !== expectedRevision) throw new PlatformError("CONNECTION_REVISION_CONFLICT", 409, "Connection changed; refresh and try again");
     return row;
@@ -104,8 +106,8 @@ export class ConnectedCatalogStore {
       if(!profileTransportAllowed(connection.profile_id,catalog.transport)) throw new PlatformError("CATALOG_SCOPE_DENIED",403,"Catalog transport does not match the connection");
       this.registry.resolve(catalog);
       const connectionResources = z.array(resourceHandleSchema).parse(connection.resource_handles);
-      const remote = connection.profile_id === "remote-mcp-v1";
-      if(remote && input.selections.some(selection=>selection.effectPolicy === "owner_reviewed_read") && !(await db.query(
+      const remote = connection.profile_id === "remote-mcp-v1",api=connection.profile_id === "custom-api-v1",generic=remote||api;
+      if(generic && input.selections.some(selection=>selection.effectPolicy === "owner_reviewed_read") && !(await db.query(
         "SELECT 1 FROM agents_platform.memberships WHERE organization_id=$1 AND account_id=$2 AND role='owner' AND revoked_at IS NULL FOR SHARE",
         [scope.organizationId,scope.accountId])).rowCount) throw new PlatformError("CAPABILITY_POLICY_DENIED",403,"Only an owner may attest that a remote operation is read-only");
       const bindings = input.selections.map(selection => {
@@ -116,12 +118,12 @@ export class ConnectedCatalogStore {
           catalog: { id: catalog.id, revision: catalog.revision, digest: catalog.digest }, definition, adapter: catalog.adapter,
           transport: catalog.transport, protocolVersion: catalog.protocolVersion,
           connection: { id: connection.id, profileId: connection.profile_id, policyRevision: connection.policy_revision },
-          resources: selection.resources, policy: remote ? selection.effectPolicy === "owner_reviewed_read"
+          resources: selection.resources, policy: generic ? selection.effectPolicy === "owner_reviewed_read"
             ? { effect: "read", disclosure: "approved_resource_identifiers", retry: "never", approval: "none", cancel: "stop_admission" }
             : { effect: "reviewed_write", disclosure: "exact_reviewed_payload", retry: "status_only", approval: "exact_single_use", cancel: "reconcile_claimed" }
             : { effect: "read", disclosure: connection.profile_id === "stash-read-v1" ? "approved_resource_identifiers" : "public_identifiers", retry: "safe_read", approval: "none", cancel: "stop_admission" },
-          limits: { timeoutMs: 30000, maxPhysicalAttempts: remote ? 1 : 3, ...(remote ? {maxPhysicalRequests:128}:{}),
-            maxResponseBytes: remote ? 2097152 : catalog.transport === "mcp_http" ? 262144 : 2097152, maxModelResultBytes: 8192 } }, catalog);
+          limits: { timeoutMs: 30000, maxPhysicalAttempts: generic ? 1 : 3, ...(generic ? {maxPhysicalRequests:api?1:128}:{}),
+            maxResponseBytes: api?1048576:remote ? 2097152 : catalog.transport === "mcp_http" ? 262144 : 2097152, maxModelResultBytes: 8192 } }, catalog);
       });
       for (const binding of bindings) await db.query("INSERT INTO agents_platform.capability_bindings(id,organization_id,connection_id,catalog_id,account_id,alias,digest,binding) VALUES($1,$2,$3,$4,$5,$6,$7,$8)", [binding.id, scope.organizationId, connection.id, catalog.id, scope.accountId, binding.alias, binding.digest, JSON.stringify(binding)]);
       await this.record(db, scope, input.operationId, digest, bindings); return bindings;

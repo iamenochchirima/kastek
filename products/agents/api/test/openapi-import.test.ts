@@ -30,6 +30,24 @@ function withSecurity(definition: Record<string, unknown>, requirement: unknown 
 }
 
 describe("bounded OpenAPI import", () => {
+  it("requires an explicit supported security alternative without treating an OR choice as combined credentials", () => {
+    const source = { ...document(), components: { securitySchemes: { bearer: { type: "http", scheme: "bearer" }, key: { type: "apiKey", in: "header", name: "x-example-key" } } }, security: [{ bearer: [] }, { key: [] }] };
+    const initial=importOpenApiDocument(source,{serverUrl});
+    expect(initial.operations[0]!.compatible).toBe(false);expect(initial.operations[0]!.securityChoices.map(choice=>choice.security?.type)).toEqual(["bearer","api_key"]);
+    const selections=Object.fromEntries(initial.operations.map(operation=>[operation.alias,1]));
+    const selected=importOpenApiDocument(source,{serverUrl,securitySelections:selections});
+    expect(selected.operations.every(operation=>operation.compatible&&operation.security?.type==="api_key")).toBe(true);
+    expect(selected.operations[0]!.template!.security.name).toBe("x-example-key");
+    expect(()=>importOpenApiDocument(source,{serverUrl,securitySelections:{[initial.operations[0]!.alias]:7}})).not.toThrow();
+    expect(importOpenApiDocument(source,{serverUrl,securitySelections:{[initial.operations[0]!.alias]:7}}).operations[0]!.diagnostics).toContainEqual(expect.objectContaining({code:"OPENAPI_SECURITY_SELECTION_INVALID"}));
+    expect(()=>importOpenApiDocument(source,{serverUrl,securitySelections:{["api_"+"a".repeat(32)]:0}})).toThrow("unavailable operation");
+  });
+  it("bounds repeated server and referenced schema expansion by normalized bytes",()=>{
+    const source=document() as Record<string,any>;
+    source.servers=[{url:serverUrl},...Array.from({length:200},(_,index)=>({url:"https://server.example.com/"+index+"x".repeat(1800)}))];
+    source.paths=Object.fromEntries(Array.from({length:20},(_,index)=>[`/record-${index}`,{get:{operationId:`read-${index}`,responses:{"200":{description:"Ready"}}}}]));
+    expect(()=>importOpenApiDocument(source,{serverUrl})).toThrow("Normalized API catalog exceeds byte limits");
+  });
   it.each(["3.0.4", "3.1.0"])("imports %s operations without declaring GET safe", version => {
     const imported = importOpenApiDocument(document(version), { serverUrl });
     expect(imported.operations).toHaveLength(2);

@@ -1,6 +1,6 @@
 # Integration boundaries
 
-Owner: Agents engineering. Last reviewed: 2026-10-18.
+Owner: Agents engineering. Last reviewed: 2026-10-20.
 
 The shared execution service uses two technical execution kinds: `business` and `workspace`. Connections do not
 create another agent category. Business execution uses Restate; the Lina workspace
@@ -11,14 +11,71 @@ adapter remains unavailable.
 | External agents to Growth or Agencies | Product-owned MCP with OAuth or scoped API keys. | Separate product work; no Agents gateway. |
 | Product backends to Agents execution | Authenticated service with initiating identity and bounded authority. | Signed delegated-identity contract fixtures exist; production product integration and richer private resource contracts remain unavailable. |
 | Customer channels to Agents | Verified channel binding, customer event identity, conversation ownership, and authorized automated or human replies. | Website/widget execution and shared Inbox controls are implemented. WhatsApp, Facebook and Instagram remain unavailable. |
-| Business agents to external reads | Immutable selected native HTTP or MCP bindings, current connection/resource authority and durable receipts. | Public repository and Stash profiles implemented; see acceptance status below. |
+| Business agents to external tools | Immutable selected native HTTP or MCP bindings, current connection/resource authority and durable receipts. | Restricted repository/Stash profiles, general remote MCP and imported native API operations implemented for operator runs. Customer service authority remains separate. |
 | Business agents to report delivery | Exact report bytes, one human approval, one dispatch claim, status-only recovery. | ReportDeliveryHTTP with a verified persistent local receiver. |
 
 Customer channels are separate from external-agent MCP access and outbound tool connections.
 The standalone client targets support, FAQ, booking, and intake. Research and campaign experiences
 belong in Growth or Agencies. The read/report adapters below are shared runtime capabilities;
-they do not define the Agents client catalogue. Provider OAuth and generic MCP-server onboarding
-are not implemented by the current bearer-key profiles.
+they do not define the Agents client catalogue. General MCP onboarding supports anonymous servers, bearer or named keys and browser OAuth. The older restricted profiles retain their separate read contracts. Native API import supports static credentials; provider OAuth requires an implemented provider connector.
+
+## Catalogues and custom connections
+
+The agent Tools catalogue contains reviewed built-ins and integrations. The Skills catalogue contains
+curated and private immutable packages. Custom MCP and API setup supplement those catalogues.
+Connection entries stay distinct by account and connection ID. Adding a library item does not
+change a published agent version.
+
+Custom MCP setup starts at `remote-connections` with a URL. OAuth uses the pinned MCP SDK for
+resource/issuer discovery, PKCE and client registration. An own client is optional and remains bound
+to its exact issuer. Tokens, verifier and registration state are encrypted. Callback state is single use
+and scoped to the signed-in owner. Refresh uses a database lease, runs outside database transactions,
+and persists rotated tokens with compare-and-swap checks. A failed or abandoned refresh requires
+reconnection. Replacing credentials increments the policy revision and invalidates prior bindings.
+Verified provider account identity is not inferred from the endpoint or a successful sign-in.
+
+Discovery creates an immutable candidate catalog. Selection pins compatible operation schemas,
+original names, aliases, exact endpoint and adapter identity. Refresh does not broaden an existing
+agent version. The general adapter supports MCP 2026-07-28, 2025-11-25 and explicit deprecated
+HTTP+SSE compatibility. Unsupported schemas have per-operation diagnostics. Resource, template
+and prompt inventories are retained; model resource reads and prompt activation are not yet exposed.
+Tasks, subscriptions, sampling, roots, elicitation and MCP Apps are not declared client capabilities.
+
+General tool calls retain typed content, structured output and complete bounded private result bytes.
+The model receives a bounded projection and content-block diagnostics. Returned links never cause
+an unrestricted fetch. The current isolated invocation verifies the live descriptor before calling it;
+it has no persistent cross-invocation catalog cache or change-notification session.
+
+Native API setup previews bounded OpenAPI 3.0/3.1 JSON or YAML, or an authored structured request.
+It requires one explicit server URL and an explicit selection when authentication alternatives differ.
+Unsupported external references, combined security and schemas have diagnostics. None, bearer,
+named header/query keys and Basic credentials are supported. Import and connectivity checks never
+execute an arbitrary write. Imported OAuth operations remain unavailable until a provider/client is
+configured through its provider connector.
+
+General MCP and API effects default to exact review, including HTTP GET and tools with a read-only
+hint. An owner may explicitly attest a read policy. The model cannot choose credentials, destination
+or policy. An exact review binds the immutable binding and arguments; its durable human wait holds
+no provider execution slot. Approval is consumed at the physical effect admission. Unknown write
+outcomes retain any response body, become uncertain and are not blindly resent. Completed receipts
+replay before live adapter or credential lookup. Generic imports do not establish business-specific
+idempotency or reconciliation guarantees.
+
+The fresh runtime is `AgentsBusinessRunV13` / `modular-programs-v3`. Fresh schema 028 onward adds
+connection authorization, packaged skills, exact tool reviews and API operation snapshots. Existing
+owner databases and running local services are not upgraded by verification fixtures. Use the normal
+fresh setup command for an isolated environment. Disable new connection/binding admission before
+rolling back code; retain operation receipts and supported runtime releases for in-flight recovery.
+Production deployment, hosted telemetry retention and a live Google OAuth application remain
+separate acceptance steps. Google Calendar bookings is the selected first business-provider work.
+
+## Skill packages
+
+SKILL.md and ZIP uploads preserve a complete immutable package digest and reviewed file inventory.
+Installation does not enable a skill on an agent or execute scripts. Published versions pin reviewed
+revisions. Context initially exposes package metadata, then `skills.activate` and `skills.read` load
+bounded exact files. Activation and file receipts survive compaction and worker continuation.
+Files that exceed a complete-read limit are rejected rather than silently truncated.
 
 ## Public repository reads
 
