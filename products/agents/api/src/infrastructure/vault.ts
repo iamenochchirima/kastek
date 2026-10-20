@@ -11,8 +11,8 @@ export class ConnectionVault {
   if(!this.keys.has(activeKeyId))throw unavailable();
  }
  private aad(org:string,id:string,revision:number){return Buffer.from(canonicalJson({organizationId:org,connectionId:id,credentialRevision:revision}));}
- seal(org:string,id:string,revision:number,secret:string):SecretEnvelope{
-  if(Buffer.byteLength(secret)<16||Buffer.byteLength(secret)>4096)throw new PlatformError("CONNECTION_KEY_INVALID",400,"Enter a scoped API key");
+ seal(org:string,id:string,revision:number,secret:string,maxBytes=4096):SecretEnvelope{
+  if(![4096,65536].includes(maxBytes)||Buffer.byteLength(secret)<16||Buffer.byteLength(secret)>maxBytes)throw new PlatformError("CONNECTION_KEY_INVALID",400,"Connection credentials exceed the supported limits");
   const iv=randomBytes(12),cipher=createCipheriv("aes-256-gcm",this.keys.get(this.activeKeyId)!,iv);cipher.setAAD(this.aad(org,id,revision));
   const ciphertext=Buffer.concat([cipher.update(secret,"utf8"),cipher.final()]);return{keyId:this.activeKeyId,iv:iv.toString("base64"),tag:cipher.getAuthTag().toString("base64"),ciphertext:ciphertext.toString("base64")};
  }

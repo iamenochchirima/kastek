@@ -1,0 +1,38 @@
+.agent-catalogue { max-width: 920px; }
+.catalogue-toolbar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px; margin-bottom: 20px; }
+.catalogue-views { display: flex; gap: 18px; }
+.catalogue-views button { min-height: 36px; border-bottom: 2px solid transparent; color: var(--muted-foreground); font-size: 13px; }
+.catalogue-views button[aria-current="page"] { border-bottom-color: var(--foreground); color: var(--foreground); font-weight: 500; }
+.catalogue-views button span { margin-left: 4px; font-size: 11px; }
+.catalogue-search { position: relative; min-width: 180px; max-width: 260px; flex: 1; }
+.catalogue-search > svg { position: absolute; top: 50%; left: 10px; transform: translateY(-50%); color: var(--muted-foreground); }
+.catalogue-search input { padding-left: 32px; }
+.catalogue-list { border-top: 1px solid var(--border); }
+.catalogue-row { display: flex; align-items: flex-start; gap: 14px; padding: 20px 0; border-bottom: 1px solid var(--border); }
+.catalogue-icon { display: grid; place-items: center; flex: 0 0 40px; height: 40px; border: 1px solid var(--border); border-radius: 9px; color: var(--muted-foreground); }
+.catalogue-details { flex: 1; min-width: 0; }
+.catalogue-details h2 { font-size: 14px; font-weight: 550; line-height: 1.5; overflow-wrap: anywhere; }
+.catalogue-details p { margin-top: 3px; font-size: 13px; line-height: 1.6; color: var(--muted-foreground); overflow-wrap: anywhere; }
+.catalogue-publisher { display: inline-block; margin-top: 5px; color: var(--muted-foreground); font-size: 11px; }
+.catalogue-details p.catalogue-readiness { font-size: 12px; }
+.catalogue-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 8px; margin-top: 3px; }
+.catalogue-added { display: inline-flex; align-items: center; gap: 4px; color: var(--muted-foreground); font-size: 12px; }
+.catalogue-unavailable { color: var(--muted-foreground); font-size: 12px; line-height: 32px; }
+.catalogue-preview-trigger { text-align: left; text-underline-offset: 3px; }
+.catalogue-preview-trigger:hover { text-decoration: underline; }
+.catalogue-empty { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 36px 12px; color: var(--muted-foreground); font-size: 13px; }
+.catalogue-save { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 24px; }
+@media (max-width: 640px) {
+  .catalogue-toolbar { gap: 12px; }
+  .catalogue-views { width: 100%; gap: 20px; }
+  .catalogue-search { max-width: none; flex-basis: 100%; }
+  .catalogue-row { gap: 10px; flex-wrap: wrap; padding: 16px 0; }
+  .catalogue-icon { flex-basis: 34px; height: 34px; }
+  .catalogue-details { flex-basis: calc(100% - 44px); }
+  .catalogue-actions { margin: 0 0 0 44px; justify-content: flex-start; }
+}
+
+.skill-preview-body { max-height: 340px; overflow-y: auto; overflow-wrap: anywhere; white-space: pre-wrap; border: 1px solid var(--border); border-radius: 6px; padding: 14px; font-size: 12px; line-height: 1.65; }
+
+.catalogue-library { display: flex; align-items: center; gap: 10px; margin: 0 0 16px; color: var(--muted-foreground); font-size: 12px; }
+.catalogue-library select { min-height: 34px; border: 1px solid var(--border); border-radius: 6px; padding: 4px 28px 4px 10px; background: var(--background); color: var(--foreground); font-size: 13px; }

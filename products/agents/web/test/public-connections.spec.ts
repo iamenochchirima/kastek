@@ -13,6 +13,7 @@ for (const width of [1440, 768, 390]) {
       const request = route.request(), path = new URL(request.url()).pathname, body = request.method() === "GET" ? null : request.postDataJSON();
       let data: unknown;
       if (path === "/api/session") data = { account: { id: "owner", email: "owner@example.test", displayName: "Owner" }, organizations: [{ id: org, name: "Research", role: "owner" }] };
+      else if (path.endsWith("/remote-connections")) data = { connections: [] };
       else if (path.endsWith("/connections")) {
         if (request.method() === "POST") {
           expect(body.profileId).toBe("public-repository-read-v1"); expect(body.targetId).toBe("provider:public-repository");

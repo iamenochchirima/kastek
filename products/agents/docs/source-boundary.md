@@ -1,6 +1,6 @@
 # Implementation boundary
 
-Owner: Agents engineering. Last reviewed: 2026-10-18.
+Owner: Agents engineering. Last reviewed: 2026-10-20.
 
 Agents is a fresh standalone product. Its API and business worker use the dedicated
 `agents_platform` PostgreSQL schema. Setup loads the ordered SQL files in
@@ -41,17 +41,27 @@ changes withhold the prior deployment's view while the new session initializes. 
 acknowledgement from an unmounted session cannot clear another session's pending input.
 
 Website publication and widget conversations exist. WhatsApp, Facebook, Instagram, booking and
-calendar adapters remain unavailable. Connections exposes narrow report/public-repository/GitHub/
-Stash profiles. Provider OAuth, verified account identity, resource browsing, provider health and
-reauthorization are absent. Current screens do not yet fulfil the target connection experience.
+calendar adapters remain unavailable. The tool catalogue exposes reviewed built-in, native API and
+MCP integration entries with agent-specific recommendations and actual connection readiness.
+Connections retains report/public-repository/GitHub/Stash profiles and adds custom remote MCP
+drafts, encrypted key/header credentials, resumable OAuth attempts, discovery and disconnect.
+The OAuth client uses maintained SDK discovery, PKCE and issuer validation. Real provider OAuth
+acceptance, verified provider account identity and generic agent tool binding remain unverified
+or unavailable. A discovered custom server is not yet a published agent capability.
 Research/report acceptance fixtures prove execution behavior, not a standalone research product.
 The runtime's reviewed personal memory does not imply a personal-assistant catalogue offering.
 
 ## Customer agent configuration
 
-The customer editor exposes no personal-memory, skill, specialist, sandbox, connected-tool or report
-configuration controls. Shared-harness acceptance provisions those capabilities through the normal
-authenticated APIs and retains conversation/task inspection, report review and resource status.
+The customer editor has Tools and Skills catalogues with search, recommendations and explicit
+draft selection. Skills include reviewed KasiTek procedures and private SKILL.md/ZIP package
+imports, file previews and exact-digest owner review. Complete packages retain immutable files,
+source identity and content digests. Installation does not add a skill to an agent. Publication
+and runtime loading reject unreviewed packages. Imported scripts remain inert.
+Personal-memory, specialist, sandbox and report configuration remains outside the customer editor.
+Shared-harness acceptance provisions those capabilities through authenticated APIs.
+Website publication still rejects all skill and connected-tool bindings pending customer-safe
+authority integration. Operator chat can publish reviewed procedural skills.
 Customer creation loads the actual catalogue, sends the selected FAQ/customer-service offering and
 keeps submission unavailable when catalogue loading fails. Website chat reads the canonical customer
 timeline; prior browser output caches are discarded before current-policy reads.

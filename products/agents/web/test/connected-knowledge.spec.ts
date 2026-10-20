@@ -32,7 +32,8 @@ for (const width of [1440, 768, 390]) {
         else if (body.action === "visibility") { expect(approved).toBe(true); published = true; source = { ...source, generation: 3, visibility: body.visibility }; }
         else if (body.action === "withdraw") source = { ...source, generation: 4, state: "withdrawn" };
         data = { source };
-      } else if (path.endsWith("/connections")) {
+      } else if (path.endsWith("/remote-connections")) data = { connections: [] };
+      else if (path.endsWith("/connections")) {
         if (request.method() === "POST") {
           expect(body.profileId).toBe("github-public-read-v1"); expect(body.targetId).toBe("provider:github");
           expect(body.selections).toEqual([{ owner: "approved", repository: "public-repo", ref: "main" }]);

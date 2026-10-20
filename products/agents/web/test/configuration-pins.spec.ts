@@ -1,4 +1,5 @@
 import { agentSummary } from "./workspace-fixtures";
+import { toolCatalogue } from "./catalogue-fixtures";
 import { resolve } from "node:path";
 import { test, expect } from "@playwright/test";
 
@@ -16,6 +17,7 @@ for (const width of [1440, 768, 390]) {
       let data: unknown;
       if (path === "/api/session") data = { account: { id: "owner", email: "owner@example.test", displayName: "Owner" }, organizations: [{ id: "org", name: "Support", role: "owner" }] };
       else if (path.endsWith("/knowledge/sources")) data = { sources, imports: [] };
+      else if (path.endsWith("/catalogue/tools")) data = toolCatalogue;
       else if (path.endsWith("/agents/root")) {
         if (request.method() === "PUT") { const body = request.postDataJSON(); expect(body.expectedRevision).toBe(draftRevision); draft = body.configuration; draftRevision++; }
         data = { agent: { id: "root", name: "Customer support", draft, draftRevision }, versions, deployments: [] };
@@ -37,18 +39,22 @@ for (const width of [1440, 768, 390]) {
     await knowledge.getByRole("checkbox", { name: /Unindexed/ }).check();
     await expect(page.getByRole("alert")).toContainText("Selected sources do not support");
     await knowledge.getByRole("checkbox", { name: /Unindexed/ }).uncheck();
-    const handoff = page.getByRole("checkbox", { name: "Offer human support", exact: true });
-    await expect(handoff).toBeChecked(); await handoff.focus(); await page.keyboard.press("Space"); await expect(handoff).not.toBeChecked();
+    await page.getByRole("button", { name: "Tools", exact: true }).click();
+    const handoff = page.getByRole("article").filter({ has: page.getByRole("heading", { name: "Human support", exact: true }) });
+    await expect(handoff.getByText("Added", { exact: true })).toBeVisible();
+    await handoff.getByRole("button", { name: "Remove Human support", exact: true }).focus();
+    await page.keyboard.press("Enter");
+    await expect(handoff.getByRole("button", { name: "Add Human support", exact: true })).toBeVisible();
     for (const label of ["Use personal memory", "Delegate to specialists", "Run Python analysis", "Prepare reports for approval"]) await expect(page.getByRole("checkbox", { name: label, exact: true })).toHaveCount(0);
-    for (const label of ["Memory", "Skills"]) await expect(page.getByRole("button", { name: label, exact: true })).toHaveCount(0);
+    for (const label of ["Memory"]) await expect(page.getByRole("button", { name: label, exact: true })).toHaveCount(0);
     await expect(page.getByRole("group", { name: "Connected tools", exact: true })).toHaveCount(0);
-    await expect(page.getByRole("checkbox", { name: "Search approved knowledge", exact: true })).toBeChecked();
+    await expect(page.getByRole("article").filter({ has: page.getByRole("heading", { name: "Knowledge search", exact: true }) }).getByText("Added", { exact: true })).toBeVisible();
     await page.getByRole("button", { name: "Save configuration", exact: true }).click();
     await expect(page.getByRole("button", { name: "Save configuration", exact: true })).toBeDisabled();
     expect(draft).toMatchObject({ program: base.program, sourceRevisionIds: ["revision2"], connectedToolBindingIds: [], tools: ["knowledge.search", "knowledge.read"], retrievalProfile: { kind: "hybrid-v1", embeddingRelease: "local-embedding-v1" }, memory: { enabled: false }, capabilities: base.capabilities });
     await page.getByRole("button", { name: "Create version", exact: true }).click();
     await expect(page.getByRole("combobox", { name: "Version", exact: true })).toHaveValue("version-1");
-    await handoff.check(); await page.getByRole("button", { name: "Save configuration", exact: true }).click();
+    await handoff.getByRole("button", { name: "Add Human support", exact: true }).click(); await page.getByRole("button", { name: "Save configuration", exact: true }).click();
     await expect(page.getByRole("button", { name: "Save configuration", exact: true })).toBeDisabled();
     expect(draft.tools).toContain("channel.request_handoff"); expect(versions[0].configuration.tools).not.toContain("channel.request_handoff");
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
@@ -56,6 +62,7 @@ for (const width of [1440, 768, 390]) {
     await expect(page.getByText("Configuration saved", { exact: true }).last()).not.toBeVisible({ timeout: 10_000 });
     await page.screenshot({ path: resolve(process.cwd(), `../../../.audit/customer-agent-config-${width}.png`), fullPage: true, animations: "disabled" });
     sources[0].revisions[1].state = "withdrawn";
+    await page.getByRole("button", { name: "General", exact: true }).click();
     await page.reload();
     await expect(page.getByRole("combobox", { name: "Returns revision", exact: true })).toHaveValue("revision2");
     await expect(page.getByRole("checkbox", { name: /Returns.*Unavailable/ })).toBeChecked();

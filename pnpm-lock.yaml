@@ -472,6 +472,12 @@ importers:
       pg:
         specifier: ^8.16.0
         version: 8.23.0
+      yaml:
+        specifier: 2.9.1
+        version: 2.9.1
+      yauzl:
+        specifier: 3.4.0
+        version: 3.4.0
       zod:
         specifier: ^4.0.0
         version: 4.4.3
@@ -482,6 +488,9 @@ importers:
       '@types/pg':
         specifier: 8.23.1
         version: 8.23.1
+      '@types/yauzl':
+        specifier: 3.4.0
+        version: 3.4.0
       tsx:
         specifier: ^4.20.3
         version: 4.23.12
@@ -4158,6 +4167,9 @@ packages:
   '@types/web-push@3.6.4':
     resolution: {integrity: sha512-GnJmSr40H3RAnj0s34FNTcJi1hmWFV5KXugE0mYWnYhgTAHLJ/dJKAwDmvPJYMke0RplY2XE9LnM4hqSqKIjhQ==}
 
+  '@types/yauzl@3.4.0':
+    resolution: {integrity: sha512-NRPn5w6h8dhcnmx3YIRQcqMywY/+nND/uOkJessedcrowO3C0AssHp3tMJpxKAwOhFOo0OV1y9VtsC5hbKKBAw==}
+
   '@typescript-eslint/eslint-plugin@8.55.0':
     resolution: {integrity: sha512-1y/MVSz0NglV1ijHC8OT49mPJ4qhPYjiK08YUQVbIOyu+5k862LKUHFkpKHWu//zmr7hDR2rhwUm6gnCGNmGBQ==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
@@ -6428,6 +6440,9 @@ packages:
     resolution: {integrity: sha512-//nshmD55c46FuFw26xV/xFAaB5HF9Xdap7HJBBnrKdAd6/GxDBaNA1870O79+9ueg61cZLSVc+OaFlfmObYVQ==}
     engines: {node: '>= 14.16'}
 
+  pend@1.2.0:
+    resolution: {integrity: sha512-F3asv42UuXchdzt+xXqfW1OGlVBe+mxa2mqI0pg5yAHZPvFmY3Y6drSf/GQ1A86WgWEN9Kzh/WrgKa6iGcHXLg==}
+
   perfect-debounce@1.0.0:
     resolution: {integrity: sha512-xCy9V055GLEqoFaHoC1SoLIaLmWctgCUaBaWxDZ7/Zx4CTyX7cJQLJOok/orfjZAh9kEYpjJa4d0KcJmCbctZA==}
 
@@ -7609,6 +7624,10 @@ packages:
 
   yargs@17.7.3:
     resolution: {integrity: sha512-GZtjxm/J/4TSxuL3FNYjCmLktBTnIw/rVmKSIyKeYAZpmJB2ig9VauCC5xsa82GNKVKDAqpOn3KVzNt0zmrU0g==}
+    engines: {node: '>=12'}
+
+  yauzl@3.4.0:
+    resolution: {integrity: sha512-jIH9yLR9wqr0wOS0TpBvo/g/2UgZH5qePVbjgRliiF0BYvOZyaBknKsF+x9Iht0O6sqgnB93rCICdOZFecJuDw==}
     engines: {node: '>=12'}
 
   yocto-queue@0.1.0:
@@ -10903,6 +10922,10 @@ snapshots:
     dependencies:
       '@types/node': 24.19.1
 
+  '@types/yauzl@3.4.0':
+    dependencies:
+      '@types/node': 24.10.1
+
   '@typescript-eslint/eslint-plugin@8.55.0(@typescript-eslint/parser@8.55.0(eslint@9.39.2(jiti@2.7.0))(typescript@5.9.3))(eslint@9.39.2(jiti@2.7.0))(typescript@5.9.3)':
     dependencies:
       '@eslint-community/regexpp': 4.12.2
@@ -13828,6 +13851,8 @@ snapshots:
 
   pathval@2.0.1: {}
 
+  pend@1.2.0: {}
+
   perfect-debounce@1.0.0: {}
 
   pg-cloudflare@1.4.0:
@@ -15315,6 +15340,10 @@ snapshots:
       string-width: 4.2.3
       y18n: 5.0.8
       yargs-parser: 21.1.1
+
+  yauzl@3.4.0:
+    dependencies:
+      pend: 1.2.0
 
   yocto-queue@0.1.0: {}
 

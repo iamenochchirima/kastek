@@ -4,12 +4,14 @@ import { z } from "zod";
 import { PlatformError,type InitiatingPrincipal } from "../../contracts/contracts";
 import { transaction as memoryTransaction } from "../../infrastructure/database";
 import { assertCurrentEvidence,taskEvidenceManifest } from "../context/evidence";
+import { activateSkillPackage, parseSkillPackage, type SkillPackage } from "../../capabilities/skills/package";
 
 export interface MemoryScope { organizationId: string; agentId: string; principal: InitiatingPrincipal }
 export interface ManagementScope { accountId: string; organizationId: string; agentId: string }
 export interface ScopeReference extends ManagementScope { id: string; generation: number }
 export interface MemoryRecord { id: string; kind: "semantic" | "episodic"; content: string; status: "candidate" | "accepted" | "forgotten"; revision: number; sourceTaskId: string | null; expiresAt: string | null; createdAt: string; updatedAt: string }
-export interface SkillRevision { id: string; name: string; description: string; body: string; revision: number; contentDigest: string; createdAt: string }
+export interface SkillRevision { id: string; name: string; description: string; body: string; revision: number; contentDigest: string; createdAt: string;
+  reviewState?: "pending" | "reviewed"; package?: SkillPackage; reviewedDigest?: string }
 const schema = "agents_platform";
 const digest = (value: string) => createHash("sha256").update(value).digest("hex");
 const contentSchema = z.string().trim().min(1).max(8192).refine(value => Buffer.byteLength(value) <= 8192);
@@ -17,8 +19,32 @@ const operationSchema = z.string().min(1).max(128);
 const idSchema = z.uuid();
 const record = (row: Record<string, any>): MemoryRecord => ({ id: row.id, kind: row.kind, content: row.content, status: row.status,
   revision: row.revision, sourceTaskId: row.source_task_id, expiresAt: row.expires_at?.toISOString() ?? null, createdAt: row.created_at.toISOString(), updatedAt: row.updated_at.toISOString() });
-const skill = (row: Record<string, any>): SkillRevision => ({ id: row.id, name: row.name, description: row.description, body: row.body,
-  revision: row.revision, contentDigest: row.content_digest, createdAt: row.created_at.toISOString() });
+const skillSelection = `SELECT s.*,p.files AS package_files,r.content_digest AS reviewed_digest
+  FROM agents_platform.skill_revisions s LEFT JOIN agents_platform.skill_packages p ON p.skill_revision_id=s.id
+  LEFT JOIN agents_platform.skill_package_reviews r ON r.skill_revision_id=s.id
+  WHERE s.organization_id=$1 AND s.agent_id=$2`;
+function skill(row: Record<string, any>, requireReview = false): SkillRevision {
+  const result: SkillRevision = { id: row.id, name: row.name, description: row.description, body: row.body,
+    revision: row.revision, contentDigest: row.content_digest, createdAt: row.created_at.toISOString() };
+  if (row.package_files) {
+    const pkg = parseSkillPackage({ files: row.package_files.map((file: any) => ({ path: file.path, content: file.content, encoding: file.encoding })) });
+    if (pkg.contentDigest !== row.content_digest) throw new PlatformError("SKILL_PACKAGE_CORRUPT", 409, "Skill package content has changed");
+    const reviewed = row.reviewed_digest === pkg.contentDigest;
+    if (requireReview) activateSkillPackage(pkg, row.reviewed_digest ?? "");
+    return { ...result, name: pkg.name, description: pkg.description, body: pkg.body, package: pkg,
+      reviewState: reviewed ? "reviewed" : "pending", ...(reviewed ? { reviewedDigest: row.reviewed_digest as string } : {}) };
+  }
+  return result;
+}
+
+/** Scope authorization belongs to the caller; both publication and task loading use this integrity check. */
+export async function loadSkillRevisions(db: Pool | PoolClient, organizationId: string, agentId: string, skillIds: string[]): Promise<SkillRevision[]> {
+  idSchema.parse(organizationId); idSchema.parse(agentId); z.array(idSchema).max(8).parse(skillIds);
+  if (!skillIds.length) return [];
+  const rows = (await db.query(skillSelection + " AND s.id=ANY($3::uuid[]) ORDER BY s.id", [organizationId, agentId, skillIds])).rows;
+  if (rows.length !== new Set(skillIds).size) throw new PlatformError("SKILL_SCOPE_DENIED", 403, "Skill is unavailable");
+  return rows.map(row => skill(row, true));
+}
 
 export async function requireMemoryAccess(db: PoolClient, scope: ManagementScope): Promise<void> {
   idSchema.parse(scope.accountId); idSchema.parse(scope.organizationId); idSchema.parse(scope.agentId);
@@ -150,14 +176,12 @@ export class MemoryStore {
   }
   async listSkills(accountId: string, organizationId: string, agentId: string): Promise<SkillRevision[]> {
     return memoryTransaction(this.pool, async db => { await requireMemoryAccess(db, { accountId, organizationId, agentId });
-      return (await db.query(`SELECT * FROM ${schema}.skill_revisions WHERE organization_id=$1 AND agent_id=$2 ORDER BY name,revision DESC`, [organizationId, agentId])).rows.map(skill); });
+      return (await db.query(skillSelection + " ORDER BY s.name,s.revision DESC", [organizationId, agentId])).rows.map(row => skill(row)); });
   }
   async readSkills(scope: MemoryScope, skillIds: string[]): Promise<SkillRevision[]> {
     z.array(idSchema).max(8).parse(skillIds);
     return memoryTransaction(this.pool, async db => { const resolved = await this.resolveHuman(db, scope);
-      const rows = (await db.query(`SELECT * FROM ${schema}.skill_revisions WHERE organization_id=$1 AND agent_id=$2 AND id=ANY($3::uuid[]) ORDER BY id`, [resolved.organizationId, resolved.agentId, skillIds])).rows;
-      if (rows.length !== new Set(skillIds).size) throw new PlatformError("SKILL_SCOPE_DENIED", 403, "Skill is unavailable");
-      return rows.map(skill); });
+      return loadSkillRevisions(db, resolved.organizationId, resolved.agentId, skillIds); });
   }
   async publishSkill(scope: ManagementScope, input: { operationId: string; name: string; description: string; body: string }): Promise<SkillRevision> {
     const parsed = z.strictObject({ operationId: operationSchema, name: z.string().trim().min(1).max(80).regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/), description: z.string().trim().min(1).max(1024).refine(value => Buffer.byteLength(value)<=1024), body: z.string().trim().min(1).max(16384).refine(value => Buffer.byteLength(value)<=16384) }).parse(input);

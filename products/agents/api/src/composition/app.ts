@@ -31,6 +31,12 @@ import { pageQuery, cursorKeysFromEnvironment } from "../infrastructure/read-pag
 import { PlatformDiscovery } from "../product/agents/discovery";
 import { registerKnowledgeRoutes } from "../product/agents/knowledge-routes";
 import { registerMemoryRoutes } from "../product/agents/memory-routes";
+import { registerSkillPackageRoutes } from "../product/agents/skill-package-routes";
+import { SkillPackageStore } from "../product/agents/skill-package-store";
+import { registerCatalogueRoutes } from "../product/catalogue/catalogue-routes";
+import { RemoteConnectionStore } from "../product/connections/remote-connections";
+import { registerRemoteConnectionRoutes } from "../product/connections/remote-connection-routes";
+import { curatedSkillCatalog } from "../capabilities/skills/curated";
 import { PlatformStore } from "../product/agents/store";
 import { EvaluationTrials, prepareTrialSchema } from "../product/evaluation/evaluation-trials";
 import { customerOfferings } from "../product/offerings/offerings";
@@ -185,6 +191,36 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
     return {...dto(task),input,inputAvailability,...await readableOutput(task.id,task.output)};
   }
   async function resolveScope(request:FastifyRequest) {const user=await account(request),org=organizationId(request);await store.requireMembership(user.id,org);return {accountId:user.id,organizationId:org};}
+  if(actionServices) registerRemoteConnectionRoutes(app,{store:new RemoteConnectionStore(pool,actionServices.connections.vault,{
+    callbackUrl:`${origin}/api/connections/oauth/callback`,
+    ...(process.env.AGENTS_MCP_CLIENT_METADATA_URL?{clientMetadataUrl:process.env.AGENTS_MCP_CLIENT_METADATA_URL}:{}),
+  }),resolveScope,accountId:async request=>(await account(request)).id});
+  const skillPackages = new SkillPackageStore(pool);
+  registerCatalogueRoutes(app, { resolveScope,
+    getAgent: (scope,id) => store.getAgent(scope.accountId,scope.organizationId,id),
+    listConnections: scope => actionServices?.connections.list(scope) ?? Promise.resolve([]),
+    listBindings: scope => connected?.catalogs.listBindings(scope) ?? Promise.resolve([]),
+    permissions: async () => ["agent.configure"],
+    listSkills: async (scope,agentId) => {
+      if (!agentId) return [];
+      const packages=await skillPackages.list({...scope,agentId});
+      const installed=packages.map(skill => ({
+        id:skill.id,name:skill.name,description:skill.description,revision:skill.revision,digest:skill.contentDigest,
+        publisher:skill.publisher,source:skill.source,
+        state:skill.reviewState==="reviewed"?"available" as const:"unavailable" as const,
+        ...(skill.reviewState!=="reviewed"?{reason:"Review this skill before adding it"}:{}),
+      }));
+      const available=curatedSkillCatalog().filter(skill=>!packages.some(pkg=>pkg.source.kind==="curated"&&pkg.source.slug===skill.slug));
+      return [...installed,...available.map(skill=>({id:`curated:${skill.slug}`,name:skill.name,description:skill.description,
+        revision:1,digest:skill.contentDigest,publisher:skill.publisher,source:skill.source,state:"available" as const,installed:false,
+        purposes:["faq" as const,"customer-service" as const]}))];
+    },
+  });
+  registerSkillPackageRoutes(app, {pool,resolveScope:async request=>{
+    const scope=await resolveScope(request),agentId=uuid.parse(parameters(request).agentId);
+    await store.getAgent(scope.accountId,scope.organizationId,agentId);
+    return {...scope,agentId};
+  }});
   registerAutomationRoutes(app,automations,resolveScope);
   if(actionServices)registerActionRoutes(app,{...actionServices,catalogs:connected?.catalogs,
     discoverCatalog:connected?(scope,input)=>connected.discover(scope,input):undefined,

@@ -27,7 +27,7 @@ type Execution,
 type MemoryFence,type OperationRequest,
 type TaskOutcome
 } from "../lifecycle/execution";
-import { MemoryStore } from "../memory/memory";
+import { MemoryStore, loadSkillRevisions } from "../memory/memory";
 import {
 callModel,estimateRequestTokens,
 ModelOperationError,
@@ -181,7 +181,7 @@ async function buildSnapshot(pool: Pool, taskId: string, step: number, working: 
     sources.push(...memories.slice(0, 8).map(item => ({ id: item.id, revision: item.revision, kind: "memory" as const, content: fitUtf8(item.content, 512) })));
   }
   const skills = !config.skillIds.length ? [] : task.principal.kind==="automation" ?
-    (await pool.query<{id:string;revision:number;body:string}>("SELECT id,revision,body FROM agents_platform.skill_revisions WHERE organization_id=$1 AND agent_id=$2 AND id=ANY($3::uuid[]) ORDER BY id",[task.organization_id,execution.agentId,config.skillIds])).rows :
+    await loadSkillRevisions(pool,task.organization_id,execution.agentId,config.skillIds) :
     await memory.readSkills({ organizationId: task.organization_id, agentId: execution.agentId, principal: task.principal }, config.skillIds);
   const invalidated = (knownGeneration !== undefined && knownGeneration !== memoryFence?.generation) ||
     (knownExpiry !== undefined && Date.now() >= knownExpiry);

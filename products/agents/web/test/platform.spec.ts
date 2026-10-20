@@ -71,7 +71,8 @@ test("mock transport: draft isolation, immutable versions, task reconnect, expli
     else if (path.endsWith("/offerings")) data = { offerings: [{ id: "faq", name: "FAQ", available: true }, { id: "customer-service", name: "Customer service", available: true }, { id: "booking", name: "Booking", available: false }] };
     else if (path.endsWith("/knowledge/sources")) data = { sources: knowledge, imports: [] };
     else if (path.endsWith("/tool-bindings")) data = { bindings: [] };
-    else if (path.endsWith("/connections")) data = { connections: [], targets: [] };
+    else if (path.endsWith("/remote-connections")) data = { connections: [] };
+      else if (path.endsWith("/connections")) data = { connections: [], targets: [] };
     else if (path.endsWith("/knowledge/imports")) { const source = { id: mockKnowledge, title: body.title, content: Buffer.from(body.contentBase64, "base64").toString(), state: "active", visibility: "private", generation: 1, canApprove: true, revisions: [{ id: mockKnowledge, revision: 1, state: "candidate", acquiredAt: new Date().toISOString() }] }; knowledge.push(source); data = { job: { id: "job1", state: "ready" } }; }
     else if (path.endsWith("/policy")) { const source = knowledge[0]; source.generation++; if (body.action === "approve") source.revisions[0].state = "approved"; else if (body.action === "visibility") source.visibility = body.visibility; data = { source }; }
     else if (path === `/api/organizations/${mockOrg}/agents`) { if (method === "POST") { expect(body.offering).toBe("faq"); agent = { id: mockAgent, name: body.name, draft: structuredClone(configuration), draftRevision: 1, updatedAt: new Date().toISOString() }; data = { agent }; } else data = { agents: agent ? [agent] : [] }; }

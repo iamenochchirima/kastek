@@ -177,8 +177,12 @@ return destination preserves internal application links through login.
 The workspace sidebar contains Inbox, Agents, Tasks, Knowledge, Connections, Automations
 and Settings. Creation uses the server offering catalogue: FAQ or customer service; booking is
 unavailable. Every runnable business agent opens Chat, with Activity and Configure tabs.
-Customer configuration exposes instructions, approved knowledge/revision pins, human support
-and website publication. Rich harness configurations use developer/product fixtures. Saving a draft does not
+Customer configuration exposes instructions, approved knowledge/revision pins, a curated Tools
+catalogue and a Skills library with reviewed KasiTek procedures and private SKILL.md/ZIP imports.
+Installing a skill preserves its complete immutable package. Adding it to a draft and publishing
+are separate actions. Owner review checks the exact package digest before execution. Website
+publication still rejects skills and connected tools until customer authority is implemented.
+Rich harness configurations use developer/product fixtures. Saving a draft does not
 change a runnable version. Create version is explicit, and each conversation keeps
 its original version.
 

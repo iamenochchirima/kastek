@@ -16,6 +16,7 @@ import { publishedToolBindings } from "../../capabilities/tools";
 
 import type { Account,AgentRecord,VersionRecord } from "../../contracts/records";
 import { AuthorityStore } from "../../execution/admission/authority-store";
+import { loadSkillRevisions } from "../../execution/memory/memory";
 
 type Db=Pool|PoolClient;
 const hash = (value: string) => createHash("sha256").update(value).digest("hex");
@@ -108,8 +109,7 @@ export class AgentStore extends AuthorityStore {
       assertConnectedBindingDependencies(connected.filter(row => config.connectedToolBindingIds.includes(row.id))
         .map(row => capabilityBindingSchema.parse(row.binding)));
       if (config.skillIds.length) {
-        const skills = await db.query("SELECT id FROM agents_platform.skill_revisions WHERE organization_id=$1 AND agent_id=$2 AND id=ANY($3::uuid[]) FOR SHARE", [input.organizationId,input.agentId,config.skillIds]);
-        if (skills.rowCount !== new Set(config.skillIds).size) denied();
+        await loadSkillRevisions(db, input.organizationId, input.agentId, config.skillIds);
       }
       const composition = compilePublishedComposition(config, connected.filter(row => config.connectedToolBindingIds.includes(row.id)).map(row => capabilityBindingSchema.parse(row.binding)));
       const version = (await db.query<VersionRecord>(`INSERT INTO agents_platform.agent_versions(id,organization_id,agent_id,number,execution_kind,configuration,created_by,draft_revision,tool_bindings,effective_composition)

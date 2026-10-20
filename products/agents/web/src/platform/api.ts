@@ -14,6 +14,19 @@ export type Configuration = {
   skillIds?: string[];
   capabilities: { delegation: DelegationConfiguration; sandbox: { enabled: false } | { enabled: true; profileId: "python-analysis-v1" }; businessActions: { enabled: false }; workflows: { enabled: false } | { enabled: true; profileId: "report-delivery-v1"; connectionId: string; reportArtifactName?: string; title?: string }; schedules: { enabled: false } };
 };
+export type CatalogueItem = {
+  id: string; revision: number | string; digest: string; kind: "builtin" | "mcp" | "native_api" | "skill";
+  name: string; description: string; publisher: { id: string; name: string; verified: boolean };
+  source?: { kind: "curated" | "private"; slug?: string };
+  purposes: string[]; products: string[]; executionKinds: string[];
+  requires: { connectionProfiles: string[]; permissions: string[] };
+  readiness: { state: "ready" | "needs_connection" | "needs_configuration" | "unavailable"; reasons: { code: string; message: string }[] };
+  added: boolean; recommended: boolean;
+  action: { kind: "add" | "connect" | "configure" | "none"; connectionProfileId?: string };
+  configuration: { tools: NonNullable<Configuration["tools"]>; connectedToolBindingIds: string[]; skillIds: string[] };
+};
+export type Catalogue = { schemaVersion: 1; revision: string; agentId: string | null; entries: CatalogueItem[] };
+export type SkillPackage = { id: string; name: string; description: string; revision: number; contentDigest: string; compatibility: string | null; reviewState: "pending" | "reviewed"; createdAt: string; files: { path: string; size: number; contentDigest: string }[] };
 export type CustomerOffering = { id: "faq" | "customer-service" | "booking"; name: string; available: boolean; unavailableCode?: string };
 export type Agent = { offering?: "faq" | "customer-service" | null; id: string; name: string; draft: Configuration; draftRevision: number; updatedAt: string };
 export type Version = { id: string; number: number; configuration: Configuration };
@@ -33,6 +46,8 @@ export type RepositorySelection = { owner: string; repository: string; ref: stri
 export type ConnectionProfile = { id: "report-delivery-v1" | "github-public-read-v1" | "stash-read-v1" | "public-repository-read-v1"; label: string; allowedTransports: string[] };
 export type Connection = { id: string; name: string; targetId: string; targetLabel: string; resource: string; profileId?: ConnectionProfile["id"]; authentication?: "none" | "bearer"; policyRevision?: number; resources?: ResourceHandle[]; selections?: RepositorySelection[]; stashItemIds?: string[]; revision: number; state: "active" | "revoked"; expiresAt: string; createdAt: string };
 export type ConnectionList = { connections: Connection[]; targets: ConnectionTarget[]; profiles?: ConnectionProfile[] };
+export type RemoteConnection = { id: string; name: string; endpoint: string; authentication: "auto" | "none" | "bearer" | "header" | "oauth"; status: string; revision: number; generation: number; lastError: string | null; identity: unknown; createdAt: string; expiresAt: string };
+export type RemoteToolCatalogue = { protocolVersion: string; tools: { name: string; description: string; inputSchema: Record<string, unknown>; outputSchema?: Record<string, unknown>; schemaDigest: string }[]; diagnostics?: unknown };
 export type CapabilityBinding = { id: string; alias: string; digest: string; transport: "builtin" | "native_http" | "mcp_http"; definition: { providerOperation: string; description: string }; connection: { id: string; profileId: string; policyRevision: number } | null; resources: ResourceHandle[] };
 export type CatalogCandidate = { id: string; connectionId: string; credentialRevision: number; policyRevision: number; createdAt: string; selectableOperations: string[]; catalog: { revision: number; transport: "native_http" | "mcp_http"; tools: { providerOperation: string; description: string }[] } };
 export type KnowledgeRevision = { id: string; revision: number; state: "candidate" | "approved" | "withdrawn"; acquiredAt: string; embeddingRelease?: string | null };
