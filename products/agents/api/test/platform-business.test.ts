@@ -1,3 +1,7 @@
+import { createServer as createHttpServer } from "node:http";
+import { ConnectedExecutor } from "../src/capabilities/connected-tools/connected-executor";
+import { RemoteConnectionStore } from "../src/product/connections/remote-connections";
+import { ToolReviewStore } from "../src/capabilities/reviews/tool-reviews";
 import {publishFixtureSource} from "./knowledge-fixture";
 import { execFileSync } from "node:child_process";
 import { randomUUID, randomBytes } from "node:crypto";
@@ -129,6 +133,63 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     await dispatchTasksOnce(pool, { ingressUrl, adminUrl });
     return eventually(async () => { await dispatchTasksOnce(pool,{ingressUrl,adminUrl}); const row = (await pool.query("SELECT * FROM agents_platform.tasks WHERE id=$1", [taskId])).rows[0]; return terminalTaskStates.has(row.state) ? row : false; });
   }
+  it("waits durably for an exact connected-tool review, restarts, then sends once and retains authoritative evidence", async () => {
+    const f=await fixture(); await execute(f.task.id); calls.length=0;
+    let effects=0;
+    const mcp=createHttpServer(async(request,response)=>{
+      if(request.method!=="POST"){response.writeHead(405).end();return;}
+      let body="";for await(const chunk of request)body+=chunk;
+      const message=JSON.parse(body);response.setHeader("content-type","application/json");
+      const send=(result:unknown)=>response.end(JSON.stringify({jsonrpc:"2.0",id:message.id,result}));
+      if(message.method==="initialize")send({protocolVersion:"2025-11-25",capabilities:{tools:{}},serverInfo:{name:"review-fixture",version:"1"}});
+      else if(message.method==="notifications/initialized")response.writeHead(202).end();
+      else if(message.method==="tools/list")send({tools:[{name:"record_request",description:"Record one approved request",inputSchema:{type:"object",required:["message"],additionalProperties:false,properties:{message:{type:"string"}}}}]});
+      else if(message.method==="tools/call"){effects++;send({content:[{type:"text",text:"Provider receipt: request confirmed."}],structuredContent:{id:"confirmed-1"}});}
+      else response.end(JSON.stringify({jsonrpc:"2.0",id:message.id,error:{code:-32601,message:"Unsupported method"}}));
+    });
+    await new Promise<void>(resolve=>mcp.listen(0,"127.0.0.1",resolve));
+    try {
+      const endpoint=`http://127.0.0.1:${(mcp.address() as {port:number}).port}/mcp`,scope={accountId:f.account.id,organizationId:f.org.id};
+      const remote=new RemoteConnectionStore(pool,connections.vault,{callbackUrl:"http://localhost/callback",testLoopback:true});
+      const connection=await remote.create(scope,{operationId:randomUUID(),endpoint,authentication:"none"});
+      const discovered=await remote.discover(scope,connection.id,connection.generation);
+      expect(discovered.candidate).toBeDefined();
+      const [binding]=await remote.catalogs.selectBindings(scope,{operationId:randomUUID(),connectionId:connection.id,expectedRevision:discovered.connection.revision,
+        catalogId:discovered.candidate!.catalog.id,selections:[{providerOperation:"record_request",resources:[{kind:"mcp.endpoint",id:endpoint}]}]});
+      const reviews=new ToolReviewStore(pool),evidence=new EvidenceStore(pool,artifacts.objects);
+      businessOptions.connected=new ConnectedExecutor(pool,connections,artifacts.objects,evidence,{resolveRemoteEndpoint:remote.resolveRemoteEndpoint.bind(remote),genericReview:reviews.port()});
+      businessOptions.toolReviews=reviews;
+      const configuration={...f.config,connectedToolBindingIds:[binding!.id]};
+      const draft=await store.updateDraft({...f.managed,configuration,expectedRevision:1}),version=await store.createVersion({...f.managed,expectedRevision:draft.draft_revision});
+      const grant:ExecutionGrant={...f.grant,id:randomUUID(),versionId:version.id,operations:[...f.grant.operations,"connected.read","connected.execute"],connectedToolBindingIds:[binding!.id]};
+      await store.createGrant({accountId:f.account.id,grant});
+      const admitted=await store.admitTask({...f.request,grantId:grant.id,versionId:version.id,requestKey:randomUUID()});
+      let steps=0;
+      provider=async body=>{
+        steps++;
+        if(steps===1)return reply("","tool_calls",[tool(binding!.alias,{message:"Please record this request"},"approved-operation")]);
+        expect(JSON.stringify(body.messages)).toContain("Provider receipt: request confirmed.");
+        return reply("The provider confirmed the request.");
+      };
+      await dispatchTasksOnce(pool,{ingressUrl,adminUrl});
+      const review=await eventually(async()=>{
+        await dispatchTasksOnce(pool,{ingressUrl,adminUrl});
+        const row=(await pool.query("SELECT state FROM agents_platform.tasks WHERE id=$1",[admitted.task.id])).rows[0];
+        const pending=await reviews.list(scope,admitted.task.id);return row?.state==="waiting_review"&&pending.length?pending[0]!:false;
+      });
+      expect(effects).toBe(0);
+      expect((await pool.query("SELECT count(*) FROM agents_platform.connected_attempts a JOIN agents_platform.connected_reads r ON r.operation_id=a.operation_id WHERE r.task_id=$1",[admitted.task.id])).rows[0].count).toBe("0");
+      await restart();
+      await reviews.decide(scope,review.id,{decision:"approve",requestDigest:review.requestDigest});
+      const settled=await execute(admitted.task.id);
+      expect(settled.state,settled.error_code).toBe("completed");expect(effects).toBe(1);expect(steps).toBe(2);
+      expect((await reviews.list(scope,admitted.task.id))[0]!.state).toBe("completed");
+      expect((await pool.query("SELECT count(*) FROM agents_platform.evidence_contents c JOIN agents_platform.evidence_references r ON r.id=c.reference_id WHERE r.task_id=$1 AND c.binding_id=$2",[admitted.task.id,binding!.id])).rows[0].count).toBe("1");
+    }finally {
+      businessOptions.connected=undefined;businessOptions.toolReviews=undefined;
+      mcp.closeAllConnections();await new Promise<void>(resolve=>mcp.close(()=>resolve()));
+    }
+  },60000);
   it("loads reviewed skill metadata first, activates instructions and exact files without memory, and restores them after compaction", async () => {
     const f = await fixture(); await execute(f.task.id); calls.length = 0;
     const packages = new SkillPackageStore(pool), pkg = parseSkillPackage({ files: [
