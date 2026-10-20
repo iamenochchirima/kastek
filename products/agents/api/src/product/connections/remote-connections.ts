@@ -16,11 +16,13 @@ import { ConnectionStore } from "./connections";
 const hash = (value: string) => createHash("sha256").update(value).digest("hex");
 const missing = () => new PlatformError("CONNECTION_NOT_FOUND", 404, "Connection not found");
 const conflict = () => new PlatformError("CONNECTION_CHANGED", 409, "Connection changed; refresh and try again");
+const oauthClientSchema=z.strictObject({issuer:z.string().url().max(2048),clientId:z.string().min(1).max(2048),clientSecret:z.string().min(1).max(4096).optional(),
+  authMethod:z.enum(["none","client_secret_basic","client_secret_post"]).default("none")});
 const authSchema = z.enum(["auto", "none", "bearer", "header", "oauth"]);
 export const remoteConnectionInput = z.strictObject({ operationId: z.string().min(1).max(128),
   name: z.string().trim().min(1).max(120).optional(), endpoint: z.string().min(1).max(2048),
   authentication: authSchema.default("auto"), secret: z.string().min(1).max(4096).optional(),
-  headerName: z.string().regex(/^[A-Za-z][A-Za-z0-9-]{0,63}$/).optional() });
+  headerName: z.string().regex(/^[A-Za-z][A-Za-z0-9-]{0,63}$/).optional(),oauthClient:oauthClientSchema.optional() });
 export interface RemoteConnectionDTO {
   id: string; name: string; endpoint: string; authentication: z.infer<typeof authSchema>;
   status: string; revision: number; generation: number; lastError: string | null;
@@ -72,6 +74,11 @@ export class RemoteConnectionStore {
       throw new PlatformError("CONNECTION_HEADER_INVALID", 400, "Enter a supported credential header");
     if (!["header", "bearer"].includes(input.authentication) && input.secret)
       throw new PlatformError("CONNECTION_KEY_INVALID", 400, "Choose the credential method");
+    if(input.oauthClient) {
+      if(!["auto","oauth"].includes(input.authentication))throw new PlatformError("OAUTH_CLIENT_INVALID",400,"Choose OAuth for an OAuth client");
+      remoteEndpoint(input.oauthClient.issuer,this.options.testLoopback);
+      if(input.oauthClient.authMethod!=="none"&&!input.oauthClient.clientSecret)throw new PlatformError("OAUTH_CLIENT_INVALID",400,"Enter the OAuth client secret");
+    }
     return transaction(this.pool, async db => {
       await requireActionMember(db, scope);
       await db.query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))", [`remote:${scope.organizationId}:${scope.accountId}:${input.operationId}`]);
@@ -79,6 +86,8 @@ export class RemoteConnectionStore {
         WHERE organization_id=$1 AND account_id=$2 AND operation_id=$3`, [scope.organizationId, scope.accountId, input.operationId])).rows[0];
       if (old) { if (old.request_digest !== digest) throw conflict(); return old.result as RemoteConnectionDTO; }
       const id = randomUUID(), secret: StoredSecret = input.secret ? { secret: input.secret } : {};
+      if(input.oauthClient)secret.authorization={ownClientIssuer:input.oauthClient.issuer,client:{client_id:input.oauthClient.clientId,
+        ...(input.oauthClient.clientSecret?{client_secret:input.oauthClient.clientSecret}:{}),token_endpoint_auth_method:input.oauthClient.authMethod,issuer:input.oauthClient.issuer}};
       const created = (await db.query(`INSERT INTO agents_platform.connections(id,organization_id,account_id,name,target_id,resource,profile_id,expires_at,resource_handles)
         VALUES($1,$2,$3,$4,'provider:remote-mcp',$5,'remote-mcp-v1',now()+interval '90 days',$6) RETURNING *`,
       [id, scope.organizationId, scope.accountId, input.name ?? endpoint.hostname, endpoint.href,JSON.stringify([{kind:"mcp.endpoint",id:endpoint.href}])])).rows[0];
@@ -125,7 +134,7 @@ export class RemoteConnectionStore {
     }
     const { row, leaseId } = await this.lease(scope, id, generation), stored = this.secret(row);
     const state = randomBytes(32).toString("base64url"), attemptId = randomUUID();
-    const authorization: RemoteAuthorization = { client: stored.authorization?.client, state };
+    const authorization: RemoteAuthorization = { client: stored.authorization?.client, ownClientIssuer:stored.authorization?.ownClientIssuer,state };
     try {
       const result = await authorizeRemote({ ...this.options, endpoint: row.endpoint }, authorization, undefined, true);
       if (result !== "REDIRECT" || !authorization.authorizationUrl) throw new PlatformError("OAUTH_REDIRECT_UNAVAILABLE", 400, "The server did not provide a sign-in flow");

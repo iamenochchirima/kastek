@@ -12,6 +12,7 @@ export interface RemoteAuthorization {
   state?: string;
   authorizationUrl?: string;
   issuedAt?: number;
+  ownClientIssuer?: string;
 }
 export interface RemoteAuthOptions {
   endpoint: string;
@@ -37,7 +38,7 @@ export function remoteEndpoint(value: string, testLoopback = false): URL {
 async function publicRedirect(value: URL, testLoopback = false): Promise<void> {
   remoteEndpoint(value.href, testLoopback);
   if (testLoopback && value.protocol === "http:") return;
-  const addresses = await lookup(value.hostname, { all: true, verbatim: true });
+  const addresses = await lookup(value.hostname.replace(/^\[|\]$/g, ""), { all: true, verbatim: true });
   if (!addresses.length || addresses.some(address => !publicAddress(address.address)))
     throw failure("MCP_DESTINATION_DENIED", "The authorization server must have a public address");
 }
@@ -64,7 +65,10 @@ export function remoteAuthProvider(options: RemoteAuthOptions, data: RemoteAutho
     clientMetadata: { client_name: options.clientName ?? "Kasitek Agents", redirect_uris: [options.callbackUrl],
       grant_types: ["authorization_code", "refresh_token"], response_types: ["code"], token_endpoint_auth_method: "none" },
     state: () => { if (!data.state) throw failure("OAUTH_STATE_REQUIRED", "Restart sign in"); return data.state; },
-    clientInformation: ctx => !ctx || !data.client?.issuer || data.client.issuer === ctx.issuer ? data.client : undefined,
+    clientInformation: ctx => {
+      if(ctx && data.ownClientIssuer && data.ownClientIssuer!==ctx.issuer)throw failure("OAUTH_ISSUER_CHANGED","The authorization server differs from the configured client issuer");
+      return !ctx || !data.client?.issuer || data.client.issuer===ctx.issuer ? data.client : undefined;
+    },
     saveClientInformation: (client, ctx) => { data.client = { ...client, ...(ctx ? { issuer: ctx.issuer } : {}) }; },
     tokens: ctx => !ctx || !data.tokens?.issuer || data.tokens.issuer === ctx.issuer ? data.tokens : undefined,
     saveTokens: (tokens, ctx) => { data.tokens = { ...tokens, ...(ctx ? { issuer: ctx.issuer } : {}) }; data.issuedAt = Date.now(); },
