@@ -14,9 +14,18 @@ export interface GoogleOAuthPort {
 export function googleOAuthConfigFromEnvironment(env:NodeJS.ProcessEnv=process.env):GoogleOAuthConfig|undefined {
   const {GOOGLE_CALENDAR_CLIENT_ID:clientId,GOOGLE_CALENDAR_CLIENT_SECRET:clientSecret,GOOGLE_CALENDAR_CALLBACK_URL:callbackUrl,AGENTS_PUBLIC_URL:appUrl}=env;
   if(!clientId||!clientSecret||!callbackUrl||!appUrl)return;
-  try{const callback=new URL(callbackUrl),app=new URL(appUrl);if(callback.protocol!=="https:"||app.protocol!=="https:"||callback.username||callback.password||callback.search||callback.hash||app.username||app.password)return;
-    if(!callback.pathname.endsWith("/api/google-calendar/callback"))return;
-    return {clientId,clientSecret,callbackUrl:callback.href,appUrl:app.href};}catch{return;}
+  try {
+    const callback=new URL(callbackUrl),app=new URL(appUrl);
+    const localDevelopment=[undefined,"development","test"].includes(env.NODE_ENV)
+      && app.protocol==="http:"&&["localhost","127.0.0.1","[::1]"].includes(app.hostname);
+    if(callback.origin!==app.origin||(!localDevelopment&&(callback.protocol!=="https:"||app.protocol!=="https:")))return;
+    if(callback.pathname!=="/api/google-calendar/callback"||app.pathname!=="/")return;
+    for(const value of [callbackUrl,appUrl]) {
+      const url=new URL(value),authority=value.match(/^[a-z]+:\/\/([^/?#]*)/i)?.[1];
+      if(url.username||url.password||authority?.includes("@")||/[?#\x00-\x20\x7f]/.test(value))return;
+    }
+    return {clientId,clientSecret,callbackUrl:callback.href,appUrl:app.href};
+  }catch{return;}
 }
 const tokensSchema=z.strictObject({accessToken:z.string().min(1).max(8192),refreshToken:z.string().min(1).max(8192),expiresAt:z.iso.datetime({offset:true}),scopes:z.array(z.string().max(256)).max(32),subject:z.string().min(1).max(256),email:z.email().max(320)});
 export function parseGoogleTokens(value:unknown):GoogleOAuthTokens {return tokensSchema.parse(value);}
